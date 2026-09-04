@@ -835,38 +835,38 @@
   "badge": [
     {
       "heading": "Usage",
-      "imports": "use herogpui::prelude::{Badge, BadgeAnchor, BadgeLabel};\nuse gpui::prelude::*;",
-      "code": "BadgeAnchor::new()\n    .child(avatar_box(cx))\n    .child(Badge::new().child(BadgeLabel::new().child(\"5\")))"
+      "imports": "use herogpui::prelude::{Badge, BadgeAnchor, BadgeLabel, BadgePlacement, Color, Size};\nuse gpui::prelude::*;",
+      "code": "row(vec![\n    BadgeAnchor::new()\n        .child(avatar_box((\"badge-anchor\", 0usize), \"Jane Doe\"))\n        .child(\n            Badge::new()\n                .color(Color::Danger)\n                .size(Size::Sm)\n                .child(BadgeLabel::new().child(\"5\")),\n        )\n        .into_any_element(),\n    BadgeAnchor::new()\n        .child(avatar_box((\"badge-anchor\", 1usize), \"Alex Brown\"))\n        .child(\n            Badge::new()\n                .color(Color::Accent)\n                .size(Size::Sm)\n                .child(BadgeLabel::new().child(\"New\")),\n        )\n        .into_any_element(),\n    BadgeAnchor::new()\n        .child(avatar_box((\"badge-anchor\", 2usize), \"Chris Davis\"))\n        .child(\n            Badge::new()\n                .color(Color::Success)\n                .size(Size::Sm)\n                .placement(BadgePlacement::BottomRight),\n        )\n        .into_any_element(),\n])"
     },
     {
       "heading": "Sizes",
       "imports": "use herogpui::prelude::{Badge, BadgeAnchor, BadgeLabel, Size};\nuse gpui::prelude::*;",
-      "code": "row(Size::ALL\n    .iter()\n    .map(|sz| {\n        BadgeAnchor::new().child(avatar_box(cx)).child(\n            Badge::new()\n                .size(*sz)\n                .child(BadgeLabel::new().child(\"5\")),\n        )\n    })\n    .collect())"
+      "code": "row(Size::ALL\n    .iter()\n    .map(|sz| {\n        BadgeAnchor::new()\n            .child(avatar_box((\"badge-anchor\", 1usize), \"Alex Brown\"))\n            .child(\n                Badge::new()\n                    .size(*sz)\n                    .child(BadgeLabel::new().child(\"5\")),\n            )\n    })\n    .collect())"
     },
     {
       "heading": "Dot Badge",
       "imports": "use herogpui::prelude::{Badge, BadgeAnchor, BadgeLabel, Color};\nuse gpui::prelude::*;",
-      "code": "row(Color::ALL\n    .iter()\n    .map(|c| {\n        BadgeAnchor::new()\n            .child(avatar_box(cx))\n            .child(Badge::new().color(*c))\n    })\n    .collect())"
+      "code": "row(Color::ALL\n    .iter()\n    .map(|c| {\n        BadgeAnchor::new()\n            .child(avatar_box((\"badge-anchor\", 2usize), \"Chris Davis\"))\n            .child(Badge::new().color(*c))\n    })\n    .collect())"
     },
     {
       "heading": "With Content",
       "imports": "use herogpui::prelude::{ActiveTheme, Badge, BadgeAnchor, BadgeLabel, Color, Size, icons};\nuse gpui::prelude::*;\nuse gpui::px;",
-      "code": "row(vec![\n    BadgeAnchor::new().child(avatar_box(cx)).child(\n        Badge::new()\n            .color(Color::Danger)\n            .size(Size::Sm)\n            .child(BadgeLabel::new().child(\"5\")),\n    ),\n    BadgeAnchor::new().child(avatar_box(cx)).child(\n        Badge::new()\n            .color(Color::Accent)\n            .child(BadgeLabel::new().child(\"NEW\")),\n    ),\n    BadgeAnchor::new().child(avatar_box(cx)).child(\n        Badge::new().color(Color::Success).child(\n            gpui::svg()\n                .size(px(10.))\n                .path(icons::CHECK)\n                .text_color(cx.colors().success.foreground),\n        ),\n    ),\n])"
+      "code": "row(vec![\n    BadgeAnchor::new()\n        .child(avatar_box((\"badge-anchor\", 3usize), \"Jane Doe\"))\n        .child(\n            Badge::new()\n                .color(Color::Danger)\n                .size(Size::Sm)\n                .child(BadgeLabel::new().child(\"5\")),\n        ),\n    BadgeAnchor::new()\n        .child(avatar_box((\"badge-anchor\", 4usize), \"Alex Brown\"))\n        .child(\n            Badge::new()\n                .color(Color::Accent)\n                .child(BadgeLabel::new().child(\"NEW\")),\n        ),\n    BadgeAnchor::new()\n        .child(avatar_box((\"badge-anchor\", 5usize), \"Chris Davis\"))\n        .child(\n            Badge::new().color(Color::Success).child(\n                gpui::svg()\n                    .size(px(10.))\n                    .path(icons::CHECK)\n                    .text_color(cx.colors().success.foreground),\n            ),\n        ),\n])"
     },
     {
       "heading": "Variants",
       "imports": "use herogpui::prelude::{Badge, BadgeAnchor, BadgeLabel, BadgeVariant, Color};\nuse gpui::prelude::*;",
-      "code": "row(BadgeVariant::ALL\n    .iter()\n    .map(|v| {\n        BadgeAnchor::new().child(avatar_box(cx)).child(\n            Badge::new()\n                .color(Color::Accent)\n                .variant(*v)\n                .child(BadgeLabel::new().child(\"5\")),\n        )\n    })\n    .collect())"
+      "code": "row(BadgeVariant::ALL\n    .iter()\n    .map(|v| {\n        BadgeAnchor::new()\n            .child(avatar_box((\"badge-anchor\", 6usize), \"Jane Doe\"))\n            .child(\n                Badge::new()\n                    .color(Color::Accent)\n                    .variant(*v)\n                    .child(BadgeLabel::new().child(\"5\")),\n            )\n    })\n    .collect())"
     },
     {
       "heading": "Colors",
       "imports": "use herogpui::prelude::{Badge, BadgeAnchor, BadgeLabel, Color};\nuse gpui::prelude::*;",
-      "code": "row(Color::ALL\n    .iter()\n    .map(|c| {\n        BadgeAnchor::new().child(avatar_box(cx)).child(\n            Badge::new()\n                .color(*c)\n                .child(BadgeLabel::new().child(\"5\")),\n        )\n    })\n    .collect())"
+      "code": "row(Color::ALL\n    .iter()\n    .map(|c| {\n        BadgeAnchor::new()\n            .child(avatar_box((\"badge-anchor\", 7usize), \"Alex Brown\"))\n            .child(\n                Badge::new()\n                    .color(*c)\n                    .child(BadgeLabel::new().child(\"5\")),\n            )\n    })\n    .collect())"
     },
     {
       "heading": "Dot & placement",
       "imports": "use herogpui::prelude::{Badge, BadgeAnchor, BadgeLabel, BadgePlacement, Color};\nuse gpui::prelude::*;",
-      "code": "row(vec![\n    // No children is v3's dot badge.\n    BadgeAnchor::new()\n        .child(avatar_box(cx))\n        .child(Badge::new().color(Color::Success))\n        .into_any_element(),\n    BadgeAnchor::new()\n        .child(avatar_box(cx))\n        .child(\n            Badge::new()\n                .placement(BadgePlacement::BottomRight)\n                .child(BadgeLabel::new().child(\"9\")),\n        )\n        .into_any_element(),\n    BadgeAnchor::new()\n        .child(avatar_box(cx))\n        .child(\n            Badge::new()\n                .placement(BadgePlacement::TopLeft)\n                .child(BadgeLabel::new().child(\"New\")),\n        )\n        .into_any_element(),\n])"
+      "code": "row(vec![\n    // No children is v3's dot badge.\n    BadgeAnchor::new()\n        .child(avatar_box((\"badge-anchor\", 8usize), \"Chris Davis\"))\n        .child(Badge::new().color(Color::Success))\n        .into_any_element(),\n    BadgeAnchor::new()\n        .child(avatar_box((\"badge-anchor\", 9usize), \"Jane Doe\"))\n        .child(\n            Badge::new()\n                .placement(BadgePlacement::BottomRight)\n                .child(BadgeLabel::new().child(\"9\")),\n        )\n        .into_any_element(),\n    BadgeAnchor::new()\n        .child(avatar_box((\"badge-anchor\", 10usize), \"Alex Brown\"))\n        .child(\n            Badge::new()\n                .placement(BadgePlacement::TopLeft)\n                .child(BadgeLabel::new().child(\"New\")),\n        )\n        .into_any_element(),\n])"
     }
   ],
   "chip": [
@@ -1413,19 +1413,19 @@
   "alert": [
     {
       "heading": "Usage",
-      "imports": "use herogpui::prelude::Alert;",
-      "code": "Alert::new(\"Heads up\")\n    .description(\"This is an alert with a title and a description.\")"
+      "imports": "use herogpui::prelude::Alert;\nuse gpui::prelude::*;",
+      "code": "wide_col(vec![Alert::new(\"New features available\")\n    .description(ALERT_USAGE_DESCRIPTION)\n    .into_any_element()])"
     },
     {
       "heading": "Colors",
-      "imports": "use herogpui::prelude::{Alert, Color};\nuse gpui::prelude::*;\nuse gpui::px;",
-      "code": "gpui::div()\n    .flex()\n    .flex_col()\n    .items_start()\n    .gap(px(12.))\n    .children(Color::ALL\n        .iter()\n        .map(|c| {\n            Alert::new(format!(\"{} alert\", c.label()))\n                .description(\"Something worth reading happened.\")\n                .status(*c)\n        })\n        )"
+      "imports": "use herogpui::prelude::{Alert, Color};",
+      "code": "wide_col(Color::ALL\n    .iter()\n    .map(|c| {\n        Alert::new(format!(\"{} alert\", c.label()))\n            .description(\"Something worth reading happened.\")\n            .status(*c)\n    })\n    )"
     },
     {
       "heading": "Closable",
       "description": "v3 removed `isClosable`/`onClose`; a close affordance is an ordinary child, the way the pinned example composes a `CloseButton`.",
       "imports": "use herogpui::prelude::{Alert, Button, CloseButton, Color, Size, Variant};\nuse gpui::prelude::*;",
-      "code": "if self.alert_visible {\n        Alert::new(\"Saved\")\n            .description(\"Your changes are live.\")\n            .status(Color::Success)\n            .child(CloseButton::new(\"alert-closable-close\").on_press(\n                cx.listener(|this, _, _, cx| {\n                    this.alert_visible = false;\n                    cx.notify();\n                }),\n            ))\n            .into_any_element()\n    } else {\n        Button::new(\"alert-restore\")\n            .label(\"Bring it back\")\n            .variant(Variant::Tertiary)\n            .size(Size::Sm)\n            .on_press(cx.listener(|this, _, _, cx| {\n                this.alert_visible = true;\n                cx.notify();\n            }))\n            .into_any_element()\n    }"
+      "code": "wide_col(vec![\n    if self.alert_visible {\n        Alert::new(\"Saved\")\n            .description(\"Your changes are live.\")\n            .status(Color::Success)\n            .child(CloseButton::new(\"alert-closable-close\").on_press(\n                cx.listener(|this, _, _, cx| {\n                    this.alert_visible = false;\n                    cx.notify();\n                }),\n            ))\n            .into_any_element()\n    } else {\n        Button::new(\"alert-restore\")\n            .label(\"Bring it back\")\n            .variant(Variant::Tertiary)\n            .size(Size::Sm)\n            .on_press(cx.listener(|this, _, _, cx| {\n                this.alert_visible = true;\n                cx.notify();\n            }))\n            .into_any_element()\n    },\n])"
     }
   ],
   "meter": [
@@ -2319,8 +2319,8 @@
   "card": [
     {
       "heading": "Usage",
-      "imports": "use herogpui::prelude::{Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle};\nuse gpui::prelude::*;\nuse gpui::px;",
-      "code": "Card::new()\n    .w(px(260.))\n    .child(\n        CardHeader::new()\n            .child(CardTitle::new().child(\"Daily report\"))\n            .child(\n                CardDescription::new().child(\"Traffic summary for the week\"),\n            ),\n    )\n    .child(CardContent::new().child(\"Sessions are up 12% week over week.\"))"
+      "imports": "use herogpui::prelude::{ActiveTheme, Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle, Link, icons};\nuse gpui::prelude::*;\nuse gpui::px;",
+      "code": "Card::new()\n    .w(px(400.))\n    .child(\n        gpui::svg()\n            .size(px(24.))\n            .path(icons::KEY)\n            .text_color(cx.colors().accent.color),\n    )\n    .child(\n        CardHeader::new()\n            .child(CardTitle::new().child(\"Become an Acme Creator!\"))\n            .child(CardDescription::new().child(CARD_USAGE_DESCRIPTION),),\n    )\n    .child(\n        CardFooter::new().child(\n            Link::new(\"card-usage-link\")\n                .label(\"Creator Hub\")\n                .href(\"https://heroui.com\")\n                .icon(\n                    gpui::svg()\n                        .size(px(12.))\n                        .path(icons::EXTERNAL_LINK)\n                        .text_color(cx.colors().link),\n                ),\n        ),\n    )"
     },
     {
       "heading": "Variants",

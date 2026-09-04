@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "artifactSha256": "8180fca8d83b195bf9c61873d89bc6689cb605796821f37a3814d7d339581ef7",
-  "glueSha256": "0cb6b2a359fdb2c2b9343bf7e87968d1e89d46226a2d7eb1b96532902f18038a",
+  "artifactSha256": "e07d959821e3b472e5e9d7edea70a4898d74b4afa5eb7278a0d43609d1eab1b2",
+  "glueSha256": "8e1847a41e8402fa567ff7cf7dcfeda4b9809b5493431c9e7a18dbd80ca6ecfe",
   "examples": {
     "accordion/Controlled": {
       "nativeCodeSha256": "2816548407263e0fdeada0ff2ec1e8f9fd45a2d33b24ab2cf163539711fe6f8a",
@@ -92,15 +92,15 @@
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "alert/Closable": {
-      "nativeCodeSha256": "58bd6009f51252247c2ad1aba362c9a19f6fe6087d79f36759ebe46c727dc07e",
+      "nativeCodeSha256": "44ea3ecd23daf6f336f3bd3a8d6f3951d5ad6e86e05b3f0409919329df8ce796",
       "descriptionSha256": "a6557508f02e18a7f695e4d5a2e2a841452090b9091f92e28371d4cd365799f7"
     },
     "alert/Colors": {
-      "nativeCodeSha256": "8ece7403384467569df47c738a548c047ae39b7f213cf7b944236f3647954a65",
+      "nativeCodeSha256": "f01a5af3abb173ae8d217da36f1510d6cd16328f253298a3d80e192e5fb52247",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "alert/Usage": {
-      "nativeCodeSha256": "f8acd6ac38ff7ce03c30acecca5fc8d8d73be4d8a25cc407e0fb8e3981e4faa5",
+      "nativeCodeSha256": "c6d08606da5316025392e9aba44b769b77277a163f90974f1ff7eefa298ea338",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "autocomplete/Allows Empty Collection": {
@@ -204,31 +204,31 @@
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "badge/Colors": {
-      "nativeCodeSha256": "c9cd26bc7eff5ed4370e673a5f43ac813fa11f6d9165011081bedcc00551610d",
+      "nativeCodeSha256": "058a2fd65a889f6a5cbe343946cb61ed5ab4e68bbaf10b4e4f2c467b49a668ea",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "badge/Dot & placement": {
-      "nativeCodeSha256": "c010aeddec982f1e5f88bfd0122dd7f5b4df876412d30f0ec329471835ce70a4",
+      "nativeCodeSha256": "409e950d9813e92d12f61547a4fbdeafb7fd59b9b263c55bc7f5f834fbbc7679",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "badge/Dot Badge": {
-      "nativeCodeSha256": "18bdccd39b25192ac68589809f7ae71948c389a347028d9c248d207d46d1c925",
+      "nativeCodeSha256": "91ef35cc62168e2e058aab74716a1071964d9f6490c80b90f7404c01a1d68a48",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "badge/Sizes": {
-      "nativeCodeSha256": "018581af57d7949b91ec3aa614558871cef17a15baba7e3fd639f7b38a4059d6",
+      "nativeCodeSha256": "fa07f447a9f745545e365bfd18cb5ab8d33a7477ebef78034420bf91b8c70359",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "badge/Usage": {
-      "nativeCodeSha256": "ae886af4a07749241a512967b400b3c683b534d793ed9ddd6aa09e2690d30bf0",
+      "nativeCodeSha256": "5e54c03b189300a84e1fc1c2034d20ae967d3b97a8537c0f7f44cdba3cc2b229",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "badge/Variants": {
-      "nativeCodeSha256": "99df27282c7856432c226f176f197c40f47d246c74dcf26771242d9fc9a879e7",
+      "nativeCodeSha256": "39f476b86b428fb078bc056757b2168f4b5ea37b849742c8c2aec29fe7f3da08",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "badge/With Content": {
-      "nativeCodeSha256": "d83674e2bbff346edc95f6a8e6a181741d55fea17f985ae168206290d20b90db",
+      "nativeCodeSha256": "248aba592a8386500b86efeb28e045c6fe6d191294dceab92d6b76112f5dea20",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "breadcrumbs/Custom Separator": {
@@ -404,7 +404,7 @@
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "card/Usage": {
-      "nativeCodeSha256": "1e6ff287532ae5bb57872d5d20475e731cbf217949df497ca67ca4b9a4edacd8",
+      "nativeCodeSha256": "5dddb0ad8004c9f58be663ea385e45bdaca49cbf03eff1320bfc162d3c590c1b",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "card/Variants": {

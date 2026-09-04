@@ -14939,7 +14939,7 @@ index 723274b0..f4c6f34d 100644
              // `HEROGPUI_WINDOW_SIZE=1200x2000` opens the window at that size.
              // A capture is one PrintWindow of the whole window, so a taller
 diff --git a/gallery/src/pages/components.rs b/gallery/src/pages/components.rs
-index 5eb12cd4..8a784683 100644
+index 5eb12cd4..5c8530f0 100644
 --- a/gallery/src/pages/components.rs
 +++ b/gallery/src/pages/components.rs
 @@ -1,7 +1,7 @@
@@ -14951,7 +14951,7 @@ index 5eb12cd4..8a784683 100644
  
  use gpui::{prelude::*, px, AnyElement, Context, SharedString};
  use herogpui_components as h;
-@@ -9,7 +9,9 @@ use herogpui_core::{Color, FieldVariant, Orientation, SelectionMode, Size, SizeX
+@@ -9,7 +9,23 @@ use herogpui_core::{Color, FieldVariant, Orientation, SelectionMode, Size, SizeX
  use herogpui_theme::ActiveTheme;
  
  use crate::app::Gallery;
@@ -14959,10 +14959,24 @@ index 5eb12cd4..8a784683 100644
 +use crate::pages::{muted_para, para};
 +
 +const DEMO_FIELD_W: f32 = 256.;
++
++/// v3's Alert "Usage" copy, held apart from the demo so the literal keeps its
++/// single spaces: rustfmt joins a `\` line continuation without dropping the
++/// indentation that followed it.
++const ALERT_USAGE_DESCRIPTION: &str = concat!(
++    "Check out our latest updates including dark mode support ",
++    "and improved accessibility features.",
++);
++
++/// v3's Card "Usage" copy. See [`ALERT_USAGE_DESCRIPTION`].
++const CARD_USAGE_DESCRIPTION: &str = concat!(
++    "Visit the Acme Creator Hub to sign up today and start earning ",
++    "credits from your fans and followers.",
++);
  
  thread_local! {
      /// The Form "Server Errors" demo's current `validationErrors` record.
-@@ -23,21 +25,48 @@ thread_local! {
+@@ -23,21 +39,48 @@ thread_local! {
      static FORM_SERVER_RECORD: RefCell<Option<h::ValidationErrors>> = const { RefCell::new(None) };
  }
  
@@ -15019,7 +15033,7 @@ index 5eb12cd4..8a784683 100644
      };
  }
  
-@@ -56,6 +85,17 @@ fn row(children: Vec<AnyElement>) -> AnyElement {
+@@ -56,6 +99,17 @@ fn row(children: Vec<AnyElement>) -> AnyElement {
          .into_any_element()
  }
  
@@ -15037,10 +15051,25 @@ index 5eb12cd4..8a784683 100644
  fn col(children: Vec<AnyElement>) -> AnyElement {
      gpui::div()
          .flex()
-@@ -68,6 +108,31 @@ fn col(children: Vec<AnyElement>) -> AnyElement {
+@@ -68,6 +122,46 @@ fn col(children: Vec<AnyElement>) -> AnyElement {
          .into_any_element()
  }
  
++/// Column that stretches its children across v3's `w-full max-w-xl` example
++/// frame. A `w-full` component -- Alert, Toast, Skeleton -- resolves its width
++/// against its container, so a hug-content column like [`col`] leaves it at its
++/// content width and the example demonstrates the opposite of the rule.
++fn wide_col(children: Vec<AnyElement>) -> AnyElement {
++    gpui::div()
++        .flex()
++        .flex_col()
++        .w_full()
++        .max_w(px(576.))
++        .gap(px(16.))
++        .children(children)
++        .into_any_element()
++}
++
 +fn field_col(children: Vec<AnyElement>) -> AnyElement {
 +    gpui::div()
 +        .flex()
@@ -15069,7 +15098,7 @@ index 5eb12cd4..8a784683 100644
  /// A labelled specimen — the caption HeroUI puts under each variant.
  fn spec(label: &str, el: impl IntoElement, cx: &gpui::App) -> AnyElement {
      let muted = cx.colors().muted;
-@@ -324,39 +389,63 @@ Toast::new("Saved")
+@@ -324,39 +418,63 @@ Toast::new("Saved")
      .closable(true)
      .push(Some(Duration::from_secs(4)), cx);"#;
  
@@ -15155,7 +15184,7 @@ index 5eb12cd4..8a784683 100644
  }
  
  /// The demo palette used by the color pages.
-@@ -414,17 +503,22 @@ impl Gallery {
+@@ -414,17 +532,22 @@ impl Gallery {
                      "With icons",
                      row(vec![
                          h::Button::new("btn-i-1")
@@ -15181,7 +15210,7 @@ index 5eb12cd4..8a784683 100644
                              .child("Delete")
                              .into_any_element(),
                      ]),
-@@ -440,12 +534,12 @@ impl Gallery {
+@@ -440,12 +563,12 @@ impl Gallery {
                          h::Button::new("btn-io-2")
                              .is_icon_only(true)
                              .variant(Variant::Secondary)
@@ -15196,7 +15225,7 @@ index 5eb12cd4..8a784683 100644
                              .into_any_element(),
                      ]),
                  ),
-@@ -482,20 +576,31 @@ impl Gallery {
+@@ -482,20 +605,31 @@ impl Gallery {
                  ),
                  (
                      "Full width",
@@ -15237,7 +15266,7 @@ index 5eb12cd4..8a784683 100644
                          gpui::div()
                              .flex()
                              .flex_col()
-@@ -698,14 +803,37 @@ impl Gallery {
+@@ -698,14 +832,37 @@ impl Gallery {
                  ),
                  (
                      "With Custom Icon",
@@ -15283,7 +15312,7 @@ index 5eb12cd4..8a784683 100644
                  ),
                  (
                      "Interactive",
-@@ -918,8 +1046,8 @@ impl Gallery {
+@@ -918,8 +1075,8 @@ impl Gallery {
                  ),
                  (
                      "Selection Mode",
@@ -15293,7 +15322,7 @@ index 5eb12cd4..8a784683 100644
                          h::ToggleButtonGroup::new("toggle-selection-single")
                              .selection_mode(SelectionMode::Single)
                              .separators(true)
-@@ -939,13 +1067,8 @@ impl Gallery {
+@@ -939,13 +1096,8 @@ impl Gallery {
                  ),
                  (
                      "Default Selected Keys",
@@ -15308,7 +15337,7 @@ index 5eb12cd4..8a784683 100644
                          h::ToggleButtonGroup::new("toggle-default-single")
                              .selection_mode(SelectionMode::Single)
                              .separators(true)
-@@ -1200,12 +1323,8 @@ impl Gallery {
+@@ -1200,12 +1352,8 @@ impl Gallery {
                  ),
                  (
                      "Render Props",
@@ -15322,7 +15351,7 @@ index 5eb12cd4..8a784683 100644
                          h::Dropdown::uncontrolled(
                              "dd-render-props-dd",
                              h::Button::new("dd-render-props")
-@@ -1303,12 +1422,8 @@ impl Gallery {
+@@ -1303,12 +1451,8 @@ impl Gallery {
                  ),
                  (
                      "With Custom Submenu Indicator",
@@ -15336,7 +15365,7 @@ index 5eb12cd4..8a784683 100644
                          h::Dropdown::uncontrolled(
                              "dd-submenu-ind-dd",
                              h::Button::new("dd-submenu-ind")
-@@ -1330,7 +1445,7 @@ impl Gallery {
+@@ -1330,7 +1474,7 @@ impl Gallery {
                      "Custom Trigger",
                      col(vec![h::Dropdown::uncontrolled(
                          "Jane Doe-dd",
@@ -15345,7 +15374,7 @@ index 5eb12cd4..8a784683 100644
                          vec![
                              h::MenuItem::new("profile", "Profile"),
                              h::MenuItem::new("settings", "Settings"),
-@@ -1343,8 +1458,8 @@ impl Gallery {
+@@ -1343,8 +1487,8 @@ impl Gallery {
                  ),
                  (
                      "Long Press Trigger",
@@ -15355,7 +15384,7 @@ index 5eb12cd4..8a784683 100644
                          h::Dropdown::uncontrolled(
                              "dd-long-dd",
                              h::Button::new("dd-long")
-@@ -1439,7 +1554,7 @@ impl Gallery {
+@@ -1439,7 +1583,7 @@ impl Gallery {
                  (
                      "Usage",
                      col(vec![gpui::div()
@@ -15364,7 +15393,7 @@ index 5eb12cd4..8a784683 100644
                          .child(h::ListBox::new(
                              "lb-usage",
                              vec![
-@@ -1447,7 +1562,8 @@ impl Gallery {
+@@ -1447,7 +1591,8 @@ impl Gallery {
                                  h::ListBoxItem::new("sent", "Sent"),
                                  h::ListBoxItem::new("drafts", "Drafts"),
                              ],
@@ -15374,7 +15403,7 @@ index 5eb12cd4..8a784683 100644
                          .into_any_element()]),
                  ),
                  (
-@@ -1463,6 +1579,7 @@ impl Gallery {
+@@ -1463,6 +1608,7 @@ impl Gallery {
                                      h::ListBoxItem::new("drafts", "Drafts"),
                                  ],
                              )
@@ -15382,7 +15411,7 @@ index 5eb12cd4..8a784683 100644
                              .disabled_keys([SharedString::from("drafts")]),
                          )
                          .into_any_element()]),
-@@ -1523,6 +1640,7 @@ impl Gallery {
+@@ -1523,6 +1669,7 @@ impl Gallery {
                                          h::ListBoxItem::new("spam", "Spam"),
                                      ],
                                  )
@@ -15390,7 +15419,7 @@ index 5eb12cd4..8a784683 100644
                                  .selected_keys(selection.iter().cloned())
                                  // `onAction` fires on a press, selection or not.
                                  .on_action(cx.listener(|this, key: &SharedString, _, cx| {
-@@ -1542,12 +1660,8 @@ impl Gallery {
+@@ -1542,12 +1689,8 @@ impl Gallery {
                  ),
                  (
                      "Disallow Empty Selection",
@@ -15404,7 +15433,7 @@ index 5eb12cd4..8a784683 100644
                          gpui::div()
                              .w(px(280.))
                              .child(
-@@ -1558,6 +1672,7 @@ impl Gallery {
+@@ -1558,6 +1701,7 @@ impl Gallery {
                                          h::ListBoxItem::new("sent", "Sent"),
                                      ],
                                  )
@@ -15412,7 +15441,7 @@ index 5eb12cd4..8a784683 100644
                                  .default_selected_keys([SharedString::from("inbox")])
                                  .disallow_empty_selection(true),
                              )
-@@ -1566,15 +1681,8 @@ impl Gallery {
+@@ -1566,15 +1710,8 @@ impl Gallery {
                  ),
                  (
                      "Virtualization",
@@ -15429,7 +15458,7 @@ index 5eb12cd4..8a784683 100644
                          gpui::div()
                              .w(px(300.))
                              .child(
-@@ -1584,12 +1692,6 @@ impl Gallery {
+@@ -1584,12 +1721,6 @@ impl Gallery {
                                      .max_h(px(400.)),
                              )
                              .into_any_element(),
@@ -15442,7 +15471,7 @@ index 5eb12cd4..8a784683 100644
                          gpui::div()
                              .w(px(300.))
                              .child(
-@@ -1600,17 +1702,18 @@ impl Gallery {
+@@ -1600,17 +1731,18 @@ impl Gallery {
                                      .max_h(px(400.)),
                              )
                              .into_any_element(),
@@ -15467,7 +15496,7 @@ index 5eb12cd4..8a784683 100644
                          gpui::div()
                              .w(px(280.))
                              .child(
-@@ -1621,6 +1724,7 @@ impl Gallery {
+@@ -1621,6 +1753,7 @@ impl Gallery {
                                          h::ListBoxItem::new("delete", "Delete").danger(),
                                      ],
                                  )
@@ -15475,7 +15504,7 @@ index 5eb12cd4..8a784683 100644
                                  .default_selected_keys([SharedString::from("keep")]),
                              )
                              .into_any_element(),
-@@ -1632,6 +1736,7 @@ impl Gallery {
+@@ -1632,6 +1765,7 @@ impl Gallery {
                          .w(px(280.))
                          .child(
                              h::ListBox::new("lb-single", items.clone())
@@ -15483,7 +15512,7 @@ index 5eb12cd4..8a784683 100644
                                  .selected_keys(selection.iter().cloned())
                                  .on_selection_change(cx.listener(
                                      |this, keys: &HashSet<SharedString>, _, cx| {
-@@ -1659,6 +1764,26 @@ impl Gallery {
+@@ -1659,6 +1793,26 @@ impl Gallery {
                          )
                          .into_any_element()]),
                  ),
@@ -15510,7 +15539,7 @@ index 5eb12cd4..8a784683 100644
              ],
              cx,
          )
-@@ -1780,14 +1905,44 @@ impl Gallery {
+@@ -1780,14 +1934,44 @@ impl Gallery {
                  ),
                  (
                      "With Remove Button",
@@ -15563,7 +15592,7 @@ index 5eb12cd4..8a784683 100644
                  ),
                  (
                      "Removable",
-@@ -1830,6 +1985,20 @@ impl Gallery {
+@@ -1830,6 +2014,20 @@ impl Gallery {
                              .into_any_element(),
                      ]),
                  ),
@@ -15584,7 +15613,7 @@ index 5eb12cd4..8a784683 100644
              ],
              cx,
          )
-@@ -1956,7 +2125,7 @@ impl Gallery {
+@@ -1956,7 +2154,7 @@ impl Gallery {
              vec![
                  (
                      "Usage",
@@ -15593,7 +15622,7 @@ index 5eb12cd4..8a784683 100644
                          .state(self.demo_text("cf-usage", "#0085F5", cx))
                          // v3's Usage is uncontrolled: `defaultValue="#0085F5"`.
                          .default_value(value)
-@@ -1992,7 +2161,7 @@ impl Gallery {
+@@ -1992,7 +2190,7 @@ impl Gallery {
                  ),
                  (
                      "With Description",
@@ -15602,7 +15631,7 @@ index 5eb12cd4..8a784683 100644
                          .state(self.demo_text("cf-desc", "#0085F5", cx))
                          .label("Brand color")
                          .description("Any CSS hex value")
-@@ -2000,7 +2169,7 @@ impl Gallery {
+@@ -2000,7 +2198,7 @@ impl Gallery {
                  ),
                  (
                      "Required Field",
@@ -15611,7 +15640,7 @@ index 5eb12cd4..8a784683 100644
                          .state(self.demo_text("cf-req", "", cx))
                          .label("Color")
                          .is_required(true)
-@@ -2008,7 +2177,7 @@ impl Gallery {
+@@ -2008,7 +2206,7 @@ impl Gallery {
                  ),
                  (
                      "Disabled State",
@@ -15620,7 +15649,7 @@ index 5eb12cd4..8a784683 100644
                          .state(self.demo_text("cf-dis", "#0085F5", cx))
                          .label("Color")
                          .is_disabled(true)
-@@ -2024,7 +2193,7 @@ impl Gallery {
+@@ -2024,7 +2222,7 @@ impl Gallery {
                  ),
                  (
                      "Validation",
@@ -15629,7 +15658,7 @@ index 5eb12cd4..8a784683 100644
                          .state(self.demo_text("cf-invalid", "not-a-color", cx))
                          .label("Color")
                          .is_required(true)
-@@ -2034,10 +2203,9 @@ impl Gallery {
+@@ -2034,10 +2232,9 @@ impl Gallery {
                  ),
                  (
                      "Channel Editing",
@@ -15643,7 +15672,7 @@ index 5eb12cd4..8a784683 100644
                                  .state(self.demo_text("cf-ch-hue", "", cx))
                                  // `colorSpace` names the channel set; `channel`
                                  // picks one of them.
-@@ -2047,19 +2215,18 @@ impl Gallery {
+@@ -2047,19 +2244,18 @@ impl Gallery {
                                  .suffix(gpui::div().child("\u{00b0}"))
                                  .label("Hue")
                                  .into_any_element(),
@@ -15675,7 +15704,7 @@ index 5eb12cd4..8a784683 100644
                  ),
                  (
                      "Controlled",
-@@ -2135,7 +2302,7 @@ impl Gallery {
+@@ -2135,7 +2331,7 @@ impl Gallery {
                  ),
                  (
                      "Hex value",
@@ -15684,7 +15713,7 @@ index 5eb12cd4..8a784683 100644
                          .state(self.color_field_state.clone())
                          .label("Brand color")
                          .description("Type a hex value such as #0085F5.")
-@@ -2154,7 +2321,7 @@ impl Gallery {
+@@ -2154,7 +2350,7 @@ impl Gallery {
                  ),
                  (
                      "Read-only display",
@@ -15693,7 +15722,7 @@ index 5eb12cd4..8a784683 100644
                          .label("Current value")
                          .description("Without a text state the field is a display.")
                          .into_any_element()]),
-@@ -2172,18 +2339,6 @@ impl Gallery {
+@@ -2172,18 +2368,6 @@ impl Gallery {
                              .into_any_element(),
                      ]),
                  ),
@@ -15712,7 +15741,7 @@ index 5eb12cd4..8a784683 100644
              ],
              cx,
          )
-@@ -2211,12 +2366,8 @@ impl Gallery {
+@@ -2211,12 +2395,8 @@ impl Gallery {
                  ),
                  (
                      "Controlled",
@@ -15726,7 +15755,7 @@ index 5eb12cd4..8a784683 100644
                          h::ColorPicker::new("cp-controlled", value)
                              .label("Brand")
                              .on_change(color_cb(cx.listener(|this, c: &h::PickerColor, _, cx| {
-@@ -2229,11 +2380,8 @@ impl Gallery {
+@@ -2229,11 +2409,8 @@ impl Gallery {
                  ),
                  (
                      "With Swatches",
@@ -15739,7 +15768,7 @@ index 5eb12cd4..8a784683 100644
                          h::ColorSwatchPicker::new("cp-presets", palette())
                              .value(value)
                              .on_change(color_cb(cx.listener(|this, c: &h::PickerColor, _, cx| {
-@@ -2498,13 +2646,8 @@ impl Gallery {
+@@ -2498,13 +2675,8 @@ impl Gallery {
                  ),
                  (
                      "Accessibility",
@@ -15754,7 +15783,7 @@ index 5eb12cd4..8a784683 100644
                          row(palette()
                              .into_iter()
                              .map(|c| {
-@@ -2645,13 +2788,8 @@ impl Gallery {
+@@ -2645,13 +2817,8 @@ impl Gallery {
                  ),
                  (
                      "Disabled Item",
@@ -15769,7 +15798,7 @@ index 5eb12cd4..8a784683 100644
                          h::ColorSwatchPicker::new("csp-disabled-item", palette())
                              .value(selected)
                              .disabled_keys([2])
-@@ -2694,12 +2832,8 @@ impl Gallery {
+@@ -2694,12 +2861,8 @@ impl Gallery {
                  ),
                  (
                      "Custom Indicator",
@@ -15783,7 +15812,7 @@ index 5eb12cd4..8a784683 100644
                          h::ColorSwatchPicker::new("csp-indicator", palette())
                              .value(selected)
                              .on_change(color_cb(cx.listener(|this, c: &h::PickerColor, _, cx| {
-@@ -2720,13 +2854,8 @@ impl Gallery {
+@@ -2720,13 +2883,8 @@ impl Gallery {
                  ),
                  (
                      "Item Render State",
@@ -15798,7 +15827,7 @@ index 5eb12cd4..8a784683 100644
                          h::ColorSwatchPicker::new("csp-item-content", palette())
                              .value(selected)
                              .size(SizeXl::Xl)
-@@ -2784,108 +2913,113 @@ impl Gallery {
+@@ -2784,108 +2942,113 @@ impl Gallery {
              vec![
                  (
                      "Format options",
@@ -15987,7 +16016,7 @@ index 5eb12cd4..8a784683 100644
                          gpui::div()
                              .w(px(320.))
                              .child(
-@@ -2911,47 +3045,39 @@ impl Gallery {
+@@ -2911,47 +3074,39 @@ impl Gallery {
                  ),
                  (
                      "Range (multi-thumb)",
@@ -16058,7 +16087,7 @@ index 5eb12cd4..8a784683 100644
                              // v3 renders one `<input name=…>` per thumb; the form reads
                              // them back through `form_fields`, as DateRangePicker does.
                              let slider = h::Slider::new("sl-form", value)
-@@ -2984,7 +3110,7 @@ impl Gallery {
+@@ -2984,7 +3139,7 @@ impl Gallery {
                                          .on_press(move |_, window, cx| submit(window, cx)),
                                  )
                                  .into_any_element()
@@ -16067,7 +16096,7 @@ index 5eb12cd4..8a784683 100644
                          para(
                              &if self.input_submitted.is_empty() {
                                  "Nothing submitted yet".to_owned()
-@@ -3008,19 +3134,23 @@ impl Gallery {
+@@ -3008,19 +3163,23 @@ impl Gallery {
                  (
                      "Step & disabled",
                      col(vec![
@@ -16104,7 +16133,135 @@ index 5eb12cd4..8a784683 100644
                      ]),
                  ),
              ],
-@@ -3690,14 +3820,8 @@ impl Gallery {
+@@ -3304,10 +3463,37 @@ impl Gallery {
+             vec![
+                 (
+                     "Usage",
+-                    row(vec![h::BadgeAnchor::new()
+-                        .child(avatar_box(cx))
+-                        .child(h::Badge::new().child(h::BadgeLabel::new().child("5")))
+-                        .into_any_element()]),
++                    // v3 anchors three avatars: a danger count, an accent label
++                    // and a success dot pinned to the bottom-right.
++                    row(vec![
++                        h::BadgeAnchor::new()
++                            .child(avatar_box(("badge-anchor", 0usize), "Jane Doe"))
++                            .child(
++                                h::Badge::new()
++                                    .color(Color::Danger)
++                                    .size(Size::Sm)
++                                    .child(h::BadgeLabel::new().child("5")),
++                            )
++                            .into_any_element(),
++                        h::BadgeAnchor::new()
++                            .child(avatar_box(("badge-anchor", 1usize), "Alex Brown"))
++                            .child(
++                                h::Badge::new()
++                                    .color(Color::Accent)
++                                    .size(Size::Sm)
++                                    .child(h::BadgeLabel::new().child("New")),
++                            )
++                            .into_any_element(),
++                        h::BadgeAnchor::new()
++                            .child(avatar_box(("badge-anchor", 2usize), "Chris Davis"))
++                            .child(
++                                h::Badge::new()
++                                    .color(Color::Success)
++                                    .size(Size::Sm)
++                                    .placement(h::BadgePlacement::BottomRight),
++                            )
++                            .into_any_element(),
++                    ]),
+                 ),
+                 (
+                     "Sizes",
+@@ -3316,7 +3502,7 @@ impl Gallery {
+                         .map(|sz| {
+                             spec(
+                                 sz.label(),
+-                                h::BadgeAnchor::new().child(avatar_box(cx)).child(
++                                h::BadgeAnchor::new().child(avatar_box(("badge-anchor", 1usize), "Alex Brown")).child(
+                                     h::Badge::new()
+                                         .size(*sz)
+                                         .child(h::BadgeLabel::new().child("5")),
+@@ -3335,7 +3521,7 @@ impl Gallery {
+                                 c.label(),
+                                 // No children is v3's dot badge.
+                                 h::BadgeAnchor::new()
+-                                    .child(avatar_box(cx))
++                                    .child(avatar_box(("badge-anchor", 2usize), "Chris Davis"))
+                                     .child(h::Badge::new().color(*c)),
+                                 cx,
+                             )
+@@ -3347,7 +3533,7 @@ impl Gallery {
+                     row(vec![
+                         spec(
+                             "Number",
+-                            h::BadgeAnchor::new().child(avatar_box(cx)).child(
++                            h::BadgeAnchor::new().child(avatar_box(("badge-anchor", 3usize), "Jane Doe")).child(
+                                 h::Badge::new()
+                                     .color(Color::Danger)
+                                     .size(Size::Sm)
+@@ -3357,7 +3543,7 @@ impl Gallery {
+                         ),
+                         spec(
+                             "Text",
+-                            h::BadgeAnchor::new().child(avatar_box(cx)).child(
++                            h::BadgeAnchor::new().child(avatar_box(("badge-anchor", 4usize), "Alex Brown")).child(
+                                 h::Badge::new()
+                                     .color(Color::Accent)
+                                     .child(h::BadgeLabel::new().child("NEW")),
+@@ -3368,7 +3554,7 @@ impl Gallery {
+                             "Icon",
+                             // Only plain text is auto-wrapped upstream; an
+                             // element child composes straight into the badge.
+-                            h::BadgeAnchor::new().child(avatar_box(cx)).child(
++                            h::BadgeAnchor::new().child(avatar_box(("badge-anchor", 5usize), "Chris Davis")).child(
+                                 h::Badge::new().color(Color::Success).child(
+                                     gpui::svg()
+                                         .size(px(10.))
+@@ -3387,7 +3573,7 @@ impl Gallery {
+                         .map(|v| {
+                             spec(
+                                 v.label(),
+-                                h::BadgeAnchor::new().child(avatar_box(cx)).child(
++                                h::BadgeAnchor::new().child(avatar_box(("badge-anchor", 6usize), "Jane Doe")).child(
+                                     h::Badge::new()
+                                         .color(Color::Accent)
+                                         .variant(*v)
+@@ -3405,7 +3591,7 @@ impl Gallery {
+                         .map(|c| {
+                             spec(
+                                 c.label(),
+-                                h::BadgeAnchor::new().child(avatar_box(cx)).child(
++                                h::BadgeAnchor::new().child(avatar_box(("badge-anchor", 7usize), "Alex Brown")).child(
+                                     h::Badge::new()
+                                         .color(*c)
+                                         .child(h::BadgeLabel::new().child("5")),
+@@ -3420,11 +3606,11 @@ impl Gallery {
+                     row(vec![
+                         // No children is v3's dot badge.
+                         h::BadgeAnchor::new()
+-                            .child(avatar_box(cx))
++                            .child(avatar_box(("badge-anchor", 8usize), "Chris Davis"))
+                             .child(h::Badge::new().color(Color::Success))
+                             .into_any_element(),
+                         h::BadgeAnchor::new()
+-                            .child(avatar_box(cx))
++                            .child(avatar_box(("badge-anchor", 9usize), "Jane Doe"))
+                             .child(
+                                 h::Badge::new()
+                                     .placement(h::BadgePlacement::BottomRight)
+@@ -3432,7 +3618,7 @@ impl Gallery {
+                             )
+                             .into_any_element(),
+                         h::BadgeAnchor::new()
+-                            .child(avatar_box(cx))
++                            .child(avatar_box(("badge-anchor", 10usize), "Alex Brown"))
+                             .child(
+                                 h::Badge::new()
+                                     .placement(h::BadgePlacement::TopLeft)
+@@ -3690,14 +3876,8 @@ impl Gallery {
                  ),
                  (
                      "Virtualization",
@@ -16120,7 +16277,7 @@ index 5eb12cd4..8a784683 100644
                          h::Table::new(vec![])
                              .id("tbl-virtualization")
                              .column(h::TableColumn::new("Name").is_row_header(true))
-@@ -3760,10 +3884,23 @@ impl Gallery {
+@@ -3760,10 +3940,23 @@ impl Gallery {
                  ),
                  (
                      "Column Resizing",
@@ -16146,7 +16303,7 @@ index 5eb12cd4..8a784683 100644
                              cx,
                          ),
                          h::Table::new(vec![])
-@@ -3771,15 +3908,15 @@ impl Gallery {
+@@ -3771,15 +3964,15 @@ impl Gallery {
                              .column(
                                  h::TableColumn::new("Name")
                                      .allows_resizing(true)
@@ -16165,7 +16322,7 @@ index 5eb12cd4..8a784683 100644
                              .row(vec![
                                  gpui::div().child("Tony Reichert").into_any_element(),
                                  gpui::div().child("CEO").into_any_element(),
-@@ -3790,19 +3927,43 @@ impl Gallery {
+@@ -3790,19 +3983,43 @@ impl Gallery {
                                  gpui::div().child("Tech Lead").into_any_element(),
                                  gpui::div().child("Paused").into_any_element(),
                              ])
@@ -16217,7 +16374,7 @@ index 5eb12cd4..8a784683 100644
                          {
                              let cell = |text: &str| gpui::div().child(text.to_owned());
                              h::Table::new(vec!["Title".into(), "Type".into(), "Modified".into()])
-@@ -3879,12 +4040,8 @@ impl Gallery {
+@@ -3879,12 +4096,8 @@ impl Gallery {
                  ),
                  (
                      "Async Loading",
@@ -16231,7 +16388,7 @@ index 5eb12cd4..8a784683 100644
                          build("tbl-async-loading")
                              .is_pending(true)
                              .on_load_more(|_, _| {})
-@@ -3946,7 +4103,7 @@ impl Gallery {
+@@ -3946,7 +4159,7 @@ impl Gallery {
                              .flex()
                              .items_center()
                              .gap(px(10.))
@@ -16240,7 +16397,7 @@ index 5eb12cd4..8a784683 100644
                              .child(
                                  gpui::div()
                                      .flex()
-@@ -3973,7 +4130,7 @@ impl Gallery {
+@@ -3973,7 +4186,7 @@ impl Gallery {
                              .flex()
                              .items_center()
                              .gap(px(10.))
@@ -16249,7 +16406,7 @@ index 5eb12cd4..8a784683 100644
                              .child(
                                  gpui::div()
                                      .flex()
-@@ -4144,8 +4301,8 @@ impl Gallery {
+@@ -4144,8 +4357,8 @@ impl Gallery {
                  ),
                  (
                      "Cell Indicators",
@@ -16259,7 +16416,7 @@ index 5eb12cd4..8a784683 100644
                          h::Calendar::new(self.demo_calendar("cal-indicators", cx))
                              .cell_indicator(|date| {
                                  [3, 7, 12, 15, 21, 28].contains(&date.day)
-@@ -4181,22 +4338,19 @@ impl Gallery {
+@@ -4181,22 +4394,19 @@ impl Gallery {
                  ),
                  (
                      "Constraints",
@@ -16284,7 +16441,7 @@ index 5eb12cd4..8a784683 100644
                          .weeks_in_month(6)
                          .into_any_element()]),
                  ),
-@@ -4244,19 +4398,20 @@ impl Gallery {
+@@ -4244,19 +4454,20 @@ impl Gallery {
                  ),
                  (
                      "Heading Offset",
@@ -16307,7 +16464,7 @@ index 5eb12cd4..8a784683 100644
                                      h::Calendar::new(self.demo_calendar("cal-heading-offset", cx))
                                          .default_value(august)
                                          .offset(1)
-@@ -4264,13 +4419,6 @@ impl Gallery {
+@@ -4264,13 +4475,6 @@ impl Gallery {
                                      cx,
                                  ),
                              ]),
@@ -16321,7 +16478,7 @@ index 5eb12cd4..8a784683 100644
                          ]
                      }),
                  ),
-@@ -4288,36 +4436,32 @@ impl Gallery {
+@@ -4288,36 +4492,32 @@ impl Gallery {
              vec![
                  (
                      "Granularity",
@@ -16382,7 +16539,7 @@ index 5eb12cd4..8a784683 100644
                          h::DateField::new(self.demo_text("df-gran-12h", "2025-02-03T20:45", cx))
                              .label("Twelve-hour clock")
                              .granularity(h::Granularity::Minute)
-@@ -4325,9 +4469,33 @@ impl Gallery {
+@@ -4325,9 +4525,33 @@ impl Gallery {
                              .into_any_element(),
                      ]),
                  ),
@@ -16417,7 +16574,7 @@ index 5eb12cd4..8a784683 100644
                          h::DateField::new(self.date_input.clone())
                              // v3's Usage seeds the field with `defaultValue`.
                              .default_value(h::Date::new(2025, 12, 25))
-@@ -4352,7 +4520,7 @@ impl Gallery {
+@@ -4352,7 +4576,7 @@ impl Gallery {
                  ),
                  (
                      "With Icons",
@@ -16426,7 +16583,7 @@ index 5eb12cd4..8a784683 100644
                          .label("Date")
                          .prefix(icon(h::icons::MOON, cx))
                          .into_any_element()]),
-@@ -4383,21 +4551,21 @@ impl Gallery {
+@@ -4383,21 +4607,21 @@ impl Gallery {
                  ),
                  (
                      "With Description",
@@ -16451,7 +16608,7 @@ index 5eb12cd4..8a784683 100644
                          "df-dis",
                          "2025-12-25",
                          cx,
-@@ -4415,7 +4583,7 @@ impl Gallery {
+@@ -4415,7 +4639,7 @@ impl Gallery {
                  ),
                  (
                      "Validation",
@@ -16460,7 +16617,7 @@ index 5eb12cd4..8a784683 100644
                          "df-invalid",
                          "",
                          cx,
-@@ -4449,7 +4617,7 @@ impl Gallery {
+@@ -4449,7 +4673,7 @@ impl Gallery {
                  ),
                  (
                      "With Validation",
@@ -16469,7 +16626,7 @@ index 5eb12cd4..8a784683 100644
                          "df-validate",
                          "",
                          cx,
-@@ -4490,7 +4658,7 @@ impl Gallery {
+@@ -4490,7 +4714,7 @@ impl Gallery {
              vec![
                  (
                      "Disabled",
@@ -16478,7 +16635,7 @@ index 5eb12cd4..8a784683 100644
                          self.demo_calendar("dp-disabled", cx),
                      )
                      .label("Date")
-@@ -4520,7 +4688,7 @@ impl Gallery {
+@@ -4520,7 +4744,7 @@ impl Gallery {
                  ),
                  (
                      "Validation",
@@ -16487,7 +16644,7 @@ index 5eb12cd4..8a784683 100644
                          self.demo_calendar("dp-invalid", cx),
                      )
                      .label("Date")
-@@ -4533,12 +4701,8 @@ impl Gallery {
+@@ -4533,12 +4757,8 @@ impl Gallery {
                  ),
                  (
                      "Format Options",
@@ -16501,7 +16658,7 @@ index 5eb12cd4..8a784683 100644
                          h::DatePicker::new(self.demo_calendar("dp-format", cx))
                              .label("Date")
                              .into_any_element(),
-@@ -4556,12 +4720,8 @@ impl Gallery {
+@@ -4556,12 +4776,8 @@ impl Gallery {
                  ),
                  (
                      "Custom Indicator",
@@ -16515,7 +16672,7 @@ index 5eb12cd4..8a784683 100644
                          h::DatePicker::new(self.demo_calendar("dp-indicator", cx))
                              .label("Date")
                              .trigger_indicator(icon(h::icons::CHECK, cx))
-@@ -4570,7 +4730,7 @@ impl Gallery {
+@@ -4570,7 +4786,7 @@ impl Gallery {
                  ),
                  (
                      "Render Function",
@@ -16524,7 +16681,7 @@ index 5eb12cd4..8a784683 100644
                          self.demo_calendar("dp-render-props", cx)
                      )
                      .is_open(is_open)
-@@ -4611,7 +4771,7 @@ impl Gallery {
+@@ -4611,7 +4827,7 @@ impl Gallery {
                  ),
                  (
                      "Usage",
@@ -16533,7 +16690,7 @@ index 5eb12cd4..8a784683 100644
                          // v3's Usage seeds the picker with `defaultValue`.
                          .default_value(h::Date::new(2025, 12, 25))
                          .label("Due date")
-@@ -4644,7 +4804,7 @@ impl Gallery {
+@@ -4644,7 +4860,7 @@ impl Gallery {
              vec![
                  (
                      "Disabled",
@@ -16542,7 +16699,7 @@ index 5eb12cd4..8a784683 100644
                          self.demo_range("drp-disabled", cx),
                      )
                      .label("Stay")
-@@ -4653,8 +4813,8 @@ impl Gallery {
+@@ -4653,8 +4869,8 @@ impl Gallery {
                  ),
                  (
                      "Controlled",
@@ -16552,7 +16709,7 @@ index 5eb12cd4..8a784683 100644
                          {
                              // `value` writes the caller's copy back in, and
                              // `on_change` is how the caller gets one: a range
-@@ -4697,7 +4857,7 @@ impl Gallery {
+@@ -4697,7 +4913,7 @@ impl Gallery {
                  ),
                  (
                      "Validation",
@@ -16561,7 +16718,7 @@ index 5eb12cd4..8a784683 100644
                          self.demo_range("drp-invalid", cx),
                      )
                      .label("Stay")
-@@ -4706,12 +4866,8 @@ impl Gallery {
+@@ -4706,12 +4922,8 @@ impl Gallery {
                  ),
                  (
                      "Format Options",
@@ -16575,7 +16732,7 @@ index 5eb12cd4..8a784683 100644
                          h::DateRangePicker::new(self.demo_range("drp-format", cx))
                              .label("Stay")
                              .into_any_element(),
-@@ -4732,12 +4888,8 @@ impl Gallery {
+@@ -4732,12 +4944,8 @@ impl Gallery {
                  ),
                  (
                      "Custom Indicator",
@@ -16589,7 +16746,7 @@ index 5eb12cd4..8a784683 100644
                          h::DateRangePicker::new(self.demo_range("drp-indicator", cx))
                              .label("Stay")
                              .trigger_indicator(icon(h::icons::CHECK, cx))
-@@ -4787,17 +4939,26 @@ impl Gallery {
+@@ -4787,17 +4995,26 @@ impl Gallery {
                  ),
                  (
                      "Usage",
@@ -16627,7 +16784,7 @@ index 5eb12cd4..8a784683 100644
                          .into_any_element()]),
                  ),
              ],
-@@ -4839,6 +5000,7 @@ impl Gallery {
+@@ -4839,6 +5056,7 @@ impl Gallery {
                  ),
                  (
                      "Heading Offset",
@@ -16635,7 +16792,7 @@ index 5eb12cd4..8a784683 100644
                      col({
                          let august = (h::Date::new(2026, 8, 10), h::Date::new(2026, 8, 16));
                          vec![
-@@ -4859,13 +5021,6 @@ impl Gallery {
+@@ -4859,13 +5077,6 @@ impl Gallery {
                                      cx,
                                  ),
                              ]),
@@ -16649,7 +16806,7 @@ index 5eb12cd4..8a784683 100644
                          ]
                      }),
                  ),
-@@ -4879,8 +5034,8 @@ impl Gallery {
+@@ -4879,8 +5090,8 @@ impl Gallery {
                  ),
                  (
                      "Controlled",
@@ -16659,7 +16816,7 @@ index 5eb12cd4..8a784683 100644
                          h::RangeCalendar::new(self.date_range.clone())
                              .value(
                                  Some(h::Date::new(2025, 12, 8)),
-@@ -4905,23 +5060,33 @@ impl Gallery {
+@@ -4905,23 +5116,33 @@ impl Gallery {
                  ),
                  (
                      "Unavailable Dates",
@@ -16706,7 +16863,7 @@ index 5eb12cd4..8a784683 100644
                          h::RangeCalendar::new(self.demo_range("rc-anchor", cx))
                              .is_date_unavailable(|date, anchor| {
                                  anchor.is_some_and(|anchor| {
-@@ -5001,19 +5166,6 @@ impl Gallery {
+@@ -5001,19 +5222,6 @@ impl Gallery {
                      },)))
                      .into_any_element()]),
                  ),
@@ -16726,7 +16883,7 @@ index 5eb12cd4..8a784683 100644
                  (
                      "Real-World Example",
                      col(vec![h::Surface::new()
-@@ -5047,8 +5199,9 @@ impl Gallery {
+@@ -5047,8 +5255,9 @@ impl Gallery {
              vec![
                  (
                      "24-hour",
@@ -16737,7 +16894,7 @@ index 5eb12cd4..8a784683 100644
                          .description("Click a segment, then use the steppers.")
                          .on_change(opt_time_cb(
                              cx.listener(|_, _t: &Option<h::Time>, _, cx| cx.notify()),
-@@ -5057,7 +5210,7 @@ impl Gallery {
+@@ -5057,7 +5266,7 @@ impl Gallery {
                  ),
                  (
                      "12-hour with seconds",
@@ -16746,7 +16903,7 @@ index 5eb12cd4..8a784683 100644
                          .label("Reminder")
                          .hour_cycle(h::HourCycle::H12)
                          .show_seconds(true)
-@@ -5066,15 +5219,34 @@ impl Gallery {
+@@ -5066,15 +5275,34 @@ impl Gallery {
                          ))
                          .into_any_element()]),
                  ),
@@ -16785,7 +16942,7 @@ index 5eb12cd4..8a784683 100644
                          .label("Time")
                          .prefix(icon(h::icons::SUN, cx))
                          .into_any_element()]),
-@@ -5093,21 +5265,21 @@ impl Gallery {
+@@ -5093,21 +5321,21 @@ impl Gallery {
                  ),
                  (
                      "With Description",
@@ -16810,7 +16967,7 @@ index 5eb12cd4..8a784683 100644
                          .label("Time")
                          .is_disabled(true)
                          .into_any_element()]),
-@@ -5121,7 +5293,7 @@ impl Gallery {
+@@ -5121,7 +5349,7 @@ impl Gallery {
                  ),
                  (
                      "Validation",
@@ -16819,7 +16976,7 @@ index 5eb12cd4..8a784683 100644
                          .label("Time")
                          // `minValue`/`maxValue` clamp what the segments accept.
                          .min_value(h::Time::new(9, 0))
-@@ -5133,22 +5305,17 @@ impl Gallery {
+@@ -5133,22 +5361,17 @@ impl Gallery {
                  ),
                  (
                      "Controlled",
@@ -16850,21 +17007,39 @@ index 5eb12cd4..8a784683 100644
                          .label("Meeting time")
                          .description("Office hours are 09:00 to 17:00")
                          .validate(|value| {
-@@ -5206,12 +5373,8 @@ impl Gallery {
+@@ -5189,13 +5412,13 @@ impl Gallery {
+             vec![
+                 (
+                     "Usage",
+-                    col(vec![h::Alert::new("Heads up")
+-                        .description("This is an alert with a title and a description.")
++                    wide_col(vec![h::Alert::new("New features available")
++                        .description(ALERT_USAGE_DESCRIPTION)
+                         .into_any_element()]),
+                 ),
+                 (
+                     "Colors",
+-                    col(Color::ALL
++                    wide_col(Color::ALL
+                         .iter()
+                         .map(|c| {
+                             h::Alert::new(format!("{} alert", c.label()))
+@@ -5206,12 +5429,8 @@ impl Gallery {
                  ),
                  (
                      "Closable",
-+                    "v3 removed `isClosable`/`onClose`; a close affordance is an ordinary child, the way the pinned example composes a `CloseButton`.",
-                     col(vec![
+-                    col(vec![
 -                        para(
 -                            "v3 removed `isClosable`/`onClose`; a close affordance is an ordinary \
 -                             child, the way the pinned example composes a `CloseButton`.",
 -                            cx,
 -                        ),
++                    "v3 removed `isClosable`/`onClose`; a close affordance is an ordinary child, the way the pinned example composes a `CloseButton`.",
++                    wide_col(vec![
                          if self.alert_visible {
                              h::Alert::new("Saved")
                                  .description("Your changes are live.")
-@@ -5250,9 +5413,13 @@ impl Gallery {
+@@ -5250,9 +5469,13 @@ impl Gallery {
              vec![
                  (
                      "Usage",
@@ -16881,7 +17056,7 @@ index 5eb12cd4..8a784683 100644
                          .into_any_element()]),
                  ),
                  (
-@@ -5260,7 +5427,9 @@ impl Gallery {
+@@ -5260,7 +5483,9 @@ impl Gallery {
                      col(Color::ALL
                          .iter()
                          .enumerate()
@@ -16892,7 +17067,7 @@ index 5eb12cd4..8a784683 100644
                          .els()),
                  ),
                  (
-@@ -5268,24 +5437,29 @@ impl Gallery {
+@@ -5268,24 +5493,29 @@ impl Gallery {
                      col(Size::ALL
                          .iter()
                          .enumerate()
@@ -16933,7 +17108,7 @@ index 5eb12cd4..8a784683 100644
                  ),
              ],
              cx,
-@@ -5300,10 +5474,14 @@ impl Gallery {
+@@ -5300,10 +5530,14 @@ impl Gallery {
              vec![
                  (
                      "Usage",
@@ -16952,7 +17127,7 @@ index 5eb12cd4..8a784683 100644
                          .into_any_element()]),
                  ),
                  (
-@@ -5312,52 +5490,66 @@ impl Gallery {
+@@ -5312,52 +5546,66 @@ impl Gallery {
                          .iter()
                          .enumerate()
                          .map(|(index, c)| {
@@ -17049,7 +17224,7 @@ index 5eb12cd4..8a784683 100644
                  ),
              ],
              cx,
-@@ -5392,13 +5584,8 @@ impl Gallery {
+@@ -5392,13 +5640,8 @@ impl Gallery {
                  ),
                  (
                      "Custom SVG Props",
@@ -17064,7 +17239,7 @@ index 5eb12cd4..8a784683 100644
                          row(Size::ALL
                              .iter()
                              .map(|sz| {
-@@ -5542,12 +5729,8 @@ impl Gallery {
+@@ -5542,12 +5785,8 @@ impl Gallery {
                  ),
                  (
                      "Single Shimmer",
@@ -17078,7 +17253,7 @@ index 5eb12cd4..8a784683 100644
                          gpui::div()
                              .flex()
                              .gap(px(16.))
-@@ -5905,12 +6088,8 @@ impl Gallery {
+@@ -5905,12 +6144,8 @@ impl Gallery {
                  ),
                  (
                      "Indeterminate",
@@ -17092,7 +17267,7 @@ index 5eb12cd4..8a784683 100644
                          h::Checkbox::new("cbg-all")
                              .is_selected(selected.len() == 3)
                              .is_indeterminate(!selected.is_empty() && selected.len() < 3)
-@@ -5969,12 +6148,8 @@ impl Gallery {
+@@ -5969,12 +6204,8 @@ impl Gallery {
                  ),
                  (
                      "With Custom Indicator",
@@ -17106,7 +17281,7 @@ index 5eb12cd4..8a784683 100644
                          h::Checkbox::new("cbg-ci-1")
                              .default_selected(true)
                              .indicator(move |state| {
-@@ -6051,7 +6226,7 @@ impl Gallery {
+@@ -6051,7 +6282,7 @@ impl Gallery {
              vec![
                  (
                      "In Surface",
@@ -17115,7 +17290,7 @@ index 5eb12cd4..8a784683 100644
                          .padding(px(24.))
                          .gap(px(16.))
                          .child(
-@@ -6062,11 +6237,13 @@ impl Gallery {
+@@ -6062,11 +6293,13 @@ impl Gallery {
                                          .child(
                                              h::TextField::new(self.demo_text("fset-name", "", cx))
                                                  .label("Name")
@@ -17129,7 +17304,7 @@ index 5eb12cd4..8a784683 100644
                                                  .variant(FieldVariant::Secondary),
                                          ),
                                  )
-@@ -6078,7 +6255,7 @@ impl Gallery {
+@@ -6078,7 +6311,7 @@ impl Gallery {
                  ),
                  (
                      "Usage",
@@ -17138,7 +17313,7 @@ index 5eb12cd4..8a784683 100644
                          .child(h::FieldsetLegend::new("Shipping address"))
                          .child(
                              h::FieldGroup::new()
-@@ -6143,39 +6320,38 @@ impl Gallery {
+@@ -6143,39 +6376,38 @@ impl Gallery {
                  ),
                  (
                      "With Form Fields",
@@ -17188,7 +17363,7 @@ index 5eb12cd4..8a784683 100644
                      .input_type(h::InputType::Password)
                      .is_required(true)
                      .validate(|value| {
-@@ -6185,13 +6361,8 @@ impl Gallery {
+@@ -6185,13 +6417,8 @@ impl Gallery {
                  ),
                  (
                      "With Dynamic Messages",
@@ -17203,7 +17378,7 @@ index 5eb12cd4..8a784683 100644
                          h::TextField::new(self.demo_text("fs-dynamic", "abc", cx))
                              .label("Password")
                              .is_invalid(true)
-@@ -6241,11 +6412,11 @@ impl Gallery {
+@@ -6241,11 +6468,11 @@ impl Gallery {
                  ),
                  (
                      "FieldError",
@@ -17216,7 +17391,7 @@ index 5eb12cd4..8a784683 100644
                          h::FieldError::new().into_any_element(),
                      ]),
                  ),
-@@ -6263,13 +6434,8 @@ impl Gallery {
+@@ -6263,13 +6490,8 @@ impl Gallery {
              vec![
                  (
                      "Usage",
@@ -17231,7 +17406,7 @@ index 5eb12cd4..8a784683 100644
                          {
                              // `name` rides on each field's state, so the form finds
                              // it without the call site repeating the name.
-@@ -6310,12 +6476,14 @@ impl Gallery {
+@@ -6310,12 +6532,14 @@ impl Gallery {
                                  h::TextField::new(self.input_name.clone())
                                      .name("name")
                                      .label("Name")
@@ -17246,7 +17421,7 @@ index 5eb12cd4..8a784683 100644
                                      .description("We reply within a day."),
                              )
                              .child(
-@@ -6346,7 +6514,7 @@ impl Gallery {
+@@ -6346,7 +6570,7 @@ impl Gallery {
                          ),
                      ]),
                  ),
@@ -17255,7 +17430,7 @@ index 5eb12cd4..8a784683 100644
                      let email = self.demo_text("form-srv-email", "ada@example.com", cx);
                      let name = self.demo_text("form-srv-name", "Ada", cx);
                      let report = self.demo_text_value("form-srv-report");
-@@ -6385,17 +6553,6 @@ impl Gallery {
+@@ -6385,17 +6609,6 @@ impl Gallery {
                      let submit = form.submit_handler();
                      let reset = form.reset_handler();
                      col(vec![
@@ -17273,7 +17448,7 @@ index 5eb12cd4..8a784683 100644
                          form.child(
                              h::TextField::new(email)
                                  .name("email")
-@@ -6465,34 +6622,35 @@ impl Gallery {
+@@ -6465,34 +6678,35 @@ impl Gallery {
              vec![
                  (
                      "Variants",
@@ -17315,7 +17490,7 @@ index 5eb12cd4..8a784683 100644
                                  .variant(FieldVariant::Secondary)
                                  .description("The lower-emphasis variant, for use on a surface"),
                          )
-@@ -6502,12 +6660,13 @@ impl Gallery {
+@@ -6502,12 +6716,13 @@ impl Gallery {
                      "Full Width",
                      col(vec![h::Input::new(self.demo_text("in-full", "", cx))
                          .label("Name")
@@ -17330,7 +17505,7 @@ index 5eb12cd4..8a784683 100644
                          h::Input::new(self.demo_text("in-pw", "", cx))
                              .label("Password")
                              .input_type(h::InputType::Password)
-@@ -6542,30 +6701,36 @@ impl Gallery {
+@@ -6542,30 +6757,36 @@ impl Gallery {
                  (
                      "Controlled",
                      col(vec![
@@ -17372,7 +17547,7 @@ index 5eb12cd4..8a784683 100644
                              .is_clearable(true)
                              .into_any_element(),
                      ]),
-@@ -6584,7 +6749,7 @@ impl Gallery {
+@@ -6584,7 +6805,7 @@ impl Gallery {
              vec![
                  (
                      "Usage",
@@ -17381,7 +17556,7 @@ index 5eb12cd4..8a784683 100644
                          .label("Website")
                          .prefix(h::InputAddon::new("https://"))
                          .input(
-@@ -6599,36 +6764,45 @@ impl Gallery {
+@@ -6599,36 +6820,45 @@ impl Gallery {
                  ),
                  (
                      "Variants",
@@ -17433,7 +17608,7 @@ index 5eb12cd4..8a784683 100644
                          .label("Checking availability")
                          .input(h::Input::new(self.demo_text("ig-loading", "heroui", cx)))
                          .suffix(
-@@ -6640,16 +6814,19 @@ impl Gallery {
+@@ -6640,16 +6870,19 @@ impl Gallery {
                  ),
                  (
                      "Required Field",
@@ -17456,7 +17631,7 @@ index 5eb12cd4..8a784683 100644
                          .label("Website")
                          .is_disabled(true)
                          .prefix(h::InputAddon::new("https://"))
-@@ -6665,34 +6842,46 @@ impl Gallery {
+@@ -6665,34 +6898,46 @@ impl Gallery {
                          .label("Website")
                          .full_width(true)
                          .prefix(h::InputAddon::new("https://"))
@@ -17511,7 +17686,7 @@ index 5eb12cd4..8a784683 100644
                          .label("Website")
                          .input(h::Input::new(self.demo_text("ig-copy", "heroui.com", cx)))
                          .suffix(
-@@ -6708,7 +6897,7 @@ impl Gallery {
+@@ -6708,7 +6953,7 @@ impl Gallery {
                  ),
                  (
                      "Icon Prefix and Copy Button",
@@ -17520,7 +17695,7 @@ index 5eb12cd4..8a784683 100644
                          .prefix(gpui::div().pl(px(12.)).child(icon(h::icons::KEY, cx)))
                          .input(h::Input::new(self.demo_text(
                              "ig-key",
-@@ -6728,7 +6917,7 @@ impl Gallery {
+@@ -6728,7 +6973,7 @@ impl Gallery {
                  ),
                  (
                      "Password Toggle",
@@ -17529,7 +17704,7 @@ index 5eb12cd4..8a784683 100644
                          .label("Password")
                          .input(
                              h::Input::new(self.demo_text("ig-pw", "correct horse", cx)).input_type(
-@@ -6763,7 +6952,7 @@ impl Gallery {
+@@ -6763,7 +7008,7 @@ impl Gallery {
                  ),
                  (
                      "Keyboard Shortcut",
@@ -17538,7 +17713,7 @@ index 5eb12cd4..8a784683 100644
                          .prefix(gpui::div().pl(px(12.)).child(icon(h::icons::SEARCH, cx)))
                          .input(
                              h::Input::new(self.demo_text("ig-kbd", "", cx)).placeholder("Search"),
-@@ -6780,7 +6969,7 @@ impl Gallery {
+@@ -6780,7 +7025,7 @@ impl Gallery {
                  ),
                  (
                      "Badge Suffix",
@@ -17547,7 +17722,7 @@ index 5eb12cd4..8a784683 100644
                          .label("Plan")
                          .input(h::Input::new(self.demo_text("ig-badge", "Pro", cx)))
                          .suffix(
-@@ -6796,7 +6985,7 @@ impl Gallery {
+@@ -6796,7 +7041,7 @@ impl Gallery {
                  ),
                  (
                      "Validation",
@@ -17556,7 +17731,7 @@ index 5eb12cd4..8a784683 100644
                          .label("Website")
                          .is_required(true)
                          .is_invalid(true)
-@@ -6807,29 +6996,38 @@ impl Gallery {
+@@ -6807,29 +7052,38 @@ impl Gallery {
                  ),
                  (
                      "With Prefix Icon",
@@ -17602,7 +17777,7 @@ index 5eb12cd4..8a784683 100644
                          .label("Note")
                          .prefix(
                              // The group's `:has(textarea)` rule owns the 8px
-@@ -6838,12 +7036,16 @@ impl Gallery {
+@@ -6838,12 +7092,16 @@ impl Gallery {
                              // addon slot.
                              gpui::div().pl(px(12.)).child(icon(h::icons::COPY, cx)),
                          )
@@ -17621,7 +17796,7 @@ index 5eb12cd4..8a784683 100644
                          .label("Amount")
                          .description("Billed in US dollars.")
                          .prefix(h::InputAddon::new("$"))
-@@ -6855,15 +7057,19 @@ impl Gallery {
+@@ -6855,15 +7113,19 @@ impl Gallery {
                  ),
                  (
                      "TextArea Usage Example",
@@ -17644,7 +17819,7 @@ index 5eb12cd4..8a784683 100644
                          .label("Amount")
                          .description("Charged monthly.")
                          .prefix(h::InputAddon::new("$"))
-@@ -6873,7 +7079,7 @@ impl Gallery {
+@@ -6873,7 +7135,7 @@ impl Gallery {
                  ),
                  (
                      "With a trailing action",
@@ -17653,7 +17828,7 @@ index 5eb12cd4..8a784683 100644
                          .variant(FieldVariant::Secondary)
                          .input(h::Input::new(self.input_email.clone()).placeholder("Email"))
                          .suffix(
-@@ -6899,21 +7105,32 @@ impl Gallery {
+@@ -6899,21 +7161,32 @@ impl Gallery {
              vec![
                  (
                      "Usage",
@@ -17694,7 +17869,7 @@ index 5eb12cd4..8a784683 100644
                      ]),
                  ),
                  (
-@@ -6990,24 +7207,23 @@ impl Gallery {
+@@ -6990,24 +7263,23 @@ impl Gallery {
                  ),
                  (
                      "Custom Slots",
@@ -17736,7 +17911,7 @@ index 5eb12cd4..8a784683 100644
                  ),
                  (
                      "Form Example",
-@@ -7075,12 +7291,21 @@ impl Gallery {
+@@ -7075,12 +7347,21 @@ impl Gallery {
              vec![
                  (
                      "Usage",
@@ -17764,7 +17939,7 @@ index 5eb12cd4..8a784683 100644
                  ),
                  (
                      "Without steppers",
-@@ -7384,12 +7609,8 @@ impl Gallery {
+@@ -7384,12 +7665,8 @@ impl Gallery {
                  ),
                  (
                      "Custom Indicator",
@@ -17778,7 +17953,7 @@ index 5eb12cd4..8a784683 100644
                          h::RadioGroup::new("rg-indicator", plans())
                              .default_value("Enterprise")
                              .indicator(move |_, state| {
-@@ -7496,14 +7717,15 @@ impl Gallery {
+@@ -7496,14 +7773,15 @@ impl Gallery {
                  (
                      "Usage",
                      col(vec![
@@ -17802,7 +17977,7 @@ index 5eb12cd4..8a784683 100644
                          para(
                              &if query.is_empty() {
                                  "Type to search".to_owned()
-@@ -7516,24 +7738,27 @@ impl Gallery {
+@@ -7516,24 +7794,27 @@ impl Gallery {
                  ),
                  (
                      "Variants",
@@ -17832,7 +18007,7 @@ index 5eb12cd4..8a784683 100644
                                  .variant(FieldVariant::Secondary)
                                  .description("Enter keywords to search"),
                          )
-@@ -7541,22 +7766,25 @@ impl Gallery {
+@@ -7541,22 +7822,25 @@ impl Gallery {
                  ),
                  (
                      "With Description",
@@ -17861,7 +18036,7 @@ index 5eb12cd4..8a784683 100644
                          .is_disabled(true)
                          .into_any_element()]),
                  ),
-@@ -7564,13 +7792,15 @@ impl Gallery {
+@@ -7564,13 +7848,15 @@ impl Gallery {
                      "Full Width",
                      col(vec![h::SearchField::new(full)
                          .label("Search")
@@ -17878,7 +18053,7 @@ index 5eb12cd4..8a784683 100644
                          .is_required(true)
                          .is_invalid(true)
                          .validation_errors(["Search query must be at least 3 characters"])
-@@ -7579,15 +7809,17 @@ impl Gallery {
+@@ -7579,15 +7865,17 @@ impl Gallery {
                  (
                      "Controlled",
                      col(vec![
@@ -17905,7 +18080,7 @@ index 5eb12cd4..8a784683 100644
                          para(
                              &if controlled_text.is_empty() {
                                  "Empty".to_owned()
-@@ -7600,7 +7832,7 @@ impl Gallery {
+@@ -7600,7 +7888,7 @@ impl Gallery {
                  ),
                  (
                      "Render Props",
@@ -17914,7 +18089,7 @@ index 5eb12cd4..8a784683 100644
                          let parts = render_props.clone();
                          h::SearchField::new(render_props)
                              .content(move |state| {
-@@ -7623,28 +7855,28 @@ impl Gallery {
+@@ -7623,28 +7911,28 @@ impl Gallery {
                  ),
                  (
                      "With Validation",
@@ -17957,7 +18132,7 @@ index 5eb12cd4..8a784683 100644
                              .name("query")
                              .is_required(true)
                              .validate(|value| {
-@@ -7660,16 +7892,18 @@ impl Gallery {
+@@ -7660,16 +7948,18 @@ impl Gallery {
                  ),
                  (
                      "Custom Icons",
@@ -17978,7 +18153,7 @@ index 5eb12cd4..8a784683 100644
                          .end_content(h::Kbd::new().child("Shift S"))
                          .description("Press Shift+S to focus")
                          .into_any_element()]),
-@@ -7692,21 +7926,26 @@ impl Gallery {
+@@ -7692,21 +7982,26 @@ impl Gallery {
              vec![
                  (
                      "Usage",
@@ -18011,7 +18186,7 @@ index 5eb12cd4..8a784683 100644
                              .variant(FieldVariant::Secondary)
                              .rows(3)
                              .into_any_element(),
-@@ -7714,12 +7953,13 @@ impl Gallery {
+@@ -7714,12 +8009,13 @@ impl Gallery {
                  ),
                  (
                      "In Surface",
@@ -18026,7 +18201,7 @@ index 5eb12cd4..8a784683 100644
                                  .variant(FieldVariant::Secondary)
                                  .rows(3),
                          )
-@@ -7729,6 +7969,7 @@ impl Gallery {
+@@ -7729,6 +8025,7 @@ impl Gallery {
                      "Full Width",
                      col(vec![h::TextArea::new(self.demo_text("ta-full", "", cx))
                          .label("Notes")
@@ -18034,7 +18209,7 @@ index 5eb12cd4..8a784683 100644
                          .rows(3)
                          .full_width()
                          .into_any_element()]),
-@@ -7736,18 +7977,21 @@ impl Gallery {
+@@ -7736,18 +8033,21 @@ impl Gallery {
                  (
                      "Controlled",
                      col(vec![
@@ -18062,7 +18237,7 @@ index 5eb12cd4..8a784683 100644
                          .rows(6)
                          .into_any_element()]),
                  ),
-@@ -7770,7 +8014,7 @@ impl Gallery {
+@@ -7770,7 +8070,7 @@ impl Gallery {
              vec![
                  (
                      "Usage",
@@ -18071,7 +18246,7 @@ index 5eb12cd4..8a784683 100644
                          .label("Full name")
                          .placeholder("Ada Lovelace")
                          .description("As it appears on your ID.")
-@@ -7778,12 +8022,13 @@ impl Gallery {
+@@ -7778,12 +8078,13 @@ impl Gallery {
                  ),
                  (
                      "In Surface",
@@ -18086,7 +18261,7 @@ index 5eb12cd4..8a784683 100644
                                  .variant(FieldVariant::Secondary)
                                  .description("Use the secondary variant on a surface"),
                          )
-@@ -7791,26 +8036,29 @@ impl Gallery {
+@@ -7791,26 +8092,29 @@ impl Gallery {
                  ),
                  (
                      "With Description",
@@ -18119,7 +18294,7 @@ index 5eb12cd4..8a784683 100644
                      .is_disabled(true)
                      .into_any_element()]),
                  ),
-@@ -7818,14 +8066,16 @@ impl Gallery {
+@@ -7818,14 +8122,16 @@ impl Gallery {
                      "Full Width",
                      col(vec![h::TextField::new(self.demo_text("tf-full", "", cx))
                          .label("Full name")
@@ -18137,7 +18312,7 @@ index 5eb12cd4..8a784683 100644
                              .is_required(true)
                              .validate(|value| value
                                  .trim()
-@@ -7834,6 +8084,7 @@ impl Gallery {
+@@ -7834,6 +8140,7 @@ impl Gallery {
                              .into_any_element(),
                          h::TextField::new(self.demo_text("tf-invalid", "", cx))
                          .label("Full name")
@@ -18145,7 +18320,7 @@ index 5eb12cd4..8a784683 100644
                          // `isInvalid` marks it invalid from the outside, which is
                          // what a server-side error looks like.
                          .is_invalid(true)
-@@ -7844,16 +8095,18 @@ impl Gallery {
+@@ -7844,16 +8151,18 @@ impl Gallery {
                  (
                      "Controlled",
                      col(vec![
@@ -18169,7 +18344,7 @@ index 5eb12cd4..8a784683 100644
                          let field = tf_render_props.clone();
                          h::TextField::new(tf_render_props)
                              .content(move |state| {
-@@ -7872,6 +8125,7 @@ impl Gallery {
+@@ -7872,6 +8181,7 @@ impl Gallery {
                                              "unfocused"
                                          },
                                      ))
@@ -18177,7 +18352,7 @@ index 5eb12cd4..8a784683 100644
                                      .is_required(true)
                                      .into_any_element()
                              })
-@@ -7881,29 +8135,33 @@ impl Gallery {
+@@ -7881,29 +8191,33 @@ impl Gallery {
                  ),
                  (
                      "Error Message",
@@ -18214,7 +18389,48 @@ index 5eb12cd4..8a784683 100644
                              .input_type(h::InputType::Email)
                              .into_any_element(),
                      ]),
-@@ -8011,7 +8269,7 @@ impl Gallery {
+@@ -7944,16 +8258,36 @@ impl Gallery {
+             vec![
+                 (
+                     "Usage",
++                    // v3's card is 400px wide, leads with an icon above the
++                    // header and closes on a link in the footer.
+                     row(vec![h::Card::new()
+-                        .w(px(260.))
++                        .w(px(400.))
++                        .child(
++                            gpui::svg()
++                                .size(px(24.))
++                                .path(h::icons::KEY)
++                                .text_color(cx.colors().accent.color),
++                        )
+                         .child(
+                             h::CardHeader::new()
+-                                .child(h::CardTitle::new().child("Daily report"))
++                                .child(h::CardTitle::new().child("Become an Acme Creator!"))
+                                 .child(
+-                                    h::CardDescription::new().child("Traffic summary for the week"),
++                                    h::CardDescription::new().child(CARD_USAGE_DESCRIPTION),
+                                 ),
+                         )
+-                        .child(h::CardContent::new().child("Sessions are up 12% week over week."))
++                        .child(
++                            h::CardFooter::new().child(
++                                h::Link::new("card-usage-link")
++                                    .label("Creator Hub")
++                                    .href("https://heroui.com")
++                                    .icon(
++                                        gpui::svg()
++                                            .size(px(12.))
++                                            .path(h::icons::EXTERNAL_LINK)
++                                            .text_color(cx.colors().link),
++                                    ),
++                            ),
++                        )
+                         .into_any_element()]),
+                 ),
+                 (
+@@ -8011,7 +8345,7 @@ impl Gallery {
                          )
                          .child(
                              h::CardFooter::new()
@@ -18223,7 +18439,7 @@ index 5eb12cd4..8a784683 100644
                                  .child("By Martha"),
                          )
                          .into_any_element()]),
-@@ -8181,7 +8439,7 @@ impl Gallery {
+@@ -8181,7 +8515,7 @@ impl Gallery {
                  ),
                  (
                      "With form components",
@@ -18232,7 +18448,7 @@ index 5eb12cd4..8a784683 100644
                          // Same as the variants panel: upstream adds its
                          // `p-6` + `gap-4` through className; these explicit
                          // paddings/gaps exercise the port's own layout
-@@ -8195,7 +8453,8 @@ impl Gallery {
+@@ -8195,7 +8529,8 @@ impl Gallery {
                          )
                          .child(
                              h::TextArea::new(self.input_bio.clone())
@@ -18242,7 +18458,7 @@ index 5eb12cd4..8a784683 100644
                          )
                          .into_any_element()]),
                  ),
-@@ -8341,7 +8600,7 @@ impl Gallery {
+@@ -8341,7 +8676,7 @@ impl Gallery {
              .take(3)
              .enumerate()
              .map(|(i, n)| {
@@ -18251,7 +18467,7 @@ index 5eb12cd4..8a784683 100644
                  if i == 0 {
                      d.into_any_element()
                  } else {
-@@ -8369,40 +8628,61 @@ impl Gallery {
+@@ -8369,40 +8704,61 @@ impl Gallery {
              vec![
                  (
                      "Usage",
@@ -18323,7 +18539,7 @@ index 5eb12cd4..8a784683 100644
                                  cx,
                              )
                          })
-@@ -8412,17 +8692,22 @@ impl Gallery {
+@@ -8412,17 +8768,22 @@ impl Gallery {
                      "Colors",
                      row(Color::ALL
                          .iter()
@@ -18350,7 +18566,7 @@ index 5eb12cd4..8a784683 100644
                                  cx,
                              )
                          })
-@@ -8440,7 +8725,8 @@ impl Gallery {
+@@ -8440,7 +8801,8 @@ impl Gallery {
                              gpui::div()
                                  .flex()
                                  .children(names.iter().take(4).enumerate().map(|(i, n)| {
@@ -18360,7 +18576,7 @@ index 5eb12cd4..8a784683 100644
                                      if i == 0 {
                                          d.into_any_element()
                                      } else {
-@@ -8455,6 +8741,24 @@ impl Gallery {
+@@ -8455,6 +8817,24 @@ impl Gallery {
                          )
                          .into_any_element()]),
                  ),
@@ -18385,11 +18601,19 @@ index 5eb12cd4..8a784683 100644
              ],
              cx,
          )
-@@ -8774,6 +9078,30 @@ impl Gallery {
-                     .child(gpui::div().child("Ships in 2-4 business days."))
+@@ -8775,15 +9155,39 @@ impl Gallery {
                      .into_any_element()]),
                  ),
-+                (
+                 (
+-                    "Controlled",
+-                    col(vec![
+-                        h::DisclosureGroup::new("disclosure-controlled")
+-                            .item("returns", "Returns", gpui::div().child("Thirty days."))
+-                            .item("warranty", "Warranty", gpui::div().child("Two years."))
+-                            .expanded_keys(group.clone())
+-                            .on_expanded_change(cx.listener(
+-                                |this, keys: &HashSet<SharedString>, _, cx| {
+-                                    this.disclosure_group_expanded = keys.clone();
 +                    "Render Function",
 +                    "The body is built from the Disclosure's current expanded and disabled state.",
 +                    {
@@ -18413,10 +18637,20 @@ index 5eb12cd4..8a784683 100644
 +                            .into_any_element()])
 +                    }
 +                ),
-                 (
-                     "Controlled",
-                     col(vec![
-@@ -8866,14 +9194,8 @@ impl Gallery {
++                (
++                    "Controlled",
++                    col(vec![
++                        h::DisclosureGroup::new("disclosure-controlled")
++                            .item("returns", "Returns", gpui::div().child("Thirty days."))
++                            .item("warranty", "Warranty", gpui::div().child("Two years."))
++                            .expanded_keys(group.clone())
++                            .on_expanded_change(cx.listener(
++                                |this, keys: &HashSet<SharedString>, _, cx| {
++                                    this.disclosure_group_expanded = keys.clone();
+                                     cx.notify();
+                                 },
+                             ))
+@@ -8866,14 +9270,8 @@ impl Gallery {
                  ),
                  (
                      "Text Decoration",
@@ -18432,7 +18666,7 @@ index 5eb12cd4..8a784683 100644
                          h::Link::new("ln-decor")
                              .label("Underlined on hover")
                              .href("#")
-@@ -8888,6 +9210,37 @@ impl Gallery {
+@@ -8888,6 +9286,37 @@ impl Gallery {
                          .href("#")
                          .into_any_element()]),
                  ),
@@ -18470,7 +18704,7 @@ index 5eb12cd4..8a784683 100644
              ],
              cx,
          )
-@@ -8999,12 +9352,8 @@ impl Gallery {
+@@ -8999,12 +9428,8 @@ impl Gallery {
                  ),
                  (
                      "Render Props",
@@ -18484,7 +18718,7 @@ index 5eb12cd4..8a784683 100644
                          h::Pagination::new("pg-render-props", page, 5)
                              .link(|page, is_active| {
                                  gpui::div()
-@@ -9024,12 +9373,8 @@ impl Gallery {
+@@ -9024,12 +9449,8 @@ impl Gallery {
                  ),
                  (
                      "Custom Icons",
@@ -18498,7 +18732,7 @@ index 5eb12cd4..8a784683 100644
                          h::Pagination::new("pg-custom", page, 5)
                              .previous_icon(icon(h::icons::ARROW_LEFT, cx))
                              .next_icon(icon(h::icons::ARROW_RIGHT, cx))
-@@ -9104,8 +9449,8 @@ impl Gallery {
+@@ -9104,8 +9525,8 @@ impl Gallery {
                  ),
                  (
                      "Overflow",
@@ -18508,7 +18742,7 @@ index 5eb12cd4..8a784683 100644
                          para("Horizontal", cx),
                          // The list only overflows inside a bounded box, which is
                          // how v3's own example frames it.
-@@ -9237,6 +9582,7 @@ impl Gallery {
+@@ -9237,6 +9658,7 @@ impl Gallery {
                      .map(|(key, label, size)| {
                          let open = self.demo_overlay(key);
                          overlay_demo(
@@ -18516,7 +18750,7 @@ index 5eb12cd4..8a784683 100644
                              key,
                              label,
                              h::AlertDialog::new(format!("Size: {label}")).id(key)
-@@ -9269,6 +9615,7 @@ impl Gallery {
+@@ -9269,6 +9691,7 @@ impl Gallery {
                      .map(|(key, label, status)| {
                          let open = self.demo_overlay(key);
                          overlay_demo(
@@ -18524,7 +18758,7 @@ index 5eb12cd4..8a784683 100644
                              key,
                              label,
                              h::AlertDialog::new(format!("{label} status")).id(key)
-@@ -9300,6 +9647,7 @@ impl Gallery {
+@@ -9300,6 +9723,7 @@ impl Gallery {
                      .map(|(key, label, placement)| {
                          let open = self.demo_overlay(key);
                          overlay_demo(
@@ -18532,7 +18766,7 @@ index 5eb12cd4..8a784683 100644
                              key,
                              label,
                              h::AlertDialog::new(format!("Placement: {label}")).id(key)
-@@ -9331,6 +9679,7 @@ impl Gallery {
+@@ -9331,6 +9755,7 @@ impl Gallery {
                              };
                              let open = self.demo_overlay(key);
                              overlay_demo(
@@ -18540,7 +18774,7 @@ index 5eb12cd4..8a784683 100644
                                  key,
                                  backdrop.label(),
                                  h::AlertDialog::new(format!("Backdrop: {}", backdrop.label())).id(key)
-@@ -9353,6 +9702,7 @@ impl Gallery {
+@@ -9353,6 +9778,7 @@ impl Gallery {
                  (
                      "Controlled State",
                      col(vec![overlay_demo(
@@ -18548,7 +18782,7 @@ index 5eb12cd4..8a784683 100644
                          "ad-controlled",
                          "Open (controlled)",
                          h::AlertDialog::new("Controlled").id("ad-controlled")
-@@ -9370,6 +9720,7 @@ impl Gallery {
+@@ -9370,6 +9796,7 @@ impl Gallery {
                  (
                      "Custom Icon",
                      col(vec![overlay_demo(
@@ -18556,7 +18790,7 @@ index 5eb12cd4..8a784683 100644
                          "ad-icon",
                          "Open with a status icon",
                          h::AlertDialog::new("Heads up").id("ad-icon")
-@@ -9388,6 +9739,7 @@ impl Gallery {
+@@ -9388,6 +9815,7 @@ impl Gallery {
                  (
                      "Custom Backdrop",
                      col(vec![overlay_demo(
@@ -18564,7 +18798,7 @@ index 5eb12cd4..8a784683 100644
                          "ad-custom-bd",
                          "Open with a blurred backdrop",
                          h::AlertDialog::new("Blurred").id("ad-custom-bd")
-@@ -9406,6 +9758,7 @@ impl Gallery {
+@@ -9406,6 +9834,7 @@ impl Gallery {
                  (
                      "Dismiss Behavior",
                      col(vec![overlay_demo(
@@ -18572,7 +18806,7 @@ index 5eb12cd4..8a784683 100644
                          "ad-dismiss",
                          "Open a non-dismissable dialog",
                          h::AlertDialog::new("Confirm first").id("ad-dismiss")
-@@ -9426,10 +9779,11 @@ impl Gallery {
+@@ -9426,10 +9855,11 @@ impl Gallery {
                      "Close Methods",
                      col(vec![
                          overlay_demo(
@@ -18585,7 +18819,7 @@ index 5eb12cd4..8a784683 100644
                                  .is_open(self.demo_overlay("ad-close"))
                                  .footer_child(
                                      h::Button::new("ad-close-cancel")
-@@ -9457,6 +9811,7 @@ impl Gallery {
+@@ -9457,6 +9887,7 @@ impl Gallery {
                              cx,
                          ),
                          overlay_demo(
@@ -18593,7 +18827,7 @@ index 5eb12cd4..8a784683 100644
                              "ad-pending",
                              "Open (pending confirm)",
                              h::AlertDialog::new("Deploying").id("ad-pending")
-@@ -9488,6 +9843,7 @@ impl Gallery {
+@@ -9488,6 +9919,7 @@ impl Gallery {
                  (
                      "Custom Animations",
                      col(vec![overlay_demo(
@@ -18601,7 +18835,7 @@ index 5eb12cd4..8a784683 100644
                          "ad-anim",
                          "Open and watch the panel",
                          h::AlertDialog::new("Animated").id("ad-anim")
-@@ -9504,13 +9860,18 @@ impl Gallery {
+@@ -9504,13 +9936,18 @@ impl Gallery {
                  ),
                  (
                      "Custom Trigger",
@@ -18627,7 +18861,7 @@ index 5eb12cd4..8a784683 100644
                          .child(
                              gpui::div()
                                  .id("ad-custom-trigger")
-@@ -9529,7 +9890,7 @@ impl Gallery {
+@@ -9529,7 +9966,7 @@ impl Gallery {
                          .child(
                              h::AlertDialog::new("Delete this account?").id("ad-custom")
                                  .description("Any element can open an alert dialog; a composed CloseTrigger draws the corner X and a composed footer owns the danger confirm.")
@@ -18636,7 +18870,7 @@ index 5eb12cd4..8a784683 100644
                                  .child(h::AlertDialogCloseTrigger::new())
                                  .footer_child(
                                      h::Button::new("ad-custom-cancel")
-@@ -9554,58 +9915,64 @@ impl Gallery {
+@@ -9554,58 +9991,64 @@ impl Gallery {
                                      cx.notify();
                                  })))
                          )
@@ -18750,7 +18984,7 @@ index 5eb12cd4..8a784683 100644
              )],
              cx,
          )
-@@ -9630,6 +9997,7 @@ impl Gallery {
+@@ -9630,6 +10073,7 @@ impl Gallery {
                      .map(|(key, label, placement)| {
                          let open = self.demo_overlay(key);
                          overlay_demo(
@@ -18758,7 +18992,7 @@ index 5eb12cd4..8a784683 100644
                              key,
                              label,
                              h::Drawer::new()
-@@ -9655,6 +10023,7 @@ impl Gallery {
+@@ -9655,6 +10099,7 @@ impl Gallery {
                  (
                      "Non-Dismissable",
                      col(vec![overlay_demo(
@@ -18766,7 +19000,7 @@ index 5eb12cd4..8a784683 100644
                          "dr-no-dismiss",
                          "Open a non-dismissable drawer",
                          h::Drawer::new()
-@@ -9683,6 +10052,7 @@ impl Gallery {
+@@ -9683,6 +10128,7 @@ impl Gallery {
                  (
                      "Scrollable Content",
                      col(vec![overlay_demo(
@@ -18774,7 +19008,7 @@ index 5eb12cd4..8a784683 100644
                          "dr-scroll",
                          "Open a long drawer",
                          h::Drawer::new()
-@@ -9719,6 +10089,7 @@ impl Gallery {
+@@ -9719,6 +10165,7 @@ impl Gallery {
                              cx,
                          ),
                          overlay_demo(
@@ -18782,7 +19016,7 @@ index 5eb12cd4..8a784683 100644
                              "dr-controlled",
                              "Open (controlled)",
                              h::Drawer::new()
-@@ -9740,6 +10111,7 @@ impl Gallery {
+@@ -9740,6 +10187,7 @@ impl Gallery {
                  (
                      "With Form",
                      col(vec![overlay_demo(
@@ -18790,7 +19024,7 @@ index 5eb12cd4..8a784683 100644
                          "dr-form",
                          "Open a form drawer",
                          h::Drawer::new()
-@@ -9780,6 +10152,7 @@ impl Gallery {
+@@ -9780,6 +10228,7 @@ impl Gallery {
                  (
                      "Navigation Drawer",
                      col(vec![overlay_demo(
@@ -18798,7 +19032,7 @@ index 5eb12cd4..8a784683 100644
                          "dr-nav",
                          "Open the navigation",
                          h::Drawer::new()
-@@ -9819,6 +10192,7 @@ impl Gallery {
+@@ -9819,6 +10268,7 @@ impl Gallery {
                              };
                              let open = self.demo_overlay(key);
                              overlay_demo(
@@ -18806,7 +19040,7 @@ index 5eb12cd4..8a784683 100644
                                  key,
                                  backdrop.label(),
                                  h::Drawer::new()
-@@ -9843,39 +10217,44 @@ impl Gallery {
+@@ -9843,39 +10293,44 @@ impl Gallery {
                  ),
                  (
                      "Usage",
@@ -18880,7 +19114,7 @@ index 5eb12cd4..8a784683 100644
                  ),
              ],
              cx,
-@@ -9910,6 +10289,7 @@ impl Gallery {
+@@ -9910,6 +10365,7 @@ impl Gallery {
                      .map(|(key, label, size)| {
                          let open = self.demo_overlay(key);
                          overlay_demo(
@@ -18888,7 +19122,7 @@ index 5eb12cd4..8a784683 100644
                              key,
                              label,
                              h::Modal::new()
-@@ -9944,6 +10324,7 @@ impl Gallery {
+@@ -9944,6 +10400,7 @@ impl Gallery {
                      .map(|(key, label, placement)| {
                          let open = self.demo_overlay(key);
                          overlay_demo(
@@ -18896,7 +19130,7 @@ index 5eb12cd4..8a784683 100644
                              key,
                              label,
                              h::Modal::new()
-@@ -9976,6 +10357,7 @@ impl Gallery {
+@@ -9976,6 +10433,7 @@ impl Gallery {
                      .map(|(key, label, scroll)| {
                          let open = self.demo_overlay(key);
                          overlay_demo(
@@ -18904,7 +19138,7 @@ index 5eb12cd4..8a784683 100644
                              key,
                              label,
                              h::Modal::new()
-@@ -10013,6 +10395,7 @@ impl Gallery {
+@@ -10013,6 +10471,7 @@ impl Gallery {
                              cx,
                          ),
                          overlay_demo(
@@ -18912,7 +19146,7 @@ index 5eb12cd4..8a784683 100644
                              "md-controlled",
                              "Open (controlled)",
                              h::Modal::new()
-@@ -10034,6 +10417,7 @@ impl Gallery {
+@@ -10034,6 +10493,7 @@ impl Gallery {
                  (
                      "With Form",
                      col(vec![overlay_demo(
@@ -18920,7 +19154,7 @@ index 5eb12cd4..8a784683 100644
                          "md-form",
                          "Open form modal",
                          h::Modal::new()
-@@ -10075,18 +10459,21 @@ impl Gallery {
+@@ -10075,18 +10535,21 @@ impl Gallery {
                  ),
                  (
                      "Custom Trigger",
@@ -18950,7 +19184,7 @@ index 5eb12cd4..8a784683 100644
                                  .on_click(cx.listener(|this, _, _, cx| {
                                      this.set_demo_flag("md-custom", true);
                                      cx.notify();
-@@ -10119,6 +10506,7 @@ impl Gallery {
+@@ -10119,6 +10582,7 @@ impl Gallery {
                              };
                              let open = self.demo_overlay(key);
                              overlay_demo(
@@ -18958,7 +19192,7 @@ index 5eb12cd4..8a784683 100644
                                  key,
                                  backdrop.label(),
                                  h::Modal::new()
-@@ -10143,14 +10531,10 @@ impl Gallery {
+@@ -10143,14 +10607,10 @@ impl Gallery {
                  ),
                  (
                      "Custom Backdrop",
@@ -18975,7 +19209,7 @@ index 5eb12cd4..8a784683 100644
                              "md-bd-custom",
                              "Open with a blurred backdrop",
                              h::Modal::new()
-@@ -10172,13 +10556,10 @@ impl Gallery {
+@@ -10172,13 +10632,10 @@ impl Gallery {
                  ),
                  (
                      "Dismiss Behavior",
@@ -18991,7 +19225,7 @@ index 5eb12cd4..8a784683 100644
                              "md-no-dismiss",
                              "Open a non-dismissable modal",
                              h::Modal::new()
-@@ -10210,15 +10591,10 @@ impl Gallery {
+@@ -10210,15 +10667,10 @@ impl Gallery {
                  ),
                  (
                      "Close Methods",
@@ -19009,7 +19243,7 @@ index 5eb12cd4..8a784683 100644
                              "md-close",
                              "Open (no close trigger)",
                              h::Modal::new()
-@@ -10250,16 +10626,10 @@ impl Gallery {
+@@ -10250,16 +10702,10 @@ impl Gallery {
                  ),
                  (
                      "Custom Animations",
@@ -19028,7 +19262,7 @@ index 5eb12cd4..8a784683 100644
                              "md-anim",
                              "Open and watch the panel",
                              h::Modal::new()
-@@ -10280,13 +10650,17 @@ impl Gallery {
+@@ -10280,13 +10726,17 @@ impl Gallery {
                  ),
                  (
                      "Usage",
@@ -19053,7 +19287,7 @@ index 5eb12cd4..8a784683 100644
                          .child(
                              h::Button::new("md-open")
                                  .label("Open modal")
-@@ -10325,7 +10699,8 @@ impl Gallery {
+@@ -10325,7 +10775,8 @@ impl Gallery {
                                      cx.notify();
                                  })),
                          )
@@ -19063,7 +19297,7 @@ index 5eb12cd4..8a784683 100644
                  ),
              ],
              cx,
-@@ -10335,6 +10710,20 @@ impl Gallery {
+@@ -10335,6 +10786,20 @@ impl Gallery {
      pub fn page_popover(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
          let is_open = self.popover_open;
          let po_following = self.demo_flag("po-following", false);
@@ -19084,7 +19318,7 @@ index 5eb12cd4..8a784683 100644
          component_doc_page!(
              "Popover",
              crate::pages::Page::Popover.description(),
-@@ -10342,79 +10731,121 @@ impl Gallery {
+@@ -10342,79 +10807,121 @@ impl Gallery {
              vec![
                  (
                      "With Arrow",
@@ -19240,7 +19474,7 @@ index 5eb12cd4..8a784683 100644
                              .title("Sarah Johnson")
                              .child(
                                  gpui::div()
-@@ -10442,16 +10873,16 @@ impl Gallery {
+@@ -10442,16 +10949,16 @@ impl Gallery {
                                      ),
                              ),
                          )
@@ -19263,7 +19497,7 @@ index 5eb12cd4..8a784683 100644
                          .children(
                              [
                                  ("po-pl-top", "Top", h::PopoverPlacement::Top),
-@@ -10461,7 +10892,24 @@ impl Gallery {
+@@ -10461,7 +10968,24 @@ impl Gallery {
                              ]
                              .into_iter()
                              .map(|(id, label, placement)| {
@@ -19289,7 +19523,7 @@ index 5eb12cd4..8a784683 100644
                                      h::Popover::new(
                                          h::Button::new(el_id(format!("{id}-trigger")))
                                              .label(label)
-@@ -10469,30 +10917,220 @@ impl Gallery {
+@@ -10469,30 +10993,220 @@ impl Gallery {
                                              .size(Size::Sm),
                                      )
                                      .id(id)
@@ -19525,7 +19759,7 @@ index 5eb12cd4..8a784683 100644
                  ),
              ],
              cx,
-@@ -10541,13 +11179,8 @@ impl Gallery {
+@@ -10541,13 +11255,8 @@ impl Gallery {
                  ),
                  (
                      "Placements",
@@ -19540,7 +19774,7 @@ index 5eb12cd4..8a784683 100644
                          row([
                              ("TopStart", h::ToastPlacement::TopStart),
                              ("Top", h::ToastPlacement::Top),
-@@ -10592,13 +11225,8 @@ impl Gallery {
+@@ -10592,13 +11301,8 @@ impl Gallery {
                  ),
                  (
                      "Custom Indicators",
@@ -19555,7 +19789,7 @@ index 5eb12cd4..8a784683 100644
                          row(vec![
                              h::Button::new("toast-ind-success")
                                  .label("Success")
-@@ -10646,13 +11274,8 @@ impl Gallery {
+@@ -10646,13 +11350,8 @@ impl Gallery {
                  ),
                  (
                      "Custom Toast Rendering",
@@ -19570,7 +19804,7 @@ index 5eb12cd4..8a784683 100644
                          row(vec![h::Button::new("toast-custom")
                              .label("Push a two-line toast")
                              .variant(Variant::Secondary)
-@@ -10669,13 +11292,8 @@ impl Gallery {
+@@ -10669,13 +11368,8 @@ impl Gallery {
                  ),
                  (
                      "Promise & Loading",
@@ -19585,7 +19819,7 @@ index 5eb12cd4..8a784683 100644
                          row(vec![h::Button::new("toast-promise")
                              .label("Upload a file")
                              .variant(Variant::Secondary)
-@@ -10708,13 +11326,9 @@ impl Gallery {
+@@ -10708,13 +11402,9 @@ impl Gallery {
                  ),
                  (
                      "Callbacks",
@@ -19600,7 +19834,7 @@ index 5eb12cd4..8a784683 100644
                          row(vec![h::Button::new("toast-callback")
                              .label("Push a closable toast")
                              .variant(Variant::Secondary)
-@@ -10731,12 +11345,8 @@ impl Gallery {
+@@ -10731,12 +11421,8 @@ impl Gallery {
                  ),
                  (
                      "Custom Queues",
@@ -19614,7 +19848,7 @@ index 5eb12cd4..8a784683 100644
                          row(vec![h::Button::new("toast-queue")
                              .label("Push four")
                              .variant(Variant::Secondary)
-@@ -10753,12 +11363,8 @@ impl Gallery {
+@@ -10753,12 +11439,8 @@ impl Gallery {
                  ),
                  (
                      "Setup",
@@ -19628,7 +19862,7 @@ index 5eb12cd4..8a784683 100644
                          crate::pages::code_block(TOAST_SETUP, cx),
                      ]),
                  ),
-@@ -10822,7 +11428,7 @@ impl Gallery {
+@@ -10822,7 +11504,7 @@ impl Gallery {
                          h::Tooltip::new("Jane Doe")
                              .delay(0)
                              .show_arrow(true)
@@ -19637,7 +19871,7 @@ index 5eb12cd4..8a784683 100644
                              .into_any_element(),
                          h::Tooltip::new("Verified account")
                              .delay(0)
-@@ -10928,110 +11534,120 @@ impl Gallery {
+@@ -10928,110 +11610,120 @@ impl Gallery {
              vec![
                  (
                      "Virtualization",
@@ -19785,7 +20019,7 @@ index 5eb12cd4..8a784683 100644
                          self.demo_text("ac-sections", "", cx),
                          vec![
                              h::PickerItem::new("rust", "Rust"),
-@@ -11041,6 +11657,7 @@ impl Gallery {
+@@ -11041,6 +11733,7 @@ impl Gallery {
                          ],
                      )
                      .label("Language")
@@ -19793,7 +20027,7 @@ index 5eb12cd4..8a784683 100644
                      .section_before("rust", "Systems")
                      .section_before("typescript", "Scripting")
                      .default_open(true)
-@@ -11048,11 +11665,12 @@ impl Gallery {
+@@ -11048,11 +11741,12 @@ impl Gallery {
                  ),
                  (
                      "Multiple Select",
@@ -19807,7 +20041,7 @@ index 5eb12cd4..8a784683 100644
                      .selection_mode(SelectionMode::Multiple)
                      // `defaultValue` is `Key | Key[]`: the uncontrolled
                      // selection, seeded once, by key.
-@@ -11065,6 +11683,7 @@ impl Gallery {
+@@ -11065,6 +11759,7 @@ impl Gallery {
                      col(vec![
                          h::Autocomplete::new(self.demo_text("ac-controlled", "", cx), language_items())
                              .label("Language")
@@ -19815,7 +20049,7 @@ index 5eb12cd4..8a784683 100644
                              .input_value(ac_typed)
                              .on_input_change(cx.listener(|this, text: &str, _, cx| {
                                  this.set_demo_text_value("ac-typed", text.to_owned());
-@@ -11087,11 +11706,12 @@ impl Gallery {
+@@ -11087,11 +11782,12 @@ impl Gallery {
                  ),
                  (
                      "Controlled Multiple",
@@ -19829,7 +20063,7 @@ index 5eb12cd4..8a784683 100644
                      .selection_mode(SelectionMode::Multiple)
                      .selected_keys(ac_multi.iter().cloned())
                      .on_selection_change_all(cx.listener(|this, keys: &[SharedString], _, cx| {
-@@ -11117,6 +11737,7 @@ impl Gallery {
+@@ -11117,6 +11813,7 @@ impl Gallery {
                          ]),
                          h::Autocomplete::new(self.demo_text("ac-open", "", cx), language_items())
                              .label("Language")
@@ -19837,7 +20071,7 @@ index 5eb12cd4..8a784683 100644
                              .is_open(ac_open)
                              .on_open_change(bool_cb(cx.listener(|this, v: &bool, _, cx| {
                                  this.set_demo_flag("ac-open", *v);
-@@ -11127,16 +11748,12 @@ impl Gallery {
+@@ -11127,16 +11824,12 @@ impl Gallery {
                  ),
                  (
                      "Asynchronous Filtering",
@@ -19856,7 +20090,7 @@ index 5eb12cd4..8a784683 100644
                                  // `useFilter({sensitivity: "base"}).contains`:
                                  // case and accents both ignored, so "cafe"
                                  // finds "Café". The closure receives
-@@ -11153,11 +11770,12 @@ impl Gallery {
+@@ -11153,11 +11846,12 @@ impl Gallery {
                  ),
                  (
                      "Custom Indicator",
@@ -19870,7 +20104,7 @@ index 5eb12cd4..8a784683 100644
                      .default_open(true)
                      .indicator(|is_open| {
                          gpui::div()
-@@ -11169,17 +11787,11 @@ impl Gallery {
+@@ -11169,17 +11863,11 @@ impl Gallery {
                  ),
                  (
                      "Custom Value",
@@ -19890,7 +20124,7 @@ index 5eb12cd4..8a784683 100644
                              .selection_mode(SelectionMode::Multiple)
                              .default_value(["rust", "go"])
                              .value_content(|value| {
-@@ -11205,7 +11817,7 @@ impl Gallery {
+@@ -11205,7 +11893,7 @@ impl Gallery {
                  ),
                  (
                      "Usage",
@@ -19899,7 +20133,7 @@ index 5eb12cd4..8a784683 100644
                          self.ac_entity.clone(),
                          language_items(),
                      )
-@@ -11235,94 +11847,105 @@ impl Gallery {
+@@ -11235,94 +11923,105 @@ impl Gallery {
              vec![
                  (
                      "Virtualization",
@@ -20028,7 +20262,7 @@ index 5eb12cd4..8a784683 100644
                          self.demo_text("cb-sections", "", cx),
                          vec![
                              h::PickerItem::new("rust", "Rust"),
-@@ -11332,6 +11955,7 @@ impl Gallery {
+@@ -11332,6 +12031,7 @@ impl Gallery {
                          ],
                      )
                      .label("Language")
@@ -20036,7 +20270,7 @@ index 5eb12cd4..8a784683 100644
                      .section_before("rust", "Systems")
                      .section_before("typescript", "Scripting")
                      .default_open(true)
-@@ -11342,6 +11966,7 @@ impl Gallery {
+@@ -11342,6 +12042,7 @@ impl Gallery {
                      col(vec![
                          h::ComboBox::new(self.demo_text("cb-controlled", "", cx), language_items())
                              .label("Language")
@@ -20044,7 +20278,7 @@ index 5eb12cd4..8a784683 100644
                              // `selectedKey` is the controlled selection key
                              // (empty string is v3's `null`); the input shows
                              // that key's label and `inputValue` holds the
-@@ -11371,6 +11996,7 @@ impl Gallery {
+@@ -11371,6 +12072,7 @@ impl Gallery {
                      col(vec![
                          h::ComboBox::new(self.demo_text("cb-input", "", cx), language_items())
                              .label("Language")
@@ -20052,7 +20286,7 @@ index 5eb12cd4..8a784683 100644
                              .on_input_change(cx.listener(|this, text: &str, _, cx| {
                                  this.set_demo_text_value("cb-typed", text.to_owned());
                                  cx.notify();
-@@ -11381,11 +12007,12 @@ impl Gallery {
+@@ -11381,11 +12083,12 @@ impl Gallery {
                  ),
                  (
                      "Controlled Selection",
@@ -20066,7 +20300,7 @@ index 5eb12cd4..8a784683 100644
                      .selection_mode(SelectionMode::Multiple)
                      .selected_keys(cb_multi.iter().cloned())
                      .on_selection_change_all(cx.listener(|this, keys: &[SharedString], _, cx| {
-@@ -11396,22 +12023,24 @@ impl Gallery {
+@@ -11396,22 +12099,24 @@ impl Gallery {
                  ),
                  (
                      "Multiple Selection",
@@ -20093,7 +20327,7 @@ index 5eb12cd4..8a784683 100644
                      .selected_keys(cb_value.iter().cloned())
                      .on_selection_change_all(cx.listener(
                          |this, keys: &[SharedString], _, cx| {
-@@ -11433,36 +12062,34 @@ impl Gallery {
+@@ -11433,36 +12138,34 @@ impl Gallery {
                  ),
                  (
                      "Default Selected Key",
@@ -20137,7 +20371,7 @@ index 5eb12cd4..8a784683 100644
                                  .allows_empty_collection(true)
                                  // v3 pairs the flag with async loading: type a
                                  // query nothing matches and the panel stays up
-@@ -11479,11 +12106,12 @@ impl Gallery {
+@@ -11479,11 +12182,12 @@ impl Gallery {
                  ),
                  (
                      "Custom Indicator",
@@ -20151,7 +20385,7 @@ index 5eb12cd4..8a784683 100644
                      .selection_mode(SelectionMode::Multiple)
                      .default_open(true)
                      .indicator(|is_selected| {
-@@ -11496,14 +12124,11 @@ impl Gallery {
+@@ -11496,14 +12200,11 @@ impl Gallery {
                  ),
                  (
                      "Custom Filtering",
@@ -20168,7 +20402,7 @@ index 5eb12cd4..8a784683 100644
                              .filter(|item, input| {
                                  h::Filter::new(h::Sensitivity::Base).starts_with(item, input)
                              })
-@@ -11518,6 +12143,7 @@ impl Gallery {
+@@ -11518,6 +12219,7 @@ impl Gallery {
                              "Input (opens as you type)",
                              h::ComboBox::new(self.demo_text("cb-mt-input", "", cx), language_items())
                                  .label("Language")
@@ -20176,7 +20410,7 @@ index 5eb12cd4..8a784683 100644
                                  .menu_trigger(h::MenuTrigger::Input),
                              cx,
                          ),
-@@ -11525,6 +12151,7 @@ impl Gallery {
+@@ -11525,6 +12227,7 @@ impl Gallery {
                              "Manual (only the chevron opens it)",
                              h::ComboBox::new(self.demo_text("cb-mt-manual", "", cx), language_items())
                                  .label("Language")
@@ -20184,7 +20418,7 @@ index 5eb12cd4..8a784683 100644
                                  .menu_trigger(h::MenuTrigger::Manual),
                              cx,
                          ),
-@@ -11532,21 +12159,15 @@ impl Gallery {
+@@ -11532,21 +12235,15 @@ impl Gallery {
                  ),
                  (
                      "Form Value",
@@ -20208,7 +20442,7 @@ index 5eb12cd4..8a784683 100644
                              .name("language")
                              .is_required(true);
                              h::Form::new()
-@@ -11580,6 +12201,7 @@ impl Gallery {
+@@ -11580,6 +12277,7 @@ impl Gallery {
                                  language_items(),
                              )
                              .label("Language")
@@ -20216,7 +20450,7 @@ index 5eb12cd4..8a784683 100644
                              .name("custom-language")
                              .allows_custom_value(true)
                              .form_value(h::ComboBoxFormValue::Text),
-@@ -11594,6 +12216,7 @@ impl Gallery {
+@@ -11594,6 +12292,7 @@ impl Gallery {
                              "Native (blocks the submit)",
                              h::ComboBox::new(self.demo_text("cb-vb-native", "", cx), language_items())
                                  .label("Language")
@@ -20224,7 +20458,7 @@ index 5eb12cd4..8a784683 100644
                                  .is_required(true)
                                  .validation_behavior(h::ValidationBehavior::Native),
                              cx,
-@@ -11602,6 +12225,7 @@ impl Gallery {
+@@ -11602,6 +12301,7 @@ impl Gallery {
                              "Allow (shows the message, submits anyway)",
                              h::ComboBox::new(self.demo_text("cb-vb-allow", "", cx), language_items())
                                  .label("Language")
@@ -20232,7 +20466,7 @@ index 5eb12cd4..8a784683 100644
                                  .is_required(true)
                                  .validation_behavior(h::ValidationBehavior::Allow),
                              cx,
-@@ -11610,7 +12234,7 @@ impl Gallery {
+@@ -11610,7 +12310,7 @@ impl Gallery {
                  ),
                  (
                      "Custom Validation",
@@ -20241,7 +20475,7 @@ index 5eb12cd4..8a784683 100644
                          self.demo_text("cb-validate", "Zig", cx),
                          language_items(),
                      )
-@@ -11624,7 +12248,7 @@ impl Gallery {
+@@ -11624,7 +12324,7 @@ impl Gallery {
                  ),
                  (
                      "Usage",
@@ -20250,7 +20484,7 @@ index 5eb12cd4..8a784683 100644
                          self.combo_state.clone(),
                          language_items(),
                      )
-@@ -11643,11 +12267,12 @@ impl Gallery {
+@@ -11643,11 +12343,12 @@ impl Gallery {
                  ),
                  (
                      "Custom values allowed",
@@ -20264,7 +20498,7 @@ index 5eb12cd4..8a784683 100644
                      .allows_custom_value(true)
                      .is_open(is_open)
                      .on_open_change(bool_cb(cx.listener(|this, open: &bool, _, cx| {
-@@ -11672,23 +12297,19 @@ impl Gallery {
+@@ -11672,23 +12373,19 @@ impl Gallery {
              vec![
                  (
                      "Virtualization",
@@ -20295,7 +20529,7 @@ index 5eb12cd4..8a784683 100644
                          .label("Language")
                          .placeholder("Choose one")
                          .description("Used for spell-checking")
-@@ -11696,7 +12317,7 @@ impl Gallery {
+@@ -11696,7 +12393,7 @@ impl Gallery {
                  ),
                  (
                      "Required",
@@ -20304,7 +20538,7 @@ index 5eb12cd4..8a784683 100644
                          .label("Language")
                          .placeholder("Choose one")
                          .is_required(true)
-@@ -11704,7 +12325,7 @@ impl Gallery {
+@@ -11704,7 +12401,7 @@ impl Gallery {
                  ),
                  (
                      "Disabled",
@@ -20313,7 +20547,7 @@ index 5eb12cd4..8a784683 100644
                          .label("Language")
                          .placeholder("Choose one")
                          .is_disabled(true)
-@@ -11712,7 +12333,7 @@ impl Gallery {
+@@ -11712,7 +12409,7 @@ impl Gallery {
                  ),
                  (
                      "With Disabled Options",
@@ -20322,7 +20556,7 @@ index 5eb12cd4..8a784683 100644
                          .label("Language")
                          .placeholder("Choose one")
                          .disabled_keys([1, 3])
-@@ -11721,7 +12342,7 @@ impl Gallery {
+@@ -11721,7 +12418,7 @@ impl Gallery {
                  ),
                  (
                      "With Sections",
@@ -20331,7 +20565,7 @@ index 5eb12cd4..8a784683 100644
                          "sel-sections",
                          vec![
                              "United States".into(),
-@@ -11796,13 +12417,8 @@ impl Gallery {
+@@ -11796,13 +12493,8 @@ impl Gallery {
                  ),
                  (
                      "Asynchronous Loading",
@@ -20346,7 +20580,7 @@ index 5eb12cd4..8a784683 100644
                          row(vec![
                              h::Select::new("sel-async", languages())
                                  .label("Language")
-@@ -11816,7 +12432,7 @@ impl Gallery {
+@@ -11816,7 +12508,7 @@ impl Gallery {
                  ),
                  (
                      "Custom Indicator",
@@ -20355,7 +20589,7 @@ index 5eb12cd4..8a784683 100644
                          .label("Language")
                          .placeholder("Choose one")
                          .value(selected)
-@@ -11837,7 +12453,7 @@ impl Gallery {
+@@ -11837,7 +12529,7 @@ impl Gallery {
                  ),
                  (
                      "Custom Value",
@@ -20364,7 +20598,7 @@ index 5eb12cd4..8a784683 100644
                          .label("Language")
                          .placeholder("Choose one")
                          .value(selected)
-@@ -11868,7 +12484,7 @@ impl Gallery {
+@@ -11868,7 +12560,7 @@ impl Gallery {
                  ),
                  (
                      "Usage",
@@ -20373,7 +20607,7 @@ index 5eb12cd4..8a784683 100644
                          .label("Language")
                          .placeholder("Choose one")
                          .value(selected)
-@@ -11888,18 +12504,20 @@ impl Gallery {
+@@ -11888,18 +12580,20 @@ impl Gallery {
                  ),
                  (
                      "Uncontrolled",
@@ -20396,7 +20630,7 @@ index 5eb12cd4..8a784683 100644
                                  .value(selected)
                                  .on_selection_change(opt_usize_cb(cx.listener(
                                      |this, i: &Option<usize>, _, cx| {
-@@ -11913,21 +12531,26 @@ impl Gallery {
+@@ -11913,21 +12607,26 @@ impl Gallery {
                  ),
                  (
                      "Full width",
@@ -20434,7 +20668,7 @@ index 5eb12cd4..8a784683 100644
                          .label("Languages")
                          .placeholder("Pick several")
                          .selection_mode(SelectionMode::Multiple)
-@@ -12050,14 +12673,8 @@ impl Gallery {
+@@ -12050,14 +12749,8 @@ impl Gallery {
                  ),
                  (
                      "Render Props",
@@ -20450,7 +20684,7 @@ index 5eb12cd4..8a784683 100644
                          h::Prose::new()
                              .child(h::Typography::paragraph(
                                  h::ParagraphSize::Base,
-@@ -12265,12 +12882,8 @@ impl Gallery {
+@@ -12265,12 +12958,8 @@ impl Gallery {
                  ),
                  (
                      "Hide Scroll Bar",
@@ -20464,7 +20698,7 @@ index 5eb12cd4..8a784683 100644
                          h::ScrollShadow::new("ss-no-bar")
                              .max_h(px(140.))
                              .children(
-@@ -12385,6 +12998,39 @@ fn icon(path: &'static str, cx: &gpui::App) -> AnyElement {
+@@ -12385,13 +13074,45 @@ fn icon(path: &'static str, cx: &gpui::App) -> AnyElement {
          .into_any_element()
  }
  
@@ -20502,8 +20736,20 @@ index 5eb12cd4..8a784683 100644
 +}
 +
  /// A neutral block used as the child of badge demos.
- fn avatar_box(cx: &gpui::App) -> AnyElement {
-     gpui::div()
+-fn avatar_box(cx: &gpui::App) -> AnyElement {
+-    gpui::div()
+-        .size(px(36.))
+-        .rounded(px(10.))
+-        .bg(cx.colors().surface_tertiary)
+-        .into_any_element()
++/// The anchor every v3 Badge example uses: an `Avatar` with initials behind
++/// the badge. Upstream loads three CDN portraits and falls back to
++/// `JD`/`AB`/`CD`; the gallery makes no network calls, so the fallback shows.
++fn avatar_box(id: impl Into<gpui::ElementId>, name: &'static str) -> AnyElement {
++    h::Avatar::new(id).name(name).into_any_element()
+ }
+ 
+ fn languages() -> Vec<SharedString> {
 diff --git a/gallery/src/pages/docs.rs b/gallery/src/pages/docs.rs
 index 083dc343..995ef20e 100644
 --- a/gallery/src/pages/docs.rs
