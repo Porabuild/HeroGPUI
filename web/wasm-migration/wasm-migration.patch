@@ -14842,10 +14842,21 @@ index fa4f824e..632326dc 100644
 -<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/><line x1="12" y1="10.5" x2="12" y2="16.5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/><circle cx="12" cy="7.2" r="1.35"/></svg>
 +<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>
 diff --git a/gallery/src/app.rs b/gallery/src/app.rs
-index 9515ca17..ce887e0d 100644
+index 9515ca17..4974fb74 100644
 --- a/gallery/src/app.rs
 +++ b/gallery/src/app.rs
-@@ -427,6 +427,21 @@ impl Render for Gallery {
+@@ -415,7 +415,9 @@ Enter inserts a newline here, and a long paragraph wraps inside the field instea
+             demo_range: HashMap::new(),
+             demo_flags: HashMap::new(),
+             overlays_open: std::env::var("HEROGPUI_OPEN_OVERLAYS").is_ok(),
+-            toast_placement: h::ToastPlacement::BottomEnd,
++            // v3's `ToastProvider` defaults `placement` to `"bottom"`, so the
++            // shell starts there and the Toast page's Placements demo moves it.
++            toast_placement: h::ToastPlacement::default(),
+             demo_values: HashMap::new(),
+             demo_strings: HashMap::new(),
+             demo_selections: HashMap::new(),
+@@ -427,6 +429,21 @@ impl Render for Gallery {
      fn render(&mut self, _window: &mut Window, cx: &mut Context<'_, Self>) -> impl IntoElement {
          let colors = cx.colors().clone();
  
