@@ -65,3 +65,9 @@ native/WASM drift by default. In the same commit, refresh the vendored
 migration source with `pnpm run wasm:vendor`: the artifact is built from a
 separate checkout, so `web/wasm-migration/` carries that checkout's baseline
 commit and working diff and is what makes a committed binary reviewable.
+
+The migration also carries its own copy of every component. Keep it on the
+native implementation with `node web/scripts/sync-wasm-component.mjs report`
+(IDENTICAL and ADAPTED are current; STALE is behind) and `sync <file.rs>`.
+The tool records only the GPUI-version vocabulary the two crates differ by;
+anything else is left for the wasm compiler to name.
