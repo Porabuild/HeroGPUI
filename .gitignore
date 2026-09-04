@@ -31,6 +31,7 @@ venv/
 # Agent tooling: per-machine state, not part of the port.
 .agents/
 .claude/
+.poracode/
 skills-lock.json
 
 # Editors.
