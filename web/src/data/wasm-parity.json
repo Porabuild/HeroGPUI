@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "artifactSha256": "ace2baf2c6825dd6b79980df7a06874caa9b6468a61ba401e75c7d431e0d5ac1",
-  "glueSha256": "5d701d30dae40c2eb0360445492e4d81d9971958b23cc0f2d6f78b9c1e1b86e8",
+  "artifactSha256": "9dedf4391e5670c3787852f760fb52d29fa0eb6c16adbe04b2937e3e86bfd247",
+  "glueSha256": "bb9d71bf331086507876704bdda18d4862e14421d0697269c880e1528ecddf48",
   "examples": {
     "accordion/Controlled": {
       "nativeCodeSha256": "2816548407263e0fdeada0ff2ec1e8f9fd45a2d33b24ab2cf163539711fe6f8a",
@@ -2568,9 +2568,7 @@
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     }
   },
-  "missing": [
-    "popover/Render Function"
-  ],
+  "missing": [],
   "extra": [],
   "codeDrift": [],
   "descriptionDrift": []

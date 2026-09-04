@@ -48,8 +48,9 @@ test("wasm section manifest matches generated component examples", () => {
     }
   }
 
-  // Remove an entry as soon as the migration artifact gains the required API.
-  assert.deepEqual(missing.sort(), ["popover/Render Function"]);
+  // Every documented example now compiles into the migration artifact. A new
+  // entry here means a page shipped documentation the browser cannot render.
+  assert.deepEqual(missing.sort(), []);
 });
 
 test("wasm parity manifest pins the native source and compiled artifact", () => {
@@ -78,7 +79,7 @@ test("wasm parity manifest pins the native source and compiled artifact", () => 
       `${key} description changed`,
     );
   }
-  assert.deepEqual(parity.missing, ["popover/Render Function"]);
+  assert.deepEqual(parity.missing, []);
   assert.deepEqual(parity.extra, []);
   assert.deepEqual(parity.descriptionDrift, []);
   assert.deepEqual(
