@@ -142,6 +142,23 @@ fn col(children: Vec<AnyElement>) -> AnyElement {
         .into_any_element()
 }
 
+/// Column whose children fill the preview's width.
+///
+/// Overlay demos need it. A modal, alert dialog or drawer panel is
+/// `absolute inset-0` inside its frame, and [`col`] aligns its children to the
+/// start, so a frame holding only a trigger hugs that trigger and the panel
+/// fills a sliver of it -- the dialog came out about 30px wide with its heading
+/// broken one character per line.
+fn stretch_col(children: Vec<AnyElement>) -> AnyElement {
+    gpui::div()
+        .flex()
+        .flex_col()
+        .w_full()
+        .gap(px(12.))
+        .children(children)
+        .into_any_element()
+}
+
 /// Column that stretches its children across v3's `w-full max-w-xl` example
 /// frame. A `w-full` component -- Alert, Toast, Skeleton -- resolves its width
 /// against its container, so a hug-content column like [`col`] leaves it at its
@@ -9641,7 +9658,7 @@ impl Gallery {
             vec![
                 (
                     "Usage",
-                    col(vec![{
+                    stretch_col(vec![{
                         overlay_min_h(
                             gpui::div()
                                 .relative()
@@ -9697,7 +9714,7 @@ impl Gallery {
                 ),
                 (
                     "Sizes",
-                    col([
+                    stretch_col([
                         ("ad-size-xs", "Xs", h::AlertDialogSize::Xs),
                         ("ad-size-sm", "Sm", h::AlertDialogSize::Sm),
                         ("ad-size-md", "Md", h::AlertDialogSize::Md),
@@ -9730,7 +9747,7 @@ impl Gallery {
                 ),
                 (
                     "Statuses",
-                    col([
+                    stretch_col([
                         ("ad-st-default", "Default", Color::Default),
                         ("ad-st-accent", "Accent", Color::Accent),
                         ("ad-st-success", "Success", Color::Success),
@@ -9763,7 +9780,7 @@ impl Gallery {
                 ),
                 (
                     "Placements",
-                    col([
+                    stretch_col([
                         ("ad-pl-auto", "Auto", h::ModalPlacement::Auto),
                         ("ad-pl-center", "Center", h::ModalPlacement::Center),
                         ("ad-pl-top", "Top", h::ModalPlacement::Top),
@@ -9795,7 +9812,7 @@ impl Gallery {
                 ),
                 (
                     "Backdrop Variants",
-                    col(herogpui_core::Backdrop::ALL
+                    stretch_col(herogpui_core::Backdrop::ALL
                         .iter()
                         .map(|backdrop| {
                             let key: &'static str = match backdrop {
@@ -9827,7 +9844,7 @@ impl Gallery {
                 ),
                 (
                     "Controlled State",
-                    col(vec![overlay_demo(
+                    stretch_col(vec![overlay_demo(
                         self.demo_overlay("ad-controlled"),
                         "ad-controlled",
                         "Open (controlled)",
@@ -9845,7 +9862,7 @@ impl Gallery {
                 ),
                 (
                     "Custom Icon",
-                    col(vec![overlay_demo(
+                    stretch_col(vec![overlay_demo(
                         self.demo_overlay("ad-icon"),
                         "ad-icon",
                         "Open with a status icon",
@@ -9864,7 +9881,7 @@ impl Gallery {
                 ),
                 (
                     "Custom Backdrop",
-                    col(vec![overlay_demo(
+                    stretch_col(vec![overlay_demo(
                         self.demo_overlay("ad-custom-bd"),
                         "ad-custom-bd",
                         "Open with a blurred backdrop",
@@ -9883,7 +9900,7 @@ impl Gallery {
                 ),
                 (
                     "Dismiss Behavior",
-                    col(vec![overlay_demo(
+                    stretch_col(vec![overlay_demo(
                         self.demo_overlay("ad-dismiss"),
                         "ad-dismiss",
                         "Open a non-dismissable dialog",
@@ -9903,7 +9920,7 @@ impl Gallery {
                 ),
                 (
                     "Close Methods",
-                    col(vec![
+                    stretch_col(vec![
                         overlay_demo(
                             self.demo_overlay("ad-close"),
                             "ad-close",
@@ -9968,7 +9985,7 @@ impl Gallery {
                 ),
                 (
                     "Custom Animations",
-                    col(vec![overlay_demo(
+                    stretch_col(vec![overlay_demo(
                         self.demo_overlay("ad-anim"),
                         "ad-anim",
                         "Open and watch the panel",
@@ -9986,7 +10003,7 @@ impl Gallery {
                 ),
                 (
                     "Custom Trigger",
-                    col(vec![{
+                    stretch_col(vec![{
                         let open = self.demo_overlay("ad-custom");
                         overlay_min_h(
                             gpui::div()
@@ -10058,42 +10075,44 @@ impl Gallery {
             vec![
                 (
                     "Placement",
-                    col([
-                        ("dr-left", "Left", h::DrawerPlacement::Left),
-                        ("dr-right", "Right", h::DrawerPlacement::Right),
-                        ("dr-top", "Top", h::DrawerPlacement::Top),
-                        ("dr-bottom", "Bottom", h::DrawerPlacement::Bottom),
-                    ]
-                    .into_iter()
-                    .map(|(key, label, placement)| {
-                        let open = self.demo_overlay(key);
-                        overlay_demo(
-                            open,
-                            key,
-                            label,
-                            h::Drawer::new()
-                                .id(key)
-                                .is_open(open)
-                                .placement(placement)
-                                .title(format!("From the {label}"))
-                                .is_dismissible(true)
-                                .child(h::DrawerCloseTrigger::new())
-                                .child(gpui::div().child("The panel slides in along its edge."))
-                                .on_open_change(bool_cb(cx.listener(
-                                    move |this, v: &bool, _, cx| {
-                                        this.set_demo_flag(key, *v);
-                                        cx.notify();
-                                    },
-                                )))
-                                .into_any_element(),
-                            cx,
-                        )
-                    })
-                    .collect()),
+                    stretch_col(
+                        [
+                            ("dr-left", "Left", h::DrawerPlacement::Left),
+                            ("dr-right", "Right", h::DrawerPlacement::Right),
+                            ("dr-top", "Top", h::DrawerPlacement::Top),
+                            ("dr-bottom", "Bottom", h::DrawerPlacement::Bottom),
+                        ]
+                        .into_iter()
+                        .map(|(key, label, placement)| {
+                            let open = self.demo_overlay(key);
+                            overlay_demo(
+                                open,
+                                key,
+                                label,
+                                h::Drawer::new()
+                                    .id(key)
+                                    .is_open(open)
+                                    .placement(placement)
+                                    .title(format!("From the {label}"))
+                                    .is_dismissible(true)
+                                    .child(h::DrawerCloseTrigger::new())
+                                    .child(gpui::div().child("The panel slides in along its edge."))
+                                    .on_open_change(bool_cb(cx.listener(
+                                        move |this, v: &bool, _, cx| {
+                                            this.set_demo_flag(key, *v);
+                                            cx.notify();
+                                        },
+                                    )))
+                                    .into_any_element(),
+                                cx,
+                            )
+                        })
+                        .collect()
+                    ),
                 ),
                 (
                     "Non-Dismissable",
-                    col(vec![overlay_demo(
+                    stretch_col(vec![overlay_demo(
                         self.demo_overlay("dr-no-dismiss"),
                         "dr-no-dismiss",
                         "Open a non-dismissable drawer",
@@ -10122,7 +10141,7 @@ impl Gallery {
                 ),
                 (
                     "Scrollable Content",
-                    col(vec![overlay_demo(
+                    stretch_col(vec![overlay_demo(
                         self.demo_overlay("dr-scroll"),
                         "dr-scroll",
                         "Open a long drawer",
@@ -10147,7 +10166,7 @@ impl Gallery {
                 ),
                 (
                     "Controlled State",
-                    col(vec![
+                    stretch_col(vec![
                         para(
                             &format!(
                                 "The flag lives with the caller: {}",
@@ -10181,7 +10200,7 @@ impl Gallery {
                 ),
                 (
                     "With Form",
-                    col(vec![overlay_demo(
+                    stretch_col(vec![overlay_demo(
                         self.demo_overlay("dr-form"),
                         "dr-form",
                         "Open a form drawer",
@@ -10222,7 +10241,7 @@ impl Gallery {
                 ),
                 (
                     "Navigation Drawer",
-                    col(vec![overlay_demo(
+                    stretch_col(vec![overlay_demo(
                         self.demo_overlay("dr-nav"),
                         "dr-nav",
                         "Open the navigation",
@@ -10253,42 +10272,44 @@ impl Gallery {
                 ),
                 (
                     "Backdrop Variants",
-                    col(herogpui_core::Backdrop::ALL
-                        .iter()
-                        .map(|backdrop| {
-                            let key: &'static str = match backdrop {
-                                herogpui_core::Backdrop::Opaque => "dr-bd-opaque",
-                                herogpui_core::Backdrop::Blur => "dr-bd-blur",
-                                herogpui_core::Backdrop::Transparent => "dr-bd-transparent",
-                            };
-                            let open = self.demo_overlay(key);
-                            overlay_demo(
-                                open,
-                                key,
-                                backdrop.label(),
-                                h::Drawer::new()
-                                    .id(key)
-                                    .is_open(open)
-                                    .backdrop(*backdrop)
-                                    .title(format!("Backdrop: {}", backdrop.label()))
-                                    .is_dismissible(true)
-                                    .child(h::DrawerCloseTrigger::new())
-                                    .child(gpui::div().child("The scrim behind the panel."))
-                                    .on_open_change(bool_cb(cx.listener(
-                                        move |this, v: &bool, _, cx| {
-                                            this.set_demo_flag(key, *v);
-                                            cx.notify();
-                                        },
-                                    )))
-                                    .into_any_element(),
-                                cx,
-                            )
-                        })
-                        .collect()),
+                    stretch_col(
+                        herogpui_core::Backdrop::ALL
+                            .iter()
+                            .map(|backdrop| {
+                                let key: &'static str = match backdrop {
+                                    herogpui_core::Backdrop::Opaque => "dr-bd-opaque",
+                                    herogpui_core::Backdrop::Blur => "dr-bd-blur",
+                                    herogpui_core::Backdrop::Transparent => "dr-bd-transparent",
+                                };
+                                let open = self.demo_overlay(key);
+                                overlay_demo(
+                                    open,
+                                    key,
+                                    backdrop.label(),
+                                    h::Drawer::new()
+                                        .id(key)
+                                        .is_open(open)
+                                        .backdrop(*backdrop)
+                                        .title(format!("Backdrop: {}", backdrop.label()))
+                                        .is_dismissible(true)
+                                        .child(h::DrawerCloseTrigger::new())
+                                        .child(gpui::div().child("The scrim behind the panel."))
+                                        .on_open_change(bool_cb(cx.listener(
+                                            move |this, v: &bool, _, cx| {
+                                                this.set_demo_flag(key, *v);
+                                                cx.notify();
+                                            },
+                                        )))
+                                        .into_any_element(),
+                                    cx,
+                                )
+                            })
+                            .collect()
+                    ),
                 ),
                 (
                     "Usage",
-                    col(vec![overlay_min_h(
+                    stretch_col(vec![overlay_min_h(
                         gpui::div()
                             .relative()
                             .flex()
@@ -10348,7 +10369,7 @@ impl Gallery {
             vec![
                 (
                     "Sizes",
-                    col([
+                    stretch_col([
                         ("md-size-xs", "Xs", h::ModalSize::Xs),
                         ("md-size-sm", "Sm", h::ModalSize::Sm),
                         ("md-size-md", "Md", h::ModalSize::Md),
@@ -10385,7 +10406,7 @@ impl Gallery {
                 ),
                 (
                     "Placement",
-                    col([
+                    stretch_col([
                         ("md-place-auto", "Auto", h::ModalPlacement::Auto),
                         ("md-place-center", "Center", h::ModalPlacement::Center),
                         ("md-place-top", "Top", h::ModalPlacement::Top),
@@ -10420,7 +10441,7 @@ impl Gallery {
                 ),
                 (
                     "Scroll Behavior",
-                    col([
+                    stretch_col([
                         ("md-scroll-inside", "Inside", h::ModalScroll::Inside),
                         ("md-scroll-outside", "Outside", h::ModalScroll::Outside),
                     ]
@@ -10457,7 +10478,7 @@ impl Gallery {
                 ),
                 (
                     "Controlled State",
-                    col(vec![
+                    stretch_col(vec![
                         para(
                             &format!(
                                 "The flag lives with the caller: {}",
@@ -10487,7 +10508,7 @@ impl Gallery {
                 ),
                 (
                     "With Form",
-                    col(vec![overlay_demo(
+                    stretch_col(vec![overlay_demo(
                         self.demo_overlay("md-form"),
                         "md-form",
                         "Open form modal",
@@ -10530,7 +10551,7 @@ impl Gallery {
                 ),
                 (
                     "Custom Trigger",
-                    col(vec![overlay_min_h(
+                    stretch_col(vec![overlay_min_h(
                         gpui::div()
                             .relative()
                             .flex()
@@ -10567,7 +10588,7 @@ impl Gallery {
                 ),
                 (
                     "Backdrop Variants",
-                    col(herogpui_core::Backdrop::ALL
+                    stretch_col(herogpui_core::Backdrop::ALL
                         .iter()
                         .map(|backdrop| {
                             let key: &'static str = match backdrop {
@@ -10602,7 +10623,7 @@ impl Gallery {
                 ),
                 (
                     "Custom Backdrop", "v3 restyles the backdrop with a class. `Backdrop::Blur` is the strongest variant the token set has; anything past it is the caller's own scrim.",
-                    col(vec![
+                    stretch_col(vec![
                         overlay_demo(
                             self.demo_overlay("md-bd-custom"),
                             "md-bd-custom",
@@ -10626,7 +10647,7 @@ impl Gallery {
                 ),
                 (
                     "Dismiss Behavior", "`isDismissible` decides whether the backdrop closes it; `isKeyboardDismissDisabled` decides whether Escape does.",
-                    col(vec![
+                    stretch_col(vec![
                         overlay_demo(
                             self.demo_overlay("md-no-dismiss"),
                             "md-no-dismiss",
@@ -10660,7 +10681,7 @@ impl Gallery {
                 ),
                 (
                     "Close Methods", "v3 spells the close affordance by composition: the `Close Methods` example closes through footer buttons and composes no close trigger, so the corner slot stays bare. Every other example composes the built-in close trigger for the corner X.",
-                    col(vec![
+                    stretch_col(vec![
                         overlay_demo(
                             self.demo_overlay("md-close"),
                             "md-close",
@@ -10694,7 +10715,7 @@ impl Gallery {
                 ),
                 (
                     "Custom Animations", "v3 overrides the panel's duration and easing per instance with a class. The motion here is the one its stylesheet declares: the panel shrinks in from 105% over 250ms on `ease-out-quad` and leaves at 95% over 100ms. `Motion on` in the navbar switches it off, which is the `prefers-reduced-motion` path.",
-                    col(vec![
+                    stretch_col(vec![
                         overlay_demo(
                             self.demo_overlay("md-anim"),
                             "md-anim",
@@ -10717,7 +10738,7 @@ impl Gallery {
                 ),
                 (
                     "Usage",
-                    col(vec![
+                    stretch_col(vec![
                         overlay_min_h(
                             gpui::div()
                                 .relative()
