@@ -46,8 +46,13 @@ jobs:
 
       # The website gates run from the same checkout: extract:check compares the
       # generated component data against the Rust gallery, so it needs both.
+      # There is no root package.json, so the action has to be told where the
+      # pinned "packageManager" lives; without it the step fails outright
+      # rather than defaulting to a version.
       - name: Install pnpm
         uses: pnpm/action-setup@v4
+        with:
+          package_json_file: web/package.json
 
       - name: Install Node
         uses: actions/setup-node@v4
@@ -147,8 +152,11 @@ jobs:
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
 
-      - name: Inspect the gallery package
-        run: cargo package -p herogpui-gallery --locked --no-verify
+      # Packaged together, not one at a time: nothing here is on crates.io yet,
+      # so `cargo package -p herogpui-gallery` alone cannot resolve `herogpui`
+      # and fails before it inspects anything.
+      - name: Inspect the packages, gallery included
+        run: cargo package --workspace --locked --no-verify
 
       - name: Dry-run the publishable workspace
         run: cargo publish --workspace --locked --dry-run

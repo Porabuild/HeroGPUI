@@ -97,7 +97,11 @@ def main():
 
     ci = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
     release = (ROOT / ".github/workflows/release.yml").read_text(encoding="utf-8")
-    if "cargo package -p herogpui-gallery" not in ci:
+    # `cargo package -p herogpui-gallery` is what this asked for and it cannot
+    # work: no crate here is published, so packaging the gallery alone resolves
+    # `herogpui` against the registry and fails. The workspace form packages
+    # every member together, gallery included, which is what was meant.
+    if "cargo package --workspace" not in ci:
         errors.append("CI does not inspect the gallery package")
     if "cargo install --path gallery" not in ci:
         errors.append("CI does not exercise Cargo installation of the gallery CLI")
