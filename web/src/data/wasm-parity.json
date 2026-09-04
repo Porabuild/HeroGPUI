@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "artifactSha256": "e769b210a01e7b62b20a2e3ba4ba7a01d30566b58062b5da564d40635df00e6b",
-  "glueSha256": "00c5d93e208119485ec5224348159305242e4a282bfe5669c0f440618d12bdd9",
+  "artifactSha256": "367cdf2489815aa13fac4bba10c76df3196644ffe2350307f9db2e5a4f5810a0",
+  "glueSha256": "071daf146b9e0e6b2e5f860ba037b7ef14f4b6f2bd53938c32a29a2bae9bfaa0",
   "examples": {
     "accordion/Controlled": {
       "nativeCodeSha256": "2816548407263e0fdeada0ff2ec1e8f9fd45a2d33b24ab2cf163539711fe6f8a",
@@ -1930,32 +1930,26 @@
     },
     "search-field/Controlled": {
       "nativeCodeSha256": "689a13d6cc9f234c0458317347ee2eddceaa8245518eb6679024480abb29dbb9",
-      "wasmCodeSha256": "c7ce96d05c547fe2729eea326d68e1635b07005d1f30d9a59612407cf18d7cf3",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "search-field/Custom Icons": {
       "nativeCodeSha256": "5546376f8483f569818e655759ccec104066230368151f1afeca1143978ffe93",
-      "wasmCodeSha256": "c71e2d6ddf7fdc3e2ab786ee1f86f8c3a091b5a715df917c347672043051622e",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "search-field/Disabled State": {
       "nativeCodeSha256": "a2028ec964c3cbae5b3436203ae196dc90e71bcc712d658985277dedc65a3425",
-      "wasmCodeSha256": "61ea1db486b9efa45622449d297c985efcbdf110bd5a86d37271ed20e6aa868f",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "search-field/Form Example": {
       "nativeCodeSha256": "861f69a16522123d9859a830c96b41802562174ac754bb89172a97f34376c18f",
-      "wasmCodeSha256": "edc6419b8a9a9147afda171c018a7683efbae3cf86caae37108731ce92e813f0",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "search-field/Full Width": {
       "nativeCodeSha256": "07f95eb7ec07069dd53c1792ecb9b3f7442e2d0fd6a97cf558dcb17d451f7244",
-      "wasmCodeSha256": "6ec2352ead26443c464c11a5dad9d6fdc9e94d197815e77eb788196dd7c886ca",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "search-field/In Surface": {
       "nativeCodeSha256": "bbc14d834afab9dc19b26c4956e54967f53ad08452aec0ff7968acc3978772b9",
-      "wasmCodeSha256": "1cfeb48e9449c0d41e628c7a10c972dc852338d2211f77323557cd6732db2ec7",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "search-field/Render Props": {
@@ -1964,32 +1958,26 @@
     },
     "search-field/Required Field": {
       "nativeCodeSha256": "612ff5468cb2db1ef54908d1e689453a90bf8f1091e41b03069257ff35165a6d",
-      "wasmCodeSha256": "1d4169b22e1146a8dcec276c124fbb92835b00ef40f3da0c49f7b872e9bdc410",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "search-field/Usage": {
       "nativeCodeSha256": "19cb00f5c46594a26948d4e3e55b66013cf893743b6ac209849049fbaac64199",
-      "wasmCodeSha256": "e9c9f4266ef85600cc793b03dd9bade4df332ec31f5656b73e0771d63000769c",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "search-field/Validation": {
       "nativeCodeSha256": "ea87d408d4453fc47bb7fc7c2b7cac06fa2a927fefa234e90ff76c31ab70bedb",
-      "wasmCodeSha256": "b478f6e1890dad12f014feeae96cee408ffc269ab0b6d210e84cc45f24741c61",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "search-field/Variants": {
       "nativeCodeSha256": "b2a08eda4ec1175c1aaef8372007933455c952ad4667df5fa1ef18b0c8d4124f",
-      "wasmCodeSha256": "ab49e069d02d9fda3b54d9bc025409c7596b09d54db4385c47a48d7d7094cc45",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "search-field/With Description": {
       "nativeCodeSha256": "ec990d765605a53bc8f3fe5a67a558b2c5fb1ba3b8864371ed19a1252cc91195",
-      "wasmCodeSha256": "44d4cca6a3c09e62e2b2f28480e011b54e1cfd5f5973080d99ea684b0ea48eef",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "search-field/With Keyboard Shortcut": {
       "nativeCodeSha256": "8f363b25ddce92d3209dab9d55a44cd32da60cde00e70a4ddf360f81a54762d5",
-      "wasmCodeSha256": "720e48f24ab0f21ea1807c8442f8f2256d0b879b2cbb371bd44f8412be36325d",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "search-field/With Validation": {
@@ -2767,18 +2755,6 @@
     "popover/Placement",
     "popover/Usage",
     "popover/With Arrow",
-    "search-field/Controlled",
-    "search-field/Custom Icons",
-    "search-field/Disabled State",
-    "search-field/Form Example",
-    "search-field/Full Width",
-    "search-field/In Surface",
-    "search-field/Required Field",
-    "search-field/Usage",
-    "search-field/Validation",
-    "search-field/Variants",
-    "search-field/With Description",
-    "search-field/With Keyboard Shortcut",
     "search-field/With Validation",
     "slider/Custom Value Formatting",
     "table/Column Resizing",
