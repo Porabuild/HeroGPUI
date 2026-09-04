@@ -6,9 +6,7 @@
 //! anchor date; everything below is pure so the geometry can be tested without
 //! a window.
 
-use crate::calendar::{
-    add_days, add_months, bump_month, days_from_civil, days_in_month, month_name, Date,
-};
+use crate::calendar::{add_days, add_months, bump_month, days_from_civil, days_in_month, Date};
 use crate::date_constraints::Weekday;
 
 /// `visibleDuration` — how much time one calendar shows at once.
@@ -363,7 +361,7 @@ pub(crate) struct YearGridView<'a> {
 /// React Aria's `offset={{months: n}}` adds the duration before formatting.
 pub(crate) fn month_heading(year: i32, month: u32, offset_months: i32) -> String {
     let (year, month) = add_months(year, month, offset_months);
-    format!("{} {year}", month_name(month))
+    crate::calendar::month_year_heading(year, month)
 }
 
 #[cfg(test)]

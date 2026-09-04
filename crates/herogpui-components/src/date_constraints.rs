@@ -12,6 +12,54 @@ use icu_locale_core::Locale as IcuLocale;
 
 use crate::calendar::{days_from_civil, days_in_month, first_weekday_pub, Date};
 
+/// The locale tags the system prefers for dates and times, most preferred
+/// first.
+///
+/// `locale_config` reads the platform's own preference chain, and the "time"
+/// category is the one that decides date and time presentation -- a reader can
+/// run an English interface and still expect German dates. Callers try each tag
+/// in turn because CLDR may know a region the platform reports but not the
+/// exact tag spelling.
+pub(crate) fn system_locale_tags() -> Vec<String> {
+    locale_config::Locale::user_default()
+        .tags_for("time")
+        .map(|tag| tag.as_ref().to_owned())
+        .collect()
+}
+
+/// The seven weekday labels CLDR gives for one locale, Monday first.
+pub(crate) fn weekday_labels_for_locale(locale: &str) -> Option<[String; 7]> {
+    use icu_datetime::{fieldsets, DateTimeFormatter};
+
+    let locale = locale.parse::<IcuLocale>().ok()?;
+    let formatter = DateTimeFormatter::try_new(locale.into(), fieldsets::E::short()).ok()?;
+    let ordered = [
+        IcuWeekday::Monday,
+        IcuWeekday::Tuesday,
+        IcuWeekday::Wednesday,
+        IcuWeekday::Thursday,
+        IcuWeekday::Friday,
+        IcuWeekday::Saturday,
+        IcuWeekday::Sunday,
+    ];
+    let labels: Vec<String> = ordered
+        .iter()
+        .map(|day| formatter.format(day).to_string())
+        .collect();
+    labels.try_into().ok()
+}
+
+/// The running locale's weekday labels, Monday first, resolved once.
+fn system_weekday_labels() -> &'static [String; 7] {
+    static SYSTEM_WEEKDAY_LABELS: OnceLock<[String; 7]> = OnceLock::new();
+    SYSTEM_WEEKDAY_LABELS.get_or_init(|| {
+        system_locale_tags()
+            .iter()
+            .find_map(|tag| weekday_labels_for_locale(tag))
+            .unwrap_or_else(|| Weekday::ALL.map(|day| day.fallback_short_label().to_owned()))
+    })
+}
+
 /// The first column of a month grid (`firstDayOfWeek`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Weekday {
@@ -80,7 +128,9 @@ impl Weekday {
         }
     }
 
-    pub fn short_label(self) -> &'static str {
+    /// The English two-letter label, used when CLDR has nothing to say for the
+    /// running locale.
+    fn fallback_short_label(self) -> &'static str {
         match self {
             Weekday::Sun => "Su",
             Weekday::Mon => "Mo",
@@ -90,6 +140,14 @@ impl Weekday {
             Weekday::Fri => "Fr",
             Weekday::Sat => "Sa",
         }
+    }
+
+    /// The running locale's column label for this day.
+    ///
+    /// v3 heads its grid through `Intl.DateTimeFormat`, so a German reader sees
+    /// `Mo Di Mi`, not `Mo Tu We`.
+    pub fn short_label(self) -> &'static str {
+        &system_weekday_labels()[self.monday_index()]
     }
 
     /// The seven column headers, starting from this day.
@@ -324,19 +382,33 @@ mod tests {
     }
 
     #[test]
+    fn weekday_labels_follow_the_locale() {
+        let english = weekday_labels_for_locale("en-US").unwrap();
+        assert_eq!(english[0], "Mon");
+        let german = weekday_labels_for_locale("de-DE").unwrap();
+        assert_eq!(german[0], "Mo");
+        assert_eq!(german[1], "Di", "German Tuesday is Di, not Tu");
+        assert!(weekday_labels_for_locale("not a locale").is_none());
+    }
+
+    #[test]
     fn header_row_starts_on_the_configured_day() {
-        assert_eq!(
-            Weekday::Mon.header_row(),
-            ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"]
-        );
-        assert_eq!(
-            Weekday::Sun.header_row(),
-            ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"]
-        );
-        assert_eq!(
-            Weekday::Sat.header_row(),
-            ["Sa", "Su", "Mo", "Tu", "We", "Th", "Fr"]
-        );
+        // The labels themselves are the running locale's, so this pins the
+        // rotation rather than the spelling: whatever Monday is called, a
+        // Monday-first row starts with it and a Sunday-first row ends with it.
+        let monday = Weekday::Mon.short_label();
+        let sunday = Weekday::Sun.short_label();
+        assert_eq!(Weekday::Mon.header_row()[0], monday);
+        assert_eq!(Weekday::Mon.header_row()[6], sunday);
+        assert_eq!(Weekday::Sun.header_row()[0], sunday);
+        assert_eq!(Weekday::Sun.header_row()[1], monday);
+        assert_eq!(Weekday::Sat.header_row()[1], sunday);
+        assert_eq!(Weekday::Sat.header_row()[2], monday);
+        for start in Weekday::ALL {
+            let row = start.header_row();
+            let unique: std::collections::HashSet<_> = row.iter().collect();
+            assert_eq!(unique.len(), 7, "every day appears once in {row:?}");
+        }
     }
 
     #[test]

@@ -5,6 +5,8 @@ use gpui::{
     prelude::*, px, App, Entity, IntoElement, RenderOnce, SharedString, StatefulInteractiveElement,
     Styled, Window,
 };
+use std::sync::OnceLock;
+
 use herogpui_theme::ActiveTheme;
 
 use crate::calendar_view::{self, PageBehavior, SelectionAlignment, VisibleDuration};
@@ -72,9 +74,13 @@ pub fn weekday_index(date: Date) -> usize {
     (days_from_civil(&date) + 3).rem_euclid(7) as usize
 }
 
-/// Three-letter month name for 1-12.
+/// The running locale's abbreviated month name for 1-12.
+///
+/// CLDR is asked for the abbreviation rather than the first three bytes of the
+/// full name: `"Januar"[..3]` happens to read well in German and would panic
+/// outright on a Japanese month name whose first character is three bytes wide.
 pub fn month_abbr(month: u32) -> &'static str {
-    &MONTH_NAMES[(month.clamp(1, 12) - 1) as usize][..3]
+    &system_month_abbrs()[(month.clamp(1, 12) - 1) as usize]
 }
 
 /// Days-from-civil for `date` (epoch day number).
@@ -114,7 +120,9 @@ fn first_weekday(year: i32, month: u32) -> usize {
 /// exactly seven 36px cells.
 pub const CALENDAR_WIDTH: gpui::Pixels = px(252.);
 
-const MONTH_NAMES: [&str; 12] = [
+/// The English month names, used when CLDR has nothing to say for the running
+/// locale. A calendar with no heading is worse than one headed in English.
+const FALLBACK_MONTH_NAMES: [&str; 12] = [
     "January",
     "February",
     "March",
@@ -128,6 +136,105 @@ const MONTH_NAMES: [&str; 12] = [
     "November",
     "December",
 ];
+
+/// The month names CLDR gives for one locale, in calendar order.
+///
+/// v3 renders the heading through `Intl.DateTimeFormat`, so the names follow
+/// the reader's locale rather than the source language. The ICU data is
+/// compiled into the binary, so this asks CLDR the same question `Intl` does.
+pub(crate) fn month_names_for_locale(locale: &str) -> Option<[String; 12]> {
+    month_labels_for_locale(locale, icu_datetime::fieldsets::M::long())
+}
+
+/// The twelve month labels one `M` field set prints for one locale.
+fn month_labels_for_locale(
+    locale: &str,
+    fieldset: icu_datetime::fieldsets::M,
+) -> Option<[String; 12]> {
+    use icu_datetime::{input::Date as IcuDate, DateTimeFormatter};
+    use icu_locale_core::Locale as IcuLocale;
+
+    let locale = locale.parse::<IcuLocale>().ok()?;
+    let formatter = DateTimeFormatter::try_new(locale.into(), fieldset).ok()?;
+    let mut labels: Vec<String> = Vec::with_capacity(12);
+    for month in 1..=12u8 {
+        // Any year and day work: the `M` field set prints the month alone.
+        let date = IcuDate::try_new_iso(2000, month, 1).ok()?;
+        labels.push(formatter.format(&date).to_string());
+    }
+    labels.try_into().ok()
+}
+
+/// The abbreviated month names CLDR gives for one locale, in calendar order.
+pub(crate) fn month_abbrs_for_locale(locale: &str) -> Option<[String; 12]> {
+    month_labels_for_locale(locale, icu_datetime::fieldsets::M::medium())
+}
+
+/// The running locale's month names, resolved once.
+fn system_month_names() -> &'static [String; 12] {
+    static SYSTEM_MONTH_NAMES: OnceLock<[String; 12]> = OnceLock::new();
+    SYSTEM_MONTH_NAMES.get_or_init(|| {
+        crate::date_constraints::system_locale_tags()
+            .iter()
+            .find_map(|tag| month_names_for_locale(tag))
+            .unwrap_or_else(|| FALLBACK_MONTH_NAMES.map(str::to_owned))
+    })
+}
+
+/// The heading CLDR gives one locale for a year and month.
+///
+/// The order is the locale's, not a template's: `"January 2026"` in English and
+/// a year-first heading in Japanese, which no `"{month} {year}"` format string
+/// can produce.
+pub(crate) fn month_heading_for_locale(locale: &str, year: i32, month: u32) -> Option<String> {
+    use icu_datetime::{fieldsets, input::Date as IcuDate, options::YearStyle, DateTimeFormatter};
+    use icu_locale_core::Locale as IcuLocale;
+
+    let locale = locale.parse::<IcuLocale>().ok()?;
+    let formatter = DateTimeFormatter::try_new(
+        locale.into(),
+        fieldsets::YM::long().with_year_style(YearStyle::Full),
+    )
+    .ok()?;
+    let month = u8::try_from(month.clamp(1, 12)).ok()?;
+    Some(
+        formatter
+            .format(&IcuDate::try_new_iso(year, month, 1).ok()?)
+            .to_string(),
+    )
+}
+
+/// The running locale's year-and-month heading locale, resolved once.
+fn system_month_heading_locale() -> Option<&'static String> {
+    static SYSTEM_HEADING_LOCALE: OnceLock<Option<String>> = OnceLock::new();
+    SYSTEM_HEADING_LOCALE
+        .get_or_init(|| {
+            crate::date_constraints::system_locale_tags()
+                .into_iter()
+                .find(|tag| month_heading_for_locale(tag, 2000, 1).is_some())
+        })
+        .as_ref()
+}
+
+/// The heading for a year and month, in the running locale.
+pub fn month_year_heading(year: i32, month: u32) -> String {
+    system_month_heading_locale()
+        .and_then(|locale| month_heading_for_locale(locale, year, month))
+        .unwrap_or_else(|| format!("{} {year}", month_name(month)))
+}
+
+/// The running locale's abbreviated month names, resolved once.
+fn system_month_abbrs() -> &'static [String; 12] {
+    static SYSTEM_MONTH_ABBRS: OnceLock<[String; 12]> = OnceLock::new();
+    SYSTEM_MONTH_ABBRS.get_or_init(|| {
+        crate::date_constraints::system_locale_tags()
+            .iter()
+            .find_map(|tag| month_abbrs_for_locale(tag))
+            .unwrap_or_else(|| {
+                FALLBACK_MONTH_NAMES.map(|name| name.chars().take(3).collect::<String>())
+            })
+    })
+}
 
 fn next_month(y: i32, m: u32) -> (i32, u32) {
     if m == 12 {
@@ -171,7 +278,7 @@ pub fn add_months(year: i32, month: u32, delta: i32) -> (i32, u32) {
 
 /// English month name for 1–12.
 pub fn month_name(month: u32) -> &'static str {
-    MONTH_NAMES[(month.clamp(1, 12) - 1) as usize]
+    &system_month_names()[(month.clamp(1, 12) - 1) as usize]
 }
 
 /// Public wrapper over `first_weekday`.
@@ -1760,6 +1867,45 @@ impl RenderOnce for Calendar {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn month_names_follow_the_locale() {
+        assert_eq!(month_names_for_locale("en-US").unwrap()[0], "January");
+        assert_eq!(month_names_for_locale("de-DE").unwrap()[0], "Januar");
+        assert_eq!(month_names_for_locale("fr-FR").unwrap()[0], "janvier");
+    }
+
+    #[test]
+    fn month_abbreviations_come_from_cldr_not_a_byte_slice() {
+        assert_eq!(month_abbrs_for_locale("en-US").unwrap()[0], "Jan");
+        // The first three *bytes* of this name are one character, so the old
+        // `[..3]` slice would have panicked rather than abbreviated.
+        let japanese = month_abbrs_for_locale("ja-JP").unwrap();
+        assert!(japanese[0].chars().count() < japanese[0].len());
+    }
+
+    #[test]
+    fn the_heading_takes_its_field_order_from_the_locale() {
+        let english = month_heading_for_locale("en-US", 2026, 1).unwrap();
+        assert_eq!(english, "January 2026");
+        assert_eq!(
+            month_heading_for_locale("de-DE", 2026, 1).unwrap(),
+            "Januar 2026"
+        );
+        // Japanese writes the year first, which a "{month} {year}" template
+        // cannot reproduce whatever names it is given.
+        let japanese = month_heading_for_locale("ja-JP", 2026, 1).unwrap();
+        assert!(
+            japanese.starts_with("2026"),
+            "expected a year-first heading, got {japanese}"
+        );
+    }
+
+    #[test]
+    fn an_unknown_locale_reports_nothing_rather_than_guessing() {
+        assert!(month_names_for_locale("not a locale").is_none());
+        assert!(month_heading_for_locale("not a locale", 2026, 1).is_none());
+    }
     use super::*;
 
     #[test]
