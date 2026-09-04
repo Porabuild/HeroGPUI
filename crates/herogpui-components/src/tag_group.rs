@@ -324,15 +324,15 @@ impl TagGroup {
         self
     }
 
-    /// `(px, py, text)` from `.tag--sm` / `--md` / `--lg`.
+    /// `(px, py, text, leading)` from `.tag--sm` / `--md` / `--lg`.
     ///
     /// v3 gives a tag no height: it is padding around one line, which is why
     /// this returns a vertical padding rather than the box it used to force.
-    fn metrics(size: Size) -> (gpui::Pixels, gpui::Pixels, gpui::Pixels) {
+    fn metrics(size: Size) -> (gpui::Pixels, gpui::Pixels, gpui::Pixels, gpui::Pixels) {
         match size {
-            Size::Sm => (px(8.), px(2.), px(12.)),
-            Size::Md => (px(8.), px(4.), px(12.)),
-            Size::Lg => (px(10.), px(6.), px(14.)),
+            Size::Sm => (px(8.), px(2.), px(12.), px(16.)),
+            Size::Md => (px(8.), px(4.), px(12.), px(16.)),
+            Size::Lg => (px(10.), px(6.), px(14.), px(20.)),
         }
     }
 
@@ -449,7 +449,7 @@ impl RenderOnce for TagGroup {
         let ring_visible = crate::util::focus_visible(cx);
         let colors = cx.colors();
         let layout = cx.layout();
-        let (pad_x, pad_y, text_size) = Self::metrics(self.size);
+        let (pad_x, pad_y, text_size, leading) = Self::metrics(self.size);
         let tag_radius = Self::radius(self.size, cx);
 
         // `.tag-group` is `flex flex-col gap-1`: the label, the list and the
@@ -460,6 +460,7 @@ impl RenderOnce for TagGroup {
             root = root.child(
                 div()
                     .text_size(px(14.))
+                    .line_height(px(20.))
                     .font_weight(gpui::FontWeight::MEDIUM)
                     .text_color(colors.foreground)
                     .child(label.to_string()),
@@ -475,6 +476,7 @@ impl RenderOnce for TagGroup {
                     // `.empty-state` is `p-2 text-sm text-muted`.
                     .p(px(8.))
                     .text_size(px(14.))
+                    .line_height(px(20.))
                     .text_color(colors.muted)
                     .child(text.to_string()),
             );
@@ -511,6 +513,7 @@ impl RenderOnce for TagGroup {
                 .py(pad_y)
                 .rounded(tag_radius)
                 .text_size(text_size)
+                .line_height(leading)
                 .font_weight(gpui::FontWeight::MEDIUM)
                 .whitespace_nowrap();
 
@@ -966,6 +969,7 @@ impl RenderOnce for TagGroup {
                 div()
                     .p(px(4.))
                     .text_size(px(12.))
+                    .line_height(px(16.))
                     .text_color(colors.muted)
                     .child(description.to_string()),
             );

@@ -411,6 +411,7 @@
     },
     {
       "heading": "Variants & sizes",
+      "description": "Small and medium tags use 16px line boxes; large tags use 20px, independent of inherited text styles.",
       "imports": "use herogpui::prelude::{Size, Tag, TagGroup, TagVariant};\nuse gpui::prelude::*;\nuse gpui::px;",
       "code": "gpui::div()\n    .flex()\n    .flex_col()\n    .items_start()\n    .gap(px(12.))\n    .children(vec![\n        TagGroup::new(\"tag-group-default\", tags()).into_any_element(),\n        TagGroup::new(\"tag-group-surface\", tags())\n            .variant(TagVariant::Surface)\n            .into_any_element(),\n        TagGroup::new(\"tag-group-sm\", tags())\n            .size(Size::Sm)\n            .into_any_element(),\n        TagGroup::new(\"tag-group-lg\", tags())\n            .size(Size::Lg)\n            .into_any_element(),\n    ])"
     }

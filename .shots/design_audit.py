@@ -960,6 +960,12 @@ CHECKS = [
      r'Size::Lg => \(px\(10\.\), px\((\d+(?:\.\d*)?)\.\)', None),
     ('tag', '.tag--lg', 'text', 'Tag Lg text', SRC + 'tag_group.rs',
      r'Size::Lg => \(px\(10\.\), px\(6\.\), px\((\d+(?:\.\d*)?)\.\)', None),
+    ('tag', '.tag--sm', 'leading', 'Tag Sm leading', SRC + 'tag_group.rs',
+     'tag_leading_Sm', None),
+    ('tag', '.tag--md', 'leading', 'Tag Md leading', SRC + 'tag_group.rs',
+     'tag_leading_Md', None),
+    ('tag', '.tag--lg', 'leading', 'Tag Lg leading', SRC + 'tag_group.rs',
+     'tag_leading_Lg', None),
     ('tag', '.tag', 'radius', 'Tag Sm/Md -> util::_radius', SRC + 'tag_group.rs',
      r'Size::Sm \| Size::Md => crate::util::(\w+_radius)', helper_px),
     ('tag', '.tag--lg', 'radius', 'Tag Lg -> util::_radius', SRC + 'tag_group.rs',
@@ -2560,6 +2566,8 @@ def measure(body, inherited_leading=None):
 
 
 def our_value(path, pattern, transform):
+    if pattern.startswith('tag_leading_'):
+        return tag_leading(path, pattern.removeprefix('tag_leading_'))
     if pattern == 'alert_indicator_padding':
         return alert_indicator_padding(path)
     if pattern == 'avatar_fallback_text_sm':
@@ -2769,6 +2777,24 @@ _AVATAR_FONT_ASSIGN = re.compile(
     r'(?<![A-Za-z0-9_])let\s+font\s*=\s*if\s+self\.large\s*'
     r'\{\s*px\((\d+(?:\.\d*)?)\.\)\s*\}\s*'
     r'else\s*\{\s*px\((\d+(?:\.\d*)?)\.\)\s*\}')
+
+
+def tag_leading(path, size):
+    """Read the size metric only while the production tag builder applies it."""
+    try:
+        source = mask_literals(strip_cfg_test(io.open(path, encoding='utf-8').read()))
+    except OSError:
+        return None
+    renders = list(rust_blocks_after(source, 'impl RenderOnce for TagGroup'))
+    metrics = list(rust_blocks_after(source, 'fn metrics('))
+    if len(renders) != 1 or len(metrics) != 1:
+        return None
+    binding = r'let\s+\(pad_x,\s*pad_y,\s*text_size,\s*leading\)\s*=\s*Self::metrics\(self.size\)'
+    chip = re.search(r'let mut chip = div\(\)(.*?);', renders[0], re.S)
+    if not re.search(binding, renders[0]) or not chip or not re.search(r'\.line_height\(leading\)', chip.group(1)):
+        return None
+    value = re.search(r'Size::' + re.escape(size) + r'\s*=>\s*\(\s*(?:px\([0-9.]+\),\s*){3}px\(([0-9.]+)\)', metrics[0])
+    return float(value.group(1)) if value else None
 
 
 def avatar_fallback_text_from(source, large):

@@ -1589,7 +1589,7 @@
       },
       {
         "token": ".tag--sm / --md / --lg",
-        "description": "All size paddings and type sizes match, including the large 16px radius.",
+        "description": "Size paddings, text sizes and explicit line heights match independently of host text styles, including the large 16px radius.",
         "rust": "metrics(Size) + radius(Size)",
         "status": "implemented"
       },

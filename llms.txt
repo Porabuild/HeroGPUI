@@ -315,6 +315,9 @@ ProgressBar, ProgressCircle, Spinner and Typography; elsewhere `variant` (or
   - selection: `selection_mode(SelectionMode)`, `selected_keys`, `disabled_keys`, `on_selection_change(&[SharedString])`, `on_action(&str)`. Selected items draw a check; disabled ones are muted and inert. The next selection comes from `selection::next_selection`, shared with ToggleButtonGroup and Table.
 - **ListBox** — `ListBox::new(id, items).selection_mode().selected_keys().disabled_keys().escape_key_behavior(EscapeKeyBehavior::{ClearSelection,None}).max_h().on_selection_change().on_action()`, `ListBoxItem::new(key,label).description().icon().shortcut().danger()`, `::section()`, `::separator()`
 - **TagGroup** — `TagGroup::new(id, tags).label().selection_mode().selected_keys().escape_key_behavior(EscapeKeyBehavior::{ClearSelection,None}).size().variant(TagVariant::{Default,Surface}).empty_state().on_remove().on_selection_change()`, `Tag::new(key,label).icon().remove_content(render)`
+  Small/medium tags set 12px text with 16px leading; large tags set 14px text
+  with 20px leading. Labels, descriptions, and empty states also set their own
+  line height, so inherited leading does not change tag heights.
 
 ### Colors
 - **PickerColor** — shared value: `from_hex`, `to_hex`, `from_rgb`, `to_rgb`, `to_hsla`, `channel()`, `with_channel()`, `with_alpha()`

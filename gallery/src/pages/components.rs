@@ -2052,6 +2052,7 @@ impl Gallery {
                 ),
                 (
                     "Variants & sizes",
+                    "Small and medium tags use 16px line boxes; large tags use 20px, independent of inherited text styles.",
                     col(vec![
                         h::TagGroup::new("tg-default", tags()).into_any_element(),
                         h::TagGroup::new("tg-surface", tags())
