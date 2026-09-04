@@ -26,16 +26,13 @@ function flag(name, fallback) {
   return !value || value.startsWith("--") ? true : value;
 }
 
-// Components the migration cannot take from native as-is. The reason is a
-// dependency the migration workspace does not carry, not a GPUI version
-// difference the vocabulary below can absorb, so syncing them only produces an
+// Components the migration cannot take from native as-is, keyed by the reason.
+// A dependency the migration workspace does not carry is not a GPUI version
+// difference the vocabulary below can absorb, so syncing one only produces an
 // unresolved-crate build. Removing an entry means adding those dependencies to
-// the migration workspace and proving they build for wasm32.
-const BLOCKED = {
-  "date_constraints.rs": "needs icu_calendar and icu_locale_core",
-  "date_picker.rs": "needs icu_datetime, icu_locale_core and locale_config",
-  "time_field.rs": "needs icu_datetime, icu_locale_core and locale_config",
-};
+// the migration workspace and proving they build for wasm32 -- which is what
+// closed the date and time entries that used to sit here.
+const BLOCKED = {};
 
 const wasmRoot = flag("--wasm-root", "D:/herogpui-wasm");
 const nativeDir = join(repoRoot, "crates", "herogpui-components", "src");
