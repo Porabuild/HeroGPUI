@@ -1,17 +1,16 @@
-import { Chip } from "@heroui/react";
 import { CodeBlock } from "@/components/ui/code-block";
 import { GitHubIcon } from "@/components/site/github-icon";
 import { SITE } from "@/lib/nav";
 import { CtaLink } from "@/components/landing/cta-link";
-import { ShotWindow } from "@/components/landing/shared";
+import { HeroWasmShowcase } from "@/components/landing/hero-wasm-showcase";
 
 const INSTALL_TOML = `[dependencies]
 gpui = "0.2"
 herogpui = "0.1"`;
 
 /**
- * Above the fold: positioning, the two CTAs, the honest install snippet, and
- * a real GPUI capture of the gallery framed as the window it came from.
+ * Above the fold: Porabuild positioning, the two CTAs, Cargo.toml snippet,
+ * and a live WebAssembly specimen gallery rendered directly by GPUI.
  */
 export function Hero() {
   return (
@@ -30,14 +29,16 @@ export function Hero() {
 
       <div className="mx-auto grid w-full max-w-[1440px] items-center gap-12 px-4 pt-14 pb-16 sm:px-6 md:pt-20 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] lg:gap-16 lg:pb-24">
         <div>
-          <p className="landing-hero-meta flex flex-wrap items-center gap-3">
-            <Chip color="accent" size="sm" variant="soft">
-              HeroUI for Rust
-            </Chip>
-            <span className="font-mono text-xs text-muted">Windows · macOS · Linux</span>
-          </p>
+          <div className="landing-hero-meta flex flex-wrap items-center gap-3">
+            <p className="pb-eyebrow flex items-center gap-2 font-mono text-[11px] font-medium tracking-[0.06em] text-muted uppercase">
+              <span className="pb-live-dot inline-block size-1.5 rounded-full bg-accent shadow-[0_0_10px_var(--pb-accent-glow)] animate-pulse" />
+              PORABUILD / OPEN SOURCE
+            </p>
+            <span className="pb-chip font-mono text-[11px] text-muted">HeroUI for Rust</span>
+            <span className="font-mono text-xs text-muted/70">Windows · macOS · Linux</span>
+          </div>
 
-          <h1 className="mt-6 text-4xl leading-[1.06] font-semibold tracking-[-0.03em] text-balance text-foreground sm:text-5xl lg:text-6xl">
+          <h1 className="mt-6 text-4xl leading-[1.05] font-semibold tracking-[-0.052em] text-balance text-foreground sm:text-5xl lg:text-6xl">
             A Rust UI library for <span className="text-accent">desktop apps.</span>
           </h1>
 
@@ -75,15 +76,8 @@ export function Hero() {
           </div>
         </div>
 
-        <ShotWindow
-          alt="The HeroGPUI gallery's All Components page in a native desktop window, listing component categories and examples"
-          aspect="aspect-[12/11] sm:aspect-[5/4]"
-          caption="HeroGPUI gallery, rendered natively by GPUI on Windows"
-          height={1392}
-          loading="eager"
-          src="/shots/allcomponents-v3.png"
-          width={1200}
-        />
+        {/* Live WebAssembly specimen gallery instead of static white screenshot */}
+        <HeroWasmShowcase />
       </div>
     </section>
   );

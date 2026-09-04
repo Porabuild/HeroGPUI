@@ -45,17 +45,12 @@ const CROP_STYLE: CSSProperties = {
 };
 
 /**
- * The captures are light-themed. Bleeding one to the edge of a dark card read
- * as a rendering fault, so the shot sits inside a hairline mat instead — the
- * way a screenshot is framed rather than embedded. The radii nest exactly:
- * 8px outer minus the 4px mat leaves 4px inside.
+ * The captures sit inside a hairline mat framed rather than rawly embedded.
  */
 const MAT = "w-full shrink-0 rounded-lg border border-separator bg-surface-secondary p-1";
 const PANE = "relative aspect-[16/10] w-full overflow-hidden rounded-sm bg-surface-secondary";
 
 function ComponentShot({ component }: { component: CatalogComponent }) {
-  // The data contract allows a missing capture; a quiet monogram keeps the
-  // grid intact instead of a broken image.
   if (!component.shot) {
     return (
       <div className={MAT} role="presentation">
@@ -69,19 +64,46 @@ function ComponentShot({ component }: { component: CatalogComponent }) {
     );
   }
 
+  const darkSrc = component.shotDark;
+
   return (
     <div className={MAT}>
       <div className={PANE}>
-        <img
-          alt={`${component.title} rendered in the HeroGPUI gallery`}
-          className="absolute max-w-none"
-          decoding="async"
-          height={SHOT_HEIGHT}
-          loading="lazy"
-          src={publicUrl(component.shot)}
-          style={CROP_STYLE}
-          width={SHOT_WIDTH}
-        />
+        {darkSrc ? (
+          <>
+            <img
+              alt={`${component.title} rendered in the HeroGPUI gallery`}
+              className="absolute max-w-none dark:hidden"
+              decoding="async"
+              height={SHOT_HEIGHT}
+              loading="lazy"
+              src={publicUrl(component.shot)}
+              style={CROP_STYLE}
+              width={SHOT_WIDTH}
+            />
+            <img
+              alt={`${component.title} rendered in the HeroGPUI gallery (dark)`}
+              className="absolute hidden max-w-none dark:block"
+              decoding="async"
+              height={SHOT_HEIGHT}
+              loading="lazy"
+              src={publicUrl(darkSrc)}
+              style={CROP_STYLE}
+              width={SHOT_WIDTH}
+            />
+          </>
+        ) : (
+          <img
+            alt={`${component.title} rendered in the HeroGPUI gallery`}
+            className="absolute max-w-none"
+            decoding="async"
+            height={SHOT_HEIGHT}
+            loading="lazy"
+            src={publicUrl(component.shot)}
+            style={CROP_STYLE}
+            width={SHOT_WIDTH}
+          />
+        )}
       </div>
     </div>
   );
@@ -96,8 +118,6 @@ export function ComponentCard({ component }: { component: CatalogComponent }) {
     <li className="h-full">
       <Link
         className={cn(
-          // items-stretch overrides the .link base's items-center so card text
-          // reads left-aligned.
           "catalog-card group flex h-full w-full flex-col items-stretch rounded-xl border border-separator bg-surface p-4",
           "no-underline transition-[border-color,box-shadow,color]",
           "hover:border-accent/50 hover:no-underline",

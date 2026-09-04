@@ -1,6 +1,6 @@
 "use client";
 
-import { Button, Chip, Link } from "@heroui/react";
+import { Button, Link } from "@heroui/react";
 import { Menu, X } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
@@ -8,11 +8,14 @@ import { GitHubIcon } from "@/components/site/github-icon";
 import { ThemeToggle } from "@/components/site/theme-toggle";
 import { isNavLinkActive, NAV_LINKS, SITE } from "@/lib/nav";
 
-const NAV_LINK_CLASS = "relative px-3 py-1.5 transition-colors";
+const NAV_LINK_CLASS =
+  "relative px-3 py-1.5 text-xs font-mono font-medium tracking-wide uppercase transition-colors rounded-md no-underline";
 
 /**
- * Sticky site navbar. The mobile menu is inline (no overlay) so it works
- * without waiting on a portal — it toggles below the bar under `md`.
+ * Sticky site navbar. Aligned with Porabuild design system:
+ * - Brand lockup: `Hero • GPUI` with glowing accent dot
+ * - Umbrella indicator: `.pb-chip` "by porabuild"
+ * - Navigation links: clean mono, no bottom underline
  */
 export function Navbar() {
   const pathname = usePathname();
@@ -23,16 +26,24 @@ export function Navbar() {
       <div className="mx-auto flex h-16 w-full max-w-[1440px] items-center gap-3 px-4 sm:px-6">
         <Link
           aria-label="HeroGPUI, a Porabuild project"
-          className="site-brand flex shrink-0 items-center gap-2.5 py-2 text-foreground"
+          className="site-brand flex shrink-0 items-center gap-2.5 py-2 text-foreground no-underline hover:no-underline"
           href="/"
         >
-          <span aria-hidden="true" className="site-brand-dot" />
-          <span className="site-wordmark">
-            Hero<span className="text-accent">GPUI</span>
+          <span className="pb-brand-lockup flex items-center text-[17px] tracking-[-0.04em]">
+            <strong className="font-semibold text-foreground">Hero</strong>
+            <span
+              aria-hidden="true"
+              className="pb-brand-dot mx-1 inline-block size-1.5 rounded-full bg-accent shadow-[0_0_8px_var(--pb-accent-glow)]"
+            />
+            <span className="pb-brand-lockup-word font-semibold text-accent">GPUI</span>
           </span>
-          <Chip className="site-version-chip hidden sm:inline-flex" size="sm" variant="soft">
+          <span className="pb-chip hidden items-center gap-1.5 px-2 py-0.5 font-mono text-[10px] text-muted sm:inline-flex">
+            <span className="size-1 rounded-full bg-accent/60" />
+            by porabuild
+          </span>
+          <span className="hidden font-mono text-[10px] text-muted/70 md:inline-block">
             {SITE.version}
-          </Chip>
+          </span>
         </Link>
 
         <nav
@@ -46,8 +57,8 @@ export function Navbar() {
                 aria-current={active ? "page" : undefined}
                 className={
                   active
-                    ? `${NAV_LINK_CLASS} text-foreground`
-                    : `${NAV_LINK_CLASS} text-muted hover:text-foreground`
+                    ? `${NAV_LINK_CLASS} bg-surface-secondary/70 text-foreground`
+                    : `${NAV_LINK_CLASS} text-muted hover:bg-surface-secondary/40 hover:text-foreground`
                 }
                 href={link.href}
                 key={link.href}
@@ -61,7 +72,7 @@ export function Navbar() {
         <div className="site-header-actions ml-auto flex items-center gap-1.5">
           <Link
             aria-label="View source on GitHub"
-            className="hidden size-10 items-center justify-center rounded-md text-muted transition-colors hover:text-foreground sm:inline-flex"
+            className="hidden size-10 items-center justify-center rounded-md text-muted transition-colors hover:text-foreground no-underline sm:inline-flex"
             href={SITE.github}
             rel="noopener noreferrer"
             target="_blank"
@@ -94,7 +105,7 @@ export function Navbar() {
               return (
                 <li key={link.href}>
                   <Link
-                    className={`block rounded-md px-3 py-2 text-sm font-medium ${
+                    className={`block rounded-md px-3 py-2 text-sm font-medium no-underline ${
                       active
                         ? "bg-default-soft text-foreground"
                         : "text-muted hover:text-foreground"
@@ -109,7 +120,7 @@ export function Navbar() {
             })}
             <li>
               <Link
-                className="flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-muted hover:text-foreground"
+                className="flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-muted hover:text-foreground no-underline"
                 href={SITE.github}
                 rel="noopener noreferrer"
                 target="_blank"

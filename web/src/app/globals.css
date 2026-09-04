@@ -149,6 +149,15 @@
   --color-brand-ice: var(--pb-ice);
 }
 
+/* Strictly no underlines across the entire Porabuild design system */
+a,
+a:hover,
+a:focus,
+[data-slot="link"],
+.link {
+  text-decoration: none !important;
+}
+
 @layer base {
   html,
   body {
@@ -202,6 +211,17 @@
     margin-top: 1rem;
     line-height: 1.75;
     color: var(--foreground);
+  }
+
+  [data-docs-article] a {
+    text-decoration: none !important;
+    color: var(--accent-text);
+    transition: color 0.15s ease;
+  }
+
+  [data-docs-article] a:hover {
+    text-decoration: none !important;
+    color: var(--pb-accent-soft);
   }
 
   [data-docs-article] ul,
@@ -502,15 +522,15 @@ body {
 }
 
 .site-brand-dot {
-  width: 0.45rem;
-  height: 0.45rem;
+  width: 0.4rem;
+  height: 0.4rem;
 }
 
-.site-wordmark {
+.site-wordmark,
+.site-brand-lockup {
   font-family: var(--font-sans);
-  font-size: 0.9375rem;
-  font-weight: var(--pb-heading-weight);
-  letter-spacing: var(--pb-heading-tracking);
+  font-size: 1.0625rem;
+  letter-spacing: -0.05em;
   line-height: 1;
   white-space: nowrap;
 }
@@ -540,21 +560,22 @@ body {
   text-transform: uppercase;
 }
 
-/* Desktop nav links are `relative` in the component; the active one gets an
-   accent hairline at its bottom edge instead of a filled pill, and hover is
-   a color transition only. */
-.site-nav > a[aria-current="page"] {
-  color: var(--foreground);
+/* Desktop nav links: Porabuild style clean subtle pill/highlight.
+   Strictly NO underlines. */
+.site-nav > a {
+  border-radius: 0.375rem;
+  transition: color 0.15s ease, background-color 0.15s ease;
 }
 
-.site-nav > a[aria-current="page"]::after {
-  content: "";
-  position: absolute;
-  right: 0.75rem;
-  bottom: -1px;
-  left: 0.75rem;
-  height: 1px;
-  background: var(--accent);
+.site-nav > a:hover {
+  color: var(--foreground);
+  background: color-mix(in srgb, var(--foreground) 6%, transparent);
+}
+
+.site-nav > a[aria-current="page"] {
+  color: var(--foreground);
+  background: color-mix(in srgb, var(--foreground) 9%, transparent);
+  font-weight: 500;
 }
 
 .site-version-chip {
@@ -584,9 +605,9 @@ body {
 .landing-hero {
   background:
     radial-gradient(
-      circle at 80% 18%,
-      color-mix(in srgb, var(--accent) 11%, transparent),
-      transparent 34rem
+      50% 60% at 75% 26%,
+      color-mix(in srgb, var(--accent) 13%, transparent),
+      transparent 70%
     ),
     var(--background);
 }
@@ -738,84 +759,4 @@ body {
   font-size: 0.6875rem;
   font-weight: 500;
   letter-spacing: var(--pb-mono-tracking);
-  text-transform: uppercase;
-}
-
-.shot-window-caption {
-  font-size: 0.625rem;
-  letter-spacing: var(--pb-mono-tracking);
-  line-height: 1.5;
-  text-transform: uppercase;
-}
-
-.shot-window-dot {
-  box-shadow: 0 0 0.55rem var(--pb-accent-glow);
-}
-
-@media (max-width: 639px) {
-  .site-footer-copy {
-    max-width: 40ch;
-  }
-
-  .landing-section-heading h2,
-  .landing-final-cta h2 {
-    letter-spacing: var(--pb-heading-tracking);
-  }
-}
-
-/* Code block copy control: 28px square, quiet until hovered or focused.
-   Unlayered so it wins over the button variant's own hover background. */
-.code-copy-button:hover {
-  background: color-mix(in srgb, var(--pb-moon) 6%, transparent);
-}
-
-.code-copy-button:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
-
-/* Line numbers are text and must clear WCAG AA like any other text. The old
-   treatment was `text-muted` at 60% opacity, measuring 2.28:1 against
-   `--surface-secondary` in light mode — a clear fail.
-
-   The correction is per-theme rather than one formula, because the two themes
-   fail differently. In light mode muted is too pale, so the gutter mixes
-   toward the foreground to darken it. In dark mode muted already measures
-   7.49:1 and needs no help; mixing it toward a near-white foreground there
-   pushed the gutter to exactly the brightness of the code beside it, which
-   defeats the point of a gutter. So dark simply uses muted. */
-.code-gutter {
-  /* The line-number spans sit inside `.shiki`, so the dual-theme rule above
-     (`.dark .shiki span { color: var(--shiki-dark) !important }`) repaints
-     them at the code's own brightness in dark mode. `!important` cannot win
-     that fight: for important declarations the cascade inverts layer order,
-     so a layered `!important` outranks an unlayered one.
-
-     Rather than escalating, feed Shiki the value it is going to use. Setting
-     `--shiki-dark` on the gutter makes Shiki's own rule paint the gutter
-     colour, and light mode reads the plain `color` below. */
-  --shiki-dark: var(--code-gutter);
-
-  color: var(--code-gutter);
-}
-
-/* Same reasoning at 10px, where the margin matters more: these column headers
-   measured 4.50:1 on `--surface-secondary` in light mode, passing with nothing
-   to spare. Dark mode is already comfortable and is left alone. */
-:root .docs-static-table .table__column,
-[data-theme="default"] .docs-static-table .table__column {
-  color: color-mix(in oklab, var(--muted) 70%, var(--foreground) 30%);
-}
-
-/* Visible keyboard focus everywhere in the docs shell: 2px accent outline
-   with a 3px offset on links and buttons. Unlayered so it applies on top of
-   component focus rings rather than being reset by them. */
-.site-header :is(a, button):focus-visible,
-.site-footer :is(a, button):focus-visible,
-.docs-sidebar :is(a, button):focus-visible,
-.docs-sidebar-mobile :is(a, button):focus-visible,
-.docs-toc :is(a, button):focus-visible,
-[data-docs-main] :is(a, button):focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 3px;
 }

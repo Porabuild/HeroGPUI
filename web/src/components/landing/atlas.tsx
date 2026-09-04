@@ -25,7 +25,7 @@ export function Atlas() {
             {catalog.categories.map((category) => (
               <li key={category.slug}>
                 <Link
-                  className="group block w-full border-t border-separator py-4 transition-colors"
+                  className="group block w-full border-t border-separator py-4 transition-colors no-underline hover:no-underline"
                   href="/docs/components"
                 >
                   <span className="flex items-baseline justify-between gap-4">
@@ -46,13 +46,13 @@ export function Atlas() {
         )}
 
         <Link
-          className="group mt-8 inline-flex items-center gap-2 py-2.5 text-sm font-medium text-accent hover:underline"
+          className="group mt-8 inline-flex items-center gap-2 py-2.5 text-sm font-medium text-accent transition-colors hover:text-accent-soft no-underline hover:no-underline"
           href="/docs/components"
         >
           Open the component index
           <ArrowRight
             aria-hidden="true"
-            className="size-4 transition-transform group-hover:translate-x-0.5"
+            className="size-4 transition-transform group-hover:translate-x-1"
           />
         </Link>
       </div>
@@ -68,6 +68,6 @@ function previewTitles(components: Record<string, { title: string }>, slugs: str
   });
   if (titles.length === 0) return "";
   const head = titles.slice(0, 3).join(" · ");
-  const rest = titles.length - 3;
-  return rest > 0 ? `${head} +${rest} more` : head;
+  const remainder = titles.length - 3;
+  return remainder > 0 ? `${head} +${remainder}` : head;
 }

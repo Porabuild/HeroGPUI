@@ -147,7 +147,7 @@ export default function AgentSkillsPage() {
               </Td>
               <Td>
                 <a
-                  className="text-link hover:underline"
+                  className="text-link transition-colors hover:text-accent-soft no-underline"
                   href="https://github.com/longbridge/gpui-component"
                   target="_blank"
                   rel="noreferrer"
@@ -165,7 +165,7 @@ export default function AgentSkillsPage() {
               </Td>
               <Td>
                 <a
-                  className="text-link hover:underline"
+                  className="text-link transition-colors hover:text-accent-soft no-underline"
                   href="https://github.com/apollographql/skills"
                   target="_blank"
                   rel="noreferrer"
