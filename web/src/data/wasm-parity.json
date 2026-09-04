@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "artifactSha256": "1e7e7d70fd257ba52f86051e29de5a6952eeb6ce83386108c28ace75c302ee26",
-  "glueSha256": "1a3bd697368958d3043330a5ff02c546d4525d00ca672a0bb469d744649a7f4a",
+  "artifactSha256": "ae5bfc80637c4c6f39e3e4ef875df4ea7ff83f6f8739d75134e05c56fddd7944",
+  "glueSha256": "f92f396e90eb7a66a0d2bffadfa08dcd0866d0e29bd47663814e46a61639d0d3",
   "examples": {
     "accordion/Controlled": {
       "nativeCodeSha256": "2816548407263e0fdeada0ff2ec1e8f9fd45a2d33b24ab2cf163539711fe6f8a",
@@ -2398,32 +2398,26 @@
     },
     "text-area/Controlled": {
       "nativeCodeSha256": "2aaa24100f1ea096b38a2e4a35c8aa0cf1f469becdc58de980ff9535978731ff",
-      "wasmCodeSha256": "e6fbb97cf1c89cd2ee340c8fef77bc15a1402623770ff5c11ecaa2cff6998ceb",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "text-area/Full Width": {
       "nativeCodeSha256": "e857d503ae0ed8dca45aebdd86b3defce6971318a0390d4cac34e8009eca57f8",
-      "wasmCodeSha256": "42148417fa38619a345eb1ab1080e9dee33a117340904024544d6ddd06ffca22",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "text-area/In Surface": {
       "nativeCodeSha256": "3ad443f9daf027d162c47d77e1cfce73e5216e04d136ad1f24da4ccb21c35624",
-      "wasmCodeSha256": "2164de4b17b4eb14f4d904c5c08e670f8400bf378aca8d775331a96879eb3695",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "text-area/Rows": {
       "nativeCodeSha256": "a446bf71e570a6aa350e03beb9a424eab79da3b5bad9ada6942de4fc0820d9d3",
-      "wasmCodeSha256": "f2ba317febb16e045a128f8cff87b15d9574292f940c0e48abebaac3fe2678f3",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "text-area/Usage": {
       "nativeCodeSha256": "fe3a26b3a20ef1f82505a945c7d7efe65b663d175f11c4dc8aafd9dd78061bb5",
-      "wasmCodeSha256": "ee49811111268d700d094e51eab68aeca7f81d18899d09a1df469e1228410eb6",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "text-area/Variants": {
       "nativeCodeSha256": "efb95f9e294d6dad37979eb001e90edb794c465a7bdef11e7b679820682f1aeb",
-      "wasmCodeSha256": "68d882c05e9e5cd4b6b5f26e20a5bec9b8f47b1c7cfbfcc7c8d6cee161e3cdc4",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "text-field/Controlled": {
@@ -2840,12 +2834,6 @@
     "slider/Usage",
     "table/Column Resizing",
     "tag-group/With Remove Button",
-    "text-area/Controlled",
-    "text-area/Full Width",
-    "text-area/In Surface",
-    "text-area/Rows",
-    "text-area/Usage",
-    "text-area/Variants",
     "text-field/Controlled",
     "text-field/Disabled State",
     "text-field/Error Message",
