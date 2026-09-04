@@ -1369,8 +1369,15 @@ impl RenderOnce for Calendar {
         let colors = cx.colors();
         let layout = cx.layout();
 
-        let nav_target =
-            |dir: i32| calendar_view::page(self.duration, self.page_behavior, anchor, dir);
+        let nav_target = |dir: i32| {
+            calendar_view::page_in(
+                self.system(),
+                self.duration,
+                self.page_behavior,
+                anchor,
+                dir,
+            )
+        };
         let (visible_start, visible_end) =
             calendar_view::visible_range(self.duration, first_day, anchor);
         // React Stately checks only the day immediately outside the visible

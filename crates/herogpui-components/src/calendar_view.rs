@@ -98,19 +98,48 @@ fn clamp_day(year: i32, month: u32, day: u32) -> Date {
 
 /// The anchor after paging by `dir` (-1 back, +1 forward).
 pub fn page(duration: VisibleDuration, behavior: PageBehavior, anchor: Date, dir: i32) -> Date {
+    page_in(
+        crate::calendar_system::system(),
+        duration,
+        behavior,
+        anchor,
+        dir,
+    )
+}
+
+/// The anchor one page away, stepping months in `system`'s own calendar.
+///
+/// A month view pages by a month the *reader* would recognise, so an Indian
+/// grid moves Pausha to Magha rather than by a Gregorian month that would drift
+/// against it. The anchor stays Gregorian either way.
+pub fn page_in(
+    system: &crate::calendar_system::CalendarSystem,
+    duration: VisibleDuration,
+    behavior: PageBehavior,
+    anchor: Date,
+    dir: i32,
+) -> Date {
     let step = match behavior {
         PageBehavior::Visible => duration.count(),
         PageBehavior::Single => 1,
     };
     match duration {
         VisibleDuration::Months(_) => {
-            let (mut y, mut m) = (anchor.year, anchor.month);
-            for _ in 0..step {
-                let (ny, nm) = bump_month(y, m, dir);
-                y = ny;
-                m = nm;
+            if system.is_gregorian() {
+                let (mut y, mut m) = (anchor.year, anchor.month);
+                for _ in 0..step {
+                    let (ny, nm) = bump_month(y, m, dir);
+                    y = ny;
+                    m = nm;
+                }
+                return clamp_day(y, m, anchor.day);
             }
-            clamp_day(y, m, anchor.day)
+            let (year, month, day) = system.from_gregorian(anchor);
+            let (year, month) = system.add_months(year, month, dir.signum() * step as i32);
+            // The same day of the month where that month has one, else its
+            // last -- the non-Gregorian half of `clamp_day`.
+            let day = day.min(system.days_in_month(year, month)).max(1);
+            system.to_gregorian(year, month, day).unwrap_or(anchor)
         }
         VisibleDuration::Weeks(_) => add_days(&anchor, dir as i64 * step as i64 * 7),
         VisibleDuration::Days(_) => add_days(&anchor, dir as i64 * step as i64),
@@ -538,6 +567,37 @@ mod tests {
             aligned_anchor(three, SelectionAlignment::End, Weekday::Mon, d(2026, 8, 10)),
             d(2026, 6, 10)
         );
+    }
+
+    #[test]
+    fn paging_a_non_gregorian_grid_moves_one_of_its_own_months() {
+        let system =
+            crate::calendar_system::CalendarSystem::for_locale("hi-IN-u-ca-indian").unwrap();
+        // 15 January 2026 is 25 Pausha 1947. One page forward must land in the
+        // *next Indian* month, not one Gregorian month later.
+        let anchor = d(2026, 1, 15);
+        let next = page_in(
+            &system,
+            VisibleDuration::Months(1),
+            PageBehavior::Single,
+            anchor,
+            1,
+        );
+        assert_eq!(system.from_gregorian(next).0, 1947);
+        assert_eq!(
+            system.from_gregorian(next).1,
+            11,
+            "paging forward from Pausha must reach Magha"
+        );
+        // ...and back again returns to the month it came from.
+        let back = page_in(
+            &system,
+            VisibleDuration::Months(1),
+            PageBehavior::Single,
+            next,
+            -1,
+        );
+        assert_eq!(system.from_gregorian(back).1, 10);
     }
 
     #[test]
