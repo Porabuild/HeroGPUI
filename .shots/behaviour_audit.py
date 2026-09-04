@@ -763,6 +763,13 @@ EVIDENCE = {
     # kept by Clone, with PartialEq comparing content only.
     ('Form', 'server-errors-record'): ('validation.rs', RECORD_IDENTITY),
     ('Dropdown', 'focus-return'): ('dropdown.rs', r'back_to_trigger'),
+    # The three dialogs cannot reach the caller's trigger, and do not need to:
+    # `Window::focused` names whatever held the focus when the dialog claimed
+    # it, and `release_dialog_focus` hands it back from the one place every
+    # close path passes through.
+    ('Modal', 'focus-return'): ('modal.rs', r'release_dialog_focus'),
+    ('Drawer', 'focus-return'): ('drawer.rs', r'release_dialog_focus'),
+    ('AlertDialog', 'focus-return'): ('alert_dialog.rs', r'release_dialog_focus'),
     # The panel itself claims the focus, only when nothing inside already holds
     # it -- a click on the trigger leaves the ring where the user put it, while
     # a controlled open, which focuses nothing, still gets a panel the keyboard
@@ -783,20 +790,15 @@ EVIDENCE = {
     ('Autocomplete', 'panel-focus'): ('autocomplete.rs', r'window\.focus\(&search_focus\)'),
     # The dialogs claim the focus on open the same way the popover does: Escape
     # has to reach the overlay, and a key event only travels to the focused
-    # element and its ancestors. The gate is what stops the claim from stealing
-    # focus from a field inside the dialog. Shared by all three so they cannot
-    # spell it differently.
-    ('Modal', 'panel-focus'): (
-        'modal.rs',
-        r'if !focus_handle\.contains_focused\(window, cx\)\s*\{\s*window\.focus\(&focus_handle\);\s*\}',
-    ),
-    ('Drawer', 'panel-focus'): (
-        'drawer.rs',
-        r'if !focus_handle\.contains_focused\(window, cx\)\s*\{\s*window\.focus\(&focus_handle\);\s*\}',
-    ),
+    # element and its ancestors. The gate that stops the claim from stealing
+    # focus from a field inside the dialog lives in `claim_dialog_focus`, which
+    # also parks the handle the close hands the focus back to. Shared by all
+    # three so they cannot spell it differently.
+    ('Modal', 'panel-focus'): ('modal.rs', r'claim_dialog_focus\(&self\.id, &focus_handle'),
+    ('Drawer', 'panel-focus'): ('drawer.rs', r'claim_dialog_focus\(&self\.id, &focus_handle'),
     ('AlertDialog', 'panel-focus'): (
         'alert_dialog.rs',
-        r'if !focus_handle\.contains_focused\(window, cx\)\s*\{\s*window\.focus\(&focus_handle\);\s*\}',
+        r'claim_dialog_focus\(&self\.id, &focus_handle',
     ),
     # A picker moves the focus into the open calendar, so the grid answers the
     # arrows without the user having to find its tab stop first.
@@ -1108,12 +1110,6 @@ WONT_DO = {
     # Tab order is the platform's, and gpui walks the focusable elements in tree
     # order without being told to.
     ('Pagination', 'tab-order'): 'platform-tab-order',
-    # A dialog claims the focus on open and has nothing to give it back to: the
-    # trigger is the caller's element, rendered outside the component, and gpui
-    # gives a child no way to reach it. The caller can restore it.
-    ('Modal', 'focus-return'): 'no-handle-for-callers-trigger',
-    ('Drawer', 'focus-return'): 'no-handle-for-callers-trigger',
-    ('AlertDialog', 'focus-return'): 'no-handle-for-callers-trigger',
     # Pinned TableKeyboardDelegate lets PageUp leave the body for the first
     # column header. This port models sortable headers and the body as separate
     # tab stops, so it falls back to the first enabled row until it has one

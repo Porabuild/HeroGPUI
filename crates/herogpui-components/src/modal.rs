@@ -114,6 +114,53 @@ pub(crate) fn dialog_key(id: &gpui::ElementId, part: &str) -> gpui::ElementId {
     gpui::ElementId::Name(format!("{id:?}-{part}").into())
 }
 
+/// Claims the focus for an open dialog, remembering what held it before.
+///
+/// v3 restores the focus when a dialog closes. The trigger is the caller's
+/// element, rendered outside the component, so the dialog cannot reach it --
+/// but it does not need to: whatever held the focus when the dialog opened is
+/// what has to get it back, trigger or not. `Window::focused` names it, and the
+/// handle is parked in the dialog's own keyed state until it closes.
+///
+/// Claiming only while nothing inside already holds the focus is what makes
+/// Escape reach the overlay on the first frame without stealing the ring from a
+/// field the user has since moved into.
+pub(crate) fn claim_dialog_focus(
+    id: &gpui::ElementId,
+    focus_handle: &gpui::FocusHandle,
+    window: &mut Window,
+    cx: &mut App,
+) {
+    let restore = window.use_keyed_state(dialog_key(id, "focus-return"), cx, |_, _| {
+        None::<gpui::FocusHandle>
+    });
+    if focus_handle.contains_focused(window, cx) {
+        return;
+    }
+    // The frame the dialog takes the focus is the only one that can still see
+    // who had it; every later frame would report the dialog itself.
+    let previous = window.focused(cx).filter(|held| held != focus_handle);
+    if previous.is_some() && restore.read(cx).is_none() {
+        restore.update(cx, |slot, _| *slot = previous);
+    }
+    window.focus(focus_handle);
+}
+
+/// Hands the focus back to whatever held it before this dialog opened.
+///
+/// Called from every dismissal path. Does nothing when the dialog never took
+/// the focus from anything, which is the controlled-open case.
+pub(crate) fn release_dialog_focus(id: &gpui::ElementId, window: &mut Window, cx: &mut App) {
+    let restore = window.use_keyed_state(dialog_key(id, "focus-return"), cx, |_, _| {
+        None::<gpui::FocusHandle>
+    });
+    let previous = restore.read(cx).clone();
+    if let Some(previous) = previous {
+        restore.update(cx, |slot, _| *slot = None);
+        window.focus(&previous);
+    }
+}
+
 /// The one contract every dialog's close-trigger part implements so the
 /// composing dialog can hand it the dismissal path through an `AnyElement`.
 ///
@@ -429,6 +476,10 @@ impl RenderOnce for Modal {
             true,
         );
         if phase == crate::util::OverlayPhase::Closed {
+            // Every close path lands here -- a dismissal callback, Escape, a
+            // backdrop press, or a caller flipping `is_open` -- so this is the
+            // one place that can hand the focus back whatever closed it.
+            release_dialog_focus(&self.id, window, cx);
             return gpui::div().into_any_element();
         }
         let exiting = phase == crate::util::OverlayPhase::Exiting;
@@ -440,9 +491,7 @@ impl RenderOnce for Modal {
         let focus =
             window.use_keyed_state(dialog_key(&self.id, "focus"), cx, |_, cx| cx.focus_handle());
         let focus_handle = focus.read(cx).clone();
-        if !focus_handle.contains_focused(window, cx) {
-            window.focus(&focus_handle);
-        }
+        claim_dialog_focus(&self.id, &focus_handle, window, cx);
 
         let colors = cx.colors();
 

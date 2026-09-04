@@ -199,6 +199,9 @@ impl RenderOnce for Drawer {
             crate::anim::Motion::DRAWER_OUT.ms,
         );
         if phase == crate::util::OverlayPhase::Closed {
+            // Every close path lands here, including a caller flipping
+            // `is_open`, so the focus goes back from one place.
+            crate::modal::release_dialog_focus(&self.id, window, cx);
             return gpui::div().into_any_element();
         }
         let exiting = phase == crate::util::OverlayPhase::Exiting;
@@ -212,9 +215,7 @@ impl RenderOnce for Drawer {
                 cx.focus_handle()
             });
         let focus_handle = focus.read(cx).clone();
-        if !focus_handle.contains_focused(window, cx) {
-            window.focus(&focus_handle);
-        }
+        crate::modal::claim_dialog_focus(&self.id, &focus_handle, window, cx);
 
         // A drag in progress: where it started along the dismissal axis, and how
         // far it has come. `use_keyed_state` takes `cx` mutably, so it precedes

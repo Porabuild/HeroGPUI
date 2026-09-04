@@ -2059,3 +2059,86 @@ fn toast_auto_dismiss_after_timeout(cx: &mut TestAppContext) {
         assert!(store.read(cx).toasts().iter().any(|t| t.id == stay));
     });
 }
+
+/// Closing a dialog hands the focus back to whatever held it before.
+///
+/// Recorded as not implementable (`behaviour_audit`'s
+/// `no-handle-for-callers-trigger`) because the trigger belongs to the caller
+/// and the dialog cannot reach it. It does not have to: `Window::focused` names
+/// whatever held the focus when the dialog opened, trigger or not.
+#[gpui::test]
+fn dialog_close_returns_the_focus_to_the_trigger(cx: &mut TestAppContext) {
+    still();
+    let open = Rc::new(RefCell::new(false));
+    let open_flag = open.clone();
+    let open_for_view = open.clone();
+
+    let cx = open_host(cx, move || {
+        let open_flag = open_flag.clone();
+        let is_open = *open_for_view.borrow();
+        gpui::div()
+            .flex()
+            .flex_col()
+            .child(
+                Button::new("ovl-focus-return-trigger")
+                    .label("Open")
+                    .on_press({
+                        let open_flag = open_flag.clone();
+                        move |_, window, _| {
+                            *open_flag.borrow_mut() = true;
+                            window.refresh();
+                        }
+                    }),
+            )
+            .child(
+                Modal::new()
+                    .id("ovl-focus-return")
+                    .is_open(is_open)
+                    .child(Button::new("ovl-focus-return-inside").label("Inside"))
+                    .on_open_change(move |v, window, _| {
+                        *open_flag.borrow_mut() = v;
+                        window.refresh();
+                    }),
+            )
+            .into_any_element()
+    });
+
+    // Press the trigger: it takes the focus the way any pressed button does,
+    // and opens the modal, which then claims the focus for Escape.
+    let before = cx.update(|window, cx| window.focused(cx));
+    click(cx, 40., 18.);
+    let while_open = cx.update(|window, cx| window.focused(cx));
+    assert!(
+        while_open.is_some() && while_open != before,
+        "opening the modal must move the focus onto the dialog so Escape reaches it"
+    );
+    assert!(*open.borrow(), "the trigger must have opened the modal");
+
+    // Escape closes it, and the focus must go back to the trigger rather than
+    // being left on the dialog that no longer exists.
+    press(cx, "escape");
+    // The panel is still mounted while it animates out; the focus goes back
+    // when it is actually gone.
+    let_exit_finish(cx);
+    let returned = cx.update(|window, cx| window.focused(cx));
+    assert!(
+        returned.is_some(),
+        "closing a dialog must leave the focus somewhere, not nowhere"
+    );
+    assert_ne!(
+        returned, while_open,
+        "the focus must not be left on the dialog that just closed"
+    );
+    assert_ne!(
+        returned, before,
+        "the focus must go back to the trigger that opened the dialog, not to          whatever held it before the trigger was pressed"
+    );
+
+    // The proof that the returned focus is usable: the keyboard alone reopens
+    // the modal, which is only possible if the trigger really has it.
+    press(cx, "enter");
+    assert!(
+        *open.borrow(),
+        "the trigger must be focused after the close, so Enter reopens the modal"
+    );
+}

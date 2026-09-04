@@ -321,6 +321,9 @@ impl RenderOnce for AlertDialog {
             true,
         );
         if phase == util::OverlayPhase::Closed {
+            // Every close path lands here, including a caller flipping
+            // `is_open`, so the focus goes back from one place.
+            crate::modal::release_dialog_focus(&self.id, window, cx);
             return div().into_any_element();
         }
         let exiting = phase == util::OverlayPhase::Exiting;
@@ -334,9 +337,7 @@ impl RenderOnce for AlertDialog {
                 cx.focus_handle()
             });
         let focus_handle = focus.read(cx).clone();
-        if !focus_handle.contains_focused(window, cx) {
-            window.focus(&focus_handle);
-        }
+        crate::modal::claim_dialog_focus(&self.id, &focus_handle, window, cx);
 
         let colors = cx.colors();
         let layout = cx.layout();
