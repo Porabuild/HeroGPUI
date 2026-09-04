@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "artifactSha256": "7bb662728f890d56b3dd557af93d6a1e5e514e06a6c64f7a4b8d6865b6eb7fe2",
-  "glueSha256": "512c9f6f2c16687698d8f7faead7616ffef3461b9bb5d6fd39ccd6c2b123b8c9",
+  "artifactSha256": "ace2baf2c6825dd6b79980df7a06874caa9b6468a61ba401e75c7d431e0d5ac1",
+  "glueSha256": "5d701d30dae40c2eb0360445492e4d81d9971958b23cc0f2d6f78b9c1e1b86e8",
   "examples": {
     "accordion/Controlled": {
       "nativeCodeSha256": "2816548407263e0fdeada0ff2ec1e8f9fd45a2d33b24ab2cf163539711fe6f8a",
@@ -2145,7 +2145,6 @@
     },
     "table/Column Resizing": {
       "nativeCodeSha256": "6c8706380d058e2b15e35ed828a13cfcad7118538bd057da3f2fbc962c1bba06",
-      "wasmCodeSha256": "213235f83e1ceea1a850e43716f4152789d52fd2431c2917afdad53772cbb11b",
       "descriptionSha256": "fad2beb383fd736fb0b561a8b1766335c18a0a7cebe73f5073b070f831c39820"
     },
     "table/Custom Cells": {
@@ -2573,8 +2572,6 @@
     "popover/Render Function"
   ],
   "extra": [],
-  "codeDrift": [
-    "table/Column Resizing"
-  ],
+  "codeDrift": [],
   "descriptionDrift": []
 }
