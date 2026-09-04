@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "artifactSha256": "fdb97c4488dcc2dd047cdc54455bde40446717cd192c85991a932267176091be",
+  "artifactSha256": "314898ce5f6a809de1a6aec6195a68c59ae4e116dd4edf1a49d07ac7797ae045",
   "glueSha256": "3b2de2228413c33ef20dc8772fbb4108c3d290d41e2773445c911655f259b7d6",
   "examples": {
     "accordion/Controlled": {
@@ -1149,7 +1149,6 @@
     },
     "input-group/Full Width": {
       "nativeCodeSha256": "311acc3e0c3cb1d8dbc4cf65063c5842a1150b841b31372af7bc4cf4f4e2029b",
-      "wasmCodeSha256": "89f35debeaaaff15c1d4bb76e9c8f115507d1c8598ca10064a1e1b251ec7537e",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "input-group/Icon Prefix and Copy Button": {
@@ -1158,12 +1157,10 @@
     },
     "input-group/Icon Prefix and Text Suffix": {
       "nativeCodeSha256": "6bcb34d0d700928b08687e59946e36ece01b0e98008bd06a6b3649dd630a9811",
-      "wasmCodeSha256": "d67b45225939094cfbd5855be8933f61a93a300222c099dc191032f5f68d9c18",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "input-group/In Surface": {
       "nativeCodeSha256": "01ae15ad64e171e8fe383329105a9daa38f4d1a72cabc1f3abdcb895153dc107",
-      "wasmCodeSha256": "21ffe63c009d01313c4be0de970500b4ef22ecaf8d2b9a632dad98eb51372615",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "input-group/Keyboard Shortcut": {
@@ -1180,22 +1177,18 @@
     },
     "input-group/Required Field": {
       "nativeCodeSha256": "0aa68bc23e38f216c638ecb06296aea35a8b2818495b912edd68935027effb89",
-      "wasmCodeSha256": "24957b91435db1fc0ded33dd65cbdf0a9476b0e336a396704bfcf5331b55d9f0",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "input-group/Text Prefix": {
       "nativeCodeSha256": "e9428b1a640cbf99ccbb5976b5b2249a34a1b689b549ae8249a9ca174e423381",
-      "wasmCodeSha256": "48ee49706392bceed527f8ef37cc2e42000fffe654ad228bf2668af941d4447b",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "input-group/Text Suffix": {
       "nativeCodeSha256": "c7349522fa0b48178b5087b5b308ccd9190d277e24381c42e030edf994459c53",
-      "wasmCodeSha256": "f1d4fe4b70347ef5465611fd99a1010d2dbc4a4ed52e9782f74479b5c1b9e1e9",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "input-group/TextArea Usage Example": {
       "nativeCodeSha256": "06c0637ebaf4b54ec3073a2b49807927c46a436c1be9d170b516a84846bed56a",
-      "wasmCodeSha256": "b84fbe86836d826d05749c2bbaa537f5dce59a5d5efa996d85e0e19b57a05bfe",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "input-group/Usage": {
@@ -1212,27 +1205,22 @@
     },
     "input-group/Variants": {
       "nativeCodeSha256": "039cbf5fad5f1a8f27868e1f86c3dc0d9c0a20187607527a10df9a26ba1b713d",
-      "wasmCodeSha256": "d954b6a8283d7a6364eb207ab883e48ea7adc39cd51520f5544f08718ffdbd8a",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "input-group/With Prefix Icon": {
       "nativeCodeSha256": "951304264b214a0f02c3ea8da4da0c0d46a9f0a981a7201405aebe516c3b8795",
-      "wasmCodeSha256": "79762bf006eff904f104626143cd760bc9caf54e1a1da8970cae711ff90f2421",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "input-group/With Prefix and Suffix": {
       "nativeCodeSha256": "99cccfd7a60b36e91c127ed2a89682f0737f1cfbcc4d67d6961019c7a44d6d6e",
-      "wasmCodeSha256": "bf3c4cdb325000c3ed816d2961ccdf1a9641ec24b70bfb763fb3c0faba8de0b7",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "input-group/With Suffix Icon": {
       "nativeCodeSha256": "1f4b6d2f227bf755342e7659d43e4d0726e9195f6a875d30d9e144e29f5525eb",
-      "wasmCodeSha256": "006498be7f69907e49bd4b48977b0683896fb8897c2d90262356fc8503232bee",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "input-group/With TextArea": {
       "nativeCodeSha256": "48e638b55977a1153b3fd8553726e7bf51fb36bdc8e4e5e67946ea3213915375",
-      "wasmCodeSha256": "6d6bec03fa98bdf1ba830e81ebd7bb8489980d7adae224bdfb1dfceeede226ae",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "input-group/With a trailing action": {
@@ -2587,18 +2575,6 @@
   ],
   "extra": [],
   "codeDrift": [
-    "input-group/Full Width",
-    "input-group/Icon Prefix and Text Suffix",
-    "input-group/In Surface",
-    "input-group/Required Field",
-    "input-group/Text Prefix",
-    "input-group/Text Suffix",
-    "input-group/TextArea Usage Example",
-    "input-group/Variants",
-    "input-group/With Prefix Icon",
-    "input-group/With Prefix and Suffix",
-    "input-group/With Suffix Icon",
-    "input-group/With TextArea",
     "table/Column Resizing",
     "tag-group/With Remove Button"
   ],
