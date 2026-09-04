@@ -852,12 +852,19 @@ impl RenderOnce for ColorArea {
             .w(self.width)
             .h(self.height)
             .rounded(radius)
-            .overflow_hidden()
             .border(cx.layout().border_width)
             .border_color(colors.border);
 
-        area = if self.x_channel == ColorChannel::Hue || self.y_channel == ColorChannel::Hue {
-            area.child(color_area_hue_layers(
+        // `.color-area` is `overflow: visible` -- the thumb is meant to hang
+        // over the edge, and upstream can allow that because its gradient stack
+        // is the element's own `background` plus an `::after`, both of which
+        // take the radius. Here the stack is real children, so the clip that
+        // holds them inside the corner goes on this one inner layer rather than
+        // on the area: clipping the area cut the thumb in half at every edge.
+        let mut layers = div().absolute().inset_0().rounded(radius).overflow_hidden();
+
+        layers = if self.x_channel == ColorChannel::Hue || self.y_channel == ColorChannel::Hue {
+            layers.child(color_area_hue_layers(
                 self.value,
                 color_space,
                 self.x_channel,
@@ -865,7 +872,7 @@ impl RenderOnce for ColorArea {
             ))
         } else {
             match (color_space, self.x_channel, self.y_channel) {
-                (ColorSpace::Hsb, ColorChannel::Saturation, ColorChannel::Brightness) => area
+                (ColorSpace::Hsb, ColorChannel::Saturation, ColorChannel::Brightness) => layers
                     .bg(gpui::linear_gradient(
                         90.0,
                         gpui::linear_color_stop(gpui::white(), 0.0),
@@ -879,39 +886,40 @@ impl RenderOnce for ColorArea {
                 (ColorSpace::Hsl, ColorChannel::Saturation, ColorChannel::Lightness) => {
                     let gray = self.value.with_hsl_channels(0.0, 0.5).to_hsla();
                     let hue = self.value.with_hsl_channels(1.0, 0.5).to_hsla();
-                    area.bg(gpui::linear_gradient(
-                        90.0,
-                        gpui::linear_color_stop(gray, 0.0),
-                        gpui::linear_color_stop(hue, 1.0),
-                    ))
-                    .child(
-                        div()
-                            .absolute()
-                            .top_0()
-                            .left_0()
-                            .right_0()
-                            .h(px(f32::from(self.height) / 2.0))
-                            .bg(gpui::linear_gradient(
-                                180.0,
-                                gpui::linear_color_stop(gpui::white(), 0.0),
-                                gpui::linear_color_stop(gpui::transparent_white(), 1.0),
-                            )),
-                    )
-                    .child(
-                        div()
-                            .absolute()
-                            .bottom_0()
-                            .left_0()
-                            .right_0()
-                            .h(px(f32::from(self.height) / 2.0))
-                            .bg(gpui::linear_gradient(
-                                180.0,
-                                gpui::linear_color_stop(gpui::transparent_black(), 0.0),
-                                gpui::linear_color_stop(gpui::black(), 1.0),
-                            )),
-                    )
+                    layers
+                        .bg(gpui::linear_gradient(
+                            90.0,
+                            gpui::linear_color_stop(gray, 0.0),
+                            gpui::linear_color_stop(hue, 1.0),
+                        ))
+                        .child(
+                            div()
+                                .absolute()
+                                .top_0()
+                                .left_0()
+                                .right_0()
+                                .h(px(f32::from(self.height) / 2.0))
+                                .bg(gpui::linear_gradient(
+                                    180.0,
+                                    gpui::linear_color_stop(gpui::white(), 0.0),
+                                    gpui::linear_color_stop(gpui::transparent_white(), 1.0),
+                                )),
+                        )
+                        .child(
+                            div()
+                                .absolute()
+                                .bottom_0()
+                                .left_0()
+                                .right_0()
+                                .h(px(f32::from(self.height) / 2.0))
+                                .bg(gpui::linear_gradient(
+                                    180.0,
+                                    gpui::linear_color_stop(gpui::transparent_black(), 0.0),
+                                    gpui::linear_color_stop(gpui::black(), 1.0),
+                                )),
+                        )
                 }
-                _ => area.child(color_area_channel_grid(
+                _ => layers.child(color_area_channel_grid(
                     self.value,
                     color_space,
                     self.x_channel,
@@ -972,8 +980,10 @@ impl RenderOnce for ColorArea {
                 let _ = r;
                 grid = grid.child(line);
             }
-            area = area.child(grid);
+            layers = layers.child(grid);
         }
+
+        area = area.child(layers);
 
         let is_dragging = !self.is_disabled && *dragging.read(cx);
         let is_focused = !self.is_disabled && area_focus.is_focused(window);
