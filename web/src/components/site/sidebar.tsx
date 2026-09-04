@@ -25,9 +25,7 @@ function SidebarSection({
   if (links.length === 0) return null;
   return (
     <section className="docs-sidebar-section py-3">
-      <h3 className="docs-sidebar-label px-3 pb-1.5 text-xs font-semibold tracking-wider text-muted uppercase">
-        {label}
-      </h3>
+      <h3 className="docs-sidebar-label px-3 pb-1.5">{label}</h3>
       <ul>
         {links.map((link) => {
           const active = isNavLinkActive(pathname, link);
@@ -37,8 +35,8 @@ function SidebarSection({
                 aria-current={active ? "page" : undefined}
                 className={
                   active
-                    ? "block rounded-md bg-accent-soft px-3 py-1.5 text-sm font-medium text-accent-soft-foreground"
-                    : "block rounded-md px-3 py-1.5 text-sm text-muted transition-colors hover:bg-surface-secondary hover:text-foreground"
+                    ? "relative flex h-8 items-center rounded-md bg-accent-soft px-3 text-sm font-medium text-accent-soft-foreground"
+                    : "relative flex h-8 items-center rounded-md px-3 text-sm text-muted transition-colors hover:bg-[color-mix(in_srgb,var(--pb-moon)_4%,transparent)] hover:text-foreground"
                 }
                 href={link.href}
                 onPress={onNavigate}

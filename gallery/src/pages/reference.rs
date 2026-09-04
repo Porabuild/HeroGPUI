@@ -18,7 +18,7 @@ struct ApiMethod {
 
 pub fn panels(
     import_line: &str,
-    examples: &[(&str, AnyElement, &str)],
+    examples: &[(&str, Option<&str>, AnyElement, &str)],
     cx: &App,
 ) -> Vec<(&'static str, AnyElement)> {
     if !REFERENCE_PANEL_HEADINGS
@@ -35,7 +35,7 @@ pub fn panels(
     let Some(source) = source_for(import_line) else {
         return Vec::new();
     };
-    let owners = referenced_types(import_line, examples.iter().map(|(_, _, code)| *code));
+    let owners = referenced_types(import_line, examples.iter().map(|(_, _, _, code)| *code));
     let methods = methods_for(source, &owners);
     if methods.is_empty() {
         return Vec::new();

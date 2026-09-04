@@ -2524,6 +2524,8 @@ dependencies = [
  "herogpui-components",
  "herogpui-core",
  "herogpui-theme",
+ "prettyplease",
+ "syn 2.0.119",
 ]
 
 [[package]]

@@ -24,7 +24,10 @@ description, then the bordered example. Keep explanatory prose outside the
 example surface on both sites; component-owned labels, helper text, values, and
 composed content remain inside the demonstrated component.
 
-Keep each component on one page: all generated examples come first, followed by
-`Component documentation` with Props, Anatomy, States, and Styling. New gallery
-pages must add checked-in reference metadata so the website does not ship an
-examples-only component page.
+Keep each component on one page, in HeroUI v3 docs order: `Usage` (the live
+preview frame stacked above the first example's code in one bordered card),
+`Anatomy` (required parts plus the parts table), `Examples` (every remaining
+example as its own card), `Styling` (styling tokens, then an h3 `States`),
+`API reference` (the props table), and `Related components` (same catalog
+category). New gallery pages must add checked-in reference metadata so the
+website does not ship an examples-only component page.

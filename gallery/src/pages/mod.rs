@@ -985,20 +985,27 @@ pub fn component_doc_page(
     title: &str,
     description: &str,
     import_line: &str,
-    sections: Vec<(&str, gpui::AnyElement, &str)>,
+    sections: Vec<(&str, Option<&str>, gpui::AnyElement, &str)>,
     cx: &App,
 ) -> gpui::AnyElement {
     let references = reference::panels(import_line, &sections, cx);
     let mut el = doc_page_shell(title, description, import_line, cx);
 
-    for (heading, body, code) in sections {
+    for (heading, description, body, code) in sections {
         if !crate::control::section_wanted(heading, cx) {
             continue;
         }
-        el = el
-            .mt(px(4.))
-            .child(section_heading(heading))
-            .child(example_frame_with_code(body, checked_code(code), cx));
+        let code = example_code(import_line, checked_code(code));
+        el = el.mt(px(4.)).child(section_heading(heading));
+        if let Some(description) = description {
+            el = el.child(para(description, cx));
+        }
+        el = el.child(example_frame_with_code(
+            body,
+            format!("{title}-{heading}"),
+            code,
+            cx,
+        ));
     }
 
     for (heading, body) in references {
@@ -1042,6 +1049,7 @@ pub fn example_frame(content: gpui::AnyElement, cx: &App) -> gpui::AnyElement {
 const CODE_BG: u32 = 0x18181B;
 const CODE_BORDER: u32 = 0x27272A;
 const CODE_TEXT: u32 = 0xD4D4D8;
+const CODE_MUTED: u32 = 0x7F848E;
 const CODE_TEXT_SIZE: f32 = 12.5;
 const CODE_LINE_HEIGHT: f32 = 21.;
 const CODE_PAD_X: f32 = 18.;
@@ -1057,14 +1065,139 @@ fn highlighted_code(code: &str) -> gpui::StyledText {
     gpui::StyledText::new(shown).with_highlights(highlights)
 }
 
+fn example_code(import_line: &str, code: &str) -> String {
+    let code = crate::highlight::format_rust_expression(code);
+    if import_line.is_empty() {
+        code
+    } else {
+        format!("{import_line}\n\n{code}")
+    }
+}
+
+#[derive(IntoElement)]
+struct DocsCodeBlock {
+    id: gpui::ElementId,
+    code: gpui::SharedString,
+    collapsible: bool,
+}
+
+impl RenderOnce for DocsCodeBlock {
+    fn render(self, window: &mut gpui::Window, cx: &mut App) -> impl IntoElement {
+        let expanded = self.collapsible.then(|| {
+            window.use_keyed_state(
+                gpui::ElementId::Name(format!("{:?}-expanded", self.id).into()),
+                cx,
+                |_, _| false,
+            )
+        });
+        let is_expanded = expanded.as_ref().is_some_and(|state| *state.read(cx));
+        let code = self.code;
+        let copy = code.clone();
+        let colors = cx.colors();
+
+        let copy_button = herogpui_components::Button::new(gpui::ElementId::Name(
+            format!("{:?}-copy", self.id).into(),
+        ))
+        .label("Copy")
+        .variant(herogpui_core::Variant::Tertiary)
+        .size(herogpui_core::Size::Sm)
+        .child(
+            gpui::svg()
+                .size(px(14.))
+                .path(herogpui_components::icons::COPY)
+                .text_color(colors.muted),
+        )
+        .on_press(move |_, _, cx| {
+            cx.write_to_clipboard(gpui::ClipboardItem::new_string(copy.to_string()));
+        });
+
+        let mut code_pane = gpui::div()
+            .id(gpui::ElementId::Name(
+                format!("{:?}-content", self.id).into(),
+            ))
+            .w_full()
+            .px(px(CODE_PAD_X))
+            .py(px(CODE_PAD_Y))
+            .overflow_x_scroll()
+            .whitespace_nowrap()
+            .bg(gpui::rgb(CODE_BG))
+            .font_family(crate::app::MONO_FONT)
+            .text_size(px(CODE_TEXT_SIZE))
+            .line_height(px(CODE_LINE_HEIGHT))
+            .text_color(gpui::rgb(CODE_TEXT))
+            .child(highlighted_code(&code));
+        if self.collapsible && !is_expanded {
+            code_pane = code_pane.max_h(px(150.)).overflow_hidden();
+        }
+
+        let mut block = gpui::div()
+            .id(self.id.clone())
+            .w_full()
+            .rounded(px(CODE_RADIUS))
+            .border_1()
+            .border_color(gpui::rgb(CODE_BORDER))
+            .bg(gpui::rgb(CODE_BG))
+            .overflow_hidden()
+            .child(
+                gpui::div()
+                    .h(px(44.))
+                    .px(px(8.))
+                    .pl(px(CODE_PAD_X))
+                    .flex()
+                    .items_center()
+                    .border_b_1()
+                    .border_color(gpui::rgb(CODE_BORDER))
+                    .text_size(px(12.))
+                    .text_color(gpui::rgb(CODE_MUTED))
+                    .child("Rust")
+                    .child(gpui::div().ml_auto().child(copy_button)),
+            )
+            .child(code_pane);
+
+        if let Some(expanded) = expanded {
+            let label = if is_expanded {
+                "Collapse code"
+            } else {
+                "Expand code"
+            };
+            block = block.child(
+                gpui::div()
+                    .w_full()
+                    .py(px(8.))
+                    .flex()
+                    .justify_center()
+                    .border_t_1()
+                    .border_color(gpui::rgb(CODE_BORDER))
+                    .child(
+                        herogpui_components::Button::new(gpui::ElementId::Name(
+                            format!("{:?}-toggle", self.id).into(),
+                        ))
+                        .label(label)
+                        .variant(herogpui_core::Variant::Tertiary)
+                        .size(herogpui_core::Size::Sm)
+                        .on_press(move |_, _, cx| {
+                            expanded.update(cx, |expanded, cx| {
+                                *expanded = !*expanded;
+                                cx.notify();
+                            });
+                        }),
+                    ),
+            );
+        }
+
+        block
+    }
+}
+
 /// Live preview and its exact gallery source, presented as one example card.
 pub fn example_frame_with_code(
     content: gpui::AnyElement,
-    code: &str,
+    id: impl Into<gpui::SharedString>,
+    code: impl Into<gpui::SharedString>,
     cx: &App,
 ) -> gpui::AnyElement {
-    let code = checked_code(code);
     let colors = cx.colors();
+    let id = id.into();
     gpui::div()
         .rounded(px(14.))
         .border_1()
@@ -1075,31 +1208,19 @@ pub fn example_frame_with_code(
         .child(
             gpui::div()
                 .p(px(28.))
+                .min_h(px(260.))
                 .flex()
                 .flex_col()
+                .items_center()
+                .justify_center()
                 .gap(px(16.))
                 .child(content),
         )
-        .child(
-            gpui::div()
-                .id(gpui::ElementId::Name(code.to_owned().into()))
-                .w_full()
-                .border_t_1()
-                .border_color(gpui::rgb(CODE_BORDER))
-                .px(px(CODE_PAD_X))
-                .py(px(CODE_PAD_Y))
-                .max_h(px(220.))
-                .focusable()
-                .overflow_y_scroll()
-                .overflow_x_scroll()
-                .whitespace_nowrap()
-                .bg(gpui::rgb(CODE_BG))
-                .font_family(crate::app::MONO_FONT)
-                .text_size(px(CODE_TEXT_SIZE))
-                .line_height(px(CODE_LINE_HEIGHT))
-                .text_color(gpui::rgb(CODE_TEXT))
-                .child(highlighted_code(code)),
-        )
+        .child(DocsCodeBlock {
+            id: gpui::ElementId::Name(format!("{id}-code").into()),
+            code: code.into(),
+            collapsible: true,
+        })
         .into_any_element()
 }
 
@@ -1107,20 +1228,18 @@ pub fn example_frame_with_code(
 pub fn code_block(code: &str, cx: &App) -> gpui::AnyElement {
     let _ = cx;
     let code = checked_code(code);
-    gpui::div()
-        .w_full()
-        .px(px(CODE_PAD_X))
-        .py(px(CODE_PAD_Y))
-        .rounded(px(CODE_RADIUS))
-        .border_1()
-        .border_color(gpui::rgb(CODE_BORDER))
-        .bg(gpui::rgb(CODE_BG))
-        .font_family(crate::app::MONO_FONT)
-        .text_size(px(CODE_TEXT_SIZE))
-        .line_height(px(CODE_LINE_HEIGHT))
-        .text_color(gpui::rgb(CODE_TEXT))
-        .child(highlighted_code(code))
-        .into_any_element()
+    DocsCodeBlock {
+        id: gpui::ElementId::Name(format!("code-{:016x}", code_hash(code)).into()),
+        code: code.to_owned().into(),
+        collapsible: false,
+    }
+    .into_any_element()
+}
+
+fn code_hash(code: &str) -> u64 {
+    code.bytes().fold(0xcbf29ce484222325, |hash, byte| {
+        (hash ^ u64::from(byte)).wrapping_mul(0x100000001b3)
+    })
 }
 
 /// A paragraph of body text.

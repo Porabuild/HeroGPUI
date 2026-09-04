@@ -45,7 +45,11 @@ function galleryOrigin(base: string): string {
 function embedUrl(slug: string, theme: "light" | "dark"): string {
   const base = galleryOrigin(GALLERY_BASE).replace(/\/+$/, "");
   const query = new URLSearchParams({ story: slug, theme }).toString();
-  return `${base}/?${query}`;
+  // Point at the real file so relative imports resolve to
+  // /gallery/herogpui_web.js. The bare "/gallery/?story=…" form 308s to
+  // "/gallery?story=…" (Next strips the trailing slash), and the module
+  // then resolves relative to "/herogpui/gallery" → 404.
+  return `${base}/index.html?${query}`;
 }
 
 export interface GalleryFrameProps {
@@ -54,9 +58,15 @@ export interface GalleryFrameProps {
   /** Component title, used to build an honest, specific iframe title. */
   title: string;
   className?: string;
+  /**
+   * Render the window bar and viewport without the outer card border and
+   * caption, for embedding in a caller-owned card (the component page Usage
+   * card stacks the frame above the first example's code in one border).
+   */
+  bare?: boolean;
 }
 
-export function GalleryFrame({ slug, title, className }: GalleryFrameProps) {
+export function GalleryFrame({ slug, title, className, bare = false }: GalleryFrameProps) {
   const [visible, setVisible] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">("light");
   const viewportRef = useRef<HTMLDivElement | null>(null);
@@ -94,35 +104,45 @@ export function GalleryFrame({ slug, title, className }: GalleryFrameProps) {
 
   if (!GALLERY_BASE) return null;
 
+  const frame = (
+    <>
+      <div aria-hidden="true" className="window-bar">
+        <div>
+          <span />
+          <span />
+          <span />
+        </div>
+        <span>HeroGPUI / WebAssembly</span>
+        <span className="shot-window-status">Live</span>
+      </div>
+      <div
+        className="relative h-[380px] bg-surface-secondary sm:h-[480px] lg:h-[600px]"
+        ref={viewportRef}
+      >
+        {visible ? (
+          <iframe
+            className="absolute inset-0 h-full w-full border-0"
+            src={embedUrl(slug, theme)}
+            title={`${title}, rendered live by HeroGPUI compiled to WebAssembly`}
+          />
+        ) : (
+          <div aria-hidden="true" className="absolute inset-0" />
+        )}
+      </div>
+    </>
+  );
+
+  if (bare) {
+    return <div className={cn("m-0", className)}>{frame}</div>;
+  }
+
   return (
     <figure className={cn("m-0", className)}>
       <div className="relative overflow-hidden rounded-xl border border-separator bg-surface shadow-none">
-        <div aria-hidden="true" className="window-bar">
-          <div>
-            <span />
-            <span />
-            <span />
-          </div>
-          <span>HeroGPUI / WebAssembly</span>
-          <span className="shot-window-status">Live</span>
-        </div>
-        <div
-          className="relative h-[380px] bg-surface-secondary sm:h-[480px] lg:h-[600px]"
-          ref={viewportRef}
-        >
-          {visible ? (
-            <iframe
-              className="absolute inset-0 h-full w-full border-0"
-              src={embedUrl(slug, theme)}
-              title={`${title}, rendered live by HeroGPUI compiled to WebAssembly`}
-            />
-          ) : (
-            <div aria-hidden="true" className="absolute inset-0" />
-          )}
-        </div>
+        {frame}
       </div>
       <figcaption className="mt-3 flex items-center gap-2 text-xs text-muted">
-        <span aria-hidden="true" className="size-1.5 shrink-0 rounded-full bg-accent" />
+        <span aria-hidden="true" className="shot-window-dot size-1.5 shrink-0 rounded-full bg-accent" />
         HeroGPUI itself, compiled to WebAssembly and running in this frame. Not a screenshot, not a
         recreation.
       </figcaption>

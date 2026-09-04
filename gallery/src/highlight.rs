@@ -186,6 +186,37 @@ pub fn format_rust_snippet(code: &str) -> String {
     layout(&parts, CODE_MAX_COLS)
 }
 
+/// Format a complete gallery example expression with `prettyplease`, falling
+/// back to the token-preserving formatter if a future macro body is not valid
+/// as a standalone Rust expression.
+pub fn format_rust_expression(code: &str) -> String {
+    pretty_expression(code).unwrap_or_else(|| format_rust_snippet(code))
+}
+
+/// `prettyplease` formats complete Rust files, so place a gallery expression
+/// in a throwaway function, format that syntax tree, then remove the wrapper.
+/// Name resolution is deliberately irrelevant here: snippets may refer to the
+/// gallery view's fields and helpers, but they are still valid Rust syntax.
+fn pretty_expression(code: &str) -> Option<String> {
+    let wrapped = format!("fn __gallery_example() {{\n{code}\n}}\n");
+    let file = syn::parse_file(&wrapped).ok()?;
+    let formatted = prettyplease::unparse(&file);
+    let mut lines = formatted.lines();
+    if lines.next()? != "fn __gallery_example() {" {
+        return None;
+    }
+    let mut body: Vec<&str> = lines.collect();
+    if body.pop()? != "}" {
+        return None;
+    }
+    Some(
+        body.into_iter()
+            .map(|line| line.strip_prefix("    ").unwrap_or(line))
+            .collect::<Vec<_>>()
+            .join("\n"),
+    )
+}
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum TokKind {
     Word,
@@ -753,6 +784,16 @@ mod tests {
             format_rust_snippet(code),
             "let a = 1;\nlet b = a ; // spaced"
         );
+    }
+
+    #[test]
+    fn gallery_expressions_use_prettyplease_layout() {
+        let code = "field_col (vec ! [h :: TimeField :: new (self . demo_time (\"time-field\" , cx)) . label (\"Time\") . description (\"Hour and minute\") . into_any_element ()])";
+        let out = format_rust_expression(code);
+        assert!(out.starts_with("field_col(\n    vec![\n"), "{out}");
+        assert!(out.contains("        h::TimeField::new(self.demo_time(\"time-field\", cx))"));
+        assert!(out.contains("\n        .description(\"Hour and minute\")"));
+        assert!(out.ends_with("    ],\n)"), "{out}");
     }
 
     #[test]

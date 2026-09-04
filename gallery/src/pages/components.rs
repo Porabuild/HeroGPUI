@@ -23,19 +23,28 @@ thread_local! {
     static FORM_SERVER_RECORD: RefCell<Option<h::ValidationErrors>> = const { RefCell::new(None) };
 }
 
+macro_rules! component_doc_section {
+    (($heading:expr, $body:expr $(,)?)) => {
+        ($heading, None, $body, stringify!($body))
+    };
+    (($heading:expr, $description:literal, $body:expr $(,)?)) => {
+        ($heading, Some($description), $body, stringify!($body))
+    };
+}
+
 macro_rules! component_doc_page {
     (
         $title:expr,
         $description:expr,
         $import_line:expr,
-        vec![$(($heading:expr, $body:expr $(,)?)),* $(,)?],
+        vec![$($section:tt),* $(,)?],
         $cx:expr $(,)?
     ) => {
         crate::pages::component_doc_page(
             $title,
             $description,
             $import_line,
-            vec![$(($heading, $body, stringify!($body))),*],
+            vec![$(component_doc_section!($section)),*],
             $cx,
         )
     };
@@ -567,14 +576,8 @@ impl Gallery {
                         .into_any_element()]),
                 ),
                 (
-                    "Social Buttons",
+                    "Social Buttons", "v3 stacks full-width tertiary buttons behind a leading brand mark. The marks are trademarks, so this port shows the same layout with its own glyphs.",
                     col(vec![
-                        para(
-                            "v3 stacks full-width tertiary buttons behind a leading brand mark. \
-                             The marks are trademarks, so this port shows the same layout with \
-                             its own glyphs.",
-                            cx,
-                        ),
                         gpui::div()
                             .flex()
                             .flex_col()
@@ -1025,9 +1028,8 @@ impl Gallery {
                         .into_any_element()]),
                 ),
                 (
-                    "Selection Mode",
+                    "Selection Mode", "Single: exactly one member stays selected.",
                     col(vec![
-                        para("Single: exactly one member stays selected.", cx),
                         h::ToggleButtonGroup::new("toggle-selection-single")
                             .selection_mode(SelectionMode::Single)
                             .separators(true)
@@ -1046,14 +1048,8 @@ impl Gallery {
                     ]),
                 ),
                 (
-                    "Default Selected Keys",
+                    "Default Selected Keys", "Uncontrolled: `defaultSelectedKeys` seeds the group's own selection, and the group keeps ownership from there — clicking a member still toggles it.",
                     col(vec![
-                        para(
-                            "Uncontrolled: `defaultSelectedKeys` seeds the group's own \
-                             selection, and the group keeps ownership from there — clicking \
-                             a member still toggles it.",
-                            cx,
-                        ),
                         h::ToggleButtonGroup::new("toggle-default-single")
                             .selection_mode(SelectionMode::Single)
                             .separators(true)
@@ -1332,13 +1328,8 @@ impl Gallery {
                     .into_any_element()]),
                 ),
                 (
-                    "Render Props",
+                    "Render Props", "The composed Dropdown forwards item and indicator render state into the live menu. Open it and choose rows to watch the selection move.",
                     col(vec![
-                        para(
-                            "The composed Dropdown forwards item and indicator render state into \
-                             the live menu. Open it and choose rows to watch the selection move.",
-                            cx,
-                        ),
                         h::Dropdown::uncontrolled(
                             "dd-render-props-dd",
                             h::Button::new("dd-render-props")
@@ -1435,13 +1426,8 @@ impl Gallery {
                     .into_any_element()]),
                 ),
                 (
-                    "With Custom Submenu Indicator",
+                    "With Custom Submenu Indicator", "`Dropdown.SubmenuIndicator` is the chevron on a row that opens another panel; hover the row to open it.",
                     col(vec![
-                        para(
-                            "`Dropdown.SubmenuIndicator` is the chevron on a row that opens \
-                             another panel; hover the row to open it.",
-                            cx,
-                        ),
                         h::Dropdown::uncontrolled(
                             "dd-submenu-ind-dd",
                             h::Button::new("dd-submenu-ind")
@@ -1475,9 +1461,8 @@ impl Gallery {
                     .into_any_element()]),
                 ),
                 (
-                    "Long Press Trigger",
+                    "Long Press Trigger", "Hold the button for half a second.",
                     col(vec![
-                        para("Hold the button for half a second.", cx),
                         h::Dropdown::uncontrolled(
                             "dd-long-dd",
                             h::Button::new("dd-long")
@@ -1652,7 +1637,7 @@ impl Gallery {
                     ]),
                 ),
                 (
-                    "Disallow Empty Selection",
+                    "Disallow Empty Selection", "The inherited React Aria policy keeps the final selected row selected, including when Escape would otherwise clear the collection.",
                     col(vec![
                         gpui::div()
                             .w(px(280.))
@@ -1669,15 +1654,10 @@ impl Gallery {
                                 .disallow_empty_selection(true),
                             )
                             .into_any_element(),
-                        para(
-                            "The inherited React Aria policy keeps the final selected row selected, \
-                             including when Escape would otherwise clear the collection.",
-                            cx,
-                        ),
                     ]),
                 ),
                 (
-                    "Escape Key Behavior",
+                    "Escape Key Behavior", "Press Escape while this list is focused. The `None` policy preserves the selection and leaves Escape available to an enclosing surface.",
                     col(vec![
                         gpui::div()
                             .w(px(280.))
@@ -1694,15 +1674,10 @@ impl Gallery {
                                 .escape_key_behavior(h::EscapeKeyBehavior::None),
                             )
                             .into_any_element(),
-                        para(
-                            "Press Escape while this list is focused. The `None` policy preserves \
-                             the selection and leaves Escape available to an enclosing surface.",
-                            cx,
-                        ),
                     ]),
                 ),
                 (
-                    "Virtualization",
+                    "Virtualization", "v3 wraps the list in React Aria's `Virtualizer` with `ListLayout`; `row_height` carries that here, because a fixed row height is what lets the geometry be computed instead of laid out. gpui's `uniform_list` then builds only the rows in view — one thousand users, fifty pixels each.",
                     col(vec![
                         gpui::div()
                             .w(px(300.))
@@ -1713,14 +1688,6 @@ impl Gallery {
                                     .max_h(px(400.)),
                             )
                             .into_any_element(),
-                        para(
-                            "v3 wraps the list in React Aria's `Virtualizer` with `ListLayout`; \
-                             `row_height` carries that here, because a fixed row height is what \
-                             lets the geometry be computed instead of laid out. gpui's \
-                             `uniform_list` then builds only the rows in view — one thousand \
-                             users, fifty pixels each.",
-                            cx,
-                        ),
                         gpui::div()
                             .w(px(300.))
                             .child(
@@ -1740,7 +1707,7 @@ impl Gallery {
                     ]),
                 ),
                 (
-                    "Custom Check Icon",
+                    "Custom Check Icon", "v3 replaces `ListBox.ItemIndicator`. A row's `variant` is what carries the indicator style here, so the danger row below shows the same tick in its own colour.",
                     col(vec![
                         gpui::div()
                             .w(px(280.))
@@ -1756,12 +1723,6 @@ impl Gallery {
                                 .default_selected_keys([SharedString::from("keep")]),
                             )
                             .into_any_element(),
-                        para(
-                            "v3 replaces `ListBox.ItemIndicator`. A row's `variant` is what \
-                             carries the indicator style here, so the danger row below shows the \
-                             same tick in its own colour.",
-                            cx,
-                        ),
                     ]),
                 ),
                 (
@@ -1887,7 +1848,7 @@ impl Gallery {
                     .into_any_element()]),
                 ),
                 (
-                    "Escape Key Behavior",
+                    "Escape Key Behavior", "With `None`, Escape preserves the selected tag and bubbles to any enclosing interaction that handles it.",
                     col(vec![
                         h::TagGroup::new(
                             "tg-escape-none",
@@ -1898,11 +1859,6 @@ impl Gallery {
                         .default_selected_keys([SharedString::from("design")])
                         .escape_key_behavior(h::EscapeKeyBehavior::None)
                         .into_any_element(),
-                        para(
-                            "With `None`, Escape preserves the selected tag and bubbles to any \
-                             enclosing interaction that handles it.",
-                            cx,
-                        ),
                     ]),
                 ),
                 (
@@ -2222,10 +2178,9 @@ impl Gallery {
                 ),
                 (
                     "Channel Editing",
-                    col(vec![
-                        para("Edit individual HSL channels:", cx),
-                        spec_row(vec![
-                            h::ColorField::new("cf-ch-hue", value)
+                    "Edit individual HSL channels:",
+                    col(vec![spec_row(vec![
+                        h::ColorField::new("cf-ch-hue", value)
                                 .state(self.demo_text("cf-ch-hue", "", cx))
                                 // `colorSpace` names the channel set; `channel`
                                 // picks one of them.
@@ -2235,19 +2190,18 @@ impl Gallery {
                                 .suffix(gpui::div().child("\u{00b0}"))
                                 .label("Hue")
                                 .into_any_element(),
-                            h::ColorField::new("cf-ch-sat", value)
-                                .state(self.demo_text("cf-ch-sat", "", cx))
-                                .channel(h::ColorChannel::Saturation)
-                                .label("Saturation")
-                                .into_any_element(),
-                            h::ColorField::new("cf-ch-light", value)
-                                .state(self.demo_text("cf-ch-light", "", cx))
-                                .channel(h::ColorChannel::Lightness)
-                                .label("Lightness")
-                                .into_any_element(),
-                            h::ColorSwatch::new(value).into_any_element(),
-                        ]),
-                    ]),
+                        h::ColorField::new("cf-ch-sat", value)
+                            .state(self.demo_text("cf-ch-sat", "", cx))
+                            .channel(h::ColorChannel::Saturation)
+                            .label("Saturation")
+                            .into_any_element(),
+                        h::ColorField::new("cf-ch-light", value)
+                            .state(self.demo_text("cf-ch-light", "", cx))
+                            .channel(h::ColorChannel::Lightness)
+                            .label("Lightness")
+                            .into_any_element(),
+                        h::ColorSwatch::new(value).into_any_element(),
+                    ]),]),
                 ),
                 (
                     "Controlled",
@@ -2398,13 +2352,8 @@ impl Gallery {
                         .into_any_element()]),
                 ),
                 (
-                    "Controlled",
+                    "Controlled", "The caller owns the color value while the trigger owns its ordinary open state, matching v3's internal DialogTrigger.",
                     col(vec![
-                        para(
-                            "The caller owns the color value while the trigger owns its ordinary \
-                             open state, matching v3's internal DialogTrigger.",
-                            cx,
-                        ),
                         h::ColorPicker::new("cp-controlled", value)
                             .label("Brand")
                             .on_change(color_cb(cx.listener(|this, c: &h::PickerColor, _, cx| {
@@ -2416,12 +2365,8 @@ impl Gallery {
                     ]),
                 ),
                 (
-                    "With Swatches",
+                    "With Swatches", "A preset row beside the picker, which is v3's own layout.",
                     col(vec![
-                        para(
-                            "A preset row beside the picker, which is v3's own layout.",
-                            cx,
-                        ),
                         h::ColorSwatchPicker::new("cp-presets", palette())
                             .value(value)
                             .on_change(color_cb(cx.listener(|this, c: &h::PickerColor, _, cx| {
@@ -2685,14 +2630,8 @@ impl Gallery {
                     ]),
                 ),
                 (
-                    "Accessibility",
+                    "Accessibility", "v3 gives a swatch an accessible colour name. gpui has no accessibility tree, so the name is shown as a caption instead of announced.",
                     col(vec![
-                        para(
-                            "v3 gives a swatch an accessible colour name. gpui has no \
-                             accessibility tree, so the name is shown as a caption instead of \
-                             announced.",
-                            cx,
-                        ),
                         row(palette()
                             .into_iter()
                             .map(|c| {
@@ -2832,14 +2771,8 @@ impl Gallery {
                         .into_any_element()]),
                 ),
                 (
-                    "Disabled Item",
+                    "Disabled Item", "`ColorSwatchPicker.Item.isDisabled` dims one swatch — unclickable and out of the tab order — while the rest stay pickable: the difference from the whole-picker `isDisabled` above.",
                     col(vec![
-                        para(
-                            "`ColorSwatchPicker.Item.isDisabled` dims one swatch — unclickable \
-                             and out of the tab order — while the rest stay pickable: the \
-                             difference from the whole-picker `isDisabled` above.",
-                            cx,
-                        ),
                         h::ColorSwatchPicker::new("csp-disabled-item", palette())
                             .value(selected)
                             .disabled_keys([2])
@@ -2881,13 +2814,8 @@ impl Gallery {
                     ]),
                 ),
                 (
-                    "Custom Indicator",
+                    "Custom Indicator", "v3 replaces `ColorSwatchPicker.Indicator`. The square picker uses a heart in place of the default selected checkmark.",
                     col(vec![
-                        para(
-                            "v3 replaces `ColorSwatchPicker.Indicator`. The square picker uses \
-                             a heart in place of the default selected checkmark.",
-                            cx,
-                        ),
                         h::ColorSwatchPicker::new("csp-indicator", palette())
                             .value(selected)
                             .on_change(color_cb(cx.listener(|this, c: &h::PickerColor, _, cx| {
@@ -2907,14 +2835,8 @@ impl Gallery {
                     ]),
                 ),
                 (
-                    "Item Render State",
+                    "Item Render State", "`item_content` receives each item's color plus selected, hovered, pressed, focused, focus-visible, and disabled state. These custom tiles use that state while the picker keeps navigation and selection.",
                     col(vec![
-                        para(
-                            "`item_content` receives each item's color plus selected, hovered, \
-                             pressed, focused, focus-visible, and disabled state. These custom \
-                             tiles use that state while the picker keeps navigation and selection.",
-                            cx,
-                        ),
                         h::ColorSwatchPicker::new("csp-item-content", palette())
                             .value(selected)
                             .size(SizeXl::Xl)
@@ -2999,7 +2921,7 @@ impl Gallery {
                     )]),
                 ),
                 (
-                    "Range Slider Anatomy",
+                    "Range Slider Anatomy", "v3 builds a range slider from its parts: a `Label`, an `Output`, and a `Track` whose render prop is handed the state so it can draw one `Thumb` per value. The `thumb` closure is that render prop.",
                     col(vec![
                         fixed_demo(
                             320.,
@@ -3030,12 +2952,6 @@ impl Gallery {
                                         )
                                         .into_any_element()
                                 }),
-                        ),
-                        para(
-                            "v3 builds a range slider from its parts: a `Label`, an `Output`, and \
-                             a `Track` whose render prop is handed the state so it can draw one \
-                             `Thumb` per value. The `thumb` closure is that render prop.",
-                            cx,
                         ),
                     ]),
                 ),
@@ -3081,7 +2997,7 @@ impl Gallery {
                     ]),
                 ),
                 (
-                    "Custom Output Display",
+                    "Custom Output Display", "v3's `Slider.Output` takes a render prop. The closure receives every live value and its formatted thumb label.",
                     col(vec![
                         gpui::div()
                             .w(px(320.))
@@ -3104,11 +3020,6 @@ impl Gallery {
                                     }))),
                             )
                             .into_any_element(),
-                        para(
-                            "v3's `Slider.Output` takes a render prop. The closure receives every \
-                             live value and its formatted thumb label.",
-                            cx,
-                        ),
                     ]),
                 ),
                 (
@@ -3125,7 +3036,7 @@ impl Gallery {
                     )]),
                 ),
                 (
-                    "Disabled Thumb",
+                    "Disabled Thumb", "`Slider.Thumb.isDisabled` fixes one thumb — dimmed, out of the roving tab stop, answering no drag or keys — while the other thumb keeps moving: the contrast a whole-slider `isDisabled` cannot show.",
                     col(vec![
                         fixed_demo(
                             320.,
@@ -3138,17 +3049,10 @@ impl Gallery {
                                     cx.notify();
                                 })),
                         ),
-                        para(
-                            "`Slider.Thumb.isDisabled` fixes one thumb — dimmed, out of the \
-                             roving tab stop, answering no drag or keys — while the other \
-                             thumb keeps moving: the contrast a whole-slider `isDisabled` \
-                             cannot show.",
-                            cx,
-                        ),
                     ]),
                 ),
                 (
-                    "Form Example",
+                    "Form Example", "`Slider.Thumb.name` names each end of a range. `form_fields` hands the pair to the `Form` — it is told its fields, with no context propagation — so a submission carries one value per named thumb.",
                     col(vec![
                         fixed_demo(320., {
                             // v3 renders one `<input name=…>` per thumb; the form reads
@@ -3184,13 +3088,6 @@ impl Gallery {
                                 )
                                 .into_any_element()
                         }),
-                        para(
-                            "`Slider.Thumb.name` names each end of a range. `form_fields` \
-                             hands the pair to the `Form` — it is told its fields, with no \
-                             context propagation — so a submission carries one value per \
-                             named thumb.",
-                            cx,
-                        ),
                         para(
                             &if self.input_submitted.is_empty() {
                                 "Nothing submitted yet".to_owned()
@@ -3899,15 +3796,8 @@ impl Gallery {
                     ]),
                 ),
                 (
-                    "Virtualization",
+                    "Virtualization", "v3 wraps the table in `Virtualizer` with `TableLayout`. Cells here are built elements, which cannot be handed out twice, so a virtual table takes a row factory and asks for the rows the viewport shows — one thousand of them, forty pixels each.",
                     col(vec![
-                        para(
-                            "v3 wraps the table in `Virtualizer` with `TableLayout`. Cells here \
-                             are built elements, which cannot be handed out twice, so a virtual \
-                             table takes a row factory and asks for the rows the viewport shows \
-                             — one thousand of them, forty pixels each.",
-                            cx,
-                        ),
                         h::Table::new(vec![])
                             .id("tbl-virtualization")
                             .column(h::TableColumn::new("Name").is_row_header(true))
@@ -3968,17 +3858,11 @@ impl Gallery {
                             .into_any_element(),
                     ]),
                 ),
-                ("Column Resizing", {
+                ("Column Resizing", "Drag a trailing-edge divider, or focus it with Tab, press Enter, and use the arrow keys. This example feeds onResize values back as controlled column widths and reports completion through onResizeEnd.", {
                     let resize_name = self.demo_value("tbl-resize-name", 220.);
                     let resize_role = self.demo_value("tbl-resize-role", 180.);
                     let resize_status = self.demo_text_value("tbl-resize-status");
                     col(vec![
-                        para(
-                            "Drag a trailing-edge divider, or focus it with Tab, press Enter, \
-                             and use the arrow keys. This example feeds onResize values back as \
-                             controlled column widths and reports completion through onResizeEnd.",
-                            cx,
-                        ),
                         para(
                             &format!(
                                 "{} Name: {:.0}px · Role: {:.0}px",
@@ -4049,15 +3933,8 @@ impl Gallery {
                     ])
                 },),
                 (
-                    "Expandable Rows",
+                    "Expandable Rows", "A row's children are nested under it, and `expandedKeys` decides which parents show theirs. The chevron sits in the tree column; Right expands the focused parent, and Left collapses it or returns the row cursor to its parent.",
                     col(vec![
-                        para(
-                            "A row's children are nested under it, and `expandedKeys` decides \
-                             which parents show theirs. The chevron sits in the tree column; \
-                             Right expands the focused parent, and Left collapses it or returns \
-                             the row cursor to its parent.",
-                            cx,
-                        ),
                         {
                             let cell = |text: &str| gpui::div().child(text.to_owned());
                             h::Table::new(vec!["Title".into(), "Type".into(), "Modified".into()])
@@ -4133,13 +4010,8 @@ impl Gallery {
                         .into_any_element()]),
                 ),
                 (
-                    "Async Loading",
+                    "Async Loading", "`isPending` covers the table while a request is in flight; `onLoadMore` fires when the last row scrolls into view.",
                     col(vec![
-                        para(
-                            "`isPending` covers the table while a request is in flight; \
-                             `onLoadMore` fires when the last row scrolls into view.",
-                            cx,
-                        ),
                         build("tbl-async-loading")
                             .is_pending(true)
                             .on_load_more(|_, _| {})
@@ -4402,14 +4274,13 @@ impl Gallery {
                         .into_any_element()]),
                 ),
                 (
-                    "Cell Indicators",
+                    "Cell Indicators", "The marked days are the ones with events.",
                     col(vec![
                         h::Calendar::new(self.demo_calendar("cal-indicators", cx))
                             .cell_indicator(|date| {
                                 [3, 7, 12, 15, 21, 28].contains(&date.day)
                             })
                             .into_any_element(),
-                        para("The marked days are the ones with events.", cx),
                     ]),
                 ),
                 (
@@ -4439,17 +4310,13 @@ impl Gallery {
                         .into_any_element()]),
                 ),
                 (
-                    "Constraints",
+                    "Constraints", "minValue/maxValue mute the days outside the range; isDateUnavailable strikes through the ones it rejects.",
                     col(vec![
                         h::Calendar::new(self.calendar.clone())
                             .min_value(h::Date::new(today.year, today.month, 5))
                             .max_value(h::Date::new(today.year, today.month, 24))
                             .is_date_unavailable(|d: h::Date| d.day.is_multiple_of(7))
                             .into_any_element(),
-                        para(
-                            "minValue/maxValue mute the days outside the range;                              isDateUnavailable strikes through the ones it rejects.",
-                            cx,
-                        ),
                     ]),
                 ),
                 (
@@ -4502,7 +4369,7 @@ impl Gallery {
                         .into_any_element()]),
                 ),
                 (
-                    "Heading Offset",
+                    "Heading Offset", "`Calendar.YearPickerTriggerHeading.offset` shifts the month heading -- also the year-picker trigger -- while the grid stays on the visible month. Both grids above show August; only the headings differ.",
                     col({
                         let august = h::Date::new(2026, 8, 10);
                         vec![
@@ -4523,13 +4390,6 @@ impl Gallery {
                                     cx,
                                 ),
                             ]),
-                            para(
-                                "`Calendar.YearPickerTriggerHeading.offset` shifts the month \
-                                 heading -- also the year-picker trigger -- while the grid stays \
-                                 on the visible month. Both grids above show August; only the \
-                                 headings differ.",
-                                cx,
-                            ),
                         ]
                     }),
                 ),
@@ -4571,7 +4431,7 @@ impl Gallery {
                     ]),
                 ),
                 (
-                    "Granularity",
+                    "Granularity", "`granularity` sets the smallest unit the field shows. Below `day` it grows the time segments -- the same ones a `TimeField` has, so the arrows step them and digits type into them -- and the bound state holds an ISO date-and-time.",
                     col(vec![
                         spec_row(
                             h::Granularity::ALL
@@ -4602,17 +4462,10 @@ impl Gallery {
                             .granularity(h::Granularity::Minute)
                             .hour_cycle(h::HourCycle::H12)
                             .into_any_element(),
-                        para(
-                            "`granularity` sets the smallest unit the field shows. Below `day` \
-                             it grows the time segments -- the same ones a `TimeField` has, so \
-                             the arrows step them and digits type into them -- and the bound \
-                             state holds an ISO date-and-time.",
-                            cx,
-                        ),
                     ]),
                 ),
                 (
-                    "Forced Leading Zeros",
+                    "Forced Leading Zeros", "The system locale controls date and time segment order, separators, padding, and day-period names. The prop forces month, day, and hour segments to two digits.",
                     field_col(vec![
                         h::DateField::new(self.demo_text(
                             "df-leading-locale",
@@ -4633,10 +4486,6 @@ impl Gallery {
                         .hour_cycle(h::HourCycle::H12)
                         .should_force_leading_zeros(true)
                         .into_any_element(),
-                        para(
-                            "The system locale controls date and time segment order, separators, padding, and day-period names. The prop forces month, day, and hour segments to two digits.",
-                            cx,
-                        ),
                     ]),
                 ),
                 (
@@ -4821,14 +4670,8 @@ impl Gallery {
                     .into_any_element()]),
                 ),
                 (
-                    "Format Options",
+                    "Format Options", "The trigger follows the operating system's regional date order, separators, and numeric padding. Its state and submitted value stay ISO-formatted.",
                     col(vec![
-                        para(
-                            "The trigger follows the operating system's regional date order, \
-                             separators, and numeric padding. Its state and submitted value stay \
-                             ISO-formatted.",
-                            cx,
-                        ),
                         h::DatePicker::new(self.demo_calendar("dp-format", cx))
                             .label("Date")
                             .into_any_element(),
@@ -4845,13 +4688,8 @@ impl Gallery {
                         .into_any_element()]),
                 ),
                 (
-                    "Custom Indicator",
+                    "Custom Indicator", "v3 lets TriggerIndicator replace the default calendar glyph; this example uses a check without changing the trigger behavior.",
                     col(vec![
-                        para(
-                            "v3 lets TriggerIndicator replace the default calendar glyph; this \
-                             example uses a check without changing the trigger behavior.",
-                            cx,
-                        ),
                         h::DatePicker::new(self.demo_calendar("dp-indicator", cx))
                             .label("Date")
                             .trigger_indicator(icon(h::icons::CHECK, cx))
@@ -4942,7 +4780,7 @@ impl Gallery {
                     .into_any_element()]),
                 ),
                 (
-                    "Controlled",
+                    "Controlled", "The range lives in the state entity the caller owns.",
                     col(vec![
                         {
                             // `value` writes the caller's copy back in, and
@@ -4982,7 +4820,6 @@ impl Gallery {
                                 })
                                 .into_any_element()
                         },
-                        para("The range lives in the state entity the caller owns.", cx),
                     ]),
                 ),
                 (
@@ -4995,17 +4832,11 @@ impl Gallery {
                     .into_any_element()]),
                 ),
                 (
-                    "Format Options",
+                    "Format Options", "Both ends follow the operating system's regional date order, separators, and numeric padding. Their state and submitted values stay ISO-formatted.",
                     col(vec![
                         h::DateRangePicker::new(self.demo_range("drp-format", cx))
                             .label("Stay")
                             .into_any_element(),
-                        para(
-                            "Both ends follow the operating system's regional date order, \
-                             separators, and numeric padding. Their state and submitted values \
-                             stay ISO-formatted.",
-                            cx,
-                        ),
                     ]),
                 ),
                 (
@@ -5022,18 +4853,13 @@ impl Gallery {
                         .into_any_element()]),
                 ),
                 (
-                    "Custom Indicator",
+                    "Custom Indicator", "v3 lets TriggerIndicator and RangeSeparator replace their default content without changing field or trigger behavior.",
                     col(vec![
                         h::DateRangePicker::new(self.demo_range("drp-indicator", cx))
                             .label("Stay")
                             .trigger_indicator(icon(h::icons::CHECK, cx))
                             .range_separator(gpui::div().child("to"))
                             .into_any_element(),
-                        para(
-                            "v3 lets TriggerIndicator and RangeSeparator replace their default \
-                             content without changing field or trigger behavior.",
-                            cx,
-                        ),
                     ]),
                 ),
                 (
@@ -5138,7 +4964,7 @@ impl Gallery {
                         .into_any_element()]),
                 ),
                 (
-                    "Heading Offset",
+                    "Heading Offset", "`RangeCalendar.YearPickerTriggerHeading.offset` shifts the month heading -- also the year-picker trigger -- while the grid stays on the visible month. Both grids above show August; only the headings differ.",
                     col({
                         let august = (h::Date::new(2026, 8, 10), h::Date::new(2026, 8, 16));
                         vec![
@@ -5159,13 +4985,6 @@ impl Gallery {
                                     cx,
                                 ),
                             ]),
-                            para(
-                                "`RangeCalendar.YearPickerTriggerHeading.offset` shifts the month \
-                                 heading -- also the year-picker trigger -- while the grid stays \
-                                 on the visible month. Both grids above show August; only the \
-                                 headings differ.",
-                                cx,
-                            ),
                         ]
                     }),
                 ),
@@ -5178,9 +4997,8 @@ impl Gallery {
                     .into_any_element()]),
                 ),
                 (
-                    "Controlled",
+                    "Controlled", "The range lives in the state entity the caller owns.",
                     col(vec![
-                        para("The range lives in the state entity the caller owns.", cx),
                         h::RangeCalendar::new(self.date_range.clone())
                             .value(
                                 Some(h::Date::new(2025, 12, 8)),
@@ -5229,13 +5047,8 @@ impl Gallery {
                     }),
                 ),
                 (
-                    "Anchor-Based Unavailable Dates",
+                    "Anchor-Based Unavailable Dates", "After the first date is selected, earlier dates become unavailable because the predicate receives that active anchor.",
                     col(vec![
-                        para(
-                            "After the first date is selected, earlier dates become unavailable \
-                             because the predicate receives that active anchor.",
-                            cx,
-                        ),
                         h::RangeCalendar::new(self.demo_range("rc-anchor", cx))
                             .is_date_unavailable(|date, anchor| {
                                 anchor.is_some_and(|anchor| {
@@ -5316,13 +5129,8 @@ impl Gallery {
                     .into_any_element()]),
                 ),
                 (
-                    "Cell Indicators",
+                    "Cell Indicators", "A `RangeCalendar` marks its own days: the range's ends and every day between them.",
                     col(vec![
-                        para(
-                            "A `RangeCalendar` marks its own days: the range's ends and every \
-                             day between them.",
-                            cx,
-                        ),
                         h::RangeCalendar::new(self.demo_range("rc-indicators", cx))
                             .default_value((h::Date::new(2025, 12, 8), h::Date::new(2025, 12, 14)))
                             .into_any_element(),
@@ -5382,7 +5190,7 @@ impl Gallery {
                         .into_any_element()]),
                 ),
                 (
-                    "Forced Leading Zeros",
+                    "Forced Leading Zeros", "The system locale controls numeric padding; this prop only forces the hour to two digits.",
                     field_col(vec![
                         h::TimeField::new(self.demo_time("tmf-leading-locale", cx))
                             .label("Locale default")
@@ -5395,22 +5203,14 @@ impl Gallery {
                             .show_seconds(true)
                             .should_force_leading_zeros(true)
                             .into_any_element(),
-                        para(
-                            "The system locale controls numeric padding; this prop only forces the hour to two digits.",
-                            cx,
-                        ),
                     ]),
                 ),
                 (
-                    "Usage",
+                    "Usage", "Uses your system regional segment order, separators, padding, day-period names, and 12- or 24-hour cycle.",
                     field_col(vec![
                         h::TimeField::new(self.demo_time("tmf-usage", cx))
                             .label("Time")
                             .into_any_element(),
-                        para(
-                            "Uses your system regional segment order, separators, padding, day-period names, and 12- or 24-hour cycle.",
-                            cx,
-                        ),
                     ]),
                 ),
                 (
@@ -5473,7 +5273,7 @@ impl Gallery {
                         .into_any_element()]),
                 ),
                 (
-                    "Controlled",
+                    "Controlled", "The field owns the value; `on_change` reports each edit.",
                     col(vec![
                         h::TimeField::new(self.demo_time("tmf-ctl", cx))
                             .label("Time")
@@ -5481,10 +5281,6 @@ impl Gallery {
                                 cx.listener(|_, _t: &Option<h::Time>, _, cx| cx.notify()),
                             ))
                             .into_any_element(),
-                        para(
-                            "The field owns the value; `on_change` reports each edit.",
-                            cx,
-                        ),
                     ]),
                 ),
                 (
@@ -5546,13 +5342,8 @@ impl Gallery {
                         .els()),
                 ),
                 (
-                    "Closable",
+                    "Closable", "v3 removed `isClosable`/`onClose`; a close affordance is an ordinary child, the way the pinned example composes a `CloseButton`.",
                     col(vec![
-                        para(
-                            "v3 removed `isClosable`/`onClose`; a close affordance is an ordinary \
-                             child, the way the pinned example composes a `CloseButton`.",
-                            cx,
-                        ),
                         if self.alert_visible {
                             h::Alert::new("Saved")
                                 .description("Your changes are live.")
@@ -5761,14 +5552,8 @@ impl Gallery {
                         .into_any_element()]),
                 ),
                 (
-                    "Custom SVG Props",
+                    "Custom SVG Props", "v3 overrides `strokeWidth` on the composed circle parts. The stroke here keeps v3's fixed 4/36 view-box ratio as the circle scales; custom SVG attributes are not exposed by this canvas-backed port.",
                     col(vec![
-                        para(
-                            "v3 overrides `strokeWidth` on the composed circle parts. The stroke \
-                             here keeps v3's fixed 4/36 view-box ratio as the circle scales; \
-                             custom SVG attributes are not exposed by this canvas-backed port.",
-                            cx,
-                        ),
                         row(Size::ALL
                             .iter()
                             .map(|sz| {
@@ -5911,13 +5696,8 @@ impl Gallery {
                         .into_any_element()]),
                 ),
                 (
-                    "Single Shimmer",
+                    "Single Shimmer", "v3 runs one shimmer across a whole group by putting the animation on the parent and turning it off on each child.",
                     col(vec![
-                        para(
-                            "v3 runs one shimmer across a whole group by putting the animation on \
-                             the parent and turning it off on each child.",
-                            cx,
-                        ),
                         gpui::div()
                             .flex()
                             .gap(px(16.))
@@ -6274,13 +6054,8 @@ impl Gallery {
                         .into_any_element()]),
                 ),
                 (
-                    "Indeterminate",
+                    "Indeterminate", "v3 pairs a \"select all\" checkbox with the group: it is indeterminate while only some children are selected.",
                     col(vec![
-                        para(
-                            "v3 pairs a \"select all\" checkbox with the group: it is \
-                             indeterminate while only some children are selected.",
-                            cx,
-                        ),
                         h::Checkbox::new("cbg-all")
                             .is_selected(selected.len() == 3)
                             .is_indeterminate(!selected.is_empty() && selected.len() < 3)
@@ -6338,13 +6113,8 @@ impl Gallery {
                     .into_any_element()]),
                 ),
                 (
-                    "With Custom Indicator",
+                    "With Custom Indicator", "A custom indicator belongs to a standalone Checkbox, not to this port's group options; here two standalone checkboxes draw hearts.",
                     col(vec![
-                        para(
-                            "A custom indicator belongs to a standalone Checkbox, not to this \
-                             port's group options; here two standalone checkboxes draw hearts.",
-                            cx,
-                        ),
                         h::Checkbox::new("cbg-ci-1")
                             .default_selected(true)
                             .indicator(move |state| {
@@ -6527,13 +6297,8 @@ impl Gallery {
                     .into_any_element()]),
                 ),
                 (
-                    "Integration with TextField",
+                    "Integration with TextField", "A `TextField` composes all three parts itself: the label above, the input, and the description or the error message below.",
                     col(vec![
-                        para(
-                            "A `TextField` composes all three parts itself: the label above, the \
-                             input, and the description or the error message below.",
-                            cx,
-                        ),
                         demo_field(
                             h::TextField::new(self.demo_text("fs-integration", "", cx))
                                 .label("Email")
@@ -6559,14 +6324,8 @@ impl Gallery {
                     .into_any_element()]),
                 ),
                 (
-                    "With Dynamic Messages",
+                    "With Dynamic Messages", "v3's `FieldError` takes a render prop and joins `validation.validationErrors`. `validationErrors` here is a list, and the field shows them in order.",
                     col(vec![
-                        para(
-                            "v3's `FieldError` takes a render prop and joins \
-                             `validation.validationErrors`. `validationErrors` here is a list, \
-                             and the field shows them in order.",
-                            cx,
-                        ),
                         h::TextField::new(self.demo_text("fs-dynamic", "abc", cx))
                             .label("Password")
                             .is_invalid(true)
@@ -6615,12 +6374,11 @@ impl Gallery {
                     ]),
                 ),
                 (
-                    "FieldError",
+                    "FieldError", "A FieldError with no message renders nothing.",
                     col(vec![
                         h::FieldError::new()
                             .message("This field is required.")
                             .into_any_element(),
-                        para("A FieldError with no message renders nothing.", cx),
                         h::FieldError::new().into_any_element(),
                     ]),
                 ),
@@ -6637,14 +6395,8 @@ impl Gallery {
             crate::pages::Page::Form.import_line(),
             vec![
                 (
-                    "Usage",
+                    "Usage", "The wired Submit button and Enter in a focused field run the same submission: with the required Name empty, either door reports the invalid path instead.",
                     col(vec![
-                        para(
-                            "The wired Submit button and Enter in a focused field run the same \
-                         submission: with the required Name empty, either door reports the \
-                         invalid path instead.",
-                            cx,
-                        ),
                         {
                             // `name` rides on each field's state, so the form finds
                             // it without the call site repeating the name.
@@ -6723,7 +6475,7 @@ impl Gallery {
                         ),
                     ]),
                 ),
-                ("Server Errors", {
+                ("Server Errors", "`validationErrors` is HeroUI's `ValidationErrors` record — server errors keyed by field name, `Record<string, string | string[]>`. The Form routes each name into that field's own error slot: editing a field clears only its message while its sibling keeps theirs, Reset hides them all, and a re-render that passes the same record re-arms nothing. New response supplies a genuinely new record — identical content, fresh identity — so both messages re-arm.", {
                     let email = self.demo_text("form-srv-email", "ada@example.com", cx);
                     let name = self.demo_text("form-srv-name", "Ada", cx);
                     let report = self.demo_text_value("form-srv-report");
@@ -6762,17 +6514,6 @@ impl Gallery {
                     let submit = form.submit_handler();
                     let reset = form.reset_handler();
                     col(vec![
-                        para(
-                            "`validationErrors` is HeroUI's `ValidationErrors` record — server \
-                             errors keyed by field name, `Record<string, string | string[]>`. \
-                             The Form routes each name into that field's own error slot: \
-                             editing a field clears only its message while its sibling keeps \
-                             theirs, Reset hides them all, and a re-render that passes the \
-                             same record re-arms nothing. New response supplies a genuinely \
-                             new record — identical content, fresh identity — so both \
-                             messages re-arm.",
-                            cx,
-                        ),
                         form.child(
                             h::TextField::new(email)
                                 .name("email")
@@ -7416,24 +7157,23 @@ impl Gallery {
                 ),
                 (
                     "Custom Slots",
-                    col(vec![
-                        para(
-                            "The GPUI `slot` extension receives each slot's live index and character.",
-                            cx,
-                        ),
-                        h::InputOTP::new(self.demo_otp("otp-custom-slots", 4, cx))
-                            .slot(|index, value| {
-                                gpui::div()
-                                    .flex()
-                                    .flex_col()
-                                    .items_center()
-                                    .text_size(px(11.))
-                                    .child(value.unwrap_or('·').to_string())
-                                    .child(format!("#{index}"))
-                                    .into_any_element()
-                            })
-                            .into_any_element(),
-                    ]),
+                    "The GPUI `slot` extension receives each slot's live index and character.",
+                    col(vec![h::InputOTP::new(self.demo_otp(
+                        "otp-custom-slots",
+                        4,
+                        cx
+                    ))
+                    .slot(|index, value| {
+                        gpui::div()
+                            .flex()
+                            .flex_col()
+                            .items_center()
+                            .text_size(px(11.))
+                            .child(value.unwrap_or('·').to_string())
+                            .child(format!("#{index}"))
+                            .into_any_element()
+                    })
+                    .into_any_element(),]),
                 ),
                 (
                     "Form Example",
@@ -7818,13 +7558,8 @@ impl Gallery {
                     ]),
                 ),
                 (
-                    "Custom Indicator",
+                    "Custom Indicator", "The checkmark replaces `Radio.Indicator` while the control, selection and focus behavior stay owned by the radio.",
                     col(vec![
-                        para(
-                            "The checkmark replaces `Radio.Indicator` while the control, \
-                             selection and focus behavior stay owned by the radio.",
-                            cx,
-                        ),
                         h::RadioGroup::new("rg-indicator", plans())
                             .default_value("Enterprise")
                             .indicator(move |_, state| {
@@ -8068,13 +7803,8 @@ impl Gallery {
                     }]),
                 ),
                 (
-                    "With Validation",
+                    "With Validation", "`validate` is run by the component: it returns the message, and the field shows it. Type one or two characters.",
                     col(vec![
-                        para(
-                            "`validate` is run by the component: it returns the message, and the \
-                             field shows it. Type one or two characters.",
-                            cx,
-                        ),
                         demo_field(
                             h::SearchField::new(validated)
                                 .label("Search")
@@ -8964,16 +8694,8 @@ impl Gallery {
                         .into_any_element()]),
                 ),
                 (
-                    "Custom Image Component",
+                    "Custom Image Component", "v3 composes a custom image element with `asChild` on `Avatar.Image`. The port's equivalent is a custom gpui `ImageSource` — the loader below supplies the embedded sample image itself — with `on_load` firing once the image is ready and replaces the fallback.",
                     col(vec![
-                        para(
-                            "v3 composes a custom image element with `asChild` on \
-                             `Avatar.Image`. The port's equivalent is a custom \
-                             gpui `ImageSource` — the loader below supplies the \
-                             embedded sample image itself — with `on_load` firing \
-                             once the image is ready and replaces the fallback.",
-                            cx,
-                        ),
                         spec(
                             "Custom loader",
                             h::Avatar::new("custom-loader-avatar")
@@ -9428,16 +9150,8 @@ impl Gallery {
                     ]),
                 ),
                 (
-                    "Text Decoration",
+                    "Text Decoration", "The pinned `.link` carries `no-underline decoration-[1.5px]`; hover recolours the decoration to `decoration-muted/50` and press to `decoration-muted`. The text colour itself never changes state; a different decoration is the caller's own styling on the element they own.",
                     col(vec![
-                        para(
-                            "The pinned `.link` carries `no-underline decoration-[1.5px]`; \
-                             hover recolours the decoration to `decoration-muted/50` and \
-                             press to `decoration-muted`. The text colour itself never \
-                             changes state; a different decoration is the caller's own \
-                             styling on the element they own.",
-                            cx,
-                        ),
                         h::Link::new("ln-decor")
                             .label("Underlined on hover")
                             .href("#")
@@ -9453,15 +9167,8 @@ impl Gallery {
                         .into_any_element()]),
                 ),
                 (
-                    "Render Function",
+                    "Render Function", "v3's `render` hands the link's interactive state to a caller-built element. The root keeps the `href`, `onPress`, focus and disabled wiring; GPUI has no DOM props to spread, so the closure draws the content from the state alone.",
                     col(vec![
-                        para(
-                            "v3's `render` hands the link's interactive state to a \
-                             caller-built element. The root keeps the `href`, `onPress`, \
-                             focus and disabled wiring; GPUI has no DOM props to spread, \
-                             so the closure draws the content from the state alone.",
-                            cx,
-                        ),
                         h::Link::new("ln-render")
                             .href("#")
                             .render(|state| {
@@ -9600,13 +9307,8 @@ impl Gallery {
                         .into_any_element()]),
                 ),
                 (
-                    "Render Props",
+                    "Render Props", "`link` receives each page number and `isActive`, so custom page content does not have to re-derive the current page.",
                     col(vec![
-                        para(
-                            "`link` receives each page number and `isActive`, so custom page \
-                             content does not have to re-derive the current page.",
-                            cx,
-                        ),
                         h::Pagination::new("pg-render-props", page, 5)
                             .link(|page, is_active| {
                                 gpui::div()
@@ -9625,13 +9327,8 @@ impl Gallery {
                     ]),
                 ),
                 (
-                    "Custom Icons",
+                    "Custom Icons", "`previous_icon` and `next_icon` replace the built-in chevrons on v3's composed Pagination.PreviousIcon and Pagination.NextIcon parts.",
                     col(vec![
-                        para(
-                            "`previous_icon` and `next_icon` replace the built-in chevrons on \
-                             v3's composed Pagination.PreviousIcon and Pagination.NextIcon parts.",
-                            cx,
-                        ),
                         h::Pagination::new("pg-custom", page, 5)
                             .previous_icon(icon(h::icons::ARROW_LEFT, cx))
                             .next_icon(icon(h::icons::ARROW_RIGHT, cx))
@@ -9706,8 +9403,8 @@ impl Gallery {
                 ),
                 (
                     "Overflow",
+                    "More tabs than fit scroll along their axis.",
                     col(vec![
-                        para("More tabs than fit scroll along their axis.", cx),
                         para("Horizontal", cx),
                         // The list only overflows inside a bounded box, which is
                         // how v3's own example frames it.
@@ -10788,14 +10485,8 @@ impl Gallery {
                         .collect()),
                 ),
                 (
-                    "Custom Backdrop",
+                    "Custom Backdrop", "v3 restyles the backdrop with a class. `Backdrop::Blur` is the strongest variant the token set has; anything past it is the caller's own scrim.",
                     col(vec![
-                        para(
-                            "v3 restyles the backdrop with a class. `Backdrop::Blur` is the \
-                             strongest variant the token set has; anything past it is the \
-                             caller's own scrim.",
-                            cx,
-                        ),
                         overlay_demo(
                             self.demo_overlay("md-bd-custom"),
                             "md-bd-custom",
@@ -10818,13 +10509,8 @@ impl Gallery {
                     ]),
                 ),
                 (
-                    "Dismiss Behavior",
+                    "Dismiss Behavior", "`isDismissible` decides whether the backdrop closes it; `isKeyboardDismissDisabled` decides whether Escape does.",
                     col(vec![
-                        para(
-                            "`isDismissible` decides whether the backdrop closes it; \
-                             `isKeyboardDismissDisabled` decides whether Escape does.",
-                            cx,
-                        ),
                         overlay_demo(
                             self.demo_overlay("md-no-dismiss"),
                             "md-no-dismiss",
@@ -10857,15 +10543,8 @@ impl Gallery {
                     ]),
                 ),
                 (
-                    "Close Methods",
+                    "Close Methods", "v3 spells the close affordance by composition: the `Close Methods` example closes through footer buttons and composes no close trigger, so the corner slot stays bare. Every other example composes the built-in close trigger for the corner X.",
                     col(vec![
-                        para(
-                            "v3 spells the close affordance by composition: the `Close Methods` \
-                             example closes through footer buttons and composes no close trigger, \
-                             so the corner slot stays bare. Every other example composes the \
-                             built-in close trigger for the corner X.",
-                            cx,
-                        ),
                         overlay_demo(
                             self.demo_overlay("md-close"),
                             "md-close",
@@ -10898,16 +10577,8 @@ impl Gallery {
                     ]),
                 ),
                 (
-                    "Custom Animations",
+                    "Custom Animations", "v3 overrides the panel's duration and easing per instance with a class. The motion here is the one its stylesheet declares: the panel shrinks in from 105% over 250ms on `ease-out-quad` and leaves at 95% over 100ms. `Motion on` in the navbar switches it off, which is the `prefers-reduced-motion` path.",
                     col(vec![
-                        para(
-                            "v3 overrides the panel's duration and easing per instance with a \
-                             class. The motion here is the one its stylesheet declares: the \
-                             panel shrinks in from 105% over 250ms on `ease-out-quad` and \
-                             leaves at 95% over 100ms. `Motion on` in the navbar switches it \
-                             off, which is the `prefers-reduced-motion` path.",
-                            cx,
-                        ),
                         overlay_demo(
                             self.demo_overlay("md-anim"),
                             "md-anim",
@@ -11039,7 +10710,7 @@ impl Gallery {
                         .into_any_element()]),
                 ),
                 (
-                    "With Arrow",
+                    "With Arrow", "`PopoverArrow::new()` composes v3's `Popover.Arrow` part: the built-in 12px curve follows the resolved side when the panel flips and preserves the configured offset. A custom child element takes the resolved position but no rotation: upstream rotates it through its `data-slot` placement CSS, which GPUI 0.2.2 cannot reproduce on an arbitrary element (only `svg()` transforms at construction).",
                     col(vec![
                         gpui::div()
                             .relative()
@@ -11122,15 +10793,6 @@ impl Gallery {
                                 )
                             )
                             .into_any_element(),
-                        para(
-                            "`PopoverArrow::new()` composes v3's `Popover.Arrow` part: the built-in \
-                             12px curve follows the resolved side when the panel flips and preserves \
-                             the configured offset. A custom child element takes the resolved \
-                             position but no rotation: upstream rotates it through its \
-                             `data-slot` placement CSS, which GPUI 0.2.2 cannot reproduce on an \
-                             arbitrary element (only `svg()` transforms at construction).",
-                            cx,
-                        ),
                     ]),
                 ),
                 (
@@ -11255,7 +10917,7 @@ impl Gallery {
                         .into_any_element()]),
                 ),
                 (
-                    "Render Function",
+                    "Render Function", "The pinned Render Function replaces the Popover content's DOM element with a callback. This GPUI Popover has no content or state render callback, so the controlled panel records that limitation instead of faking an API.",
                     col(vec![
                         overlay_min_h(
                             gpui::div()
@@ -11308,14 +10970,10 @@ impl Gallery {
                             ),
                         )
                         .into_any_element(),
-                        para(
-                            "The pinned Render Function replaces the Popover content's DOM element with a callback. This GPUI Popover has no content or state render callback, so the controlled panel records that limitation instead of faking an API.",
-                            cx,
-                        ),
                     ]),
                 ),
                 (
-                    "Custom Styles",
+                    "Custom Styles", "The pinned DOM styling is expressed here with public GPUI builders: `w`, `overflow_hidden`, `rounded`, `border_color`, `bg`, `shadow`, spacing, and `font_family`, using the active theme tokens. GPUI 0.2.2 has no DOM class, ring, gradient, or backdrop-blur hooks, so the styling belongs to the composed content element.",
                     col(vec![
                         overlay_min_h(
                             gpui::div()
@@ -11422,10 +11080,6 @@ impl Gallery {
                             ),
                         )
                         .into_any_element(),
-                        para(
-                            "The pinned DOM styling is expressed here with public GPUI builders: `w`, `overflow_hidden`, `rounded`, `border_color`, `bg`, `shadow`, spacing, and `font_family`, using the active theme tokens. GPUI 0.2.2 has no DOM class, ring, gradient, or backdrop-blur hooks, so the styling belongs to the composed content element.",
-                            cx,
-                        ),
                     ]),
                 ),
             ],
@@ -11474,14 +11128,8 @@ impl Gallery {
                         .els()),
                 ),
                 (
-                    "Placements",
+                    "Placements", "The viewport decides where the stack sits. This gallery mounts one `ToastViewport` in its shell; each button moves it and pushes a toast into that corner.",
                     col(vec![
-                        para(
-                            "The viewport decides where the stack sits. This gallery mounts one \
-                             `ToastViewport` in its shell; each button moves it and pushes a \
-                             toast into that corner.",
-                            cx,
-                        ),
                         row([
                             ("TopStart", h::ToastPlacement::TopStart),
                             ("Top", h::ToastPlacement::Top),
@@ -11525,14 +11173,8 @@ impl Gallery {
                         .into_any_element()]),
                 ),
                 (
-                    "Custom Indicators",
+                    "Custom Indicators", "The variant picks the glyph — success shows a tick, danger a crossed circle. `indicator` overrides it with any icon, and `indicator(None)` is v3's `indicator={null}`: no glyph at all.",
                     col(vec![
-                        para(
-                            "The variant picks the glyph — success shows a tick, danger a \
-                             crossed circle. `indicator` overrides it with any icon, and \
-                             `indicator(None)` is v3's `indicator={null}`: no glyph at all.",
-                            cx,
-                        ),
                         row(vec![
                             h::Button::new("toast-ind-success")
                                 .label("Success")
@@ -11579,14 +11221,8 @@ impl Gallery {
                     ]),
                 ),
                 (
-                    "Custom Toast Rendering",
+                    "Custom Toast Rendering", "A toast is a title, a description and a status. Anything richer is the caller's own panel: v3's example renders its own body inside the queue's slot.",
                     col(vec![
-                        para(
-                            "A toast is a title, a description and a status. Anything richer is \
-                             the caller's own panel: v3's example renders its own body inside \
-                             the queue's slot.",
-                            cx,
-                        ),
                         row(vec![h::Button::new("toast-custom")
                             .label("Push a two-line toast")
                             .variant(Variant::Secondary)
@@ -11602,14 +11238,8 @@ impl Gallery {
                     ]),
                 ),
                 (
-                    "Promise & Loading",
+                    "Promise & Loading", "`toast.promise` shows a loading toast while the work runs, then replaces it. `Toast::loading` is the pending half: a spinner, and no timeout, so it waits to be closed.",
                     col(vec![
-                        para(
-                            "`toast.promise` shows a loading toast while the work runs, then \
-                             replaces it. `Toast::loading` is the pending half: a spinner, and \
-                             no timeout, so it waits to be closed.",
-                            cx,
-                        ),
                         row(vec![h::Button::new("toast-promise")
                             .label("Upload a file")
                             .variant(Variant::Secondary)
@@ -11641,14 +11271,9 @@ impl Gallery {
                     ]),
                 ),
                 (
-                    "Callbacks",
+                    "Callbacks", "`onClose` runs however the toast goes -- dismissed by hand or timed out -- so the count follows the toast, not the button.",
                     col(vec![
                         para(&format!("Toasts closed so far: {toast_closed}"), cx),
-                        para(
-                            "`onClose` runs however the toast goes -- dismissed by hand or timed \
-                             out -- so the count follows the toast, not the button.",
-                            cx,
-                        ),
                         row(vec![h::Button::new("toast-callback")
                             .label("Push a closable toast")
                             .variant(Variant::Secondary)
@@ -11664,13 +11289,8 @@ impl Gallery {
                     ]),
                 ),
                 (
-                    "Custom Queues",
+                    "Custom Queues", "`maxVisibleToasts` caps visibility without dropping overflow: the ones past the cap wait their turn. Push four and watch one queue.",
                     col(vec![
-                        para(
-                            "`maxVisibleToasts` caps visibility without dropping overflow: the \
-                             ones past the cap wait their turn. Push four and watch one queue.",
-                            cx,
-                        ),
                         row(vec![h::Button::new("toast-queue")
                             .label("Push four")
                             .variant(Variant::Secondary)
@@ -11686,13 +11306,8 @@ impl Gallery {
                     ]),
                 ),
                 (
-                    "Setup",
+                    "Setup", "A toast needs a viewport somewhere in the tree. This gallery mounts one in its shell, which is why every page can push.",
                     col(vec![
-                        para(
-                            "A toast needs a viewport somewhere in the tree. This gallery mounts \
-                             one in its shell, which is why every page can push.",
-                            cx,
-                        ),
                         crate::pages::code_block(TOAST_SETUP, cx),
                     ]),
                 ),
@@ -11871,7 +11486,7 @@ impl Gallery {
                     .into_any_element()]),
                 ),
                 (
-                    "Virtualization",
+                    "Virtualization", "v3 wraps the popover's list in React Aria's `Virtualizer`; `row_height` carries that here, and gpui's `uniform_list` builds only the rows in view. A thousand options, forty pixels each.",
                     col(vec![
                         demo_field(
                             h::Autocomplete::new(
@@ -11881,12 +11496,6 @@ impl Gallery {
                             .label("User")
                             .placeholder("Select a user")
                             .row_height(px(40.)),
-                        ),
-                        para(
-                            "v3 wraps the popover's list in React Aria's `Virtualizer`; `row_height` \
-                             carries that here, and gpui's `uniform_list` builds only the rows in \
-                             view. A thousand options, forty pixels each.",
-                            cx,
                         ),
                     ]),
                 ),
@@ -12090,7 +11699,7 @@ impl Gallery {
                     ]),
                 ),
                 (
-                    "Asynchronous Filtering",
+                    "Asynchronous Filtering", "v3 fetches the matches as the query changes. `filter` is the hook for that -- it decides what counts as a match -- and a spinner beside the field says a request is in flight.",
                     col(vec![
                         row(vec![
                             h::Autocomplete::new(self.demo_text("ac-async", "", cx), language_items())
@@ -12108,12 +11717,6 @@ impl Gallery {
                                 .size(h::SpinnerSize::Sm)
                                 .into_any_element(),
                         ]),
-                        para(
-                            "v3 fetches the matches as the query changes. `filter` is the hook \
-                             for that -- it decides what counts as a match -- and a spinner \
-                             beside the field says a request is in flight.",
-                            cx,
-                        ),
                     ]),
                 ),
                 (
@@ -12134,7 +11737,7 @@ impl Gallery {
                     .into_any_element()]),
                 ),
                 (
-                    "Custom Value",
+                    "Custom Value", "`Autocomplete.Value` takes a render function, and v3 hands it `defaultChildren`, `isPlaceholder`, `selectedItems` and `selectedText`. This one draws the selection as tags and hands the default back while nothing is chosen, which is what v3's own example does.",
                     col(vec![
                         h::Autocomplete::new(self.demo_text("ac-custom", "", cx), language_items())
                             .label("Languages")
@@ -12160,14 +11763,6 @@ impl Gallery {
                                 .into_any_element()
                             })
                             .into_any_element(),
-                        para(
-                            "`Autocomplete.Value` takes a render function, and v3 hands it \
-                             `defaultChildren`, `isPlaceholder`, `selectedItems` and \
-                             `selectedText`. This one draws the selection as tags and hands the \
-                             default back while nothing is chosen, which is what v3's own \
-                             example does.",
-                            cx,
-                        ),
                     ]),
                 ),
             ],
@@ -12210,7 +11805,7 @@ impl Gallery {
                     .into_any_element()]),
                 ),
                 (
-                    "Virtualization",
+                    "Virtualization", "v3 wraps the popover's list in React Aria's `Virtualizer`; `row_height` carries that here, and gpui's `uniform_list` builds only the rows in view. A thousand options, forty pixels each.",
                     col(vec![
                         demo_field(
                             h::ComboBox::new(
@@ -12220,12 +11815,6 @@ impl Gallery {
                             .label("User")
                             .placeholder("Select a user")
                             .row_height(px(40.)),
-                        ),
-                        para(
-                            "v3 wraps the popover's list in React Aria's `Virtualizer`; `row_height` \
-                             carries that here, and gpui's `uniform_list` builds only the rows in \
-                             view. A thousand options, forty pixels each.",
-                            cx,
                         ),
                     ]),
                 ),
@@ -12452,7 +12041,7 @@ impl Gallery {
                     .into_any_element()]),
                 ),
                 (
-                    "Asynchronous Loading",
+                    "Asynchronous Loading", "v3 fills the list from a request. The spinner beside the field is what says one is in flight; the options are the caller's own data. `allowsEmptyCollection` keeps the panel up with its empty state while a query has no matches instead of collapsing it.",
                     col(vec![
                         row(vec![
                             h::ComboBox::new(self.demo_text("cb-async", "", cx), language_items())
@@ -12470,13 +12059,6 @@ impl Gallery {
                                 .size(h::SpinnerSize::Sm)
                                 .into_any_element(),
                         ]),
-                        para(
-                            "v3 fills the list from a request. The spinner beside the field is \
-                             what says one is in flight; the options are the caller's own data. \
-                             `allowsEmptyCollection` keeps the panel up with its empty state \
-                             while a query has no matches instead of collapsing it.",
-                            cx,
-                        ),
                     ]),
                 ),
                 (
@@ -12498,7 +12080,7 @@ impl Gallery {
                     .into_any_element()]),
                 ),
                 (
-                    "Custom Filtering",
+                    "Custom Filtering", "`defaultFilter` here is `useFilter`'s `startsWith`, so it matches on the start of the name only.",
                     col(vec![
                         h::ComboBox::new(self.demo_text("cb-filter", "", cx), language_items())
                             .label("Language")
@@ -12508,11 +12090,6 @@ impl Gallery {
                             })
                             .default_open(true)
                             .into_any_element(),
-                        para(
-                            "`defaultFilter` here is `useFilter`'s `startsWith`, so it matches \
-                             on the start of the name only.",
-                            cx,
-                        ),
                     ]),
                 ),
                 (
@@ -12537,7 +12114,7 @@ impl Gallery {
                     ]),
                 ),
                 (
-                    "Form Value",
+                    "Form Value", "Items are keyed `PickerItem`s: the selection is the item's key while the input shows its label, and v3's `formValue` decides what a named field submits. The default (`key`) submits the picked key -- save with a pick and the submitted value is `language=rust`, not `Rust` -- and `allowsCustomValue` forces the typed text.",
                     col(vec![
                         {
                             let combo = h::ComboBox::new(
@@ -12561,14 +12138,6 @@ impl Gallery {
                                 .child(h::Button::new("cb-form-submit").label("Save"))
                                 .into_any_element()
                         },
-                        para(
-                            "Items are keyed `PickerItem`s: the selection is the item's key while \
-                             the input shows its label, and v3's `formValue` decides what a named \
-                             field submits. The default (`key`) submits the picked key -- save \
-                             with a pick and the submitted value is `language=rust`, not `Rust` \
-                             -- and `allowsCustomValue` forces the typed text.",
-                            cx,
-                        ),
                         para(
                             &if self.demo_text_value("cb-form-submitted").is_empty() {
                                 "Nothing submitted yet".to_owned()
@@ -12683,19 +12252,13 @@ impl Gallery {
                         .into_any_element()]),
                 ),
                 (
-                    "Virtualization",
+                    "Virtualization", "v3 wraps the popover's list in React Aria's `Virtualizer`; `row_height` carries that here, and gpui's `uniform_list` builds only the rows in view. A thousand options, forty pixels each.",
                     col(vec![
                         demo_field(
                             h::Select::new("sel-virtual", virtual_names())
                                 .label("User")
                             .placeholder("Choose one")
                             .row_height(px(40.)),
-                        ),
-                        para(
-                            "v3 wraps the popover's list in React Aria's `Virtualizer`; `row_height` \
-                             carries that here, and gpui's `uniform_list` builds only the rows in \
-                             view. A thousand options, forty pixels each.",
-                            cx,
                         ),
                     ]),
                 ),
@@ -12808,7 +12371,7 @@ impl Gallery {
                     ]),
                 ),
                 (
-                    "Asynchronous Loading",
+                    "Asynchronous Loading", "v3 fills the list from a request and shows a spinner while it is in flight. The spinner is composed beside the label, since the options are the caller's own data.",
                     col(vec![
                         row(vec![
                             h::Select::new("sel-async", languages())
@@ -12819,12 +12382,6 @@ impl Gallery {
                                 .size(h::SpinnerSize::Sm)
                                 .into_any_element(),
                         ]),
-                        para(
-                            "v3 fills the list from a request and shows a spinner while it is in \
-                             flight. The spinner is composed beside the label, since the options \
-                             are the caller's own data.",
-                            cx,
-                        ),
                     ]),
                 ),
                 (
@@ -13049,15 +12606,8 @@ impl Gallery {
                     .into_any_element()]),
                 ),
                 (
-                    "Render Props",
+                    "Render Props", "`Prose` provides only the `text-foreground` color. GPUI has no per-tag CSS selectors, so the per-tag descendant styles in v3's `.typography-prose` — `h1`–`h6`, `p`, `code`, `a`, lists — cannot be inherited; children must already be semantic elements.",
                     col(vec![
-                        para(
-                            "`Prose` provides only the `text-foreground` color. GPUI has no \
-                             per-tag CSS selectors, so the per-tag descendant styles in v3's \
-                             `.typography-prose` — `h1`–`h6`, `p`, `code`, `a`, lists — \
-                             cannot be inherited; children must already be semantic elements.",
-                            cx,
-                        ),
                         h::Prose::new()
                             .child(h::Typography::paragraph(
                                 h::ParagraphSize::Base,
@@ -13264,13 +12814,8 @@ impl Gallery {
                         .into_any_element()]),
                 ),
                 (
-                    "Hide Scroll Bar",
+                    "Hide Scroll Bar", "gpui draws no scrollbar inside a scroll container, so this is the default rather than a prop: the shadows are the only affordance.",
                     col(vec![
-                        para(
-                            "gpui draws no scrollbar inside a scroll container, so this is the \
-                             default rather than a prop: the shadows are the only affordance.",
-                            cx,
-                        ),
                         h::ScrollShadow::new("ss-no-bar")
                             .max_h(px(140.))
                             .children(
@@ -13713,7 +13258,7 @@ mod example_quality {
     }
 
     #[test]
-    fn explanatory_paragraphs_follow_the_live_specimen() {
+    fn explanatory_copy_precedes_the_live_specimen_as_section_metadata() {
         for (name, title, marker) in [
             ("slider", "Range Slider Anatomy", "fixed_demo("),
             ("slider", "Custom Output Display", ".w(px(320.))"),
@@ -13746,10 +13291,16 @@ mod example_quality {
             ("select", "Virtualization", "demo_field("),
             ("select", "Asynchronous Loading", "row(vec!["),
         ] {
-            let body = section_body(page_fn(SRC, name), title);
+            let section = section_body(page_fn(SRC, name), title);
+            let after_heading = &section[section.find("\",").unwrap() + 2..];
+            let marker = after_heading.find(marker).unwrap();
             assert!(
-                body.find(marker).unwrap() < body.find("para(").unwrap(),
-                "{name} {title} should place the explanatory paragraph after its live specimen"
+                after_heading.trim_start().starts_with('"'),
+                "{name} {title} should declare explanatory copy as section metadata"
+            );
+            assert!(
+                after_heading.find("para(").is_none_or(|para| marker < para),
+                "{name} {title} should not render explanatory copy inside its live specimen"
             );
         }
     }

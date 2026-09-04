@@ -5,6 +5,7 @@ import {
   documentationParity,
   humanizeGalleryIds,
   normalizeCollapsedItem,
+  parseInvocation,
   separateExampleDescription,
 } from "./extract-rust-examples.mjs";
 
@@ -17,6 +18,34 @@ test("documentationParity keeps component examples and reference metadata in syn
     missingReference: ["new-page"],
     missingExamples: ["old-page"],
   });
+});
+
+test("parseInvocation reads explicit section descriptions", () => {
+  const source = `component_doc_page!(
+    "Date Field",
+    "Edit a date.",
+    "use herogpui::DateField;",
+    vec![
+      ("Usage", "Uses the system format.", DateField::new(value)),
+      ("Disabled", DateField::new(value).is_disabled(true)),
+    ],
+    cx,
+  )`;
+
+  assert.deepEqual(parseInvocation(source, 0).sections, [
+    {
+      heading: "Usage",
+      description: "Uses the system format.",
+      code: "DateField::new(value)",
+      baseIndent: 6,
+    },
+    {
+      heading: "Disabled",
+      description: undefined,
+      code: "DateField::new(value).is_disabled(true)",
+      baseIndent: 6,
+    },
+  ]);
 });
 
 test("humanizeGalleryIds preserves multiline constructor indentation", () => {

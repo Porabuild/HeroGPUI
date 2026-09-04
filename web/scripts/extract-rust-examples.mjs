@@ -4,7 +4,7 @@
 // Source: gallery/src/pages/components.rs. Every component page is built by
 // the `component_doc_page!` macro:
 //
-//   component_doc_page!("Title", <desc>, <import>, vec![("Heading", expr), …], cx)
+//   component_doc_page!("Title", <desc>, <import>, vec![("Heading", [<desc>,] expr), …], cx)
 //
 // The macro stringifies each section expression for display, so the raw
 // source text of the expression *is* the example code. Expressions nest
@@ -133,7 +133,7 @@ function skipExpr(src, i) {
 /// Parse one `component_doc_page!` invocation whose `component_doc_page` token
 /// starts at `i`. Returns { title, sections: [{ heading, code }], end } on
 /// success, or { error, end } with end = -1 when the page cannot be parsed.
-function parseInvocation(src, i) {
+export function parseInvocation(src, i) {
   let skipped = 0;
   let j = skipTrivia(src, i + "component_doc_page".length);
   if (src[j] !== "!" || src[j + 1] !== "(") {
@@ -178,24 +178,26 @@ function parseInvocation(src, i) {
     const tuple = scanGroup(src, j);
     if (!tuple) return { error: "unbalanced section tuple", end: -1 };
 
-    // ("Heading", expr)
-    let k = skipTrivia(src, j + 1);
-    const heading = readStringLiteral(src, k);
+    // ("Heading", expr) or ("Heading", "Description", expr)
+    const parts = splitTopLevelCommas(src, j + 1, tuple.end - 1);
+    const heading = parts[0] ? readStringLiteral(src, parts[0].start) : null;
     if (heading) {
-      k = skipTrivia(src, heading.end);
-      if (src[k] !== ",") {
-        return { error: "expected `,` after section heading", end: -1 };
+      if (parts.length !== 2 && parts.length !== 3) {
+        return {
+          error: "section tuple must contain a heading, optional description, and body",
+          end: -1,
+        };
       }
-      const exprStart = skipTrivia(src, k + 1);
-      // The expression runs to the tuple's closing paren (tuple.end - 1).
-      const exprEnd = tuple.end - 1;
-      // The macro allows a trailing comma inside the tuple
-      // (`($heading, $body $(,)?)`); it is separator syntax, not code.
-      let code = src.slice(exprStart, exprEnd).trim();
-      if (code.endsWith(",")) code = code.slice(0, -1).trimEnd();
+      const description = parts.length === 3 ? readStringLiteral(src, parts[1].start) : null;
+      if (parts.length === 3 && !description) {
+        return { error: "section description is not a string literal", end: -1 };
+      }
+      const expression = parts.at(-1);
+      const exprStart = expression.start;
       sections.push({
         heading: heading.value,
-        code,
+        description: description?.value,
+        code: src.slice(expression.start, expression.end).trim(),
         baseIndent: sourceLineIndent(src, exprStart),
       });
     } else {
@@ -909,6 +911,7 @@ export function run({ check = false } = {}) {
   let skippedSections = 0;
   let totalSnippets = 0;
   let unbalanced = 0;
+  const implicitDescriptions = [];
   const retainedHelpers = new Map();
 
   let i = 0;
@@ -945,7 +948,12 @@ export function run({ check = false } = {}) {
         });
       }
       for (const section of result.sections) {
-        const separated = separateExampleDescription(section.code);
+        const separated = section.description
+          ? { description: section.description, code: section.code }
+          : separateExampleDescription(section.code);
+        if (!section.description && separated.description) {
+          implicitDescriptions.push(`${slug}/${section.heading}`);
+        }
         const cleaned = cleanExample(separated.code, section.baseIndent, slug);
         if (!isBalanced(cleaned.code)) {
           unbalanced += 1;
@@ -975,6 +983,13 @@ export function run({ check = false } = {}) {
   }
 
   const data = Object.fromEntries([...pages.entries()]);
+  if (implicitDescriptions.length) {
+    console.error(
+      "ERROR: explanatory paragraphs must use the section description field: " +
+        implicitDescriptions.join(", "),
+    );
+    process.exitCode = 1;
+  }
   const reference = JSON.parse(readFileSync(REFERENCE, "utf8"));
   const parity = documentationParity(pages.keys(), Object.keys(reference));
   if (parity.missingReference.length || parity.missingExamples.length) {

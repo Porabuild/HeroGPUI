@@ -27,7 +27,7 @@ export function CopyButton({ value }: { value: string }) {
   return (
     <Button
       aria-label={copied ? "Copied" : "Copy to clipboard"}
-      className="size-10 hover:text-accent data-[hovered=true]:text-accent"
+      className="code-copy-button size-7 hover:text-accent data-[hovered=true]:text-accent"
       isIconOnly
       onPress={onCopy}
       size="sm"

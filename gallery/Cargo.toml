@@ -16,6 +16,8 @@ path = "src/main.rs"
 
 [dependencies]
 gpui.workspace = true
+prettyplease.workspace = true
+syn.workspace = true
 herogpui-core.workspace = true
 herogpui-theme.workspace = true
 herogpui-components = { workspace = true, features = ["gallery-source"] }

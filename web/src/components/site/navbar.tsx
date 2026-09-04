@@ -8,7 +8,7 @@ import { GitHubIcon } from "@/components/site/github-icon";
 import { ThemeToggle } from "@/components/site/theme-toggle";
 import { isNavLinkActive, NAV_LINKS, SITE } from "@/lib/nav";
 
-const NAV_LINK_CLASS = "rounded-md px-3 py-1.5 text-sm font-medium transition-colors";
+const NAV_LINK_CLASS = "relative px-3 py-1.5 transition-colors";
 
 /**
  * Sticky site navbar. The mobile menu is inline (no overlay) so it works
@@ -43,9 +43,10 @@ export function Navbar() {
             const active = isNavLinkActive(pathname, link);
             return (
               <Link
+                aria-current={active ? "page" : undefined}
                 className={
                   active
-                    ? `${NAV_LINK_CLASS} bg-default-soft text-foreground`
+                    ? `${NAV_LINK_CLASS} text-foreground`
                     : `${NAV_LINK_CLASS} text-muted hover:text-foreground`
                 }
                 href={link.href}

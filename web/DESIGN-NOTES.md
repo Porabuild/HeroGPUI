@@ -115,8 +115,22 @@ Two systems, and they do not conflict because they govern different things:
   of signature devices. HeroUI v3 is built for exactly this: override the base
   tokens and every derived value follows.
 
-The canonical source is `E:\work\porabuild\app\globals.css` and
-`app\brand-lockup.tsx`. Read them rather than trusting this summary.
+The canonical source is `E:\work\porabuild\packages\brand`
+(`@porabuild/brand`: `tokens.css` plus the `pb-*` devices in `brand.css`).
+Read it rather than trusting this summary.
+
+### Brand package
+
+This site is built on Vercel from its own tree, so it cannot depend on the
+sibling repo. It vendors a copy at `web/src/styles/porabuild/`, refreshed by
+`pnpm run brand:sync` and checked by `pnpm run brand:check` (the check passes
+vacuously where the sibling repo is absent, so CI without it stays green).
+Never hand-edit the vendored copy — change the package, then re-sync.
+`globals.css` imports the vendored `index.css` into cascade layer `porabuild`,
+and that import MUST stay above the framework import: layer order follows
+first declaration, so this declares `porabuild` before Tailwind's `base` and
+the site's OKLCH token conversions keep winning where both define a value
+(an unlayered import would beat the layered ones outright).
 
 ### Palette
 

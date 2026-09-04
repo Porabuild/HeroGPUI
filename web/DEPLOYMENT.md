@@ -186,8 +186,18 @@ the commands below and committing the result.
 Because the artifact lives under the same origin, the embedded gallery
 follows the site's live light/dark toggle (`GalleryFrame` also passes
 `?theme=` at boot for the first paint). Deep links ride the query string:
-`/gallery/?story=button&theme=dark` opens the Button page in dark — the
-same slug the component URLs use, resolved by the wasm itself.
+`/gallery/index.html?story=button&theme=dark` opens the Button page in dark —
+the same slug the component URLs use, resolved by the wasm itself.
+
+Known issue fixed: the embed used to point at the bare `/gallery/?story=…`
+form. Production answers that with `308 → /gallery?story=…` (Next strips the
+trailing slash), and the gallery page then imported `./herogpui_web.js`
+relative to `/gallery`, which resolved to `/herogpui_web.js` and 404'd — the
+preview spinner spun forever. The iframe now targets the real file path
+`/gallery/index.html?story=…`, and `index.html` resolves its module through
+an `assetUrl()` helper (strip a trailing `index.html`, ensure a trailing
+slash, then resolve) so both URL forms boot. The `/gallery` rewrite in
+`next.config.ts` is kept for direct deep links.
 
 ### Rebuilding the artifact (Rust side)
 
@@ -232,7 +242,7 @@ Two load-bearing details on the Rust side, both verified empirically:
    open a component page, and let the preview scroll into view: the
    "HeroGPUI / WebAssembly" frame boots the gallery.
 2. Toggle the site theme: the embedded gallery follows live.
-3. `http://localhost:3000/gallery/?story=<slug>` directly: the gallery
+3. `http://localhost:3000/gallery/index.html?story=<slug>` directly: the gallery
    fills the tab, deep-linked to that component.
 
 ## Current status
