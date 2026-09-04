@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "artifactSha256": "367cdf2489815aa13fac4bba10c76df3196644ffe2350307f9db2e5a4f5810a0",
-  "glueSha256": "071daf146b9e0e6b2e5f860ba037b7ef14f4b6f2bd53938c32a29a2bae9bfaa0",
+  "artifactSha256": "9d2dbfc78fbdb3b20d61c4173416002234810e750e3de8a51185c873c96826c2",
+  "glueSha256": "5bc2ce6e9f7a2091102eb16276f55a46e99002a90ba0a8228c5f46f2570c1b4b",
   "examples": {
     "accordion/Controlled": {
       "nativeCodeSha256": "2816548407263e0fdeada0ff2ec1e8f9fd45a2d33b24ab2cf163539711fe6f8a",
@@ -117,42 +117,34 @@
     },
     "autocomplete/Allows Empty Collection": {
       "nativeCodeSha256": "b9aa53acf5d03c7161267c6e44a85c9dcd9eda17073e441e9088e721a59a5bbd",
-      "wasmCodeSha256": "8bd6a5121a5a338cb71fd0d4e7894ef5d8867d1ab72be6bcf568b8e244325f3e",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "autocomplete/Asynchronous Filtering": {
       "nativeCodeSha256": "e7154a2e4882536ea5af91bb5082bad0bd1ac93c964535cb52a25a7c03384007",
-      "wasmCodeSha256": "22822c8676522bb688f09c09f19d9cb4abe0ae708aa6805c8d78f60a08c1492d",
       "descriptionSha256": "f7595f14969b7a38ce2a49158e47c68e50feea01422f1e8d38b0f4422aa30da5"
     },
     "autocomplete/Controlled": {
       "nativeCodeSha256": "40ae8baca847c21935b1197afa6f7feeecd06ac3a1560ebe2359e1bab262aa01",
-      "wasmCodeSha256": "6380fdcef3a3bff8fd5e649bd04a0333a8c8b6f6bf3fc697a8cf11c131e67666",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "autocomplete/Controlled Multiple": {
       "nativeCodeSha256": "fda6cc9b1810628af7178364c11957921d78d6a06fc2f1dd34847b03ee5ef27d",
-      "wasmCodeSha256": "1defe24321e029c8dbbb876f72aaa3b015762d84c6bf37567741505109b6cc7a",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "autocomplete/Controlled Open State": {
       "nativeCodeSha256": "0fc47bff7599e7f50a7fdb939e3c56b514386c5bb3d6c24f1e44e00e551f1fc0",
-      "wasmCodeSha256": "5bda32e299d923dbd3207f348a56515d67f29a71287a8c091e2a65283931f054",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "autocomplete/Custom Indicator": {
       "nativeCodeSha256": "972891c66fd577572c44f590eda5d3cbc5ed38811ab6628468463061013057f2",
-      "wasmCodeSha256": "aa17de990d9a9100c38f83ce96efaf3a18b73186092c8814c7b2ff8546933b51",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "autocomplete/Custom Value": {
       "nativeCodeSha256": "c53ba4093c72e1dcb6c6d89e2664e63deac208e225f7925693824a7a4e906b8e",
-      "wasmCodeSha256": "354fafafe7a69b3a03912292c89458187682b8b07fe0a54660f1fd9d164348f6",
       "descriptionSha256": "e924baa1f33d6aedc79a485f5bf86bfcec00c26e694d3c26f1c6fad3058c98b4"
     },
     "autocomplete/Disabled": {
       "nativeCodeSha256": "9b49df385f6fb2078187dcd29a7a86f137a7c76e8af5eff4754fddea55dc57b1",
-      "wasmCodeSha256": "fca28a8627016a795d4d9a74ba7d32a6c15b82031e7074cc87d86e0b87f09e1e",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "autocomplete/Full Width": {
@@ -162,17 +154,14 @@
     },
     "autocomplete/In Surface": {
       "nativeCodeSha256": "38d91f7acf0416ba850e5f61097e0a47a2a6e7088f13e213ee812e44f999ff84",
-      "wasmCodeSha256": "f5ab91dd184822e1a7f17e2160ad6e5122d2a449962edcefd17b51aa5ef009c9",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "autocomplete/Multiple Select": {
       "nativeCodeSha256": "78ee56c1a0bf8f94c354e72c6bc3983c4a3f45c17ad100f48894bd1584b082d2",
-      "wasmCodeSha256": "357c011810e3c90db280169bed875e694dda3aa25690449022976825edeccc5a",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "autocomplete/Required": {
       "nativeCodeSha256": "300c420d83f8eaa9db156760ee16c772e406ab25e8b8ae21ddcfbf722f65e617",
-      "wasmCodeSha256": "75468e223a9fcb3d3e56119e4e977ed6f3fd14c2be2976f56d48aa48dd51809c",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "autocomplete/Usage": {
@@ -181,27 +170,22 @@
     },
     "autocomplete/Variants": {
       "nativeCodeSha256": "42a40912a2a9212fb1cee4c9a367e28bf2f67b01cfcbfba445e545a1af326804",
-      "wasmCodeSha256": "2899774f0f5d7d549fa27486e3c77c1a75310b1bd4f19390a7ec5167fbf8069f",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "autocomplete/Virtualization": {
       "nativeCodeSha256": "0088db80f7bd4eb0099d36d773c2df9787e3af553ff78f83d393da64c949a6e7",
-      "wasmCodeSha256": "5d343501063ddc500a1119678b9b2dca1b7b495a66f98c74ad265b03215ebaef",
       "descriptionSha256": "fa5339bbaef9973b95441384c9c3acca6a188922c9415993743c02cfee8667d4"
     },
     "autocomplete/With Description": {
       "nativeCodeSha256": "fd4294ff154ebb5b387a29458976c48b5294e60d52887ba36b6a2fc5946153fe",
-      "wasmCodeSha256": "c7d15da4c2abcfed5914dcdf8df68904e46b4eb3b312b8d58318f5922601d992",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "autocomplete/With Disabled Options": {
       "nativeCodeSha256": "fa7c4343c982b90d88b2061d0f831583bfa9e070876755a59bc5bbd7f44ef8f9",
-      "wasmCodeSha256": "c5421284ab75bd8e036186e840b0dced9e41817d8891282b716d87f52200516f",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "autocomplete/With Sections": {
       "nativeCodeSha256": "6ed92e98d6269bc6b38d8d414bcd9a25fd741ea66b7e3ad8fd6867f2edf8952b",
-      "wasmCodeSha256": "cb46152fe70efa19de429c2a731d62c6fac38c53a5bc70927724cb065d10423b",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "avatar/Colors": {
@@ -2678,23 +2662,7 @@
     "alert-dialog/Sizes",
     "alert-dialog/Statuses",
     "alert-dialog/Usage",
-    "autocomplete/Allows Empty Collection",
-    "autocomplete/Asynchronous Filtering",
-    "autocomplete/Controlled",
-    "autocomplete/Controlled Multiple",
-    "autocomplete/Controlled Open State",
-    "autocomplete/Custom Indicator",
-    "autocomplete/Custom Value",
-    "autocomplete/Disabled",
     "autocomplete/Full Width",
-    "autocomplete/In Surface",
-    "autocomplete/Multiple Select",
-    "autocomplete/Required",
-    "autocomplete/Variants",
-    "autocomplete/Virtualization",
-    "autocomplete/With Description",
-    "autocomplete/With Disabled Options",
-    "autocomplete/With Sections",
     "combo-box/Allows Custom Value",
     "combo-box/Asynchronous Loading",
     "combo-box/Controlled",
