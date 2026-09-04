@@ -415,7 +415,9 @@ Enter inserts a newline here, and a long paragraph wraps inside the field instea
             demo_range: HashMap::new(),
             demo_flags: HashMap::new(),
             overlays_open: std::env::var("HEROGPUI_OPEN_OVERLAYS").is_ok(),
-            toast_placement: h::ToastPlacement::BottomEnd,
+            // v3's `ToastProvider` defaults `placement` to `"bottom"`, so the
+            // shell starts there and the Toast page's Placements demo moves it.
+            toast_placement: h::ToastPlacement::default(),
             demo_values: HashMap::new(),
             demo_strings: HashMap::new(),
             demo_selections: HashMap::new(),
