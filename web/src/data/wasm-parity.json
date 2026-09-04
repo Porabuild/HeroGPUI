@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "artifactSha256": "0b198b66fd5a18014237e953950db6119571c1d662f7657a114d915567ce4995",
+  "artifactSha256": "1e7e7d70fd257ba52f86051e29de5a6952eeb6ce83386108c28ace75c302ee26",
   "glueSha256": "1a3bd697368958d3043330a5ff02c546d4525d00ca672a0bb469d744649a7f4a",
   "examples": {
     "accordion/Controlled": {
@@ -1519,27 +1519,22 @@
     },
     "meter/Colors": {
       "nativeCodeSha256": "14368f830632ca9f13b88f760c294ce149b0d452c95c3d6c86cbcf233081eaa1",
-      "wasmCodeSha256": "93ef2591ab84fdcb4ff4608888f74688996323a060bb539f74ab11891431f0b5",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "meter/Custom Value Scale": {
       "nativeCodeSha256": "c7e47f6e899a7ad1502ccf9592b57d21f9e29a8742c5d18ce935a44a4a693c62",
-      "wasmCodeSha256": "e66957c3bc21467fe65db8f4496dcea4e18471fbcb7e9385f8d4797c4a6d020b",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "meter/Sizes": {
       "nativeCodeSha256": "ef0bd275b0b4150d94317dc27a19da67b9b9d41cf46af848ddba45f2514299e4",
-      "wasmCodeSha256": "3d2c6606bba904d9a396e73b9916505a2a99794956be272207f83442dcc294a9",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "meter/Usage": {
       "nativeCodeSha256": "8926885d1fbea118db96c69efd0a81b2e68c7216993c10bd908ffd21ea192dbb",
-      "wasmCodeSha256": "e2344b93db0ec2f3bbca07bdffd1fd11778a6b52e81f751e752fdb6db834ac16",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "meter/Without Label": {
       "nativeCodeSha256": "db4934039817a84bae40cd2f0de792309b196f8127b7d1e9d6582aaff06c3fa6",
-      "wasmCodeSha256": "92fd1bad7f59a8a6d0f83908dde63233fc603336a2bd4d033398f8da4803066c",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "modal/Backdrop Variants": {
@@ -2798,11 +2793,6 @@
     "list-box/Single selection",
     "list-box/Virtualization",
     "list-box/With Disabled Items",
-    "meter/Colors",
-    "meter/Custom Value Scale",
-    "meter/Sizes",
-    "meter/Usage",
-    "meter/Without Label",
     "modal/Backdrop Variants",
     "modal/Close Methods",
     "modal/Controlled State",
