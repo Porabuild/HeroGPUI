@@ -20,7 +20,8 @@
 //!   at the top. An EMPTY textarea hugs its content: the wrapping row has no
 //!   `whitespace_nowrap` to force a width, so the box measures only ~32px
 //!   until text wraps inside it (measured by probing: a click at x = 40
-//!   misses, x = 20 focuses).
+//!   misses, x = 20 focuses). With text in it, each paragraph reports its own
+//!   painted bounds, and a click is placed against the one it lands in.
 //! - `InputOTP` cells are 38x40 with an 8px gap (`input_otp.rs`), so cell *i*
 //!   spans x 46i..46i+38 and every cell centre is y 20; a second instance on
 //!   the same page sits `gap(16)` below, cell 0 centre y = 40 + 16 + 20 = 76.
@@ -231,8 +232,10 @@ fn text_area_typing_and_newline(cx: &mut TestAppContext) {
     // content: the row has no `whitespace_nowrap` to force a width, so the
     // field is only ~32px wide until text wraps inside it. Measured by
     // probing: clicks at x = 40 already miss it, x = 20 focus it. A click at
-    // (10, 40) is safely inside the 76px box; in multi-line mode a click only
-    // focuses, it does not move the caret.
+    // (10, 40) is safely inside the 76px box. The field is empty, so there is
+    // no paragraph to land in and the click only focuses; see
+    // `text_area_click_places_the_caret_inside_a_wrapped_line` for the case
+    // where it does move the caret.
     click(cx, 10., 40.);
     cx.simulate_input("ab");
     // `WhiteSpace::Normal` wraps by default (AGENTS.md), so the only way a
@@ -1479,4 +1482,46 @@ fn fieldset_disabled_disables_its_children(cx: &mut TestAppContext) {
     );
     let value = cx.update(|_, cx| state.read(cx).value().to_owned());
     assert_eq!(value, "abc", "the InputState must hold the typed value");
+}
+
+/// A pointer click inside a WRAPPED paragraph places the caret where it landed.
+///
+/// This was recorded as impossible (`behaviour_audit`'s
+/// `no-wrapped-line-metrics`) on the grounds that gpui reports no position for
+/// a wrapped line. It does: `shape_text` answers `WrappedLine`, which derefs to
+/// the layout that owns `closest_index_for_position`. The caret is asserted
+/// through the next keystroke, which is where it actually matters.
+#[gpui::test]
+fn text_area_click_places_the_caret_inside_a_wrapped_line(cx: &mut TestAppContext) {
+    // One long word-wrapped paragraph, no newlines: every visual line break
+    // here is one gpui chose, which is exactly the case that was unreachable.
+    let state = cx.new(|cx| InputState::with_value(cx, "aaaa bbbb cccc dddd eeee ffff gggg hhhh"));
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        // 200px forces the text to wrap into several visual lines inside one
+        // paragraph; the TextArea is `rows(3)` = 76px tall at the origin.
+        gpui::div()
+            .w(px(200.))
+            .child(TextArea::new(state_for_view.clone()))
+            .into_any_element()
+    });
+
+    let end = cx.update(|_, cx| state.read(cx).value().chars().count());
+
+    // Click near the start of the first visual line, well before the end. A
+    // plain click leaves no anchor, so the caret is not observable directly --
+    // the keystroke below is what reports where it went.
+    click(cx, 16., 14.);
+    cx.simulate_input("X");
+    let value = cx.update(|_, cx| state.read(cx).value().to_owned());
+    assert!(
+        !value.ends_with('X'),
+        "typing after a click in a wrapped paragraph must insert at the caret, \
+         not append; got {value:?}"
+    );
+    assert_eq!(
+        value.chars().count(),
+        end + 1,
+        "the click must move the caret, not select and replace"
+    );
 }

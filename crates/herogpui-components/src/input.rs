@@ -525,6 +525,79 @@ fn char_at_x(
     value[..byte.min(value.len())].chars().count()
 }
 
+/// The char offset a click lands on inside a wrapped, multi-line body.
+///
+/// The paragraph is found by the bounds it was painted with, then gpui shapes
+/// that paragraph at the width it was given and reports the closest character
+/// boundary to the point -- `WrappedLine` derefs to the layout that answers it,
+/// so a wrapped line does have a position after all. Returns `None` when no
+/// paragraph has been laid out yet, which is any frame before the first paint.
+fn char_at_point(
+    value: &str,
+    point: gpui::Point<gpui::Pixels>,
+    paragraphs: &[gpui::Bounds<gpui::Pixels>],
+    font: &gpui::Font,
+    font_size: gpui::Pixels,
+    line_height: gpui::Pixels,
+    window: &mut Window,
+) -> Option<usize> {
+    let lines: Vec<&str> = value.split('\n').collect();
+    let usable = paragraphs.len().min(lines.len());
+    if usable == 0 {
+        return None;
+    }
+
+    // The paragraph the click is inside, else the nearest one vertically: a
+    // click in the padding below the last line belongs to the last line.
+    let index = (0..usable)
+        .find(|&i| {
+            let b = paragraphs[i];
+            point.y >= b.origin.y && point.y < b.origin.y + b.size.height.max(line_height)
+        })
+        .unwrap_or_else(|| {
+            (0..usable)
+                .min_by_key(|&i| {
+                    let b = paragraphs[i];
+                    let mid = b.origin.y + b.size.height.max(line_height) / 2.;
+                    (f32::from(point.y - mid)).abs() as i64
+                })
+                .unwrap_or(0)
+        });
+
+    let offset: usize = lines[..index].iter().map(|l| l.chars().count() + 1).sum();
+    let line = lines[index];
+    if line.is_empty() {
+        return Some(offset);
+    }
+
+    let bounds = paragraphs[index];
+    let run = gpui::TextRun {
+        len: line.len(),
+        font: font.clone(),
+        // Shaping needs a colour and does not use it.
+        color: gpui::black(),
+        background_color: None,
+        underline: None,
+        strikethrough: None,
+    };
+    let shaped = window
+        .text_system()
+        .shape_text(
+            SharedString::from(line.to_owned()),
+            font_size,
+            &[run],
+            Some(bounds.size.width.max(px(1.))),
+            None,
+        )
+        .ok()?;
+    let wrapped = shaped.first()?;
+    let local = gpui::point(point.x - bounds.origin.x, point.y - bounds.origin.y);
+    let byte = match wrapped.closest_index_for_position(local, line_height) {
+        Ok(byte) | Err(byte) => byte,
+    };
+    Some(offset + line[..byte.min(line.len())].chars().count())
+}
+
 /// The char indices bounding the line the caret is on, newlines excluded.
 fn line_bounds(value: &str, cursor: usize) -> (usize, usize) {
     let chars: Vec<char> = value.chars().collect();
@@ -541,8 +614,11 @@ fn line_bounds(value: &str, cursor: usize) -> (usize, usize) {
 
 /// Where Up / Down lands in a multiline field, keeping the column where it can.
 ///
-/// The lines are the *logical* ones: a wrapped line has no position gpui will
-/// report, and `Enter` is what puts a newline in.
+/// The lines are the *logical* ones -- the ones `Enter` puts in. Up and Down
+/// keeping to those rather than to visual rows is a deliberate difference from
+/// the pointer, which lands on the visual row it was clicked on
+/// (`char_at_point`); moving the keyboard caret to visual rows would need the
+/// same shaping on every keystroke.
 fn vertical_target(value: &str, cursor: usize, down: bool) -> usize {
     let (start, end) = line_bounds(value, cursor);
     let column = cursor - start;
@@ -664,6 +740,9 @@ struct MultilineBody<'a> {
     /// The caret's element id, height and colour.
     caret: (gpui::ElementId, gpui::Pixels, gpui::Hsla),
     selection_bg: gpui::Hsla,
+    /// Where each paragraph was painted, filled in during layout so a click can
+    /// be measured against the text it actually landed on.
+    paragraphs: Entity<Vec<gpui::Bounds<gpui::Pixels>>>,
 }
 
 /// One paragraph per newline, each wrapping, with the caret and selection
@@ -691,6 +770,30 @@ fn multiline_body(b: MultilineBody<'_>, cx: &App) -> gpui::AnyElement {
             .items_center()
             .w_full()
             .min_w_0();
+
+        // A zero-size probe at the head of the paragraph: `canvas` is the only
+        // element told its own bounds, and a click in a wrapped paragraph has
+        // to be measured against where that paragraph was actually laid out.
+        para = para.child(
+            gpui::canvas(
+                {
+                    let sink = b.paragraphs.clone();
+                    move |bounds: gpui::Bounds<gpui::Pixels>, _window, cx| {
+                        sink.update(cx, |slots, _| {
+                            if slots.len() <= i {
+                                slots.resize(i + 1, gpui::Bounds::default());
+                            }
+                            slots[i] = bounds;
+                        });
+                        bounds
+                    }
+                },
+                |_, _, _, _| {},
+            )
+            .w_full()
+            .h(px(0.))
+            .flex_shrink_0(),
+        );
 
         // The selection, clipped to this line.
         let local_sel = b.selection.and_then(|(lo, hi)| {
@@ -1253,6 +1356,14 @@ impl RenderOnce for Input {
             cx,
             |_, _| None::<gpui::Pixels>,
         );
+        // The same trick for a wrapped body, one entry per paragraph.
+        let paragraph_bounds = window.use_keyed_state(
+            gpui::ElementId::Name(
+                format!("input-paragraphs-{}", self.state.entity_id().as_u64()).into(),
+            ),
+            cx,
+            |_, _| Vec::<gpui::Bounds<gpui::Pixels>>::new(),
+        );
         // The font the field draws with, captured here: at event time the text
         // style stack is empty and the shaping would use the wrong face.
         let text_font = window.text_style().font();
@@ -1347,19 +1458,34 @@ impl RenderOnce for Input {
                         let font = text_font.clone();
                         let masks = self.input_type.masks();
                         let multiline = self.multiline;
+                        let paras = paragraph_bounds.clone();
+                        // The caret is drawn at 1.3x the font size; the rows a wrapped
+                        // paragraph is measured in are the same height.
+                        let line_h = text * 1.3;
                         let size = text;
                         move |ev: &gpui::MouseDownEvent, window, cx| {
                             window.focus(&fh);
-                            // A wrapped, multi-line body has no single line to
-                            // measure against; its caret still moves by key.
-                            if multiline {
-                                return;
-                            }
-                            let Some(left) = *origin.read(cx) else {
-                                return;
-                            };
                             let shown = displayed_value(st.read(cx), masks);
-                            let at = char_at_x(&shown, ev.position.x - left, &font, size, window);
+                            let at = if multiline {
+                                let boxes = paras.read(cx).clone();
+                                let Some(at) = char_at_point(
+                                    &shown,
+                                    ev.position,
+                                    &boxes,
+                                    &font,
+                                    size,
+                                    line_h,
+                                    window,
+                                ) else {
+                                    return;
+                                };
+                                at
+                            } else {
+                                let Some(left) = *origin.read(cx) else {
+                                    return;
+                                };
+                                char_at_x(&shown, ev.position.x - left, &font, size, window)
+                            };
                             st.update(cx, |s, cx| {
                                 s.cursor = at;
                                 s.anchor = None;
@@ -1384,16 +1510,36 @@ impl RenderOnce for Input {
                         let font = text_font.clone();
                         let masks = self.input_type.masks();
                         let multiline = self.multiline;
+                        let paras = paragraph_bounds.clone();
+                        // The caret is drawn at 1.3x the font size; the rows a wrapped
+                        // paragraph is measured in are the same height.
+                        let line_h = text * 1.3;
                         let size = text;
                         move |ev: &gpui::MouseMoveEvent, window, cx| {
-                            if multiline || ev.pressed_button != Some(gpui::MouseButton::Left) {
+                            if ev.pressed_button != Some(gpui::MouseButton::Left) {
                                 return;
                             }
-                            let Some(left) = *origin.read(cx) else {
-                                return;
-                            };
                             let shown = displayed_value(st.read(cx), masks);
-                            let at = char_at_x(&shown, ev.position.x - left, &font, size, window);
+                            let at = if multiline {
+                                let boxes = paras.read(cx).clone();
+                                let Some(at) = char_at_point(
+                                    &shown,
+                                    ev.position,
+                                    &boxes,
+                                    &font,
+                                    size,
+                                    line_h,
+                                    window,
+                                ) else {
+                                    return;
+                                };
+                                at
+                            } else {
+                                let Some(left) = *origin.read(cx) else {
+                                    return;
+                                };
+                                char_at_x(&shown, ev.position.x - left, &font, size, window)
+                            };
                             st.update(cx, |s, cx| {
                                 if s.anchor.is_none() {
                                     s.anchor = Some(s.cursor);
@@ -1473,6 +1619,7 @@ impl RenderOnce for Input {
                 gpui::ElementId::Name(format!("caret-{}", self.state.entity_id().as_u64()).into());
             row = row.child(multiline_body(
                 MultilineBody {
+                    paragraphs: paragraph_bounds,
                     value: &value,
                     cursor,
                     selection,

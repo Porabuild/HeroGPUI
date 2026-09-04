@@ -1108,10 +1108,6 @@ WONT_DO = {
     # Tab order is the platform's, and gpui walks the focusable elements in tree
     # order without being told to.
     ('Pagination', 'tab-order'): 'platform-tab-order',
-    # A wrapped line has no position gpui reports: `shape_line` measures one
-    # line, and a paragraph in a text area is laid out by the text system into
-    # as many as it needs. The caret still moves by key, including up and down.
-    ('TextArea', 'pointer-caret'): 'no-wrapped-line-metrics',
     # A dialog claims the focus on open and has nothing to give it back to: the
     # trigger is the caller's element, rendered outside the component, and gpui
     # gives a child no way to reach it. The caller can restore it.
