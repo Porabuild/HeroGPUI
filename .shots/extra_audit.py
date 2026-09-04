@@ -503,6 +503,8 @@ EXTRA_OK_SCOPED = {
     # sharing a spelling with it is a coincidence, not a reason.
     'Calendar.locale': 'no-i18n-provider',
     'RangeCalendar.locale': 'no-i18n-provider',
+    'DatePicker.locale': 'no-i18n-provider',
+    'DateRangePicker.locale': 'no-i18n-provider',
     # React Aria 3.51.0's `useSelectableCollection` takes `escapeKeyBehavior`
     # to choose whether an unmodified Escape clears the selection. HeroUI
     # inherits it on every selectable collection and re-documents it on none,

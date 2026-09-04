@@ -142,6 +142,9 @@ pub struct DatePickerRenderState {
 /// HeroUI DatePicker (controlled open state; selection lives in the entity).
 #[derive(IntoElement)]
 pub struct DatePicker {
+    /// The locale whose calendar system the popover's grid is drawn in, when
+    /// the caller names one. Forwarded to the embedded [`Calendar`].
+    locale: Option<SharedString>,
     /// v3's children-as-a-function root composition.
     content: Option<std::sync::Arc<dyn Fn(DatePickerRenderState) -> gpui::AnyElement + 'static>>,
     /// `name` — read back by [`DatePicker::form_field`].
@@ -175,6 +178,15 @@ pub struct DatePicker {
 }
 
 impl DatePicker {
+    /// The locale whose calendar system the popover's grid is drawn in.
+    ///
+    /// Forwarded to the embedded calendar; see [`crate::Calendar::locale`] for
+    /// why this is a builder rather than v3's `I18nProvider`.
+    pub fn locale(mut self, tag: impl Into<SharedString>) -> Self {
+        self.locale = Some(tag.into());
+        self
+    }
+
     /// `value` — writes the selection through to the bound state.
     pub fn value(self, date: Option<Date>, cx: &mut App) -> Self {
         self.state.update(cx, |s, _| {
@@ -323,6 +335,7 @@ impl DatePicker {
             });
         form_state.borrow_mut().restore = Some(restore);
         Self {
+            locale: None,
             content: None,
             name: None,
             default_value: None,
@@ -817,6 +830,7 @@ impl RenderOnce for DatePicker {
 
             let mut cal = Calendar::new(self.state.clone())
                 .constraints(self.constraints.clone())
+                .when_some(self.locale.clone(), |cal, tag| cal.locale(tag))
                 .is_disabled(self.is_disabled)
                 .is_read_only(self.is_read_only)
                 // React Aria moves the focus into the calendar as the popover
@@ -1013,6 +1027,9 @@ pub struct DateRangePickerRenderState {
 /// HeroUI DateRangePicker.
 #[derive(IntoElement)]
 pub struct DateRangePicker {
+    /// The locale whose calendar system the popover's grid is drawn in, when
+    /// the caller names one. Forwarded to the embedded [`RangeCalendar`].
+    locale: Option<SharedString>,
     content:
         Option<std::sync::Arc<dyn Fn(DateRangePickerRenderState) -> gpui::AnyElement + 'static>>,
     /// `startName` / `endName` — read back by
@@ -1052,6 +1069,15 @@ pub struct DateRangePicker {
 }
 
 impl DateRangePicker {
+    /// The locale whose calendar system the popover's grid is drawn in.
+    ///
+    /// Forwarded to the embedded calendar; see [`crate::Calendar::locale`] for
+    /// why this is a builder rather than v3's `I18nProvider`.
+    pub fn locale(mut self, tag: impl Into<SharedString>) -> Self {
+        self.locale = Some(tag.into());
+        self
+    }
+
     pub fn new(state: Entity<DateRangeState>) -> Self {
         let entity_id = state.entity_id().as_u64();
         let start_form_state = date_range_picker_form_state(entity_id, false);
@@ -1128,6 +1154,7 @@ impl DateRangePicker {
             });
         start_form_state.borrow_mut().restore = Some(restore.clone());
         Self {
+            locale: None,
             content: None,
             start_name: None,
             end_name: None,
@@ -1974,6 +2001,7 @@ impl RenderOnce for DateRangePicker {
             let range_state = self.state.clone();
             let mut calendar = crate::range_calendar::RangeCalendar::new(self.state.clone())
                 .constraints(self.constraints.clone())
+                .when_some(self.locale.clone(), |cal, tag| cal.locale(tag))
                 .autofocus_grid(panel_open)
                 .is_read_only(self.is_read_only)
                 .is_invalid(start_invalid || end_invalid);
