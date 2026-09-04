@@ -67,8 +67,8 @@ supersedes every theory in Phases 1–4.
   a real v3-parity debt carried by the web pin, not background noise. Fixing
   them means the same GPUI-source-grade investigation as the two clusters
   already fixed; none were touched.
-- `crates/herogpui-web` builds: **26.27 MiB raw / 7.08 MiB gzipped**, smaller
-  than Longbridge's 37 / 9.2 MiB. Artifact, production `index.html` and an
+- `crates/herogpui-web` builds with the `wasm-release` profile: **15.73 MiB
+  raw / 4.97 MiB gzipped**. Artifact, production `index.html` and an
   instrumented `index-diagnostic.html` are in `D:\herogpui-wasm-serve\`.
 - A real bug found and fixed: `jiff` panicked on every current-time lookup on
   wasm32; the `js` feature in the root `Cargo.toml` fixes it.
@@ -94,14 +94,14 @@ the host page's live theme toggle.
 ### The embed contract (matching Longbridge, confirmed working)
 
 ```html
-<iframe src="<gallery>/?story=<slug>&theme=<theme>" title>
+<iframe src="<gallery>/index.html?story=<slug>&preview=component&section=<heading>&theme=<theme>" title>
 ```
 
 - Deep link is a **query parameter**: `?story=<catalog slug>` (e.g.
   `date-picker`) — the slug scheme the site already generates — or
   `?page=<Nav Title>` as the native-parity alias.
-- **One instance per page, not per example.** The frame carries a component's
-  whole page with each example labelled inside.
+- **One lazily loaded instance per page.** Preview mode constructs only the
+  selected example and omits the gallery shell.
 - **Theme**: `?theme=` sets the boot theme; if the frame can read the parent
   document (same origin), it follows the host's live `<html>` class changes
   via the exported `set_theme(dark)` — no reload.
@@ -111,8 +111,9 @@ staged in `web/public/gallery/` (`index.html` + `herogpui_web.js` +
 `herogpui_web_bg.wasm`), `next.config.ts` maps `/gallery` onto its
 `index.html`, `.env.example` documents `NEXT_PUBLIC_GALLERY_URL=/gallery`,
 and `DEPLOYMENT.md` §6 is the operator runbook. Verified end-to-end on a
-dev server with the variable set: the exact iframe `GalleryFrame` computes
-(`/gallery/?story=button&theme=light`) boots inside a component page,
+dev server: the exact iframe `GalleryFrame` computes
+(`/gallery/index.html?story=button&preview=component&section=Usage&theme=light`)
+boots inside a component page,
 deep-links, sizes to the frame, and renders. One caveat: the browser tool's
 `IntersectionObserver` never fires in an occluded window, so the
 lazy-boot trigger itself was exercised by code review only; on a visible

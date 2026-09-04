@@ -168,7 +168,7 @@ they live in `public/gallery/` and are served by the same deployment:
 |---|---|
 | `index.html` | the hosting page (loading spinner, error UI, boot script; canonical source: `crates/herogpui-web/index.html` in the wasm worktree) |
 | `herogpui_web.js` | `wasm-bindgen` glue |
-| `herogpui_web_bg.wasm` | the application, ~27.3 MiB raw / ~7.3 MiB gzipped |
+| `herogpui_web_bg.wasm` | the application, ~15.7 MiB raw / ~5.0 MiB gzipped |
 
 `next.config.ts` maps `/gallery` onto `/gallery/index.html` (public/ has no
 directory-index resolution), so `/gallery` is the default. The checked-in
@@ -209,9 +209,9 @@ From the wasm worktree `D:\herogpui-wasm` (full log: its
 
 ```powershell
 $env:CARGO_TARGET_DIR='D:/herogpui-wasm-target'; $env:CARGO_HOME='D:/cargo-home'
-cargo build --target wasm32-unknown-unknown --release -p herogpui-web
+cargo build --target wasm32-unknown-unknown --profile wasm-release -p herogpui-web
 D:\cargo-home\bin\wasm-bindgen.exe `
-  D:\herogpui-wasm-target\wasm32-unknown-unknown\release\herogpui_web.wasm `
+  D:\herogpui-wasm-target\wasm32-unknown-unknown\wasm-release\herogpui_web.wasm `
   --out-dir <this repo>\web\public\gallery --target web --no-typescript
 ```
 
