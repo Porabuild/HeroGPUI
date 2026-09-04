@@ -494,6 +494,19 @@ EXTRA_OK_SCOPED = {
     # HeroUI forwards React Aria Row's inherited `textValue`; cells are opaque
     # in gpui, so the row must expose that searchable text explicitly.
     'Table.text_value': 'react-aria-inherited',
+    # React Aria 3.51.0's `useSelectableCollection` takes `escapeKeyBehavior`
+    # to choose whether an unmodified Escape clears the selection. HeroUI
+    # inherits it on every selectable collection and re-documents it on none,
+    # so the two collections that answer Escape carry it under the same
+    # inherited-behavior rule as Table's resize props above.
+    'ListBox.escape_key_behavior': 'react-aria-inherited',
+    'TagGroup.escape_key_behavior': 'react-aria-inherited',
+    # v3's `src` is a URL string, so React re-fetches when the string changes
+    # and the load and error latches reset with it. A gpui `ImageSource::Custom`
+    # is an `Arc`-allocated closure rebuilt every frame: equal by pointer only
+    # by accident, and carrying no value identity of its own. The key is the
+    # logical identity that closure cannot supply, and nothing in v3 needs one.
+    'Avatar.custom_source_key': 'no-source-identity',
     # MenuItem/ListBoxItem expose compound child slots rather than root props.
     'Dropdown.shortcut': 'composition',
     'Dropdown.submenu': 'composition',
