@@ -308,11 +308,17 @@ impl RenderOnce for Avatar {
             Some(content) => content,
             None => Avatar::initials(&self.name).into_any_element(),
         };
+        // `.avatar__fallback` is `size-full bg-default` and relies on the
+        // avatar's `overflow-hidden` to clip its fill to the rounded corner.
+        // gpui clips a child to the parent's *rect*, not to its radius, so a
+        // square fill here squared off every avatar — the same reason the
+        // loaded image below carries the radius.
         let fallback = gpui::div()
             .flex()
             .items_center()
             .justify_center()
             .size_full()
+            .rounded(radius)
             .bg(fallback_bg)
             .text_color(soft_fg)
             .text_size(font)
