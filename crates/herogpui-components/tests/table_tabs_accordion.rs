@@ -211,8 +211,11 @@ fn table_keyboard_rows_rove_and_activate(cx: &mut TestAppContext) {
 }
 
 /// Pinned React Aria 3.51's Table delegate sends PageDown to the last enabled
-/// row. Its PageUp enters the first column header; this port's split header/body
-/// focus model falls back to the first enabled row instead.
+/// row, and PageUp out of the body into the first column header.
+///
+/// The header is focusable whether or not it sorts, so PageUp leaves the body
+/// rather than stopping at its first row: the cursor stays where PageDown put
+/// it, and Enter no longer reaches the body at all.
 #[gpui::test]
 fn table_page_keys_rove_a_plain_body_to_its_ends(cx: &mut TestAppContext) {
     let recorded = events();
@@ -235,12 +238,20 @@ fn table_page_keys_rove_a_plain_body_to_its_ends(cx: &mut TestAppContext) {
     press(cx, "down");
     press(cx, "pagedown");
     press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["row:2"],
+        "PageDown must reach the last enabled row of a plain Table body"
+    );
+
+    // PageUp leaves the body. The proof is that Enter no longer activates a
+    // row: the focus is on the header, not on the cursor it left behind.
     press(cx, "pageup");
     press(cx, "enter");
     assert_eq!(
         recorded.borrow().as_slice(),
-        ["row:2", "row:1"],
-        "PageDown and PageUp must reach the enabled ends of a plain Table body"
+        ["row:2"],
+        "PageUp must move the focus into the first column header, so Enter no          longer reaches the row the cursor was left on"
     );
 }
 

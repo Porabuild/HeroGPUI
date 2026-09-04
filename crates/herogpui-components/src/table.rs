@@ -1290,27 +1290,31 @@ impl RenderOnce for Table {
         // matters. Created before the theme: `use_keyed_state` takes `cx`
         // mutably and `cx.colors()` holds a borrow.
         let sortable = self.on_sort_change.is_some();
-        let sort_focus: Vec<Option<gpui::FocusHandle>> = self
+        // Every column header is focusable, not just the sortable ones: v3's
+        // PageUp leaves the body for the first column header whatever it is.
+        // Only a sortable header is a *tab stop*, though -- it has to be, so
+        // Enter and Space can sort it -- which keeps every table's Tab order
+        // exactly as it was while giving the keyboard somewhere to land.
+        let header_focus: Vec<gpui::FocusHandle> = self
             .columns
             .iter()
-            .map(|c| c.allows_sorting && sortable)
-            .collect::<Vec<_>>()
-            .into_iter()
             .enumerate()
-            .map(|(i, is_sortable)| {
-                is_sortable.then(|| {
-                    crate::util::tab_stop_handle(
-                        gpui::ElementId::Name(format!("{}-sort-{i}-focus", self.id).into()),
-                        window,
-                        cx,
-                    )
-                })
+            .map(|(i, column)| {
+                let id = gpui::ElementId::Name(format!("{}-sort-{i}-focus", self.id).into());
+                if column.allows_sorting && sortable {
+                    crate::util::tab_stop_handle(id, window, cx)
+                } else {
+                    window
+                        .use_keyed_state(id, cx, |_, cx| cx.focus_handle())
+                        .read(cx)
+                        .clone()
+                }
             })
             .collect();
         let ring_visible = crate::util::focus_visible(cx);
-        let sort_focused: Vec<bool> = sort_focus
+        let header_focused: Vec<bool> = header_focus
             .iter()
-            .map(|h| h.as_ref().is_some_and(|h| h.is_focused(window)) && ring_visible)
+            .map(|h| h.is_focused(window) && ring_visible)
             .collect();
         let resize_focus: Vec<Option<gpui::FocusHandle>> = self
             .columns
@@ -1594,9 +1598,7 @@ impl RenderOnce for Table {
                         .cursor_pointer()
                         // The focus is what makes Enter and Space sort: gpui
                         // fires a *focused* element's click listeners for them.
-                        .when_some(sort_focus[column_index].as_ref(), |c, handle| {
-                            c.track_focus(handle)
-                        })
+                        .track_focus(&header_focus[column_index])
                         .on_click(move |_, window, cx| cb(next.clone(), window, cx))
                         .child(cell.group_hover(sort_group, |s| s.text_color(colors.foreground)));
                     // `.table__column` rings *inside* itself: the next column
@@ -1604,12 +1606,26 @@ impl RenderOnce for Table {
                     // through the transparent cell and filled it.
                     header_cell
                         .relative()
-                        .when(sort_focused[column_index], |c| {
+                        .when(header_focused[column_index], |c| {
                             c.child(crate::util::inset_focus_ring(cx))
                         })
                         .into_any_element()
                 }
-                _ => cell.into_any_element(),
+                // Not sortable, so nothing to press -- but still focusable, so
+                // PageUp has a header to land on, and it rings when it does.
+                _ => gpui::div()
+                    .id(gpui::ElementId::Name(
+                        format!("table-header-{column_index}").into(),
+                    ))
+                    .track_focus(&header_focus[column_index])
+                    .relative()
+                    .flex_1()
+                    .flex()
+                    .child(cell)
+                    .when(header_focused[column_index], |c| {
+                        c.child(crate::util::inset_focus_ring(cx))
+                    })
+                    .into_any_element(),
             };
 
             // `allowsResizing` puts a handle on the column's trailing edge. The
@@ -2249,6 +2265,9 @@ impl RenderOnce for Table {
                     }
                 });
                 let key_typeahead = typeahead_navigation;
+                // The header PageUp hands the focus to. Cloned out because the
+                // handler outlives this frame's `header_focus`.
+                let page_up_header = header_focus.first().cloned();
                 wrapper = wrapper.on_key_down(move |event, window, cx| {
                     if !table_focus_for_keys.contains_focused(window, cx) {
                         return;
@@ -2482,12 +2501,20 @@ impl RenderOnce for Table {
                     let is_variable_page =
                         fixed_page_move.is_none() && variable_page_move.is_some();
                     // Pinned TableKeyboardDelegate sends PageDown to the last
-                    // enabled row. Its PageUp enters the first column header;
-                    // this split focus model falls back to the first row.
+                    // enabled row, and PageUp out of the body entirely, into
+                    // the first column header. The header is focusable whether
+                    // or not it sorts, so this leaves the body rather than
+                    // stopping at its first row.
+                    if plain_rows && key_name == "pageup" {
+                        if let Some(header) = &page_up_header {
+                            window.focus(header);
+                            cx.stop_propagation();
+                            return;
+                        }
+                    }
                     let plain_page_move =
                         from.filter(|_| plain_rows).and_then(|_| match key_name {
                             "pagedown" => stops.last().copied(),
-                            "pageup" => stops.first().copied(),
                             _ => None,
                         });
                     let page_move = fixed_page_move

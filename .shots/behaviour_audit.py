@@ -563,6 +563,14 @@ EVIDENCE = {
     ),
     ('NumberField', 'spin-keys'): ('number_field.rs', r'"up" \| "pageup"'),
     ('Table', 'table-page-down'): ('table.rs', r'"pagedown" => stops\.last\(\)\.copied\(\)'),
+    # PageUp leaves the body for the header rather than stopping at the first
+    # row, which needs the header focusable whether or not it sorts.
+    ('Table', 'table-page-up-header'): (
+        'table.rs',
+        r'(?s)(?=.*if plain_rows && key_name == "pageup")'
+        r'(?=.*window\.focus\(header\))'
+        r'(?=.*let header_focus: Vec<gpui::FocusHandle>)',
+    ),
     ('ListBox', 'listbox-paging'): (
         'list_box.rs',
         r'(?s)\A(?=.*fixed_page_step)(?=.*variable_page_move)(?=.*plain_page_move)'
@@ -819,7 +827,9 @@ EVIDENCE = {
     ('Autocomplete', 'scroll-into-view'): ('autocomplete.rs', r'scroll_to_item'),
     ('ListBox', 'scroll-into-view'): ('list_box.rs', r'scroll_to_item'),
     ('Dropdown', 'scroll-into-view'): ('dropdown.rs', r'scroll_to_item'),
-    ('Table', 'sort-keys'): ('table.rs', r'sort_focus'),
+    # A sortable header is a tab stop so gpui fires its click listeners for
+    # Enter and Space; a plain one is focusable but not a stop.
+    ('Table', 'sort-keys'): ('table.rs', r'crate::util::tab_stop_handle\(id, window, cx\)'),
     ('Table', 'tree-keys'): (
         'table.rs',
         r'(?s)tree_rows\.get\(index\).*?key_name == "right"'
@@ -1110,11 +1120,6 @@ WONT_DO = {
     # Tab order is the platform's, and gpui walks the focusable elements in tree
     # order without being told to.
     ('Pagination', 'tab-order'): 'platform-tab-order',
-    # Pinned TableKeyboardDelegate lets PageUp leave the body for the first
-    # column header. This port models sortable headers and the body as separate
-    # tab stops, so it falls back to the first enabled row until it has one
-    # roving grid focus model across both regions.
-    ('Table', 'table-page-up-header'): 'missing-header-body-focus-model',
 }
 
 
