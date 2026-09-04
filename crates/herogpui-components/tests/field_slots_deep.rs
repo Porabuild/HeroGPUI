@@ -90,6 +90,39 @@ fn field_error_renders_only_when_invalid_with_a_message(cx: &mut TestAppContext)
 }
 
 #[gpui::test]
+fn a_long_description_wraps_inside_its_field(cx: &mut TestAppContext) {
+    // `.description` is `text-wrap wrap-break-word`, and `checkbox.css` and
+    // `radio.css` spell their copy of it `w-full min-w-0` on top of that: copy
+    // longer than the field wraps onto another line rather than running out
+    // through the field's edge. gpui sizes a text child to its content unless
+    // its box is the parent's width, so a Description that did not take that
+    // width overflowed in plain sight.
+    //
+    // The probe sits after a 200px-wide column holding one long description.
+    // Wrapped, the description is more than one 16px line tall, so the probe is
+    // pushed past 16; unwrapped it stays on one line and the probe sits at 16
+    // with the copy spilling sideways.
+    let cx = open_host(cx, || {
+        gpui::div()
+            .flex()
+            .flex_col()
+            .w(px(200.))
+            .child(Description::new(
+                "One email every Monday morning with the week ahead, the week                  behind, and everything still open.",
+            ))
+            .child(probe("desc-wrap-probe", 20., 10.))
+            .into_any_element()
+    });
+
+    let probe_bounds = bounds(cx, "desc-wrap-probe");
+    assert!(
+        probe_bounds.origin.y > px(16.),
+        "a description longer than its 200px field must wrap onto further          16px lines; the probe sat at y {:?}, which is the single-line height          a description that overflows sideways leaves behind",
+        probe_bounds.origin.y,
+    );
+}
+
+#[gpui::test]
 fn error_message_and_description_always_render_their_lines(cx: &mut TestAppContext) {
     // Unlike FieldError, `ErrorMessage` and `Description` carry no visibility
     // gate upstream: each is a 16px text-xs line whenever composed, in
