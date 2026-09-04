@@ -6008,7 +6008,7 @@ index 181a5756..0906e7e0 100644
  # `test-support` is what gives the tests a headless platform, a
  # `VisualTestContext` and simulated input -- the only way to assert that a
 diff --git a/crates/herogpui-components/src/alert.rs b/crates/herogpui-components/src/alert.rs
-index 93eefc95..2aef1845 100644
+index 93eefc95..93d2db87 100644
 --- a/crates/herogpui-components/src/alert.rs
 +++ b/crates/herogpui-components/src/alert.rs
 @@ -1,7 +1,8 @@
@@ -6038,7 +6038,7 @@ index 93eefc95..2aef1845 100644
  
          // v3 dropped Alert's `variant`: the color role is the only axis.
          // `.alert` is `bg-surface` for every status -- the role never paints
-@@ -71,49 +73,74 @@ impl RenderOnce for Alert {
+@@ -71,49 +73,83 @@ impl RenderOnce for Alert {
          } else {
              sem.soft_foreground(colors.foreground)
          };
@@ -6106,7 +6106,16 @@ index 93eefc95..2aef1845 100644
 -        let mut text_col = gpui::div().flex().flex_col().gap(px(2.)).flex_1();
 +        // description, beside the indicator. It carries no gap: the pinned
 +        // rule is only `flex h-full grow flex-col items-start`.
-+        let mut text_col = gpui::div().flex().flex_col().items_start().flex_1();
++        // `min_w_0` is what lets the description wrap. A flex item's automatic
++        // minimum size is its content's, and gpui measures a text child's
++        // minimum as the whole string, so `grow` alone pushed the column --
++        // and the copy -- straight out through the alert's right edge.
++        let mut text_col = gpui::div()
++            .flex()
++            .flex_col()
++            .items_start()
++            .flex_1()
++            .min_w_0();
          text_col = text_col.child(
              gpui::div()
 -                .text_size(px(14.))
@@ -6132,7 +6141,7 @@ index 93eefc95..2aef1845 100644
                      .child(desc.to_string()),
              );
          }
-@@ -130,14 +157,17 @@ impl RenderOnce for Alert {
+@@ -130,14 +166,17 @@ impl RenderOnce for Alert {
  // indicator and the title only, never the container. A soft wash looks
  // plausible on screen, so the check is mechanical.
  #[cfg(test)]
@@ -6156,7 +6165,7 @@ index 93eefc95..2aef1845 100644
          assert!(
              source.contains("let bg = colors.surface.background;"),
              "every status must paint `bg-surface` (pinned `.alert`)"
-@@ -150,19 +180,25 @@ mod hover_tokens {
+@@ -150,19 +189,25 @@ mod hover_tokens {
  
      #[test]
      fn the_indicator_follows_the_status_soft_foreground() {
@@ -9187,7 +9196,7 @@ index eda76857..f0c010f4 100644
          // A drag in progress: where it started along the dismissal axis, and how
          // far it has come. `use_keyed_state` takes `cx` mutably, so it precedes
 diff --git a/crates/herogpui-components/src/dropdown.rs b/crates/herogpui-components/src/dropdown.rs
-index d8df4852..77b1063e 100644
+index d8df4852..561ede40 100644
 --- a/crates/herogpui-components/src/dropdown.rs
 +++ b/crates/herogpui-components/src/dropdown.rs
 @@ -439,7 +439,7 @@ impl RenderOnce for Menu {
@@ -9215,7 +9224,35 @@ index d8df4852..77b1063e 100644
  
          let colors = cx.colors();
          let dropdown_composition = self.dropdown_composition;
-@@ -880,7 +889,7 @@ impl RenderOnce for Menu {
+@@ -542,6 +551,17 @@ impl RenderOnce for Menu {
+             // it is `gap-0.5 p-1` -- `.dropdown__menu` overrides `.menu`'s
+             // `gap-1` with half a step.
+             .min_w(px(220.))
++            // `max-w-[48svw]`. Without a ceiling a described row's copy set
++            // the menu's width outright, so a long description could widen the
++            // popover across half the window.
++            //
++            // Under the ceiling that copy is clipped at the edge rather than
++            // wrapping, which is where this stops short of v3: the panel is the
++            // scroll container, and gpui 0.2.2 measures a scroll container's
++            // children on an unconstrained cross axis, so `text-wrap` has no
++            // width to wrap against. Moving the scroll to an inner layer is the
++            // fix and it is not a comment-sized change.
++            .max_w(window.viewport_size().width * 0.48)
+             .gap(px(2.))
+             .p(px(4.))
+             .bg(colors.overlay.background)
+@@ -815,6 +835,9 @@ impl RenderOnce for Menu {
+                         .id(gpui::ElementId::Name(format!("{base}-item-{i}").into()))
+                         .relative()
+                         .flex()
++                        // `.menu-item` is `w-full`: the row takes the menu's
++                        // width rather than its own content's.
++                        .w_full()
+                         .items_center()
+                         .gap(px(12.))
+                         .px(px(8.))
+@@ -880,7 +903,7 @@ impl RenderOnce for Menu {
                          let pointer_cursor = cursor.clone();
                          let pointer_focus = focus_handle.clone();
                          row = row.on_mouse_down(gpui::MouseButton::Left, move |_, window, cx| {
@@ -9224,7 +9261,7 @@ index d8df4852..77b1063e 100644
                              pointer_cursor.update(cx, |value, cx| {
                                  *value = Some(i);
                                  cx.notify();
-@@ -892,7 +901,7 @@ impl RenderOnce for Menu {
+@@ -892,7 +915,7 @@ impl RenderOnce for Menu {
                              if crate::util::focus_visible(cx) || *hover_cursor.read(cx) == Some(i) {
                                  return;
                              }
@@ -9233,7 +9270,28 @@ index d8df4852..77b1063e 100644
                              hover_cursor.update(cx, |value, cx| {
                                  *value = Some(i);
                                  cx.notify();
-@@ -1241,7 +1250,7 @@ impl RenderOnce for Menu {
+@@ -1009,6 +1032,8 @@ impl RenderOnce for Menu {
+                                 Some(text) => gpui::div()
+                                     .flex()
+                                     .flex_col()
++                                    .flex_1()
++                                    .min_w_0()
+                                     .gap(px(1.))
+                                     .child(gpui::div().child(label.to_string()))
+                                     .child(
+@@ -1017,6 +1042,11 @@ impl RenderOnce for Menu {
+                                             // `Description`, which is `text-xs`.
+                                             .text_size(px(12.))
+                                             .text_color(colors.muted)
++                                            // `[data-slot="description"]` is
++                                            // `text-wrap`, so its box is the
++                                            // column's width, not its own
++                                            // content's.
++                                            .w_full()
+                                             .child(text.to_string()),
+                                     )
+                                     .into_any_element(),
+@@ -1241,7 +1271,7 @@ impl RenderOnce for Menu {
                      cx.notify();
                  });
                  close_focus_state.update(cx, |value, _| *value = false);
@@ -9242,7 +9300,7 @@ index d8df4852..77b1063e 100644
              });
              if let Some(cb) = self.on_action.clone() {
                  sub = sub.on_action(move |key, window, cx| cb(key, window, cx));
-@@ -1748,7 +1757,7 @@ impl RenderOnce for Dropdown {
+@@ -1748,7 +1778,7 @@ impl RenderOnce for Dropdown {
                      // would activate the trigger on key up and reopen the menu
                      // -- the keyboard path asks for no refocus for that reason.
                      if refocus {
@@ -10178,7 +10236,7 @@ index ada6b895..62af6573 100644
  
          if !self.is_disabled {
 diff --git a/crates/herogpui-components/src/list_box.rs b/crates/herogpui-components/src/list_box.rs
-index 81d4e2e9..23b9037c 100644
+index 81d4e2e9..8a38d440 100644
 --- a/crates/herogpui-components/src/list_box.rs
 +++ b/crates/herogpui-components/src/list_box.rs
 @@ -1,6 +1,7 @@
@@ -10282,6 +10340,16 @@ index 81d4e2e9..23b9037c 100644
                      .id(list_id)
                      .h(height)
                      .w_full(),
+@@ -1294,6 +1310,9 @@ impl ListBox {
+                             .flex()
+                             .flex_col()
+                             .flex_1()
++                            // `[data-slot="description"]` is `text-wrap`, which
++                            // needs a column that can shrink below its content.
++                            .min_w_0()
+                             .child(div().child(label.to_string()))
+                             .when_some(description.clone(), |el, d| {
+                                 el.child(
 diff --git a/crates/herogpui-components/src/modal.rs b/crates/herogpui-components/src/modal.rs
 index 70e84e5d..673abb17 100644
 --- a/crates/herogpui-components/src/modal.rs
