@@ -12,6 +12,36 @@ fn still() {
     harness::still();
 }
 
+#[gpui::test]
+fn popover_body_text_does_not_inherit_host_line_height(cx: &mut TestAppContext) {
+    for leading in [None, Some(48.)] {
+        still();
+        let cx = open_host(cx, move || {
+            let mut root = gpui::div();
+            if let Some(leading) = leading {
+                root = root.text_size(px(32.)).line_height(px(leading));
+            }
+            root.child(
+                Popover::new(Button::new("line-trigger").label("Open"))
+                    .id("line-popover")
+                    .default_open(true)
+                    .title("Heading")
+                    .child(
+                        gpui::div()
+                            .debug_selector(|| "popover-body-text".to_owned())
+                            .child("First line\nSecond line"),
+                    ),
+            )
+            .into_any_element()
+        });
+        cx.run_until_parked();
+        assert_eq!(
+            cx.debug_bounds("popover-body-text").unwrap().size.height,
+            px(40.)
+        );
+    }
+}
+
 fn legacy_phase_probe(key: &'static str, open: bool, seen: harness::Events) -> AnyElement {
     canvas(
         move |_, window, cx| {

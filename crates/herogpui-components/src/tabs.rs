@@ -763,6 +763,7 @@ impl RenderOnce for Tabs {
                         .justify_center()
                         .rounded(crate::util::control_radius(cx))
                         .text_size(px(14.))
+                        .line_height(px(20.))
                         .font_weight(gpui::FontWeight::MEDIUM)
                         .when(!disabled, |t| t.cursor_pointer())
                         // `status-disabled` is `--disabled-opacity`.

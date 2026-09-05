@@ -6243,7 +6243,7 @@ const TABS_STYLING: &[StyleDoc] = &[
     StyleDoc {
         class_or_token: ".tabs__tab",
         value: "relative flex h-8 w-full rounded-3xl px-4 text-sm font-medium text-muted",
-        description: "Tab box and typography.",
+        description: "Tab box and 14px typography with a fixed 20px line height.",
         rust: "32px height + 16px padding + control_radius + 14px medium text",
         status: ImplementationStatus::Implemented,
     },
@@ -11195,7 +11195,7 @@ const POPOVER_STATES: &[StateDoc] = &[
 ];
 
 const POPOVER_STYLING: &[StyleDoc] = &[
-    StyleDoc { class_or_token: ".popover surface", value: "bg-overlay p-0 text-sm; min(32px, --radius-3xl); shadow-overlay", description: "Surface colour, 14px text, capped radius and overlay shadow match; the monolithic panel combines root and dialog padding.", rust: "overlay colors + text_size(px(14.)) + container_radius + overlay_shadow", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".popover surface", value: "bg-overlay p-0 text-sm; min(32px, --radius-3xl); shadow-overlay", description: "Surface colour, 14/20px text, capped radius and overlay shadow match; the monolithic panel combines root and dialog padding.", rust: "overlay colors + text_size(px(14.)) + container_radius + overlay_shadow", status: ImplementationStatus::Partial },
     StyleDoc { class_or_token: ".popover__dialog", value: "p-4 outline-none", description: "Sixteen-pixel inset and a programmatic dialog focus scope.", rust: "px(px(16.)) + py(px(16.)) + panel_focus", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".popover__heading", value: "font-medium", description: "Heading uses the pinned 500 weight.", rust: "FontWeight::MEDIUM", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".popover[data-entering=true]", value: "150ms ease-smooth fade-in-0 zoom-in-90 + placement slide 4px", description: "Duration, curve, fade and zoom match; transform origin and placement slide are absent.", rust: "Motion::POPOVER_IN + entering_zoom", status: ImplementationStatus::Partial },

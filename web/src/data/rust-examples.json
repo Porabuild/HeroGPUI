@@ -2677,6 +2677,7 @@
   "tabs": [
     {
       "heading": "Usage",
+      "description": "Tab labels use a 20px line height independently of surrounding text.",
       "imports": "use herogpui::prelude::{TabItem, Tabs};\nuse gpui::prelude::*;",
       "code": "Tabs::new(\n    \"tabs-usage\",\n    vec![\n        TabItem::new(\"photos\", \"Photos\")\n            .content(gpui::div().child(\"Your photo library.\")),\n        TabItem::new(\"music\", \"Music\")\n            .content(gpui::div().child(\"Playlists and albums.\")),\n        TabItem::new(\"videos\", \"Videos\")\n            .content(gpui::div().child(\"Everything you have filmed.\")),\n    ],\n    \"photos\",\n)"
     },
@@ -2885,6 +2886,7 @@
   "popover": [
     {
       "heading": "Usage",
+      "description": "Panel text and headings use a 20px line height independently of surrounding text.",
       "imports": "use herogpui::prelude::{Button, Popover, PopoverArrow, PopoverPlacement, Variant};\nuse gpui::prelude::*;\nuse gpui::px;",
       "code": "overlay_min_h(usage_slot, is_open, 160.)\n    .child(\n        Popover::new(\n            gpui::div()\n                .pr(px(96.))\n                .child(\n                    Button::new(\"popover-trigger\")\n                        .label(\"Open popover\")\n                        .variant(Variant::Secondary),\n                ),\n        )\n        .is_open(is_open)\n        .title(\"Quick note\")\n        .placement(PopoverPlacement::Bottom)\n        .child(gpui::div().child(\"Popovers are anchored to their trigger.\"))\n        .on_open_change(bool_cb(cx.listener(|this, open: &bool, _, cx| {\n            set_popover_open(\n                &mut this.popover_open,\n                &mut this.demo_flags,\n                \"po-usage\",\n                *open,\n            );\n            cx.notify();\n        }))),\n    )"
     },

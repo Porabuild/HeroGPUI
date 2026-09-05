@@ -11077,7 +11077,7 @@
       },
       {
         "token": ".tabs__tab",
-        "description": "Tab box and typography.",
+        "description": "Tab box and 14px typography with a fixed 20px line height.",
         "rust": "32px height + 16px padding + control_radius + 14px medium text",
         "status": "implemented"
       },
@@ -19483,7 +19483,7 @@
     "styling": [
       {
         "token": ".popover surface",
-        "description": "Surface colour, 14px text, capped radius and overlay shadow match; the monolithic panel combines root and dialog padding.",
+        "description": "Surface colour, 14/20px text, capped radius and overlay shadow match; the monolithic panel combines root and dialog padding.",
         "rust": "overlay colors + text_size(px(14.)) + container_radius + overlay_shadow",
         "status": "partial"
       },

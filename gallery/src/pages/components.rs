@@ -9533,6 +9533,7 @@ impl Gallery {
             vec![
                 (
                     "Usage",
+                    "Tab labels use a 20px line height independently of surrounding text.",
                     col(vec![h::Tabs::new(
                         "tabs-usage",
                         vec![
@@ -10849,6 +10850,7 @@ impl Gallery {
             vec![
                 (
                     "Usage",
+                    "Panel text and headings use a 20px line height independently of surrounding text.",
                     col(vec![overlay_min_h(usage_slot, is_open, 160.)
                         .child(
                             h::Popover::new(

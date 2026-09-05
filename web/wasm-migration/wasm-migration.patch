@@ -12817,7 +12817,7 @@ index 380beb7a..2abd28d5 100644
 +    }
 +}
 diff --git a/crates/herogpui-components/src/popover.rs b/crates/herogpui-components/src/popover.rs
-index c47881af..8cb65b0d 100644
+index c47881af..6ab0a89f 100644
 --- a/crates/herogpui-components/src/popover.rs
 +++ b/crates/herogpui-components/src/popover.rs
 @@ -729,20 +729,6 @@ impl RenderOnce for Popover {
@@ -12894,6 +12894,14 @@ index c47881af..8cb65b0d 100644
                      click_pressed.set(false);
                  });
          }
+@@ -840,6 +843,7 @@ impl RenderOnce for Popover {
+             .text_color(colors.surface.foreground)
+             // `.popover` is `text-sm`.
+             .text_size(px(14.))
++            .line_height(px(20.))
+             .rounded(crate::util::container_radius(cx))
+             // v3 gives a floating panel no border: `.popover` and friends are
+             // `bg-overlay shadow-overlay` and a radius, and dark mode's
 diff --git a/crates/herogpui-components/src/progress.rs b/crates/herogpui-components/src/progress.rs
 index d15cabed..c14669f9 100644
 --- a/crates/herogpui-components/src/progress.rs
@@ -15759,7 +15767,7 @@ index a97e013d..c2235767 100644
 +    }
  }
 diff --git a/crates/herogpui-components/src/tabs.rs b/crates/herogpui-components/src/tabs.rs
-index 04bbd81e..ec2d9a62 100644
+index 04bbd81e..6dfb192d 100644
 --- a/crates/herogpui-components/src/tabs.rs
 +++ b/crates/herogpui-components/src/tabs.rs
 @@ -117,7 +117,7 @@ fn indicator_motion(
@@ -15809,7 +15817,15 @@ index 04bbd81e..ec2d9a62 100644
          }
          let has_enabled_tab = !self.is_disabled && self.items.iter().any(|item| !item.is_disabled);
          let mut separator_motions = self
-@@ -874,7 +876,7 @@ impl RenderOnce for Tabs {
+@@ -761,6 +763,7 @@ impl RenderOnce for Tabs {
+                         .justify_center()
+                         .rounded(crate::util::control_radius(cx))
+                         .text_size(px(14.))
++                        .line_height(px(20.))
+                         .font_weight(gpui::FontWeight::MEDIUM)
+                         .when(!disabled, |t| t.cursor_pointer())
+                         // `status-disabled` is `--disabled-opacity`.
+@@ -874,7 +877,7 @@ impl RenderOnce for Tabs {
                          let list_focus_after_pointer = list_focus_for_click.clone();
                          let select: Rc<dyn Fn(&mut Window, &mut App)> =
                              Rc::new(move |window, cx| {
@@ -15818,7 +15834,7 @@ index 04bbd81e..ec2d9a62 100644
                                  focus.update(cx, |state, cx| {
                                      state.key = key.clone();
                                      cx.notify();
-@@ -896,7 +898,7 @@ impl RenderOnce for Tabs {
+@@ -896,7 +899,7 @@ impl RenderOnce for Tabs {
                              .on_mouse_down(gpui::MouseButton::Left, move |_, window, cx| {
                                  pointer_select(window, cx);
                                  let list_focus = list_focus_after_pointer.clone();
@@ -15827,7 +15843,7 @@ index 04bbd81e..ec2d9a62 100644
                              })
                              .on_click(move |event, window, cx| {
                                  if matches!(event, gpui::ClickEvent::Keyboard(_)) {
-@@ -1031,7 +1033,7 @@ impl RenderOnce for Tabs {
+@@ -1031,7 +1034,7 @@ impl RenderOnce for Tabs {
                          let list_focus_after_pointer = list_focus_for_click.clone();
                          let select: Rc<dyn Fn(&mut Window, &mut App)> =
                              Rc::new(move |window, cx| {
@@ -15836,7 +15852,7 @@ index 04bbd81e..ec2d9a62 100644
                                  focus.update(cx, |state, cx| {
                                      state.key = key.clone();
                                      cx.notify();
-@@ -1053,7 +1055,7 @@ impl RenderOnce for Tabs {
+@@ -1053,7 +1056,7 @@ impl RenderOnce for Tabs {
                              .on_mouse_down(gpui::MouseButton::Left, move |_, window, cx| {
                                  pointer_select(window, cx);
                                  let list_focus = list_focus_after_pointer.clone();
@@ -15845,7 +15861,7 @@ index 04bbd81e..ec2d9a62 100644
                              })
                              .on_click(move |event, window, cx| {
                                  if matches!(event, gpui::ClickEvent::Keyboard(_)) {
-@@ -1087,12 +1089,12 @@ impl RenderOnce for Tabs {
+@@ -1087,12 +1090,12 @@ impl RenderOnce for Tabs {
                  // The wrapper is a real stop so reverse traversal can reach a
                  // plain panel. Probe one stop past it: a child stays inside;
                  // otherwise reclaim the wrapper as the correct destination.
@@ -15861,7 +15877,7 @@ index 04bbd81e..ec2d9a62 100644
                  }
              });
          }
-@@ -1192,12 +1194,12 @@ impl RenderOnce for Tabs {
+@@ -1192,12 +1195,12 @@ impl RenderOnce for Tabs {
                          let next = if vertical {
                              (
                                  f32::from(offset.y) < -0.5,
@@ -15876,7 +15892,7 @@ index 04bbd81e..ec2d9a62 100644
                              )
                          };
                          if *measured.read(cx) != next {
-@@ -1286,11 +1288,11 @@ impl RenderOnce for Tabs {
+@@ -1286,11 +1289,11 @@ impl RenderOnce for Tabs {
                                  // should land on it when moving backward.
                                  let skip_panel = !panel_focus_for_keys.is_focused(window)
                                      && window.focused(cx).is_some_and(|handle| handle.tab_stop);
@@ -15891,7 +15907,7 @@ index 04bbd81e..ec2d9a62 100644
                                      }
                                  }
                              } else if probe_on_key_up
-@@ -1302,13 +1304,13 @@ impl RenderOnce for Tabs {
+@@ -1302,13 +1305,13 @@ impl RenderOnce for Tabs {
                                  // the child it stands in for and then one real
                                  // step, skipping the wrapper again on wrap.
                                  cx.stop_propagation();
@@ -15908,7 +15924,7 @@ index 04bbd81e..ec2d9a62 100644
                                      }
                                  }
                              }
-@@ -1324,9 +1326,9 @@ impl RenderOnce for Tabs {
+@@ -1324,9 +1327,9 @@ impl RenderOnce for Tabs {
                              // An all-disabled list has no focused tab whose
                              // key-down can run the forward probe. Tab key-up is
                              // delivered to the wrapper it just reached.
@@ -19081,6 +19097,47 @@ index 4cf8efaf..b33b00ae 100644
  /// A select whose whole collection is disabled opens but answers nothing: the
  /// rows have no handlers and the arrow-key resolver has no stops, so neither
  /// path can choose anything, and nothing is ever reported.
+diff --git a/crates/herogpui-components/tests/popover_stack_deep.rs b/crates/herogpui-components/tests/popover_stack_deep.rs
+index 969a9731..72a5d91a 100644
+--- a/crates/herogpui-components/tests/popover_stack_deep.rs
++++ b/crates/herogpui-components/tests/popover_stack_deep.rs
+@@ -12,6 +12,36 @@ fn still() {
+     harness::still();
+ }
+ 
++#[gpui::test]
++fn popover_body_text_does_not_inherit_host_line_height(cx: &mut TestAppContext) {
++    for leading in [None, Some(48.)] {
++        still();
++        let cx = open_host(cx, move || {
++            let mut root = gpui::div();
++            if let Some(leading) = leading {
++                root = root.text_size(px(32.)).line_height(px(leading));
++            }
++            root.child(
++                Popover::new(Button::new("line-trigger").label("Open"))
++                    .id("line-popover")
++                    .default_open(true)
++                    .title("Heading")
++                    .child(
++                        gpui::div()
++                            .debug_selector(|| "popover-body-text".to_owned())
++                            .child("First line\nSecond line"),
++                    ),
++            )
++            .into_any_element()
++        });
++        cx.run_until_parked();
++        assert_eq!(
++            cx.debug_bounds("popover-body-text").unwrap().size.height,
++            px(40.)
++        );
++    }
++}
++
+ fn legacy_phase_probe(key: &'static str, open: bool, seen: harness::Events) -> AnyElement {
+     canvas(
+         move |_, window, cx| {
 diff --git a/crates/herogpui-components/tests/table_tabs_accordion.rs b/crates/herogpui-components/tests/table_tabs_accordion.rs
 index 7446367b..6fa09fa1 100644
 --- a/crates/herogpui-components/tests/table_tabs_accordion.rs
@@ -24231,7 +24288,7 @@ index 723274b0..f4c6f34d 100644
              // `HEROGPUI_WINDOW_SIZE=1200x2000` opens the window at that size.
              // A capture is one PrintWindow of the whole window, so a taller
 diff --git a/gallery/src/pages/components.rs b/gallery/src/pages/components.rs
-index 5eb12cd4..51c29095 100644
+index 5eb12cd4..3f9b9436 100644
 --- a/gallery/src/pages/components.rs
 +++ b/gallery/src/pages/components.rs
 @@ -1,7 +1,7 @@
@@ -28140,7 +28197,15 @@ index 5eb12cd4..51c29095 100644
                          h::Pagination::new("pg-custom", page, 5)
                              .previous_icon(icon(h::icons::ARROW_LEFT, cx))
                              .next_icon(icon(h::icons::ARROW_RIGHT, cx))
-@@ -9104,8 +9570,8 @@ impl Gallery {
+@@ -9071,6 +9537,7 @@ impl Gallery {
+             vec![
+                 (
+                     "Usage",
++                    "Tab labels use a 20px line height independently of surrounding text.",
+                     col(vec![h::Tabs::new(
+                         "tabs-usage",
+                         vec![
+@@ -9104,8 +9571,8 @@ impl Gallery {
                  ),
                  (
                      "Overflow",
@@ -28150,7 +28215,7 @@ index 5eb12cd4..51c29095 100644
                          para("Horizontal", cx),
                          // The list only overflows inside a bounded box, which is
                          // how v3's own example frames it.
-@@ -9226,7 +9692,7 @@ impl Gallery {
+@@ -9226,7 +9693,7 @@ impl Gallery {
              vec![
                  (
                      "Sizes",
@@ -28159,7 +28224,7 @@ index 5eb12cd4..51c29095 100644
                          ("ad-size-xs", "Xs", h::AlertDialogSize::Xs),
                          ("ad-size-sm", "Sm", h::AlertDialogSize::Sm),
                          ("ad-size-md", "Md", h::AlertDialogSize::Md),
-@@ -9237,6 +9703,7 @@ impl Gallery {
+@@ -9237,6 +9704,7 @@ impl Gallery {
                      .map(|(key, label, size)| {
                          let open = self.demo_overlay(key);
                          overlay_demo(
@@ -28167,7 +28232,7 @@ index 5eb12cd4..51c29095 100644
                              key,
                              label,
                              h::AlertDialog::new(format!("Size: {label}")).id(key)
-@@ -9258,7 +9725,7 @@ impl Gallery {
+@@ -9258,7 +9726,7 @@ impl Gallery {
                  ),
                  (
                      "Statuses",
@@ -28176,7 +28241,7 @@ index 5eb12cd4..51c29095 100644
                          ("ad-st-default", "Default", Color::Default),
                          ("ad-st-accent", "Accent", Color::Accent),
                          ("ad-st-success", "Success", Color::Success),
-@@ -9269,6 +9736,7 @@ impl Gallery {
+@@ -9269,6 +9737,7 @@ impl Gallery {
                      .map(|(key, label, status)| {
                          let open = self.demo_overlay(key);
                          overlay_demo(
@@ -28184,7 +28249,7 @@ index 5eb12cd4..51c29095 100644
                              key,
                              label,
                              h::AlertDialog::new(format!("{label} status")).id(key)
-@@ -9290,7 +9758,7 @@ impl Gallery {
+@@ -9290,7 +9759,7 @@ impl Gallery {
                  ),
                  (
                      "Placements",
@@ -28193,7 +28258,7 @@ index 5eb12cd4..51c29095 100644
                          ("ad-pl-auto", "Auto", h::ModalPlacement::Auto),
                          ("ad-pl-center", "Center", h::ModalPlacement::Center),
                          ("ad-pl-top", "Top", h::ModalPlacement::Top),
-@@ -9300,6 +9768,7 @@ impl Gallery {
+@@ -9300,6 +9769,7 @@ impl Gallery {
                      .map(|(key, label, placement)| {
                          let open = self.demo_overlay(key);
                          overlay_demo(
@@ -28201,7 +28266,7 @@ index 5eb12cd4..51c29095 100644
                              key,
                              label,
                              h::AlertDialog::new(format!("Placement: {label}")).id(key)
-@@ -9321,7 +9790,7 @@ impl Gallery {
+@@ -9321,7 +9791,7 @@ impl Gallery {
                  ),
                  (
                      "Backdrop Variants",
@@ -28210,7 +28275,7 @@ index 5eb12cd4..51c29095 100644
                          .iter()
                          .map(|backdrop| {
                              let key: &'static str = match backdrop {
-@@ -9331,6 +9800,7 @@ impl Gallery {
+@@ -9331,6 +9801,7 @@ impl Gallery {
                              };
                              let open = self.demo_overlay(key);
                              overlay_demo(
@@ -28218,7 +28283,7 @@ index 5eb12cd4..51c29095 100644
                                  key,
                                  backdrop.label(),
                                  h::AlertDialog::new(format!("Backdrop: {}", backdrop.label())).id(key)
-@@ -9352,7 +9822,8 @@ impl Gallery {
+@@ -9352,7 +9823,8 @@ impl Gallery {
                  ),
                  (
                      "Controlled State",
@@ -28228,7 +28293,7 @@ index 5eb12cd4..51c29095 100644
                          "ad-controlled",
                          "Open (controlled)",
                          h::AlertDialog::new("Controlled").id("ad-controlled")
-@@ -9369,7 +9840,8 @@ impl Gallery {
+@@ -9369,7 +9841,8 @@ impl Gallery {
                  ),
                  (
                      "Custom Icon",
@@ -28238,7 +28303,7 @@ index 5eb12cd4..51c29095 100644
                          "ad-icon",
                          "Open with a status icon",
                          h::AlertDialog::new("Heads up").id("ad-icon")
-@@ -9387,7 +9859,8 @@ impl Gallery {
+@@ -9387,7 +9860,8 @@ impl Gallery {
                  ),
                  (
                      "Custom Backdrop",
@@ -28248,7 +28313,7 @@ index 5eb12cd4..51c29095 100644
                          "ad-custom-bd",
                          "Open with a blurred backdrop",
                          h::AlertDialog::new("Blurred").id("ad-custom-bd")
-@@ -9405,7 +9878,8 @@ impl Gallery {
+@@ -9405,7 +9879,8 @@ impl Gallery {
                  ),
                  (
                      "Dismiss Behavior",
@@ -28258,7 +28323,7 @@ index 5eb12cd4..51c29095 100644
                          "ad-dismiss",
                          "Open a non-dismissable dialog",
                          h::AlertDialog::new("Confirm first").id("ad-dismiss")
-@@ -9424,12 +9898,13 @@ impl Gallery {
+@@ -9424,12 +9899,13 @@ impl Gallery {
                  ),
                  (
                      "Close Methods",
@@ -28274,7 +28339,7 @@ index 5eb12cd4..51c29095 100644
                                  .is_open(self.demo_overlay("ad-close"))
                                  .footer_child(
                                      h::Button::new("ad-close-cancel")
-@@ -9457,6 +9932,7 @@ impl Gallery {
+@@ -9457,6 +9933,7 @@ impl Gallery {
                              cx,
                          ),
                          overlay_demo(
@@ -28282,7 +28347,7 @@ index 5eb12cd4..51c29095 100644
                              "ad-pending",
                              "Open (pending confirm)",
                              h::AlertDialog::new("Deploying").id("ad-pending")
-@@ -9487,7 +9963,8 @@ impl Gallery {
+@@ -9487,7 +9964,8 @@ impl Gallery {
                  ),
                  (
                      "Custom Animations",
@@ -28292,7 +28357,7 @@ index 5eb12cd4..51c29095 100644
                          "ad-anim",
                          "Open and watch the panel",
                          h::AlertDialog::new("Animated").id("ad-anim")
-@@ -9504,13 +9981,18 @@ impl Gallery {
+@@ -9504,13 +9982,18 @@ impl Gallery {
                  ),
                  (
                      "Custom Trigger",
@@ -28318,7 +28383,7 @@ index 5eb12cd4..51c29095 100644
                          .child(
                              gpui::div()
                                  .id("ad-custom-trigger")
-@@ -9529,7 +10011,7 @@ impl Gallery {
+@@ -9529,7 +10012,7 @@ impl Gallery {
                          .child(
                              h::AlertDialog::new("Delete this account?").id("ad-custom")
                                  .description("Any element can open an alert dialog; a composed CloseTrigger draws the corner X and a composed footer owns the danger confirm.")
@@ -28327,7 +28392,7 @@ index 5eb12cd4..51c29095 100644
                                  .child(h::AlertDialogCloseTrigger::new())
                                  .footer_child(
                                      h::Button::new("ad-custom-cancel")
-@@ -9554,58 +10036,64 @@ impl Gallery {
+@@ -9554,58 +10037,64 @@ impl Gallery {
                                      cx.notify();
                                  })))
                          )
@@ -28441,7 +28506,7 @@ index 5eb12cd4..51c29095 100644
              )],
              cx,
          )
-@@ -9620,7 +10108,7 @@ impl Gallery {
+@@ -9620,7 +10109,7 @@ impl Gallery {
              vec![
                  (
                      "Placement",
@@ -28450,7 +28515,7 @@ index 5eb12cd4..51c29095 100644
                          ("dr-left", "Left", h::DrawerPlacement::Left),
                          ("dr-right", "Right", h::DrawerPlacement::Right),
                          ("dr-top", "Top", h::DrawerPlacement::Top),
-@@ -9630,6 +10118,7 @@ impl Gallery {
+@@ -9630,6 +10119,7 @@ impl Gallery {
                      .map(|(key, label, placement)| {
                          let open = self.demo_overlay(key);
                          overlay_demo(
@@ -28458,7 +28523,7 @@ index 5eb12cd4..51c29095 100644
                              key,
                              label,
                              h::Drawer::new()
-@@ -9654,7 +10143,8 @@ impl Gallery {
+@@ -9654,7 +10144,8 @@ impl Gallery {
                  ),
                  (
                      "Non-Dismissable",
@@ -28468,7 +28533,7 @@ index 5eb12cd4..51c29095 100644
                          "dr-no-dismiss",
                          "Open a non-dismissable drawer",
                          h::Drawer::new()
-@@ -9682,7 +10172,8 @@ impl Gallery {
+@@ -9682,7 +10173,8 @@ impl Gallery {
                  ),
                  (
                      "Scrollable Content",
@@ -28478,7 +28543,7 @@ index 5eb12cd4..51c29095 100644
                          "dr-scroll",
                          "Open a long drawer",
                          h::Drawer::new()
-@@ -9706,7 +10197,7 @@ impl Gallery {
+@@ -9706,7 +10198,7 @@ impl Gallery {
                  ),
                  (
                      "Controlled State",
@@ -28487,7 +28552,7 @@ index 5eb12cd4..51c29095 100644
                          para(
                              &format!(
                                  "The flag lives with the caller: {}",
-@@ -9719,6 +10210,7 @@ impl Gallery {
+@@ -9719,6 +10211,7 @@ impl Gallery {
                              cx,
                          ),
                          overlay_demo(
@@ -28495,7 +28560,7 @@ index 5eb12cd4..51c29095 100644
                              "dr-controlled",
                              "Open (controlled)",
                              h::Drawer::new()
-@@ -9739,7 +10231,8 @@ impl Gallery {
+@@ -9739,7 +10232,8 @@ impl Gallery {
                  ),
                  (
                      "With Form",
@@ -28505,7 +28570,7 @@ index 5eb12cd4..51c29095 100644
                          "dr-form",
                          "Open a form drawer",
                          h::Drawer::new()
-@@ -9779,7 +10272,8 @@ impl Gallery {
+@@ -9779,7 +10273,8 @@ impl Gallery {
                  ),
                  (
                      "Navigation Drawer",
@@ -28515,7 +28580,7 @@ index 5eb12cd4..51c29095 100644
                          "dr-nav",
                          "Open the navigation",
                          h::Drawer::new()
-@@ -9809,7 +10303,7 @@ impl Gallery {
+@@ -9809,7 +10304,7 @@ impl Gallery {
                  ),
                  (
                      "Backdrop Variants",
@@ -28524,7 +28589,7 @@ index 5eb12cd4..51c29095 100644
                          .iter()
                          .map(|backdrop| {
                              let key: &'static str = match backdrop {
-@@ -9819,6 +10313,7 @@ impl Gallery {
+@@ -9819,6 +10314,7 @@ impl Gallery {
                              };
                              let open = self.demo_overlay(key);
                              overlay_demo(
@@ -28532,7 +28597,7 @@ index 5eb12cd4..51c29095 100644
                                  key,
                                  backdrop.label(),
                                  h::Drawer::new()
-@@ -9843,39 +10338,44 @@ impl Gallery {
+@@ -9843,39 +10339,44 @@ impl Gallery {
                  ),
                  (
                      "Usage",
@@ -28606,7 +28671,7 @@ index 5eb12cd4..51c29095 100644
                  ),
              ],
              cx,
-@@ -9898,7 +10398,7 @@ impl Gallery {
+@@ -9898,7 +10399,7 @@ impl Gallery {
              vec![
                  (
                      "Sizes",
@@ -28615,7 +28680,7 @@ index 5eb12cd4..51c29095 100644
                          ("md-size-xs", "Xs", h::ModalSize::Xs),
                          ("md-size-sm", "Sm", h::ModalSize::Sm),
                          ("md-size-md", "Md", h::ModalSize::Md),
-@@ -9910,6 +10410,7 @@ impl Gallery {
+@@ -9910,6 +10411,7 @@ impl Gallery {
                      .map(|(key, label, size)| {
                          let open = self.demo_overlay(key);
                          overlay_demo(
@@ -28623,7 +28688,7 @@ index 5eb12cd4..51c29095 100644
                              key,
                              label,
                              h::Modal::new()
-@@ -9934,7 +10435,7 @@ impl Gallery {
+@@ -9934,7 +10436,7 @@ impl Gallery {
                  ),
                  (
                      "Placement",
@@ -28632,7 +28697,7 @@ index 5eb12cd4..51c29095 100644
                          ("md-place-auto", "Auto", h::ModalPlacement::Auto),
                          ("md-place-center", "Center", h::ModalPlacement::Center),
                          ("md-place-top", "Top", h::ModalPlacement::Top),
-@@ -9944,6 +10445,7 @@ impl Gallery {
+@@ -9944,6 +10446,7 @@ impl Gallery {
                      .map(|(key, label, placement)| {
                          let open = self.demo_overlay(key);
                          overlay_demo(
@@ -28640,7 +28705,7 @@ index 5eb12cd4..51c29095 100644
                              key,
                              label,
                              h::Modal::new()
-@@ -9968,7 +10470,7 @@ impl Gallery {
+@@ -9968,7 +10471,7 @@ impl Gallery {
                  ),
                  (
                      "Scroll Behavior",
@@ -28649,7 +28714,7 @@ index 5eb12cd4..51c29095 100644
                          ("md-scroll-inside", "Inside", h::ModalScroll::Inside),
                          ("md-scroll-outside", "Outside", h::ModalScroll::Outside),
                      ]
-@@ -9976,6 +10478,7 @@ impl Gallery {
+@@ -9976,6 +10479,7 @@ impl Gallery {
                      .map(|(key, label, scroll)| {
                          let open = self.demo_overlay(key);
                          overlay_demo(
@@ -28657,7 +28722,7 @@ index 5eb12cd4..51c29095 100644
                              key,
                              label,
                              h::Modal::new()
-@@ -10004,7 +10507,7 @@ impl Gallery {
+@@ -10004,7 +10508,7 @@ impl Gallery {
                  ),
                  (
                      "Controlled State",
@@ -28666,7 +28731,7 @@ index 5eb12cd4..51c29095 100644
                          para(
                              &format!(
                                  "The flag lives with the caller: {}",
-@@ -10013,6 +10516,7 @@ impl Gallery {
+@@ -10013,6 +10517,7 @@ impl Gallery {
                              cx,
                          ),
                          overlay_demo(
@@ -28674,7 +28739,7 @@ index 5eb12cd4..51c29095 100644
                              "md-controlled",
                              "Open (controlled)",
                              h::Modal::new()
-@@ -10033,7 +10537,8 @@ impl Gallery {
+@@ -10033,7 +10538,8 @@ impl Gallery {
                  ),
                  (
                      "With Form",
@@ -28684,7 +28749,7 @@ index 5eb12cd4..51c29095 100644
                          "md-form",
                          "Open form modal",
                          h::Modal::new()
-@@ -10075,18 +10580,21 @@ impl Gallery {
+@@ -10075,18 +10581,21 @@ impl Gallery {
                  ),
                  (
                      "Custom Trigger",
@@ -28714,7 +28779,7 @@ index 5eb12cd4..51c29095 100644
                                  .on_click(cx.listener(|this, _, _, cx| {
                                      this.set_demo_flag("md-custom", true);
                                      cx.notify();
-@@ -10109,7 +10617,7 @@ impl Gallery {
+@@ -10109,7 +10618,7 @@ impl Gallery {
                  ),
                  (
                      "Backdrop Variants",
@@ -28723,7 +28788,7 @@ index 5eb12cd4..51c29095 100644
                          .iter()
                          .map(|backdrop| {
                              let key: &'static str = match backdrop {
-@@ -10119,6 +10627,7 @@ impl Gallery {
+@@ -10119,6 +10628,7 @@ impl Gallery {
                              };
                              let open = self.demo_overlay(key);
                              overlay_demo(
@@ -28731,7 +28796,7 @@ index 5eb12cd4..51c29095 100644
                                  key,
                                  backdrop.label(),
                                  h::Modal::new()
-@@ -10143,14 +10652,10 @@ impl Gallery {
+@@ -10143,14 +10653,10 @@ impl Gallery {
                  ),
                  (
                      "Custom Backdrop",
@@ -28749,7 +28814,7 @@ index 5eb12cd4..51c29095 100644
                              "md-bd-custom",
                              "Open with a blurred backdrop",
                              h::Modal::new()
-@@ -10172,13 +10677,10 @@ impl Gallery {
+@@ -10172,13 +10678,10 @@ impl Gallery {
                  ),
                  (
                      "Dismiss Behavior",
@@ -28766,7 +28831,7 @@ index 5eb12cd4..51c29095 100644
                              "md-no-dismiss",
                              "Open a non-dismissable modal",
                              h::Modal::new()
-@@ -10210,15 +10712,10 @@ impl Gallery {
+@@ -10210,15 +10713,10 @@ impl Gallery {
                  ),
                  (
                      "Close Methods",
@@ -28785,7 +28850,7 @@ index 5eb12cd4..51c29095 100644
                              "md-close",
                              "Open (no close trigger)",
                              h::Modal::new()
-@@ -10250,16 +10747,10 @@ impl Gallery {
+@@ -10250,16 +10748,10 @@ impl Gallery {
                  ),
                  (
                      "Custom Animations",
@@ -28805,7 +28870,7 @@ index 5eb12cd4..51c29095 100644
                              "md-anim",
                              "Open and watch the panel",
                              h::Modal::new()
-@@ -10280,13 +10771,17 @@ impl Gallery {
+@@ -10280,13 +10772,17 @@ impl Gallery {
                  ),
                  (
                      "Usage",
@@ -28830,7 +28895,7 @@ index 5eb12cd4..51c29095 100644
                          .child(
                              h::Button::new("md-open")
                                  .label("Open modal")
-@@ -10325,7 +10820,8 @@ impl Gallery {
+@@ -10325,7 +10821,8 @@ impl Gallery {
                                      cx.notify();
                                  })),
                          )
@@ -28840,7 +28905,7 @@ index 5eb12cd4..51c29095 100644
                  ),
              ],
              cx,
-@@ -10335,6 +10831,20 @@ impl Gallery {
+@@ -10335,6 +10832,20 @@ impl Gallery {
      pub fn page_popover(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
          let is_open = self.popover_open;
          let po_following = self.demo_flag("po-following", false);
@@ -28861,7 +28926,7 @@ index 5eb12cd4..51c29095 100644
          component_doc_page!(
              "Popover",
              crate::pages::Page::Popover.description(),
-@@ -10342,79 +10852,121 @@ impl Gallery {
+@@ -10342,79 +10853,121 @@ impl Gallery {
              vec![
                  (
                      "With Arrow",
@@ -29017,7 +29082,7 @@ index 5eb12cd4..51c29095 100644
                              .title("Sarah Johnson")
                              .child(
                                  gpui::div()
-@@ -10442,16 +10994,16 @@ impl Gallery {
+@@ -10442,16 +10995,16 @@ impl Gallery {
                                      ),
                              ),
                          )
@@ -29040,7 +29105,7 @@ index 5eb12cd4..51c29095 100644
                          .children(
                              [
                                  ("po-pl-top", "Top", h::PopoverPlacement::Top),
-@@ -10461,7 +11013,24 @@ impl Gallery {
+@@ -10461,7 +11014,24 @@ impl Gallery {
                              ]
                              .into_iter()
                              .map(|(id, label, placement)| {
@@ -29066,7 +29131,7 @@ index 5eb12cd4..51c29095 100644
                                      h::Popover::new(
                                          h::Button::new(el_id(format!("{id}-trigger")))
                                              .label(label)
-@@ -10469,30 +11038,220 @@ impl Gallery {
+@@ -10469,30 +11039,221 @@ impl Gallery {
                                              .size(Size::Sm),
                                      )
                                      .id(id)
@@ -29273,6 +29338,7 @@ index 5eb12cd4..51c29095 100644
 -                        cx.notify();
 -                    })))
 -                    .into_any_element()]),
++                    "Panel text and headings use a 20px line height independently of surrounding text.",
 +                    col(vec![overlay_min_h(usage_slot, is_open, 160.)
 +                        .child(
 +                            h::Popover::new(
@@ -29302,7 +29368,7 @@ index 5eb12cd4..51c29095 100644
                  ),
              ],
              cx,
-@@ -10541,13 +11300,8 @@ impl Gallery {
+@@ -10541,13 +11302,8 @@ impl Gallery {
                  ),
                  (
                      "Placements",
@@ -29317,7 +29383,7 @@ index 5eb12cd4..51c29095 100644
                          row([
                              ("TopStart", h::ToastPlacement::TopStart),
                              ("Top", h::ToastPlacement::Top),
-@@ -10592,13 +11346,8 @@ impl Gallery {
+@@ -10592,13 +11348,8 @@ impl Gallery {
                  ),
                  (
                      "Custom Indicators",
@@ -29332,7 +29398,7 @@ index 5eb12cd4..51c29095 100644
                          row(vec![
                              h::Button::new("toast-ind-success")
                                  .label("Success")
-@@ -10646,13 +11395,8 @@ impl Gallery {
+@@ -10646,13 +11397,8 @@ impl Gallery {
                  ),
                  (
                      "Custom Toast Rendering",
@@ -29347,7 +29413,7 @@ index 5eb12cd4..51c29095 100644
                          row(vec![h::Button::new("toast-custom")
                              .label("Push a two-line toast")
                              .variant(Variant::Secondary)
-@@ -10669,13 +11413,8 @@ impl Gallery {
+@@ -10669,13 +11415,8 @@ impl Gallery {
                  ),
                  (
                      "Promise & Loading",
@@ -29362,7 +29428,7 @@ index 5eb12cd4..51c29095 100644
                          row(vec![h::Button::new("toast-promise")
                              .label("Upload a file")
                              .variant(Variant::Secondary)
-@@ -10708,13 +11447,9 @@ impl Gallery {
+@@ -10708,13 +11449,9 @@ impl Gallery {
                  ),
                  (
                      "Callbacks",
@@ -29377,7 +29443,7 @@ index 5eb12cd4..51c29095 100644
                          row(vec![h::Button::new("toast-callback")
                              .label("Push a closable toast")
                              .variant(Variant::Secondary)
-@@ -10731,12 +11466,8 @@ impl Gallery {
+@@ -10731,12 +11468,8 @@ impl Gallery {
                  ),
                  (
                      "Custom Queues",
@@ -29391,7 +29457,7 @@ index 5eb12cd4..51c29095 100644
                          row(vec![h::Button::new("toast-queue")
                              .label("Push four")
                              .variant(Variant::Secondary)
-@@ -10753,12 +11484,8 @@ impl Gallery {
+@@ -10753,12 +11486,8 @@ impl Gallery {
                  ),
                  (
                      "Setup",
@@ -29405,7 +29471,7 @@ index 5eb12cd4..51c29095 100644
                          crate::pages::code_block(TOAST_SETUP, cx),
                      ]),
                  ),
-@@ -10822,7 +11549,7 @@ impl Gallery {
+@@ -10822,7 +11551,7 @@ impl Gallery {
                          h::Tooltip::new("Jane Doe")
                              .delay(0)
                              .show_arrow(true)
@@ -29414,7 +29480,7 @@ index 5eb12cd4..51c29095 100644
                              .into_any_element(),
                          h::Tooltip::new("Verified account")
                              .delay(0)
-@@ -10928,110 +11655,120 @@ impl Gallery {
+@@ -10928,110 +11657,120 @@ impl Gallery {
              vec![
                  (
                      "Virtualization",
@@ -29562,7 +29628,7 @@ index 5eb12cd4..51c29095 100644
                          self.demo_text("ac-sections", "", cx),
                          vec![
                              h::PickerItem::new("rust", "Rust"),
-@@ -11041,6 +11778,7 @@ impl Gallery {
+@@ -11041,6 +11780,7 @@ impl Gallery {
                          ],
                      )
                      .label("Language")
@@ -29570,7 +29636,7 @@ index 5eb12cd4..51c29095 100644
                      .section_before("rust", "Systems")
                      .section_before("typescript", "Scripting")
                      .default_open(true)
-@@ -11048,11 +11786,12 @@ impl Gallery {
+@@ -11048,11 +11788,12 @@ impl Gallery {
                  ),
                  (
                      "Multiple Select",
@@ -29584,7 +29650,7 @@ index 5eb12cd4..51c29095 100644
                      .selection_mode(SelectionMode::Multiple)
                      // `defaultValue` is `Key | Key[]`: the uncontrolled
                      // selection, seeded once, by key.
-@@ -11065,6 +11804,7 @@ impl Gallery {
+@@ -11065,6 +11806,7 @@ impl Gallery {
                      col(vec![
                          h::Autocomplete::new(self.demo_text("ac-controlled", "", cx), language_items())
                              .label("Language")
@@ -29592,7 +29658,7 @@ index 5eb12cd4..51c29095 100644
                              .input_value(ac_typed)
                              .on_input_change(cx.listener(|this, text: &str, _, cx| {
                                  this.set_demo_text_value("ac-typed", text.to_owned());
-@@ -11087,11 +11827,12 @@ impl Gallery {
+@@ -11087,11 +11829,12 @@ impl Gallery {
                  ),
                  (
                      "Controlled Multiple",
@@ -29606,7 +29672,7 @@ index 5eb12cd4..51c29095 100644
                      .selection_mode(SelectionMode::Multiple)
                      .selected_keys(ac_multi.iter().cloned())
                      .on_selection_change_all(cx.listener(|this, keys: &[SharedString], _, cx| {
-@@ -11117,6 +11858,7 @@ impl Gallery {
+@@ -11117,6 +11860,7 @@ impl Gallery {
                          ]),
                          h::Autocomplete::new(self.demo_text("ac-open", "", cx), language_items())
                              .label("Language")
@@ -29614,7 +29680,7 @@ index 5eb12cd4..51c29095 100644
                              .is_open(ac_open)
                              .on_open_change(bool_cb(cx.listener(|this, v: &bool, _, cx| {
                                  this.set_demo_flag("ac-open", *v);
-@@ -11127,16 +11869,12 @@ impl Gallery {
+@@ -11127,16 +11871,12 @@ impl Gallery {
                  ),
                  (
                      "Asynchronous Filtering",
@@ -29633,7 +29699,7 @@ index 5eb12cd4..51c29095 100644
                                  // `useFilter({sensitivity: "base"}).contains`:
                                  // case and accents both ignored, so "cafe"
                                  // finds "Café". The closure receives
-@@ -11153,11 +11891,12 @@ impl Gallery {
+@@ -11153,11 +11893,12 @@ impl Gallery {
                  ),
                  (
                      "Custom Indicator",
@@ -29647,7 +29713,7 @@ index 5eb12cd4..51c29095 100644
                      .default_open(true)
                      .indicator(|is_open| {
                          gpui::div()
-@@ -11169,17 +11908,11 @@ impl Gallery {
+@@ -11169,17 +11910,11 @@ impl Gallery {
                  ),
                  (
                      "Custom Value",
@@ -29667,7 +29733,7 @@ index 5eb12cd4..51c29095 100644
                              .selection_mode(SelectionMode::Multiple)
                              .default_value(["rust", "go"])
                              .value_content(|value| {
-@@ -11205,7 +11938,7 @@ impl Gallery {
+@@ -11205,7 +11940,7 @@ impl Gallery {
                  ),
                  (
                      "Usage",
@@ -29676,7 +29742,7 @@ index 5eb12cd4..51c29095 100644
                          self.ac_entity.clone(),
                          language_items(),
                      )
-@@ -11235,94 +11968,105 @@ impl Gallery {
+@@ -11235,94 +11970,105 @@ impl Gallery {
              vec![
                  (
                      "Virtualization",
@@ -29805,7 +29871,7 @@ index 5eb12cd4..51c29095 100644
                          self.demo_text("cb-sections", "", cx),
                          vec![
                              h::PickerItem::new("rust", "Rust"),
-@@ -11332,6 +12076,7 @@ impl Gallery {
+@@ -11332,6 +12078,7 @@ impl Gallery {
                          ],
                      )
                      .label("Language")
@@ -29813,7 +29879,7 @@ index 5eb12cd4..51c29095 100644
                      .section_before("rust", "Systems")
                      .section_before("typescript", "Scripting")
                      .default_open(true)
-@@ -11342,6 +12087,7 @@ impl Gallery {
+@@ -11342,6 +12089,7 @@ impl Gallery {
                      col(vec![
                          h::ComboBox::new(self.demo_text("cb-controlled", "", cx), language_items())
                              .label("Language")
@@ -29821,7 +29887,7 @@ index 5eb12cd4..51c29095 100644
                              // `selectedKey` is the controlled selection key
                              // (empty string is v3's `null`); the input shows
                              // that key's label and `inputValue` holds the
-@@ -11371,6 +12117,7 @@ impl Gallery {
+@@ -11371,6 +12119,7 @@ impl Gallery {
                      col(vec![
                          h::ComboBox::new(self.demo_text("cb-input", "", cx), language_items())
                              .label("Language")
@@ -29829,7 +29895,7 @@ index 5eb12cd4..51c29095 100644
                              .on_input_change(cx.listener(|this, text: &str, _, cx| {
                                  this.set_demo_text_value("cb-typed", text.to_owned());
                                  cx.notify();
-@@ -11381,11 +12128,12 @@ impl Gallery {
+@@ -11381,11 +12130,12 @@ impl Gallery {
                  ),
                  (
                      "Controlled Selection",
@@ -29843,7 +29909,7 @@ index 5eb12cd4..51c29095 100644
                      .selection_mode(SelectionMode::Multiple)
                      .selected_keys(cb_multi.iter().cloned())
                      .on_selection_change_all(cx.listener(|this, keys: &[SharedString], _, cx| {
-@@ -11396,22 +12144,24 @@ impl Gallery {
+@@ -11396,22 +12146,24 @@ impl Gallery {
                  ),
                  (
                      "Multiple Selection",
@@ -29870,7 +29936,7 @@ index 5eb12cd4..51c29095 100644
                      .selected_keys(cb_value.iter().cloned())
                      .on_selection_change_all(cx.listener(
                          |this, keys: &[SharedString], _, cx| {
-@@ -11433,36 +12183,34 @@ impl Gallery {
+@@ -11433,36 +12185,34 @@ impl Gallery {
                  ),
                  (
                      "Default Selected Key",
@@ -29914,7 +29980,7 @@ index 5eb12cd4..51c29095 100644
                                  .allows_empty_collection(true)
                                  // v3 pairs the flag with async loading: type a
                                  // query nothing matches and the panel stays up
-@@ -11479,11 +12227,12 @@ impl Gallery {
+@@ -11479,11 +12229,12 @@ impl Gallery {
                  ),
                  (
                      "Custom Indicator",
@@ -29928,7 +29994,7 @@ index 5eb12cd4..51c29095 100644
                      .selection_mode(SelectionMode::Multiple)
                      .default_open(true)
                      .indicator(|is_selected| {
-@@ -11496,14 +12245,11 @@ impl Gallery {
+@@ -11496,14 +12247,11 @@ impl Gallery {
                  ),
                  (
                      "Custom Filtering",
@@ -29945,7 +30011,7 @@ index 5eb12cd4..51c29095 100644
                              .filter(|item, input| {
                                  h::Filter::new(h::Sensitivity::Base).starts_with(item, input)
                              })
-@@ -11518,6 +12264,7 @@ impl Gallery {
+@@ -11518,6 +12266,7 @@ impl Gallery {
                              "Input (opens as you type)",
                              h::ComboBox::new(self.demo_text("cb-mt-input", "", cx), language_items())
                                  .label("Language")
@@ -29953,7 +30019,7 @@ index 5eb12cd4..51c29095 100644
                                  .menu_trigger(h::MenuTrigger::Input),
                              cx,
                          ),
-@@ -11525,6 +12272,7 @@ impl Gallery {
+@@ -11525,6 +12274,7 @@ impl Gallery {
                              "Manual (only the chevron opens it)",
                              h::ComboBox::new(self.demo_text("cb-mt-manual", "", cx), language_items())
                                  .label("Language")
@@ -29961,7 +30027,7 @@ index 5eb12cd4..51c29095 100644
                                  .menu_trigger(h::MenuTrigger::Manual),
                              cx,
                          ),
-@@ -11532,21 +12280,15 @@ impl Gallery {
+@@ -11532,21 +12282,15 @@ impl Gallery {
                  ),
                  (
                      "Form Value",
@@ -29985,7 +30051,7 @@ index 5eb12cd4..51c29095 100644
                              .name("language")
                              .is_required(true);
                              h::Form::new()
-@@ -11580,6 +12322,7 @@ impl Gallery {
+@@ -11580,6 +12324,7 @@ impl Gallery {
                                  language_items(),
                              )
                              .label("Language")
@@ -29993,7 +30059,7 @@ index 5eb12cd4..51c29095 100644
                              .name("custom-language")
                              .allows_custom_value(true)
                              .form_value(h::ComboBoxFormValue::Text),
-@@ -11594,6 +12337,7 @@ impl Gallery {
+@@ -11594,6 +12339,7 @@ impl Gallery {
                              "Native (blocks the submit)",
                              h::ComboBox::new(self.demo_text("cb-vb-native", "", cx), language_items())
                                  .label("Language")
@@ -30001,7 +30067,7 @@ index 5eb12cd4..51c29095 100644
                                  .is_required(true)
                                  .validation_behavior(h::ValidationBehavior::Native),
                              cx,
-@@ -11602,6 +12346,7 @@ impl Gallery {
+@@ -11602,6 +12348,7 @@ impl Gallery {
                              "Allow (shows the message, submits anyway)",
                              h::ComboBox::new(self.demo_text("cb-vb-allow", "", cx), language_items())
                                  .label("Language")
@@ -30009,7 +30075,7 @@ index 5eb12cd4..51c29095 100644
                                  .is_required(true)
                                  .validation_behavior(h::ValidationBehavior::Allow),
                              cx,
-@@ -11610,7 +12355,7 @@ impl Gallery {
+@@ -11610,7 +12357,7 @@ impl Gallery {
                  ),
                  (
                      "Custom Validation",
@@ -30018,7 +30084,7 @@ index 5eb12cd4..51c29095 100644
                          self.demo_text("cb-validate", "Zig", cx),
                          language_items(),
                      )
-@@ -11624,7 +12369,7 @@ impl Gallery {
+@@ -11624,7 +12371,7 @@ impl Gallery {
                  ),
                  (
                      "Usage",
@@ -30027,7 +30093,7 @@ index 5eb12cd4..51c29095 100644
                          self.combo_state.clone(),
                          language_items(),
                      )
-@@ -11643,11 +12388,12 @@ impl Gallery {
+@@ -11643,11 +12390,12 @@ impl Gallery {
                  ),
                  (
                      "Custom values allowed",
@@ -30041,7 +30107,7 @@ index 5eb12cd4..51c29095 100644
                      .allows_custom_value(true)
                      .is_open(is_open)
                      .on_open_change(bool_cb(cx.listener(|this, open: &bool, _, cx| {
-@@ -11672,23 +12418,19 @@ impl Gallery {
+@@ -11672,23 +12420,19 @@ impl Gallery {
              vec![
                  (
                      "Virtualization",
@@ -30072,7 +30138,7 @@ index 5eb12cd4..51c29095 100644
                          .label("Language")
                          .placeholder("Choose one")
                          .description("Used for spell-checking")
-@@ -11696,7 +12438,7 @@ impl Gallery {
+@@ -11696,7 +12440,7 @@ impl Gallery {
                  ),
                  (
                      "Required",
@@ -30081,7 +30147,7 @@ index 5eb12cd4..51c29095 100644
                          .label("Language")
                          .placeholder("Choose one")
                          .is_required(true)
-@@ -11704,7 +12446,7 @@ impl Gallery {
+@@ -11704,7 +12448,7 @@ impl Gallery {
                  ),
                  (
                      "Disabled",
@@ -30090,7 +30156,7 @@ index 5eb12cd4..51c29095 100644
                          .label("Language")
                          .placeholder("Choose one")
                          .is_disabled(true)
-@@ -11712,7 +12454,7 @@ impl Gallery {
+@@ -11712,7 +12456,7 @@ impl Gallery {
                  ),
                  (
                      "With Disabled Options",
@@ -30099,7 +30165,7 @@ index 5eb12cd4..51c29095 100644
                          .label("Language")
                          .placeholder("Choose one")
                          .disabled_keys([1, 3])
-@@ -11721,7 +12463,7 @@ impl Gallery {
+@@ -11721,7 +12465,7 @@ impl Gallery {
                  ),
                  (
                      "With Sections",
@@ -30108,7 +30174,7 @@ index 5eb12cd4..51c29095 100644
                          "sel-sections",
                          vec![
                              "United States".into(),
-@@ -11796,13 +12538,8 @@ impl Gallery {
+@@ -11796,13 +12540,8 @@ impl Gallery {
                  ),
                  (
                      "Asynchronous Loading",
@@ -30123,7 +30189,7 @@ index 5eb12cd4..51c29095 100644
                          row(vec![
                              h::Select::new("sel-async", languages())
                                  .label("Language")
-@@ -11816,7 +12553,7 @@ impl Gallery {
+@@ -11816,7 +12555,7 @@ impl Gallery {
                  ),
                  (
                      "Custom Indicator",
@@ -30132,7 +30198,7 @@ index 5eb12cd4..51c29095 100644
                          .label("Language")
                          .placeholder("Choose one")
                          .value(selected)
-@@ -11837,7 +12574,7 @@ impl Gallery {
+@@ -11837,7 +12576,7 @@ impl Gallery {
                  ),
                  (
                      "Custom Value",
@@ -30141,7 +30207,7 @@ index 5eb12cd4..51c29095 100644
                          .label("Language")
                          .placeholder("Choose one")
                          .value(selected)
-@@ -11868,7 +12605,8 @@ impl Gallery {
+@@ -11868,7 +12607,8 @@ impl Gallery {
                  ),
                  (
                      "Usage",
@@ -30151,7 +30217,7 @@ index 5eb12cd4..51c29095 100644
                          .label("Language")
                          .placeholder("Choose one")
                          .value(selected)
-@@ -11888,18 +12626,20 @@ impl Gallery {
+@@ -11888,18 +12628,20 @@ impl Gallery {
                  ),
                  (
                      "Uncontrolled",
@@ -30174,7 +30240,7 @@ index 5eb12cd4..51c29095 100644
                                  .value(selected)
                                  .on_selection_change(opt_usize_cb(cx.listener(
                                      |this, i: &Option<usize>, _, cx| {
-@@ -11913,21 +12653,26 @@ impl Gallery {
+@@ -11913,21 +12655,26 @@ impl Gallery {
                  ),
                  (
                      "Full width",
@@ -30212,7 +30278,7 @@ index 5eb12cd4..51c29095 100644
                          .label("Languages")
                          .placeholder("Pick several")
                          .selection_mode(SelectionMode::Multiple)
-@@ -12050,14 +12795,8 @@ impl Gallery {
+@@ -12050,14 +12797,8 @@ impl Gallery {
                  ),
                  (
                      "Render Props",
@@ -30228,7 +30294,7 @@ index 5eb12cd4..51c29095 100644
                          h::Prose::new()
                              .child(h::Typography::paragraph(
                                  h::ParagraphSize::Base,
-@@ -12265,12 +13004,8 @@ impl Gallery {
+@@ -12265,12 +13006,8 @@ impl Gallery {
                  ),
                  (
                      "Hide Scroll Bar",
@@ -30242,7 +30308,7 @@ index 5eb12cd4..51c29095 100644
                          h::ScrollShadow::new("ss-no-bar")
                              .max_h(px(140.))
                              .children(
-@@ -12385,13 +13120,45 @@ fn icon(path: &'static str, cx: &gpui::App) -> AnyElement {
+@@ -12385,13 +13122,45 @@ fn icon(path: &'static str, cx: &gpui::App) -> AnyElement {
          .into_any_element()
  }
  
