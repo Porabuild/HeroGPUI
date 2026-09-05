@@ -1120,6 +1120,7 @@ impl RenderOnce for DocsCodeBlock {
             .px(px(CODE_PAD_X))
             .py(px(CODE_PAD_Y))
             .overflow_x_scroll()
+            .restrict_scroll_to_axis()
             .whitespace_nowrap()
             .bg(gpui::rgb(CODE_BG))
             .font_family(crate::app::MONO_FONT)

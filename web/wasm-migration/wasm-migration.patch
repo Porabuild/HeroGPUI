@@ -6923,10 +6923,10 @@ index 00000000..aaf70c67
 +}
 diff --git a/crates/gpui_web/src/events.rs b/crates/gpui_web/src/events.rs
 new file mode 100644
-index 00000000..4ac59ed0
+index 00000000..882a7ac2
 --- /dev/null
 +++ b/crates/gpui_web/src/events.rs
-@@ -0,0 +1,1477 @@
+@@ -0,0 +1,1479 @@
 +use std::{collections::HashMap, rc::Rc};
 +
 +use gpui::{
@@ -7568,13 +7568,15 @@ index 00000000..4ac59ed0
 +            let modifiers = modifiers_from_wheel_event(mouse_event, this.is_mac);
 +
 +            let delta_mode = event.delta_mode();
-+            let delta = if delta_mode == 1 {
-+                ScrollDelta::Lines(point(-event.delta_x() as f32, -event.delta_y() as f32))
++            let (delta_x, delta_y) = if modifiers.shift && event.delta_x() == 0.0 {
++                (event.delta_y(), 0.0)
 +            } else {
-+                ScrollDelta::Pixels(point(
-+                    px(-event.delta_x() as f32),
-+                    px(-event.delta_y() as f32),
-+                ))
++                (event.delta_x(), event.delta_y())
++            };
++            let delta = if delta_mode == 1 {
++                ScrollDelta::Lines(point(-delta_x as f32, -delta_y as f32))
++            } else {
++                ScrollDelta::Pixels(point(px(-delta_x as f32), px(-delta_y as f32)))
 +            };
 +
 +            {
@@ -189385,7 +189387,7 @@ index 00000000..93d1b4f7
 @@ -0,0 +1 @@
 +<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"/><path d="M10 4h4a1 1 0 0 1 1 1v2H9V5a1 1 0 0 1 1-1z"/><path d="M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12"/><path d="M10 11v6M14 11v6"/></svg>
 diff --git a/gallery/src/app.rs b/gallery/src/app.rs
-index 9515ca17..222ac901 100644
+index 9515ca17..6fd80eda 100644
 --- a/gallery/src/app.rs
 +++ b/gallery/src/app.rs
 @@ -12,7 +12,9 @@ use herogpui_theme::{toggle_light_dark, toggle_reduce_motion, ActiveTheme};
@@ -189452,6 +189454,22 @@ index 9515ca17..222ac901 100644
          let motion_button = h::Button::new("motion-toggle")
              .variant(if reduce_motion {
                  h::Variant::Secondary
+@@ -596,6 +617,7 @@ impl Render for Gallery {
+             .w(px(232.))
+             .flex_shrink_0()
+             .overflow_y_scroll()
++            .restrict_scroll_to_axis()
+             .border_r_1()
+             .border_color(colors.separator)
+             .px(px(16.))
+@@ -670,6 +692,7 @@ impl Render for Gallery {
+             .id("content")
+             .flex_1()
+             .overflow_y_scroll()
++            .restrict_scroll_to_axis()
+             .px(px(36.))
+             .py(px(28.))
+             .min_w_0()
 diff --git a/gallery/src/assets.rs b/gallery/src/assets.rs
 index 4906dda5..179af7ef 100644
 --- a/gallery/src/assets.rs
@@ -197363,7 +197381,7 @@ index 370f94d2..393a5681 100644
 +    }
 +}
 diff --git a/gallery/src/pages/mod.rs b/gallery/src/pages/mod.rs
-index f01f8245..d46968c6 100644
+index f01f8245..ce9a9fbd 100644
 --- a/gallery/src/pages/mod.rs
 +++ b/gallery/src/pages/mod.rs
 @@ -464,7 +464,7 @@ impl Page {
@@ -197655,7 +197673,7 @@ index f01f8245..d46968c6 100644
      }
  
      for (heading, body) in references {
-@@ -797,13 +1043,167 @@ pub fn example_frame(content: gpui::AnyElement, cx: &App) -> gpui::AnyElement {
+@@ -797,13 +1043,168 @@ pub fn example_frame(content: gpui::AnyElement, cx: &App) -> gpui::AnyElement {
          .into_any_element()
  }
  
@@ -197736,6 +197754,7 @@ index f01f8245..d46968c6 100644
 +            .px(px(CODE_PAD_X))
 +            .py(px(CODE_PAD_Y))
 +            .overflow_x_scroll()
++            .restrict_scroll_to_axis()
 +            .whitespace_nowrap()
 +            .bg(gpui::rgb(CODE_BG))
 +            .font_family(crate::app::MONO_FONT)
@@ -197824,7 +197843,7 @@ index f01f8245..d46968c6 100644
      gpui::div()
          .rounded(px(14.))
          .border_1()
-@@ -814,50 +1214,54 @@ pub fn example_frame_with_code(
+@@ -814,50 +1215,54 @@ pub fn example_frame_with_code(
          .child(
              gpui::div()
                  .p(px(28.))
@@ -197908,7 +197927,7 @@ index f01f8245..d46968c6 100644
  pub fn para(text: &str, cx: &App) -> gpui::AnyElement {
      let colors = cx.colors();
      gpui::div()
-@@ -868,3 +1272,105 @@ pub fn para(text: &str, cx: &App) -> gpui::AnyElement {
+@@ -868,3 +1273,105 @@ pub fn para(text: &str, cx: &App) -> gpui::AnyElement {
          .child(text.to_owned())
          .into_any_element()
  }
