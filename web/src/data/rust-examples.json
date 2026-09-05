@@ -994,6 +994,7 @@
     },
     {
       "heading": "Default Value",
+      "description": "The seven 36px day columns align with the weekday headings without horizontal gaps.",
       "imports": "use herogpui::prelude::{Calendar, CalendarState, Date};",
       "code": "Calendar::new(self.demo_calendar(\"cal-default\", cx))\n    .default_value(Date::new(2025, 12, 25))"
     },

@@ -24,7 +24,7 @@
 //! - DatePicker: the cell band starts at 42 + 12 (`picker_panel` padding) +
 //!   24 (nav header) + 8 + 8 (calendar gaps) + one text line of weekday
 //!   header, and cells are 36px tall; the column centres come from
-//!   `CALENDAR_WIDTH` minus six 2px gaps over seven columns. Only the weekday
+//!   `CALENDAR_WIDTH` split into seven equal columns. Only the weekday
 //!   line height is a text metric rather than a constant, which the chosen y
 //!   tolerates by ±14px either way.
 //!
@@ -1513,15 +1513,15 @@ fn date_picker_opens_and_picks_a_day(cx: &mut TestAppContext) {
     let expected = Date::new(today.year, today.month, (7 - lead) as u32);
 
     // x: the calendar column is CALENDAR_WIDTH wide (252px = seven cells),
-    // six 2px gaps take 12px, so each slot is (252-12)/7 wide and the last
-    // column's centre sits at 12 + 6*(w+2) + w/2 from the panel origin.
+    // each slot is 252/7 wide and the last
+    // column's centre sits at 12 + 6*w + w/2 from the panel origin.
     // y: panel top (36 trigger + 6 offset) + picker_panel p(12) + nav header
     // h(24) + two calendar gaps of 8 + one weekday-header text line (~16) +
     // half of a 36px cell. Only the text line is a metric rather than a
     // constant; any value it takes in 0..34 keeps y = 128 inside the first
     // week's cells.
-    let cell_w = (f32::from(CALENDAR_WIDTH) - 12.) / 7.;
-    let day_x = 12. + 6. * (cell_w + 2.) + cell_w / 2.;
+    let cell_w = f32::from(CALENDAR_WIDTH) / 7.;
+    let day_x = 12. + 6. * cell_w + cell_w / 2.;
     let day_y = 128.;
 
     let state_for_view = state;

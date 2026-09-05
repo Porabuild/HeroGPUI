@@ -4330,6 +4330,7 @@ impl Gallery {
                 ),
                 (
                     "Default Value",
+                    "The seven 36px day columns align with the weekday headings without horizontal gaps.",
                     col(vec![h::Calendar::new(self.demo_calendar("cal-default", cx))
                         .default_value(h::Date::new(2025, 12, 25))
                         .into_any_element()]),

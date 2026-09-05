@@ -949,11 +949,19 @@ impl Calendar {
     /// `.calendar__grid-header` — the seven `.calendar__header-cell` columns.
     fn weekday_header(&self, cx: &App) -> gpui::Div {
         let muted = cx.colors().muted;
-        gpui::div()
-            .flex()
-            .children(self.constraints.first_day_of_week.header_row().map(|d| {
-                gpui::div()
+        gpui::div().flex().children(
+            self.constraints
+                .first_day_of_week
+                .header_row()
+                .into_iter()
+                .enumerate()
+                .map(|(column, d)| {
+                    gpui::div()
                     .flex_1()
+                    .debug_selector({
+                        let key = format!("{:?}-weekday-{column}", self.id);
+                        move || key
+                    })
                     .text_center()
                     // `.calendar__header-cell` is `text-xs`.
                     .text_size(px(12.))
@@ -961,7 +969,8 @@ impl Calendar {
                     .font_weight(gpui::FontWeight::MEDIUM)
                     .text_color(muted)
                     .child(d.to_owned())
-            }))
+                }),
+        )
     }
 
     /// The heading over one visible month, named in the view calendar.
@@ -1020,7 +1029,7 @@ impl Calendar {
         // children are `.calendar__grid-row`s of cells.
         let mut grid = gpui::div().flex().flex_col().gap(px(2.));
         for r in 0..rows {
-            let mut line = gpui::div().flex().gap(px(2.));
+            let mut line = gpui::div().flex();
             for c in 0..7 {
                 let idx = r * 7 + c;
                 let slot: gpui::AnyElement = if idx < lead {
@@ -1967,7 +1976,7 @@ impl RenderOnce for Calendar {
             }
             let mut grid = gpui::div().flex().flex_col().gap(px(2.));
             for chunk in linear.chunks(per_row) {
-                let mut line = gpui::div().flex().gap(px(2.));
+                let mut line = gpui::div().flex();
                 for &date in chunk {
                     line = line.child(self.day_cell(
                         date,

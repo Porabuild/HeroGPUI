@@ -7407,9 +7407,9 @@ const CALENDAR_STYLING: &[StyleDoc] = &[
     StyleDoc {
         class_or_token: ".calendar__grid",
         value: "grid repeat(7, 1fr) w-full",
-        description: "Seven equal columns are reproduced with GPUI flex rows.",
-        rust: "seven flex_1 cells per row",
-        status: ImplementationStatus::Implemented,
+        description: "Single-month and week columns align at 36px without horizontal gaps; multi-month and short-day layouts still differ from the pinned grid.",
+        rust: "seven flex_1 cells per row + no horizontal gap",
+        status: ImplementationStatus::Partial,
     },
     StyleDoc {
         class_or_token: ".calendar__grid-header",

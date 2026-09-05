@@ -9,8 +9,8 @@
 //! Geometry is derived from the components' own constants, reusing the
 //! derivations in `pickers.rs` and `date_picker_close.rs`:
 //!
-//! - Bare Calendar at the window origin: `CALENDAR_WIDTH` (252) minus six 2px
-//!   gaps over seven cells fixes the column centres, and the first cell row
+//! - Bare Calendar at the window origin: `CALENDAR_WIDTH` (252) split into seven equal
+//!   cells fixes the column centres, and the first cell row
 //!   sits at y = 74 (24px nav header + gap 8 + ~16px weekday line + gap 8 +
 //!   half a 36px cell). Rows step 38px (36 cell + 2 gap). Day *d* of a month
 //!   with `lead` leading blanks sits at `idx = d + lead - 1`, row `idx / 7`,
@@ -66,10 +66,10 @@ use herogpui_components::{
 };
 
 /// Column *c*'s centre in a bare Calendar: seven cells across `CALENDAR_WIDTH`
-/// minus six 2px gaps.
+/// with no horizontal gaps.
 fn cal_col_x(col: usize) -> f32 {
-    let cell_w = (f32::from(CALENDAR_WIDTH) - 12.) / 7.;
-    col as f32 * (cell_w + 2.) + cell_w / 2.
+    let cell_w = f32::from(CALENDAR_WIDTH) / 7.;
+    col as f32 * cell_w + cell_w / 2.
 }
 
 /// Row *r*'s centre in a bare Calendar: the first row at y = 74, then a

@@ -10,8 +10,7 @@
 //! Feb 29 rather than invent a Feb 31.
 //!
 //! Geometry is the same derivation the rest of the suite uses: a bare
-//! Calendar at the window origin, `CALENDAR_WIDTH` (252) minus six 2px gaps
-//! over seven cells for the column centres, the first cell row at y = 74 with
+//! Calendar at the window origin, `CALENDAR_WIDTH` (252) split into seven equal cells for the column centres, the first cell row at y = 74 with
 //! 38px per row after it, and the month's leading blanks
 //! (`DateConstraints::lead_cells`, Monday-start default) for a day's
 //! row/column.
@@ -133,11 +132,48 @@ fn calendar_headers_do_not_inherit_host_line_height(cx: &mut TestAppContext) {
     }
 }
 
+#[gpui::test]
+fn calendar_days_align_with_the_seven_weekday_columns(cx: &mut TestAppContext) {
+    for duration in [VisibleDuration::Months(1), VisibleDuration::Weeks(1)] {
+        let state = cx.new(|cx| CalendarState::new(cx));
+        let base = format!(r#"Name("cal-{}")"#, state.entity_id().as_u64());
+        let cx = open_host(cx, move || {
+            Calendar::new(state.clone())
+                .default_value(Date::new(2026, 8, 3))
+                .first_day_of_week(Weekday::Mon)
+                .visible_duration(duration)
+                .into_any_element()
+        });
+        for column in 0..7 {
+            let date = Date::new(2026, 8, 3 + column);
+            let cell_key = if duration.is_month_view() {
+                format!("{base}-2026-8-d{}", date.day)
+            } else {
+                format!("{base}-{}", date.format_iso())
+            };
+            let header = cx
+                .debug_bounds(Box::leak(
+                    format!("{base}-weekday-{column}").into_boxed_str(),
+                ))
+                .unwrap();
+            let cell = cx
+                .debug_bounds(Box::leak(cell_key.into_boxed_str()))
+                .unwrap();
+            assert_eq!(header.size.width, px(36.));
+            assert_eq!(cell.size.width, px(36.));
+            assert!(
+                (f32::from(header.center().x - cell.center().x)).abs() <= 0.1,
+                "{duration:?}, column={column}: {header:?} vs {cell:?}"
+            );
+        }
+    }
+}
+
 /// Column *c*'s centre in a bare Calendar: seven cells across
-/// `CALENDAR_WIDTH` minus six 2px gaps.
+/// `CALENDAR_WIDTH` with no horizontal gaps.
 fn cal_col_x(col: usize) -> f32 {
-    let cell_w = (f32::from(CALENDAR_WIDTH) - 12.) / 7.;
-    col as f32 * (cell_w + 2.) + cell_w / 2.
+    let cell_w = f32::from(CALENDAR_WIDTH) / 7.;
+    col as f32 * cell_w + cell_w / 2.
 }
 
 /// Row *r*'s centre in a bare Calendar: the first row at y = 74, then a

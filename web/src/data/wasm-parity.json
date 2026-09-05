@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "artifactSha256": "da1756f2a33fc5f385e86e99b6af3aabd0d2db88b2d7ed4cff7ff87688d0616c",
-  "glueSha256": "f99826d632a238bd164e7b31ad747aea3d47f367ef9706f6894d7490f0b245cb",
+  "artifactSha256": "a096bb4dca2e4d528cd8776401e541d4e20e63651388b60bf1945cb98cc236cf",
+  "glueSha256": "3251728256290f5d18b441e741c6bc66b4f4f8ff429d8c4893fca561588cbbd4",
   "examples": {
     "accordion/Controlled": {
       "nativeCodeSha256": "2816548407263e0fdeada0ff2ec1e8f9fd45a2d33b24ab2cf163539711fe6f8a",
@@ -345,7 +345,7 @@
     },
     "calendar/Default Value": {
       "nativeCodeSha256": "cdf2b1d3ba31f8c832aa67e91a8c4ac4ed1e605a6f03ea89856d379a0b50d4e4",
-      "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      "descriptionSha256": "d0c17d1039ac19bf084ec1d9bdb2a08503852ff4dcbc788f6f686678601b0ee0"
     },
     "calendar/First day of week": {
       "nativeCodeSha256": "3a7fd0e57169a1d6dfad07f719fbc3654a5d722a2eee100abd5d554e72c1f4c2",

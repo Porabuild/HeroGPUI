@@ -20,14 +20,14 @@
 //!   first cell row spans y 110..146, centre 128. Only the weekday line is a
 //!   text metric, and 128 stays inside the row for any line height the font
 //!   can take.
-//! - Calendar columns: `CALENDAR_WIDTH` (252) minus six 2px gaps over seven
+//! - Calendar columns: `CALENDAR_WIDTH` (252) split into seven equal
 //!   cells; that, plus the panel's 12px padding, fixes the last column's
-//!   centre at `12 + 6*(cell_w + 2) + cell_w/2`.
+//!   centre at `12 + 6*cell_w + cell_w/2`.
 //! - The DateRangePicker's `RangeCalendar` cells are 38px with no column
 //!   gaps, so from the same panel origin the first row's cells centre at
 //!   y = 129, the second at 169, and column *c* at `12 + 19 + 38c`.
 //! - A bare `Calendar` starts at the window origin, so its first row centres
-//!   at y = 74 and the last column at `6*(cell_w + 2) + cell_w/2`.
+//!   at y = 74 and the last column at `6*cell_w + cell_w/2`.
 //!
 //! No exiting overlay is involved: both pickers gate the panel on `is_open`
 //! (no `util::overlay_phase`), so a closed popover leaves the tree on the
@@ -45,8 +45,8 @@ use harness::{click, events, open_host};
 
 /// The single picker's day coordinates, exactly as `pickers.rs` derives them.
 fn day_coords() -> (f32, f32) {
-    let cell_w = (f32::from(CALENDAR_WIDTH) - 12.) / 7.;
-    let day_x = 12. + 6. * (cell_w + 2.) + cell_w / 2.;
+    let cell_w = f32::from(CALENDAR_WIDTH) / 7.;
+    let day_x = 12. + 6. * cell_w + cell_w / 2.;
     (day_x, 128.)
 }
 
@@ -434,8 +434,8 @@ fn bare_calendar_still_records_a_chosen_date(cx: &mut TestAppContext) {
     // last column loses the pickers' leading 12px, and the first row sits at
     // y = 74 (24px header + gap 8 + ~16px weekday line + gap 8 + half a
     // 36px cell).
-    let cell_w = (f32::from(CALENDAR_WIDTH) - 12.) / 7.;
-    let day_x = 6. * (cell_w + 2.) + cell_w / 2.;
+    let cell_w = f32::from(CALENDAR_WIDTH) / 7.;
+    let day_x = 6. * cell_w + cell_w / 2.;
     let day_y = 74.;
 
     let state_for_view = state;

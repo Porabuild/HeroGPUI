@@ -369,6 +369,8 @@ ProgressBar, ProgressCircle, Spinner and Typography; elsewhere `variant` (or
 `Calendar` and `RangeCalendar` show a month grid, several month grids side by
 side, a run of week rows, or a rolling window of days. Day cells, month headings and
 year cells use 14px/20px medium text; weekday labels use 12px/16px medium text.
+Calendar single-month and week rows use seven 36px columns without horizontal gaps, aligned
+with their weekday headings.
 The year picker overlays the retained day area without changing the view dimensions.
 Its year list scrolls independently and reveals the active row on opening, keyboard
 navigation, or a date-bound change that moves that year to another row.

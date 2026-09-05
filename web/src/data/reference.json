@@ -11782,9 +11782,9 @@
       },
       {
         "token": ".calendar__grid",
-        "description": "Seven equal columns are reproduced with GPUI flex rows.",
-        "rust": "seven flex_1 cells per row",
-        "status": "implemented"
+        "description": "Single-month and week columns align at 36px without horizontal gaps; multi-month and short-day layouts still differ from the pinned grid.",
+        "rust": "seven flex_1 cells per row + no horizontal gap",
+        "status": "partial"
       },
       {
         "token": ".calendar__grid-header",
