@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "artifactSha256": "3752dd201948b658d98d8ebdac76fa89826296f9c22b8b081b678f98e4e50cc7",
+  "artifactSha256": "b4b830cc13d5b6a4d3800f5765784ed1637e5cc11a5ab9cddf4399eec83182ec",
   "glueSha256": "79d094e3fc922c1dc81586a67c0bd0a53840b1c3bd36856a36167987bf6208a2",
   "examples": {
     "accordion/Controlled": {
