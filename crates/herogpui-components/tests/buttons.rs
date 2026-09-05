@@ -74,6 +74,51 @@ use herogpui_components::{
 
 use harness::{click, events, open_host, press};
 
+#[gpui::test]
+fn app_root_tab_moves_once_and_consumes_the_browser_default(cx: &mut TestAppContext) {
+    let changes = events();
+    let recorded = changes.clone();
+    let cx = open_host(cx, move || {
+        let first = changes.clone();
+        let second = changes.clone();
+        gpui::div()
+            .flex()
+            .child(
+                Button::new("first")
+                    .label("First")
+                    .on_press(move |_, _, _| first.borrow_mut().push("first".into())),
+            )
+            .child(
+                Button::new("second")
+                    .label("Second")
+                    .on_press(move |_, _, _| second.borrow_mut().push("second".into())),
+            )
+            .into_any_element()
+    });
+    for key in ["tab", "tab", "shift-tab"] {
+        let result = cx.update(|window, cx| {
+            window.dispatch_event(
+                gpui::PlatformInput::KeyDown(KeyDownEvent {
+                    keystroke: Keystroke::parse(key).unwrap(),
+                    is_held: false,
+                    prefer_character_input: false,
+                }),
+                cx,
+            )
+        });
+        assert!(
+            !result.propagate,
+            "{key} must not move the browser's DOM focus"
+        );
+        cx.simulate_event(KeyUpEvent {
+            keystroke: Keystroke::parse(key).unwrap(),
+        });
+        cx.update(|window, _| window.refresh());
+        press(cx, "enter");
+    }
+    assert_eq!(recorded.borrow().as_slice(), ["first", "second", "first"]);
+}
+
 /// The advance width of `text` shaped the way the components shape it: gpui's
 /// default `.SystemUIFont` stack at `size` px and `weight`.
 ///

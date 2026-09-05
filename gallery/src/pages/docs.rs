@@ -104,7 +104,7 @@ impl Gallery {
                     "Application root",
                     para(
                         "`HeroGpuiAssets` embeds the icons used by built-in component chrome. `app_focus_root` \
-                         enables Tab traversal and focus-visible state for the component tree. Apps with their own \
+                         enables Tab traversal and focus-visible state for the component tree, keeping keyboard focus in the GPUI surface in browsers. Apps with their own \
                          assets can register `HeroGpuiAssets::with_fallback(MyAppAssets)`.",
                         cx,
                     ),

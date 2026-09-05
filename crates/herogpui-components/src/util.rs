@@ -1241,10 +1241,13 @@ where
         })
         .on_key_down(|event, window, cx| {
             set_focus_visible(true, cx);
-            match event.keystroke.key.as_str() {
-                "tab" if event.keystroke.modifiers.shift => window.focus_prev(cx),
-                "tab" => window.focus_next(cx),
-                _ => {}
+            if event.keystroke.key == "tab" {
+                if event.keystroke.modifiers.shift {
+                    window.focus_prev(cx);
+                } else {
+                    window.focus_next(cx);
+                }
+                cx.stop_propagation();
             }
         })
         .on_key_up(|event, window, cx| {
