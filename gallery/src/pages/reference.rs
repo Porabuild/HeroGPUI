@@ -2479,6 +2479,10 @@ impl Widget {
                 if import.is_empty() {
                     continue;
                 }
+                assert!(
+                    reference_metadata::for_import(import).is_some(),
+                    "no reference metadata for {page:?}: {import}"
+                );
                 let source = source_for(import).unwrap_or_else(|| panic!("no source for {page:?}"));
                 let owners = referenced_types(import, std::iter::empty());
                 assert!(
