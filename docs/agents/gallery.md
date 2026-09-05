@@ -126,6 +126,11 @@ For every new or refreshed image:
 Use `.shots/refresh.ps1` only when a broad reference refresh is requested.
 Focused appearance changes should update only the relevant screenshots.
 
+[`docs/parity-sweep.md`](../parity-sweep.md) records the last two-image
+comparison for every component route, with the goldens that are stale against
+intentional changes and the states that could not be observed. Check it before
+re-judging a component or refreshing a golden.
+
 ## Behavioral proof
 
 A screenshot proves what was drawn, not whether a control responds. For state,
