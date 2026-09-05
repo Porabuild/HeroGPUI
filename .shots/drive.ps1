@@ -240,8 +240,9 @@ foreach ($step in ($Do -split '\s+')) {
         }
         'type' { Send-Text $h ($arg -replace '_', ' ') }
         'wheel' {
+            # Wheel messages carry screen coordinates; Get-Lparam handles the capture inset.
             for ($i = 0; $i -lt [int]$arg; $i++) {
-                [void][Drive]::PostMessage($h, $WM_MOUSEWHEEL, [IntPtr](-120 -shl 16), (Get-Lparam 600 400))
+                [void][Drive]::PostMessage($h, $WM_MOUSEWHEEL, [IntPtr](-120 -shl 16), (Get-Lparam ($origin.X + 600) ($origin.Y + 400)))
                 Start-Sleep -Milliseconds 40
             }
         }
