@@ -203487,16 +203487,16 @@ index 00000000..fbe81178
 +OTHER DEALINGS IN THE FONT SOFTWARE.
 diff --git a/crates/herogpui-web/index.html b/crates/herogpui-web/index.html
 new file mode 100644
-index 00000000..893ddc0d
+index 00000000..a5f49cb6
 --- /dev/null
 +++ b/crates/herogpui-web/index.html
-@@ -0,0 +1,196 @@
+@@ -0,0 +1,225 @@
 +<!doctype html>
 +<html lang="en">
 +  <head>
 +    <meta charset="utf-8" />
 +    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-+    <title>HeroGPUI Gallery</title>
++    <title>HeroGPUI</title>
 +    <style>
 +      * {
 +        margin: 0;
@@ -203594,7 +203594,7 @@ index 00000000..893ddc0d
 +  <body>
 +    <div id="loading">
 +      <div class="spinner"></div>
-+      <p>Loading HeroGPUI Gallery...</p>
++      <p>Loading HeroGPUI...</p>
 +    </div>
 +    <script type="module">
 +      // Resolve sibling assets (herogpui_web.js, and the .wasm it loads)
@@ -203616,6 +203616,28 @@ index 00000000..893ddc0d
 +      function queryDark() {
 +        return new URLSearchParams(window.location.search).get('theme') === 'dark';
 +      }
++
++      let wasmSetPreviewSection;
++      let wasmSetTheme;
++      let pendingPreviewSection;
++
++      window.addEventListener('message', (event) => {
++        if (event.source !== window.parent) return;
++        const message = event.data;
++        if (
++          !message ||
++          message.type !== 'herogpui:preview-section' ||
++          typeof message.section !== 'string'
++        ) {
++          return;
++        }
++        if (wasmSetPreviewSection) {
++          wasmSetPreviewSection(message.section);
++        } else {
++          pendingPreviewSection = message.section;
++        }
++      });
++
 +      function parentDark() {
 +        if (window.parent === window) return null;
 +        try {
@@ -203646,7 +203668,7 @@ index 00000000..893ddc0d
 +          const dark = parentRoot.classList.contains('dark');
 +          if (dark !== previous) {
 +            previous = dark;
-+            set_theme(dark);
++            wasmSetTheme?.(dark);
 +          }
 +        }).observe(parentRoot, { attributes: true, attributeFilter: ['class'] });
 +      }
@@ -203657,18 +203679,25 @@ index 00000000..893ddc0d
 +        try {
 +          // Dynamic import: the URL form serving this page varies (see
 +          // assetUrl), so the module URL is computed at boot time.
-+          const { default: init, run, set_theme } = await import(
++          const { default: init, run, set_preview_section, set_theme } = await import(
 +            assetUrl('herogpui_web.js')
 +          );
 +          await init();
++          wasmSetPreviewSection = set_preview_section;
++          wasmSetTheme = set_theme;
 +          // `undefined` lets the wasm side resolve the page from the query
-+          // string (?story=<slug> or ?page=<Nav Title>), which is the same
-+          // path a plain deep link to this page uses.
++          // string (?story=<slug> or ?page=<Nav Title>). Component docs also
++          // pass ?preview=component&section=<heading> so GPUI constructs only
++          // that example without the gallery shell.
 +          run(undefined, parentDark() ?? queryDark());
++          if (pendingPreviewSection) {
++            wasmSetPreviewSection(pendingPreviewSection);
++            pendingPreviewSection = undefined;
++          }
 +          followParentTheme();
 +          loading?.remove();
 +        } catch (error) {
-+          console.error('Failed to initialize the HeroGPUI gallery:', error);
++          console.error('Failed to initialize HeroGPUI:', error);
 +          if (loading) {
 +            loading.innerHTML = `
 +              <div class="error">
@@ -205266,7 +205295,7 @@ index 723274b0..f4c6f34d 100644
              // `HEROGPUI_WINDOW_SIZE=1200x2000` opens the window at that size.
              // A capture is one PrintWindow of the whole window, so a taller
 diff --git a/gallery/src/pages/components.rs b/gallery/src/pages/components.rs
-index 5eb12cd4..8bd6c7a8 100644
+index 5eb12cd4..e5bc0c28 100644
 --- a/gallery/src/pages/components.rs
 +++ b/gallery/src/pages/components.rs
 @@ -1,7 +1,7 @@
@@ -206735,21 +206764,44 @@ index 5eb12cd4..8bd6c7a8 100644
                              .child(
                                  h::Badge::new()
                                      .placement(h::BadgePlacement::TopLeft)
-@@ -3584,7 +3813,7 @@ impl Gallery {
+@@ -3584,10 +3813,10 @@ impl Gallery {
              crate::pages::Page::Table.description(),
              crate::pages::Page::Table.import_line(),
              vec![
 -                ("Usage", col(vec![build("tbl-usage").into_any_element()])),
-+                ("Usage", "Headers use 12px text with 16px lines; cells use 14px text with 20px lines in both ordinary and virtual rows.", col(vec![build("tbl-usage").into_any_element()])),
++                ("Usage", "Headers use 12px text with 16px lines; cells use 14px text with 20px lines in both ordinary and virtual rows.", stretch_col(vec![build("tbl-usage").into_any_element()])),
                  (
                      "Variants",
-                     col(h::TableVariant::ALL
+-                    col(h::TableVariant::ALL
++                    stretch_col(h::TableVariant::ALL
+                         .iter()
+                         .map(|v| {
+                             build(match v {
+@@ -3602,7 +3831,7 @@ impl Gallery {
+                     "Custom sort indicator",
+                     // Sorted on load, so the custom indicator is actually
+                     // visible: `indicator` only renders for the sorted column.
+-                    col(vec![h::Table::new(vec![])
++                    stretch_col(vec![h::Table::new(vec![])
+                         .id("tbl-custom-sort-indicator")
+                         .column(h::TableColumn::new("Name").allows_sorting(true))
+                         .column("Role")
+@@ -3631,7 +3860,7 @@ impl Gallery {
+                 ),
+                 (
+                     "Selection",
+-                    col(vec![
++                    stretch_col(vec![
+                         build("tbl-selection")
+                             .selection_mode(SelectionMode::Multiple)
+                             .selected_keys(self.table_selection.clone())
 @@ -3647,8 +3876,20 @@ impl Gallery {
                  ),
                  (
                      "Sorting",
+-                    col(vec![
 +                    "PageUp moves from the body to the first header — from the top of a virtual body; mid-body it pages by viewport. Enter sorts a sortable header; Down or PageDown returns to the first or last enabled row.",
-                     col(vec![
++                    stretch_col(vec![
                          {
 +                            let mut rows = [
 +                                ["Tony Reichert", "CEO", "Active"],
@@ -206797,8 +206849,7 @@ index 5eb12cd4..8bd6c7a8 100644
                  ),
                  (
                      "Virtualization",
-+                    "v3 wraps the table in `Virtualizer` with `TableLayout`. Cells here are built elements, which cannot be handed out twice, so a virtual table takes a row factory and asks for the rows the viewport shows — one thousand of them, forty pixels each. The fixed-row body caps at `max_h`, shrinks below it in a bounded parent, and PageUp/PageDown move by the visible viewport, including after resize, while skipping disabled stops.",
-                     col(vec![
+-                    col(vec![
 -                        para(
 -                            "v3 wraps the table in `Virtualizer` with `TableLayout`. Cells here \
 -                             are built elements, which cannot be handed out twice, so a virtual \
@@ -206806,6 +206857,8 @@ index 5eb12cd4..8bd6c7a8 100644
 -                             — one thousand of them, forty pixels each.",
 -                            cx,
 -                        ),
++                    "v3 wraps the table in `Virtualizer` with `TableLayout`. Cells here are built elements, which cannot be handed out twice, so a virtual table takes a row factory and asks for the rows the viewport shows — one thousand of them, forty pixels each. The fixed-row body caps at `max_h`, shrinks below it in a bounded parent, and PageUp/PageDown move by the visible viewport, including after resize, while skipping disabled stops.",
++                    stretch_col(vec![
                          h::Table::new(vec![])
                              .id("tbl-virtualization")
                              .column(h::TableColumn::new("Name").is_row_header(true))
@@ -206813,12 +206866,13 @@ index 5eb12cd4..8bd6c7a8 100644
                  ),
                  (
                      "Column Resizing",
+-                    col(vec![
 +                    "Drag a trailing-edge divider, or focus it with Tab, press Enter, and use the arrow keys. This example feeds onResize values back as controlled column widths and reports completion through onResizeEnd. Scroll horizontally to reach wide columns; vertical wheel input does not shift them sideways.",
 +                    {
 +                    let resize_name = self.demo_value("tbl-resize-name", 220.);
 +                    let resize_role = self.demo_value("tbl-resize-role", 180.);
 +                    let resize_status = self.demo_text_value("tbl-resize-status");
-                     col(vec![
++                    stretch_col(vec![
                          para(
 -                            "Drag the divider on a resizable column's trailing edge. The width \
 -                             is per column and survives the drag.",
@@ -206894,8 +206948,7 @@ index 5eb12cd4..8bd6c7a8 100644
                  ),
                  (
                      "Expandable Rows",
-+                    "A row's children are nested under it, and `expandedKeys` decides which parents show theirs. The chevron sits in the tree column; Right expands the focused parent, and Left collapses it or returns the row cursor to its parent.",
-                     col(vec![
+-                    col(vec![
 -                        para(
 -                            "A row's children are nested under it, and `expandedKeys` decides \
 -                             which parents show theirs. The chevron sits in the tree column; \
@@ -206903,23 +206956,51 @@ index 5eb12cd4..8bd6c7a8 100644
 -                             the row cursor to its parent.",
 -                            cx,
 -                        ),
++                    "A row's children are nested under it, and `expandedKeys` decides which parents show theirs. The chevron sits in the tree column; Right expands the focused parent, and Left collapses it or returns the row cursor to its parent.",
++                    stretch_col(vec![
                          {
                              let cell = |text: &str| gpui::div().child(text.to_owned());
                              h::Table::new(vec!["Title".into(), "Type".into(), "Modified".into()])
-@@ -3879,12 +4146,8 @@ impl Gallery {
+@@ -3873,18 +4140,14 @@ impl Gallery {
+                 ),
+                 (
+                     "Secondary Variant",
+-                    col(vec![build("tbl-secondary-variant")
++                    stretch_col(vec![build("tbl-secondary-variant")
+                         .variant(h::TableVariant::Secondary)
+                         .into_any_element()]),
                  ),
                  (
                      "Async Loading",
-+                    "`isPending` covers the table while a request is in flight; `onLoadMore` fires when the last row scrolls into view.",
-                     col(vec![
+-                    col(vec![
 -                        para(
 -                            "`isPending` covers the table while a request is in flight; \
 -                             `onLoadMore` fires when the last row scrolls into view.",
 -                            cx,
 -                        ),
++                    "`isPending` covers the table while a request is in flight; `onLoadMore` fires when the last row scrolls into view.",
++                    stretch_col(vec![
                          build("tbl-async-loading")
                              .is_pending(true)
                              .on_load_more(|_, _| {})
+@@ -3895,7 +4158,7 @@ impl Gallery {
+                 ),
+                 (
+                     "Pagination",
+-                    col(vec![{
++                    stretch_col(vec![{
+                         let start = table_page.saturating_sub(1) * 2;
+                         let people = [
+                             ("Tony Reichert", "CEO"),
+@@ -3935,7 +4198,7 @@ impl Gallery {
+                 ),
+                 (
+                     "Custom Cells",
+-                    col(vec![h::Table::new(vec![
++                    stretch_col(vec![h::Table::new(vec![
+                         "Member".into(),
+                         "Role".into(),
+                         "Status".into(),
 @@ -3946,7 +4209,7 @@ impl Gallery {
                              .flex()
                              .items_center()
@@ -206938,6 +207019,15 @@ index 5eb12cd4..8bd6c7a8 100644
                              .child(
                                  gpui::div()
                                      .flex()
+@@ -3999,7 +4262,7 @@ impl Gallery {
+                 ),
+                 (
+                     "Empty and loading",
+-                    col(vec![
++                    stretch_col(vec![
+                         h::Table::new(vec!["Name".into(), "Role".into()])
+                             .id("tbl-empty-and-loading")
+                             .empty_state("Nobody here yet")
 @@ -4027,8 +4290,23 @@ impl Gallery {
              crate::pages::Page::Calendar.description(),
              crate::pages::Page::Calendar.import_line(),
@@ -207434,7 +207524,7 @@ index 5eb12cd4..8bd6c7a8 100644
                              .on_focus_change(date_cb(cx.listener(|this, d: &h::Date, _, cx| {
                                  this.set_demo_text_value("rc-focus", d.format_iso());
                                  cx.notify();
-@@ -4905,25 +5192,35 @@ impl Gallery {
+@@ -4905,23 +5192,33 @@ impl Gallery {
                  ),
                  (
                      "Unavailable Dates",
@@ -207447,16 +207537,6 @@ index 5eb12cd4..8bd6c7a8 100644
 -                    })
 -                    .into_any_element()]),
 -                ),
--                (
--                    "Anchor-Based Unavailable Dates",
--                    col(vec![
--                        para(
--                            "After the first date is selected, earlier dates become unavailable \
--                             because the predicate receives that active anchor.",
--                            cx,
--                        ),
--                        h::RangeCalendar::new(self.demo_range("rc-anchor", cx))
--                            .is_date_unavailable(|date, anchor| {
 +                    col({
 +                        let blocked_ranges = [
 +                            (h::add_days(&today, 2), h::add_days(&today, 5)),
@@ -207480,15 +207560,18 @@ index 5eb12cd4..8bd6c7a8 100644
 +                        ]
 +                    }),
 +                ),
-+                (
-+                    "Anchor-Based Unavailable Dates",
+                 (
+                     "Anchor-Based Unavailable Dates",
 +                    "After the first date is selected, earlier dates become unavailable because the predicate receives that active anchor.",
-+                    col(vec![
-+                        h::RangeCalendar::new(self.demo_range("rc-anchor", cx))
-+                            .is_date_unavailable(|date, anchor| {
+                     col(vec![
+-                        para(
+-                            "After the first date is selected, earlier dates become unavailable \
+-                             because the predicate receives that active anchor.",
+-                            cx,
+-                        ),
+                         h::RangeCalendar::new(self.demo_range("rc-anchor", cx))
+                             .is_date_unavailable(|date, anchor| {
                                  anchor.is_some_and(|anchor| {
-                                     (date.year, date.month, date.day)
-                                         < (anchor.year, anchor.month, anchor.day)
 @@ -4957,6 +5254,7 @@ impl Gallery {
                  ),
                  (
@@ -208825,6 +208908,16 @@ index 5eb12cd4..8bd6c7a8 100644
 -                            "`validate` is run by the component: it returns the message, and the \
 -                             field shows it. Type one or two characters.",
 -                            cx,
+-                        ),
+-                        h::SearchField::new(validated)
+-                            .label("Search")
+-                            .is_required(true)
+-                            .description("Enter at least 3 characters to search")
+-                            .validate(|value| {
+-                                (!value.is_empty() && value.chars().count() < 3)
+-                                    .then(|| "Search query must be at least 3 characters".into())
+-                            })
+-                            .into_any_element(),
 +                        demo_field(
 +                            h::SearchField::new(validated)
 +                                .label("Search")
@@ -208836,16 +208929,7 @@ index 5eb12cd4..8bd6c7a8 100644
 +                                        "Search query must be at least 3 characters".into()
 +                                    })
 +                                }),
-                         ),
--                        h::SearchField::new(validated)
--                            .label("Search")
--                            .is_required(true)
--                            .description("Enter at least 3 characters to search")
--                            .validate(|value| {
--                                (!value.is_empty() && value.chars().count() < 3)
--                                    .then(|| "Search query must be at least 3 characters".into())
--                            })
--                            .into_any_element(),
++                        ),
                      ]),
                  ),
                  (

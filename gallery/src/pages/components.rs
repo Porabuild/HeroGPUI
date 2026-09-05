@@ -3829,10 +3829,10 @@ impl Gallery {
             crate::pages::Page::Table.description(),
             crate::pages::Page::Table.import_line(),
             vec![
-                ("Usage", "Headers use 12px text with 16px lines; cells use 14px text with 20px lines in both ordinary and virtual rows.", col(vec![build("tbl-usage").into_any_element()])),
+                ("Usage", "Headers use 12px text with 16px lines; cells use 14px text with 20px lines in both ordinary and virtual rows.", stretch_col(vec![build("tbl-usage").into_any_element()])),
                 (
                     "Variants",
-                    col(h::TableVariant::ALL
+                    stretch_col(h::TableVariant::ALL
                         .iter()
                         .map(|v| {
                             build(match v {
@@ -3847,7 +3847,7 @@ impl Gallery {
                     "Custom sort indicator",
                     // Sorted on load, so the custom indicator is actually
                     // visible: `indicator` only renders for the sorted column.
-                    col(vec![h::Table::new(vec![])
+                    stretch_col(vec![h::Table::new(vec![])
                         .id("tbl-custom-sort-indicator")
                         .column(h::TableColumn::new("Name").allows_sorting(true))
                         .column("Role")
@@ -3876,7 +3876,7 @@ impl Gallery {
                 ),
                 (
                     "Selection",
-                    col(vec![
+                    stretch_col(vec![
                         build("tbl-selection")
                             .selection_mode(SelectionMode::Multiple)
                             .selected_keys(self.table_selection.clone())
@@ -3893,7 +3893,7 @@ impl Gallery {
                 (
                     "Sorting",
                     "PageUp moves from the body to the first header — from the top of a virtual body; mid-body it pages by viewport. Enter sorts a sortable header; Down or PageDown returns to the first or last enabled row.",
-                    col(vec![
+                    stretch_col(vec![
                         {
                             let mut rows = [
                                 ["Tony Reichert", "CEO", "Active"],
@@ -3942,7 +3942,7 @@ impl Gallery {
                 ),
                 (
                     "Virtualization", "v3 wraps the table in `Virtualizer` with `TableLayout`. Cells here are built elements, which cannot be handed out twice, so a virtual table takes a row factory and asks for the rows the viewport shows — one thousand of them, forty pixels each. The fixed-row body caps at `max_h`, shrinks below it in a bounded parent, and PageUp/PageDown move by the visible viewport, including after resize, while skipping disabled stops.",
-                    col(vec![
+                    stretch_col(vec![
                         h::Table::new(vec![])
                             .id("tbl-virtualization")
                             .column(h::TableColumn::new("Name").is_row_header(true))
@@ -4007,7 +4007,7 @@ impl Gallery {
                     let resize_name = self.demo_value("tbl-resize-name", 220.);
                     let resize_role = self.demo_value("tbl-resize-role", 180.);
                     let resize_status = self.demo_text_value("tbl-resize-status");
-                    col(vec![
+                    stretch_col(vec![
                         para(
                             &format!(
                                 "{} Name: {:.0}px · Role: {:.0}px",
@@ -4079,7 +4079,7 @@ impl Gallery {
                 },),
                 (
                     "Expandable Rows", "A row's children are nested under it, and `expandedKeys` decides which parents show theirs. The chevron sits in the tree column; Right expands the focused parent, and Left collapses it or returns the row cursor to its parent.",
-                    col(vec![
+                    stretch_col(vec![
                         {
                             let cell = |text: &str| gpui::div().child(text.to_owned());
                             h::Table::new(vec!["Title".into(), "Type".into(), "Modified".into()])
@@ -4150,13 +4150,13 @@ impl Gallery {
                 ),
                 (
                     "Secondary Variant",
-                    col(vec![build("tbl-secondary-variant")
+                    stretch_col(vec![build("tbl-secondary-variant")
                         .variant(h::TableVariant::Secondary)
                         .into_any_element()]),
                 ),
                 (
                     "Async Loading", "`isPending` covers the table while a request is in flight; `onLoadMore` fires when the last row scrolls into view.",
-                    col(vec![
+                    stretch_col(vec![
                         build("tbl-async-loading")
                             .is_pending(true)
                             .on_load_more(|_, _| {})
@@ -4167,7 +4167,7 @@ impl Gallery {
                 ),
                 (
                     "Pagination",
-                    col(vec![{
+                    stretch_col(vec![{
                         let start = table_page.saturating_sub(1) * 2;
                         let people = [
                             ("Tony Reichert", "CEO"),
@@ -4207,7 +4207,7 @@ impl Gallery {
                 ),
                 (
                     "Custom Cells",
-                    col(vec![h::Table::new(vec![
+                    stretch_col(vec![h::Table::new(vec![
                         "Member".into(),
                         "Role".into(),
                         "Status".into(),
@@ -4275,7 +4275,7 @@ impl Gallery {
                 ),
                 (
                     "Empty and loading",
-                    col(vec![
+                    stretch_col(vec![
                         h::Table::new(vec!["Name".into(), "Role".into()])
                             .id("tbl-empty-and-loading")
                             .empty_state("Nobody here yet")
@@ -13983,5 +13983,37 @@ mod example_quality {
         assert!(state.is_open("po-custom-styles"));
         state.on_open_change("po-custom-styles", false);
         assert!(!state.is_open("po-custom-styles"));
+    }
+
+    // `example_frame_with_code` centres its demo child, so the hug-content
+    // [`col`] leaves a `w-full` Table at its intrinsic width, where each flex
+    // row resolves its own column boundaries and the body drifts off the header.
+    #[test]
+    fn table_examples_give_the_w_full_table_the_frame_width() {
+        let page = page_fn(SRC, "table");
+        let titles = section_titles(page);
+        assert!(!titles.is_empty(), "the Table page lists its examples");
+        for title in titles {
+            let body = section_body(page, &title);
+            let bare = body
+                .match_indices("col(")
+                .filter(|(at, _)| {
+                    body[..*at]
+                        .chars()
+                        .next_back()
+                        .is_none_or(|c| !(c.is_alphanumeric() || c == '_'))
+                })
+                .count();
+            assert_eq!(
+                bare, 0,
+                "the {title} example must not wrap a `w-full` Table in the \
+                 hug-content `col`: centred in the frame it keeps its intrinsic \
+                 width and the body columns drift off their header"
+            );
+            assert!(
+                body.contains("stretch_col("),
+                "the {title} example should give the `w-full` Table the preview frame's width"
+            );
+        }
     }
 }

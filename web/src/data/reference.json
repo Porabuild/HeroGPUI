@@ -21072,7 +21072,7 @@
       },
       {
         "token": ".table__content",
-        "description": "14px type and 20px line height match; the port is a flex column rather than a border-separate table.",
+        "description": "14px type and 20px line height match; the port is a flex column rather than a border-separate table, so column tracks resolve per row and a table narrower than its columns times their widest cell staggers the body against the header.",
         "rust": "min_w_full flex_col text_size(px(14.)) line_height(px(20.))",
         "status": "partial"
       },
