@@ -1062,8 +1062,9 @@
     },
     {
       "heading": "Multiple months",
-      "imports": "use herogpui::prelude::{Calendar, CalendarState, VisibleDuration};",
-      "code": "Calendar::new(self.calendar.clone())\n    .visible_duration(VisibleDuration::Months(2))"
+      "description": "Scroll horizontally to explore both months in narrow layouts.",
+      "imports": "use herogpui::prelude::{Calendar, CalendarState, VisibleDuration};\nuse gpui::prelude::*;",
+      "code": "stretch_col(vec![Calendar::new(self.calendar.clone())\n    .visible_duration(VisibleDuration::Months(2))\n    .into_any_element()])"
     },
     {
       "heading": "Week view",
@@ -1331,8 +1332,9 @@
     },
     {
       "heading": "Multiple Months",
-      "imports": "use herogpui::prelude::{RangeCalendar, VisibleDuration};",
-      "code": "RangeCalendar::new(\n    self.demo_range(\"rc-months\", cx),\n)\n.visible_duration(VisibleDuration::Months(2))"
+      "description": "Scroll horizontally to explore both months in narrow layouts.",
+      "imports": "use herogpui::prelude::{RangeCalendar, VisibleDuration};\nuse gpui::prelude::*;",
+      "code": "stretch_col(vec![RangeCalendar::new(\n    self.demo_range(\"rc-months\", cx),\n)\n.visible_duration(VisibleDuration::Months(2))\n.into_any_element()])"
     },
     {
       "heading": "Read Only",

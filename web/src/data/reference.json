@@ -11734,7 +11734,7 @@
     "styling": [
       {
         "token": ".calendar",
-        "description": "Single-month width is exact; GPUI has no CSS container-query context.",
+        "description": "Single-month width is exact; multiple months use the documented 256px panels, 32px gaps and horizontal scrolling. GPUI has no CSS container-query context.",
         "rust": "CALENDAR_WIDTH = 252px",
         "status": "partial"
       },
@@ -11782,7 +11782,7 @@
       },
       {
         "token": ".calendar__grid",
-        "description": "Single-month, week and day columns align at 36px without horizontal gaps; multi-month columns still use a narrower width.",
+        "description": "All views divide each panel into seven equal columns without horizontal gaps; multi-month panels are 256px wide.",
         "rust": "seven flex_1 cells per row + no horizontal gap",
         "status": "partial"
       },
@@ -11806,8 +11806,8 @@
       },
       {
         "token": ".calendar__cell",
-        "description": "Day cells center 14px/20px medium text in a 36px hit area, including selected, disabled and custom cells.",
-        "rust": "36px circle + radius(18px) + text_size(14px) + line_height(20px) + MEDIUM",
+        "description": "Day cells center 14px/20px medium text in a square one seventh of the panel width, including selected, disabled and custom cells.",
+        "rust": "cell_size = column_width / 7 + text_size(14px) + line_height(20px) + MEDIUM",
         "status": "partial"
       },
       {
@@ -14907,8 +14907,8 @@
     "styling": [
       {
         "token": ".range-calendar",
-        "description": "Week/day roots use 252px, but month view paints 266px; GPUI also has no container-query context.",
-        "rust": "CALENDAR_WIDTH 252px / month column 266px",
+        "description": "Single-month, week and day roots use 252px; multiple months use the documented 256px panels, 32px gaps and horizontal scrolling. GPUI has no container-query context.",
+        "rust": "CALENDAR_WIDTH 252px / multiple-month column 256px",
         "status": "partial"
       },
       {
@@ -14943,8 +14943,8 @@
       },
       {
         "token": ".range-calendar__grid",
-        "description": "Seven flex cells are fixed at 38px rather than v3's 36px columns inside a 252px root.",
-        "rust": "seven 38px cells per flex row",
+        "description": "Seven equal flex columns fill each panel, including the wider multiple-month layout.",
+        "rust": "seven flex_1 cells per row",
         "status": "partial"
       },
       {
@@ -14961,14 +14961,14 @@
       },
       {
         "token": ".range-calendar__cell",
-        "description": "The 36px range segment contains a separate inner day button; 4px row gaps reproduce the spacing between cells.",
-        "rust": "36px range segment + row gap(4px)",
+        "description": "Each range segment spans one seventh of the panel width and contains a separate square day button; 4px row gaps reproduce the spacing between cells.",
+        "rust": "flex_1 range segment + cell_size height + row gap(4px)",
         "status": "partial"
       },
       {
         "token": ".range-calendar__cell-button",
         "description": "The inner day button centers 14px/20px medium text, including selected endpoints and custom cell content.",
-        "rust": "36px inner cell + text_size(14px) + line_height(20px) + MEDIUM",
+        "rust": "cell_size = column_width / 7 + text_size(14px) + line_height(20px) + MEDIUM",
         "status": "implemented"
       },
       {

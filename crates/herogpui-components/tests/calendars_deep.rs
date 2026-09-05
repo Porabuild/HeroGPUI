@@ -170,6 +170,227 @@ fn calendar_days_align_with_the_seven_weekday_columns(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
+fn multi_month_cells_fill_the_documented_panel_width(cx: &mut TestAppContext) {
+    for range in [false, true] {
+        let state = cx.new(|cx| CalendarState::new(cx));
+        let range_state = cx.new(|cx| DateRangeState::new(cx));
+        let id = if range {
+            range_state.entity_id()
+        } else {
+            state.entity_id()
+        }
+        .as_u64();
+        let cx = open_host(cx, move || {
+            if range {
+                RangeCalendar::new(range_state.clone())
+                    .default_value((Date::new(2026, 8, 3), Date::new(2026, 8, 4)))
+                    .selection_alignment(herogpui_components::SelectionAlignment::Start)
+                    .visible_duration(VisibleDuration::Months(2))
+                    .first_day_of_week(Weekday::Mon)
+                    .into_any_element()
+            } else {
+                Calendar::new(state.clone())
+                    .default_value(Date::new(2026, 8, 3))
+                    .visible_duration(VisibleDuration::Months(2))
+                    .first_day_of_week(Weekday::Mon)
+                    .into_any_element()
+            }
+        });
+        let mut bounds = |month, day| {
+            let key = if range {
+                range_cell_selector(id, 2026, month, day)
+            } else {
+                cal_cell_selector(id, 2026, month, day)
+            };
+            cx.debug_bounds(Box::leak(key.into_boxed_str())).unwrap()
+        };
+        let first = bounds(8, 3);
+        let last = bounds(8, 9);
+        assert!(
+            (f32::from(first.size.width) - 256. / 7.).abs() < 0.1,
+            "range={range}: {first:?}"
+        );
+        assert_eq!(first.size.width, first.size.height);
+        assert!(
+            (f32::from(last.right() - first.left()) - 256.).abs() < 0.1,
+            "range={range}: first={first:?}, last={last:?}"
+        );
+        // September 7 is Monday, so the matching column is one panel plus gap away.
+        let next = bounds(9, 7);
+        assert!((f32::from(next.left() - first.left()) - 288.).abs() < 0.1);
+    }
+}
+
+#[gpui::test]
+fn multi_month_view_scrolls_to_the_second_month_in_a_narrow_host(cx: &mut TestAppContext) {
+    for range in [false, true] {
+        let state = cx.new(|cx| CalendarState::new(cx));
+        let range_state = cx.new(|cx| DateRangeState::new(cx));
+        let id = if range {
+            range_state.entity_id()
+        } else {
+            state.entity_id()
+        }
+        .as_u64();
+        let cx = open_host(cx, move || {
+            let content = if range {
+                RangeCalendar::new(range_state.clone())
+                    .default_value((Date::new(2026, 8, 3), Date::new(2026, 8, 4)))
+                    .selection_alignment(herogpui_components::SelectionAlignment::Start)
+                    .visible_duration(VisibleDuration::Months(2))
+                    .first_day_of_week(Weekday::Mon)
+                    .into_any_element()
+            } else {
+                Calendar::new(state.clone())
+                    .default_value(Date::new(2026, 8, 3))
+                    .visible_duration(VisibleDuration::Months(2))
+                    .first_day_of_week(Weekday::Mon)
+                    .into_any_element()
+            };
+            gpui::div().w(px(320.)).child(content).into_any_element()
+        });
+        press(cx, "tab");
+        press(cx, "end");
+        press(cx, "down");
+        press(cx, "right");
+        cx.run_until_parked();
+        let key = if range {
+            range_cell_selector(id, 2026, 9, 8)
+        } else {
+            cal_cell_selector(id, 2026, 9, 8)
+        };
+        let bounds = cx.debug_bounds(Box::leak(key.into_boxed_str())).unwrap();
+        assert!(
+            bounds.left() >= px(0.) && bounds.right() <= px(320.5),
+            "keyboard range={range}: {bounds:?}"
+        );
+        press(cx, "home");
+        press(cx, "up");
+        cx.run_until_parked();
+        let key = if range {
+            range_cell_selector(id, 2026, 8, 25)
+        } else {
+            cal_cell_selector(id, 2026, 8, 25)
+        };
+        let bounds = cx.debug_bounds(Box::leak(key.into_boxed_str())).unwrap();
+        assert!(
+            bounds.left() >= px(0.) && bounds.right() <= px(320.5),
+            "keyboard return range={range}: {bounds:?}"
+        );
+        cx.simulate_event(gpui::ScrollWheelEvent {
+            position: point(px(160.), px(90.)),
+            delta: gpui::ScrollDelta::Pixels(point(px(-500.), px(0.))),
+            ..Default::default()
+        });
+        cx.update(|window, _| window.refresh());
+        let key = if range {
+            range_cell_selector(id, 2026, 9, 27)
+        } else {
+            cal_cell_selector(id, 2026, 9, 27)
+        };
+        let bounds = cx.debug_bounds(Box::leak(key.into_boxed_str())).unwrap();
+        assert!(
+            bounds.left() >= px(280.) && bounds.right() <= px(320.5),
+            "range={range}: {bounds:?}"
+        );
+    }
+}
+
+#[gpui::test]
+fn multi_month_year_picker_reveals_its_active_column(cx: &mut TestAppContext) {
+    for range in [false, true] {
+        for initial_scroll in [0., -500.] {
+            let state = cx.new(|cx| CalendarState::new(cx));
+            let range_state = cx.new(|cx| DateRangeState::new(cx));
+            let base = if range {
+                format!(r#"Name("range-cal-{}")"#, range_state.entity_id().as_u64())
+            } else {
+                format!(r#"Name("cal-{}")"#, state.entity_id().as_u64())
+            };
+            let open = Rc::new(std::cell::Cell::new(false));
+            let view_open = open.clone();
+            let focused = Rc::new(std::cell::Cell::new(Date::new(2020, 8, 10)));
+            let view_focused = focused.clone();
+            let cx = open_host(cx, move || {
+                let focused = view_focused.clone();
+                let open = view_open.clone();
+                let content = if range {
+                    RangeCalendar::new(range_state.clone())
+                        .default_value((Date::new(2020, 8, 10), Date::new(2020, 8, 15)))
+                        .focused_value(view_focused.get())
+                        .on_focus_change(move |date, window, _| {
+                            focused.set(date);
+                            window.refresh();
+                        })
+                        .min_value(Date::new(2000, 1, 1))
+                        .max_value(Date::new(2040, 12, 31))
+                        .visible_duration(VisibleDuration::Months(2))
+                        .is_year_picker_open(view_open.get())
+                        .on_year_picker_open_change(move |value, window, _| {
+                            open.set(value);
+                            window.refresh();
+                        })
+                        .into_any_element()
+                } else {
+                    Calendar::new(state.clone())
+                        .default_value(Date::new(2020, 8, 10))
+                        .focused_value(view_focused.get())
+                        .on_focus_change(move |date, window, _| {
+                            focused.set(date);
+                            window.refresh();
+                        })
+                        .min_value(Date::new(2000, 1, 1))
+                        .max_value(Date::new(2040, 12, 31))
+                        .visible_duration(VisibleDuration::Months(2))
+                        .is_year_picker_open(view_open.get())
+                        .on_year_picker_open_change(move |value, window, _| {
+                            open.set(value);
+                            window.refresh();
+                        })
+                        .into_any_element()
+                };
+                gpui::div().w(px(320.)).child(content).into_any_element()
+            });
+            cx.simulate_event(gpui::ScrollWheelEvent {
+                position: point(px(160.), px(90.)),
+                delta: gpui::ScrollDelta::Pixels(point(px(initial_scroll), px(0.))),
+                ..Default::default()
+            });
+            open.set(true);
+            cx.update(|window, _| window.refresh());
+            for (key, year) in [
+                (None, 2020),
+                (Some("left"), 2019),
+                (Some("left"), 2018),
+                (Some("right"), 2019),
+            ] {
+                if let Some(key) = key {
+                    press(cx, key);
+                }
+                cx.run_until_parked();
+                let key = Box::leak(format!("{base}-y{year}").into_boxed_str());
+                let bounds = cx.debug_bounds(key).unwrap();
+                assert!(
+                    bounds.left() >= px(0.) && bounds.right() <= px(320.5),
+                    "range={range}, initial_scroll={initial_scroll}, year={year}: {bounds:?}"
+                );
+            }
+            press(cx, "home");
+            press(cx, "shift-tab");
+            cx.run_until_parked();
+            // The second heading sits at the right edge of the same month strip.
+            let right = cx
+                .debug_bounds(Box::leak(format!("{base}-y2002").into_boxed_str()))
+                .unwrap();
+            assert!(
+                right.left() >= px(0.) && right.right() <= px(320.5),
+                "open heading range={range}: {right:?}"
+            );
+        }
+    }
+}
+
+#[gpui::test]
 fn day_views_keep_week_columns_and_disable_leading_dates(cx: &mut TestAppContext) {
     for range in [false, true] {
         let calendar = cx.new(|cx| CalendarState::new(cx));

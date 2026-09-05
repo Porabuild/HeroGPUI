@@ -501,6 +501,7 @@ struct Frame<'a> {
     /// grid does not hold the keyboard.
     focused: Option<Date>,
     visible_start: Option<Date>,
+    cell_size: gpui::Pixels,
 }
 
 /// Where a cell sits in its row: the row's first and last columns drive the
@@ -584,7 +585,9 @@ impl RangeCalendar {
             .flex()
             .items_center()
             .justify_center()
-            .size(px(36.));
+            .flex_1()
+            .min_w_0()
+            .h(frame.cell_size);
         if is_selected {
             // `[data-selected]:not([data-outside-month])` is
             // `rounded-none bg-accent-soft` -- on the caps too, whose solid
@@ -626,7 +629,7 @@ impl RangeCalendar {
             .flex()
             .items_center()
             .justify_center()
-            .size(px(36.))
+            .size(frame.cell_size)
             .text_size(px(14.))
             .line_height(px(20.))
             .font_weight(gpui::FontWeight::MEDIUM)
@@ -687,14 +690,14 @@ impl RangeCalendar {
         // drop the scale.
         let cell = if selectable {
             let press_box = crate::anim::PressBox {
-                height: px(36.),
+                height: frame.cell_size,
                 padding_x: None,
-                width: Some(px(36.)),
+                width: Some(frame.cell_size),
                 min_width: None,
                 text_size: px(14.),
                 line_height: px(20.),
                 gap: px(0.),
-                radius: px(18.),
+                radius: frame.cell_size / 2.,
                 shrink_x: true,
                 scale: crate::anim::PRESSED_SCALE_RANGE,
             };
@@ -823,7 +826,7 @@ impl RangeCalendar {
                     // The debug selector lets the headless tests read the
                     // dot's laid-out bounds.
                     .debug_selector(move || indicator_key)
-                    .left(px((36. - 3.) / 2.))
+                    .left((frame.cell_size - px(3.)) / 2.)
                     .bottom(px(4.))
                     .size(px(3.))
                     .rounded(px(2.))
@@ -843,7 +846,7 @@ impl RangeCalendar {
         for label in self.constraints.first_day_of_week.header_row() {
             row = row.child(
                 div()
-                    .w(px(36.))
+                    .flex_1()
                     .text_center()
                     // `.range-calendar__header-cell` is `text-xs`.
                     .text_size(px(12.))
@@ -886,7 +889,7 @@ impl RangeCalendar {
     ) -> gpui::AnyElement {
         match date {
             Some(date) => self.range_cell(date, outside_month, frame, key, slot, cx),
-            None => div().size(px(36.)).into_any_element(),
+            None => div().size(frame.cell_size).into_any_element(),
         }
     }
 
@@ -1307,6 +1310,11 @@ impl RenderOnce for RangeCalendar {
             .or(selection_start)
             .or_else(|| Some(Date::today()))
             .filter(|_| grid_focus.is_focused(window));
+        let column_width = if matches!(self.duration, VisibleDuration::Months(n) if n > 1) {
+            px(256.)
+        } else {
+            crate::calendar::CALENDAR_WIDTH
+        };
         let frame = Frame {
             start: paint_start,
             preview_end,
@@ -1319,6 +1327,7 @@ impl RenderOnce for RangeCalendar {
             base: &base,
             focused: ring_at,
             visible_start: matches!(self.duration, VisibleDuration::Days(_)).then_some(anchor),
+            cell_size: column_width / 7.,
         };
 
         let months = calendar_view::month_headings_in(self.system(), self.duration, anchor);
@@ -1831,21 +1840,19 @@ impl RenderOnce for RangeCalendar {
 
         let mut body = div().flex().flex_col().gap(px(8.));
         if self.duration.is_month_view() {
-            root = root
-                .w(crate::calendar::CALENDAR_WIDTH * columns as f32
-                    + px(20.) * (columns - 1) as f32);
-            let mut row = div().flex().gap(px(20.));
-            let mut headings = div().flex().gap(px(20.));
+            root = root.w(column_width * columns as f32 + px(32.) * (columns - 1) as f32);
+            let mut row = div().flex().gap(px(32.));
+            let mut headings = div().flex().gap(px(32.));
             for (i, &(y, m)) in months.iter().enumerate() {
                 let first = i == 0;
                 let last = i + 1 == columns;
-                let mut col = div().flex().flex_col().gap(px(8.)).w(px(252.));
+                let mut col = div().flex().flex_col().gap(px(8.)).w(column_width);
                 // Only the outer columns carry nav buttons; the rest keep a
                 // same-size spacer so every heading lines up.
                 // The same box as a nav button, so every heading lines up.
                 let spacer = || div().size(px(24.)).into_any_element();
                 headings = headings.child(
-                    div().w(crate::calendar::CALENDAR_WIDTH).child(
+                    div().w(column_width).child(
                         div()
                         .flex()
                         .flex_row()
@@ -1971,7 +1978,64 @@ impl RenderOnce for RangeCalendar {
             root = root.opacity(layout.disabled_opacity);
         }
 
-        root
+        if columns > 1 {
+            let heading = heading_focuses
+                .iter()
+                .position(|focus| focus.is_focused(window))
+                .or_else(|| prev_focus.is_focused(window).then_some(0))
+                .or_else(|| next_focus.is_focused(window).then_some(columns - 1));
+            let reveal = heading
+                .map(|index| {
+                    let left = (column_width + px(32.)) * index as f32;
+                    (
+                        calendar_view::MonthScrollFocus::Heading(index),
+                        left,
+                        left + column_width,
+                    )
+                })
+                .or_else(|| {
+                    if year_picker_open {
+                        years
+                            .iter()
+                            .position(|year| *year == active_year)
+                            .map(|index| {
+                                let width =
+                                    column_width * columns as f32 + px(32.) * (columns - 1) as f32;
+                                // The year grid has 4px padding and two 4px column gaps.
+                                let cell = (width - px(16.)) / 3.;
+                                let left = px(4.) + (cell + px(4.)) * (index % 3) as f32;
+                                (
+                                    calendar_view::MonthScrollFocus::Year(active_year),
+                                    left,
+                                    left + cell,
+                                )
+                            })
+                    } else {
+                        let date = focused_value.or(ring_at)?;
+                        let (year, month, _) = self.system().from_gregorian(date);
+                        let index = months.iter().position(|value| *value == (year, month))?;
+                        let column = (crate::calendar::weekday_index(date) + 7
+                            - first_day.monday_index())
+                            % 7;
+                        let left = (column_width + px(32.)) * index as f32
+                            + frame.cell_size * column as f32;
+                        Some((
+                            calendar_view::MonthScrollFocus::Day(date),
+                            left,
+                            left + frame.cell_size,
+                        ))
+                    }
+                });
+            calendar_view::scrolling_months(
+                root.flex_shrink_0().mx_auto().into_any_element(),
+                &base,
+                reveal,
+                window,
+                cx,
+            )
+        } else {
+            root.into_any_element()
+        }
     }
 }
 

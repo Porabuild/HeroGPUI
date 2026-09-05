@@ -371,6 +371,8 @@ side, a run of week rows, or a rolling window of days. Day cells, month headings
 year cells use 14px/20px medium text; weekday labels use 12px/16px medium text.
 Calendar single-month, week and day rows use seven 36px columns without horizontal gaps, aligned
 with their weekday headings.
+Multiple-month views use 256px panels separated by 32px, with square cells one
+seventh of the panel width and horizontal scrolling when the host is narrower.
 Day views retain seven weekday columns, render dates before the requested start
 as disabled, and leave blank cells after its end. Navigation still uses the
 requested day count.

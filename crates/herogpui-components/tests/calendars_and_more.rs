@@ -303,7 +303,16 @@ fn range_calendar_indian_locale_end_alignment_keeps_selection_visible(cx: &mut T
             .into_any_element()
     });
     // Magha 1 must remain in the second grid; the first grid is Pausha.
-    click(cx, range_col_x(0), range_row_y(0));
+    let key = format!(
+        r#"Name("range-cal-{}")-1947-10-day-1"#,
+        state.entity_id().as_u64()
+    );
+    let bounds = cx.debug_bounds(Box::leak(key.into_boxed_str())).unwrap();
+    click(
+        cx,
+        f32::from(bounds.center().x),
+        f32::from(bounds.center().y),
+    );
     assert_eq!(
         cx.update(|_, cx| state.read(cx).start),
         Some(Date::new(2025, 12, 22))

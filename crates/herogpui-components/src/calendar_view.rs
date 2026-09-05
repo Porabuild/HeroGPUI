@@ -526,6 +526,67 @@ pub(crate) fn year_window(
         .collect()
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum MonthScrollFocus {
+    Day(Date),
+    Year(i32),
+    Heading(usize),
+}
+
+#[derive(Default)]
+struct MonthGridScroll {
+    handle: gpui::ScrollHandle,
+    last_target:
+        std::cell::Cell<Option<(MonthScrollFocus, gpui::Pixels, gpui::Pixels, gpui::Pixels)>>,
+}
+
+pub(crate) fn scrolling_months(
+    content: gpui::AnyElement,
+    base: &str,
+    reveal: Option<(MonthScrollFocus, gpui::Pixels, gpui::Pixels)>,
+    window: &mut gpui::Window,
+    cx: &mut gpui::App,
+) -> gpui::AnyElement {
+    use gpui::{prelude::*, InteractiveElement, StatefulInteractiveElement};
+    let state = window.use_keyed_state(
+        gpui::ElementId::Name(format!("{base}-months-scroll-state").into()),
+        cx,
+        |_, _| std::rc::Rc::new(MonthGridScroll::default()),
+    );
+    let scroll = state.read(cx).clone();
+    let handle = scroll.handle.clone();
+    gpui::div()
+        .on_children_prepainted(move |_, window, cx| {
+            let width = scroll.handle.bounds().size.width;
+            let target = reveal.map(|(focus, left, right)| (focus, left, right, width));
+            if scroll.last_target.replace(target) == target {
+                return;
+            }
+            if let Some((_, left, right, _)) = target {
+                let offset = scroll.handle.offset();
+                let x = if left < -offset.x {
+                    -left
+                } else if right > width - offset.x {
+                    width - right
+                } else {
+                    offset.x
+                };
+                if x != offset.x {
+                    scroll.handle.set_offset(gpui::point(x, offset.y));
+                    window.defer(cx, |window, _| window.refresh());
+                }
+            }
+        })
+        .id(format!("{base}-months-scroll"))
+        .w_full()
+        .min_w_0()
+        .overflow_x_scroll()
+        .track_scroll(&handle)
+        .flex()
+        .child(content)
+        .into_any_element()
+}
+
 #[derive(Default)]
 pub(crate) struct YearGridScroll {
     pub(crate) handle: gpui::ScrollHandle,

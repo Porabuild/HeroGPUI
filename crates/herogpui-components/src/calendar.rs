@@ -739,6 +739,7 @@ struct Frame<'a> {
     /// grid does not hold the keyboard.
     focused: Option<Date>,
     visible_start: Option<Date>,
+    cell_size: gpui::Pixels,
 }
 
 impl Calendar {
@@ -778,7 +779,7 @@ impl Calendar {
         let mut circle = gpui::div()
             .id(gpui::ElementId::Name(key.clone().into()))
             .debug_selector(move || key)
-            .size(px(36.))
+            .size(frame.cell_size)
             .rounded_full()
             .flex()
             .items_center()
@@ -796,14 +797,14 @@ impl Calendar {
         // `.calendar__cell[data-pressed]` fills with `bg-default` and scales
         // to 0.95 -- every cell, today included.
         let press_box = crate::anim::PressBox {
-            height: px(36.),
+            height: frame.cell_size,
             padding_x: None,
-            width: Some(px(36.)),
+            width: Some(frame.cell_size),
             min_width: None,
             text_size: px(14.),
             line_height: px(20.),
             gap: px(0.),
-            radius: px(18.),
+            radius: frame.cell_size / 2.,
             shrink_x: true,
             scale: crate::anim::PRESSED_SCALE_DEEP,
         };
@@ -910,7 +911,7 @@ impl Calendar {
         let marked = self.cell_indicator.as_ref().is_some_and(|f| f(date));
         gpui::div()
             .flex_1()
-            .h(px(36.))
+            .h(frame.cell_size)
             .relative()
             .flex()
             .items_center()
@@ -1020,7 +1021,7 @@ impl Calendar {
     ) -> gpui::AnyElement {
         match date {
             Some(date) => self.day_cell(date, outside_month, frame, key, cx),
-            None => gpui::div().size(px(36.)).into_any_element(),
+            None => gpui::div().size(frame.cell_size).into_any_element(),
         }
     }
 
@@ -1422,6 +1423,11 @@ impl RenderOnce for Calendar {
             .or(selected)
             .or_else(|| Some(Date::today()))
             .filter(|_| grid_focus.is_focused(window));
+        let column_width = if matches!(self.duration, VisibleDuration::Months(n) if n > 1) {
+            px(256.)
+        } else {
+            CALENDAR_WIDTH
+        };
         let frame = Frame {
             selected,
             selected_dates: &selected_dates,
@@ -1430,6 +1436,7 @@ impl RenderOnce for Calendar {
             base: &base,
             focused: ring_at,
             visible_start: matches!(self.duration, VisibleDuration::Days(_)).then_some(anchor),
+            cell_size: column_width / 7.,
         };
 
         let months = calendar_view::month_headings_in(self.system(), self.duration, anchor);
@@ -1645,12 +1652,6 @@ impl RenderOnce for Calendar {
                         .into_any_element()
                 }
             }
-        };
-
-        let column_width = if columns > 1 {
-            px(228.)
-        } else {
-            CALENDAR_WIDTH
         };
 
         let mut root = gpui::div()
@@ -1872,9 +1873,9 @@ impl RenderOnce for Calendar {
 
         let mut body = gpui::div().flex().flex_col().gap(px(8.));
         if self.duration.is_month_view() {
-            root = root.w(column_width * columns as f32 + px(20.) * (columns - 1) as f32);
-            let mut row = gpui::div().flex().gap(px(20.));
-            let mut headings = gpui::div().flex().gap(px(20.));
+            root = root.w(column_width * columns as f32 + px(32.) * (columns - 1) as f32);
+            let mut row = gpui::div().flex().gap(px(32.));
+            let mut headings = gpui::div().flex().gap(px(32.));
             for (i, &(y, m)) in months.iter().enumerate() {
                 let first = i == 0;
                 let last = i + 1 == columns;
@@ -2005,7 +2006,62 @@ impl RenderOnce for Calendar {
             root = root.opacity(layout.disabled_opacity);
         }
 
-        root
+        if columns > 1 {
+            let heading = heading_focuses
+                .iter()
+                .position(|focus| focus.is_focused(window))
+                .or_else(|| prev_focus.is_focused(window).then_some(0))
+                .or_else(|| next_focus.is_focused(window).then_some(columns - 1));
+            let reveal = heading
+                .map(|index| {
+                    let left = (column_width + px(32.)) * index as f32;
+                    (
+                        calendar_view::MonthScrollFocus::Heading(index),
+                        left,
+                        left + column_width,
+                    )
+                })
+                .or_else(|| {
+                    if year_picker_open {
+                        years
+                            .iter()
+                            .position(|year| *year == active_year)
+                            .map(|index| {
+                                let width =
+                                    column_width * columns as f32 + px(32.) * (columns - 1) as f32;
+                                // The year grid has 4px padding and two 4px column gaps.
+                                let cell = (width - px(16.)) / 3.;
+                                let left = px(4.) + (cell + px(4.)) * (index % 3) as f32;
+                                (
+                                    calendar_view::MonthScrollFocus::Year(active_year),
+                                    left,
+                                    left + cell,
+                                )
+                            })
+                    } else {
+                        let date = focused_value.or(ring_at)?;
+                        let (year, month, _) = self.system().from_gregorian(date);
+                        let index = months.iter().position(|value| *value == (year, month))?;
+                        let column = (weekday_index(date) + 7 - first_day.monday_index()) % 7;
+                        let left = (column_width + px(32.)) * index as f32
+                            + frame.cell_size * column as f32;
+                        Some((
+                            calendar_view::MonthScrollFocus::Day(date),
+                            left,
+                            left + frame.cell_size,
+                        ))
+                    }
+                });
+            calendar_view::scrolling_months(
+                root.flex_shrink_0().mx_auto().into_any_element(),
+                &base,
+                reveal,
+                window,
+                cx,
+            )
+        } else {
+            root.into_any_element()
+        }
     }
 }
 

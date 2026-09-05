@@ -12445,7 +12445,7 @@ index 7a8f3282..96febab1 100644
                      shrink_x: !self.full_width,
                      scale: press_scale,
 diff --git a/crates/herogpui-components/src/calendar.rs b/crates/herogpui-components/src/calendar.rs
-index 87d98a71..4dcc7276 100644
+index 87d98a71..e547a3fd 100644
 --- a/crates/herogpui-components/src/calendar.rs
 +++ b/crates/herogpui-components/src/calendar.rs
 @@ -5,6 +5,8 @@ use gpui::{
@@ -12650,15 +12650,16 @@ index 87d98a71..4dcc7276 100644
              cell_indicator: None,
              cell: None,
              nav_icons: None,
-@@ -601,6 +738,7 @@ struct Frame<'a> {
+@@ -601,6 +738,8 @@ struct Frame<'a> {
      /// it, otherwise wherever the arrow keys have walked to. `None` while the
      /// grid does not hold the keyboard.
      focused: Option<Date>,
 +    visible_start: Option<Date>,
++    cell_size: gpui::Pixels,
  }
  
  impl Calendar {
-@@ -616,7 +754,12 @@ impl Calendar {
+@@ -616,7 +755,12 @@ impl Calendar {
          let colors = cx.colors();
          let accent = colors.accent;
          let unavailable = self.constraints.is_unavailable(date);
@@ -12672,7 +12673,13 @@ index 87d98a71..4dcc7276 100644
          let focusable = !disabled;
          let eligible = focusable && !unavailable;
          let selectable = eligible && !self.is_read_only;
-@@ -640,7 +783,9 @@ impl Calendar {
+@@ -635,12 +779,14 @@ impl Calendar {
+         let mut circle = gpui::div()
+             .id(gpui::ElementId::Name(key.clone().into()))
+             .debug_selector(move || key)
+-            .size(px(36.))
++            .size(frame.cell_size)
+             .rounded_full()
              .flex()
              .items_center()
              .justify_center()
@@ -12683,7 +12690,24 @@ index 87d98a71..4dcc7276 100644
  
          let marker = if self.is_invalid {
              colors.danger.color
-@@ -665,14 +810,11 @@ impl Calendar {
+@@ -651,28 +797,25 @@ impl Calendar {
+         // `.calendar__cell[data-pressed]` fills with `bg-default` and scales
+         // to 0.95 -- every cell, today included.
+         let press_box = crate::anim::PressBox {
+-            height: px(36.),
++            height: frame.cell_size,
+             padding_x: None,
+-            width: Some(px(36.)),
++            width: Some(frame.cell_size),
+             min_width: None,
+             text_size: px(14.),
+             line_height: px(20.),
+             gap: px(0.),
+-            radius: px(18.),
++            radius: frame.cell_size / 2.,
+             shrink_x: true,
+             scale: crate::anim::PRESSED_SCALE_DEEP,
+         };
          if outside_month {
              circle = circle.text_color(colors.muted);
          } else if is_sel {
@@ -12703,7 +12727,16 @@ index 87d98a71..4dcc7276 100644
              if selectable {
                  // `.calendar__cell[data-pressed][data-selected]` fills
                  // `bg-accent-hover`, the one pressed recolour the pinned CSS
-@@ -776,14 +918,14 @@ impl Calendar {
+@@ -768,7 +911,7 @@ impl Calendar {
+         let marked = self.cell_indicator.as_ref().is_some_and(|f| f(date));
+         gpui::div()
+             .flex_1()
+-            .h(px(36.))
++            .h(frame.cell_size)
+             .relative()
+             .flex()
+             .items_center()
+@@ -776,14 +919,14 @@ impl Calendar {
              .child(match &self.cell {
                  Some(render) => circle.child(render(CalendarCellState {
                      date,
@@ -12720,7 +12753,7 @@ index 87d98a71..4dcc7276 100644
              })
              .when(marked, |cell| {
                  cell.child(
-@@ -813,37 +955,94 @@ impl Calendar {
+@@ -813,37 +956,94 @@ impl Calendar {
      /// `.calendar__grid-header` — the seven `.calendar__header-cell` columns.
      fn weekday_header(&self, cx: &App) -> gpui::Div {
          let muted = cx.colors().muted;
@@ -12794,7 +12827,7 @@ index 87d98a71..4dcc7276 100644
 +    ) -> gpui::AnyElement {
 +        match date {
 +            Some(date) => self.day_cell(date, outside_month, frame, key, cx),
-+            None => gpui::div().size(px(36.)).into_any_element(),
++            None => gpui::div().size(frame.cell_size).into_any_element(),
 +        }
      }
  
@@ -12828,7 +12861,7 @@ index 87d98a71..4dcc7276 100644
                          true,
                          frame,
                          format!("{}-{y}-{m}-outside-{py}-{pm}-d{day}", frame.base),
-@@ -859,17 +1058,17 @@ impl Calendar {
+@@ -859,17 +1059,17 @@ impl Calendar {
                          // render prop a real `CalendarDate`, and the closure is
                          // the only identity a caller has.
                          let nd = day_num - dim;
@@ -12851,7 +12884,7 @@ index 87d98a71..4dcc7276 100644
                              false,
                              frame,
                              format!("{}-{y}-{m}-d{day_num}", frame.base),
-@@ -899,13 +1098,30 @@ impl Calendar {
+@@ -899,13 +1099,30 @@ impl Calendar {
          let active_year = view.active_year;
          let base = view.base;
          // `.calendar-year-picker__year-grid` is `gap-1 p-1`.
@@ -12884,7 +12917,7 @@ index 87d98a71..4dcc7276 100644
                      .when(!self.is_disabled && is_active, |cell| {
                          cell.track_focus(year_focus)
                      })
-@@ -918,13 +1134,12 @@ impl Calendar {
+@@ -918,13 +1135,12 @@ impl Calendar {
                      .items_center()
                      .justify_center()
                      .text_size(px(14.))
@@ -12901,7 +12934,7 @@ index 87d98a71..4dcc7276 100644
                  } else if !self.is_disabled {
                      // `.calendar-year-picker__year-cell:hover` fills
                      // `bg-default text-default-foreground`.
-@@ -942,10 +1157,12 @@ impl Calendar {
+@@ -942,10 +1158,12 @@ impl Calendar {
                      let on_focus = self.on_focus_change.clone();
                      let own = year_picker_own.clone();
                      let back_to_trigger = heading_focus.clone();
@@ -12916,7 +12949,7 @@ index 87d98a71..4dcc7276 100644
                              s.set_anchor(next);
                              cx.notify();
                              next
-@@ -964,7 +1181,7 @@ impl Calendar {
+@@ -964,7 +1182,7 @@ impl Calendar {
                          if let Some(cb) = &on_open {
                              cb(false, window, cx);
                          }
@@ -12925,7 +12958,7 @@ index 87d98a71..4dcc7276 100644
                      });
                  }
  
-@@ -980,9 +1197,23 @@ impl Calendar {
+@@ -980,9 +1198,23 @@ impl Calendar {
                  }
                  row = row.child(cell.child(year.to_string()));
              }
@@ -12950,7 +12983,7 @@ index 87d98a71..4dcc7276 100644
      }
  }
  
-@@ -1116,7 +1347,8 @@ impl RenderOnce for Calendar {
+@@ -1116,7 +1348,8 @@ impl RenderOnce for Calendar {
          // `selectionAlignment` frames the range around the selection, but only
          // until the user drives navigation themselves.
          let anchor = match (navigated, selected) {
@@ -12960,7 +12993,7 @@ index 87d98a71..4dcc7276 100644
                  self.duration,
                  self.selection_alignment,
                  first_day,
-@@ -1126,8 +1358,9 @@ impl RenderOnce for Calendar {
+@@ -1126,8 +1359,9 @@ impl RenderOnce for Calendar {
          };
          let anchor = focused_value.map_or(anchor, |focused| {
              let (visible_start, visible_end) =
@@ -12972,7 +13005,7 @@ index 87d98a71..4dcc7276 100644
                  self.duration,
                  first_day,
                  anchor,
-@@ -1136,26 +1369,49 @@ impl RenderOnce for Calendar {
+@@ -1136,26 +1370,49 @@ impl RenderOnce for Calendar {
                  focused,
              )
          });
@@ -13027,11 +13060,24 @@ index 87d98a71..4dcc7276 100644
          // `focusedValue` wins; without it the keyboard's own cursor does, and it
          // starts from the selection or today.
          // Taking the focus puts the ring on the date v3 would have focused --
-@@ -1173,9 +1429,10 @@ impl RenderOnce for Calendar {
+@@ -1166,6 +1423,11 @@ impl RenderOnce for Calendar {
+             .or(selected)
+             .or_else(|| Some(Date::today()))
+             .filter(|_| grid_focus.is_focused(window));
++        let column_width = if matches!(self.duration, VisibleDuration::Months(n) if n > 1) {
++            px(256.)
++        } else {
++            CALENDAR_WIDTH
++        };
+         let frame = Frame {
+             selected,
+             selected_dates: &selected_dates,
+@@ -1173,9 +1435,11 @@ impl RenderOnce for Calendar {
              cursor: &cursor,
              base: &base,
              focused: ring_at,
 +            visible_start: matches!(self.duration, VisibleDuration::Days(_)).then_some(anchor),
++            cell_size: column_width / 7.,
          };
  
 -        let months = calendar_view::month_headings(self.duration, anchor);
@@ -13039,7 +13085,7 @@ index 87d98a71..4dcc7276 100644
          let linear = calendar_view::linear_cells(self.duration, first_day, anchor);
          let columns = months.len().max(1);
          let mut heading_focuses = Vec::with_capacity(columns);
-@@ -1192,10 +1449,17 @@ impl RenderOnce for Calendar {
+@@ -1192,10 +1456,17 @@ impl RenderOnce for Calendar {
          let colors = cx.colors();
          let layout = cx.layout();
  
@@ -13060,7 +13106,7 @@ index 87d98a71..4dcc7276 100644
          // React Stately checks only the day immediately outside the visible
          // range against minValue/maxValue. Unavailable dates do not block
          // paging, and readOnly prevents selection without preventing paging.
-@@ -1256,7 +1520,8 @@ impl RenderOnce for Calendar {
+@@ -1256,7 +1527,8 @@ impl RenderOnce for Calendar {
                          cx,
                      )
                  })
@@ -13070,7 +13116,7 @@ index 87d98a71..4dcc7276 100644
              crate::util::ring_if_focused(button, focus, true, Vec::new(), window, cx).child(
                  gpui::svg()
                          // `.calendar__nav-button-icon` is `size-4`.
-@@ -1277,7 +1542,8 @@ impl RenderOnce for Calendar {
+@@ -1277,7 +1549,8 @@ impl RenderOnce for Calendar {
           -> gpui::AnyElement {
              let label = gpui::div()
                  .text_size(px(14.))
@@ -13080,7 +13126,20 @@ index 87d98a71..4dcc7276 100644
                  .child(text);
              match &self.on_year_picker_open_change {
                  // No handler and no state of our own: a plain label.
-@@ -1415,6 +1681,7 @@ impl RenderOnce for Calendar {
+@@ -1381,12 +1654,6 @@ impl RenderOnce for Calendar {
+             }
+         };
+ 
+-        let column_width = if columns > 1 {
+-            px(228.)
+-        } else {
+-            CALENDAR_WIDTH
+-        };
+-
+         let mut root = gpui::div()
+             .flex()
+             .flex_col()
+@@ -1415,6 +1682,7 @@ impl RenderOnce for Calendar {
              let on_change = self.on_change.clone();
              let on_change_all = self.on_change_all.clone();
              let on_focus = self.on_focus_change.clone();
@@ -13088,7 +13147,7 @@ index 87d98a71..4dcc7276 100644
              let duration = self.duration;
              let page_behavior = self.page_behavior;
              root = root.on_key_down(move |event, window, cx| {
-@@ -1430,7 +1697,8 @@ impl RenderOnce for Calendar {
+@@ -1430,7 +1698,8 @@ impl RenderOnce for Calendar {
                  let key = event.keystroke.key.as_str();
                  let shift = event.keystroke.modifiers.shift;
                  if matches!(key, "enter" | "space") {
@@ -13098,7 +13157,7 @@ index 87d98a71..4dcc7276 100644
                          return;
                      }
                      let selected_dates = state.update(cx, |s, cx| {
-@@ -1451,14 +1719,24 @@ impl RenderOnce for Calendar {
+@@ -1451,14 +1720,24 @@ impl RenderOnce for Calendar {
                      "right" => add_days(&at, 1),
                      "up" => add_days(&at, -7),
                      "down" => add_days(&at, 7),
@@ -13131,7 +13190,7 @@ index 87d98a71..4dcc7276 100644
                      _ => return,
                  };
                  if controlled_focus.is_none() {
-@@ -1473,7 +1751,8 @@ impl RenderOnce for Calendar {
+@@ -1473,7 +1752,8 @@ impl RenderOnce for Calendar {
                          if matches!(key, "pageup" | "pagedown") {
                              let dir = if key == "pageup" { -1 } else { 1 };
                              let next_anchor = match duration {
@@ -13141,7 +13200,7 @@ index 87d98a71..4dcc7276 100644
                                      duration,
                                      page_behavior,
                                      anchor,
-@@ -1481,7 +1760,8 @@ impl RenderOnce for Calendar {
+@@ -1481,7 +1761,8 @@ impl RenderOnce for Calendar {
                                      shift,
                                  ),
                                  _ if days_from_civil(&next) < days_from_civil(&visible_start) => {
@@ -13151,7 +13210,7 @@ index 87d98a71..4dcc7276 100644
                                          duration,
                                          SelectionAlignment::End,
                                          first_day,
-@@ -1489,7 +1769,8 @@ impl RenderOnce for Calendar {
+@@ -1489,7 +1770,8 @@ impl RenderOnce for Calendar {
                                      )
                                  }
                                  _ if days_from_civil(&next) > days_from_civil(&visible_end) => {
@@ -13161,7 +13220,7 @@ index 87d98a71..4dcc7276 100644
                                          duration,
                                          SelectionAlignment::Start,
                                          first_day,
-@@ -1503,7 +1784,8 @@ impl RenderOnce for Calendar {
+@@ -1503,7 +1785,8 @@ impl RenderOnce for Calendar {
                                  cx.notify();
                              }
                          } else {
@@ -13171,7 +13230,7 @@ index 87d98a71..4dcc7276 100644
                                  duration,
                                  first_day,
                                  anchor,
-@@ -1531,7 +1813,8 @@ impl RenderOnce for Calendar {
+@@ -1531,7 +1814,8 @@ impl RenderOnce for Calendar {
              let own = year_picker_own.clone();
              let on_open = self.on_year_picker_open_change.clone();
              let on_focus = self.on_focus_change.clone();
@@ -13181,7 +13240,7 @@ index 87d98a71..4dcc7276 100644
              let back_to_trigger = active_heading_focus.clone();
              root = root.on_key_down(move |event, window, cx| {
                  if !focus.is_focused(window) {
-@@ -1548,7 +1831,7 @@ impl RenderOnce for Calendar {
+@@ -1548,7 +1832,7 @@ impl RenderOnce for Calendar {
                      if let Some(cb) = &on_open {
                          cb(false, window, cx);
                      }
@@ -13190,7 +13249,7 @@ index 87d98a71..4dcc7276 100644
                      cx.stop_propagation();
                      return;
                  }
-@@ -1577,11 +1860,7 @@ impl RenderOnce for Calendar {
+@@ -1577,11 +1861,7 @@ impl RenderOnce for Calendar {
                      }
                      if let Some(cb) = &on_focus {
                          cb(
@@ -13203,7 +13262,7 @@ index 87d98a71..4dcc7276 100644
                              window,
                              cx,
                          );
-@@ -1591,43 +1870,11 @@ impl RenderOnce for Calendar {
+@@ -1591,43 +1871,11 @@ impl RenderOnce for Calendar {
              });
          }
  
@@ -13243,15 +13302,16 @@ index 87d98a71..4dcc7276 100644
 -                cx,
 -            ));
 -        } else if self.duration.is_month_view() {
+-            let mut row = gpui::div().flex().gap(px(20.));
 +        let mut body = gpui::div().flex().flex_col().gap(px(8.));
 +        if self.duration.is_month_view() {
-+            root = root.w(column_width * columns as f32 + px(20.) * (columns - 1) as f32);
-             let mut row = gpui::div().flex().gap(px(20.));
-+            let mut headings = gpui::div().flex().gap(px(20.));
++            root = root.w(column_width * columns as f32 + px(32.) * (columns - 1) as f32);
++            let mut row = gpui::div().flex().gap(px(32.));
++            let mut headings = gpui::div().flex().gap(px(32.));
              for (i, &(y, m)) in months.iter().enumerate() {
                  let first = i == 0;
                  let last = i + 1 == columns;
-@@ -1636,8 +1883,9 @@ impl RenderOnce for Calendar {
+@@ -1636,8 +1884,9 @@ impl RenderOnce for Calendar {
                  // a same-size spacer so every heading lines up.
                  // The same box as a nav button, so every heading lines up.
                  let spacer = || gpui::div().size(px(24.)).into_any_element();
@@ -13263,7 +13323,7 @@ index 87d98a71..4dcc7276 100644
                          .flex()
                          .items_center()
                          .justify_between()
-@@ -1656,11 +1904,7 @@ impl RenderOnce for Calendar {
+@@ -1656,11 +1905,7 @@ impl RenderOnce for Calendar {
                              spacer()
                          })
                          .child(heading(
@@ -13276,7 +13336,7 @@ index 87d98a71..4dcc7276 100644
                              format!("{base}-heading{i}"),
                              &heading_focuses[i],
                              i,
-@@ -1677,20 +1921,15 @@ impl RenderOnce for Calendar {
+@@ -1677,20 +1922,15 @@ impl RenderOnce for Calendar {
                          } else {
                              spacer()
                          }),
@@ -13300,7 +13360,7 @@ index 87d98a71..4dcc7276 100644
              root = root.w(CALENDAR_WIDTH);
              root = root.child(
                  gpui::div()
-@@ -1720,36 +1959,48 @@ impl RenderOnce for Calendar {
+@@ -1720,46 +1960,204 @@ impl RenderOnce for Calendar {
                          next_disabled,
                      )),
              );
@@ -13347,8 +13407,8 @@ index 87d98a71..4dcc7276 100644
              }
 -            root = root.child(grid);
 +            body = body.child(grid);
-         }
- 
++        }
++
 +        let mut viewport = gpui::div()
 +            .relative()
 +            .child(body.when(year_picker_open, |body| body.invisible()));
@@ -13367,13 +13427,72 @@ index 87d98a71..4dcc7276 100644
 +                window,
 +                cx,
 +            ));
-+        }
+         }
 +        root = root.child(viewport);
-+
+ 
          if self.is_disabled {
              root = root.opacity(layout.disabled_opacity);
          }
-@@ -1760,6 +2011,97 @@ impl RenderOnce for Calendar {
+ 
+-        root
++        if columns > 1 {
++            let heading = heading_focuses
++                .iter()
++                .position(|focus| focus.is_focused(window))
++                .or_else(|| prev_focus.is_focused(window).then_some(0))
++                .or_else(|| next_focus.is_focused(window).then_some(columns - 1));
++            let reveal = heading
++                .map(|index| {
++                    let left = (column_width + px(32.)) * index as f32;
++                    (
++                        calendar_view::MonthScrollFocus::Heading(index),
++                        left,
++                        left + column_width,
++                    )
++                })
++                .or_else(|| {
++                    if year_picker_open {
++                        years
++                            .iter()
++                            .position(|year| *year == active_year)
++                            .map(|index| {
++                                let width =
++                                    column_width * columns as f32 + px(32.) * (columns - 1) as f32;
++                                // The year grid has 4px padding and two 4px column gaps.
++                                let cell = (width - px(16.)) / 3.;
++                                let left = px(4.) + (cell + px(4.)) * (index % 3) as f32;
++                                (
++                                    calendar_view::MonthScrollFocus::Year(active_year),
++                                    left,
++                                    left + cell,
++                                )
++                            })
++                    } else {
++                        let date = focused_value.or(ring_at)?;
++                        let (year, month, _) = self.system().from_gregorian(date);
++                        let index = months.iter().position(|value| *value == (year, month))?;
++                        let column = (weekday_index(date) + 7 - first_day.monday_index()) % 7;
++                        let left = (column_width + px(32.)) * index as f32
++                            + frame.cell_size * column as f32;
++                        Some((
++                            calendar_view::MonthScrollFocus::Day(date),
++                            left,
++                            left + frame.cell_size,
++                        ))
++                    }
++                });
++            calendar_view::scrolling_months(
++                root.flex_shrink_0().mx_auto().into_any_element(),
++                &base,
++                reveal,
++                window,
++                cx,
++            )
++        } else {
++            root.into_any_element()
++        }
+     }
+ }
  
  #[cfg(test)]
  mod tests {
@@ -13864,7 +13983,7 @@ index 00000000..5c937983
 +    }
 +}
 diff --git a/crates/herogpui-components/src/calendar_view.rs b/crates/herogpui-components/src/calendar_view.rs
-index db7d3f78..bbf9e2cf 100644
+index db7d3f78..01f63c09 100644
 --- a/crates/herogpui-components/src/calendar_view.rs
 +++ b/crates/herogpui-components/src/calendar_view.rs
 @@ -3,12 +3,10 @@
@@ -14294,10 +14413,71 @@ index db7d3f78..bbf9e2cf 100644
      }
  
      (0..count)
-@@ -352,24 +526,95 @@ pub(crate) fn year_window(
+@@ -352,24 +526,156 @@ pub(crate) fn year_window(
          .collect()
  }
  
++#[derive(Clone, Copy, PartialEq, Eq)]
++pub(crate) enum MonthScrollFocus {
++    Day(Date),
++    Year(i32),
++    Heading(usize),
++}
++
++#[derive(Default)]
++struct MonthGridScroll {
++    handle: gpui::ScrollHandle,
++    last_target:
++        std::cell::Cell<Option<(MonthScrollFocus, gpui::Pixels, gpui::Pixels, gpui::Pixels)>>,
++}
++
++pub(crate) fn scrolling_months(
++    content: gpui::AnyElement,
++    base: &str,
++    reveal: Option<(MonthScrollFocus, gpui::Pixels, gpui::Pixels)>,
++    window: &mut gpui::Window,
++    cx: &mut gpui::App,
++) -> gpui::AnyElement {
++    use gpui::{prelude::*, InteractiveElement, StatefulInteractiveElement};
++    let state = window.use_keyed_state(
++        gpui::ElementId::Name(format!("{base}-months-scroll-state").into()),
++        cx,
++        |_, _| std::rc::Rc::new(MonthGridScroll::default()),
++    );
++    let scroll = state.read(cx).clone();
++    let handle = scroll.handle.clone();
++    gpui::div()
++        .on_children_prepainted(move |_, window, cx| {
++            let width = scroll.handle.bounds().size.width;
++            let target = reveal.map(|(focus, left, right)| (focus, left, right, width));
++            if scroll.last_target.replace(target) == target {
++                return;
++            }
++            if let Some((_, left, right, _)) = target {
++                let offset = scroll.handle.offset();
++                let x = if left < -offset.x {
++                    -left
++                } else if right > width - offset.x {
++                    width - right
++                } else {
++                    offset.x
++                };
++                if x != offset.x {
++                    scroll.handle.set_offset(gpui::point(x, offset.y));
++                    window.defer(cx, |window, _| window.refresh());
++                }
++            }
++        })
++        .id(format!("{base}-months-scroll"))
++        .w_full()
++        .min_w_0()
++        .overflow_x_scroll()
++        .track_scroll(&handle)
++        .flex()
++        .child(content)
++        .into_any_element()
++}
++
 +#[derive(Default)]
 +pub(crate) struct YearGridScroll {
 +    pub(crate) handle: gpui::ScrollHandle,
@@ -14397,7 +14577,7 @@ index db7d3f78..bbf9e2cf 100644
      fn d(y: i32, m: u32, day: u32) -> Date {
          Date::new(y, m, day)
      }
-@@ -529,6 +774,37 @@ mod tests {
+@@ -529,6 +835,37 @@ mod tests {
          );
      }
  
@@ -14435,7 +14615,7 @@ index db7d3f78..bbf9e2cf 100644
      #[test]
      fn month_headings_walk_forward_from_the_anchor() {
          assert_eq!(
-@@ -551,15 +827,30 @@ mod tests {
+@@ -551,15 +888,30 @@ mod tests {
      #[test]
      fn visible_range_excludes_month_spill_and_spans_linear_views() {
          assert_eq!(
@@ -14469,7 +14649,7 @@ index db7d3f78..bbf9e2cf 100644
              (d(2026, 8, 30), d(2026, 9, 1))
          );
      }
-@@ -577,32 +868,64 @@ mod tests {
+@@ -577,32 +929,64 @@ mod tests {
  
      #[test]
      fn year_window_centers_and_clamps_to_bounds() {
@@ -19639,7 +19819,7 @@ index ebaa04a1..5172cd64 100644
 +    }
 +}
 diff --git a/crates/herogpui-components/src/range_calendar.rs b/crates/herogpui-components/src/range_calendar.rs
-index 59f7766e..f9e550d4 100644
+index 59f7766e..199545c3 100644
 --- a/crates/herogpui-components/src/range_calendar.rs
 +++ b/crates/herogpui-components/src/range_calendar.rs
 @@ -13,7 +13,7 @@ use gpui::{
@@ -19853,15 +20033,16 @@ index 59f7766e..f9e550d4 100644
      today: Date,
      cursor: &'a Entity<Option<Date>>,
      focus_preview: &'a Entity<bool>,
-@@ -431,6 +500,7 @@ struct Frame<'a> {
+@@ -431,6 +500,8 @@ struct Frame<'a> {
      /// it, otherwise wherever the arrow keys have walked to. `None` while the
      /// grid does not hold the keyboard.
      focused: Option<Date>,
 +    visible_start: Option<Date>,
++    cell_size: gpui::Pixels,
  }
  
  /// Where a cell sits in its row: the row's first and last columns drive the
-@@ -472,12 +542,17 @@ impl RangeCalendar {
+@@ -472,12 +543,17 @@ impl RangeCalendar {
          let start_day = frame.start.map(|d| days_from_civil(&d));
          let end_day = frame.preview_end.map(|d| days_from_civil(&d));
          let unavailable = range_is_unavailable(
@@ -19881,11 +20062,24 @@ index 59f7766e..f9e550d4 100644
          let eligible = !disabled && !unavailable;
          let selectable = eligible && !self.is_read_only;
  
-@@ -552,11 +627,13 @@ impl RangeCalendar {
+@@ -509,7 +585,9 @@ impl RangeCalendar {
+             .flex()
              .items_center()
              .justify_center()
-             .size(px(36.))
+-            .size(px(36.));
++            .flex_1()
++            .min_w_0()
++            .h(frame.cell_size);
+         if is_selected {
+             // `[data-selected]:not([data-outside-month])` is
+             // `rounded-none bg-accent-soft` -- on the caps too, whose solid
+@@ -551,12 +629,14 @@ impl RangeCalendar {
+             .flex()
+             .items_center()
+             .justify_center()
+-            .size(px(36.))
 -            .text_size(px(13.))
++            .size(frame.cell_size)
 +            .text_size(px(14.))
 +            .line_height(px(20.))
 +            .font_weight(gpui::FontWeight::MEDIUM)
@@ -19897,7 +20091,7 @@ index 59f7766e..f9e550d4 100644
                      is_selected,
                      is_selection_start: is_start,
                      is_selection_end: is_end,
-@@ -565,15 +642,14 @@ impl RangeCalendar {
+@@ -565,15 +645,14 @@ impl RangeCalendar {
                      is_today,
                      is_disabled: disabled,
                  }),
@@ -19915,18 +20109,27 @@ index 59f7766e..f9e550d4 100644
          } else if is_today {
              // `.range-calendar__cell[data-today]` fills the button with
              // `bg-accent-soft text-accent-soft-foreground`, today or inside
-@@ -615,8 +691,8 @@ impl RangeCalendar {
+@@ -611,14 +690,14 @@ impl RangeCalendar {
+         // drop the scale.
+         let cell = if selectable {
+             let press_box = crate::anim::PressBox {
+-                height: px(36.),
++                height: frame.cell_size,
                  padding_x: None,
-                 width: Some(px(36.)),
+-                width: Some(px(36.)),
++                width: Some(frame.cell_size),
                  min_width: None,
 -                text_size: px(13.),
 -                line_height: px(18.),
 +                text_size: px(14.),
 +                line_height: px(20.),
                  gap: px(0.),
-                 radius: px(18.),
+-                radius: px(18.),
++                radius: frame.cell_size / 2.,
                  shrink_x: true,
-@@ -670,13 +746,17 @@ impl RangeCalendar {
+                 scale: crate::anim::PRESSED_SCALE_RANGE,
+             };
+@@ -670,13 +749,17 @@ impl RangeCalendar {
                      s.start.is_some() && s.end.is_none()
                  });
                  if over && selecting {
@@ -19947,7 +20150,7 @@ index 59f7766e..f9e550d4 100644
                      }
                  }
              });
-@@ -684,9 +764,8 @@ impl RangeCalendar {
+@@ -684,9 +767,8 @@ impl RangeCalendar {
              let state = self.state.clone();
              let on_change = self.on_change.clone();
              let on_focus = self.on_focus_change.clone();
@@ -19958,7 +20161,7 @@ index 59f7766e..f9e550d4 100644
              let cursor = frame.cursor.clone();
              let focus_preview = frame.focus_preview.clone();
              let selection_before_anchor = frame.selection_before_anchor.clone();
-@@ -702,7 +781,6 @@ impl RangeCalendar {
+@@ -702,7 +784,6 @@ impl RangeCalendar {
                          date,
                          &constraints,
                          range_date_unavailable.as_ref(),
@@ -19966,7 +20169,21 @@ index 59f7766e..f9e550d4 100644
                      );
                      if let Some((start, end)) = next {
                          s.start = Some(start);
-@@ -769,6 +847,8 @@ impl RangeCalendar {
+@@ -745,7 +826,7 @@ impl RangeCalendar {
+                     // The debug selector lets the headless tests read the
+                     // dot's laid-out bounds.
+                     .debug_selector(move || indicator_key)
+-                    .left(px((36. - 3.) / 2.))
++                    .left((frame.cell_size - px(3.)) / 2.)
+                     .bottom(px(4.))
+                     .size(px(3.))
+                     .rounded(px(2.))
+@@ -765,10 +846,12 @@ impl RangeCalendar {
+         for label in self.constraints.first_day_of_week.header_row() {
+             row = row.child(
+                 div()
+-                    .w(px(36.))
++                    .flex_1()
                      .text_center()
                      // `.range-calendar__header-cell` is `text-xs`.
                      .text_size(px(12.))
@@ -19975,7 +20192,7 @@ index 59f7766e..f9e550d4 100644
                      .text_color(muted)
                      .child(label),
              );
-@@ -776,11 +856,46 @@ impl RangeCalendar {
+@@ -776,11 +859,46 @@ impl RangeCalendar {
          row
      }
  
@@ -20009,7 +20226,7 @@ index 59f7766e..f9e550d4 100644
 +    ) -> gpui::AnyElement {
 +        match date {
 +            Some(date) => self.range_cell(date, outside_month, frame, key, slot, cx),
-+            None => div().size(px(36.)).into_any_element(),
++            None => div().size(frame.cell_size).into_any_element(),
 +        }
 +    }
 +
@@ -20025,7 +20242,7 @@ index 59f7766e..f9e550d4 100644
  
          // The pinned cells carry `my-[2px]` margins, so two rows sit 4px
          // apart vertically while the seven 36px columns touch horizontally.
-@@ -790,11 +905,12 @@ impl RangeCalendar {
+@@ -790,11 +908,12 @@ impl RangeCalendar {
              for column in 0..7 {
                  let index = row_index * 7 + column;
                  let cell = if index < lead {
@@ -20043,7 +20260,7 @@ index 59f7766e..f9e550d4 100644
                          true,
                          frame,
                          format!(
-@@ -807,8 +923,8 @@ impl RangeCalendar {
+@@ -807,8 +926,8 @@ impl RangeCalendar {
                  } else {
                      let day = index - lead + 1;
                      if day <= total {
@@ -20054,7 +20271,7 @@ index 59f7766e..f9e550d4 100644
                              false,
                              frame,
                              format!("{}-{y}-{m}-day-{day}", frame.base),
-@@ -816,10 +932,10 @@ impl RangeCalendar {
+@@ -816,10 +935,10 @@ impl RangeCalendar {
                              cx,
                          )
                      } else {
@@ -20068,7 +20285,7 @@ index 59f7766e..f9e550d4 100644
                              true,
                              frame,
                              format!(
-@@ -856,13 +972,28 @@ impl RangeCalendar {
+@@ -856,13 +975,28 @@ impl RangeCalendar {
          };
          let active_year = view.active_year;
          let base = view.base;
@@ -20099,7 +20316,7 @@ index 59f7766e..f9e550d4 100644
                      .when(!self.is_disabled && is_active, |cell| {
                          cell.track_focus(year_focus)
                      })
-@@ -873,12 +1004,11 @@ impl RangeCalendar {
+@@ -873,12 +1007,11 @@ impl RangeCalendar {
                      .items_center()
                      .justify_center()
                      .text_size(px(14.))
@@ -20115,7 +20332,7 @@ index 59f7766e..f9e550d4 100644
                  } else if !self.is_disabled {
                      // `.calendar-year-picker__year-cell:hover` fills
                      // `bg-default text-default-foreground`.
-@@ -895,10 +1025,12 @@ impl RangeCalendar {
+@@ -895,10 +1028,12 @@ impl RangeCalendar {
                      let on_focus = self.on_focus_change.clone();
                      let own = year_picker_own.clone();
                      let back_to_trigger = heading_focus.clone();
@@ -20130,7 +20347,7 @@ index 59f7766e..f9e550d4 100644
                              s.set_anchor(next);
                              cx.notify();
                              next
-@@ -917,7 +1049,7 @@ impl RangeCalendar {
+@@ -917,7 +1052,7 @@ impl RangeCalendar {
                          if let Some(cb) = &on_open {
                              cb(false, window, cx);
                          }
@@ -20139,7 +20356,7 @@ index 59f7766e..f9e550d4 100644
                      });
                  }
                  if is_active {
-@@ -925,9 +1057,23 @@ impl RangeCalendar {
+@@ -925,9 +1060,23 @@ impl RangeCalendar {
                  }
                  row = row.child(cell.child(year.to_string()));
              }
@@ -20164,7 +20381,7 @@ index 59f7766e..f9e550d4 100644
      }
  }
  
-@@ -1030,24 +1176,30 @@ impl RenderOnce for RangeCalendar {
+@@ -1030,24 +1179,30 @@ impl RenderOnce for RangeCalendar {
          let cursor_at = *cursor.read(cx);
          let focus_preview_at = *focus_preview.read(cx);
  
@@ -20202,7 +20419,7 @@ index 59f7766e..f9e550d4 100644
              )
              .map_or((Some(start), None), |(start, end)| (Some(start), end)),
              _ => (selection_start, selection_end),
-@@ -1059,14 +1211,19 @@ impl RenderOnce for RangeCalendar {
+@@ -1059,14 +1214,19 @@ impl RenderOnce for RangeCalendar {
              self.selection_alignment
                  .unwrap_or_else(|| match (selection_start, selection_end) {
                      (Some(start), Some(end)) => {
@@ -20225,7 +20442,7 @@ index 59f7766e..f9e550d4 100644
                          if days_from_civil(&end) > days_from_civil(&centered_end) {
                              SelectionAlignment::Start
                          } else {
-@@ -1078,15 +1235,20 @@ impl RenderOnce for RangeCalendar {
+@@ -1078,15 +1238,20 @@ impl RenderOnce for RangeCalendar {
          // `selectionAlignment` frames the range around the selection start,
          // until the user drives navigation themselves.
          let anchor = match (navigated, selection_start) {
@@ -20251,7 +20468,7 @@ index 59f7766e..f9e550d4 100644
                  self.duration,
                  first_day,
                  anchor,
-@@ -1095,26 +1257,49 @@ impl RenderOnce for RangeCalendar {
+@@ -1095,26 +1260,49 @@ impl RenderOnce for RangeCalendar {
                  focused,
              )
          });
@@ -20308,7 +20525,16 @@ index 59f7766e..f9e550d4 100644
          // Taking the focus puts the ring where v3 would have focused -- the
          // range's start, or today.
          let ring_at = focused_value
-@@ -1126,15 +1311,17 @@ impl RenderOnce for RangeCalendar {
+@@ -1122,19 +1310,27 @@ impl RenderOnce for RangeCalendar {
+             .or(selection_start)
+             .or_else(|| Some(Date::today()))
+             .filter(|_| grid_focus.is_focused(window));
++        let column_width = if matches!(self.duration, VisibleDuration::Months(n) if n > 1) {
++            px(256.)
++        } else {
++            crate::calendar::CALENDAR_WIDTH
++        };
+         let frame = Frame {
              start: paint_start,
              preview_end,
              unavailable_anchor: selection_start.filter(|_| selection_end.is_none()),
@@ -20320,6 +20546,7 @@ index 59f7766e..f9e550d4 100644
              base: &base,
              focused: ring_at,
 +            visible_start: matches!(self.duration, VisibleDuration::Days(_)).then_some(anchor),
++            cell_size: column_width / 7.,
          };
  
 -        let months = calendar_view::month_headings(self.duration, anchor);
@@ -20327,7 +20554,7 @@ index 59f7766e..f9e550d4 100644
          let linear = calendar_view::linear_cells(self.duration, first_day, anchor);
          let columns = months.len().max(1);
          let mut heading_focuses = Vec::with_capacity(columns);
-@@ -1151,17 +1338,25 @@ impl RenderOnce for RangeCalendar {
+@@ -1151,17 +1347,25 @@ impl RenderOnce for RangeCalendar {
          let colors = cx.colors();
          let layout = cx.layout();
  
@@ -20360,7 +20587,7 @@ index 59f7766e..f9e550d4 100644
          let state_for_nav = self.state.clone();
          let nav_btn = |icon: &'static str,
                         target: Date,
-@@ -1211,7 +1406,8 @@ impl RenderOnce for RangeCalendar {
+@@ -1211,7 +1415,8 @@ impl RenderOnce for RangeCalendar {
                          });
                      crate::anim::pressed(pressed, press_box, cx)
                  })
@@ -20370,7 +20597,7 @@ index 59f7766e..f9e550d4 100644
              util::ring_if_focused(button, focus, true, Vec::new(), window, cx).child(
                  gpui::svg()
                      // `.range-calendar__nav-button-icon` is `size-4`, painted
-@@ -1231,7 +1427,8 @@ impl RenderOnce for RangeCalendar {
+@@ -1231,7 +1436,8 @@ impl RenderOnce for RangeCalendar {
           -> gpui::AnyElement {
              let label = div()
                  .text_size(px(14.))
@@ -20380,7 +20607,7 @@ index 59f7766e..f9e550d4 100644
                  .child(text);
              match &self.on_year_picker_open_change {
                  // No handler and no state of our own: a plain label.
-@@ -1363,10 +1560,11 @@ impl RenderOnce for RangeCalendar {
+@@ -1363,10 +1569,11 @@ impl RenderOnce for RangeCalendar {
              let state = self.state.clone();
              let on_change = self.on_change.clone();
              let on_focus = self.on_focus_change.clone();
@@ -20393,7 +20620,7 @@ index 59f7766e..f9e550d4 100644
              let duration = self.duration;
              let page_behavior = self.page_behavior;
              root = root.on_key_down(move |event, window, cx| {
-@@ -1405,7 +1603,8 @@ impl RenderOnce for RangeCalendar {
+@@ -1405,7 +1612,8 @@ impl RenderOnce for RangeCalendar {
                      return;
                  }
                  if matches!(key, "enter" | "space") {
@@ -20403,7 +20630,7 @@ index 59f7766e..f9e550d4 100644
                          return;
                      }
                      let (next, previous) = state.update(cx, |s, cx| {
-@@ -1416,7 +1615,6 @@ impl RenderOnce for RangeCalendar {
+@@ -1416,7 +1624,6 @@ impl RenderOnce for RangeCalendar {
                              at,
                              &constraints,
                              range_date_unavailable.as_ref(),
@@ -20411,7 +20638,7 @@ index 59f7766e..f9e550d4 100644
                          );
                          if let Some((start, end)) = next {
                              s.start = Some(start);
-@@ -1452,7 +1650,8 @@ impl RenderOnce for RangeCalendar {
+@@ -1452,7 +1659,8 @@ impl RenderOnce for RangeCalendar {
                                  cx.notify();
                              });
                              state.update(cx, |s, cx| {
@@ -20421,7 +20648,7 @@ index 59f7766e..f9e550d4 100644
                                      duration,
                                      first_day,
                                      anchor,
-@@ -1477,16 +1676,27 @@ impl RenderOnce for RangeCalendar {
+@@ -1477,16 +1685,27 @@ impl RenderOnce for RangeCalendar {
                      "right" => add_days(&at, 1),
                      "up" => add_days(&at, -7),
                      "down" => add_days(&at, 7),
@@ -20457,7 +20684,7 @@ index 59f7766e..f9e550d4 100644
                  if controlled_focus.is_none() {
                      held.update(cx, |v, cx| {
                          *v = Some(next);
-@@ -1500,7 +1710,8 @@ impl RenderOnce for RangeCalendar {
+@@ -1500,7 +1719,8 @@ impl RenderOnce for RangeCalendar {
                          if matches!(key, "pageup" | "pagedown") {
                              let dir = if key == "pageup" { -1 } else { 1 };
                              let next_anchor = match duration {
@@ -20467,7 +20694,7 @@ index 59f7766e..f9e550d4 100644
                                      duration,
                                      page_behavior,
                                      anchor,
-@@ -1508,7 +1719,8 @@ impl RenderOnce for RangeCalendar {
+@@ -1508,7 +1728,8 @@ impl RenderOnce for RangeCalendar {
                                      shift,
                                  ),
                                  _ if days_from_civil(&next) < days_from_civil(&visible_start) => {
@@ -20477,7 +20704,7 @@ index 59f7766e..f9e550d4 100644
                                          duration,
                                          SelectionAlignment::End,
                                          first_day,
-@@ -1516,7 +1728,8 @@ impl RenderOnce for RangeCalendar {
+@@ -1516,7 +1737,8 @@ impl RenderOnce for RangeCalendar {
                                      )
                                  }
                                  _ if days_from_civil(&next) > days_from_civil(&visible_end) => {
@@ -20487,7 +20714,7 @@ index 59f7766e..f9e550d4 100644
                                          duration,
                                          SelectionAlignment::Start,
                                          first_day,
-@@ -1530,7 +1743,8 @@ impl RenderOnce for RangeCalendar {
+@@ -1530,7 +1752,8 @@ impl RenderOnce for RangeCalendar {
                                  cx.notify();
                              }
                          } else {
@@ -20497,7 +20724,7 @@ index 59f7766e..f9e550d4 100644
                                  duration,
                                  first_day,
                                  anchor,
-@@ -1558,7 +1772,8 @@ impl RenderOnce for RangeCalendar {
+@@ -1558,7 +1781,8 @@ impl RenderOnce for RangeCalendar {
              let own = year_picker_own.clone();
              let on_open = self.on_year_picker_open_change.clone();
              let on_focus = self.on_focus_change.clone();
@@ -20507,7 +20734,7 @@ index 59f7766e..f9e550d4 100644
              let back_to_trigger = active_heading_focus.clone();
              root = root.on_key_down(move |event, window, cx| {
                  if !focus.is_focused(window) {
-@@ -1575,7 +1790,7 @@ impl RenderOnce for RangeCalendar {
+@@ -1575,7 +1799,7 @@ impl RenderOnce for RangeCalendar {
                      if let Some(cb) = &on_open {
                          cb(false, window, cx);
                      }
@@ -20516,7 +20743,7 @@ index 59f7766e..f9e550d4 100644
                      cx.stop_propagation();
                      return;
                  }
-@@ -1604,11 +1819,7 @@ impl RenderOnce for RangeCalendar {
+@@ -1604,11 +1828,7 @@ impl RenderOnce for RangeCalendar {
                      }
                      if let Some(cb) = &on_focus {
                          cb(
@@ -20529,7 +20756,7 @@ index 59f7766e..f9e550d4 100644
                              window,
                              cx,
                          );
-@@ -1618,43 +1829,13 @@ impl RenderOnce for RangeCalendar {
+@@ -1618,53 +1838,22 @@ impl RenderOnce for RangeCalendar {
              });
          }
  
@@ -20569,29 +20796,30 @@ index 59f7766e..f9e550d4 100644
 -                cx,
 -            ));
 -        } else if self.duration.is_month_view() {
+-            let mut row = div().flex().gap(px(20.));
 +        let mut body = div().flex().flex_col().gap(px(8.));
 +        if self.duration.is_month_view() {
-+            root = root
-+                .w(crate::calendar::CALENDAR_WIDTH * columns as f32
-+                    + px(20.) * (columns - 1) as f32);
-             let mut row = div().flex().gap(px(20.));
-+            let mut headings = div().flex().gap(px(20.));
++            root = root.w(column_width * columns as f32 + px(32.) * (columns - 1) as f32);
++            let mut row = div().flex().gap(px(32.));
++            let mut headings = div().flex().gap(px(32.));
              for (i, &(y, m)) in months.iter().enumerate() {
                  let first = i == 0;
                  let last = i + 1 == columns;
-@@ -1663,8 +1844,9 @@ impl RenderOnce for RangeCalendar {
+-                let mut col = div().flex().flex_col().gap(px(8.)).w(px(252.));
++                let mut col = div().flex().flex_col().gap(px(8.)).w(column_width);
+                 // Only the outer columns carry nav buttons; the rest keep a
                  // same-size spacer so every heading lines up.
                  // The same box as a nav button, so every heading lines up.
                  let spacer = || div().size(px(24.)).into_any_element();
 -                col = col.child(
 -                    div()
 +                headings = headings.child(
-+                    div().w(crate::calendar::CALENDAR_WIDTH).child(
++                    div().w(column_width).child(
 +                        div()
                          .flex()
                          .flex_row()
                          .items_center()
-@@ -1685,11 +1867,7 @@ impl RenderOnce for RangeCalendar {
+@@ -1685,11 +1874,7 @@ impl RenderOnce for RangeCalendar {
                              spacer()
                          })
                          .child(heading(
@@ -20604,7 +20832,7 @@ index 59f7766e..f9e550d4 100644
                              format!("{base}-heading{i}"),
                              &heading_focuses[i],
                              i,
-@@ -1706,19 +1884,15 @@ impl RenderOnce for RangeCalendar {
+@@ -1706,19 +1891,15 @@ impl RenderOnce for RangeCalendar {
                          } else {
                              spacer()
                          }),
@@ -20627,7 +20855,7 @@ index 59f7766e..f9e550d4 100644
              root = root.w(crate::calendar::CALENDAR_WIDTH);
              root = root.child(
                  div()
-@@ -1750,44 +1924,49 @@ impl RenderOnce for RangeCalendar {
+@@ -1750,49 +1931,111 @@ impl RenderOnce for RangeCalendar {
                          next_disabled,
                      )),
              );
@@ -20682,8 +20910,8 @@ index 59f7766e..f9e550d4 100644
              }
 -            root = root.child(grid);
 +            body = body.child(grid);
-         }
- 
++        }
++
 +        let mut viewport = div()
 +            .relative()
 +            .child(body.when(year_picker_open, |body| body.invisible()));
@@ -20702,13 +20930,76 @@ index 59f7766e..f9e550d4 100644
 +                window,
 +                cx,
 +            ));
-+        }
+         }
 +        root = root.child(viewport);
-+
+ 
          if self.is_disabled {
              root = root.opacity(layout.disabled_opacity);
          }
-@@ -1935,3 +2114,27 @@ mod hover_tokens {
+ 
+-        root
++        if columns > 1 {
++            let heading = heading_focuses
++                .iter()
++                .position(|focus| focus.is_focused(window))
++                .or_else(|| prev_focus.is_focused(window).then_some(0))
++                .or_else(|| next_focus.is_focused(window).then_some(columns - 1));
++            let reveal = heading
++                .map(|index| {
++                    let left = (column_width + px(32.)) * index as f32;
++                    (
++                        calendar_view::MonthScrollFocus::Heading(index),
++                        left,
++                        left + column_width,
++                    )
++                })
++                .or_else(|| {
++                    if year_picker_open {
++                        years
++                            .iter()
++                            .position(|year| *year == active_year)
++                            .map(|index| {
++                                let width =
++                                    column_width * columns as f32 + px(32.) * (columns - 1) as f32;
++                                // The year grid has 4px padding and two 4px column gaps.
++                                let cell = (width - px(16.)) / 3.;
++                                let left = px(4.) + (cell + px(4.)) * (index % 3) as f32;
++                                (
++                                    calendar_view::MonthScrollFocus::Year(active_year),
++                                    left,
++                                    left + cell,
++                                )
++                            })
++                    } else {
++                        let date = focused_value.or(ring_at)?;
++                        let (year, month, _) = self.system().from_gregorian(date);
++                        let index = months.iter().position(|value| *value == (year, month))?;
++                        let column = (crate::calendar::weekday_index(date) + 7
++                            - first_day.monday_index())
++                            % 7;
++                        let left = (column_width + px(32.)) * index as f32
++                            + frame.cell_size * column as f32;
++                        Some((
++                            calendar_view::MonthScrollFocus::Day(date),
++                            left,
++                            left + frame.cell_size,
++                        ))
++                    }
++                });
++            calendar_view::scrolling_months(
++                root.flex_shrink_0().mx_auto().into_any_element(),
++                &base,
++                reveal,
++                window,
++                cx,
++            )
++        } else {
++            root.into_any_element()
++        }
+     }
+ }
+ 
+@@ -1935,3 +2178,27 @@ mod hover_tokens {
          }
      }
  }
@@ -26308,7 +26599,7 @@ index b483c9a0..2e5b8933 100644
      flush_frame(cx);
      assert!(
 diff --git a/crates/herogpui-components/tests/calendars_and_more.rs b/crates/herogpui-components/tests/calendars_and_more.rs
-index 1da38740..4bcf4e2b 100644
+index 1da38740..7d4cd0d9 100644
 --- a/crates/herogpui-components/tests/calendars_and_more.rs
 +++ b/crates/herogpui-components/tests/calendars_and_more.rs
 @@ -9,13 +9,14 @@
@@ -26413,7 +26704,7 @@ index 1da38740..4bcf4e2b 100644
  /// One forced redraw, so a keyed flag change is visible to the next probe.
  fn flush_frame(cx: &mut VisualTestContext) {
      cx.update(|window, _| window.refresh());
-@@ -109,6 +147,243 @@ fn flush_frame(cx: &mut VisualTestContext) {
+@@ -109,6 +147,252 @@ fn flush_frame(cx: &mut VisualTestContext) {
  // Calendar & RangeCalendar
  // ---------------------------------------------------------------------------
  
@@ -26573,7 +26864,16 @@ index 1da38740..4bcf4e2b 100644
 +            .into_any_element()
 +    });
 +    // Magha 1 must remain in the second grid; the first grid is Pausha.
-+    click(cx, range_col_x(0), range_row_y(0));
++    let key = format!(
++        r#"Name("range-cal-{}")-1947-10-day-1"#,
++        state.entity_id().as_u64()
++    );
++    let bounds = cx.debug_bounds(Box::leak(key.into_boxed_str())).unwrap();
++    click(
++        cx,
++        f32::from(bounds.center().x),
++        f32::from(bounds.center().y),
++    );
 +    assert_eq!(
 +        cx.update(|_, cx| state.read(cx).start),
 +        Some(Date::new(2025, 12, 22))
@@ -26657,7 +26957,7 @@ index 1da38740..4bcf4e2b 100644
  /// The grid is one tab stop (`util::tab_stop_handle`), so Tab from the host
  /// root puts the keyboard inside it; then the arrows walk a day and a week,
  /// and Enter and Space both take the ring's date. Asserted through
-@@ -305,7 +580,12 @@ fn calendar_week_page_keys_move_one_week_and_shift_moves_one_month(cx: &mut Test
+@@ -305,7 +589,12 @@ fn calendar_week_page_keys_move_one_week_and_shift_moves_one_month(cx: &mut Test
      );
      assert_eq!(
          cx.update(|_, cx| state.read(cx).anchor()),
@@ -26671,7 +26971,7 @@ index 1da38740..4bcf4e2b 100644
          "the two-week window must realign at the edge focus crossed"
      );
  }
-@@ -407,13 +687,25 @@ fn range_calendar_week_page_keys_realign_at_the_visible_boundary(cx: &mut TestAp
+@@ -407,13 +696,25 @@ fn range_calendar_week_page_keys_realign_at_the_visible_boundary(cx: &mut TestAp
      );
      assert_eq!(
          cx.update(|_, cx| state.read(cx).anchor()),
@@ -26698,7 +26998,7 @@ index 1da38740..4bcf4e2b 100644
      let focuses = events();
      let focused = focuses.clone();
      let state = cx.new(|cx| CalendarState::new(cx));
-@@ -423,7 +715,7 @@ fn calendar_week_home_end_use_the_locale_week(cx: &mut TestAppContext) {
+@@ -423,7 +724,7 @@ fn calendar_week_home_end_use_the_locale_week(cx: &mut TestAppContext) {
          Calendar::new(state_for_view.clone())
              .default_value(Date::new(2026, 8, 15))
              .visible_duration(VisibleDuration::Weeks(2))
@@ -26707,7 +27007,7 @@ index 1da38740..4bcf4e2b 100644
              .on_focus_change(move |date, _, _| {
                  focuses.borrow_mut().push(date.format_iso());
              })
-@@ -434,22 +726,73 @@ fn calendar_week_home_end_use_the_locale_week(cx: &mut TestAppContext) {
+@@ -434,22 +735,73 @@ fn calendar_week_home_end_use_the_locale_week(cx: &mut TestAppContext) {
      press(cx, "home");
      assert_eq!(
          cx.update(|_, cx| state.read(cx).anchor()),
@@ -26786,7 +27086,7 @@ index 1da38740..4bcf4e2b 100644
  #[gpui::test]
  fn calendar_day_home_end_use_the_visible_window(cx: &mut TestAppContext) {
      let focuses = events();
-@@ -478,6 +821,13 @@ fn calendar_day_home_end_use_the_visible_window(cx: &mut TestAppContext) {
+@@ -478,6 +830,13 @@ fn calendar_day_home_end_use_the_visible_window(cx: &mut TestAppContext) {
  
  #[gpui::test]
  fn range_calendar_week_home_end_use_the_locale_week(cx: &mut TestAppContext) {
@@ -26800,7 +27100,7 @@ index 1da38740..4bcf4e2b 100644
      let focuses = events();
      let focused = focuses.clone();
      let state = cx.new(|cx| DateRangeState::new(cx));
-@@ -487,7 +837,7 @@ fn range_calendar_week_home_end_use_the_locale_week(cx: &mut TestAppContext) {
+@@ -487,7 +846,7 @@ fn range_calendar_week_home_end_use_the_locale_week(cx: &mut TestAppContext) {
          RangeCalendar::new(state_for_view.clone())
              .default_value((Date::new(2026, 8, 15), Date::new(2026, 8, 16)))
              .visible_duration(VisibleDuration::Weeks(2))
@@ -26809,7 +27109,7 @@ index 1da38740..4bcf4e2b 100644
              .on_focus_change(move |date, _, _| {
                  focuses.borrow_mut().push(date.format_iso());
              })
-@@ -498,18 +848,18 @@ fn range_calendar_week_home_end_use_the_locale_week(cx: &mut TestAppContext) {
+@@ -498,18 +857,18 @@ fn range_calendar_week_home_end_use_the_locale_week(cx: &mut TestAppContext) {
      press(cx, "home");
      assert_eq!(
          cx.update(|_, cx| state.read(cx).anchor()),
@@ -26831,7 +27131,7 @@ index 1da38740..4bcf4e2b 100644
          "RangeCalendar must realign again when End crosses the visible edge"
      );
  }
-@@ -793,7 +1143,7 @@ fn pointer_open_color_picker_closes_when_focus_moves_elsewhere(cx: &mut TestAppC
+@@ -793,7 +1152,7 @@ fn pointer_open_color_picker_closes_when_focus_moves_elsewhere(cx: &mut TestAppC
      click(cx, 60., 12.);
      assert_eq!(opened.borrow().as_slice(), ["open:true"]);
  
@@ -26840,7 +27140,7 @@ index 1da38740..4bcf4e2b 100644
      cx.update(|window, _| window.refresh());
  
      assert_eq!(opened.borrow().as_slice(), ["open:true", "open:false"]);
-@@ -3009,6 +3359,7 @@ fn toolbar_held_arrow_repeats_stop_at_ends(cx: &mut TestAppContext) {
+@@ -3009,6 +3368,7 @@ fn toolbar_held_arrow_repeats_stop_at_ends(cx: &mut TestAppContext) {
              cx.simulate_event(KeyDownEvent {
                  keystroke: Keystroke::parse(key).unwrap(),
                  is_held: true,
@@ -26849,7 +27149,7 @@ index 1da38740..4bcf4e2b 100644
          }
      };
 diff --git a/crates/herogpui-components/tests/calendars_deep.rs b/crates/herogpui-components/tests/calendars_deep.rs
-index e0d0085a..b6a12eb9 100644
+index e0d0085a..68dc3874 100644
 --- a/crates/herogpui-components/tests/calendars_deep.rs
 +++ b/crates/herogpui-components/tests/calendars_deep.rs
 @@ -10,8 +10,7 @@
@@ -27021,10 +27321,231 @@ index e0d0085a..b6a12eb9 100644
  }
  
  /// Row *r*'s centre in a bare Calendar: the first row at y = 74, then a
-@@ -63,6 +202,98 @@ fn range_day(year: i32, month: u32, day: u32) -> (f32, f32) {
+@@ -63,6 +202,319 @@ fn range_day(year: i32, month: u32, day: u32) -> (f32, f32) {
      (18. + 36. * (idx % 7) as f32, 74. + 40. * (idx / 7) as f32)
  }
  
++#[gpui::test]
++fn multi_month_cells_fill_the_documented_panel_width(cx: &mut TestAppContext) {
++    for range in [false, true] {
++        let state = cx.new(|cx| CalendarState::new(cx));
++        let range_state = cx.new(|cx| DateRangeState::new(cx));
++        let id = if range {
++            range_state.entity_id()
++        } else {
++            state.entity_id()
++        }
++        .as_u64();
++        let cx = open_host(cx, move || {
++            if range {
++                RangeCalendar::new(range_state.clone())
++                    .default_value((Date::new(2026, 8, 3), Date::new(2026, 8, 4)))
++                    .selection_alignment(herogpui_components::SelectionAlignment::Start)
++                    .visible_duration(VisibleDuration::Months(2))
++                    .first_day_of_week(Weekday::Mon)
++                    .into_any_element()
++            } else {
++                Calendar::new(state.clone())
++                    .default_value(Date::new(2026, 8, 3))
++                    .visible_duration(VisibleDuration::Months(2))
++                    .first_day_of_week(Weekday::Mon)
++                    .into_any_element()
++            }
++        });
++        let mut bounds = |month, day| {
++            let key = if range {
++                range_cell_selector(id, 2026, month, day)
++            } else {
++                cal_cell_selector(id, 2026, month, day)
++            };
++            cx.debug_bounds(Box::leak(key.into_boxed_str())).unwrap()
++        };
++        let first = bounds(8, 3);
++        let last = bounds(8, 9);
++        assert!(
++            (f32::from(first.size.width) - 256. / 7.).abs() < 0.1,
++            "range={range}: {first:?}"
++        );
++        assert_eq!(first.size.width, first.size.height);
++        assert!(
++            (f32::from(last.right() - first.left()) - 256.).abs() < 0.1,
++            "range={range}: first={first:?}, last={last:?}"
++        );
++        // September 7 is Monday, so the matching column is one panel plus gap away.
++        let next = bounds(9, 7);
++        assert!((f32::from(next.left() - first.left()) - 288.).abs() < 0.1);
++    }
++}
++
++#[gpui::test]
++fn multi_month_view_scrolls_to_the_second_month_in_a_narrow_host(cx: &mut TestAppContext) {
++    for range in [false, true] {
++        let state = cx.new(|cx| CalendarState::new(cx));
++        let range_state = cx.new(|cx| DateRangeState::new(cx));
++        let id = if range {
++            range_state.entity_id()
++        } else {
++            state.entity_id()
++        }
++        .as_u64();
++        let cx = open_host(cx, move || {
++            let content = if range {
++                RangeCalendar::new(range_state.clone())
++                    .default_value((Date::new(2026, 8, 3), Date::new(2026, 8, 4)))
++                    .selection_alignment(herogpui_components::SelectionAlignment::Start)
++                    .visible_duration(VisibleDuration::Months(2))
++                    .first_day_of_week(Weekday::Mon)
++                    .into_any_element()
++            } else {
++                Calendar::new(state.clone())
++                    .default_value(Date::new(2026, 8, 3))
++                    .visible_duration(VisibleDuration::Months(2))
++                    .first_day_of_week(Weekday::Mon)
++                    .into_any_element()
++            };
++            gpui::div().w(px(320.)).child(content).into_any_element()
++        });
++        press(cx, "tab");
++        press(cx, "end");
++        press(cx, "down");
++        press(cx, "right");
++        cx.run_until_parked();
++        let key = if range {
++            range_cell_selector(id, 2026, 9, 8)
++        } else {
++            cal_cell_selector(id, 2026, 9, 8)
++        };
++        let bounds = cx.debug_bounds(Box::leak(key.into_boxed_str())).unwrap();
++        assert!(
++            bounds.left() >= px(0.) && bounds.right() <= px(320.5),
++            "keyboard range={range}: {bounds:?}"
++        );
++        press(cx, "home");
++        press(cx, "up");
++        cx.run_until_parked();
++        let key = if range {
++            range_cell_selector(id, 2026, 8, 25)
++        } else {
++            cal_cell_selector(id, 2026, 8, 25)
++        };
++        let bounds = cx.debug_bounds(Box::leak(key.into_boxed_str())).unwrap();
++        assert!(
++            bounds.left() >= px(0.) && bounds.right() <= px(320.5),
++            "keyboard return range={range}: {bounds:?}"
++        );
++        cx.simulate_event(gpui::ScrollWheelEvent {
++            position: point(px(160.), px(90.)),
++            delta: gpui::ScrollDelta::Pixels(point(px(-500.), px(0.))),
++            ..Default::default()
++        });
++        cx.update(|window, _| window.refresh());
++        let key = if range {
++            range_cell_selector(id, 2026, 9, 27)
++        } else {
++            cal_cell_selector(id, 2026, 9, 27)
++        };
++        let bounds = cx.debug_bounds(Box::leak(key.into_boxed_str())).unwrap();
++        assert!(
++            bounds.left() >= px(280.) && bounds.right() <= px(320.5),
++            "range={range}: {bounds:?}"
++        );
++    }
++}
++
++#[gpui::test]
++fn multi_month_year_picker_reveals_its_active_column(cx: &mut TestAppContext) {
++    for range in [false, true] {
++        for initial_scroll in [0., -500.] {
++            let state = cx.new(|cx| CalendarState::new(cx));
++            let range_state = cx.new(|cx| DateRangeState::new(cx));
++            let base = if range {
++                format!(r#"Name("range-cal-{}")"#, range_state.entity_id().as_u64())
++            } else {
++                format!(r#"Name("cal-{}")"#, state.entity_id().as_u64())
++            };
++            let open = Rc::new(std::cell::Cell::new(false));
++            let view_open = open.clone();
++            let focused = Rc::new(std::cell::Cell::new(Date::new(2020, 8, 10)));
++            let view_focused = focused.clone();
++            let cx = open_host(cx, move || {
++                let focused = view_focused.clone();
++                let open = view_open.clone();
++                let content = if range {
++                    RangeCalendar::new(range_state.clone())
++                        .default_value((Date::new(2020, 8, 10), Date::new(2020, 8, 15)))
++                        .focused_value(view_focused.get())
++                        .on_focus_change(move |date, window, _| {
++                            focused.set(date);
++                            window.refresh();
++                        })
++                        .min_value(Date::new(2000, 1, 1))
++                        .max_value(Date::new(2040, 12, 31))
++                        .visible_duration(VisibleDuration::Months(2))
++                        .is_year_picker_open(view_open.get())
++                        .on_year_picker_open_change(move |value, window, _| {
++                            open.set(value);
++                            window.refresh();
++                        })
++                        .into_any_element()
++                } else {
++                    Calendar::new(state.clone())
++                        .default_value(Date::new(2020, 8, 10))
++                        .focused_value(view_focused.get())
++                        .on_focus_change(move |date, window, _| {
++                            focused.set(date);
++                            window.refresh();
++                        })
++                        .min_value(Date::new(2000, 1, 1))
++                        .max_value(Date::new(2040, 12, 31))
++                        .visible_duration(VisibleDuration::Months(2))
++                        .is_year_picker_open(view_open.get())
++                        .on_year_picker_open_change(move |value, window, _| {
++                            open.set(value);
++                            window.refresh();
++                        })
++                        .into_any_element()
++                };
++                gpui::div().w(px(320.)).child(content).into_any_element()
++            });
++            cx.simulate_event(gpui::ScrollWheelEvent {
++                position: point(px(160.), px(90.)),
++                delta: gpui::ScrollDelta::Pixels(point(px(initial_scroll), px(0.))),
++                ..Default::default()
++            });
++            open.set(true);
++            cx.update(|window, _| window.refresh());
++            for (key, year) in [
++                (None, 2020),
++                (Some("left"), 2019),
++                (Some("left"), 2018),
++                (Some("right"), 2019),
++            ] {
++                if let Some(key) = key {
++                    press(cx, key);
++                }
++                cx.run_until_parked();
++                let key = Box::leak(format!("{base}-y{year}").into_boxed_str());
++                let bounds = cx.debug_bounds(key).unwrap();
++                assert!(
++                    bounds.left() >= px(0.) && bounds.right() <= px(320.5),
++                    "range={range}, initial_scroll={initial_scroll}, year={year}: {bounds:?}"
++                );
++            }
++            press(cx, "home");
++            press(cx, "shift-tab");
++            cx.run_until_parked();
++            // The second heading sits at the right edge of the same month strip.
++            let right = cx
++                .debug_bounds(Box::leak(format!("{base}-y2002").into_boxed_str()))
++                .unwrap();
++            assert!(
++                right.left() >= px(0.) && right.right() <= px(320.5),
++                "open heading range={range}: {right:?}"
++            );
++        }
++    }
++}
++
 +#[gpui::test]
 +fn day_views_keep_week_columns_and_disable_leading_dates(cx: &mut TestAppContext) {
 +    for range in [false, true] {
@@ -27120,7 +27641,7 @@ index e0d0085a..b6a12eb9 100644
  /// React Aria disables a month button when the day immediately beyond that
  /// side of the visible range is outside minValue/maxValue. August is the only
  /// valid month here, so neither chevron may move the state entity away from it.
-@@ -308,6 +539,12 @@ fn range_calendar_first_endpoint_does_not_publish_a_half_open_value(cx: &mut Tes
+@@ -308,6 +760,12 @@ fn range_calendar_first_endpoint_does_not_publish_a_half_open_value(cx: &mut Tes
      let changes = events();
      let changed = changes.clone();
      let state = cx.new(|cx| DateRangeState::new(cx));
@@ -27133,7 +27654,7 @@ index e0d0085a..b6a12eb9 100644
      let state_for_view = state.clone();
      let cx = open_host(cx, move || {
          let changes = changes.clone();
-@@ -541,8 +778,8 @@ fn range_calendar_unavailable_dates_follow_the_active_anchor(cx: &mut TestAppCon
+@@ -541,8 +999,8 @@ fn range_calendar_unavailable_dates_follow_the_active_anchor(cx: &mut TestAppCon
      cx.update(|window, _| window.refresh());
      assert_eq!(
          selected_probe.borrow().get(&12),
@@ -27144,7 +27665,7 @@ index e0d0085a..b6a12eb9 100644
      );
      assert_eq!(
          selected_probe.borrow().get(&13),
-@@ -552,7 +789,7 @@ fn range_calendar_unavailable_dates_follow_the_active_anchor(cx: &mut TestAppCon
+@@ -552,7 +1010,7 @@ fn range_calendar_unavailable_dates_follow_the_active_anchor(cx: &mut TestAppCon
      assert_eq!(
          selected_probe.borrow().get(&14),
          Some(&false),
@@ -27153,7 +27674,7 @@ index e0d0085a..b6a12eb9 100644
      );
      let (selectable_end_x, selectable_end_y) = range_day(2026, 8, 12);
      click(cx, selectable_end_x, selectable_end_y);
-@@ -1076,6 +1313,120 @@ fn calendar_disabled_nav_buttons_leave_the_tab_order(cx: &mut TestAppContext) {
+@@ -1076,6 +1534,120 @@ fn calendar_disabled_nav_buttons_leave_the_tab_order(cx: &mut TestAppContext) {
      assert_eq!(presses.borrow().as_slice(), ["after"]);
  }
  
@@ -27274,7 +27795,7 @@ index e0d0085a..b6a12eb9 100644
  /// v3 overlays the year grid on the calendar and makes the month chevrons
  /// pointer-inert while it is open. The port previously left both chevrons live
  /// and repurposed them as twelve-year paging controls.
-@@ -1536,13 +1887,14 @@ fn calendar_pages_dec_to_jan_and_clamps_into_leap_february(cx: &mut TestAppConte
+@@ -1536,13 +2108,14 @@ fn calendar_pages_dec_to_jan_and_clamps_into_leap_february(cx: &mut TestAppConte
      );
  }
  
@@ -27295,7 +27816,7 @@ index e0d0085a..b6a12eb9 100644
      let changes = events();
      let changed = changes.clone();
      let selected_cells = Rc::new(RefCell::new(HashMap::new()));
-@@ -1554,7 +1906,7 @@ fn range_calendar_clamps_around_an_unavailable_date_by_default(cx: &mut TestAppC
+@@ -1554,7 +2127,7 @@ fn range_calendar_clamps_around_an_unavailable_date_by_default(cx: &mut TestAppC
          state.view_day = 1;
          state.user_navigated = true;
      });
@@ -27304,7 +27825,7 @@ index e0d0085a..b6a12eb9 100644
  
      let cx = open_host(cx, move || {
          let changes = changes.clone();
-@@ -1567,10 +1919,11 @@ fn range_calendar_clamps_around_an_unavailable_date_by_default(cx: &mut TestAppC
+@@ -1567,10 +2140,11 @@ fn range_calendar_clamps_around_an_unavailable_date_by_default(cx: &mut TestAppC
                      .push(format!("{}->{}", start.format_iso(), end.format_iso()));
              })
              .cell(move |state| {
@@ -27320,7 +27841,7 @@ index e0d0085a..b6a12eb9 100644
                  }
                  gpui::div().size(px(20.)).into_any_element()
              })
-@@ -1579,6 +1932,30 @@ fn range_calendar_clamps_around_an_unavailable_date_by_default(cx: &mut TestAppC
+@@ -1579,6 +2153,30 @@ fn range_calendar_clamps_around_an_unavailable_date_by_default(cx: &mut TestAppC
  
      let (start_x, start_y) = range_day(2026, 8, 5);
      click(cx, start_x, start_y);
@@ -27351,7 +27872,7 @@ index e0d0085a..b6a12eb9 100644
      let (end_x, end_y) = range_day(2026, 8, 10);
      cx.simulate_mouse_move(
          point(px(end_x), px(end_y)),
-@@ -1588,30 +1965,41 @@ fn range_calendar_clamps_around_an_unavailable_date_by_default(cx: &mut TestAppC
+@@ -1588,30 +2186,41 @@ fn range_calendar_clamps_around_an_unavailable_date_by_default(cx: &mut TestAppC
      cx.update(|window, _| window.refresh());
      assert_eq!(
          selected_probe.borrow().get(&6),
@@ -27400,7 +27921,7 @@ index e0d0085a..b6a12eb9 100644
  
      assert_eq!(
          changed.borrow().as_slice(),
-@@ -1620,6 +2008,122 @@ fn range_calendar_clamps_around_an_unavailable_date_by_default(cx: &mut TestAppC
+@@ -1620,6 +2229,122 @@ fn range_calendar_clamps_around_an_unavailable_date_by_default(cx: &mut TestAppC
      );
  }
  
@@ -27523,7 +28044,7 @@ index e0d0085a..b6a12eb9 100644
  /// Enabling `allowsNonContiguousRanges` removes only the interior gap
  /// constraint. Available endpoints on either side of August 7 may complete the
  /// range, while the unavailable day itself remains unavailable as an endpoint.
-@@ -2467,9 +2971,9 @@ fn range_indicator_selector(entity_id: u64, year: i32, month: u32, day: u32) ->
+@@ -2467,9 +3192,9 @@ fn range_indicator_selector(entity_id: u64, year: i32, month: u32, day: u32) ->
  /// The pinned range track runs under the caps too, and it stays continuous
  /// across a week boundary: the last column of a row closes the run at the
  /// 252px right edge, the first column of the next row reopens it at x = 0
@@ -27536,7 +28057,7 @@ index e0d0085a..b6a12eb9 100644
  #[gpui::test]
  fn range_calendar_track_crosses_the_row_boundary_and_caps_carry_it(cx: &mut TestAppContext) {
      let state = cx.new(|cx| DateRangeState::new(cx));
-@@ -2477,6 +2981,7 @@ fn range_calendar_track_crosses_the_row_boundary_and_caps_carry_it(cx: &mut Test
+@@ -2477,6 +3202,7 @@ fn range_calendar_track_crosses_the_row_boundary_and_caps_carry_it(cx: &mut Test
      let cx = open_host(cx, move || {
          RangeCalendar::new(state_for_view.clone())
              .default_value((Date::new(2026, 8, 13), Date::new(2026, 8, 20)))
@@ -188495,7 +189016,7 @@ index 723274b0..f4c6f34d 100644
              // `HEROGPUI_WINDOW_SIZE=1200x2000` opens the window at that size.
              // A capture is one PrintWindow of the whole window, so a taller
 diff --git a/gallery/src/pages/components.rs b/gallery/src/pages/components.rs
-index 5eb12cd4..f8156e2a 100644
+index 5eb12cd4..9064f1f4 100644
 --- a/gallery/src/pages/components.rs
 +++ b/gallery/src/pages/components.rs
 @@ -1,7 +1,7 @@
@@ -190186,7 +190707,17 @@ index 5eb12cd4..f8156e2a 100644
                          .weeks_in_month(6)
                          .into_any_element()]),
                  ),
-@@ -4226,6 +4487,7 @@ impl Gallery {
+@@ -4213,7 +4474,8 @@ impl Gallery {
+                 ),
+                 (
+                     "Multiple months",
+-                    col(vec![h::Calendar::new(self.calendar.clone())
++                    "Scroll horizontally to explore both months in narrow layouts.",
++                    stretch_col(vec![h::Calendar::new(self.calendar.clone())
+                         .visible_duration(h::VisibleDuration::Months(2))
+                         .into_any_element()]),
+                 ),
+@@ -4226,6 +4488,7 @@ impl Gallery {
                  ),
                  (
                      "Day view",
@@ -190194,7 +190725,7 @@ index 5eb12cd4..f8156e2a 100644
                      col(vec![h::Calendar::new(self.calendar.clone())
                          .visible_duration(h::VisibleDuration::Days(5))
                          .into_any_element()]),
-@@ -4244,19 +4506,20 @@ impl Gallery {
+@@ -4244,19 +4507,20 @@ impl Gallery {
                  ),
                  (
                      "Heading Offset",
@@ -190217,7 +190748,7 @@ index 5eb12cd4..f8156e2a 100644
                                      h::Calendar::new(self.demo_calendar("cal-heading-offset", cx))
                                          .default_value(august)
                                          .offset(1)
-@@ -4264,13 +4527,6 @@ impl Gallery {
+@@ -4264,13 +4528,6 @@ impl Gallery {
                                      cx,
                                  ),
                              ]),
@@ -190231,7 +190762,7 @@ index 5eb12cd4..f8156e2a 100644
                          ]
                      }),
                  ),
-@@ -4288,36 +4544,32 @@ impl Gallery {
+@@ -4288,36 +4545,32 @@ impl Gallery {
              vec![
                  (
                      "Granularity",
@@ -190292,7 +190823,7 @@ index 5eb12cd4..f8156e2a 100644
                          h::DateField::new(self.demo_text("df-gran-12h", "2025-02-03T20:45", cx))
                              .label("Twelve-hour clock")
                              .granularity(h::Granularity::Minute)
-@@ -4325,9 +4577,33 @@ impl Gallery {
+@@ -4325,9 +4578,33 @@ impl Gallery {
                              .into_any_element(),
                      ]),
                  ),
@@ -190327,7 +190858,7 @@ index 5eb12cd4..f8156e2a 100644
                          h::DateField::new(self.date_input.clone())
                              // v3's Usage seeds the field with `defaultValue`.
                              .default_value(h::Date::new(2025, 12, 25))
-@@ -4352,7 +4628,7 @@ impl Gallery {
+@@ -4352,7 +4629,7 @@ impl Gallery {
                  ),
                  (
                      "With Icons",
@@ -190336,7 +190867,7 @@ index 5eb12cd4..f8156e2a 100644
                          .label("Date")
                          .prefix(icon(h::icons::MOON, cx))
                          .into_any_element()]),
-@@ -4383,21 +4659,21 @@ impl Gallery {
+@@ -4383,21 +4660,21 @@ impl Gallery {
                  ),
                  (
                      "With Description",
@@ -190361,7 +190892,7 @@ index 5eb12cd4..f8156e2a 100644
                          "df-dis",
                          "2025-12-25",
                          cx,
-@@ -4415,7 +4691,7 @@ impl Gallery {
+@@ -4415,7 +4692,7 @@ impl Gallery {
                  ),
                  (
                      "Validation",
@@ -190370,7 +190901,7 @@ index 5eb12cd4..f8156e2a 100644
                          "df-invalid",
                          "",
                          cx,
-@@ -4449,7 +4725,7 @@ impl Gallery {
+@@ -4449,7 +4726,7 @@ impl Gallery {
                  ),
                  (
                      "With Validation",
@@ -190379,7 +190910,7 @@ index 5eb12cd4..f8156e2a 100644
                          "df-validate",
                          "",
                          cx,
-@@ -4490,7 +4766,7 @@ impl Gallery {
+@@ -4490,7 +4767,7 @@ impl Gallery {
              vec![
                  (
                      "Disabled",
@@ -190388,7 +190919,7 @@ index 5eb12cd4..f8156e2a 100644
                          self.demo_calendar("dp-disabled", cx),
                      )
                      .label("Date")
-@@ -4520,7 +4796,7 @@ impl Gallery {
+@@ -4520,7 +4797,7 @@ impl Gallery {
                  ),
                  (
                      "Validation",
@@ -190397,7 +190928,7 @@ index 5eb12cd4..f8156e2a 100644
                          self.demo_calendar("dp-invalid", cx),
                      )
                      .label("Date")
-@@ -4533,12 +4809,8 @@ impl Gallery {
+@@ -4533,12 +4810,8 @@ impl Gallery {
                  ),
                  (
                      "Format Options",
@@ -190411,7 +190942,7 @@ index 5eb12cd4..f8156e2a 100644
                          h::DatePicker::new(self.demo_calendar("dp-format", cx))
                              .label("Date")
                              .into_any_element(),
-@@ -4556,12 +4828,8 @@ impl Gallery {
+@@ -4556,12 +4829,8 @@ impl Gallery {
                  ),
                  (
                      "Custom Indicator",
@@ -190425,7 +190956,7 @@ index 5eb12cd4..f8156e2a 100644
                          h::DatePicker::new(self.demo_calendar("dp-indicator", cx))
                              .label("Date")
                              .trigger_indicator(icon(h::icons::CHECK, cx))
-@@ -4570,7 +4838,7 @@ impl Gallery {
+@@ -4570,7 +4839,7 @@ impl Gallery {
                  ),
                  (
                      "Render Function",
@@ -190434,7 +190965,7 @@ index 5eb12cd4..f8156e2a 100644
                          self.demo_calendar("dp-render-props", cx)
                      )
                      .is_open(is_open)
-@@ -4611,7 +4879,7 @@ impl Gallery {
+@@ -4611,7 +4880,7 @@ impl Gallery {
                  ),
                  (
                      "Usage",
@@ -190443,7 +190974,7 @@ index 5eb12cd4..f8156e2a 100644
                          // v3's Usage seeds the picker with `defaultValue`.
                          .default_value(h::Date::new(2025, 12, 25))
                          .label("Due date")
-@@ -4644,7 +4912,7 @@ impl Gallery {
+@@ -4644,7 +4913,7 @@ impl Gallery {
              vec![
                  (
                      "Disabled",
@@ -190452,7 +190983,7 @@ index 5eb12cd4..f8156e2a 100644
                          self.demo_range("drp-disabled", cx),
                      )
                      .label("Stay")
-@@ -4653,8 +4921,8 @@ impl Gallery {
+@@ -4653,8 +4922,8 @@ impl Gallery {
                  ),
                  (
                      "Controlled",
@@ -190462,7 +190993,7 @@ index 5eb12cd4..f8156e2a 100644
                          {
                              // `value` writes the caller's copy back in, and
                              // `on_change` is how the caller gets one: a range
-@@ -4697,7 +4965,7 @@ impl Gallery {
+@@ -4697,7 +4966,7 @@ impl Gallery {
                  ),
                  (
                      "Validation",
@@ -190471,7 +191002,7 @@ index 5eb12cd4..f8156e2a 100644
                          self.demo_range("drp-invalid", cx),
                      )
                      .label("Stay")
-@@ -4706,12 +4974,8 @@ impl Gallery {
+@@ -4706,12 +4975,8 @@ impl Gallery {
                  ),
                  (
                      "Format Options",
@@ -190485,7 +191016,7 @@ index 5eb12cd4..f8156e2a 100644
                          h::DateRangePicker::new(self.demo_range("drp-format", cx))
                              .label("Stay")
                              .into_any_element(),
-@@ -4732,12 +4996,8 @@ impl Gallery {
+@@ -4732,12 +4997,8 @@ impl Gallery {
                  ),
                  (
                      "Custom Indicator",
@@ -190499,7 +191030,7 @@ index 5eb12cd4..f8156e2a 100644
                          h::DateRangePicker::new(self.demo_range("drp-indicator", cx))
                              .label("Stay")
                              .trigger_indicator(icon(h::icons::CHECK, cx))
-@@ -4787,17 +5047,26 @@ impl Gallery {
+@@ -4787,17 +5048,26 @@ impl Gallery {
                  ),
                  (
                      "Usage",
@@ -190537,7 +191068,7 @@ index 5eb12cd4..f8156e2a 100644
                          .into_any_element()]),
                  ),
              ],
-@@ -4813,8 +5082,19 @@ impl Gallery {
+@@ -4813,8 +5083,19 @@ impl Gallery {
              crate::pages::Page::RangeCalendar.description(),
              crate::pages::Page::RangeCalendar.import_line(),
              vec![
@@ -190557,7 +191088,7 @@ index 5eb12cd4..f8156e2a 100644
                      col(vec![h::RangeCalendar::new(
                          self.demo_range("rc-disabled", cx),
                      )
-@@ -4831,6 +5111,7 @@ impl Gallery {
+@@ -4831,6 +5112,7 @@ impl Gallery {
                  ),
                  (
                      "Year Picker",
@@ -190565,7 +191096,7 @@ index 5eb12cd4..f8156e2a 100644
                      col(vec![h::RangeCalendar::new(self.demo_range("rc-year", cx))
                          .default_year_picker_open(true)
                          // `firstDayOfWeek` reorders the seven columns.
-@@ -4839,6 +5120,7 @@ impl Gallery {
+@@ -4839,6 +5121,7 @@ impl Gallery {
                  ),
                  (
                      "Heading Offset",
@@ -190573,7 +191104,7 @@ index 5eb12cd4..f8156e2a 100644
                      col({
                          let august = (h::Date::new(2026, 8, 10), h::Date::new(2026, 8, 16));
                          vec![
-@@ -4859,13 +5141,6 @@ impl Gallery {
+@@ -4859,13 +5142,6 @@ impl Gallery {
                                      cx,
                                  ),
                              ]),
@@ -190587,7 +191118,7 @@ index 5eb12cd4..f8156e2a 100644
                          ]
                      }),
                  ),
-@@ -4879,8 +5154,8 @@ impl Gallery {
+@@ -4879,8 +5155,8 @@ impl Gallery {
                  ),
                  (
                      "Controlled",
@@ -190597,7 +191128,7 @@ index 5eb12cd4..f8156e2a 100644
                          h::RangeCalendar::new(self.date_range.clone())
                              .value(
                                  Some(h::Date::new(2025, 12, 8)),
-@@ -4905,23 +5180,33 @@ impl Gallery {
+@@ -4905,23 +5181,33 @@ impl Gallery {
                  ),
                  (
                      "Unavailable Dates",
@@ -190644,7 +191175,7 @@ index 5eb12cd4..f8156e2a 100644
                          h::RangeCalendar::new(self.demo_range("rc-anchor", cx))
                              .is_date_unavailable(|date, anchor| {
                                  anchor.is_some_and(|anchor| {
-@@ -4957,6 +5242,7 @@ impl Gallery {
+@@ -4957,6 +5243,7 @@ impl Gallery {
                  ),
                  (
                      "Day View",
@@ -190652,7 +191183,17 @@ index 5eb12cd4..f8156e2a 100644
                      col(vec![h::RangeCalendar::new(
                          self.demo_range("rc-day-view", cx),
                      )
-@@ -5001,19 +5287,6 @@ impl Gallery {
+@@ -4965,7 +5252,8 @@ impl Gallery {
+                 ),
+                 (
+                     "Multiple Months",
+-                    col(vec![h::RangeCalendar::new(
++                    "Scroll horizontally to explore both months in narrow layouts.",
++                    stretch_col(vec![h::RangeCalendar::new(
+                         self.demo_range("rc-months", cx),
+                     )
+                     .visible_duration(h::VisibleDuration::Months(2))
+@@ -5001,19 +5289,6 @@ impl Gallery {
                      },)))
                      .into_any_element()]),
                  ),
@@ -190672,7 +191213,7 @@ index 5eb12cd4..f8156e2a 100644
                  (
                      "Real-World Example",
                      col(vec![h::Surface::new()
-@@ -5047,8 +5320,9 @@ impl Gallery {
+@@ -5047,8 +5322,9 @@ impl Gallery {
              vec![
                  (
                      "24-hour",
@@ -190683,7 +191224,7 @@ index 5eb12cd4..f8156e2a 100644
                          .description("Click a segment, then use the steppers.")
                          .on_change(opt_time_cb(
                              cx.listener(|_, _t: &Option<h::Time>, _, cx| cx.notify()),
-@@ -5057,7 +5331,7 @@ impl Gallery {
+@@ -5057,7 +5333,7 @@ impl Gallery {
                  ),
                  (
                      "12-hour with seconds",
@@ -190692,7 +191233,7 @@ index 5eb12cd4..f8156e2a 100644
                          .label("Reminder")
                          .hour_cycle(h::HourCycle::H12)
                          .show_seconds(true)
-@@ -5066,15 +5340,34 @@ impl Gallery {
+@@ -5066,15 +5342,34 @@ impl Gallery {
                          ))
                          .into_any_element()]),
                  ),
@@ -190731,7 +191272,7 @@ index 5eb12cd4..f8156e2a 100644
                          .label("Time")
                          .prefix(icon(h::icons::SUN, cx))
                          .into_any_element()]),
-@@ -5093,21 +5386,21 @@ impl Gallery {
+@@ -5093,21 +5388,21 @@ impl Gallery {
                  ),
                  (
                      "With Description",
@@ -190756,7 +191297,7 @@ index 5eb12cd4..f8156e2a 100644
                          .label("Time")
                          .is_disabled(true)
                          .into_any_element()]),
-@@ -5121,7 +5414,7 @@ impl Gallery {
+@@ -5121,7 +5416,7 @@ impl Gallery {
                  ),
                  (
                      "Validation",
@@ -190765,7 +191306,7 @@ index 5eb12cd4..f8156e2a 100644
                          .label("Time")
                          // `minValue`/`maxValue` clamp what the segments accept.
                          .min_value(h::Time::new(9, 0))
-@@ -5133,22 +5426,17 @@ impl Gallery {
+@@ -5133,22 +5428,17 @@ impl Gallery {
                  ),
                  (
                      "Controlled",
@@ -190796,7 +191337,7 @@ index 5eb12cd4..f8156e2a 100644
                          .label("Meeting time")
                          .description("Office hours are 09:00 to 17:00")
                          .validate(|value| {
-@@ -5189,13 +5477,13 @@ impl Gallery {
+@@ -5189,13 +5479,13 @@ impl Gallery {
              vec![
                  (
                      "Usage",
@@ -190813,7 +191354,7 @@ index 5eb12cd4..f8156e2a 100644
                          .iter()
                          .map(|c| {
                              h::Alert::new(format!("{} alert", c.label()))
-@@ -5206,12 +5494,8 @@ impl Gallery {
+@@ -5206,12 +5496,8 @@ impl Gallery {
                  ),
                  (
                      "Closable",
@@ -190828,7 +191369,7 @@ index 5eb12cd4..f8156e2a 100644
                          if self.alert_visible {
                              h::Alert::new("Saved")
                                  .description("Your changes are live.")
-@@ -5249,10 +5533,14 @@ impl Gallery {
+@@ -5249,10 +5535,14 @@ impl Gallery {
              crate::pages::Page::Meter.import_line(),
              vec![
                  (
@@ -190847,7 +191388,7 @@ index 5eb12cd4..f8156e2a 100644
                          .into_any_element()]),
                  ),
                  (
-@@ -5260,7 +5548,9 @@ impl Gallery {
+@@ -5260,7 +5550,9 @@ impl Gallery {
                      col(Color::ALL
                          .iter()
                          .enumerate()
@@ -190858,7 +191399,7 @@ index 5eb12cd4..f8156e2a 100644
                          .els()),
                  ),
                  (
-@@ -5268,24 +5558,29 @@ impl Gallery {
+@@ -5268,24 +5560,29 @@ impl Gallery {
                      col(Size::ALL
                          .iter()
                          .enumerate()
@@ -190899,7 +191440,7 @@ index 5eb12cd4..f8156e2a 100644
                  ),
              ],
              cx,
-@@ -5299,11 +5594,15 @@ impl Gallery {
+@@ -5299,11 +5596,15 @@ impl Gallery {
              crate::pages::Page::ProgressBar.import_line(),
              vec![
                  (
@@ -190920,7 +191461,7 @@ index 5eb12cd4..f8156e2a 100644
                          .into_any_element()]),
                  ),
                  (
-@@ -5312,52 +5611,66 @@ impl Gallery {
+@@ -5312,52 +5613,66 @@ impl Gallery {
                          .iter()
                          .enumerate()
                          .map(|(index, c)| {
@@ -191017,7 +191558,7 @@ index 5eb12cd4..f8156e2a 100644
                  ),
              ],
              cx,
-@@ -5392,13 +5705,8 @@ impl Gallery {
+@@ -5392,13 +5707,8 @@ impl Gallery {
                  ),
                  (
                      "Custom SVG Props",
@@ -191032,7 +191573,7 @@ index 5eb12cd4..f8156e2a 100644
                          row(Size::ALL
                              .iter()
                              .map(|sz| {
-@@ -5542,12 +5850,8 @@ impl Gallery {
+@@ -5542,12 +5852,8 @@ impl Gallery {
                  ),
                  (
                      "Single Shimmer",
@@ -191046,7 +191587,7 @@ index 5eb12cd4..f8156e2a 100644
                          gpui::div()
                              .flex()
                              .gap(px(16.))
-@@ -5610,6 +5914,7 @@ impl Gallery {
+@@ -5610,6 +5916,7 @@ impl Gallery {
              vec![
                  (
                      "Usage",
@@ -191054,7 +191595,7 @@ index 5eb12cd4..f8156e2a 100644
                      row(vec![h::Spinner::new("sp-usage").into_any_element()]),
                  ),
                  (
-@@ -5664,7 +5969,7 @@ impl Gallery {
+@@ -5664,7 +5971,7 @@ impl Gallery {
              crate::pages::Page::Checkbox.import_line(),
              vec![
                  (
@@ -191063,7 +191604,7 @@ index 5eb12cd4..f8156e2a 100644
                      col(vec![
                          h::Checkbox::new("cb-1")
                              .is_selected(basic)
-@@ -5880,7 +6185,7 @@ impl Gallery {
+@@ -5880,7 +6187,7 @@ impl Gallery {
              crate::pages::Page::CheckboxGroup.import_line(),
              vec![
                  (
@@ -191072,7 +191613,7 @@ index 5eb12cd4..f8156e2a 100644
                      col(vec![h::CheckboxGroup::new("cbg-usage", group_options())
                          .label("Notifications")
                          .into_any_element()]),
-@@ -5905,12 +6210,8 @@ impl Gallery {
+@@ -5905,12 +6212,8 @@ impl Gallery {
                  ),
                  (
                      "Indeterminate",
@@ -191086,7 +191627,7 @@ index 5eb12cd4..f8156e2a 100644
                          h::Checkbox::new("cbg-all")
                              .is_selected(selected.len() == 3)
                              .is_indeterminate(!selected.is_empty() && selected.len() < 3)
-@@ -5969,12 +6270,8 @@ impl Gallery {
+@@ -5969,12 +6272,8 @@ impl Gallery {
                  ),
                  (
                      "With Custom Indicator",
@@ -191100,7 +191641,7 @@ index 5eb12cd4..f8156e2a 100644
                          h::Checkbox::new("cbg-ci-1")
                              .default_selected(true)
                              .indicator(move |state| {
-@@ -6051,7 +6348,7 @@ impl Gallery {
+@@ -6051,7 +6350,7 @@ impl Gallery {
              vec![
                  (
                      "In Surface",
@@ -191109,7 +191650,7 @@ index 5eb12cd4..f8156e2a 100644
                          .padding(px(24.))
                          .gap(px(16.))
                          .child(
-@@ -6062,11 +6359,13 @@ impl Gallery {
+@@ -6062,11 +6361,13 @@ impl Gallery {
                                          .child(
                                              h::TextField::new(self.demo_text("fset-name", "", cx))
                                                  .label("Name")
@@ -191123,7 +191664,7 @@ index 5eb12cd4..f8156e2a 100644
                                                  .variant(FieldVariant::Secondary),
                                          ),
                                  )
-@@ -6078,7 +6377,7 @@ impl Gallery {
+@@ -6078,7 +6379,7 @@ impl Gallery {
                  ),
                  (
                      "Usage",
@@ -191132,7 +191673,7 @@ index 5eb12cd4..f8156e2a 100644
                          .child(h::FieldsetLegend::new("Shipping address"))
                          .child(
                              h::FieldGroup::new()
-@@ -6143,39 +6442,38 @@ impl Gallery {
+@@ -6143,39 +6444,38 @@ impl Gallery {
                  ),
                  (
                      "With Form Fields",
@@ -191182,7 +191723,7 @@ index 5eb12cd4..f8156e2a 100644
                      .input_type(h::InputType::Password)
                      .is_required(true)
                      .validate(|value| {
-@@ -6185,13 +6483,8 @@ impl Gallery {
+@@ -6185,13 +6485,8 @@ impl Gallery {
                  ),
                  (
                      "With Dynamic Messages",
@@ -191197,7 +191738,7 @@ index 5eb12cd4..f8156e2a 100644
                          h::TextField::new(self.demo_text("fs-dynamic", "abc", cx))
                              .label("Password")
                              .is_invalid(true)
-@@ -6241,11 +6534,11 @@ impl Gallery {
+@@ -6241,11 +6536,11 @@ impl Gallery {
                  ),
                  (
                      "FieldError",
@@ -191210,7 +191751,7 @@ index 5eb12cd4..f8156e2a 100644
                          h::FieldError::new().into_any_element(),
                      ]),
                  ),
-@@ -6263,13 +6556,8 @@ impl Gallery {
+@@ -6263,13 +6558,8 @@ impl Gallery {
              vec![
                  (
                      "Usage",
@@ -191225,7 +191766,7 @@ index 5eb12cd4..f8156e2a 100644
                          {
                              // `name` rides on each field's state, so the form finds
                              // it without the call site repeating the name.
-@@ -6310,12 +6598,14 @@ impl Gallery {
+@@ -6310,12 +6600,14 @@ impl Gallery {
                                  h::TextField::new(self.input_name.clone())
                                      .name("name")
                                      .label("Name")
@@ -191240,7 +191781,7 @@ index 5eb12cd4..f8156e2a 100644
                                      .description("We reply within a day."),
                              )
                              .child(
-@@ -6346,7 +6636,7 @@ impl Gallery {
+@@ -6346,7 +6638,7 @@ impl Gallery {
                          ),
                      ]),
                  ),
@@ -191249,7 +191790,7 @@ index 5eb12cd4..f8156e2a 100644
                      let email = self.demo_text("form-srv-email", "ada@example.com", cx);
                      let name = self.demo_text("form-srv-name", "Ada", cx);
                      let report = self.demo_text_value("form-srv-report");
-@@ -6385,17 +6675,6 @@ impl Gallery {
+@@ -6385,17 +6677,6 @@ impl Gallery {
                      let submit = form.submit_handler();
                      let reset = form.reset_handler();
                      col(vec![
@@ -191267,7 +191808,7 @@ index 5eb12cd4..f8156e2a 100644
                          form.child(
                              h::TextField::new(email)
                                  .name("email")
-@@ -6465,34 +6744,35 @@ impl Gallery {
+@@ -6465,34 +6746,35 @@ impl Gallery {
              vec![
                  (
                      "Variants",
@@ -191310,7 +191851,7 @@ index 5eb12cd4..f8156e2a 100644
                                  .variant(FieldVariant::Secondary)
                                  .description("The lower-emphasis variant, for use on a surface"),
                          )
-@@ -6502,12 +6782,13 @@ impl Gallery {
+@@ -6502,12 +6784,13 @@ impl Gallery {
                      "Full Width",
                      col(vec![h::Input::new(self.demo_text("in-full", "", cx))
                          .label("Name")
@@ -191325,7 +191866,7 @@ index 5eb12cd4..f8156e2a 100644
                          h::Input::new(self.demo_text("in-pw", "", cx))
                              .label("Password")
                              .input_type(h::InputType::Password)
-@@ -6542,30 +6823,36 @@ impl Gallery {
+@@ -6542,30 +6825,36 @@ impl Gallery {
                  (
                      "Controlled",
                      col(vec![
@@ -191367,7 +191908,7 @@ index 5eb12cd4..f8156e2a 100644
                              .is_clearable(true)
                              .into_any_element(),
                      ]),
-@@ -6583,8 +6870,8 @@ impl Gallery {
+@@ -6583,8 +6872,8 @@ impl Gallery {
              crate::pages::Page::InputGroup.import_line(),
              vec![
                  (
@@ -191378,7 +191919,7 @@ index 5eb12cd4..f8156e2a 100644
                          .label("Website")
                          .prefix(h::InputAddon::new("https://"))
                          .input(
-@@ -6599,36 +6886,45 @@ impl Gallery {
+@@ -6599,36 +6888,45 @@ impl Gallery {
                  ),
                  (
                      "Variants",
@@ -191430,7 +191971,7 @@ index 5eb12cd4..f8156e2a 100644
                          .label("Checking availability")
                          .input(h::Input::new(self.demo_text("ig-loading", "heroui", cx)))
                          .suffix(
-@@ -6640,16 +6936,19 @@ impl Gallery {
+@@ -6640,16 +6938,19 @@ impl Gallery {
                  ),
                  (
                      "Required Field",
@@ -191453,7 +191994,7 @@ index 5eb12cd4..f8156e2a 100644
                          .label("Website")
                          .is_disabled(true)
                          .prefix(h::InputAddon::new("https://"))
-@@ -6665,34 +6964,46 @@ impl Gallery {
+@@ -6665,34 +6966,46 @@ impl Gallery {
                          .label("Website")
                          .full_width(true)
                          .prefix(h::InputAddon::new("https://"))
@@ -191508,7 +192049,7 @@ index 5eb12cd4..f8156e2a 100644
                          .label("Website")
                          .input(h::Input::new(self.demo_text("ig-copy", "heroui.com", cx)))
                          .suffix(
-@@ -6708,7 +7019,7 @@ impl Gallery {
+@@ -6708,7 +7021,7 @@ impl Gallery {
                  ),
                  (
                      "Icon Prefix and Copy Button",
@@ -191517,7 +192058,7 @@ index 5eb12cd4..f8156e2a 100644
                          .prefix(gpui::div().pl(px(12.)).child(icon(h::icons::KEY, cx)))
                          .input(h::Input::new(self.demo_text(
                              "ig-key",
-@@ -6728,7 +7039,7 @@ impl Gallery {
+@@ -6728,7 +7041,7 @@ impl Gallery {
                  ),
                  (
                      "Password Toggle",
@@ -191526,7 +192067,7 @@ index 5eb12cd4..f8156e2a 100644
                          .label("Password")
                          .input(
                              h::Input::new(self.demo_text("ig-pw", "correct horse", cx)).input_type(
-@@ -6763,7 +7074,7 @@ impl Gallery {
+@@ -6763,7 +7076,7 @@ impl Gallery {
                  ),
                  (
                      "Keyboard Shortcut",
@@ -191535,7 +192076,7 @@ index 5eb12cd4..f8156e2a 100644
                          .prefix(gpui::div().pl(px(12.)).child(icon(h::icons::SEARCH, cx)))
                          .input(
                              h::Input::new(self.demo_text("ig-kbd", "", cx)).placeholder("Search"),
-@@ -6780,7 +7091,7 @@ impl Gallery {
+@@ -6780,7 +7093,7 @@ impl Gallery {
                  ),
                  (
                      "Badge Suffix",
@@ -191544,7 +192085,7 @@ index 5eb12cd4..f8156e2a 100644
                          .label("Plan")
                          .input(h::Input::new(self.demo_text("ig-badge", "Pro", cx)))
                          .suffix(
-@@ -6796,7 +7107,7 @@ impl Gallery {
+@@ -6796,7 +7109,7 @@ impl Gallery {
                  ),
                  (
                      "Validation",
@@ -191553,7 +192094,7 @@ index 5eb12cd4..f8156e2a 100644
                          .label("Website")
                          .is_required(true)
                          .is_invalid(true)
-@@ -6807,29 +7118,38 @@ impl Gallery {
+@@ -6807,29 +7120,38 @@ impl Gallery {
                  ),
                  (
                      "With Prefix Icon",
@@ -191599,7 +192140,7 @@ index 5eb12cd4..f8156e2a 100644
                          .label("Note")
                          .prefix(
                              // The group's `:has(textarea)` rule owns the 8px
-@@ -6838,12 +7158,16 @@ impl Gallery {
+@@ -6838,12 +7160,16 @@ impl Gallery {
                              // addon slot.
                              gpui::div().pl(px(12.)).child(icon(h::icons::COPY, cx)),
                          )
@@ -191618,7 +192159,7 @@ index 5eb12cd4..f8156e2a 100644
                          .label("Amount")
                          .description("Billed in US dollars.")
                          .prefix(h::InputAddon::new("$"))
-@@ -6855,15 +7179,19 @@ impl Gallery {
+@@ -6855,15 +7181,19 @@ impl Gallery {
                  ),
                  (
                      "TextArea Usage Example",
@@ -191641,7 +192182,7 @@ index 5eb12cd4..f8156e2a 100644
                          .label("Amount")
                          .description("Charged monthly.")
                          .prefix(h::InputAddon::new("$"))
-@@ -6873,7 +7201,7 @@ impl Gallery {
+@@ -6873,7 +7203,7 @@ impl Gallery {
                  ),
                  (
                      "With a trailing action",
@@ -191650,7 +192191,7 @@ index 5eb12cd4..f8156e2a 100644
                          .variant(FieldVariant::Secondary)
                          .input(h::Input::new(self.input_email.clone()).placeholder("Email"))
                          .suffix(
-@@ -6898,22 +7226,33 @@ impl Gallery {
+@@ -6898,22 +7228,33 @@ impl Gallery {
              crate::pages::Page::InputOtp.import_line(),
              vec![
                  (
@@ -191693,7 +192234,7 @@ index 5eb12cd4..f8156e2a 100644
                      ]),
                  ),
                  (
-@@ -6990,24 +7329,23 @@ impl Gallery {
+@@ -6990,24 +7331,23 @@ impl Gallery {
                  ),
                  (
                      "Custom Slots",
@@ -191735,7 +192276,7 @@ index 5eb12cd4..f8156e2a 100644
                  ),
                  (
                      "Form Example",
-@@ -7075,12 +7413,21 @@ impl Gallery {
+@@ -7075,12 +7415,21 @@ impl Gallery {
              vec![
                  (
                      "Usage",
@@ -191763,7 +192304,7 @@ index 5eb12cd4..f8156e2a 100644
                  ),
                  (
                      "Without steppers",
-@@ -7299,7 +7646,7 @@ impl Gallery {
+@@ -7299,7 +7648,7 @@ impl Gallery {
              crate::pages::Page::RadioGroup.import_line(),
              vec![
                  (
@@ -191772,7 +192313,7 @@ index 5eb12cd4..f8156e2a 100644
                      col(vec![h::RadioGroup::new("rg-usage", plans())
                          .default_value("Free")
                          // v3's own example opens with the group's `<Label>` and
-@@ -7384,12 +7731,8 @@ impl Gallery {
+@@ -7384,12 +7733,8 @@ impl Gallery {
                  ),
                  (
                      "Custom Indicator",
@@ -191786,7 +192327,7 @@ index 5eb12cd4..f8156e2a 100644
                          h::RadioGroup::new("rg-indicator", plans())
                              .default_value("Enterprise")
                              .indicator(move |_, state| {
-@@ -7496,14 +7839,15 @@ impl Gallery {
+@@ -7496,14 +7841,15 @@ impl Gallery {
                  (
                      "Usage",
                      col(vec![
@@ -191810,7 +192351,7 @@ index 5eb12cd4..f8156e2a 100644
                          para(
                              &if query.is_empty() {
                                  "Type to search".to_owned()
-@@ -7516,24 +7860,27 @@ impl Gallery {
+@@ -7516,24 +7862,27 @@ impl Gallery {
                  ),
                  (
                      "Variants",
@@ -191840,7 +192381,7 @@ index 5eb12cd4..f8156e2a 100644
                                  .variant(FieldVariant::Secondary)
                                  .description("Enter keywords to search"),
                          )
-@@ -7541,22 +7888,25 @@ impl Gallery {
+@@ -7541,22 +7890,25 @@ impl Gallery {
                  ),
                  (
                      "With Description",
@@ -191869,7 +192410,7 @@ index 5eb12cd4..f8156e2a 100644
                          .is_disabled(true)
                          .into_any_element()]),
                  ),
-@@ -7564,13 +7914,15 @@ impl Gallery {
+@@ -7564,13 +7916,15 @@ impl Gallery {
                      "Full Width",
                      col(vec![h::SearchField::new(full)
                          .label("Search")
@@ -191886,7 +192427,7 @@ index 5eb12cd4..f8156e2a 100644
                          .is_required(true)
                          .is_invalid(true)
                          .validation_errors(["Search query must be at least 3 characters"])
-@@ -7579,15 +7931,17 @@ impl Gallery {
+@@ -7579,15 +7933,17 @@ impl Gallery {
                  (
                      "Controlled",
                      col(vec![
@@ -191913,7 +192454,7 @@ index 5eb12cd4..f8156e2a 100644
                          para(
                              &if controlled_text.is_empty() {
                                  "Empty".to_owned()
-@@ -7600,7 +7954,7 @@ impl Gallery {
+@@ -7600,7 +7956,7 @@ impl Gallery {
                  ),
                  (
                      "Render Props",
@@ -191922,7 +192463,7 @@ index 5eb12cd4..f8156e2a 100644
                          let parts = render_props.clone();
                          h::SearchField::new(render_props)
                              .content(move |state| {
-@@ -7623,28 +7977,28 @@ impl Gallery {
+@@ -7623,28 +7979,28 @@ impl Gallery {
                  ),
                  (
                      "With Validation",
@@ -191965,7 +192506,7 @@ index 5eb12cd4..f8156e2a 100644
                              .name("query")
                              .is_required(true)
                              .validate(|value| {
-@@ -7660,16 +8014,18 @@ impl Gallery {
+@@ -7660,16 +8016,18 @@ impl Gallery {
                  ),
                  (
                      "Custom Icons",
@@ -191986,7 +192527,7 @@ index 5eb12cd4..f8156e2a 100644
                          .end_content(h::Kbd::new().child("Shift S"))
                          .description("Press Shift+S to focus")
                          .into_any_element()]),
-@@ -7692,21 +8048,27 @@ impl Gallery {
+@@ -7692,21 +8050,27 @@ impl Gallery {
              vec![
                  (
                      "Usage",
@@ -192020,7 +192561,7 @@ index 5eb12cd4..f8156e2a 100644
                              .variant(FieldVariant::Secondary)
                              .rows(3)
                              .into_any_element(),
-@@ -7714,12 +8076,13 @@ impl Gallery {
+@@ -7714,12 +8078,13 @@ impl Gallery {
                  ),
                  (
                      "In Surface",
@@ -192035,7 +192576,7 @@ index 5eb12cd4..f8156e2a 100644
                                  .variant(FieldVariant::Secondary)
                                  .rows(3),
                          )
-@@ -7729,6 +8092,7 @@ impl Gallery {
+@@ -7729,6 +8094,7 @@ impl Gallery {
                      "Full Width",
                      col(vec![h::TextArea::new(self.demo_text("ta-full", "", cx))
                          .label("Notes")
@@ -192043,7 +192584,7 @@ index 5eb12cd4..f8156e2a 100644
                          .rows(3)
                          .full_width()
                          .into_any_element()]),
-@@ -7736,18 +8100,21 @@ impl Gallery {
+@@ -7736,18 +8102,21 @@ impl Gallery {
                  (
                      "Controlled",
                      col(vec![
@@ -192071,7 +192612,7 @@ index 5eb12cd4..f8156e2a 100644
                          .rows(6)
                          .into_any_element()]),
                  ),
-@@ -7770,7 +8137,7 @@ impl Gallery {
+@@ -7770,7 +8139,7 @@ impl Gallery {
              vec![
                  (
                      "Usage",
@@ -192080,7 +192621,7 @@ index 5eb12cd4..f8156e2a 100644
                          .label("Full name")
                          .placeholder("Ada Lovelace")
                          .description("As it appears on your ID.")
-@@ -7778,12 +8145,13 @@ impl Gallery {
+@@ -7778,12 +8147,13 @@ impl Gallery {
                  ),
                  (
                      "In Surface",
@@ -192095,7 +192636,7 @@ index 5eb12cd4..f8156e2a 100644
                                  .variant(FieldVariant::Secondary)
                                  .description("Use the secondary variant on a surface"),
                          )
-@@ -7791,26 +8159,29 @@ impl Gallery {
+@@ -7791,26 +8161,29 @@ impl Gallery {
                  ),
                  (
                      "With Description",
@@ -192128,7 +192669,7 @@ index 5eb12cd4..f8156e2a 100644
                      .is_disabled(true)
                      .into_any_element()]),
                  ),
-@@ -7818,14 +8189,16 @@ impl Gallery {
+@@ -7818,14 +8191,16 @@ impl Gallery {
                      "Full Width",
                      col(vec![h::TextField::new(self.demo_text("tf-full", "", cx))
                          .label("Full name")
@@ -192146,7 +192687,7 @@ index 5eb12cd4..f8156e2a 100644
                              .is_required(true)
                              .validate(|value| value
                                  .trim()
-@@ -7834,6 +8207,7 @@ impl Gallery {
+@@ -7834,6 +8209,7 @@ impl Gallery {
                              .into_any_element(),
                          h::TextField::new(self.demo_text("tf-invalid", "", cx))
                          .label("Full name")
@@ -192154,7 +192695,7 @@ index 5eb12cd4..f8156e2a 100644
                          // `isInvalid` marks it invalid from the outside, which is
                          // what a server-side error looks like.
                          .is_invalid(true)
-@@ -7844,16 +8218,18 @@ impl Gallery {
+@@ -7844,16 +8220,18 @@ impl Gallery {
                  (
                      "Controlled",
                      col(vec![
@@ -192162,13 +192703,14 @@ index 5eb12cd4..f8156e2a 100644
 -                            .label("Full name")
 -                            .on_change(|_, _, _| {})
 -                            .into_any_element(),
+-                        para(&format!("Value: {tf_controlled}"), cx),
 +                        demo_field(
 +                            h::TextField::new(self.demo_text("tf-controlled", "", cx))
 +                                .label("Full name")
 +                                .placeholder("Jane")
 +                                .on_change(|_, _, _| {}),
 +                        ),
-                         para(&format!("Value: {tf_controlled}"), cx),
++                        para(&format!("Value: {tf_controlled}"), cx),
                      ]),
                  ),
                  (
@@ -192178,7 +192720,7 @@ index 5eb12cd4..f8156e2a 100644
                          let field = tf_render_props.clone();
                          h::TextField::new(tf_render_props)
                              .content(move |state| {
-@@ -7872,6 +8248,7 @@ impl Gallery {
+@@ -7872,6 +8250,7 @@ impl Gallery {
                                              "unfocused"
                                          },
                                      ))
@@ -192186,7 +192728,7 @@ index 5eb12cd4..f8156e2a 100644
                                      .is_required(true)
                                      .into_any_element()
                              })
-@@ -7881,29 +8258,33 @@ impl Gallery {
+@@ -7881,29 +8260,33 @@ impl Gallery {
                  ),
                  (
                      "Error Message",
@@ -192223,7 +192765,7 @@ index 5eb12cd4..f8156e2a 100644
                              .input_type(h::InputType::Email)
                              .into_any_element(),
                      ]),
-@@ -7944,16 +8325,36 @@ impl Gallery {
+@@ -7944,16 +8327,36 @@ impl Gallery {
              vec![
                  (
                      "Usage",
@@ -192264,7 +192806,7 @@ index 5eb12cd4..f8156e2a 100644
                          .into_any_element()]),
                  ),
                  (
-@@ -8011,7 +8412,7 @@ impl Gallery {
+@@ -8011,7 +8414,7 @@ impl Gallery {
                          )
                          .child(
                              h::CardFooter::new()
@@ -192273,7 +192815,7 @@ index 5eb12cd4..f8156e2a 100644
                                  .child("By Martha"),
                          )
                          .into_any_element()]),
-@@ -8181,7 +8582,7 @@ impl Gallery {
+@@ -8181,7 +8584,7 @@ impl Gallery {
                  ),
                  (
                      "With form components",
@@ -192282,7 +192824,7 @@ index 5eb12cd4..f8156e2a 100644
                          // Same as the variants panel: upstream adds its
                          // `p-6` + `gap-4` through className; these explicit
                          // paddings/gaps exercise the port's own layout
-@@ -8195,7 +8596,8 @@ impl Gallery {
+@@ -8195,7 +8598,8 @@ impl Gallery {
                          )
                          .child(
                              h::TextArea::new(self.input_bio.clone())
@@ -192292,7 +192834,7 @@ index 5eb12cd4..f8156e2a 100644
                          )
                          .into_any_element()]),
                  ),
-@@ -8223,10 +8625,9 @@ impl Gallery {
+@@ -8223,10 +8627,9 @@ impl Gallery {
                              h::ToggleButton::new(el_id(format!("tbar-{key}-i"))).label("I"),
                          ),
                  )
@@ -192306,7 +192848,7 @@ index 5eb12cd4..f8156e2a 100644
                  .child(
                      h::ButtonGroup::new()
                          .variant(Variant::Tertiary)
-@@ -8278,7 +8679,7 @@ impl Gallery {
+@@ -8278,7 +8681,7 @@ impl Gallery {
                                  .button(h::Button::new("tb-bg-2").label("Center"))
                                  .button(h::Button::new("tb-bg-3").label("Right")),
                          )
@@ -192315,7 +192857,7 @@ index 5eb12cd4..f8156e2a 100644
                          .child(
                              h::Button::new("tb-bg-4")
                                  .label("Reset")
-@@ -8341,7 +8742,7 @@ impl Gallery {
+@@ -8341,7 +8744,7 @@ impl Gallery {
              .take(3)
              .enumerate()
              .map(|(i, n)| {
@@ -192324,7 +192866,7 @@ index 5eb12cd4..f8156e2a 100644
                  if i == 0 {
                      d.into_any_element()
                  } else {
-@@ -8359,6 +8760,7 @@ impl Gallery {
+@@ -8359,6 +8762,7 @@ impl Gallery {
                  .bg(cx.colors().surface_tertiary)
                  .text_color(cx.colors().foreground)
                  .text_size(px(12.))
@@ -192332,7 +192874,7 @@ index 5eb12cd4..f8156e2a 100644
                  .child(format!("+{}", names.len() - 3)),
              ring,
          )));
-@@ -8369,40 +8771,62 @@ impl Gallery {
+@@ -8369,40 +8773,62 @@ impl Gallery {
              vec![
                  (
                      "Usage",
@@ -192405,7 +192947,7 @@ index 5eb12cd4..f8156e2a 100644
                                  cx,
                              )
                          })
-@@ -8412,17 +8836,22 @@ impl Gallery {
+@@ -8412,17 +8838,22 @@ impl Gallery {
                      "Colors",
                      row(Color::ALL
                          .iter()
@@ -192432,7 +192974,7 @@ index 5eb12cd4..f8156e2a 100644
                                  cx,
                              )
                          })
-@@ -8440,7 +8869,8 @@ impl Gallery {
+@@ -8440,7 +8871,8 @@ impl Gallery {
                              gpui::div()
                                  .flex()
                                  .children(names.iter().take(4).enumerate().map(|(i, n)| {
@@ -192442,7 +192984,7 @@ index 5eb12cd4..f8156e2a 100644
                                      if i == 0 {
                                          d.into_any_element()
                                      } else {
-@@ -8455,6 +8885,24 @@ impl Gallery {
+@@ -8455,6 +8887,24 @@ impl Gallery {
                          )
                          .into_any_element()]),
                  ),
@@ -192467,7 +193009,7 @@ index 5eb12cd4..f8156e2a 100644
              ],
              cx,
          )
-@@ -8486,6 +8934,7 @@ impl Gallery {
+@@ -8486,6 +8936,7 @@ impl Gallery {
              vec![
                  (
                      "Usage",
@@ -192475,7 +193017,7 @@ index 5eb12cd4..f8156e2a 100644
                      col(vec![h::Accordion::new(items())
                          .id("acc-usage")
                          .default_expanded("1")
-@@ -8774,6 +9223,30 @@ impl Gallery {
+@@ -8774,6 +9225,30 @@ impl Gallery {
                      .child(gpui::div().child("Ships in 2-4 business days."))
                      .into_any_element()]),
                  ),
@@ -192506,7 +193048,7 @@ index 5eb12cd4..f8156e2a 100644
                  (
                      "Controlled",
                      col(vec![
-@@ -8866,14 +9339,8 @@ impl Gallery {
+@@ -8866,14 +9341,8 @@ impl Gallery {
                  ),
                  (
                      "Text Decoration",
@@ -192522,7 +193064,7 @@ index 5eb12cd4..f8156e2a 100644
                          h::Link::new("ln-decor")
                              .label("Underlined on hover")
                              .href("#")
-@@ -8888,6 +9355,37 @@ impl Gallery {
+@@ -8888,6 +9357,37 @@ impl Gallery {
                          .href("#")
                          .into_any_element()]),
                  ),
@@ -192560,7 +193102,7 @@ index 5eb12cd4..f8156e2a 100644
              ],
              cx,
          )
-@@ -8911,10 +9409,12 @@ impl Gallery {
+@@ -8911,10 +9411,12 @@ impl Gallery {
                  ),
                  (
                      "Sizes",
@@ -192573,7 +193115,7 @@ index 5eb12cd4..f8156e2a 100644
                          })
                          .els()),
                  ),
-@@ -8998,13 +9498,8 @@ impl Gallery {
+@@ -8998,13 +9500,8 @@ impl Gallery {
                          .into_any_element()]),
                  ),
                  (
@@ -192588,7 +193130,7 @@ index 5eb12cd4..f8156e2a 100644
                          h::Pagination::new("pg-render-props", page, 5)
                              .link(|page, is_active| {
                                  gpui::div()
-@@ -9023,13 +9518,8 @@ impl Gallery {
+@@ -9023,13 +9520,8 @@ impl Gallery {
                      ]),
                  ),
                  (
@@ -192603,7 +193145,7 @@ index 5eb12cd4..f8156e2a 100644
                          h::Pagination::new("pg-custom", page, 5)
                              .previous_icon(icon(h::icons::ARROW_LEFT, cx))
                              .next_icon(icon(h::icons::ARROW_RIGHT, cx))
-@@ -9071,6 +9561,7 @@ impl Gallery {
+@@ -9071,6 +9563,7 @@ impl Gallery {
              vec![
                  (
                      "Usage",
@@ -192611,7 +193153,7 @@ index 5eb12cd4..f8156e2a 100644
                      col(vec![h::Tabs::new(
                          "tabs-usage",
                          vec![
-@@ -9104,8 +9595,8 @@ impl Gallery {
+@@ -9104,8 +9597,8 @@ impl Gallery {
                  ),
                  (
                      "Overflow",
@@ -192621,7 +193163,7 @@ index 5eb12cd4..f8156e2a 100644
                          para("Horizontal", cx),
                          // The list only overflows inside a bounded box, which is
                          // how v3's own example frames it.
-@@ -9226,7 +9717,7 @@ impl Gallery {
+@@ -9226,7 +9719,7 @@ impl Gallery {
              vec![
                  (
                      "Sizes",
@@ -192630,7 +193172,7 @@ index 5eb12cd4..f8156e2a 100644
                          ("ad-size-xs", "Xs", h::AlertDialogSize::Xs),
                          ("ad-size-sm", "Sm", h::AlertDialogSize::Sm),
                          ("ad-size-md", "Md", h::AlertDialogSize::Md),
-@@ -9237,6 +9728,7 @@ impl Gallery {
+@@ -9237,6 +9730,7 @@ impl Gallery {
                      .map(|(key, label, size)| {
                          let open = self.demo_overlay(key);
                          overlay_demo(
@@ -192638,7 +193180,7 @@ index 5eb12cd4..f8156e2a 100644
                              key,
                              label,
                              h::AlertDialog::new(format!("Size: {label}")).id(key)
-@@ -9258,7 +9750,7 @@ impl Gallery {
+@@ -9258,7 +9752,7 @@ impl Gallery {
                  ),
                  (
                      "Statuses",
@@ -192647,7 +193189,7 @@ index 5eb12cd4..f8156e2a 100644
                          ("ad-st-default", "Default", Color::Default),
                          ("ad-st-accent", "Accent", Color::Accent),
                          ("ad-st-success", "Success", Color::Success),
-@@ -9269,6 +9761,7 @@ impl Gallery {
+@@ -9269,6 +9763,7 @@ impl Gallery {
                      .map(|(key, label, status)| {
                          let open = self.demo_overlay(key);
                          overlay_demo(
@@ -192655,7 +193197,7 @@ index 5eb12cd4..f8156e2a 100644
                              key,
                              label,
                              h::AlertDialog::new(format!("{label} status")).id(key)
-@@ -9290,7 +9783,7 @@ impl Gallery {
+@@ -9290,7 +9785,7 @@ impl Gallery {
                  ),
                  (
                      "Placements",
@@ -192664,7 +193206,7 @@ index 5eb12cd4..f8156e2a 100644
                          ("ad-pl-auto", "Auto", h::ModalPlacement::Auto),
                          ("ad-pl-center", "Center", h::ModalPlacement::Center),
                          ("ad-pl-top", "Top", h::ModalPlacement::Top),
-@@ -9300,6 +9793,7 @@ impl Gallery {
+@@ -9300,6 +9795,7 @@ impl Gallery {
                      .map(|(key, label, placement)| {
                          let open = self.demo_overlay(key);
                          overlay_demo(
@@ -192672,7 +193214,7 @@ index 5eb12cd4..f8156e2a 100644
                              key,
                              label,
                              h::AlertDialog::new(format!("Placement: {label}")).id(key)
-@@ -9321,7 +9815,7 @@ impl Gallery {
+@@ -9321,7 +9817,7 @@ impl Gallery {
                  ),
                  (
                      "Backdrop Variants",
@@ -192681,7 +193223,7 @@ index 5eb12cd4..f8156e2a 100644
                          .iter()
                          .map(|backdrop| {
                              let key: &'static str = match backdrop {
-@@ -9331,6 +9825,7 @@ impl Gallery {
+@@ -9331,6 +9827,7 @@ impl Gallery {
                              };
                              let open = self.demo_overlay(key);
                              overlay_demo(
@@ -192689,7 +193231,7 @@ index 5eb12cd4..f8156e2a 100644
                                  key,
                                  backdrop.label(),
                                  h::AlertDialog::new(format!("Backdrop: {}", backdrop.label())).id(key)
-@@ -9352,7 +9847,8 @@ impl Gallery {
+@@ -9352,7 +9849,8 @@ impl Gallery {
                  ),
                  (
                      "Controlled State",
@@ -192699,7 +193241,7 @@ index 5eb12cd4..f8156e2a 100644
                          "ad-controlled",
                          "Open (controlled)",
                          h::AlertDialog::new("Controlled").id("ad-controlled")
-@@ -9369,7 +9865,8 @@ impl Gallery {
+@@ -9369,7 +9867,8 @@ impl Gallery {
                  ),
                  (
                      "Custom Icon",
@@ -192709,7 +193251,7 @@ index 5eb12cd4..f8156e2a 100644
                          "ad-icon",
                          "Open with a status icon",
                          h::AlertDialog::new("Heads up").id("ad-icon")
-@@ -9387,7 +9884,8 @@ impl Gallery {
+@@ -9387,7 +9886,8 @@ impl Gallery {
                  ),
                  (
                      "Custom Backdrop",
@@ -192719,7 +193261,7 @@ index 5eb12cd4..f8156e2a 100644
                          "ad-custom-bd",
                          "Open with a blurred backdrop",
                          h::AlertDialog::new("Blurred").id("ad-custom-bd")
-@@ -9405,7 +9903,8 @@ impl Gallery {
+@@ -9405,7 +9905,8 @@ impl Gallery {
                  ),
                  (
                      "Dismiss Behavior",
@@ -192729,7 +193271,7 @@ index 5eb12cd4..f8156e2a 100644
                          "ad-dismiss",
                          "Open a non-dismissable dialog",
                          h::AlertDialog::new("Confirm first").id("ad-dismiss")
-@@ -9424,12 +9923,13 @@ impl Gallery {
+@@ -9424,12 +9925,13 @@ impl Gallery {
                  ),
                  (
                      "Close Methods",
@@ -192745,7 +193287,7 @@ index 5eb12cd4..f8156e2a 100644
                                  .is_open(self.demo_overlay("ad-close"))
                                  .footer_child(
                                      h::Button::new("ad-close-cancel")
-@@ -9457,6 +9957,7 @@ impl Gallery {
+@@ -9457,6 +9959,7 @@ impl Gallery {
                              cx,
                          ),
                          overlay_demo(
@@ -192753,7 +193295,7 @@ index 5eb12cd4..f8156e2a 100644
                              "ad-pending",
                              "Open (pending confirm)",
                              h::AlertDialog::new("Deploying").id("ad-pending")
-@@ -9487,7 +9988,8 @@ impl Gallery {
+@@ -9487,7 +9990,8 @@ impl Gallery {
                  ),
                  (
                      "Custom Animations",
@@ -192763,7 +193305,7 @@ index 5eb12cd4..f8156e2a 100644
                          "ad-anim",
                          "Open and watch the panel",
                          h::AlertDialog::new("Animated").id("ad-anim")
-@@ -9504,13 +10006,18 @@ impl Gallery {
+@@ -9504,13 +10008,18 @@ impl Gallery {
                  ),
                  (
                      "Custom Trigger",
@@ -192789,7 +193331,7 @@ index 5eb12cd4..f8156e2a 100644
                          .child(
                              gpui::div()
                                  .id("ad-custom-trigger")
-@@ -9529,7 +10036,7 @@ impl Gallery {
+@@ -9529,7 +10038,7 @@ impl Gallery {
                          .child(
                              h::AlertDialog::new("Delete this account?").id("ad-custom")
                                  .description("Any element can open an alert dialog; a composed CloseTrigger draws the corner X and a composed footer owns the danger confirm.")
@@ -192798,7 +193340,7 @@ index 5eb12cd4..f8156e2a 100644
                                  .child(h::AlertDialogCloseTrigger::new())
                                  .footer_child(
                                      h::Button::new("ad-custom-cancel")
-@@ -9554,58 +10061,64 @@ impl Gallery {
+@@ -9554,58 +10063,64 @@ impl Gallery {
                                      cx.notify();
                                  })))
                          )
@@ -192912,7 +193454,7 @@ index 5eb12cd4..f8156e2a 100644
              )],
              cx,
          )
-@@ -9620,7 +10133,7 @@ impl Gallery {
+@@ -9620,7 +10135,7 @@ impl Gallery {
              vec![
                  (
                      "Placement",
@@ -192921,7 +193463,7 @@ index 5eb12cd4..f8156e2a 100644
                          ("dr-left", "Left", h::DrawerPlacement::Left),
                          ("dr-right", "Right", h::DrawerPlacement::Right),
                          ("dr-top", "Top", h::DrawerPlacement::Top),
-@@ -9630,6 +10143,7 @@ impl Gallery {
+@@ -9630,6 +10145,7 @@ impl Gallery {
                      .map(|(key, label, placement)| {
                          let open = self.demo_overlay(key);
                          overlay_demo(
@@ -192929,7 +193471,7 @@ index 5eb12cd4..f8156e2a 100644
                              key,
                              label,
                              h::Drawer::new()
-@@ -9654,7 +10168,8 @@ impl Gallery {
+@@ -9654,7 +10170,8 @@ impl Gallery {
                  ),
                  (
                      "Non-Dismissable",
@@ -192939,7 +193481,7 @@ index 5eb12cd4..f8156e2a 100644
                          "dr-no-dismiss",
                          "Open a non-dismissable drawer",
                          h::Drawer::new()
-@@ -9682,7 +10197,8 @@ impl Gallery {
+@@ -9682,7 +10199,8 @@ impl Gallery {
                  ),
                  (
                      "Scrollable Content",
@@ -192949,7 +193491,7 @@ index 5eb12cd4..f8156e2a 100644
                          "dr-scroll",
                          "Open a long drawer",
                          h::Drawer::new()
-@@ -9706,7 +10222,7 @@ impl Gallery {
+@@ -9706,7 +10224,7 @@ impl Gallery {
                  ),
                  (
                      "Controlled State",
@@ -192958,7 +193500,7 @@ index 5eb12cd4..f8156e2a 100644
                          para(
                              &format!(
                                  "The flag lives with the caller: {}",
-@@ -9719,6 +10235,7 @@ impl Gallery {
+@@ -9719,6 +10237,7 @@ impl Gallery {
                              cx,
                          ),
                          overlay_demo(
@@ -192966,7 +193508,7 @@ index 5eb12cd4..f8156e2a 100644
                              "dr-controlled",
                              "Open (controlled)",
                              h::Drawer::new()
-@@ -9739,7 +10256,8 @@ impl Gallery {
+@@ -9739,7 +10258,8 @@ impl Gallery {
                  ),
                  (
                      "With Form",
@@ -192976,7 +193518,7 @@ index 5eb12cd4..f8156e2a 100644
                          "dr-form",
                          "Open a form drawer",
                          h::Drawer::new()
-@@ -9779,7 +10297,8 @@ impl Gallery {
+@@ -9779,7 +10299,8 @@ impl Gallery {
                  ),
                  (
                      "Navigation Drawer",
@@ -192986,7 +193528,7 @@ index 5eb12cd4..f8156e2a 100644
                          "dr-nav",
                          "Open the navigation",
                          h::Drawer::new()
-@@ -9809,7 +10328,7 @@ impl Gallery {
+@@ -9809,7 +10330,7 @@ impl Gallery {
                  ),
                  (
                      "Backdrop Variants",
@@ -192995,7 +193537,7 @@ index 5eb12cd4..f8156e2a 100644
                          .iter()
                          .map(|backdrop| {
                              let key: &'static str = match backdrop {
-@@ -9819,6 +10338,7 @@ impl Gallery {
+@@ -9819,6 +10340,7 @@ impl Gallery {
                              };
                              let open = self.demo_overlay(key);
                              overlay_demo(
@@ -193003,7 +193545,7 @@ index 5eb12cd4..f8156e2a 100644
                                  key,
                                  backdrop.label(),
                                  h::Drawer::new()
-@@ -9843,39 +10363,44 @@ impl Gallery {
+@@ -9843,39 +10365,44 @@ impl Gallery {
                  ),
                  (
                      "Usage",
@@ -193077,7 +193619,7 @@ index 5eb12cd4..f8156e2a 100644
                  ),
              ],
              cx,
-@@ -9898,7 +10423,7 @@ impl Gallery {
+@@ -9898,7 +10425,7 @@ impl Gallery {
              vec![
                  (
                      "Sizes",
@@ -193086,7 +193628,7 @@ index 5eb12cd4..f8156e2a 100644
                          ("md-size-xs", "Xs", h::ModalSize::Xs),
                          ("md-size-sm", "Sm", h::ModalSize::Sm),
                          ("md-size-md", "Md", h::ModalSize::Md),
-@@ -9910,6 +10435,7 @@ impl Gallery {
+@@ -9910,6 +10437,7 @@ impl Gallery {
                      .map(|(key, label, size)| {
                          let open = self.demo_overlay(key);
                          overlay_demo(
@@ -193094,7 +193636,7 @@ index 5eb12cd4..f8156e2a 100644
                              key,
                              label,
                              h::Modal::new()
-@@ -9934,7 +10460,7 @@ impl Gallery {
+@@ -9934,7 +10462,7 @@ impl Gallery {
                  ),
                  (
                      "Placement",
@@ -193103,7 +193645,7 @@ index 5eb12cd4..f8156e2a 100644
                          ("md-place-auto", "Auto", h::ModalPlacement::Auto),
                          ("md-place-center", "Center", h::ModalPlacement::Center),
                          ("md-place-top", "Top", h::ModalPlacement::Top),
-@@ -9944,6 +10470,7 @@ impl Gallery {
+@@ -9944,6 +10472,7 @@ impl Gallery {
                      .map(|(key, label, placement)| {
                          let open = self.demo_overlay(key);
                          overlay_demo(
@@ -193111,7 +193653,7 @@ index 5eb12cd4..f8156e2a 100644
                              key,
                              label,
                              h::Modal::new()
-@@ -9968,7 +10495,7 @@ impl Gallery {
+@@ -9968,7 +10497,7 @@ impl Gallery {
                  ),
                  (
                      "Scroll Behavior",
@@ -193120,7 +193662,7 @@ index 5eb12cd4..f8156e2a 100644
                          ("md-scroll-inside", "Inside", h::ModalScroll::Inside),
                          ("md-scroll-outside", "Outside", h::ModalScroll::Outside),
                      ]
-@@ -9976,6 +10503,7 @@ impl Gallery {
+@@ -9976,6 +10505,7 @@ impl Gallery {
                      .map(|(key, label, scroll)| {
                          let open = self.demo_overlay(key);
                          overlay_demo(
@@ -193128,7 +193670,7 @@ index 5eb12cd4..f8156e2a 100644
                              key,
                              label,
                              h::Modal::new()
-@@ -10004,7 +10532,7 @@ impl Gallery {
+@@ -10004,7 +10534,7 @@ impl Gallery {
                  ),
                  (
                      "Controlled State",
@@ -193137,7 +193679,7 @@ index 5eb12cd4..f8156e2a 100644
                          para(
                              &format!(
                                  "The flag lives with the caller: {}",
-@@ -10013,6 +10541,7 @@ impl Gallery {
+@@ -10013,6 +10543,7 @@ impl Gallery {
                              cx,
                          ),
                          overlay_demo(
@@ -193145,7 +193687,7 @@ index 5eb12cd4..f8156e2a 100644
                              "md-controlled",
                              "Open (controlled)",
                              h::Modal::new()
-@@ -10033,7 +10562,8 @@ impl Gallery {
+@@ -10033,7 +10564,8 @@ impl Gallery {
                  ),
                  (
                      "With Form",
@@ -193155,7 +193697,7 @@ index 5eb12cd4..f8156e2a 100644
                          "md-form",
                          "Open form modal",
                          h::Modal::new()
-@@ -10075,18 +10605,21 @@ impl Gallery {
+@@ -10075,18 +10607,21 @@ impl Gallery {
                  ),
                  (
                      "Custom Trigger",
@@ -193185,7 +193727,7 @@ index 5eb12cd4..f8156e2a 100644
                                  .on_click(cx.listener(|this, _, _, cx| {
                                      this.set_demo_flag("md-custom", true);
                                      cx.notify();
-@@ -10109,7 +10642,7 @@ impl Gallery {
+@@ -10109,7 +10644,7 @@ impl Gallery {
                  ),
                  (
                      "Backdrop Variants",
@@ -193194,7 +193736,7 @@ index 5eb12cd4..f8156e2a 100644
                          .iter()
                          .map(|backdrop| {
                              let key: &'static str = match backdrop {
-@@ -10119,6 +10652,7 @@ impl Gallery {
+@@ -10119,6 +10654,7 @@ impl Gallery {
                              };
                              let open = self.demo_overlay(key);
                              overlay_demo(
@@ -193202,7 +193744,7 @@ index 5eb12cd4..f8156e2a 100644
                                  key,
                                  backdrop.label(),
                                  h::Modal::new()
-@@ -10143,14 +10677,10 @@ impl Gallery {
+@@ -10143,14 +10679,10 @@ impl Gallery {
                  ),
                  (
                      "Custom Backdrop",
@@ -193220,7 +193762,7 @@ index 5eb12cd4..f8156e2a 100644
                              "md-bd-custom",
                              "Open with a blurred backdrop",
                              h::Modal::new()
-@@ -10172,13 +10702,10 @@ impl Gallery {
+@@ -10172,13 +10704,10 @@ impl Gallery {
                  ),
                  (
                      "Dismiss Behavior",
@@ -193237,7 +193779,7 @@ index 5eb12cd4..f8156e2a 100644
                              "md-no-dismiss",
                              "Open a non-dismissable modal",
                              h::Modal::new()
-@@ -10210,15 +10737,10 @@ impl Gallery {
+@@ -10210,15 +10739,10 @@ impl Gallery {
                  ),
                  (
                      "Close Methods",
@@ -193256,7 +193798,7 @@ index 5eb12cd4..f8156e2a 100644
                              "md-close",
                              "Open (no close trigger)",
                              h::Modal::new()
-@@ -10250,16 +10772,10 @@ impl Gallery {
+@@ -10250,16 +10774,10 @@ impl Gallery {
                  ),
                  (
                      "Custom Animations",
@@ -193276,7 +193818,7 @@ index 5eb12cd4..f8156e2a 100644
                              "md-anim",
                              "Open and watch the panel",
                              h::Modal::new()
-@@ -10280,13 +10796,17 @@ impl Gallery {
+@@ -10280,13 +10798,17 @@ impl Gallery {
                  ),
                  (
                      "Usage",
@@ -193301,7 +193843,7 @@ index 5eb12cd4..f8156e2a 100644
                          .child(
                              h::Button::new("md-open")
                                  .label("Open modal")
-@@ -10325,7 +10845,8 @@ impl Gallery {
+@@ -10325,7 +10847,8 @@ impl Gallery {
                                      cx.notify();
                                  })),
                          )
@@ -193311,7 +193853,7 @@ index 5eb12cd4..f8156e2a 100644
                  ),
              ],
              cx,
-@@ -10335,6 +10856,20 @@ impl Gallery {
+@@ -10335,6 +10858,20 @@ impl Gallery {
      pub fn page_popover(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
          let is_open = self.popover_open;
          let po_following = self.demo_flag("po-following", false);
@@ -193332,7 +193874,7 @@ index 5eb12cd4..f8156e2a 100644
          component_doc_page!(
              "Popover",
              crate::pages::Page::Popover.description(),
-@@ -10342,79 +10877,121 @@ impl Gallery {
+@@ -10342,79 +10879,121 @@ impl Gallery {
              vec![
                  (
                      "With Arrow",
@@ -193488,7 +194030,7 @@ index 5eb12cd4..f8156e2a 100644
                              .title("Sarah Johnson")
                              .child(
                                  gpui::div()
-@@ -10442,16 +11019,16 @@ impl Gallery {
+@@ -10442,16 +11021,16 @@ impl Gallery {
                                      ),
                              ),
                          )
@@ -193511,7 +194053,7 @@ index 5eb12cd4..f8156e2a 100644
                          .children(
                              [
                                  ("po-pl-top", "Top", h::PopoverPlacement::Top),
-@@ -10461,7 +11038,24 @@ impl Gallery {
+@@ -10461,7 +11040,24 @@ impl Gallery {
                              ]
                              .into_iter()
                              .map(|(id, label, placement)| {
@@ -193537,7 +194079,7 @@ index 5eb12cd4..f8156e2a 100644
                                      h::Popover::new(
                                          h::Button::new(el_id(format!("{id}-trigger")))
                                              .label(label)
-@@ -10469,30 +11063,221 @@ impl Gallery {
+@@ -10469,30 +11065,221 @@ impl Gallery {
                                              .size(Size::Sm),
                                      )
                                      .id(id)
@@ -193774,7 +194316,7 @@ index 5eb12cd4..f8156e2a 100644
                  ),
              ],
              cx,
-@@ -10541,13 +11326,8 @@ impl Gallery {
+@@ -10541,13 +11328,8 @@ impl Gallery {
                  ),
                  (
                      "Placements",
@@ -193789,7 +194331,7 @@ index 5eb12cd4..f8156e2a 100644
                          row([
                              ("TopStart", h::ToastPlacement::TopStart),
                              ("Top", h::ToastPlacement::Top),
-@@ -10592,13 +11372,8 @@ impl Gallery {
+@@ -10592,13 +11374,8 @@ impl Gallery {
                  ),
                  (
                      "Custom Indicators",
@@ -193804,7 +194346,7 @@ index 5eb12cd4..f8156e2a 100644
                          row(vec![
                              h::Button::new("toast-ind-success")
                                  .label("Success")
-@@ -10646,13 +11421,8 @@ impl Gallery {
+@@ -10646,13 +11423,8 @@ impl Gallery {
                  ),
                  (
                      "Custom Toast Rendering",
@@ -193819,7 +194361,7 @@ index 5eb12cd4..f8156e2a 100644
                          row(vec![h::Button::new("toast-custom")
                              .label("Push a two-line toast")
                              .variant(Variant::Secondary)
-@@ -10669,13 +11439,8 @@ impl Gallery {
+@@ -10669,13 +11441,8 @@ impl Gallery {
                  ),
                  (
                      "Promise & Loading",
@@ -193834,7 +194376,7 @@ index 5eb12cd4..f8156e2a 100644
                          row(vec![h::Button::new("toast-promise")
                              .label("Upload a file")
                              .variant(Variant::Secondary)
-@@ -10708,13 +11473,9 @@ impl Gallery {
+@@ -10708,13 +11475,9 @@ impl Gallery {
                  ),
                  (
                      "Callbacks",
@@ -193849,7 +194391,7 @@ index 5eb12cd4..f8156e2a 100644
                          row(vec![h::Button::new("toast-callback")
                              .label("Push a closable toast")
                              .variant(Variant::Secondary)
-@@ -10731,12 +11492,8 @@ impl Gallery {
+@@ -10731,12 +11494,8 @@ impl Gallery {
                  ),
                  (
                      "Custom Queues",
@@ -193863,7 +194405,7 @@ index 5eb12cd4..f8156e2a 100644
                          row(vec![h::Button::new("toast-queue")
                              .label("Push four")
                              .variant(Variant::Secondary)
-@@ -10753,12 +11510,8 @@ impl Gallery {
+@@ -10753,12 +11512,8 @@ impl Gallery {
                  ),
                  (
                      "Setup",
@@ -193877,7 +194419,7 @@ index 5eb12cd4..f8156e2a 100644
                          crate::pages::code_block(TOAST_SETUP, cx),
                      ]),
                  ),
-@@ -10822,7 +11575,7 @@ impl Gallery {
+@@ -10822,7 +11577,7 @@ impl Gallery {
                          h::Tooltip::new("Jane Doe")
                              .delay(0)
                              .show_arrow(true)
@@ -193886,7 +194428,7 @@ index 5eb12cd4..f8156e2a 100644
                              .into_any_element(),
                          h::Tooltip::new("Verified account")
                              .delay(0)
-@@ -10928,110 +11681,120 @@ impl Gallery {
+@@ -10928,110 +11683,120 @@ impl Gallery {
              vec![
                  (
                      "Virtualization",
@@ -194034,7 +194576,7 @@ index 5eb12cd4..f8156e2a 100644
                          self.demo_text("ac-sections", "", cx),
                          vec![
                              h::PickerItem::new("rust", "Rust"),
-@@ -11041,6 +11804,7 @@ impl Gallery {
+@@ -11041,6 +11806,7 @@ impl Gallery {
                          ],
                      )
                      .label("Language")
@@ -194042,7 +194584,7 @@ index 5eb12cd4..f8156e2a 100644
                      .section_before("rust", "Systems")
                      .section_before("typescript", "Scripting")
                      .default_open(true)
-@@ -11048,11 +11812,12 @@ impl Gallery {
+@@ -11048,11 +11814,12 @@ impl Gallery {
                  ),
                  (
                      "Multiple Select",
@@ -194056,7 +194598,7 @@ index 5eb12cd4..f8156e2a 100644
                      .selection_mode(SelectionMode::Multiple)
                      // `defaultValue` is `Key | Key[]`: the uncontrolled
                      // selection, seeded once, by key.
-@@ -11065,6 +11830,7 @@ impl Gallery {
+@@ -11065,6 +11832,7 @@ impl Gallery {
                      col(vec![
                          h::Autocomplete::new(self.demo_text("ac-controlled", "", cx), language_items())
                              .label("Language")
@@ -194064,7 +194606,7 @@ index 5eb12cd4..f8156e2a 100644
                              .input_value(ac_typed)
                              .on_input_change(cx.listener(|this, text: &str, _, cx| {
                                  this.set_demo_text_value("ac-typed", text.to_owned());
-@@ -11087,11 +11853,12 @@ impl Gallery {
+@@ -11087,11 +11855,12 @@ impl Gallery {
                  ),
                  (
                      "Controlled Multiple",
@@ -194078,7 +194620,7 @@ index 5eb12cd4..f8156e2a 100644
                      .selection_mode(SelectionMode::Multiple)
                      .selected_keys(ac_multi.iter().cloned())
                      .on_selection_change_all(cx.listener(|this, keys: &[SharedString], _, cx| {
-@@ -11117,6 +11884,7 @@ impl Gallery {
+@@ -11117,6 +11886,7 @@ impl Gallery {
                          ]),
                          h::Autocomplete::new(self.demo_text("ac-open", "", cx), language_items())
                              .label("Language")
@@ -194086,7 +194628,7 @@ index 5eb12cd4..f8156e2a 100644
                              .is_open(ac_open)
                              .on_open_change(bool_cb(cx.listener(|this, v: &bool, _, cx| {
                                  this.set_demo_flag("ac-open", *v);
-@@ -11127,16 +11895,12 @@ impl Gallery {
+@@ -11127,16 +11897,12 @@ impl Gallery {
                  ),
                  (
                      "Asynchronous Filtering",
@@ -194105,7 +194647,7 @@ index 5eb12cd4..f8156e2a 100644
                                  // `useFilter({sensitivity: "base"}).contains`:
                                  // case and accents both ignored, so "cafe"
                                  // finds "Café". The closure receives
-@@ -11153,11 +11917,12 @@ impl Gallery {
+@@ -11153,11 +11919,12 @@ impl Gallery {
                  ),
                  (
                      "Custom Indicator",
@@ -194119,7 +194661,7 @@ index 5eb12cd4..f8156e2a 100644
                      .default_open(true)
                      .indicator(|is_open| {
                          gpui::div()
-@@ -11169,17 +11934,11 @@ impl Gallery {
+@@ -11169,17 +11936,11 @@ impl Gallery {
                  ),
                  (
                      "Custom Value",
@@ -194139,7 +194681,7 @@ index 5eb12cd4..f8156e2a 100644
                              .selection_mode(SelectionMode::Multiple)
                              .default_value(["rust", "go"])
                              .value_content(|value| {
-@@ -11204,8 +11963,8 @@ impl Gallery {
+@@ -11204,8 +11965,8 @@ impl Gallery {
                      ]),
                  ),
                  (
@@ -194150,7 +194692,7 @@ index 5eb12cd4..f8156e2a 100644
                          self.ac_entity.clone(),
                          language_items(),
                      )
-@@ -11235,94 +11994,105 @@ impl Gallery {
+@@ -11235,94 +11996,105 @@ impl Gallery {
              vec![
                  (
                      "Virtualization",
@@ -194279,7 +194821,7 @@ index 5eb12cd4..f8156e2a 100644
                          self.demo_text("cb-sections", "", cx),
                          vec![
                              h::PickerItem::new("rust", "Rust"),
-@@ -11332,6 +12102,7 @@ impl Gallery {
+@@ -11332,6 +12104,7 @@ impl Gallery {
                          ],
                      )
                      .label("Language")
@@ -194287,7 +194829,7 @@ index 5eb12cd4..f8156e2a 100644
                      .section_before("rust", "Systems")
                      .section_before("typescript", "Scripting")
                      .default_open(true)
-@@ -11342,6 +12113,7 @@ impl Gallery {
+@@ -11342,6 +12115,7 @@ impl Gallery {
                      col(vec![
                          h::ComboBox::new(self.demo_text("cb-controlled", "", cx), language_items())
                              .label("Language")
@@ -194295,7 +194837,7 @@ index 5eb12cd4..f8156e2a 100644
                              // `selectedKey` is the controlled selection key
                              // (empty string is v3's `null`); the input shows
                              // that key's label and `inputValue` holds the
-@@ -11371,6 +12143,7 @@ impl Gallery {
+@@ -11371,6 +12145,7 @@ impl Gallery {
                      col(vec![
                          h::ComboBox::new(self.demo_text("cb-input", "", cx), language_items())
                              .label("Language")
@@ -194303,7 +194845,7 @@ index 5eb12cd4..f8156e2a 100644
                              .on_input_change(cx.listener(|this, text: &str, _, cx| {
                                  this.set_demo_text_value("cb-typed", text.to_owned());
                                  cx.notify();
-@@ -11381,11 +12154,12 @@ impl Gallery {
+@@ -11381,11 +12156,12 @@ impl Gallery {
                  ),
                  (
                      "Controlled Selection",
@@ -194317,7 +194859,7 @@ index 5eb12cd4..f8156e2a 100644
                      .selection_mode(SelectionMode::Multiple)
                      .selected_keys(cb_multi.iter().cloned())
                      .on_selection_change_all(cx.listener(|this, keys: &[SharedString], _, cx| {
-@@ -11396,22 +12170,24 @@ impl Gallery {
+@@ -11396,22 +12172,24 @@ impl Gallery {
                  ),
                  (
                      "Multiple Selection",
@@ -194344,7 +194886,7 @@ index 5eb12cd4..f8156e2a 100644
                      .selected_keys(cb_value.iter().cloned())
                      .on_selection_change_all(cx.listener(
                          |this, keys: &[SharedString], _, cx| {
-@@ -11433,36 +12209,34 @@ impl Gallery {
+@@ -11433,36 +12211,34 @@ impl Gallery {
                  ),
                  (
                      "Default Selected Key",
@@ -194388,7 +194930,7 @@ index 5eb12cd4..f8156e2a 100644
                                  .allows_empty_collection(true)
                                  // v3 pairs the flag with async loading: type a
                                  // query nothing matches and the panel stays up
-@@ -11479,11 +12253,12 @@ impl Gallery {
+@@ -11479,11 +12255,12 @@ impl Gallery {
                  ),
                  (
                      "Custom Indicator",
@@ -194402,7 +194944,7 @@ index 5eb12cd4..f8156e2a 100644
                      .selection_mode(SelectionMode::Multiple)
                      .default_open(true)
                      .indicator(|is_selected| {
-@@ -11496,14 +12271,11 @@ impl Gallery {
+@@ -11496,14 +12273,11 @@ impl Gallery {
                  ),
                  (
                      "Custom Filtering",
@@ -194419,7 +194961,7 @@ index 5eb12cd4..f8156e2a 100644
                              .filter(|item, input| {
                                  h::Filter::new(h::Sensitivity::Base).starts_with(item, input)
                              })
-@@ -11518,6 +12290,7 @@ impl Gallery {
+@@ -11518,6 +12292,7 @@ impl Gallery {
                              "Input (opens as you type)",
                              h::ComboBox::new(self.demo_text("cb-mt-input", "", cx), language_items())
                                  .label("Language")
@@ -194427,7 +194969,7 @@ index 5eb12cd4..f8156e2a 100644
                                  .menu_trigger(h::MenuTrigger::Input),
                              cx,
                          ),
-@@ -11525,6 +12298,7 @@ impl Gallery {
+@@ -11525,6 +12300,7 @@ impl Gallery {
                              "Manual (only the chevron opens it)",
                              h::ComboBox::new(self.demo_text("cb-mt-manual", "", cx), language_items())
                                  .label("Language")
@@ -194435,7 +194977,7 @@ index 5eb12cd4..f8156e2a 100644
                                  .menu_trigger(h::MenuTrigger::Manual),
                              cx,
                          ),
-@@ -11532,21 +12306,15 @@ impl Gallery {
+@@ -11532,21 +12308,15 @@ impl Gallery {
                  ),
                  (
                      "Form Value",
@@ -194459,7 +195001,7 @@ index 5eb12cd4..f8156e2a 100644
                              .name("language")
                              .is_required(true);
                              h::Form::new()
-@@ -11580,6 +12348,7 @@ impl Gallery {
+@@ -11580,6 +12350,7 @@ impl Gallery {
                                  language_items(),
                              )
                              .label("Language")
@@ -194467,7 +195009,7 @@ index 5eb12cd4..f8156e2a 100644
                              .name("custom-language")
                              .allows_custom_value(true)
                              .form_value(h::ComboBoxFormValue::Text),
-@@ -11594,6 +12363,7 @@ impl Gallery {
+@@ -11594,6 +12365,7 @@ impl Gallery {
                              "Native (blocks the submit)",
                              h::ComboBox::new(self.demo_text("cb-vb-native", "", cx), language_items())
                                  .label("Language")
@@ -194475,7 +195017,7 @@ index 5eb12cd4..f8156e2a 100644
                                  .is_required(true)
                                  .validation_behavior(h::ValidationBehavior::Native),
                              cx,
-@@ -11602,6 +12372,7 @@ impl Gallery {
+@@ -11602,6 +12374,7 @@ impl Gallery {
                              "Allow (shows the message, submits anyway)",
                              h::ComboBox::new(self.demo_text("cb-vb-allow", "", cx), language_items())
                                  .label("Language")
@@ -194483,7 +195025,7 @@ index 5eb12cd4..f8156e2a 100644
                                  .is_required(true)
                                  .validation_behavior(h::ValidationBehavior::Allow),
                              cx,
-@@ -11610,7 +12381,7 @@ impl Gallery {
+@@ -11610,7 +12383,7 @@ impl Gallery {
                  ),
                  (
                      "Custom Validation",
@@ -194492,7 +195034,7 @@ index 5eb12cd4..f8156e2a 100644
                          self.demo_text("cb-validate", "Zig", cx),
                          language_items(),
                      )
-@@ -11623,8 +12394,8 @@ impl Gallery {
+@@ -11623,8 +12396,8 @@ impl Gallery {
                      .into_any_element()]),
                  ),
                  (
@@ -194503,7 +195045,7 @@ index 5eb12cd4..f8156e2a 100644
                          self.combo_state.clone(),
                          language_items(),
                      )
-@@ -11643,11 +12414,12 @@ impl Gallery {
+@@ -11643,11 +12416,12 @@ impl Gallery {
                  ),
                  (
                      "Custom values allowed",
@@ -194517,7 +195059,7 @@ index 5eb12cd4..f8156e2a 100644
                      .allows_custom_value(true)
                      .is_open(is_open)
                      .on_open_change(bool_cb(cx.listener(|this, open: &bool, _, cx| {
-@@ -11672,23 +12444,19 @@ impl Gallery {
+@@ -11672,23 +12446,19 @@ impl Gallery {
              vec![
                  (
                      "Virtualization",
@@ -194548,7 +195090,7 @@ index 5eb12cd4..f8156e2a 100644
                          .label("Language")
                          .placeholder("Choose one")
                          .description("Used for spell-checking")
-@@ -11696,7 +12464,7 @@ impl Gallery {
+@@ -11696,7 +12466,7 @@ impl Gallery {
                  ),
                  (
                      "Required",
@@ -194557,7 +195099,7 @@ index 5eb12cd4..f8156e2a 100644
                          .label("Language")
                          .placeholder("Choose one")
                          .is_required(true)
-@@ -11704,7 +12472,7 @@ impl Gallery {
+@@ -11704,7 +12474,7 @@ impl Gallery {
                  ),
                  (
                      "Disabled",
@@ -194566,7 +195108,7 @@ index 5eb12cd4..f8156e2a 100644
                          .label("Language")
                          .placeholder("Choose one")
                          .is_disabled(true)
-@@ -11712,7 +12480,7 @@ impl Gallery {
+@@ -11712,7 +12482,7 @@ impl Gallery {
                  ),
                  (
                      "With Disabled Options",
@@ -194575,7 +195117,7 @@ index 5eb12cd4..f8156e2a 100644
                          .label("Language")
                          .placeholder("Choose one")
                          .disabled_keys([1, 3])
-@@ -11721,7 +12489,7 @@ impl Gallery {
+@@ -11721,7 +12491,7 @@ impl Gallery {
                  ),
                  (
                      "With Sections",
@@ -194584,7 +195126,7 @@ index 5eb12cd4..f8156e2a 100644
                          "sel-sections",
                          vec![
                              "United States".into(),
-@@ -11796,13 +12564,8 @@ impl Gallery {
+@@ -11796,13 +12566,8 @@ impl Gallery {
                  ),
                  (
                      "Asynchronous Loading",
@@ -194599,7 +195141,7 @@ index 5eb12cd4..f8156e2a 100644
                          row(vec![
                              h::Select::new("sel-async", languages())
                                  .label("Language")
-@@ -11816,7 +12579,7 @@ impl Gallery {
+@@ -11816,7 +12581,7 @@ impl Gallery {
                  ),
                  (
                      "Custom Indicator",
@@ -194608,7 +195150,7 @@ index 5eb12cd4..f8156e2a 100644
                          .label("Language")
                          .placeholder("Choose one")
                          .value(selected)
-@@ -11837,7 +12600,7 @@ impl Gallery {
+@@ -11837,7 +12602,7 @@ impl Gallery {
                  ),
                  (
                      "Custom Value",
@@ -194617,7 +195159,7 @@ index 5eb12cd4..f8156e2a 100644
                          .label("Language")
                          .placeholder("Choose one")
                          .value(selected)
-@@ -11867,8 +12630,8 @@ impl Gallery {
+@@ -11867,8 +12632,8 @@ impl Gallery {
                          .into_any_element()]),
                  ),
                  (
@@ -194628,7 +195170,7 @@ index 5eb12cd4..f8156e2a 100644
                          .label("Language")
                          .placeholder("Choose one")
                          .value(selected)
-@@ -11888,18 +12651,20 @@ impl Gallery {
+@@ -11888,18 +12653,20 @@ impl Gallery {
                  ),
                  (
                      "Uncontrolled",
@@ -194651,7 +195193,7 @@ index 5eb12cd4..f8156e2a 100644
                                  .value(selected)
                                  .on_selection_change(opt_usize_cb(cx.listener(
                                      |this, i: &Option<usize>, _, cx| {
-@@ -11913,21 +12678,26 @@ impl Gallery {
+@@ -11913,21 +12680,26 @@ impl Gallery {
                  ),
                  (
                      "Full width",
@@ -194689,7 +195231,7 @@ index 5eb12cd4..f8156e2a 100644
                          .label("Languages")
                          .placeholder("Pick several")
                          .selection_mode(SelectionMode::Multiple)
-@@ -12050,14 +12820,8 @@ impl Gallery {
+@@ -12050,14 +12822,8 @@ impl Gallery {
                  ),
                  (
                      "Render Props",
@@ -194705,7 +195247,7 @@ index 5eb12cd4..f8156e2a 100644
                          h::Prose::new()
                              .child(h::Typography::paragraph(
                                  h::ParagraphSize::Base,
-@@ -12265,12 +13029,8 @@ impl Gallery {
+@@ -12265,12 +13031,8 @@ impl Gallery {
                  ),
                  (
                      "Hide Scroll Bar",
@@ -194719,7 +195261,7 @@ index 5eb12cd4..f8156e2a 100644
                          h::ScrollShadow::new("ss-no-bar")
                              .max_h(px(140.))
                              .children(
-@@ -12385,13 +13145,45 @@ fn icon(path: &'static str, cx: &gpui::App) -> AnyElement {
+@@ -12385,13 +13147,45 @@ fn icon(path: &'static str, cx: &gpui::App) -> AnyElement {
          .into_any_element()
  }
  
@@ -194934,7 +195476,7 @@ index 6452b2b7..371b4704 100644
                          .child(row.cells[2].clone()),
                  )
 diff --git a/gallery/src/pages/reference_metadata.rs b/gallery/src/pages/reference_metadata.rs
-index 71065ac8..81e2f022 100644
+index 71065ac8..5d17e449 100644
 --- a/gallery/src/pages/reference_metadata.rs
 +++ b/gallery/src/pages/reference_metadata.rs
 @@ -7213,9 +7213,9 @@ const CALENDAR_PARTS: &[PartDoc] = &[
@@ -194960,6 +195502,15 @@ index 71065ac8..81e2f022 100644
          status: ImplementationStatus::Partial,
      },
      StateDoc {
+@@ -7320,7 +7320,7 @@ const CALENDAR_STYLING: &[StyleDoc] = &[
+     StyleDoc {
+         class_or_token: ".calendar",
+         value: "w-63 max-w-63; container-type: inline-size",
+-        description: "Single-month width is exact; GPUI has no CSS container-query context.",
++        description: "Single-month width is exact; multiple months use the documented 256px panels, 32px gaps and horizontal scrolling. GPUI has no CSS container-query context.",
+         rust: "CALENDAR_WIDTH = 252px",
+         status: ImplementationStatus::Partial,
+     },
 @@ -7334,8 +7334,8 @@ const CALENDAR_STYLING: &[StyleDoc] = &[
      StyleDoc {
          class_or_token: ".calendar--day-view",
@@ -194991,7 +195542,7 @@ index 71065ac8..81e2f022 100644
 -        description: "Seven equal columns are reproduced with GPUI flex rows.",
 -        rust: "seven flex_1 cells per row",
 -        status: ImplementationStatus::Implemented,
-+        description: "Single-month, week and day columns align at 36px without horizontal gaps; multi-month columns still use a narrower width.",
++        description: "All views divide each panel into seven equal columns without horizontal gaps; multi-month panels are 256px wide.",
 +        rust: "seven flex_1 cells per row + no horizontal gap",
 +        status: ImplementationStatus::Partial,
      },
@@ -195012,8 +195563,8 @@ index 71065ac8..81e2f022 100644
          value: "aspect-square size-full rounded-3xl text-sm font-medium",
 -        description: "A centered 36px circular hit area matches the desktop cell geometry.",
 -        rust: "36px circle + radius(18px) + text_size(14px)",
-+        description: "Day cells center 14px/20px medium text in a 36px hit area, including selected, disabled and custom cells.",
-+        rust: "36px circle + radius(18px) + text_size(14px) + line_height(20px) + MEDIUM",
++        description: "Day cells center 14px/20px medium text in a square one seventh of the panel width, including selected, disabled and custom cells.",
++        rust: "cell_size = column_width / 7 + text_size(14px) + line_height(20px) + MEDIUM",
          status: ImplementationStatus::Partial,
      },
      StyleDoc {
@@ -195082,22 +195633,24 @@ index 71065ac8..81e2f022 100644
  ];
  
  const RANGE_CALENDAR_STYLING: &[StyleDoc] = &[
-     StyleDoc { class_or_token: ".range-calendar", value: "w-63 max-w-63; container-type inline-size", description: "Week/day roots use 252px, but month view paints 266px; GPUI also has no container-query context.", rust: "CALENDAR_WIDTH 252px / month column 266px", status: ImplementationStatus::Partial },
+-    StyleDoc { class_or_token: ".range-calendar", value: "w-63 max-w-63; container-type inline-size", description: "Week/day roots use 252px, but month view paints 266px; GPUI also has no container-query context.", rust: "CALENDAR_WIDTH 252px / month column 266px", status: ImplementationStatus::Partial },
 -    StyleDoc { class_or_token: ".range-calendar--week/day-view", value: "circular cells; isolated seven-column headers and bodies", description: "Week layout matches; long day runs stay linear instead of wrapping like v3.", rust: "VisibleDuration week/day branches", status: ImplementationStatus::Partial },
++    StyleDoc { class_or_token: ".range-calendar", value: "w-63 max-w-63; container-type inline-size", description: "Single-month, week and day roots use 252px; multiple months use the documented 256px panels, 32px gaps and horizontal scrolling. GPUI has no container-query context.", rust: "CALENDAR_WIDTH 252px / multiple-month column 256px", status: ImplementationStatus::Partial },
 +    StyleDoc { class_or_token: ".range-calendar--week/day-view", value: "circular cells; isolated seven-column headers and bodies", description: "Day rows start at the week boundary, disable leading dates and pad the visible end with blank cells.", rust: "VisibleDuration week/day branches", status: ImplementationStatus::Implemented },
      StyleDoc { class_or_token: ".range-calendar__header", value: "flex items-center justify-between px-0.5 pb-4", description: "Alignment and inset match; vertical spacing is supplied by the root gap.", rust: "items_center + justify_between + px(2px)", status: ImplementationStatus::Partial },
 -    StyleDoc { class_or_token: ".range-calendar__heading", value: "flex-1 text-sm font-medium", description: "Size matches; the port uses semibold weight.", rust: "text_size(14px) + SEMIBOLD", status: ImplementationStatus::Partial },
 +    StyleDoc { class_or_token: ".range-calendar__heading", value: "flex-1 text-sm font-medium", description: "Month headings use 14px/20px medium text independent of the host line height.", rust: "text_size(14px) + line_height(20px) + MEDIUM", status: ImplementationStatus::Implemented },
      StyleDoc { class_or_token: ".range-calendar__nav-button", value: "size-6 rounded-xl; transform 250ms; colors/shadow 100ms", description: "Geometry, hover, disabled and focus exist; press and property interpolation are incomplete.", rust: "24px + small_radius + hover + focus ring", status: ImplementationStatus::Partial },
      StyleDoc { class_or_token: ".range-calendar__nav-button-icon", value: "size-4; RTL rotate 180deg", description: "Size matches; direction-aware rotation is unavailable.", rust: "svg size(16px)", status: ImplementationStatus::Partial },
-     StyleDoc { class_or_token: ".range-calendar__grid", value: "grid repeat(7, 1fr) w-full", description: "Seven flex cells are fixed at 38px rather than v3's 36px columns inside a 252px root.", rust: "seven 38px cells per flex row", status: ImplementationStatus::Partial },
+-    StyleDoc { class_or_token: ".range-calendar__grid", value: "grid repeat(7, 1fr) w-full", description: "Seven flex cells are fixed at 38px rather than v3's 36px columns inside a 252px root.", rust: "seven 38px cells per flex row", status: ImplementationStatus::Partial },
++    StyleDoc { class_or_token: ".range-calendar__grid", value: "grid repeat(7, 1fr) w-full", description: "Seven equal flex columns fill each panel, including the wider multiple-month layout.", rust: "seven flex_1 cells per row", status: ImplementationStatus::Partial },
      StyleDoc { class_or_token: ".range-calendar__grid-header/body", value: "display: contents; first body row mt-1", description: "Explicit flex siblings replace flattened table contents.", rust: "weekday_header + month_grid flex columns", status: ImplementationStatus::Partial },
 -    StyleDoc { class_or_token: ".range-calendar__header-cell", value: "pb-2 text-xs font-medium text-muted", description: "Size and color match; padding and medium weight do not.", rust: "text_size(12px) + muted", status: ImplementationStatus::Partial },
 -    StyleDoc { class_or_token: ".range-calendar__cell", value: "relative my-0.5 rounded-3xl outline-none", description: "The port uses 38px cells, 13px text and simplified row boundaries instead of v3's 36px/14px surface.", rust: "38px range segment + 13px text", status: ImplementationStatus::Partial },
 -    StyleDoc { class_or_token: ".range-calendar__cell-button", value: "aspect-square w-full rounded-3xl text-sm font-medium", description: "The monolithic GPUI cell reproduces the inner hit surface without a separate DOM part.", rust: "centered cell content", status: ImplementationStatus::Partial },
 +    StyleDoc { class_or_token: ".range-calendar__header-cell", value: "pb-2 text-xs font-medium text-muted", description: "Weekday labels use 12px/16px medium muted text; bottom padding remains absent.", rust: "text_size(12px) + line_height(16px) + MEDIUM + muted", status: ImplementationStatus::Partial },
-+    StyleDoc { class_or_token: ".range-calendar__cell", value: "relative my-0.5 rounded-3xl outline-none", description: "The 36px range segment contains a separate inner day button; 4px row gaps reproduce the spacing between cells.", rust: "36px range segment + row gap(4px)", status: ImplementationStatus::Partial },
-+    StyleDoc { class_or_token: ".range-calendar__cell-button", value: "aspect-square w-full rounded-3xl text-sm font-medium", description: "The inner day button centers 14px/20px medium text, including selected endpoints and custom cell content.", rust: "36px inner cell + text_size(14px) + line_height(20px) + MEDIUM", status: ImplementationStatus::Implemented },
++    StyleDoc { class_or_token: ".range-calendar__cell", value: "relative my-0.5 rounded-3xl outline-none", description: "Each range segment spans one seventh of the panel width and contains a separate square day button; 4px row gaps reproduce the spacing between cells.", rust: "flex_1 range segment + cell_size height + row gap(4px)", status: ImplementationStatus::Partial },
++    StyleDoc { class_or_token: ".range-calendar__cell-button", value: "aspect-square w-full rounded-3xl text-sm font-medium", description: "The inner day button centers 14px/20px medium text, including selected endpoints and custom cell content.", rust: "cell_size = column_width / 7 + text_size(14px) + line_height(20px) + MEDIUM", status: ImplementationStatus::Implemented },
      StyleDoc { class_or_token: ".range-calendar__cell-button transition", value: "scale 200ms ease-out; motion-reduce none", description: "The 0.9 target is exact, but the scale lands on a frame.", rust: "anim::pressed instantaneous geometry", status: ImplementationStatus::Partial },
      StyleDoc { class_or_token: ".range-calendar__cell[data-selected=\"true\"]", value: "rounded-none bg-accent-soft with rounded row boundaries", description: "Track fill exists; CSS sibling-aware row caps are simplified.", rust: "in_range square accent soft fill", status: ImplementationStatus::Partial },
      StyleDoc { class_or_token: ".range-calendar__cell selection caps", value: "accent fill/foreground; 3xl logical start/end radii", description: "Endpoint accents exist as pills rather than directional half-caps joined to the track.", rust: "draw_start/draw_end rounded_full accent", status: ImplementationStatus::Partial },

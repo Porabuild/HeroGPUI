@@ -7351,7 +7351,7 @@ const CALENDAR_STYLING: &[StyleDoc] = &[
     StyleDoc {
         class_or_token: ".calendar",
         value: "w-63 max-w-63; container-type: inline-size",
-        description: "Single-month width is exact; GPUI has no CSS container-query context.",
+        description: "Single-month width is exact; multiple months use the documented 256px panels, 32px gaps and horizontal scrolling. GPUI has no CSS container-query context.",
         rust: "CALENDAR_WIDTH = 252px",
         status: ImplementationStatus::Partial,
     },
@@ -7407,7 +7407,7 @@ const CALENDAR_STYLING: &[StyleDoc] = &[
     StyleDoc {
         class_or_token: ".calendar__grid",
         value: "grid repeat(7, 1fr) w-full",
-        description: "Single-month, week and day columns align at 36px without horizontal gaps; multi-month columns still use a narrower width.",
+        description: "All views divide each panel into seven equal columns without horizontal gaps; multi-month panels are 256px wide.",
         rust: "seven flex_1 cells per row + no horizontal gap",
         status: ImplementationStatus::Partial,
     },
@@ -7435,8 +7435,8 @@ const CALENDAR_STYLING: &[StyleDoc] = &[
     StyleDoc {
         class_or_token: ".calendar__cell",
         value: "aspect-square size-full rounded-3xl text-sm font-medium",
-        description: "Day cells center 14px/20px medium text in a 36px hit area, including selected, disabled and custom cells.",
-        rust: "36px circle + radius(18px) + text_size(14px) + line_height(20px) + MEDIUM",
+        description: "Day cells center 14px/20px medium text in a square one seventh of the panel width, including selected, disabled and custom cells.",
+        rust: "cell_size = column_width / 7 + text_size(14px) + line_height(20px) + MEDIUM",
         status: ImplementationStatus::Partial,
     },
     StyleDoc {
@@ -7810,17 +7810,17 @@ const RANGE_CALENDAR_STATES: &[StateDoc] = &[
 ];
 
 const RANGE_CALENDAR_STYLING: &[StyleDoc] = &[
-    StyleDoc { class_or_token: ".range-calendar", value: "w-63 max-w-63; container-type inline-size", description: "Week/day roots use 252px, but month view paints 266px; GPUI also has no container-query context.", rust: "CALENDAR_WIDTH 252px / month column 266px", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".range-calendar", value: "w-63 max-w-63; container-type inline-size", description: "Single-month, week and day roots use 252px; multiple months use the documented 256px panels, 32px gaps and horizontal scrolling. GPUI has no container-query context.", rust: "CALENDAR_WIDTH 252px / multiple-month column 256px", status: ImplementationStatus::Partial },
     StyleDoc { class_or_token: ".range-calendar--week/day-view", value: "circular cells; isolated seven-column headers and bodies", description: "Day rows start at the week boundary, disable leading dates and pad the visible end with blank cells.", rust: "VisibleDuration week/day branches", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".range-calendar__header", value: "flex items-center justify-between px-0.5 pb-4", description: "Alignment and inset match; vertical spacing is supplied by the root gap.", rust: "items_center + justify_between + px(2px)", status: ImplementationStatus::Partial },
     StyleDoc { class_or_token: ".range-calendar__heading", value: "flex-1 text-sm font-medium", description: "Month headings use 14px/20px medium text independent of the host line height.", rust: "text_size(14px) + line_height(20px) + MEDIUM", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".range-calendar__nav-button", value: "size-6 rounded-xl; transform 250ms; colors/shadow 100ms", description: "Geometry, hover, disabled and focus exist; press and property interpolation are incomplete.", rust: "24px + small_radius + hover + focus ring", status: ImplementationStatus::Partial },
     StyleDoc { class_or_token: ".range-calendar__nav-button-icon", value: "size-4; RTL rotate 180deg", description: "Size matches; direction-aware rotation is unavailable.", rust: "svg size(16px)", status: ImplementationStatus::Partial },
-    StyleDoc { class_or_token: ".range-calendar__grid", value: "grid repeat(7, 1fr) w-full", description: "Seven flex cells are fixed at 38px rather than v3's 36px columns inside a 252px root.", rust: "seven 38px cells per flex row", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".range-calendar__grid", value: "grid repeat(7, 1fr) w-full", description: "Seven equal flex columns fill each panel, including the wider multiple-month layout.", rust: "seven flex_1 cells per row", status: ImplementationStatus::Partial },
     StyleDoc { class_or_token: ".range-calendar__grid-header/body", value: "display: contents; first body row mt-1", description: "Explicit flex siblings replace flattened table contents.", rust: "weekday_header + month_grid flex columns", status: ImplementationStatus::Partial },
     StyleDoc { class_or_token: ".range-calendar__header-cell", value: "pb-2 text-xs font-medium text-muted", description: "Weekday labels use 12px/16px medium muted text; bottom padding remains absent.", rust: "text_size(12px) + line_height(16px) + MEDIUM + muted", status: ImplementationStatus::Partial },
-    StyleDoc { class_or_token: ".range-calendar__cell", value: "relative my-0.5 rounded-3xl outline-none", description: "The 36px range segment contains a separate inner day button; 4px row gaps reproduce the spacing between cells.", rust: "36px range segment + row gap(4px)", status: ImplementationStatus::Partial },
-    StyleDoc { class_or_token: ".range-calendar__cell-button", value: "aspect-square w-full rounded-3xl text-sm font-medium", description: "The inner day button centers 14px/20px medium text, including selected endpoints and custom cell content.", rust: "36px inner cell + text_size(14px) + line_height(20px) + MEDIUM", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".range-calendar__cell", value: "relative my-0.5 rounded-3xl outline-none", description: "Each range segment spans one seventh of the panel width and contains a separate square day button; 4px row gaps reproduce the spacing between cells.", rust: "flex_1 range segment + cell_size height + row gap(4px)", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".range-calendar__cell-button", value: "aspect-square w-full rounded-3xl text-sm font-medium", description: "The inner day button centers 14px/20px medium text, including selected endpoints and custom cell content.", rust: "cell_size = column_width / 7 + text_size(14px) + line_height(20px) + MEDIUM", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".range-calendar__cell-button transition", value: "scale 200ms ease-out; motion-reduce none", description: "The 0.9 target is exact, but the scale lands on a frame.", rust: "anim::pressed instantaneous geometry", status: ImplementationStatus::Partial },
     StyleDoc { class_or_token: ".range-calendar__cell[data-selected=\"true\"]", value: "rounded-none bg-accent-soft with rounded row boundaries", description: "Track fill exists; CSS sibling-aware row caps are simplified.", rust: "in_range square accent soft fill", status: ImplementationStatus::Partial },
     StyleDoc { class_or_token: ".range-calendar__cell selection caps", value: "accent fill/foreground; 3xl logical start/end radii", description: "Endpoint accents exist as pills rather than directional half-caps joined to the track.", rust: "draw_start/draw_end rounded_full accent", status: ImplementationStatus::Partial },

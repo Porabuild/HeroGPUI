@@ -4490,7 +4490,8 @@ impl Gallery {
                 ),
                 (
                     "Multiple months",
-                    col(vec![h::Calendar::new(self.calendar.clone())
+                    "Scroll horizontally to explore both months in narrow layouts.",
+                    stretch_col(vec![h::Calendar::new(self.calendar.clone())
                         .visible_duration(h::VisibleDuration::Months(2))
                         .into_any_element()]),
                 ),
@@ -5257,7 +5258,8 @@ impl Gallery {
                 ),
                 (
                     "Multiple Months",
-                    col(vec![h::RangeCalendar::new(
+                    "Scroll horizontally to explore both months in narrow layouts.",
+                    stretch_col(vec![h::RangeCalendar::new(
                         self.demo_range("rc-months", cx),
                     )
                     .visible_duration(h::VisibleDuration::Months(2))
