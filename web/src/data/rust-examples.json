@@ -209,6 +209,7 @@
     },
     {
       "heading": "With Descriptions",
+      "description": "Labels use 14px text with 20px lines; descriptions and section headers use 12px text with 16px lines.",
       "imports": "use herogpui::prelude::{Button, Dropdown, MenuItem, Placement, Variant};",
       "code": "Dropdown::uncontrolled(\n    \"dd-desc-dd\",\n    Button::new(\"dropdown-desc\")\n        .label(\"Merge\")\n        .variant(Variant::Secondary),\n    vec![\n        MenuItem::new(\"merge\", \"Create a merge commit\").description(\n            \"All commits from this branch are added to the base branch\",\n        ),\n        MenuItem::new(\"squash\", \"Squash and merge\")\n            .description(\"The commits are combined into one\"),\n        MenuItem::new(\"rebase\", \"Rebase and merge\")\n            .description(\"The commits are rebased onto the base branch\"),\n    ],\n)\n.id(\"dropdown-desc-dd\")\n.placement(Placement::BottomStart)"
     },
@@ -289,6 +290,7 @@
   "list-box": [
     {
       "heading": "Usage",
+      "description": "Labels use 14px text with 20px lines; descriptions and section headers use 12px text with 16px lines.",
       "imports": "use herogpui::prelude::{ListBox, ListBoxItem, SelectionMode};\nuse gpui::prelude::*;\nuse gpui::px;",
       "code": "gpui::div()\n    .w(px(220.))\n    .child(ListBox::new(\n        \"list-box\",\n        vec![\n            ListBoxItem::new(\"inbox\", \"Inbox\"),\n            ListBoxItem::new(\"sent\", \"Sent\"),\n            ListBoxItem::new(\"drafts\", \"Drafts\"),\n        ],\n    )\n    .selection_mode(SelectionMode::Single))"
     },
@@ -300,7 +302,7 @@
     {
       "heading": "With Sections",
       "imports": "use herogpui::prelude::{ListBox, ListBoxItem};\nuse gpui::prelude::*;\nuse gpui::px;",
-      "code": "gpui::div()\n    .w(px(280.))\n    .child(ListBox::new(\n        \"list-box-sections\",\n        vec![\n            ListBoxItem::section(\"Mail\"),\n            ListBoxItem::new(\"inbox\", \"Inbox\"),\n            ListBoxItem::new(\"sent\", \"Sent\"),\n            ListBoxItem::separator(),\n            ListBoxItem::section(\"Archive\"),\n            ListBoxItem::new(\"2024\", \"2024\"),\n            ListBoxItem::new(\"2025\", \"2025\"),\n        ],\n    ))"
+      "code": "gpui::div()\n    .flex()\n    .flex_col()\n    .items_start()\n    .gap(px(12.))\n    .children(vec![gpui::div()\n        .w(px(256.))\n        .child(ListBox::new(\n            \"list-box-sections\",\n            vec![\n                ListBoxItem::section(\"Actions\"),\n                ListBoxItem::new(\"new-file\", \"New file\")\n                    .description(\"Create a new file\")\n                    .shortcut(\"⌘ N\"),\n                ListBoxItem::new(\"edit-file\", \"Edit file\")\n                    .description(\"Make changes\")\n                    .shortcut(\"⌘ E\"),\n                ListBoxItem::separator(),\n                ListBoxItem::section(\"Danger zone\"),\n                ListBoxItem::new(\"delete-file\", \"Delete file\")\n                    .description(\"Move to trash\")\n                    .shortcut(\"⌘ ⇧ D\")\n                    .danger(),\n            ],\n        ).on_action(cx.listener(|this, key: &SharedString, _, cx| {\n            this.set_demo_text_value(\"lb-section-action\", key.to_string());\n            cx.notify();\n        })))\n        .into_any_element(), para(&format!(\"Selected item: {}\", self.demo_text_value(\"lb-section-action\")), cx)])"
     },
     {
       "heading": "Multi Select",

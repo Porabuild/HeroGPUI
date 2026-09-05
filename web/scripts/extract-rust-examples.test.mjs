@@ -219,6 +219,21 @@ test("humanizeGalleryIds preserves multiline constructor indentation", () => {
   );
 });
 
+test("humanizeGalleryIds preserves collection keys and their selected values", () => {
+  for (const item of ["ListBoxItem", "MenuItem"]) {
+    const source = `${item}::new("new-file", "New file");
+h::${item}::new("edit-file", "Edit file");
+${item}::new(
+    "delete-file", "Delete file"
+);
+list.selected_keys(["new-file", "edit-file"]);`;
+    assert.deepEqual(humanizeGalleryIds(source, "list-box"), {
+      code: source,
+      changed: false,
+    });
+  }
+});
+
 test("separateExampleDescription lifts direct static gallery copy", () => {
   const source = `col(vec![
     Button::new("save").label("Save").into_any_element(),

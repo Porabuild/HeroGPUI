@@ -797,6 +797,7 @@ impl RenderOnce for Menu {
                             .pt(px(6.))
                             .pb(px(4.))
                             .text_size(px(12.))
+                            .line_height(px(16.))
                             .font_weight(gpui::FontWeight::MEDIUM)
                             .text_color(colors.muted)
                             .child(label.to_string()),
@@ -836,6 +837,7 @@ impl RenderOnce for Menu {
                         .px(px(8.))
                         .rounded(crate::util::soft_radius(cx))
                         .text_size(px(14.))
+                        .line_height(px(20.))
                         .text_color(text_color);
                     if let Some(recorded_item_bounds) = item_bounds[i].clone() {
                         row = row.child(
@@ -1027,13 +1029,17 @@ impl RenderOnce for Menu {
                                         .flex()
                                         .flex_col()
                                         .min_w_0()
-                                        .gap(px(1.))
-                                        .child(gpui::div().child(label.to_string()))
+                                        .child(
+                                            gpui::div()
+                                                .font_weight(gpui::FontWeight::MEDIUM)
+                                                .child(label.to_string()),
+                                        )
                                         .child(
                                             gpui::div()
                                             // A described row composes a
                                             // `Description`, which is `text-xs`.
                                             .text_size(px(12.))
+                                            .line_height(px(16.))
                                             .text_color(colors.muted)
                                             // `[data-slot="description"]` is
                                             // `text-wrap`, so its box is the
@@ -1043,7 +1049,10 @@ impl RenderOnce for Menu {
                                             .child(text.to_string()),
                                         )
                                         .into_any_element(),
-                                    None => label.to_string().into_any_element(),
+                                    None => gpui::div()
+                                        .font_weight(gpui::FontWeight::MEDIUM)
+                                        .child(label.to_string())
+                                        .into_any_element(),
                                 },
                             },
                         ),
@@ -1057,9 +1066,8 @@ impl RenderOnce for Menu {
                     }
                     if let Some(sc) = shortcut {
                         row = row.child(
-                            gpui::div()
-                                .text_size(px(12.))
-                                .text_color(colors.muted)
+                            crate::kbd::Kbd::new()
+                                .variant(crate::kbd::KbdVariant::Light)
                                 .child(sc.to_string()),
                         );
                     }

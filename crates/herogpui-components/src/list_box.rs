@@ -1199,6 +1199,7 @@ impl ListBox {
                     .pt(px(6.))
                     .pb(px(4.))
                     .text_size(px(12.))
+                    .line_height(px(16.))
                     .font_weight(gpui::FontWeight::MEDIUM)
                     .text_color(colors.muted)
                     .child(label.to_string()),
@@ -1248,6 +1249,7 @@ impl ListBox {
                     .py(px(6.))
                     .rounded(util::soft_radius(cx))
                     .text_size(text_size)
+                    .line_height(px(20.))
                     .text_color(fg);
 
                 if disabled {
@@ -1313,11 +1315,11 @@ impl ListBox {
                             // `[data-slot="description"]` is `text-wrap`, which
                             // needs a column that can shrink below its content.
                             .min_w_0()
-                            .child(div().child(label.to_string()))
+                            .child(div().font_weight(gpui::FontWeight::MEDIUM).child(label.to_string()))
                             .when_some(description.clone(), |el, d| {
                                 el.child(
                                     div()
-                                        .text_size(px(11.))
+                                        .text_size(px(12.)).line_height(px(16.))
                                         .text_color(colors.muted)
                                         .child(d.to_string()),
                                 )
@@ -1341,10 +1343,8 @@ impl ListBox {
                     );
                 } else if let Some(sc) = shortcut {
                     row = row.child(
-                        div()
-                            // A shortcut is a `Kbd`, which is `text-xs`.
-                            .text_size(px(12.))
-                            .text_color(colors.muted)
+                        crate::kbd::Kbd::new()
+                            .variant(crate::kbd::KbdVariant::Light)
                             .child(sc.to_string()),
                     );
                 }

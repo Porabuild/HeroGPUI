@@ -2202,3 +2202,57 @@ fn dialog_close_returns_the_focus_to_the_trigger(cx: &mut TestAppContext) {
         "the trigger must be focused after the close, so Enter reopens the modal"
     );
 }
+
+#[gpui::test]
+fn collection_text_uses_pinned_line_boxes(cx: &mut TestAppContext) {
+    use herogpui_components::{ListBox, ListBoxItem, Menu, MenuItem};
+    for menu in [false, true] {
+        for leading in [None, Some(48.)] {
+            for kind in 0..3 {
+                still();
+                let cx = open_host(cx, move || {
+                    let content = if menu {
+                        let item = match kind {
+                            0 => MenuItem::SectionLabel("First\nSecond".into()),
+                            1 => MenuItem::new("label", "First\nSecond"),
+                            _ => MenuItem::new("description", "Label").description("First\nSecond"),
+                        };
+                        Menu::new("collection-menu-leading", vec![item]).into_any_element()
+                    } else {
+                        let item = match kind {
+                            0 => ListBoxItem::section("First\nSecond"),
+                            1 => ListBoxItem::new("label", "First\nSecond"),
+                            _ => ListBoxItem::new("description", "Label")
+                                .description("First\nSecond"),
+                        };
+                        ListBox::new("collection-list-leading", vec![item]).into_any_element()
+                    };
+                    gpui::div()
+                        .w(px(300.))
+                        .when_some(leading, |el, leading| el.line_height(px(leading)))
+                        .child(
+                            gpui::div()
+                                .debug_selector(|| "collection-leading".into())
+                                .child(content),
+                        )
+                        .into_any_element()
+                });
+                let height = cx
+                    .debug_bounds("collection-leading")
+                    .expect("collection paints")
+                    .size
+                    .height;
+                let expected = match kind {
+                    0 => 50., // 8px panel padding + 10px header padding + two 16px lines.
+                    1 => 60., // 8px panel padding + 12px row padding + two 20px lines.
+                    _ => 72., // 8px panel padding + 12px row padding + 20px label + two 16px lines.
+                };
+                assert_eq!(
+                    height,
+                    px(expected),
+                    "menu={menu}, host={leading:?}, kind={kind}"
+                );
+            }
+        }
+    }
+}

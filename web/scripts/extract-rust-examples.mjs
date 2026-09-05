@@ -665,6 +665,12 @@ function rewriteIdExpression(expr, pageSlug) {
 
 export function humanizeGalleryIds(code, pageSlug) {
   const edits = namedCalls(code, new Set(["id", "new"]))
+    // Collection item keys are values reported to callers, not gallery element ids.
+    .filter(
+      (call) =>
+        call.name !== "new" ||
+        !/\b(?:ListBoxItem|MenuItem)\s*::\s*$/.test(code.slice(0, call.start)),
+    )
     .map((call) => callArgs(code, call)[0])
     .filter(Boolean)
     .map((arg) => {

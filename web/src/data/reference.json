@@ -584,6 +584,12 @@
     ],
     "styling": [
       {
+        "token": ".label / .description / .header / .kbd--light",
+        "description": "Built-in labels use 14px/20px medium text; descriptions and section headers use 12px/16px. Descriptions stack without a gap, and shortcuts reuse light Kbd.",
+        "rust": "Menu built-in text styles + Kbd::new().variant(Light)",
+        "status": "implemented"
+      },
+      {
         "token": ".dropdown",
         "description": "Root wrapper layout.",
         "rust": "Dropdown root: flex_col + gap(px(4.))",
@@ -1121,6 +1127,12 @@
       }
     ],
     "styling": [
+      {
+        "token": ".label / .description / .header / .kbd--light",
+        "description": "Built-in labels use 14px/20px medium text; descriptions and section headers use 12px/16px. Descriptions stack without a gap, and shortcuts reuse light Kbd.",
+        "rust": "ListBox built-in text styles + Kbd::new().variant(Light)",
+        "status": "implemented"
+      },
       {
         "token": ".list-box",
         "description": "Full-width clipped list with four-pixel inset.",

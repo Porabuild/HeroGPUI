@@ -665,6 +665,7 @@ const DROPDOWN_STATES: &[StateDoc] = &[
 ];
 
 const DROPDOWN_STYLING: &[StyleDoc] = &[
+    StyleDoc { class_or_token: ".label / .description / .header / .kbd--light", value: "label text-sm font-medium; description/header text-xs; light Kbd shortcuts", description: "Built-in labels use 14px/20px medium text; descriptions and section headers use 12px/16px. Descriptions stack without a gap, and shortcuts reuse light Kbd.", rust: "Menu built-in text styles + Kbd::new().variant(Light)", status: ImplementationStatus::Implemented },
     StyleDoc {
         class_or_token: ".dropdown",
         value: "flex flex-col gap-1",
@@ -11810,6 +11811,7 @@ const LIST_BOX_STATES: &[StateDoc] = &[
 ];
 
 const LIST_BOX_STYLING: &[StyleDoc] = &[
+    StyleDoc { class_or_token: ".label / .description / .header / .kbd--light", value: "label text-sm font-medium; description/header text-xs; light Kbd shortcuts", description: "Built-in labels use 14px/20px medium text; descriptions and section headers use 12px/16px. Descriptions stack without a gap, and shortcuts reuse light Kbd.", rust: "ListBox built-in text styles + Kbd::new().variant(Light)", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".list-box", value: "relative w-full overflow-clip p-1", description: "Full-width clipped list with four-pixel inset.", rust: "relative + w_full + overflow_hidden + padding 4px", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".list-box > * + *", value: "mt-1", description: "Four pixels between direct collection records without flex-shrinking virtual content.", rust: "gap 4px in row geometry", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".list-box-item", value: "min-h-9 gap-3 rounded-2xl px-2 py-1.5", description: "Option minimum height, 12px gap, 16px radius, and 8px/6px padding match.", rust: "FIELD_HEIGHT + gap(12) + soft_radius + px(8) + py(6)", status: ImplementationStatus::Implemented },

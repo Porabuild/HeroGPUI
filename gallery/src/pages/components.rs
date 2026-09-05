@@ -1275,7 +1275,7 @@ impl Gallery {
                     .into_any_element()]),
                 ),
                 (
-                    "With Descriptions",
+                    "With Descriptions", "Labels use 14px text with 20px lines; descriptions and section headers use 12px text with 16px lines.",
                     col(vec![h::Dropdown::uncontrolled(
                         "dd-desc-dd",
                         h::Button::new("dd-desc")
@@ -1621,7 +1621,7 @@ impl Gallery {
             crate::pages::Page::ListBox.import_line(),
             vec![
                 (
-                    "Usage",
+                    "Usage", "Labels use 14px text with 20px lines; descriptions and section headers use 12px text with 16px lines.",
                     col(vec![gpui::div()
                         .w(px(220.))
                         .child(h::ListBox::new(
@@ -1656,20 +1656,29 @@ impl Gallery {
                 (
                     "With Sections",
                     col(vec![gpui::div()
-                        .w(px(280.))
+                        .w(px(256.))
                         .child(h::ListBox::new(
                             "lb-sections",
                             vec![
-                                h::ListBoxItem::section("Mail"),
-                                h::ListBoxItem::new("inbox", "Inbox"),
-                                h::ListBoxItem::new("sent", "Sent"),
+                                h::ListBoxItem::section("Actions"),
+                                h::ListBoxItem::new("new-file", "New file")
+                                    .description("Create a new file")
+                                    .shortcut("⌘ N"),
+                                h::ListBoxItem::new("edit-file", "Edit file")
+                                    .description("Make changes")
+                                    .shortcut("⌘ E"),
                                 h::ListBoxItem::separator(),
-                                h::ListBoxItem::section("Archive"),
-                                h::ListBoxItem::new("2024", "2024"),
-                                h::ListBoxItem::new("2025", "2025"),
+                                h::ListBoxItem::section("Danger zone"),
+                                h::ListBoxItem::new("delete-file", "Delete file")
+                                    .description("Move to trash")
+                                    .shortcut("⌘ ⇧ D")
+                                    .danger(),
                             ],
-                        ))
-                        .into_any_element()]),
+                        ).on_action(cx.listener(|this, key: &SharedString, _, cx| {
+                            this.set_demo_text_value("lb-section-action", key.to_string());
+                            cx.notify();
+                        })))
+                        .into_any_element(), para(&format!("Selected item: {}", self.demo_text_value("lb-section-action")), cx)]),
                 ),
                 (
                     "Multi Select",
