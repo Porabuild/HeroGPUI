@@ -2952,6 +2952,46 @@ fn combo_box_caret_stays_at_the_end_when_the_list_opens(cx: &mut TestAppContext)
 // Select
 // ---------------------------------------------------------------------------
 
+#[gpui::test]
+fn select_full_width_fills_its_host_and_keeps_the_trigger_clickable(cx: &mut TestAppContext) {
+    for width in [200., 400., 640.] {
+        for labeled in [false, true] {
+            for full_width in [false, true] {
+                let opened = events();
+                let recorded = opened.clone();
+                let measured = Rc::new(Cell::new(None));
+                let observed = measured.clone();
+                let cx = open_host(cx, move || {
+                    let opened = opened.clone();
+                    let measured = measured.clone();
+                    let mut select = Select::new("full-width", vec!["Alpha".into()])
+                        .full_width(full_width)
+                        .on_open_change(move |open, _, _| {
+                            opened.borrow_mut().push(open.to_string());
+                        });
+                    if labeled {
+                        select = select.label("Language");
+                    }
+                    gpui::div()
+                        .w(px(width))
+                        .child(select)
+                        .on_children_prepainted(move |bounds, _, _| measured.set(Some(bounds[0])))
+                        .into_any_element()
+                });
+                let bounds = observed.get().unwrap();
+                let expected = if full_width { width } else { width.min(320.) };
+                assert_eq!(
+                    bounds.size.width,
+                    px(expected),
+                    "width={width}, labeled={labeled}, full_width={full_width}"
+                );
+                click(cx, expected - 12., f32::from(bounds.bottom()) - 18.);
+                assert_eq!(recorded.borrow().as_slice(), ["true"]);
+            }
+        }
+    }
+}
+
 /// v3's `Select.Value` render props include `isPlaceholder` ("Whether the
 /// value is a placeholder"), and the port hands it over. Recording what the
 /// closure is told each frame pins the placeholder ↔ value flip without

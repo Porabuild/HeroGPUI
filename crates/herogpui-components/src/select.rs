@@ -1160,7 +1160,12 @@ impl RenderOnce for Select {
         }
 
         // listbox panel
-        let mut root = gpui::div().relative().max_w(px(320.));
+        let mut root = gpui::div().relative();
+        root = if self.full_width {
+            root.w_full()
+        } else {
+            root.max_w(px(320.))
+        };
         if self.label.is_some() || self.description.is_some() {
             let mut wrapper = gpui::div().flex().flex_col().gap(px(4.)).w_full();
             // Reuse the shared field slots so the required/invalid/disabled

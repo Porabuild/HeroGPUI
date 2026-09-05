@@ -21144,7 +21144,7 @@ index 4525f723..87a522e0 100644
          };
          let (past_start, before_end) = (
 diff --git a/crates/herogpui-components/src/select.rs b/crates/herogpui-components/src/select.rs
-index 753f8e92..c46637d7 100644
+index 753f8e92..5fb61d08 100644
 --- a/crates/herogpui-components/src/select.rs
 +++ b/crates/herogpui-components/src/select.rs
 @@ -570,6 +570,11 @@ impl RenderOnce for Select {
@@ -21225,7 +21225,7 @@ index 753f8e92..c46637d7 100644
                              let (query, repeat) = typed.update(cx, |t, _| {
                                  let query = t.push(key, now);
                                  (query, t.is_repeat())
-@@ -1114,19 +1128,33 @@ impl RenderOnce for Select {
+@@ -1114,25 +1128,44 @@ impl RenderOnce for Select {
                      // Enter and Space activate the highlighted option before
                      // gpui synthesizes this trigger click. Multiple selection
                      // keeps the popover open for the next pick.
@@ -21262,7 +21262,19 @@ index 753f8e92..c46637d7 100644
                      }
                  });
          }
-@@ -1291,8 +1319,10 @@ impl RenderOnce for Select {
+ 
+         // listbox panel
+-        let mut root = gpui::div().relative().max_w(px(320.));
++        let mut root = gpui::div().relative();
++        root = if self.full_width {
++            root.w_full()
++        } else {
++            root.max_w(px(320.))
++        };
+         if self.label.is_some() || self.description.is_some() {
+             let mut wrapper = gpui::div().flex().flex_col().gap(px(4.)).w_full();
+             // Reuse the shared field slots so the required/invalid/disabled
+@@ -1291,8 +1324,10 @@ impl RenderOnce for Select {
                          gpui::div()
                              .px(px(8.))
                              .pt(px(6.))
@@ -21274,7 +21286,7 @@ index 753f8e92..c46637d7 100644
                              .text_color(row_muted)
                              .child(label.to_string())
                              .into_any_element(),
-@@ -1316,7 +1346,8 @@ impl RenderOnce for Select {
+@@ -1316,7 +1351,8 @@ impl RenderOnce for Select {
                          .px(px(10.))
                          .py(px(6.))
                          .gap(px(12.))
@@ -21284,7 +21296,7 @@ index 753f8e92..c46637d7 100644
  
                  if opt_disabled {
                      item = item.opacity(row_disabled_opacity);
-@@ -1325,9 +1356,7 @@ impl RenderOnce for Select {
+@@ -1325,9 +1361,7 @@ impl RenderOnce for Select {
                  }
  
                  if is_sel {
@@ -21295,7 +21307,7 @@ index 753f8e92..c46637d7 100644
                  } else {
                      item = item.text_color(row_fg);
                  }
-@@ -1377,7 +1406,7 @@ impl RenderOnce for Select {
+@@ -1377,7 +1411,7 @@ impl RenderOnce for Select {
                                  // on the row and deafen the trigger's key
                                  // handler; the trigger is what holds focus so
                                  // the open list stays keyboard-walkable.
@@ -21304,7 +21316,7 @@ index 753f8e92..c46637d7 100644
                                  let mut next = current.clone();
                                  // A Shift click extends from the anchor
                                  // through `extendSelection`; an ordinary or
-@@ -1499,7 +1528,7 @@ impl RenderOnce for Select {
+@@ -1499,7 +1533,7 @@ impl RenderOnce for Select {
                                      .collect::<Vec<_>>()
                              },
                          )
@@ -32440,7 +32452,7 @@ index f411cbcd..da2436c1 100644
      let state_for_view = state;
      let cx = open_host(cx, move || {
 diff --git a/crates/herogpui-components/tests/pickers_deep.rs b/crates/herogpui-components/tests/pickers_deep.rs
-index 4cf8efaf..777626d7 100644
+index 4cf8efaf..275f6d04 100644
 --- a/crates/herogpui-components/tests/pickers_deep.rs
 +++ b/crates/herogpui-components/tests/pickers_deep.rs
 @@ -34,9 +34,9 @@
@@ -32811,7 +32823,54 @@ index 4cf8efaf..777626d7 100644
      flush_frame(cx);
      press(cx, "down");
      press(cx, "tab");
-@@ -2877,6 +3123,85 @@ fn select_disabled_rows_are_unclickable_and_not_a_stop(cx: &mut TestAppContext)
+@@ -2742,6 +2988,46 @@ fn combo_box_caret_stays_at_the_end_when_the_list_opens(cx: &mut TestAppContext)
+ // Select
+ // ---------------------------------------------------------------------------
+ 
++#[gpui::test]
++fn select_full_width_fills_its_host_and_keeps_the_trigger_clickable(cx: &mut TestAppContext) {
++    for width in [200., 400., 640.] {
++        for labeled in [false, true] {
++            for full_width in [false, true] {
++                let opened = events();
++                let recorded = opened.clone();
++                let measured = Rc::new(Cell::new(None));
++                let observed = measured.clone();
++                let cx = open_host(cx, move || {
++                    let opened = opened.clone();
++                    let measured = measured.clone();
++                    let mut select = Select::new("full-width", vec!["Alpha".into()])
++                        .full_width(full_width)
++                        .on_open_change(move |open, _, _| {
++                            opened.borrow_mut().push(open.to_string());
++                        });
++                    if labeled {
++                        select = select.label("Language");
++                    }
++                    gpui::div()
++                        .w(px(width))
++                        .child(select)
++                        .on_children_prepainted(move |bounds, _, _| measured.set(Some(bounds[0])))
++                        .into_any_element()
++                });
++                let bounds = observed.get().unwrap();
++                let expected = if full_width { width } else { width.min(320.) };
++                assert_eq!(
++                    bounds.size.width,
++                    px(expected),
++                    "width={width}, labeled={labeled}, full_width={full_width}"
++                );
++                click(cx, expected - 12., f32::from(bounds.bottom()) - 18.);
++                assert_eq!(recorded.borrow().as_slice(), ["true"]);
++            }
++        }
++    }
++}
++
+ /// v3's `Select.Value` render props include `isPlaceholder` ("Whether the
+ /// value is a placeholder"), and the port hands it over. Recording what the
+ /// closure is told each frame pins the placeholder ↔ value flip without
+@@ -2877,6 +3163,85 @@ fn select_disabled_rows_are_unclickable_and_not_a_stop(cx: &mut TestAppContext)
      );
  }
  
@@ -32897,7 +32956,7 @@ index 4cf8efaf..777626d7 100644
  /// A select whose whole collection is disabled opens but answers nothing: the
  /// rows have no handlers and the arrow-key resolver has no stops, so neither
  /// path can choose anything, and nothing is ever reported.
-@@ -3589,3 +3914,65 @@ fn drawer_footer_sits_after_the_body_and_both_answer(cx: &mut TestAppContext) {
+@@ -3589,3 +3954,65 @@ fn drawer_footer_sits_after_the_body_and_both_answer(cx: &mut TestAppContext) {
           puts it"
      );
  }
@@ -195856,7 +195915,7 @@ index f01f8245..ec8d1381 100644
  pub fn para(text: &str, cx: &App) -> gpui::AnyElement {
      let colors = cx.colors();
 diff --git a/gallery/src/pages/reference.rs b/gallery/src/pages/reference.rs
-index 6452b2b7..2811cfb1 100644
+index 6452b2b7..b70b6484 100644
 --- a/gallery/src/pages/reference.rs
 +++ b/gallery/src/pages/reference.rs
 @@ -1,4 +1,5 @@
@@ -198369,13 +198428,13 @@ index 6452b2b7..2811cfb1 100644
          assert!(metadata.states.iter().any(|entry| {
 -            entry.state == "Today"
 +            entry.state == "Pressed"
-+                && entry.status == reference_metadata::ImplementationStatus::Partial
-+        }));
+                 && entry.status == reference_metadata::ImplementationStatus::Partial
+         }));
 +        assert!(metadata.states.iter().any(|entry| {
 +            entry.state == "Range middle"
 +                && entry.selector == "[data-selection-in-range=\"true\"]"
-                 && entry.status == reference_metadata::ImplementationStatus::Partial
-         }));
++                && entry.status == reference_metadata::ImplementationStatus::Partial
++        }));
 +        assert!(metadata.styling.iter().any(|entry| {
 +            entry.class_or_token == ".range-calendar__nav-button"
 +                && entry.rust.contains("small_radius")
@@ -198654,6 +198713,7 @@ index 6452b2b7..2811cfb1 100644
 +            "isRequired",
 +            "name",
 +            "variant",
++            "fullWidth",
          ] {
              assert!(metadata.api.iter().any(|entry| {
 -                entry.owner == owner
@@ -198679,7 +198739,6 @@ index 6452b2b7..2811cfb1 100644
 -                && entry.status == reference_metadata::ImplementationStatus::Implemented
 -        }));
 +        for (owner, prop) in [
-+            ("Select", "fullWidth"),
 +            ("Select.Indicator", "children"),
 +            ("Select.Popover", "placement"),
 +        ] {
@@ -198703,7 +198762,7 @@ index 6452b2b7..2811cfb1 100644
          }
 +        assert!(metadata.styling.iter().any(|entry| {
 +            entry.class_or_token == ".select--full-width / .select__trigger--full-width"
-+                && entry.status == reference_metadata::ImplementationStatus::Partial
++                && entry.status == reference_metadata::ImplementationStatus::Implemented
 +        }));
 +        assert!(metadata.states.iter().any(|entry| {
 +            entry.state == "Disabled"
@@ -198816,14 +198875,14 @@ index 6452b2b7..2811cfb1 100644
 +                .rust_owner,
 +            "TableRow"
 +        );
-+        assert!(metadata.parts.iter().any(|entry| {
+         assert!(metadata.parts.iter().any(|entry| {
+-            entry.name == "RangeCalendar.YearPickerGrid"
+-                && entry.slot == "calendar-year-picker-grid"
 +            entry.name == "Table.Cell"
 +                && entry.rust_owner == "TableRow"
 +                && entry.status == reference_metadata::ImplementationStatus::Partial
 +        }));
-         assert!(metadata.parts.iter().any(|entry| {
--            entry.name == "RangeCalendar.YearPickerGrid"
--                && entry.slot == "calendar-year-picker-grid"
++        assert!(metadata.parts.iter().any(|entry| {
 +            entry.name == "Table.ColumnResizer"
 +                && entry.status == reference_metadata::ImplementationStatus::Partial
 +        }));
@@ -200177,7 +200236,7 @@ index 6452b2b7..2811cfb1 100644
      }
  }
 diff --git a/gallery/src/pages/reference_metadata.rs b/gallery/src/pages/reference_metadata.rs
-index 71065ac8..6332d768 100644
+index 71065ac8..8c32406a 100644
 --- a/gallery/src/pages/reference_metadata.rs
 +++ b/gallery/src/pages/reference_metadata.rs
 @@ -22,7 +22,12 @@ impl ImplementationStatus {
@@ -200846,6 +200905,15 @@ index 71065ac8..6332d768 100644
          status: ImplementationStatus::Partial,
      },
      StyleDoc {
+@@ -11056,7 +11091,7 @@ const SELECT_API: &[ApiDoc] = &[
+     ApiDoc { owner: "Select", prop: "isInvalid", ty: "boolean", default: "—", description: "Forces the field into its invalid state.", rust_owner: "Select", rust: "is_invalid(bool)", status: ImplementationStatus::Implemented },
+     ApiDoc { owner: "Select", prop: "name", ty: "string", default: "—", description: "Exports a live single- or multiple-selection FormField with disabled omission and reset behavior.", rust_owner: "Select", rust: "name(name)", status: ImplementationStatus::Implemented },
+     ApiDoc { owner: "Select", prop: "autoComplete", ty: "string", default: "—", description: "Browser autofill hint; GPUI has no browser input autocomplete channel.", rust_owner: "Select", rust: "—", status: ImplementationStatus::Unavailable },
+-    ApiDoc { owner: "Select", prop: "fullWidth", ty: "boolean", default: "false", description: "Expands the trigger inside a root that remains capped at 320px.", rust_owner: "Select", rust: "full_width(bool)", status: ImplementationStatus::Partial },
++    ApiDoc { owner: "Select", prop: "fullWidth", ty: "boolean", default: "false", description: "Expands both the root and trigger to the available width.", rust_owner: "Select", rust: "full_width(bool)", status: ImplementationStatus::Implemented },
+     ApiDoc { owner: "Select", prop: "variant", ty: "\"primary\" | \"secondary\"", default: "\"primary\"", description: "Selects the shadowed or lower-emphasis field chrome.", rust_owner: "Select", rust: "variant(FieldVariant)", status: ImplementationStatus::Implemented },
+     ApiDoc { owner: "Select", prop: "className", ty: "string", default: "—", description: "Additional CSS classes.", rust_owner: "Select", rust: "—", status: ImplementationStatus::Unavailable },
+     ApiDoc { owner: "Select", prop: "children", ty: "ReactNode | RenderFunction", default: "—", description: "Compound parts; GPUI takes a typed option collection and draws the field structure.", rust_owner: "Select", rust: "new(id, options)", status: ImplementationStatus::Partial },
 @@ -11087,7 +11122,7 @@ const SELECT_PARTS: &[PartDoc] = &[
  
  const SELECT_STATES: &[StateDoc] = &[
@@ -200855,14 +200923,25 @@ index 71065ac8..6332d768 100644
      StateDoc { state: "Disabled", selector: ".select__trigger[data-disabled]", description: "Field is dimmed, inert, untabbable and omitted from FormData while disabled.", rust: "is_disabled + live FormField is_successful", status: ImplementationStatus::Implemented },
      StateDoc { state: "Invalid", selector: ".select[data-invalid]", description: "Invalid field chrome applies the focus background and suppresses the description row.", rust: "is_invalid + description suppression", status: ImplementationStatus::Implemented },
      StateDoc { state: "Placeholder", selector: ".select__value[data-placeholder]", description: "Empty value uses muted placeholder colour.", rust: "SelectionValue::is_placeholder", status: ImplementationStatus::Implemented },
-@@ -11101,6 +11136,7 @@ const SELECT_STATES: &[StateDoc] = &[
+@@ -11101,7 +11136,8 @@ const SELECT_STATES: &[StateDoc] = &[
  ];
  
  const SELECT_STYLING: &[StyleDoc] = &[
+-    StyleDoc { class_or_token: ".select", value: "flex flex-col gap-1", description: "The inner field wrapper stacks at four pixels only when label or description content exists; the root also adds a 320px cap.", rust: "conditional flex_col + gap(px(4.)) inside max_w(px(320.))", status: ImplementationStatus::Partial },
 +    StyleDoc { class_or_token: "text-sm / .header", value: "14px/20px value and option text; Header 12px/16px medium px-2 pt-1.5 pb-1", description: "Text keeps its line height under surrounding styles. Section headers have 8px horizontal, 6px top and 4px bottom padding; selecting an option does not add font weight.", rust: "Select text_size + line_height + section header styles", status: ImplementationStatus::Implemented },
-     StyleDoc { class_or_token: ".select", value: "flex flex-col gap-1", description: "The inner field wrapper stacks at four pixels only when label or description content exists; the root also adds a 320px cap.", rust: "conditional flex_col + gap(px(4.)) inside max_w(px(320.))", status: ImplementationStatus::Partial },
++    StyleDoc { class_or_token: ".select", value: "flex flex-col gap-1", description: "The inner field wrapper stacks at four pixels only when label or description content exists; the root adds a 320px cap unless full width is enabled.", rust: "conditional flex_col + gap(px(4.)) + default max_w(px(320.))", status: ImplementationStatus::Partial },
      StyleDoc { class_or_token: ".select[data-invalid] [data-slot=description]", value: "hidden", description: "Description text is suppressed while the field is invalid.", rust: "description rendered only when !is_invalid", status: ImplementationStatus::Implemented },
      StyleDoc { class_or_token: ".select > [data-slot=label]", value: "w-fit", description: "The shared label has natural content but does not explicitly opt out of flex-column stretching.", rust: "Label natural width", status: ImplementationStatus::Partial },
+     StyleDoc { class_or_token: ".select__trigger", value: "min-h-9 px-3 py-2 rounded-field border bg-field shadow-field text-sm", description: "Primary trigger dimensions, chrome and typography.", rust: "h(px(36.)) + px(px(12.)) + field chrome", status: ImplementationStatus::Implemented },
+@@ -11120,7 +11156,7 @@ const SELECT_STYLING: &[StyleDoc] = &[
+     StyleDoc { class_or_token: ".select__popover[data-exiting]", value: "100ms ease-smooth fade-out zoom-out-95", description: "Exit motion matches.", rust: "Motion::LIST_OUT + exiting", status: ImplementationStatus::Implemented },
+     StyleDoc { class_or_token: ".select__popover .list-box / .list-box-item", value: "p-1.5 / px-2.5", description: "Six-pixel list inset and ten-pixel option-row horizontal padding.", rust: "panel p(px(6.)) + option px(px(10.))", status: ImplementationStatus::Implemented },
+     StyleDoc { class_or_token: ".select:not([data-selection-mode=multiple]) indicators", value: "transition-none", description: "GPUI has no indicator transition in either selection mode.", rust: "static indicator", status: ImplementationStatus::Partial },
+-    StyleDoc { class_or_token: ".select--full-width / .select__trigger--full-width", value: "w-full", description: "The trigger expands, but the root retains its unconditional 320px maximum width.", rust: "field.w_full() inside root.max_w(px(320.))", status: ImplementationStatus::Partial },
++    StyleDoc { class_or_token: ".select--full-width / .select__trigger--full-width", value: "w-full", description: "Both the root and trigger expand to the available container width.", rust: "root.w_full() + field.w_full()", status: ImplementationStatus::Implemented },
+ ];
+ 
+ pub(crate) const SELECT: ReferenceMetadata = ReferenceMetadata {
 @@ -11184,7 +11220,7 @@ const POPOVER_STATES: &[StateDoc] = &[
  ];
  

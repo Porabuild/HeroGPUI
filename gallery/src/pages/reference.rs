@@ -3806,6 +3806,7 @@ impl Widget {
             "isRequired",
             "name",
             "variant",
+            "fullWidth",
         ] {
             assert!(metadata.api.iter().any(|entry| {
                 entry.owner == "Select"
@@ -3821,7 +3822,6 @@ impl Widget {
             }));
         }
         for (owner, prop) in [
-            ("Select", "fullWidth"),
             ("Select.Indicator", "children"),
             ("Select.Popover", "placement"),
         ] {
@@ -3843,7 +3843,7 @@ impl Widget {
         }
         assert!(metadata.styling.iter().any(|entry| {
             entry.class_or_token == ".select--full-width / .select__trigger--full-width"
-                && entry.status == reference_metadata::ImplementationStatus::Partial
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
         }));
         assert!(metadata.states.iter().any(|entry| {
             entry.state == "Disabled"

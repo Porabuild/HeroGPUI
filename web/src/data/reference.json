@@ -18853,10 +18853,10 @@
         "prop": "fullWidth",
         "type": "boolean",
         "default": "false",
-        "description": "Expands the trigger inside a root that remains capped at 320px.",
+        "description": "Expands both the root and trigger to the available width.",
         "rustOwner": "Select",
         "rust": "full_width(bool)",
-        "status": "partial"
+        "status": "implemented"
       },
       {
         "owner": "Select",
@@ -19171,8 +19171,8 @@
       },
       {
         "token": ".select",
-        "description": "The inner field wrapper stacks at four pixels only when label or description content exists; the root also adds a 320px cap.",
-        "rust": "conditional flex_col + gap(px(4.)) inside max_w(px(320.))",
+        "description": "The inner field wrapper stacks at four pixels only when label or description content exists; the root adds a 320px cap unless full width is enabled.",
+        "rust": "conditional flex_col + gap(px(4.)) + default max_w(px(320.))",
         "status": "partial"
       },
       {
@@ -19285,9 +19285,9 @@
       },
       {
         "token": ".select--full-width / .select__trigger--full-width",
-        "description": "The trigger expands, but the root retains its unconditional 320px maximum width.",
-        "rust": "field.w_full() inside root.max_w(px(320.))",
-        "status": "partial"
+        "description": "Both the root and trigger expand to the available container width.",
+        "rust": "root.w_full() + field.w_full()",
+        "status": "implemented"
       }
     ]
   },
