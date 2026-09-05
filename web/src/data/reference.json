@@ -3785,7 +3785,7 @@
         "prop": "placement",
         "type": "Placement",
         "default": "bottom left",
-        "description": "Positions and flips the floating panel through the shared placement engine, with an 8px trigger gap and 12px viewport inset.",
+        "description": "Positions and flips the floating panel to the side with more room when the preferred side cannot fit through the shared placement engine, keeping a 12px cross-axis viewport inset with the scroller capped to the available height.",
         "rustOwner": "ColorPicker",
         "rust": "placement(Placement)",
         "status": "implemented"
@@ -17064,7 +17064,7 @@
       },
       {
         "token": ".combo-box__popover",
-        "description": "Anchored to the field with an 8px gap and 12px viewport inset, flipping when the preferred side cannot fit and the opposite side has more room; plain and virtual lists scroll within the available height and wheel input stays in the panel. The port uses its own 4px panel inset and exact trigger width rather than upstream p-0 and min-width.",
+        "description": "Anchored to the field with an 8px gap, flipping to the side with more room when the preferred side cannot fit, keeping a 12px cross-axis viewport inset with the scroller capped to the available height; plain and virtual lists scroll within the available height and wheel input stays in the panel. The port uses its own 4px panel inset and exact trigger width rather than upstream p-0 and min-width.",
         "rust": "scrollable_field_popover + max_h_full (plain) / Infer (virtual) + occlude + p(px(4.)) + overlay bg/shadow",
         "status": "partial"
       },
@@ -17723,7 +17723,7 @@
       },
       {
         "token": ".autocomplete__popover",
-        "description": "Anchors to the measured trigger with an 8px gap and 12px viewport inset, flipping when the preferred side cannot fit and the opposite side has more room; the search stays visible while the inner list scrolls and shrinks to the available height within the upstream 320px max, and virtual paging follows the visible list height. The reduced placement vocabulary and placement slide remain unported.",
+        "description": "Anchors to the measured trigger with an 8px gap, flipping to the side with more room when the preferred side cannot fit and keeping a 12px cross-axis viewport inset with the scroller capped to the available height; the search stays visible while the inner list scrolls and shrinks to the available height within the upstream 320px max, and virtual paging follows the visible list height. The reduced placement vocabulary and placement slide remain unported.",
         "rust": "placement(Placement) + pt(px(8.)) + max_h(px(320.)) + scroll + overlay bg/shadow",
         "status": "partial"
       },
@@ -19273,7 +19273,7 @@
       },
       {
         "token": ".select__popover",
-        "description": "Anchored to the measured trigger width with an 8px gap and 12px viewport inset, scrolling within the available height; the plain list scrolls the panel and the virtual list sizes itself to the same bound. Overlay surface, radius and shadow.",
+        "description": "Anchored to the measured trigger width with an 8px gap, flipping to the side with more room when the preferred side cannot fit and keeping a 12px cross-axis viewport inset with the scroller capped to the available height; the plain list scrolls the panel and the virtual list sizes itself to the same bound. Overlay surface, radius and shadow.",
         "rust": "scrollable_field_popover + max_h_full (plain) / Infer (virtual) + floating_radius + overlay_shadow",
         "status": "implemented"
       },
