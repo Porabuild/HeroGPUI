@@ -11758,9 +11758,9 @@
       },
       {
         "token": ".calendar__heading",
-        "description": "Heading size matches, but the port uses semibold weight.",
-        "rust": "text_size(14px) + SEMIBOLD",
-        "status": "partial"
+        "description": "Month headings use 14px/20px medium text independent of the host line height.",
+        "rust": "text_size(14px) + line_height(20px) + MEDIUM",
+        "status": "implemented"
       },
       {
         "token": ".calendar__header:has([data-open=\"true\"])",
@@ -11800,8 +11800,8 @@
       },
       {
         "token": ".calendar__header-cell",
-        "description": "Size and muted color match; bottom padding and medium weight are absent.",
-        "rust": "text_size(12px) + muted",
+        "description": "Weekday labels use 12px/16px medium muted text; bottom padding remains absent.",
+        "rust": "text_size(12px) + line_height(16px) + MEDIUM + muted",
         "status": "partial"
       },
       {
@@ -11860,8 +11860,8 @@
       },
       {
         "token": ".calendar-year-picker__trigger-heading",
-        "description": "Text size matches; weight, open color and transition do not.",
-        "rust": "text_size(14px) + SEMIBOLD",
+        "description": "The 14px/20px medium text matches; open color and transition do not.",
+        "rust": "text_size(14px) + line_height(20px) + MEDIUM",
         "status": "partial"
       },
       {
@@ -11885,7 +11885,7 @@
       {
         "token": ".calendar-year-picker__year-cell",
         "description": "Year geometry and selected/hover/focus treatments are present; transitions are absent.",
-        "rust": "h(32px) + px(10px) + control_radius + text_size(14px)",
+        "rust": "h(32px) + px(10px) + control_radius + text_size(14px) + line_height(20px) + MEDIUM",
         "status": "partial"
       }
     ]
@@ -14925,9 +14925,9 @@
       },
       {
         "token": ".range-calendar__heading",
-        "description": "Size matches; the port uses semibold weight.",
-        "rust": "text_size(14px) + SEMIBOLD",
-        "status": "partial"
+        "description": "Month headings use 14px/20px medium text independent of the host line height.",
+        "rust": "text_size(14px) + line_height(20px) + MEDIUM",
+        "status": "implemented"
       },
       {
         "token": ".range-calendar__nav-button",
@@ -14955,8 +14955,8 @@
       },
       {
         "token": ".range-calendar__header-cell",
-        "description": "Size and color match; padding and medium weight do not.",
-        "rust": "text_size(12px) + muted",
+        "description": "Weekday labels use 12px/16px medium muted text; bottom padding remains absent.",
+        "rust": "text_size(12px) + line_height(16px) + MEDIUM + muted",
         "status": "partial"
       },
       {
@@ -15052,7 +15052,7 @@
       {
         "token": ".calendar-year-picker__year-cell",
         "description": "Geometry and core states exist; transitions are absent.",
-        "rust": "32px + px(10px) + control radius",
+        "rust": "32px + px(10px) + control radius + text_size(14px) + line_height(20px) + MEDIUM",
         "status": "partial"
       }
     ]

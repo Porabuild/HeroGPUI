@@ -841,6 +841,8 @@ impl RangeCalendar {
                     .text_center()
                     // `.range-calendar__header-cell` is `text-xs`.
                     .text_size(px(12.))
+                    .line_height(px(16.))
+                    .font_weight(gpui::FontWeight::MEDIUM)
                     .text_color(muted)
                     .child(label),
             );
@@ -981,12 +983,11 @@ impl RangeCalendar {
                     .items_center()
                     .justify_center()
                     .text_size(px(14.))
+                    .line_height(px(20.))
+                    .font_weight(gpui::FontWeight::MEDIUM)
                     .rounded(util::control_radius(cx));
                 if is_active {
-                    cell = cell
-                        .bg(accent.color)
-                        .text_color(accent.foreground)
-                        .font_weight(gpui::FontWeight::SEMIBOLD);
+                    cell = cell.bg(accent.color).text_color(accent.foreground);
                 } else if !self.is_disabled {
                     // `.calendar-year-picker__year-cell:hover` fills
                     // `bg-default text-default-foreground`.
@@ -1370,7 +1371,8 @@ impl RenderOnce for RangeCalendar {
          -> gpui::AnyElement {
             let label = div()
                 .text_size(px(14.))
-                .font_weight(gpui::FontWeight::SEMIBOLD)
+                .line_height(px(20.))
+                .font_weight(gpui::FontWeight::MEDIUM)
                 .child(text);
             match &self.on_year_picker_open_change {
                 // No handler and no state of our own: a plain label.
@@ -1907,6 +1909,8 @@ impl RenderOnce for RangeCalendar {
                         .text_center()
                         // A header cell is `text-xs`, like the seven-column one.
                         .text_size(px(12.))
+                        .line_height(px(16.))
+                        .font_weight(gpui::FontWeight::MEDIUM)
                         .text_color(colors.muted)
                         .child(Weekday::ALL[weekday_index(*d)].short_label().to_owned())
                 })));

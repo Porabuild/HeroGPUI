@@ -367,7 +367,8 @@ ProgressBar, ProgressCircle, Spinner and Typography; elsewhere `variant` (or
 ### Calendar view model (`calendar_view`)
 
 `Calendar` and `RangeCalendar` show a month grid, several month grids side by
-side, a run of week rows, or a rolling window of days:
+side, a run of week rows, or a rolling window of days. Month headings and year
+cells use 14px/20px medium text; weekday labels use 12px/16px medium text.
 
 - `visible_duration(VisibleDuration::Months(2) | Weeks(2) | Days(5))`
 - `page_behavior(PageBehavior::Visible | Single)` — step the whole range or one unit

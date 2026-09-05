@@ -7379,9 +7379,9 @@ const CALENDAR_STYLING: &[StyleDoc] = &[
     StyleDoc {
         class_or_token: ".calendar__heading",
         value: "flex-1 text-sm font-medium",
-        description: "Heading size matches, but the port uses semibold weight.",
-        rust: "text_size(14px) + SEMIBOLD",
-        status: ImplementationStatus::Partial,
+        description: "Month headings use 14px/20px medium text independent of the host line height.",
+        rust: "text_size(14px) + line_height(20px) + MEDIUM",
+        status: ImplementationStatus::Implemented,
     },
     StyleDoc {
         class_or_token: ".calendar__header:has([data-open=\"true\"])",
@@ -7428,8 +7428,8 @@ const CALENDAR_STYLING: &[StyleDoc] = &[
     StyleDoc {
         class_or_token: ".calendar__header-cell",
         value: "pb-2 text-xs font-medium text-muted",
-        description: "Size and muted color match; bottom padding and medium weight are absent.",
-        rust: "text_size(12px) + muted",
+        description: "Weekday labels use 12px/16px medium muted text; bottom padding remains absent.",
+        rust: "text_size(12px) + line_height(16px) + MEDIUM + muted",
         status: ImplementationStatus::Partial,
     },
     StyleDoc {
@@ -7498,8 +7498,8 @@ const CALENDAR_STYLING: &[StyleDoc] = &[
     StyleDoc {
         class_or_token: ".calendar-year-picker__trigger-heading",
         value: "text-sm font-medium; color 150ms ease-out; open accent-soft foreground",
-        description: "Text size matches; weight, open color and transition do not.",
-        rust: "text_size(14px) + SEMIBOLD",
+        description: "The 14px/20px medium text matches; open color and transition do not.",
+        rust: "text_size(14px) + line_height(20px) + MEDIUM",
         status: ImplementationStatus::Partial,
     },
     StyleDoc {
@@ -7527,7 +7527,7 @@ const CALENDAR_STYLING: &[StyleDoc] = &[
         class_or_token: ".calendar-year-picker__year-cell",
         value: "h-8 px-2.5 rounded-3xl text-sm font-medium",
         description: "Year geometry and selected/hover/focus treatments are present; transitions are absent.",
-        rust: "h(32px) + px(10px) + control_radius + text_size(14px)",
+        rust: "h(32px) + px(10px) + control_radius + text_size(14px) + line_height(20px) + MEDIUM",
         status: ImplementationStatus::Partial,
     },
 ];
@@ -7813,12 +7813,12 @@ const RANGE_CALENDAR_STYLING: &[StyleDoc] = &[
     StyleDoc { class_or_token: ".range-calendar", value: "w-63 max-w-63; container-type inline-size", description: "Week/day roots use 252px, but month view paints 266px; GPUI also has no container-query context.", rust: "CALENDAR_WIDTH 252px / month column 266px", status: ImplementationStatus::Partial },
     StyleDoc { class_or_token: ".range-calendar--week/day-view", value: "circular cells; isolated seven-column headers and bodies", description: "Week layout matches; long day runs stay linear instead of wrapping like v3.", rust: "VisibleDuration week/day branches", status: ImplementationStatus::Partial },
     StyleDoc { class_or_token: ".range-calendar__header", value: "flex items-center justify-between px-0.5 pb-4", description: "Alignment and inset match; vertical spacing is supplied by the root gap.", rust: "items_center + justify_between + px(2px)", status: ImplementationStatus::Partial },
-    StyleDoc { class_or_token: ".range-calendar__heading", value: "flex-1 text-sm font-medium", description: "Size matches; the port uses semibold weight.", rust: "text_size(14px) + SEMIBOLD", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".range-calendar__heading", value: "flex-1 text-sm font-medium", description: "Month headings use 14px/20px medium text independent of the host line height.", rust: "text_size(14px) + line_height(20px) + MEDIUM", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".range-calendar__nav-button", value: "size-6 rounded-xl; transform 250ms; colors/shadow 100ms", description: "Geometry, hover, disabled and focus exist; press and property interpolation are incomplete.", rust: "24px + small_radius + hover + focus ring", status: ImplementationStatus::Partial },
     StyleDoc { class_or_token: ".range-calendar__nav-button-icon", value: "size-4; RTL rotate 180deg", description: "Size matches; direction-aware rotation is unavailable.", rust: "svg size(16px)", status: ImplementationStatus::Partial },
     StyleDoc { class_or_token: ".range-calendar__grid", value: "grid repeat(7, 1fr) w-full", description: "Seven flex cells are fixed at 38px rather than v3's 36px columns inside a 252px root.", rust: "seven 38px cells per flex row", status: ImplementationStatus::Partial },
     StyleDoc { class_or_token: ".range-calendar__grid-header/body", value: "display: contents; first body row mt-1", description: "Explicit flex siblings replace flattened table contents.", rust: "weekday_header + month_grid flex columns", status: ImplementationStatus::Partial },
-    StyleDoc { class_or_token: ".range-calendar__header-cell", value: "pb-2 text-xs font-medium text-muted", description: "Size and color match; padding and medium weight do not.", rust: "text_size(12px) + muted", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".range-calendar__header-cell", value: "pb-2 text-xs font-medium text-muted", description: "Weekday labels use 12px/16px medium muted text; bottom padding remains absent.", rust: "text_size(12px) + line_height(16px) + MEDIUM + muted", status: ImplementationStatus::Partial },
     StyleDoc { class_or_token: ".range-calendar__cell", value: "relative my-0.5 rounded-3xl outline-none", description: "The 36px range segment contains a separate inner day button; 4px row gaps reproduce the spacing between cells.", rust: "36px range segment + row gap(4px)", status: ImplementationStatus::Partial },
     StyleDoc { class_or_token: ".range-calendar__cell-button", value: "aspect-square w-full rounded-3xl text-sm font-medium", description: "The inner day button centers 14px/20px medium text, including selected endpoints and custom cell content.", rust: "36px inner cell + text_size(14px) + line_height(20px) + MEDIUM", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".range-calendar__cell-button transition", value: "scale 200ms ease-out; motion-reduce none", description: "The 0.9 target is exact, but the scale lands on a frame.", rust: "anim::pressed instantaneous geometry", status: ImplementationStatus::Partial },
@@ -7834,7 +7834,7 @@ const RANGE_CALENDAR_STYLING: &[StyleDoc] = &[
     StyleDoc { class_or_token: ".calendar-year-picker__trigger-indicator", value: "rotate 90deg over 150ms when open", description: "The port swaps up/down glyphs without rotation interpolation.", rust: "CHEVRON_UP / CHEVRON_DOWN", status: ImplementationStatus::Partial },
     StyleDoc { class_or_token: ".range-calendar:has(.calendar-year-picker__year-grid) > [data-slot=\"range-calendar-grid\"]", value: "day 150ms fade; year 200ms fade after 50ms", description: "The day grid is replaced immediately.", rust: "conditional tree replacement", status: ImplementationStatus::Unavailable },
     StyleDoc { class_or_token: ".calendar-year-picker__year-grid", value: "absolute three-column grid gap-1 overflow-y-auto p-1", description: "Columns, gap and padding match; overlay positioning and scrolling do not.", rust: "three-cell rows + gap(4px) + p(4px)", status: ImplementationStatus::Partial },
-    StyleDoc { class_or_token: ".calendar-year-picker__year-cell", value: "h-8 px-2.5 rounded-3xl text-sm font-medium", description: "Geometry and core states exist; transitions are absent.", rust: "32px + px(10px) + control radius", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".calendar-year-picker__year-cell", value: "h-8 px-2.5 rounded-3xl text-sm font-medium", description: "Geometry and core states exist; transitions are absent.", rust: "32px + px(10px) + control radius + text_size(14px) + line_height(20px) + MEDIUM", status: ImplementationStatus::Partial },
 ];
 
 pub(crate) const RANGE_CALENDAR: ReferenceMetadata = ReferenceMetadata {

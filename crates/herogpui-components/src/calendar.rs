@@ -958,6 +958,8 @@ impl Calendar {
                     .text_center()
                     // `.calendar__header-cell` is `text-xs`.
                     .text_size(px(12.))
+                    .line_height(px(16.))
+                    .font_weight(gpui::FontWeight::MEDIUM)
                     .text_color(muted)
                     .child(d.to_owned())
             }))
@@ -1101,13 +1103,12 @@ impl Calendar {
                     .items_center()
                     .justify_center()
                     .text_size(px(14.))
+                    .line_height(px(20.))
+                    .font_weight(gpui::FontWeight::MEDIUM)
                     .rounded(crate::util::control_radius(cx));
 
                 if is_active {
-                    cell = cell
-                        .bg(accent.color)
-                        .text_color(accent.foreground)
-                        .font_weight(gpui::FontWeight::SEMIBOLD);
+                    cell = cell.bg(accent.color).text_color(accent.foreground);
                 } else if !self.is_disabled {
                     // `.calendar-year-picker__year-cell:hover` fills
                     // `bg-default text-default-foreground`.
@@ -1475,7 +1476,8 @@ impl RenderOnce for Calendar {
          -> gpui::AnyElement {
             let label = gpui::div()
                 .text_size(px(14.))
-                .font_weight(gpui::FontWeight::SEMIBOLD)
+                .line_height(px(20.))
+                .font_weight(gpui::FontWeight::MEDIUM)
                 .child(text);
             match &self.on_year_picker_open_change {
                 // No handler and no state of our own: a plain label.
@@ -1934,7 +1936,9 @@ impl RenderOnce for Calendar {
                     gpui::div()
                         .flex_1()
                         .text_center()
-                        .text_size(px(11.))
+                        .text_size(px(12.))
+                        .line_height(px(16.))
+                        .font_weight(gpui::FontWeight::MEDIUM)
                         .text_color(colors.muted)
                         .child(Weekday::ALL[weekday_index(*d)].short_label().to_owned())
                 })));

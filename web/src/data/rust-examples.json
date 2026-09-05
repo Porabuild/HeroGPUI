@@ -988,6 +988,7 @@
     },
     {
       "heading": "Usage",
+      "description": "Month and year labels use 14px/20px medium text; weekday labels use 12px/16px medium text.",
       "imports": "use herogpui::prelude::{Calendar, CalendarState, Date};\nuse gpui::prelude::*;\nuse gpui::px;",
       "code": "gpui::div()\n    .flex()\n    .flex_col()\n    .items_start()\n    .gap(px(12.))\n    .children(vec![\n        Calendar::new(self.calendar.clone())\n            .on_change(opt_date_cb(cx.listener(\n                |this, d: &Option<Date>, _, cx| {\n                    this.cal_picked = *d;\n                    cx.notify();\n                },\n            )))\n            .into_any_element(),\n        para(\n            &match picked {\n                Some(d) => format!(\"Selected: {}\", d.format_iso()),\n                None => \"No date selected\".to_owned(),\n            },\n            cx,\n        ),\n    ])"
     },

@@ -84,6 +84,46 @@ fn range_day_text_keeps_pinned_metrics_in_every_state(cx: &mut TestAppContext) {
     }
 }
 
+#[gpui::test]
+fn calendar_headers_do_not_inherit_host_line_height(cx: &mut TestAppContext) {
+    for range in [false, true] {
+        for duration in [
+            VisibleDuration::Months(1),
+            VisibleDuration::Weeks(1),
+            VisibleDuration::Days(3),
+        ] {
+            let mut heights = Vec::new();
+            for leading in [20., 48.] {
+                let calendar = cx.new(|cx| CalendarState::new(cx));
+                let range_calendar = cx.new(|cx| DateRangeState::new(cx));
+                let cx = open_host(cx, move || {
+                    let content = if range {
+                        RangeCalendar::new(range_calendar.clone())
+                            .default_value((Date::new(2026, 8, 10), Date::new(2026, 8, 15)))
+                            .visible_duration(duration)
+                            .into_any_element()
+                    } else {
+                        Calendar::new(calendar.clone())
+                            .default_value(Date::new(2026, 8, 10))
+                            .visible_duration(duration)
+                            .into_any_element()
+                    };
+                    gpui::div()
+                        .debug_selector(|| "header-leading-host".to_owned())
+                        .line_height(px(leading))
+                        .child(content)
+                        .into_any_element()
+                });
+                heights.push(cx.debug_bounds("header-leading-host").unwrap().size.height);
+            }
+            assert_eq!(
+                heights[0], heights[1],
+                "range={range}, duration={duration:?}"
+            );
+        }
+    }
+}
+
 /// Column *c*'s centre in a bare Calendar: seven cells across
 /// `CALENDAR_WIDTH` minus six 2px gaps.
 fn cal_col_x(col: usize) -> f32 {

@@ -4309,6 +4309,7 @@ impl Gallery {
                 ),
                 (
                     "Usage",
+                    "Month and year labels use 14px/20px medium text; weekday labels use 12px/16px medium text.",
                     col(vec![
                         h::Calendar::new(self.calendar.clone())
                             .on_change(opt_date_cb(cx.listener(
