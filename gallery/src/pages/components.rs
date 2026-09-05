@@ -8749,6 +8749,7 @@ impl Gallery {
                 .bg(cx.colors().surface_tertiary)
                 .text_color(cx.colors().foreground)
                 .text_size(px(12.))
+                .line_height(px(16.))
                 .child(format!("+{}", names.len() - 3)),
             ring,
         )));
@@ -8759,6 +8760,7 @@ impl Gallery {
             vec![
                 (
                     "Usage",
+                    "Fallback text uses 14px text with 20px lines, or 16px text with 24px lines for large avatars.",
                     row(vec![h::Avatar::new("usage-avatar")
                         .name("Jane Doe")
                         .into_any_element()]),

@@ -11700,7 +11700,7 @@ index debe0354..ab7aa154 100644
                          .child("No results found"),
                  );
 diff --git a/crates/herogpui-components/src/avatar.rs b/crates/herogpui-components/src/avatar.rs
-index da3c0c96..5bc08817 100644
+index da3c0c96..f91eb678 100644
 --- a/crates/herogpui-components/src/avatar.rs
 +++ b/crates/herogpui-components/src/avatar.rs
 @@ -1,11 +1,11 @@
@@ -11887,7 +11887,7 @@ index da3c0c96..5bc08817 100644
          self
      }
  
-@@ -125,162 +200,282 @@ impl Avatar {
+@@ -125,162 +200,285 @@ impl Avatar {
          self.color = c;
          self
      }
@@ -11995,6 +11995,7 @@ index da3c0c96..5bc08817 100644
 +        // `.avatar__fallback` is `text-sm`; `.avatar--lg .avatar__fallback`
 +        // steps the fallback text up to `text-base`.
 +        let font = if self.large { px(16.) } else { px(14.) };
++        let leading = if self.large { px(24.) } else { px(20.) };
 +        let radius = if self.small {
 +            crate::util::soft_radius(cx)
 +        } else {
@@ -12020,6 +12021,7 @@ index da3c0c96..5bc08817 100644
 -            .text_color(fg)
 +            .text_color(soft_fg)
              .text_size(font)
++            .line_height(leading)
              .font_weight(gpui::FontWeight::MEDIUM)
              .overflow_hidden()
              .flex_shrink_0();
@@ -12050,6 +12052,7 @@ index da3c0c96..5bc08817 100644
 +            .bg(fallback_bg)
 +            .text_color(soft_fg)
 +            .text_size(font)
++            .line_height(leading)
 +            .font_weight(gpui::FontWeight::MEDIUM)
 +            .child(fallback_content);
 +
@@ -12290,7 +12293,7 @@ index da3c0c96..5bc08817 100644
      }
  }
  
-@@ -298,15 +493,36 @@ mod fill_tokens {
+@@ -298,15 +496,36 @@ mod fill_tokens {
              .next()
              .expect("the implementation section is always present");
          assert!(
@@ -12334,7 +12337,7 @@ index da3c0c96..5bc08817 100644
          );
          assert!(
              !source.contains("colors().muted"),
-@@ -318,7 +534,7 @@ mod fill_tokens {
+@@ -318,7 +537,7 @@ mod fill_tokens {
              "the base avatar fills `bg-default`, not a surface level"
          );
          assert!(
@@ -24519,10 +24522,10 @@ index 0b54a3cc..9e005f7b 100644
  }
 diff --git a/crates/herogpui-components/tests/avatar_deep.rs b/crates/herogpui-components/tests/avatar_deep.rs
 new file mode 100644
-index 00000000..1476a7d3
+index 00000000..2d61cbfe
 --- /dev/null
 +++ b/crates/herogpui-components/tests/avatar_deep.rs
-@@ -0,0 +1,935 @@
+@@ -0,0 +1,963 @@
 +//! Avatar runtime behavior against the pinned v3.2.4 contract (HeroUI
 +//! `avatar.css` + Radix Avatar 1.1.11 fallback semantics).
 +//!
@@ -24548,6 +24551,34 @@ index 00000000..1476a7d3
 +use harness::{events, open_host};
 +use herogpui_components::Avatar;
 +use herogpui_core::Size;
++
++#[gpui::test]
++fn fallback_lines_keep_the_size_specific_leading(cx: &mut TestAppContext) {
++    for (size, height) in [(Size::Sm, 40.), (Size::Md, 40.), (Size::Lg, 48.)] {
++        for inherited in [None, Some(48.)] {
++            let cx = open_host(cx, move || {
++                gpui::div()
++                    .when_some(inherited, |root, leading| root.line_height(px(leading)))
++                    .child(
++                        Avatar::new("fallback-leading")
++                            .size(size)
++                            .fallback(
++                                gpui::div()
++                                    .debug_selector(|| "fallback-lines".to_owned())
++                                    .flex()
++                                    .flex_col()
++                                    .flex_shrink_0()
++                                    .child("A")
++                                    .child("B"),
++                            ),
++                    )
++                    .into_any_element()
++            });
++            let bounds = cx.debug_bounds("fallback-lines").expect("fallback must render");
++            assert_eq!(bounds.size.height, px(height), "{size:?}, parent={inherited:?}");
++        }
++    }
++}
 +
 +/// A valid 1×1 RGBA PNG; gpui decodes it through its own image pipeline.
 +const TINY_PNG: &[u8] = &[
@@ -32697,6 +32728,23 @@ index afc5d406..d231dcfc 100644
  /// React Aria's pinned `useTable` builds its keyboard delegate from the full
  /// collection and passes the virtual layout delegate alongside it, so rows do
  /// not stop being keyboard destinations merely because they are not painted.
+diff --git a/crates/herogpui-core/src/enums.rs b/crates/herogpui-core/src/enums.rs
+index 9a9bf10b..780d64d2 100644
+--- a/crates/herogpui-core/src/enums.rs
++++ b/crates/herogpui-core/src/enums.rs
+@@ -258,9 +258,9 @@ impl Size {
+ 
+     pub fn label(self) -> &'static str {
+         match self {
+-            Size::Sm => "Sm",
+-            Size::Md => "Md",
+-            Size::Lg => "Lg",
++            Size::Sm => "Small",
++            Size::Md => "Medium",
++            Size::Lg => "Large",
+         }
+     }
+ }
 diff --git a/crates/herogpui-theme/src/layout.rs b/crates/herogpui-theme/src/layout.rs
 index 9e6f4917..4c38ee9f 100644
 --- a/crates/herogpui-theme/src/layout.rs
@@ -187220,7 +187268,7 @@ index 723274b0..f4c6f34d 100644
              // `HEROGPUI_WINDOW_SIZE=1200x2000` opens the window at that size.
              // A capture is one PrintWindow of the whole window, so a taller
 diff --git a/gallery/src/pages/components.rs b/gallery/src/pages/components.rs
-index 5eb12cd4..efe474f6 100644
+index 5eb12cd4..39fbe418 100644
 --- a/gallery/src/pages/components.rs
 +++ b/gallery/src/pages/components.rs
 @@ -1,7 +1,7 @@
@@ -191011,11 +191059,20 @@ index 5eb12cd4..efe474f6 100644
                  if i == 0 {
                      d.into_any_element()
                  } else {
-@@ -8369,40 +8764,61 @@ impl Gallery {
+@@ -8359,6 +8754,7 @@ impl Gallery {
+                 .bg(cx.colors().surface_tertiary)
+                 .text_color(cx.colors().foreground)
+                 .text_size(px(12.))
++                .line_height(px(16.))
+                 .child(format!("+{}", names.len() - 3)),
+             ring,
+         )));
+@@ -8369,40 +8765,62 @@ impl Gallery {
              vec![
                  (
                      "Usage",
 -                    row(vec![h::Avatar::new().name("Jane Doe").into_any_element()]),
++                    "Fallback text uses 14px text with 20px lines, or 16px text with 24px lines for large avatars.",
 +                    row(vec![h::Avatar::new("usage-avatar")
 +                        .name("Jane Doe")
 +                        .into_any_element()]),
@@ -191083,7 +191140,7 @@ index 5eb12cd4..efe474f6 100644
                                  cx,
                              )
                          })
-@@ -8412,17 +8828,22 @@ impl Gallery {
+@@ -8412,17 +8830,22 @@ impl Gallery {
                      "Colors",
                      row(Color::ALL
                          .iter()
@@ -191110,7 +191167,7 @@ index 5eb12cd4..efe474f6 100644
                                  cx,
                              )
                          })
-@@ -8440,7 +8861,8 @@ impl Gallery {
+@@ -8440,7 +8863,8 @@ impl Gallery {
                              gpui::div()
                                  .flex()
                                  .children(names.iter().take(4).enumerate().map(|(i, n)| {
@@ -191120,7 +191177,7 @@ index 5eb12cd4..efe474f6 100644
                                      if i == 0 {
                                          d.into_any_element()
                                      } else {
-@@ -8455,6 +8877,24 @@ impl Gallery {
+@@ -8455,6 +8879,24 @@ impl Gallery {
                          )
                          .into_any_element()]),
                  ),
@@ -191145,7 +191202,7 @@ index 5eb12cd4..efe474f6 100644
              ],
              cx,
          )
-@@ -8486,6 +8926,7 @@ impl Gallery {
+@@ -8486,6 +8928,7 @@ impl Gallery {
              vec![
                  (
                      "Usage",
@@ -191153,7 +191210,7 @@ index 5eb12cd4..efe474f6 100644
                      col(vec![h::Accordion::new(items())
                          .id("acc-usage")
                          .default_expanded("1")
-@@ -8774,6 +9215,30 @@ impl Gallery {
+@@ -8774,6 +9217,30 @@ impl Gallery {
                      .child(gpui::div().child("Ships in 2-4 business days."))
                      .into_any_element()]),
                  ),
@@ -191184,7 +191241,7 @@ index 5eb12cd4..efe474f6 100644
                  (
                      "Controlled",
                      col(vec![
-@@ -8866,14 +9331,8 @@ impl Gallery {
+@@ -8866,14 +9333,8 @@ impl Gallery {
                  ),
                  (
                      "Text Decoration",
@@ -191200,7 +191257,7 @@ index 5eb12cd4..efe474f6 100644
                          h::Link::new("ln-decor")
                              .label("Underlined on hover")
                              .href("#")
-@@ -8888,6 +9347,37 @@ impl Gallery {
+@@ -8888,6 +9349,37 @@ impl Gallery {
                          .href("#")
                          .into_any_element()]),
                  ),
@@ -191238,7 +191295,7 @@ index 5eb12cd4..efe474f6 100644
              ],
              cx,
          )
-@@ -8911,10 +9401,12 @@ impl Gallery {
+@@ -8911,10 +9403,12 @@ impl Gallery {
                  ),
                  (
                      "Sizes",
@@ -191251,7 +191308,7 @@ index 5eb12cd4..efe474f6 100644
                          })
                          .els()),
                  ),
-@@ -8998,13 +9490,8 @@ impl Gallery {
+@@ -8998,13 +9492,8 @@ impl Gallery {
                          .into_any_element()]),
                  ),
                  (
@@ -191266,7 +191323,7 @@ index 5eb12cd4..efe474f6 100644
                          h::Pagination::new("pg-render-props", page, 5)
                              .link(|page, is_active| {
                                  gpui::div()
-@@ -9023,13 +9510,8 @@ impl Gallery {
+@@ -9023,13 +9512,8 @@ impl Gallery {
                      ]),
                  ),
                  (
@@ -191281,7 +191338,7 @@ index 5eb12cd4..efe474f6 100644
                          h::Pagination::new("pg-custom", page, 5)
                              .previous_icon(icon(h::icons::ARROW_LEFT, cx))
                              .next_icon(icon(h::icons::ARROW_RIGHT, cx))
-@@ -9071,6 +9553,7 @@ impl Gallery {
+@@ -9071,6 +9555,7 @@ impl Gallery {
              vec![
                  (
                      "Usage",
@@ -191289,7 +191346,7 @@ index 5eb12cd4..efe474f6 100644
                      col(vec![h::Tabs::new(
                          "tabs-usage",
                          vec![
-@@ -9104,8 +9587,8 @@ impl Gallery {
+@@ -9104,8 +9589,8 @@ impl Gallery {
                  ),
                  (
                      "Overflow",
@@ -191299,7 +191356,7 @@ index 5eb12cd4..efe474f6 100644
                          para("Horizontal", cx),
                          // The list only overflows inside a bounded box, which is
                          // how v3's own example frames it.
-@@ -9226,7 +9709,7 @@ impl Gallery {
+@@ -9226,7 +9711,7 @@ impl Gallery {
              vec![
                  (
                      "Sizes",
@@ -191308,7 +191365,7 @@ index 5eb12cd4..efe474f6 100644
                          ("ad-size-xs", "Xs", h::AlertDialogSize::Xs),
                          ("ad-size-sm", "Sm", h::AlertDialogSize::Sm),
                          ("ad-size-md", "Md", h::AlertDialogSize::Md),
-@@ -9237,6 +9720,7 @@ impl Gallery {
+@@ -9237,6 +9722,7 @@ impl Gallery {
                      .map(|(key, label, size)| {
                          let open = self.demo_overlay(key);
                          overlay_demo(
@@ -191316,7 +191373,7 @@ index 5eb12cd4..efe474f6 100644
                              key,
                              label,
                              h::AlertDialog::new(format!("Size: {label}")).id(key)
-@@ -9258,7 +9742,7 @@ impl Gallery {
+@@ -9258,7 +9744,7 @@ impl Gallery {
                  ),
                  (
                      "Statuses",
@@ -191325,7 +191382,7 @@ index 5eb12cd4..efe474f6 100644
                          ("ad-st-default", "Default", Color::Default),
                          ("ad-st-accent", "Accent", Color::Accent),
                          ("ad-st-success", "Success", Color::Success),
-@@ -9269,6 +9753,7 @@ impl Gallery {
+@@ -9269,6 +9755,7 @@ impl Gallery {
                      .map(|(key, label, status)| {
                          let open = self.demo_overlay(key);
                          overlay_demo(
@@ -191333,7 +191390,7 @@ index 5eb12cd4..efe474f6 100644
                              key,
                              label,
                              h::AlertDialog::new(format!("{label} status")).id(key)
-@@ -9290,7 +9775,7 @@ impl Gallery {
+@@ -9290,7 +9777,7 @@ impl Gallery {
                  ),
                  (
                      "Placements",
@@ -191342,7 +191399,7 @@ index 5eb12cd4..efe474f6 100644
                          ("ad-pl-auto", "Auto", h::ModalPlacement::Auto),
                          ("ad-pl-center", "Center", h::ModalPlacement::Center),
                          ("ad-pl-top", "Top", h::ModalPlacement::Top),
-@@ -9300,6 +9785,7 @@ impl Gallery {
+@@ -9300,6 +9787,7 @@ impl Gallery {
                      .map(|(key, label, placement)| {
                          let open = self.demo_overlay(key);
                          overlay_demo(
@@ -191350,7 +191407,7 @@ index 5eb12cd4..efe474f6 100644
                              key,
                              label,
                              h::AlertDialog::new(format!("Placement: {label}")).id(key)
-@@ -9321,7 +9807,7 @@ impl Gallery {
+@@ -9321,7 +9809,7 @@ impl Gallery {
                  ),
                  (
                      "Backdrop Variants",
@@ -191359,7 +191416,7 @@ index 5eb12cd4..efe474f6 100644
                          .iter()
                          .map(|backdrop| {
                              let key: &'static str = match backdrop {
-@@ -9331,6 +9817,7 @@ impl Gallery {
+@@ -9331,6 +9819,7 @@ impl Gallery {
                              };
                              let open = self.demo_overlay(key);
                              overlay_demo(
@@ -191367,7 +191424,7 @@ index 5eb12cd4..efe474f6 100644
                                  key,
                                  backdrop.label(),
                                  h::AlertDialog::new(format!("Backdrop: {}", backdrop.label())).id(key)
-@@ -9352,7 +9839,8 @@ impl Gallery {
+@@ -9352,7 +9841,8 @@ impl Gallery {
                  ),
                  (
                      "Controlled State",
@@ -191377,7 +191434,7 @@ index 5eb12cd4..efe474f6 100644
                          "ad-controlled",
                          "Open (controlled)",
                          h::AlertDialog::new("Controlled").id("ad-controlled")
-@@ -9369,7 +9857,8 @@ impl Gallery {
+@@ -9369,7 +9859,8 @@ impl Gallery {
                  ),
                  (
                      "Custom Icon",
@@ -191387,7 +191444,7 @@ index 5eb12cd4..efe474f6 100644
                          "ad-icon",
                          "Open with a status icon",
                          h::AlertDialog::new("Heads up").id("ad-icon")
-@@ -9387,7 +9876,8 @@ impl Gallery {
+@@ -9387,7 +9878,8 @@ impl Gallery {
                  ),
                  (
                      "Custom Backdrop",
@@ -191397,7 +191454,7 @@ index 5eb12cd4..efe474f6 100644
                          "ad-custom-bd",
                          "Open with a blurred backdrop",
                          h::AlertDialog::new("Blurred").id("ad-custom-bd")
-@@ -9405,7 +9895,8 @@ impl Gallery {
+@@ -9405,7 +9897,8 @@ impl Gallery {
                  ),
                  (
                      "Dismiss Behavior",
@@ -191407,7 +191464,7 @@ index 5eb12cd4..efe474f6 100644
                          "ad-dismiss",
                          "Open a non-dismissable dialog",
                          h::AlertDialog::new("Confirm first").id("ad-dismiss")
-@@ -9424,12 +9915,13 @@ impl Gallery {
+@@ -9424,12 +9917,13 @@ impl Gallery {
                  ),
                  (
                      "Close Methods",
@@ -191423,7 +191480,7 @@ index 5eb12cd4..efe474f6 100644
                                  .is_open(self.demo_overlay("ad-close"))
                                  .footer_child(
                                      h::Button::new("ad-close-cancel")
-@@ -9457,6 +9949,7 @@ impl Gallery {
+@@ -9457,6 +9951,7 @@ impl Gallery {
                              cx,
                          ),
                          overlay_demo(
@@ -191431,7 +191488,7 @@ index 5eb12cd4..efe474f6 100644
                              "ad-pending",
                              "Open (pending confirm)",
                              h::AlertDialog::new("Deploying").id("ad-pending")
-@@ -9487,7 +9980,8 @@ impl Gallery {
+@@ -9487,7 +9982,8 @@ impl Gallery {
                  ),
                  (
                      "Custom Animations",
@@ -191441,7 +191498,7 @@ index 5eb12cd4..efe474f6 100644
                          "ad-anim",
                          "Open and watch the panel",
                          h::AlertDialog::new("Animated").id("ad-anim")
-@@ -9504,13 +9998,18 @@ impl Gallery {
+@@ -9504,13 +10000,18 @@ impl Gallery {
                  ),
                  (
                      "Custom Trigger",
@@ -191467,7 +191524,7 @@ index 5eb12cd4..efe474f6 100644
                          .child(
                              gpui::div()
                                  .id("ad-custom-trigger")
-@@ -9529,7 +10028,7 @@ impl Gallery {
+@@ -9529,7 +10030,7 @@ impl Gallery {
                          .child(
                              h::AlertDialog::new("Delete this account?").id("ad-custom")
                                  .description("Any element can open an alert dialog; a composed CloseTrigger draws the corner X and a composed footer owns the danger confirm.")
@@ -191476,7 +191533,7 @@ index 5eb12cd4..efe474f6 100644
                                  .child(h::AlertDialogCloseTrigger::new())
                                  .footer_child(
                                      h::Button::new("ad-custom-cancel")
-@@ -9554,58 +10053,64 @@ impl Gallery {
+@@ -9554,58 +10055,64 @@ impl Gallery {
                                      cx.notify();
                                  })))
                          )
@@ -191590,7 +191647,7 @@ index 5eb12cd4..efe474f6 100644
              )],
              cx,
          )
-@@ -9620,7 +10125,7 @@ impl Gallery {
+@@ -9620,7 +10127,7 @@ impl Gallery {
              vec![
                  (
                      "Placement",
@@ -191599,7 +191656,7 @@ index 5eb12cd4..efe474f6 100644
                          ("dr-left", "Left", h::DrawerPlacement::Left),
                          ("dr-right", "Right", h::DrawerPlacement::Right),
                          ("dr-top", "Top", h::DrawerPlacement::Top),
-@@ -9630,6 +10135,7 @@ impl Gallery {
+@@ -9630,6 +10137,7 @@ impl Gallery {
                      .map(|(key, label, placement)| {
                          let open = self.demo_overlay(key);
                          overlay_demo(
@@ -191607,7 +191664,7 @@ index 5eb12cd4..efe474f6 100644
                              key,
                              label,
                              h::Drawer::new()
-@@ -9654,7 +10160,8 @@ impl Gallery {
+@@ -9654,7 +10162,8 @@ impl Gallery {
                  ),
                  (
                      "Non-Dismissable",
@@ -191617,7 +191674,7 @@ index 5eb12cd4..efe474f6 100644
                          "dr-no-dismiss",
                          "Open a non-dismissable drawer",
                          h::Drawer::new()
-@@ -9682,7 +10189,8 @@ impl Gallery {
+@@ -9682,7 +10191,8 @@ impl Gallery {
                  ),
                  (
                      "Scrollable Content",
@@ -191627,7 +191684,7 @@ index 5eb12cd4..efe474f6 100644
                          "dr-scroll",
                          "Open a long drawer",
                          h::Drawer::new()
-@@ -9706,7 +10214,7 @@ impl Gallery {
+@@ -9706,7 +10216,7 @@ impl Gallery {
                  ),
                  (
                      "Controlled State",
@@ -191636,7 +191693,7 @@ index 5eb12cd4..efe474f6 100644
                          para(
                              &format!(
                                  "The flag lives with the caller: {}",
-@@ -9719,6 +10227,7 @@ impl Gallery {
+@@ -9719,6 +10229,7 @@ impl Gallery {
                              cx,
                          ),
                          overlay_demo(
@@ -191644,7 +191701,7 @@ index 5eb12cd4..efe474f6 100644
                              "dr-controlled",
                              "Open (controlled)",
                              h::Drawer::new()
-@@ -9739,7 +10248,8 @@ impl Gallery {
+@@ -9739,7 +10250,8 @@ impl Gallery {
                  ),
                  (
                      "With Form",
@@ -191654,7 +191711,7 @@ index 5eb12cd4..efe474f6 100644
                          "dr-form",
                          "Open a form drawer",
                          h::Drawer::new()
-@@ -9779,7 +10289,8 @@ impl Gallery {
+@@ -9779,7 +10291,8 @@ impl Gallery {
                  ),
                  (
                      "Navigation Drawer",
@@ -191664,7 +191721,7 @@ index 5eb12cd4..efe474f6 100644
                          "dr-nav",
                          "Open the navigation",
                          h::Drawer::new()
-@@ -9809,7 +10320,7 @@ impl Gallery {
+@@ -9809,7 +10322,7 @@ impl Gallery {
                  ),
                  (
                      "Backdrop Variants",
@@ -191673,7 +191730,7 @@ index 5eb12cd4..efe474f6 100644
                          .iter()
                          .map(|backdrop| {
                              let key: &'static str = match backdrop {
-@@ -9819,6 +10330,7 @@ impl Gallery {
+@@ -9819,6 +10332,7 @@ impl Gallery {
                              };
                              let open = self.demo_overlay(key);
                              overlay_demo(
@@ -191681,7 +191738,7 @@ index 5eb12cd4..efe474f6 100644
                                  key,
                                  backdrop.label(),
                                  h::Drawer::new()
-@@ -9843,39 +10355,44 @@ impl Gallery {
+@@ -9843,39 +10357,44 @@ impl Gallery {
                  ),
                  (
                      "Usage",
@@ -191755,7 +191812,7 @@ index 5eb12cd4..efe474f6 100644
                  ),
              ],
              cx,
-@@ -9898,7 +10415,7 @@ impl Gallery {
+@@ -9898,7 +10417,7 @@ impl Gallery {
              vec![
                  (
                      "Sizes",
@@ -191764,7 +191821,7 @@ index 5eb12cd4..efe474f6 100644
                          ("md-size-xs", "Xs", h::ModalSize::Xs),
                          ("md-size-sm", "Sm", h::ModalSize::Sm),
                          ("md-size-md", "Md", h::ModalSize::Md),
-@@ -9910,6 +10427,7 @@ impl Gallery {
+@@ -9910,6 +10429,7 @@ impl Gallery {
                      .map(|(key, label, size)| {
                          let open = self.demo_overlay(key);
                          overlay_demo(
@@ -191772,7 +191829,7 @@ index 5eb12cd4..efe474f6 100644
                              key,
                              label,
                              h::Modal::new()
-@@ -9934,7 +10452,7 @@ impl Gallery {
+@@ -9934,7 +10454,7 @@ impl Gallery {
                  ),
                  (
                      "Placement",
@@ -191781,7 +191838,7 @@ index 5eb12cd4..efe474f6 100644
                          ("md-place-auto", "Auto", h::ModalPlacement::Auto),
                          ("md-place-center", "Center", h::ModalPlacement::Center),
                          ("md-place-top", "Top", h::ModalPlacement::Top),
-@@ -9944,6 +10462,7 @@ impl Gallery {
+@@ -9944,6 +10464,7 @@ impl Gallery {
                      .map(|(key, label, placement)| {
                          let open = self.demo_overlay(key);
                          overlay_demo(
@@ -191789,7 +191846,7 @@ index 5eb12cd4..efe474f6 100644
                              key,
                              label,
                              h::Modal::new()
-@@ -9968,7 +10487,7 @@ impl Gallery {
+@@ -9968,7 +10489,7 @@ impl Gallery {
                  ),
                  (
                      "Scroll Behavior",
@@ -191798,7 +191855,7 @@ index 5eb12cd4..efe474f6 100644
                          ("md-scroll-inside", "Inside", h::ModalScroll::Inside),
                          ("md-scroll-outside", "Outside", h::ModalScroll::Outside),
                      ]
-@@ -9976,6 +10495,7 @@ impl Gallery {
+@@ -9976,6 +10497,7 @@ impl Gallery {
                      .map(|(key, label, scroll)| {
                          let open = self.demo_overlay(key);
                          overlay_demo(
@@ -191806,7 +191863,7 @@ index 5eb12cd4..efe474f6 100644
                              key,
                              label,
                              h::Modal::new()
-@@ -10004,7 +10524,7 @@ impl Gallery {
+@@ -10004,7 +10526,7 @@ impl Gallery {
                  ),
                  (
                      "Controlled State",
@@ -191815,7 +191872,7 @@ index 5eb12cd4..efe474f6 100644
                          para(
                              &format!(
                                  "The flag lives with the caller: {}",
-@@ -10013,6 +10533,7 @@ impl Gallery {
+@@ -10013,6 +10535,7 @@ impl Gallery {
                              cx,
                          ),
                          overlay_demo(
@@ -191823,7 +191880,7 @@ index 5eb12cd4..efe474f6 100644
                              "md-controlled",
                              "Open (controlled)",
                              h::Modal::new()
-@@ -10033,7 +10554,8 @@ impl Gallery {
+@@ -10033,7 +10556,8 @@ impl Gallery {
                  ),
                  (
                      "With Form",
@@ -191833,7 +191890,7 @@ index 5eb12cd4..efe474f6 100644
                          "md-form",
                          "Open form modal",
                          h::Modal::new()
-@@ -10075,18 +10597,21 @@ impl Gallery {
+@@ -10075,18 +10599,21 @@ impl Gallery {
                  ),
                  (
                      "Custom Trigger",
@@ -191863,7 +191920,7 @@ index 5eb12cd4..efe474f6 100644
                                  .on_click(cx.listener(|this, _, _, cx| {
                                      this.set_demo_flag("md-custom", true);
                                      cx.notify();
-@@ -10109,7 +10634,7 @@ impl Gallery {
+@@ -10109,7 +10636,7 @@ impl Gallery {
                  ),
                  (
                      "Backdrop Variants",
@@ -191872,7 +191929,7 @@ index 5eb12cd4..efe474f6 100644
                          .iter()
                          .map(|backdrop| {
                              let key: &'static str = match backdrop {
-@@ -10119,6 +10644,7 @@ impl Gallery {
+@@ -10119,6 +10646,7 @@ impl Gallery {
                              };
                              let open = self.demo_overlay(key);
                              overlay_demo(
@@ -191880,7 +191937,7 @@ index 5eb12cd4..efe474f6 100644
                                  key,
                                  backdrop.label(),
                                  h::Modal::new()
-@@ -10143,14 +10669,10 @@ impl Gallery {
+@@ -10143,14 +10671,10 @@ impl Gallery {
                  ),
                  (
                      "Custom Backdrop",
@@ -191898,7 +191955,7 @@ index 5eb12cd4..efe474f6 100644
                              "md-bd-custom",
                              "Open with a blurred backdrop",
                              h::Modal::new()
-@@ -10172,13 +10694,10 @@ impl Gallery {
+@@ -10172,13 +10696,10 @@ impl Gallery {
                  ),
                  (
                      "Dismiss Behavior",
@@ -191915,7 +191972,7 @@ index 5eb12cd4..efe474f6 100644
                              "md-no-dismiss",
                              "Open a non-dismissable modal",
                              h::Modal::new()
-@@ -10210,15 +10729,10 @@ impl Gallery {
+@@ -10210,15 +10731,10 @@ impl Gallery {
                  ),
                  (
                      "Close Methods",
@@ -191934,7 +191991,7 @@ index 5eb12cd4..efe474f6 100644
                              "md-close",
                              "Open (no close trigger)",
                              h::Modal::new()
-@@ -10250,16 +10764,10 @@ impl Gallery {
+@@ -10250,16 +10766,10 @@ impl Gallery {
                  ),
                  (
                      "Custom Animations",
@@ -191954,7 +192011,7 @@ index 5eb12cd4..efe474f6 100644
                              "md-anim",
                              "Open and watch the panel",
                              h::Modal::new()
-@@ -10280,13 +10788,17 @@ impl Gallery {
+@@ -10280,13 +10790,17 @@ impl Gallery {
                  ),
                  (
                      "Usage",
@@ -191979,7 +192036,7 @@ index 5eb12cd4..efe474f6 100644
                          .child(
                              h::Button::new("md-open")
                                  .label("Open modal")
-@@ -10325,7 +10837,8 @@ impl Gallery {
+@@ -10325,7 +10839,8 @@ impl Gallery {
                                      cx.notify();
                                  })),
                          )
@@ -191989,7 +192046,7 @@ index 5eb12cd4..efe474f6 100644
                  ),
              ],
              cx,
-@@ -10335,6 +10848,20 @@ impl Gallery {
+@@ -10335,6 +10850,20 @@ impl Gallery {
      pub fn page_popover(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
          let is_open = self.popover_open;
          let po_following = self.demo_flag("po-following", false);
@@ -192010,7 +192067,7 @@ index 5eb12cd4..efe474f6 100644
          component_doc_page!(
              "Popover",
              crate::pages::Page::Popover.description(),
-@@ -10342,79 +10869,121 @@ impl Gallery {
+@@ -10342,79 +10871,121 @@ impl Gallery {
              vec![
                  (
                      "With Arrow",
@@ -192166,7 +192223,7 @@ index 5eb12cd4..efe474f6 100644
                              .title("Sarah Johnson")
                              .child(
                                  gpui::div()
-@@ -10442,16 +11011,16 @@ impl Gallery {
+@@ -10442,16 +11013,16 @@ impl Gallery {
                                      ),
                              ),
                          )
@@ -192189,7 +192246,7 @@ index 5eb12cd4..efe474f6 100644
                          .children(
                              [
                                  ("po-pl-top", "Top", h::PopoverPlacement::Top),
-@@ -10461,7 +11030,24 @@ impl Gallery {
+@@ -10461,7 +11032,24 @@ impl Gallery {
                              ]
                              .into_iter()
                              .map(|(id, label, placement)| {
@@ -192215,7 +192272,7 @@ index 5eb12cd4..efe474f6 100644
                                      h::Popover::new(
                                          h::Button::new(el_id(format!("{id}-trigger")))
                                              .label(label)
-@@ -10469,30 +11055,221 @@ impl Gallery {
+@@ -10469,30 +11057,221 @@ impl Gallery {
                                              .size(Size::Sm),
                                      )
                                      .id(id)
@@ -192452,7 +192509,7 @@ index 5eb12cd4..efe474f6 100644
                  ),
              ],
              cx,
-@@ -10541,13 +11318,8 @@ impl Gallery {
+@@ -10541,13 +11320,8 @@ impl Gallery {
                  ),
                  (
                      "Placements",
@@ -192467,7 +192524,7 @@ index 5eb12cd4..efe474f6 100644
                          row([
                              ("TopStart", h::ToastPlacement::TopStart),
                              ("Top", h::ToastPlacement::Top),
-@@ -10592,13 +11364,8 @@ impl Gallery {
+@@ -10592,13 +11366,8 @@ impl Gallery {
                  ),
                  (
                      "Custom Indicators",
@@ -192482,7 +192539,7 @@ index 5eb12cd4..efe474f6 100644
                          row(vec![
                              h::Button::new("toast-ind-success")
                                  .label("Success")
-@@ -10646,13 +11413,8 @@ impl Gallery {
+@@ -10646,13 +11415,8 @@ impl Gallery {
                  ),
                  (
                      "Custom Toast Rendering",
@@ -192497,7 +192554,7 @@ index 5eb12cd4..efe474f6 100644
                          row(vec![h::Button::new("toast-custom")
                              .label("Push a two-line toast")
                              .variant(Variant::Secondary)
-@@ -10669,13 +11431,8 @@ impl Gallery {
+@@ -10669,13 +11433,8 @@ impl Gallery {
                  ),
                  (
                      "Promise & Loading",
@@ -192512,7 +192569,7 @@ index 5eb12cd4..efe474f6 100644
                          row(vec![h::Button::new("toast-promise")
                              .label("Upload a file")
                              .variant(Variant::Secondary)
-@@ -10708,13 +11465,9 @@ impl Gallery {
+@@ -10708,13 +11467,9 @@ impl Gallery {
                  ),
                  (
                      "Callbacks",
@@ -192527,7 +192584,7 @@ index 5eb12cd4..efe474f6 100644
                          row(vec![h::Button::new("toast-callback")
                              .label("Push a closable toast")
                              .variant(Variant::Secondary)
-@@ -10731,12 +11484,8 @@ impl Gallery {
+@@ -10731,12 +11486,8 @@ impl Gallery {
                  ),
                  (
                      "Custom Queues",
@@ -192541,7 +192598,7 @@ index 5eb12cd4..efe474f6 100644
                          row(vec![h::Button::new("toast-queue")
                              .label("Push four")
                              .variant(Variant::Secondary)
-@@ -10753,12 +11502,8 @@ impl Gallery {
+@@ -10753,12 +11504,8 @@ impl Gallery {
                  ),
                  (
                      "Setup",
@@ -192555,7 +192612,7 @@ index 5eb12cd4..efe474f6 100644
                          crate::pages::code_block(TOAST_SETUP, cx),
                      ]),
                  ),
-@@ -10822,7 +11567,7 @@ impl Gallery {
+@@ -10822,7 +11569,7 @@ impl Gallery {
                          h::Tooltip::new("Jane Doe")
                              .delay(0)
                              .show_arrow(true)
@@ -192564,7 +192621,7 @@ index 5eb12cd4..efe474f6 100644
                              .into_any_element(),
                          h::Tooltip::new("Verified account")
                              .delay(0)
-@@ -10928,110 +11673,120 @@ impl Gallery {
+@@ -10928,110 +11675,120 @@ impl Gallery {
              vec![
                  (
                      "Virtualization",
@@ -192712,7 +192769,7 @@ index 5eb12cd4..efe474f6 100644
                          self.demo_text("ac-sections", "", cx),
                          vec![
                              h::PickerItem::new("rust", "Rust"),
-@@ -11041,6 +11796,7 @@ impl Gallery {
+@@ -11041,6 +11798,7 @@ impl Gallery {
                          ],
                      )
                      .label("Language")
@@ -192720,7 +192777,7 @@ index 5eb12cd4..efe474f6 100644
                      .section_before("rust", "Systems")
                      .section_before("typescript", "Scripting")
                      .default_open(true)
-@@ -11048,11 +11804,12 @@ impl Gallery {
+@@ -11048,11 +11806,12 @@ impl Gallery {
                  ),
                  (
                      "Multiple Select",
@@ -192734,7 +192791,7 @@ index 5eb12cd4..efe474f6 100644
                      .selection_mode(SelectionMode::Multiple)
                      // `defaultValue` is `Key | Key[]`: the uncontrolled
                      // selection, seeded once, by key.
-@@ -11065,6 +11822,7 @@ impl Gallery {
+@@ -11065,6 +11824,7 @@ impl Gallery {
                      col(vec![
                          h::Autocomplete::new(self.demo_text("ac-controlled", "", cx), language_items())
                              .label("Language")
@@ -192742,7 +192799,7 @@ index 5eb12cd4..efe474f6 100644
                              .input_value(ac_typed)
                              .on_input_change(cx.listener(|this, text: &str, _, cx| {
                                  this.set_demo_text_value("ac-typed", text.to_owned());
-@@ -11087,11 +11845,12 @@ impl Gallery {
+@@ -11087,11 +11847,12 @@ impl Gallery {
                  ),
                  (
                      "Controlled Multiple",
@@ -192756,7 +192813,7 @@ index 5eb12cd4..efe474f6 100644
                      .selection_mode(SelectionMode::Multiple)
                      .selected_keys(ac_multi.iter().cloned())
                      .on_selection_change_all(cx.listener(|this, keys: &[SharedString], _, cx| {
-@@ -11117,6 +11876,7 @@ impl Gallery {
+@@ -11117,6 +11878,7 @@ impl Gallery {
                          ]),
                          h::Autocomplete::new(self.demo_text("ac-open", "", cx), language_items())
                              .label("Language")
@@ -192764,7 +192821,7 @@ index 5eb12cd4..efe474f6 100644
                              .is_open(ac_open)
                              .on_open_change(bool_cb(cx.listener(|this, v: &bool, _, cx| {
                                  this.set_demo_flag("ac-open", *v);
-@@ -11127,16 +11887,12 @@ impl Gallery {
+@@ -11127,16 +11889,12 @@ impl Gallery {
                  ),
                  (
                      "Asynchronous Filtering",
@@ -192783,7 +192840,7 @@ index 5eb12cd4..efe474f6 100644
                                  // `useFilter({sensitivity: "base"}).contains`:
                                  // case and accents both ignored, so "cafe"
                                  // finds "Café". The closure receives
-@@ -11153,11 +11909,12 @@ impl Gallery {
+@@ -11153,11 +11911,12 @@ impl Gallery {
                  ),
                  (
                      "Custom Indicator",
@@ -192797,7 +192854,7 @@ index 5eb12cd4..efe474f6 100644
                      .default_open(true)
                      .indicator(|is_open| {
                          gpui::div()
-@@ -11169,17 +11926,11 @@ impl Gallery {
+@@ -11169,17 +11928,11 @@ impl Gallery {
                  ),
                  (
                      "Custom Value",
@@ -192817,7 +192874,7 @@ index 5eb12cd4..efe474f6 100644
                              .selection_mode(SelectionMode::Multiple)
                              .default_value(["rust", "go"])
                              .value_content(|value| {
-@@ -11204,8 +11955,8 @@ impl Gallery {
+@@ -11204,8 +11957,8 @@ impl Gallery {
                      ]),
                  ),
                  (
@@ -192828,7 +192885,7 @@ index 5eb12cd4..efe474f6 100644
                          self.ac_entity.clone(),
                          language_items(),
                      )
-@@ -11235,94 +11986,105 @@ impl Gallery {
+@@ -11235,94 +11988,105 @@ impl Gallery {
              vec![
                  (
                      "Virtualization",
@@ -192957,7 +193014,7 @@ index 5eb12cd4..efe474f6 100644
                          self.demo_text("cb-sections", "", cx),
                          vec![
                              h::PickerItem::new("rust", "Rust"),
-@@ -11332,6 +12094,7 @@ impl Gallery {
+@@ -11332,6 +12096,7 @@ impl Gallery {
                          ],
                      )
                      .label("Language")
@@ -192965,7 +193022,7 @@ index 5eb12cd4..efe474f6 100644
                      .section_before("rust", "Systems")
                      .section_before("typescript", "Scripting")
                      .default_open(true)
-@@ -11342,6 +12105,7 @@ impl Gallery {
+@@ -11342,6 +12107,7 @@ impl Gallery {
                      col(vec![
                          h::ComboBox::new(self.demo_text("cb-controlled", "", cx), language_items())
                              .label("Language")
@@ -192973,7 +193030,7 @@ index 5eb12cd4..efe474f6 100644
                              // `selectedKey` is the controlled selection key
                              // (empty string is v3's `null`); the input shows
                              // that key's label and `inputValue` holds the
-@@ -11371,6 +12135,7 @@ impl Gallery {
+@@ -11371,6 +12137,7 @@ impl Gallery {
                      col(vec![
                          h::ComboBox::new(self.demo_text("cb-input", "", cx), language_items())
                              .label("Language")
@@ -192981,7 +193038,7 @@ index 5eb12cd4..efe474f6 100644
                              .on_input_change(cx.listener(|this, text: &str, _, cx| {
                                  this.set_demo_text_value("cb-typed", text.to_owned());
                                  cx.notify();
-@@ -11381,11 +12146,12 @@ impl Gallery {
+@@ -11381,11 +12148,12 @@ impl Gallery {
                  ),
                  (
                      "Controlled Selection",
@@ -192995,7 +193052,7 @@ index 5eb12cd4..efe474f6 100644
                      .selection_mode(SelectionMode::Multiple)
                      .selected_keys(cb_multi.iter().cloned())
                      .on_selection_change_all(cx.listener(|this, keys: &[SharedString], _, cx| {
-@@ -11396,22 +12162,24 @@ impl Gallery {
+@@ -11396,22 +12164,24 @@ impl Gallery {
                  ),
                  (
                      "Multiple Selection",
@@ -193022,7 +193079,7 @@ index 5eb12cd4..efe474f6 100644
                      .selected_keys(cb_value.iter().cloned())
                      .on_selection_change_all(cx.listener(
                          |this, keys: &[SharedString], _, cx| {
-@@ -11433,36 +12201,34 @@ impl Gallery {
+@@ -11433,36 +12203,34 @@ impl Gallery {
                  ),
                  (
                      "Default Selected Key",
@@ -193066,7 +193123,7 @@ index 5eb12cd4..efe474f6 100644
                                  .allows_empty_collection(true)
                                  // v3 pairs the flag with async loading: type a
                                  // query nothing matches and the panel stays up
-@@ -11479,11 +12245,12 @@ impl Gallery {
+@@ -11479,11 +12247,12 @@ impl Gallery {
                  ),
                  (
                      "Custom Indicator",
@@ -193080,7 +193137,7 @@ index 5eb12cd4..efe474f6 100644
                      .selection_mode(SelectionMode::Multiple)
                      .default_open(true)
                      .indicator(|is_selected| {
-@@ -11496,14 +12263,11 @@ impl Gallery {
+@@ -11496,14 +12265,11 @@ impl Gallery {
                  ),
                  (
                      "Custom Filtering",
@@ -193097,7 +193154,7 @@ index 5eb12cd4..efe474f6 100644
                              .filter(|item, input| {
                                  h::Filter::new(h::Sensitivity::Base).starts_with(item, input)
                              })
-@@ -11518,6 +12282,7 @@ impl Gallery {
+@@ -11518,6 +12284,7 @@ impl Gallery {
                              "Input (opens as you type)",
                              h::ComboBox::new(self.demo_text("cb-mt-input", "", cx), language_items())
                                  .label("Language")
@@ -193105,7 +193162,7 @@ index 5eb12cd4..efe474f6 100644
                                  .menu_trigger(h::MenuTrigger::Input),
                              cx,
                          ),
-@@ -11525,6 +12290,7 @@ impl Gallery {
+@@ -11525,6 +12292,7 @@ impl Gallery {
                              "Manual (only the chevron opens it)",
                              h::ComboBox::new(self.demo_text("cb-mt-manual", "", cx), language_items())
                                  .label("Language")
@@ -193113,7 +193170,7 @@ index 5eb12cd4..efe474f6 100644
                                  .menu_trigger(h::MenuTrigger::Manual),
                              cx,
                          ),
-@@ -11532,21 +12298,15 @@ impl Gallery {
+@@ -11532,21 +12300,15 @@ impl Gallery {
                  ),
                  (
                      "Form Value",
@@ -193137,7 +193194,7 @@ index 5eb12cd4..efe474f6 100644
                              .name("language")
                              .is_required(true);
                              h::Form::new()
-@@ -11580,6 +12340,7 @@ impl Gallery {
+@@ -11580,6 +12342,7 @@ impl Gallery {
                                  language_items(),
                              )
                              .label("Language")
@@ -193145,7 +193202,7 @@ index 5eb12cd4..efe474f6 100644
                              .name("custom-language")
                              .allows_custom_value(true)
                              .form_value(h::ComboBoxFormValue::Text),
-@@ -11594,6 +12355,7 @@ impl Gallery {
+@@ -11594,6 +12357,7 @@ impl Gallery {
                              "Native (blocks the submit)",
                              h::ComboBox::new(self.demo_text("cb-vb-native", "", cx), language_items())
                                  .label("Language")
@@ -193153,7 +193210,7 @@ index 5eb12cd4..efe474f6 100644
                                  .is_required(true)
                                  .validation_behavior(h::ValidationBehavior::Native),
                              cx,
-@@ -11602,6 +12364,7 @@ impl Gallery {
+@@ -11602,6 +12366,7 @@ impl Gallery {
                              "Allow (shows the message, submits anyway)",
                              h::ComboBox::new(self.demo_text("cb-vb-allow", "", cx), language_items())
                                  .label("Language")
@@ -193161,7 +193218,7 @@ index 5eb12cd4..efe474f6 100644
                                  .is_required(true)
                                  .validation_behavior(h::ValidationBehavior::Allow),
                              cx,
-@@ -11610,7 +12373,7 @@ impl Gallery {
+@@ -11610,7 +12375,7 @@ impl Gallery {
                  ),
                  (
                      "Custom Validation",
@@ -193170,7 +193227,7 @@ index 5eb12cd4..efe474f6 100644
                          self.demo_text("cb-validate", "Zig", cx),
                          language_items(),
                      )
-@@ -11623,8 +12386,8 @@ impl Gallery {
+@@ -11623,8 +12388,8 @@ impl Gallery {
                      .into_any_element()]),
                  ),
                  (
@@ -193181,7 +193238,7 @@ index 5eb12cd4..efe474f6 100644
                          self.combo_state.clone(),
                          language_items(),
                      )
-@@ -11643,11 +12406,12 @@ impl Gallery {
+@@ -11643,11 +12408,12 @@ impl Gallery {
                  ),
                  (
                      "Custom values allowed",
@@ -193195,7 +193252,7 @@ index 5eb12cd4..efe474f6 100644
                      .allows_custom_value(true)
                      .is_open(is_open)
                      .on_open_change(bool_cb(cx.listener(|this, open: &bool, _, cx| {
-@@ -11672,23 +12436,19 @@ impl Gallery {
+@@ -11672,23 +12438,19 @@ impl Gallery {
              vec![
                  (
                      "Virtualization",
@@ -193226,7 +193283,7 @@ index 5eb12cd4..efe474f6 100644
                          .label("Language")
                          .placeholder("Choose one")
                          .description("Used for spell-checking")
-@@ -11696,7 +12456,7 @@ impl Gallery {
+@@ -11696,7 +12458,7 @@ impl Gallery {
                  ),
                  (
                      "Required",
@@ -193235,7 +193292,7 @@ index 5eb12cd4..efe474f6 100644
                          .label("Language")
                          .placeholder("Choose one")
                          .is_required(true)
-@@ -11704,7 +12464,7 @@ impl Gallery {
+@@ -11704,7 +12466,7 @@ impl Gallery {
                  ),
                  (
                      "Disabled",
@@ -193244,7 +193301,7 @@ index 5eb12cd4..efe474f6 100644
                          .label("Language")
                          .placeholder("Choose one")
                          .is_disabled(true)
-@@ -11712,7 +12472,7 @@ impl Gallery {
+@@ -11712,7 +12474,7 @@ impl Gallery {
                  ),
                  (
                      "With Disabled Options",
@@ -193253,7 +193310,7 @@ index 5eb12cd4..efe474f6 100644
                          .label("Language")
                          .placeholder("Choose one")
                          .disabled_keys([1, 3])
-@@ -11721,7 +12481,7 @@ impl Gallery {
+@@ -11721,7 +12483,7 @@ impl Gallery {
                  ),
                  (
                      "With Sections",
@@ -193262,7 +193319,7 @@ index 5eb12cd4..efe474f6 100644
                          "sel-sections",
                          vec![
                              "United States".into(),
-@@ -11796,13 +12556,8 @@ impl Gallery {
+@@ -11796,13 +12558,8 @@ impl Gallery {
                  ),
                  (
                      "Asynchronous Loading",
@@ -193277,7 +193334,7 @@ index 5eb12cd4..efe474f6 100644
                          row(vec![
                              h::Select::new("sel-async", languages())
                                  .label("Language")
-@@ -11816,7 +12571,7 @@ impl Gallery {
+@@ -11816,7 +12573,7 @@ impl Gallery {
                  ),
                  (
                      "Custom Indicator",
@@ -193286,7 +193343,7 @@ index 5eb12cd4..efe474f6 100644
                          .label("Language")
                          .placeholder("Choose one")
                          .value(selected)
-@@ -11837,7 +12592,7 @@ impl Gallery {
+@@ -11837,7 +12594,7 @@ impl Gallery {
                  ),
                  (
                      "Custom Value",
@@ -193295,7 +193352,7 @@ index 5eb12cd4..efe474f6 100644
                          .label("Language")
                          .placeholder("Choose one")
                          .value(selected)
-@@ -11867,8 +12622,8 @@ impl Gallery {
+@@ -11867,8 +12624,8 @@ impl Gallery {
                          .into_any_element()]),
                  ),
                  (
@@ -193306,7 +193363,7 @@ index 5eb12cd4..efe474f6 100644
                          .label("Language")
                          .placeholder("Choose one")
                          .value(selected)
-@@ -11888,18 +12643,20 @@ impl Gallery {
+@@ -11888,18 +12645,20 @@ impl Gallery {
                  ),
                  (
                      "Uncontrolled",
@@ -193329,7 +193386,7 @@ index 5eb12cd4..efe474f6 100644
                                  .value(selected)
                                  .on_selection_change(opt_usize_cb(cx.listener(
                                      |this, i: &Option<usize>, _, cx| {
-@@ -11913,21 +12670,26 @@ impl Gallery {
+@@ -11913,21 +12672,26 @@ impl Gallery {
                  ),
                  (
                      "Full width",
@@ -193367,7 +193424,7 @@ index 5eb12cd4..efe474f6 100644
                          .label("Languages")
                          .placeholder("Pick several")
                          .selection_mode(SelectionMode::Multiple)
-@@ -12050,14 +12812,8 @@ impl Gallery {
+@@ -12050,14 +12814,8 @@ impl Gallery {
                  ),
                  (
                      "Render Props",
@@ -193383,7 +193440,7 @@ index 5eb12cd4..efe474f6 100644
                          h::Prose::new()
                              .child(h::Typography::paragraph(
                                  h::ParagraphSize::Base,
-@@ -12265,12 +13021,8 @@ impl Gallery {
+@@ -12265,12 +13023,8 @@ impl Gallery {
                  ),
                  (
                      "Hide Scroll Bar",
@@ -193397,7 +193454,7 @@ index 5eb12cd4..efe474f6 100644
                          h::ScrollShadow::new("ss-no-bar")
                              .max_h(px(140.))
                              .children(
-@@ -12385,13 +13137,45 @@ fn icon(path: &'static str, cx: &gpui::App) -> AnyElement {
+@@ -12385,13 +13139,45 @@ fn icon(path: &'static str, cx: &gpui::App) -> AnyElement {
          .into_any_element()
  }
  
@@ -193567,6 +193624,295 @@ index 6452b2b7..4d9957c3 100644
      let methods = methods_for(source, &owners);
      if methods.is_empty() {
          return Vec::new();
+diff --git a/gallery/src/pages/reference_metadata.rs b/gallery/src/pages/reference_metadata.rs
+index 71065ac8..d43d623f 100644
+--- a/gallery/src/pages/reference_metadata.rs
++++ b/gallery/src/pages/reference_metadata.rs
+@@ -15163,6 +15163,276 @@ pub(crate) const TYPOGRAPHY: ReferenceMetadata = ReferenceMetadata {
+     styling: TYPOGRAPHY_STYLING,
+ };
+ 
++const AVATAR_REQUIRED_PARTS: &[&str] = &["Avatar", "Avatar.Image", "Avatar.Fallback"];
++
++const AVATAR_API: &[ApiDoc] = &[
++    ApiDoc {
++        owner: "Avatar",
++        prop: "size",
++        ty: "'sm' | 'md' | 'lg'",
++        default: "'md'",
++        description: "Avatar size: 32/40/48px edge, with `sm` rounding one step tighter and `lg` stepping the fallback text up to 16px.",
++        rust_owner: "Avatar",
++        rust: "size(Size)",
++        status: ImplementationStatus::Implemented,
++    },
++    ApiDoc {
++        owner: "Avatar",
++        prop: "color",
++        ty: "'default' | 'accent' | 'success' | 'warning' | 'danger'",
++        default: "'default'",
++        description: "Fallback color theme. The base avatar fills `bg-default` for every color — the color recolours the initials via the soft-foreground token.",
++        rust_owner: "Avatar",
++        rust: "color(Color)",
++        status: ImplementationStatus::Implemented,
++    },
++    ApiDoc {
++        owner: "Avatar",
++        prop: "variant",
++        ty: "'default' | 'soft'",
++        default: "'default'",
++        description: "Visual style variant. `soft` clears the base fill and paints `bg-{role}-soft` with the same soft foreground.",
++        rust_owner: "Avatar",
++        rust: "variant(AvatarVariant)",
++        status: ImplementationStatus::Implemented,
++    },
++    ApiDoc {
++        owner: "Avatar",
++        prop: "className",
++        ty: "string",
++        default: "—",
++        description: "Additional CSS classes.",
++        rust_owner: "Avatar",
++        rust: "—",
++        status: ImplementationStatus::Unavailable,
++    },
++    ApiDoc {
++        owner: "Avatar.Image",
++        prop: "src",
++        ty: "string",
++        default: "—",
++        description: "Image source URL. A plain string or path loads through gpui's asset system (a parseable URI is fetched, anything else is an embedded resource); the gpui `ImageSource::Image` / `Render` / `Custom` variants are the explicit parts for images the app already holds or loads itself.",
++        rust_owner: "Avatar",
++        rust: "src(ImageSource)",
++        status: ImplementationStatus::Implemented,
++    },
++    ApiDoc {
++        owner: "Avatar.Image",
++        prop: "onLoad",
++        ty: "(event: SyntheticEvent<HTMLImageElement>) => void",
++        default: "—",
++        description: "Callback when the image loads successfully and replaces the fallback. Fires once per source, on the first observed success, outside the layout phase; there is no event payload to hand over.",
++        rust_owner: "Avatar",
++        rust: "on_load(handler)",
++        status: ImplementationStatus::Partial,
++    },
++    ApiDoc {
++        owner: "Avatar.Image",
++        prop: "onError",
++        ty: "(event: SyntheticEvent<HTMLImageElement>) => void",
++        default: "—",
++        description: "Callback when there's an error loading the image; the fallback initials replace the image on that same failure. Fires once per source; no event payload.",
++        rust_owner: "Avatar",
++        rust: "on_error(handler)",
++        status: ImplementationStatus::Partial,
++    },
++    ApiDoc {
++        owner: "Avatar.Image",
++        prop: "srcSet",
++        ty: "string",
++        default: "—",
++        description: "The image `srcset` attribute for responsive images. Browser-only: gpui's asset system resolves one resource per source and never selects between candidates.",
++        rust_owner: "Avatar",
++        rust: "—",
++        status: ImplementationStatus::Unavailable,
++    },
++    ApiDoc {
++        owner: "Avatar.Image",
++        prop: "sizes",
++        ty: "string",
++        default: "—",
++        description: "The image `sizes` attribute. Browser-only hint for `srcset` selection; there is no viewport-density image pick to hint.",
++        rust_owner: "Avatar",
++        rust: "—",
++        status: ImplementationStatus::Unavailable,
++    },
++    ApiDoc {
++        owner: "Avatar.Image",
++        prop: "alt",
++        ty: "string",
++        default: "—",
++        description: "Alternative text for the image. GPUI 0.2.2 has no accessibility tree to carry it.",
++        rust_owner: "Avatar",
++        rust: "—",
++        status: ImplementationStatus::Unavailable,
++    },
++    ApiDoc {
++        owner: "Avatar.Image",
++        prop: "asChild",
++        ty: "boolean",
++        default: "false",
++        description: "Merges props onto a child element instead of rendering a native `img`. There is no DOM element graph to merge onto; a gpui `ImageSource::Custom` loader is the equivalent seam for a custom image component.",
++        rust_owner: "Avatar",
++        rust: "—",
++        status: ImplementationStatus::Unavailable,
++    },
++    ApiDoc {
++        owner: "Avatar.Image",
++        prop: "crossOrigin",
++        ty: "'anonymous' | 'use-credentials'",
++        default: "—",
++        description: "CORS setting for the image request. Browser fetch metadata with no analogue in gpui's asset system.",
++        rust_owner: "Avatar",
++        rust: "—",
++        status: ImplementationStatus::Unavailable,
++    },
++    ApiDoc {
++        owner: "Avatar.Image",
++        prop: "loading",
++        ty: "'eager' | 'lazy'",
++        default: "—",
++        description: "Native lazy loading attribute. Gpui loads a source when it is first observed; there is no viewport-distance scheduler to defer with.",
++        rust_owner: "Avatar",
++        rust: "—",
++        status: ImplementationStatus::Unavailable,
++    },
++    ApiDoc {
++        owner: "Avatar.Image",
++        prop: "className",
++        ty: "string",
++        default: "—",
++        description: "Additional CSS classes.",
++        rust_owner: "Avatar",
++        rust: "—",
++        status: ImplementationStatus::Unavailable,
++    },
++    ApiDoc {
++        owner: "Avatar.Fallback",
++        prop: "delayMs",
++        ty: "number",
++        default: "—",
++        description: "Delay before showing the fallback, measured from mount so a slow load does not flash the initials behind it. A success inside the window renders before it elapses; a failure inside it waits for the same window rather than restarting it.",
++        rust_owner: "Avatar",
++        rust: "delay_ms(u64)",
++        status: ImplementationStatus::Implemented,
++    },
++    ApiDoc {
++        owner: "Avatar.Fallback",
++        prop: "color",
++        ty: "'default' | 'accent' | 'success' | 'warning' | 'danger'",
++        default: "—",
++        description: "Override color from parent. Its own documented prop, not an alias: it overrides the parent `color` for everything the fallback paints, while the parent color still governs the rest.",
++        rust_owner: "Avatar",
++        rust: "fallback_color(Color)",
++        status: ImplementationStatus::Implemented,
++    },
++    ApiDoc {
++        owner: "Avatar.Fallback",
++        prop: "className",
++        ty: "string",
++        default: "—",
++        description: "Additional CSS classes.",
++        rust_owner: "Avatar",
++        rust: "—",
++        status: ImplementationStatus::Unavailable,
++    },
++];
++
++const AVATAR_PARTS: &[PartDoc] = &[
++    PartDoc {
++        name: "Avatar",
++        slot: "avatar",
++        description: "Root container on the `.avatar` BEM class: `relative flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-3xl bg-default`. The name initials come from the port's own `name` builder (v3 has no `name` prop); the load progress and the `delayMs` window key on the image source.",
++        rust_owner: "Avatar",
++        status: ImplementationStatus::Implemented,
++    },
++    PartDoc {
++        name: "Avatar.Image",
++        slot: "avatar__image",
++        description: "`absolute inset-0 aspect-square size-full` image with an opacity transition. The port draws the loaded image directly inside the root (`img(data).size_full().rounded(radius)`), applying the root radius to keep the image inside the Avatar boundary, and does not animate the swap.",
++        rust_owner: "Avatar",
++        status: ImplementationStatus::Partial,
++    },
++    PartDoc {
++        name: "Avatar.Fallback",
++        slot: "avatar__fallback",
++        description: "`flex size-full items-center justify-center bg-default text-sm font-medium` fallback box. The separate fallback container centers initials or custom `fallback` children with 14px/20px medium text (16px/24px for large avatars), painted `text-{role}-soft-foreground`.",
++        rust_owner: "Avatar",
++        status: ImplementationStatus::Implemented,
++    },
++];
++
++// `.avatar` declares no state utilities and the docs name no interactive
++// states: an avatar is a static display, not a control.
++const AVATAR_STATES: &[StateDoc] = &[];
++
++const AVATAR_STYLING: &[StyleDoc] = &[
++    StyleDoc {
++        class_or_token: ".avatar",
++        value: "relative flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-3xl bg-default",
++        description: "40px square at the 24px radius on `bg-default` for every color; the color only recolours the initials.",
++        rust: "flex + items_center + justify_center + size(px(40.)) + flex_shrink_0 + overflow_hidden + control_radius + colors.default.color",
++        status: ImplementationStatus::Implemented,
++    },
++    StyleDoc {
++        class_or_token: ".avatar--sm / .avatar--md / .avatar--lg",
++        value: "size-8 rounded-2xl / (no additional styles) / size-12 rounded-3xl",
++        description: "32/40/48px boxes; `sm` rounds one step tighter (at 32px a 24px radius would be all but a circle) and `md` restates nothing.",
++        rust: "Size::Sm => px(32.) + soft_radius; Size::Md => px(40.); Size::Lg => px(48.) + control_radius",
++        status: ImplementationStatus::Implemented,
++    },
++    StyleDoc {
++        class_or_token: ".avatar--lg .avatar__fallback",
++        value: "text-base",
++        description: "The large avatar steps fallback text from 14px/20px to 16px/24px.",
++        rust: "let font = if self.large { px(16.) } else { px(14.) }",
++        status: ImplementationStatus::Implemented,
++    },
++    StyleDoc {
++        class_or_token: ".avatar__fallback",
++        value: "flex size-full items-center justify-center bg-default text-sm font-medium",
++        description: "A separate full-size fallback container centers initials or custom children with 14px/20px medium text in the color's soft foreground.",
++        rust: "fallback size_full + items_center + justify_center + text_size(font) + line_height(leading) + FontWeight::MEDIUM + soft_foreground(colors.foreground)",
++        status: ImplementationStatus::Implemented,
++    },
++    StyleDoc {
++        class_or_token: ".avatar__image",
++        value: "absolute inset-0 aspect-square size-full; transition-opacity duration-250 motion-reduce:transition-none",
++        description: "The port draws the loaded image as the root's child, applies the same radius so every renderer clips it to the Avatar boundary, and does not interpolate the swap.",
++        rust: "img(data).size_full().rounded(radius)",
++        status: ImplementationStatus::Partial,
++    },
++    StyleDoc {
++        class_or_token: ".avatar__fallback--{color}",
++        value: "text-{role}-soft-foreground; --default resolves to --default-foreground",
++        description: "The five color classes only recolour the fallback text; the fill stays `bg-default` in the base variant.",
++        rust: "fb_role.soft_foreground(colors.foreground)",
++        status: ImplementationStatus::Implemented,
++    },
++    StyleDoc {
++        class_or_token: ".avatar--soft / .avatar--soft .avatar__fallback--{color}",
++        value: "bg-transparent; compound cells fill bg-{role}-soft with the same soft foreground",
++        description: "The soft variant clears the base fill and the compound rules paint the per-role soft mix behind the same soft-foreground text.",
++        rust: "AvatarVariant::Soft => (fb_role.soft(), soft_fg)",
++        status: ImplementationStatus::Implemented,
++    },
++];
++
++pub(crate) const AVATAR: ReferenceMetadata = ReferenceMetadata {
++    page: "Avatar",
++    import_line: "use herogpui::components::avatar::Avatar;",
++    source_module: "avatar",
++    version: "3.2.4",
++    docs_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/apps/docs/content/docs/en/react/components/(media)/avatar.mdx",
++    api_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/react/src/components/avatar/avatar.tsx",
++    style_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/styles/components/avatar.css",
++    required_parts: AVATAR_REQUIRED_PARTS,
++    api: AVATAR_API,
++    parts: AVATAR_PARTS,
++    states: AVATAR_STATES,
++    styling: AVATAR_STYLING,
++};
++
+ pub(crate) const ALL: &[ReferenceMetadata] = &[
+     DROPDOWN,
+     LIST_BOX,
+@@ -15220,6 +15490,7 @@ pub(crate) const ALL: &[ReferenceMetadata] = &[
+     SURFACE,
+     KBD,
+     TYPOGRAPHY,
++    AVATAR,
+ ];
+ 
+ pub(crate) fn for_import(import_line: &str) -> Option<&'static ReferenceMetadata> {
 diff --git a/rust-toolchain.toml b/rust-toolchain.toml
 index a9c6adca..318dd9ad 100644
 --- a/rust-toolchain.toml

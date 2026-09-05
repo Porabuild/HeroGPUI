@@ -24,6 +24,38 @@ use harness::{events, open_host};
 use herogpui_components::Avatar;
 use herogpui_core::Size;
 
+#[gpui::test]
+fn fallback_lines_keep_the_size_specific_leading(cx: &mut TestAppContext) {
+    for (size, height) in [(Size::Sm, 40.), (Size::Md, 40.), (Size::Lg, 48.)] {
+        for inherited in [None, Some(48.)] {
+            let cx = open_host(cx, move || {
+                gpui::div()
+                    .when_some(inherited, |root, leading| root.line_height(px(leading)))
+                    .child(
+                        Avatar::new("fallback-leading").size(size).fallback(
+                            gpui::div()
+                                .debug_selector(|| "fallback-lines".to_owned())
+                                .flex()
+                                .flex_col()
+                                .flex_shrink_0()
+                                .child("A")
+                                .child("B"),
+                        ),
+                    )
+                    .into_any_element()
+            });
+            let bounds = cx
+                .debug_bounds("fallback-lines")
+                .expect("fallback must render");
+            assert_eq!(
+                bounds.size.height,
+                px(height),
+                "{size:?}, parent={inherited:?}"
+            );
+        }
+    }
+}
+
 /// A valid 1×1 RGBA PNG; gpui decodes it through its own image pipeline.
 const TINY_PNG: &[u8] = &[
     0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52,

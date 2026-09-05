@@ -284,6 +284,7 @@ impl RenderOnce for Avatar {
         // `.avatar__fallback` is `text-sm`; `.avatar--lg .avatar__fallback`
         // steps the fallback text up to `text-base`.
         let font = if self.large { px(16.) } else { px(14.) };
+        let leading = if self.large { px(24.) } else { px(20.) };
         let radius = if self.small {
             crate::util::soft_radius(cx)
         } else {
@@ -300,6 +301,7 @@ impl RenderOnce for Avatar {
             .bg(bg)
             .text_color(soft_fg)
             .text_size(font)
+            .line_height(leading)
             .font_weight(gpui::FontWeight::MEDIUM)
             .overflow_hidden()
             .flex_shrink_0();
@@ -322,6 +324,7 @@ impl RenderOnce for Avatar {
             .bg(fallback_bg)
             .text_color(soft_fg)
             .text_size(font)
+            .line_height(leading)
             .font_weight(gpui::FontWeight::MEDIUM)
             .child(fallback_content);
 

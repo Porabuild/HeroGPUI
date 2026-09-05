@@ -24587,9 +24587,9 @@
       {
         "name": "Avatar.Fallback",
         "slot": "avatar__fallback",
-        "description": "`flex size-full items-center justify-center bg-default text-sm font-medium` fallback box. The port folds it into the root container and draws the initials — or any custom `fallback` children — directly, painted `text-{role}-soft-foreground`.",
+        "description": "`flex size-full items-center justify-center bg-default text-sm font-medium` fallback box. The separate fallback container centers initials or custom `fallback` children with 14px/20px medium text (16px/24px for large avatars), painted `text-{role}-soft-foreground`.",
         "rustOwner": "Avatar",
-        "status": "partial"
+        "status": "implemented"
       }
     ],
     "states": [],
@@ -24608,15 +24608,15 @@
       },
       {
         "token": ".avatar--lg .avatar__fallback",
-        "description": "The large avatar steps the fallback text up from 14px to 16px.",
+        "description": "The large avatar steps fallback text from 14px/20px to 16px/24px.",
         "rust": "let font = if self.large { px(16.) } else { px(14.) }",
         "status": "implemented"
       },
       {
         "token": ".avatar__fallback",
-        "description": "Folded into the root container: the initials or custom fallback children are drawn by the root itself, 14px medium in the color's soft foreground.",
-        "rust": "root's items_center + justify_center + text_size(px(14.)) + FontWeight::MEDIUM + soft_foreground(colors.foreground)",
-        "status": "partial"
+        "description": "A separate full-size fallback container centers initials or custom children with 14px/20px medium text in the color's soft foreground.",
+        "rust": "fallback size_full + items_center + justify_center + text_size(font) + line_height(leading) + FontWeight::MEDIUM + soft_foreground(colors.foreground)",
+        "status": "implemented"
       },
       {
         "token": ".avatar__image",

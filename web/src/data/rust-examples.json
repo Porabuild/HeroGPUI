@@ -2451,6 +2451,7 @@
   "avatar": [
     {
       "heading": "Usage",
+      "description": "Fallback text uses 14px text with 20px lines, or 16px text with 24px lines for large avatars.",
       "imports": "use herogpui::prelude::Avatar;",
       "code": "Avatar::new(\"avatar-avatar\")\n    .name(\"Jane Doe\")"
     },
