@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "artifactSha256": "e4931fd81af670f04f15e0dd49e65fb133d266f839e24e15eeebd1acf6f74327",
-  "glueSha256": "bdc5df9bbd47de186ab7dca92a2809fc40d6f434eda9b9f244c12963ada40764",
+  "artifactSha256": "49422fd434d39dec2cb57b9d184b9562db2a97a8cb71b1fd3f177efe22fdc919",
+  "glueSha256": "af88177f950f73b2a327b0fc163a5319009804247f38ab48402aadc85c317ece",
   "examples": {
     "accordion/Controlled": {
       "nativeCodeSha256": "2816548407263e0fdeada0ff2ec1e8f9fd45a2d33b24ab2cf163539711fe6f8a",
@@ -604,7 +604,7 @@
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "color-field/Full Width": {
-      "nativeCodeSha256": "eafb64456a28d324e36cc66ec91ceb10d64f9c61bdc25951bdbcbc00f601d8e9",
+      "nativeCodeSha256": "ce26a327ba2a6c50e40621dd659b201b89c54cb6784da57af03b7d8e0a81a2e1",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "color-field/Hex value": {
@@ -2376,7 +2376,7 @@
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "time-field/Full Width": {
-      "nativeCodeSha256": "0cd94fb854fb3695de9d9a14b3808634ae6050d87f198eeb81fca221eacc4a43",
+      "nativeCodeSha256": "5edf706b0cd4d9706d766cafbd8d04cef5ecbda97b00348416607414605089f9",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "time-field/On Surface": {

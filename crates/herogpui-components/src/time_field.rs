@@ -1530,7 +1530,11 @@ impl RenderOnce for TimeField {
         }
 
         // `.date-field` is `flex flex-col gap-1`.
-        let mut root = div().flex().flex_col().gap(px(4.));
+        let mut root = div()
+            .flex()
+            .flex_col()
+            .gap(px(4.))
+            .when(self.full_width, |root| root.w_full());
         if let Some(label) = self.label {
             root = root.child(
                 crate::field::Label::new(label)

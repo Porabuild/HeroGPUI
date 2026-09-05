@@ -4014,7 +4014,7 @@
         "prop": "fullWidth",
         "type": "boolean",
         "default": "false",
-        "description": "Stretches the input group to its available width.",
+        "description": "Stretches the root and input group in editable and display modes.",
         "rustOwner": "ColorField",
         "rust": "full_width(bool)",
         "status": "implemented"
@@ -4451,9 +4451,9 @@
       },
       {
         "token": ".color-field--full-width",
-        "description": "The embedded input group stretches; the wrapper itself remains content-sized.",
-        "rust": "full_width(bool)",
-        "status": "partial"
+        "description": "Both the wrapper and inner group stretch, including in a non-stretching flex parent.",
+        "rust": "full_width(bool) + root/group w_full",
+        "status": "implemented"
       },
       {
         "token": ".color-input-group",
@@ -14312,7 +14312,7 @@
       },
       {
         "token": ".time-field--full-width",
-        "description": "Full-width root and group.",
+        "description": "Full-width root and group stretch even in a non-stretching parent.",
         "rust": "full_width(true)",
         "status": "implemented"
       },

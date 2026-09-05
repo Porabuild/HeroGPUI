@@ -324,6 +324,7 @@ ColorSlider labels/output, ColorPicker triggers, and ColorField display text use
 - **PickerColor** — shared value: `from_hex`, `to_hex`, `from_rgb`, `to_rgb`, `to_hsla`, `channel()`, `with_channel()`, `with_alpha()`
 - **ColorArea** — `ColorArea::new(id, value)`; `color_space(ColorSpace)` sets both axes to that space's channel pair, `x_channel` / `y_channel` override either, `size(w,h)`, `show_dots` (the dot-grid overlay), `is_disabled`, `on_change`, `on_change_end`
 - **ColorField** — `ColorField::new(id, value)`; `channel(ColorChannel)`, `color_space(ColorSpace)`, `label`, `description`, `variant`, `full_width`, the validity flags
+  - `full_width(true)` expands both the outer wrapper and control to the available parent width.
   - `state(Entity<InputState>)` makes it **editable**; without one it is a read-only display of `value`. `placeholder`, and `on_change(Option<PickerColor>)` reporting `None` when the text is not a colour, exactly as v3 types it. With a `channel` the text is that channel's number rather than a hex value.
 - **ColorPicker** — `label`, `is_open`, `show_alpha`, `on_change`, `on_open_change`
 - **ColorSlider** — `ColorSlider::new(id, value, channel).color_space(ColorSpace).orientation().length().show_label().on_change().on_change_end()`
@@ -356,6 +357,7 @@ ColorSlider labels/output, ColorPicker triggers, and ColorField display text use
   - the popover renders `RangeCalendar`, so the hover preview between the anchor and the cursor, the constraint treatments and the year picker all come along.
 - **RangeCalendar** — `RangeCalendar::new(DateRangeState).value(start, end).allows_non_contiguous_ranges().focused_value().on_focus_change().on_change(start, end)` plus the constraints. During a contiguous selection, `is_date_unavailable` receives the first endpoint and derives temporary cell, focus and navigation bounds by scanning through one visible duration on each side plus the sentinel day beyond each limit; non-contiguous mode removes those interior bounds while unavailable endpoints remain inert. `locale(tag)` uses the same calendar-system conversions for the grid, paging, year picker and unavailable-range scan. Day buttons use 14px/20px medium text in all states; custom `cell` content inherits these metrics.
 - **TimeField** — `TimeState::with_value(cx, Time::new(9,30))`, `TimeField::new(state).value().min_value().max_value().placeholder_value().hour_cycle(HourCycle::{H12,H24}).should_force_leading_zeros(true).show_seconds().on_change(Option<Time>)`; without explicit overrides, `TimeField` and time-granularity `DateField` use the system regional segment order, literals, numeric padding, localized day-period names, and 12/24-hour cycle, while an empty time starts at midnight
+  - `full_width(true)` expands both the outer wrapper and control to the available parent width.
 
 ### Feedback
 - **Alert** — `Alert::new(title).description().status(Color)` plus composed children (v3 spells it `status`, removed `variant`/`radius`, and removed `isClosable`/`onClose` — a close affordance is an ordinary child, e.g. a composed `CloseButton`)

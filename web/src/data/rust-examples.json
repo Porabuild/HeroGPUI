@@ -488,8 +488,8 @@
     },
     {
       "heading": "Full Width",
-      "imports": "use herogpui::prelude::ColorField;",
-      "code": "ColorField::new(\"color-field-full\", value)\n    .state(self.demo_text(\"cf-full\", \"#0085F5\", cx))\n    .label(\"Color\")\n    .full_width(true)"
+      "imports": "use herogpui::prelude::ColorField;\nuse gpui::prelude::*;\nuse gpui::px;",
+      "code": "gpui::div()\n    .w(px(400.))\n    .child(gpui::div()\n               .flex()\n               .flex_col()\n               .items_start()\n               .gap(px(12.))\n               .children(vec![\n                       ColorField::new(\"color-field-full\", value)\n                           .state(self.demo_text(\"cf-full\", \"#0085F5\", cx))\n                           .label(\"Color\")\n                           .full_width(true)\n                           .into_any_element(),\n                       ColorField::new(\"color-field-full-display\", value)\n                           .label(\"Display color\")\n                           .full_width(true)\n                           .into_any_element(),\n                   ]))"
     },
     {
       "heading": "Validation",
@@ -1413,8 +1413,8 @@
     },
     {
       "heading": "Full Width",
-      "imports": "use herogpui::prelude::{TimeField, TimeState};",
-      "code": "TimeField::new(self.demo_time(\"tmf-full\", cx))\n    .label(\"Time\")\n    .full_width(true)"
+      "imports": "use herogpui::prelude::{TimeField, TimeState};\nuse gpui::prelude::*;\nuse gpui::px;",
+      "code": "gpui::div()\n    .w(px(400.))\n    .child(\n        TimeField::new(self.demo_time(\"tmf-full\", cx))\n            .label(\"Time\")\n            .full_width(true),\n    )"
     },
     {
       "heading": "Validation",

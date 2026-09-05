@@ -2261,11 +2261,20 @@ impl Gallery {
                 ),
                 (
                     "Full Width",
-                    col(vec![h::ColorField::new("cf-full", value)
-                        .state(self.demo_text("cf-full", "#0085F5", cx))
-                        .label("Color")
-                        .full_width(true)
-                        .into_any_element()]),
+                    gpui::div()
+                        .w(px(400.))
+                        .child(col(vec![
+                            h::ColorField::new("cf-full", value)
+                                .state(self.demo_text("cf-full", "#0085F5", cx))
+                                .label("Color")
+                                .full_width(true)
+                                .into_any_element(),
+                            h::ColorField::new("cf-full-display", value)
+                                .label("Display color")
+                                .full_width(true)
+                                .into_any_element(),
+                        ]))
+                        .into_any_element(),
                 ),
                 (
                     "Validation",
@@ -5411,10 +5420,14 @@ impl Gallery {
                 ),
                 (
                     "Full Width",
-                    col(vec![h::TimeField::new(self.demo_time("tmf-full", cx))
-                        .label("Time")
-                        .full_width(true)
-                        .into_any_element()]),
+                    gpui::div()
+                        .w(px(400.))
+                        .child(
+                            h::TimeField::new(self.demo_time("tmf-full", cx))
+                                .label("Time")
+                                .full_width(true),
+                        )
+                        .into_any_element(),
                 ),
                 (
                     "Validation",

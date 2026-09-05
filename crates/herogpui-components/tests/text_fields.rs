@@ -54,7 +54,7 @@ use gpui::{
 use herogpui_components::{
     Button, ColorField, Date, DateField, FieldGroup, Fieldset, FieldsetLegend, Input, InputAddon,
     InputGroup, InputOTP, InputState, OtpPattern, OtpState, PickerColor, SearchField, TextArea,
-    TextField,
+    TextField, Time, TimeField, TimeState,
 };
 
 use harness::{click, events, open_host, press};
@@ -1599,6 +1599,72 @@ fn input_addons_and_custom_otp_slots_keep_twenty_pixel_lines(cx: &mut TestAppCon
                 px(20.),
                 "kind={kind}, host={leading:?}"
             );
+        }
+    }
+}
+
+#[gpui::test]
+fn color_and_time_full_width_reaches_the_parent_edge(cx: &mut TestAppContext) {
+    for kind in 0..3 {
+        for width in [200., 400., 640.] {
+            for labeled in [false, true] {
+                let measured = std::rc::Rc::new(std::cell::Cell::new(None));
+                let recorded = measured.clone();
+                let input = cx.new(|cx| InputState::new(cx));
+                let time = cx.new(|cx| TimeState::new(cx));
+                let time_for_view = time.clone();
+                let input_for_view = input.clone();
+                let cx = open_host(cx, move || {
+                    let control = if kind == 2 {
+                        TimeField::new(time_for_view.clone())
+                            .default_value(Time::new(12, 30))
+                            .full_width(true)
+                            .when(labeled, |field| field.label("Time"))
+                            .into_any_element()
+                    } else {
+                        ColorField::new("width-color", PickerColor::hsb(0., 1., 1.))
+                            .full_width(true)
+                            .when(kind == 1, |field| field.state(input_for_view.clone()))
+                            .when(labeled, |field| field.label("Color"))
+                            .into_any_element()
+                    };
+                    let recorded = recorded.clone();
+                    gpui::div()
+                        .w(px(width))
+                        .flex()
+                        .flex_col()
+                        .items_start()
+                        .on_children_prepainted(move |bounds, _, _| recorded.set(Some(bounds[0])))
+                        .child(control)
+                        .into_any_element()
+                });
+                flush_frame(cx);
+                assert_eq!(
+                    measured.get().expect("field paints").size.width,
+                    px(width),
+                    "kind={kind}, labeled={labeled}"
+                );
+                if kind != 0 {
+                    click(cx, width - 8., if labeled { 42. } else { 18. });
+                    if kind == 1 {
+                        cx.update(|window, cx| {
+                            assert!(
+                                input.focus_handle(cx).is_focused(window),
+                                "expanded input edge accepts focus"
+                            );
+                        });
+                    } else {
+                        press(cx, "up");
+                        cx.update(|_, cx| {
+                            assert_ne!(
+                                time.read(cx).value,
+                                Some(Time::new(12, 30)),
+                                "expanded time field edge accepts keyboard editing"
+                            );
+                        });
+                    }
+                }
+            }
         }
     }
 }
