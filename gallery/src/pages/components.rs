@@ -3819,7 +3819,7 @@ impl Gallery {
             crate::pages::Page::Table.description(),
             crate::pages::Page::Table.import_line(),
             vec![
-                ("Usage", col(vec![build("tbl-usage").into_any_element()])),
+                ("Usage", "Headers use 12px text with 16px lines; cells use 14px text with 20px lines in both ordinary and virtual rows.", col(vec![build("tbl-usage").into_any_element()])),
                 (
                     "Variants",
                     col(h::TableVariant::ALL
@@ -3885,6 +3885,17 @@ impl Gallery {
                     "In a non-virtual table, PageUp moves from the body to the first header. Enter sorts a sortable header; Down or PageDown returns to the first or last enabled row.",
                     col(vec![
                         {
+                            let mut rows = [
+                                ["Tony Reichert", "CEO", "Active"],
+                                ["Zoey Lang", "Tech Lead", "Paused"],
+                            ];
+                            if let Some(sort) = &self.table_sort {
+                                let column = usize::from(sort.column.as_ref() == "Role");
+                                rows.sort_by(|a, b| match sort.direction {
+                                    h::SortDirection::Ascending => a[column].cmp(b[column]),
+                                    h::SortDirection::Descending => b[column].cmp(a[column]),
+                                });
+                            }
                             let mut sortable = h::Table::new(vec![])
                                 .id("tbl-sorting")
                                 .column(
@@ -3894,22 +3905,17 @@ impl Gallery {
                                 )
                                 .column(h::TableColumn::new("Role").allows_sorting(true))
                                 .column("Status")
-                                .row(vec![
-                                    gpui::div().child("Tony Reichert").into_any_element(),
-                                    gpui::div().child("CEO").into_any_element(),
-                                    gpui::div().child("Active").into_any_element(),
-                                ])
-                                .row(vec![
-                                    gpui::div().child("Zoey Lang").into_any_element(),
-                                    gpui::div().child("Tech Lead").into_any_element(),
-                                    gpui::div().child("Paused").into_any_element(),
-                                ])
                                 .on_sort_change(sort_cb(cx.listener(
                                     |this, d: &h::SortDescriptor, _, cx| {
                                         this.table_sort = Some(d.clone());
                                         cx.notify();
                                     },
                                 )));
+                            for row in rows {
+                                sortable = sortable.row(row.into_iter().map(|text| {
+                                    gpui::div().child(text).into_any_element()
+                                }).collect());
+                            }
                             if let Some(d) = self.table_sort.clone() {
                                 sortable = sortable.sort_descriptor(d);
                             }

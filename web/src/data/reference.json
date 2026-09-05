@@ -20994,8 +20994,8 @@
       },
       {
         "token": ".table__content",
-        "description": "14px type matches; the port is a flex column rather than a border-separate table.",
-        "rust": "min_w_full flex_col text_size(px(14.))",
+        "description": "14px type and 20px line height match; the port is a flex column rather than a border-separate table.",
+        "rust": "min_w_full flex_col text_size(px(14.)) line_height(px(20.))",
         "status": "partial"
       },
       {
@@ -21006,8 +21006,8 @@
       },
       {
         "token": ".table__column",
-        "description": "16/10px inset and 12px type match; the port uses medium caller-case labels, but short vertical column separators are not drawn.",
-        "rust": "px(16.) py(10.) text_size(12.) MEDIUM + label.clone()",
+        "description": "16/10px inset and 12px type with 16px lines match; the port uses medium caller-case labels, but short vertical column separators are not drawn.",
+        "rust": "px(16.) py(10.) text_size(12.) line_height(16.) MEDIUM + label.clone()",
         "status": "partial"
       },
       {

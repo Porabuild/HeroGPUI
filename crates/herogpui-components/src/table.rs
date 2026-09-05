@@ -1461,6 +1461,7 @@ impl RenderOnce for Table {
             .flex_shrink_0()
             .min_w_full()
             .text_size(px(14.))
+            .line_height(px(20.))
             .when_some(self.gap, |el, g| el.gap(g))
             .when_some(self.padding, |el, p| el.p(p));
 
@@ -1553,6 +1554,7 @@ impl RenderOnce for Table {
                 .px(px(16.))
                 .py(px(10.))
                 .text_size(px(12.))
+                .line_height(px(16.))
                 .font_weight(gpui::FontWeight::MEDIUM)
                 .text_color(if sorted.is_some() {
                     colors.foreground
@@ -3612,7 +3614,7 @@ mod tests {
             .expect("the implementation section is always present");
         assert!(
             source.contains(
-                ".text_size(px(12.))\n                .font_weight(gpui::FontWeight::MEDIUM)\n                .text_color"
+                ".text_size(px(12.))\n                .line_height(px(16.))\n                .font_weight(gpui::FontWeight::MEDIUM)\n                .text_color"
             ),
             "table column headers must use the pinned `font-medium` weight"
         );
