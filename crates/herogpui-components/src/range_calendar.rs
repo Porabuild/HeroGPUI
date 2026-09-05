@@ -621,7 +621,9 @@ impl RangeCalendar {
             .items_center()
             .justify_center()
             .size(px(36.))
-            .text_size(px(13.))
+            .text_size(px(14.))
+            .line_height(px(20.))
+            .font_weight(gpui::FontWeight::MEDIUM)
             .child(match &self.cell {
                 Some(render) => render(RangeCalendarCellState {
                     date,
@@ -641,8 +643,7 @@ impl RangeCalendar {
             cell = cell
                 .rounded_full()
                 .bg(accent.color)
-                .text_color(accent.foreground)
-                .font_weight(gpui::FontWeight::SEMIBOLD);
+                .text_color(accent.foreground);
         } else if is_today {
             // `.range-calendar__cell[data-today]` fills the button with
             // `bg-accent-soft text-accent-soft-foreground`, today or inside
@@ -684,8 +685,8 @@ impl RangeCalendar {
                 padding_x: None,
                 width: Some(px(36.)),
                 min_width: None,
-                text_size: px(13.),
-                line_height: px(18.),
+                text_size: px(14.),
+                line_height: px(20.),
                 gap: px(0.),
                 radius: px(18.),
                 shrink_x: true,

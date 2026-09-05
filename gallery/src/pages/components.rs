@@ -5100,6 +5100,7 @@ impl Gallery {
                 ),
                 (
                     "Disabled",
+                    "Disabled day cells retain the same 14px/20px medium typography as selectable and selected dates.",
                     col(vec![h::RangeCalendar::new(
                         self.demo_range("rc-disabled", cx),
                     )

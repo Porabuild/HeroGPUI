@@ -14961,15 +14961,15 @@
       },
       {
         "token": ".range-calendar__cell",
-        "description": "The port uses 38px cells, 13px text and simplified row boundaries instead of v3's 36px/14px surface.",
-        "rust": "38px range segment + 13px text",
+        "description": "The 36px range segment contains a separate inner day button; 4px row gaps reproduce the spacing between cells.",
+        "rust": "36px range segment + row gap(4px)",
         "status": "partial"
       },
       {
         "token": ".range-calendar__cell-button",
-        "description": "The monolithic GPUI cell reproduces the inner hit surface without a separate DOM part.",
-        "rust": "centered cell content",
-        "status": "partial"
+        "description": "The inner day button centers 14px/20px medium text, including selected endpoints and custom cell content.",
+        "rust": "36px inner cell + text_size(14px) + line_height(20px) + MEDIUM",
+        "status": "implemented"
       },
       {
         "token": ".range-calendar__cell-button transition",

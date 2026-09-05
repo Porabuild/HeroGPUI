@@ -30,6 +30,60 @@ use herogpui_components::{
     VisibleDuration, Weekday,
 };
 
+#[gpui::test]
+fn range_day_text_keeps_pinned_metrics_in_every_state(cx: &mut TestAppContext) {
+    for (disabled, read_only) in [(false, false), (true, false), (false, true)] {
+        for inherited in [20., 48.] {
+            let seen = Rc::new(RefCell::new(Vec::new()));
+            let view_seen = seen.clone();
+            let state = cx.new(|cx| DateRangeState::new(cx));
+            let cx = open_host(cx, move || {
+                let seen = view_seen.clone();
+                gpui::div()
+                    .line_height(px(inherited))
+                    .child(
+                        RangeCalendar::new(state.clone())
+                            .default_value((Date::new(2026, 8, 10), Date::new(2026, 8, 15)))
+                            .is_disabled(disabled)
+                            .is_read_only(read_only)
+                            .cell(move |cell| {
+                                let seen = seen.clone();
+                                gpui::div()
+                                    .child(cell.formatted_date)
+                                    .child(gpui::canvas(
+                                        |_, _, _| {},
+                                        move |_, _, window, _| {
+                                            let style = window.text_style();
+                                            let rem = window.rem_size();
+                                            seen.borrow_mut().push((
+                                                style.font_size.to_pixels(rem),
+                                                style.line_height.to_pixels(
+                                                    gpui::AbsoluteLength::Pixels(rem),
+                                                    rem,
+                                                ),
+                                                style.font_weight,
+                                            ));
+                                        },
+                                    ))
+                                    .into_any_element()
+                            }),
+                    )
+                    .into_any_element()
+            });
+            cx.update(|window, _| window.refresh());
+            let seen = seen.borrow();
+            assert!(!seen.is_empty());
+            for metrics in seen.iter() {
+                assert_eq!(
+                    *metrics,
+                    (px(14.), px(20.), gpui::FontWeight::MEDIUM),
+                    "disabled={disabled}, read_only={read_only}, inherited={inherited}"
+                );
+            }
+        }
+    }
+}
+
 /// Column *c*'s centre in a bare Calendar: seven cells across
 /// `CALENDAR_WIDTH` minus six 2px gaps.
 fn cal_col_x(col: usize) -> f32 {

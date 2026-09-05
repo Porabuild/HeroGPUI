@@ -1257,6 +1257,7 @@
     },
     {
       "heading": "Disabled",
+      "description": "Disabled day cells retain the same 14px/20px medium typography as selectable and selected dates.",
       "imports": "use herogpui::prelude::RangeCalendar;",
       "code": "RangeCalendar::new(\n    self.demo_range(\"rc-disabled\", cx),\n)\n.is_disabled(true)"
     },

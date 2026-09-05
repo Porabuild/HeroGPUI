@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "artifactSha256": "f38158914d5108807bd5b63c6418878a07a39373cfc14b6cf4403e51834da73d",
+  "artifactSha256": "1ce78e1e4f9e4e8b770373f2f1824bd5d0d2125e1879d08f50adea436c4e7572",
   "glueSha256": "79d094e3fc922c1dc81586a67c0bd0a53840b1c3bd36856a36167987bf6208a2",
   "examples": {
     "accordion/Controlled": {
@@ -1757,7 +1757,7 @@
     },
     "range-calendar/Disabled": {
       "nativeCodeSha256": "ae42c3b3a86b41ef92b88b86c2d804ca3594fbb97ae98d3ea211373c8162ef0d",
-      "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      "descriptionSha256": "26d18c806b77a2fc2e179ad0e84a6a7115be9e422cb088390575af44a43858e8"
     },
     "range-calendar/Focused Value": {
       "nativeCodeSha256": "d1833e67618331f43d84022f4adffef280f16c3a26de3a7fe0936cf91f2e9f3c",
