@@ -969,6 +969,7 @@ impl Calendar {
                         let key = format!("{:?}-weekday-{column}", self.id);
                         move || key
                     })
+                    .pb(px(8.))
                     .text_center()
                     // `.calendar__header-cell` is `text-xs`.
                     .text_size(px(12.))
@@ -1034,7 +1035,7 @@ impl Calendar {
 
         // `.calendar__grid` holds the header and `.calendar__grid-body`, whose
         // children are `.calendar__grid-row`s of cells.
-        let mut grid = gpui::div().flex().flex_col().gap(px(2.));
+        let mut grid = gpui::div().flex().flex_col();
         for r in 0..rows {
             let mut line = gpui::div().flex();
             for c in 0..7 {
@@ -1657,7 +1658,6 @@ impl RenderOnce for Calendar {
         let mut root = gpui::div()
             .flex()
             .flex_col()
-            .gap(px(8.))
             .text_color(colors.surface.foreground)
             // readOnly blocks selection, not focus or navigation.
             .when(!self.is_disabled && !year_picker_open, |el| {
@@ -1871,15 +1871,15 @@ impl RenderOnce for Calendar {
             });
         }
 
-        let mut body = gpui::div().flex().flex_col().gap(px(8.));
+        let mut body = gpui::div().flex().flex_col().gap(px(4.));
         if self.duration.is_month_view() {
             root = root.w(column_width * columns as f32 + px(32.) * (columns - 1) as f32);
             let mut row = gpui::div().flex().gap(px(32.));
-            let mut headings = gpui::div().flex().gap(px(32.));
+            let mut headings = gpui::div().flex().gap(px(32.)).pb(px(16.));
             for (i, &(y, m)) in months.iter().enumerate() {
                 let first = i == 0;
                 let last = i + 1 == columns;
-                let mut col = gpui::div().w(column_width).flex().flex_col().gap(px(8.));
+                let mut col = gpui::div().w(column_width).flex().flex_col().gap(px(4.));
                 // Only the outer columns carry nav buttons; the others keep
                 // a same-size spacer so every heading lines up.
                 // The same box as a nav button, so every heading lines up.
@@ -1939,6 +1939,7 @@ impl RenderOnce for Calendar {
                     .justify_between()
                     // `.calendar__header` is `px-0.5`.
                     .px(px(2.))
+                    .pb(px(16.))
                     .child(nav_btn(
                         icons::CHEVRON_LEFT,
                         nav_target(-1),
@@ -1961,7 +1962,7 @@ impl RenderOnce for Calendar {
                     )),
             );
             body = body.child(self.weekday_header(cx));
-            let mut grid = gpui::div().flex().flex_col().gap(px(2.));
+            let mut grid = gpui::div().flex().flex_col();
             for row in calendar_view::week_aligned_rows(visible_start, visible_end, first_day) {
                 let mut line = gpui::div().flex();
                 for date in row {

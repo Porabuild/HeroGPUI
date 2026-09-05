@@ -369,6 +369,9 @@ ProgressBar, ProgressCircle, Spinner and Typography; elsewhere `variant` (or
 `Calendar` and `RangeCalendar` show a month grid, several month grids side by
 side, a run of week rows, or a rolling window of days. Day cells, month headings and
 year cells use 14px/20px medium text; weekday labels use 12px/16px medium text.
+Headers have 16px bottom padding, weekday labels have 8px bottom padding, and
+date rows start 4px below the weekday block. Calendar rows are contiguous;
+RangeCalendar retains 2px vertical cell margins.
 Calendar single-month, week and day rows use seven 36px columns without horizontal gaps, aligned
 with their weekday headings.
 Multiple-month views use 256px panels separated by 32px, with square cells one

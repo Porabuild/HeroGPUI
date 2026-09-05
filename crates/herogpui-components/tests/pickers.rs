@@ -1515,14 +1515,11 @@ fn date_picker_opens_and_picks_a_day(cx: &mut TestAppContext) {
     // x: the calendar column is CALENDAR_WIDTH wide (252px = seven cells),
     // each slot is 252/7 wide and the last
     // column's centre sits at 12 + 6*w + w/2 from the panel origin.
-    // y: panel top (36 trigger + 6 offset) + picker_panel p(12) + nav header
-    // h(24) + two calendar gaps of 8 + one weekday-header text line (~16) +
-    // half of a 36px cell. Only the text line is a metric rather than a
-    // constant; any value it takes in 0..34 keeps y = 128 inside the first
-    // week's cells.
+    // y: panel top 42 + padding 12 + header 40 + weekday 24 + body offset 4
+    // + half a 36px cell = 140.
     let cell_w = f32::from(CALENDAR_WIDTH) / 7.;
     let day_x = 12. + 6. * cell_w + cell_w / 2.;
-    let day_y = 128.;
+    let day_y = 140.;
 
     let state_for_view = state;
     let cx = open_host(cx, move || {

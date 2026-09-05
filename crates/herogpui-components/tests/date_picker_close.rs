@@ -16,18 +16,14 @@
 //!   (300, 18).
 //! - The DatePicker panel hangs from `placed_panel(BottomStart, 6px)`: top =
 //!   36 + 6 = 42, then `picker_panel` padding p-3 (12) brings the calendar to
-//!   y = 54. A 24px header, gap 8, one ~16px weekday line and gap 8 later the
-//!   first cell row spans y 110..146, centre 128. Only the weekday line is a
-//!   text metric, and 128 stays inside the row for any line height the font
-//!   can take.
+//!   y = 54. The 24px header, 16px bottom padding, 24px weekday block and
+//!   4px body offset put the first Calendar cell at y = 122, centre 140.
 //! - Calendar columns: `CALENDAR_WIDTH` (252) split into seven equal
-//!   cells; that, plus the panel's 12px padding, fixes the last column's
-//!   centre at `12 + 6*cell_w + cell_w/2`.
-//! - The DateRangePicker's `RangeCalendar` cells are 38px with no column
-//!   gaps, so from the same panel origin the first row's cells centre at
-//!   y = 129, the second at 169, and column *c* at `12 + 19 + 38c`.
-//! - A bare `Calendar` starts at the window origin, so its first row centres
-//!   at y = 74 and the last column at `6*cell_w + cell_w/2`.
+//!   cells; with the panel's 12px padding, the last column's centre is
+//!   `12 + 6*cell_w + cell_w/2`.
+//! - RangeCalendar adds 2px cell margins, putting its first row centre at 142
+//!   and the second at 182; column *c* centres at `12 + 18 + 36c`.
+//! - A bare Calendar's first row centres at 86.
 //!
 //! No exiting overlay is involved: both pickers gate the panel on `is_open`
 //! (no `util::overlay_phase`), so a closed popover leaves the tree on the
@@ -47,7 +43,7 @@ use harness::{click, events, open_host};
 fn day_coords() -> (f32, f32) {
     let cell_w = f32::from(CALENDAR_WIDTH) / 7.;
     let day_x = 12. + 6. * cell_w + cell_w / 2.;
-    (day_x, 128.)
+    (day_x, 140.)
 }
 
 fn input_state(cx: &mut TestAppContext) -> gpui::Entity<InputState> {
@@ -294,12 +290,10 @@ fn date_range_picker_stays_open_until_the_end_is_chosen(cx: &mut TestAppContext)
     // Day 8 is a week on: it lands one row down in the same column and is a
     // real, later date whatever the month is.
     let ended = Date::new(today.year, today.month, 8);
-    // Column centres inside the range picker's 38px cell band: the first real
-    // day of the month sits at row 0, column `lead`; a week later sits in row
-    // 1, whose rows are 38px + a 2px row gap below row 0's 129px centre.
-    let day_x = 31. + 38. * lead as f32;
-    let row_one_y = 129.;
-    let row_two_y = 169.;
+    // Day 1 starts at column `lead`; day 8 is 40px below it in the same column.
+    let day_x = 30. + 36. * lead as f32;
+    let row_one_y = 142.;
+    let row_two_y = 182.;
 
     let state_for_view = state.clone();
     let cx = open_host(cx, move || {
@@ -379,7 +373,7 @@ fn date_range_picker_can_remain_open_after_completion(cx: &mut TestAppContext) {
     let state = cx.new(|cx| DateRangeState::new(cx));
     let today = Date::today();
     let lead = DateConstraints::new().lead_cells(today.year, today.month);
-    let day_x = 31. + 38. * lead as f32;
+    let day_x = 30. + 36. * lead as f32;
 
     let state_for_view = state;
     let cx = open_host(cx, move || {
@@ -393,8 +387,8 @@ fn date_range_picker_can_remain_open_after_completion(cx: &mut TestAppContext) {
     });
 
     click(cx, 300., 18.);
-    click(cx, day_x, 129.);
-    click(cx, day_x, 169.);
+    click(cx, day_x, 142.);
+    click(cx, day_x, 182.);
     assert_eq!(opened.borrow().as_slice(), ["open:true"]);
 }
 
@@ -432,11 +426,10 @@ fn bare_calendar_still_records_a_chosen_date(cx: &mut TestAppContext) {
     let expected = Date::new(today.year, today.month, (7 - lead) as u32);
     // The bare calendar starts at the window origin: no panel padding, so the
     // last column loses the pickers' leading 12px, and the first row sits at
-    // y = 74 (24px header + gap 8 + ~16px weekday line + gap 8 + half a
-    // 36px cell).
+    // y = 86 (24px header + padding 16 + weekday 24 + offset 4 + half a 36px cell).
     let cell_w = f32::from(CALENDAR_WIDTH) / 7.;
     let day_x = 6. * cell_w + cell_w / 2.;
-    let day_y = 74.;
+    let day_y = 86.;
 
     let state_for_view = state;
     let cx = open_host(cx, move || {

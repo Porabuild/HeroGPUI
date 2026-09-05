@@ -10,8 +10,8 @@
 //! Feb 29 rather than invent a Feb 31.
 //!
 //! Geometry is the same derivation the rest of the suite uses: a bare
-//! Calendar at the window origin, `CALENDAR_WIDTH` (252) split into seven equal cells for the column centres, the first cell row at y = 74 with
-//! 38px per row after it, and the month's leading blanks
+//! Calendar at the window origin, `CALENDAR_WIDTH` (252) split into seven equal cells for the column centres, the first cell row at y = 86 with
+//! 36px per row after it, and the month's leading blanks
 //! (`DateConstraints::lead_cells`, Monday-start default) for a day's
 //! row/column.
 
@@ -28,6 +28,85 @@ use herogpui_components::{
     Button, Calendar, CalendarState, DateConstraints, DateRangeState, RangeCalendar,
     VisibleDuration, Weekday,
 };
+
+#[gpui::test]
+fn calendar_spacing_matches_the_pinned_rendered_grids(cx: &mut TestAppContext) {
+    for range in [false, true] {
+        for duration in [
+            VisibleDuration::Months(1),
+            VisibleDuration::Weeks(2),
+            VisibleDuration::Days(10),
+        ] {
+            let state = cx.new(|cx| CalendarState::new(cx));
+            let range_state = cx.new(|cx| DateRangeState::new(cx));
+            let id = if range {
+                range_state.entity_id()
+            } else {
+                state.entity_id()
+            }
+            .as_u64();
+            let base = if range {
+                format!(r#"Name("range-cal-{id}")"#)
+            } else {
+                format!(r#"Name("cal-{id}")"#)
+            };
+            let cx = open_host(cx, move || {
+                let content = if range {
+                    RangeCalendar::new(range_state.clone())
+                        .default_value((Date::new(2026, 8, 3), Date::new(2026, 8, 4)))
+                        .selection_alignment(herogpui_components::SelectionAlignment::Start)
+                        .visible_duration(duration)
+                        .first_day_of_week(Weekday::Mon)
+                        .into_any_element()
+                } else {
+                    Calendar::new(state.clone())
+                        .default_value(Date::new(2026, 8, 3))
+                        .selection_alignment(herogpui_components::SelectionAlignment::Start)
+                        .visible_duration(duration)
+                        .first_day_of_week(Weekday::Mon)
+                        .into_any_element()
+                };
+                gpui::div()
+                    .debug_selector(|| "calendar-spacing-host".to_owned())
+                    .child(content)
+                    .into_any_element()
+            });
+            let weekday = cx
+                .debug_bounds(Box::leak(format!("{base}-weekday-0").into_boxed_str()))
+                .unwrap();
+            assert_eq!(weekday.top(), px(40.), "range={range}, {duration:?}");
+            assert_eq!(weekday.size.height, px(24.));
+            let first_day = if duration.is_month_view() { 1 } else { 3 };
+            let mut bounds = |day| {
+                let key = if !duration.is_month_view() {
+                    format!("{base}-{}", Date::new(2026, 8, day).format_iso())
+                } else if range {
+                    range_cell_selector(id, 2026, 8, day)
+                } else {
+                    cal_cell_selector(id, 2026, 8, day)
+                };
+                cx.debug_bounds(Box::leak(key.into_boxed_str())).unwrap()
+            };
+            let first = bounds(first_day);
+            let second = bounds(first_day + 7);
+            assert_eq!(
+                first.top() - weekday.bottom(),
+                px(if range { 6. } else { 4. })
+            );
+            assert_eq!(
+                second.top() - first.top(),
+                px(if range { 40. } else { 36. })
+            );
+            let height = cx
+                .debug_bounds("calendar-spacing-host")
+                .unwrap()
+                .size
+                .height;
+            let rows = if duration.is_month_view() { 6. } else { 2. };
+            assert_eq!(height, px(68. + rows * if range { 40. } else { 36. }));
+        }
+    }
+}
 
 #[gpui::test]
 fn calendar_day_text_keeps_pinned_metrics_in_every_state(cx: &mut TestAppContext) {
@@ -489,10 +568,9 @@ fn cal_col_x(col: usize) -> f32 {
     col as f32 * cell_w + cell_w / 2.
 }
 
-/// Row *r*'s centre in a bare Calendar: the first row at y = 74, then a
-/// 36px cell plus a 2px gap per row.
+/// Row *r*'s centre in a bare Calendar: first row at y = 86, then 36px per row.
 fn cal_row_y(row: usize) -> f32 {
-    74. + row as f32 * 38.
+    86. + row as f32 * 36.
 }
 
 /// The centre of the cell holding `day` of `(year, month)` in a bare
@@ -512,7 +590,7 @@ fn cal_day(year: i32, month: u32, day: u32) -> (f32, f32) {
 fn range_day(year: i32, month: u32, day: u32) -> (f32, f32) {
     let lead = DateConstraints::new().lead_cells(year, month);
     let idx = day as usize + lead - 1;
-    (18. + 36. * (idx % 7) as f32, 74. + 40. * (idx / 7) as f32)
+    (18. + 36. * (idx % 7) as f32, 88. + 40. * (idx / 7) as f32)
 }
 
 /// React Aria disables a month button when the day immediately beyond that

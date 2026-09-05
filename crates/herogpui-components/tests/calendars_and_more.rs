@@ -72,10 +72,9 @@ fn cal_col_x(col: usize) -> f32 {
     col as f32 * cell_w + cell_w / 2.
 }
 
-/// Row *r*'s centre in a bare Calendar: the first row at y = 74, then a
-/// 36px cell plus a 2px gap per row.
+/// Row *r*'s centre in a bare Calendar: first row at y = 86, then 36px per row.
 fn cal_row_y(row: usize) -> f32 {
-    74. + row as f32 * 38.
+    86. + row as f32 * 36.
 }
 
 /// The centre of the cell holding `day` of `(year, month)` in a bare
@@ -87,15 +86,15 @@ fn cal_day(year: i32, month: u32, day: u32) -> (f32, f32) {
     (cal_col_x(idx % 7), cal_row_y(idx / 7))
 }
 
-/// Column *c*'s centre in a bare RangeCalendar: 38px cells, no column gaps.
+/// Column *c*'s centre in a bare RangeCalendar: 36px cells, no column gaps.
 fn range_col_x(col: usize) -> f32 {
-    19. + 38. * col as f32
+    18. + 36. * col as f32
 }
 
-/// Row *r*'s centre in a bare RangeCalendar: first row at y = 75, then a
-/// 38px cell plus a 2px gap per row.
+/// Row *r*'s centre in a bare RangeCalendar: first row at y = 88, then a
+/// 36px cell plus the 4px combined vertical margins per row.
 fn range_row_y(row: usize) -> f32 {
-    75. + 40. * row as f32
+    88. + 40. * row as f32
 }
 
 /// The centre of the cell holding `day` of `(year, month)` in a bare

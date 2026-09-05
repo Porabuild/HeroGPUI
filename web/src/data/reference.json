@@ -11746,15 +11746,15 @@
       },
       {
         "token": ".calendar--day-view",
-        "description": "Seven weekday columns, disabled leading dates and trailing blanks match; header/body spacing still uses root gaps.",
+        "description": "Seven weekday columns, disabled leading dates and trailing blanks match, with 4px between the weekday block and date rows.",
         "rust": "week_aligned_rows + visible_start disabled guard",
-        "status": "partial"
+        "status": "implemented"
       },
       {
         "token": ".calendar__header",
-        "description": "Header alignment and horizontal inset match; the port uses an 8px root gap.",
-        "rust": "items_center + justify_between + px(2.)",
-        "status": "partial"
+        "description": "The header aligns its controls with a 2px horizontal inset and 16px bottom padding.",
+        "rust": "items_center + justify_between + px(2px) + pb(16px)",
+        "status": "implemented"
       },
       {
         "token": ".calendar__heading",
@@ -11794,15 +11794,15 @@
       },
       {
         "token": ".calendar__grid-body",
-        "description": "Date rows are explicit flex children; vertical spacing comes from the root and row gaps.",
-        "rust": "month_grid flex_col + gap(2px)",
-        "status": "partial"
+        "description": "Date rows start 4px below the weekday block and remain contiguous.",
+        "rust": "month_grid flex_col + preceding gap(4px)",
+        "status": "implemented"
       },
       {
         "token": ".calendar__header-cell",
-        "description": "Weekday labels use 12px/16px medium muted text; bottom padding remains absent.",
-        "rust": "text_size(12px) + line_height(16px) + MEDIUM + muted",
-        "status": "partial"
+        "description": "Weekday labels use 12px/16px medium muted text with 8px bottom padding.",
+        "rust": "text_size(12px) + line_height(16px) + MEDIUM + muted + pb(8px)",
+        "status": "implemented"
       },
       {
         "token": ".calendar__cell",
@@ -14919,9 +14919,9 @@
       },
       {
         "token": ".range-calendar__header",
-        "description": "Alignment and inset match; vertical spacing is supplied by the root gap.",
-        "rust": "items_center + justify_between + px(2px)",
-        "status": "partial"
+        "description": "Header alignment, 2px horizontal inset and 16px bottom padding match.",
+        "rust": "items_center + justify_between + px(2px) + pb(16px)",
+        "status": "implemented"
       },
       {
         "token": ".range-calendar__heading",
@@ -14949,20 +14949,20 @@
       },
       {
         "token": ".range-calendar__grid-header/body",
-        "description": "Explicit flex siblings replace flattened table contents.",
+        "description": "Seven-column flex rows start 4px below the weekday block; each range cell retains its 2px vertical margins.",
         "rust": "weekday_header + month_grid flex columns",
         "status": "partial"
       },
       {
         "token": ".range-calendar__header-cell",
-        "description": "Weekday labels use 12px/16px medium muted text; bottom padding remains absent.",
-        "rust": "text_size(12px) + line_height(16px) + MEDIUM + muted",
-        "status": "partial"
+        "description": "Weekday labels use 12px/16px medium muted text with 8px bottom padding.",
+        "rust": "text_size(12px) + line_height(16px) + MEDIUM + muted + pb(8px)",
+        "status": "implemented"
       },
       {
         "token": ".range-calendar__cell",
         "description": "Each range segment spans one seventh of the panel width and contains a separate square day button; 4px row gaps reproduce the spacing between cells.",
-        "rust": "flex_1 range segment + cell_size height + row gap(4px)",
+        "rust": "flex_1 range segment + cell_size height + row gap(4px) + grid py(2px)",
         "status": "partial"
       },
       {
