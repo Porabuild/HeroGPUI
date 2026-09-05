@@ -18,7 +18,7 @@ struct ApiMethod {
 
 pub fn panels(
     import_line: &str,
-    examples: &[(&str, AnyElement, &str)],
+    examples: &[(&str, Option<&str>, AnyElement, &str)],
     cx: &App,
 ) -> Vec<(&'static str, AnyElement)> {
     if !REFERENCE_PANEL_HEADINGS
@@ -35,7 +35,7 @@ pub fn panels(
     let Some(source) = source_for(import_line) else {
         return Vec::new();
     };
-    let owners = referenced_types(import_line, examples.iter().map(|(_, _, code)| *code));
+    let owners = referenced_types(import_line, examples.iter().map(|(_, _, _, code)| *code));
     let methods = methods_for(source, &owners);
     if methods.is_empty() {
         return Vec::new();
@@ -1813,9 +1813,9 @@ fn detail_table<'a>(
         .text_size(px(12.))
         .font_weight(gpui::FontWeight::SEMIBOLD)
         .gap(px(12.))
-        .child(gpui::div().w(px(180.)).flex_shrink_0().child(headers[0]))
-        .child(gpui::div().w(px(220.)).flex_shrink_0().child(headers[1]))
-        .child(gpui::div().w(px(220.)).flex_shrink_0().child(headers[2]))
+        .child(gpui::div().flex_1().min_w_0().child(headers[0]))
+        .child(gpui::div().flex_1().min_w_0().child(headers[1]))
+        .child(gpui::div().flex_1().min_w_0().child(headers[2]))
         .child(gpui::div().flex_1().min_w_0().child(headers[3]));
 
     gpui::div()
@@ -1838,24 +1838,24 @@ fn detail_table<'a>(
                 .gap(px(12.))
                 .child(
                     gpui::div()
-                        .w(px(180.))
-                        .flex_shrink_0()
+                        .flex_1()
+                        .min_w_0()
                         .font_family(crate::app::MONO_FONT)
                         .text_color(colors.foreground)
                         .child(row.cells[0].clone()),
                 )
                 .child(
                     gpui::div()
-                        .w(px(220.))
-                        .flex_shrink_0()
+                        .flex_1()
+                        .min_w_0()
                         .font_family(crate::app::MONO_FONT)
                         .text_color(colors.foreground)
                         .child(row.cells[1].clone()),
                 )
                 .child(
                     gpui::div()
-                        .w(px(220.))
-                        .flex_shrink_0()
+                        .flex_1()
+                        .min_w_0()
                         .text_color(colors.foreground)
                         .child(row.cells[2].clone()),
                 )
@@ -2202,6 +2202,43 @@ mod tests {
     }
 
     #[test]
+    fn close_button_metadata_tracks_render_state_and_press_geometry() {
+        let metadata = reference_metadata::for_route(
+            "CloseButton",
+            "use herogpui::components::close_button::CloseButton;",
+        )
+        .expect("CloseButton metadata is registered");
+
+        for prop in ["isHovered", "isPressed", "isFocused", "isDisabled"] {
+            assert!(metadata.api.iter().any(|entry| {
+                entry.owner == "CloseButtonRenderProps"
+                    && entry.prop == prop
+                    && entry.status == reference_metadata::ImplementationStatus::Implemented
+            }));
+        }
+        assert!(metadata.parts.iter().any(|part| {
+            part.name == "CloseButton.Icon"
+                && part.status == reference_metadata::ImplementationStatus::Implemented
+        }));
+        assert!(metadata.states.iter().any(|entry| {
+            entry.state == "Pressed"
+                && entry.rust.contains("root-bounds")
+                && entry.description.contains("fixed child")
+                && entry.status == reference_metadata::ImplementationStatus::Partial
+        }));
+        assert!(metadata.styling.iter().any(|entry| {
+            entry.class_or_token == ".close-button--default:active / [data-pressed=\"true\"]"
+                && entry.rust.contains("root-bounds")
+                && entry.description.contains("fixed child")
+                && entry.status == reference_metadata::ImplementationStatus::Partial
+        }));
+
+        let source = include_str!("reference_metadata.rs");
+        assert!(!source.contains("CloseButton .active opacity 0.7"));
+        assert!(!source.contains("close button dims on press"));
+    }
+
+    #[test]
     fn button_group_metadata_tracks_child_precedence_and_outline_collapse() {
         let metadata = reference_metadata::for_route(
             "ButtonGroup",
@@ -2442,6 +2479,10 @@ impl Widget {
                 if import.is_empty() {
                     continue;
                 }
+                assert!(
+                    reference_metadata::for_import(import).is_some(),
+                    "no reference metadata for {page:?}: {import}"
+                );
                 let source = source_for(import).unwrap_or_else(|| panic!("no source for {page:?}"));
                 let owners = referenced_types(import, std::iter::empty());
                 assert!(
@@ -3299,7 +3340,8 @@ impl Widget {
         assert!(metadata.api.iter().any(|entry| {
             entry.owner == "Calendar"
                 && entry.prop == "firstDayOfWeek"
-                && entry.status == reference_metadata::ImplementationStatus::Partial
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
+                && entry.description.contains("regional date preferences")
         }));
         assert!(metadata.api.iter().any(|entry| {
             entry.owner == "Calendar.YearPickerTriggerHeading"
@@ -3504,6 +3546,7 @@ impl Widget {
             "focusedValue",
             "minValue",
             "maxValue",
+            "isDateUnavailable",
             "selectionAlignment",
         ] {
             assert!(metadata.api.iter().any(|entry| {
@@ -3512,13 +3555,19 @@ impl Widget {
                     && entry.status == reference_metadata::ImplementationStatus::Implemented
             }));
         }
-        for prop in ["isDateUnavailable", "firstDayOfWeek"] {
-            assert!(metadata.api.iter().any(|entry| {
-                entry.owner == "RangeCalendar"
-                    && entry.prop == prop
-                    && entry.status == reference_metadata::ImplementationStatus::Partial
-            }));
-        }
+        assert!(metadata.api.iter().any(|entry| {
+            entry.owner == "RangeCalendar"
+                && entry.prop == "isDateUnavailable"
+                && entry.description.contains("one visible duration")
+                && entry.description.contains("sentinel day")
+                && entry.description.contains("cells, focus and navigation")
+        }));
+        assert!(metadata.api.iter().any(|entry| {
+            entry.owner == "RangeCalendar"
+                && entry.prop == "firstDayOfWeek"
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
+                && entry.description.contains("regional date preferences")
+        }));
         assert!(metadata.api.iter().any(|entry| {
             entry.owner == "RangeCalendar.YearPickerTriggerHeading"
                 && entry.prop == "offset"
@@ -3757,6 +3806,7 @@ impl Widget {
             "isRequired",
             "name",
             "variant",
+            "fullWidth",
         ] {
             assert!(metadata.api.iter().any(|entry| {
                 entry.owner == "Select"
@@ -3772,7 +3822,6 @@ impl Widget {
             }));
         }
         for (owner, prop) in [
-            ("Select", "fullWidth"),
             ("Select.Indicator", "children"),
             ("Select.Popover", "placement"),
         ] {
@@ -3794,7 +3843,7 @@ impl Widget {
         }
         assert!(metadata.styling.iter().any(|entry| {
             entry.class_or_token == ".select--full-width / .select__trigger--full-width"
-                && entry.status == reference_metadata::ImplementationStatus::Partial
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
         }));
         assert!(metadata.states.iter().any(|entry| {
             entry.state == "Disabled"
@@ -3942,7 +3991,11 @@ impl Widget {
             ("Table.Content", "treeColumn"),
             ("Table.Column", "id"),
             ("Table.Column", "isRowHeader"),
+            ("Table.Column", "width"),
             ("Table.Column", "defaultWidth"),
+            ("Table.ResizableContainer", "onResizeStart"),
+            ("Table.ResizableContainer", "onResize"),
+            ("Table.ResizableContainer", "onResizeEnd"),
             ("Table.Row", "id"),
             ("Table.Row", "isDisabled"),
             ("Table.LoadMore", "children"),
@@ -3963,7 +4016,6 @@ impl Widget {
             ("Table.Content", "selectionBehavior"),
             ("Table.Content", "dragAndDropHooks"),
             ("Table.Content", "keyboardNavigationBehavior"),
-            ("Table.Column", "width"),
             ("Table.Cell", "colSpan"),
             ("TableLayout", "headingHeight"),
             ("TableLayout", "dropIndicatorThickness"),
@@ -4054,6 +4106,37 @@ impl Widget {
             entry.class_or_token == ".accordion__panel"
                 && entry.status == reference_metadata::ImplementationStatus::Partial
         }));
+    }
+
+    #[test]
+    fn disclosure_metadata_tracks_live_render_state() {
+        let metadata = reference_metadata::for_route(
+            "Disclosure",
+            "use herogpui::components::disclosure::{Disclosure, DisclosureGroup};",
+        )
+        .expect("Disclosure route is registered");
+        for prop in ["isExpanded", "isDisabled"] {
+            let row = metadata
+                .api
+                .iter()
+                .find(|row| row.owner == "DisclosureRenderProps" && row.prop == prop)
+                .unwrap_or_else(|| panic!("DisclosureRenderProps.{prop} row"));
+            assert_eq!(
+                row.status,
+                reference_metadata::ImplementationStatus::Implemented
+            );
+            assert_eq!(row.rust, "content(render)");
+        }
+        let children = metadata
+            .api
+            .iter()
+            .find(|row| row.owner == "Disclosure" && row.prop == "children")
+            .expect("Disclosure.children row");
+        assert_eq!(
+            children.status,
+            reference_metadata::ImplementationStatus::Partial,
+            "the render values are live, but the GPUI control still owns the compound trigger"
+        );
     }
 
     #[test]

@@ -154,7 +154,7 @@ fn tooltip_trigger_press_closes_until_a_fresh_hover(cx: &mut TestAppContext) {
                     .id("pl-tt-press")
                     .placement(TooltipPlacement::Bottom)
                     .delay(0)
-                    .close_delay(0)
+                    .close_delay(500)
                     .child(gpui::div().w(px(120.)).h(px(36.))),
             )
             .into_any_element()
@@ -176,7 +176,18 @@ fn tooltip_trigger_press_closes_until_a_fresh_hover(cx: &mut TestAppContext) {
     // The surface is a sibling of the trigger listener, matching RAC's
     // portal: pressing the open tip itself must not count as trigger press.
     press_at(cx, 20., 50.);
-    assert_eq!(last(&seen), "open:true", "pressing the tip keeps it open");
+    assert_eq!(
+        last(&seen),
+        "open:true",
+        "pressing the tip must not close it as a trigger press"
+    );
+    cx.executor().advance_clock(Duration::from_millis(600));
+    flush_frame(cx);
+    assert_eq!(
+        last(&seen),
+        "open:false",
+        "leaving the trigger still closes after the delay"
+    );
 }
 
 #[gpui::test]

@@ -58,6 +58,8 @@ assets! {
     "herogpui/icons/heart.svg" => "herogpui/icons/heart.svg",
     "herogpui/icons/heart_fill.svg" => "herogpui/icons/heart_fill.svg",
     "herogpui/icons/close_circle.svg" => "herogpui/icons/close_circle.svg",
+    "herogpui/icons/trash.svg" => "herogpui/icons/trash.svg",
+    "herogpui/icons/gear.svg" => "herogpui/icons/gear.svg",
     "herogpui/icons/spinner.svg" => "herogpui/icons/spinner.svg",
     "herogpui/icons/tooltip_arrow.svg" => "herogpui/icons/tooltip_arrow.svg",
     "herogpui/icons/alert_triangle.svg" => "herogpui/icons/alert_triangle.svg",

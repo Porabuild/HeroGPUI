@@ -1159,3 +1159,49 @@ fn table_controlled_replacement_clears_a_stale_mod_a_latch(cx: &mut TestAppConte
         "an owner replacement must make Mod+A selectable again"
     );
 }
+
+#[gpui::test]
+fn table_header_and_cells_keep_pinned_line_heights(cx: &mut TestAppContext) {
+    for leading in [None, Some(48.)] {
+        for virtual_rows in [false, true] {
+            let cx = open_host(cx, move || {
+                let content = || {
+                    gpui::div()
+                        .debug_selector(|| "table-leading-cell".into())
+                        .child("First\nSecond")
+                        .into_any_element()
+                };
+                let table = Table::new(vec![])
+                    .id("table-leading")
+                    .column(TableColumn::new("First\nSecond").default_width(px(240.)));
+                let table = if virtual_rows {
+                    table
+                        .virtual_rows(
+                            1,
+                            "leading-rows",
+                            |_| "row".into(),
+                            move |_| TableRow::new(vec![content()]),
+                        )
+                        .row_height(px(64.))
+                        .max_h(px(128.))
+                } else {
+                    table.row(vec![content()])
+                };
+                gpui::div()
+                    .w(px(300.))
+                    .when_some(leading, |el, leading| el.line_height(px(leading)))
+                    .child(table)
+                    .into_any_element()
+            });
+            let bounds = cx
+                .debug_bounds("table-leading-cell")
+                .expect("cell text paints");
+            assert_eq!(
+                bounds.size.height,
+                px(40.),
+                "two 20px cell lines; virtual={virtual_rows}, host={leading:?}"
+            );
+            assert_eq!(bounds.origin.y, px(65.), "two 16px header lines, 20px header padding, 1px separator and 12px cell padding; virtual={virtual_rows}, host={leading:?}");
+        }
+    }
+}

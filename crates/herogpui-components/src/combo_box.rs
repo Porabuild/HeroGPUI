@@ -29,7 +29,7 @@
 //! `"text"`, submitting the typed text instead.
 
 use std::{
-    cell::RefCell,
+    cell::{Cell, RefCell},
     collections::HashMap,
     rc::{Rc, Weak},
     sync::Arc,
@@ -976,7 +976,7 @@ impl RenderOnce for ComboBox {
         // the input is geometrically outside it even though both belong to the
         // same ComboBox. Capture the whole subtree for one dispatch: input
         // presses keep the list open, and the chevron or a row owns its click.
-        let inside_pressed = Rc::new(std::cell::Cell::new(false));
+        let inside_pressed = Rc::new(Cell::new(false));
         // `.combo-box__trigger` is `border-none bg-transparent
         // text-field-placeholder`, and its hover recolours the text to
         // `text-field-foreground`, filling nothing. `svg()` paints from its own
@@ -1020,7 +1020,7 @@ impl RenderOnce for ComboBox {
                         if let Some(focus_open) = &focus_open {
                             focus_open.update(cx, |v, _| v.can_open = false);
                         }
-                        window.focus(&focus_handle);
+                        window.focus(&focus_handle, cx);
                         cx.stop_propagation();
                     })
                     .on_click(move |_, window, cx| {
@@ -1250,11 +1250,22 @@ impl RenderOnce for ComboBox {
         let blur_focus = blur_scope.focus_handle();
 
         // `.combo-box__input-group` is the field itself (`relative
-        // inline-flex items-center`), and it is the panel's positioning
-        // context: `.combo-box__value` sits below the field inside the root,
-        // so a value row that appears under it must not push the popover down.
+        // inline-flex items-center`). The popup anchors to the Input's 36px
+        // field row — not to the label-to-value wrapper root — the way RAC's
+        // `triggerRef` reads `groupRef.current || inputRef.current` (pinned
+        // 1.20.0 `dist/private/ComboBox.js`). `.combo-box__value` sits below
+        // the field inside the root, so a value row that appears under it
+        // must not push the popover down. `scrollable_field_popover` below
+        // reads these bounds to flip and cap the panel; the measure element
+        // inside `Input` only records them.
+        let anchor_bounds: Rc<Cell<Option<gpui::Bounds<gpui::Pixels>>>> = Rc::new(Cell::new(None));
         let inside_pressed_for_group = inside_pressed.clone();
-        let mut input_group = div()
+        let field_selector = format!("combobox-field-{entity_id}");
+        input = input.field_anchor(anchor_bounds.clone(), field_selector);
+        let input_group = div()
+            .id(gpui::ElementId::Name(
+                format!("combobox-{entity_id}-field").into(),
+            ))
             .relative()
             .capture_any_mouse_down(move |_, _, cx| {
                 inside_pressed_for_group.set(true);
@@ -1266,6 +1277,7 @@ impl RenderOnce for ComboBox {
             // Without a placeholder the inner input has no intrinsic width and
             // the trigger collapses to just its chevron, which is unclickable.
             .when(!self.full_width, |e| e.min_w(px(180.)))
+            .relative()
             .flex()
             .flex_col()
             .gap(px(4.));
@@ -1295,6 +1307,7 @@ impl RenderOnce for ComboBox {
                 .join(", ");
             let default_children = div()
                 .text_size(util::FIELD_TEXT)
+                .line_height(px(20.))
                 .text_color(colors.field.foreground)
                 .child(text.clone())
                 .into_any_element();
@@ -1644,19 +1657,33 @@ impl RenderOnce for ComboBox {
                 },
             );
         }
+        // The popup anchors to the Input's field-row bounds — not to the
+        // label-to-value wrapper root — the way RAC's `triggerRef` reads
+        // `groupRef.current || inputRef.current`. The field joins ahead of
+        // the panel below so the positioner reads settled trigger bounds.
+        root = root.child(input_group);
         if show_list {
+            let panel_selector = format!("combobox-panel-{entity_id}");
             let panel = div()
                 .id(gpui::ElementId::Name(
                     format!("combobox-{entity_id}-panel").into(),
                 ))
+                .debug_selector(move || panel_selector)
                 .w_full()
                 .flex()
                 .flex_col()
                 .gap(px(2.))
                 .p(px(4.))
-                .max_h(px(240.))
                 .overflow_y_scroll()
+                // `overscroll-contain` upstream: a wheel over the popup must
+                // not scroll the page behind it (Select/ColorPicker pattern).
+                .occlude()
                 .track_scroll(&panel_scroll_now)
+                // RAC caps the popover at the available viewport height
+                // (`calculatePosition`'s `getMaxHeight`); the positioner
+                // below re-lays the panel out with that cap, so the panel
+                // carries a viewport-relative bound rather than a fixed one.
+                .max_h_full()
                 .rounded(container_radius)
                 .bg(colors.overlay.background)
                 // v3 gives a floating panel no border: `.popover` and friends are
@@ -1706,6 +1733,7 @@ impl RenderOnce for ComboBox {
                         .px(px(8.))
                         .py(px(6.))
                         .text_size(util::FIELD_TEXT)
+                        .line_height(px(20.))
                         .text_color(colors.muted)
                         .child(message),
                 );
@@ -1756,8 +1784,10 @@ impl RenderOnce for ComboBox {
                         div()
                             .px(px(8.))
                             .pt(px(6.))
-                            .pb(px(2.))
+                            .pb(px(4.))
                             .text_size(px(12.))
+                            .line_height(px(16.))
+                            .font_weight(gpui::FontWeight::MEDIUM)
                             .text_color(row_muted)
                             .child(label.to_string())
                             .into_any_element(),
@@ -1767,10 +1797,10 @@ impl RenderOnce for ComboBox {
                 // that share a label never share an interactive row.
                 let item_disabled = row_disabled_keys.contains(item.key());
                 let hover_bg = row_hover_bg;
+                let row_selector = format!("combobox-{entity_id}-item-{}", item.key());
                 let mut row = div()
-                        .id(gpui::ElementId::Name(
-                            format!("combobox-{entity_id}-item-{}", item.key()).into(),
-                        ))
+                        .id(gpui::ElementId::Name(row_selector.clone().into()))
+                        .debug_selector(move || row_selector)
                         // `.list-box-item`: `min-h-9 rounded-2xl px-2 py-1.5 gap-3`.
                         .min_h(util::FIELD_HEIGHT)
                         .px(px(8.))
@@ -1781,6 +1811,7 @@ impl RenderOnce for ComboBox {
                         .items_center()
                         .justify_between()
                         .text_size(util::FIELD_TEXT)
+                        .line_height(px(20.))
                         .child(item.label().to_string());
 
                 if item_disabled {
@@ -1828,7 +1859,8 @@ impl RenderOnce for ComboBox {
                         let input_change = row_input_change.clone();
                         row = row.on_click(move |_, window, cx| {
                             let had_query = !state.read(cx).value().is_empty();
-                            state.read(cx).focus_handle.focus(window);
+                            let focus_handle = state.read(cx).focus_handle.clone();
+                            focus_handle.focus(window, cx);
                             state.update(cx, |st, cx| {
                                 st.set_value(String::new());
                                 cx.notify();
@@ -1899,7 +1931,14 @@ impl RenderOnce for ComboBox {
 
             match self.row_height {
                 // Virtual: only the rows in view are built, which is what makes
-                // a thousand options affordable.
+                // a thousand options affordable. The list itself is the scroll
+                // container: `Infer` sizes it from its rows — the full
+                // natural height on the positioner's measure pass (so the
+                // flip sees the real extent, like upstream's `overlaySize`),
+                // capped to the available height on the capped pass — while
+                // the ListBox stays `overflow-clip`, as in v3. A fixed inner
+                // height plus an outer scroller would nest two scroll
+                // containers and strand rows between them.
                 Some(row_height) => {
                     panel = panel.child(
                         gpui::uniform_list(
@@ -1911,8 +1950,8 @@ impl RenderOnce for ComboBox {
                                     .collect::<Vec<_>>()
                             },
                         )
-                        .track_scroll(list_scroll_now)
-                        .h(px(240.))
+                        .track_scroll(&list_scroll_now)
+                        .with_sizing_behavior(gpui::ListSizingBehavior::Infer)
                         .w_full(),
                     );
                 }
@@ -1930,16 +1969,20 @@ impl RenderOnce for ComboBox {
                 crate::anim::Motion::LIST_IN,
                 cx,
             );
-            input_group = input_group.child(util::floating(
-                util::placed_field_panel(self.placement, px(6.)).child(panel),
-            ));
+            // RAC positions the popover against the field with an 8px gap,
+            // flips it when the other side has more room, and caps it at the
+            // available viewport height past a 12px inset.
+            root = root.child(util::floating(crate::popover::scrollable_field_popover(
+                anchor_bounds,
+                self.placement,
+                panel,
+            )));
         }
 
-        // The popover hangs off the input group it belongs to, so the group --
-        // not the panel -- is the root's child; the deferred panel still paints
-        // over the value row below it.
-        root.child(input_group)
-            .when_some(value_content, |root, value| root.child(value))
+        // The popover hangs off the field it belongs to, so the field — not
+        // the panel — is the root's first child; the deferred panel still
+        // paints over the value row below it.
+        root.when_some(value_content, |root, value| root.child(value))
             .track_focus(&blur_focus)
     }
 }

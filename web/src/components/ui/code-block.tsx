@@ -127,11 +127,11 @@ export async function CodeBlock({
           type="checkbox"
         />
       ) : null}
-      <figcaption className="flex items-center gap-2 border-b border-separator px-3 py-1.5">
+      <figcaption className="flex h-9 items-center gap-2 border-b border-separator px-3">
         {/* Filename when the snippet is genuinely a file; otherwise the
             language name takes the same slot, in the same muted treatment.
             Never both, and never in the accent colour. */}
-        <span className="min-w-0 truncate font-mono text-xs text-muted">
+        <span className="min-w-0 truncate font-mono text-[0.6875rem] text-muted">
           {filename ?? LANG_LABEL[safeLang]}
         </span>
         <span className="ml-auto shrink-0">

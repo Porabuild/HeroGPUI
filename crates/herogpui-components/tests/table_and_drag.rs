@@ -70,7 +70,7 @@ use gpui::{
 };
 use herogpui_components::{
     ColorArea, ColorChannel, ColorSlider, ColorSwatchPicker, PickerColor, SelectionMode, Slider,
-    SortDescriptor, SortDirection, Table, TableColumn,
+    SortDescriptor, SortDirection, Table, TableColumn, TableRow,
 };
 
 use harness::{click, events, open_host, press};
@@ -104,6 +104,15 @@ fn probe_cell(
         .on_click(move |_, _, _| recorded.borrow_mut().push(label.to_owned()))
         .child(label)
         .into_any_element()
+}
+
+fn resize_event(stage: &str, widths: &[(SharedString, gpui::Pixels)]) -> String {
+    let widths = widths
+        .iter()
+        .map(|(column, width)| format!("{column}={:.0}", f32::from(*width)))
+        .collect::<Vec<_>>()
+        .join(",");
+    format!("{stage}:{widths}")
 }
 
 /// Pushes the pending frame through. Mouse events are dispatched outside an
@@ -544,10 +553,10 @@ fn table_column_resize_drag_changes_width(cx: &mut TestAppContext) {
 
     // Drag column 0's trailing-edge handle from x 160 to x 200. The handle is
     // `absolute right(-8) w(17)`, so it spans x 151..168; the table's move
-    // handler adds the 40px delta to the column's 160px width. Widths are
-    // internal keyed state (no callback), so the probe after is behavioural:
-    // the same click that landed in column two must now land in column one
-    // (0..200), whose cell content ends at x 184.
+    // handler adds the 40px delta to the column's 160px width. The probe after
+    // is behavioural: the same click that landed in column two must now land
+    // in column one (0..200), whose cell content ends at x 184. The lifecycle
+    // callback path is covered separately below; this proves committed geometry.
     drag(cx, (160., 18.), (200., 18.));
     assert_eq!(
         recorded.borrow().as_slice(),
@@ -561,6 +570,168 @@ fn table_column_resize_drag_changes_width(cx: &mut TestAppContext) {
         ["cell-b", "cell-a"],
         "after dragging the boundary 40px right, a click at x=180 that used \
          to land in column two must land in column one"
+    );
+}
+
+#[gpui::test]
+fn table_column_resize_reports_pointer_lifecycle_outside_bounds(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let on_start = for_view.clone();
+        let on_resize = for_view.clone();
+        let on_end = for_view.clone();
+        Table::new(vec![])
+            .id("tbl-resize-lifecycle")
+            .columns(vec![
+                TableColumn::new("Name")
+                    .allows_resizing(true)
+                    .default_width(px(160.)),
+                TableColumn::new("Size")
+                    .allows_resizing(true)
+                    .default_width(px(160.)),
+            ])
+            .row(vec![tall_cell("A"), tall_cell("B")])
+            .on_resize_start(move |widths, _, _| {
+                on_start.borrow_mut().push(resize_event("start", widths));
+            })
+            .on_resize(move |widths, _, _| {
+                on_resize.borrow_mut().push(resize_event("resize", widths));
+            })
+            .on_resize_end(move |widths, _, _| {
+                on_end.borrow_mut().push(resize_event("end", widths));
+            })
+            .into_any_element()
+    });
+
+    // y=500 is below the table, so only the paint-time window listeners can
+    // observe the move and release and pair the lifecycle callbacks.
+    drag(cx, (160., 18.), (200., 500.));
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        [
+            "start:Name=160,Size=160",
+            "resize:Name=200,Size=160",
+            "end:Name=200,Size=160",
+        ]
+    );
+}
+
+#[gpui::test]
+fn table_column_controlled_width_reports_without_mutating_layout(cx: &mut TestAppContext) {
+    let probes = events();
+    let resize_events = events();
+    let probes_for_view = probes.clone();
+    let resize_for_view = resize_events.clone();
+    let cx = open_host(cx, move || {
+        let probes = probes_for_view.clone();
+        let on_start = resize_for_view.clone();
+        let on_resize = resize_for_view.clone();
+        let on_end = resize_for_view.clone();
+        Table::new(vec![])
+            .id("tbl-resize-controlled")
+            .columns(vec![
+                TableColumn::new("Name")
+                    .allows_resizing(true)
+                    .width(px(160.)),
+                TableColumn::new("Size")
+                    .allows_resizing(true)
+                    .width(px(160.)),
+            ])
+            .row(vec![
+                probe_cell("resize-controlled-a0", "cell-a", probes.clone()),
+                probe_cell("resize-controlled-b0", "cell-b", probes),
+            ])
+            .on_resize_start(move |widths, _, _| {
+                on_start.borrow_mut().push(resize_event("start", widths));
+            })
+            .on_resize(move |widths, _, _| {
+                on_resize.borrow_mut().push(resize_event("resize", widths));
+            })
+            .on_resize_end(move |widths, _, _| {
+                on_end.borrow_mut().push(resize_event("end", widths));
+            })
+            .into_any_element()
+    });
+
+    click(cx, 190., 90.);
+    assert_eq!(probes.borrow().as_slice(), ["cell-b"]);
+    press(cx, "tab enter right enter");
+    flush_frame(cx);
+    assert_eq!(
+        resize_events.borrow().as_slice(),
+        [
+            "start:Name=160,Size=160",
+            "resize:Name=170,Size=160",
+            "end:Name=170,Size=160",
+        ]
+    );
+    resize_events.borrow_mut().clear();
+
+    // A second session with no arrow must report the caller-owned 160px, not
+    // the prior session's rejected 170px proposal.
+    press(cx, "enter enter");
+    assert_eq!(
+        resize_events.borrow().as_slice(),
+        ["start:Name=160,Size=160", "end:Name=160,Size=160"]
+    );
+
+    click(cx, 190., 90.);
+    assert_eq!(
+        probes.borrow().as_slice(),
+        ["cell-b", "cell-b"],
+        "without controlled feedback, the requested width must not change layout"
+    );
+}
+
+#[gpui::test]
+fn table_pointer_resize_ends_active_keyboard_session(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let on_start = for_view.clone();
+        let on_resize = for_view.clone();
+        let on_end = for_view.clone();
+        Table::new(vec![])
+            .id("tbl-resize-modality")
+            .columns(vec![
+                TableColumn::new("Name")
+                    .allows_resizing(true)
+                    .default_width(px(160.)),
+                TableColumn::new("Size")
+                    .allows_resizing(true)
+                    .default_width(px(160.)),
+            ])
+            .row(vec![tall_cell("A"), tall_cell("B")])
+            .on_resize_start(move |widths, _, _| {
+                on_start.borrow_mut().push(resize_event("start", widths));
+            })
+            .on_resize(move |widths, _, _| {
+                on_resize.borrow_mut().push(resize_event("resize", widths));
+            })
+            .on_resize_end(move |widths, _, _| {
+                on_end.borrow_mut().push(resize_event("end", widths));
+            })
+            .into_any_element()
+    });
+
+    click(cx, 200., 90.);
+    press(cx, "tab enter");
+    drag(cx, (160., 18.), (200., 18.));
+    press(cx, "enter enter");
+
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        [
+            "start:Name=160,Size=160",
+            "end:Name=160,Size=160",
+            "start:Name=160,Size=160",
+            "resize:Name=200,Size=160",
+            "end:Name=200,Size=160",
+            "start:Name=200,Size=160",
+            "end:Name=200,Size=160",
+        ],
+        "pointer resizing must finish keyboard edit mode before starting its own session"
     );
 }
 
@@ -1051,6 +1222,238 @@ fn table_load_more_rearms_when_the_row_collection_changes(cx: &mut TestAppContex
         recorded.borrow().as_slice(),
         ["load-more", "load-more"],
         "an unchanged collection must remain silent on later frames"
+    );
+}
+
+/// Resizes the window and drains the layout queue, so a bounded virtual body
+/// re-resolves its viewport before the next probe reads it.
+fn settle_window(cx: &mut VisualTestContext, width: f32, height: f32) {
+    cx.simulate_resize(gpui::size(px(width), px(height)));
+    for _ in 0..4 {
+        cx.update(|window, _| window.refresh());
+        cx.run_until_parked();
+    }
+}
+
+/// `debug_bounds` wants a `&'static str`; the virtual body's probe name is
+/// the table's own `{id}-virtual-rows` selector, so one short leak per call.
+fn virtual_rows_probe(table_id: &str) -> &'static str {
+    let name = format!("{table_id}-virtual-rows");
+    let leaked: &'static mut str = Box::leak(name.into_boxed_str());
+    &*leaked
+}
+
+/// Pinned `TableKeyboardDelegate` pages a virtual body by one *visible*
+/// rectangle. A window shorter than this body's 160px cap shows fewer 40px
+/// rows, so PageDown must step by the shown viewport -- one row here -- and
+/// not by the cap's three-row ruler; the old ruler lands rows too far at
+/// every step and skips past the disabled row differently. Growing the window
+/// restores the cap step, and a near-zero viewport keeps the cursor in place.
+#[gpui::test]
+fn fixed_height_virtual_table_pages_by_the_shown_viewport(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        gpui::div()
+            .flex()
+            .flex_col()
+            .size_full()
+            .child(
+                Table::new(vec![])
+                    .id("vt-bounded-page")
+                    .columns(vec![TableColumn::new("Name").default_width(px(160.))])
+                    .virtual_rows(
+                        20,
+                        "virtual-bounded-page-users",
+                        |i| format!("key-{i:02}").into(),
+                        |i| {
+                            TableRow::new(vec![gpui::div()
+                                .child(format!("Row {i}"))
+                                .into_any_element()])
+                        },
+                    )
+                    .row_height(px(40.))
+                    .max_h(px(160.))
+                    .disabled_keys(["key-05"])
+                    .on_row_click(move |i, _, _, _| recorded.borrow_mut().push(format!("row-{i}")))
+                    .into_any_element(),
+            )
+            .into_any_element()
+    });
+
+    // A 100px window shows fewer than the 160px cap allows, so one page is
+    // shorter than the roomy-window three-row step.
+    settle_window(cx, 640., 100.);
+    let body = cx
+        .debug_bounds(virtual_rows_probe("vt-bounded-page"))
+        .expect("the virtual body must be laid out");
+    let shown = f32::from(body.size.height);
+    assert!(
+        shown < 160. - 1.5,
+        "the bounded virtual body must shrink below its cap, got {body:?}"
+    );
+    let step = ((shown / 40.).ceil() as usize).saturating_sub(1);
+    let capped_step = ((160f32 / 40.).ceil() as usize).saturating_sub(1);
+    assert!(
+        step < capped_step,
+        "a shorter viewport must page shorter than the cap ruler: {step} vs {capped_step}"
+    );
+
+    // Three Downs seat row 2. Each page then moves `step` rows: 2 -> 3,
+    // 3 -> 4, and 4 -> 6 with the boundary landing on disabled row 5, which
+    // the stops skip; PageUp lands on it from above and skips back to 4. The
+    // cap ruler would walk 2 -> 6 -> 9 -> 12 -> 9.
+    press(cx, "tab");
+    for _ in 0..3 {
+        press(cx, "down");
+    }
+    press(cx, "pagedown");
+    press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["row-3"],
+        "a bounded PageDown must step by the shown viewport, not the cap"
+    );
+    press(cx, "pagedown");
+    press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["row-3", "row-4"],
+        "a bounded PageDown must advance by the shown viewport"
+    );
+    press(cx, "pagedown");
+    press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["row-3", "row-4", "row-6"],
+        "a bounded PageDown must still skip the disabled row"
+    );
+    press(cx, "pageup");
+    press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["row-3", "row-4", "row-6", "row-4"],
+        "a bounded PageUp must skip back over the disabled row"
+    );
+
+    // Growing the window restores the cap viewport, so the same key pages
+    // further: row 4 reaches row 7 with the three-row step.
+    settle_window(cx, 640., 800.);
+    let grown = cx
+        .debug_bounds(virtual_rows_probe("vt-bounded-page"))
+        .expect("the virtual body must be laid out");
+    assert!(
+        (f32::from(grown.size.height) - 160.).abs() < 1.5,
+        "the grown virtual body must return to its cap, got {grown:?}"
+    );
+    press(cx, "pagedown");
+    press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["row-3", "row-4", "row-6", "row-4", "row-7"],
+        "PageDown after resize must page by the grown viewport"
+    );
+
+    // A near-zero viewport has no page to turn: the cursor stays on row 7,
+    // so Enter reports it again instead of a neighbour.
+    settle_window(cx, 640., 32.);
+    press(cx, "pagedown");
+    press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["row-3", "row-4", "row-6", "row-4", "row-7", "row-7"],
+        "a page key with no viewport to cross must not move the cursor"
+    );
+}
+
+/// Gallery Virtualization regression: the first table's 1000x40px body caps
+/// at `max_h(320)` inside a natural/unbounded page parent. The virtual list's
+/// own bounds stay at the cap while the outer table ends at
+/// header + 320 + tray padding, so the marker -- and the second table below
+/// it -- directly follow instead of sliding past a white body that extends
+/// to the rows' full natural height (40_000px).
+#[gpui::test]
+fn fixed_height_virtual_table_caps_in_an_unbounded_parent(cx: &mut TestAppContext) {
+    fn virtual_table(id: &str, identity: &'static str) -> gpui::AnyElement {
+        Table::new(vec![])
+            .id(id)
+            .columns(vec![TableColumn::new("Name").default_width(px(160.))])
+            .virtual_rows(
+                1000,
+                identity,
+                |i| format!("key-{i:04}").into(),
+                |i| {
+                    TableRow::new(vec![gpui::div()
+                        .child(format!("Row {i}"))
+                        .into_any_element()])
+                },
+            )
+            .row_height(px(40.))
+            .max_h(px(320.))
+            .into_any_element()
+    }
+
+    let cx = open_host(cx, move || {
+        gpui::div()
+            .size_full()
+            .child(
+                gpui::div()
+                    .id("unbounded-page-scroll")
+                    .overflow_y_scroll()
+                    .size_full()
+                    .child(
+                        gpui::div()
+                            .flex()
+                            .flex_col()
+                            .w_full()
+                            .child(virtual_table("vt-unbounded", "virtual-unbounded-users"))
+                            .child(
+                                gpui::div()
+                                    .h(px(8.))
+                                    .w_full()
+                                    .debug_selector(|| "after-first-table".to_owned()),
+                            )
+                            .child(virtual_table("vt-second", "virtual-second-users")),
+                    ),
+            )
+            .into_any_element()
+    });
+    cx.run_until_parked();
+
+    let body = cx
+        .debug_bounds(virtual_rows_probe("vt-unbounded"))
+        .expect("the first virtual body must be laid out");
+    assert!(
+        (f32::from(body.size.height) - 320.).abs() < 1.5,
+        "the unbounded virtual body must cap at 320, got {body:?}"
+    );
+
+    let after = cx
+        .debug_bounds("after-first-table")
+        .expect("the marker below the first table must be laid out");
+    let after_top = f32::from(after.origin.y);
+    let body_bottom = f32::from(body.origin.y) + f32::from(body.size.height);
+    assert!(
+        after_top < 800.,
+        "the first table must end near header+320+padding, marker at y={after_top} body={body:?}"
+    );
+    assert!(
+        (after_top - body_bottom) < 120.,
+        "the marker must directly follow the first body, marker y={after_top} body bottom={body_bottom}"
+    );
+
+    let second = cx
+        .debug_bounds(virtual_rows_probe("vt-second"))
+        .expect("the second virtual body must be laid out");
+    let second_top = f32::from(second.origin.y);
+    assert!(
+        second_top < 1200.,
+        "the second table must directly follow the first, second at y={second_top} marker at y={after_top}"
+    );
+    assert!(
+        (f32::from(second.size.height) - 320.).abs() < 1.5,
+        "the second virtual body must cap at 320, got {second:?}"
     );
 }
 

@@ -1609,3 +1609,53 @@ fn controlled_color_field_reset_reports_the_initial_value_once(cx: &mut TestAppC
     click(cx, 60., 70.);
     assert_eq!(changes.borrow().as_slice(), ["181", "180"]);
 }
+
+#[gpui::test]
+fn color_text_metrics_do_not_inherit_host_leading(cx: &mut TestAppContext) {
+    for inherited in [12., 48.] {
+        let heights = Rc::new(RefCell::new(Vec::new()));
+        let seen = heights.clone();
+        let cx = open_host(cx, move || {
+            let seen = seen.clone();
+            gpui::div()
+                .flex()
+                .flex_col()
+                .items_start()
+                .text_size(px(32.))
+                .line_height(px(inherited))
+                .on_children_prepainted(move |bounds, _, _| {
+                    *seen.borrow_mut() = bounds.iter().map(|b| b.size.height).collect();
+                })
+                .child(ColorSlider::new(
+                    "leading-slider",
+                    PickerColor::hsb(0., 1., 1.),
+                    ColorChannel::Hue,
+                ))
+                .child(herogpui_components::ColorPicker::new(
+                    "leading-picker",
+                    PickerColor::hsb(0., 1., 1.),
+                ))
+                .child(
+                    ColorField::new("leading-field", PickerColor::hsb(0., 1., 1.)).suffix(
+                        gpui::div()
+                            .debug_selector(|| "leading-suffix".to_owned())
+                            .child("HEX"),
+                    ),
+                )
+                .into_any_element()
+        });
+        flush_frame(cx);
+        assert_eq!(
+            heights.borrow().as_slice(),
+            [px(44.), px(24.), px(36.)],
+            "host leading {inherited}"
+        );
+        assert_eq!(
+            cx.debug_bounds("leading-suffix")
+                .expect("suffix paints")
+                .size
+                .height,
+            px(20.)
+        );
+    }
+}

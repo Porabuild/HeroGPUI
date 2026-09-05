@@ -1,7 +1,7 @@
 # Component implementation
 
 Read this guide before changing `crates/herogpui-components`. It records the
-GPUI 0.2.2 constraints and test patterns that repeatedly produce plausible but
+Pinned GPUI constraints and test patterns that repeatedly produce plausible but
 incorrect ports.
 
 ## Component model
@@ -63,8 +63,8 @@ reason in the parity audit.
 - Pointer coordinates are window-relative. Subtract the element's laid-out
   origin before converting a point into a local value.
 - A drag that can leave its hitbox needs keyed drag state and paint-time
-  `Window::on_mouse_event` listeners re-registered each frame. GPUI 0.2.2 has no
-  `Window::capture_pointer`.
+  `Window::on_mouse_event` listeners re-registered each frame. For pointer capture, verify the pinned `Window::capture_pointer(HitboxId)`
+  contract before changing the existing drag ownership.
 - Add `.occlude()` when a floating control covers another interactive element;
   GPUI otherwise lets a press reach the element underneath.
 
@@ -91,8 +91,10 @@ reason in the parity audit.
 ## Layout, rendering, and animation
 
 - `Pixels` has a private inner field; use `f32::from(value)`.
-- GPUI 0.2.2 has no div-level rotate/scale, `select_none`, `grow`, or
-  `uppercase`. Verify alternatives against installed 0.2.2 source.
+- The pinned GPUI has no div-level rotate/scale, `select_none`, `grow`, or
+  `uppercase`. Verify alternatives against the pinned git source.
+- Use `ActiveTheme::reduce_motion(cx)` for the HeroGPUI preference; GPUI also
+  has an inherent `App::reduce_motion()` method with separate state.
 - `svg()` does not inherit text color. Set `.text_color(..)` explicitly.
 - A new icon needs both a constant in `components/src/icons.rs` and an asset
   registration in `gallery/src/assets.rs`.

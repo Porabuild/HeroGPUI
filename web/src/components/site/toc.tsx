@@ -134,7 +134,7 @@ export function Toc({ articleSelector = "[data-docs-article]" }: { articleSelect
   if (items.length === 0) return null;
 
   return (
-    <aside className="hidden w-64 shrink-0 xl:block">
+    <aside className="docs-toc hidden w-64 shrink-0 xl:block">
       <nav
         aria-label="On this page"
         className="scrollbar sticky top-16 max-h-[calc(100dvh-4rem)] overflow-y-auto py-10 pl-10"

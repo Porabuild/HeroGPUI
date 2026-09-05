@@ -91,7 +91,7 @@
 
 mod harness;
 
-use std::collections::HashSet;
+use std::{cell::Cell, collections::HashSet, rc::Rc};
 
 use gpui::{
     prelude::*, px, Font, FontFeatures, FontStyle, FontWeight, SharedString, TestAppContext,
@@ -103,6 +103,44 @@ use herogpui_components::{
 };
 
 use harness::{click, events, open_host, press, Events};
+
+#[gpui::test]
+fn accordion_subtitle_and_body_keep_their_line_boxes(cx: &mut TestAppContext) {
+    for leading in [None, Some(48.)] {
+        let cx = open_host(cx, move || {
+            let mut root = gpui::div();
+            if let Some(leading) = leading {
+                root = root.text_size(px(32.)).line_height(px(leading));
+            }
+            root.child(
+                gpui::div()
+                    .debug_selector(|| "accordion-box".to_owned())
+                    .child(
+                        Accordion::new(vec![AccordionItem::new("one", "Title")
+                            .subtitle("Subtitle")
+                            .content(
+                                gpui::div()
+                                    .debug_selector(|| "accordion-body-text".to_owned())
+                                    .child("Body"),
+                            )])
+                        .id("line-box-accordion")
+                        .default_expanded("one")
+                        .hide_separator(true),
+                    ),
+            )
+            .into_any_element()
+        });
+        cx.run_until_parked();
+        assert_eq!(
+            cx.debug_bounds("accordion-body-text").unwrap().size.height,
+            px(20.)
+        );
+        assert_eq!(
+            cx.debug_bounds("accordion-box").unwrap().size.height,
+            px(104.)
+        );
+    }
+}
 
 /// A div probe: a full-width, 36px-tall clickable strip recording `label` when
 /// pressed. It is *not* a tab stop (no `track_focus`), so it can be used as
@@ -655,6 +693,111 @@ fn disclosure_default_expanded_seeds_uncontrolled_state(cx: &mut TestAppContext)
         probes.borrow().as_slice(),
         ["body"],
         "the default seed must not be reapplied after the disclosure closes"
+    );
+}
+
+#[gpui::test]
+fn disclosure_content_render_prop_receives_live_expanded_state(cx: &mut TestAppContext) {
+    let rendered = events();
+    let observed = rendered.clone();
+    let cx = open_host(cx, move || {
+        let rendered = rendered.clone();
+        Disclosure::new("nav-render-disclosure", "Details")
+            .content(move |state| {
+                rendered.borrow_mut().push(format!(
+                    "expanded:{} disabled:{}",
+                    state.is_expanded, state.is_disabled
+                ));
+                gpui::div().h(px(36.)).into_any_element()
+            })
+            .into_any_element()
+    });
+
+    assert_eq!(
+        observed.borrow().last().map(String::as_str),
+        Some("expanded:false disabled:false")
+    );
+    click(cx, 60., 18.);
+    flush_frame(cx);
+    assert_eq!(
+        observed.borrow().last().map(String::as_str),
+        Some("expanded:true disabled:false"),
+        "the render closure must receive the disclosure's updated owned state"
+    );
+}
+
+#[gpui::test]
+fn disclosure_content_render_prop_waits_for_controlled_owner_feedback(cx: &mut TestAppContext) {
+    let owner = Rc::new(Cell::new(true));
+    let owner_for_view = owner.clone();
+    let rendered = events();
+    let observed = rendered.clone();
+    let changes = events();
+    let proposed = changes.clone();
+    let cx = open_host(cx, move || {
+        let rendered = rendered.clone();
+        let changes = changes.clone();
+        Disclosure::new("nav-render-controlled-disclosure", "Details")
+            .is_expanded(owner_for_view.get())
+            .on_expanded_change(move |expanded, _, _| {
+                changes.borrow_mut().push(expanded.to_string());
+            })
+            .content(move |state| {
+                rendered.borrow_mut().push(state.is_expanded.to_string());
+                gpui::div().h(px(36.)).into_any_element()
+            })
+            .into_any_element()
+    });
+
+    assert_eq!(observed.borrow().last().map(String::as_str), Some("true"));
+    click(cx, 60., 18.);
+    flush_frame(cx);
+    assert_eq!(proposed.borrow().as_slice(), ["false"]);
+    assert_eq!(
+        observed.borrow().last().map(String::as_str),
+        Some("true"),
+        "the render closure must keep the controlled owner value after an unaccepted proposal"
+    );
+
+    owner.set(false);
+    flush_frame(cx);
+    assert_eq!(
+        observed.borrow().last().map(String::as_str),
+        Some("false"),
+        "the render closure must update once the owner feeds the proposed value back"
+    );
+}
+
+#[gpui::test]
+fn disclosure_content_render_prop_receives_disabled_state(cx: &mut TestAppContext) {
+    let rendered = events();
+    let observed = rendered.clone();
+    let cx = open_host(cx, move || {
+        let rendered = rendered.clone();
+        Disclosure::new("nav-render-disabled-disclosure", "Details")
+            .is_disabled(true)
+            .content(move |state| {
+                rendered.borrow_mut().push(format!(
+                    "expanded:{} disabled:{}",
+                    state.is_expanded, state.is_disabled
+                ));
+                gpui::div().h(px(36.)).into_any_element()
+            })
+            .into_any_element()
+    });
+
+    assert_eq!(
+        observed.borrow().last().map(String::as_str),
+        Some("expanded:false disabled:true")
+    );
+    click(cx, 60., 18.);
+    flush_frame(cx);
+    assert!(
+        observed
+            .borrow()
+            .iter()
+            .all(|state| state == "expanded:false disabled:true"),
+        "a disabled trigger must not propose an expanded render state"
     );
 }
 
@@ -1478,6 +1621,55 @@ fn breadcrumbs_focus_ring_inputs_track_the_input_modality(cx: &mut TestAppContex
 // nothing, the active page remains pressable, the derived page set must be
 // exactly the v3 "Controlled"-example arithmetic (siblings = boundaries = 1),
 // and Tab must walk prev, cells and next.
+
+#[gpui::test]
+fn pagination_text_owns_size_specific_line_boxes(cx: &mut TestAppContext) {
+    for (size, leading) in [
+        (herogpui_components::Size::Sm, 16.),
+        (herogpui_components::Size::Md, 20.),
+        (herogpui_components::Size::Lg, 24.),
+    ] {
+        let cx = open_host(cx, move || {
+            gpui::div()
+                .text_size(px(32.))
+                .line_height(px(48.))
+                .child(
+                    gpui::div()
+                        .debug_selector(|| "pagination-box".to_owned())
+                        .child(
+                            Pagination::new("leading-pagination", 2, 3)
+                                .size(size)
+                                .summary("Page\n2 of 3")
+                                .disabled_keys([1])
+                                .link(|page, _| {
+                                    gpui::div()
+                                        .debug_selector(move || format!("page-label-{page}"))
+                                        .child(page.to_string())
+                                        .into_any_element()
+                                })
+                                .previous_icon(
+                                    gpui::div()
+                                        .debug_selector(|| "previous-label".to_owned())
+                                        .child("Previous"),
+                                ),
+                        ),
+                )
+                .into_any_element()
+        });
+        cx.run_until_parked();
+        assert_eq!(
+            cx.debug_bounds("pagination-box").unwrap().size.height,
+            px(leading * 2.)
+        );
+        for selector in ["page-label-1", "page-label-2", "previous-label"] {
+            assert_eq!(
+                cx.debug_bounds(selector).unwrap().size.height,
+                px(leading),
+                "{selector}"
+            );
+        }
+    }
+}
 
 /// At page 1 the Previous arrow is disabled (v3: `isDisabled` communicates
 /// "disabled states properly" and React Aria's press never fires for them),

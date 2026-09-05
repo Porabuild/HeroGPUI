@@ -1,7 +1,7 @@
 //! Modal — port of `@heroui/modal`.
 //!
-//! Render the returned element from your root view; it covers the window
-//! with a dimmed backdrop and a centered panel when `is_open`.
+//! Covers the window with a dimmed backdrop and a centered panel when `is_open`,
+//! including when composed inside a clipped or positioned container.
 
 use gpui::{
     prelude::*, px, AnyElement, App, ClickEvent, IntoElement, ParentElement, RenderOnce,
@@ -112,6 +112,53 @@ pub struct Modal {
 /// Shared by the three dialogs so they cannot spell it differently.
 pub(crate) fn dialog_key(id: &gpui::ElementId, part: &str) -> gpui::ElementId {
     gpui::ElementId::Name(format!("{id:?}-{part}").into())
+}
+
+/// Claims the focus for an open dialog, remembering what held it before.
+///
+/// v3 restores the focus when a dialog closes. The trigger is the caller's
+/// element, rendered outside the component, so the dialog cannot reach it --
+/// but it does not need to: whatever held the focus when the dialog opened is
+/// what has to get it back, trigger or not. `Window::focused` names it, and the
+/// handle is parked in the dialog's own keyed state until it closes.
+///
+/// Claiming only while nothing inside already holds the focus is what makes
+/// Escape reach the overlay on the first frame without stealing the ring from a
+/// field the user has since moved into.
+pub(crate) fn claim_dialog_focus(
+    id: &gpui::ElementId,
+    focus_handle: &gpui::FocusHandle,
+    window: &mut Window,
+    cx: &mut App,
+) {
+    let restore = window.use_keyed_state(dialog_key(id, "focus-return"), cx, |_, _| {
+        None::<gpui::FocusHandle>
+    });
+    if focus_handle.contains_focused(window, cx) {
+        return;
+    }
+    // The frame the dialog takes the focus is the only one that can still see
+    // who had it; every later frame would report the dialog itself.
+    let previous = window.focused(cx).filter(|held| held != focus_handle);
+    if previous.is_some() && restore.read(cx).is_none() {
+        restore.update(cx, |slot, _| *slot = previous);
+    }
+    window.focus(focus_handle, cx);
+}
+
+/// Hands the focus back to whatever held it before this dialog opened.
+///
+/// Called from every dismissal path. Does nothing when the dialog never took
+/// the focus from anything, which is the controlled-open case.
+pub(crate) fn release_dialog_focus(id: &gpui::ElementId, window: &mut Window, cx: &mut App) {
+    let restore = window.use_keyed_state(dialog_key(id, "focus-return"), cx, |_, _| {
+        None::<gpui::FocusHandle>
+    });
+    let previous = restore.read(cx).clone();
+    if let Some(previous) = previous {
+        restore.update(cx, |slot, _| *slot = None);
+        window.focus(&previous, cx);
+    }
 }
 
 /// The one contract every dialog's close-trigger part implements so the
@@ -429,6 +476,10 @@ impl RenderOnce for Modal {
             true,
         );
         if phase == crate::util::OverlayPhase::Closed {
+            // Every close path lands here -- a dismissal callback, Escape, a
+            // backdrop press, or a caller flipping `is_open` -- so this is the
+            // one place that can hand the focus back whatever closed it.
+            release_dialog_focus(&self.id, window, cx);
             return gpui::div().into_any_element();
         }
         let exiting = phase == crate::util::OverlayPhase::Exiting;
@@ -440,9 +491,7 @@ impl RenderOnce for Modal {
         let focus =
             window.use_keyed_state(dialog_key(&self.id, "focus"), cx, |_, cx| cx.focus_handle());
         let focus_handle = focus.read(cx).clone();
-        if !focus_handle.contains_focused(window, cx) {
-            window.focus(&focus_handle);
-        }
+        claim_dialog_focus(&self.id, &focus_handle, window, cx);
 
         let colors = cx.colors();
 
@@ -517,6 +566,11 @@ impl RenderOnce for Modal {
                         el.child(
                             gpui::div()
                                 .text_size(px(16.))
+                                // `.modal__heading` is `text-base`, paired
+                                // with a 24px leading. `Drawer` and
+                                // `AlertDialog` always had the pair; without
+                                // it this inherited the shell's 20px.
+                                .line_height(px(24.))
                                 .font_weight(gpui::FontWeight::MEDIUM)
                                 .child(title.to_string()),
                         )
@@ -528,35 +582,13 @@ impl RenderOnce for Modal {
 
         let has_header = header.is_some();
         let has_body = !self.body.is_empty();
-        // `Inside` scrolls the body; the two heights below are how. Both are
-        // absolute pixels on purpose: gpui resolves `relative()` against the
-        // parent's *content box* (the overlay's viewport minus its 40px
-        // padding), so every percentage this file tried landed short of the
-        // window and left the body clipped. The panel's cap is the viewport
-        // itself, so an overflowing Inside dialog spans the window edge to
-        // edge. v3's `.modal__dialog--scroll-inside` (`max-h-full`) caps at
-        // the container's content box and keeps a `p-10` margin of scrim on
-        // all four sides; copying that (a 1000px cap here) parks the panel's
-        // top at 40 and leaves the deepest revealed rows at the window's
-        // bottom edge, where the long-body behaviour test drives presses that
-        // must stay on the panel. The viewport cap is the closest arrangement
-        // that keeps every control reachable by the body's scroll alone, and
-        // it only differs from v3 in the overflow case -- a dialog whose
-        // content fits is still content-sized and centred. The body's budget
-        // is the cap minus the dialog's `p-6` inset; the header and the
-        // footer claim their own space from the flex layout before the body's
-        // max height ever binds.
+        // Inside scrolling fits the container's content box: p-10 keeps
+        // 40px of scrim around the panel; Full removes that padding.
         let scroll_inside = self.scroll == ModalScroll::Inside;
-        let inside_body_max = window.viewport_size().height
-            - px(48.)
-            - if self.size == ModalSize::Cover {
-                px(80.)
-            } else {
-                px(0.)
-            };
-        // `.modal__dialog`: `w-full` with a `max-w-*` per size, `p-6`, and the
-        // floating-panel radius. `Full` drops the radius and the shadow.
         let full = self.size == ModalSize::Full;
+        let panel_max = window.viewport_size().height - if full { px(0.) } else { px(80.) };
+        let inside_body_max = panel_max - px(48.);
+        // `.modal__dialog`: w-full, a per-size max width, and p-6.
         let panel = gpui::div()
             .relative()
             .flex()
@@ -581,9 +613,7 @@ impl RenderOnce for Modal {
             )
             .when(self.scroll == ModalScroll::Outside, |e| e.flex_shrink_0())
             .p(px(24.))
-            .when(self.scroll == ModalScroll::Inside, |e| {
-                e.max_h(window.viewport_size().height)
-            })
+            .when(self.scroll == ModalScroll::Inside, |e| e.max_h(panel_max))
             .bg(colors.overlay.background)
             .text_color(colors.foreground)
             .when(!full, |e| {
@@ -613,7 +643,7 @@ impl RenderOnce for Modal {
                         // heading and its footer with nothing between them.
                         // `Outside` keeps the working arrangement: the body is
                         // content-sized and the container scrolls. `Inside`
-                        // caps the panel at the viewport above and scrolls the
+                        // caps the panel within the scrim and scrolls the
                         // body itself within that budget, and the budget is a
                         // *max* height, so a header and a footer still sit
                         // between the body and the panel's edges.
@@ -655,13 +685,10 @@ impl RenderOnce for Modal {
         }
 
         // Backdrop dismissal lives on the **panel**, not on the backdrop.
-        // gpui has no hitbox occlusion, so a `on_click` on the full-window
-        // backdrop fires for a press on the panel above it as well — the
-        // close button reported every press twice. `on_mouse_down_out` reads
-        // the element's own bounds instead of hit-testing, so `close` runs
-        // exactly when the press landed outside this box, which is the
-        // backdrop. `is_dismissible` gates it, and the exit phase gets none:
-        // the dialog is already closing.
+        // `on_mouse_down_out` uses the panel's bounds, so presses on its
+        // children do not also dismiss through the full-window backdrop.
+        // `is_dismissible` gates it, and the exit phase gets none: the dialog
+        // is already closing.
         let panel = if self.is_dismissible && !exiting {
             if let Some(on_close) = dismiss.clone() {
                 crate::util::dismiss_on_press_outside_with_token(
@@ -795,6 +822,6 @@ impl RenderOnce for Modal {
             )
         });
 
-        overlay.into_any_element()
+        crate::util::window_overlay(overlay, window).into_any_element()
     }
 }

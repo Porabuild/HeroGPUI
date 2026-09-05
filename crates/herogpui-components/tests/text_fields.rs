@@ -20,7 +20,8 @@
 //!   at the top. An EMPTY textarea hugs its content: the wrapping row has no
 //!   `whitespace_nowrap` to force a width, so the box measures only ~32px
 //!   until text wraps inside it (measured by probing: a click at x = 40
-//!   misses, x = 20 focuses).
+//!   misses, x = 20 focuses). With text in it, each paragraph reports its own
+//!   painted bounds, and a click is placed against the one it lands in.
 //! - `InputOTP` cells are 38x40 with an 8px gap (`input_otp.rs`), so cell *i*
 //!   spans x 46i..46i+38 and every cell centre is y 20; a second instance on
 //!   the same page sits `gap(16)` below, cell 0 centre y = 40 + 16 + 20 = 76.
@@ -52,8 +53,8 @@ use gpui::{
 };
 use herogpui_components::{
     Button, ColorField, Date, DateField, FieldGroup, Fieldset, FieldsetLegend, Input, InputAddon,
-    InputGroup, InputOTP, InputState, OtpPattern, OtpState, PickerColor, SearchField, TextArea,
-    TextField,
+    InputGroup, InputOTP, InputState, NumberField, NumberState, OtpPattern, OtpState, PickerColor,
+    SearchField, TextArea, TextField, Time, TimeField, TimeState,
 };
 
 use harness::{click, events, open_host, press};
@@ -89,6 +90,37 @@ fn near(value: Pixels, expected: f32) -> bool {
 // ---------------------------------------------------------------------------
 // TextField
 // ---------------------------------------------------------------------------
+
+#[gpui::test]
+fn text_field_accepts_platform_text_without_a_printable_key(cx: &mut TestAppContext) {
+    let changes = events();
+    let recorded = changes.clone();
+    let state = cx.new(|cx| InputState::with_value(cx, "replace me"));
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        let changes = changes.clone();
+        TextField::new(state_for_view.clone())
+            .on_change(move |text, _, _| changes.borrow_mut().push(text.to_owned()))
+            .into_any_element()
+    });
+    click(cx, 60., 18.);
+    cx.simulate_keystrokes("ctrl-a");
+    cx.update(|window, app| {
+        window.dispatch_keystroke(
+            gpui::Keystroke {
+                key: "unidentified".into(),
+                key_char: Some("東京😀".into()),
+                modifiers: Modifiers::default(),
+            },
+            app,
+        );
+    });
+    assert_eq!(
+        state.read_with(cx, |state, _| state.value().to_owned()),
+        "東京😀"
+    );
+    assert_eq!(recorded.borrow().as_slice(), ["東京😀"]);
+}
 
 #[gpui::test]
 fn text_field_typing_reports_and_holds(cx: &mut TestAppContext) {
@@ -231,8 +263,10 @@ fn text_area_typing_and_newline(cx: &mut TestAppContext) {
     // content: the row has no `whitespace_nowrap` to force a width, so the
     // field is only ~32px wide until text wraps inside it. Measured by
     // probing: clicks at x = 40 already miss it, x = 20 focus it. A click at
-    // (10, 40) is safely inside the 76px box; in multi-line mode a click only
-    // focuses, it does not move the caret.
+    // (10, 40) is safely inside the 76px box. The field is empty, so there is
+    // no paragraph to land in and the click only focuses; see
+    // `text_area_click_places_the_caret_inside_a_wrapped_line` for the case
+    // where it does move the caret.
     click(cx, 10., 40.);
     cx.simulate_input("ab");
     // `WhiteSpace::Normal` wraps by default (AGENTS.md), so the only way a
@@ -548,7 +582,7 @@ fn search_field_clear_button_is_excluded_from_tab_order(cx: &mut TestAppContext)
     // The InputState-owned handle is the one `track_focus` paints on the
     // button. Focusing it, then flushing so paint sees `is_focused`, is the
     // real GPUI Enter/Space click path.
-    cx.update(|window, _| window.focus(&clear_handle));
+    cx.update(|window, cx| window.focus(&clear_handle, cx));
     flush_frame(cx);
     assert!(
         cx.update(|window, _| clear_handle.is_focused(window)),
@@ -570,7 +604,7 @@ fn search_field_clear_button_is_excluded_from_tab_order(cx: &mut TestAppContext)
         cx.notify();
     });
     flush_frame(cx);
-    cx.update(|window, _| window.focus(&clear_handle));
+    cx.update(|window, cx| window.focus(&clear_handle, cx));
     flush_frame(cx);
     assert!(
         cx.update(|window, _| clear_handle.is_focused(window)),
@@ -1479,4 +1513,250 @@ fn fieldset_disabled_disables_its_children(cx: &mut TestAppContext) {
     );
     let value = cx.update(|_, cx| state.read(cx).value().to_owned());
     assert_eq!(value, "abc", "the InputState must hold the typed value");
+}
+
+/// A pointer click inside a WRAPPED paragraph places the caret where it landed.
+///
+/// This was recorded as impossible (`behaviour_audit`'s
+/// `no-wrapped-line-metrics`) on the grounds that gpui reports no position for
+/// a wrapped line. It does: `shape_text` answers `WrappedLine`, which derefs to
+/// the layout that owns `closest_index_for_position`. The caret is asserted
+/// through the next keystroke, which is where it actually matters.
+#[gpui::test]
+fn text_area_click_places_the_caret_inside_a_wrapped_line(cx: &mut TestAppContext) {
+    // One long word-wrapped paragraph, no newlines: every visual line break
+    // here is one gpui chose, which is exactly the case that was unreachable.
+    let state = cx.new(|cx| InputState::with_value(cx, "aaaa bbbb cccc dddd eeee ffff gggg hhhh"));
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        // 200px forces the text to wrap into several visual lines inside one
+        // paragraph; the TextArea is `rows(3)` = 76px tall at the origin.
+        gpui::div()
+            .w(px(200.))
+            .child(TextArea::new(state_for_view.clone()))
+            .into_any_element()
+    });
+
+    let end = cx.update(|_, cx| state.read(cx).value().chars().count());
+
+    // Click near the start of the first visual line, well before the end. A
+    // plain click leaves no anchor, so the caret is not observable directly --
+    // the keystroke below is what reports where it went.
+    click(cx, 16., 14.);
+    cx.simulate_input("X");
+    let value = cx.update(|_, cx| state.read(cx).value().to_owned());
+    assert!(
+        !value.ends_with('X'),
+        "typing after a click in a wrapped paragraph must insert at the caret, \
+         not append; got {value:?}"
+    );
+    assert_eq!(
+        value.chars().count(),
+        end + 1,
+        "the click must move the caret, not select and replace"
+    );
+}
+
+#[gpui::test]
+fn field_addons_and_custom_slots_keep_twenty_pixel_lines(cx: &mut TestAppContext) {
+    for kind in 0..7 {
+        for leading in [None, Some(12.), Some(48.)] {
+            let state = cx.new(|cx| InputState::new(cx));
+            let otp = cx.new(|cx| OtpState::with_length(cx, 1));
+            let time = cx.new(|cx| TimeState::new(cx));
+            let number = cx.new(|cx| NumberState::new(cx, 4.));
+            let cx = open_host(cx, move || {
+                let probe = || {
+                    gpui::div()
+                        .debug_selector(|| "input-leading-text".into())
+                        .child("$")
+                };
+                let control = match kind {
+                    0 => Input::new(state.clone())
+                        .start_content(probe())
+                        .into_any_element(),
+                    1 => InputGroup::new()
+                        .prefix(
+                            gpui::div()
+                                .debug_selector(|| "input-leading-text".into())
+                                .child(InputAddon::new("$")),
+                        )
+                        .input(Input::new(state.clone()))
+                        .into_any_element(),
+                    2 => InputOTP::new(otp.clone())
+                        .slot(move |_, _| probe().into_any_element())
+                        .into_any_element(),
+                    3 => DateField::new(state.clone())
+                        .prefix(probe())
+                        .into_any_element(),
+                    4 => TimeField::new(time.clone())
+                        .prefix(probe())
+                        .into_any_element(),
+                    _ => NumberField::new(number.clone())
+                        .increment_icon(probe())
+                        .is_disabled(kind == 6)
+                        .into_any_element(),
+                };
+                gpui::div()
+                    .w(px(300.))
+                    .when_some(leading, |el, leading| el.line_height(px(leading)))
+                    .child(control)
+                    .into_any_element()
+            });
+            assert_eq!(
+                cx.debug_bounds("input-leading-text")
+                    .expect("slot text paints")
+                    .size
+                    .height,
+                px(20.),
+                "kind={kind}, host={leading:?}"
+            );
+            if kind == 5 {
+                let at = bounds_centre(cx.debug_bounds("input-leading-text").unwrap());
+                cx.simulate_mouse_down(at, MouseButton::Left, Modifiers::none());
+                flush_frame(cx);
+                let pressed = cx
+                    .debug_bounds("input-leading-text")
+                    .expect("pressed slot paints");
+                assert!(
+                    near(
+                        pressed.size.height,
+                        20. * herogpui_components::PRESSED_SCALE
+                    ),
+                    "stepper press scales the 20px line: {pressed:?}"
+                );
+                cx.simulate_mouse_up(at, MouseButton::Left, Modifiers::none());
+                flush_frame(cx);
+                assert_eq!(
+                    cx.debug_bounds("input-leading-text").unwrap().size.height,
+                    px(20.)
+                );
+            }
+        }
+    }
+}
+
+#[gpui::test]
+fn color_and_time_full_width_reaches_the_parent_edge(cx: &mut TestAppContext) {
+    for kind in 0..3 {
+        for width in [200., 400., 640.] {
+            for labeled in [false, true] {
+                let measured = std::rc::Rc::new(std::cell::Cell::new(None));
+                let recorded = measured.clone();
+                let input = cx.new(|cx| InputState::new(cx));
+                let time = cx.new(|cx| TimeState::new(cx));
+                let time_for_view = time.clone();
+                let input_for_view = input.clone();
+                let cx = open_host(cx, move || {
+                    let control = if kind == 2 {
+                        TimeField::new(time_for_view.clone())
+                            .default_value(Time::new(12, 30))
+                            .full_width(true)
+                            .when(labeled, |field| field.label("Time"))
+                            .into_any_element()
+                    } else {
+                        ColorField::new("width-color", PickerColor::hsb(0., 1., 1.))
+                            .full_width(true)
+                            .when(kind == 1, |field| field.state(input_for_view.clone()))
+                            .when(labeled, |field| field.label("Color"))
+                            .into_any_element()
+                    };
+                    let recorded = recorded.clone();
+                    gpui::div()
+                        .w(px(width))
+                        .flex()
+                        .flex_col()
+                        .items_start()
+                        .on_children_prepainted(move |bounds, _, _| recorded.set(Some(bounds[0])))
+                        .child(control)
+                        .into_any_element()
+                });
+                flush_frame(cx);
+                assert_eq!(
+                    measured.get().expect("field paints").size.width,
+                    px(width),
+                    "kind={kind}, labeled={labeled}"
+                );
+                if kind != 0 {
+                    click(cx, width - 8., if labeled { 42. } else { 18. });
+                    if kind == 1 {
+                        cx.update(|window, cx| {
+                            assert!(
+                                input.focus_handle(cx).is_focused(window),
+                                "expanded input edge accepts focus"
+                            );
+                        });
+                    } else {
+                        press(cx, "up");
+                        cx.update(|_, cx| {
+                            assert_ne!(
+                                time.read(cx).value,
+                                Some(Time::new(12, 30)),
+                                "expanded time field edge accepts keyboard editing"
+                            );
+                        });
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// The `Input` wrapper's label, description, and error slots keep v3.2.4's
+/// pinned line boxes even under a hostile inherited leading.
+///
+/// v3.2.4's `.label` is `text-sm` (14px over a 20px line) and both
+/// `.description` and `.error-message` are `text-xs` (12px over a 16px line);
+/// `field.rs`'s `Label`/`Description`/`ErrorMessage` already pin 20/16, and
+/// the field box itself pins 14/20 (`input.rs`). The wrapper must pin the
+/// same three lines, so a labelled field with helper copy is
+/// 20 (label) + 4 + 36 (field) + 4 + 16 (description/error) = 80px at any
+/// host leading. The error case also carries a description: the error
+/// replaces it (still 80px, never 100px), and the required star rides in the
+/// 20px label row without growing it.
+#[gpui::test]
+fn input_label_description_and_error_keep_pinned_line_heights(cx: &mut TestAppContext) {
+    for leading in [None, Some(12.), Some(48.)] {
+        let desc_state = cx.new(|cx| InputState::new(cx));
+        let err_state = cx.new(|cx| InputState::new(cx));
+        let cx = open_host(cx, move || {
+            let mut root = gpui::div().flex().flex_col().gap(px(16.)).items_start();
+            if let Some(leading) = leading {
+                root = root.text_size(px(32.)).line_height(px(leading));
+            }
+            root.child(
+                gpui::div()
+                    .debug_selector(|| "input-desc".to_owned())
+                    .child(
+                        Input::new(desc_state.clone())
+                            .label("Name")
+                            .description("Help"),
+                    ),
+            )
+            .child(
+                gpui::div()
+                    .debug_selector(|| "input-error".to_owned())
+                    .child(
+                        Input::new(err_state.clone())
+                            .label("Name")
+                            .is_required(true)
+                            .description("Help")
+                            .validation_errors(["Oops"]),
+                    ),
+            )
+            .into_any_element()
+        });
+        cx.run_until_parked();
+        assert_eq!(
+            cx.debug_bounds("input-desc").unwrap().size.height,
+            px(80.),
+            "label + description must stay 20 + 4 + 36 + 4 + 16, host={leading:?}"
+        );
+        assert_eq!(
+            cx.debug_bounds("input-error").unwrap().size.height,
+            px(80.),
+            "required label + error must stay 80px and the error must replace \
+             the description rather than stack under it, host={leading:?}"
+        );
+    }
 }

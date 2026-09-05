@@ -589,6 +589,7 @@ impl RenderOnce for RadioGroup {
                 .items_center()
                 .gap(gap)
                 .text_size(text)
+                .line_height(px(20.))
                 .font_weight(gpui::FontWeight::MEDIUM)
                 .text_color(colors.foreground)
                 .when(!row_disabled && !self.is_read_only, |r| r.cursor_pointer())
@@ -654,7 +655,7 @@ impl RenderOnce for RadioGroup {
                 let click_focus = group_focus.clone();
                 let click_form_state = self.form_state.clone();
                 row = row.on_click(move |_, window, cx| {
-                    window.focus(&click_focus);
+                    window.focus(&click_focus, cx);
                     click_cursor.update(cx, |v, cx| {
                         *v = i;
                         cx.notify();

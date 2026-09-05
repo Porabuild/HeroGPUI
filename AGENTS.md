@@ -1,8 +1,8 @@
 # HeroGPUI agent guide
 
 HeroGPUI is a native Rust/GPUI port of HeroUI v3.2.4. The repository targets
-Rust 1.98 and GPUI 0.2.2; newer upstream APIs are not evidence that an API is
-available here.
+Rust 1.98 and the Zed GPUI git revision pinned in `Cargo.toml` and `Cargo.lock`.
+Use that exact checkout for API evidence; the crates.io 0.2.2 release differs.
 
 ## Before editing
 
@@ -33,7 +33,7 @@ CI-shaped set for release-facing code changes or an explicit request.
 
 - [Workflow and architecture](docs/agents/workflow.md) — repository map,
   source hierarchy, scope discipline, and change-to-verification matrix.
-- [Component implementation](docs/agents/components.md) — GPUI 0.2.2 state,
+- [Component implementation](docs/agents/components.md) — pinned GPUI state,
   events, focus, overlays, layout, and behavior-test patterns.
 - [Parity and audits](docs/agents/parity.md) — pinned upstream contract,
   audit selection, omission rules, and audit-reader integrity.
@@ -42,3 +42,32 @@ CI-shaped set for release-facing code changes or an explicit request.
 
 `llms.txt` is the public component API reference. It supplements the
 task guides; it does not replace reading the implementation and tests.
+
+## Keep component surfaces in sync
+
+When a component's public API, behavior, reference status, or gallery example
+changes, update the complete affected surface in the same change:
+
+- the implementation and focused behavior tests under
+  `crates/herogpui-components/`;
+- the matching Rust gallery example and `reference_metadata.rs` entry;
+- `llms.txt` when the public Rust API or behavior changed; and
+- the generated website component data in `web/src/data/reference.json` and
+  `web/src/data/rust-examples.json`.
+
+Regenerate both website datasets from `web/` with `pnpm run extract`, then
+verify them with `pnpm run extract:check`. Do not hand-edit generated JSON.
+When rebuilding `web/public/gallery/herogpui_web*`, also regenerate
+`web/src/data/wasm-sections.json` and `web/src/data/wasm-parity.json` from the
+exact migration source after `wasm-bindgen`. These manifests limit the selector
+to compiled examples, pin the native examples and artifact, and reject new
+native/WASM drift by default. In the same commit, refresh the vendored
+migration source with `pnpm run wasm:vendor`: the artifact is built from a
+separate checkout, so `web/wasm-migration/` carries that checkout's baseline
+commit and working diff and is what makes a committed binary reviewable.
+
+The migration also carries its own copy of every component. Keep it on the
+native implementation with `node web/scripts/sync-wasm-component.mjs report`
+(IDENTICAL and ADAPTED are current; STALE is behind) and `sync <file.rs>`.
+The tool records only the GPUI-version vocabulary the two crates differ by;
+anything else is left for the wasm compiler to name.

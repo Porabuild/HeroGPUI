@@ -5,6 +5,8 @@ use gpui::{
     prelude::*, px, App, Entity, IntoElement, RenderOnce, SharedString, StatefulInteractiveElement,
     Styled, Window,
 };
+use std::sync::OnceLock;
+
 use herogpui_theme::ActiveTheme;
 
 use crate::calendar_view::{self, PageBehavior, SelectionAlignment, VisibleDuration};
@@ -72,9 +74,13 @@ pub fn weekday_index(date: Date) -> usize {
     (days_from_civil(&date) + 3).rem_euclid(7) as usize
 }
 
-/// Three-letter month name for 1-12.
+/// The running locale's abbreviated month name for 1-12.
+///
+/// CLDR is asked for the abbreviation rather than the first three bytes of the
+/// full name: `"Januar"[..3]` happens to read well in German and would panic
+/// outright on a Japanese month name whose first character is three bytes wide.
 pub fn month_abbr(month: u32) -> &'static str {
-    &MONTH_NAMES[(month.clamp(1, 12) - 1) as usize][..3]
+    &system_month_abbrs()[(month.clamp(1, 12) - 1) as usize]
 }
 
 /// Days-from-civil for `date` (epoch day number).
@@ -114,7 +120,9 @@ fn first_weekday(year: i32, month: u32) -> usize {
 /// exactly seven 36px cells.
 pub const CALENDAR_WIDTH: gpui::Pixels = px(252.);
 
-const MONTH_NAMES: [&str; 12] = [
+/// The English month names, used when CLDR has nothing to say for the running
+/// locale. A calendar with no heading is worse than one headed in English.
+const FALLBACK_MONTH_NAMES: [&str; 12] = [
     "January",
     "February",
     "March",
@@ -128,6 +136,111 @@ const MONTH_NAMES: [&str; 12] = [
     "November",
     "December",
 ];
+
+/// The month names CLDR gives for one locale, in calendar order.
+///
+/// v3 renders the heading through `Intl.DateTimeFormat`, so the names follow
+/// the reader's locale rather than the source language. The ICU data is
+/// compiled into the binary, so this asks CLDR the same question `Intl` does.
+pub(crate) fn month_names_for_locale(locale: &str) -> Option<[String; 12]> {
+    month_labels_for_locale(locale, icu_datetime::fieldsets::M::long())
+}
+
+/// The twelve month labels one `M` field set prints for one locale.
+fn month_labels_for_locale(
+    locale: &str,
+    fieldset: icu_datetime::fieldsets::M,
+) -> Option<[String; 12]> {
+    use icu_datetime::{input::Date as IcuDate, DateTimeFormatter};
+    use icu_locale_core::Locale as IcuLocale;
+
+    let locale = locale.parse::<IcuLocale>().ok()?;
+    let formatter = DateTimeFormatter::try_new(locale.into(), fieldset).ok()?;
+    let mut labels: Vec<String> = Vec::with_capacity(12);
+    for month in 1..=12u8 {
+        // Any year and day work: the `M` field set prints the month alone.
+        let date = IcuDate::try_new_iso(2000, month, 1).ok()?;
+        labels.push(formatter.format(&date).to_string());
+    }
+    labels.try_into().ok()
+}
+
+/// The abbreviated month names CLDR gives for one locale, in calendar order.
+pub(crate) fn month_abbrs_for_locale(locale: &str) -> Option<[String; 12]> {
+    month_labels_for_locale(locale, icu_datetime::fieldsets::M::medium())
+}
+
+/// The running locale's month names, resolved once.
+fn system_month_names() -> &'static [String; 12] {
+    static SYSTEM_MONTH_NAMES: OnceLock<[String; 12]> = OnceLock::new();
+    SYSTEM_MONTH_NAMES.get_or_init(|| {
+        crate::date_constraints::system_locale_tags()
+            .iter()
+            .find_map(|tag| month_names_for_locale(tag))
+            .unwrap_or_else(|| FALLBACK_MONTH_NAMES.map(str::to_owned))
+    })
+}
+
+/// The heading CLDR gives one locale for a year and month.
+///
+/// The order is the locale's, not a template's: `"January 2026"` in English and
+/// a year-first heading in Japanese, which no `"{month} {year}"` format string
+/// can produce.
+pub(crate) fn month_heading_for_locale(locale: &str, year: i32, month: u32) -> Option<String> {
+    date_heading_for_locale(locale, Date::new(year, month.clamp(1, 12), 1))
+}
+
+/// Format the month containing this actual Gregorian day.
+pub(crate) fn date_heading_for_locale(locale: &str, date: Date) -> Option<String> {
+    use icu_datetime::{fieldsets, input::Date as IcuDate, options::YearStyle, DateTimeFormatter};
+    use icu_locale_core::Locale as IcuLocale;
+
+    let locale = locale.parse::<IcuLocale>().ok()?;
+    let formatter = DateTimeFormatter::try_new(
+        locale.into(),
+        fieldsets::YM::long().with_year_style(YearStyle::Full),
+    )
+    .ok()?;
+    let month = u8::try_from(date.month).ok()?;
+    let day = u8::try_from(date.day).ok()?;
+    Some(
+        formatter
+            .format(&IcuDate::try_new_iso(date.year, month, day).ok()?)
+            .to_string(),
+    )
+}
+
+/// The running locale's year-and-month heading locale, resolved once.
+fn system_month_heading_locale() -> Option<&'static String> {
+    static SYSTEM_HEADING_LOCALE: OnceLock<Option<String>> = OnceLock::new();
+    SYSTEM_HEADING_LOCALE
+        .get_or_init(|| {
+            crate::date_constraints::system_locale_tags()
+                .into_iter()
+                .find(|tag| month_heading_for_locale(tag, 2000, 1).is_some())
+        })
+        .as_ref()
+}
+
+/// The heading for a year and month, in the running locale.
+pub fn month_year_heading(year: i32, month: u32) -> String {
+    system_month_heading_locale()
+        .and_then(|locale| month_heading_for_locale(locale, year, month))
+        .unwrap_or_else(|| format!("{} {year}", month_name(month)))
+}
+
+/// The running locale's abbreviated month names, resolved once.
+fn system_month_abbrs() -> &'static [String; 12] {
+    static SYSTEM_MONTH_ABBRS: OnceLock<[String; 12]> = OnceLock::new();
+    SYSTEM_MONTH_ABBRS.get_or_init(|| {
+        crate::date_constraints::system_locale_tags()
+            .iter()
+            .find_map(|tag| month_abbrs_for_locale(tag))
+            .unwrap_or_else(|| {
+                FALLBACK_MONTH_NAMES.map(|name| name.chars().take(3).collect::<String>())
+            })
+    })
+}
 
 fn next_month(y: i32, m: u32) -> (i32, u32) {
     if m == 12 {
@@ -171,7 +284,7 @@ pub fn add_months(year: i32, month: u32, delta: i32) -> (i32, u32) {
 
 /// English month name for 1–12.
 pub fn month_name(month: u32) -> &'static str {
-    MONTH_NAMES[(month.clamp(1, 12) - 1) as usize]
+    &system_month_names()[(month.clamp(1, 12) - 1) as usize]
 }
 
 /// Public wrapper over `first_weekday`.
@@ -310,6 +423,9 @@ pub struct Calendar {
     /// Set by a picker: take the focus as the panel opens. See
     /// [`Calendar::autofocus_grid`].
     autofocus_grid: bool,
+    /// The calendar system the grid is drawn in, when the caller names one.
+    /// `None` follows the operating system's locale, which is v3's default.
+    calendar_system: Option<crate::calendar_system::CalendarSystem>,
     /// `Calendar.CellIndicator` — whether a day carries a mark. v3 uses it for
     /// event dots; the closure is handed the date.
     cell_indicator: Option<Box<dyn Fn(Date) -> bool + 'static>>,
@@ -341,6 +457,26 @@ pub struct Calendar {
 }
 
 impl Calendar {
+    /// The locale whose calendar system this grid is drawn in.
+    ///
+    /// v3 has no prop for this: it wraps the calendar in an `I18nProvider`
+    /// whose locale carries the Unicode `-u-ca-` extension, and its
+    /// "International Calendars" example is exactly that. gpui has no subtree
+    /// context to put a provider in, so the locale is named on the component
+    /// the provider would have wrapped. Omit it and the operating system's
+    /// locale decides, which is what v3 does by default.
+    pub fn locale(mut self, tag: impl AsRef<str>) -> Self {
+        self.calendar_system = crate::calendar_system::CalendarSystem::for_locale(tag.as_ref());
+        self
+    }
+
+    /// The system this grid measures in: the caller's, else the platform's.
+    fn system(&self) -> &crate::calendar_system::CalendarSystem {
+        self.calendar_system
+            .as_ref()
+            .unwrap_or_else(|| crate::calendar_system::system())
+    }
+
     /// `focusedValue` — the date carrying the focus ring, independent of the
     /// selection.
     pub fn focused_value(mut self, date: Date) -> Self {
@@ -385,6 +521,7 @@ impl Calendar {
             is_disabled: false,
             is_read_only: false,
             autofocus_grid: false,
+            calendar_system: None,
             cell_indicator: None,
             cell: None,
             nav_icons: None,
@@ -601,6 +738,9 @@ struct Frame<'a> {
     /// it, otherwise wherever the arrow keys have walked to. `None` while the
     /// grid does not hold the keyboard.
     focused: Option<Date>,
+    anchor: Date,
+    visible_start: Option<Date>,
+    cell_size: gpui::Pixels,
 }
 
 impl Calendar {
@@ -616,7 +756,12 @@ impl Calendar {
         let colors = cx.colors();
         let accent = colors.accent;
         let unavailable = self.constraints.is_unavailable(date);
-        let disabled = outside_month || self.is_disabled || self.constraints.out_of_range(date);
+        let disabled = outside_month
+            || self.is_disabled
+            || self.constraints.out_of_range(date)
+            || frame
+                .visible_start
+                .is_some_and(|start| days_from_civil(&date) < days_from_civil(&start));
         let focusable = !disabled;
         let eligible = focusable && !unavailable;
         let selectable = eligible && !self.is_read_only;
@@ -635,12 +780,14 @@ impl Calendar {
         let mut circle = gpui::div()
             .id(gpui::ElementId::Name(key.clone().into()))
             .debug_selector(move || key)
-            .size(px(36.))
+            .size(frame.cell_size)
             .rounded_full()
             .flex()
             .items_center()
             .justify_center()
-            .text_size(px(14.));
+            .text_size(px(14.))
+            .line_height(px(20.))
+            .font_weight(gpui::FontWeight::MEDIUM);
 
         let marker = if self.is_invalid {
             colors.danger.color
@@ -651,28 +798,25 @@ impl Calendar {
         // `.calendar__cell[data-pressed]` fills with `bg-default` and scales
         // to 0.95 -- every cell, today included.
         let press_box = crate::anim::PressBox {
-            height: px(36.),
+            height: frame.cell_size,
             padding_x: None,
-            width: Some(px(36.)),
+            width: Some(frame.cell_size),
             min_width: None,
             text_size: px(14.),
             line_height: px(20.),
             gap: px(0.),
-            radius: px(18.),
+            radius: frame.cell_size / 2.,
             shrink_x: true,
             scale: crate::anim::PRESSED_SCALE_DEEP,
         };
         if outside_month {
             circle = circle.text_color(colors.muted);
         } else if is_sel {
-            circle = circle
-                .bg(marker)
-                .text_color(if self.is_invalid {
-                    colors.danger.foreground
-                } else {
-                    accent.foreground
-                })
-                .font_weight(gpui::FontWeight::SEMIBOLD);
+            circle = circle.bg(marker).text_color(if self.is_invalid {
+                colors.danger.foreground
+            } else {
+                accent.foreground
+            });
             if selectable {
                 // `.calendar__cell[data-pressed][data-selected]` fills
                 // `bg-accent-hover`, the one pressed recolour the pinned CSS
@@ -738,6 +882,7 @@ impl Calendar {
             let on_change = self.on_change.clone();
             let on_change_all = self.on_change_all.clone();
             let on_focus = self.on_focus_change.clone();
+            let anchor = frame.anchor;
             circle = circle.on_click(move |_, window, cx| {
                 cursor.update(cx, |focused, cx| {
                     *focused = Some(date);
@@ -751,6 +896,7 @@ impl Calendar {
                     // `toggle` also records that the user took over
                     // navigation, so the alignment pass stops moving the range.
                     s.toggle(date, mode);
+                    s.set_anchor(anchor);
                     cx.notify();
                     s.selected_dates.clone()
                 });
@@ -768,7 +914,7 @@ impl Calendar {
         let marked = self.cell_indicator.as_ref().is_some_and(|f| f(date));
         gpui::div()
             .flex_1()
-            .h(px(36.))
+            .h(frame.cell_size)
             .relative()
             .flex()
             .items_center()
@@ -776,14 +922,14 @@ impl Calendar {
             .child(match &self.cell {
                 Some(render) => circle.child(render(CalendarCellState {
                     date,
-                    formatted_date: date.day.to_string().into(),
+                    formatted_date: self.day_label(date).into(),
                     is_selected: is_sel,
                     is_unavailable: unavailable,
                     is_outside_month: outside_month,
                     is_today,
                     is_disabled: disabled,
                 })),
-                None => circle.child(date.day.to_string()),
+                None => circle.child(self.day_label(date)),
             })
             .when(marked, |cell| {
                 cell.child(
@@ -813,37 +959,95 @@ impl Calendar {
     /// `.calendar__grid-header` — the seven `.calendar__header-cell` columns.
     fn weekday_header(&self, cx: &App) -> gpui::Div {
         let muted = cx.colors().muted;
-        gpui::div()
-            .flex()
-            .children(self.constraints.first_day_of_week.header_row().map(|d| {
-                gpui::div()
+        gpui::div().flex().children(
+            self.constraints
+                .first_day_of_week
+                .header_row()
+                .into_iter()
+                .enumerate()
+                .map(|(column, d)| {
+                    gpui::div()
                     .flex_1()
+                    .debug_selector({
+                        let key = format!("{:?}-weekday-{column}", self.id);
+                        move || key
+                    })
+                    .pb(px(8.))
                     .text_center()
                     // `.calendar__header-cell` is `text-xs`.
                     .text_size(px(12.))
+                    .line_height(px(16.))
+                    .font_weight(gpui::FontWeight::MEDIUM)
                     .text_color(muted)
                     .child(d.to_owned())
-            }))
+                }),
+        )
+    }
+
+    /// The heading over one visible month, named in the view calendar.
+    ///
+    /// `(year, month)` are the view calendar's. ICU formats an ISO date in
+    /// whatever calendar the locale names, so the month is converted back to a
+    /// Gregorian day and handed over with that locale: an Indian grid heads
+    /// itself in Pausha 1947, not January 2026.
+    fn month_heading_text(&self, year: i32, month: u32) -> String {
+        let system = self.system();
+        let (year, month) = system.add_months(year, month, self.year_heading_offset_months);
+        let Some(date) = system.to_gregorian(year, month, 1) else {
+            return String::new();
+        };
+        date_heading_for_locale(system.locale(), date)
+            .unwrap_or_else(|| month_year_heading(date.year, date.month))
+    }
+
+    /// The number a cell prints: the day of the month in the *view* calendar.
+    ///
+    /// v3 hands `Calendar.Cell` a `formattedDate` in the calendar the grid is
+    /// drawn in, so a date's Gregorian day is the wrong label whenever the two
+    /// systems differ.
+    fn day_label(&self, date: Date) -> String {
+        self.system().from_gregorian(date).2.to_string()
+    }
+
+    /// One grid cell whose date the calendar system may not have.
+    ///
+    /// Every cell is addressed in the view calendar and converted back to a
+    /// Gregorian [`Date`] here, so the rest of the component -- constraints,
+    /// selection, callbacks -- only ever sees Gregorian. A triple the system
+    /// does not have draws a blank rather than a wrong day.
+    fn spill_cell(
+        &self,
+        date: Option<Date>,
+        outside_month: bool,
+        frame: &Frame<'_>,
+        key: String,
+        cx: &App,
+    ) -> gpui::AnyElement {
+        match date {
+            Some(date) => self.day_cell(date, outside_month, frame, key, cx),
+            None => gpui::div().size(frame.cell_size).into_any_element(),
+        }
     }
 
     /// The 7-column grid for a single month, including both adjacent months.
     fn month_grid(&self, y: i32, m: u32, frame: &Frame<'_>, cx: &App) -> gpui::AnyElement {
-        let lead = self.constraints.lead_cells(y, m);
-        let dim = days_in_month(y, m) as usize;
-        let rows = self.constraints.rows(y, m);
+        let system = self.system();
+        let lead = self.constraints.lead_cells_in(system, y, m);
+        let dim = system.days_in_month(y, m) as usize;
+        let rows = self.constraints.rows_in(system, y, m);
 
         // `.calendar__grid` holds the header and `.calendar__grid-body`, whose
         // children are `.calendar__grid-row`s of cells.
-        let mut grid = gpui::div().flex().flex_col().gap(px(2.));
+        let mut grid = gpui::div().flex().flex_col();
         for r in 0..rows {
-            let mut line = gpui::div().flex().gap(px(2.));
+            let mut line = gpui::div().flex();
             for c in 0..7 {
                 let idx = r * 7 + c;
                 let slot: gpui::AnyElement = if idx < lead {
-                    let (py, pm) = add_months(y, m, -1);
-                    let day = days_in_month(py, pm) as usize - lead + idx + 1;
-                    self.day_cell(
-                        Date::new(py, pm, day as u32),
+                    let (py, pm) = system.add_months(y, m, -1);
+                    let day = system.days_in_month(py, pm) as usize - lead + idx + 1;
+                    self.spill_cell(
+                        system.to_gregorian(py, pm, day as u32),
                         true,
                         frame,
                         format!("{}-{y}-{m}-outside-{py}-{pm}-d{day}", frame.base),
@@ -859,17 +1063,17 @@ impl Calendar {
                         // render prop a real `CalendarDate`, and the closure is
                         // the only identity a caller has.
                         let nd = day_num - dim;
-                        let (ny, nm) = next_month(y, m);
-                        self.day_cell(
-                            Date::new(ny, nm, nd as u32),
+                        let (ny, nm) = system.add_months(y, m, 1);
+                        self.spill_cell(
+                            system.to_gregorian(ny, nm, nd as u32),
                             true,
                             frame,
                             format!("{}-{y}-{m}-outside-{ny}-{nm}-d{nd}", frame.base),
                             cx,
                         )
                     } else {
-                        self.day_cell(
-                            Date::new(y, m, day_num as u32),
+                        self.spill_cell(
+                            system.to_gregorian(y, m, day_num as u32),
                             false,
                             frame,
                             format!("{}-{y}-{m}-d{day_num}", frame.base),
@@ -899,13 +1103,30 @@ impl Calendar {
         let active_year = view.active_year;
         let base = view.base;
         // `.calendar-year-picker__year-grid` is `gap-1 p-1`.
-        let mut grid = gpui::div().flex().flex_col().gap(px(4.)).p(px(4.));
+        let mut grid = gpui::div()
+            .id(gpui::ElementId::Name(
+                format!("{base}-year-viewport").into(),
+            ))
+            .debug_selector({
+                let key = format!("{base}-year-viewport");
+                move || key
+            })
+            .size_full()
+            .overflow_y_scroll()
+            .track_scroll(&view.scroll.handle)
+            .flex()
+            .flex_col()
+            .gap(px(4.));
         for chunk in view.years.chunks(3) {
-            let mut row = gpui::div().flex().gap(px(4.));
+            let mut row = gpui::div().flex().flex_shrink_0().gap(px(4.));
             for &year in chunk {
                 let is_active = year == active_year;
                 let mut cell = gpui::div()
                     .id(gpui::ElementId::Name(format!("{base}-y{year}").into()))
+                    .debug_selector({
+                        let key = format!("{base}-y{year}");
+                        move || key
+                    })
                     .when(!self.is_disabled && is_active, |cell| {
                         cell.track_focus(year_focus)
                     })
@@ -918,13 +1139,12 @@ impl Calendar {
                     .items_center()
                     .justify_center()
                     .text_size(px(14.))
+                    .line_height(px(20.))
+                    .font_weight(gpui::FontWeight::MEDIUM)
                     .rounded(crate::util::control_radius(cx));
 
                 if is_active {
-                    cell = cell
-                        .bg(accent.color)
-                        .text_color(accent.foreground)
-                        .font_weight(gpui::FontWeight::SEMIBOLD);
+                    cell = cell.bg(accent.color).text_color(accent.foreground);
                 } else if !self.is_disabled {
                     // `.calendar-year-picker__year-cell:hover` fills
                     // `bg-default text-default-foreground`.
@@ -942,10 +1162,12 @@ impl Calendar {
                     let on_focus = self.on_focus_change.clone();
                     let own = year_picker_own.clone();
                     let back_to_trigger = heading_focus.clone();
+                    let system = self.system().clone();
                     cell = cell.on_click(move |_, window, cx| {
                         let next = st.update(cx, |s, cx| {
-                            let day = s.view_day.max(1).min(days_in_month(year, s.view_month));
-                            let next = Date::new(year, s.view_month, day);
+                            let anchor = s.anchor();
+                            let next =
+                                system.add_years(anchor, year - system.from_gregorian(anchor).0);
                             s.set_anchor(next);
                             cx.notify();
                             next
@@ -964,7 +1186,7 @@ impl Calendar {
                         if let Some(cb) = &on_open {
                             cb(false, window, cx);
                         }
-                        window.focus(&back_to_trigger);
+                        window.focus(&back_to_trigger, cx);
                     });
                 }
 
@@ -980,9 +1202,23 @@ impl Calendar {
                 }
                 row = row.child(cell.child(year.to_string()));
             }
+            row = row.children((chunk.len()..3).map(|_| gpui::div().flex_1().px(px(10.))));
             grid = grid.child(row);
         }
-        grid.into_any_element()
+        gpui::div()
+            .absolute()
+            .inset_0()
+            .p(px(4.))
+            .child(grid)
+            .when_some(view.reveal_row, |viewport, row| {
+                let scroll = view.scroll.clone();
+                viewport.on_children_prepainted(move |_, window, cx| {
+                    scroll.last_target.set(Some((active_year, row)));
+                    scroll.handle.scroll_to_item(row);
+                    window.defer(cx, |window, _| window.refresh());
+                })
+            })
+            .into_any_element()
     }
 }
 
@@ -1116,7 +1352,8 @@ impl RenderOnce for Calendar {
         // `selectionAlignment` frames the range around the selection, but only
         // until the user drives navigation themselves.
         let anchor = match (navigated, selected) {
-            (false, Some(sel)) => calendar_view::aligned_anchor(
+            (false, Some(sel)) => calendar_view::aligned_anchor_in(
+                self.system(),
                 self.duration,
                 self.selection_alignment,
                 first_day,
@@ -1126,8 +1363,9 @@ impl RenderOnce for Calendar {
         };
         let anchor = focused_value.map_or(anchor, |focused| {
             let (visible_start, visible_end) =
-                calendar_view::visible_range(self.duration, first_day, anchor);
-            calendar_view::anchor_following_focus(
+                calendar_view::visible_range(self.system(), self.duration, first_day, anchor);
+            calendar_view::anchor_following_focus_in(
+                self.system(),
                 self.duration,
                 first_day,
                 anchor,
@@ -1136,26 +1374,49 @@ impl RenderOnce for Calendar {
                 focused,
             )
         });
-        let initial_year = focused_value.unwrap_or(anchor).year;
+        let initial_year = self
+            .system()
+            .from_gregorian(focused_value.unwrap_or(anchor))
+            .0;
         let years = calendar_view::year_window(
+            self.system(),
             initial_year,
             self.visible_years,
             self.constraints.min_value,
             self.constraints.max_value,
         );
-        let first_year = years.first().copied().unwrap_or(anchor.year);
-        let last_year = years.last().copied().unwrap_or(anchor.year);
+        let first_year = years.first().copied().unwrap_or(initial_year);
+        let last_year = years.last().copied().unwrap_or(initial_year);
         if year_picker_open && !*year_was_open.read(cx) && !self.is_disabled {
             year_cursor.update(cx, |year, _| *year = Some(initial_year));
-            window.focus(&year_focus);
+            window.focus(&year_focus, cx);
         }
+        let year_just_opened = year_picker_open && !*year_was_open.read(cx);
         year_was_open.update(cx, |was_open, _| *was_open = year_picker_open);
         let active_year = focused_value
-            .map(|date| date.year)
+            .map(|date| self.system().from_gregorian(date).0)
             .or(*year_cursor.read(cx))
             .unwrap_or(initial_year)
             .max(first_year)
             .min(last_year);
+        let year_scroll_state = window.use_keyed_state(
+            gpui::ElementId::Name(format!("{base}-year-scroll").into()),
+            cx,
+            |_, _| std::rc::Rc::new(calendar_view::YearGridScroll::default()),
+        );
+        let year_scroll = year_scroll_state.read(cx).clone();
+        let reveal_year_row =
+            years
+                .iter()
+                .position(|year| *year == active_year)
+                .and_then(|index| {
+                    let row = index / 3;
+                    (year_picker_open
+                        && (year_just_opened
+                            || year_scroll.last_target.get() != Some((active_year, row))))
+                    .then_some(row)
+                });
+
         // `focusedValue` wins; without it the keyboard's own cursor does, and it
         // starts from the selection or today.
         // Taking the focus puts the ring on the date v3 would have focused --
@@ -1166,6 +1427,11 @@ impl RenderOnce for Calendar {
             .or(selected)
             .or_else(|| Some(Date::today()))
             .filter(|_| grid_focus.is_focused(window));
+        let column_width = if matches!(self.duration, VisibleDuration::Months(n) if n > 1) {
+            px(256.)
+        } else {
+            CALENDAR_WIDTH
+        };
         let frame = Frame {
             selected,
             selected_dates: &selected_dates,
@@ -1173,9 +1439,12 @@ impl RenderOnce for Calendar {
             cursor: &cursor,
             base: &base,
             focused: ring_at,
+            anchor,
+            visible_start: matches!(self.duration, VisibleDuration::Days(_)).then_some(anchor),
+            cell_size: column_width / 7.,
         };
 
-        let months = calendar_view::month_headings(self.duration, anchor);
+        let months = calendar_view::month_headings_in(self.system(), self.duration, anchor);
         let linear = calendar_view::linear_cells(self.duration, first_day, anchor);
         let columns = months.len().max(1);
         let mut heading_focuses = Vec::with_capacity(columns);
@@ -1192,10 +1461,17 @@ impl RenderOnce for Calendar {
         let colors = cx.colors();
         let layout = cx.layout();
 
-        let nav_target =
-            |dir: i32| calendar_view::page(self.duration, self.page_behavior, anchor, dir);
+        let nav_target = |dir: i32| {
+            calendar_view::page_in(
+                self.system(),
+                self.duration,
+                self.page_behavior,
+                anchor,
+                dir,
+            )
+        };
         let (visible_start, visible_end) =
-            calendar_view::visible_range(self.duration, first_day, anchor);
+            calendar_view::visible_range(self.system(), self.duration, first_day, anchor);
         // React Stately checks only the day immediately outside the visible
         // range against minValue/maxValue. Unavailable dates do not block
         // paging, and readOnly prevents selection without preventing paging.
@@ -1256,7 +1532,8 @@ impl RenderOnce for Calendar {
                         cx,
                     )
                 })
-                .when(disabled, |b| b.opacity(layout.disabled_opacity));
+                .when(disabled, |b| b.opacity(layout.disabled_opacity))
+                .when(year_picker_open, |b| b.invisible());
             crate::util::ring_if_focused(button, focus, true, Vec::new(), window, cx).child(
                 gpui::svg()
                         // `.calendar__nav-button-icon` is `size-4`.
@@ -1277,7 +1554,8 @@ impl RenderOnce for Calendar {
          -> gpui::AnyElement {
             let label = gpui::div()
                 .text_size(px(14.))
-                .font_weight(gpui::FontWeight::SEMIBOLD)
+                .line_height(px(20.))
+                .font_weight(gpui::FontWeight::MEDIUM)
                 .child(text);
             match &self.on_year_picker_open_change {
                 // No handler and no state of our own: a plain label.
@@ -1381,16 +1659,9 @@ impl RenderOnce for Calendar {
             }
         };
 
-        let column_width = if columns > 1 {
-            px(228.)
-        } else {
-            CALENDAR_WIDTH
-        };
-
         let mut root = gpui::div()
             .flex()
             .flex_col()
-            .gap(px(8.))
             .text_color(colors.surface.foreground)
             // readOnly blocks selection, not focus or navigation.
             .when(!self.is_disabled && !year_picker_open, |el| {
@@ -1415,6 +1686,7 @@ impl RenderOnce for Calendar {
             let on_change = self.on_change.clone();
             let on_change_all = self.on_change_all.clone();
             let on_focus = self.on_focus_change.clone();
+            let system = self.system().clone();
             let duration = self.duration;
             let page_behavior = self.page_behavior;
             root = root.on_key_down(move |event, window, cx| {
@@ -1430,11 +1702,13 @@ impl RenderOnce for Calendar {
                 let key = event.keystroke.key.as_str();
                 let shift = event.keystroke.modifiers.shift;
                 if matches!(key, "enter" | "space") {
-                    if read_only || !constraints.allows(at) {
+                    cx.stop_propagation();
+                    if event.is_held || read_only || !constraints.allows(at) {
                         return;
                     }
                     let selected_dates = state.update(cx, |s, cx| {
                         s.toggle(at, mode);
+                        s.set_anchor(anchor);
                         cx.notify();
                         s.selected_dates.clone()
                     });
@@ -1451,14 +1725,24 @@ impl RenderOnce for Calendar {
                     "right" => add_days(&at, 1),
                     "up" => add_days(&at, -7),
                     "down" => add_days(&at, 7),
-                    "pageup" => {
-                        calendar_view::focus_section(duration, page_behavior, at, -1, shift)
-                    }
-                    "pagedown" => {
-                        calendar_view::focus_section(duration, page_behavior, at, 1, shift)
-                    }
-                    "home" => calendar_view::section_start(duration, visible_start, at),
-                    "end" => calendar_view::section_end(duration, visible_end, at),
+                    "pageup" => calendar_view::focus_section_in(
+                        &system,
+                        duration,
+                        page_behavior,
+                        at,
+                        -1,
+                        shift,
+                    ),
+                    "pagedown" => calendar_view::focus_section_in(
+                        &system,
+                        duration,
+                        page_behavior,
+                        at,
+                        1,
+                        shift,
+                    ),
+                    "home" => calendar_view::section_start_in(&system, duration, visible_start, at),
+                    "end" => calendar_view::section_end_in(&system, duration, visible_end, at),
                     _ => return,
                 };
                 if controlled_focus.is_none() {
@@ -1473,7 +1757,8 @@ impl RenderOnce for Calendar {
                         if matches!(key, "pageup" | "pagedown") {
                             let dir = if key == "pageup" { -1 } else { 1 };
                             let next_anchor = match duration {
-                                VisibleDuration::Days(_) => calendar_view::focus_section(
+                                VisibleDuration::Days(_) => calendar_view::focus_section_in(
+                                    &system,
                                     duration,
                                     page_behavior,
                                     anchor,
@@ -1481,7 +1766,8 @@ impl RenderOnce for Calendar {
                                     shift,
                                 ),
                                 _ if days_from_civil(&next) < days_from_civil(&visible_start) => {
-                                    calendar_view::aligned_anchor(
+                                    calendar_view::aligned_anchor_in(
+                                        &system,
                                         duration,
                                         SelectionAlignment::End,
                                         first_day,
@@ -1489,7 +1775,8 @@ impl RenderOnce for Calendar {
                                     )
                                 }
                                 _ if days_from_civil(&next) > days_from_civil(&visible_end) => {
-                                    calendar_view::aligned_anchor(
+                                    calendar_view::aligned_anchor_in(
+                                        &system,
                                         duration,
                                         SelectionAlignment::Start,
                                         first_day,
@@ -1503,7 +1790,8 @@ impl RenderOnce for Calendar {
                                 cx.notify();
                             }
                         } else {
-                            let next_anchor = calendar_view::anchor_following_focus(
+                            let next_anchor = calendar_view::anchor_following_focus_in(
+                                &system,
                                 duration,
                                 first_day,
                                 anchor,
@@ -1531,7 +1819,8 @@ impl RenderOnce for Calendar {
             let own = year_picker_own.clone();
             let on_open = self.on_year_picker_open_change.clone();
             let on_focus = self.on_focus_change.clone();
-            let controlled_year = focused_value.map(|date| date.year);
+            let system = self.system().clone();
+            let controlled_year = focused_value.map(|date| system.from_gregorian(date).0);
             let back_to_trigger = active_heading_focus.clone();
             root = root.on_key_down(move |event, window, cx| {
                 if !focus.is_focused(window) {
@@ -1548,7 +1837,7 @@ impl RenderOnce for Calendar {
                     if let Some(cb) = &on_open {
                         cb(false, window, cx);
                     }
-                    window.focus(&back_to_trigger);
+                    window.focus(&back_to_trigger, cx);
                     cx.stop_propagation();
                     return;
                 }
@@ -1577,11 +1866,7 @@ impl RenderOnce for Calendar {
                     }
                     if let Some(cb) = &on_focus {
                         cb(
-                            Date::new(
-                                next,
-                                anchor.month,
-                                anchor.day.min(days_in_month(next, anchor.month)),
-                            ),
+                            system.add_years(anchor, next - system.from_gregorian(anchor).0),
                             window,
                             cx,
                         );
@@ -1591,53 +1876,22 @@ impl RenderOnce for Calendar {
             });
         }
 
-        if year_picker_open {
-            // The picker replaces the grid area in every view.
-            root = root.w(column_width);
-            root = root.child(
-                gpui::div()
-                    .flex()
-                    .items_center()
-                    .justify_between()
-                    // `.calendar__header` is `px-0.5`.
-                    .px(px(2.))
-                    .child(gpui::div().size(px(24.)))
-                    .child(heading(
-                        calendar_view::month_heading(
-                            anchor.year,
-                            anchor.month,
-                            self.year_heading_offset_months,
-                        ),
-                        format!("{base}-yheading"),
-                        &active_heading_focus,
-                        active_heading_index,
-                    ))
-                    .child(gpui::div().size(px(24.))),
-            );
-            root = root.child(self.year_grid(
-                calendar_view::YearGridView {
-                    years: &years,
-                    active_year,
-                    base: &base,
-                },
-                &year_focus,
-                &active_heading_focus,
-                year_picker_own.clone(),
-                window,
-                cx,
-            ));
-        } else if self.duration.is_month_view() {
-            let mut row = gpui::div().flex().gap(px(20.));
+        let mut body = gpui::div().flex().flex_col().gap(px(4.));
+        if self.duration.is_month_view() {
+            root = root.w(column_width * columns as f32 + px(32.) * (columns - 1) as f32);
+            let mut row = gpui::div().flex().gap(px(32.));
+            let mut headings = gpui::div().flex().gap(px(32.)).pb(px(16.));
             for (i, &(y, m)) in months.iter().enumerate() {
                 let first = i == 0;
                 let last = i + 1 == columns;
-                let mut col = gpui::div().w(column_width).flex().flex_col().gap(px(8.));
+                let mut col = gpui::div().w(column_width).flex().flex_col().gap(px(4.));
                 // Only the outer columns carry nav buttons; the others keep
                 // a same-size spacer so every heading lines up.
                 // The same box as a nav button, so every heading lines up.
                 let spacer = || gpui::div().size(px(24.)).into_any_element();
-                col = col.child(
-                    gpui::div()
+                headings = headings.child(
+                    gpui::div().w(column_width).child(
+                        gpui::div()
                         .flex()
                         .items_center()
                         .justify_between()
@@ -1656,11 +1910,7 @@ impl RenderOnce for Calendar {
                             spacer()
                         })
                         .child(heading(
-                            calendar_view::month_heading(
-                                y,
-                                m,
-                                self.year_heading_offset_months,
-                            ),
+                            self.month_heading_text(y, m),
                             format!("{base}-heading{i}"),
                             &heading_focuses[i],
                             i,
@@ -1677,20 +1927,15 @@ impl RenderOnce for Calendar {
                         } else {
                             spacer()
                         }),
+                    ),
                 );
                 col = col.child(self.weekday_header(cx));
                 col = col.child(self.month_grid(y, m, &frame, cx));
                 row = row.child(col);
             }
-            root = root.child(row);
+            root = root.child(headings);
+            body = body.child(row);
         } else {
-            // Week and day views: one flat run of real dates, so there are no
-            // lead blanks and no spill into the next month.
-            let per_row = if matches!(self.duration, VisibleDuration::Weeks(_)) {
-                7
-            } else {
-                linear.len().max(1)
-            };
             root = root.w(CALENDAR_WIDTH);
             root = root.child(
                 gpui::div()
@@ -1699,6 +1944,7 @@ impl RenderOnce for Calendar {
                     .justify_between()
                     // `.calendar__header` is `px-0.5`.
                     .px(px(2.))
+                    .pb(px(16.))
                     .child(nav_btn(
                         icons::CHEVRON_LEFT,
                         nav_target(-1),
@@ -1720,46 +1966,204 @@ impl RenderOnce for Calendar {
                         next_disabled,
                     )),
             );
-            if per_row == 7 {
-                root = root.child(self.weekday_header(cx));
-            } else {
-                // A day view labels each visible column with its own weekday.
-                root = root.child(gpui::div().flex().children(linear.iter().map(|d| {
-                    gpui::div()
-                        .flex_1()
-                        .text_center()
-                        .text_size(px(11.))
-                        .text_color(colors.muted)
-                        .child(Weekday::ALL[weekday_index(*d)].short_label().to_owned())
-                })));
-            }
-            let mut grid = gpui::div().flex().flex_col().gap(px(2.));
-            for chunk in linear.chunks(per_row) {
-                let mut line = gpui::div().flex().gap(px(2.));
-                for &date in chunk {
-                    line = line.child(self.day_cell(
-                        date,
-                        false,
-                        &frame,
-                        format!("{base}-{}", date.format_iso()),
-                        cx,
-                    ));
+            body = body.child(self.weekday_header(cx));
+            let mut grid = gpui::div().flex().flex_col();
+            for row in calendar_view::week_aligned_rows(visible_start, visible_end, first_day) {
+                let mut line = gpui::div().flex();
+                for date in row {
+                    line = line.child(match date {
+                        Some(date) => self.day_cell(
+                            date,
+                            false,
+                            &frame,
+                            format!("{base}-{}", date.format_iso()),
+                            cx,
+                        ),
+                        None => gpui::div().flex_1().h(px(36.)).into_any_element(),
+                    });
                 }
                 grid = grid.child(line);
             }
-            root = root.child(grid);
+            body = body.child(grid);
         }
+
+        let mut viewport = gpui::div()
+            .relative()
+            .child(body.when(year_picker_open, |body| body.invisible()));
+        if year_picker_open {
+            viewport = viewport.child(self.year_grid(
+                calendar_view::YearGridView {
+                    years: &years,
+                    active_year,
+                    base: &base,
+                    scroll: &year_scroll,
+                    reveal_row: reveal_year_row,
+                },
+                &year_focus,
+                &active_heading_focus,
+                year_picker_own.clone(),
+                window,
+                cx,
+            ));
+        }
+        root = root.child(viewport);
 
         if self.is_disabled {
             root = root.opacity(layout.disabled_opacity);
         }
 
-        root
+        if columns > 1 {
+            let heading = heading_focuses
+                .iter()
+                .position(|focus| focus.is_focused(window))
+                .or_else(|| prev_focus.is_focused(window).then_some(0))
+                .or_else(|| next_focus.is_focused(window).then_some(columns - 1));
+            let reveal = heading
+                .map(|index| {
+                    let left = (column_width + px(32.)) * index as f32;
+                    (
+                        calendar_view::MonthScrollFocus::Heading(index),
+                        left,
+                        left + column_width,
+                    )
+                })
+                .or_else(|| {
+                    if year_picker_open {
+                        years
+                            .iter()
+                            .position(|year| *year == active_year)
+                            .map(|index| {
+                                let width =
+                                    column_width * columns as f32 + px(32.) * (columns - 1) as f32;
+                                // The year grid has 4px padding and two 4px column gaps.
+                                let cell = (width - px(16.)) / 3.;
+                                let left = px(4.) + (cell + px(4.)) * (index % 3) as f32;
+                                (
+                                    calendar_view::MonthScrollFocus::Year(active_year),
+                                    left,
+                                    left + cell,
+                                )
+                            })
+                    } else {
+                        let date = focused_value.or(ring_at)?;
+                        let (year, month, _) = self.system().from_gregorian(date);
+                        let index = months.iter().position(|value| *value == (year, month))?;
+                        let column = (weekday_index(date) + 7 - first_day.monday_index()) % 7;
+                        let left = (column_width + px(32.)) * index as f32
+                            + frame.cell_size * column as f32;
+                        Some((
+                            calendar_view::MonthScrollFocus::Day(date),
+                            left,
+                            left + frame.cell_size,
+                        ))
+                    }
+                });
+            calendar_view::scrolling_months(
+                root.flex_shrink_0().mx_auto().into_any_element(),
+                &base,
+                reveal,
+                window,
+                cx,
+            )
+        } else {
+            root.into_any_element()
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn calendar_heading_keeps_the_day_that_identifies_a_non_gregorian_month() {
+        assert_eq!(
+            date_heading_for_locale("en-US-u-ca-indian", Date::new(2025, 12, 22)),
+            month_heading_for_locale("en-US-u-ca-indian", 2026, 1)
+        );
+        assert!(
+            date_heading_for_locale("en-US-u-ca-hebrew", Date::new(2024, 3, 11))
+                .unwrap()
+                .contains("Adar II")
+        );
+    }
+
+    #[test]
+    fn a_locale_extension_moves_the_grid_into_that_calendar() {
+        use crate::calendar_system::CalendarSystem;
+        let system = CalendarSystem::for_locale("hi-IN-u-ca-indian").unwrap();
+
+        // The anchor stays Gregorian -- it is the caller's state -- and the
+        // grid is addressed in the Indian calendar it converts to.
+        let anchor = Date::new(2026, 1, 15);
+        let months = calendar_view::month_headings_in(&system, VisibleDuration::Months(1), anchor);
+        assert_eq!(months, vec![(1947, 10)], "January 2026 is Pausha 1947");
+
+        // Every cell of that month converts back to a real Gregorian date,
+        // which is what selection and the constraints see.
+        let days = system.days_in_month(1947, 10);
+        assert_eq!(days, 30);
+        for day in 1..=days {
+            assert!(
+                system.to_gregorian(1947, 10, day).is_some(),
+                "Pausha {day} must be a date"
+            );
+        }
+        assert_eq!(system.to_gregorian(1947, 10, 25), Some(anchor));
+    }
+
+    #[test]
+    fn the_heading_names_the_view_calendars_month() {
+        // ICU formats an ISO date in whatever calendar the locale names, so the
+        // Indian heading is the Indian month and its Saka year.
+        let heading = month_heading_for_locale("hi-IN-u-ca-indian", 2026, 1).unwrap();
+        assert!(
+            heading.contains("1947"),
+            "an Indian heading names the Saka year, got {heading:?}"
+        );
+        assert_ne!(
+            heading,
+            month_heading_for_locale("en-US", 2026, 1).unwrap(),
+            "the two calendars must not head the same month identically"
+        );
+    }
+
+    #[test]
+    fn month_names_follow_the_locale() {
+        assert_eq!(month_names_for_locale("en-US").unwrap()[0], "January");
+        assert_eq!(month_names_for_locale("de-DE").unwrap()[0], "Januar");
+        assert_eq!(month_names_for_locale("fr-FR").unwrap()[0], "janvier");
+    }
+
+    #[test]
+    fn month_abbreviations_come_from_cldr_not_a_byte_slice() {
+        assert_eq!(month_abbrs_for_locale("en-US").unwrap()[0], "Jan");
+        // The first three *bytes* of this name are one character, so the old
+        // `[..3]` slice would have panicked rather than abbreviated.
+        let japanese = month_abbrs_for_locale("ja-JP").unwrap();
+        assert!(japanese[0].chars().count() < japanese[0].len());
+    }
+
+    #[test]
+    fn the_heading_takes_its_field_order_from_the_locale() {
+        let english = month_heading_for_locale("en-US", 2026, 1).unwrap();
+        assert_eq!(english, "January 2026");
+        assert_eq!(
+            month_heading_for_locale("de-DE", 2026, 1).unwrap(),
+            "Januar 2026"
+        );
+        // Japanese writes the year first, which a "{month} {year}" template
+        // cannot reproduce whatever names it is given.
+        let japanese = month_heading_for_locale("ja-JP", 2026, 1).unwrap();
+        assert!(
+            japanese.starts_with("2026"),
+            "expected a year-first heading, got {japanese}"
+        );
+    }
+
+    #[test]
+    fn an_unknown_locale_reports_nothing_rather_than_guessing() {
+        assert!(month_names_for_locale("not a locale").is_none());
+        assert!(month_heading_for_locale("not a locale", 2026, 1).is_none());
+    }
     use super::*;
 
     #[test]

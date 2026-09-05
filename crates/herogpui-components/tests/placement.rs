@@ -1001,82 +1001,108 @@ fn modal_full_covers_every_viewport_edge_without_backdrop_dismissal(cx: &mut Tes
 
 #[gpui::test]
 fn modal_long_body_scrolls_to_reach_the_deepest_control(cx: &mut TestAppContext) {
-    still();
-    let hits = events();
-    let probed = hits.clone();
-    let closes = events();
-    let recorded = closes.clone();
-    let open = Rc::new(RefCell::new(true));
-    let open_flag = open;
-
-    let cx = open_host(cx, move || {
+    for with_chrome in [false, true] {
+        still();
+        let hits = events();
         let probed = hits.clone();
+        let closes = events();
         let recorded = closes.clone();
-        let is_open = *open_flag.borrow();
-        let mut body = gpui::div().flex().flex_col().gap(px(10.));
-        for i in 0..24 {
-            // The click closure owns its `label`; the div renders another
-            // copy, so the two start as clones.
-            let label = format!("p{i}");
-            let click_label = label.clone();
-            let recorded = probed.clone();
-            body = body.child(
-                gpui::div()
-                    .id(gpui::SharedString::from(format!("pl-scroll-probe-{i}")))
-                    .w_full()
-                    .h(px(36.))
-                    .flex()
-                    .items_center()
-                    .justify_center()
-                    .cursor_pointer()
-                    .on_click(move |_, _, _| recorded.borrow_mut().push(click_label.clone()))
-                    .child(label),
-            );
+        let open = Rc::new(RefCell::new(true));
+        let open_flag = open;
+
+        let cx = open_host(cx, move || {
+            let probed = hits.clone();
+            let recorded = closes.clone();
+            let is_open = *open_flag.borrow();
+            let mut body = gpui::div().flex().flex_col().gap(px(10.));
+            for i in 0..24 {
+                // The click closure owns its `label`; the div renders another
+                // copy, so the two start as clones.
+                let label = format!("p{i}");
+                let click_label = label.clone();
+                let recorded = probed.clone();
+                body = body.child(
+                    gpui::div()
+                        .id(gpui::SharedString::from(format!("pl-scroll-probe-{i}")))
+                        .debug_selector(move || format!("pl-scroll-probe-{i}"))
+                        .w_full()
+                        .h(px(36.))
+                        .flex()
+                        .items_center()
+                        .justify_center()
+                        .cursor_pointer()
+                        .on_click(move |_, _, _| recorded.borrow_mut().push(click_label.clone()))
+                        .child(label),
+                );
+            }
+            Modal::new()
+                .id("pl-modal-scroll")
+                .is_open(is_open)
+                .when(with_chrome, |modal| {
+                    modal.title("Long dialog").footer_child(
+                        gpui::div()
+                            .h(px(36.))
+                            .debug_selector(|| "pl-scroll-footer".to_owned())
+                            .child("Footer"),
+                    )
+                })
+                .child(body)
+                .on_open_change({
+                    let open_flag = open_flag.clone();
+                    move |v, window, _| {
+                        *open_flag.borrow_mut() = v;
+                        recorded.borrow_mut().push(format!("open:{v}"));
+                        window.refresh();
+                    }
+                })
+                .into_any_element()
+        });
+
+        let first = cx
+            .debug_bounds("pl-scroll-probe-0")
+            .expect("first row paints");
+        assert!(
+            first.origin.y >= px(64.),
+            "40px scrim plus 24px panel padding: {first:?}"
+        );
+        click(cx, f32::from(first.center().x), f32::from(first.center().y));
+        assert!(probed.borrow().contains(&"p0".to_owned()));
+
+        let footer = cx.debug_bounds("pl-scroll-footer");
+        assert_eq!(footer.is_some(), with_chrome, "requested footer must paint");
+        for _ in 0..6 {
+            wheel(cx, 960., 500., -1000.);
         }
-        Modal::new()
-            .id("pl-modal-scroll")
-            .is_open(is_open)
-            .child(body)
-            .on_open_change({
-                let open_flag = open_flag.clone();
-                move |v, window, _| {
-                    *open_flag.borrow_mut() = v;
-                    recorded.borrow_mut().push(format!("open:{v}"));
-                    window.refresh();
-                }
-            })
-            .into_any_element()
-    });
-
-    // The top of the body is reachable at rest: probe 0 sits at body top
-    // (panel padding 24) + 18 in the panel's column.
-    click(cx, 960., 42.);
-    assert!(probed.borrow().contains(&"p0".to_owned()));
-
-    // Scroll down hard and sweep the panel's column (Md width 448, so x 960
-    // is inside it) across the lower half of the window. The deepest probe
-    // must report at some point, and no sweep press may dismiss the modal:
-    // a dismiss would mean the press landed on the scrim because the deep
-    // content was clipped, not scrolled into view.
-    for _ in 0..6 {
-        wheel(cx, 960., 500., -1000.);
+        let last = cx
+            .debug_bounds("pl-scroll-probe-23")
+            .expect("last row paints");
+        let viewport_height = cx.update(|window, _| window.viewport_size().height);
+        assert!(
+            last.bottom() <= viewport_height - px(64.),
+            "last row fits above padding and scrim: {last:?}"
+        );
+        assert_eq!(
+            cx.debug_bounds("pl-scroll-footer"),
+            footer,
+            "footer must not scroll with the body"
+        );
+        if let Some(footer) = footer {
+            assert!(
+                last.bottom() <= footer.origin.y,
+                "deepest row stays above the footer"
+            );
+            assert!(footer.bottom() <= viewport_height - px(64.));
+        }
+        click(cx, f32::from(last.center().x), f32::from(last.center().y));
+        assert!(
+            recorded.borrow().is_empty(),
+            "body presses must not dismiss"
+        );
+        assert!(
+            probed.borrow().iter().any(|hit| hit == "p23"),
+            "deepest row responds after scrolling"
+        );
     }
-    let mut y = 500.;
-    while y < 1060. {
-        click(cx, 960., y);
-        y += 55.;
-    }
-
-    assert!(
-        recorded.borrow().is_empty(),
-        "no press anywhere in the modal's column may dismiss it: deep content \
-         must be scrolled into view, not missing"
-    );
-    assert!(
-        probed.borrow().iter().any(|hit| hit == "p23"),
-        "the deepest probe must be reachable after scrolling; recorded: {:?}",
-        probed.borrow().as_slice()
-    );
 }
 
 #[gpui::test]

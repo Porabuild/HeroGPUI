@@ -10,9 +10,8 @@
 //! Feb 29 rather than invent a Feb 31.
 //!
 //! Geometry is the same derivation the rest of the suite uses: a bare
-//! Calendar at the window origin, `CALENDAR_WIDTH` (252) minus six 2px gaps
-//! over seven cells for the column centres, the first cell row at y = 74 with
-//! 38px per row after it, and the month's leading blanks
+//! Calendar at the window origin, `CALENDAR_WIDTH` (252) split into seven equal cells for the column centres, the first cell row at y = 86 with
+//! 36px per row after it, and the month's leading blanks
 //! (`DateConstraints::lead_cells`, Monday-start default) for a day's
 //! row/column.
 
@@ -27,20 +26,691 @@ use harness::{click, events, open_host, press};
 use herogpui_components::{
     calendar::{Date, CALENDAR_WIDTH},
     Button, Calendar, CalendarState, DateConstraints, DateRangeState, RangeCalendar,
-    VisibleDuration,
+    VisibleDuration, Weekday,
 };
 
-/// Column *c*'s centre in a bare Calendar: seven cells across
-/// `CALENDAR_WIDTH` minus six 2px gaps.
-fn cal_col_x(col: usize) -> f32 {
-    let cell_w = (f32::from(CALENDAR_WIDTH) - 12.) / 7.;
-    col as f32 * (cell_w + 2.) + cell_w / 2.
+#[gpui::test]
+fn calendar_picking_keeps_the_selection_aligned_view(cx: &mut TestAppContext) {
+    for keyboard in [false, true] {
+        let state = cx.new(|cx| {
+            let mut state = CalendarState::with_selected(cx, Date::new(2025, 12, 8));
+            state.view_year = 2035;
+            state.view_month = 7;
+            state.view_day = 1;
+            state
+        });
+        let id = state.entity_id().as_u64();
+        let view_state = state.clone();
+        let cx = open_host(cx, move || {
+            Calendar::new(view_state.clone())
+                .visible_duration(VisibleDuration::Months(2))
+                .selection_alignment(herogpui_components::SelectionAlignment::End)
+                .first_day_of_week(Weekday::Mon)
+                .into_any_element()
+        });
+        if keyboard {
+            press(cx, "tab");
+            press(cx, "right");
+            press(cx, "right");
+            press(cx, "enter");
+        } else {
+            let key = cal_cell_selector(id, 2025, 12, 10);
+            let bounds = cx.debug_bounds(Box::leak(key.into_boxed_str())).unwrap();
+            click(
+                cx,
+                f32::from(bounds.center().x),
+                f32::from(bounds.center().y),
+            );
+        }
+        assert_eq!(
+            cx.update(|_, cx| (state.read(cx).anchor(), state.read(cx).selected)),
+            (Date::new(2025, 11, 8), Some(Date::new(2025, 12, 10))),
+            "keyboard={keyboard}: picking must retain both displayed months"
+        );
+    }
 }
 
-/// Row *r*'s centre in a bare Calendar: the first row at y = 74, then a
-/// 36px cell plus a 2px gap per row.
+#[gpui::test]
+fn range_picking_keeps_the_selection_aligned_view(cx: &mut TestAppContext) {
+    use herogpui_components::SelectionAlignment;
+    for (duration, alignment, expected_anchor) in [
+        (
+            VisibleDuration::Months(1),
+            SelectionAlignment::Start,
+            Date::new(2025, 12, 8),
+        ),
+        (
+            VisibleDuration::Months(2),
+            SelectionAlignment::End,
+            Date::new(2025, 11, 8),
+        ),
+        (
+            VisibleDuration::Weeks(2),
+            SelectionAlignment::Start,
+            Date::new(2025, 12, 8),
+        ),
+        (
+            VisibleDuration::Days(5),
+            SelectionAlignment::Start,
+            Date::new(2025, 12, 8),
+        ),
+    ] {
+        for keyboard in [false, true] {
+            let state = cx.new(|cx| {
+                let mut state = DateRangeState::with_range(
+                    cx,
+                    Some(Date::new(2025, 12, 8)),
+                    Some(Date::new(2025, 12, 14)),
+                );
+                state.view_year = 2035;
+                state.view_month = 7;
+                state.view_day = 1;
+                state
+            });
+            let id = state.entity_id().as_u64();
+            let view_state = state.clone();
+            let picked = events();
+            let view_picked = picked.clone();
+            let cx = open_host(cx, move || {
+                let picked = view_picked.clone();
+                RangeCalendar::new(view_state.clone())
+                    .visible_duration(duration)
+                    .selection_alignment(alignment)
+                    .first_day_of_week(Weekday::Mon)
+                    .on_change(move |start, end, _, _| {
+                        picked.borrow_mut().push(format!(
+                            "{}..{}",
+                            start.format_iso(),
+                            end.format_iso()
+                        ));
+                    })
+                    .into_any_element()
+            });
+            let key = |day| {
+                if duration.is_month_view() {
+                    range_cell_selector(id, 2025, 12, day)
+                } else {
+                    format!(
+                        r#"Name("range-cal-{id}")-{}"#,
+                        Date::new(2025, 12, day).format_iso()
+                    )
+                }
+            };
+            if keyboard {
+                press(cx, "tab");
+                press(cx, "right");
+                press(cx, "right");
+                press(cx, "enter");
+            } else {
+                let bounds = cx
+                    .debug_bounds(Box::leak(key(10).into_boxed_str()))
+                    .unwrap();
+                click(
+                    cx,
+                    f32::from(bounds.center().x),
+                    f32::from(bounds.center().y),
+                );
+            }
+            assert_eq!(
+                cx.update(|_, cx| state.read(cx).anchor()),
+                expected_anchor,
+                "{duration:?}, keyboard={keyboard}: preserve the displayed range"
+            );
+            let bounds = cx
+                .debug_bounds(Box::leak(key(12).into_boxed_str()))
+                .unwrap();
+            click(
+                cx,
+                f32::from(bounds.center().x),
+                f32::from(bounds.center().y),
+            );
+            assert_eq!(picked.borrow().as_slice(), ["2025-12-10..2025-12-12"]);
+        }
+    }
+}
+
+#[gpui::test]
+fn calendar_spacing_matches_the_pinned_rendered_grids(cx: &mut TestAppContext) {
+    for range in [false, true] {
+        for duration in [
+            VisibleDuration::Months(1),
+            VisibleDuration::Weeks(2),
+            VisibleDuration::Days(10),
+        ] {
+            let state = cx.new(|cx| CalendarState::new(cx));
+            let range_state = cx.new(|cx| DateRangeState::new(cx));
+            let id = if range {
+                range_state.entity_id()
+            } else {
+                state.entity_id()
+            }
+            .as_u64();
+            let base = if range {
+                format!(r#"Name("range-cal-{id}")"#)
+            } else {
+                format!(r#"Name("cal-{id}")"#)
+            };
+            let cx = open_host(cx, move || {
+                let content = if range {
+                    RangeCalendar::new(range_state.clone())
+                        .default_value((Date::new(2026, 8, 3), Date::new(2026, 8, 4)))
+                        .selection_alignment(herogpui_components::SelectionAlignment::Start)
+                        .visible_duration(duration)
+                        .first_day_of_week(Weekday::Mon)
+                        .into_any_element()
+                } else {
+                    Calendar::new(state.clone())
+                        .default_value(Date::new(2026, 8, 3))
+                        .selection_alignment(herogpui_components::SelectionAlignment::Start)
+                        .visible_duration(duration)
+                        .first_day_of_week(Weekday::Mon)
+                        .into_any_element()
+                };
+                gpui::div()
+                    .debug_selector(|| "calendar-spacing-host".to_owned())
+                    .child(content)
+                    .into_any_element()
+            });
+            let weekday = cx
+                .debug_bounds(Box::leak(format!("{base}-weekday-0").into_boxed_str()))
+                .unwrap();
+            assert_eq!(weekday.top(), px(40.), "range={range}, {duration:?}");
+            assert_eq!(weekday.size.height, px(24.));
+            let first_day = if duration.is_month_view() { 1 } else { 3 };
+            let mut bounds = |day| {
+                let key = if !duration.is_month_view() {
+                    format!("{base}-{}", Date::new(2026, 8, day).format_iso())
+                } else if range {
+                    range_cell_selector(id, 2026, 8, day)
+                } else {
+                    cal_cell_selector(id, 2026, 8, day)
+                };
+                cx.debug_bounds(Box::leak(key.into_boxed_str())).unwrap()
+            };
+            let first = bounds(first_day);
+            let second = bounds(first_day + 7);
+            assert_eq!(
+                first.top() - weekday.bottom(),
+                px(if range { 6. } else { 4. })
+            );
+            assert_eq!(
+                second.top() - first.top(),
+                px(if range { 40. } else { 36. })
+            );
+            let height = cx
+                .debug_bounds("calendar-spacing-host")
+                .unwrap()
+                .size
+                .height;
+            let rows = if duration.is_month_view() { 6. } else { 2. };
+            assert_eq!(height, px(68. + rows * if range { 40. } else { 36. }));
+        }
+    }
+}
+
+#[gpui::test]
+fn calendar_day_text_keeps_pinned_metrics_in_every_state(cx: &mut TestAppContext) {
+    for range in [false, true] {
+        for (disabled, read_only) in [(false, false), (true, false), (false, true)] {
+            for inherited in [20., 48.] {
+                let seen = Rc::new(RefCell::new(Vec::new()));
+                let view_seen = seen.clone();
+                let calendar = cx.new(|cx| CalendarState::new(cx));
+                let range_calendar = cx.new(|cx| DateRangeState::new(cx));
+                let cx = open_host(cx, move || {
+                    let seen = view_seen.clone();
+                    let probe = move |label: gpui::SharedString| {
+                        let seen = seen.clone();
+                        gpui::div()
+                            .child(label)
+                            .child(gpui::canvas(
+                                |_, _, _| {},
+                                move |_, _, window, _| {
+                                    let style = window.text_style();
+                                    let rem = window.rem_size();
+                                    seen.borrow_mut().push((
+                                        style.font_size.to_pixels(rem),
+                                        style
+                                            .line_height
+                                            .to_pixels(gpui::AbsoluteLength::Pixels(rem), rem),
+                                        style.font_weight,
+                                    ));
+                                },
+                            ))
+                            .into_any_element()
+                    };
+                    let content = if range {
+                        RangeCalendar::new(range_calendar.clone())
+                            .default_value((Date::new(2026, 8, 10), Date::new(2026, 8, 15)))
+                            .is_disabled(disabled)
+                            .is_read_only(read_only)
+                            .cell(move |cell| probe(cell.formatted_date))
+                            .into_any_element()
+                    } else {
+                        Calendar::new(calendar.clone())
+                            .default_value(Date::new(2026, 8, 10))
+                            .is_disabled(disabled)
+                            .is_read_only(read_only)
+                            .cell(move |cell| probe(cell.formatted_date))
+                            .into_any_element()
+                    };
+                    gpui::div()
+                        .line_height(px(inherited))
+                        .child(content)
+                        .into_any_element()
+                });
+                cx.update(|window, _| window.refresh());
+                let seen = seen.borrow();
+                assert!(!seen.is_empty());
+                for metrics in seen.iter() {
+                    assert_eq!(*metrics, (px(14.), px(20.), gpui::FontWeight::MEDIUM),
+                        "range={range}, disabled={disabled}, read_only={read_only}, inherited={inherited}");
+                }
+            }
+        }
+    }
+}
+
+#[gpui::test]
+fn calendar_headers_do_not_inherit_host_line_height(cx: &mut TestAppContext) {
+    for range in [false, true] {
+        for duration in [
+            VisibleDuration::Months(1),
+            VisibleDuration::Weeks(1),
+            VisibleDuration::Days(3),
+        ] {
+            let mut heights = Vec::new();
+            for leading in [20., 48.] {
+                let calendar = cx.new(|cx| CalendarState::new(cx));
+                let range_calendar = cx.new(|cx| DateRangeState::new(cx));
+                let cx = open_host(cx, move || {
+                    let content = if range {
+                        RangeCalendar::new(range_calendar.clone())
+                            .default_value((Date::new(2026, 8, 10), Date::new(2026, 8, 15)))
+                            .visible_duration(duration)
+                            .into_any_element()
+                    } else {
+                        Calendar::new(calendar.clone())
+                            .default_value(Date::new(2026, 8, 10))
+                            .visible_duration(duration)
+                            .into_any_element()
+                    };
+                    gpui::div()
+                        .debug_selector(|| "header-leading-host".to_owned())
+                        .line_height(px(leading))
+                        .child(content)
+                        .into_any_element()
+                });
+                heights.push(cx.debug_bounds("header-leading-host").unwrap().size.height);
+            }
+            assert_eq!(
+                heights[0], heights[1],
+                "range={range}, duration={duration:?}"
+            );
+        }
+    }
+}
+
+#[gpui::test]
+fn calendar_days_align_with_the_seven_weekday_columns(cx: &mut TestAppContext) {
+    for duration in [VisibleDuration::Months(1), VisibleDuration::Weeks(1)] {
+        let state = cx.new(|cx| CalendarState::new(cx));
+        let base = format!(r#"Name("cal-{}")"#, state.entity_id().as_u64());
+        let cx = open_host(cx, move || {
+            Calendar::new(state.clone())
+                .default_value(Date::new(2026, 8, 3))
+                .first_day_of_week(Weekday::Mon)
+                .visible_duration(duration)
+                .into_any_element()
+        });
+        for column in 0..7 {
+            let date = Date::new(2026, 8, 3 + column);
+            let cell_key = if duration.is_month_view() {
+                format!("{base}-2026-8-d{}", date.day)
+            } else {
+                format!("{base}-{}", date.format_iso())
+            };
+            let header = cx
+                .debug_bounds(Box::leak(
+                    format!("{base}-weekday-{column}").into_boxed_str(),
+                ))
+                .unwrap();
+            let cell = cx
+                .debug_bounds(Box::leak(cell_key.into_boxed_str()))
+                .unwrap();
+            assert_eq!(header.size.width, px(36.));
+            assert_eq!(cell.size.width, px(36.));
+            assert!(
+                (f32::from(header.center().x - cell.center().x)).abs() <= 0.1,
+                "{duration:?}, column={column}: {header:?} vs {cell:?}"
+            );
+        }
+    }
+}
+
+#[gpui::test]
+fn multi_month_cells_fill_the_documented_panel_width(cx: &mut TestAppContext) {
+    for range in [false, true] {
+        let state = cx.new(|cx| CalendarState::new(cx));
+        let range_state = cx.new(|cx| DateRangeState::new(cx));
+        let id = if range {
+            range_state.entity_id()
+        } else {
+            state.entity_id()
+        }
+        .as_u64();
+        let cx = open_host(cx, move || {
+            if range {
+                RangeCalendar::new(range_state.clone())
+                    .default_value((Date::new(2026, 8, 3), Date::new(2026, 8, 4)))
+                    .selection_alignment(herogpui_components::SelectionAlignment::Start)
+                    .visible_duration(VisibleDuration::Months(2))
+                    .first_day_of_week(Weekday::Mon)
+                    .into_any_element()
+            } else {
+                Calendar::new(state.clone())
+                    .default_value(Date::new(2026, 8, 3))
+                    .visible_duration(VisibleDuration::Months(2))
+                    .first_day_of_week(Weekday::Mon)
+                    .into_any_element()
+            }
+        });
+        let mut bounds = |month, day| {
+            let key = if range {
+                range_cell_selector(id, 2026, month, day)
+            } else {
+                cal_cell_selector(id, 2026, month, day)
+            };
+            cx.debug_bounds(Box::leak(key.into_boxed_str())).unwrap()
+        };
+        let first = bounds(8, 3);
+        let last = bounds(8, 9);
+        assert!(
+            (f32::from(first.size.width) - 256. / 7.).abs() < 0.1,
+            "range={range}: {first:?}"
+        );
+        assert_eq!(first.size.width, first.size.height);
+        assert!(
+            (f32::from(last.right() - first.left()) - 256.).abs() < 0.1,
+            "range={range}: first={first:?}, last={last:?}"
+        );
+        // September 7 is Monday, so the matching column is one panel plus gap away.
+        let next = bounds(9, 7);
+        assert!((f32::from(next.left() - first.left()) - 288.).abs() < 0.1);
+    }
+}
+
+#[gpui::test]
+fn multi_month_view_scrolls_to_the_second_month_in_a_narrow_host(cx: &mut TestAppContext) {
+    for range in [false, true] {
+        let state = cx.new(|cx| CalendarState::new(cx));
+        let range_state = cx.new(|cx| DateRangeState::new(cx));
+        let id = if range {
+            range_state.entity_id()
+        } else {
+            state.entity_id()
+        }
+        .as_u64();
+        let cx = open_host(cx, move || {
+            let content = if range {
+                RangeCalendar::new(range_state.clone())
+                    .default_value((Date::new(2026, 8, 3), Date::new(2026, 8, 4)))
+                    .selection_alignment(herogpui_components::SelectionAlignment::Start)
+                    .visible_duration(VisibleDuration::Months(2))
+                    .first_day_of_week(Weekday::Mon)
+                    .into_any_element()
+            } else {
+                Calendar::new(state.clone())
+                    .default_value(Date::new(2026, 8, 3))
+                    .visible_duration(VisibleDuration::Months(2))
+                    .first_day_of_week(Weekday::Mon)
+                    .into_any_element()
+            };
+            gpui::div().w(px(320.)).child(content).into_any_element()
+        });
+        press(cx, "tab");
+        press(cx, "end");
+        press(cx, "down");
+        press(cx, "right");
+        cx.run_until_parked();
+        let key = if range {
+            range_cell_selector(id, 2026, 9, 8)
+        } else {
+            cal_cell_selector(id, 2026, 9, 8)
+        };
+        let bounds = cx.debug_bounds(Box::leak(key.into_boxed_str())).unwrap();
+        assert!(
+            bounds.left() >= px(0.) && bounds.right() <= px(320.5),
+            "keyboard range={range}: {bounds:?}"
+        );
+        press(cx, "home");
+        press(cx, "up");
+        cx.run_until_parked();
+        let key = if range {
+            range_cell_selector(id, 2026, 8, 25)
+        } else {
+            cal_cell_selector(id, 2026, 8, 25)
+        };
+        let bounds = cx.debug_bounds(Box::leak(key.into_boxed_str())).unwrap();
+        assert!(
+            bounds.left() >= px(0.) && bounds.right() <= px(320.5),
+            "keyboard return range={range}: {bounds:?}"
+        );
+        cx.simulate_event(gpui::ScrollWheelEvent {
+            position: point(px(160.), px(90.)),
+            delta: gpui::ScrollDelta::Pixels(point(px(-500.), px(0.))),
+            ..Default::default()
+        });
+        cx.update(|window, _| window.refresh());
+        let key = if range {
+            range_cell_selector(id, 2026, 9, 27)
+        } else {
+            cal_cell_selector(id, 2026, 9, 27)
+        };
+        let bounds = cx.debug_bounds(Box::leak(key.into_boxed_str())).unwrap();
+        assert!(
+            bounds.left() >= px(280.) && bounds.right() <= px(320.5),
+            "range={range}: {bounds:?}"
+        );
+    }
+}
+
+#[gpui::test]
+fn multi_month_year_picker_reveals_its_active_column(cx: &mut TestAppContext) {
+    for range in [false, true] {
+        for initial_scroll in [0., -500.] {
+            let state = cx.new(|cx| CalendarState::new(cx));
+            let range_state = cx.new(|cx| DateRangeState::new(cx));
+            let base = if range {
+                format!(r#"Name("range-cal-{}")"#, range_state.entity_id().as_u64())
+            } else {
+                format!(r#"Name("cal-{}")"#, state.entity_id().as_u64())
+            };
+            let open = Rc::new(std::cell::Cell::new(false));
+            let view_open = open.clone();
+            let focused = Rc::new(std::cell::Cell::new(Date::new(2020, 8, 10)));
+            let view_focused = focused.clone();
+            let cx = open_host(cx, move || {
+                let focused = view_focused.clone();
+                let open = view_open.clone();
+                let content = if range {
+                    RangeCalendar::new(range_state.clone())
+                        .default_value((Date::new(2020, 8, 10), Date::new(2020, 8, 15)))
+                        .focused_value(view_focused.get())
+                        .on_focus_change(move |date, window, _| {
+                            focused.set(date);
+                            window.refresh();
+                        })
+                        .min_value(Date::new(2000, 1, 1))
+                        .max_value(Date::new(2040, 12, 31))
+                        .visible_duration(VisibleDuration::Months(2))
+                        .is_year_picker_open(view_open.get())
+                        .on_year_picker_open_change(move |value, window, _| {
+                            open.set(value);
+                            window.refresh();
+                        })
+                        .into_any_element()
+                } else {
+                    Calendar::new(state.clone())
+                        .default_value(Date::new(2020, 8, 10))
+                        .focused_value(view_focused.get())
+                        .on_focus_change(move |date, window, _| {
+                            focused.set(date);
+                            window.refresh();
+                        })
+                        .min_value(Date::new(2000, 1, 1))
+                        .max_value(Date::new(2040, 12, 31))
+                        .visible_duration(VisibleDuration::Months(2))
+                        .is_year_picker_open(view_open.get())
+                        .on_year_picker_open_change(move |value, window, _| {
+                            open.set(value);
+                            window.refresh();
+                        })
+                        .into_any_element()
+                };
+                gpui::div().w(px(320.)).child(content).into_any_element()
+            });
+            cx.simulate_event(gpui::ScrollWheelEvent {
+                position: point(px(160.), px(90.)),
+                delta: gpui::ScrollDelta::Pixels(point(px(initial_scroll), px(0.))),
+                ..Default::default()
+            });
+            open.set(true);
+            cx.update(|window, _| window.refresh());
+            for (key, year) in [
+                (None, 2020),
+                (Some("left"), 2019),
+                (Some("left"), 2018),
+                (Some("right"), 2019),
+            ] {
+                if let Some(key) = key {
+                    press(cx, key);
+                }
+                cx.run_until_parked();
+                let key = Box::leak(format!("{base}-y{year}").into_boxed_str());
+                let bounds = cx.debug_bounds(key).unwrap();
+                assert!(
+                    bounds.left() >= px(0.) && bounds.right() <= px(320.5),
+                    "range={range}, initial_scroll={initial_scroll}, year={year}: {bounds:?}"
+                );
+            }
+            press(cx, "home");
+            press(cx, "shift-tab");
+            cx.run_until_parked();
+            // The second heading sits at the right edge of the same month strip.
+            let right = cx
+                .debug_bounds(Box::leak(format!("{base}-y2002").into_boxed_str()))
+                .unwrap();
+            assert!(
+                right.left() >= px(0.) && right.right() <= px(320.5),
+                "open heading range={range}: {right:?}"
+            );
+        }
+    }
+}
+
+#[gpui::test]
+fn day_views_keep_week_columns_and_disable_leading_dates(cx: &mut TestAppContext) {
+    for range in [false, true] {
+        let calendar = cx.new(|cx| CalendarState::new(cx));
+        let range_calendar = cx.new(|cx| DateRangeState::new(cx));
+        let states = Rc::new(RefCell::new(HashMap::new()));
+        let view_states = states.clone();
+        let changes = events();
+        let view_changes = changes.clone();
+        let cx = open_host(cx, move || {
+            let states = view_states.clone();
+            let changes = view_changes.clone();
+            let probe = move |date: Date, label: gpui::SharedString, disabled, outside| {
+                states
+                    .borrow_mut()
+                    .insert(date.format_iso(), (disabled, outside));
+                gpui::div().child(label).into_any_element()
+            };
+            if range {
+                RangeCalendar::new(range_calendar.clone())
+                    .default_value((Date::new(2026, 9, 2), Date::new(2026, 9, 4)))
+                    .selection_alignment(herogpui_components::SelectionAlignment::Start)
+                    .visible_duration(VisibleDuration::Days(3))
+                    .first_day_of_week(Weekday::Mon)
+                    .cell(move |cell| {
+                        probe(
+                            cell.date,
+                            cell.formatted_date,
+                            cell.is_disabled,
+                            cell.is_outside_month,
+                        )
+                    })
+                    .on_change(move |start, end, _, _| {
+                        changes.borrow_mut().push(format!(
+                            "{}..{}",
+                            start.format_iso(),
+                            end.format_iso()
+                        ));
+                    })
+                    .into_any_element()
+            } else {
+                Calendar::new(calendar.clone())
+                    .default_value(Date::new(2026, 9, 2))
+                    .selection_alignment(herogpui_components::SelectionAlignment::Start)
+                    .visible_duration(VisibleDuration::Days(3))
+                    .first_day_of_week(Weekday::Mon)
+                    .cell(move |cell| {
+                        probe(
+                            cell.date,
+                            cell.formatted_date,
+                            cell.is_disabled,
+                            cell.is_outside_month,
+                        )
+                    })
+                    .on_change(move |date, _, _| {
+                        changes.borrow_mut().push(date.unwrap().format_iso());
+                    })
+                    .into_any_element()
+            }
+        });
+        assert_eq!(
+            states.borrow().len(),
+            5,
+            "range={range}: two leading dates and three visible dates"
+        );
+        for date in ["2026-08-31", "2026-09-01"] {
+            assert_eq!(
+                states.borrow().get(date),
+                Some(&(true, false)),
+                "range={range}: {date}"
+            );
+        }
+        for date in ["2026-09-02", "2026-09-03", "2026-09-04"] {
+            assert_eq!(
+                states.borrow().get(date),
+                Some(&(false, false)),
+                "range={range}: {date}"
+            );
+        }
+        click(cx, 18., 74.);
+        click(cx, 54., 74.);
+        assert!(changes.borrow().is_empty(), "leading dates cannot select");
+        click(cx, 126., 74.);
+        if range {
+            click(cx, 162., 74.);
+            assert_eq!(changes.borrow().as_slice(), ["2026-09-03..2026-09-04"]);
+        } else {
+            assert_eq!(changes.borrow().as_slice(), ["2026-09-03"]);
+        }
+    }
+}
+
+/// Column *c*'s centre in a bare Calendar: seven cells across
+/// `CALENDAR_WIDTH` with no horizontal gaps.
+fn cal_col_x(col: usize) -> f32 {
+    let cell_w = f32::from(CALENDAR_WIDTH) / 7.;
+    col as f32 * cell_w + cell_w / 2.
+}
+
+/// Row *r*'s centre in a bare Calendar: first row at y = 86, then 36px per row.
 fn cal_row_y(row: usize) -> f32 {
-    74. + row as f32 * 38.
+    86. + row as f32 * 36.
 }
 
 /// The centre of the cell holding `day` of `(year, month)` in a bare
@@ -60,7 +730,7 @@ fn cal_day(year: i32, month: u32, day: u32) -> (f32, f32) {
 fn range_day(year: i32, month: u32, day: u32) -> (f32, f32) {
     let lead = DateConstraints::new().lead_cells(year, month);
     let idx = day as usize + lead - 1;
-    (18. + 36. * (idx % 7) as f32, 74. + 40. * (idx / 7) as f32)
+    (18. + 36. * (idx % 7) as f32, 88. + 40. * (idx / 7) as f32)
 }
 
 /// React Aria disables a month button when the day immediately beyond that
@@ -308,6 +978,12 @@ fn range_calendar_first_endpoint_does_not_publish_a_half_open_value(cx: &mut Tes
     let changes = events();
     let changed = changes.clone();
     let state = cx.new(|cx| DateRangeState::new(cx));
+    state.update(cx, |state, _| {
+        state.view_year = 2026;
+        state.view_month = 8;
+        state.view_day = 1;
+        state.user_navigated = true;
+    });
     let state_for_view = state.clone();
     let cx = open_host(cx, move || {
         let changes = changes.clone();
@@ -541,8 +1217,8 @@ fn range_calendar_unavailable_dates_follow_the_active_anchor(cx: &mut TestAppCon
     cx.update(|window, _| window.refresh());
     assert_eq!(
         selected_probe.borrow().get(&12),
-        Some(&true),
-        "the hover preview must include dates before the anchor-derived barrier"
+        Some(&false),
+        "hovering a disabled target must not create a partial preview"
     );
     assert_eq!(
         selected_probe.borrow().get(&13),
@@ -552,7 +1228,7 @@ fn range_calendar_unavailable_dates_follow_the_active_anchor(cx: &mut TestAppCon
     assert_eq!(
         selected_probe.borrow().get(&14),
         Some(&false),
-        "the contiguous hover preview must stop at the anchor-derived barrier"
+        "dates beyond the anchor-derived bound must remain outside the preview"
     );
     let (selectable_end_x, selectable_end_y) = range_day(2026, 8, 12);
     click(cx, selectable_end_x, selectable_end_y);
@@ -1076,6 +1752,120 @@ fn calendar_disabled_nav_buttons_leave_the_tab_order(cx: &mut TestAppContext) {
     assert_eq!(presses.borrow().as_slice(), ["after"]);
 }
 
+#[gpui::test]
+fn year_picker_keeps_the_day_view_dimensions(cx: &mut TestAppContext) {
+    for range in [false, true] {
+        for duration in [
+            VisibleDuration::Months(1),
+            VisibleDuration::Months(2),
+            VisibleDuration::Weeks(2),
+            VisibleDuration::Days(3),
+        ] {
+            let mut sizes = Vec::new();
+            for open in [false, true] {
+                let calendar = cx.new(|cx| CalendarState::new(cx));
+                let range_calendar = cx.new(|cx| DateRangeState::new(cx));
+                let cx = open_host(cx, move || {
+                    let content = if range {
+                        RangeCalendar::new(range_calendar.clone())
+                            .default_value((Date::new(2026, 8, 10), Date::new(2026, 8, 15)))
+                            .visible_duration(duration)
+                            .default_year_picker_open(open)
+                            .into_any_element()
+                    } else {
+                        Calendar::new(calendar.clone())
+                            .default_value(Date::new(2026, 8, 10))
+                            .visible_duration(duration)
+                            .default_year_picker_open(open)
+                            .into_any_element()
+                    };
+                    gpui::div()
+                        .flex()
+                        .child(
+                            gpui::div()
+                                .debug_selector(|| "year-picker-footprint".to_owned())
+                                .child(content),
+                        )
+                        .into_any_element()
+                });
+                sizes.push(cx.debug_bounds("year-picker-footprint").unwrap().size);
+            }
+            assert_eq!(sizes[0], sizes[1], "range={range}, duration={duration:?}");
+        }
+    }
+}
+
+#[gpui::test]
+fn year_picker_reveals_the_opening_and_keyboard_year(cx: &mut TestAppContext) {
+    for range in [false, true] {
+        let calendar = cx.new(|cx| CalendarState::new(cx));
+        let range_calendar = cx.new(|cx| DateRangeState::new(cx));
+        let base = if range {
+            format!(
+                r#"Name("range-cal-{}")"#,
+                range_calendar.entity_id().as_u64()
+            )
+        } else {
+            format!(r#"Name("cal-{}")"#, calendar.entity_id().as_u64())
+        };
+        let lower_bound = Rc::new(std::cell::Cell::new(2000));
+        let view_lower_bound = lower_bound.clone();
+        let cx = open_host(cx, move || {
+            if range {
+                RangeCalendar::new(range_calendar.clone())
+                    .default_value((Date::new(2020, 8, 10), Date::new(2020, 8, 15)))
+                    .min_value(Date::new(view_lower_bound.get(), 1, 1))
+                    .max_value(Date::new(2040, 12, 31))
+                    .default_year_picker_open(true)
+                    .into_any_element()
+            } else {
+                Calendar::new(calendar.clone())
+                    .default_value(Date::new(2020, 8, 10))
+                    .min_value(Date::new(view_lower_bound.get(), 1, 1))
+                    .max_value(Date::new(2040, 12, 31))
+                    .default_year_picker_open(true)
+                    .into_any_element()
+            }
+        });
+        let mut column_width = None;
+        for (key, year) in [(None, 2020), (Some("end"), 2040), (Some("home"), 2000)] {
+            if let Some(key) = key {
+                press(cx, key);
+            }
+            cx.run_until_parked();
+            let viewport = cx
+                .debug_bounds(Box::leak(format!("{base}-year-viewport").into_boxed_str()))
+                .unwrap();
+            let cell = cx
+                .debug_bounds(Box::leak(format!("{base}-y{year}").into_boxed_str()))
+                .unwrap();
+            assert!(
+                cell.top() >= viewport.top() && cell.bottom() <= viewport.bottom(),
+                "range={range}, year={year}: {cell:?} outside {viewport:?}"
+            );
+            assert_eq!(cell.size.height, px(32.));
+            let width = *column_width.get_or_insert(cell.size.width);
+            assert!(
+                (f32::from(cell.size.width - width)).abs() <= 1.,
+                "partial year rows must retain three equal columns"
+            );
+        }
+        lower_bound.set(1900);
+        cx.update(|window, _| window.refresh());
+        cx.run_until_parked();
+        let viewport = cx
+            .debug_bounds(Box::leak(format!("{base}-year-viewport").into_boxed_str()))
+            .unwrap();
+        let cell = cx
+            .debug_bounds(Box::leak(format!("{base}-y2000").into_boxed_str()))
+            .unwrap();
+        assert!(
+            cell.top() >= viewport.top() && cell.bottom() <= viewport.bottom(),
+            "range={range}: changed bounds must reveal the same active year: {cell:?} in {viewport:?}"
+        );
+    }
+}
+
 /// v3 overlays the year grid on the calendar and makes the month chevrons
 /// pointer-inert while it is open. The port previously left both chevrons live
 /// and repurposed them as twelve-year paging controls.
@@ -1536,13 +2326,14 @@ fn calendar_pages_dec_to_jan_and_clamps_into_leap_february(cx: &mut TestAppConte
     );
 }
 
-/// Without `allowsNonContiguousRanges`, React Aria constrains the selectable
-/// end to the last available day before the first unavailable date after the
-/// anchor. August 7 is unavailable here, so requesting August 10 must finish
-/// at the neighbouring August 6. This proves the default restriction is about
-/// the whole range, not only whether each endpoint is individually available.
+/// Without `allowsNonContiguousRanges`, React Stately turns the last available
+/// day before the first unavailable date into a temporary navigation and cell
+/// bound. Dates beyond August 7 are disabled rather than clickable shortcuts
+/// that silently clamp the range.
 #[gpui::test]
-fn range_calendar_clamps_around_an_unavailable_date_by_default(cx: &mut TestAppContext) {
+fn range_calendar_bounds_cells_and_navigation_at_the_first_unavailable_date(
+    cx: &mut TestAppContext,
+) {
     let changes = events();
     let changed = changes.clone();
     let selected_cells = Rc::new(RefCell::new(HashMap::new()));
@@ -1554,7 +2345,7 @@ fn range_calendar_clamps_around_an_unavailable_date_by_default(cx: &mut TestAppC
         state.view_day = 1;
         state.user_navigated = true;
     });
-    let state_for_view = state;
+    let state_for_view = state.clone();
 
     let cx = open_host(cx, move || {
         let changes = changes.clone();
@@ -1567,10 +2358,11 @@ fn range_calendar_clamps_around_an_unavailable_date_by_default(cx: &mut TestAppC
                     .push(format!("{}->{}", start.format_iso(), end.format_iso()));
             })
             .cell(move |state| {
-                if !state.is_outside_month && (6..=8).contains(&state.date.day) {
-                    selected_cells
-                        .borrow_mut()
-                        .insert(state.date.day, state.is_selected);
+                if !state.is_outside_month && (6..=10).contains(&state.date.day) {
+                    selected_cells.borrow_mut().insert(
+                        state.date.day,
+                        (state.is_selected, state.is_disabled, state.is_unavailable),
+                    );
                 }
                 gpui::div().size(px(20.)).into_any_element()
             })
@@ -1579,6 +2371,30 @@ fn range_calendar_clamps_around_an_unavailable_date_by_default(cx: &mut TestAppC
 
     let (start_x, start_y) = range_day(2026, 8, 5);
     click(cx, start_x, start_y);
+    cx.update(|window, _| window.refresh());
+    assert_eq!(
+        selected_probe.borrow().get(&6),
+        Some(&(false, false, false)),
+        "the last date before the barrier must remain selectable"
+    );
+    assert_eq!(
+        selected_probe.borrow().get(&7),
+        Some(&(false, true, true)),
+        "the unavailable barrier is also outside the effective range bound"
+    );
+    assert_eq!(
+        selected_probe.borrow().get(&8),
+        Some(&(false, true, false)),
+        "dates beyond the barrier must be disabled without being marked unavailable"
+    );
+
+    click(cx, 238., 12.);
+    assert_eq!(
+        cx.update(|_, cx| (state.read(cx).view_year, state.read(cx).view_month)),
+        (2026, 8),
+        "the anchor-derived maximum must disable forward paging"
+    );
+
     let (end_x, end_y) = range_day(2026, 8, 10);
     cx.simulate_mouse_move(
         point(px(end_x), px(end_y)),
@@ -1588,36 +2404,163 @@ fn range_calendar_clamps_around_an_unavailable_date_by_default(cx: &mut TestAppC
     cx.update(|window, _| window.refresh());
     assert_eq!(
         selected_probe.borrow().get(&6),
-        Some(&true),
-        "the preview must reach the last available day before the gap"
+        Some(&(false, false, false)),
+        "hovering a disabled target must not create a clamped preview"
     );
     assert_eq!(
         selected_probe.borrow().get(&7),
-        Some(&false),
+        Some(&(false, true, true)),
         "the unavailable day must not be part of the preview"
     );
     assert_eq!(
         selected_probe.borrow().get(&8),
-        Some(&false),
+        Some(&(false, true, false)),
         "the default preview must not continue beyond the unavailable day"
     );
     click(cx, end_x, end_y);
+    assert!(
+        changed.borrow().is_empty(),
+        "a disabled date beyond the barrier must not commit a clamped range"
+    );
+    let (last_x, last_y) = range_day(2026, 8, 6);
+    click(cx, last_x, last_y);
     assert_eq!(
         changed.borrow().as_slice(),
         ["2026-08-05->2026-08-06"],
-        "a forward range must clamp before the first unavailable day"
+        "the last selectable date must complete the bounded range"
     );
 
-    // A completed range starts over on the next click. Extending the new
-    // anchor backwards across the same unavailable day clamps symmetrically.
+    // A completed range starts over on the next click. The backward bound is
+    // symmetric: dates before the barrier are inert until the user chooses its
+    // last selectable neighbour.
     click(cx, end_x, end_y);
+    cx.update(|window, _| window.refresh());
     click(cx, start_x, start_y);
+    assert_eq!(changed.borrow().len(), 1);
+    let (backward_end_x, backward_end_y) = range_day(2026, 8, 8);
+    click(cx, backward_end_x, backward_end_y);
 
     assert_eq!(
         changed.borrow().as_slice(),
         ["2026-08-05->2026-08-06", "2026-08-08->2026-08-10",],
         "a backward range must clamp after the first unavailable day"
     );
+}
+
+/// React Stately bounds the unavailable-date search to one visible duration.
+/// A gap farther away is not promoted into a navigation bound, so paging and a
+/// later available endpoint remain valid even in contiguous mode.
+#[gpui::test]
+fn range_calendar_unavailable_bound_search_stops_after_the_visible_duration(
+    cx: &mut TestAppContext,
+) {
+    let changes = events();
+    let changed = changes.clone();
+    let endpoint_state = Rc::new(RefCell::new(None));
+    let endpoint_probe = endpoint_state.clone();
+    let state = cx.new(|cx| DateRangeState::new(cx));
+    state.update(cx, |state, _| {
+        state.view_year = 2026;
+        state.view_month = 8;
+        state.view_day = 1;
+        state.user_navigated = true;
+    });
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        let changes = changes.clone();
+        let endpoint_state = endpoint_state.clone();
+        RangeCalendar::new(state_for_view.clone())
+            .is_date_unavailable(|date, _| date == Date::new(2026, 9, 10))
+            .on_change(move |start, end, _, _| {
+                changes
+                    .borrow_mut()
+                    .push(format!("{}->{}", start.format_iso(), end.format_iso()));
+            })
+            .cell(move |cell| {
+                if cell.date == Date::new(2026, 9, 15) && !cell.is_outside_month {
+                    *endpoint_state.borrow_mut() = Some(cell.is_disabled);
+                }
+                gpui::div().size(px(20.)).into_any_element()
+            })
+            .into_any_element()
+    });
+
+    let (anchor_x, anchor_y) = range_day(2026, 8, 5);
+    click(cx, anchor_x, anchor_y);
+    click(cx, 238., 12.);
+    assert_eq!(
+        cx.update(|_, cx| (state.read(cx).view_year, state.read(cx).view_month)),
+        (2026, 9),
+        "an unavailable date beyond the bounded scan must not disable paging"
+    );
+    cx.update(|window, _| window.refresh());
+    assert_eq!(
+        *endpoint_probe.borrow(),
+        Some(false),
+        "a later available endpoint must remain enabled"
+    );
+
+    let (end_x, end_y) = range_day(2026, 9, 15);
+    click(cx, end_x, end_y);
+    assert_eq!(changed.borrow().as_slice(), ["2026-08-05->2026-09-15"]);
+}
+
+/// The bounded scan includes one sentinel probe immediately after the visible
+/// duration. With an August 5 anchor, September 6 closes the effective range at
+/// September 5 even though the barrier itself is one day past the month span.
+#[gpui::test]
+fn range_calendar_unavailable_sentinel_day_closes_the_effective_bound(cx: &mut TestAppContext) {
+    let changes = events();
+    let changed = changes.clone();
+    let cell_states = Rc::new(RefCell::new(HashMap::new()));
+    let states_probe = cell_states.clone();
+    let state = cx.new(|cx| DateRangeState::new(cx));
+    state.update(cx, |state, _| {
+        state.view_year = 2026;
+        state.view_month = 8;
+        state.view_day = 1;
+        state.user_navigated = true;
+    });
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        let changes = changes.clone();
+        let cell_states = cell_states.clone();
+        RangeCalendar::new(state_for_view.clone())
+            .is_date_unavailable(|date, _| date == Date::new(2026, 9, 6))
+            .on_change(move |start, end, _, _| {
+                changes
+                    .borrow_mut()
+                    .push(format!("{}->{}", start.format_iso(), end.format_iso()));
+            })
+            .cell(move |cell| {
+                if cell.date.month == 9 && (5..=7).contains(&cell.date.day) {
+                    cell_states
+                        .borrow_mut()
+                        .insert(cell.date.day, (cell.is_disabled, cell.is_unavailable));
+                }
+                gpui::div().size(px(20.)).into_any_element()
+            })
+            .into_any_element()
+    });
+
+    let (anchor_x, anchor_y) = range_day(2026, 8, 5);
+    click(cx, anchor_x, anchor_y);
+    click(cx, 238., 12.);
+    assert_eq!(
+        cx.update(|_, cx| (state.read(cx).view_year, state.read(cx).view_month)),
+        (2026, 9)
+    );
+    cx.update(|window, _| window.refresh());
+    assert_eq!(states_probe.borrow().get(&5), Some(&(false, false)));
+    assert_eq!(states_probe.borrow().get(&6), Some(&(true, true)));
+    assert_eq!(states_probe.borrow().get(&7), Some(&(true, false)));
+
+    let (disabled_x, disabled_y) = range_day(2026, 9, 7);
+    click(cx, disabled_x, disabled_y);
+    assert!(changed.borrow().is_empty());
+    let (last_x, last_y) = range_day(2026, 9, 5);
+    click(cx, last_x, last_y);
+    assert_eq!(changed.borrow().as_slice(), ["2026-08-05->2026-09-05"]);
 }
 
 /// Enabling `allowsNonContiguousRanges` removes only the interior gap
@@ -2467,9 +3410,9 @@ fn range_indicator_selector(entity_id: u64, year: i32, month: u32, day: u32) -> 
 /// The pinned range track runs under the caps too, and it stays continuous
 /// across a week boundary: the last column of a row closes the run at the
 /// 252px right edge, the first column of the next row reopens it at x = 0
-/// exactly one 40px row pitch lower. August 2026 starts on a Saturday, so the
-/// five leading blanks put day 16 in the last column of its row and day 17 in
-/// the first column of the next one.
+/// exactly one 40px row pitch lower. This geometry fixture explicitly uses a
+/// Monday-first grid, so August 2026's five leading blanks put day 16 in the
+/// last column of its row and day 17 in the first column of the next one.
 #[gpui::test]
 fn range_calendar_track_crosses_the_row_boundary_and_caps_carry_it(cx: &mut TestAppContext) {
     let state = cx.new(|cx| DateRangeState::new(cx));
@@ -2477,6 +3420,7 @@ fn range_calendar_track_crosses_the_row_boundary_and_caps_carry_it(cx: &mut Test
     let cx = open_host(cx, move || {
         RangeCalendar::new(state_for_view.clone())
             .default_value((Date::new(2026, 8, 13), Date::new(2026, 8, 20)))
+            .first_day_of_week(Weekday::Mon)
             .into_any_element()
     });
 

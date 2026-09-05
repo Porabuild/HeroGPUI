@@ -1638,6 +1638,66 @@ fn alert_dialog_composed_footer_owns_danger_and_pending_confirm(cx: &mut TestApp
 }
 
 #[gpui::test]
+fn alert_dialog_description_wraps_at_the_panel_width(cx: &mut TestAppContext) {
+    still();
+    let description = Rc::new(RefCell::new(String::from("Short description.")));
+    let rendered = description.clone();
+    let cx = open_host(cx, move || {
+        AlertDialog::new("Confirm")
+            .is_open(true)
+            .size(AlertDialogSize::Xs)
+            .description(rendered.borrow().clone())
+            .footer_child(gpui::div().h(px(10.)).debug_selector(|| "body-end".into()))
+            .into_any_element()
+    });
+    let short = cx.debug_bounds("body-end").unwrap();
+    *description.borrow_mut() = "A long description that must wrap inside the dialog instead of disappearing past its right edge. ".repeat(3);
+    cx.update(|window, _| window.refresh());
+    let long = cx.debug_bounds("body-end").unwrap();
+    assert!(
+        long.origin.y > short.origin.y + px(20.),
+        "wrapped description must grow the centered dialog: short={short:?}, long={long:?}"
+    );
+}
+
+#[gpui::test]
+fn menu_description_wraps_at_the_panel_width(cx: &mut TestAppContext) {
+    still();
+    let description = Rc::new(RefCell::new(String::from("Short description.")));
+    let rendered = description.clone();
+    let cx = open_host(cx, move || {
+        gpui::div()
+            .flex()
+            .flex_col()
+            .items_start()
+            .child(gpui::div().debug_selector(|| "menu-wrap".into()).child(
+                herogpui_components::Menu::new(
+                    "wrap-menu",
+                    vec![
+                    herogpui_components::MenuItem::new("item", "Label")
+                        .description(rendered.borrow().clone()),
+                ],
+                ),
+            ))
+            .into_any_element()
+    });
+    cx.simulate_resize(size(px(600.), px(600.)));
+    cx.update(|window, _| window.refresh());
+    let short = cx.debug_bounds("menu-wrap").unwrap();
+    *description.borrow_mut() = "A long description that must wrap inside the menu instead of disappearing past its right edge. ".repeat(3);
+    cx.update(|window, _| window.refresh());
+    let long = cx.debug_bounds("menu-wrap").unwrap();
+    assert!(
+        long.size.height > short.size.height + px(20.),
+        "wrapped description must grow the menu: short={short:?}, long={long:?}"
+    );
+    assert!(
+        long.size.width <= px(288.),
+        "menu must respect its viewport width cap: {long:?}"
+    );
+}
+
+#[gpui::test]
 fn alert_dialog_long_body_scrolls_within_a_small_window(cx: &mut TestAppContext) {
     still();
     let hits = events();
@@ -2058,4 +2118,141 @@ fn toast_auto_dismiss_after_timeout(cx: &mut TestAppContext) {
         let store = toast_store(cx);
         assert!(store.read(cx).toasts().iter().any(|t| t.id == stay));
     });
+}
+
+/// Closing a dialog hands the focus back to whatever held it before.
+///
+/// Recorded as not implementable (`behaviour_audit`'s
+/// `no-handle-for-callers-trigger`) because the trigger belongs to the caller
+/// and the dialog cannot reach it. It does not have to: `Window::focused` names
+/// whatever held the focus when the dialog opened, trigger or not.
+#[gpui::test]
+fn dialog_close_returns_the_focus_to_the_trigger(cx: &mut TestAppContext) {
+    still();
+    let open = Rc::new(RefCell::new(false));
+    let open_flag = open.clone();
+    let open_for_view = open.clone();
+
+    let cx = open_host(cx, move || {
+        let open_flag = open_flag.clone();
+        let is_open = *open_for_view.borrow();
+        gpui::div()
+            .flex()
+            .flex_col()
+            .child(
+                Button::new("ovl-focus-return-trigger")
+                    .label("Open")
+                    .on_press({
+                        let open_flag = open_flag.clone();
+                        move |_, window, _| {
+                            *open_flag.borrow_mut() = true;
+                            window.refresh();
+                        }
+                    }),
+            )
+            .child(
+                Modal::new()
+                    .id("ovl-focus-return")
+                    .is_open(is_open)
+                    .child(Button::new("ovl-focus-return-inside").label("Inside"))
+                    .on_open_change(move |v, window, _| {
+                        *open_flag.borrow_mut() = v;
+                        window.refresh();
+                    }),
+            )
+            .into_any_element()
+    });
+
+    // Press the trigger: it takes the focus the way any pressed button does,
+    // and opens the modal, which then claims the focus for Escape.
+    let before = cx.update(|window, cx| window.focused(cx));
+    click(cx, 40., 18.);
+    let while_open = cx.update(|window, cx| window.focused(cx));
+    assert!(
+        while_open.is_some() && while_open != before,
+        "opening the modal must move the focus onto the dialog so Escape reaches it"
+    );
+    assert!(*open.borrow(), "the trigger must have opened the modal");
+
+    // Escape closes it, and the focus must go back to the trigger rather than
+    // being left on the dialog that no longer exists.
+    press(cx, "escape");
+    // The panel is still mounted while it animates out; the focus goes back
+    // when it is actually gone.
+    let_exit_finish(cx);
+    let returned = cx.update(|window, cx| window.focused(cx));
+    assert!(
+        returned.is_some(),
+        "closing a dialog must leave the focus somewhere, not nowhere"
+    );
+    assert_ne!(
+        returned, while_open,
+        "the focus must not be left on the dialog that just closed"
+    );
+    assert_ne!(
+        returned, before,
+        "the focus must go back to the trigger that opened the dialog, not to          whatever held it before the trigger was pressed"
+    );
+
+    // The proof that the returned focus is usable: the keyboard alone reopens
+    // the modal, which is only possible if the trigger really has it.
+    press(cx, "enter");
+    assert!(
+        *open.borrow(),
+        "the trigger must be focused after the close, so Enter reopens the modal"
+    );
+}
+
+#[gpui::test]
+fn collection_text_uses_pinned_line_boxes(cx: &mut TestAppContext) {
+    use herogpui_components::{ListBox, ListBoxItem, Menu, MenuItem};
+    for menu in [false, true] {
+        for leading in [None, Some(48.)] {
+            for kind in 0..3 {
+                still();
+                let cx = open_host(cx, move || {
+                    let content = if menu {
+                        let item = match kind {
+                            0 => MenuItem::SectionLabel("First\nSecond".into()),
+                            1 => MenuItem::new("label", "First\nSecond"),
+                            _ => MenuItem::new("description", "Label").description("First\nSecond"),
+                        };
+                        Menu::new("collection-menu-leading", vec![item]).into_any_element()
+                    } else {
+                        let item = match kind {
+                            0 => ListBoxItem::section("First\nSecond"),
+                            1 => ListBoxItem::new("label", "First\nSecond"),
+                            _ => ListBoxItem::new("description", "Label")
+                                .description("First\nSecond"),
+                        };
+                        ListBox::new("collection-list-leading", vec![item]).into_any_element()
+                    };
+                    gpui::div()
+                        .w(px(300.))
+                        .when_some(leading, |el, leading| el.line_height(px(leading)))
+                        .child(
+                            gpui::div()
+                                .debug_selector(|| "collection-leading".into())
+                                .child(content),
+                        )
+                        .into_any_element()
+                });
+                let height = cx
+                    .debug_bounds("collection-leading")
+                    .expect("collection paints")
+                    .size
+                    .height;
+                let expected = match kind {
+                    0 => 50., // 8px panel padding + 10px header padding + two 16px lines.
+                    1 => 60., // 8px panel padding + 12px row padding + two 20px lines.
+                    _ => 72., // 8px panel padding + 12px row padding + 20px label + two 16px lines.
+                };
+                assert_eq!(
+                    height,
+                    px(expected),
+                    "menu={menu}, host={leading:?}, kind={kind}"
+                );
+            }
+        }
+    }
 }

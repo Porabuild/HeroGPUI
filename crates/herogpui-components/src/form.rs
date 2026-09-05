@@ -346,7 +346,7 @@ impl FormField {
             validation_behavior: ValidationBehavior::Native,
             focus: Some(Arc::new(move |window, cx| {
                 let fh = focus_state.read(cx).focus_handle.clone();
-                window.focus(&fh);
+                window.focus(&fh, cx);
             })),
             submits_on_enter_of: Some(Arc::new(move |window, cx| {
                 enter_state.read(cx).focus_handle.is_focused(window)
@@ -479,7 +479,7 @@ impl FormField {
             validation_behavior: ValidationBehavior::Native,
             focus: Some(Arc::new(move |window, cx| {
                 let fh = focus_state.read(cx).input.read(cx).focus_handle.clone();
-                window.focus(&fh);
+                window.focus(&fh, cx);
             })),
             // `<input type=number>` is a single-line text control: a native
             // form submits from it.
@@ -557,7 +557,7 @@ impl FormField {
             })),
             focus: Some(Arc::new(move |window, cx| {
                 let fh = focus_state.read(cx).focus_handle.clone();
-                window.focus(&fh);
+                window.focus(&fh, cx);
             })),
             // The whole row is one text input to the form: Enter while any
             // cell holds the focus submits, exactly as it does from a
@@ -632,10 +632,10 @@ impl FormField {
             server_errors_of: None,
             set_server_errors: None,
             clear_server_errors: None,
-            focus: Some(Arc::new(move |window, _| {
+            focus: Some(Arc::new(move |window, cx| {
                 let focus = focus_state.borrow().focus.clone();
                 if let Some(focus) = focus {
-                    window.focus(&focus);
+                    window.focus(&focus, cx);
                 }
             })),
             // A live field belongs to a rendered non-text control — a switch,

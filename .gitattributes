@@ -6,5 +6,11 @@
 *.toml text eol=lf
 *.py text eol=lf
 *.md text eol=lf
+# Oxfmt checks LF endings, including on Windows checkouts.
+web/**/*.ts text eol=lf
+web/**/*.tsx text eol=lf
+web/**/*.mjs text eol=lf
+web/**/*.json text eol=lf
+web/**/*.css text eol=lf
 # PowerShell is happier with CRLF on Windows.
 *.ps1 text eol=crlf

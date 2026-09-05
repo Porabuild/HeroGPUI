@@ -54,9 +54,9 @@ Use the narrowest source that actually owns the contract:
 2. HeroUI v3.2.4 component code and styles for port parity.
 3. HeroUI's exact pinned dependencies for inherited interaction semantics:
    React Aria 3.51.0, React Stately 3.49.0, and React Aria Components 1.20.0.
-4. Installed GPUI 0.2.2 source for framework behavior and available APIs.
-5. Zed `main` or other GPUI projects only as precedent, never as proof that
-   GPUI 0.2.2 supports an API.
+4. The GPUI git checkout pinned in `Cargo.lock` for framework behavior and available APIs.
+5. Other Zed revisions or GPUI projects only as precedent, never as proof that
+   the pinned revision supports an API.
 
 The live `https://heroui.com/react/llms-full.txt` bundle is an input to several
 audits, but tagged source and the checked-in reference metadata establish the
@@ -103,8 +103,8 @@ replace ordinary test commands with watch mode.
 4. Fetch parity inputs with `design_audit.py --fetch` and
    `demo_audit.py --fetch`
 5. Every `.shots/*audit.py`
-6. Per-crate `cargo package --list`, workspace publish dry-run, and a gallery
-   install smoke
+6. `cargo install --path gallery --locked --debug --force`; the git GPUI
+   dependency requires source distribution rather than crates.io publishing
 
 Do not claim the full gate passed after running only a focused test or one audit.
 For documentation-only changes, verify the documentation directly rather than

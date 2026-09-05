@@ -39,3 +39,5 @@ pub const GLOBE: &str = "herogpui/icons/globe.svg";
 pub const HEART: &str = "herogpui/icons/heart.svg";
 pub const HEART_FILL: &str = "herogpui/icons/heart_fill.svg";
 pub const CLOSE_CIRCLE: &str = "herogpui/icons/close_circle.svg";
+pub const TRASH: &str = "herogpui/icons/trash.svg";
+pub const GEAR: &str = "herogpui/icons/gear.svg";

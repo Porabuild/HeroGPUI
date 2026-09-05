@@ -16,8 +16,12 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import api_audit as A  # noqa: E402  (for the builders each struct actually has)
 
-BUNDLE = os.environ.get('HEROUI_BUNDLE',
-                        os.path.join(os.environ.get('TEMP', '/tmp'), 'heroui-full.txt'))
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from bundle import resolve as _resolve_bundle
+
+# The pinned v3.2.4 bundle. See .shots/bundle.py: reading upstream live would
+# measure this port against whatever HeroUI shipped most recently.
+BUNDLE = _resolve_bundle()
 bundle = io.open(BUNDLE, encoding='utf-8', errors='replace').read()
 audit = io.open('.shots/api_audit.py', encoding='utf-8').read()
 

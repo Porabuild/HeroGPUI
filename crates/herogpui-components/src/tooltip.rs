@@ -189,7 +189,7 @@ fn start_tooltip_cooldown(
         cx.background_executor()
             .timer(Duration::from_millis(cooldown))
             .await;
-        let _ = cx.update_global::<TooltipManager, _>(|manager, _| {
+        cx.update_global::<TooltipManager, _>(|manager, _| {
             if manager.cooldown_generation == generation {
                 manager.warmed_up = false;
                 manager.entries.clear();
@@ -482,7 +482,7 @@ impl RenderOnce for Tooltip {
                         .timer(Duration::from_millis(wait))
                         .await;
                     if let Some(state) = weak.upgrade() {
-                        let _ = state.update(cx, |s, cx| {
+                        state.update(cx, |s, cx| {
                             // A newer hover transition supersedes this timer.
                             if s.generation == generation {
                                 if over {

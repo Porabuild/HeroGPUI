@@ -9,16 +9,17 @@ mod harness;
 
 use std::{
     cell::{Cell, RefCell},
+    process::Command,
     rc::Rc,
 };
 
 use gpui::{prelude::*, TestAppContext, VisualTestContext};
 use herogpui_components::{
-    CalendarState, Date, DateField, DatePicker, DateRangePicker, DateRangeState, DateSegment, Form,
-    InputState, ValidationBehavior,
+    CalendarState, Date, DateField, DatePicker, DateRangePicker, DateRangeState, DateSegment,
+    FieldSegment, Form, Granularity, HourCycle, InputState, TimeSegment, ValidationBehavior,
 };
 
-use harness::{click, events, open_host, press};
+use harness::{click, events, focus_date_segment, open_host, press, system_date_order, type_date};
 
 fn refresh(cx: &mut VisualTestContext) {
     cx.update(|window, _| window.refresh());
@@ -28,9 +29,9 @@ fn refresh(cx: &mut VisualTestContext) {
 fn date_field_delete_keeps_an_incomplete_display_without_committing(cx: &mut TestAppContext) {
     let changes = events();
     let changed = changes.clone();
-    let rendered: Rc<RefCell<Vec<(DateSegment, String)>>> = Rc::new(RefCell::new(Vec::new()));
+    let rendered: Rc<RefCell<Vec<(FieldSegment, String)>>> = Rc::new(RefCell::new(Vec::new()));
     let rendered_for_view = rendered.clone();
-    let state = cx.new(|cx| InputState::with_value(cx, "2025-01-15"));
+    let state = cx.new(|cx| InputState::with_value(cx, "2025-10-15"));
     let state_for_view = state.clone();
     let cx = open_host(cx, move || {
         let changes = changes.clone();
@@ -54,7 +55,7 @@ fn date_field_delete_keeps_an_incomplete_display_without_committing(cx: &mut Tes
 
     assert_eq!(
         cx.update(|_, cx| state.read(cx).value().to_owned()),
-        "2025-01-15"
+        "2025-10-15"
     );
     assert!(
         changed.borrow().is_empty(),
@@ -68,9 +69,17 @@ fn date_field_delete_keeps_an_incomplete_display_without_committing(cx: &mut Tes
             .find_map(|(part, text)| (*part == segment).then(|| text.clone()))
             .unwrap()
     };
-    assert_eq!(latest(DateSegment::Month), "mm");
-    assert_eq!(latest(DateSegment::Day), "15");
-    assert_eq!(latest(DateSegment::Year), "2025");
+    let cleared = system_date_order()[0];
+    for (segment, value, hint) in [
+        (DateSegment::Month, "10", "mm"),
+        (DateSegment::Day, "15", "dd"),
+        (DateSegment::Year, "2025", "yyyy"),
+    ] {
+        assert_eq!(
+            latest(FieldSegment::Date(segment)),
+            if segment == cleared { hint } else { value }
+        );
+    }
 
     press(cx, "right");
     press(cx, "delete");
@@ -84,6 +93,150 @@ fn date_field_delete_keeps_an_incomplete_display_without_committing(cx: &mut Tes
         ["none"],
         "only clearing every visible segment commits null"
     );
+}
+
+#[gpui::test]
+fn date_field_leading_zeros_follow_locale_and_force_all_numeric_segments(cx: &mut TestAppContext) {
+    const CHILD: &str = "HEROGPUI_DATE_FIELD_LEADING_ZERO_TEST";
+    if std::env::var_os(CHILD).is_none() {
+        let output = Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "date_field_leading_zeros_follow_locale_and_force_all_numeric_segments",
+                "--nocapture",
+            ])
+            .env(CHILD, "1")
+            .env_remove("LC_ALL")
+            .env("LC_TIME", "en_US.UTF-8")
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "DateField leading-zero locale child failed:\n{}\n{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr),
+        );
+        return;
+    }
+
+    let regional: Rc<RefCell<Vec<(FieldSegment, String)>>> = Rc::new(RefCell::new(Vec::new()));
+    let forced: Rc<RefCell<Vec<(FieldSegment, String)>>> = Rc::new(RefCell::new(Vec::new()));
+    let regional_for_view = regional.clone();
+    let forced_for_view = forced.clone();
+    let regional_state = cx.new(|cx| InputState::with_value(cx, "2025-02-03T08:05:07"));
+    let forced_state = cx.new(|cx| InputState::with_value(cx, "2025-02-03T08:05:07"));
+    let cx = open_host(cx, move || {
+        let regional = regional_for_view.clone();
+        let forced = forced_for_view.clone();
+        gpui::div()
+            .children([
+                DateField::new(regional_state.clone())
+                    .granularity(Granularity::Second)
+                    .hour_cycle(HourCycle::H12)
+                    .segment(move |segment, text| {
+                        regional.borrow_mut().push((segment, text.to_string()));
+                        gpui::div().child(text).into_any_element()
+                    })
+                    .into_any_element(),
+                DateField::new(forced_state.clone())
+                    .granularity(Granularity::Second)
+                    .hour_cycle(HourCycle::H12)
+                    .should_force_leading_zeros(true)
+                    .segment(move |segment, text| {
+                        forced.borrow_mut().push((segment, text.to_string()));
+                        gpui::div().child(text).into_any_element()
+                    })
+                    .into_any_element(),
+            ])
+            .into_any_element()
+    });
+    refresh(cx);
+
+    let latest = |log: &Rc<RefCell<Vec<(FieldSegment, String)>>>, segment| {
+        log.borrow()
+            .iter()
+            .rev()
+            .find_map(|(part, text)| (*part == segment).then(|| text.clone()))
+    };
+    assert_eq!(
+        latest(&regional, FieldSegment::Date(DateSegment::Month)).as_deref(),
+        Some("2")
+    );
+    assert_eq!(
+        latest(&regional, FieldSegment::Date(DateSegment::Day)).as_deref(),
+        Some("3")
+    );
+    assert_eq!(
+        latest(&regional, FieldSegment::Time(TimeSegment::Hour)).as_deref(),
+        Some("8")
+    );
+    assert_eq!(
+        latest(&regional, FieldSegment::Time(TimeSegment::Minute)).as_deref(),
+        Some("05")
+    );
+    assert_eq!(
+        latest(&regional, FieldSegment::Time(TimeSegment::Second)).as_deref(),
+        Some("07")
+    );
+    assert_eq!(
+        latest(&forced, FieldSegment::Date(DateSegment::Month)).as_deref(),
+        Some("02")
+    );
+    assert_eq!(
+        latest(&forced, FieldSegment::Date(DateSegment::Day)).as_deref(),
+        Some("03")
+    );
+    assert_eq!(
+        latest(&forced, FieldSegment::Time(TimeSegment::Hour)).as_deref(),
+        Some("08")
+    );
+}
+
+#[gpui::test]
+fn date_field_segment_order_follows_system_locale(cx: &mut TestAppContext) {
+    let rendered: Rc<RefCell<Vec<FieldSegment>>> = Rc::new(RefCell::new(Vec::new()));
+    let rendered_for_view = rendered.clone();
+    let changes = events();
+    let changed = changes.clone();
+    let state = cx.new(|cx| InputState::with_value(cx, "2025-02-03"));
+    let state_for_view = state;
+    let cx = open_host(cx, move || {
+        let rendered = rendered_for_view.clone();
+        let changes = changes.clone();
+        DateField::new(state_for_view.clone())
+            .segment(move |segment, text| {
+                rendered.borrow_mut().push(segment);
+                gpui::div().child(text).into_any_element()
+            })
+            .on_change(move |date, _, _| {
+                changes
+                    .borrow_mut()
+                    .push(date.map_or_else(|| "none".to_owned(), |date| date.format_iso()));
+            })
+            .into_any_element()
+    });
+    refresh(cx);
+
+    let date_segments: Vec<_> = rendered
+        .borrow()
+        .iter()
+        .copied()
+        .filter(|segment| matches!(segment, FieldSegment::Date(_)))
+        .collect();
+    let observed = &date_segments[date_segments.len() - DateSegment::ALL.len()..];
+    let expected = system_date_order().map(FieldSegment::Date);
+    assert_eq!(observed, expected);
+    let first = observed[0];
+
+    press(cx, "tab");
+    press(cx, "up");
+    let expected = match first {
+        FieldSegment::Date(DateSegment::Day) => "2025-02-04",
+        FieldSegment::Date(DateSegment::Month) => "2025-03-03",
+        FieldSegment::Date(DateSegment::Year) => "2026-02-03",
+        FieldSegment::Time(_) => unreachable!("the regional date order starts with a date segment"),
+    };
+    assert_eq!(changed.borrow().as_slice(), [expected]);
 }
 
 #[gpui::test]
@@ -113,10 +266,10 @@ fn date_field_reentry_waits_until_every_segment_is_complete(cx: &mut TestAppCont
     }
     assert_eq!(changed.borrow().as_slice(), ["none"]);
 
-    press(cx, "left");
-    press(cx, "left");
+    focus_date_segment(cx, DateSegment::Month);
     press(cx, "0");
     press(cx, "1");
+    focus_date_segment(cx, DateSegment::Day);
     press(cx, "1");
     press(cx, "5");
     assert_eq!(
@@ -126,6 +279,7 @@ fn date_field_reentry_waits_until_every_segment_is_complete(cx: &mut TestAppCont
     );
     assert_eq!(cx.update(|_, cx| state.read(cx).value().to_owned()), "");
 
+    focus_date_segment(cx, DateSegment::Year);
     press(cx, "up");
     assert_eq!(changed.borrow().as_slice(), ["none", "2026-01-15"]);
     assert_eq!(
@@ -151,13 +305,14 @@ fn date_field_page_and_bound_keys_follow_react_stately_steps(cx: &mut TestAppCon
     });
 
     press(cx, "tab");
+    focus_date_segment(cx, DateSegment::Month);
     press(cx, "pageup");
     press(cx, "pagedown");
-    press(cx, "right");
+    focus_date_segment(cx, DateSegment::Day);
     press(cx, "pagedown");
     press(cx, "home");
     press(cx, "end");
-    press(cx, "right");
+    focus_date_segment(cx, DateSegment::Year);
     press(cx, "pageup");
     press(cx, "pagedown");
     press(cx, "home");
@@ -200,7 +355,7 @@ fn date_field_read_only_page_and_bound_keys_are_inert(cx: &mut TestAppContext) {
     });
 
     press(cx, "tab");
-    press(cx, "right");
+    focus_date_segment(cx, DateSegment::Day);
     press(cx, "pageup");
     press(cx, "home");
     press(cx, "end");
@@ -216,7 +371,7 @@ fn date_field_read_only_page_and_bound_keys_are_inert(cx: &mut TestAppContext) {
     assert_eq!(
         changed.borrow().as_slice(),
         ["2025-03-07"],
-        "read-only Right still moves Month to Day, whose PageUp step is seven"
+        "read-only navigation keeps the day segment focused, whose PageUp step is seven"
     );
 }
 
@@ -445,6 +600,7 @@ fn date_picker_field_is_editable_like_the_composed_v3_date_field(cx: &mut TestAp
     });
 
     press(cx, "tab");
+    focus_date_segment(cx, DateSegment::Month);
     press(cx, "home");
     assert_eq!(
         cx.update(|_, cx| state.read(cx).selected),
@@ -467,6 +623,7 @@ fn date_range_picker_start_field_is_editable(cx: &mut TestAppContext) {
     });
 
     press(cx, "tab");
+    focus_date_segment(cx, DateSegment::Month);
     press(cx, "home");
     assert_eq!(
         cx.update(|_, cx| state.read(cx).start),
@@ -489,6 +646,7 @@ fn date_range_picker_keeps_start_and_end_fields_distinct(cx: &mut TestAppContext
     });
 
     press(cx, "tab");
+    focus_date_segment(cx, DateSegment::Month);
     press(cx, "home");
     assert_eq!(
         cx.update(|_, cx| state.read(cx).start),
@@ -500,6 +658,7 @@ fn date_range_picker_keeps_start_and_end_fields_distinct(cx: &mut TestAppContext
     );
 
     press(cx, "tab");
+    focus_date_segment(cx, DateSegment::Month);
     press(cx, "home");
     assert_eq!(
         cx.update(|_, cx| state.read(cx).start),
@@ -632,7 +791,7 @@ fn date_range_text_edits_preserve_endpoint_identity_when_crossing(cx: &mut TestA
     });
 
     press(cx, "tab");
-    press(cx, "right");
+    focus_date_segment(cx, DateSegment::Day);
     press(cx, "end");
     assert_eq!(
         cx.update(|_, cx| {
@@ -643,6 +802,7 @@ fn date_range_text_edits_preserve_endpoint_identity_when_crossing(cx: &mut TestA
     );
 
     press(cx, "tab");
+    focus_date_segment(cx, DateSegment::Month);
     press(cx, "home");
     assert_eq!(
         cx.update(|_, cx| {
@@ -665,8 +825,7 @@ fn date_picker_invalid_text_keeps_last_valid_calendar_value(cx: &mut TestAppCont
     });
 
     press(cx, "tab");
-    press(cx, "right");
-    press(cx, "right");
+    focus_date_segment(cx, DateSegment::Year);
     press(cx, "end");
     refresh(cx);
     assert_eq!(
@@ -757,6 +916,7 @@ fn date_picker_form_invalid_submit_focuses_its_field(cx: &mut TestAppContext) {
 
     cx.update(|window, cx| submit(window, cx));
     assert_eq!(invalids.borrow().as_slice(), ["invalid"]);
+    focus_date_segment(cx, DateSegment::Month);
     press(cx, "home");
     assert_eq!(
         cx.update(|_, cx| state.read(cx).selected),
@@ -795,9 +955,7 @@ fn required_empty_date_picker_blocks_form_and_focuses_its_field(cx: &mut TestApp
 
     cx.update(|window, cx| submit(window, cx));
     assert_eq!(invalids.borrow().as_slice(), ["invalid"]);
-    for key in ["0", "1", "0", "1", "2", "0", "2", "5"] {
-        press(cx, key);
-    }
+    type_date(cx, Date::new(2025, 1, 1));
     assert_eq!(
         cx.update(|_, cx| state.read(cx).selected),
         Some(Date::new(2025, 1, 1)),
@@ -838,9 +996,7 @@ fn required_empty_date_range_picker_blocks_form_and_focuses_start(cx: &mut TestA
 
     cx.update(|window, cx| submit(window, cx));
     assert_eq!(invalids.borrow().as_slice(), ["invalid"]);
-    for key in ["0", "1", "0", "1", "2", "0", "2", "5"] {
-        press(cx, key);
-    }
+    type_date(cx, Date::new(2025, 1, 1));
     assert_eq!(
         cx.update(|_, cx| state.read(cx).start),
         Some(Date::new(2025, 1, 1)),
@@ -936,9 +1092,7 @@ fn date_picker_auto_focuses_its_editable_field(cx: &mut TestAppContext) {
             .into_any_element()
     });
 
-    for key in ["0", "1", "0", "1", "2", "0", "2", "5"] {
-        press(cx, key);
-    }
+    type_date(cx, Date::new(2025, 1, 1));
     assert_eq!(
         cx.update(|_, cx| state.read(cx).selected),
         Some(Date::new(2025, 1, 1))
@@ -1046,9 +1200,7 @@ fn date_range_picker_auto_focuses_its_start_field(cx: &mut TestAppContext) {
             .into_any_element()
     });
 
-    for key in ["0", "1", "0", "1", "2", "0", "2", "5"] {
-        press(cx, key);
-    }
+    type_date(cx, Date::new(2025, 1, 1));
     assert_eq!(
         cx.update(|_, cx| state.read(cx).start),
         Some(Date::new(2025, 1, 1))
@@ -1097,8 +1249,7 @@ fn date_picker_reset_restores_display_and_validity_after_repaint(cx: &mut TestAp
     });
 
     press(cx, "tab");
-    press(cx, "right");
-    press(cx, "right");
+    focus_date_segment(cx, DateSegment::Year);
     press(cx, "end");
     refresh(cx);
     cx.update(|window, cx| submit(window, cx));
@@ -1147,8 +1298,7 @@ fn date_picker_invalid_form_data_uses_the_displayed_text(cx: &mut TestAppContext
     });
 
     press(cx, "tab");
-    press(cx, "right");
-    press(cx, "right");
+    focus_date_segment(cx, DateSegment::Year);
     press(cx, "end");
     cx.update(|window, cx| submit(window, cx));
     assert_eq!(invalids.borrow().as_slice(), ["9999-06-15"]);
@@ -1203,8 +1353,7 @@ fn date_range_picker_end_only_field_resets_after_invalid_text_and_repaint(cx: &m
 
     press(cx, "tab");
     press(cx, "tab");
-    press(cx, "right");
-    press(cx, "right");
+    focus_date_segment(cx, DateSegment::Year);
     press(cx, "end");
     cx.update(|window, cx| submit(window, cx));
     assert_eq!(invalids.borrow().as_slice(), ["9999-06-20"]);

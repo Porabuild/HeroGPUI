@@ -18,6 +18,207 @@ fn reduced_motion() {
 }
 
 #[gpui::test]
+fn color_picker_flips_and_shifts_inside_the_viewport(cx: &mut TestAppContext) {
+    reduced_motion();
+    let cx = open_host(cx, || {
+        gpui::div()
+            .absolute()
+            .left(px(500.))
+            .top(px(440.))
+            .child(
+                ColorPicker::new("edge-picker", PickerColor::hsb(210., 0.5, 0.6))
+                    .label("Color")
+                    .is_open(true)
+                    .show_alpha(true),
+            )
+            .into_any_element()
+    });
+    cx.simulate_resize(gpui::size(px(640.), px(540.)));
+    cx.update(|window, _| window.refresh());
+    cx.run_until_parked();
+    let panel = cx.debug_bounds(r#"Name("edge-picker")-panel"#).unwrap();
+    assert!(
+        panel.left() >= px(12.) && panel.right() <= px(628.),
+        "{panel:?}"
+    );
+    assert!(
+        panel.top() >= px(12.) && panel.bottom() < px(480.),
+        "{panel:?}"
+    );
+    assert!(
+        panel.size.height > px(250.),
+        "the complete panel should fit above the trigger: {panel:?}"
+    );
+}
+
+#[gpui::test]
+fn color_picker_scrolls_to_alpha_in_a_short_viewport(cx: &mut TestAppContext) {
+    reduced_motion();
+    let changed = Rc::new(Cell::new(false));
+    let page_scroll = gpui::ScrollHandle::new();
+    let cx = open_host(cx, {
+        let changed = changed.clone();
+        let page_scroll = page_scroll.clone();
+        move || {
+            let changed = changed.clone();
+            gpui::div()
+                .id("picker-scroll-page")
+                .size_full()
+                .overflow_y_scroll()
+                .track_scroll(&page_scroll)
+                .child(
+                    gpui::div().relative().h(px(1000.)).child(
+                        gpui::div().absolute().left(px(500.)).top(px(120.)).child(
+                            ColorPicker::new("short-picker", PickerColor::hsb(210., 0.5, 0.6))
+                                .is_open(true)
+                                .show_alpha(true)
+                                .on_change(move |value, _, _| changed.set(value.alpha < 0.9)),
+                        ),
+                    ),
+                )
+                .into_any_element()
+        }
+    });
+    cx.simulate_resize(gpui::size(px(640.), px(300.)));
+    cx.update(|window, _| window.refresh());
+    cx.run_until_parked();
+    let panel = cx.debug_bounds(r#"Name("short-picker")-panel"#).unwrap();
+    assert_eq!(panel.top(), px(152.));
+    assert_eq!(panel.bottom(), px(288.));
+    assert!(
+        panel.left() >= px(12.) && panel.right() <= px(628.),
+        "{panel:?}"
+    );
+    cx.simulate_click(panel.center(), Modifiers::none());
+    for selector in [
+        r#"Name("short-picker")-hue"#,
+        r#"Name("short-picker")-alpha"#,
+    ] {
+        press(cx, "tab");
+        let focused = cx.debug_bounds(selector).unwrap();
+        assert!(
+            focused.top() >= panel.top() && focused.bottom() <= panel.bottom(),
+            "focused slider {focused:?} outside {panel:?}"
+        );
+    }
+    press(cx, "shift-tab shift-tab");
+    let hidden_alpha = cx.debug_bounds(r#"Name("short-picker")-alpha"#).unwrap();
+    assert!(
+        hidden_alpha.top() >= panel.bottom(),
+        "returning to the area must reveal its beginning"
+    );
+    cx.simulate_event(gpui::ScrollWheelEvent {
+        position: panel.center(),
+        delta: gpui::ScrollDelta::Pixels(point(px(0.), px(-1000.))),
+        modifiers: Modifiers::none(),
+        touch_phase: gpui::TouchPhase::Moved,
+    });
+    cx.update(|window, _| window.refresh());
+    cx.run_until_parked();
+    let alpha = cx.debug_bounds(r#"Name("short-picker")-alpha"#).unwrap();
+    assert!(
+        alpha.top() >= panel.top() && alpha.bottom() <= panel.bottom(),
+        "{alpha:?} outside {panel:?}"
+    );
+    cx.simulate_event(gpui::ScrollWheelEvent {
+        position: panel.center(),
+        delta: gpui::ScrollDelta::Pixels(point(px(0.), px(-1000.))),
+        modifiers: Modifiers::none(),
+        touch_phase: gpui::TouchPhase::Moved,
+    });
+    cx.update(|window, _| window.refresh());
+    cx.run_until_parked();
+    assert_eq!(
+        page_scroll.offset().y,
+        px(0.),
+        "scrolling at the panel boundary must not move the page"
+    );
+    cx.simulate_click(alpha.center(), Modifiers::none());
+    assert!(
+        changed.get(),
+        "the scrolled alpha slider must remain interactive"
+    );
+    cx.simulate_resize(gpui::size(px(640.), px(540.)));
+    cx.update(|window, _| window.refresh());
+    cx.run_until_parked();
+    let expanded = cx.debug_bounds(r#"Name("short-picker")-panel"#).unwrap();
+    assert_eq!(expanded.top(), px(152.));
+    assert!(
+        expanded.size.height > px(250.),
+        "the panel must grow again after resize: {expanded:?}"
+    );
+}
+
+#[gpui::test]
+fn color_picker_reopen_starts_at_area_after_full_close(cx: &mut TestAppContext) {
+    reduced_motion();
+    let cx = open_host(cx, || {
+        gpui::div()
+            .relative()
+            .size_full()
+            .child(
+                gpui::div().absolute().left(px(500.)).top(px(120.)).child(
+                    ColorPicker::new("reopen-picker", PickerColor::hsb(210., 0.5, 0.6))
+                        .show_alpha(true),
+                ),
+            )
+            .into_any_element()
+    });
+    cx.simulate_resize(gpui::size(px(640.), px(300.)));
+    cx.update(|window, _| window.refresh());
+    cx.run_until_parked();
+
+    // Uncontrolled trigger opens the short panel.
+    click(cx, 560., 132.);
+    cx.run_until_parked();
+    let panel = cx.debug_bounds(r#"Name("reopen-picker")-panel"#).unwrap();
+    assert_eq!(panel.top(), px(152.));
+    assert_eq!(panel.bottom(), px(288.));
+
+    // Scroll to the bottom so the alpha slider is visible.
+    cx.simulate_event(gpui::ScrollWheelEvent {
+        position: panel.center(),
+        delta: gpui::ScrollDelta::Pixels(point(px(0.), px(-1000.))),
+        modifiers: Modifiers::none(),
+        touch_phase: gpui::TouchPhase::Moved,
+    });
+    cx.update(|window, _| window.refresh());
+    cx.run_until_parked();
+    let panel = cx.debug_bounds(r#"Name("reopen-picker")-panel"#).unwrap();
+    let alpha = cx.debug_bounds(r#"Name("reopen-picker")-alpha"#).unwrap();
+    assert!(
+        alpha.top() >= panel.top() && alpha.bottom() <= panel.bottom(),
+        "scrolling down must reveal the alpha slider: {alpha:?} outside {panel:?}"
+    );
+
+    // Fully close: Escape starts the exit, then the exit timer unmounts the
+    // panel the way RAC 1.20.0 returns null after closed+exit.
+    cx.simulate_click(panel.center(), Modifiers::none());
+    press(cx, "escape");
+    cx.executor()
+        .advance_clock(std::time::Duration::from_millis(150));
+    cx.update(|window, _| window.refresh());
+    cx.run_until_parked();
+    cx.update(|window, _| window.refresh());
+    cx.run_until_parked();
+    assert!(
+        cx.debug_bounds(r#"Name("reopen-picker")-panel"#).is_none(),
+        "the panel must be fully closed before reopening"
+    );
+
+    // Reopen from the trigger: the area is back at the beginning and the
+    // alpha slider is below the viewport again.
+    click(cx, 560., 132.);
+    cx.run_until_parked();
+    let panel = cx.debug_bounds(r#"Name("reopen-picker")-panel"#).unwrap();
+    let alpha = cx.debug_bounds(r#"Name("reopen-picker")-alpha"#).unwrap();
+    assert!(
+        alpha.top() >= panel.bottom(),
+        "reopening must show the area at the beginning, got {alpha:?} inside {panel:?}"
+    );
+}
+
+#[gpui::test]
 fn nested_color_picker_escape_closes_only_the_picker_then_parent(cx: &mut TestAppContext) {
     reduced_motion();
     let picker_open = Rc::new(Cell::new(true));

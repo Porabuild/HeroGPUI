@@ -652,7 +652,7 @@ fn color_area_thumb_motion(
         current.from = current.size.get();
         state.update(cx, |stored, _| *stored = current.clone());
     }
-    if cx.reduce_motion() && (current.size.get() - to).abs() > f32::EPSILON {
+    if ActiveTheme::reduce_motion(cx) && (current.size.get() - to).abs() > f32::EPSILON {
         current.from = to;
         current.size.set(to);
         state.update(cx, |stored, _| *stored = current.clone());
@@ -663,7 +663,7 @@ fn color_area_thumb_motion(
         to,
         size: current.size,
         animate: current.generation != 0
-            && !cx.reduce_motion()
+            && !ActiveTheme::reduce_motion(cx)
             && (current.from - to).abs() > f32::EPSILON,
     }
 }
@@ -852,12 +852,19 @@ impl RenderOnce for ColorArea {
             .w(self.width)
             .h(self.height)
             .rounded(radius)
-            .overflow_hidden()
             .border(cx.layout().border_width)
             .border_color(colors.border);
 
-        area = if self.x_channel == ColorChannel::Hue || self.y_channel == ColorChannel::Hue {
-            area.child(color_area_hue_layers(
+        // `.color-area` is `overflow: visible` -- the thumb is meant to hang
+        // over the edge, and upstream can allow that because its gradient stack
+        // is the element's own `background` plus an `::after`, both of which
+        // take the radius. Here the stack is real children, so the clip that
+        // holds them inside the corner goes on this one inner layer rather than
+        // on the area: clipping the area cut the thumb in half at every edge.
+        let mut layers = div().absolute().inset_0().rounded(radius).overflow_hidden();
+
+        layers = if self.x_channel == ColorChannel::Hue || self.y_channel == ColorChannel::Hue {
+            layers.child(color_area_hue_layers(
                 self.value,
                 color_space,
                 self.x_channel,
@@ -865,7 +872,7 @@ impl RenderOnce for ColorArea {
             ))
         } else {
             match (color_space, self.x_channel, self.y_channel) {
-                (ColorSpace::Hsb, ColorChannel::Saturation, ColorChannel::Brightness) => area
+                (ColorSpace::Hsb, ColorChannel::Saturation, ColorChannel::Brightness) => layers
                     .bg(gpui::linear_gradient(
                         90.0,
                         gpui::linear_color_stop(gpui::white(), 0.0),
@@ -879,39 +886,40 @@ impl RenderOnce for ColorArea {
                 (ColorSpace::Hsl, ColorChannel::Saturation, ColorChannel::Lightness) => {
                     let gray = self.value.with_hsl_channels(0.0, 0.5).to_hsla();
                     let hue = self.value.with_hsl_channels(1.0, 0.5).to_hsla();
-                    area.bg(gpui::linear_gradient(
-                        90.0,
-                        gpui::linear_color_stop(gray, 0.0),
-                        gpui::linear_color_stop(hue, 1.0),
-                    ))
-                    .child(
-                        div()
-                            .absolute()
-                            .top_0()
-                            .left_0()
-                            .right_0()
-                            .h(px(f32::from(self.height) / 2.0))
-                            .bg(gpui::linear_gradient(
-                                180.0,
-                                gpui::linear_color_stop(gpui::white(), 0.0),
-                                gpui::linear_color_stop(gpui::transparent_white(), 1.0),
-                            )),
-                    )
-                    .child(
-                        div()
-                            .absolute()
-                            .bottom_0()
-                            .left_0()
-                            .right_0()
-                            .h(px(f32::from(self.height) / 2.0))
-                            .bg(gpui::linear_gradient(
-                                180.0,
-                                gpui::linear_color_stop(gpui::transparent_black(), 0.0),
-                                gpui::linear_color_stop(gpui::black(), 1.0),
-                            )),
-                    )
+                    layers
+                        .bg(gpui::linear_gradient(
+                            90.0,
+                            gpui::linear_color_stop(gray, 0.0),
+                            gpui::linear_color_stop(hue, 1.0),
+                        ))
+                        .child(
+                            div()
+                                .absolute()
+                                .top_0()
+                                .left_0()
+                                .right_0()
+                                .h(px(f32::from(self.height) / 2.0))
+                                .bg(gpui::linear_gradient(
+                                    180.0,
+                                    gpui::linear_color_stop(gpui::white(), 0.0),
+                                    gpui::linear_color_stop(gpui::transparent_white(), 1.0),
+                                )),
+                        )
+                        .child(
+                            div()
+                                .absolute()
+                                .bottom_0()
+                                .left_0()
+                                .right_0()
+                                .h(px(f32::from(self.height) / 2.0))
+                                .bg(gpui::linear_gradient(
+                                    180.0,
+                                    gpui::linear_color_stop(gpui::transparent_black(), 0.0),
+                                    gpui::linear_color_stop(gpui::black(), 1.0),
+                                )),
+                        )
                 }
-                _ => area.child(color_area_channel_grid(
+                _ => layers.child(color_area_channel_grid(
                     self.value,
                     color_space,
                     self.x_channel,
@@ -972,8 +980,10 @@ impl RenderOnce for ColorArea {
                 let _ = r;
                 grid = grid.child(line);
             }
-            area = area.child(grid);
+            layers = layers.child(grid);
         }
+
+        area = area.child(layers);
 
         let is_dragging = !self.is_disabled && *dragging.read(cx);
         let is_focused = !self.is_disabled && area_focus.is_focused(window);
@@ -1116,7 +1126,7 @@ impl RenderOnce for ColorArea {
                             cx.notify();
                         }
                     });
-                    window.focus(&down_focus);
+                    window.focus(&down_focus, cx);
                     if let Some(next) = area_color_from_pointer(
                         &down_bounds,
                         event.position,
@@ -2077,7 +2087,7 @@ impl RenderOnce for ColorSlider {
                                 cx.notify();
                             }
                         });
-                        window.focus(&focus_for_press);
+                        window.focus(&focus_for_press, cx);
                         if let Some(next) = slider_color_from_pointer(
                             &down_bounds,
                             event.position,
@@ -2208,6 +2218,7 @@ impl RenderOnce for ColorSlider {
                     .justify_between()
                     .w(self.length)
                     .text_size(px(14.))
+                    .line_height(px(20.))
                     .font_weight(gpui::FontWeight::MEDIUM)
                     .child(
                         div()
@@ -2958,6 +2969,7 @@ impl RenderOnce for ColorField {
             .h(util::FIELD_HEIGHT)
             .rounded(util::field_radius(cx))
             .text_size(util::FIELD_TEXT)
+            .line_height(px(20.))
             .text_color(colors.field.foreground)
             // `.color-input-group__prefix` is `shrink-0 ms-3` in the
             // placeholder colour, and v3's example puts the swatch in it;
@@ -3029,7 +3041,11 @@ impl RenderOnce for ColorField {
         }
 
         // `.color-field` is `flex flex-col gap-1`.
-        let mut root = div().flex().flex_col().gap(px(4.));
+        let mut root = div()
+            .flex()
+            .flex_col()
+            .gap(px(4.))
+            .when(self.full_width, |root| root.w_full());
         if let Some(label) = self.label {
             root = root.child(
                 crate::field::Label::new(label)
@@ -3458,7 +3474,7 @@ impl RenderOnce for ColorSwatchPicker {
                                 *focused = Some(index);
                                 cx.notify();
                             });
-                            window.focus(&focus);
+                            window.focus(&focus, cx);
                         },
                     );
                 } else {
@@ -3471,7 +3487,7 @@ impl RenderOnce for ColorSwatchPicker {
                             *focused = Some(index);
                             cx.notify();
                         });
-                        window.focus(&focus);
+                        window.focus(&focus, cx);
                     });
                 }
             }
@@ -3703,6 +3719,31 @@ impl RenderOnce for ColorPicker {
                 }
             }
         });
+        let panel_state = window.use_keyed_state(
+            ElementId::Name(format!("{base}-panel-scroll").into()),
+            cx,
+            |_, cx| {
+                (
+                    gpui::ScrollHandle::new(),
+                    std::array::from_fn::<_, 3, _>(|_| cx.focus_handle()),
+                    None::<usize>,
+                )
+            },
+        );
+        let (panel_scroll, child_focus) =
+            panel_state.update(cx, |(scroll, scopes, previous), cx| {
+                let focused = scopes
+                    .iter()
+                    .position(|scope| scope.contains_focused(window, cx));
+                if focused != *previous {
+                    if let Some(index) = focused {
+                        scroll.scroll_to_item(index);
+                    }
+                    *previous = focused;
+                }
+                (scroll.clone(), scopes.clone())
+            });
+
         let colors = cx.colors();
         let layout = cx.layout();
         let popover_radius = layout.capped(layout.radius_lg() * 2.5);
@@ -3721,6 +3762,7 @@ impl RenderOnce for ColorPicker {
             .gap(px(12.))
             .rounded(util::hairline_radius(cx))
             .text_size(px(14.))
+            .line_height(px(20.))
             .text_color(colors.foreground)
             .child(ColorSwatch::new(self.value).size(SizeXl::Sm))
             .child(div().child(self.value.to_hex()));
@@ -3761,10 +3803,19 @@ impl RenderOnce for ColorPicker {
             root = root.child(crate::field::Label::new(label));
         }
         let trigger = util::ring_if_focused(trigger, &trigger_focus, true, Vec::new(), window, cx);
-        root = root.child(trigger);
+        let anchor_bounds = Rc::new(Cell::new(None));
+        root = root.child(crate::popover::PopoverTriggerMeasure::new(
+            trigger,
+            anchor_bounds.clone(),
+        ));
         root = root.track_focus(&group_scope);
 
         if phase == util::OverlayPhase::Closed {
+            // RAC 1.20.0 unmounts the scroll DOM after close+exit, so a
+            // reopen starts at the top. The keyed handle outlives the panel,
+            // so reset it only once the exit is gone; touching it while
+            // Exiting would shift the visible panel.
+            panel_scroll.set_offset(gpui::point(px(0.), px(0.)));
             return root;
         }
 
@@ -3775,7 +3826,7 @@ impl RenderOnce for ColorPicker {
             let cb = self.on_open_change.clone();
             let own = open_own;
             move |window: &mut Window, cx: &mut App| -> util::DismissResult {
-                window.focus(&trigger_focus);
+                window.focus(&trigger_focus, cx);
                 if let Some(held) = &own {
                     held.update(cx, |value, cx| {
                         *value = false;
@@ -3796,13 +3847,21 @@ impl RenderOnce for ColorPicker {
         // `.color-picker__popover` is `gap-3 min-w-62 px-2`: a minimum width,
         // not the fixed 264 this used to force.
         let mut panel = div()
-            .flex()
-            .flex_col()
             .gap(px(12.))
             .px(px(8.))
             .pt(px(8.))
             .pb(px(12.))
             .min_w(px(248.))
+            .id(ElementId::Name(format!("{base}-panel").into()))
+            .debug_selector({ let base = base.clone(); move || format!("{base}-panel") })
+            .max_h_full()
+            .overflow_x_hidden()
+            .overflow_y_scroll()
+            .restrict_scroll_to_axis()
+            .occlude()
+            .track_scroll(&panel_scroll)
+            .flex()
+            .flex_col()
             .rounded(popover_radius)
             .bg(colors.overlay.background)
             // v3 gives a floating panel no border: it is `bg-overlay
@@ -3832,7 +3891,12 @@ impl RenderOnce for ColorPicker {
                 }
             });
         }
-        panel = panel.child(area);
+        panel = panel.child(
+            div()
+                .flex_shrink_0()
+                .track_focus(&child_focus[0])
+                .child(area),
+        );
 
         let mut hue = ColorSlider::new(
             ElementId::Name(format!("{base}-hue").into()),
@@ -3856,7 +3920,16 @@ impl RenderOnce for ColorPicker {
                 }
             });
         }
-        panel = panel.child(hue);
+        panel = panel.child(
+            div()
+                .flex_shrink_0()
+                .track_focus(&child_focus[1])
+                .debug_selector({
+                    let base = base.clone();
+                    move || format!("{base}-hue")
+                })
+                .child(hue),
+        );
 
         if self.show_alpha {
             let mut alpha = ColorSlider::new(
@@ -3881,13 +3954,23 @@ impl RenderOnce for ColorPicker {
                     }
                 });
             }
-            panel = panel.child(alpha);
+            panel = panel.child(
+                div()
+                    .flex_shrink_0()
+                    .track_focus(&child_focus[2])
+                    .debug_selector({
+                        let base = base.clone();
+                        move || format!("{base}-alpha")
+                    })
+                    .child(alpha),
+            );
         }
 
         panel = panel.child(
             div()
+                .flex_shrink_0()
                 .text_size(px(12.))
-                .font_family("Consolas")
+                .font_family(util::MONO_FONT)
                 .text_color(colors.muted)
                 .child(self.value.to_hex()),
         );
@@ -3926,9 +4009,11 @@ impl RenderOnce for ColorPicker {
                 cx,
             )
         };
-        root.child(util::floating(
-            util::placed_panel(self.placement, px(6.)).child(panel),
-        ))
+        root.child(util::floating(crate::popover::scrollable_popover(
+            anchor_bounds,
+            self.placement,
+            panel,
+        )))
     }
 }
 

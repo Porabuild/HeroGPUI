@@ -751,6 +751,159 @@ fn root_dismissal_clears_open_submenu_state(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
+fn trigger_toggle_close_hides_hovered_submenu_during_exit_and_reopen(cx: &mut TestAppContext) {
+    let opens = events();
+    let opened = opens.clone();
+
+    let cx = open_host(cx, move || {
+        let opens = opens.clone();
+        Dropdown::uncontrolled(
+            "dd-sub-toggle",
+            Button::new("dd-sub-toggle-trigger").label("Share"),
+            vec![MenuItem::new("share", "Share").submenu(vec![MenuItem::new("sms", "SMS")])],
+        )
+        .id("dd-sub-toggle")
+        .on_open_change(move |open, _, _| {
+            opens.borrow_mut().push(format!("open:{open}"));
+        })
+        .into_any_element()
+    });
+
+    click(cx, 40., 18.);
+    assert_eq!(opened.borrow().as_slice(), ["open:true"]);
+    // Hover the submenu trigger row: the child panel opens without a click.
+    cx.simulate_mouse_move(
+        point(px(40.), px(64.)),
+        None::<MouseButton>,
+        Modifiers::none(),
+    );
+    cx.update(|window, _| window.refresh());
+    cx.run_until_parked();
+    assert!(
+        cx.debug_bounds("dropdown-submenu").is_some(),
+        "the hovered submenu must be laid out before the toggle close"
+    );
+
+    // Clicking the trigger shuts the menu while the parent stays mounted for
+    // its exit run. The hover-opened child must leave with the parent rather
+    // than render full-size next to it while it shrinks and fades.
+    click(cx, 40., 18.);
+    cx.run_until_parked();
+    assert_eq!(
+        opened.borrow().as_slice(),
+        ["open:true", "open:false"],
+        "the trigger toggle must close the menu"
+    );
+    assert!(
+        cx.debug_bounds("dropdown-menu").is_some(),
+        "the parent panel must still be mounted for its exit run"
+    );
+    assert!(
+        cx.debug_bounds("dropdown-submenu").is_none(),
+        "the submenu must be gone for the whole exit run, not just after it"
+    );
+
+    let_exit_finish(cx);
+    cx.update(|window, _| window.refresh());
+    cx.run_until_parked();
+    assert!(cx.debug_bounds("dropdown-menu").is_none());
+    assert!(cx.debug_bounds("dropdown-submenu").is_none());
+
+    // The toggle close must not leave the submenu slot behind: reopening the
+    // dropdown from the trigger starts with no child open.
+    click(cx, 40., 18.);
+    cx.run_until_parked();
+    assert_eq!(last(&opened), "open:true", "the trigger must reopen");
+    assert!(cx.debug_bounds("dropdown-menu").is_some());
+    assert!(
+        cx.debug_bounds("dropdown-submenu").is_none(),
+        "reopening must not revive the pre-close submenu without a hover"
+    );
+}
+
+/// A close that never passes through the menu's dismiss path -- a controlled
+/// `isOpen` flip, like a keyboard-activated trigger toggle, which carries no
+/// pointer press for the outside-press check to answer. The exiting menu must
+/// still drop its hover-opened child for the exit run, and reopening onto the
+/// still-mounted exit must not revive it either.
+#[gpui::test]
+fn controlled_close_without_dismiss_hides_submenu_during_exit_and_reopen(cx: &mut TestAppContext) {
+    let open: Rc<Cell<bool>> = Rc::new(Cell::new(false));
+    let open_for_render = open.clone();
+
+    let cx = open_host(cx, move || {
+        let is_open = open_for_render.get();
+        Dropdown::new(
+            "dd-sub-ctl",
+            Button::new("dd-sub-ctl-trigger").label("Share"),
+            vec![MenuItem::new("share", "Share").submenu(vec![MenuItem::new("sms", "SMS")])],
+            is_open,
+        )
+        .id("dd-sub-ctl")
+        .into_any_element()
+    });
+
+    open.set(true);
+    cx.update(|window, _| window.refresh());
+    cx.run_until_parked();
+    cx.simulate_mouse_move(
+        point(px(40.), px(64.)),
+        None::<MouseButton>,
+        Modifiers::none(),
+    );
+    cx.update(|window, _| window.refresh());
+    cx.run_until_parked();
+    assert!(
+        cx.debug_bounds("dropdown-submenu").is_some(),
+        "the hovered submenu must be laid out before the close"
+    );
+
+    // No press, no Escape: nothing here runs the menu's dismiss closure.
+    open.set(false);
+    cx.update(|window, _| window.refresh());
+    cx.run_until_parked();
+    assert!(
+        cx.debug_bounds("dropdown-menu").is_some(),
+        "the parent panel must still be mounted for its exit run"
+    );
+    assert!(
+        cx.debug_bounds("dropdown-submenu").is_none(),
+        "the submenu must be gone for the whole exit run, not just after it"
+    );
+
+    // Reopening onto the still-mounted exit (no clock advance, so no unmount)
+    // must start with no child open. The pointer leaves the row first, or its
+    // live hover would legitimately reopen the child on the fresh render.
+    cx.simulate_mouse_move(
+        point(px(-100.), px(-100.)),
+        None::<MouseButton>,
+        Modifiers::none(),
+    );
+    cx.update(|window, _| window.refresh());
+    cx.run_until_parked();
+    open.set(true);
+    cx.update(|window, _| window.refresh());
+    cx.run_until_parked();
+    assert!(cx.debug_bounds("dropdown-menu").is_some());
+    assert!(
+        cx.debug_bounds("dropdown-submenu").is_none(),
+        "reopening must not revive the pre-close submenu without a hover"
+    );
+
+    let_exit_finish(cx);
+    cx.update(|window, _| window.refresh());
+    cx.run_until_parked();
+    open.set(false);
+    cx.update(|window, _| window.refresh());
+    cx.run_until_parked();
+    let_exit_finish(cx);
+    cx.update(|window, _| window.refresh());
+    cx.run_until_parked();
+    assert!(cx.debug_bounds("dropdown-menu").is_none());
+    assert!(cx.debug_bounds("dropdown-submenu").is_none());
+}
+
+#[gpui::test]
 fn sibling_submenus_keep_independent_keyboard_cursors(cx: &mut TestAppContext) {
     let actions = events();
     let fired = actions.clone();

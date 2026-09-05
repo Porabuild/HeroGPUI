@@ -14,7 +14,7 @@ use gpui::{
 use herogpui_core::{SelectionMode, Size};
 use herogpui_theme::ActiveTheme;
 
-use crate::icons;
+use crate::{icons, EscapeKeyBehavior};
 
 /// Visual variant of the tags in a group.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -43,6 +43,7 @@ pub struct Tag {
     key: SharedString,
     label: SharedString,
     icon: Option<SharedString>,
+    remove_content: Option<Arc<dyn Fn() -> AnyElement + 'static>>,
     is_disabled: bool,
 }
 
@@ -52,12 +53,19 @@ impl Tag {
             key: key.into(),
             label: label.into(),
             icon: None,
+            remove_content: None,
             is_disabled: false,
         }
     }
 
     pub fn icon(mut self, path: impl Into<SharedString>) -> Self {
         self.icon = Some(path.into());
+        self
+    }
+
+    /// `Tag.RemoveButton` children, replacing the default close glyph.
+    pub fn remove_content(mut self, render: impl Fn() -> AnyElement + 'static) -> Self {
+        self.remove_content = Some(Arc::new(render));
         self
     }
 
@@ -180,6 +188,7 @@ pub struct TagGroup {
     default_selected_keys: HashSet<SharedString>,
     is_controlled: bool,
     disallow_empty_selection: bool,
+    escape_key_behavior: EscapeKeyBehavior,
     disabled_keys: HashSet<SharedString>,
     is_disabled: bool,
     size: Size,
@@ -206,6 +215,7 @@ impl TagGroup {
             default_selected_keys: HashSet::new(),
             is_controlled: false,
             disallow_empty_selection: false,
+            escape_key_behavior: EscapeKeyBehavior::ClearSelection,
             disabled_keys: HashSet::new(),
             is_disabled: false,
             size: Size::Md,
@@ -246,6 +256,12 @@ impl TagGroup {
     /// Prevents selection from becoming empty through a tag toggle or Escape.
     pub fn disallow_empty_selection(mut self, v: bool) -> Self {
         self.disallow_empty_selection = v;
+        self
+    }
+
+    /// `escapeKeyBehavior` — whether unmodified Escape clears selection.
+    pub fn escape_key_behavior(mut self, behavior: EscapeKeyBehavior) -> Self {
+        self.escape_key_behavior = behavior;
         self
     }
 
@@ -308,15 +324,15 @@ impl TagGroup {
         self
     }
 
-    /// `(px, py, text)` from `.tag--sm` / `--md` / `--lg`.
+    /// `(px, py, text, leading)` from `.tag--sm` / `--md` / `--lg`.
     ///
     /// v3 gives a tag no height: it is padding around one line, which is why
     /// this returns a vertical padding rather than the box it used to force.
-    fn metrics(size: Size) -> (gpui::Pixels, gpui::Pixels, gpui::Pixels) {
+    fn metrics(size: Size) -> (gpui::Pixels, gpui::Pixels, gpui::Pixels, gpui::Pixels) {
         match size {
-            Size::Sm => (px(8.), px(2.), px(12.)),
-            Size::Md => (px(8.), px(4.), px(12.)),
-            Size::Lg => (px(10.), px(6.), px(14.)),
+            Size::Sm => (px(8.), px(2.), px(12.), px(16.)),
+            Size::Md => (px(8.), px(4.), px(12.), px(16.)),
+            Size::Lg => (px(10.), px(6.), px(14.), px(20.)),
         }
     }
 
@@ -433,7 +449,7 @@ impl RenderOnce for TagGroup {
         let ring_visible = crate::util::focus_visible(cx);
         let colors = cx.colors();
         let layout = cx.layout();
-        let (pad_x, pad_y, text_size) = Self::metrics(self.size);
+        let (pad_x, pad_y, text_size, leading) = Self::metrics(self.size);
         let tag_radius = Self::radius(self.size, cx);
 
         // `.tag-group` is `flex flex-col gap-1`: the label, the list and the
@@ -444,6 +460,7 @@ impl RenderOnce for TagGroup {
             root = root.child(
                 div()
                     .text_size(px(14.))
+                    .line_height(px(20.))
                     .font_weight(gpui::FontWeight::MEDIUM)
                     .text_color(colors.foreground)
                     .child(label.to_string()),
@@ -459,6 +476,7 @@ impl RenderOnce for TagGroup {
                     // `.empty-state` is `p-2 text-sm text-muted`.
                     .p(px(8.))
                     .text_size(px(14.))
+                    .line_height(px(20.))
                     .text_color(colors.muted)
                     .child(text.to_string()),
             );
@@ -495,6 +513,7 @@ impl RenderOnce for TagGroup {
                 .py(pad_y)
                 .rounded(tag_radius)
                 .text_size(text_size)
+                .line_height(leading)
                 .font_weight(gpui::FontWeight::MEDIUM)
                 .whitespace_nowrap();
 
@@ -568,6 +587,16 @@ impl RenderOnce for TagGroup {
 
             if let Some(on_remove) = self.on_remove.clone() {
                 let key = tag.key.clone();
+                let remove_content = tag.remove_content.as_ref().map_or_else(
+                    || {
+                        gpui::svg()
+                            .size(px(12.))
+                            .path(icons::CLOSE)
+                            .text_color(tag_foreground)
+                            .into_any_element()
+                    },
+                    |render| render(),
+                );
                 let mut close = div()
                     .id(ElementId::Name(
                         format!("{:?}-tag-{index}-remove", self.id).into(),
@@ -579,13 +608,7 @@ impl RenderOnce for TagGroup {
                     .size(px(12.))
                     .rounded_full()
                     .flex_shrink_0()
-                    // gpui svgs need an explicit color; they do not inherit.
-                    .child(
-                        gpui::svg()
-                            .size(px(12.))
-                            .path(icons::CLOSE)
-                            .text_color(tag_foreground),
-                    );
+                    .child(remove_content);
                 if !disabled {
                     let hover_bg = colors.default.hover();
                     let remove_focus = &remove_focus_handles[index];
@@ -621,7 +644,7 @@ impl RenderOnce for TagGroup {
                             // native child and keyboard continuity needs a
                             // stable roving target. Removal only reports;
                             // the selection is not this click's to change.
-                            window.focus(&focus_for_remove);
+                            window.focus(&focus_for_remove, cx);
                             cursor_for_remove.update(cx, |v, cx| {
                                 *v = index;
                                 cx.notify();
@@ -649,6 +672,7 @@ impl RenderOnce for TagGroup {
                 let key_for_remove = tag.key.clone();
                 let mode = self.selection_mode;
                 let disallow_empty = self.disallow_empty_selection;
+                let escape_key_behavior = self.escape_key_behavior;
                 let selected_now = self.selected_keys.clone();
                 let selectable_keys = enabled_keys.clone();
                 let collection_for_keys = collection_keys.clone();
@@ -704,6 +728,7 @@ impl RenderOnce for TagGroup {
                     // selection on unmodified Escape by default.
                     if key_name == "escape"
                         && !event.keystroke.modifiers.modified()
+                        && escape_key_behavior == EscapeKeyBehavior::ClearSelection
                         && crate::selection::reports_changes(mode)
                         && !disallow_empty
                         && !selected_now.is_empty()
@@ -839,7 +864,7 @@ impl RenderOnce for TagGroup {
                     if window.default_prevented() {
                         return;
                     }
-                    window.focus(&focus_for_seat);
+                    window.focus(&focus_for_seat, cx);
                     window.prevent_default();
                     cursor_for_seat.update(cx, |v, cx| {
                         *v = index;
@@ -944,6 +969,7 @@ impl RenderOnce for TagGroup {
                 div()
                     .p(px(4.))
                     .text_size(px(12.))
+                    .line_height(px(16.))
                     .text_color(colors.muted)
                     .child(description.to_string()),
             );

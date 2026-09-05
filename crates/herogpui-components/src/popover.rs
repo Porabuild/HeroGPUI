@@ -60,6 +60,22 @@ struct PopoverPositioner {
     offset: Pixels,
     should_flip: bool,
     has_arrow: bool,
+    constrain_height: bool,
+    /// Align a side panel's cross axis to the trigger's start edge instead of
+    /// `placement`'s alignment.
+    ///
+    /// RAC opens each submenu with `placement: 'end top'`: beside the row and
+    /// top-aligned. `Placement::Right` alone would centre the panel on the
+    /// row, so the submenu positioner carries this explicit override. It only
+    /// affects the `Left`/`Right` arms of [`PopoverPositioner::origin`].
+    cross_start: bool,
+    /// Size the panel from the trigger width instead of `MaxContent`.
+    ///
+    /// Field panels (Select) are `w_full`: against a `MaxContent` root width
+    /// that resolves incorrectly, so both measurements use the measured
+    /// trigger width. With the widths equal, start/center/end alignment
+    /// coincide and only the flipped side differs.
+    match_trigger_width: bool,
     children: Vec<AnyElement>,
 }
 
@@ -243,13 +259,13 @@ impl IntoElement for PopoverArrow {
     }
 }
 
-struct PopoverTriggerMeasure {
+pub(crate) struct PopoverTriggerMeasure {
     child: AnyElement,
     bounds: std::rc::Rc<std::cell::Cell<Option<Bounds<Pixels>>>>,
 }
 
 impl PopoverTriggerMeasure {
-    fn new(
+    pub(crate) fn new(
         child: impl IntoElement,
         bounds: std::rc::Rc<std::cell::Cell<Option<Bounds<Pixels>>>>,
     ) -> Self {
@@ -333,6 +349,9 @@ impl PopoverPositioner {
             offset,
             should_flip,
             has_arrow,
+            constrain_height: false,
+            cross_start: false,
+            match_trigger_width: false,
             children: Vec::new(),
         }
     }
@@ -352,12 +371,18 @@ impl PopoverPositioner {
         trigger: Bounds<Pixels>,
         viewport: Size<Pixels>,
     ) -> Pixels {
-        match side {
+        let available = match side {
             PopoverSide::Top => trigger.top(),
             PopoverSide::Bottom => viewport.height - trigger.bottom(),
             PopoverSide::Left => trigger.left(),
             PopoverSide::Right => viewport.width - trigger.right(),
-        }
+        };
+        available
+            - if self.constrain_height {
+                px(12.)
+            } else {
+                px(0.)
+            }
     }
 
     fn resolved_side(
@@ -405,10 +430,14 @@ impl PopoverPositioner {
             PlacementAlign::Center => trigger.center().x - px(f32::from(popup.width) / 2.0),
             PlacementAlign::End => trigger.right() - popup.width,
         };
-        let aligned_y = match align {
-            PlacementAlign::Start => trigger.top(),
-            PlacementAlign::Center => trigger.center().y - px(f32::from(popup.height) / 2.0),
-            PlacementAlign::End => trigger.bottom() - popup.height,
+        let aligned_y = if self.cross_start {
+            trigger.top()
+        } else {
+            match align {
+                PlacementAlign::Start => trigger.top(),
+                PlacementAlign::Center => trigger.center().y - px(f32::from(popup.height) / 2.0),
+                PlacementAlign::End => trigger.bottom() - popup.height,
+            }
         };
         let mut origin = match side {
             PopoverSide::Top => point(aligned_x, trigger.top() - popup.height - gap),
@@ -417,17 +446,22 @@ impl PopoverPositioner {
             PopoverSide::Right => point(trigger.right() + gap, aligned_y),
         };
 
-        let max_x = (viewport.width - popup.width).max(px(0.));
-        let max_y = (viewport.height - popup.height).max(px(0.));
+        let inset = if self.constrain_height {
+            px(12.)
+        } else {
+            px(0.)
+        };
+        let max_x = (viewport.width - popup.width - inset).max(inset);
+        let max_y = (viewport.height - popup.height - inset).max(inset);
         if matches!(side, PopoverSide::Top | PopoverSide::Bottom) {
-            origin.x = origin.x.max(px(0.)).min(max_x);
-            if self.should_flip {
-                origin.y = origin.y.max(px(0.)).min(max_y);
+            origin.x = origin.x.max(inset).min(max_x);
+            if self.should_flip && !self.constrain_height {
+                origin.y = origin.y.max(inset).min(max_y);
             }
         } else {
-            origin.y = origin.y.max(px(0.)).min(max_y);
-            if self.should_flip {
-                origin.x = origin.x.max(px(0.)).min(max_x);
+            origin.y = origin.y.max(inset).min(max_y);
+            if self.should_flip && !self.constrain_height {
+                origin.x = origin.x.max(inset).min(max_x);
             }
         }
         origin
@@ -527,9 +561,40 @@ impl Element for PopoverPositioner {
         let Some(trigger) = self.trigger.get() else {
             return false;
         };
-        let popup = window.layout_bounds(state.children[0]).size;
-        let side = self.resolved_side(trigger, popup, window.viewport_size());
-        let origin = self.origin(side, trigger, popup, window.viewport_size());
+        let viewport = window.viewport_size();
+        // A trigger-width panel resolves `w_full` against this width, not
+        // against `MaxContent`.
+        let width_space = if self.match_trigger_width {
+            gpui::AvailableSpace::Definite(trigger.size.width)
+        } else {
+            gpui::AvailableSpace::MaxContent
+        };
+        let mut popup = window.layout_bounds(state.children[0]).size;
+        if self.constrain_height {
+            popup = self.children[0].layout_as_root(
+                gpui::size(width_space, gpui::AvailableSpace::MaxContent),
+                window,
+                cx,
+            );
+        }
+        let side = self.resolved_side(trigger, popup, viewport);
+        if self.constrain_height {
+            let max_height = match side {
+                PopoverSide::Top | PopoverSide::Bottom => {
+                    self.available(side, trigger, viewport) - self.offset
+                }
+                PopoverSide::Left | PopoverSide::Right => {
+                    viewport.height - self.origin(side, trigger, popup, viewport).y - px(12.)
+                }
+            }
+            .max(px(0.));
+            popup = self.children[0].layout_as_root(
+                gpui::size(width_space, gpui::AvailableSpace::Definite(max_height)),
+                window,
+                cx,
+            );
+        }
+        let origin = self.origin(side, trigger, popup, viewport);
         self.resolved.set(Some(PopoverResolved {
             trigger,
             panel: Bounds {
@@ -538,7 +603,12 @@ impl Element for PopoverPositioner {
             },
             side,
         }));
-        let offset = origin - bounds.origin;
+        let layout_origin = if self.constrain_height {
+            window.layout_bounds(state.children[0]).origin
+        } else {
+            bounds.origin
+        };
+        let offset = origin - layout_origin;
         let offset = point(offset.x.round(), offset.y.round());
         window.with_element_offset(offset, |window| {
             self.children[0].prepaint(window, cx);
@@ -570,6 +640,75 @@ impl IntoElement for PopoverPositioner {
     fn into_element(self) -> Self::Element {
         self
     }
+}
+
+/// The panel must use `max_h_full()` and own its vertical scroll container.
+pub(crate) fn scrollable_popover(
+    trigger: std::rc::Rc<std::cell::Cell<Option<Bounds<Pixels>>>>,
+    placement: PopoverPlacement,
+    panel: impl IntoElement,
+) -> impl IntoElement {
+    let mut positioner = PopoverPositioner::new(
+        trigger,
+        std::rc::Rc::new(std::cell::Cell::new(None)),
+        placement,
+        px(8.),
+        true,
+        false,
+    );
+    positioner.constrain_height = true;
+    positioner.child(panel)
+}
+
+/// A trigger-width variant of [`scrollable_popover`] for field panels.
+///
+/// `Select.Popover` is `min-w-(--trigger-width)`: the panel matches the
+/// trigger width, so the positioner measures with that width on both passes
+/// instead of `MaxContent`. The panel must still use `max_h_full()`; a plain
+/// list owns the panel's vertical scroll container, while a virtual list
+/// sizes itself from its rows (`Infer`) so it caps together with the panel
+/// instead of nesting a fixed viewport inside an outer scroller.
+pub(crate) fn scrollable_field_popover(
+    trigger: std::rc::Rc<std::cell::Cell<Option<Bounds<Pixels>>>>,
+    placement: PopoverPlacement,
+    panel: impl IntoElement,
+) -> impl IntoElement {
+    let mut positioner = PopoverPositioner::new(
+        trigger,
+        std::rc::Rc::new(std::cell::Cell::new(None)),
+        placement,
+        px(8.),
+        true,
+        false,
+    );
+    positioner.constrain_height = true;
+    positioner.match_trigger_width = true;
+    positioner.child(panel)
+}
+
+/// A submenu variant of [`scrollable_popover`].
+///
+/// RAC renders each submenu in its own `Popover` against the parent row with
+/// `placement: 'end top'` (pinned RAC 1.20.0 `Menu.js`): beside the row,
+/// top-aligned, with the default 8px gap, flipping to the other side when it
+/// has more room and capping at the available viewport height past the 12px
+/// container padding. The panel must use `max_h_full()` and own its vertical
+/// scroll container, as with [`scrollable_popover`].
+pub(crate) fn scrollable_submenu_popover(
+    trigger: std::rc::Rc<std::cell::Cell<Option<Bounds<Pixels>>>>,
+    panel: impl IntoElement,
+) -> impl IntoElement {
+    let mut positioner = PopoverPositioner::new(
+        trigger,
+        std::rc::Rc::new(std::cell::Cell::new(None)),
+        PopoverPlacement::Right,
+        px(8.),
+        true,
+        false,
+    );
+    positioner.constrain_height = true;
+    positioner.cross_start = true;
+    positioner.child(panel)
 }
 
 /// HeroUI Popover (controlled).
@@ -729,20 +868,6 @@ impl RenderOnce for Popover {
             ))
             .flex()
             .track_focus(&trigger_focus)
-            .on_key_down({
-                let trigger_focus = trigger_focus.clone();
-                move |event, window, cx| {
-                    if matches!(event.keystroke.key.as_str(), "enter" | "space")
-                        && trigger_focus.contains_focused(window, cx)
-                    {
-                        // A caller's Button owns the real trigger handle. Move
-                        // to this wrapper for the key-up click listener without
-                        // replacing the handle saved for close restoration.
-                        window.focus(&trigger_focus);
-                        cx.stop_propagation();
-                    }
-                }
-            })
             .cursor_pointer();
         if self.on_open_change.is_some() || open_own.is_some() {
             let on_open_change = self.on_open_change.clone();
@@ -750,24 +875,41 @@ impl RenderOnce for Popover {
             let open = is_open;
             let capture_pressed = trigger_pressed.clone();
             let click_pressed = trigger_pressed.clone();
+            let toggle = crate::util::shared(move |window: &mut Window, cx: &mut App| {
+                if let Some(held) = &own {
+                    held.update(cx, |value, cx| {
+                        *value = !open;
+                        cx.notify();
+                    });
+                }
+                if let Some(cb) = &on_open_change {
+                    cb(!open, window, cx);
+                }
+            });
             trigger_wrap = trigger_wrap
                 .capture_any_mouse_down(move |_, _, cx| {
                     capture_pressed.set(true);
                     let clear = capture_pressed.clone();
                     cx.defer(move |_| clear.set(false));
                 })
+                .on_key_down({
+                    let toggle = toggle.clone();
+                    move |event, window, cx| {
+                        if matches!(event.keystroke.key.as_str(), "enter" | "space")
+                            && trigger_focus.contains_focused(window, cx)
+                        {
+                            // Moving focus between key-down and key-up cancels
+                            // GPUI's keyboard click. Activate without transferring it.
+                            if !event.is_held {
+                                toggle(window, cx);
+                            }
+                            window.prevent_default();
+                            cx.stop_propagation();
+                        }
+                    }
+                })
                 .on_click(move |_: &ClickEvent, window, cx| {
-                    // Uncontrolled: flip our own copy, or the trigger would be
-                    // inert without a caller handler.
-                    if let Some(held) = &own {
-                        held.update(cx, |v, cx| {
-                            *v = !open;
-                            cx.notify();
-                        });
-                    }
-                    if let Some(cb) = &on_open_change {
-                        cb(!open, window, cx);
-                    }
+                    toggle(window, cx);
                     click_pressed.set(false);
                 });
         }
@@ -840,6 +982,7 @@ impl RenderOnce for Popover {
             .text_color(colors.surface.foreground)
             // `.popover` is `text-sm`.
             .text_size(px(14.))
+            .line_height(px(20.))
             .rounded(crate::util::container_radius(cx))
             // v3 gives a floating panel no border: `.popover` and friends are
             // `bg-overlay shadow-overlay` and a radius, and dark mode's

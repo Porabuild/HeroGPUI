@@ -8,7 +8,7 @@ tokens, motion, component anatomy, demos, reference metadata, or an audit.
 This repository ports HeroUI v3.2.4. Use tagged HeroUI source for component
 anatomy and styles, and the exact dependency versions HeroUI pins for inherited
 behavior: React Aria 3.51.0, React Stately 3.49.0, and React Aria Components
-1.20.0. GPUI framework claims must be valid for GPUI 0.2.2.
+1.20.0. GPUI framework claims must be valid for the Zed revision in `Cargo.lock`.
 
 Do not reintroduce v2 concepts:
 
@@ -52,20 +52,31 @@ an all-green mapped subset is not proof that every upstream metric is covered.
 
 ## Running the audit set
 
-The prop and several documentation audits read the downloaded HeroUI bundle.
-The design and demo audits maintain their own tagged/cached inputs.
+Every input is checked in, so the set needs no network and measures the same
+v3.2.4 contract on every machine. `.shots/heroui-bundle.txt.gz` is the docs
+bundle the prop and prose audits read; `.shots/heroui-css-v3.2.4.tar.gz` is the
+component stylesheets the design, motion and anatomy audits read. Both unpack
+themselves on first use.
 
 ```powershell
-Invoke-WebRequest https://heroui.com/react/llms-full.txt `
-  -OutFile (Join-Path $env:TEMP 'heroui-full.txt')
-python .shots/design_audit.py --fetch
-python .shots/demo_audit.py --fetch
-
 Get-ChildItem .shots/*audit.py | ForEach-Object {
     python $_.FullName
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 }
 python .shots/write_only.py
+```
+
+CI runs exactly this set, so a local pass is the same evidence CI produces.
+
+Refreshing either pin is deliberate, never a side effect of a run. The bundle
+audits refuse any copy whose latest release is not `PINNED_RELEASE` in
+`.shots/bundle.py`; point `HEROUI_BUNDLE` at another file and set
+`HEROUI_BUNDLE_UNPINNED=1` to read a different release on purpose. To move the
+pin, refresh the archive and `PINNED_RELEASE` together and re-run the set:
+
+```powershell
+curl -sL https://heroui.com/react/llms-full.txt | gzip -9 > .shots/heroui-bundle.txt.gz
+python .shots/design_audit.py --fetch   # then re-pack heroui-css-v3.2.4.tar.gz
 ```
 
 Run focused scripts while iterating. Run the set when a broad parity claim,
@@ -97,7 +108,7 @@ audit parser, shared metadata table, or release surface changes.
   frame and another event binding.
 - A recorded omission must name the real limitation: no accessibility tree, no
   CLDR locale data, browser-only hints, HTTP form transport, a single-valued
-  enum, or a genuinely missing mode. "GPUI cannot" requires checking 0.2.2
+  enum, or a genuinely missing mode. "GPUI cannot" requires checking the pinned GPUI
   source first.
 - Remove no-op builders. Do not keep a public promise just to make an audit row
   appear implemented.

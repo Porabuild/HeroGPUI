@@ -482,12 +482,42 @@ EXTRA_OK_SCOPED = {
     # HeroUI forwards both inherited React Aria Column resize props even
     # though its Table.Column table lists only the initial/minimum widths.
     'Table.allows_resizing': 'react-aria-inherited',
+    # HeroUI's ResizableContainer forwards the inherited React Aria resize
+    # lifecycle callbacks, which its local prop table does not repeat.
+    'Table.on_resize_start': 'react-aria-inherited',
+    'Table.on_resize': 'react-aria-inherited',
+    'Table.on_resize_end': 'react-aria-inherited',
+    'Table.width': 'react-aria-inherited',
     # HeroUI forwards the inherited React Aria Column `maxWidth` prop even
     # though its Table.Column table omits it alongside other inherited props.
     'Table.max_width': 'react-aria-inherited',
     # HeroUI forwards React Aria Row's inherited `textValue`; cells are opaque
     # in gpui, so the row must expose that searchable text explicitly.
     'Table.text_value': 'react-aria-inherited',
+    # v3 chooses a calendar system with `<I18nProvider locale="hi-IN-u-ca-indian">`
+    # around the calendar -- its own "International Calendars" example -- so the
+    # capability is documented while the prop is not. gpui has no subtree
+    # context to hold a provider, so the locale is named on the component the
+    # provider would have wrapped. Recorded explicitly rather than left to the
+    # sibling rule: v3's `locale` on NumberField chooses number separators, and
+    # sharing a spelling with it is a coincidence, not a reason.
+    'Calendar.locale': 'no-i18n-provider',
+    'RangeCalendar.locale': 'no-i18n-provider',
+    'DatePicker.locale': 'no-i18n-provider',
+    'DateRangePicker.locale': 'no-i18n-provider',
+    # React Aria 3.51.0's `useSelectableCollection` takes `escapeKeyBehavior`
+    # to choose whether an unmodified Escape clears the selection. HeroUI
+    # inherits it on every selectable collection and re-documents it on none,
+    # so the two collections that answer Escape carry it under the same
+    # inherited-behavior rule as Table's resize props above.
+    'ListBox.escape_key_behavior': 'react-aria-inherited',
+    'TagGroup.escape_key_behavior': 'react-aria-inherited',
+    # v3's `src` is a URL string, so React re-fetches when the string changes
+    # and the load and error latches reset with it. A gpui `ImageSource::Custom`
+    # is an `Arc`-allocated closure rebuilt every frame: equal by pointer only
+    # by accident, and carrying no value identity of its own. The key is the
+    # logical identity that closure cannot supply, and nothing in v3 needs one.
+    'Avatar.custom_source_key': 'no-source-identity',
     # MenuItem/ListBoxItem expose compound child slots rather than root props.
     'Dropdown.shortcut': 'composition',
     'Dropdown.submenu': 'composition',

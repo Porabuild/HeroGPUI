@@ -5,21 +5,80 @@
 //! `firstDayOfWeek` and `weeksInMonth`. Modelling them once keeps the five
 //! components from drifting apart.
 
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
+
+use icu_calendar::{types::Weekday as IcuWeekday, week::WeekInformation};
+use icu_locale_core::Locale as IcuLocale;
 
 use crate::calendar::{days_from_civil, days_in_month, first_weekday_pub, Date};
 
+/// The locale tags the system prefers for dates and times, most preferred
+/// first.
+///
+/// `locale_config` reads the platform's own preference chain, and the "time"
+/// category is the one that decides date and time presentation -- a reader can
+/// run an English interface and still expect German dates. Callers try each tag
+/// in turn because CLDR may know a region the platform reports but not the
+/// exact tag spelling.
+pub(crate) fn system_locale_tags() -> Vec<String> {
+    locale_config::Locale::user_default()
+        .tags_for("time")
+        .map(|tag| tag.as_ref().to_owned())
+        .collect()
+}
+
+/// The seven weekday labels CLDR gives for one locale, Monday first.
+pub(crate) fn weekday_labels_for_locale(locale: &str) -> Option<[String; 7]> {
+    use icu_datetime::{fieldsets, DateTimeFormatter};
+
+    let locale = locale.parse::<IcuLocale>().ok()?;
+    let formatter = DateTimeFormatter::try_new(locale.into(), fieldsets::E::short()).ok()?;
+    let ordered = [
+        IcuWeekday::Monday,
+        IcuWeekday::Tuesday,
+        IcuWeekday::Wednesday,
+        IcuWeekday::Thursday,
+        IcuWeekday::Friday,
+        IcuWeekday::Saturday,
+        IcuWeekday::Sunday,
+    ];
+    let labels: Vec<String> = ordered
+        .iter()
+        .map(|day| formatter.format(day).to_string())
+        .collect();
+    labels.try_into().ok()
+}
+
+/// The running locale's weekday labels, Monday first, resolved once.
+fn system_weekday_labels() -> &'static [String; 7] {
+    static SYSTEM_WEEKDAY_LABELS: OnceLock<[String; 7]> = OnceLock::new();
+    SYSTEM_WEEKDAY_LABELS.get_or_init(|| {
+        system_locale_tags()
+            .iter()
+            .find_map(|tag| weekday_labels_for_locale(tag))
+            .unwrap_or_else(|| Weekday::ALL.map(|day| day.fallback_short_label().to_owned()))
+    })
+}
+
 /// The first column of a month grid (`firstDayOfWeek`).
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Weekday {
     Sun,
-    #[default]
     Mon,
     Tue,
     Wed,
     Thu,
     Fri,
     Sat,
+}
+
+impl Default for Weekday {
+    fn default() -> Self {
+        static SYSTEM_FIRST_DAY: OnceLock<Weekday> = OnceLock::new();
+        *SYSTEM_FIRST_DAY.get_or_init(|| {
+            Self::for_preferences(&locale_config::Locale::user_default()).unwrap_or(Self::Sun)
+        })
+    }
 }
 
 impl Weekday {
@@ -34,6 +93,28 @@ impl Weekday {
         Weekday::Sun,
     ];
 
+    fn for_locale(locale: &str) -> Option<Self> {
+        let locale = locale.parse::<IcuLocale>().ok()?;
+        let first = WeekInformation::try_new((&locale).into())
+            .ok()?
+            .first_weekday;
+        Some(match first {
+            IcuWeekday::Sunday => Self::Sun,
+            IcuWeekday::Monday => Self::Mon,
+            IcuWeekday::Tuesday => Self::Tue,
+            IcuWeekday::Wednesday => Self::Wed,
+            IcuWeekday::Thursday => Self::Thu,
+            IcuWeekday::Friday => Self::Fri,
+            IcuWeekday::Saturday => Self::Sat,
+        })
+    }
+
+    fn for_preferences(locale: &locale_config::Locale) -> Option<Self> {
+        locale
+            .tags_for("time")
+            .find_map(|tag| Self::for_locale(tag.as_ref()))
+    }
+
     /// Index with Monday as 0.
     pub fn monday_index(self) -> usize {
         match self {
@@ -47,7 +128,9 @@ impl Weekday {
         }
     }
 
-    pub fn short_label(self) -> &'static str {
+    /// The English two-letter label, used when CLDR has nothing to say for the
+    /// running locale.
+    fn fallback_short_label(self) -> &'static str {
         match self {
             Weekday::Sun => "Su",
             Weekday::Mon => "Mo",
@@ -57,6 +140,14 @@ impl Weekday {
             Weekday::Fri => "Fr",
             Weekday::Sat => "Sa",
         }
+    }
+
+    /// The running locale's column label for this day.
+    ///
+    /// v3 heads its grid through `Intl.DateTimeFormat`, so a German reader sees
+    /// `Mo Di Mi`, not `Mo Tu We`.
+    pub fn short_label(self) -> &'static str {
+        &system_weekday_labels()[self.monday_index()]
     }
 
     /// The seven column headers, starting from this day.
@@ -156,12 +247,40 @@ impl DateConstraints {
         (first + 7 - self.first_day_of_week.monday_index()) % 7
     }
 
+    /// Blank leading cells before the 1st of a month in `system`.
+    ///
+    /// `(year, month)` are that system's own, not Gregorian ones.
+    pub fn lead_cells_in(
+        &self,
+        system: &crate::calendar_system::CalendarSystem,
+        year: i32,
+        month: u32,
+    ) -> usize {
+        let first = system.first_weekday(year, month);
+        (first + 7 - self.first_day_of_week.monday_index()) % 7
+    }
+
     /// Rows the grid should render for this month.
     pub fn rows(&self, year: i32, month: u32) -> usize {
         if let Some(rows) = self.weeks_in_month.filter(|rows| *rows > 0) {
             return rows;
         }
         let cells = self.lead_cells(year, month) + days_in_month(year, month) as usize;
+        cells.div_ceil(7)
+    }
+
+    /// Rows the grid should render for a month in `system`.
+    pub fn rows_in(
+        &self,
+        system: &crate::calendar_system::CalendarSystem,
+        year: i32,
+        month: u32,
+    ) -> usize {
+        if let Some(rows) = self.weeks_in_month.filter(|rows| *rows > 0) {
+            return rows;
+        }
+        let cells =
+            self.lead_cells_in(system, year, month) + system.days_in_month(year, month) as usize;
         cells.div_ceil(7)
     }
 }
@@ -263,30 +382,86 @@ mod tests {
     #[test]
     fn first_day_of_week_shifts_the_lead() {
         // 2026-03-01 is a Sunday: Monday-start needs six blanks, Sunday none.
-        let monday = DateConstraints::new();
-        assert_eq!(monday.lead_cells(2026, 3), 6);
-
         let sunday = DateConstraints {
             first_day_of_week: Weekday::Sun,
             ..Default::default()
         };
         assert_eq!(sunday.lead_cells(2026, 3), 0);
+
+        let monday = DateConstraints {
+            first_day_of_week: Weekday::Mon,
+            ..Default::default()
+        };
+        assert_eq!(monday.lead_cells(2026, 3), 6);
+    }
+
+    #[test]
+    fn first_day_of_week_follows_locale_week_data() {
+        assert_eq!(Weekday::for_locale("en-US"), Some(Weekday::Sun));
+        assert_eq!(Weekday::for_locale("de-DE"), Some(Weekday::Mon));
+        assert_eq!(Weekday::for_locale("en-US-u-fw-wed"), Some(Weekday::Wed));
+        assert_eq!(Weekday::for_locale("not_a_locale"), None);
+    }
+
+    #[test]
+    fn first_day_of_week_prefers_the_system_time_category() {
+        let locale = locale_config::Locale::new("en-US,time=de-DE").unwrap();
+        assert_eq!(Weekday::for_preferences(&locale), Some(Weekday::Mon));
+    }
+
+    #[test]
+    fn weekday_labels_follow_the_locale() {
+        let english = weekday_labels_for_locale("en-US").unwrap();
+        assert_eq!(english[0], "Mon");
+        let german = weekday_labels_for_locale("de-DE").unwrap();
+        assert_eq!(german[0], "Mo");
+        assert_eq!(german[1], "Di", "German Tuesday is Di, not Tu");
+        assert!(weekday_labels_for_locale("not a locale").is_none());
     }
 
     #[test]
     fn header_row_starts_on_the_configured_day() {
-        assert_eq!(
-            Weekday::Mon.header_row(),
-            ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"]
-        );
-        assert_eq!(
-            Weekday::Sun.header_row(),
-            ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"]
-        );
-        assert_eq!(
-            Weekday::Sat.header_row(),
-            ["Sa", "Su", "Mo", "Tu", "We", "Th", "Fr"]
-        );
+        // The labels themselves are the running locale's, so this pins the
+        // rotation rather than the spelling: whatever Monday is called, a
+        // Monday-first row starts with it and a Sunday-first row ends with it.
+        let monday = Weekday::Mon.short_label();
+        let sunday = Weekday::Sun.short_label();
+        assert_eq!(Weekday::Mon.header_row()[0], monday);
+        assert_eq!(Weekday::Mon.header_row()[6], sunday);
+        assert_eq!(Weekday::Sun.header_row()[0], sunday);
+        assert_eq!(Weekday::Sun.header_row()[1], monday);
+        assert_eq!(Weekday::Sat.header_row()[1], sunday);
+        assert_eq!(Weekday::Sat.header_row()[2], monday);
+        for start in Weekday::ALL {
+            let row = start.header_row();
+            let unique: std::collections::HashSet<_> = row.iter().collect();
+            assert_eq!(unique.len(), 7, "every day appears once in {row:?}");
+        }
+    }
+
+    #[test]
+    fn the_system_aware_grid_matches_the_plain_one_for_gregorian() {
+        let gregorian = crate::calendar_system::CalendarSystem::for_locale("en-US").unwrap();
+        let c = DateConstraints::new();
+        for (y, m) in [(2026, 1), (2026, 2), (2024, 2), (2026, 8), (2027, 5)] {
+            assert_eq!(c.lead_cells_in(&gregorian, y, m), c.lead_cells(y, m));
+            assert_eq!(c.rows_in(&gregorian, y, m), c.rows(y, m));
+        }
+    }
+
+    #[test]
+    fn a_non_gregorian_grid_covers_its_own_month() {
+        let system =
+            crate::calendar_system::CalendarSystem::for_locale("hi-IN-u-ca-indian").unwrap();
+        let c = DateConstraints::new();
+        for month in 1..=12 {
+            let cells =
+                c.lead_cells_in(&system, 1947, month) + system.days_in_month(1947, month) as usize;
+            assert!(
+                c.rows_in(&system, 1947, month) * 7 >= cells,
+                "month {month} needs {cells} cells"
+            );
+        }
     }
 
     #[test]
@@ -318,6 +493,7 @@ mod tests {
 
         let locale_default = DateConstraints {
             weeks_in_month: Some(0),
+            first_day_of_week: Weekday::Mon,
             ..Default::default()
         };
         assert_eq!(locale_default.rows(2026, 2), 5);

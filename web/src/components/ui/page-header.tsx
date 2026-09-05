@@ -16,7 +16,7 @@ export function PageHeader({ title, description, importLine, className }: PageHe
       <h1 className="text-3xl font-semibold tracking-tight text-foreground">{title}</h1>
       {description && <p className="mt-3 text-base leading-relaxed text-muted">{description}</p>}
       {importLine && (
-        <div className="mt-6">
+        <div className="mt-4">
           <CodeBlock code={importLine} lang="rust" />
         </div>
       )}

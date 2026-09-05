@@ -17,6 +17,7 @@ pub struct InputState {
     cursor: usize,
     /// Selection anchor in char indices; `None` when the caret is collapsed.
     anchor: Option<usize>,
+    marked: Option<std::ops::Range<usize>>,
     pub(crate) focus_handle: FocusHandle,
     /// Clear-button handle. Created without `tab_stop`, matching pinned
     /// `useSearchField` `excludeFromTabOrder: true`. Never a `tab_stop_handle`.
@@ -68,6 +69,7 @@ impl InputState {
             value: String::new(),
             cursor: 0,
             anchor: None,
+            marked: None,
             // A field is a tab stop: the handle carries that, not the element.
             focus_handle: cx.focus_handle().tab_stop(true),
             // Plain handle: Tab never seats on the clear button.
@@ -180,6 +182,8 @@ impl InputState {
 
     pub fn set_value(&mut self, value: impl Into<String>) {
         self.value = value.into();
+        self.marked = None;
+        self.anchor = None;
         self.cursor = self.value.chars().count();
     }
 
@@ -525,6 +529,79 @@ fn char_at_x(
     value[..byte.min(value.len())].chars().count()
 }
 
+/// The char offset a click lands on inside a wrapped, multi-line body.
+///
+/// The paragraph is found by the bounds it was painted with, then gpui shapes
+/// that paragraph at the width it was given and reports the closest character
+/// boundary to the point -- `WrappedLine` derefs to the layout that answers it,
+/// so a wrapped line does have a position after all. Returns `None` when no
+/// paragraph has been laid out yet, which is any frame before the first paint.
+fn char_at_point(
+    value: &str,
+    point: gpui::Point<gpui::Pixels>,
+    paragraphs: &[gpui::Bounds<gpui::Pixels>],
+    font: &gpui::Font,
+    font_size: gpui::Pixels,
+    line_height: gpui::Pixels,
+    window: &mut Window,
+) -> Option<usize> {
+    let lines: Vec<&str> = value.split('\n').collect();
+    let usable = paragraphs.len().min(lines.len());
+    if usable == 0 {
+        return None;
+    }
+
+    // The paragraph the click is inside, else the nearest one vertically: a
+    // click in the padding below the last line belongs to the last line.
+    let index = (0..usable)
+        .find(|&i| {
+            let b = paragraphs[i];
+            point.y >= b.origin.y && point.y < b.origin.y + b.size.height.max(line_height)
+        })
+        .unwrap_or_else(|| {
+            (0..usable)
+                .min_by_key(|&i| {
+                    let b = paragraphs[i];
+                    let mid = b.origin.y + b.size.height.max(line_height) / 2.;
+                    (f32::from(point.y - mid)).abs() as i64
+                })
+                .unwrap_or(0)
+        });
+
+    let offset: usize = lines[..index].iter().map(|l| l.chars().count() + 1).sum();
+    let line = lines[index];
+    if line.is_empty() {
+        return Some(offset);
+    }
+
+    let bounds = paragraphs[index];
+    let run = gpui::TextRun {
+        len: line.len(),
+        font: font.clone(),
+        // Shaping needs a colour and does not use it.
+        color: gpui::black(),
+        background_color: None,
+        underline: None,
+        strikethrough: None,
+    };
+    let shaped = window
+        .text_system()
+        .shape_text(
+            SharedString::from(line.to_owned()),
+            font_size,
+            &[run],
+            Some(bounds.size.width.max(px(1.))),
+            None,
+        )
+        .ok()?;
+    let wrapped = shaped.first()?;
+    let local = gpui::point(point.x - bounds.origin.x, point.y - bounds.origin.y);
+    let byte = match wrapped.closest_index_for_position(local, line_height) {
+        Ok(byte) | Err(byte) => byte,
+    };
+    Some(offset + line[..byte.min(line.len())].chars().count())
+}
+
 /// The char indices bounding the line the caret is on, newlines excluded.
 fn line_bounds(value: &str, cursor: usize) -> (usize, usize) {
     let chars: Vec<char> = value.chars().collect();
@@ -541,8 +618,11 @@ fn line_bounds(value: &str, cursor: usize) -> (usize, usize) {
 
 /// Where Up / Down lands in a multiline field, keeping the column where it can.
 ///
-/// The lines are the *logical* ones: a wrapped line has no position gpui will
-/// report, and `Enter` is what puts a newline in.
+/// The lines are the *logical* ones -- the ones `Enter` puts in. Up and Down
+/// keeping to those rather than to visual rows is a deliberate difference from
+/// the pointer, which lands on the visual row it was clicked on
+/// (`char_at_point`); moving the keyboard caret to visual rows would need the
+/// same shaping on every keystroke.
 fn vertical_target(value: &str, cursor: usize, down: bool) -> usize {
     let (start, end) = line_bounds(value, cursor);
     let column = cursor - start;
@@ -652,6 +732,307 @@ impl InputType {
 type TextCallback = std::sync::Arc<dyn Fn(&str, &mut Window, &mut App) + 'static>;
 type ClearCallback = std::sync::Arc<dyn Fn(&mut Window, &mut App) + 'static>;
 
+fn char_to_utf16(value: &str, offset: usize) -> usize {
+    value.chars().take(offset).map(char::len_utf16).sum()
+}
+
+fn utf16_to_char(value: &str, offset: usize) -> usize {
+    let mut units = 0;
+    value
+        .chars()
+        .take_while(|ch| {
+            units += ch.len_utf16();
+            units <= offset
+        })
+        .count()
+}
+
+struct PlatformTextInput {
+    state: Entity<InputState>,
+    on_edit: TextCallback,
+    input_type: InputType,
+    max_length: Option<usize>,
+    multiline: bool,
+    bounds: gpui::Bounds<gpui::Pixels>,
+    font: gpui::Font,
+    paragraphs: Entity<Vec<gpui::Bounds<gpui::Pixels>>>,
+}
+
+impl PlatformTextInput {
+    fn replace(
+        &mut self,
+        range: Option<std::ops::Range<usize>>,
+        text: &str,
+        marked_selection: Option<Option<std::ops::Range<usize>>>,
+        window: &mut Window,
+        cx: &mut App,
+    ) {
+        let changed = self.state.update(cx, |state, cx| {
+            if state.is_read_only || !state.is_successful {
+                return false;
+            }
+            let range = range
+                .map(|range| {
+                    utf16_to_char(&state.value, range.start)..utf16_to_char(&state.value, range.end)
+                })
+                .or_else(|| state.marked.clone())
+                .unwrap_or_else(|| {
+                    let (start, end) = state.selection().unwrap_or((state.cursor, state.cursor));
+                    start..end
+                });
+            let old_value = state.value.clone();
+            let old_cursor = state.cursor;
+            let old_anchor = state.anchor;
+            state.anchor = Some(range.start);
+            state.cursor = range.end;
+            let mut inserted = false;
+            for ch in text.chars() {
+                if (ch == '\n' && self.multiline || !ch.is_control())
+                    && state_accepts(state, ch, self.input_type, self.max_length)
+                {
+                    insert_char(state, ch);
+                    inserted = true;
+                }
+            }
+            if text.is_empty() {
+                delete_selection(state);
+            } else if !inserted {
+                state.cursor = old_cursor;
+                state.anchor = old_anchor;
+                return false;
+            }
+            let end = state.cursor;
+            state.anchor = None;
+            state.marked = marked_selection
+                .as_ref()
+                .and_then(|_| (end > range.start).then_some(range.start..end));
+            if let Some(Some(selection)) = marked_selection {
+                let inserted: String = state
+                    .value
+                    .chars()
+                    .skip(range.start)
+                    .take(end - range.start)
+                    .collect();
+                state.anchor = Some(range.start + utf16_to_char(&inserted, selection.start));
+                state.cursor = range.start + utf16_to_char(&inserted, selection.end);
+            }
+            cx.notify();
+            state.value != old_value
+        });
+        if changed {
+            let value = self.state.read(cx).value.clone();
+            (self.on_edit)(&value, window, cx);
+        }
+    }
+}
+
+impl gpui::InputHandler for PlatformTextInput {
+    fn selected_text_range(
+        &mut self,
+        _: bool,
+        _: &mut Window,
+        cx: &mut App,
+    ) -> Option<gpui::UTF16Selection> {
+        let state = self.state.read(cx);
+        let (start, end) = state.selection().unwrap_or((state.cursor, state.cursor));
+        Some(gpui::UTF16Selection {
+            range: char_to_utf16(&state.value, start)..char_to_utf16(&state.value, end),
+            reversed: state.anchor.is_some_and(|anchor| anchor > state.cursor),
+        })
+    }
+
+    fn marked_text_range(
+        &mut self,
+        _: &mut Window,
+        cx: &mut App,
+    ) -> Option<std::ops::Range<usize>> {
+        let state = self.state.read(cx);
+        state.marked.as_ref().map(|range| {
+            char_to_utf16(&state.value, range.start)..char_to_utf16(&state.value, range.end)
+        })
+    }
+
+    fn text_for_range(
+        &mut self,
+        range: std::ops::Range<usize>,
+        actual: &mut Option<std::ops::Range<usize>>,
+        _: &mut Window,
+        cx: &mut App,
+    ) -> Option<String> {
+        let value = &self.state.read(cx).value;
+        let start = utf16_to_char(value, range.start);
+        let end = utf16_to_char(value, range.end);
+        *actual = Some(char_to_utf16(value, start)..char_to_utf16(value, end));
+        Some(
+            value
+                .chars()
+                .skip(start)
+                .take(end.saturating_sub(start))
+                .collect(),
+        )
+    }
+
+    fn replace_text_in_range(
+        &mut self,
+        range: Option<std::ops::Range<usize>>,
+        text: &str,
+        window: &mut Window,
+        cx: &mut App,
+    ) {
+        self.replace(range, text, None, window, cx);
+    }
+
+    fn replace_and_mark_text_in_range(
+        &mut self,
+        range: Option<std::ops::Range<usize>>,
+        text: &str,
+        selection: Option<std::ops::Range<usize>>,
+        window: &mut Window,
+        cx: &mut App,
+    ) {
+        self.replace(range, text, Some(selection), window, cx);
+    }
+
+    fn unmark_text(&mut self, _: &mut Window, cx: &mut App) {
+        self.state.update(cx, |state, cx| {
+            state.marked = None;
+            cx.notify();
+        });
+    }
+
+    fn set_selected_text_range(
+        &mut self,
+        range: std::ops::Range<usize>,
+        _: &mut Window,
+        cx: &mut App,
+    ) {
+        self.state.update(cx, |state, cx| {
+            state.anchor = Some(utf16_to_char(&state.value, range.start));
+            state.cursor = utf16_to_char(&state.value, range.end);
+            cx.notify();
+        });
+    }
+
+    fn text_length_utf16(&mut self, _: &mut Window, cx: &mut App) -> Option<usize> {
+        Some(self.state.read(cx).value.encode_utf16().count())
+    }
+
+    fn accepts_text_input(&mut self, _: &mut Window, cx: &mut App) -> bool {
+        let state = self.state.read(cx);
+        !state.is_read_only && state.is_successful
+    }
+
+    fn prefers_ime_for_printable_keys(&mut self, _: &mut Window, _: &mut App) -> bool {
+        true
+    }
+
+    fn element_bounds(
+        &mut self,
+        _: &mut Window,
+        _: &mut App,
+    ) -> Option<gpui::Bounds<gpui::Pixels>> {
+        Some(self.bounds)
+    }
+
+    fn bounds_for_range(
+        &mut self,
+        range: std::ops::Range<usize>,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> Option<gpui::Bounds<gpui::Pixels>> {
+        let state = self.state.read(cx);
+        let start = utf16_to_char(&state.value, range.start);
+        let end = utf16_to_char(&state.value, range.end);
+        let shown = displayed_value(state, self.input_type.masks());
+        let (line, offset, bounds) = if self.multiline {
+            let prefix: String = shown.chars().take(start).collect();
+            let paragraph = prefix.chars().filter(|&ch| ch == '\n').count();
+            let offset = prefix.rsplit('\n').next()?.chars().count();
+            (
+                shown.split('\n').nth(paragraph)?,
+                offset,
+                *self.paragraphs.read(cx).get(paragraph)?,
+            )
+        } else {
+            (shown.as_str(), start, self.bounds)
+        };
+        let size = crate::util::FIELD_TEXT;
+        let height = px(20.);
+        let run = gpui::TextRun {
+            len: line.len(),
+            font: self.font.clone(),
+            color: gpui::black(),
+            background_color: None,
+            underline: None,
+            strikethrough: None,
+        };
+        let shaped = window
+            .text_system()
+            .shape_text(
+                line.to_owned().into(),
+                size,
+                &[run],
+                self.multiline.then_some(bounds.size.width.max(px(1.))),
+                None,
+            )
+            .ok()?;
+        let shaped = shaped.first()?;
+        let left = shaped.position_for_index(char_to_byte(line, offset), height)?;
+        let right = shaped
+            .position_for_index(
+                char_to_byte(line, offset + end.saturating_sub(start)),
+                height,
+            )
+            .unwrap_or(left);
+        let y = if self.multiline {
+            bounds.top()
+        } else {
+            bounds.top() + (bounds.size.height - height) / 2.
+        };
+        Some(gpui::Bounds::new(
+            gpui::point(bounds.left() + left.x, y + left.y),
+            gpui::size(
+                if left.y == right.y {
+                    (right.x - left.x).max(px(1.))
+                } else {
+                    px(1.)
+                },
+                height,
+            ),
+        ))
+    }
+
+    fn character_index_for_point(
+        &mut self,
+        point: gpui::Point<gpui::Pixels>,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> Option<usize> {
+        let state = self.state.read(cx);
+        let shown = displayed_value(state, self.input_type.masks());
+        let offset = if self.multiline {
+            char_at_point(
+                &shown,
+                point,
+                self.paragraphs.read(cx),
+                &self.font,
+                crate::util::FIELD_TEXT,
+                px(20.),
+                window,
+            )?
+        } else {
+            char_at_x(
+                &shown,
+                point.x - self.bounds.left(),
+                &self.font,
+                crate::util::FIELD_TEXT,
+                window,
+            )
+        };
+        Some(char_to_utf16(&state.value, offset))
+    }
+}
+
 /// The character Enter inserts in a multi-line field.
 const NEWLINE: char = '\n';
 
@@ -664,6 +1045,9 @@ struct MultilineBody<'a> {
     /// The caret's element id, height and colour.
     caret: (gpui::ElementId, gpui::Pixels, gpui::Hsla),
     selection_bg: gpui::Hsla,
+    /// Where each paragraph was painted, filled in during layout so a click can
+    /// be measured against the text it actually landed on.
+    paragraphs: Entity<Vec<gpui::Bounds<gpui::Pixels>>>,
 }
 
 /// One paragraph per newline, each wrapping, with the caret and selection
@@ -691,6 +1075,30 @@ fn multiline_body(b: MultilineBody<'_>, cx: &App) -> gpui::AnyElement {
             .items_center()
             .w_full()
             .min_w_0();
+
+        // A zero-size probe at the head of the paragraph: `canvas` is the only
+        // element told its own bounds, and a click in a wrapped paragraph has
+        // to be measured against where that paragraph was actually laid out.
+        para = para.child(
+            gpui::canvas(
+                {
+                    let sink = b.paragraphs.clone();
+                    move |bounds: gpui::Bounds<gpui::Pixels>, _window, cx| {
+                        sink.update(cx, |slots, _| {
+                            if slots.len() <= i {
+                                slots.resize(i + 1, gpui::Bounds::default());
+                            }
+                            slots[i] = bounds;
+                        });
+                        bounds
+                    }
+                },
+                |_, _, _, _| {},
+            )
+            .w_full()
+            .h(px(0.))
+            .flex_shrink_0(),
+        );
 
         // The selection, clipped to this line.
         let local_sel = b.selection.and_then(|(lo, hi)| {
@@ -815,6 +1223,16 @@ pub struct Input {
     on_clear: Option<ClearCallback>,
     on_change: Option<TextCallback>,
     on_submit: Option<TextCallback>,
+    /// ComboBox popup anchor: when set, the field row (not the
+    /// label-to-error wrapper) records its bounds into `anchor` and carries
+    /// `selector` for headless probes — the way RAC's `triggerRef` reads
+    /// `groupRef.current || inputRef.current` (pinned 1.20.0
+    /// `dist/private/ComboBox.js`: "Position popover relative to group if
+    /// available, otherwise input").
+    field_anchor: Option<(
+        std::rc::Rc<std::cell::Cell<Option<gpui::Bounds<gpui::Pixels>>>>,
+        SharedString,
+    )>,
 }
 
 impl Input {
@@ -902,6 +1320,7 @@ impl Input {
             on_clear: None,
             on_change: None,
             on_submit: None,
+            field_anchor: None,
         }
     }
 
@@ -941,6 +1360,19 @@ impl Input {
     /// field's own so the opacity does not nest twice.
     pub(crate) fn group_dim(mut self, v: bool) -> Self {
         self.group_dim = v;
+        self
+    }
+
+    /// ComboBox popup anchor: records the 36px field row's bounds (not the
+    /// label-to-error wrapper) and tags that row with `selector` for headless
+    /// probes — the way RAC's `triggerRef` reads `groupRef.current ||
+    /// inputRef.current`.
+    pub(crate) fn field_anchor(
+        mut self,
+        anchor: std::rc::Rc<std::cell::Cell<Option<gpui::Bounds<gpui::Pixels>>>>,
+        selector: impl Into<SharedString>,
+    ) -> Self {
+        self.field_anchor = Some((anchor, selector.into()));
         self
     }
 
@@ -1253,13 +1685,24 @@ impl RenderOnce for Input {
             cx,
             |_, _| None::<gpui::Pixels>,
         );
+        // The same trick for a wrapped body, one entry per paragraph.
+        let paragraph_bounds = window.use_keyed_state(
+            gpui::ElementId::Name(
+                format!("input-paragraphs-{}", self.state.entity_id().as_u64()).into(),
+            ),
+            cx,
+            |_, _| Vec::<gpui::Bounds<gpui::Pixels>>::new(),
+        );
         // The font the field draws with, captured here: at event time the text
         // style stack is empty and the shaping would use the wrong face.
         let text_font = window.text_style().font();
         let disabled_opacity = cx.layout().disabled_opacity;
+        let focused = focus_handle.is_focused(window);
+        if !focused && self.state.read(cx).marked.is_some() {
+            self.state.update(cx, |state, _| state.marked = None);
+        }
         let colors = cx.colors();
         let accent = colors.accent;
-        let focused = focus_handle.is_focused(window);
         let field_focus = crate::util::FieldFocus {
             is_focused: focused,
             is_focus_within: focus_handle.contains_focused(window, cx),
@@ -1330,6 +1773,7 @@ impl RenderOnce for Input {
                     .pr(if suffix { px(0.) } else { px(12.) }),
             })
             .text_size(text)
+            .line_height(px(20.))
             .rounded(crate::util::field_radius(cx))
             .when(!self.is_disabled, |e| {
                 e.cursor(gpui::CursorStyle::IBeam)
@@ -1347,20 +1791,35 @@ impl RenderOnce for Input {
                         let font = text_font.clone();
                         let masks = self.input_type.masks();
                         let multiline = self.multiline;
+                        let paras = paragraph_bounds.clone();
+                        // Hit testing follows the text row advance, not the caret glyph height.
+                        let line_h = px(20.);
                         let size = text;
                         move |ev: &gpui::MouseDownEvent, window, cx| {
-                            window.focus(&fh);
-                            // A wrapped, multi-line body has no single line to
-                            // measure against; its caret still moves by key.
-                            if multiline {
-                                return;
-                            }
-                            let Some(left) = *origin.read(cx) else {
-                                return;
-                            };
+                            window.focus(&fh, cx);
                             let shown = displayed_value(st.read(cx), masks);
-                            let at = char_at_x(&shown, ev.position.x - left, &font, size, window);
+                            let at = if multiline {
+                                let boxes = paras.read(cx).clone();
+                                let Some(at) = char_at_point(
+                                    &shown,
+                                    ev.position,
+                                    &boxes,
+                                    &font,
+                                    size,
+                                    line_h,
+                                    window,
+                                ) else {
+                                    return;
+                                };
+                                at
+                            } else {
+                                let Some(left) = *origin.read(cx) else {
+                                    return;
+                                };
+                                char_at_x(&shown, ev.position.x - left, &font, size, window)
+                            };
                             st.update(cx, |s, cx| {
+                                s.marked = None;
                                 s.cursor = at;
                                 s.anchor = None;
                                 // A double click takes the word under the
@@ -1384,20 +1843,41 @@ impl RenderOnce for Input {
                         let font = text_font.clone();
                         let masks = self.input_type.masks();
                         let multiline = self.multiline;
+                        let paras = paragraph_bounds.clone();
+                        // The caret is drawn at 1.3x the font size; the rows a wrapped
+                        // paragraph is measured in are the same height.
+                        let line_h = text * 1.3;
                         let size = text;
                         move |ev: &gpui::MouseMoveEvent, window, cx| {
-                            if multiline || ev.pressed_button != Some(gpui::MouseButton::Left) {
+                            if ev.pressed_button != Some(gpui::MouseButton::Left) {
                                 return;
                             }
-                            let Some(left) = *origin.read(cx) else {
-                                return;
-                            };
                             let shown = displayed_value(st.read(cx), masks);
-                            let at = char_at_x(&shown, ev.position.x - left, &font, size, window);
+                            let at = if multiline {
+                                let boxes = paras.read(cx).clone();
+                                let Some(at) = char_at_point(
+                                    &shown,
+                                    ev.position,
+                                    &boxes,
+                                    &font,
+                                    size,
+                                    line_h,
+                                    window,
+                                ) else {
+                                    return;
+                                };
+                                at
+                            } else {
+                                let Some(left) = *origin.read(cx) else {
+                                    return;
+                                };
+                                char_at_x(&shown, ev.position.x - left, &font, size, window)
+                            };
                             st.update(cx, |s, cx| {
                                 if s.anchor.is_none() {
                                     s.anchor = Some(s.cursor);
                                 }
+                                s.marked = None;
                                 s.cursor = at;
                                 cx.notify();
                             });
@@ -1473,6 +1953,7 @@ impl RenderOnce for Input {
                 gpui::ElementId::Name(format!("caret-{}", self.state.entity_id().as_u64()).into());
             row = row.child(multiline_body(
                 MultilineBody {
+                    paragraphs: paragraph_bounds.clone(),
                     value: &value,
                     cursor,
                     selection,
@@ -1569,6 +2050,62 @@ impl RenderOnce for Input {
             }
         };
 
+        let edit_state = self.state.clone();
+        let on_change = self.on_change.clone();
+        let platform_native_validity = native_validity.clone();
+        let platform_error_message = edit_error_message.clone();
+        let platform_validate = edit_validate.clone();
+        let platform_validation_errors = edit_validation_errors.clone();
+        let edit_callback: TextCallback = crate::util::shared(move |value, window, cx| {
+            edit_state.update(cx, |s, _| s.clear_routed_errors());
+            refresh_stored_validity(
+                &edit_state,
+                edit_is_invalid,
+                &platform_validation_errors,
+                platform_validate.as_ref(),
+                platform_error_message.clone(),
+                &platform_native_validity,
+                cx,
+            );
+            if let Some(callback) = &on_change {
+                callback(value, window, cx);
+            }
+        });
+        let platform_state = self.state.clone();
+        let platform_edit = edit_callback.clone();
+        let platform_focus = focus_handle.clone();
+        let platform_font = text_font;
+        let platform_paragraphs = paragraph_bounds;
+        let platform_type = self.input_type;
+        let platform_max = self.max_length;
+        let platform_multiline = self.multiline;
+        let platform_disabled = self.is_disabled;
+        row = row.relative().child(
+            gpui::canvas(
+                |_, _, _| {},
+                move |bounds, _, window, cx| {
+                    if !platform_disabled {
+                        window.handle_input(
+                            &platform_focus,
+                            PlatformTextInput {
+                                state: platform_state.clone(),
+                                on_edit: platform_edit.clone(),
+                                input_type: platform_type,
+                                max_length: platform_max,
+                                multiline: platform_multiline,
+                                bounds,
+                                font: platform_font.clone(),
+                                paragraphs: platform_paragraphs.clone(),
+                            },
+                            cx,
+                        );
+                    }
+                },
+            )
+            .absolute()
+            .size_full(),
+        );
+
         field = field.children(self.start_content);
         field = field.child(row);
         // isClearable — show X when has value and not disabled/readonly
@@ -1585,9 +2122,9 @@ impl RenderOnce for Input {
             let clear_state = self.state.clone();
             let clear_on_change = self.on_change.clone();
             let on_clear = self.on_clear.clone();
-            let clear_validation_errors = edit_validation_errors.clone();
+            let clear_validation_errors = edit_validation_errors;
             let clear_validate = edit_validate.clone();
-            let clear_error_message = edit_error_message.clone();
+            let clear_error_message = edit_error_message;
             let clear_native = native_validity.clone();
             // `.search-field__clear-button` *is* a `CloseButton`, and
             // `.close-button:hover` fills `bg-default-hover` -- not a
@@ -1643,13 +2180,14 @@ impl RenderOnce for Input {
                 })
                 .on_mouse_down(gpui::MouseButton::Left, move |_, window, cx| {
                     cx.stop_propagation();
-                    window.focus(&input_focus_handle);
+                    window.focus(&input_focus_handle, cx);
                     window.prevent_default();
                 })
                 .on_click(move |_, window, cx| {
-                    window.focus(&input_focus_after_clear);
+                    window.focus(&input_focus_after_clear, cx);
                     clear_state.update(cx, |s, cx| {
                         s.value.clear();
+                        s.marked = None;
                         s.cursor = 0;
                         s.anchor = None;
                         // The clear affordance is a user modification:
@@ -1692,25 +2230,39 @@ impl RenderOnce for Input {
 
         // -- editing ----------------------------------------------------------
         let state_entity = self.state.clone();
-        let on_change = self.on_change.clone();
         let on_submit = self.on_submit.clone();
         let on_clear = self.on_clear.clone();
         let clear_on_escape = self.clear_on_escape;
         let is_read_only = self.is_read_only;
         let is_disabled = self.is_disabled;
-        let key_validation_errors = edit_validation_errors;
-        let key_validate = edit_validate.clone();
-        let key_error_message = edit_error_message;
-        let key_native = native_validity;
         field = field.on_key_down(move |ev: &KeyDownEvent, window, cx| {
             if is_disabled {
                 return;
             }
+            crate::util::set_focus_visible(true, cx);
             let key: &str = &ev.keystroke.key;
             let mods = ev.keystroke.modifiers;
+            if state_entity.read(cx).marked.is_some() && !matches!(key, "escape" | "tab") {
+                cx.stop_propagation();
+                return;
+            }
             let input_type = self.input_type;
             let max_length = self.max_length;
             let multiline = self.multiline;
+            let owns_key = (!mods.control
+                && !mods.alt
+                && !mods.platform
+                && (matches!(key, "backspace" | "delete" | "left" | "right")
+                    || multiline && matches!(key, "up" | "down" | "home" | "end" | "enter")))
+                || (mods.control || mods.platform)
+                    && !mods.alt
+                    && matches!(key, "a" | "left" | "right");
+            if owns_key {
+                cx.stop_propagation();
+            }
+            if owns_key || key == "escape" {
+                state_entity.update(cx, |state, _| state.marked = None);
+            }
             let mut changed = false;
             let mut cleared = false;
             let mut submit = false;
@@ -1833,6 +2385,7 @@ impl RenderOnce for Input {
                     // A multi-line field takes Enter as a newline, the way a
                     // `<textarea>` does; a single-line one submits.
                     "enter" if multiline => {
+                        cx.stop_propagation();
                         if is_read_only {
                             return;
                         }
@@ -1846,19 +2399,6 @@ impl RenderOnce for Input {
                         });
                     }
                     "enter" => submit = true,
-                    "space" => {
-                        if is_read_only {
-                            return;
-                        }
-                        changed = state_entity.update(cx, |s, cx| {
-                            let inserted = state_accepts(s, ' ', input_type, max_length);
-                            if inserted {
-                                insert_char(s, ' ');
-                                cx.notify();
-                            }
-                            inserted
-                        });
-                    }
                     "escape" => {
                         let had_value = !state_entity.read(cx).is_empty();
                         state_entity.update(cx, |s, cx| {
@@ -1874,57 +2414,17 @@ impl RenderOnce for Input {
                             cleared = true;
                         }
                     }
-                    single if single.chars().count() == 1 && !single.is_empty() => {
-                        if is_read_only {
-                            return;
-                        }
-                        // `keystroke.key` is the *key cap*: "a" for shift+a and
-                        // "1" for shift+1. What was typed is `key_char`, and it
-                        // is the only source that gets a capital or a shifted
-                        // symbol right -- typing "AbC dEf" used to land as
-                        // "abc def", and every shifted symbol as its digit.
-                        let typed = ev.keystroke.key_char.as_deref().unwrap_or(single);
-                        let mut chars = typed.chars();
-                        let (Some(c), None) = (chars.next(), chars.next()) else {
-                            return;
-                        };
-                        changed = state_entity.update(cx, |s, cx| {
-                            let inserted = state_accepts(s, c, input_type, max_length);
-                            if inserted {
-                                insert_char(s, c);
-                                cx.notify();
-                            }
-                            inserted
-                        });
-                    }
                     _ => {}
                 }
             }
 
             if changed {
-                // v3: server errors are "cleared when user modifies the
-                // field" — this edit suppresses only this field's routed
-                // messages, and only because the value really changed.
-                state_entity.update(cx, |s, _| s.clear_routed_errors());
-                // The stored mirror is refreshed in the same stroke: an
-                // `on_change` may submit the enclosing `Form` synchronously,
-                // and it must not be blocked by the routed error the edit
-                // just answered.
-                refresh_stored_validity(
-                    &state_entity,
-                    edit_is_invalid,
-                    &key_validation_errors,
-                    key_validate.as_ref(),
-                    key_error_message.clone(),
-                    &key_native,
-                    cx,
-                );
-                if let Some(cb) = &on_change {
-                    {
-                        let v = state_entity.read(cx).value().to_owned();
-                        cb(&v, window, cx);
-                    }
+                if mods.control || mods.platform {
+                    cx.stop_propagation();
                 }
+                state_entity.update(cx, |state, _| state.marked = None);
+                let value = state_entity.read(cx).value().to_owned();
+                edit_callback(&value, window, cx);
             }
             if cleared {
                 if let Some(cb) = &on_clear {
@@ -1949,12 +2449,28 @@ impl RenderOnce for Input {
             }
         });
 
+        // The anchor is the 36px field row itself — not the
+        // label-to-error wrapper below — the way RAC's `triggerRef` reads
+        // `groupRef.current || inputRef.current`. Wrapping here keeps the
+        // label, description, error and value rows outside the measured
+        // bounds while preserving their existing rendering order.
+        let field_element: gpui::AnyElement = if let Some((anchor, selector)) = self.field_anchor {
+            let selector_text = selector.to_string();
+            crate::popover::PopoverTriggerMeasure::new(
+                field.debug_selector(move || selector_text),
+                anchor,
+            )
+            .into_any_element()
+        } else {
+            field.into_any_element()
+        };
+
         // Inside a group the surrounding component owns the label, the
         // description and the error slot -- v3's `InputGroup.Input` is the input
         // and nothing else. Returning the wrapper here would drop a whole
         // labelled column into the group's row.
         if self.in_group.is_some() {
-            return field.into_any_element();
+            return field_element;
         }
 
         // -- wrapper with label / description / error --------------------------
@@ -1970,6 +2486,7 @@ impl RenderOnce for Input {
                 .items_center()
                 .gap(px(4.))
                 .text_size(px(14.))
+                .line_height(px(20.))
                 .font_weight(gpui::FontWeight::MEDIUM)
                 .text_color(colors.foreground)
                 .child(label.to_string());
@@ -1982,13 +2499,14 @@ impl RenderOnce for Input {
             }
             el = el.child(label_row);
         }
-        el = el.child(field);
+        el = el.child(field_element);
         if !validity.messages.is_empty() {
             // Every message, space-joined in upstream order — React Aria's
             // `FieldError` default — not just the first.
             el = el.child(
                 gpui::div()
                     .text_size(px(12.))
+                    .line_height(px(16.))
                     .text_color(colors.danger.color)
                     .child(validity.joined()),
             );
@@ -1996,6 +2514,7 @@ impl RenderOnce for Input {
             el = el.child(
                 gpui::div()
                     .text_size(px(12.))
+                    .line_height(px(16.))
                     .text_color(colors.muted)
                     .child(desc.to_string()),
             );
@@ -2485,6 +3004,224 @@ impl RenderOnce for SearchField {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[gpui::test]
+    fn platform_composition_replaces_marked_utf16_ranges(cx: &mut gpui::TestAppContext) {
+        use gpui::InputHandler;
+        let cx = cx.add_empty_window();
+        cx.update(|window, cx| {
+            let state = cx.new(|cx| InputState::with_value(cx, "a😀z"));
+            let mut handler = PlatformTextInput {
+                state: state.clone(),
+                on_edit: crate::util::shared(|_, _, _| {}),
+                input_type: InputType::Text,
+                max_length: None,
+                multiline: false,
+                bounds: gpui::Bounds::default(),
+                font: window.text_style().font(),
+                paragraphs: cx.new(|_| Vec::new()),
+            };
+            handler.set_selected_text_range(1..3, window, cx);
+            handler.replace_and_mark_text_in_range(None, "に", Some(1..1), window, cx);
+            assert_eq!(state.read(cx).value(), "aにz");
+            assert_eq!(handler.marked_text_range(window, cx), Some(1..2));
+            handler.replace_and_mark_text_in_range(None, "日本😀", Some(2..4), window, cx);
+            assert_eq!(state.read(cx).value(), "a日本😀z");
+            assert_eq!(handler.marked_text_range(window, cx), Some(1..5));
+            assert_eq!(
+                handler
+                    .selected_text_range(false, window, cx)
+                    .unwrap()
+                    .range,
+                3..5
+            );
+            let mut actual = None;
+            assert_eq!(
+                handler
+                    .text_for_range(3..5, &mut actual, window, cx)
+                    .as_deref(),
+                Some("😀")
+            );
+            assert_eq!(actual, Some(3..5));
+            handler.replace_text_in_range(None, "東京", window, cx);
+            assert_eq!(state.read(cx).value(), "a東京z");
+            assert_eq!(handler.marked_text_range(window, cx), None);
+            assert_eq!(
+                handler
+                    .selected_text_range(false, window, cx)
+                    .unwrap()
+                    .range,
+                3..3
+            );
+            handler.replace_text_in_range(Some(1..3), "", window, cx);
+            assert_eq!(state.read(cx).value(), "az");
+        });
+    }
+
+    #[gpui::test]
+    fn platform_edits_preserve_filters_and_read_only_state(cx: &mut gpui::TestAppContext) {
+        use gpui::InputHandler;
+        let cx = cx.add_empty_window();
+        cx.update(|window, cx| {
+            let state = cx.new(|cx| InputState::with_value(cx, "12"));
+            let changes = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
+            let recorded = changes.clone();
+            let mut handler = PlatformTextInput {
+                state: state.clone(),
+                on_edit: crate::util::shared(move |value, _, _| {
+                    recorded.borrow_mut().push(value.to_owned());
+                }),
+                input_type: InputType::Number,
+                max_length: Some(3),
+                multiline: false,
+                bounds: gpui::Bounds::default(),
+                font: window.text_style().font(),
+                paragraphs: cx.new(|_| Vec::new()),
+            };
+            handler.set_selected_text_range(0..2, window, cx);
+            handler.replace_text_in_range(None, "abc", window, cx);
+            assert_eq!(state.read(cx).value(), "12");
+            assert_eq!(
+                handler
+                    .selected_text_range(false, window, cx)
+                    .unwrap()
+                    .range,
+                0..2
+            );
+            handler.replace_text_in_range(None, "3x456", window, cx);
+            assert_eq!(state.read(cx).value(), "345");
+            assert_eq!(changes.borrow().as_slice(), ["345"]);
+            state.update(cx, |state, _| state.set_read_only(true));
+            handler.replace_text_in_range(Some(0..3), "7", window, cx);
+            assert_eq!(state.read(cx).value(), "345");
+            assert_eq!(changes.borrow().as_slice(), ["345"]);
+            assert!(!handler.accepts_text_input(window, cx));
+        });
+    }
+
+    #[gpui::test]
+    fn platform_geometry_uses_rendered_row_spacing_and_password_offsets(
+        cx: &mut gpui::TestAppContext,
+    ) {
+        use gpui::InputHandler;
+        let cx = cx.add_empty_window();
+        cx.update(|window, cx| {
+            let state = cx.new(|cx| InputState::with_value(cx, "😀secret"));
+            let origin = gpui::point(px(30.), px(70.));
+            let bounds = gpui::Bounds::new(origin, gpui::size(px(80.), px(20.)));
+            let mut handler = PlatformTextInput {
+                state: state.clone(),
+                on_edit: crate::util::shared(|_, _, _| {}),
+                input_type: InputType::Password,
+                max_length: None,
+                multiline: false,
+                bounds,
+                font: window.text_style().font(),
+                paragraphs: cx.new(|_| vec![bounds]),
+            };
+            let caret = handler.bounds_for_range(2..2, window, cx).unwrap();
+            assert!(caret.left() > origin.x);
+            assert_eq!(caret.top(), origin.y);
+            assert_eq!(
+                handler.character_index_for_point(caret.origin, window, cx),
+                Some(2)
+            );
+            state.update(cx, |state, _| state.set_value(""));
+            assert_eq!(
+                handler.bounds_for_range(0..0, window, cx).unwrap().origin,
+                origin
+            );
+            state.update(cx, |state, _| {
+                state.set_value("one two three four five six seven eight nine ten");
+            });
+            handler.input_type = InputType::Text;
+            handler.multiline = true;
+            let text = state.read(cx).value.clone();
+            let run = gpui::TextRun {
+                len: text.len(),
+                font: handler.font.clone(),
+                color: gpui::black(),
+                background_color: None,
+                underline: None,
+                strikethrough: None,
+            };
+            let shaped = window
+                .text_system()
+                .shape_text(
+                    text.clone().into(),
+                    crate::util::FIELD_TEXT,
+                    &[run],
+                    Some(bounds.size.width),
+                    None,
+                )
+                .unwrap();
+            let third_row = (0..text.len())
+                .find(|&index| {
+                    shaped[0]
+                        .position_for_index(index, px(20.))
+                        .is_some_and(|point| point.y == px(40.))
+                })
+                .expect("fixture must wrap into at least three rows");
+            let caret = handler
+                .bounds_for_range(third_row..third_row, window, cx)
+                .unwrap();
+            assert_eq!(caret.top(), origin.y + px(40.));
+            assert_eq!(caret.size.height, px(20.));
+        });
+    }
+
+    #[gpui::test]
+    fn composition_enter_does_not_submit_or_insert_a_newline(cx: &mut gpui::TestAppContext) {
+        struct View {
+            state: Entity<InputState>,
+            submitted: std::rc::Rc<std::cell::Cell<usize>>,
+            multiline: bool,
+        }
+        impl Render for View {
+            fn render(&mut self, _: &mut Window, _: &mut Context<'_, Self>) -> impl IntoElement {
+                let submitted = self.submitted.clone();
+                Input::new(self.state.clone())
+                    .multiline(self.multiline)
+                    .on_submit(move |_, _, _| {
+                        submitted.set(submitted.get() + 1);
+                    })
+            }
+        }
+        cx.update(herogpui_theme::ThemeProvider::init);
+        for multiline in [false, true] {
+            let state = cx.new(|cx| InputState::with_value(cx, "ab日本z"));
+            let submitted = std::rc::Rc::new(std::cell::Cell::new(0));
+            let window = cx.add_window(|window, cx| {
+                let focus = state.read(cx).focus_handle.clone();
+                window.focus(&focus, cx);
+                View {
+                    state: state.clone(),
+                    submitted: submitted.clone(),
+                    multiline,
+                }
+            });
+            let mut visual = gpui::VisualTestContext::from_window(window.into(), cx);
+            visual.update(|window, cx| {
+                state.update(cx, |state, cx| {
+                    state.marked = Some(2..4);
+                    state.cursor = 4;
+                    cx.notify();
+                });
+                window.refresh();
+            });
+            visual.simulate_keystrokes("enter");
+            assert_eq!(submitted.get(), 0);
+            assert_eq!(
+                state.read_with(&visual, |state, _| state.value.clone()),
+                "ab日本z"
+            );
+            visual.simulate_keystrokes("escape");
+            assert_eq!(
+                state.read_with(&visual, |state, _| state.marked.clone()),
+                None
+            );
+        }
+    }
 
     fn check(
         value: &str,

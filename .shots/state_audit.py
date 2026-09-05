@@ -38,7 +38,12 @@ import sys
 sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 
 CSS = os.path.join(os.environ.get('TEMP', '/tmp'), 'heroui-css')
-BUNDLE = os.path.join(os.environ.get('TEMP', '/tmp'), 'heroui-full.txt')
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from bundle import resolve as _resolve_bundle
+
+# The pinned v3.2.4 bundle. See .shots/bundle.py: reading upstream live would
+# measure this port against whatever HeroUI shipped most recently.
+BUNDLE = _resolve_bundle()
 SRC = 'crates/herogpui-components/src/'
 
 # Which module implements each stylesheet. A component split across files in v3
@@ -254,11 +259,6 @@ PROSE_WONT_DO = {
     ('Popover', 'focus'): 'panel-holds-focus',
     # No prop can disable a table, so nothing can put it in that state.
     ('Table', 'disabled'): 'no-disabled-prop',
-    # v3's pressed rule is on `.checkbox__control` and only for the
-    # indeterminate box, whose fill it takes to `bg-accent-hover`. gpui needs a
-    # stateful element for `.active`, and the box is a plain div drawn inside a
-    # row that already carries the id -- a second id there would collide with it.
-    ('Checkbox', 'pressed'): 'no-id-to-press',
 }
 
 # A state drawn by a component this one composes.
@@ -318,8 +318,7 @@ PROSE_MODULE = {
 
 def prose_states():
     """`{page: [normalised state, ...]}` from each page's Interactive States."""
-    if not os.path.exists(BUNDLE):
-        return {}
+    # No silent zero: an unreadable bundle is a broken audit, not a clean one.
     text = io.open(BUNDLE, encoding='utf-8', errors='replace').read()
     out, page = {}, None
     for m in re.finditer(r'^(#|###) (.+?)[ \t]*$', text, re.M):

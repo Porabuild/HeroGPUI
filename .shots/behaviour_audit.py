@@ -26,10 +26,13 @@ import sys
 
 sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 
-BUNDLE = os.environ.get(
-    'HEROUI_BUNDLE',
-    os.path.join(os.environ.get('TEMP', '/tmp'), 'heroui-full.txt'),
-)
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from bundle import resolve as _resolve_bundle
+from design_audit import mask_literals, strip_cfg_test
+
+# The pinned v3.2.4 bundle. See .shots/bundle.py: reading upstream live would
+# measure this port against whatever HeroUI shipped most recently.
+BUNDLE = _resolve_bundle()
 SRC = 'crates/herogpui-components/src/'
 
 # What the prose says -> the behaviour it claims. Ordered, and every pattern is
@@ -283,6 +286,8 @@ RESIZE_BOUNDS = ('Table',)
 # those inherited keys.
 RESIZE_KEYS = ('Table',)
 
+RESIZE_KEYS_EVIDENCE = '<structured resize-key handler>'
+
 # `Table.LoadMore` is an end-of-collection sentinel. HeroUI documents the
 # visibility trigger in the composed part's prop table and Async Loading
 # example rather than under Accessibility, so this inherited behavior is a
@@ -478,8 +483,8 @@ EVIDENCE = {
     # the ends must be known before stepping.
     ('Toolbar', 'toolbar-end-stops'): (
         'toolbar.rs',
-        r'(?s)window\.focus_next\(\);\s*\n\s*let first_stop = window\.focused\(cx\);'
-        r'.*?window\.focus_prev\(\);\s*\n\s*let last_stop = window\.focused\(cx\);'
+        r'(?s)window\.focus_next\([^)]*\);\s*\n\s*let first_stop = window\.focused\(cx\);'
+        r'.*?window\.focus_prev\([^)]*\);\s*\n\s*let last_stop = window\.focused\(cx\);'
         r'.*?at_end',
     ),
     # Tab leaves the entire toolbar in one press, backwards with Shift: the
@@ -496,7 +501,7 @@ EVIDENCE = {
     ('Toolbar', 'toolbar-focus-restore'): (
         'toolbar.rs',
         r'(?s)(?=.*if let Some\(last\) = next\.last_focused\.take\(\))'
-        r'(?=.*window\.focus\(&last\);)'
+        r'(?=.*window\.focus\(&last[^)]*\);)'
         r'(?=.*next\.last_focused = next\.child\.take\(\))',
     ),
     # A nested toolbar binds no management of its own: pinned's
@@ -559,9 +564,31 @@ EVIDENCE = {
     ),
     ('NumberField', 'spin-keys'): ('number_field.rs', r'"up" \| "pageup"'),
     ('Table', 'table-page-down'): ('table.rs', r'"pagedown" => stops\.last\(\)\.copied\(\)'),
+    # PageUp leaves the body for the header rather than stopping at the first
+    # row, which needs the header focusable whether or not it sorts. Plain
+    # tables always leave; virtual tables page by viewport mid-list and only
+    # leave when the upward page move has nowhere to go (`at_top`: the cursor
+    # is already the first enabled stop or the computed page target equals it).
+    ('Table', 'table-page-up-header'): (
+        'table.rs',
+        r'(?s)(?=.*if plain_rows && key_name == "pageup")'
+        r'(?=.*else if !plain_rows && key_name == "pageup")'
+        r'(?=.*let at_top = match from)'
+        r'(?=.*window\.focus\(header[^)]*\))'
+        r'(?=.*let header_focus: Vec<gpui::FocusHandle>)',
+    ),
+    # Pinned `ListKeyboardDelegate` pages by one visible rectangle: the uniform
+    # path (`fixed_page_move` from the configured `fixed_row_height`) must read
+    # the virtual list's own laid-out viewport (`base_handle.bounds()` height,
+    # never the configured `max_h` cap / fixed 400px ruler), while the variable
+    # (`variable_page_move`) and plain (`plain_page_move`) paths stay wired to
+    # the PageUp/PageDown keys. The negative lookahead fails the file if the
+    # capped `fixed_page_step` ruler ever returns.
     ('ListBox', 'listbox-paging'): (
         'list_box.rs',
-        r'(?s)\A(?=.*fixed_page_step)(?=.*variable_page_move)(?=.*plain_page_move)'
+        r'(?s)\A(?!.*fixed_page_step)(?=.*fixed_page_move)(?=.*fixed_row_height)'
+        r'(?=.*base_handle\.bounds\(\)\.size\.height)'
+        r'(?=.*variable_page_move)(?=.*plain_page_move)'
         r'(?=.*"pagedown")(?=.*"pageup")',
     ),
     # The cursor-gated enabled-end mapping is required, and the discarded
@@ -596,15 +623,18 @@ EVIDENCE = {
     # The load-bearing shape in the opposite direction from Select/ComboBox/
     # Dropdown's: Autocomplete's list element is itself the scroller, so the
     # required lookaheads demand the cursor gate (`page_move = from.and_then`)
-    # and the real geometry -- the fixed whole-row step for a `rowHeight`
-    # list and the laid-out `bounds_for_item` rect walk for the default rows
-    # -- while the negative lookaheads fail the file if the cursor-gated
-    # enabled-end mapping ever returns.
+    # and the real measured geometry -- whole-row steps across the actual
+    # laid-out `UniformListScrollHandle` viewport (`base_handle.bounds()` height,
+    # never a fixed 320px ruler) for a `rowHeight` list and the laid-out
+    # `bounds_for_item` rect walk to a viewport-sized boundary for the default
+    # rows, taking the enabled end only when the walk runs out -- while the
+    # negative lookaheads fail the file if the cursor-gated enabled-end
+    # end-jump mapping ever returns.
     ('Autocomplete', 'autocomplete-paging'): (
         'autocomplete.rs',
         r'(?s)\A(?!.*"pagedown" if from\.is_some\(\) => stops\.last\(\))'
         r'(?!.*"pageup" if from\.is_some\(\) => stops\.first\(\))'
-        r'(?=.*page_move = from\.and_then)(?=.*fixed_page_step)'
+        r'(?=.*page_move = from\.and_then)(?=.*base_handle\.bounds\(\)\.size\.height)'
         r'(?=.*bounds_for_item)',
     ),
     ('Dropdown', 'popup-paging'): (
@@ -645,7 +675,12 @@ EVIDENCE = {
     ),
     ('Input', 'text-keys'): ('input.rs', r'fn word_target'),
     ('TextArea', 'text-keys'): ('input.rs', r'fn vertical_target'),
-    ('TextField', 'text-keys'): ('input.rs', r'key_char'),
+    ('TextField', 'text-keys'): (
+        'input.rs',
+        r'(?s)(?=.*impl gpui::InputHandler for PlatformTextInput)'
+        r'(?=.*fn replace_text_in_range\([^}]*?self\.replace\()'
+        r'(?=.*window\.handle_input\(\s*&platform_focus,\s*PlatformTextInput)',
+    ),
     # The whole native submission contract on one shared implementation: the
     # button door (`submit_handler`) and the Enter door (the form root's key
     # handler) both route through `run_submission`, and the Enter door fires
@@ -735,7 +770,10 @@ EVIDENCE = {
     # slot — and refresh the same mirror — through their own modules.)
     ('Form', 'server-errors-suppress'): (
         'input.rs',
-        r'(?s)if changed \{(?:(?!if let Some\(cb\)).){0,400}?clear_routed_errors\(\)',
+        r'(?s)(?=.*let edit_callback: TextCallback = crate::util::shared\('
+        r'.{0,200}?clear_routed_errors\(\).{0,100}?refresh_stored_validity\()'
+        r'(?=.*if changed \{\s*let value = self\.state.{0,100}?\(self\.on_edit\))'
+        r'(?=.*if changed \{(?:(?!if cleared).){0,500}?edit_callback\(&value, window, cx\))',
     ),
     # Reset hides the routed errors without rewinding the field's delivery
     # receipt — the record that delivered already named the field, so a
@@ -759,6 +797,13 @@ EVIDENCE = {
     # kept by Clone, with PartialEq comparing content only.
     ('Form', 'server-errors-record'): ('validation.rs', RECORD_IDENTITY),
     ('Dropdown', 'focus-return'): ('dropdown.rs', r'back_to_trigger'),
+    # The three dialogs cannot reach the caller's trigger, and do not need to:
+    # `Window::focused` names whatever held the focus when the dialog claimed
+    # it, and `release_dialog_focus` hands it back from the one place every
+    # close path passes through.
+    ('Modal', 'focus-return'): ('modal.rs', r'release_dialog_focus'),
+    ('Drawer', 'focus-return'): ('drawer.rs', r'release_dialog_focus'),
+    ('AlertDialog', 'focus-return'): ('alert_dialog.rs', r'release_dialog_focus'),
     # The panel itself claims the focus, only when nothing inside already holds
     # it -- a click on the trigger leaves the ring where the user put it, while
     # a controlled open, which focuses nothing, still gets a panel the keyboard
@@ -776,23 +821,18 @@ EVIDENCE = {
     # query field takes the focus as the popover opens -- once per opening, or
     # it would steal the focus back on every frame (a controlled caller typing
     # elsewhere would be robbed of the field).
-    ('Autocomplete', 'panel-focus'): ('autocomplete.rs', r'window\.focus\(&search_focus\)'),
+    ('Autocomplete', 'panel-focus'): ('autocomplete.rs', r'window\.focus\(&search_focus[^)]*\)'),
     # The dialogs claim the focus on open the same way the popover does: Escape
     # has to reach the overlay, and a key event only travels to the focused
-    # element and its ancestors. The gate is what stops the claim from stealing
-    # focus from a field inside the dialog. Shared by all three so they cannot
-    # spell it differently.
-    ('Modal', 'panel-focus'): (
-        'modal.rs',
-        r'if !focus_handle\.contains_focused\(window, cx\)\s*\{\s*window\.focus\(&focus_handle\);\s*\}',
-    ),
-    ('Drawer', 'panel-focus'): (
-        'drawer.rs',
-        r'if !focus_handle\.contains_focused\(window, cx\)\s*\{\s*window\.focus\(&focus_handle\);\s*\}',
-    ),
+    # element and its ancestors. The gate that stops the claim from stealing
+    # focus from a field inside the dialog lives in `claim_dialog_focus`, which
+    # also parks the handle the close hands the focus back to. Shared by all
+    # three so they cannot spell it differently.
+    ('Modal', 'panel-focus'): ('modal.rs', r'claim_dialog_focus\(&self\.id, &focus_handle'),
+    ('Drawer', 'panel-focus'): ('drawer.rs', r'claim_dialog_focus\(&self\.id, &focus_handle'),
     ('AlertDialog', 'panel-focus'): (
         'alert_dialog.rs',
-        r'if !focus_handle\.contains_focused\(window, cx\)\s*\{\s*window\.focus\(&focus_handle\);\s*\}',
+        r'claim_dialog_focus\(&self\.id, &focus_handle',
     ),
     # A picker moves the focus into the open calendar, so the grid answers the
     # arrows without the user having to find its tab stop first.
@@ -813,7 +853,9 @@ EVIDENCE = {
     ('Autocomplete', 'scroll-into-view'): ('autocomplete.rs', r'scroll_to_item'),
     ('ListBox', 'scroll-into-view'): ('list_box.rs', r'scroll_to_item'),
     ('Dropdown', 'scroll-into-view'): ('dropdown.rs', r'scroll_to_item'),
-    ('Table', 'sort-keys'): ('table.rs', r'sort_focus'),
+    # A sortable header is a tab stop so gpui fires its click listeners for
+    # Enter and Space; a plain one is focusable but not a stop.
+    ('Table', 'sort-keys'): ('table.rs', r'crate::util::tab_stop_handle\(id, window, cx\)'),
     ('Table', 'tree-keys'): (
         'table.rs',
         r'(?s)tree_rows\.get\(index\).*?key_name == "right"'
@@ -1006,11 +1048,11 @@ EVIDENCE = {
         'tag_group.rs',
         r'(?s)\A(?=.*if window\.default_prevented\(\) \{\s*\n\s*return;)'
         r'(?=.*on_mouse_down\(gpui::MouseButton::Left, move \|_, window, cx\| \{)'
-        r'(?=.*window\.focus\(&focus_for_seat\);)'
+        r'(?=.*window\.focus\(&focus_for_seat[^)]*\);)'
         r'(?=.*window\.prevent_default\(\);)'
         r'(?=.*on_mouse_down\(gpui::MouseButton::Left, \|_, _, cx\| \{\s*\n\s*cx\.stop_propagation\(\);)'
         r'(?=.*on_remove\(&HashSet::from\(\[key\.clone\(\)\]\), window, cx\);)'
-        r'(?=.*window\.focus\(&focus_for_remove\);)'
+        r'(?=.*window\.focus\(&focus_for_remove[^)]*\);)'
         r'(?=.*cursor_for_remove\.update\(cx, \|v, cx\| \{\s*\n\s*\*v = index;)',
     ),
     ('Table', 'resize-bounds'): (
@@ -1019,15 +1061,7 @@ EVIDENCE = {
     ),
     ('Table', 'resize-keys'): (
         'table.rs',
-        r'(?s)keyboard-resizing.*?on_mouse_down_out.*?== Some\(column_index\)'
-        r'.*?\*active = None.*?"enter" =>.*?\*active = if editing \{ None \}'
-        r' else \{ Some\(column_index\) \}.*?stop_propagation\(\)'
-        r'.*?"escape" \| "space" if editing =>.*?\*active = None'
-        r'.*?stop_propagation\(\).*?"tab" if editing =>.*?\*active = None'
-        r'.*?stop_propagation\(\).*?"right" \| "up" \| "left" \| "down" if editing'
-        r'.*?matches!\(key, "right" \| "up"\).*?10\..*?-10\.'
-        r'.*?floor\(\).*?\.min\(max_width\).*?\.max\(min_width\)'
-        r'.*?stop_propagation\(\)',
+        RESIZE_KEYS_EVIDENCE,
     ),
     ('ComboBox', 'custom-value-multiple'): (
         'combo_box.rs',
@@ -1051,7 +1085,7 @@ EVIDENCE = {
         r'(?s)\A(?=.*Multiple mode toggles membership)(?=.*if multiple)'
         r'(?=.*selection_own\.clone\(\))(?=.*row_state\.clone\(\))'
         r'(?=.*cursor_for\(&rows, index, Some\(String::new\(\)\)\))'
-        r'(?=.*on_click)(?=.*focus_handle\.focus\(window\))'
+        r'(?=.*on_click)(?=.*focus_handle\.focus\(window[^)]*\))'
         r'(?=.*set_value\(String::new\(\)\))'
         r'(?=.*cursor\.update[^;]*Some\(next_cursor\.clone\(\)\))'
         r'(?=.*toggle_key\(&mut next, &value\))'
@@ -1112,21 +1146,6 @@ WONT_DO = {
     # Tab order is the platform's, and gpui walks the focusable elements in tree
     # order without being told to.
     ('Pagination', 'tab-order'): 'platform-tab-order',
-    # A wrapped line has no position gpui reports: `shape_line` measures one
-    # line, and a paragraph in a text area is laid out by the text system into
-    # as many as it needs. The caret still moves by key, including up and down.
-    ('TextArea', 'pointer-caret'): 'no-wrapped-line-metrics',
-    # A dialog claims the focus on open and has nothing to give it back to: the
-    # trigger is the caller's element, rendered outside the component, and gpui
-    # gives a child no way to reach it. The caller can restore it.
-    ('Modal', 'focus-return'): 'no-handle-for-callers-trigger',
-    ('Drawer', 'focus-return'): 'no-handle-for-callers-trigger',
-    ('AlertDialog', 'focus-return'): 'no-handle-for-callers-trigger',
-    # Pinned TableKeyboardDelegate lets PageUp leave the body for the first
-    # column header. This port models sortable headers and the body as separate
-    # tab stops, so it falls back to the first enabled row until it has one
-    # roving grid focus model across both regions.
-    ('Table', 'table-page-up-header'): 'missing-header-body-focus-model',
 }
 
 
@@ -1144,12 +1163,141 @@ def accessibility_sections():
     return out
 
 
+def table_resize_keys_evidence(source):
+    """Require lifecycle evidence inside each owning resizer handler/arm."""
+    try:
+        resize = source.split('keyboard-resizing', 1)[1]
+        outside_and_keys = resize.split('.on_mouse_down_out(', 1)[1]
+        outside, keys = outside_and_keys.split('.on_key_down(', 1)
+        arms = keys.split('match key {', 1)[1]
+        enter_and_rest = arms.split('"enter" => {', 1)[1]
+        enter, finish_and_rest = enter_and_rest.split(
+            '"escape" | "space" | "tab" if editing => {', 1)
+        finish, arrows_and_rest = finish_and_rest.split(
+            '"right" | "up" | "left" | "down" if editing => {', 1)
+        arrows, _ = arrows_and_rest.split('_ => {}', 1)
+    except (IndexError, ValueError):
+        return False
+
+    return all((
+        re.search(
+            r'(?s)keyboard_out\.read\(cx\) == Some\(column_index\).*?'
+            r'\*active = None.*?clear_controlled_resize_proposal.*?'
+            r'if let Some\(callback\) = &resize_end_for_outside',
+            outside,
+        ),
+        re.search(
+            r'(?s)if editing \{.*?\*active = None.*?'
+            r'clear_controlled_resize_proposal.*?'
+            r'if let Some\(callback\) = &resize_end_for_keys.*?\} else \{.*?'
+            r'\*active = Some\(column_index\).*?'
+            r'if let Some\(callback\) = &resize_start_for_keys.*?'
+            r'cx\.stop_propagation\(\)',
+            enter,
+        ),
+        re.search(
+            r'(?s)\*active = None.*?clear_controlled_resize_proposal.*?'
+            r'if let Some\(callback\) = &resize_end_for_keys.*?'
+            r'cx\.stop_propagation\(\)',
+            finish,
+        ),
+        re.search(
+            r'(?s)matches!\(key, "right" \| "up"\).*?10\..*?-10\..*?'
+            r'floor\(\).*?\.min\(max_width\).*?\.max\(min_width\).*?'
+            r'if let Some\(callback\) = &resize_for_keys.*?'
+            r'cx\.stop_propagation\(\)',
+            arrows,
+        ),
+    ))
+
+
+def evidence_matches(key, evidence, source):
+    if key == ('Table', 'resize-keys'):
+        return table_resize_keys_evidence(source)
+    if key in {('TextField', 'text-keys'), ('Form', 'server-errors-suppress')}:
+        source = mask_literals(strip_cfg_test(source))
+    return re.search(evidence, source)
+
+
 def main():
     sections = accessibility_sections()
     sources = {}
     claimed = implemented = excused = 0
     missing, unmapped = [], []
     by_reason = {}
+
+    input_source = io.open(SRC + 'input.rs', encoding='utf-8').read()
+    for key, token in (
+        (('TextField', 'text-keys'), 'window.handle_input('),
+        (('Form', 'server-errors-suppress'), 'edit_state.update(cx, |s, _| s.clear_routed_errors());'),
+    ):
+        pattern = EVIDENCE[key][1]
+        if token not in input_source:
+            print('AUDIT READER ERROR: input self-test cannot find %s' % token)
+            return 1
+        start = input_source.index(token)
+        end = input_source.index(');', start) + 2
+        statement = input_source[start:end]
+        for label, mutant in (
+            ('commented statement', input_source[:start] + '/*' + statement + '*/' + input_source[end:]),
+            ('test-only implementation', '#[cfg(test)]\nmod fixture {\n' + input_source + '\n}'),
+        ):
+            if evidence_matches(key, pattern, mutant):
+                print('AUDIT READER ERROR: %s accepts %s' % (key, label))
+                return 1
+
+    table_source = io.open(SRC + 'table.rs', encoding='utf-8', errors='replace').read()
+    for label, token, replacement in (
+        ('outside-click exit', '.on_mouse_down_out(', 'REMOVED_RESIZE_EVIDENCE'),
+        (
+            'combined exit keys',
+            '"escape" | "space" | "tab" if editing',
+            'REMOVED_RESIZE_EVIDENCE',
+        ),
+        (
+            'resize start callback',
+            'if let Some(callback) = &resize_start_for_keys',
+            'REMOVED_RESIZE_EVIDENCE',
+        ),
+        (
+            'resize callback',
+            'if let Some(callback) = &resize_for_keys',
+            'REMOVED_RESIZE_EVIDENCE',
+        ),
+        (
+            'resize end callback',
+            'if let Some(callback) = &resize_end_for_keys',
+            'REMOVED_RESIZE_EVIDENCE',
+        ),
+        (
+            'Enter propagation stop',
+            'cx.stop_propagation();\n                                    }\n'
+            '                                    "escape" | "space" | "tab" if editing',
+            'REMOVED_RESIZE_EVIDENCE;\n                                    }\n'
+            '                                    "escape" | "space" | "tab" if editing',
+        ),
+        (
+            'exit-key propagation stop',
+            'cx.stop_propagation();\n                                    }\n'
+            '                                    "right" | "up" | "left" | "down" if editing',
+            'REMOVED_RESIZE_EVIDENCE;\n                                    }\n'
+            '                                    "right" | "up" | "left" | "down" if editing',
+        ),
+        (
+            'arrow propagation stop',
+            'cx.stop_propagation();\n                                    }\n'
+            '                                    _ => {}',
+            'REMOVED_RESIZE_EVIDENCE;\n                                    }\n'
+            '                                    _ => {}',
+        ),
+    ):
+        if token not in table_source:
+            print('AUDIT READER ERROR: Table.resize-keys self-test cannot find %s' % label)
+            return 1
+        mutant = table_source.replace(token, replacement, 1)
+        if table_resize_keys_evidence(mutant):
+            print('AUDIT READER ERROR: Table.resize-keys does not require %s' % label)
+            return 1
 
     for page in SUCCESSFUL_FORM_CONTROLS:
         key = (page, 'disabled-form-omission')
@@ -1239,7 +1387,7 @@ def main():
                 path = SRC + module
                 sources[module] = (io.open(path, encoding='utf-8', errors='replace').read()
                                    if os.path.exists(path) else '')
-            if re.search(evidence, sources[module]):
+            if evidence_matches(key, evidence, sources[module]):
                 implemented += 1
             else:
                 missing.append('%-14s %-14s %s: /%s/' % (page, claim, module, evidence))
@@ -1252,7 +1400,7 @@ def main():
             path = SRC + module
             sources[module] = (io.open(path, encoding='utf-8', errors='replace').read()
                                if os.path.exists(path) else '')
-        if re.search(evidence, sources[module]):
+        if evidence_matches(key, evidence, sources[module]):
             implemented += 1
         else:
             missing.append('%-14s %-14s %s: /%s/' % (page, 'activation', module, evidence))
@@ -1278,7 +1426,7 @@ def main():
                 path = SRC + module
                 sources[module] = (io.open(path, encoding='utf-8', errors='replace').read()
                                    if os.path.exists(path) else '')
-            if re.search(evidence, sources[module]):
+            if evidence_matches(key, evidence, sources[module]):
                 implemented += 1
             else:
                 missing.append('%-14s %-14s %s: /%s/' % (page, claim, module, evidence))

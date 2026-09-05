@@ -116,21 +116,28 @@ impl RenderOnce for Spinner {
             other => cx.role(other).color,
         });
 
-        svg()
+        let spinner = svg()
             .size(self.size.px())
+            .flex_shrink_0()
             .path(icons::SPINNER)
-            .text_color(color)
-            .with_animation(
-                self.id,
-                Animation::new(Duration::from_millis(self.duration_ms)).repeat(),
-                |svg, delta| {
-                    let t = if delta.is_finite() {
-                        delta.clamp(0.0, 1.0)
-                    } else {
-                        0.0
-                    };
-                    svg.with_transformation(gpui::Transformation::rotate(gpui::percentage(t)))
-                },
-            )
+            .text_color(color);
+        if ActiveTheme::reduce_motion(cx) {
+            spinner.into_any_element()
+        } else {
+            spinner
+                .with_animation(
+                    self.id,
+                    Animation::new(Duration::from_millis(self.duration_ms)).repeat(),
+                    |svg, delta| {
+                        let t = if delta.is_finite() {
+                            delta.clamp(0.0, 1.0)
+                        } else {
+                            0.0
+                        };
+                        svg.with_transformation(gpui::Transformation::rotate(gpui::percentage(t)))
+                    },
+                )
+                .into_any_element()
+        }
     }
 }

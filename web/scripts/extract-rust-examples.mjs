@@ -4,7 +4,7 @@
 // Source: gallery/src/pages/components.rs. Every component page is built by
 // the `component_doc_page!` macro:
 //
-//   component_doc_page!("Title", <desc>, <import>, vec![("Heading", expr), …], cx)
+//   component_doc_page!("Title", <desc>, <import>, vec![("Heading", [<desc>,] expr), …], cx)
 //
 // The macro stringifies each section expression for display, so the raw
 // source text of the expression *is* the example code. Expressions nest
@@ -133,7 +133,7 @@ function skipExpr(src, i) {
 /// Parse one `component_doc_page!` invocation whose `component_doc_page` token
 /// starts at `i`. Returns { title, sections: [{ heading, code }], end } on
 /// success, or { error, end } with end = -1 when the page cannot be parsed.
-function parseInvocation(src, i) {
+export function parseInvocation(src, i) {
   let skipped = 0;
   let j = skipTrivia(src, i + "component_doc_page".length);
   if (src[j] !== "!" || src[j + 1] !== "(") {
@@ -178,24 +178,26 @@ function parseInvocation(src, i) {
     const tuple = scanGroup(src, j);
     if (!tuple) return { error: "unbalanced section tuple", end: -1 };
 
-    // ("Heading", expr)
-    let k = skipTrivia(src, j + 1);
-    const heading = readStringLiteral(src, k);
+    // ("Heading", expr) or ("Heading", "Description", expr)
+    const parts = splitTopLevelCommas(src, j + 1, tuple.end - 1);
+    const heading = parts[0] ? readStringLiteral(src, parts[0].start) : null;
     if (heading) {
-      k = skipTrivia(src, heading.end);
-      if (src[k] !== ",") {
-        return { error: "expected `,` after section heading", end: -1 };
+      if (parts.length !== 2 && parts.length !== 3) {
+        return {
+          error: "section tuple must contain a heading, optional description, and body",
+          end: -1,
+        };
       }
-      const exprStart = skipTrivia(src, k + 1);
-      // The expression runs to the tuple's closing paren (tuple.end - 1).
-      const exprEnd = tuple.end - 1;
-      // The macro allows a trailing comma inside the tuple
-      // (`($heading, $body $(,)?)`); it is separator syntax, not code.
-      let code = src.slice(exprStart, exprEnd).trim();
-      if (code.endsWith(",")) code = code.slice(0, -1).trimEnd();
+      const description = parts.length === 3 ? readStringLiteral(src, parts[1].start) : null;
+      if (parts.length === 3 && !description) {
+        return { error: "section description is not a string literal", end: -1 };
+      }
+      const expression = parts.at(-1);
+      const exprStart = expression.start;
       sections.push({
         heading: heading.value,
-        code,
+        description: description?.value,
+        code: src.slice(expression.start, expression.end).trim(),
         baseIndent: sourceLineIndent(src, exprStart),
       });
     } else {
@@ -232,6 +234,70 @@ function isBalanced(code) {
     i += 1;
   }
   return stack.length === 0;
+}
+
+/// Lift the first static, top-level gallery paragraph into section copy.
+/// Paragraphs nested in a component builder (for example Card content) and
+/// dynamic status output remain part of the example expression.
+export function separateExampleDescription(code) {
+  const stack = [];
+  let i = 0;
+  while (i < code.length) {
+    const stepped = stepOver(code, i);
+    if (stepped !== null) {
+      i = stepped;
+      continue;
+    }
+
+    const c = code[i];
+    if (c === "(" || c === "[" || c === "{") {
+      stack.push(c);
+      i += 1;
+      continue;
+    }
+    if (c === ")" || c === "]" || c === "}") {
+      stack.pop();
+      i += 1;
+      continue;
+    }
+
+    const directListChild = stack.at(-1) === "[" || stack.length === 0;
+    const startsPara =
+      code.startsWith("para", i) &&
+      (i === 0 || !/[A-Za-z0-9_]/.test(code[i - 1])) &&
+      !/[A-Za-z0-9_]/.test(code[i + 4] ?? "");
+    if (!directListChild || !startsPara) {
+      i += 1;
+      continue;
+    }
+
+    const open = skipTrivia(code, i + 4);
+    const call = code[open] === "(" ? scanGroup(code, open) : null;
+    if (!call) {
+      i += 4;
+      continue;
+    }
+    const textStart = skipTrivia(code, open + 1);
+    const text = readStringLiteral(code, textStart);
+    if (!text || code[skipTrivia(code, text.end)] !== ",") {
+      i = call.end;
+      continue;
+    }
+
+    let removeStart = i;
+    const lineStart = code.lastIndexOf("\n", i - 1) + 1;
+    if (code.slice(lineStart, i).trim() === "") removeStart = lineStart;
+    let removeEnd = skipTrivia(code, call.end);
+    if (code[removeEnd] === ",") removeEnd += 1;
+    if (code[removeEnd] === "\r") removeEnd += 1;
+    if (code[removeEnd] === "\n") removeEnd += 1;
+
+    return {
+      description: text.value.replace(/\s+/g, " ").trim(),
+      code: code.slice(0, removeStart) + code.slice(removeEnd),
+    };
+  }
+  return { description: undefined, code };
 }
 
 /// Return the indentation of the source line containing `index`.
@@ -466,10 +532,18 @@ function collectAliases(code) {
 
 /// Rule: the gallery's `spec` helpers only add captions/layout around a
 /// specimen; retain the actual specimen expression and discard that chrome.
+function specContent(src, arg) {
+  const raw = src.slice(arg.start, arg.end);
+  const expressionOffset = raw.search(/\S/);
+  if (expressionOffset === -1) return "";
+  const baseIndent = sourceLineIndent(src, arg.start + expressionOffset);
+  return normalizeIndent(arg.text, baseIndent);
+}
+
 function removeSpecHelpers(code) {
   return replaceCalls(code, SPEC_HELPERS, (_call, src, args) => {
     if (args.length !== 3) return null;
-    return args[1].text;
+    return specContent(src, args[1]);
   });
 }
 
@@ -589,14 +663,33 @@ function rewriteIdExpression(expr, pageSlug) {
   return expr.slice(0, bodyStart) + next + expr.slice(literal.end - 1);
 }
 
-function humanizeGalleryIds(code, pageSlug) {
-  return replaceCalls(code, new Set(["id", "new"]), (call, src, args) => {
-    if (args.length === 0) return null;
-    const next = rewriteIdExpression(args[0].text, pageSlug);
-    if (next === null) return null;
-    const argStart = args[0].start + src.slice(args[0].start, args[0].end).search(/\S/);
-    return src.slice(call.start, argStart) + next + src.slice(args[0].end, call.end);
-  });
+export function humanizeGalleryIds(code, pageSlug) {
+  const edits = namedCalls(code, new Set(["id", "new"]))
+    // Collection item keys are values reported to callers, not gallery element ids.
+    .filter(
+      (call) =>
+        call.name !== "new" ||
+        !/\b(?:ListBoxItem|MenuItem)\s*::\s*$/.test(code.slice(0, call.start)),
+    )
+    .map((call) => callArgs(code, call)[0])
+    .filter(Boolean)
+    .map((arg) => {
+      const raw = code.slice(arg.start, arg.end);
+      const leading = raw.search(/\S/);
+      if (leading === -1) return null;
+      const trailing = raw.length - raw.trimEnd().length;
+      const start = arg.start + leading;
+      const end = arg.end - trailing;
+      const next = rewriteIdExpression(code.slice(start, end), pageSlug);
+      return next === null ? null : { start, end, next };
+    })
+    .filter(Boolean)
+    .sort((a, b) => b.start - a.start);
+
+  for (const edit of edits) {
+    code = code.slice(0, edit.start) + edit.next + code.slice(edit.end);
+  }
+  return { code, changed: edits.length > 0 };
 }
 
 function stripTerminalAnyElement(code) {
@@ -618,6 +711,26 @@ function stripTerminalAnyElement(code) {
   return terminal === -1 ? code : code.slice(0, terminal).trimEnd();
 }
 
+export function normalizeCollapsedItem(code) {
+  const indents = code
+    .replace(/\r\n?/g, "\n")
+    .split("\n")
+    .slice(1)
+    .filter((line) => line.trim() !== "")
+    .map((line) => line.match(/^[ \t]*/)?.[0].length ?? 0);
+  const excess = Math.max(0, (indents.length ? Math.min(...indents) : 4) - 4);
+  return excess ? normalizeIndent(code, excess) : code;
+}
+
+export function documentationParity(exampleSlugs, referenceSlugs) {
+  const examples = new Set(exampleSlugs);
+  const references = new Set(referenceSlugs);
+  return {
+    missingReference: [...examples].filter((slug) => !references.has(slug)).sort(),
+    missingExamples: [...references].filter((slug) => !examples.has(slug)).sort(),
+  };
+}
+
 function cleanExample(rawCode, baseIndent, pageSlug) {
   const aliases = collectAliases(rawCode);
   let code = normalizeIndent(rawCode, baseIndent);
@@ -628,11 +741,11 @@ function cleanExample(rawCode, baseIndent, pageSlug) {
       const args = top.args;
       const vector = args.length === 1 ? vecMacro(args[0].text) : null;
       if (vector?.items.length === 1) {
-        code = vector.items[0];
+        code = normalizeCollapsedItem(vector.items[0]);
       }
     }
     const spec = topLevelCall(code, SPEC_HELPERS);
-    if (spec && spec.args.length === 3) code = spec.args[1].text;
+    if (spec && spec.args.length === 3) code = specContent(code, spec.args[1]);
     code = removeSpecHelpers(code).code;
     code = removeElementIdHelpers(code).code;
     code = replaceIconHelpers(code).code;
@@ -795,7 +908,7 @@ function addImports(canonical, code, aliases) {
   return [...herogpuiLines, ...gpuiLines, ...otherLines].join("\n");
 }
 
-export function run() {
+export function run({ check = false } = {}) {
   const src = readFileSync(SOURCE, "utf8");
   const importsByPage = canonicalImports();
   const pages = new Map();
@@ -804,6 +917,7 @@ export function run() {
   let skippedSections = 0;
   let totalSnippets = 0;
   let unbalanced = 0;
+  const implicitDescriptions = [];
   const retainedHelpers = new Map();
 
   let i = 0;
@@ -839,8 +953,20 @@ export function run() {
           reason: "no sections with literal headings could be read",
         });
       }
+      const headings = result.sections.map((section) => section.heading);
+      const existingHeadings = new Set(pages.get(slug).map((section) => section.heading));
+      const duplicate = headings.find(
+        (heading, at) => existingHeadings.has(heading) || headings.indexOf(heading) !== at,
+      );
+      if (duplicate) throw new Error(`${slug} has duplicate example heading ${duplicate}`);
       for (const section of result.sections) {
-        const cleaned = cleanExample(section.code, section.baseIndent, slug);
+        const separated = section.description
+          ? { description: section.description, code: section.code }
+          : separateExampleDescription(section.code);
+        if (!section.description && separated.description) {
+          implicitDescriptions.push(`${slug}/${section.heading}`);
+        }
+        const cleaned = cleanExample(separated.code, section.baseIndent, slug);
         if (!isBalanced(cleaned.code)) {
           unbalanced += 1;
           console.error(
@@ -856,6 +982,7 @@ export function run() {
         }
         pages.get(slug).push({
           heading: section.heading,
+          ...(separated.description ? { description: separated.description } : {}),
           imports: addImports(importsByPage.get(slug) ?? "", cleaned.code, cleaned.aliases),
           code: cleaned.code,
         });
@@ -868,8 +995,42 @@ export function run() {
   }
 
   const data = Object.fromEntries([...pages.entries()]);
-  mkdirSync(dirname(OUT), { recursive: true });
-  writeFileSync(OUT, JSON.stringify(data, null, 2) + "\n");
+  if (implicitDescriptions.length) {
+    console.error(
+      "ERROR: explanatory paragraphs must use the section description field: " +
+        implicitDescriptions.join(", "),
+    );
+    process.exitCode = 1;
+  }
+  const reference = JSON.parse(readFileSync(REFERENCE, "utf8"));
+  const parity = documentationParity(pages.keys(), Object.keys(reference));
+  if (parity.missingReference.length || parity.missingExamples.length) {
+    if (parity.missingReference.length) {
+      console.error(
+        `ERROR: component pages missing reference metadata: ${parity.missingReference.join(", ")}`,
+      );
+    }
+    if (parity.missingExamples.length) {
+      console.error(
+        `ERROR: reference metadata missing component examples: ${parity.missingExamples.join(", ")}`,
+      );
+    }
+    process.exitCode = 1;
+  }
+  const output = JSON.stringify(data, null, 2) + "\n";
+  if (check) {
+    let current = "";
+    try {
+      current = readFileSync(OUT, "utf8");
+    } catch {}
+    if (current !== output) {
+      console.error("ERROR: rust-examples.json is stale; run `pnpm run extract`");
+      process.exitCode = 1;
+    }
+  } else {
+    mkdirSync(dirname(OUT), { recursive: true });
+    writeFileSync(OUT, output);
+  }
 
   console.log(
     `rust-examples.json: ${pages.size} pages, ${totalSnippets} snippets` +
@@ -890,5 +1051,5 @@ export function run() {
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
-  run();
+  run({ check: process.argv.includes("--check") });
 }

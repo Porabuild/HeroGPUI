@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { Callout } from "@/components/ui/callout";
 import { CodeBlock } from "@/components/ui/code-block";
 import { PageHeader } from "@/components/ui/page-header";
@@ -11,58 +13,15 @@ export const metadata: Metadata = {
     "How the repository layers AGENTS.md, task guides, and scoped rules so coding agents load the right context.",
 };
 
-// The repository's root AGENTS.md, reproduced verbatim as a copyable
-// starting point. Backticks are escaped for the template literal.
-const ROOT_AGENTS_MD = `# HeroGPUI agent guide
-
-HeroGPUI is a native Rust/GPUI port of HeroUI v3.2.4. The repository targets
-Rust 1.98 and GPUI 0.2.2; newer upstream APIs are not evidence that an API is
-available here.
-
-## Before editing
-
-1. Run \`git status --short\` and inspect the relevant diff. Preserve unrelated
-   work in this frequently dirty checkout.
-2. Read the target implementation, its callers, and its focused tests before
-   changing it. Keep fixes narrow.
-3. Use HeroUI v3.2.4 and its pinned React Aria/Stately versions for parity work.
-   Do not infer behavior from HeroUI v2, latest docs, or a newer GPUI checkout.
-4. Read the task guide below before acting. Scoped \`AGENTS.md\` files under
-   \`.shots/\`, \`crates/herogpui-components/\`, and \`gallery/\` add local rules.
-
-## Core commands
-
-\`\`\`powershell
-cargo check --workspace
-cargo test -p herogpui-components
-cargo fmt --all -- --check
-.shots/lint.ps1
-\`\`\`
-
-Use a focused test binary while iterating. After a component or gallery change,
-build with \`.shots/rebuild.ps1\`; the gallery executable is often locked after a
-smoke or capture run. Select gates from the workflow matrix; reserve the full
-CI-shaped set for release-facing code changes or an explicit request.
-
-## Task guides
-
-- [Workflow and architecture](docs/agents/workflow.md) — repository map,
-  source hierarchy, scope discipline, and change-to-verification matrix.
-- [Component implementation](docs/agents/components.md) — GPUI 0.2.2 state,
-  events, focus, overlays, layout, and behavior-test patterns.
-- [Parity and audits](docs/agents/parity.md) — pinned upstream contract,
-  audit selection, omission rules, and audit-reader integrity.
-- [Gallery and visual verification](docs/agents/gallery.md) — rebuild, smoke,
-  deep links, off-screen input, screenshots, and focus-sensitive capture.
-
-\`llms.txt\` is the public component API reference. It supplements the
-task guides; it does not replace reading the implementation and tests.`;
+// Build the copyable guide from its authoritative repository source so this
+// documentation cannot drift from the instructions agents actually receive.
+const ROOT_AGENTS_MD = readFileSync(path.join(process.cwd(), "..", "AGENTS.md"), "utf8");
 
 const LAYERS: Array<[string, string, string]> = [
   [
     "Root AGENTS.md",
-    "AGENTS.md (44 lines)",
-    "The entry file every agent reads. Names the supported targets (Rust 1.98 and GPUI 0.2.2), the four before-editing rules, the core commands, and links to the task guides. Deliberately short: it is read on every task, so it carries only what is always true.",
+    "AGENTS.md",
+    "The entry file every agent reads. Names the supported targets, before-editing rules, core commands, task guides, and component-surface synchronization contract. This page reads that file directly at build time instead of maintaining a second copy.",
   ],
   [
     "Task guides",

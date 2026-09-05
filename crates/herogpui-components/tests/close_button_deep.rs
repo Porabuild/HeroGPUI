@@ -122,7 +122,7 @@ mod pinned_source {
             "the press must be represented by GPUI's active style"
         );
         assert!(
-            !src.contains("if !cx.reduce_motion()"),
+            !src.contains("if !ActiveTheme::reduce_motion(cx)"),
             "reduced motion must not remove the pressed transform"
         );
         assert!(

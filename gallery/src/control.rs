@@ -35,10 +35,28 @@ pub struct SectionFilter(pub Vec<String>);
 
 impl Global for SectionFilter {}
 
+#[derive(Default)]
+pub struct PreviewOnly(pub bool);
+
+impl Global for PreviewOnly {}
+
 /// `HEROGPUI_SECTION` seeds it; the control file replaces it.
 pub fn init_section_filter(cx: &mut App) {
     let raw = std::env::var("HEROGPUI_SECTION").unwrap_or_default();
-    cx.set_global(SectionFilter(parse_sections(&raw)));
+    set_section_filter(&raw, cx);
+}
+
+pub fn set_section_filter(raw: &str, cx: &mut App) {
+    cx.set_global(SectionFilter(parse_sections(raw)));
+}
+
+pub fn set_preview_only(preview: bool, cx: &mut App) {
+    cx.set_global(PreviewOnly(preview));
+}
+
+pub fn preview_only(cx: &App) -> bool {
+    cx.try_global::<PreviewOnly>()
+        .is_some_and(|preview| preview.0)
 }
 
 fn parse_sections(raw: &str) -> Vec<String> {
@@ -79,7 +97,7 @@ pub fn spawn(window: WindowHandle<Gallery>, cx: &mut App) {
             }
             last = text.clone();
             let applied = cx.update(|cx| apply(&text, window, cx));
-            if applied.is_err() {
+            if !applied {
                 break;
             }
             // One more frame, then acknowledge: the driver captures on the ack,
@@ -99,7 +117,7 @@ pub fn spawn(window: WindowHandle<Gallery>, cx: &mut App) {
     .detach();
 }
 
-fn apply(text: &str, window: WindowHandle<Gallery>, cx: &mut App) {
+fn apply(text: &str, window: WindowHandle<Gallery>, cx: &mut App) -> bool {
     let mut page: Option<Page> = None;
     let mut sections = Vec::new();
     let mut dark = false;
@@ -120,11 +138,13 @@ fn apply(text: &str, window: WindowHandle<Gallery>, cx: &mut App) {
     if cx.is_dark_theme() != dark {
         herogpui_theme::toggle_light_dark(cx);
     }
-    let _ = window.update(cx, |gallery, _, cx| {
-        if let Some(page) = page {
-            gallery.set_initial_page(page);
-        }
-        gallery.set_overlays_open(overlays);
-        cx.notify();
-    });
+    window
+        .update(cx, |gallery, _, cx| {
+            if let Some(page) = page {
+                gallery.set_initial_page(page);
+            }
+            gallery.set_overlays_open(overlays);
+            cx.notify();
+        })
+        .is_ok()
 }

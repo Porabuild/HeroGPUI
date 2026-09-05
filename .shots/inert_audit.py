@@ -36,6 +36,8 @@ import os
 import re
 import sys
 
+from design_audit import mask_comments, mask_literals
+
 sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 
 SRC = 'crates/herogpui-components/src/'
@@ -186,7 +188,12 @@ def main():
             if '.on_' in chunk:
                 continue
             key = '%s#%s' % (struct, eid)
-            if key in ALLOW:
+            # Read-only range selection cannot change, but its navigation and
+            # year picker remain interactive and still require callbacks.
+            read_only_value = (struct == 'RangeCalendar' and used == ['value']
+                               and re.search(r'\.is_read_only\(\s*true\s*\)',
+                                             mask_literals(mask_comments(chunk))))
+            if key in ALLOW or read_only_value:
                 allowed += 1
                 continue
             frozen.append('%-18s %-22s line %-6d sets %s, no callback'

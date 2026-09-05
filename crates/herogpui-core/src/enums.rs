@@ -99,7 +99,7 @@ impl Variant {
             Variant::Outline => "Outline",
             Variant::Ghost => "Ghost",
             Variant::Danger => "Danger",
-            Variant::DangerSoft => "Danger soft",
+            Variant::DangerSoft => "Danger Soft",
         }
     }
 }
@@ -212,7 +212,11 @@ impl Size {
         self.control_height()
     }
 
-    /// Label size: sm 12px, md 14px, lg 16px.
+    /// The `text-xs`/`text-sm`/`text-base` ladder: sm 12px, md 14px, lg 16px.
+    ///
+    /// Not every sized component steps its type on every rung — `.button` only
+    /// steps at `lg` — so a component reads its own stylesheet rather than
+    /// assuming this one.
     pub fn text_size(self) -> gpui::Pixels {
         match self {
             Size::Sm => gpui::px(12.0),
@@ -221,46 +225,11 @@ impl Size {
         }
     }
 
-    /// Line height matching [`text_size`](Self::text_size).
-    pub fn line_height(self) -> gpui::Pixels {
-        match self {
-            Size::Sm => gpui::px(16.0),
-            Size::Md => gpui::px(20.0),
-            Size::Lg => gpui::px(24.0),
-        }
-    }
-
-    /// Gap between a control's icon and its label.
-    pub fn gap(self) -> gpui::Pixels {
-        match self {
-            Size::Sm | Size::Md => gpui::px(8.0),
-            Size::Lg => gpui::px(12.0),
-        }
-    }
-
-    /// Horizontal padding of a labelled control.
-    pub fn padding_x(self) -> gpui::Pixels {
-        match self {
-            Size::Sm => gpui::px(12.0),
-            Size::Md => gpui::px(16.0),
-            Size::Lg => gpui::px(24.0),
-        }
-    }
-
-    /// Glyph size for icons inside a control of this size.
-    pub fn icon_size(self) -> gpui::Pixels {
-        match self {
-            Size::Sm => gpui::px(14.0),
-            Size::Md => gpui::px(16.0),
-            Size::Lg => gpui::px(20.0),
-        }
-    }
-
     pub fn label(self) -> &'static str {
         match self {
-            Size::Sm => "Sm",
-            Size::Md => "Md",
-            Size::Lg => "Lg",
+            Size::Sm => "Small",
+            Size::Md => "Medium",
+            Size::Lg => "Large",
         }
     }
 }

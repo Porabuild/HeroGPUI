@@ -25,10 +25,12 @@ import sys
 
 sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 
-BUNDLE = os.environ.get(
-    'HEROUI_BUNDLE',
-    os.path.join(os.environ.get('TEMP', '/tmp'), 'heroui-full.txt'),
-)
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from bundle import resolve as _resolve_bundle
+
+# The pinned v3.2.4 bundle. See .shots/bundle.py: reading upstream live would
+# measure this port against whatever HeroUI shipped most recently.
+BUNDLE = _resolve_bundle()
 PAGES = ('gallery/src/pages/components.rs', 'gallery/src/pages/docs.rs')
 
 # v3 page name -> our `page_*` function suffix, where the mechanical
@@ -76,11 +78,6 @@ WONT_DEMO = {
     # v3 composes a third-party npm ripple component as a child
     # (`<Button><Ripple /></Button>`); the example is about that library.
     'Button.Adding Ripple Effect': 'third-party-lib',
-    # Both need CLDR data for non-Gregorian calendars; the port is Gregorian.
-    'Calendar.International Calendars': 'no-intl',
-    'RangeCalendar.International Calendars': 'no-intl',
-    'DatePicker.International Calendar': 'no-intl',
-    'DateRangePicker.International Calendar': 'no-intl',
     # A React portal renders outside the tree. gpui paints in tree order and
     # `util::floating` (deferred) is the only lift there is, so there is no
     # "render this dialog somewhere else" to show.
@@ -92,7 +89,12 @@ WONT_DEMO = {
 #
 # These are not excused: they are counted separately so the number cannot hide
 # behind "unportable", and each one names the feature it is waiting on.
-NEEDS_FEATURE = {}
+NEEDS_FEATURE = {
+    # Their popovers support calendar systems, but the embedded date fields
+    # still format through the OS locale rather than the component override.
+    'DatePicker.International Calendar': 'date-field-locale',
+    'DateRangePicker.International Calendar': 'date-field-locale',
+}
 
 SYNONYM = {
     'usage': 'basic',

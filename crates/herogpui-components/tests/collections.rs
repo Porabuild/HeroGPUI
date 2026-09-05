@@ -46,7 +46,9 @@ use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
-use gpui::{prelude::*, px, Font, FontFeatures, FontStyle, FontWeight, TestAppContext};
+use gpui::{
+    prelude::*, px, Font, FontFeatures, FontStyle, FontWeight, TestAppContext, VisualTestContext,
+};
 use herogpui_components::{
     util::FIELD_HEIGHT, Accordion, AccordionItem, Breadcrumbs, Crumb, ListBox, ListBoxItem,
     Pagination, SelectionMode, TabItem, Tabs, Tag, TagGroup,
@@ -376,6 +378,214 @@ fn list_box_plain_default_does_not_select(cx: &mut TestAppContext) {
     assert!(
         !single_selected.borrow()["beta"] && !single_selected.borrow()["gamma"],
         "the pick must not spill onto the unpicked rows"
+    );
+}
+
+/// Resizes the window and drains the layout queue, so a bounded virtual list
+/// re-resolves its viewport before the next probe reads it.
+fn settle_window(cx: &mut VisualTestContext, width: f32, height: f32) {
+    cx.simulate_resize(gpui::size(px(width), px(height)));
+    for _ in 0..4 {
+        cx.update(|window, _| window.refresh());
+        cx.run_until_parked();
+    }
+}
+
+/// `debug_bounds` wants a `&'static str`; the virtual viewport's probe name
+/// is the component's own `{base}-rows` selector, so one short leak per call.
+fn virtual_rows_probe(list_id: &'static str) -> &'static str {
+    let name = format!("{:?}-rows", gpui::ElementId::from(list_id));
+    let leaked: &'static mut str = Box::leak(name.into_boxed_str());
+    &*leaked
+}
+
+/// Pinned `ListKeyboardDelegate` pages a virtual list by one *visible*
+/// rectangle. A window shorter than this list's 160px cap shows fewer 40px
+/// rows, so PageDown must step by the shown viewport -- two rows here -- and
+/// not by the cap's three-row ruler; the old ruler lands a row too far at
+/// every step and skips past the disabled row differently. Growing the window
+/// restores the cap step, and a near-zero viewport keeps the cursor in place.
+#[gpui::test]
+fn fixed_height_virtual_list_box_pages_by_the_shown_viewport(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        let items: Vec<ListBoxItem> = (0..20)
+            .map(|i| {
+                ListBoxItem::new(format!("key-{i:02}"), format!("Item {i}")).is_disabled(i == 5)
+            })
+            .collect();
+        gpui::div()
+            .flex()
+            .flex_col()
+            .size_full()
+            .child(
+                ListBox::new("vlb-bounded-page", items)
+                    .row_height(px(40.))
+                    .max_h(px(160.))
+                    .on_action(move |key, _, _| recorded.borrow_mut().push(key.to_string()))
+                    .into_any_element(),
+            )
+            .into_any_element()
+    });
+
+    // A 120px window shows fewer than the 160px cap allows, so one page from
+    // the top is shorter than the roomy-window three-row step.
+    settle_window(cx, 640., 120.);
+    let list = cx
+        .debug_bounds(virtual_rows_probe("vlb-bounded-page"))
+        .expect("the virtual list must be laid out");
+    let shown = f32::from(list.size.height);
+    assert!(
+        shown < 160. - 1.5,
+        "the bounded virtual list must shrink below its cap, got {list:?}"
+    );
+    let step = ((shown / 40.).ceil() as usize).saturating_sub(1);
+    let capped_step = ((160f32 / 40.).ceil() as usize).saturating_sub(1);
+    assert!(
+        step < capped_step,
+        "a shorter viewport must page shorter than the cap ruler: {step} vs {capped_step}"
+    );
+
+    // Two Downs seat row 2 (the first Down moves off the unfocused entry row
+    // 0). Each page then moves `step` rows: 2 -> 4, 4 -> 6 across disabled
+    // row 5, and back 6 -> 4. The cap ruler would walk 2 -> 6 -> 9 -> 6.
+    press(cx, "tab");
+    press(cx, "down");
+    press(cx, "down");
+    press(cx, "pagedown");
+    press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["key-04"],
+        "a bounded PageDown must step by the shown viewport, not the cap"
+    );
+    press(cx, "pagedown");
+    press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["key-04", "key-06"],
+        "a bounded PageDown must still skip the disabled row"
+    );
+    press(cx, "pageup");
+    press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["key-04", "key-06", "key-04"],
+        "a bounded PageUp must step back by the shown viewport"
+    );
+
+    // Growing the window restores the cap viewport, so the same key pages
+    // further: row 4 reaches row 7 with the three-row step.
+    settle_window(cx, 640., 800.);
+    let grown = cx
+        .debug_bounds(virtual_rows_probe("vlb-bounded-page"))
+        .expect("the virtual list must be laid out");
+    assert!(
+        (f32::from(grown.size.height) - 160.).abs() < 1.5,
+        "the grown virtual list must return to its cap, got {grown:?}"
+    );
+    press(cx, "pagedown");
+    press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["key-04", "key-06", "key-04", "key-07"],
+        "PageDown after resize must page by the grown viewport"
+    );
+
+    // A near-zero viewport has no page to turn: the cursor stays on row 7,
+    // so Enter reports it again instead of a neighbour.
+    settle_window(cx, 640., 20.);
+    press(cx, "pagedown");
+    press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["key-04", "key-06", "key-04", "key-07", "key-07"],
+        "a page key with no viewport to cross must not move the cursor"
+    );
+}
+
+/// Gallery Virtualization regression: a 1000x50px fixed-row list caps at
+/// `max_h(400)` inside a natural/unbounded page parent. A fixed viewport
+/// height sizes the unbounded parent to cap + padding instead of the rows'
+/// full natural height (50_000px) -- the gallery would otherwise show eight
+/// rows followed by a huge blank instead of the next example -- while
+/// `min_h_0` lets it shrink with a bounded parent. The virtual viewport stays
+/// at the cap while the marker -- and the second list below it -- directly
+/// follow at cap+insets.
+#[gpui::test]
+fn fixed_height_virtual_list_box_caps_in_an_unbounded_parent(cx: &mut TestAppContext) {
+    fn virtual_list(id: &'static str) -> gpui::AnyElement {
+        let items: Vec<ListBoxItem> = (0..1000)
+            .map(|i| ListBoxItem::new(format!("key-{i:04}"), format!("User {i}")))
+            .collect();
+        ListBox::new(id, items)
+            .row_height(px(50.))
+            .max_h(px(400.))
+            .into_any_element()
+    }
+
+    let cx = open_host(cx, move || {
+        gpui::div()
+            .size_full()
+            .child(
+                gpui::div()
+                    .id("unbounded-page-scroll")
+                    .overflow_y_scroll()
+                    .size_full()
+                    .child(
+                        gpui::div()
+                            .flex()
+                            .flex_col()
+                            .w_full()
+                            .child(virtual_list("vlb-unbounded"))
+                            .child(
+                                gpui::div()
+                                    .h(px(8.))
+                                    .w_full()
+                                    .debug_selector(|| "after-first-list".to_owned()),
+                            )
+                            .child(virtual_list("vlb-second")),
+                    ),
+            )
+            .into_any_element()
+    });
+    cx.run_until_parked();
+
+    let body = cx
+        .debug_bounds(virtual_rows_probe("vlb-unbounded"))
+        .expect("the first virtual list must be laid out");
+    assert!(
+        (f32::from(body.size.height) - 400.).abs() < 1.5,
+        "the unbounded virtual list must cap at 400, got {body:?}"
+    );
+
+    let after = cx
+        .debug_bounds("after-first-list")
+        .expect("the marker below the first list must be laid out");
+    let after_top = f32::from(after.origin.y);
+    let body_bottom = f32::from(body.origin.y) + f32::from(body.size.height);
+    assert!(
+        after_top < 800.,
+        "the first list must end near 400+insets, marker at y={after_top} body={body:?}"
+    );
+    assert!(
+        (after_top - body_bottom) < 120.,
+        "the marker must directly follow the first body, marker y={after_top} body bottom={body_bottom}"
+    );
+
+    let second = cx
+        .debug_bounds(virtual_rows_probe("vlb-second"))
+        .expect("the second virtual list must be laid out");
+    let second_top = f32::from(second.origin.y);
+    assert!(
+        second_top < 1200.,
+        "the second list must directly follow the first, second at y={second_top} marker at y={after_top}"
+    );
+    assert!(
+        (f32::from(second.size.height) - 400.).abs() < 1.5,
+        "the second virtual list must cap at 400, got {second:?}"
     );
 }
 

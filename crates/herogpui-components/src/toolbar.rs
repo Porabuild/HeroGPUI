@@ -118,6 +118,29 @@ impl Toolbar {
         self.gap = Some(gap.into());
         self
     }
+
+    /// Appends the divider `.toolbar` styles for itself: the rule crossing the
+    /// bar's flow, half its cross size and centred.
+    ///
+    /// The orientation is the bar's own, crossed — a horizontal toolbar is
+    /// divided by a vertical rule — so it is not a parameter. v3 leaves the
+    /// caller to write `orientation` on a `<Separator>` child and applies the
+    /// halving through `.toolbar .separator--vertical`; a type-erased child
+    /// cannot be restyled after the fact here, so the bar builds the divider
+    /// and both facts come from the one place that knows the axis.
+    pub fn separator(mut self) -> Self {
+        let crossed = match self.orientation {
+            Orientation::Horizontal => Orientation::Vertical,
+            Orientation::Vertical => Orientation::Horizontal,
+        };
+        self.children.push(
+            crate::separator::Separator::new()
+                .orientation(crossed)
+                .in_toolbar()
+                .into_any_element(),
+        );
+        self
+    }
 }
 
 impl Default for Toolbar {
@@ -192,7 +215,7 @@ impl RenderOnce for Toolbar {
                     // the entry's own landing is kept.
                     if let Some(last) = next.last_focused.take() {
                         if scope.contains(&last, window) {
-                            window.focus(&last);
+                            window.focus(&last, cx);
                         }
                     }
                 }
@@ -290,13 +313,13 @@ impl RenderOnce for Toolbar {
                 let Some(held) = held else {
                     return;
                 };
-                window.blur();
-                window.focus_next();
+                window.blur(cx);
+                window.focus_next(cx);
                 let first_stop = window.focused(cx);
-                window.blur();
-                window.focus_prev();
+                window.blur(cx);
+                window.focus_prev(cx);
                 let last_stop = window.focused(cx);
-                window.focus(&held);
+                window.focus(&held, cx);
                 let at_end = if forward {
                     last_stop.as_ref() == Some(&held)
                 } else {
@@ -304,12 +327,12 @@ impl RenderOnce for Toolbar {
                 };
                 if !at_end {
                     if forward {
-                        window.focus_next();
+                        window.focus_next(cx);
                     } else {
-                        window.focus_prev();
+                        window.focus_prev(cx);
                     }
                     if !scope.contains_focused(window, cx) {
-                        window.focus(&held);
+                        window.focus(&held, cx);
                     }
                 }
                 return;
@@ -331,13 +354,13 @@ impl RenderOnce for Toolbar {
             let Some(held) = window.focused(cx) else {
                 return;
             };
-            window.blur();
-            window.focus_next();
+            window.blur(cx);
+            window.focus_next(cx);
             let first_stop = window.focused(cx);
-            window.blur();
-            window.focus_prev();
+            window.blur(cx);
+            window.focus_prev(cx);
             let last_stop = window.focused(cx);
-            window.focus(&held);
+            window.focus(&held, cx);
             for _ in 0..256 {
                 // The far end of the *window* is the end of the walk: a
                 // native Tab from the document's last focusable goes
@@ -351,9 +374,9 @@ impl RenderOnce for Toolbar {
                     return;
                 }
                 if back {
-                    window.focus_prev();
+                    window.focus_prev(cx);
                 } else {
-                    window.focus_next();
+                    window.focus_next(cx);
                 }
                 if !scope.contains_focused(window, cx) {
                     return;

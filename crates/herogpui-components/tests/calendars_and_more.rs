@@ -9,13 +9,14 @@
 //! Geometry is derived from the components' own constants, reusing the
 //! derivations in `pickers.rs` and `date_picker_close.rs`:
 //!
-//! - Bare Calendar at the window origin: `CALENDAR_WIDTH` (252) minus six 2px
-//!   gaps over seven cells fixes the column centres, and the first cell row
+//! - Bare Calendar at the window origin: `CALENDAR_WIDTH` (252) split into seven equal
+//!   cells fixes the column centres, and the first cell row
 //!   sits at y = 74 (24px nav header + gap 8 + ~16px weekday line + gap 8 +
 //!   half a 36px cell). Rows step 38px (36 cell + 2 gap). Day *d* of a month
 //!   with `lead` leading blanks sits at `idx = d + lead - 1`, row `idx / 7`,
-//!   column `idx % 7`. Only the weekday line height is a text metric, and the
-//!   click tolerates it the same way `date_picker_close.rs` does.
+//!   column `idx % 7`. The lead follows the system locale, just like the
+//!   component. Only the weekday line height is a text metric, and the click
+//!   tolerates it the same way `date_picker_close.rs` does.
 //! - Nav buttons live in the header row: `.calendar__header` is `px-0.5`, the
 //!   buttons are `size-6`, so previous centres at (14, 12) and next at
 //!   (238, 12) inside the 252px-wide column.
@@ -44,6 +45,7 @@ mod harness;
 use std::{
     cell::{Cell, RefCell},
     collections::{BTreeSet, HashSet},
+    process::Command,
     rc::Rc,
 };
 
@@ -53,43 +55,46 @@ use gpui::{
 };
 use harness::{click, events, open_host, press};
 use herogpui_components::{
+    add_days,
     calendar::{Date, CALENDAR_WIDTH},
+    calendar_view::{
+        aligned_anchor, anchor_following_focus, linear_cells, week_start, SelectionAlignment,
+    },
     Button, Calendar, CalendarState, ColorPicker, DateConstraints, DateRangeState, Disclosure,
     DisclosureGroup, Input, InputState, PageBehavior, PickerColor, RangeCalendar, Select,
     SelectionMode, Toolbar, VisibleDuration, Weekday,
 };
 
 /// Column *c*'s centre in a bare Calendar: seven cells across `CALENDAR_WIDTH`
-/// minus six 2px gaps.
+/// with no horizontal gaps.
 fn cal_col_x(col: usize) -> f32 {
-    let cell_w = (f32::from(CALENDAR_WIDTH) - 12.) / 7.;
-    col as f32 * (cell_w + 2.) + cell_w / 2.
+    let cell_w = f32::from(CALENDAR_WIDTH) / 7.;
+    col as f32 * cell_w + cell_w / 2.
 }
 
-/// Row *r*'s centre in a bare Calendar: the first row at y = 74, then a
-/// 36px cell plus a 2px gap per row.
+/// Row *r*'s centre in a bare Calendar: first row at y = 86, then 36px per row.
 fn cal_row_y(row: usize) -> f32 {
-    74. + row as f32 * 38.
+    86. + row as f32 * 36.
 }
 
 /// The centre of the cell holding `day` of `(year, month)` in a bare
-/// Calendar, derived from the month's leading blanks (Monday-start default,
-/// the same `DateConstraints` the test's calendars use).
+/// Calendar, derived from the same locale-sensitive `DateConstraints` the
+/// test's calendars use.
 fn cal_day(year: i32, month: u32, day: u32) -> (f32, f32) {
     let lead = DateConstraints::new().lead_cells(year, month);
     let idx = day as usize + lead - 1;
     (cal_col_x(idx % 7), cal_row_y(idx / 7))
 }
 
-/// Column *c*'s centre in a bare RangeCalendar: 38px cells, no column gaps.
+/// Column *c*'s centre in a bare RangeCalendar: 36px cells, no column gaps.
 fn range_col_x(col: usize) -> f32 {
-    19. + 38. * col as f32
+    18. + 36. * col as f32
 }
 
-/// Row *r*'s centre in a bare RangeCalendar: first row at y = 75, then a
-/// 38px cell plus a 2px gap per row.
+/// Row *r*'s centre in a bare RangeCalendar: first row at y = 88, then a
+/// 36px cell plus the 4px combined vertical margins per row.
 fn range_row_y(row: usize) -> f32 {
-    75. + 40. * row as f32
+    88. + 40. * row as f32
 }
 
 /// The centre of the cell holding `day` of `(year, month)` in a bare
@@ -100,6 +105,38 @@ fn range_day(year: i32, month: u32, day: u32) -> (f32, f32) {
     (range_col_x(idx % 7), range_row_y(idx / 7))
 }
 
+fn week_home_end_expectations(focused: Date, grid_first_day: Weekday) -> (Date, Date, Date, Date) {
+    let duration = VisibleDuration::Weeks(2);
+    let mut anchor = aligned_anchor(
+        duration,
+        SelectionAlignment::Center,
+        grid_first_day,
+        focused,
+    );
+    let cells = linear_cells(duration, grid_first_day, anchor);
+    let home = week_start(focused, Weekday::default());
+    anchor = anchor_following_focus(
+        duration,
+        grid_first_day,
+        anchor,
+        cells[0],
+        cells[cells.len() - 1],
+        home,
+    );
+    let anchor_after_home = anchor;
+    let cells = linear_cells(duration, grid_first_day, anchor);
+    let end = add_days(&home, 6);
+    anchor = anchor_following_focus(
+        duration,
+        grid_first_day,
+        anchor,
+        cells[0],
+        cells[cells.len() - 1],
+        end,
+    );
+    (home, end, anchor_after_home, anchor)
+}
+
 /// One forced redraw, so a keyed flag change is visible to the next probe.
 fn flush_frame(cx: &mut VisualTestContext) {
     cx.update(|window, _| window.refresh());
@@ -108,6 +145,252 @@ fn flush_frame(cx: &mut VisualTestContext) {
 // ---------------------------------------------------------------------------
 // Calendar & RangeCalendar
 // ---------------------------------------------------------------------------
+
+#[gpui::test]
+fn calendar_selection_keys_consume_browser_defaults_and_ignore_repeats(cx: &mut TestAppContext) {
+    for key in ["enter", "space"] {
+        let state = cx.new(|cx| CalendarState::new(cx));
+        let view_state = state.clone();
+        let changes = events();
+        let recorded = changes.clone();
+        let cx = open_host(cx, move || {
+            let changes = changes.clone();
+            Calendar::new(view_state.clone())
+                .on_change(move |_, _, _| changes.borrow_mut().push(String::new()))
+                .into_any_element()
+        });
+        press(cx, "tab");
+        for is_held in [false, true] {
+            let result = cx.update(|window, cx| {
+                window.dispatch_event(
+                    gpui::PlatformInput::KeyDown(KeyDownEvent {
+                        keystroke: Keystroke::parse(key).unwrap(),
+                        is_held,
+                        prefer_character_input: false,
+                    }),
+                    cx,
+                )
+            });
+            assert!(!result.propagate, "{key} must consume the browser default");
+            flush_frame(cx);
+        }
+        cx.simulate_event(gpui::KeyUpEvent {
+            keystroke: Keystroke::parse(key).unwrap(),
+        });
+        assert_eq!(recorded.borrow().len(), 1);
+    }
+}
+
+#[gpui::test]
+fn range_calendar_selection_keys_consume_browser_defaults_and_ignore_repeats(
+    cx: &mut TestAppContext,
+) {
+    for key in ["enter", "space"] {
+        let state = cx.new(|cx| DateRangeState::new(cx));
+        let view_state = state.clone();
+        let changes = events();
+        let recorded = changes.clone();
+        let cx = open_host(cx, move || {
+            let changes = changes.clone();
+            RangeCalendar::new(view_state.clone())
+                .on_change(move |_, _, _, _| changes.borrow_mut().push(String::new()))
+                .into_any_element()
+        });
+        press(cx, "tab");
+        for is_held in [false, true] {
+            let result = cx.update(|window, cx| {
+                window.dispatch_event(
+                    gpui::PlatformInput::KeyDown(KeyDownEvent {
+                        keystroke: Keystroke::parse(key).unwrap(),
+                        is_held,
+                        prefer_character_input: false,
+                    }),
+                    cx,
+                )
+            });
+            assert!(!result.propagate, "{key} must consume the browser default");
+            flush_frame(cx);
+        }
+        cx.simulate_event(gpui::KeyUpEvent {
+            keystroke: Keystroke::parse(key).unwrap(),
+        });
+        assert!(cx.update(|_, cx| state.read(cx).end.is_none()));
+        assert!(recorded.borrow().is_empty());
+        press(cx, key);
+        assert_eq!(recorded.borrow().len(), 1);
+    }
+}
+
+#[gpui::test]
+fn calendar_indian_locale_grid_selects_gregorian_dates(cx: &mut TestAppContext) {
+    let state = cx.new(|cx| CalendarState::new(cx));
+    let changed = events();
+    let recorded = changed.clone();
+    let cx = open_host(cx, move || {
+        let changed = changed.clone();
+        Calendar::new(state.clone())
+            .locale("hi-IN-u-ca-indian")
+            .first_day_of_week(Weekday::Mon)
+            .default_value(Date::new(2026, 1, 15))
+            .on_change(move |date, _, _| {
+                changed.borrow_mut().push(date.unwrap().format_iso());
+            })
+            .into_any_element()
+    });
+    // Pausha 1947 starts on Monday, 22 December 2025.
+    click(cx, cal_col_x(0), cal_row_y(0));
+    assert_eq!(recorded.borrow().as_slice(), ["2025-12-22"]);
+}
+
+#[gpui::test]
+fn calendar_indian_locale_keyboard_uses_displayed_months(cx: &mut TestAppContext) {
+    let state = cx.new(|cx| CalendarState::new(cx));
+    let focused = events();
+    let recorded = focused.clone();
+    let cx = open_host(cx, move || {
+        let focused = focused.clone();
+        Calendar::new(state.clone())
+            .locale("hi-IN-u-ca-indian")
+            .default_value(Date::new(2026, 1, 15))
+            .on_focus_change(move |date, _, _| focused.borrow_mut().push(date.format_iso()))
+            .into_any_element()
+    });
+    press(cx, "tab");
+    press(cx, "home");
+    press(cx, "end");
+    press(cx, "pagedown");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["2025-12-22", "2026-01-20", "2026-02-19"]
+    );
+}
+
+#[gpui::test]
+fn range_calendar_indian_locale_keyboard_uses_displayed_months(cx: &mut TestAppContext) {
+    let state = cx.new(|cx| DateRangeState::new(cx));
+    let focused = events();
+    let recorded = focused.clone();
+    let cx = open_host(cx, move || {
+        let focused = focused.clone();
+        RangeCalendar::new(state.clone())
+            .locale("hi-IN-u-ca-indian")
+            .default_value((Date::new(2026, 1, 15), Date::new(2026, 1, 16)))
+            .on_focus_change(move |date, _, _| focused.borrow_mut().push(date.format_iso()))
+            .into_any_element()
+    });
+    press(cx, "tab");
+    press(cx, "home");
+    press(cx, "end");
+    press(cx, "pagedown");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["2025-12-22", "2026-01-20", "2026-02-19"]
+    );
+}
+
+#[gpui::test]
+fn range_calendar_indian_locale_end_alignment_keeps_selection_visible(cx: &mut TestAppContext) {
+    let state = cx.new(|cx| DateRangeState::new(cx));
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        RangeCalendar::new(state_for_view.clone())
+            .locale("hi-IN-u-ca-indian")
+            .first_day_of_week(Weekday::Mon)
+            .visible_duration(VisibleDuration::Months(2))
+            .selection_alignment(SelectionAlignment::End)
+            .default_value((Date::new(2026, 1, 21), Date::new(2026, 1, 22)))
+            .into_any_element()
+    });
+    // Magha 1 must remain in the second grid; the first grid is Pausha.
+    let key = format!(
+        r#"Name("range-cal-{}")-1947-10-day-1"#,
+        state.entity_id().as_u64()
+    );
+    let bounds = cx.debug_bounds(Box::leak(key.into_boxed_str())).unwrap();
+    click(
+        cx,
+        f32::from(bounds.center().x),
+        f32::from(bounds.center().y),
+    );
+    assert_eq!(
+        cx.update(|_, cx| state.read(cx).start),
+        Some(Date::new(2025, 12, 22))
+    );
+}
+
+#[gpui::test]
+fn calendar_indian_locale_bounds_disable_both_month_controls(cx: &mut TestAppContext) {
+    let state = cx.new(|cx| CalendarState::new(cx));
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        Calendar::new(state_for_view.clone())
+            .locale("hi-IN-u-ca-indian")
+            .default_value(Date::new(2026, 1, 15))
+            .min_value(Date::new(2025, 12, 22))
+            .max_value(Date::new(2026, 1, 20))
+            .into_any_element()
+    });
+    click(cx, 14., 12.);
+    assert_eq!(
+        cx.update(|_, cx| state.read(cx).anchor()),
+        Date::new(2026, 1, 15)
+    );
+    click(cx, f32::from(CALENDAR_WIDTH) - 14., 12.);
+    assert_eq!(
+        cx.update(|_, cx| state.read(cx).anchor()),
+        Date::new(2026, 1, 15)
+    );
+}
+
+#[gpui::test]
+fn calendar_hebrew_year_picker_preserves_the_month_code(cx: &mut TestAppContext) {
+    let state = cx.new(|cx| CalendarState::new(cx));
+    let state_for_view = state.clone();
+    let focused = events();
+    let recorded = focused.clone();
+    let cx = open_host(cx, move || {
+        let focused = focused.clone();
+        Calendar::new(state_for_view.clone())
+            .locale("en-US-u-ca-hebrew")
+            .default_value(Date::new(2024, 3, 25))
+            .default_year_picker_open(true)
+            .visible_years(3)
+            .on_focus_change(move |date, _, _| focused.borrow_mut().push(date.format_iso()))
+            .into_any_element()
+    });
+    press(cx, "right");
+    press(cx, "enter");
+    assert_eq!(recorded.borrow().as_slice(), ["2025-03-15"]);
+    assert_eq!(
+        cx.update(|_, cx| state.read(cx).anchor()),
+        Date::new(2025, 3, 15)
+    );
+}
+
+#[gpui::test]
+fn range_calendar_hebrew_year_picker_preserves_the_month_code(cx: &mut TestAppContext) {
+    let state = cx.new(|cx| DateRangeState::new(cx));
+    let state_for_view = state.clone();
+    let focused = events();
+    let recorded = focused.clone();
+    let cx = open_host(cx, move || {
+        let focused = focused.clone();
+        RangeCalendar::new(state_for_view.clone())
+            .locale("en-US-u-ca-hebrew")
+            .default_value((Date::new(2024, 3, 25), Date::new(2024, 3, 26)))
+            .default_year_picker_open(true)
+            .visible_years(3)
+            .on_focus_change(move |date, _, _| focused.borrow_mut().push(date.format_iso()))
+            .into_any_element()
+    });
+    press(cx, "right");
+    press(cx, "enter");
+    assert_eq!(recorded.borrow().as_slice(), ["2025-03-15"]);
+    assert_eq!(
+        cx.update(|_, cx| state.read(cx).anchor()),
+        Date::new(2025, 3, 15)
+    );
+}
 
 /// The grid is one tab stop (`util::tab_stop_handle`), so Tab from the host
 /// root puts the keyboard inside it; then the arrows walk a day and a week,
@@ -305,7 +588,12 @@ fn calendar_week_page_keys_move_one_week_and_shift_moves_one_month(cx: &mut Test
     );
     assert_eq!(
         cx.update(|_, cx| state.read(cx).anchor()),
-        Date::new(2026, 9, 7),
+        aligned_anchor(
+            VisibleDuration::Weeks(2),
+            SelectionAlignment::End,
+            Weekday::default(),
+            Date::new(2026, 9, 15),
+        ),
         "the two-week window must realign at the edge focus crossed"
     );
 }
@@ -407,13 +695,25 @@ fn range_calendar_week_page_keys_realign_at_the_visible_boundary(cx: &mut TestAp
     );
     assert_eq!(
         cx.update(|_, cx| state.read(cx).anchor()),
-        Date::new(2026, 9, 21),
+        aligned_anchor(
+            VisibleDuration::Weeks(2),
+            SelectionAlignment::Start,
+            Weekday::default(),
+            Date::new(2026, 9, 22),
+        ),
         "focus beyond the two-week range must realign it at the start"
     );
 }
 
 #[gpui::test]
 fn calendar_week_home_end_use_the_locale_week(cx: &mut TestAppContext) {
+    let grid_first_day = if Weekday::default() == Weekday::Mon {
+        Weekday::Sun
+    } else {
+        Weekday::Mon
+    };
+    let (home, end, anchor_after_home, anchor_after_end) =
+        week_home_end_expectations(Date::new(2026, 8, 15), grid_first_day);
     let focuses = events();
     let focused = focuses.clone();
     let state = cx.new(|cx| CalendarState::new(cx));
@@ -423,7 +723,7 @@ fn calendar_week_home_end_use_the_locale_week(cx: &mut TestAppContext) {
         Calendar::new(state_for_view.clone())
             .default_value(Date::new(2026, 8, 15))
             .visible_duration(VisibleDuration::Weeks(2))
-            .first_day_of_week(Weekday::Mon)
+            .first_day_of_week(grid_first_day)
             .on_focus_change(move |date, _, _| {
                 focuses.borrow_mut().push(date.format_iso());
             })
@@ -434,19 +734,70 @@ fn calendar_week_home_end_use_the_locale_week(cx: &mut TestAppContext) {
     press(cx, "home");
     assert_eq!(
         cx.update(|_, cx| state.read(cx).anchor()),
-        Date::new(2026, 7, 27),
-        "the Monday-first grid must realign so the locale Sunday remains visible"
+        anchor_after_home,
+        "a non-locale grid override must realign so the locale week start remains visible"
     );
     press(cx, "end");
     assert_eq!(
         focused.borrow().as_slice(),
-        ["2026-08-09", "2026-08-15"],
-        "week section bounds use the en-US locale week even when the grid overrides its first day"
+        [home.format_iso(), end.format_iso()],
+        "week section bounds use the system locale even when the grid overrides its first day"
     );
     assert_eq!(
         cx.update(|_, cx| state.read(cx).anchor()),
-        Date::new(2026, 8, 10),
+        anchor_after_end,
         "End must realign the grid forward after the locale week crosses its visible edge"
+    );
+}
+
+#[gpui::test]
+fn calendar_week_home_end_follow_a_non_sunday_time_locale(cx: &mut TestAppContext) {
+    const CHILD: &str = "HEROGPUI_NON_SUNDAY_TIME_LOCALE_TEST";
+    if std::env::var_os(CHILD).is_none() {
+        let output = Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "calendar_week_home_end_follow_a_non_sunday_time_locale",
+                "--nocapture",
+            ])
+            .env(CHILD, "1")
+            .env_remove("LC_ALL")
+            .env("LC_TIME", "de_DE.UTF-8")
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "non-Sunday locale child failed:\n{}\n{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr),
+        );
+        return;
+    }
+
+    assert_eq!(Weekday::default(), Weekday::Mon);
+    let focuses = events();
+    let focused = focuses.clone();
+    let state = cx.new(|cx| CalendarState::new(cx));
+    let state_for_view = state;
+    let cx = open_host(cx, move || {
+        let focuses = focuses.clone();
+        Calendar::new(state_for_view.clone())
+            .default_value(Date::new(2026, 8, 15))
+            .visible_duration(VisibleDuration::Weeks(2))
+            .first_day_of_week(Weekday::Sun)
+            .on_focus_change(move |date, _, _| {
+                focuses.borrow_mut().push(date.format_iso());
+            })
+            .into_any_element()
+    });
+
+    press(cx, "tab");
+    press(cx, "home");
+    press(cx, "end");
+    assert_eq!(
+        focused.borrow().as_slice(),
+        ["2026-08-10", "2026-08-16"],
+        "LC_TIME must determine the week bounds independently of the Sunday grid override"
     );
 }
 
@@ -478,6 +829,13 @@ fn calendar_day_home_end_use_the_visible_window(cx: &mut TestAppContext) {
 
 #[gpui::test]
 fn range_calendar_week_home_end_use_the_locale_week(cx: &mut TestAppContext) {
+    let grid_first_day = if Weekday::default() == Weekday::Mon {
+        Weekday::Sun
+    } else {
+        Weekday::Mon
+    };
+    let (home, end, anchor_after_home, anchor_after_end) =
+        week_home_end_expectations(Date::new(2026, 8, 15), grid_first_day);
     let focuses = events();
     let focused = focuses.clone();
     let state = cx.new(|cx| DateRangeState::new(cx));
@@ -487,7 +845,7 @@ fn range_calendar_week_home_end_use_the_locale_week(cx: &mut TestAppContext) {
         RangeCalendar::new(state_for_view.clone())
             .default_value((Date::new(2026, 8, 15), Date::new(2026, 8, 16)))
             .visible_duration(VisibleDuration::Weeks(2))
-            .first_day_of_week(Weekday::Mon)
+            .first_day_of_week(grid_first_day)
             .on_focus_change(move |date, _, _| {
                 focuses.borrow_mut().push(date.format_iso());
             })
@@ -498,18 +856,18 @@ fn range_calendar_week_home_end_use_the_locale_week(cx: &mut TestAppContext) {
     press(cx, "home");
     assert_eq!(
         cx.update(|_, cx| state.read(cx).anchor()),
-        Date::new(2026, 7, 27),
+        anchor_after_home,
         "RangeCalendar must keep the locale-week Home target visible"
     );
     press(cx, "end");
     assert_eq!(
         focused.borrow().as_slice(),
-        ["2026-08-09", "2026-08-15"],
+        [home.format_iso(), end.format_iso()],
         "RangeCalendar must share Calendar's locale-week section bounds"
     );
     assert_eq!(
         cx.update(|_, cx| state.read(cx).anchor()),
-        Date::new(2026, 8, 10),
+        anchor_after_end,
         "RangeCalendar must realign again when End crosses the visible edge"
     );
 }
@@ -703,10 +1061,10 @@ fn color_picker_trigger_opens_and_area_reports(cx: &mut TestAppContext) {
         "the trigger must open the popover"
     );
 
-    // The area: panel top (24 trigger + 6) + pt-2 (8) puts the 160px-tall
-    // area at y 38..198; px-2 puts it at x 8..248. The press reports its
+    // The area: panel top (24 trigger + 8) + pt-2 (8) puts the 160px-tall
+    // area at y 40..200; the 12px viewport inset plus px-2 puts it at x 20..260. The press reports its
     // local fractions within those bounds.
-    click(cx, 120., 80.);
+    click(cx, 132., 82.);
     assert_eq!(
         reported.borrow().as_slice(),
         [expected_hex],
@@ -725,7 +1083,7 @@ fn color_picker_trigger_opens_and_area_reports(cx: &mut TestAppContext) {
     );
 
     // Closed proof: where the area was, nothing answers now.
-    click(cx, 120., 80.);
+    click(cx, 132., 82.);
     assert_eq!(
         reported.borrow().as_slice(),
         [expected_hex],
@@ -746,7 +1104,7 @@ fn color_picker_default_trigger_owns_open_state_without_callback(cx: &mut TestAp
     });
 
     click(cx, 60., 12.);
-    click(cx, 120., 80.);
+    click(cx, 132., 82.);
     assert_eq!(
         colors.borrow().as_slice(),
         ["#6490BD"],
@@ -756,7 +1114,7 @@ fn color_picker_default_trigger_owns_open_state_without_callback(cx: &mut TestAp
     press(cx, "tab tab escape");
     cx.executor()
         .advance_clock(std::time::Duration::from_millis(150));
-    click(cx, 120., 80.);
+    click(cx, 132., 82.);
     assert_eq!(
         colors.borrow().as_slice(),
         ["#6490BD"],
@@ -793,7 +1151,7 @@ fn pointer_open_color_picker_closes_when_focus_moves_elsewhere(cx: &mut TestAppC
     click(cx, 60., 12.);
     assert_eq!(opened.borrow().as_slice(), ["open:true"]);
 
-    cx.update(|window, cx| window.focus(&next.read(cx).focus_handle(cx)));
+    cx.update(|window, cx| window.focus(&next.read(cx).focus_handle(cx), cx));
     cx.update(|window, _| window.refresh());
 
     assert_eq!(opened.borrow().as_slice(), ["open:true", "open:false"]);
@@ -3009,6 +3367,7 @@ fn toolbar_held_arrow_repeats_stop_at_ends(cx: &mut TestAppContext) {
             cx.simulate_event(KeyDownEvent {
                 keystroke: Keystroke::parse(key).unwrap(),
                 is_held: true,
+                prefer_character_input: false,
             });
         }
     };

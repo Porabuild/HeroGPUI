@@ -175,6 +175,7 @@ impl LayoutTheme {
 
 fn shadow(x: f32, y: f32, blur: f32, alpha: f32) -> BoxShadow {
     BoxShadow {
+        inset: false,
         color: gpui::hsla(0.0, 0.0, 0.0, alpha),
         offset: point(px(x), px(y)),
         blur_radius: px(blur),

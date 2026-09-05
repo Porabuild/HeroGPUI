@@ -17,8 +17,8 @@ use gpui::{
     VisualTestContext,
 };
 use herogpui_components::{
-    Button, ListBox, ListBoxItem, SelectionMode, TabItem, Table, TableColumn, TableRow, Tabs, Tag,
-    TagGroup, VirtualTreeMetadata,
+    Button, EscapeKeyBehavior, ListBox, ListBoxItem, SelectionMode, TabItem, Table, TableColumn,
+    TableRow, Tabs, Tag, TagGroup, VirtualTreeMetadata,
 };
 
 use harness::{click, events, open_host, press};
@@ -344,6 +344,44 @@ fn list_box_disallow_empty_selection_leaves_escape_unhandled(cx: &mut TestAppCon
     press(cx, "tab");
     press(cx, "escape");
     assert_eq!(recorded.borrow().as_slice(), ["outer-escape"]);
+}
+
+#[gpui::test]
+fn list_box_escape_none_preserves_selection_and_bubbles(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let outer_events = for_view.clone();
+        let selection_events = for_view.clone();
+        gpui::div()
+            .on_key_down(move |event, _, _| {
+                if event.keystroke.key == "escape" {
+                    outer_events.borrow_mut().push("outer-escape".into());
+                }
+            })
+            .child(
+                ListBox::new(
+                    "contract-list-escape-none",
+                    vec![ListBoxItem::new("alpha", "Alpha")],
+                )
+                .selection_mode(SelectionMode::Single)
+                .default_selected_keys([SharedString::from("alpha")])
+                .escape_key_behavior(EscapeKeyBehavior::None)
+                .on_selection_change(move |keys, _, _| {
+                    selection_events.borrow_mut().push(sorted_join(keys));
+                }),
+            )
+            .into_any_element()
+    });
+
+    press(cx, "tab");
+    press(cx, "escape");
+    press(cx, "space");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["outer-escape", ""],
+        "Escape must bubble without changing selection; Space proves the seed remained selected"
+    );
 }
 
 #[gpui::test]
@@ -1182,6 +1220,44 @@ fn tag_group_disallow_empty_selection_blocks_final_toggle_and_escape(cx: &mut Te
     );
 }
 
+#[gpui::test]
+fn tag_group_escape_none_preserves_selection_and_bubbles(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let outer_events = for_view.clone();
+        let selection_events = for_view.clone();
+        gpui::div()
+            .on_key_down(move |event, _, _| {
+                if event.keystroke.key == "escape" {
+                    outer_events.borrow_mut().push("outer-escape".into());
+                }
+            })
+            .child(
+                TagGroup::new(
+                    "contract-tags-escape-none",
+                    vec![Tag::new("alpha", "Alpha")],
+                )
+                .selection_mode(SelectionMode::Single)
+                .default_selected_keys([SharedString::from("alpha")])
+                .escape_key_behavior(EscapeKeyBehavior::None)
+                .on_selection_change(move |keys, _, _| {
+                    selection_events.borrow_mut().push(sorted_join(keys));
+                }),
+            )
+            .into_any_element()
+    });
+
+    press(cx, "tab");
+    press(cx, "escape");
+    press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["outer-escape", ""],
+        "Escape must bubble without changing selection; Enter proves the seed remained selected"
+    );
+}
+
 /// Pinned React Aria removes the entire selection when Delete or Backspace is
 /// pressed on a selected tag, but reports only the focused tag otherwise.
 #[gpui::test]
@@ -1360,6 +1436,37 @@ fn tag_group_remove_button_activates_with_enter_and_space(cx: &mut TestAppContex
         ["remove:alpha", "remove:alpha"],
         "the focused remove button must activate on Enter and Space"
     );
+}
+
+#[gpui::test]
+fn tag_group_custom_remove_content_keeps_keyboard_removal(cx: &mut TestAppContext) {
+    let rendered = Rc::new(Cell::new(false));
+    let recorded = events();
+    let rendered_for_view = rendered.clone();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let rendered = rendered_for_view.clone();
+        let removed = for_view.clone();
+        TagGroup::new(
+            "contract-tags-custom-remove",
+            vec![Tag::new("alpha", "Alpha").remove_content(move || {
+                rendered.set(true);
+                gpui::div().child("−").into_any_element()
+            })],
+        )
+        .on_remove(move |keys, _, _| {
+            removed
+                .borrow_mut()
+                .push(format!("remove:{}", sorted_join(keys)));
+        })
+        .into_any_element()
+    });
+
+    assert!(rendered.get(), "the custom remove content must be rendered");
+    press(cx, "tab");
+    press(cx, "tab");
+    press(cx, "enter");
+    assert_eq!(recorded.borrow().as_slice(), ["remove:alpha"]);
 }
 
 /// A remove click reports the removal and then seats the group's focus and

@@ -180,7 +180,7 @@ const DROPDOWN_API: &[ApiDoc] = &[
         prop: "placement",
         ty: "PopoverPlacement",
         default: "\"bottom\"",
-        description: "Placement of the popover relative to the trigger.",
+        description: "Placement relative to the measured trigger. All eight placements flip to the side with more room when the preferred side cannot fit, keeping a 12px cross-axis viewport inset with the scroller capped to the available height.",
         rust_owner: "Dropdown",
         rust: "placement(DropdownPlacement)",
         status: ImplementationStatus::Implemented,
@@ -577,7 +577,8 @@ const DROPDOWN_PARTS: &[PartDoc] = &[
     PartDoc {
         name: "Dropdown.Item",
         slot: "menu-item",
-        description: "Focusable action or selectable menu row.",
+        description:
+            "Focusable action or selectable menu row; descriptions wrap within the popover width.",
         rust_owner: "MenuItem",
         status: ImplementationStatus::Implemented,
     },
@@ -664,6 +665,7 @@ const DROPDOWN_STATES: &[StateDoc] = &[
 ];
 
 const DROPDOWN_STYLING: &[StyleDoc] = &[
+    StyleDoc { class_or_token: ".label / .description / .header / .kbd--light", value: "label text-sm font-medium; description/header text-xs; light Kbd shortcuts", description: "Built-in labels use 14px/20px medium text; descriptions and section headers use 12px/16px. Descriptions stack without a gap, and shortcuts reuse light Kbd.", rust: "Menu built-in text styles + Kbd::new().variant(Light)", status: ImplementationStatus::Implemented },
     StyleDoc {
         class_or_token: ".dropdown",
         value: "flex flex-col gap-1",
@@ -689,8 +691,8 @@ const DROPDOWN_STYLING: &[StyleDoc] = &[
     StyleDoc {
         class_or_token: ".dropdown__popover",
         value: "max-w-48svw; md:min-w-55; bg-overlay; p-0; text-sm; shadow-overlay",
-        description: "Popover dimensions, surface and overflow behavior.",
-        rust: "placed_panel + overlay surface",
+        description: "Positions against the measured trigger; all eight placements flip to the side with more room when the preferred side cannot fit, keeping a 12px cross-axis viewport inset with the scroller capped to the available height. Overlay surface.",
+        rust: "floating + scrollable_popover + max_h_full + overlay surface",
         status: ImplementationStatus::Implemented,
     },
     StyleDoc {
@@ -1298,7 +1300,7 @@ const SLIDER_STYLING: &[StyleDoc] = &[
         class_or_token: "[data-slot=\"label\"] / .slider__output",
         value: "text-sm font-medium; output tabular-nums",
         description: "Label and output typography.",
-        rust: "Slider::render text_size(px(14.)) + FontWeight::MEDIUM",
+        rust: "Slider::render text_size(px(14.)) + line_height(px(20.)) + FontWeight::MEDIUM",
         status: ImplementationStatus::Implemented,
     },
     StyleDoc {
@@ -1710,6 +1712,7 @@ const CHECKBOX_STATES: &[StateDoc] = &[
 ];
 
 const CHECKBOX_STYLING: &[StyleDoc] = &[
+    StyleDoc { class_or_token: "text-sm", value: "14px text with 20px line height", description: "Label content uses 14px medium text with 20px lines, independent of surrounding line height.", rust: "text_size + line_height", status: ImplementationStatus::Implemented },
     StyleDoc {
         class_or_token: ".checkbox",
         value: "flex flex-col items-start gap-1",
@@ -2054,6 +2057,14 @@ const CHECKBOX_GROUP_STATES: &[StateDoc] = &[
 ];
 
 const CHECKBOX_GROUP_STYLING: &[StyleDoc] = &[
+    StyleDoc {
+        class_or_token: "text-sm",
+        value: "14px text with 20px line height",
+        description:
+            "Option labels use 14px/20px medium text; descriptions use 12px/16px regular text.",
+        rust: "text_size + line_height",
+        status: ImplementationStatus::Implemented,
+    },
     StyleDoc {
         class_or_token: ".checkbox-group",
         value: "flex flex-col",
@@ -2496,6 +2507,7 @@ const RADIO_GROUP_STATES: &[StateDoc] = &[
 ];
 
 const RADIO_GROUP_STYLING: &[StyleDoc] = &[
+    StyleDoc { class_or_token: "text-sm", value: "14px text with 20px line height", description: "Option content uses 14px medium text with 20px lines, independent of surrounding line height.", rust: "text_size + line_height", status: ImplementationStatus::Implemented },
     StyleDoc {
         class_or_token: ".radio-group",
         value: "flex flex-col",
@@ -3037,20 +3049,20 @@ const CLOSE_BUTTON_API: &[ApiDoc] = &[
         prop: "isHovered",
         ty: "boolean",
         default: "—",
-        description: "Whether the enabled button is hovered; GPUI reports it one frame later.",
+        description: "Current enabled hover state supplied to custom content.",
         rust_owner: "CloseButton",
         rust: "content(render)",
-        status: ImplementationStatus::Partial,
+        status: ImplementationStatus::Implemented,
     },
     ApiDoc {
         owner: "CloseButtonRenderProps",
         prop: "isPressed",
         ty: "boolean",
         default: "—",
-        description: "Whether the enabled button is pressed; GPUI reports it one frame later.",
+        description: "Current enabled press state supplied to custom content.",
         rust_owner: "CloseButton",
         rust: "content(render)",
-        status: ImplementationStatus::Partial,
+        status: ImplementationStatus::Implemented,
     },
     ApiDoc {
         owner: "CloseButtonRenderProps",
@@ -3088,7 +3100,7 @@ const CLOSE_BUTTON_PARTS: &[PartDoc] = &[
         description:
             "Built-in close glyph; icon(element) or content(render) replaces it in the port.",
         rust_owner: "CloseButton",
-        status: ImplementationStatus::Partial,
+        status: ImplementationStatus::Implemented,
     },
 ];
 
@@ -3098,13 +3110,13 @@ const CLOSE_BUTTON_STATES: &[StateDoc] = &[
         selector: ".close-button:hover / [data-hovered=\"true\"]",
         description: "Enabled buttons use the default-hover background and report hover to render content.",
         rust: "hover(colors.default.hover()) + InteractiveState::is_hovered",
-        status: ImplementationStatus::Partial,
+        status: ImplementationStatus::Implemented,
     },
     StateDoc {
         state: "Pressed",
         selector: ".close-button:active / [data-pressed=\"true\"]",
-        description: "The port reports press state but uses opacity instead of v3's scale(0.93).",
-        rust: "active(opacity 0.7) + InteractiveState::is_pressed",
+        description: "Pressed state reaches custom content; the root bounds shrink to a centered 93%, but fixed child content does not scale with the CSS transform.",
+        rust: "active centered root-bounds shrink + InteractiveState::is_pressed",
         status: ImplementationStatus::Partial,
     },
     StateDoc {
@@ -3169,8 +3181,8 @@ const CLOSE_BUTTON_STYLING: &[StyleDoc] = &[
     StyleDoc {
         class_or_token: ".close-button--default:active / [data-pressed=\"true\"]",
         value: "transform: scale(0.93)",
-        description: "The port currently fades to 70% opacity instead of reproducing the press geometry.",
-        rust: "active(opacity 0.7)",
+        description: "The root bounds shrink to 93% about the center without moving neighboring layout; fixed child content remains unscaled.",
+        rust: "active centered root-bounds shrink",
         status: ImplementationStatus::Partial,
     },
     StyleDoc {
@@ -4274,6 +4286,7 @@ const SWITCH_STATES: &[StateDoc] = &[
 ];
 
 const SWITCH_STYLING: &[StyleDoc] = &[
+    StyleDoc { class_or_token: "text-sm", value: "14px text with 20px line height", description: "Content uses 14px text with 20px lines; the built-in label uses 16px text with 24px lines.", rust: "text_size + line_height", status: ImplementationStatus::Implemented },
     StyleDoc {
         class_or_token: ".switch",
         value: "flex flex-col items-start gap-1",
@@ -4743,8 +4756,9 @@ const PAGINATION_STYLING: &[StyleDoc] = &[
     StyleDoc {
         class_or_token: ".pagination__summary",
         value: "flex items-center gap-2 self-start text-sm text-muted",
-        description: "Summary layout and typography.",
-        rust: "flex + gap(px(8.)) + text_size(px(14.)) + muted",
+        description:
+            "Summary text follows the size-specific 12/16, 14/20 and 16/24 font/line-height pairs.",
+        rust: "flex + gap(px(8.)) + cell_text + cell_leading + muted",
         status: ImplementationStatus::Partial,
     },
     StyleDoc {
@@ -4892,7 +4906,7 @@ const INPUT_STATES: &[StateDoc] = &[
     StateDoc {
         state: "Focused",
         selector: ".input:focus / [data-focused=true]",
-        description: "Draws focused field background, border and ring.",
+        description: "Draws focused field background, border and ring. Registers platform text replacement, composition and paste against the same editable state.",
         rust: "track_focus + apply_field_chrome",
         status: ImplementationStatus::Implemented,
     },
@@ -4927,6 +4941,9 @@ const INPUT_STATES: &[StateDoc] = &[
 ];
 
 const INPUT_STYLING: &[StyleDoc] = &[
+    StyleDoc { class_or_token: "text-sm", value: "14px text with 20px line height", description: "Text adornments inherit the field's 14px text and 20px line height.", rust: "text_size + line_height", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".label", value: "text-sm font-medium", description: "Wrapper labels use 14px medium text with 20px lines, independent of host leading.", rust: "text_size(14px) + line_height(20px) + MEDIUM", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".description / .error-message", value: "text-xs", description: "Helper and error text use 12px text with 16px lines; the error replaces the description.", rust: "text_size(12px) + line_height(16px) + validity-first branch", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".input base", value: "rounded-field border bg-field px-3 py-2 text-base sm:text-sm shadow-field outline-none", description: "Desktop field height, 12px inline inset, 14px desktop type, field radius, colours and shadow match.", rust: "FIELD_HEIGHT + px(px(12.)) + FIELD_TEXT + field_radius + apply_field_chrome", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".input border", value: "--border-width-field / --field-border", description: "Theme field border width and colour chain.", rust: "apply_field_chrome", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".input transitions", value: "background/border 150ms Smooth; shadow 150ms Out; reduced-motion none", description: "State colours switch directly; GPUI has no property-transition implementation for these three values.", rust: "direct apply_field_chrome state colours", status: ImplementationStatus::Partial },
@@ -5150,6 +5167,7 @@ const TEXT_AREA_STATES: &[StateDoc] = &[
 
 const TEXT_AREA_STYLING: &[StyleDoc] = &[
     StyleDoc { class_or_token: ".textarea base", value: "rounded-field border bg-field px-3 py-2 text-base sm:text-sm shadow-field outline-none", description: "12px inline inset, 14px desktop type, field radius, colours and shadow match.", rust: "inner Input px(px(12.)) + FIELD_TEXT + field_radius + apply_field_chrome", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".label / .description / .error-message", value: "text-sm / text-xs", description: "Labels use 14px/20px and helper/error text use 12px/16px, independent of host leading.", rust: "inner Input wrapper text", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".textarea min-height", value: "38px; rows default 3", description: "The documented three-row default uses three 20px lines plus 16px vertical padding.", rust: "rows_height(3) = 76px", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".textarea border", value: "--border-width-field / --field-border", description: "Theme field border width and colour chain.", rust: "apply_field_chrome", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".textarea transitions", value: "background/border 150ms Smooth; shadow 150ms Out; reduced-motion none", description: "State colours switch directly; GPUI has no property-transition implementation for these values.", rust: "direct apply_field_chrome state colours", status: ImplementationStatus::Partial },
@@ -5267,6 +5285,7 @@ const INPUT_GROUP_STATES: &[StateDoc] = &[
 ];
 
 const INPUT_GROUP_STYLING: &[StyleDoc] = &[
+    StyleDoc { class_or_token: "text-sm", value: "14px text with 20px line height", description: "Prefix and suffix text uses 14px text with 20px lines alongside the input.", rust: "text_size + line_height", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".input-group", value: "inline-flex min-h-9 items-center rounded-field border bg-field text-sm text-field-foreground shadow-field", description: "The 36px floor, field radius, fill, 14px type, foreground and shadow match; GPUI has no inline-flex display mode, so the box leans on its parent for intrinsic width.", rust: "div flex + min_h(FIELD_HEIGHT) + FIELD_TEXT + apply_field_chrome", status: ImplementationStatus::Partial },
     StyleDoc { class_or_token: ".input-group:hover:not(:focus-within)", value: "bg-field-hover; border-color --field-border-hover; secondary bg --default-hover", description: "The pinned hover-only group state, suppressed while the focus is inside; a disabled group paints none.", rust: "group.hover(field.hover() / default.hover() + border_hover()) when !focus_within && !is_disabled", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".input-group:has([data-slot=\"input-group-textarea\"])", value: "items-start; height: auto", description: "A textarea group top-aligns its children and grows around the multi-line field instead of centring it.", rust: "items_start + min_h(FIELD_HEIGHT) only", status: ImplementationStatus::Implemented },
@@ -5392,7 +5411,7 @@ const SEARCH_FIELD_STYLING: &[StyleDoc] = &[
     StyleDoc {
         class_or_token: ".search-field",
         value: "flex flex-col gap-1",
-        description: "Root field stack and invalid description replacement.",
+        description: "Root field stack and invalid description replacement; labels use 14px/20px and helper/error text use 12px/16px.",
         rust: "Input wrapper flex_col + gap(4px)",
         status: ImplementationStatus::Implemented,
     },
@@ -5628,8 +5647,8 @@ const INPUT_OTP_API: &[ApiDoc] = &[
         default: "—",
         description: "Placeholder text for empty slots.",
         rust_owner: "InputOTP",
-        rust: "placeholder(char)",
-        status: ImplementationStatus::Partial,
+        rust: "placeholder(impl Into<SharedString>)",
+        status: ImplementationStatus::Implemented,
     },
     ApiDoc {
         owner: "InputOTP",
@@ -5783,6 +5802,14 @@ const INPUT_OTP_STATES: &[StateDoc] = &[
 ];
 
 const INPUT_OTP_STYLING: &[StyleDoc] = &[
+    StyleDoc {
+        class_or_token: "text-sm",
+        value: "14px text with 20px line height",
+        description:
+            "Custom slot content inherits 14px/20px text; the built-in digits use 18px/24px text.",
+        rust: "text_size + line_height",
+        status: ImplementationStatus::Implemented,
+    },
     StyleDoc {
         class_or_token: ".input-otp",
         value: "relative flex w-full items-center gap-2",
@@ -6206,7 +6233,7 @@ const TABS_STYLING: &[StyleDoc] = &[
     StyleDoc {
         class_or_token: ".tabs__list-container__scroller",
         value: "ScrollShadow size 64 with hidden scrollbar",
-        description: "Scrollable viewport and fading overflow edges.",
+        description: "Scrollable viewport follows the configured axis without remapping wheel input from the other axis; fading overflow edges remain unavailable.",
         rust: "raw overflow scroller; chevrons are measured but edge fades are absent",
         status: ImplementationStatus::Partial,
     },
@@ -6241,7 +6268,7 @@ const TABS_STYLING: &[StyleDoc] = &[
     StyleDoc {
         class_or_token: ".tabs__tab",
         value: "relative flex h-8 w-full rounded-3xl px-4 text-sm font-medium text-muted",
-        description: "Tab box and typography.",
+        description: "Tab box and 14px typography with a fixed 20px line height.",
         rust: "32px height + 16px padding + control_radius + 14px medium text",
         status: ImplementationStatus::Implemented,
     },
@@ -6392,9 +6419,9 @@ const DATE_FIELD_API: &[ApiDoc] = &[
     ApiDoc { owner: "DateField", prop: "validate", ty: "(value: DateValue) => ValidationError | true | null", default: "—", description: "Custom validation returns one optional GPUI message.", rust_owner: "DateField", rust: "validate(callback)", status: ImplementationStatus::Partial },
     ApiDoc { owner: "DateField", prop: "validationBehavior", ty: "'native' | 'aria'", default: "'native'", description: "Chooses blocking native or non-blocking ARIA-style form validation.", rust_owner: "DateField", rust: "validation_behavior(ValidationBehavior)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "DateField", prop: "granularity", ty: "'day' | 'hour' | 'minute' | 'second'", default: "'day'", description: "Adds time segments through the selected smallest unit.", rust_owner: "DateField", rust: "granularity(Granularity)", status: ImplementationStatus::Implemented },
-    ApiDoc { owner: "DateField", prop: "hourCycle", ty: "12 | 24", default: "locale", description: "Explicit 12/24-hour modes work; the local default is 24-hour rather than locale-derived.", rust_owner: "DateField", rust: "hour_cycle(HourCycle)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "DateField", prop: "hourCycle", ty: "12 | 24", default: "locale", description: "Defaults to the system regional time format; an explicit cycle overrides it.", rust_owner: "DateField", rust: "hour_cycle(HourCycle)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "DateField", prop: "hideTimeZone", ty: "boolean", default: "false", description: "The port has no zoned date-time value or time-zone segment.", rust_owner: "DateField", rust: "—", status: ImplementationStatus::Unavailable },
-    ApiDoc { owner: "DateField", prop: "shouldForceLeadingZeros", ty: "boolean", default: "locale", description: "Controls month and day zero padding; hour padding remains fixed.", rust_owner: "DateField", rust: "should_force_leading_zeros(bool)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "DateField", prop: "shouldForceLeadingZeros", ty: "boolean", default: "locale", description: "Forces two-digit month, day and hour segments; otherwise numeric padding follows the system regional date and time patterns.", rust_owner: "DateField", rust: "should_force_leading_zeros(bool)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "DateField", prop: "isDisabled", ty: "boolean", default: "false", description: "Dims the whole field, removes it from interaction and form data.", rust_owner: "DateField", rust: "is_disabled(bool)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "DateField", prop: "isReadOnly", ty: "boolean", default: "false", description: "Keeps segment navigation and focus while blocking edits.", rust_owner: "DateField", rust: "is_read_only(bool)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "DateField", prop: "name", ty: "string", default: "—", description: "Registers a live ISO-formatted FormField.", rust_owner: "DateField", rust: "name(value) + form_field()", status: ImplementationStatus::Implemented },
@@ -6404,7 +6431,7 @@ const DATE_FIELD_API: &[ApiDoc] = &[
     ApiDoc { owner: "DateFieldRenderProps", prop: "isDisabled / isInvalid / isReadOnly / isRequired", ty: "boolean", default: "—", description: "Disabled, resolved invalid, read-only and required states supplied to replacement content.", rust_owner: "DateField", rust: "content(render)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "DateField.Group", prop: "fullWidth", ty: "boolean", default: "false", description: "The monolithic group follows the root full-width setting.", rust_owner: "DateField", rust: "full_width(bool)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "DateField.Group", prop: "variant", ty: "'primary' | 'secondary'", default: "'primary'", description: "Selects shadowed field or lower-emphasis default surface chrome.", rust_owner: "DateField", rust: "variant(FieldVariant)", status: ImplementationStatus::Implemented },
-    ApiDoc { owner: "DateField.Segment", prop: "segment", ty: "DateSegment", default: "—", description: "Hands custom content each date segment and its generated text; time segments remain built in.", rust_owner: "DateField", rust: "segment(render)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "DateField.Segment", prop: "segment", ty: "DateSegment", default: "—", description: "Hands custom content each supported Gregorian date or plain-time segment and its generated text. Date and time segments follow the operating system's regional order, separators, padding, and day-period names; era and time-zone segment kinds require value models the port does not expose.", rust_owner: "DateField", rust: "segment(render)", status: ImplementationStatus::Partial },
     ApiDoc { owner: "DateField.Prefix", prop: "children", ty: "ReactNode", default: "—", description: "Inert content before the segmented input.", rust_owner: "DateField", rust: "prefix(element)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "DateField.Suffix", prop: "children", ty: "ReactNode", default: "—", description: "Inert content after the segmented input.", rust_owner: "DateField", rust: "suffix(element)", status: ImplementationStatus::Implemented },
 ];
@@ -6413,9 +6440,9 @@ const DATE_FIELD_PARTS: &[PartDoc] = &[
     PartDoc { name: "DateField", slot: "date-field", description: "Field state, validation and form owner.", rust_owner: "DateField", status: ImplementationStatus::Implemented },
     PartDoc { name: "Label", slot: "label", description: "Optional built-in label with required, invalid and disabled state.", rust_owner: "DateField", status: ImplementationStatus::Implemented },
     PartDoc { name: "DateField.Group", slot: "date-input-group", description: "Focusable field chrome around input, prefix and suffix.", rust_owner: "DateField", status: ImplementationStatus::Implemented },
-    PartDoc { name: "DateField.Input", slot: "date-input-group-input", description: "Built-in segmented input rather than an independently composable part.", rust_owner: "DateField", status: ImplementationStatus::Partial },
+    PartDoc { name: "DateField.Input", slot: "date-input-group-input", description: "Built-in segmented input using the operating system's regional date order and separators rather than an independently composable part.", rust_owner: "DateField", status: ImplementationStatus::Partial },
     PartDoc { name: "DateField.InputContainer", slot: "date-input-group-input-container", description: "The port has one clipped input row and no public scrollable multi-input container.", rust_owner: "DateField", status: ImplementationStatus::Unavailable },
-    PartDoc { name: "DateField.Segment", slot: "date-input-group-segment", description: "Keyboard-editable date and optional time segment; custom rendering covers date segments.", rust_owner: "DateField", status: ImplementationStatus::Partial },
+    PartDoc { name: "DateField.Segment", slot: "date-input-group-segment", description: "Keyboard-editable Gregorian date and optional plain-time segment with custom rendering and regional date order; era and time-zone kinds are unavailable with the current value model.", rust_owner: "DateField", status: ImplementationStatus::Partial },
     PartDoc { name: "DateField.Prefix", slot: "date-input-group-prefix", description: "Inert leading content.", rust_owner: "DateField", status: ImplementationStatus::Implemented },
     PartDoc { name: "DateField.Suffix", slot: "date-input-group-suffix", description: "Inert trailing content.", rust_owner: "DateField", status: ImplementationStatus::Implemented },
     PartDoc { name: "Description", slot: "description", description: "Help text or generated format hint, hidden when invalid.", rust_owner: "DateField", status: ImplementationStatus::Implemented },
@@ -6485,7 +6512,7 @@ const DATE_FIELD_STYLING: &[StyleDoc] = &[
     StyleDoc { class_or_token: ".date-field", value: "flex flex-col gap-1", description: "Four-pixel field stack with label, group and message.", rust: "flex_col + gap(px(4.))", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".date-field[data-invalid] [data-slot=description]", value: "hidden", description: "Invalid state replaces help text with the first resolved error.", rust: "validity.first() branch", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".date-field--full-width", value: "w-full", description: "Full-width root and group.", rust: "full_width(true)", status: ImplementationStatus::Implemented },
-    StyleDoc { class_or_token: ".date-input-group", value: "h-9 rounded-field border bg-field text-sm shadow-field overflow-hidden", description: "Base group geometry and primary field chrome.", rust: "FIELD_HEIGHT + field_radius + field tokens", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".date-input-group", value: "h-9 rounded-field border bg-field text-sm shadow-field overflow-hidden", description: "Base group geometry and primary field chrome; group text and slots use explicit 14px/20px metrics.", rust: "FIELD_HEIGHT + field_radius + field tokens", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".date-input-group transitions", value: "background/border 150ms ease-smooth; shadow 150ms ease-out; reduced-motion none", description: "The port reaches each state endpoint without interpolating field properties.", rust: "immediate hover/focus/invalid styles", status: ImplementationStatus::Partial },
     StyleDoc { class_or_token: ".date-input-group__input", value: "flex flex-1 gap-px px-3 py-2 bg-transparent", description: "Segment row uses 12px horizontal padding and a 2px GPUI gap rather than CSS's 1px gap.", rust: "group px(12px) + gap(2px)", status: ImplementationStatus::Partial },
     StyleDoc { class_or_token: ".date-input-group__input-container", value: "flex flex-1 width fit-content overflow-x auto overflow-y clip", description: "No public multi-input scroll container is rendered.", rust: "—", status: ImplementationStatus::Unavailable },
@@ -6587,7 +6614,7 @@ const NUMBER_FIELD_STATES: &[StateDoc] = &[
 
 const NUMBER_FIELD_STYLING: &[StyleDoc] = &[
     StyleDoc { class_or_token: ".number-field", value: "flex flex-col gap-1", description: "Root field stack and four-pixel label/message spacing.", rust: "flex_col + gap(px(4.))", status: ImplementationStatus::Implemented },
-    StyleDoc { class_or_token: ".number-field__group", value: "grid h-9; 40px 1fr 40px; rounded-field border bg-field text-sm shadow-field", description: "The default flex anatomy matches the three column geometry and shared field shell; GPUI has no CSS grid or autofill pseudo-state.", rust: "FIELD_HEIGHT + 40px buttons + apply_field_chrome", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".number-field__group", value: "grid h-9; 40px 1fr 40px; rounded-field border bg-field text-sm shadow-field", description: "The default flex anatomy matches the three column geometry and shared field shell, with explicit 14px/20px group text; GPUI has no CSS grid or autofill pseudo-state.", rust: "FIELD_HEIGHT + 40px buttons + apply_field_chrome", status: ImplementationStatus::Partial },
     StyleDoc { class_or_token: ".number-field__group transitions", value: "background/border 150ms ease-smooth; shadow 150ms ease-out; reduced motion none", description: "State colors and focus shadow swap on a frame rather than interpolating.", rust: "apply_field_chrome", status: ImplementationStatus::Partial },
     StyleDoc { class_or_token: ".number-field__input", value: "min-w-0 rounded-none border-0 bg-transparent px-3 py-2 text-base sm:text-sm tabular-nums", description: "Inset, transparent grouped chrome and desktop text size match; GPUI text does not expose tabular numeral selection.", rust: "Input::in_group + FIELD_TEXT", status: ImplementationStatus::Partial },
     StyleDoc { class_or_token: ".number-field__increment-button / .number-field__decrement-button", value: "h-full w-10 rounded-none bg-transparent; icon size-4", description: "Default cell and icon metrics match with a 15% placeholder seam.", rust: "stepper_btn 40x36 + FIELD_ICON", status: ImplementationStatus::Implemented },
@@ -6635,7 +6662,7 @@ const TIME_FIELD_API: &[ApiDoc] = &[
     ApiDoc { owner: "TimeField", prop: "value", ty: "TimeValue | null", default: "—", description: "Controlled plain-time value; calendar date-time and zoned types are not represented.", rust_owner: "TimeField", rust: "value(Option<Time>, cx)", status: ImplementationStatus::Partial },
     ApiDoc { owner: "TimeField", prop: "defaultValue", ty: "TimeValue | null", default: "—", description: "Seeds an uncontrolled plain-time value once.", rust_owner: "TimeField", rust: "default_value(Time)", status: ImplementationStatus::Partial },
     ApiDoc { owner: "TimeField", prop: "onChange", ty: "(value: TimeValue | null) => void", default: "—", description: "Reports a plain Time value or null.", rust_owner: "TimeField", rust: "on_change(callback)", status: ImplementationStatus::Partial },
-    ApiDoc { owner: "TimeField", prop: "placeholderValue", ty: "TimeValue | null", default: "12:00 AM / 00:00", description: "Seeds the first edit; the local default is 09:00 rather than hour-cycle-derived midnight/noon.", rust_owner: "TimeField", rust: "placeholder_value(Time)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "TimeField", prop: "placeholderValue", ty: "TimeValue | null", default: "12:00 AM / 00:00", description: "Seeds the first edit and defaults to midnight in the active hour cycle.", rust_owner: "TimeField", rust: "placeholder_value(Time)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "TimeField", prop: "isRequired", ty: "boolean", default: "false", description: "Marks the field required and blocks empty native submission.", rust_owner: "TimeField", rust: "is_required(bool)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "TimeField", prop: "isInvalid", ty: "boolean", default: "false", description: "Forces invalid chrome and validation reporting.", rust_owner: "TimeField", rust: "is_invalid(bool)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "TimeField", prop: "minValue", ty: "TimeValue | null", default: "—", description: "Inclusive minimum plain time.", rust_owner: "TimeField", rust: "min_value(Time)", status: ImplementationStatus::Partial },
@@ -6643,9 +6670,9 @@ const TIME_FIELD_API: &[ApiDoc] = &[
     ApiDoc { owner: "TimeField", prop: "validate", ty: "(value: TimeValue) => ValidationError | true | null", default: "—", description: "Custom validation returns one optional GPUI message.", rust_owner: "TimeField", rust: "validate(callback)", status: ImplementationStatus::Partial },
     ApiDoc { owner: "TimeField", prop: "validationBehavior", ty: "'native' | 'aria'", default: "'native'", description: "Chooses blocking native or non-blocking allow behavior.", rust_owner: "TimeField", rust: "validation_behavior(ValidationBehavior)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "TimeField", prop: "granularity", ty: "'hour' | 'minute' | 'second'", default: "'minute'", description: "Controls the smallest visible and submitted unit.", rust_owner: "TimeField", rust: "granularity(TimeGranularity)", status: ImplementationStatus::Implemented },
-    ApiDoc { owner: "TimeField", prop: "hourCycle", ty: "12 | 24", default: "locale", description: "Explicit cycles work; the local default is 24-hour rather than locale-derived.", rust_owner: "TimeField", rust: "hour_cycle(HourCycle)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "TimeField", prop: "hourCycle", ty: "12 | 24", default: "locale", description: "Defaults to the system regional time format; an explicit cycle overrides it.", rust_owner: "TimeField", rust: "hour_cycle(HourCycle)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "TimeField", prop: "hideTimeZone", ty: "boolean", default: "false", description: "The port has no zoned time value or zone segment.", rust_owner: "TimeField", rust: "—", status: ImplementationStatus::Unavailable },
-    ApiDoc { owner: "TimeField", prop: "shouldForceLeadingZeros", ty: "boolean", default: "locale", description: "Controls padding for hour, minute and second rather than only the locale-sensitive hour.", rust_owner: "TimeField", rust: "should_force_leading_zeros(bool)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "TimeField", prop: "shouldForceLeadingZeros", ty: "boolean", default: "locale", description: "Forces a two-digit hour when true; otherwise numeric padding follows the system regional time pattern.", rust_owner: "TimeField", rust: "should_force_leading_zeros(bool)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "TimeField", prop: "isDisabled", ty: "boolean", default: "false", description: "Dims the whole field, removes interaction and omits form data.", rust_owner: "TimeField", rust: "is_disabled(bool)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "TimeField", prop: "isReadOnly", ty: "boolean", default: "false", description: "Keeps segment navigation and focus while blocking edits.", rust_owner: "TimeField", rust: "is_read_only(bool)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "TimeField", prop: "name", ty: "string", default: "—", description: "Registers a live ISO time FormField.", rust_owner: "TimeField", rust: "name(value) + form_field(cx)", status: ImplementationStatus::Implemented },
@@ -6654,7 +6681,7 @@ const TIME_FIELD_API: &[ApiDoc] = &[
     ApiDoc { owner: "TimeFieldRenderProps", prop: "isDisabled / isInvalid / isReadOnly / isRequired", ty: "boolean", default: "—", description: "Complete field state supplied to replacement content.", rust_owner: "TimeField", rust: "content(render)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "TimeFieldRenderProps", prop: "isFocused / isFocusWithin / isFocusVisible", ty: "boolean", default: "—", description: "Live focus state supplied to replacement content.", rust_owner: "TimeField", rust: "content(render)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "TimeField.Group / TimeField.Input", prop: "variant", ty: "'primary' | 'secondary'", default: "'primary'", description: "The monolithic group and input share one field variant.", rust_owner: "TimeField", rust: "variant(FieldVariant)", status: ImplementationStatus::Implemented },
-    ApiDoc { owner: "TimeField.Segment", prop: "segment", ty: "DateSegment", default: "—", description: "Hands custom content each time segment and its generated text.", rust_owner: "TimeField", rust: "segment(render)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "TimeField.Segment", prop: "segment", ty: "DateSegment", default: "—", description: "Hands custom content each time segment and its system-regional generated text.", rust_owner: "TimeField", rust: "segment(render)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "TimeField.Prefix", prop: "children", ty: "ReactNode", default: "—", description: "Inert content before the segments.", rust_owner: "TimeField", rust: "prefix(element)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "TimeField.Suffix", prop: "children", ty: "ReactNode", default: "—", description: "Inert content after the segments.", rust_owner: "TimeField", rust: "suffix(element)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "Composition parts", prop: "className", ty: "string", default: "—", description: "Per-part browser CSS classes are unavailable.", rust_owner: "TimeField", rust: "—", status: ImplementationStatus::Unavailable },
@@ -6788,8 +6815,8 @@ const TIME_FIELD_STATES: &[StateDoc] = &[
 const TIME_FIELD_STYLING: &[StyleDoc] = &[
     StyleDoc { class_or_token: ".time-field", value: "flex flex-col gap-1", description: "Four-pixel field stack with label, group and message.", rust: "flex_col + gap(px(4.))", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".time-field[data-invalid] [data-slot=description]", value: "hidden", description: "Invalid state replaces help text with the first error.", rust: "validity.first() branch", status: ImplementationStatus::Implemented },
-    StyleDoc { class_or_token: ".time-field--full-width", value: "w-full", description: "Full-width root and group.", rust: "full_width(true)", status: ImplementationStatus::Implemented },
-    StyleDoc { class_or_token: ".date-input-group", value: "h-9 rounded-field border bg-field text-sm shadow-field overflow-hidden", description: "Shared base group geometry and primary field chrome.", rust: "FIELD_HEIGHT + field_radius + field tokens", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".time-field--full-width", value: "w-full", description: "Full-width root and group stretch even in a non-stretching parent.", rust: "full_width(true)", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".date-input-group", value: "h-9 rounded-field border bg-field text-sm shadow-field overflow-hidden", description: "Shared base group geometry and primary field chrome; group text and slots use explicit 14px/20px metrics.", rust: "FIELD_HEIGHT + field_radius + field tokens", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".date-input-group transitions", value: "background/border 150ms ease-smooth; shadow 150ms ease-out; reduced-motion none", description: "The port reaches state endpoints without property interpolation.", rust: "immediate hover/focus/invalid styles", status: ImplementationStatus::Partial },
     StyleDoc { class_or_token: ".date-input-group__input", value: "flex flex-1 gap-px px-3 py-2 bg-transparent", description: "Segment row uses the correct padding with a 2px GPUI gap rather than CSS's 1px gap.", rust: "group px(12px) + gap(2px)", status: ImplementationStatus::Partial },
     StyleDoc { class_or_token: ".date-input-group__segment", value: "rounded-md px-0.5 text-end tabular-nums", description: "Radius and padding match; Consolas supplies tabular figures without independent text-end alignment.", rust: "px(2px) + radius_md + Consolas", status: ImplementationStatus::Partial },
@@ -6938,10 +6965,10 @@ const CALENDAR_API: &[ApiDoc] = &[
         prop: "firstDayOfWeek",
         ty: "'sun' | 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat'",
         default: "Locale default",
-        description: "An explicit weekday is supported; the GPUI default is Monday, not locale-derived.",
+        description: "Defaults from the operating system's regional date preferences through CLDR week data; an explicit weekday overrides it, with Sunday as the invalid-locale fallback.",
         rust_owner: "Calendar",
         rust: "first_day_of_week(Weekday)",
-        status: ImplementationStatus::Partial,
+        status: ImplementationStatus::Implemented,
     },
     ApiDoc {
         owner: "Calendar",
@@ -6958,7 +6985,7 @@ const CALENDAR_API: &[ApiDoc] = &[
         prop: "selectionAlignment",
         ty: "'start' | 'center' | 'end'",
         default: "'center'",
-        description: "Aligns the initial visible range around the selection.",
+        description: "Aligns the initial visible range around the selection; picking preserves that displayed range.",
         rust_owner: "Calendar",
         rust: "selection_alignment(SelectionAlignment)",
         status: ImplementationStatus::Implemented,
@@ -7220,9 +7247,9 @@ const CALENDAR_PARTS: &[PartDoc] = &[
     PartDoc {
         name: "Calendar.YearPickerGrid",
         slot: "calendar-year-picker-grid",
-        description: "Three-column year selection surface.",
+        description: "Scrollable three-column year surface overlaying the retained day area.",
         rust_owner: "Calendar",
-        status: ImplementationStatus::Partial,
+        status: ImplementationStatus::Implemented,
     },
     PartDoc {
         name: "Calendar.YearPickerGridBody",
@@ -7289,7 +7316,7 @@ const CALENDAR_STATES: &[StateDoc] = &[
     StateDoc {
         state: "Focus visible",
         selector: ":focus-visible, [data-focus-visible=\"true\"]",
-        description: "Roving in-month focus ring driven by the calendar cursor.",
+        description: "Roving in-month focus ring driven by the calendar cursor. Month boundaries, paging, alignment and year selection follow the chosen calendar system while focus values stay Gregorian.",
         rust: "grid_focus + with_focus_ring",
         status: ImplementationStatus::Implemented,
     },
@@ -7310,8 +7337,8 @@ const CALENDAR_STATES: &[StateDoc] = &[
     StateDoc {
         state: "Year picker open",
         selector: ".calendar-year-picker__trigger[data-open=\"true\"]",
-        description: "The year grid replaces the day grid, without v3's staggered crossfade.",
-        rust: "year_picker_open conditional tree",
+        description: "The scrollable year grid overlays the retained day layout, without the staggered crossfade.",
+        rust: "year_picker_open overlay + invisible day body",
         status: ImplementationStatus::Partial,
     },
     StateDoc {
@@ -7327,7 +7354,7 @@ const CALENDAR_STYLING: &[StyleDoc] = &[
     StyleDoc {
         class_or_token: ".calendar",
         value: "w-63 max-w-63; container-type: inline-size",
-        description: "Single-month width is exact; GPUI has no CSS container-query context.",
+        description: "Single-month width is exact; multiple months use the documented 256px panels, 32px gaps and horizontal scrolling. GPUI has no CSS container-query context.",
         rust: "CALENDAR_WIDTH = 252px",
         status: ImplementationStatus::Partial,
     },
@@ -7341,23 +7368,23 @@ const CALENDAR_STYLING: &[StyleDoc] = &[
     StyleDoc {
         class_or_token: ".calendar--day-view",
         value: "isolated header/body grids with repeat(7, 1fr) and mt-1 body spacing",
-        description: "Day labels are isolated from dates, but more than seven days do not wrap into v3's grid.",
-        rust: "VisibleDuration::Days linear flex row",
-        status: ImplementationStatus::Partial,
+        description: "Seven weekday columns, disabled leading dates and trailing blanks match, with 4px between the weekday block and date rows.",
+        rust: "week_aligned_rows + visible_start disabled guard",
+        status: ImplementationStatus::Implemented,
     },
     StyleDoc {
         class_or_token: ".calendar__header",
         value: "flex items-center justify-between px-0.5 pb-4",
-        description: "Header alignment and horizontal inset match; the port uses an 8px root gap.",
-        rust: "items_center + justify_between + px(2.)",
-        status: ImplementationStatus::Partial,
+        description: "The header aligns its controls with a 2px horizontal inset and 16px bottom padding.",
+        rust: "items_center + justify_between + px(2px) + pb(16px)",
+        status: ImplementationStatus::Implemented,
     },
     StyleDoc {
         class_or_token: ".calendar__heading",
         value: "flex-1 text-sm font-medium",
-        description: "Heading size matches, but the port uses semibold weight.",
-        rust: "text_size(14px) + SEMIBOLD",
-        status: ImplementationStatus::Partial,
+        description: "Month headings use 14px/20px medium text independent of the host line height.",
+        rust: "text_size(14px) + line_height(20px) + MEDIUM",
+        status: ImplementationStatus::Implemented,
     },
     StyleDoc {
         class_or_token: ".calendar__header:has([data-open=\"true\"])",
@@ -7383,9 +7410,9 @@ const CALENDAR_STYLING: &[StyleDoc] = &[
     StyleDoc {
         class_or_token: ".calendar__grid",
         value: "grid repeat(7, 1fr) w-full",
-        description: "Seven equal columns are reproduced with GPUI flex rows.",
-        rust: "seven flex_1 cells per row",
-        status: ImplementationStatus::Implemented,
+        description: "All views divide each panel into seven equal columns without horizontal gaps; multi-month panels are 256px wide.",
+        rust: "seven flex_1 cells per row + no horizontal gap",
+        status: ImplementationStatus::Partial,
     },
     StyleDoc {
         class_or_token: ".calendar__grid-header",
@@ -7397,22 +7424,22 @@ const CALENDAR_STYLING: &[StyleDoc] = &[
     StyleDoc {
         class_or_token: ".calendar__grid-body",
         value: "display: contents; first row mt-1",
-        description: "Date rows are explicit flex children; vertical spacing comes from the root and row gaps.",
-        rust: "month_grid flex_col + gap(2px)",
-        status: ImplementationStatus::Partial,
+        description: "Date rows start 4px below the weekday block and remain contiguous.",
+        rust: "month_grid flex_col + preceding gap(4px)",
+        status: ImplementationStatus::Implemented,
     },
     StyleDoc {
         class_or_token: ".calendar__header-cell",
         value: "pb-2 text-xs font-medium text-muted",
-        description: "Size and muted color match; bottom padding and medium weight are absent.",
-        rust: "text_size(12px) + muted",
-        status: ImplementationStatus::Partial,
+        description: "Weekday labels use 12px/16px medium muted text with 8px bottom padding.",
+        rust: "text_size(12px) + line_height(16px) + MEDIUM + muted + pb(8px)",
+        status: ImplementationStatus::Implemented,
     },
     StyleDoc {
         class_or_token: ".calendar__cell",
         value: "aspect-square size-full rounded-3xl text-sm font-medium",
-        description: "A centered 36px circular hit area matches the desktop cell geometry.",
-        rust: "36px circle + radius(18px) + text_size(14px)",
+        description: "Day cells center 14px/20px medium text in a square one seventh of the panel width, including selected, disabled and custom cells.",
+        rust: "cell_size = column_width / 7 + text_size(14px) + line_height(20px) + MEDIUM",
         status: ImplementationStatus::Partial,
     },
     StyleDoc {
@@ -7474,8 +7501,8 @@ const CALENDAR_STYLING: &[StyleDoc] = &[
     StyleDoc {
         class_or_token: ".calendar-year-picker__trigger-heading",
         value: "text-sm font-medium; color 150ms ease-out; open accent-soft foreground",
-        description: "Text size matches; weight, open color and transition do not.",
-        rust: "text_size(14px) + SEMIBOLD",
+        description: "The 14px/20px medium text matches; open color and transition do not.",
+        rust: "text_size(14px) + line_height(20px) + MEDIUM",
         status: ImplementationStatus::Partial,
     },
     StyleDoc {
@@ -7488,22 +7515,22 @@ const CALENDAR_STYLING: &[StyleDoc] = &[
     StyleDoc {
         class_or_token: ".calendar:has(.calendar-year-picker__year-grid) > [data-slot=\"calendar-grid\"]",
         value: "day grid 150ms fade; year grid 200ms fade after 50ms; reduced-motion none",
-        description: "The port replaces the day grid immediately without the pinned staggered crossfade.",
-        rust: "conditional tree replacement",
+        description: "The day body is hidden immediately beneath the year overlay without the pinned staggered crossfade.",
+        rust: "invisible day body + absolute year overlay",
         status: ImplementationStatus::Unavailable,
     },
     StyleDoc {
         class_or_token: ".calendar-year-picker__year-grid",
         value: "absolute 3-column grid gap-1 overflow-y-auto p-1",
-        description: "Columns, gap and padding match; overlay positioning and scrolling do not.",
-        rust: "three-cell flex rows + gap(4px) + p(4px)",
-        status: ImplementationStatus::Partial,
+        description: "The scrollable three-column year grid occupies the retained day area; opening and keyboard movement reveal the active row.",
+        rust: "absolute inset_0 + retained day layout + ScrollHandle + three-cell rows + gap(4px) + p(4px)",
+        status: ImplementationStatus::Implemented,
     },
     StyleDoc {
         class_or_token: ".calendar-year-picker__year-cell",
         value: "h-8 px-2.5 rounded-3xl text-sm font-medium",
         description: "Year geometry and selected/hover/focus treatments are present; transitions are absent.",
-        rust: "h(32px) + px(10px) + control_radius + text_size(14px)",
+        rust: "h(32px) + px(10px) + control_radius + text_size(14px) + line_height(20px) + MEDIUM",
         status: ImplementationStatus::Partial,
     },
 ];
@@ -7551,10 +7578,10 @@ const RANGE_CALENDAR_API: &[ApiDoc] = &[
     ApiDoc { owner: "RangeCalendar", prop: "minValue", ty: "DateValue", default: "Calendar-aware 1900-01-01", description: "Defaults to Gregorian 1900-01-01; an explicit minimum overrides it.", rust_owner: "RangeCalendar", rust: "min_value(Date)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "RangeCalendar", prop: "maxValue", ty: "DateValue", default: "Calendar-aware 2099-12-31", description: "Defaults to Gregorian 2099-12-31; an explicit maximum overrides it.", rust_owner: "RangeCalendar", rust: "max_value(Date)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "RangeCalendar", prop: "weeksInMonth", ty: "number", default: "—", description: "Uses the exact nonzero row count; zero falls back to the derived count.", rust_owner: "RangeCalendar", rust: "weeks_in_month(usize)", status: ImplementationStatus::Implemented },
-    ApiDoc { owner: "RangeCalendar", prop: "isDateUnavailable", ty: "(date: DateValue, anchorDate: CalendarDate | null) => boolean", default: "—", description: "Receives the active anchor for cells, preview and both input paths; pinned window-bounded scanning and merged navigation bounds remain incomplete.", rust_owner: "RangeCalendar", rust: "is_date_unavailable(callback)", status: ImplementationStatus::Partial },
-    ApiDoc { owner: "RangeCalendar", prop: "firstDayOfWeek", ty: "'sun' | 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat'", default: "Locale default", description: "Explicit weekdays work; the GPUI default is Monday rather than locale-derived.", rust_owner: "RangeCalendar", rust: "first_day_of_week(Weekday)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "RangeCalendar", prop: "isDateUnavailable", ty: "(date: DateValue, anchorDate: CalendarDate | null) => boolean", default: "—", description: "Receives the active anchor for cells and both input paths; contiguous selection scans through one visible duration on each side plus the sentinel day beyond each limit, then merges discovered bounds into cells, focus and navigation.", rust_owner: "RangeCalendar", rust: "is_date_unavailable(callback)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "RangeCalendar", prop: "firstDayOfWeek", ty: "'sun' | 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat'", default: "Locale default", description: "Defaults from the operating system's regional date preferences through CLDR week data; an explicit weekday overrides it, with Sunday as the invalid-locale fallback.", rust_owner: "RangeCalendar", rust: "first_day_of_week(Weekday)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "RangeCalendar", prop: "pageBehavior", ty: "'visible' | 'single'", default: "'visible'", description: "Pages by the visible range or one displayed unit.", rust_owner: "RangeCalendar", rust: "page_behavior(PageBehavior)", status: ImplementationStatus::Implemented },
-    ApiDoc { owner: "RangeCalendar", prop: "selectionAlignment", ty: "'start' | 'center' | 'end'", default: "'center'", description: "Explicit alignment wins; otherwise a range extending beyond the centered window automatically starts at the first visible unit.", rust_owner: "RangeCalendar", rust: "selection_alignment(SelectionAlignment)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "RangeCalendar", prop: "selectionAlignment", ty: "'start' | 'center' | 'end'", default: "'center'", description: "Explicit alignment wins; otherwise a range extending beyond the centered window automatically starts at the first visible unit. The first pick preserves that aligned view.", rust_owner: "RangeCalendar", rust: "selection_alignment(SelectionAlignment)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "RangeCalendar", prop: "allowsNonContiguousRanges", ty: "boolean", default: "false", description: "Allows a completed range to span unavailable interior dates.", rust_owner: "RangeCalendar", rust: "allows_non_contiguous_ranges(bool)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "RangeCalendar", prop: "isDisabled", ty: "boolean", default: "false", description: "Disables navigation, focus and selection and dims the calendar.", rust_owner: "RangeCalendar", rust: "is_disabled(bool)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "RangeCalendar", prop: "isReadOnly", ty: "boolean", default: "false", description: "Keeps focus and navigation while preventing range changes.", rust_owner: "RangeCalendar", rust: "is_read_only(bool)", status: ImplementationStatus::Implemented },
@@ -7572,7 +7599,7 @@ const RANGE_CALENDAR_API: &[ApiDoc] = &[
     ApiDoc { owner: "RangeCalendar.Cell render props", prop: "isSelectionStart", ty: "boolean", default: "—", description: "Reports the current range start, including inert outside-month copies.", rust_owner: "RangeCalendar", rust: "cell(render)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "RangeCalendar.Cell render props", prop: "isSelectionEnd", ty: "boolean", default: "—", description: "Reports the current or preview range end.", rust_owner: "RangeCalendar", rust: "cell(render)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "RangeCalendar.Cell render props", prop: "isUnavailable", ty: "boolean", default: "—", description: "Reports predicate-derived unavailability for every real date.", rust_owner: "RangeCalendar", rust: "cell(render)", status: ImplementationStatus::Implemented },
-    ApiDoc { owner: "RangeCalendar.Cell render props", prop: "isDisabled", ty: "boolean", default: "—", description: "Reports disabled, out-of-range and outside-month cells without conflating unavailable or read-only state.", rust_owner: "RangeCalendar", rust: "cell(render)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "RangeCalendar.Cell render props", prop: "isDisabled", ty: "boolean", default: "—", description: "Reports root-disabled, outside-month and effective min/max cells, including anchor-derived contiguous-range bounds; isUnavailable remains independently observable.", rust_owner: "RangeCalendar", rust: "cell(render)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "RangeCalendar.Cell render props", prop: "isOutsideMonth", ty: "boolean", default: "—", description: "Reports leading and trailing adjacent-month copies.", rust_owner: "RangeCalendar", rust: "cell(render)", status: ImplementationStatus::Implemented },
 ];
 
@@ -7671,9 +7698,9 @@ const RANGE_CALENDAR_PARTS: &[PartDoc] = &[
     PartDoc {
         name: "RangeCalendar.YearPickerGrid",
         slot: "calendar-year-picker-grid",
-        description: "Three-column year selection surface.",
+        description: "Scrollable three-column year surface overlaying the retained day area.",
         rust_owner: "RangeCalendar",
-        status: ImplementationStatus::Partial,
+        status: ImplementationStatus::Implemented,
     },
     PartDoc {
         name: "RangeCalendar.YearPickerGridBody",
@@ -7758,7 +7785,7 @@ const RANGE_CALENDAR_STATES: &[StateDoc] = &[
     StateDoc {
         state: "Focus visible",
         selector: ":focus-visible or [data-focus-visible=\"true\"]",
-        description: "Roving in-month focus ring shared by hover and keyboard.",
+        description: "Roving in-month focus ring shared by hover and keyboard. Month boundaries, paging, alignment and year selection follow the chosen calendar system while focus values stay Gregorian.",
         rust: "grid_focus + with_focus_ring",
         status: ImplementationStatus::Implemented,
     },
@@ -7779,24 +7806,24 @@ const RANGE_CALENDAR_STATES: &[StateDoc] = &[
     StateDoc {
         state: "Year picker open",
         selector: ".calendar-year-picker__trigger[data-open=\"true\"]",
-        description: "Replaces the day grid without v3's staggered crossfade.",
-        rust: "year_picker_open conditional tree",
+        description: "The scrollable year grid overlays the retained day layout, without the staggered crossfade.",
+        rust: "year_picker_open overlay + invisible day body",
         status: ImplementationStatus::Partial,
     },
 ];
 
 const RANGE_CALENDAR_STYLING: &[StyleDoc] = &[
-    StyleDoc { class_or_token: ".range-calendar", value: "w-63 max-w-63; container-type inline-size", description: "Week/day roots use 252px, but month view paints 266px; GPUI also has no container-query context.", rust: "CALENDAR_WIDTH 252px / month column 266px", status: ImplementationStatus::Partial },
-    StyleDoc { class_or_token: ".range-calendar--week/day-view", value: "circular cells; isolated seven-column headers and bodies", description: "Week layout matches; long day runs stay linear instead of wrapping like v3.", rust: "VisibleDuration week/day branches", status: ImplementationStatus::Partial },
-    StyleDoc { class_or_token: ".range-calendar__header", value: "flex items-center justify-between px-0.5 pb-4", description: "Alignment and inset match; vertical spacing is supplied by the root gap.", rust: "items_center + justify_between + px(2px)", status: ImplementationStatus::Partial },
-    StyleDoc { class_or_token: ".range-calendar__heading", value: "flex-1 text-sm font-medium", description: "Size matches; the port uses semibold weight.", rust: "text_size(14px) + SEMIBOLD", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".range-calendar", value: "w-63 max-w-63; container-type inline-size", description: "Single-month, week and day roots use 252px; multiple months use the documented 256px panels, 32px gaps and horizontal scrolling. GPUI has no container-query context.", rust: "CALENDAR_WIDTH 252px / multiple-month column 256px", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".range-calendar--week/day-view", value: "circular cells; isolated seven-column headers and bodies", description: "Day rows start at the week boundary, disable leading dates and pad the visible end with blank cells.", rust: "VisibleDuration week/day branches", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".range-calendar__header", value: "flex items-center justify-between px-0.5 pb-4", description: "Header alignment, 2px horizontal inset and 16px bottom padding match.", rust: "items_center + justify_between + px(2px) + pb(16px)", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".range-calendar__heading", value: "flex-1 text-sm font-medium", description: "Month headings use 14px/20px medium text independent of the host line height.", rust: "text_size(14px) + line_height(20px) + MEDIUM", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".range-calendar__nav-button", value: "size-6 rounded-xl; transform 250ms; colors/shadow 100ms", description: "Geometry, hover, disabled and focus exist; press and property interpolation are incomplete.", rust: "24px + small_radius + hover + focus ring", status: ImplementationStatus::Partial },
     StyleDoc { class_or_token: ".range-calendar__nav-button-icon", value: "size-4; RTL rotate 180deg", description: "Size matches; direction-aware rotation is unavailable.", rust: "svg size(16px)", status: ImplementationStatus::Partial },
-    StyleDoc { class_or_token: ".range-calendar__grid", value: "grid repeat(7, 1fr) w-full", description: "Seven flex cells are fixed at 38px rather than v3's 36px columns inside a 252px root.", rust: "seven 38px cells per flex row", status: ImplementationStatus::Partial },
-    StyleDoc { class_or_token: ".range-calendar__grid-header/body", value: "display: contents; first body row mt-1", description: "Explicit flex siblings replace flattened table contents.", rust: "weekday_header + month_grid flex columns", status: ImplementationStatus::Partial },
-    StyleDoc { class_or_token: ".range-calendar__header-cell", value: "pb-2 text-xs font-medium text-muted", description: "Size and color match; padding and medium weight do not.", rust: "text_size(12px) + muted", status: ImplementationStatus::Partial },
-    StyleDoc { class_or_token: ".range-calendar__cell", value: "relative my-0.5 rounded-3xl outline-none", description: "The port uses 38px cells, 13px text and simplified row boundaries instead of v3's 36px/14px surface.", rust: "38px range segment + 13px text", status: ImplementationStatus::Partial },
-    StyleDoc { class_or_token: ".range-calendar__cell-button", value: "aspect-square w-full rounded-3xl text-sm font-medium", description: "The monolithic GPUI cell reproduces the inner hit surface without a separate DOM part.", rust: "centered cell content", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".range-calendar__grid", value: "grid repeat(7, 1fr) w-full", description: "Seven equal flex columns fill each panel, including the wider multiple-month layout.", rust: "seven flex_1 cells per row", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".range-calendar__grid-header/body", value: "display: contents; first body row mt-1", description: "Seven-column flex rows start 4px below the weekday block; each range cell retains its 2px vertical margins.", rust: "weekday_header + month_grid flex columns", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".range-calendar__header-cell", value: "pb-2 text-xs font-medium text-muted", description: "Weekday labels use 12px/16px medium muted text with 8px bottom padding.", rust: "text_size(12px) + line_height(16px) + MEDIUM + muted + pb(8px)", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".range-calendar__cell", value: "relative my-0.5 rounded-3xl outline-none", description: "Each range segment spans one seventh of the panel width and contains a separate square day button; 4px row gaps reproduce the spacing between cells.", rust: "flex_1 range segment + cell_size height + row gap(4px) + grid py(2px)", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".range-calendar__cell-button", value: "aspect-square w-full rounded-3xl text-sm font-medium", description: "The inner day button centers 14px/20px medium text, including selected endpoints and custom cell content.", rust: "cell_size = column_width / 7 + text_size(14px) + line_height(20px) + MEDIUM", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".range-calendar__cell-button transition", value: "scale 200ms ease-out; motion-reduce none", description: "The 0.9 target is exact, but the scale lands on a frame.", rust: "anim::pressed instantaneous geometry", status: ImplementationStatus::Partial },
     StyleDoc { class_or_token: ".range-calendar__cell[data-selected=\"true\"]", value: "rounded-none bg-accent-soft with rounded row boundaries", description: "Track fill exists; CSS sibling-aware row caps are simplified.", rust: "in_range square accent soft fill", status: ImplementationStatus::Partial },
     StyleDoc { class_or_token: ".range-calendar__cell selection caps", value: "accent fill/foreground; 3xl logical start/end radii", description: "Endpoint accents exist as pills rather than directional half-caps joined to the track.", rust: "draw_start/draw_end rounded_full accent", status: ImplementationStatus::Partial },
@@ -7808,9 +7835,9 @@ const RANGE_CALENDAR_STYLING: &[StyleDoc] = &[
     StyleDoc { class_or_token: ".range-calendar__cell-indicator", value: "bottom-1 centered 3px dot; selected accent foreground", description: "Size and selection color match; the inset is 2px rather than 4px.", rust: "bottom(2px) + size(3px)", status: ImplementationStatus::Partial },
     StyleDoc { class_or_token: ".calendar-year-picker__trigger", value: "flex-1 gap-1 rounded-lg", description: "Composed and focusable, with extra padding and hover fill.", rust: "gap(4px) + key_radius + padding", status: ImplementationStatus::Partial },
     StyleDoc { class_or_token: ".calendar-year-picker__trigger-indicator", value: "rotate 90deg over 150ms when open", description: "The port swaps up/down glyphs without rotation interpolation.", rust: "CHEVRON_UP / CHEVRON_DOWN", status: ImplementationStatus::Partial },
-    StyleDoc { class_or_token: ".range-calendar:has(.calendar-year-picker__year-grid) > [data-slot=\"range-calendar-grid\"]", value: "day 150ms fade; year 200ms fade after 50ms", description: "The day grid is replaced immediately.", rust: "conditional tree replacement", status: ImplementationStatus::Unavailable },
-    StyleDoc { class_or_token: ".calendar-year-picker__year-grid", value: "absolute three-column grid gap-1 overflow-y-auto p-1", description: "Columns, gap and padding match; overlay positioning and scrolling do not.", rust: "three-cell rows + gap(4px) + p(4px)", status: ImplementationStatus::Partial },
-    StyleDoc { class_or_token: ".calendar-year-picker__year-cell", value: "h-8 px-2.5 rounded-3xl text-sm font-medium", description: "Geometry and core states exist; transitions are absent.", rust: "32px + px(10px) + control radius", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".range-calendar:has(.calendar-year-picker__year-grid) > [data-slot=\"range-calendar-grid\"]", value: "day 150ms fade; year 200ms fade after 50ms", description: "The day body is hidden immediately beneath the year overlay.", rust: "invisible day body + absolute year overlay", status: ImplementationStatus::Unavailable },
+    StyleDoc { class_or_token: ".calendar-year-picker__year-grid", value: "absolute three-column grid gap-1 overflow-y-auto p-1", description: "The scrollable three-column year grid occupies the retained day area; opening and keyboard movement reveal the active row.", rust: "absolute inset_0 + retained day layout + ScrollHandle + three-cell rows + gap(4px) + p(4px)", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".calendar-year-picker__year-cell", value: "h-8 px-2.5 rounded-3xl text-sm font-medium", description: "Geometry and core states exist; transitions are absent.", rust: "32px + px(10px) + control radius + text_size(14px) + line_height(20px) + MEDIUM", status: ImplementationStatus::Partial },
 ];
 
 pub(crate) const RANGE_CALENDAR: ReferenceMetadata = ReferenceMetadata {
@@ -7852,7 +7879,7 @@ const DATE_PICKER_API: &[ApiDoc] = &[
     ApiDoc { owner: "DatePicker", prop: "minValue", ty: "DateValue", default: "—", description: "Earliest valid field and calendar date.", rust_owner: "DatePicker", rust: "min_value(date)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "DatePicker", prop: "maxValue", ty: "DateValue", default: "—", description: "Latest valid field and calendar date.", rust_owner: "DatePicker", rust: "max_value(date)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "DatePicker", prop: "isDateUnavailable", ty: "(date: DateValue) => boolean", default: "—", description: "Rejects individual dates inside the range.", rust_owner: "DatePicker", rust: "is_date_unavailable(predicate)", status: ImplementationStatus::Implemented },
-    ApiDoc { owner: "DatePicker", prop: "firstDayOfWeek", ty: "string", default: "locale", description: "Overrides the calendar grid's first weekday with the local Weekday enum.", rust_owner: "DatePicker", rust: "first_day_of_week(Weekday)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "DatePicker", prop: "firstDayOfWeek", ty: "string", default: "locale", description: "The calendar grid defaults from the operating system's regional date preferences through CLDR week data; the local Weekday enum provides an explicit override.", rust_owner: "DatePicker", rust: "first_day_of_week(Weekday)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "DatePicker", prop: "shouldCloseOnSelect", ty: "boolean | () => boolean", default: "true", description: "The boolean form controls whether a calendar selection dismisses the popover; callback-valued policy is not represented.", rust_owner: "DatePicker", rust: "should_close_on_select(bool)", status: ImplementationStatus::Partial },
     ApiDoc { owner: "DatePicker", prop: "autoFocus", ty: "boolean", default: "false", description: "Focuses the editable date field on first render.", rust_owner: "DatePicker", rust: "auto_focus(bool)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "DatePicker", prop: "name", ty: "string", default: "—", description: "Submits the displayed date text under this name.", rust_owner: "DatePicker", rust: "name(text)", status: ImplementationStatus::Implemented },
@@ -7867,7 +7894,8 @@ const DATE_PICKER_PARTS: &[PartDoc] = &[
     PartDoc {
         name: "DatePicker.Root",
         slot: "date-picker",
-        description: "Root state owner and focus-within scope.",
+        description:
+            "Root state owner and focus-within scope with a system-regionally formatted DateField.",
         rust_owner: "DatePicker",
         status: ImplementationStatus::Implemented,
     },
@@ -7997,7 +8025,7 @@ const DATE_RANGE_PICKER_API: &[ApiDoc] = &[
     ApiDoc { owner: "DateRangePicker", prop: "minValue", ty: "DateValue", default: "—", description: "Earliest valid field and calendar date.", rust_owner: "DateRangePicker", rust: "min_value(date)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "DateRangePicker", prop: "maxValue", ty: "DateValue", default: "—", description: "Latest valid field and calendar date.", rust_owner: "DateRangePicker", rust: "max_value(date)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "DateRangePicker", prop: "isDateUnavailable", ty: "(date: DateValue) => boolean", default: "—", description: "Rejects individual dates inside the selected range.", rust_owner: "DateRangePicker", rust: "is_date_unavailable(predicate)", status: ImplementationStatus::Implemented },
-    ApiDoc { owner: "DateRangePicker", prop: "firstDayOfWeek", ty: "string", default: "locale", description: "Overrides the range calendar grid's first weekday with the local Weekday enum.", rust_owner: "DateRangePicker", rust: "first_day_of_week(Weekday)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "DateRangePicker", prop: "firstDayOfWeek", ty: "string", default: "locale", description: "The range calendar grid defaults from the operating system's regional date preferences through CLDR week data; the local Weekday enum provides an explicit override.", rust_owner: "DateRangePicker", rust: "first_day_of_week(Weekday)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "DateRangePicker", prop: "shouldCloseOnSelect", ty: "boolean | () => boolean", default: "true", description: "The boolean form controls whether a completed calendar range dismisses the popover; callback-valued policy is not represented.", rust_owner: "DateRangePicker", rust: "should_close_on_select(bool)", status: ImplementationStatus::Partial },
     ApiDoc { owner: "DateRangePicker", prop: "autoFocus", ty: "boolean", default: "false", description: "Focuses the editable start field on first render.", rust_owner: "DateRangePicker", rust: "auto_focus(bool)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "DateRangePicker", prop: "startName", ty: "string", default: "—", description: "Submits the displayed start date under this name.", rust_owner: "DateRangePicker", rust: "start_name(text)", status: ImplementationStatus::Implemented },
@@ -8014,7 +8042,8 @@ const DATE_RANGE_PICKER_PARTS: &[PartDoc] = &[
     PartDoc {
         name: "DateRangePicker.Root",
         slot: "date-range-picker",
-        description: "Root state owner and focus-within scope.",
+        description:
+            "Root state owner and focus-within scope with two system-regionally formatted DateFields.",
         rust_owner: "DateRangePicker",
         status: ImplementationStatus::Implemented,
     },
@@ -8522,8 +8551,8 @@ const DRAWER_STATES: &[StateDoc] = &[
     StateDoc {
         state: "Active",
         selector: ":active / [data-pressed=\"true\"]",
-        description: "Applied to the trigger and close button when pressed; the close button dims on press, and the absent trigger has no surface.",
-        rust: "CloseButton .active opacity 0.7",
+        description: "Applied to the trigger and close button when pressed; the close button uses a centered root-bounds shrink while fixed child content remains unscaled, and the absent trigger has no surface.",
+        rust: "CloseButton .active centered root-bounds shrink",
         status: ImplementationStatus::Partial,
     },
     StateDoc {
@@ -8553,8 +8582,8 @@ const DRAWER_STYLING: &[StyleDoc] = &[
     StyleDoc {
         class_or_token: ".drawer__content",
         value: "fixed inset-0 z-50 flex h-(--visual-viewport-height) w-full min-w-0; pointer-events-none",
-        description: "Full-window positioning wrapper; gpui has no pointer-events, so outside presses dismiss through the panel's own bounds instead.",
-        rust: "overlay absolute inset_0 + trap_tab",
+        description: "Covers the window even inside clipped or positioned containers, paints above later page content, and blocks pointer input to the page beneath. Outside presses dismiss through the panel's bounds.",
+        rust: "util::window_overlay + trap_tab",
         status: ImplementationStatus::Implemented,
     },
     StyleDoc {
@@ -9133,8 +9162,8 @@ const MODAL_STATES: &[StateDoc] = &[
     StateDoc {
         state: "Active",
         selector: ":active / [data-pressed=\"true\"]",
-        description: "Applied to the trigger and close button when pressed; the close button dims on press, and the absent trigger has no surface.",
-        rust: "CloseButton .active opacity 0.7",
+        description: "Applied to the trigger and close button when pressed; the close button uses a centered root-bounds shrink while fixed child content remains unscaled, and the absent trigger has no surface.",
+        rust: "CloseButton .active centered root-bounds shrink",
         status: ImplementationStatus::Partial,
     },
     StateDoc {
@@ -9199,8 +9228,8 @@ const MODAL_STYLING: &[StyleDoc] = &[
     StyleDoc {
         class_or_token: ".modal__container",
         value: "flex flex-col items-center; h-(--visual-viewport-height) w-full min-w-0 flex-1; p-4; sm:w-fit sm:p-10; pointer-events-none",
-        description: "Window-pinning wrapper: the port uses inset_0 and the 40px sm padding, since a desktop app is past the breakpoint, and applies the placement alignment inside rather than sizing to fit; gpui has no pointer-events, so outside presses dismiss through the panel's own bounds instead.",
-        rust: "overlay absolute inset_0 + p(px(40.)) + placement/scroll flex match",
+        description: "Covers the window even inside clipped or positioned containers, paints above later page content, and blocks pointer input to the page beneath. The desktop container keeps 40px padding and applies placement alignment inside.",
+        rust: "util::window_overlay + p(px(40.)) + placement/scroll flex match",
         status: ImplementationStatus::Implemented,
     },
     StyleDoc {
@@ -9234,9 +9263,9 @@ const MODAL_STYLING: &[StyleDoc] = &[
     StyleDoc {
         class_or_token: ".modal__dialog--scroll-inside",
         value: "max-h-full min-h-0 overflow-clip",
-        description: "v3 caps the dialog at the container's content box and keeps a 40px margin of scrim; the port caps at the viewport instead, which only differs when the content overflows.",
-        rust: "panel max_h(viewport_size().height) + overflow_hidden",
-        status: ImplementationStatus::Partial,
+        description: "Caps the dialog at the container's content box, retaining 40px of scrim even with overflowing content; Full removes that margin.",
+        rust: "panel max_h(panel_max) + overflow_hidden",
+        status: ImplementationStatus::Implemented,
     },
     StyleDoc {
         class_or_token: ".modal__dialog--scroll-outside",
@@ -9842,7 +9871,7 @@ const COMBO_BOX_API: &[ApiDoc] = &[
         prop: "placement",
         ty: "\"bottom\" | \"bottom left\" | \"bottom right\" | \"bottom start\" | \"bottom end\" | \"top\" | \"top left\" | \"top right\" | \"top start\" | \"top end\" | \"left\" | \"left top\" | \"left bottom\" | \"start\" | \"start top\" | \"start bottom\" | \"right\" | \"right top\" | \"right bottom\" | \"end\" | \"end top\" | \"end bottom\"",
         default: "\"bottom\"",
-        description: "Placement of the popover relative to the input group; the port maps its supported placement enum to the floating panel.",
+        description: "Eight cardinal/start/end placements are available; RAC's full 22-value placement union is not. The panel anchors to the measured field with an 8px gap and flips when the preferred side cannot fit and the opposite side has more room.",
         rust_owner: "ComboBox",
         rust: "placement(Placement)",
         status: ImplementationStatus::Partial,
@@ -10134,6 +10163,7 @@ const COMBO_BOX_STATES: &[StateDoc] = &[
 ];
 
 const COMBO_BOX_STYLING: &[StyleDoc] = &[
+    StyleDoc { class_or_token: "text-sm / .header", value: "14px/20px value, option and empty-state text; Header 12px/16px medium px-2 pt-1.5 pb-1", description: "Text keeps its line height under surrounding styles. Section headers have 8px horizontal, 6px top and 4px bottom padding; selecting an option does not add font weight.", rust: "ComboBox text_size + line_height + section header styles", status: ImplementationStatus::Implemented },
     StyleDoc {
         class_or_token: ".combo-box",
         value: "flex flex-col gap-1",
@@ -10193,8 +10223,8 @@ const COMBO_BOX_STYLING: &[StyleDoc] = &[
     StyleDoc {
         class_or_token: ".combo-box__popover",
         value: "min-w-(--trigger-width) scroll-py-1 scrollbar overflow-y-auto overscroll-contain bg-overlay p-0 text-sm; radius min(32px, var(--radius-3xl)); shadow-overlay",
-        description: "Floating list surface; the port matches the overlay palette, shadow, scrolling and placement but uses its own 4px panel inset and fixed 240px cap.",
-        rust: "floating + placed_field_panel + overlay bg/shadow + p(px(4.)) + max_h(px(240.))",
+        description: "Anchored to the field with an 8px gap, flipping to the side with more room when the preferred side cannot fit, keeping a 12px cross-axis viewport inset with the scroller capped to the available height; plain and virtual lists scroll within the available height and wheel input stays in the panel. The port uses its own 4px panel inset and exact trigger width rather than upstream p-0 and min-width.",
+        rust: "scrollable_field_popover + max_h_full (plain) / Infer (virtual) + occlude + p(px(4.)) + overlay bg/shadow",
         status: ImplementationStatus::Partial,
     },
     StyleDoc {
@@ -10287,7 +10317,7 @@ const AUTOCOMPLETE_API: &[ApiDoc] = &[
     ApiDoc { owner: "Autocomplete.ClearButton", prop: "className", ty: "string", default: "—", description: "Additional DOM classes for the clear button have no GPUI analogue.", rust_owner: "Autocomplete", rust: "—", status: ImplementationStatus::Unavailable },
     ApiDoc { owner: "Autocomplete.ClearButton", prop: "onClick", ty: "(event: MouseEvent) => void", default: "—", description: "The local callback runs after selection clears but does not receive a browser MouseEvent; the button renders and clears without it.", rust_owner: "Autocomplete", rust: "on_clear(callback)", status: ImplementationStatus::Partial },
     ApiDoc { owner: "Autocomplete.ClearButton", prop: "ref", ty: "RefObject<HTMLButtonElement>", default: "—", description: "Browser element refs have no GPUI analogue.", rust_owner: "Autocomplete", rust: "—", status: ImplementationStatus::Unavailable },
-    ApiDoc { owner: "Autocomplete.Popover", prop: "placement", ty: "PopoverPlacement", default: "\"bottom\"", description: "Places the popover relative to its trigger.", rust_owner: "Autocomplete", rust: "placement(Placement)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "Autocomplete.Popover", prop: "placement", ty: "PopoverPlacement", default: "\"bottom\"", description: "Eight cardinal/start/end placements are available; RAC's full 22-value placement union is not. The panel anchors to the measured trigger with an 8px gap and flips when the preferred side cannot fit and the opposite side has more room.", rust_owner: "Autocomplete", rust: "placement(Placement)", status: ImplementationStatus::Partial },
     ApiDoc { owner: "Autocomplete.Popover", prop: "className", ty: "string", default: "—", description: "Additional DOM classes for the popover have no GPUI analogue.", rust_owner: "Autocomplete", rust: "—", status: ImplementationStatus::Unavailable },
     ApiDoc { owner: "Autocomplete.Popover", prop: "children", ty: "ReactNode", default: "—", description: "The built-in popover composes SearchField and ListBox equivalents rather than arbitrary children.", rust_owner: "Autocomplete", rust: "new(state, items)", status: ImplementationStatus::Partial },
     ApiDoc { owner: "Autocomplete.Filter", prop: "filter", ty: "(text: string, input: string) => boolean", default: "useFilter contains", description: "Replaces the built-in matcher with a caller-supplied predicate.", rust_owner: "Autocomplete", rust: "filter(callback)", status: ImplementationStatus::Implemented },
@@ -10330,6 +10360,7 @@ const AUTOCOMPLETE_STATES: &[StateDoc] = &[
 ];
 
 const AUTOCOMPLETE_STYLING: &[StyleDoc] = &[
+    StyleDoc { class_or_token: "text-sm / .header", value: "14px/20px value, option and empty-state text; Header 12px/16px medium px-2 pt-1.5 pb-1", description: "Text keeps its line height under surrounding styles. Section headers have 8px horizontal, 6px top and 4px bottom padding; selecting an option does not add font weight.", rust: "Autocomplete text_size + line_height + section header styles", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".autocomplete", value: "flex flex-col gap-1", description: "Four-pixel field stack with label and message siblings.", rust: "flex_col + gap(px(4.))", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".autocomplete__trigger", value: "min-h-9 rounded-field border bg-field px-3 py-2 text-sm shadow-field", description: "The port matches the field tokens but adds a 180px local floor when fullWidth is false.", rust: "FIELD_HEIGHT + apply_field_chrome + px(px(12.))", status: ImplementationStatus::Partial },
     StyleDoc { class_or_token: ".autocomplete__trigger transitions", value: "background-color 150ms ease-smooth; border-color 150ms ease-smooth; box-shadow 150ms ease-out; reduced motion none", description: "Static hover, focus and invalid colors match, but those trigger-color changes still swap in one frame.", rust: "apply_field_chrome + field.hover", status: ImplementationStatus::Partial },
@@ -10337,11 +10368,11 @@ const AUTOCOMPLETE_STYLING: &[StyleDoc] = &[
     StyleDoc { class_or_token: ".autocomplete__value", value: "flex-1 text-start text-sm wrap-break-word; placeholder field color", description: "Typography and colors match, while the port truncates long selected text instead of wrapping it.", rust: "flex_1 + truncate + FIELD_TEXT + field colors", status: ImplementationStatus::Partial },
     StyleDoc { class_or_token: ".autocomplete__indicator", value: "absolute inset-y-0 end-2 size-4; open rotate-180; transition 150ms", description: "Position and size match; the built-in glyph swaps direction and custom content receives open state, but no rotation interpolation is applied.", rust: "absolute right(px(8.)) + FIELD_ICON + indicator(render)", status: ImplementationStatus::Partial },
     StyleDoc { class_or_token: ".autocomplete__clear-button", value: "size-5 rounded-xl p-1; icon size-3.5; hover default-hover; pressed scale .93", description: "Size, radius, padding and hover match; pressed scale and the 150ms visible opacity transition are not reproduced.", rust: "size(px(20.)) + p(px(4.)) + small_radius + hover", status: ImplementationStatus::Partial },
-    StyleDoc { class_or_token: ".autocomplete__popover", value: "trigger width; overflow hidden; bg-overlay pt-2 text-sm; radius min(32px, radius-3xl); shadow-overlay", description: "Palette, top inset, radius and shadow match; GPUI placement supplies a local width cap rather than a CSS trigger-width variable.", rust: "placed_field_panel + pt(px(8.)) + overlay tokens", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".autocomplete__popover", value: "trigger width; overflow hidden; bg-overlay pt-2 text-sm; radius min(32px, radius-3xl); shadow-overlay", description: "Anchors to the measured trigger with an 8px gap, flipping to the side with more room when the preferred side cannot fit and keeping a 12px cross-axis viewport inset with the scroller capped to the available height; the search stays visible while the inner list scrolls and shrinks to the available height within the upstream 320px max, and virtual paging follows the visible list height. The reduced placement vocabulary and placement slide remain unported.", rust: "placement(Placement) + pt(px(8.)) + max_h(px(320.)) + scroll + overlay bg/shadow", status: ImplementationStatus::Partial },
     StyleDoc { class_or_token: ".autocomplete__popover[data-entering=\"true\"]", value: "fade-in-0 zoom-in-95 duration-250 ease-out-fluid with placement slide", description: "Fade, zoom, duration and curve match; placement-specific one-step translation is not reproduced.", rust: "entering_zoom + Motion::FLUID_IN", status: ImplementationStatus::Partial },
     StyleDoc { class_or_token: ".autocomplete__popover[data-exiting=\"true\"]", value: "fade-out zoom-out-95 duration-100 ease-out-quad", description: "Exit fade, geometry, duration and curve match through retained overlay frames.", rust: "exiting + Motion::FLUID_OUT", status: ImplementationStatus::Implemented },
-    StyleDoc { class_or_token: ".autocomplete__popover [data-slot=\"search-field\"]", value: "shrink-0 px-3 py-1", description: "The built-in secondary SearchField uses the documented 12px/4px wrapper inset.", rust: "SearchField::new + px(px(12.)) + py(px(4.))", status: ImplementationStatus::Implemented },
-    StyleDoc { class_or_token: ".autocomplete__popover [data-slot=\"list-box\"]", value: "max-h-[320px] min-h-0 overflow-y-auto p-1.5", description: "Both normal and virtual lists use the 320px cap, six-pixel inset and scrolling behavior.", rust: "max_h/h(px(320.)) + p(px(6.)) + scroll", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".autocomplete__popover [data-slot=\"search-field\"]", value: "shrink-0 px-3 py-1", description: "The built-in secondary SearchField uses the documented 12px/4px wrapper inset and stays visible while the inner list scrolls.", rust: "SearchField::new + px(px(12.)) + py(px(4.))", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".autocomplete__popover [data-slot=\"list-box\"]", value: "max-h-[320px] min-h-0 overflow-y-auto p-1.5", description: "Both normal and virtual lists use the upstream 320px cap with a six-pixel inset; the list shrinks below the cap to the available height and virtual paging follows the visible list height.", rust: "max_h/h(px(320.)) + p(px(6.)) + scroll", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".autocomplete__popover [data-slot=\"list-box-item\"]", value: "px-2.5", description: "Rows use the documented ten-pixel horizontal inset and the shared ListBox item geometry.", rust: "row px(px(10.)) + FIELD_HEIGHT + soft_radius", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".autocomplete--full-width / .autocomplete__trigger--full-width", value: "w-full", description: "Full-width root and trigger.", rust: "full_width(true) + w_full", status: ImplementationStatus::Implemented },
 ];
@@ -10560,8 +10591,8 @@ const PROGRESS_BAR_STYLING: &[StyleDoc] = &[
     StyleDoc {
         class_or_token: "[data-slot=label] / .progress-bar__output",
         value: "text-sm font-medium; output tabular-nums",
-        description: "Text size and weight match; GPUI does not request tabular numeral font features on the output alone.",
-        rust: "text_size(px(14.)) + FontWeight::MEDIUM",
+        description: "Text size, 20px line height and weight match; GPUI does not request tabular numeral font features on the output alone.",
+        rust: "text_size(px(14.)) + line_height(px(20.)) + FontWeight::MEDIUM",
         status: ImplementationStatus::Partial,
     },
     StyleDoc {
@@ -11063,7 +11094,7 @@ const SELECT_API: &[ApiDoc] = &[
     ApiDoc { owner: "Select", prop: "isInvalid", ty: "boolean", default: "—", description: "Forces the field into its invalid state.", rust_owner: "Select", rust: "is_invalid(bool)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "Select", prop: "name", ty: "string", default: "—", description: "Exports a live single- or multiple-selection FormField with disabled omission and reset behavior.", rust_owner: "Select", rust: "name(name)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "Select", prop: "autoComplete", ty: "string", default: "—", description: "Browser autofill hint; GPUI has no browser input autocomplete channel.", rust_owner: "Select", rust: "—", status: ImplementationStatus::Unavailable },
-    ApiDoc { owner: "Select", prop: "fullWidth", ty: "boolean", default: "false", description: "Expands the trigger inside a root that remains capped at 320px.", rust_owner: "Select", rust: "full_width(bool)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "Select", prop: "fullWidth", ty: "boolean", default: "false", description: "Expands both the root and trigger to the available width.", rust_owner: "Select", rust: "full_width(bool)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "Select", prop: "variant", ty: "\"primary\" | \"secondary\"", default: "\"primary\"", description: "Selects the shadowed or lower-emphasis field chrome.", rust_owner: "Select", rust: "variant(FieldVariant)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "Select", prop: "className", ty: "string", default: "—", description: "Additional CSS classes.", rust_owner: "Select", rust: "—", status: ImplementationStatus::Unavailable },
     ApiDoc { owner: "Select", prop: "children", ty: "ReactNode | RenderFunction", default: "—", description: "Compound parts; GPUI takes a typed option collection and draws the field structure.", rust_owner: "Select", rust: "new(id, options)", status: ImplementationStatus::Partial },
@@ -11075,7 +11106,7 @@ const SELECT_API: &[ApiDoc] = &[
     ApiDoc { owner: "Select.Value", prop: "render", ty: "DOMRenderFunction<SelectValueRenderProps>", default: "—", description: "DOM element substitution has no GPUI equivalent.", rust_owner: "Select", rust: "—", status: ImplementationStatus::Unavailable },
     ApiDoc { owner: "Select.Indicator", prop: "className", ty: "string", default: "—", description: "Additional trigger-indicator classes.", rust_owner: "Select", rust: "—", status: ImplementationStatus::Unavailable },
     ApiDoc { owner: "Select.Indicator", prop: "children", ty: "ReactNode", default: "—", description: "The similarly named GPUI builder replaces option checkmarks, not the trigger chevron.", rust_owner: "Select", rust: "indicator(render)", status: ImplementationStatus::Partial },
-    ApiDoc { owner: "Select.Popover", prop: "placement", ty: "Placement", default: "\"bottom\"", description: "Eight cardinal/start/end placements are available; RAC's full 22-value placement union is not.", rust_owner: "Select", rust: "placement(Placement)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "Select.Popover", prop: "placement", ty: "Placement", default: "\"bottom\"", description: "Eight cardinal/start/end placements are available; RAC's full 22-value placement union is not. The panel anchors to the measured trigger with an 8px gap and flips when the preferred side cannot fit and the opposite side has more room.", rust_owner: "Select", rust: "placement(Placement)", status: ImplementationStatus::Partial },
     ApiDoc { owner: "Select.Popover", prop: "className", ty: "string", default: "—", description: "Additional popover classes.", rust_owner: "Select", rust: "—", status: ImplementationStatus::Unavailable },
     ApiDoc { owner: "Select.Popover", prop: "children", ty: "ReactNode", default: "—", description: "The popover draws the typed options rather than arbitrary content children.", rust_owner: "Select", rust: "new(id, options)", status: ImplementationStatus::Partial },
     ApiDoc { owner: "Render Props", prop: "defaultChildren", ty: "ReactNode", default: "—", description: "Default selected text supplied to the value closure.", rust_owner: "Select", rust: "value_content(render)", status: ImplementationStatus::Implemented },
@@ -11089,12 +11120,12 @@ const SELECT_PARTS: &[PartDoc] = &[
     PartDoc { name: "Select.Trigger", slot: "select-trigger", description: "Focus and press target; its internal content is not separately composable.", rust_owner: "Select", status: ImplementationStatus::Partial },
     PartDoc { name: "Select.Value", slot: "select-value", description: "Placeholder or selected-value content with a live render projection.", rust_owner: "Select", status: ImplementationStatus::Implemented },
     PartDoc { name: "Select.Indicator", slot: "select-indicator", description: "Built-in trigger chevron; the public indicator closure belongs to list options instead.", rust_owner: "Select", status: ImplementationStatus::Partial },
-    PartDoc { name: "Select.Popover", slot: "select-popover", description: "Anchored list surface with a reduced placement vocabulary.", rust_owner: "Select", status: ImplementationStatus::Partial },
+    PartDoc { name: "Select.Popover", slot: "select-popover", description: "List surface anchored to the trigger; it can flip within the window and supports a reduced placement vocabulary.", rust_owner: "Select", status: ImplementationStatus::Partial },
 ];
 
 const SELECT_STATES: &[StateDoc] = &[
     StateDoc { state: "Hovered trigger", selector: ".select__trigger[data-hovered]", description: "Field background changes on pointer hover.", rust: "trigger hover style", status: ImplementationStatus::Implemented },
-    StateDoc { state: "Focus visible", selector: ".select__trigger[data-focus-visible]", description: "Keyboard focus rings the trigger and applies the field-focus background.", rust: "ring_if_focused + focus-visible background", status: ImplementationStatus::Implemented },
+    StateDoc { state: "Focus visible", selector: ".select__trigger[data-focus-visible]", description: "Keyboard focus rings the trigger and applies the field-focus background. Enter and Space finish a single selection without reopening a popup closed by its owner.", rust: "ring_if_focused + focus-visible background", status: ImplementationStatus::Implemented },
     StateDoc { state: "Disabled", selector: ".select__trigger[data-disabled]", description: "Field is dimmed, inert, untabbable and omitted from FormData while disabled.", rust: "is_disabled + live FormField is_successful", status: ImplementationStatus::Implemented },
     StateDoc { state: "Invalid", selector: ".select[data-invalid]", description: "Invalid field chrome applies the focus background and suppresses the description row.", rust: "is_invalid + description suppression", status: ImplementationStatus::Implemented },
     StateDoc { state: "Placeholder", selector: ".select__value[data-placeholder]", description: "Empty value uses muted placeholder colour.", rust: "SelectionValue::is_placeholder", status: ImplementationStatus::Implemented },
@@ -11108,7 +11139,8 @@ const SELECT_STATES: &[StateDoc] = &[
 ];
 
 const SELECT_STYLING: &[StyleDoc] = &[
-    StyleDoc { class_or_token: ".select", value: "flex flex-col gap-1", description: "The inner field wrapper stacks at four pixels only when label or description content exists; the root also adds a 320px cap.", rust: "conditional flex_col + gap(px(4.)) inside max_w(px(320.))", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: "text-sm / .header", value: "14px/20px value and option text; Header 12px/16px medium px-2 pt-1.5 pb-1", description: "Text keeps its line height under surrounding styles. Section headers have 8px horizontal, 6px top and 4px bottom padding; selecting an option does not add font weight.", rust: "Select text_size + line_height + section header styles", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".select", value: "flex flex-col gap-1", description: "The inner field wrapper stacks at four pixels only when label or description content exists; the root adds a 320px cap unless full width is enabled.", rust: "conditional flex_col + gap(px(4.)) + default max_w(px(320.))", status: ImplementationStatus::Partial },
     StyleDoc { class_or_token: ".select[data-invalid] [data-slot=description]", value: "hidden", description: "Description text is suppressed while the field is invalid.", rust: "description rendered only when !is_invalid", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".select > [data-slot=label]", value: "w-fit", description: "The shared label has natural content but does not explicitly opt out of flex-column stretching.", rust: "Label natural width", status: ImplementationStatus::Partial },
     StyleDoc { class_or_token: ".select__trigger", value: "min-h-9 px-3 py-2 rounded-field border bg-field shadow-field text-sm", description: "Primary trigger dimensions, chrome and typography.", rust: "h(px(36.)) + px(px(12.)) + field chrome", status: ImplementationStatus::Implemented },
@@ -11122,12 +11154,12 @@ const SELECT_STYLING: &[StyleDoc] = &[
     StyleDoc { class_or_token: ".select__value[data-placeholder]", value: "text-muted", description: "Placeholder colour.", rust: "muted foreground", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".select__value [data-slot=list-box-item-indicator]", value: "hidden", description: "Selected-value rendering does not include option checkmarks.", rust: "SelectionValue text/items only", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".select__indicator", value: "absolute end-2 size-4; rotate 150ms when open", description: "GPUI uses a flow-positioned chevron and swaps glyphs without rotation animation.", rust: "chevron_down/chevron_up", status: ImplementationStatus::Partial },
-    StyleDoc { class_or_token: ".select__popover", value: "min trigger width; overflow-auto; bg-overlay; radius min(32px, 3xl); shadow-overlay", description: "Anchored overlay surface, radius, scrolling and shadow.", rust: "anchored panel + floating_radius + overlay_shadow", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".select__popover", value: "min trigger width; overflow-auto; bg-overlay; radius min(32px, 3xl); shadow-overlay", description: "Anchored to the measured trigger width with an 8px gap, flipping to the side with more room when the preferred side cannot fit and keeping a 12px cross-axis viewport inset with the scroller capped to the available height; the plain list scrolls the panel and the virtual list sizes itself to the same bound. Overlay surface, radius and shadow.", rust: "scrollable_field_popover + max_h_full (plain) / Infer (virtual) + floating_radius + overlay_shadow", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".select__popover[data-entering]", value: "150ms ease-smooth fade-in zoom-in-95 + placement slide 4px", description: "Fade and zoom match; transform origin and placement slide are absent.", rust: "Motion::LIST_IN + entering_zoom", status: ImplementationStatus::Partial },
     StyleDoc { class_or_token: ".select__popover[data-exiting]", value: "100ms ease-smooth fade-out zoom-out-95", description: "Exit motion matches.", rust: "Motion::LIST_OUT + exiting", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".select__popover .list-box / .list-box-item", value: "p-1.5 / px-2.5", description: "Six-pixel list inset and ten-pixel option-row horizontal padding.", rust: "panel p(px(6.)) + option px(px(10.))", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".select:not([data-selection-mode=multiple]) indicators", value: "transition-none", description: "GPUI has no indicator transition in either selection mode.", rust: "static indicator", status: ImplementationStatus::Partial },
-    StyleDoc { class_or_token: ".select--full-width / .select__trigger--full-width", value: "w-full", description: "The trigger expands, but the root retains its unconditional 320px maximum width.", rust: "field.w_full() inside root.max_w(px(320.))", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".select--full-width / .select__trigger--full-width", value: "w-full", description: "Both the root and trigger expand to the available container width.", rust: "root.w_full() + field.w_full()", status: ImplementationStatus::Implemented },
 ];
 
 pub(crate) const SELECT: ReferenceMetadata = ReferenceMetadata {
@@ -11191,7 +11223,7 @@ const POPOVER_STATES: &[StateDoc] = &[
 ];
 
 const POPOVER_STYLING: &[StyleDoc] = &[
-    StyleDoc { class_or_token: ".popover surface", value: "bg-overlay p-0 text-sm; min(32px, --radius-3xl); shadow-overlay", description: "Surface colour, 14px text, capped radius and overlay shadow match; the monolithic panel combines root and dialog padding.", rust: "overlay colors + text_size(px(14.)) + container_radius + overlay_shadow", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".popover surface", value: "bg-overlay p-0 text-sm; min(32px, --radius-3xl); shadow-overlay", description: "Surface colour, 14/20px text, capped radius and overlay shadow match; the monolithic panel combines root and dialog padding.", rust: "overlay colors + text_size(px(14.)) + container_radius + overlay_shadow", status: ImplementationStatus::Partial },
     StyleDoc { class_or_token: ".popover__dialog", value: "p-4 outline-none", description: "Sixteen-pixel inset and a programmatic dialog focus scope.", rust: "px(px(16.)) + py(px(16.)) + panel_focus", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".popover__heading", value: "font-medium", description: "Heading uses the pinned 500 weight.", rust: "FontWeight::MEDIUM", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".popover[data-entering=true]", value: "150ms ease-smooth fade-in-0 zoom-in-90 + placement slide 4px", description: "Duration, curve, fade and zoom match; transform origin and placement slide are absent.", rust: "Motion::POPOVER_IN + entering_zoom", status: ImplementationStatus::Partial },
@@ -11342,7 +11374,7 @@ const TABLE_API: &[ApiDoc] = &[
     ApiDoc { owner: "Table.Column", prop: "minWidth", ty: "number", default: "75", description: "Pinned RAC resize floor; the port also applies this 75px default when resizing.", rust_owner: "TableColumn", rust: "min_width(width)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "Table.Column", prop: "maxWidth", ty: "number", default: "—", description: "Pinned RAC inherited ceiling for a resizable column.", rust_owner: "TableColumn", rust: "max_width(width)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "Table.Column", prop: "allowsResizing", ty: "boolean", default: "false", description: "Pinned RAC inherited flag that draws a drag handle on the column's trailing edge.", rust_owner: "TableColumn", rust: "allows_resizing(bool)", status: ImplementationStatus::Implemented },
-    ApiDoc { owner: "Table.Column", prop: "width", ty: "ColumnSize | null", default: "—", description: "Controlled column width; the port stores a default and keyed drag result, not a caller-owned controlled width.", rust_owner: "TableColumn", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "Table.Column", prop: "width", ty: "ColumnSize | null", default: "—", description: "Caller-owned controlled width in pixels; CSS length and fractional strings are not accepted.", rust_owner: "TableColumn", rust: "width(width)", status: ImplementationStatus::Partial },
     ApiDoc { owner: "Table.Column", prop: "children", ty: "React.ReactNode | (values: ColumnRenderProps) => React.ReactNode", default: "—", description: "Label or render prop receiving sortDirection; the port takes the label in the constructor and hands sortDirection to indicator.", rust_owner: "TableColumn", rust: "new(label)", status: ImplementationStatus::Partial },
     ApiDoc { owner: "Table.Column", prop: "className", ty: "string", default: "—", description: "Additional CSS classes for the column header.", rust_owner: "TableColumn", rust: "—", status: ImplementationStatus::Unavailable },
     ApiDoc { owner: "Table.Column", prop: "textValue", ty: "string", default: "—", description: "Pinned RAC accessibility string for the column; unused without an accessibility tree.", rust_owner: "TableColumn", rust: "—", status: ImplementationStatus::Unavailable },
@@ -11376,6 +11408,9 @@ const TABLE_API: &[ApiDoc] = &[
     ApiDoc { owner: "Table.ColumnResizer", prop: "className", ty: "string", default: "—", description: "Additional CSS classes for the resize handle.", rust_owner: "TableColumn", rust: "—", status: ImplementationStatus::Unavailable },
     ApiDoc { owner: "Table.ResizableContainer", prop: "className", ty: "string", default: "—", description: "Additional CSS classes for the resizable wrapper.", rust_owner: "Table", rust: "—", status: ImplementationStatus::Unavailable },
     ApiDoc { owner: "Table.ResizableContainer", prop: "children", ty: "React.ReactNode", default: "—", description: "v3 wraps Content in a separate overflow-auto container; the port enables resizing per column and scrolls on ScrollContainer.", rust_owner: "TableColumn", rust: "allows_resizing(bool)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "Table.ResizableContainer", prop: "onResizeStart", ty: "(widths: Map<Key, ColumnSize>) => void", default: "—", description: "Reports known pixel widths when pointer or keyboard resizing begins.", rust_owner: "Table", rust: "on_resize_start(callback)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "Table.ResizableContainer", prop: "onResize", ty: "(widths: Map<Key, ColumnSize>) => void", default: "—", description: "Reports each proposed pixel width map; feed values back through controlled TableColumn.width.", rust_owner: "Table", rust: "on_resize(callback)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "Table.ResizableContainer", prop: "onResizeEnd", ty: "(widths: Map<Key, ColumnSize>) => void", default: "—", description: "Reports the final known pixel widths after pointer or keyboard resizing ends.", rust_owner: "Table", rust: "on_resize_end(callback)", status: ImplementationStatus::Partial },
     ApiDoc { owner: "Table.LoadMore", prop: "isLoading", ty: "boolean", default: "false", description: "Shows the load-more sentinel content; the port spells the v3 loading flag as is_pending.", rust_owner: "Table", rust: "is_pending(bool)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "Table.LoadMore", prop: "onLoadMore", ty: "() => void", default: "—", description: "Called when the sentinel intersects the scroll viewport.", rust_owner: "Table", rust: "on_load_more(callback)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "Table.LoadMore", prop: "scrollOffset", ty: "number", default: "1", description: "Pinned RAC inherited viewport-height margin before the sentinel counts as visible.", rust_owner: "Table", rust: "scroll_offset(offset)", status: ImplementationStatus::Implemented },
@@ -11385,7 +11420,7 @@ const TABLE_API: &[ApiDoc] = &[
     ApiDoc { owner: "Table.LoadMoreContent", prop: "children", ty: "React.ReactNode", default: "—", description: "Custom loading content; the port's sentinel content is built in.", rust_owner: "Table", rust: "is_pending(bool)", status: ImplementationStatus::Partial },
     ApiDoc { owner: "Table.Collection", prop: "items", ty: "T[]", default: "—", description: "RAC Collection items for mixing static and dynamic cells; the port's analogue is the virtual row factory, not a cell-level collection mixer.", rust_owner: "Table", rust: "virtual_rows(count, identity, key, row)", status: ImplementationStatus::Partial },
     ApiDoc { owner: "Table.Collection", prop: "children", ty: "(item: T) => React.ReactNode", default: "—", description: "Per-item cell render prop; static rows and the virtual factory both produce whole TableRow values.", rust_owner: "Table", rust: "virtual_rows(count, identity, key, row)", status: ImplementationStatus::Partial },
-    ApiDoc { owner: "TableLayout", prop: "rowHeight", ty: "number | undefined", default: "48", description: "Fixed virtual row height; with virtual_rows this selects gpui uniform_list.", rust_owner: "Table", rust: "row_height(height)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "TableLayout", prop: "rowHeight", ty: "number | undefined", default: "48", description: "Fixed virtual row height; with virtual_rows this selects gpui uniform_list, caps at max_h, shrinks below it in a bounded parent, and pages by the visible viewport while skipping disabled stops.", rust_owner: "Table", rust: "row_height(height)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "TableLayout", prop: "estimatedRowHeight", ty: "number | undefined", default: "—", description: "Estimated height for variable virtual rows; selects gpui list instead of uniform_list.", rust_owner: "Table", rust: "estimated_row_height(height)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "TableLayout", prop: "headingHeight", ty: "number | undefined", default: "48", description: "Section-header height; this table has expandable rows, not section rows to size.", rust_owner: "Table", rust: "—", status: ImplementationStatus::Unavailable },
     ApiDoc { owner: "TableLayout", prop: "estimatedHeadingHeight", ty: "number | undefined", default: "—", description: "Variable section-header estimate; unused without section rows.", rust_owner: "Table", rust: "—", status: ImplementationStatus::Unavailable },
@@ -11416,7 +11451,7 @@ const TABLE_PARTS: &[PartDoc] = &[
 const TABLE_STATES: &[StateDoc] = &[
     StateDoc { state: "Hovered", selector: ":hover / [data-hovered=\"true\"]", description: "v3 tints cells with bg-surface/40 (secondary: bg-default/50); the port paints default.soft on the whole interactive row.", rust: "row.hover(default.soft)", status: ImplementationStatus::Partial },
     StateDoc { state: "Selected", selector: "[data-selected=\"true\"]", description: "v3 uses bg-surface/10 on cells; the port fills the row with accent.soft so selection still reads when the checkbox is off-screen.", rust: "row.bg(accent.soft)", status: ImplementationStatus::Partial },
-    StateDoc { state: "Focus visible", selector: ":focus-visible / [data-focus-visible=\"true\"]", description: "Inset focus ring on the focused row, sortable header and resizer; one overlay stands in for v3's per-cell split ring.", rust: "inset_focus_ring", status: ImplementationStatus::Partial },
+    StateDoc { state: "Focus visible", selector: ":focus-visible / [data-focus-visible=\"true\"]", description: "Inset focus ring on the focused row, column header and resizer; one overlay stands in for v3's per-cell split ring. PageUp enters the first header — from the top of a virtual body, paging by viewport mid-body; Down and PageDown return to the first and last enabled body rows.", rust: "inset_focus_ring", status: ImplementationStatus::Partial },
     StateDoc { state: "Disabled row", selector: "[aria-disabled=\"true\"] / [data-disabled=\"true\"]", description: "disabledKeys rows are dimmed and removed from selection, actions and keyboard stops.", rust: "disabled_keys + disabled_opacity", status: ImplementationStatus::Implemented },
     StateDoc { state: "Disabled table", selector: ":disabled / [aria-disabled=\"true\"]", description: "v3 styles a disabled table, but documents no prop that can disable the whole control.", rust: "—", status: ImplementationStatus::Unavailable },
     StateDoc { state: "Sortable", selector: "[data-allows-sorting=\"true\"]", description: "Sortable headers use the interactive cursor, hover fill and keyboard activation.", rust: "allows_sorting + cursor_pointer + sort_focus", status: ImplementationStatus::Implemented },
@@ -11431,10 +11466,10 @@ const TABLE_STYLING: &[StyleDoc] = &[
     StyleDoc { class_or_token: ".table-root", value: "relative grid w-full overflow-clip", description: "The port is a full-width overflow-hidden flex tray, not a CSS grid with minmax(0,1fr) tracks.", rust: "w_full + overflow_hidden", status: ImplementationStatus::Partial },
     StyleDoc { class_or_token: ".table-root--primary", value: "bg-surface-secondary px-1 pb-1; radius min(32px, radius * 2.5)", description: "Gray tray inset and overlay-sized radius around the surface card.", rust: "surface_secondary + px/pb(px(4.)) + radius_lg * 2.5 min 32", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".table-root--secondary", value: "no root fill, padding or rounding", description: "Secondary leaves the root flat; first/last header rounding and per-cell hover fills are not reproduced.", rust: "variant Secondary skips the tray", status: ImplementationStatus::Partial },
-    StyleDoc { class_or_token: ".table__scroll-container", value: "scrollbar overflow-x-auto", description: "Horizontal scroller around the content column; custom scrollbar styling is absent.", rust: "overflow_x_scroll", status: ImplementationStatus::Partial },
-    StyleDoc { class_or_token: ".table__content", value: "w-full border-separate border-spacing-0 text-sm", description: "14px type matches; the port is a flex column rather than a border-separate table.", rust: "min_w_full flex_col text_size(px(14.))", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".table__scroll-container", value: "scrollbar overflow-x-auto", description: "Horizontal input scrolls the content column; vertical input is not remapped sideways. Custom scrollbar styling is absent.", rust: "overflow_x_scroll", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".table__content", value: "w-full border-separate border-spacing-0 text-sm", description: "14px type and 20px line height match; the port is a flex column rather than a border-separate table, so column tracks resolve per row and a table narrower than its columns times their widest cell staggers the body against the header.", rust: "min_w_full flex_col text_size(px(14.)) line_height(px(20.))", status: ImplementationStatus::Partial },
     StyleDoc { class_or_token: ".table__header", value: "border-b border-separator/50 bg-surface-secondary", description: "Header rule and secondary fill on primary; the separator is rendered at 50% alpha.", rust: "border_b_1 + separator.alpha(0.5) + surface_secondary", status: ImplementationStatus::Partial },
-    StyleDoc { class_or_token: ".table__column", value: "px-4 py-2.5 text-xs font-medium text-muted", description: "16/10px inset and 12px type match; the port uses medium caller-case labels, but short vertical column separators are not drawn.", rust: "px(16.) py(10.) text_size(12.) MEDIUM + label.clone()", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".table__column", value: "px-4 py-2.5 text-xs font-medium text-muted", description: "16/10px inset and 12px type with 16px lines match; the port uses medium caller-case labels, but short vertical column separators are not drawn.", rust: "px(16.) py(10.) text_size(12.) line_height(16.) MEDIUM + label.clone()", status: ImplementationStatus::Partial },
     StyleDoc { class_or_token: ".table__column::after", value: "h-4 w-px rounded-sm bg-separator", description: "Short column separators are not drawn; only a resizer replaces that edge when allowsResizing is set.", rust: "—", status: ImplementationStatus::Unavailable },
     StyleDoc { class_or_token: ".table__sortable-column-header", value: "flex items-center justify-between", description: "Label and indicator share the header cell with a 4px gap rather than space-between.", rust: "flex items_center gap(px(4.))", status: ImplementationStatus::Partial },
     StyleDoc { class_or_token: ".table__sortable-column-indicator", value: "size-3 rotate-180 when descending", description: "12px chevron matches; ascending/descending are separate glyphs rather than a 100ms rotate.", rust: "svg size(px(12.)) + CHEVRON_UP/DOWN", status: ImplementationStatus::Partial },
@@ -11565,8 +11600,8 @@ const ACCORDION_STATES: &[StateDoc] = &[
 
 const ACCORDION_STYLING: &[StyleDoc] = &[
     StyleDoc { class_or_token: ".accordion", value: "w-full; contain: layout style", description: "The full-width layout matches; GPUI has no CSS containment switch.", rust: "w_full()", status: ImplementationStatus::Partial },
-    StyleDoc { class_or_token: ".accordion__body", value: "text-sm", description: "Body content uses 14px type.", rust: "text_size(px(14.))", status: ImplementationStatus::Implemented },
-    StyleDoc { class_or_token: ".accordion__body-inner", value: "px-4 pt-0 pb-4 text-muted", description: "Horizontal and bottom inset and muted color match; the port retains a 2px top inset.", rust: "px(16.) pt(2.) pb(16.) text_color(muted)", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".accordion__body", value: "text-sm", description: "Body content uses 14px type with a 20px line height independently of host leading.", rust: "text_size(px(14.)) + line_height(px(20.))", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".accordion__body-inner", value: "px-4 pt-0 pb-4 text-muted", description: "Horizontal and bottom inset, zero top inset and muted color match.", rust: "px(16.) pt(0.) pb(16.) text_color(muted)", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".accordion__heading", value: "flex", description: "The trigger row supplies the layout without a separate heading wrapper.", rust: "header flex", status: ImplementationStatus::Partial },
     StyleDoc { class_or_token: ".accordion__indicator", value: "ms-auto size-4 shrink-0 text-muted; rotate 250ms; reduced-motion none", description: "Size, trailing placement and custom content match; built-in glyphs swap without rotation interpolation.", rust: "size(16.) flex_shrink_0 + indicator(render)", status: ImplementationStatus::Partial },
     StyleDoc { class_or_token: ".accordion__item::after", value: "absolute bottom h-px w-full rounded-xs bg-separator", description: "The same one-pixel rule is a flow child rather than an absolute pseudo-element.", rust: "h(1.) w_full hairline_radius separator", status: ImplementationStatus::Partial },
@@ -11615,16 +11650,16 @@ const DISCLOSURE_API: &[ApiDoc] = &[
     ApiDoc { owner: "Disclosure", prop: "defaultExpanded", ty: "boolean", default: "false", description: "Initial expanded state when the disclosure owns its state; inherited from pinned React Aria.", rust_owner: "Disclosure", rust: "default_expanded(bool)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "Disclosure", prop: "onExpandedChange", ty: "(isExpanded: boolean) => void", default: "—", description: "Reports the proposed expanded state.", rust_owner: "Disclosure", rust: "on_expanded_change(callback)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "Disclosure", prop: "isDisabled", ty: "boolean", default: "false", description: "Disables the disclosure trigger.", rust_owner: "Disclosure", rust: "is_disabled(bool)", status: ImplementationStatus::Implemented },
-    ApiDoc { owner: "Disclosure", prop: "children", ty: "ReactNode | RenderFunction", default: "—", description: "Compound heading, trigger and panel children; the GPUI control builds the trigger and accepts body children.", rust_owner: "Disclosure", rust: "—", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "Disclosure", prop: "children", ty: "ReactNode | RenderFunction", default: "—", description: "Compound heading, trigger and panel children; the GPUI control builds the trigger and accepts static body children through ParentElement or a state-aware body render closure.", rust_owner: "Disclosure", rust: "content(render)", status: ImplementationStatus::Partial },
     ApiDoc { owner: "Disclosure", prop: "className", ty: "string", default: "—", description: "Additional CSS classes.", rust_owner: "Disclosure", rust: "—", status: ImplementationStatus::Unavailable },
     ApiDoc { owner: "Disclosure", prop: "render", ty: "DOMRenderFunction<DisclosureRenderProps>", default: "—", description: "DOM element substitution has no GPUI equivalent.", rust_owner: "Disclosure", rust: "—", status: ImplementationStatus::Unavailable },
     ApiDoc { owner: "Disclosure.Trigger", prop: "children", ty: "ReactNode | RenderFunction", default: "—", description: "Custom trigger content; the port accepts an id and title and builds a HeroGPUI Button.", rust_owner: "Disclosure", rust: "new(id, title)", status: ImplementationStatus::Partial },
     ApiDoc { owner: "Disclosure.Trigger", prop: "className", ty: "string", default: "—", description: "Additional trigger classes.", rust_owner: "Disclosure", rust: "—", status: ImplementationStatus::Unavailable },
-    ApiDoc { owner: "Disclosure.Content", prop: "children", ty: "ReactNode", default: "—", description: "Panel body content supplied through ParentElement composition.", rust_owner: "Disclosure", rust: "—", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "Disclosure.Content", prop: "children", ty: "ReactNode", default: "—", description: "Panel body content supplied through ParentElement composition or the state-aware render closure.", rust_owner: "Disclosure", rust: "content(render)", status: ImplementationStatus::Partial },
     ApiDoc { owner: "Disclosure.Content", prop: "className", ty: "string", default: "—", description: "Additional content classes.", rust_owner: "Disclosure", rust: "—", status: ImplementationStatus::Unavailable },
     ApiDoc { owner: "Disclosure.Content", prop: "render", ty: "DOMRenderFunction<DisclosureContentRenderProps>", default: "—", description: "DOM element substitution has no GPUI equivalent.", rust_owner: "Disclosure", rust: "—", status: ImplementationStatus::Unavailable },
-    ApiDoc { owner: "DisclosureRenderProps", prop: "isExpanded", ty: "boolean", default: "—", description: "Current expanded state; drawn internally but not delegated to a child closure.", rust_owner: "Disclosure", rust: "is_expanded(bool)", status: ImplementationStatus::Partial },
-    ApiDoc { owner: "DisclosureRenderProps", prop: "isDisabled", ty: "boolean", default: "—", description: "Current disabled state; drawn internally but not delegated to a child closure.", rust_owner: "Disclosure", rust: "is_disabled(bool)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "DisclosureRenderProps", prop: "isExpanded", ty: "boolean", default: "—", description: "Current expanded state supplied to the body render closure.", rust_owner: "Disclosure", rust: "content(render)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "DisclosureRenderProps", prop: "isDisabled", ty: "boolean", default: "—", description: "Current disabled state supplied to the body render closure.", rust_owner: "Disclosure", rust: "content(render)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "DisclosureGroupRenderProps", prop: "expandedKeys", ty: "Set<Key>", default: "—", description: "Current expanded keys; used to draw the group but not delegated to a child closure.", rust_owner: "DisclosureGroup", rust: "expanded_keys(keys)", status: ImplementationStatus::Partial },
     ApiDoc { owner: "DisclosureGroupRenderProps", prop: "isDisabled", ty: "boolean", default: "—", description: "Current group disabled state; drawn internally but not delegated to a child closure.", rust_owner: "DisclosureGroup", rust: "is_disabled(bool)", status: ImplementationStatus::Partial },
 ];
@@ -11763,7 +11798,7 @@ const LIST_BOX_API: &[ApiDoc] = &[
     ApiDoc { owner: "ListBox", prop: "shouldFocusWrap", ty: "boolean", default: "false", description: "Inherited React Aria policy joins the arrow-key ends.", rust_owner: "ListBox", rust: "should_focus_wrap(bool)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "ListBox", prop: "selectionBehavior", ty: "\"toggle\" | \"replace\"", default: "\"toggle\"", description: "The port implements pinned toggle behavior only; replace-on-focus selection is unavailable.", rust_owner: "ListBox", rust: "fixed toggle behavior", status: ImplementationStatus::Unavailable },
     ApiDoc { owner: "ListBox", prop: "autoFocus", ty: "boolean | FocusStrategy", default: "false", description: "Entry focus follows the selected key or first enabled option, but automatic mount focus is not exposed.", rust_owner: "ListBox", rust: "entry focus only", status: ImplementationStatus::Partial },
-    ApiDoc { owner: "ListBox", prop: "escapeKeyBehavior", ty: "\"clearSelection\" | \"none\"", default: "\"clearSelection\"", description: "Pinned default clearing is implemented; a caller cannot independently disable Escape except through disallowEmptySelection.", rust_owner: "ListBox", rust: "fixed clearSelection", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "ListBox", prop: "escapeKeyBehavior", ty: "\"clearSelection\" | \"none\"", default: "\"clearSelection\"", description: "Controls whether unmodified Escape clears a nonempty selection or remains available to an enclosing interaction.", rust_owner: "ListBox", rust: "escape_key_behavior(EscapeKeyBehavior)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "ListBox", prop: "renderEmptyState", ty: "(props: ListBoxRenderProps) => ReactNode", default: "—", description: "An empty collection renders no synthetic option and has no empty-state slot.", rust_owner: "ListBox", rust: "—", status: ImplementationStatus::Unavailable },
     ApiDoc { owner: "ListBox", prop: "layout / orientation", ty: "\"stack\" | \"grid\" / Orientation", default: "\"stack\" / \"vertical\"", description: "This port exposes the pinned vertical stack layout only.", rust_owner: "ListBox", rust: "fixed vertical stack", status: ImplementationStatus::Unavailable },
     ApiDoc { owner: "ListBox", prop: "children", ty: "ReactNode", default: "—", description: "Items, sections, and separators are supplied as the constructor collection.", rust_owner: "ListBox", rust: "new(id, items)", status: ImplementationStatus::Implemented },
@@ -11777,7 +11812,7 @@ const LIST_BOX_API: &[ApiDoc] = &[
     ApiDoc { owner: "ListBox.Item", prop: "render", ty: "DOM render function", default: "—", description: "DOM element substitution and link attributes are unavailable.", rust_owner: "ListBoxItem", rust: "—", status: ImplementationStatus::Unavailable },
     ApiDoc { owner: "ListBox.ItemIndicator", prop: "children", ty: "ReactNode | RenderFunction", default: "checkmark", description: "Replaces the selected indicator and receives isSelected.", rust_owner: "ListBox", rust: "indicator(render)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "ListBox.Section", prop: "children", ty: "ReactNode", default: "—", description: "Section headers and separators are explicit collection records.", rust_owner: "ListBoxItem", rust: "section(label) / separator()", status: ImplementationStatus::Implemented },
-    ApiDoc { owner: "ListLayout", prop: "rowHeight", ty: "number | undefined", default: "48", description: "Fixed row geometry enables uniform-list virtualization.", rust_owner: "ListBox", rust: "row_height(px)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "ListLayout", prop: "rowHeight", ty: "number | undefined", default: "48", description: "Fixed row geometry enables uniform-list virtualization; the virtual list caps at max_h, shrinks below it in a bounded parent, and pages by the visible viewport while skipping disabled stops.", rust_owner: "ListBox", rust: "row_height(px)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "ListLayout", prop: "estimatedRowHeight", ty: "number | undefined", default: "—", description: "Estimated variable row geometry enables measured list virtualization.", rust_owner: "ListBox", rust: "estimated_row_height(px)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "ListLayout", prop: "headingHeight", ty: "number | undefined", default: "48", description: "Sets virtual section-row height.", rust_owner: "ListBox", rust: "heading_height(px)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "ListLayout", prop: "estimatedHeadingHeight", ty: "number | undefined", default: "—", description: "Section headings are single-line records rather than independently estimated layouts.", rust_owner: "ListBox", rust: "—", status: ImplementationStatus::Unavailable },
@@ -11803,6 +11838,7 @@ const LIST_BOX_STATES: &[StateDoc] = &[
 ];
 
 const LIST_BOX_STYLING: &[StyleDoc] = &[
+    StyleDoc { class_or_token: ".label / .description / .header / .kbd--light", value: "label text-sm font-medium; description/header text-xs; light Kbd shortcuts", description: "Built-in labels use 14px/20px medium text; descriptions and section headers use 12px/16px. Descriptions stack without a gap, and shortcuts reuse light Kbd.", rust: "ListBox built-in text styles + Kbd::new().variant(Light)", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".list-box", value: "relative w-full overflow-clip p-1", description: "Full-width clipped list with four-pixel inset.", rust: "relative + w_full + overflow_hidden + padding 4px", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".list-box > * + *", value: "mt-1", description: "Four pixels between direct collection records without flex-shrinking virtual content.", rust: "gap 4px in row geometry", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".list-box-item", value: "min-h-9 gap-3 rounded-2xl px-2 py-1.5", description: "Option minimum height, 12px gap, 16px radius, and 8px/6px padding match.", rust: "FIELD_HEIGHT + gap(12) + soft_radius + px(8) + py(6)", status: ImplementationStatus::Implemented },
@@ -11842,7 +11878,7 @@ const TAG_GROUP_API: &[ApiDoc] = &[
     ApiDoc { owner: "TagGroup", prop: "size", ty: "\"sm\" | \"md\" | \"lg\"", default: "\"md\"", description: "Sets padding, type size, and large-tag radius for every tag.", rust_owner: "TagGroup", rust: "size(Size)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "TagGroup", prop: "variant", ty: "\"default\" | \"surface\"", default: "\"default\"", description: "Selects the unselected background and hover token for every tag.", rust_owner: "TagGroup", rust: "variant(TagVariant)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "TagGroup", prop: "disallowEmptySelection", ty: "boolean", default: "false", description: "Inherited MultipleSelection policy blocks the final-key toggle and Escape clearing.", rust_owner: "TagGroup", rust: "disallow_empty_selection(bool)", status: ImplementationStatus::Implemented },
-    ApiDoc { owner: "TagGroup", prop: "escapeKeyBehavior", ty: "\"clearSelection\" | \"none\"", default: "\"clearSelection\"", description: "Pinned default clearing is implemented; callers can suppress it only with disallowEmptySelection.", rust_owner: "TagGroup", rust: "fixed clearSelection", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "TagGroup", prop: "escapeKeyBehavior", ty: "\"clearSelection\" | \"none\"", default: "\"clearSelection\"", description: "Controls whether unmodified Escape clears a nonempty selection or remains available to an enclosing interaction.", rust_owner: "TagGroup", rust: "escape_key_behavior(EscapeKeyBehavior)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "TagGroup", prop: "selectionBehavior", ty: "\"toggle\" | \"replace\"", default: "\"toggle\"", description: "The port implements pinned toggle selection only.", rust_owner: "TagGroup", rust: "fixed toggle behavior", status: ImplementationStatus::Unavailable },
     ApiDoc { owner: "TagGroup", prop: "shouldSelectOnPressUp", ty: "boolean", default: "false", description: "GPUI activation occurs on click release and is not caller-configurable.", rust_owner: "TagGroup", rust: "fixed release activation", status: ImplementationStatus::Partial },
     ApiDoc { owner: "TagGroup", prop: "onAction", ty: "(key: Key) => void", default: "—", description: "Tags expose selection and removal but no separate item action callback.", rust_owner: "TagGroup", rust: "—", status: ImplementationStatus::Unavailable },
@@ -11859,7 +11895,7 @@ const TAG_GROUP_API: &[ApiDoc] = &[
     ApiDoc { owner: "Tag", prop: "children", ty: "ReactNode | RenderFunction", default: "—", description: "Replacement content receives selected, disabled, hovered, pressed, focused, and focus-visible state.", rust_owner: "TagGroup", rust: "tag_content(render)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "Tag", prop: "onAction", ty: "() => void", default: "—", description: "The port exposes group selection and removal callbacks only.", rust_owner: "Tag", rust: "—", status: ImplementationStatus::Unavailable },
     ApiDoc { owner: "Tag", prop: "className / render", ty: "string / DOMRenderFunction", default: "—", description: "DOM attributes, link behavior, and element substitution are unavailable.", rust_owner: "Tag", rust: "—", status: ImplementationStatus::Unavailable },
-    ApiDoc { owner: "Tag.RemoveButton", prop: "children", ty: "ReactNode", default: "close icon", description: "The built-in close icon is automatic when onRemove is set; callers cannot replace it independently.", rust_owner: "TagGroup", rust: "automatic remove action", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "Tag.RemoveButton", prop: "children", ty: "ReactNode", default: "close icon", description: "Each tag may replace the automatic close glyph with custom remove-button content while preserving the built-in action.", rust_owner: "Tag", rust: "remove_content(render)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "Tag.RemoveButton", prop: "className", ty: "string", default: "—", description: "Browser class customization is unavailable.", rust_owner: "TagGroup", rust: "—", status: ImplementationStatus::Unavailable },
 ];
 
@@ -11889,10 +11925,9 @@ const TAG_GROUP_PARTS: &[PartDoc] = &[
     PartDoc {
         name: "Tag.RemoveButton",
         slot: "tag-remove-button",
-        description:
-            "Automatic per-tag remove action; independent custom button content is unavailable.",
-        rust_owner: "TagGroup",
-        status: ImplementationStatus::Partial,
+        description: "Automatic per-tag remove action with replaceable caller content.",
+        rust_owner: "Tag",
+        status: ImplementationStatus::Implemented,
     },
 ];
 
@@ -11911,7 +11946,7 @@ const TAG_GROUP_STYLING: &[StyleDoc] = &[
     StyleDoc { class_or_token: ".tag-group description / errorMessage", value: "p-1", description: "Description inset matches; TagGroup has no error-message slot.", rust: "description p(4)", status: ImplementationStatus::Partial },
     StyleDoc { class_or_token: ".tag", value: "relative inline-flex items-center gap-1 rounded-xl font-medium", description: "Core geometry and typography match; GPUI has no selectable-text or browser highlight properties.", rust: "relative + flex + items_center + gap(4) + small_radius + MEDIUM", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".tag transitions", value: "color/scale/opacity/background 100ms ease-smooth; shadow 100ms ease-out", description: "Tag colors and state chrome still change on a frame rather than interpolating.", rust: "immediate state colors", status: ImplementationStatus::Unavailable },
-    StyleDoc { class_or_token: ".tag--sm / --md / --lg", value: "8x2 12px / 8x4 12px / 10x6 14px", description: "All size paddings and type sizes match, including the large 16px radius.", rust: "metrics(Size) + radius(Size)", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".tag--sm / --md / --lg", value: "8x2 12/16px / 8x4 12/16px / 10x6 14/20px", description: "Size paddings, text sizes and explicit line heights match independently of host text styles, including the large 16px radius.", rust: "metrics(Size) + radius(Size)", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".tag--default", value: "bg-default text-default-foreground; bg-default-hover", description: "Default fill, foreground, and unselected hover token match.", rust: "TagVariant::Default", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".tag--surface", value: "bg-surface text-surface-foreground; bg-surface-hover", description: "Borderless surface fill, foreground, and derived hover token match.", rust: "TagVariant::Surface + SurfaceColor::hover", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".tag selected", value: "bg-accent-soft text-accent-soft-foreground; bg-accent-soft-hover", description: "Selected and selected-hover semantic tokens match.", rust: "selected_keys", status: ImplementationStatus::Implemented },
@@ -12492,7 +12527,7 @@ const COLOR_SLIDER_STATES: &[StateDoc] = &[
 
 const COLOR_SLIDER_STYLING: &[StyleDoc] = &[
     StyleDoc { class_or_token: ".color-slider", value: "grid w-full gap-1", description: "The four-pixel label/output-to-track gap matches; the port uses flex rows instead of CSS grid areas.", rust: "flex_col + gap(4)", status: ImplementationStatus::Partial },
-    StyleDoc { class_or_token: ".color-slider label / output", value: "text-sm font-medium tabular-nums", description: "Placement, 14px size, medium weight, and disabled label/output opacity split match; GPUI has no tabular-number switch.", rust: "14px MEDIUM label/output row", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".color-slider label / output", value: "text-sm font-medium tabular-nums", description: "Placement, 14px size, explicit 20px line height, medium weight, and disabled label/output opacity split match; GPUI has no tabular-number switch.", rust: "14px/20px MEDIUM label/output row", status: ImplementationStatus::Partial },
     StyleDoc { class_or_token: ".color-slider__track horizontal / vertical", value: "20px cross-axis; total length minus 20px with 10px edge caps", description: "Cross-axis thickness, rounded total footprint, endpoint inset, and pointer travel match; the Rust gradient continues through the rounded caps rather than drawing separate solid endpoint fills.", rust: "track_h=20 + COLOR_SLIDER_TRACK_INSET_PX", status: ImplementationStatus::Partial },
     StyleDoc { class_or_token: ".color-slider__track shadows", value: "orientation-specific 1px inset borders", description: "A theme border substitutes for the pinned inset edge shadows.", rust: "theme border", status: ImplementationStatus::Partial },
     StyleDoc { class_or_token: ".color-slider alpha checkerboard", value: "repeating-conic 16px checkerboard under gradient", description: "The alpha gradient is present but its checkerboard is not drawn.", rust: "alpha gradient only", status: ImplementationStatus::Unavailable },
@@ -12605,7 +12640,7 @@ const COLOR_PICKER_API: &[ApiDoc] = &[
         prop: "placement",
         ty: "Placement",
         default: "bottom left",
-        description: "Positions and flips the floating panel through the shared placement engine.",
+        description: "Positions and flips the floating panel to the side with more room when the preferred side cannot fit through the shared placement engine, keeping a 12px cross-axis viewport inset with the scroller capped to the available height.",
         rust_owner: "ColorPicker",
         rust: "placement(Placement)",
         status: ImplementationStatus::Implemented,
@@ -12669,13 +12704,13 @@ const COLOR_PICKER_STATES: &[StateDoc] = &[
 
 const COLOR_PICKER_STYLING: &[StyleDoc] = &[
     StyleDoc { class_or_token: ".color-picker", value: "inline-flex", description: "The Rust root also establishes a relative column and optional eight-pixel label gap around its monolithic composition.", rust: "relative + flex_col + gap(8)", status: ImplementationStatus::Partial },
-    StyleDoc { class_or_token: ".color-picker__trigger", value: "inline-flex items-center gap-3 rounded-sm text-sm", description: "Trigger alignment, 12px gap, 4px radius, and 14px type match.", rust: "flex row + gap(12) + hairline_radius + 14px", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".color-picker__trigger", value: "inline-flex items-center gap-3 rounded-sm text-sm", description: "Trigger alignment, 12px gap, 4px radius, and 14px/20px type match regardless of parent line height.", rust: "flex row + gap(12) + hairline_radius + 14px", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".color-picker__trigger cursor", value: "var(--cursor-interactive)", description: "Enabled triggers use the interactive pointer cursor.", rust: "cursor_pointer", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".color-picker__trigger transitions", value: "background 150ms ease-smooth; shadow 150ms ease-out", description: "Trigger state colors and rings still change on a frame rather than interpolating.", rust: "immediate trigger chrome", status: ImplementationStatus::Unavailable },
     StyleDoc { class_or_token: ".color-picker__trigger focus-visible", value: "status-focused", description: "Keyboard focus uses the theme status ring.", rust: "ring_if_focused", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".color-picker__trigger disabled", value: "status-disabled", description: "Disabled opacity and pointer suppression match.", rust: "disabled_opacity + no listeners", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".color-picker__popover", value: "min-w-62 px-2 pt-2 pb-3 gap-3 bg-overlay", description: "The 248px minimum, 8px horizontal/top inset, 12px bottom inset and gap, and overlay fill match.", rust: "min_w(248) + px/pt(8) + pb/gap(12)", status: ImplementationStatus::Implemented },
-    StyleDoc { class_or_token: ".color-picker__popover overflow", value: "overflow-x-hidden overflow-y-auto overscroll-contain scrollbar-none", description: "The Rust panel does not yet provide a scroll container for constrained viewport height.", rust: "—", status: ImplementationStatus::Unavailable },
+    StyleDoc { class_or_token: ".color-picker__popover overflow", value: "overflow-x-hidden overflow-y-auto overscroll-contain scrollbar-none", description: "The panel hides horizontal overflow and scrolls vertically within the available viewport height without shrinking its controls; Tab reveals each slider and boundary scrolling never moves the page, and scrollbars are not drawn.", rust: "scrollable_popover + max_h_full + overflow_y_scroll", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".color-picker__popover radius / shadow", value: "min(32px, radius * 2.5); shadow-overlay", description: "Theme-derived 2.5x radius and overlay shadow match, including the optional dark inset hairline.", rust: "layout.capped(radius_lg * 2.5) + overlay_shadow", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".color-picker__popover entering", value: "150ms ease-smooth fade-in zoom-in-95 slide 4px by placement", description: "Duration, curve, fade, and scale match; the placement-specific four-pixel translation is not animated.", rust: "anim::entering_zoom(Motion::LIST_IN)", status: ImplementationStatus::Partial },
     StyleDoc { class_or_token: ".color-picker__popover exiting", value: "100ms ease-smooth fade-out zoom-out-95", description: "Exit lifetime, curve, opacity, and scale match and reduced motion snaps them.", rust: "anim::exiting(Motion::LIST_OUT)", status: ImplementationStatus::Implemented },
@@ -12711,7 +12746,7 @@ const COLOR_FIELD_API: &[ApiDoc] = &[
     ApiDoc { owner: "ColorField", prop: "children", ty: "ReactNode | RenderFunction", default: "—", description: "Replacement content receives disabled, invalid, read-only, required, focused, focus-within, and focus-visible state.", rust_owner: "ColorField", rust: "content(render)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "ColorField", prop: "className", ty: "string | RenderFunction", default: "—", description: "Browser CSS classes are unavailable.", rust_owner: "ColorField", rust: "—", status: ImplementationStatus::Unavailable },
     ApiDoc { owner: "ColorField", prop: "style", ty: "CSSProperties | RenderFunction", default: "—", description: "Browser inline styles are unavailable.", rust_owner: "ColorField", rust: "—", status: ImplementationStatus::Unavailable },
-    ApiDoc { owner: "ColorField", prop: "fullWidth", ty: "boolean", default: "false", description: "Stretches the input group to its available width.", rust_owner: "ColorField", rust: "full_width(bool)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "ColorField", prop: "fullWidth", ty: "boolean", default: "false", description: "Stretches the root and input group in editable and display modes.", rust_owner: "ColorField", rust: "full_width(bool)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "ColorField", prop: "id", ty: "string", default: "—", description: "Stable GPUI element identity is required by the constructor.", rust_owner: "ColorField", rust: "new(id, value)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "ColorField", prop: "render", ty: "DOMRenderFunction", default: "—", description: "DOM root substitution is unavailable.", rust_owner: "ColorField", rust: "—", status: ImplementationStatus::Unavailable },
     ApiDoc { owner: "ColorField", prop: "value", ty: "Color | null", default: "—", description: "Controlled concrete colors wait for owner acceptance; the port cannot represent a controlled null value.", rust_owner: "ColorField", rust: "new(id, PickerColor)", status: ImplementationStatus::Partial },
@@ -12769,7 +12804,7 @@ const COLOR_FIELD_STATES: &[StateDoc] = &[
 const COLOR_FIELD_STYLING: &[StyleDoc] = &[
     StyleDoc { class_or_token: ".color-field", value: "flex flex-col gap-1", description: "Four-pixel field-part spacing matches.", rust: "flex_col + gap(4)", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".color-field invalid description", value: "hidden", description: "Resolved error content replaces the description row rather than drawing both.", rust: "Input validity branch", status: ImplementationStatus::Implemented },
-    StyleDoc { class_or_token: ".color-field--full-width", value: "w-full", description: "The embedded input group stretches; the wrapper itself remains content-sized.", rust: "full_width(bool)", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".color-field--full-width", value: "w-full", description: "Both the wrapper and inner group stretch, including in a non-stretching flex parent.", rust: "full_width(bool) + root/group w_full", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".color-input-group", value: "inline-flex h-9 items-center overflow-hidden rounded-field border-0 bg-field text-sm shadow-field", description: "Height, alignment, field radius/fill, zero border, 14px type, clipping, and primary shadow match.", rust: "Input + FIELD_HEIGHT/FIELD_TEXT + apply_field_chrome", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".color-input-group transitions", value: "background/border 150ms ease-smooth; shadow 150ms ease-out", description: "Field state colors and rings still change on a frame.", rust: "immediate apply_field_chrome", status: ImplementationStatus::Unavailable },
     StyleDoc { class_or_token: ".color-input-group hover", value: "bg-field-hover border-field-hover", description: "The pinned hover-only group state is not drawn.", rust: "—", status: ImplementationStatus::Unavailable },
@@ -12778,7 +12813,7 @@ const COLOR_FIELD_STYLING: &[StyleDoc] = &[
     StyleDoc { class_or_token: ".color-input-group disabled", value: "status-disabled", description: "Disabled opacity and listener suppression match.", rust: "Input::is_disabled", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".color-input-group__input", value: "h-full flex-1 cursor-text px-3 py-2 text-sm bg-transparent", description: "State-backed Input supplies the cursor, horizontal inset, transparent fill, and unified 36px/14px field metrics.", rust: "Input", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".color-input-group__prefix", value: "shrink-0 text-field-placeholder ms-3 me-0", description: "The fixed 16px swatch starts at the 12px field inset; text follows after the pinned eight-pixel prefix gap.", rust: "Input start_content(ColorSwatch)", status: ImplementationStatus::Implemented },
-    StyleDoc { class_or_token: ".color-input-group__suffix", value: "shrink-0 text-field-placeholder me-3", description: "Editable and display suffix content stays at the trailing 12px inset.", rust: "suffix + Input::end_content", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".color-input-group__suffix", value: "shrink-0 text-field-placeholder me-3", description: "Editable and display suffix content stays at the trailing 12px inset and uses a 20px line height.", rust: "suffix + Input::end_content", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".color-input-group--secondary", value: "shadow-none bg-default; hover default-hover", description: "Resting fill and shadow match; the absent group hover leaves the hover token undrawn.", rust: "FieldVariant::Secondary", status: ImplementationStatus::Partial },
 ];
 
@@ -13132,7 +13167,7 @@ const TOOLBAR_PARTS: &[PartDoc] = &[
     PartDoc {
         name: "Toolbar",
         slot: "toolbar",
-        description: "Root container; the orientation is the modifier class.",
+        description: "Root container; set its orientation before separator() to append a centred divider half the bar's cross size.",
         rust_owner: "Toolbar",
         status: ImplementationStatus::Implemented,
     },
@@ -13824,7 +13859,7 @@ const ALERT_DIALOG_PARTS: &[PartDoc] = &[
     PartDoc {
         name: "AlertDialog.Body",
         slot: "alert-dialog-body",
-        description: "One scrolling slot holding the description and the composed children, capped under the panel and given flex-1 only when Cover fixes the panel height.",
+        description: "One scrolling slot holding the wrapping description and composed children, capped under the panel and given flex-1 only when Cover fixes the panel height.",
         rust_owner: "AlertDialog",
         status: ImplementationStatus::Implemented,
     },
@@ -13869,8 +13904,8 @@ const ALERT_DIALOG_STATES: &[StateDoc] = &[
     StateDoc {
         state: "Active",
         selector: ":active / [data-pressed=\"true\"]",
-        description: "Applied to the trigger and the close button when pressed; the close button dims on press, and the absent trigger has no surface.",
-        rust: "CloseButton .active opacity 0.7",
+        description: "Applied to the trigger and the close button when pressed; the close button uses a centered root-bounds shrink while fixed child content remains unscaled, and the absent trigger has no surface.",
+        rust: "CloseButton .active centered root-bounds shrink",
         status: ImplementationStatus::Partial,
     },
     StateDoc {
@@ -13935,8 +13970,8 @@ const ALERT_DIALOG_STYLING: &[StyleDoc] = &[
     StyleDoc {
         class_or_token: ".alert-dialog__container",
         value: "flex flex-col items-center; h-(--visual-viewport-height) w-full min-w-0 flex-1; p-4; sm:w-fit sm:p-10; pointer-events-none",
-        description: "Window-pinning wrapper: the port uses inset_0 and the 40px sm padding, since a desktop app is past the breakpoint, and applies the placement alignment inside; gpui has no pointer-events, so outside presses dismiss through the panel's own bounds instead.",
-        rust: "overlay absolute inset_0 + p(px(40.)) + placement flex match",
+        description: "Covers the window even inside clipped or positioned containers, paints above later page content, and blocks pointer input to the page beneath. The desktop container keeps 40px padding and applies placement alignment inside.",
+        rust: "util::window_overlay + p(px(40.)) + placement flex match",
         status: ImplementationStatus::Implemented,
     },
     StyleDoc {
@@ -15128,28 +15163,28 @@ const TYPOGRAPHY_STYLING: &[StyleDoc] = &[
     StyleDoc {
         class_or_token: ".typography--weight-normal",
         value: "font-normal",
-        description: "Normal weight override.",
+        description: "Normal (400) weight override, demonstrated in the gallery weight examples.",
         rust: "FontWeight::Normal => gpui::FontWeight::NORMAL",
         status: ImplementationStatus::Implemented,
     },
     StyleDoc {
         class_or_token: ".typography--weight-medium",
         value: "font-medium",
-        description: "Medium weight override.",
+        description: "Medium (500) weight override, demonstrated in the gallery weight examples.",
         rust: "FontWeight::Medium => gpui::FontWeight::MEDIUM",
         status: ImplementationStatus::Implemented,
     },
     StyleDoc {
         class_or_token: ".typography--weight-semibold",
         value: "font-semibold",
-        description: "Semibold weight override.",
+        description: "Semibold (600) weight override, demonstrated in the gallery weight examples.",
         rust: "FontWeight::Semibold => gpui::FontWeight::SEMIBOLD",
         status: ImplementationStatus::Implemented,
     },
     StyleDoc {
         class_or_token: ".typography--weight-bold",
         value: "font-bold",
-        description: "Bold weight override.",
+        description: "Bold (700) weight override, demonstrated in the gallery weight examples.",
         rust: "FontWeight::Bold => gpui::FontWeight::BOLD",
         status: ImplementationStatus::Implemented,
     },
@@ -15799,16 +15834,16 @@ const AVATAR_PARTS: &[PartDoc] = &[
     PartDoc {
         name: "Avatar.Image",
         slot: "avatar__image",
-        description: "`absolute inset-0 aspect-square size-full` image with an opacity transition. The port draws the loaded image directly inside the root (`img(data).size_full()`), replacing the fallback instead of overlaying it, and does not animate the swap.",
+        description: "`absolute inset-0 aspect-square size-full` image with an opacity transition. The port draws the loaded image directly inside the root (`img(data).size_full().rounded(radius)`), applying the root radius to keep the image inside the Avatar boundary, and does not animate the swap.",
         rust_owner: "Avatar",
         status: ImplementationStatus::Partial,
     },
     PartDoc {
         name: "Avatar.Fallback",
         slot: "avatar__fallback",
-        description: "`flex size-full items-center justify-center bg-default text-sm font-medium` fallback box. The port folds it into the root container and draws the initials — or any custom `fallback` children — directly, painted `text-{role}-soft-foreground`.",
+        description: "`flex size-full items-center justify-center bg-default text-sm font-medium` fallback box. The separate fallback container centers initials or custom `fallback` children with 14px/20px medium text (16px/24px for large avatars), painted `text-{role}-soft-foreground`.",
         rust_owner: "Avatar",
-        status: ImplementationStatus::Partial,
+        status: ImplementationStatus::Implemented,
     },
 ];
 
@@ -15834,22 +15869,22 @@ const AVATAR_STYLING: &[StyleDoc] = &[
     StyleDoc {
         class_or_token: ".avatar--lg .avatar__fallback",
         value: "text-base",
-        description: "The large avatar steps the fallback text up from 14px to 16px.",
+        description: "The large avatar steps fallback text from 14px/20px to 16px/24px.",
         rust: "let font = if self.large { px(16.) } else { px(14.) }",
         status: ImplementationStatus::Implemented,
     },
     StyleDoc {
         class_or_token: ".avatar__fallback",
         value: "flex size-full items-center justify-center bg-default text-sm font-medium",
-        description: "Folded into the root container: the initials or custom fallback children are drawn by the root itself, 14px medium in the color's soft foreground.",
-        rust: "root's items_center + justify_center + text_size(px(14.)) + FontWeight::MEDIUM + soft_foreground(colors.foreground)",
-        status: ImplementationStatus::Partial,
+        description: "A separate full-size fallback container centers initials or custom children with 14px/20px medium text in the color's soft foreground.",
+        rust: "fallback size_full + items_center + justify_center + text_size(font) + line_height(leading) + FontWeight::MEDIUM + soft_foreground(colors.foreground)",
+        status: ImplementationStatus::Implemented,
     },
     StyleDoc {
         class_or_token: ".avatar__image",
         value: "absolute inset-0 aspect-square size-full; transition-opacity duration-250 motion-reduce:transition-none",
-        description: "The port draws the loaded image as the root's child (`img(data).size_full()`) instead of an absolutely positioned overlay, and the swap is not interpolated.",
-        rust: "img(data).size_full()",
+        description: "The port draws the loaded image as the root's child, applies the same radius so every renderer clips it to the Avatar boundary, and does not interpolate the swap.",
+        rust: "img(data).size_full().rounded(radius)",
         status: ImplementationStatus::Partial,
     },
     StyleDoc {
@@ -16324,6 +16359,509 @@ pub(crate) const FIELD_SLOTS: ReferenceMetadata = ReferenceMetadata {
     styling: FIELD_SLOTS_STYLING,
 };
 
+const COLOR_SWATCH_REQUIRED_PARTS: &[&str] = &["ColorSwatch"];
+
+const COLOR_SWATCH_API: &[ApiDoc] = &[
+    ApiDoc { owner: "ColorSwatch", prop: "color", ty: "string | Color", default: "—", description: "Color value displayed by the swatch.", rust_owner: "ColorSwatch", rust: "new(PickerColor) / color(PickerColor)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "ColorSwatch", prop: "colorName", ty: "string", default: "—", description: "Accessible name overriding the generated color description; GPUI 0.2.2 exposes no accessibility attribute tree.", rust_owner: "ColorSwatch", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "ColorSwatch", prop: "className", ty: "string", default: "—", description: "Browser CSS classes are unavailable.", rust_owner: "ColorSwatch", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "ColorSwatch", prop: "shape", ty: "'circle' | 'square'", default: "'circle'", description: "Selects a circular or rounded-square swatch.", rust_owner: "ColorSwatch", rust: "shape(SwatchShape)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "ColorSwatch", prop: "size", ty: "'xs' | 'sm' | 'md' | 'lg' | 'xl'", default: "'md'", description: "Selects the 16, 24, 32, 36 or 40px swatch size.", rust_owner: "ColorSwatch", rust: "size(SizeXl)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "ColorSwatch", prop: "style", ty: "CSSProperties | render function", default: "—", description: "Browser inline styles and style render functions are unavailable.", rust_owner: "ColorSwatch", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "ColorSwatch", prop: "aria-label", ty: "string", default: "—", description: "GPUI 0.2.2 exposes no accessibility attribute tree.", rust_owner: "ColorSwatch", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "ColorSwatch", prop: "render", ty: "DOMRenderFunction", default: "—", description: "DOM root substitution has no GPUI equivalent.", rust_owner: "ColorSwatch", rust: "—", status: ImplementationStatus::Unavailable },
+];
+
+const COLOR_SWATCH_PARTS: &[PartDoc] = &[PartDoc {
+    name: "ColorSwatch",
+    slot: "color-swatch",
+    description: "Color preview with a transparency backdrop, border, size, and shape.",
+    rust_owner: "ColorSwatch",
+    status: ImplementationStatus::Implemented,
+}];
+
+const COLOR_SWATCH_STATES: &[StateDoc] = &[];
+
+const COLOR_SWATCH_STYLING: &[StyleDoc] = &[
+    StyleDoc {
+        class_or_token: ".color-swatch",
+        value: "size-8 overflow-hidden rounded-3xl border border-default",
+        description: "The default swatch is a clipped 32px circle with the theme border.",
+        rust: "SizeXl::Md + overflow_hidden + border(layout.border_width)",
+        status: ImplementationStatus::Implemented,
+    },
+    StyleDoc {
+        class_or_token: ".color-swatch--circle / --square",
+        value: "size-specific round radius / rounded-md",
+        description: "Circle radii follow each size; square uses the theme medium radius.",
+        rust: "SwatchShape => edge / 2 or radius_md",
+        status: ImplementationStatus::Implemented,
+    },
+    StyleDoc {
+        class_or_token: "transparency checkerboard",
+        value: "background-image checker pattern",
+        description: "Translucent colors blend over the secondary surface; the port does not draw the upstream checker pattern.",
+        rust: "colors.surface_secondary beneath PickerColor",
+        status: ImplementationStatus::Partial,
+    },
+];
+
+pub(crate) const COLOR_SWATCH: ReferenceMetadata = ReferenceMetadata {
+    page: "ColorSwatch",
+    import_line: "use herogpui::components::color_picker::ColorSwatch;",
+    source_module: "color_picker",
+    version: "3.2.4",
+    docs_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/apps/docs/content/docs/en/react/components/(colors)/color-swatch.mdx",
+    api_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/react/src/components/color-swatch/color-swatch.tsx",
+    style_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/styles/components/color-swatch.css",
+    required_parts: COLOR_SWATCH_REQUIRED_PARTS,
+    api: COLOR_SWATCH_API,
+    parts: COLOR_SWATCH_PARTS,
+    states: COLOR_SWATCH_STATES,
+    styling: COLOR_SWATCH_STYLING,
+};
+
+const METER_REQUIRED_PARTS: &[&str] = &["Meter", "Meter.Output", "Meter.Track", "Meter.Fill"];
+
+const METER_API: &[ApiDoc] = &[
+    ApiDoc { owner: "Meter", prop: "value", ty: "number", default: "0", description: "Current value within the configured range.", rust_owner: "Meter", rust: "new(id, value) / value(f32)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "Meter", prop: "minValue", ty: "number", default: "0", description: "Minimum value used to normalize the fill.", rust_owner: "Meter", rust: "min_value(f32)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "Meter", prop: "maxValue", ty: "number", default: "100", description: "Maximum value used to normalize the fill.", rust_owner: "Meter", rust: "max_value(f32)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "Meter", prop: "size", ty: "'sm' | 'md' | 'lg'", default: "'md'", description: "Selects the meter track thickness.", rust_owner: "Meter", rust: "size(Size)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "Meter", prop: "color", ty: "'default' | 'accent' | 'success' | 'warning' | 'danger'", default: "'accent'", description: "Semantic color of the fill bar.", rust_owner: "Meter", rust: "color(Color)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "Meter", prop: "formatOptions", ty: "Intl.NumberFormatOptions", default: "{style: 'percent'}", description: "Formats the value label; the port covers common numeric styles without caller-selected locale data.", rust_owner: "Meter", rust: "format_options(NumberFormat)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "Meter", prop: "valueLabel", ty: "ReactNode", default: "—", description: "Replaces the generated value text; the port accepts text or a value render closure.", rust_owner: "Meter", rust: "value_label(text) / value_content(render)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "Meter", prop: "children", ty: "ReactNode | (values: MeterRenderProps) => ReactNode", default: "—", description: "The port composes a label and output renderer while track and fill remain built in.", rust_owner: "Meter", rust: "label(text) + value_content(render)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "MeterRenderProps", prop: "percentage", ty: "number", default: "—", description: "Normalized percentage handed to the output renderer.", rust_owner: "Meter", rust: "value_content(render)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "MeterRenderProps", prop: "valueText", ty: "string", default: "—", description: "Formatted value text handed to the output renderer.", rust_owner: "Meter", rust: "value_content(render)", status: ImplementationStatus::Implemented },
+];
+
+const METER_PARTS: &[PartDoc] = &[
+    PartDoc {
+        name: "Meter",
+        slot: "meter",
+        description: "Root meter state and layout owner.",
+        rust_owner: "Meter",
+        status: ImplementationStatus::Implemented,
+    },
+    PartDoc {
+        name: "Meter.Output",
+        slot: "meter-output",
+        description: "Formatted output beside the label, customizable through the value closure.",
+        rust_owner: "Meter",
+        status: ImplementationStatus::Partial,
+    },
+    PartDoc {
+        name: "Meter.Track",
+        slot: "meter-track",
+        description: "Clipped default-color track delegated to ProgressBar.",
+        rust_owner: "Meter",
+        status: ImplementationStatus::Partial,
+    },
+    PartDoc {
+        name: "Meter.Fill",
+        slot: "meter-fill",
+        description: "Semantic fill proportional to the normalized value.",
+        rust_owner: "Meter",
+        status: ImplementationStatus::Partial,
+    },
+];
+
+const METER_STATES: &[StateDoc] = &[StateDoc {
+    state: "Determinate",
+    selector: "[aria-valuenow]",
+    description: "Fill width and output follow the normalized value.",
+    rust: "ProgressBar::value + min_value + max_value",
+    status: ImplementationStatus::Implemented,
+}];
+
+const METER_STYLING: &[StyleDoc] = &[
+    StyleDoc {
+        class_or_token: ".meter",
+        value: "grid w-full gap-1",
+        description:
+            "Full-width label/output row above the track; 14px text uses a 20px line height.",
+        rust: "ProgressBar root layout",
+        status: ImplementationStatus::Implemented,
+    },
+    StyleDoc {
+        class_or_token: ".meter__track",
+        value: "h-2 rounded-sm; sm h-1 rounded-xs; lg h-3 rounded-md",
+        description: "Track thickness follows the three documented sizes.",
+        rust: "ProgressBar::size(Size)",
+        status: ImplementationStatus::Implemented,
+    },
+    StyleDoc {
+        class_or_token: ".meter__fill",
+        value: "matching track radius; semantic fill",
+        description: "Fill color follows the selected semantic role.",
+        rust: "ProgressBar::color(Color)",
+        status: ImplementationStatus::Implemented,
+    },
+];
+
+pub(crate) const METER: ReferenceMetadata = ReferenceMetadata {
+    page: "Meter",
+    import_line: "use herogpui::components::meter::Meter;",
+    source_module: "meter",
+    version: "3.2.4",
+    docs_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/apps/docs/content/docs/en/react/components/(feedback)/meter.mdx",
+    api_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/react/src/components/meter/meter.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.20.0/packages/react-aria-components/src/Meter.tsx",
+    style_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/styles/components/meter.css",
+    required_parts: METER_REQUIRED_PARTS,
+    api: METER_API,
+    parts: METER_PARTS,
+    states: METER_STATES,
+    styling: METER_STYLING,
+};
+
+const SCROLL_SHADOW_REQUIRED_PARTS: &[&str] = &["ScrollShadow"];
+
+const SCROLL_SHADOW_API: &[ApiDoc] = &[
+    ApiDoc {
+        owner: "ScrollShadow",
+        prop: "orientation",
+        ty: "'vertical' | 'horizontal'",
+        default: "'vertical'",
+        description: "Axis along which content scrolls and fades appear.",
+        rust_owner: "ScrollShadow",
+        rust: "orientation(Orientation)",
+        status: ImplementationStatus::Implemented,
+    },
+    ApiDoc {
+        owner: "ScrollShadow",
+        prop: "variant",
+        ty: "'fade'",
+        default: "'fade'",
+        description:
+            "The documented API has one visual variant, which is the port's built-in treatment.",
+        rust_owner: "ScrollShadow",
+        rust: "—",
+        status: ImplementationStatus::Unavailable,
+    },
+    ApiDoc {
+        owner: "ScrollShadow",
+        prop: "size",
+        ty: "number",
+        default: "40",
+        description: "Depth of each fade gradient in pixels.",
+        rust_owner: "ScrollShadow",
+        rust: "size(Pixels)",
+        status: ImplementationStatus::Implemented,
+    },
+    ApiDoc {
+        owner: "ScrollShadow",
+        prop: "offset",
+        ty: "number",
+        default: "0",
+        description: "Scroll distance before the corresponding fade appears.",
+        rust_owner: "ScrollShadow",
+        rust: "offset(Pixels)",
+        status: ImplementationStatus::Implemented,
+    },
+    ApiDoc {
+        owner: "ScrollShadow",
+        prop: "hideScrollBar",
+        ty: "boolean",
+        default: "false",
+        description: "GPUI draws no browser-native scrollbar for this component to hide.",
+        rust_owner: "ScrollShadow",
+        rust: "—",
+        status: ImplementationStatus::Unavailable,
+    },
+    ApiDoc {
+        owner: "ScrollShadow",
+        prop: "isEnabled",
+        ty: "boolean",
+        default: "true",
+        description: "Turns fade rendering and visibility reporting on or off.",
+        rust_owner: "ScrollShadow",
+        rust: "is_enabled(bool)",
+        status: ImplementationStatus::Implemented,
+    },
+    ApiDoc {
+        owner: "ScrollShadow",
+        prop: "visibility",
+        ty: "'auto' | 'both' | 'top' | 'bottom' | 'left' | 'right' | 'none'",
+        default: "'auto'",
+        description: "Controls which edge fades are eligible to render.",
+        rust_owner: "ScrollShadow",
+        rust: "visibility(ScrollShadowVisibility)",
+        status: ImplementationStatus::Implemented,
+    },
+    ApiDoc {
+        owner: "ScrollShadow",
+        prop: "onVisibilityChange",
+        ty: "(visibility: ScrollShadowVisibility) => void",
+        default: "—",
+        description: "Reports resolved visible edges when they change.",
+        rust_owner: "ScrollShadow",
+        rust: "on_visibility_change(callback)",
+        status: ImplementationStatus::Implemented,
+    },
+    ApiDoc {
+        owner: "ScrollShadow",
+        prop: "className",
+        ty: "string",
+        default: "—",
+        description: "Browser CSS classes are unavailable.",
+        rust_owner: "ScrollShadow",
+        rust: "—",
+        status: ImplementationStatus::Unavailable,
+    },
+    ApiDoc {
+        owner: "ScrollShadow",
+        prop: "children",
+        ty: "ReactNode",
+        default: "—",
+        description: "Scrollable child content.",
+        rust_owner: "ScrollShadow",
+        rust: "—",
+        status: ImplementationStatus::Partial,
+    },
+];
+
+const SCROLL_SHADOW_PARTS: &[PartDoc] = &[PartDoc {
+    name: "ScrollShadow",
+    slot: "scroll-shadow",
+    description: "Scrollable root plus edge-fade overlays.",
+    rust_owner: "ScrollShadow",
+    status: ImplementationStatus::Implemented,
+}];
+
+const SCROLL_SHADOW_STATES: &[StateDoc] = &[
+    StateDoc {
+        state: "Leading edge",
+        selector: "[data-top-scroll] / [data-left-scroll]",
+        description: "Leading fade appears after content moves beyond the configured offset.",
+        rust: "ScrollHandle::offset + offset",
+        status: ImplementationStatus::Implemented,
+    },
+    StateDoc {
+        state: "Trailing edge",
+        selector: "[data-bottom-scroll] / [data-right-scroll]",
+        description: "Trailing fade appears while more content remains after the viewport.",
+        rust: "ScrollHandle::max_offset + offset",
+        status: ImplementationStatus::Implemented,
+    },
+    StateDoc {
+        state: "Both edges",
+        selector: "[data-top-bottom-scroll] / [data-left-right-scroll]",
+        description: "Both fades render when content can scroll in either direction.",
+        rust: "ScrollShadowVisibility::Both",
+        status: ImplementationStatus::Implemented,
+    },
+];
+
+const SCROLL_SHADOW_STYLING: &[StyleDoc] = &[
+    StyleDoc {
+        class_or_token: ".scroll-shadow",
+        value: "overflow auto with mask-image",
+        description: "The port uses a tracked GPUI scroller with explicit gradient overlays.",
+        rust: "track_scroll + overflow_x_scroll / overflow_y_scroll",
+        status: ImplementationStatus::Partial,
+    },
+    StyleDoc {
+        class_or_token: "--scroll-shadow-size",
+        value: "40px",
+        description: "Fade depth follows the size builder.",
+        rust: "size(Pixels)",
+        status: ImplementationStatus::Implemented,
+    },
+    StyleDoc {
+        class_or_token: "[data-orientation]",
+        value: "vertical | horizontal",
+        description: "Orientation switches scroll axis and fade direction; wheel input from the other axis is not remapped.",
+        rust: "orientation(Orientation)",
+        status: ImplementationStatus::Implemented,
+    },
+];
+
+pub(crate) const SCROLL_SHADOW: ReferenceMetadata = ReferenceMetadata {
+    page: "ScrollShadow",
+    import_line: "use herogpui::components::scroll_shadow::ScrollShadow;",
+    source_module: "scroll_shadow",
+    version: "3.2.4",
+    docs_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/apps/docs/content/docs/en/react/components/(utilities)/scroll-shadow.mdx",
+    api_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/react/src/components/scroll-shadow/scroll-shadow.tsx + https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/react/src/components/scroll-shadow/use-scroll-shadow.ts",
+    style_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/styles/components/scroll-shadow.css",
+    required_parts: SCROLL_SHADOW_REQUIRED_PARTS,
+    api: SCROLL_SHADOW_API,
+    parts: SCROLL_SHADOW_PARTS,
+    states: SCROLL_SHADOW_STATES,
+    styling: SCROLL_SHADOW_STYLING,
+};
+
+const SKELETON_REQUIRED_PARTS: &[&str] = &["Skeleton"];
+
+const SKELETON_API: &[ApiDoc] = &[
+    ApiDoc {
+        owner: "Skeleton",
+        prop: "animationType",
+        ty: "'shimmer' | 'pulse' | 'none'",
+        default: "theme",
+        description:
+            "Selects shimmer, pulse, or no animation; the theme token supplies the default.",
+        rust_owner: "Skeleton",
+        rust: "animation_type(SkeletonAnimation)",
+        status: ImplementationStatus::Implemented,
+    },
+    ApiDoc {
+        owner: "Skeleton",
+        prop: "className",
+        ty: "string",
+        default: "—",
+        description: "Browser CSS classes are unavailable.",
+        rust_owner: "Skeleton",
+        rust: "—",
+        status: ImplementationStatus::Unavailable,
+    },
+];
+
+const SKELETON_PARTS: &[PartDoc] = &[PartDoc {
+    name: "Skeleton",
+    slot: "skeleton",
+    description: "Clipped placeholder surface with optional hidden layout content.",
+    rust_owner: "Skeleton",
+    status: ImplementationStatus::Implemented,
+}];
+
+const SKELETON_STATES: &[StateDoc] = &[
+    StateDoc {
+        state: "Shimmer",
+        selector: ".skeleton--shimmer",
+        description: "A highlight band sweeps across the placeholder.",
+        rust: "SkeletonAnimation::Shimmer",
+        status: ImplementationStatus::Implemented,
+    },
+    StateDoc {
+        state: "Pulse",
+        selector: ".skeleton--pulse",
+        description: "The placeholder opacity pulses.",
+        rust: "SkeletonAnimation::Pulse",
+        status: ImplementationStatus::Implemented,
+    },
+    StateDoc {
+        state: "No animation",
+        selector: ".skeleton--none",
+        description:
+            "A static placeholder is rendered, including when reduced motion is requested.",
+        rust: "SkeletonAnimation::None / reduce_motion",
+        status: ImplementationStatus::Implemented,
+    },
+];
+
+const SKELETON_STYLING: &[StyleDoc] = &[
+    StyleDoc {
+        class_or_token: ".skeleton",
+        value: "relative overflow-hidden rounded-lg bg-surface-secondary/50",
+        description: "Theme secondary-surface placeholder clipped to the shared hairline radius.",
+        rust: "surface_tertiary + hairline_radius + overflow_hidden",
+        status: ImplementationStatus::Partial,
+    },
+    StyleDoc {
+        class_or_token: ".skeleton--shimmer",
+        value: "1.4s highlight sweep",
+        description: "A translucent background-colored band sweeps left to right.",
+        rust: "SkeletonAnimation::Shimmer + 1400ms repeated animation",
+        status: ImplementationStatus::Implemented,
+    },
+    StyleDoc {
+        class_or_token: ".skeleton--pulse",
+        value: "animate-pulse",
+        description: "Opacity oscillates while motion is enabled.",
+        rust: "SkeletonAnimation::Pulse + 1600ms repeated animation",
+        status: ImplementationStatus::Implemented,
+    },
+];
+
+pub(crate) const SKELETON: ReferenceMetadata = ReferenceMetadata {
+    page: "Skeleton",
+    import_line: "use herogpui::components::skeleton::Skeleton;",
+    source_module: "skeleton",
+    version: "3.2.4",
+    docs_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/apps/docs/content/docs/en/react/components/(feedback)/skeleton.mdx",
+    api_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/react/src/components/skeleton/skeleton.tsx",
+    style_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/styles/components/skeleton.css",
+    required_parts: SKELETON_REQUIRED_PARTS,
+    api: SKELETON_API,
+    parts: SKELETON_PARTS,
+    states: SKELETON_STATES,
+    styling: SKELETON_STYLING,
+};
+
+const SPINNER_REQUIRED_PARTS: &[&str] = &["Spinner"];
+
+const SPINNER_API: &[ApiDoc] = &[
+    ApiDoc {
+        owner: "Spinner",
+        prop: "size",
+        ty: "'sm' | 'md' | 'lg' | 'xl'",
+        default: "'md'",
+        description: "Selects the 16, 24, 32 or 40px indicator size.",
+        rust_owner: "Spinner",
+        rust: "size(SpinnerSize)",
+        status: ImplementationStatus::Implemented,
+    },
+    ApiDoc {
+        owner: "Spinner",
+        prop: "color",
+        ty: "'current' | 'accent' | 'success' | 'warning' | 'danger'",
+        default: "'accent'",
+        description: "Selects a semantic color or a caller-resolved current text color.",
+        rust_owner: "Spinner",
+        rust: "color(Color) / current_color(Hsla)",
+        status: ImplementationStatus::Partial,
+    },
+    ApiDoc {
+        owner: "Spinner",
+        prop: "className",
+        ty: "string",
+        default: "—",
+        description: "Browser CSS classes and animation utilities are unavailable.",
+        rust_owner: "Spinner",
+        rust: "—",
+        status: ImplementationStatus::Unavailable,
+    },
+];
+
+const SPINNER_PARTS: &[PartDoc] = &[PartDoc {
+    name: "Spinner",
+    slot: "spinner",
+    description: "Rotating arc indicator with semantic color and fixed size.",
+    rust_owner: "Spinner",
+    status: ImplementationStatus::Implemented,
+}];
+
+const SPINNER_STATES: &[StateDoc] = &[StateDoc {
+    state: "Spinning",
+    selector: ".spinner",
+    description: "The arc rotates continuously at the configured duration.",
+    rust: "Animation::repeat + Transformation::rotate",
+    status: ImplementationStatus::Implemented,
+}];
+
+const SPINNER_STYLING: &[StyleDoc] = &[
+    StyleDoc { class_or_token: ".spinner", value: "size-6 animate-spin", description: "The default indicator keeps its 24px diameter in flex layouts and rotates while motion is enabled; duration_ms provides the gallery's speed customization point.", rust: "SpinnerSize::Md + duration_ms(u64) + repeated rotation", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".spinner--sm / --md / --lg / --xl", value: "16px / 24px / 32px / 40px", description: "All four documented diameters map directly.", rust: "SpinnerSize::px", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".spinner--current / semantic colors", value: "currentColor or semantic role", description: "GPUI SVGs require current text color to be resolved by the caller; semantic roles resolve from the active theme.", rust: "current_color(Hsla) / color(Color)", status: ImplementationStatus::Partial },
+];
+
+pub(crate) const SPINNER: ReferenceMetadata = ReferenceMetadata {
+    page: "Spinner",
+    import_line: "use herogpui::components::spinner::Spinner;",
+    source_module: "spinner",
+    version: "3.2.4",
+    docs_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/apps/docs/content/docs/en/react/components/(feedback)/spinner.mdx",
+    api_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/react/src/components/spinner/spinner.tsx",
+    style_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/styles/components/spinner.css",
+    required_parts: SPINNER_REQUIRED_PARTS,
+    api: SPINNER_API,
+    parts: SPINNER_PARTS,
+    states: SPINNER_STATES,
+    styling: SPINNER_STYLING,
+};
+
 pub(crate) const ALL: &[ReferenceMetadata] = &[
     DROPDOWN,
     LIST_BOX,
@@ -16332,6 +16870,7 @@ pub(crate) const ALL: &[ReferenceMetadata] = &[
     CHIP,
     COLOR_AREA,
     COLOR_SLIDER,
+    COLOR_SWATCH,
     COLOR_SWATCH_PICKER,
     TOAST,
     COLOR_PICKER,
@@ -16366,6 +16905,9 @@ pub(crate) const ALL: &[ReferenceMetadata] = &[
     AUTOCOMPLETE,
     PROGRESS_BAR,
     PROGRESS_CIRCLE,
+    METER,
+    SKELETON,
+    SPINNER,
     SEPARATOR,
     SELECT,
     POPOVER,
@@ -16384,6 +16926,7 @@ pub(crate) const ALL: &[ReferenceMetadata] = &[
     ALERT,
     LINK,
     AVATAR,
+    SCROLL_SHADOW,
     FIELDSET,
     FIELD_SLOTS,
 ];

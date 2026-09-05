@@ -103,7 +103,7 @@
         "prop": "placement",
         "type": "PopoverPlacement",
         "default": "\"bottom\"",
-        "description": "Placement of the popover relative to the trigger.",
+        "description": "Placement relative to the measured trigger. All eight placements flip to the side with more room when the preferred side cannot fit, keeping a 12px cross-axis viewport inset with the scroller capped to the available height.",
         "rustOwner": "Dropdown",
         "rust": "placement(DropdownPlacement)",
         "status": "implemented"
@@ -498,7 +498,7 @@
       {
         "name": "Dropdown.Item",
         "slot": "menu-item",
-        "description": "Focusable action or selectable menu row.",
+        "description": "Focusable action or selectable menu row; descriptions wrap within the popover width.",
         "rustOwner": "MenuItem",
         "status": "implemented"
       },
@@ -584,6 +584,12 @@
     ],
     "styling": [
       {
+        "token": ".label / .description / .header / .kbd--light",
+        "description": "Built-in labels use 14px/20px medium text; descriptions and section headers use 12px/16px. Descriptions stack without a gap, and shortcuts reuse light Kbd.",
+        "rust": "Menu built-in text styles + Kbd::new().variant(Light)",
+        "status": "implemented"
+      },
+      {
         "token": ".dropdown",
         "description": "Root wrapper layout.",
         "rust": "Dropdown root: flex_col + gap(px(4.))",
@@ -603,8 +609,8 @@
       },
       {
         "token": ".dropdown__popover",
-        "description": "Popover dimensions, surface and overflow behavior.",
-        "rust": "placed_panel + overlay surface",
+        "description": "Positions against the measured trigger; all eight placements flip to the side with more room when the preferred side cannot fit, keeping a 12px cross-axis viewport inset with the scroller capped to the available height. Overlay surface.",
+        "rust": "floating + scrollable_popover + max_h_full + overlay surface",
         "status": "implemented"
       },
       {
@@ -840,10 +846,10 @@
         "prop": "escapeKeyBehavior",
         "type": "\"clearSelection\" | \"none\"",
         "default": "\"clearSelection\"",
-        "description": "Pinned default clearing is implemented; a caller cannot independently disable Escape except through disallowEmptySelection.",
+        "description": "Controls whether unmodified Escape clears a nonempty selection or remains available to an enclosing interaction.",
         "rustOwner": "ListBox",
-        "rust": "fixed clearSelection",
-        "status": "partial"
+        "rust": "escape_key_behavior(EscapeKeyBehavior)",
+        "status": "implemented"
       },
       {
         "owner": "ListBox",
@@ -980,7 +986,7 @@
         "prop": "rowHeight",
         "type": "number | undefined",
         "default": "48",
-        "description": "Fixed row geometry enables uniform-list virtualization.",
+        "description": "Fixed row geometry enables uniform-list virtualization; the virtual list caps at max_h, shrinks below it in a bounded parent, and pages by the visible viewport while skipping disabled stops.",
         "rustOwner": "ListBox",
         "rust": "row_height(px)",
         "status": "implemented"
@@ -1121,6 +1127,12 @@
       }
     ],
     "styling": [
+      {
+        "token": ".label / .description / .header / .kbd--light",
+        "description": "Built-in labels use 14px/20px medium text; descriptions and section headers use 12px/16px. Descriptions stack without a gap, and shortcuts reuse light Kbd.",
+        "rust": "ListBox built-in text styles + Kbd::new().variant(Light)",
+        "status": "implemented"
+      },
       {
         "token": ".list-box",
         "description": "Full-width clipped list with four-pixel inset.",
@@ -1296,10 +1308,10 @@
         "prop": "escapeKeyBehavior",
         "type": "\"clearSelection\" | \"none\"",
         "default": "\"clearSelection\"",
-        "description": "Pinned default clearing is implemented; callers can suppress it only with disallowEmptySelection.",
+        "description": "Controls whether unmodified Escape clears a nonempty selection or remains available to an enclosing interaction.",
         "rustOwner": "TagGroup",
-        "rust": "fixed clearSelection",
-        "status": "partial"
+        "rust": "escape_key_behavior(EscapeKeyBehavior)",
+        "status": "implemented"
       },
       {
         "owner": "TagGroup",
@@ -1466,10 +1478,10 @@
         "prop": "children",
         "type": "ReactNode",
         "default": "close icon",
-        "description": "The built-in close icon is automatic when onRemove is set; callers cannot replace it independently.",
-        "rustOwner": "TagGroup",
-        "rust": "automatic remove action",
-        "status": "partial"
+        "description": "Each tag may replace the automatic close glyph with custom remove-button content while preserving the built-in action.",
+        "rustOwner": "Tag",
+        "rust": "remove_content(render)",
+        "status": "implemented"
       },
       {
         "owner": "Tag.RemoveButton",
@@ -1507,9 +1519,9 @@
       {
         "name": "Tag.RemoveButton",
         "slot": "tag-remove-button",
-        "description": "Automatic per-tag remove action; independent custom button content is unavailable.",
-        "rustOwner": "TagGroup",
-        "status": "partial"
+        "description": "Automatic per-tag remove action with replaceable caller content.",
+        "rustOwner": "Tag",
+        "status": "implemented"
       }
     ],
     "states": [
@@ -1589,7 +1601,7 @@
       },
       {
         "token": ".tag--sm / --md / --lg",
-        "description": "All size paddings and type sizes match, including the large 16px radius.",
+        "description": "Size paddings, text sizes and explicit line heights match independently of host text styles, including the large 16px radius.",
         "rust": "metrics(Size) + radius(Size)",
         "status": "implemented"
       },
@@ -2557,8 +2569,8 @@
       },
       {
         "token": ".color-slider label / output",
-        "description": "Placement, 14px size, medium weight, and disabled label/output opacity split match; GPUI has no tabular-number switch.",
-        "rust": "14px MEDIUM label/output row",
+        "description": "Placement, 14px size, explicit 20px line height, medium weight, and disabled label/output opacity split match; GPUI has no tabular-number switch.",
+        "rust": "14px/20px MEDIUM label/output row",
         "status": "partial"
       },
       {
@@ -2595,6 +2607,129 @@
         "token": ".color-slider__thumb[data-dragging=true]",
         "description": "Dragging state is exposed, but GPUI provides one pointer cursor for the track rather than a separate grabbing cursor.",
         "rust": "ColorSliderThumbState",
+        "status": "partial"
+      }
+    ]
+  },
+  "color-swatch": {
+    "page": "ColorSwatch",
+    "importLine": "use herogpui::components::color_picker::ColorSwatch;",
+    "version": "3.2.4",
+    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.4/apps/docs/content/docs/en/react/components/(colors)/color-swatch.mdx",
+    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/react/src/components/color-swatch/color-swatch.tsx",
+    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/styles/components/color-swatch.css",
+    "requiredParts": [
+      "ColorSwatch"
+    ],
+    "api": [
+      {
+        "owner": "ColorSwatch",
+        "prop": "color",
+        "type": "string | Color",
+        "default": "—",
+        "description": "Color value displayed by the swatch.",
+        "rustOwner": "ColorSwatch",
+        "rust": "new(PickerColor) / color(PickerColor)",
+        "status": "implemented"
+      },
+      {
+        "owner": "ColorSwatch",
+        "prop": "colorName",
+        "type": "string",
+        "default": "—",
+        "description": "Accessible name overriding the generated color description; GPUI 0.2.2 exposes no accessibility attribute tree.",
+        "rustOwner": "ColorSwatch",
+        "rust": "—",
+        "status": "unavailable"
+      },
+      {
+        "owner": "ColorSwatch",
+        "prop": "className",
+        "type": "string",
+        "default": "—",
+        "description": "Browser CSS classes are unavailable.",
+        "rustOwner": "ColorSwatch",
+        "rust": "—",
+        "status": "unavailable"
+      },
+      {
+        "owner": "ColorSwatch",
+        "prop": "shape",
+        "type": "'circle' | 'square'",
+        "default": "'circle'",
+        "description": "Selects a circular or rounded-square swatch.",
+        "rustOwner": "ColorSwatch",
+        "rust": "shape(SwatchShape)",
+        "status": "implemented"
+      },
+      {
+        "owner": "ColorSwatch",
+        "prop": "size",
+        "type": "'xs' | 'sm' | 'md' | 'lg' | 'xl'",
+        "default": "'md'",
+        "description": "Selects the 16, 24, 32, 36 or 40px swatch size.",
+        "rustOwner": "ColorSwatch",
+        "rust": "size(SizeXl)",
+        "status": "implemented"
+      },
+      {
+        "owner": "ColorSwatch",
+        "prop": "style",
+        "type": "CSSProperties | render function",
+        "default": "—",
+        "description": "Browser inline styles and style render functions are unavailable.",
+        "rustOwner": "ColorSwatch",
+        "rust": "—",
+        "status": "unavailable"
+      },
+      {
+        "owner": "ColorSwatch",
+        "prop": "aria-label",
+        "type": "string",
+        "default": "—",
+        "description": "GPUI 0.2.2 exposes no accessibility attribute tree.",
+        "rustOwner": "ColorSwatch",
+        "rust": "—",
+        "status": "unavailable"
+      },
+      {
+        "owner": "ColorSwatch",
+        "prop": "render",
+        "type": "DOMRenderFunction",
+        "default": "—",
+        "description": "DOM root substitution has no GPUI equivalent.",
+        "rustOwner": "ColorSwatch",
+        "rust": "—",
+        "status": "unavailable"
+      }
+    ],
+    "parts": [
+      {
+        "name": "ColorSwatch",
+        "slot": "color-swatch",
+        "description": "Color preview with a transparency backdrop, border, size, and shape.",
+        "rustOwner": "ColorSwatch",
+        "status": "implemented"
+      }
+    ],
+    "states": [],
+    "styling": [
+      {
+        "token": ".color-swatch",
+        "description": "The default swatch is a clipped 32px circle with the theme border.",
+        "rust": "SizeXl::Md + overflow_hidden + border(layout.border_width)",
+        "status": "implemented"
+      },
+      {
+        "token": ".color-swatch--circle / --square",
+        "description": "Circle radii follow each size; square uses the theme medium radius.",
+        "rust": "SwatchShape => edge / 2 or radius_md",
+        "status": "implemented"
+      },
+      {
+        "token": "transparency checkerboard",
+        "description": "Translucent colors blend over the secondary surface; the port does not draw the upstream checker pattern.",
+        "rust": "colors.surface_secondary beneath PickerColor",
         "status": "partial"
       }
     ]
@@ -3650,7 +3785,7 @@
         "prop": "placement",
         "type": "Placement",
         "default": "bottom left",
-        "description": "Positions and flips the floating panel through the shared placement engine.",
+        "description": "Positions and flips the floating panel to the side with more room when the preferred side cannot fit through the shared placement engine, keeping a 12px cross-axis viewport inset with the scroller capped to the available height.",
         "rustOwner": "ColorPicker",
         "rust": "placement(Placement)",
         "status": "implemented"
@@ -3766,7 +3901,7 @@
       },
       {
         "token": ".color-picker__trigger",
-        "description": "Trigger alignment, 12px gap, 4px radius, and 14px type match.",
+        "description": "Trigger alignment, 12px gap, 4px radius, and 14px/20px type match regardless of parent line height.",
         "rust": "flex row + gap(12) + hairline_radius + 14px",
         "status": "implemented"
       },
@@ -3802,9 +3937,9 @@
       },
       {
         "token": ".color-picker__popover overflow",
-        "description": "The Rust panel does not yet provide a scroll container for constrained viewport height.",
-        "rust": "—",
-        "status": "unavailable"
+        "description": "The panel hides horizontal overflow and scrolls vertically within the available viewport height without shrinking its controls; Tab reveals each slider and boundary scrolling never moves the page, and scrollbars are not drawn.",
+        "rust": "scrollable_popover + max_h_full + overflow_y_scroll",
+        "status": "implemented"
       },
       {
         "token": ".color-picker__popover radius / shadow",
@@ -3879,7 +4014,7 @@
         "prop": "fullWidth",
         "type": "boolean",
         "default": "false",
-        "description": "Stretches the input group to its available width.",
+        "description": "Stretches the root and input group in editable and display modes.",
         "rustOwner": "ColorField",
         "rust": "full_width(bool)",
         "status": "implemented"
@@ -4316,9 +4451,9 @@
       },
       {
         "token": ".color-field--full-width",
-        "description": "The embedded input group stretches; the wrapper itself remains content-sized.",
-        "rust": "full_width(bool)",
-        "status": "partial"
+        "description": "Both the wrapper and inner group stretch, including in a non-stretching flex parent.",
+        "rust": "full_width(bool) + root/group w_full",
+        "status": "implemented"
       },
       {
         "token": ".color-input-group",
@@ -4370,7 +4505,7 @@
       },
       {
         "token": ".color-input-group__suffix",
-        "description": "Editable and display suffix content stays at the trailing 12px inset.",
+        "description": "Editable and display suffix content stays at the trailing 12px inset and uses a 20px line height.",
         "rust": "suffix + Input::end_content",
         "status": "implemented"
       },
@@ -4851,7 +4986,7 @@
       {
         "token": "[data-slot=\"label\"] / .slider__output",
         "description": "Label and output typography.",
-        "rust": "Slider::render text_size(px(14.)) + FontWeight::MEDIUM",
+        "rust": "Slider::render text_size(px(14.)) + line_height(px(20.)) + FontWeight::MEDIUM",
         "status": "implemented"
       },
       {
@@ -5736,6 +5871,12 @@
     ],
     "styling": [
       {
+        "token": "text-sm",
+        "description": "Label content uses 14px medium text with 20px lines, independent of surrounding line height.",
+        "rust": "text_size + line_height",
+        "status": "implemented"
+      },
+      {
         "token": ".checkbox",
         "description": "Field root and sibling help/error layout.",
         "rust": "Checkbox::render flex_col + items_start + gap(px(4.))",
@@ -6057,6 +6198,12 @@
       }
     ],
     "styling": [
+      {
+        "token": "text-sm",
+        "description": "Option labels use 14px/20px medium text; descriptions use 12px/16px regular text.",
+        "rust": "text_size + line_height",
+        "status": "implemented"
+      },
       {
         "token": ".checkbox-group",
         "description": "Group root stacks label, options and help/error text.",
@@ -6484,6 +6631,12 @@
     ],
     "styling": [
       {
+        "token": "text-sm",
+        "description": "Option content uses 14px medium text with 20px lines, independent of surrounding line height.",
+        "rust": "text_size + line_height",
+        "status": "implemented"
+      },
+      {
         "token": ".radio-group",
         "description": "Group root around label, description, options and field error.",
         "rust": "RadioGroup::render root flex_col + gap(px(4.))",
@@ -6626,20 +6779,20 @@
         "prop": "isHovered",
         "type": "boolean",
         "default": "—",
-        "description": "Whether the enabled button is hovered; GPUI reports it one frame later.",
+        "description": "Current enabled hover state supplied to custom content.",
         "rustOwner": "CloseButton",
         "rust": "content(render)",
-        "status": "partial"
+        "status": "implemented"
       },
       {
         "owner": "CloseButtonRenderProps",
         "prop": "isPressed",
         "type": "boolean",
         "default": "—",
-        "description": "Whether the enabled button is pressed; GPUI reports it one frame later.",
+        "description": "Current enabled press state supplied to custom content.",
         "rustOwner": "CloseButton",
         "rust": "content(render)",
-        "status": "partial"
+        "status": "implemented"
       },
       {
         "owner": "CloseButtonRenderProps",
@@ -6675,7 +6828,7 @@
         "slot": "close-button-icon",
         "description": "Built-in close glyph; icon(element) or content(render) replaces it in the port.",
         "rustOwner": "CloseButton",
-        "status": "partial"
+        "status": "implemented"
       }
     ],
     "states": [
@@ -6684,13 +6837,13 @@
         "selector": ".close-button:hover / [data-hovered=\"true\"]",
         "description": "Enabled buttons use the default-hover background and report hover to render content.",
         "rust": "hover(colors.default.hover()) + InteractiveState::is_hovered",
-        "status": "partial"
+        "status": "implemented"
       },
       {
         "state": "Pressed",
         "selector": ".close-button:active / [data-pressed=\"true\"]",
-        "description": "The port reports press state but uses opacity instead of v3's scale(0.93).",
-        "rust": "active(opacity 0.7) + InteractiveState::is_pressed",
+        "description": "Pressed state reaches custom content; the root bounds shrink to a centered 93%, but fixed child content does not scale with the CSS transform.",
+        "rust": "active centered root-bounds shrink + InteractiveState::is_pressed",
         "status": "partial"
       },
       {
@@ -6748,8 +6901,8 @@
       },
       {
         "token": ".close-button--default:active / [data-pressed=\"true\"]",
-        "description": "The port currently fades to 70% opacity instead of reproducing the press geometry.",
-        "rust": "active(opacity 0.7)",
+        "description": "The root bounds shrink to 93% about the center without moving neighboring layout; fixed child content remains unscaled.",
+        "rust": "active centered root-bounds shrink",
         "status": "partial"
       },
       {
@@ -7800,6 +7953,12 @@
     ],
     "styling": [
       {
+        "token": "text-sm",
+        "description": "Content uses 14px text with 20px lines; the built-in label uses 16px text with 24px lines.",
+        "rust": "text_size + line_height",
+        "status": "implemented"
+      },
+      {
         "token": ".switch",
         "description": "Field root around content, description and error.",
         "rust": "flex_col + gap(px(4.))",
@@ -8242,8 +8401,8 @@
       },
       {
         "token": ".pagination__summary",
-        "description": "Summary layout and typography.",
-        "rust": "flex + gap(px(8.)) + text_size(px(14.)) + muted",
+        "description": "Summary text follows the size-specific 12/16, 14/20 and 16/24 font/line-height pairs.",
+        "rust": "flex + gap(px(8.)) + cell_text + cell_leading + muted",
         "status": "partial"
       },
       {
@@ -8542,7 +8701,7 @@
       {
         "state": "Focused",
         "selector": ".input:focus / [data-focused=true]",
-        "description": "Draws focused field background, border and ring.",
+        "description": "Draws focused field background, border and ring. Registers platform text replacement, composition and paste against the same editable state.",
         "rust": "track_focus + apply_field_chrome",
         "status": "implemented"
       },
@@ -8576,6 +8735,24 @@
       }
     ],
     "styling": [
+      {
+        "token": "text-sm",
+        "description": "Text adornments inherit the field's 14px text and 20px line height.",
+        "rust": "text_size + line_height",
+        "status": "implemented"
+      },
+      {
+        "token": ".label",
+        "description": "Wrapper labels use 14px medium text with 20px lines, independent of host leading.",
+        "rust": "text_size(14px) + line_height(20px) + MEDIUM",
+        "status": "implemented"
+      },
+      {
+        "token": ".description / .error-message",
+        "description": "Helper and error text use 12px text with 16px lines; the error replaces the description.",
+        "rust": "text_size(12px) + line_height(16px) + validity-first branch",
+        "status": "implemented"
+      },
       {
         "token": ".input base",
         "description": "Desktop field height, 12px inline inset, 14px desktop type, field radius, colours and shadow match.",
@@ -9158,6 +9335,12 @@
         "status": "implemented"
       },
       {
+        "token": ".label / .description / .error-message",
+        "description": "Labels use 14px/20px and helper/error text use 12px/16px, independent of host leading.",
+        "rust": "inner Input wrapper text",
+        "status": "implemented"
+      },
+      {
         "token": ".textarea min-height",
         "description": "The documented three-row default uses three 20px lines plus 16px vertical padding.",
         "rust": "rows_height(3) = 76px",
@@ -9625,7 +9808,7 @@
     "styling": [
       {
         "token": ".search-field",
-        "description": "Root field stack and invalid description replacement.",
+        "description": "Root field stack and invalid description replacement; labels use 14px/20px and helper/error text use 12px/16px.",
         "rust": "Input wrapper flex_col + gap(4px)",
         "status": "implemented"
       },
@@ -9844,8 +10027,8 @@
         "default": "—",
         "description": "Placeholder text for empty slots.",
         "rustOwner": "InputOTP",
-        "rust": "placeholder(char)",
-        "status": "partial"
+        "rust": "placeholder(impl Into<SharedString>)",
+        "status": "implemented"
       },
       {
         "owner": "InputOTP",
@@ -9996,6 +10179,12 @@
       }
     ],
     "styling": [
+      {
+        "token": "text-sm",
+        "description": "Custom slot content inherits 14px/20px text; the built-in digits use 18px/24px text.",
+        "rust": "text_size + line_height",
+        "status": "implemented"
+      },
       {
         "token": ".input-otp",
         "description": "Root container geometry.",
@@ -10537,6 +10726,12 @@
     ],
     "styling": [
       {
+        "token": "text-sm",
+        "description": "Prefix and suffix text uses 14px text with 20px lines alongside the input.",
+        "rust": "text_size + line_height",
+        "status": "implemented"
+      },
+      {
         "token": ".input-group",
         "description": "The 36px floor, field radius, fill, 14px type, foreground and shadow match; GPUI has no inline-flex display mode, so the box leans on its parent for intrinsic width.",
         "rust": "div flex + min_h(FIELD_HEIGHT) + FIELD_TEXT + apply_field_chrome",
@@ -10924,7 +11119,7 @@
       },
       {
         "token": ".tabs__list-container__scroller",
-        "description": "Scrollable viewport and fading overflow edges.",
+        "description": "Scrollable viewport follows the configured axis without remapping wheel input from the other axis; fading overflow edges remain unavailable.",
         "rust": "raw overflow scroller; chevrons are measured but edge fades are absent",
         "status": "partial"
       },
@@ -10954,7 +11149,7 @@
       },
       {
         "token": ".tabs__tab",
-        "description": "Tab box and typography.",
+        "description": "Tab box and 14px typography with a fixed 20px line height.",
         "rust": "32px height + 16px padding + control_radius + 14px medium text",
         "status": "implemented"
       },
@@ -11175,10 +11370,10 @@
         "prop": "firstDayOfWeek",
         "type": "'sun' | 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat'",
         "default": "Locale default",
-        "description": "An explicit weekday is supported; the GPUI default is Monday, not locale-derived.",
+        "description": "Defaults from the operating system's regional date preferences through CLDR week data; an explicit weekday overrides it, with Sunday as the invalid-locale fallback.",
         "rustOwner": "Calendar",
         "rust": "first_day_of_week(Weekday)",
-        "status": "partial"
+        "status": "implemented"
       },
       {
         "owner": "Calendar",
@@ -11195,7 +11390,7 @@
         "prop": "selectionAlignment",
         "type": "'start' | 'center' | 'end'",
         "default": "'center'",
-        "description": "Aligns the initial visible range around the selection.",
+        "description": "Aligns the initial visible range around the selection; picking preserves that displayed range.",
         "rustOwner": "Calendar",
         "rust": "selection_alignment(SelectionAlignment)",
         "status": "implemented"
@@ -11456,9 +11651,9 @@
       {
         "name": "Calendar.YearPickerGrid",
         "slot": "calendar-year-picker-grid",
-        "description": "Three-column year selection surface.",
+        "description": "Scrollable three-column year surface overlaying the retained day area.",
         "rustOwner": "Calendar",
-        "status": "partial"
+        "status": "implemented"
       },
       {
         "name": "Calendar.YearPickerGridBody",
@@ -11521,7 +11716,7 @@
       {
         "state": "Focus visible",
         "selector": ":focus-visible, [data-focus-visible=\"true\"]",
-        "description": "Roving in-month focus ring driven by the calendar cursor.",
+        "description": "Roving in-month focus ring driven by the calendar cursor. Month boundaries, paging, alignment and year selection follow the chosen calendar system while focus values stay Gregorian.",
         "rust": "grid_focus + with_focus_ring",
         "status": "implemented"
       },
@@ -11542,8 +11737,8 @@
       {
         "state": "Year picker open",
         "selector": ".calendar-year-picker__trigger[data-open=\"true\"]",
-        "description": "The year grid replaces the day grid, without v3's staggered crossfade.",
-        "rust": "year_picker_open conditional tree",
+        "description": "The scrollable year grid overlays the retained day layout, without the staggered crossfade.",
+        "rust": "year_picker_open overlay + invisible day body",
         "status": "partial"
       },
       {
@@ -11557,7 +11752,7 @@
     "styling": [
       {
         "token": ".calendar",
-        "description": "Single-month width is exact; GPUI has no CSS container-query context.",
+        "description": "Single-month width is exact; multiple months use the documented 256px panels, 32px gaps and horizontal scrolling. GPUI has no CSS container-query context.",
         "rust": "CALENDAR_WIDTH = 252px",
         "status": "partial"
       },
@@ -11569,21 +11764,21 @@
       },
       {
         "token": ".calendar--day-view",
-        "description": "Day labels are isolated from dates, but more than seven days do not wrap into v3's grid.",
-        "rust": "VisibleDuration::Days linear flex row",
-        "status": "partial"
+        "description": "Seven weekday columns, disabled leading dates and trailing blanks match, with 4px between the weekday block and date rows.",
+        "rust": "week_aligned_rows + visible_start disabled guard",
+        "status": "implemented"
       },
       {
         "token": ".calendar__header",
-        "description": "Header alignment and horizontal inset match; the port uses an 8px root gap.",
-        "rust": "items_center + justify_between + px(2.)",
-        "status": "partial"
+        "description": "The header aligns its controls with a 2px horizontal inset and 16px bottom padding.",
+        "rust": "items_center + justify_between + px(2px) + pb(16px)",
+        "status": "implemented"
       },
       {
         "token": ".calendar__heading",
-        "description": "Heading size matches, but the port uses semibold weight.",
-        "rust": "text_size(14px) + SEMIBOLD",
-        "status": "partial"
+        "description": "Month headings use 14px/20px medium text independent of the host line height.",
+        "rust": "text_size(14px) + line_height(20px) + MEDIUM",
+        "status": "implemented"
       },
       {
         "token": ".calendar__header:has([data-open=\"true\"])",
@@ -11605,9 +11800,9 @@
       },
       {
         "token": ".calendar__grid",
-        "description": "Seven equal columns are reproduced with GPUI flex rows.",
-        "rust": "seven flex_1 cells per row",
-        "status": "implemented"
+        "description": "All views divide each panel into seven equal columns without horizontal gaps; multi-month panels are 256px wide.",
+        "rust": "seven flex_1 cells per row + no horizontal gap",
+        "status": "partial"
       },
       {
         "token": ".calendar__grid-header",
@@ -11617,20 +11812,20 @@
       },
       {
         "token": ".calendar__grid-body",
-        "description": "Date rows are explicit flex children; vertical spacing comes from the root and row gaps.",
-        "rust": "month_grid flex_col + gap(2px)",
-        "status": "partial"
+        "description": "Date rows start 4px below the weekday block and remain contiguous.",
+        "rust": "month_grid flex_col + preceding gap(4px)",
+        "status": "implemented"
       },
       {
         "token": ".calendar__header-cell",
-        "description": "Size and muted color match; bottom padding and medium weight are absent.",
-        "rust": "text_size(12px) + muted",
-        "status": "partial"
+        "description": "Weekday labels use 12px/16px medium muted text with 8px bottom padding.",
+        "rust": "text_size(12px) + line_height(16px) + MEDIUM + muted + pb(8px)",
+        "status": "implemented"
       },
       {
         "token": ".calendar__cell",
-        "description": "A centered 36px circular hit area matches the desktop cell geometry.",
-        "rust": "36px circle + radius(18px) + text_size(14px)",
+        "description": "Day cells center 14px/20px medium text in a square one seventh of the panel width, including selected, disabled and custom cells.",
+        "rust": "cell_size = column_width / 7 + text_size(14px) + line_height(20px) + MEDIUM",
         "status": "partial"
       },
       {
@@ -11683,8 +11878,8 @@
       },
       {
         "token": ".calendar-year-picker__trigger-heading",
-        "description": "Text size matches; weight, open color and transition do not.",
-        "rust": "text_size(14px) + SEMIBOLD",
+        "description": "The 14px/20px medium text matches; open color and transition do not.",
+        "rust": "text_size(14px) + line_height(20px) + MEDIUM",
         "status": "partial"
       },
       {
@@ -11695,20 +11890,20 @@
       },
       {
         "token": ".calendar:has(.calendar-year-picker__year-grid) > [data-slot=\"calendar-grid\"]",
-        "description": "The port replaces the day grid immediately without the pinned staggered crossfade.",
-        "rust": "conditional tree replacement",
+        "description": "The day body is hidden immediately beneath the year overlay without the pinned staggered crossfade.",
+        "rust": "invisible day body + absolute year overlay",
         "status": "unavailable"
       },
       {
         "token": ".calendar-year-picker__year-grid",
-        "description": "Columns, gap and padding match; overlay positioning and scrolling do not.",
-        "rust": "three-cell flex rows + gap(4px) + p(4px)",
-        "status": "partial"
+        "description": "The scrollable three-column year grid occupies the retained day area; opening and keyboard movement reveal the active row.",
+        "rust": "absolute inset_0 + retained day layout + ScrollHandle + three-cell rows + gap(4px) + p(4px)",
+        "status": "implemented"
       },
       {
         "token": ".calendar-year-picker__year-cell",
         "description": "Year geometry and selected/hover/focus treatments are present; transitions are absent.",
-        "rust": "h(32px) + px(10px) + control_radius + text_size(14px)",
+        "rust": "h(32px) + px(10px) + control_radius + text_size(14px) + line_height(20px) + MEDIUM",
         "status": "partial"
       }
     ]
@@ -11918,10 +12113,10 @@
         "prop": "hourCycle",
         "type": "12 | 24",
         "default": "locale",
-        "description": "Explicit 12/24-hour modes work; the local default is 24-hour rather than locale-derived.",
+        "description": "Defaults to the system regional time format; an explicit cycle overrides it.",
         "rustOwner": "DateField",
         "rust": "hour_cycle(HourCycle)",
-        "status": "partial"
+        "status": "implemented"
       },
       {
         "owner": "DateField",
@@ -11938,10 +12133,10 @@
         "prop": "shouldForceLeadingZeros",
         "type": "boolean",
         "default": "locale",
-        "description": "Controls month and day zero padding; hour padding remains fixed.",
+        "description": "Forces two-digit month, day and hour segments; otherwise numeric padding follows the system regional date and time patterns.",
         "rustOwner": "DateField",
         "rust": "should_force_leading_zeros(bool)",
-        "status": "partial"
+        "status": "implemented"
       },
       {
         "owner": "DateField",
@@ -12038,7 +12233,7 @@
         "prop": "segment",
         "type": "DateSegment",
         "default": "—",
-        "description": "Hands custom content each date segment and its generated text; time segments remain built in.",
+        "description": "Hands custom content each supported Gregorian date or plain-time segment and its generated text. Date and time segments follow the operating system's regional order, separators, padding, and day-period names; era and time-zone segment kinds require value models the port does not expose.",
         "rustOwner": "DateField",
         "rust": "segment(render)",
         "status": "partial"
@@ -12089,7 +12284,7 @@
       {
         "name": "DateField.Input",
         "slot": "date-input-group-input",
-        "description": "Built-in segmented input rather than an independently composable part.",
+        "description": "Built-in segmented input using the operating system's regional date order and separators rather than an independently composable part.",
         "rustOwner": "DateField",
         "status": "partial"
       },
@@ -12103,7 +12298,7 @@
       {
         "name": "DateField.Segment",
         "slot": "date-input-group-segment",
-        "description": "Keyboard-editable date and optional time segment; custom rendering covers date segments.",
+        "description": "Keyboard-editable Gregorian date and optional plain-time segment with custom rendering and regional date order; era and time-zone kinds are unavailable with the current value model.",
         "rustOwner": "DateField",
         "status": "partial"
       },
@@ -12215,7 +12410,7 @@
       },
       {
         "token": ".date-input-group",
-        "description": "Base group geometry and primary field chrome.",
+        "description": "Base group geometry and primary field chrome; group text and slots use explicit 14px/20px metrics.",
         "rust": "FIELD_HEIGHT + field_radius + field tokens",
         "status": "implemented"
       },
@@ -12448,10 +12643,10 @@
         "prop": "firstDayOfWeek",
         "type": "string",
         "default": "locale",
-        "description": "Overrides the calendar grid's first weekday with the local Weekday enum.",
+        "description": "The calendar grid defaults from the operating system's regional date preferences through CLDR week data; the local Weekday enum provides an explicit override.",
         "rustOwner": "DatePicker",
         "rust": "first_day_of_week(Weekday)",
-        "status": "partial"
+        "status": "implemented"
       },
       {
         "owner": "DatePicker",
@@ -12538,7 +12733,7 @@
       {
         "name": "DatePicker.Root",
         "slot": "date-picker",
-        "description": "Root state owner and focus-within scope.",
+        "description": "Root state owner and focus-within scope with a system-regionally formatted DateField.",
         "rustOwner": "DatePicker",
         "status": "implemented"
       },
@@ -12840,10 +13035,10 @@
         "prop": "firstDayOfWeek",
         "type": "string",
         "default": "locale",
-        "description": "Overrides the range calendar grid's first weekday with the local Weekday enum.",
+        "description": "The range calendar grid defaults from the operating system's regional date preferences through CLDR week data; the local Weekday enum provides an explicit override.",
         "rustOwner": "DateRangePicker",
         "rust": "first_day_of_week(Weekday)",
-        "status": "partial"
+        "status": "implemented"
       },
       {
         "owner": "DateRangePicker",
@@ -12950,7 +13145,7 @@
       {
         "name": "DateRangePicker.Root",
         "slot": "date-range-picker",
-        "description": "Root state owner and focus-within scope.",
+        "description": "Root state owner and focus-within scope with two system-regionally formatted DateFields.",
         "rustOwner": "DateRangePicker",
         "status": "implemented"
       },
@@ -13603,7 +13798,7 @@
       },
       {
         "token": ".number-field__group",
-        "description": "The default flex anatomy matches the three column geometry and shared field shell; GPUI has no CSS grid or autofill pseudo-state.",
+        "description": "The default flex anatomy matches the three column geometry and shared field shell, with explicit 14px/20px group text; GPUI has no CSS grid or autofill pseudo-state.",
         "rust": "FIELD_HEIGHT + 40px buttons + apply_field_chrome",
         "status": "partial"
       },
@@ -13771,10 +13966,10 @@
         "prop": "placeholderValue",
         "type": "TimeValue | null",
         "default": "12:00 AM / 00:00",
-        "description": "Seeds the first edit; the local default is 09:00 rather than hour-cycle-derived midnight/noon.",
+        "description": "Seeds the first edit and defaults to midnight in the active hour cycle.",
         "rustOwner": "TimeField",
         "rust": "placeholder_value(Time)",
-        "status": "partial"
+        "status": "implemented"
       },
       {
         "owner": "TimeField",
@@ -13851,10 +14046,10 @@
         "prop": "hourCycle",
         "type": "12 | 24",
         "default": "locale",
-        "description": "Explicit cycles work; the local default is 24-hour rather than locale-derived.",
+        "description": "Defaults to the system regional time format; an explicit cycle overrides it.",
         "rustOwner": "TimeField",
         "rust": "hour_cycle(HourCycle)",
-        "status": "partial"
+        "status": "implemented"
       },
       {
         "owner": "TimeField",
@@ -13871,10 +14066,10 @@
         "prop": "shouldForceLeadingZeros",
         "type": "boolean",
         "default": "locale",
-        "description": "Controls padding for hour, minute and second rather than only the locale-sensitive hour.",
+        "description": "Forces a two-digit hour when true; otherwise numeric padding follows the system regional time pattern.",
         "rustOwner": "TimeField",
         "rust": "should_force_leading_zeros(bool)",
-        "status": "partial"
+        "status": "implemented"
       },
       {
         "owner": "TimeField",
@@ -13961,7 +14156,7 @@
         "prop": "segment",
         "type": "DateSegment",
         "default": "—",
-        "description": "Hands custom content each time segment and its generated text.",
+        "description": "Hands custom content each time segment and its system-regional generated text.",
         "rustOwner": "TimeField",
         "rust": "segment(render)",
         "status": "implemented"
@@ -14135,13 +14330,13 @@
       },
       {
         "token": ".time-field--full-width",
-        "description": "Full-width root and group.",
+        "description": "Full-width root and group stretch even in a non-stretching parent.",
         "rust": "full_width(true)",
         "status": "implemented"
       },
       {
         "token": ".date-input-group",
-        "description": "Shared base group geometry and primary field chrome.",
+        "description": "Shared base group geometry and primary field chrome; group text and slots use explicit 14px/20px metrics.",
         "rust": "FIELD_HEIGHT + field_radius + field tokens",
         "status": "implemented"
       },
@@ -14294,20 +14489,20 @@
         "prop": "isDateUnavailable",
         "type": "(date: DateValue, anchorDate: CalendarDate | null) => boolean",
         "default": "—",
-        "description": "Receives the active anchor for cells, preview and both input paths; pinned window-bounded scanning and merged navigation bounds remain incomplete.",
+        "description": "Receives the active anchor for cells and both input paths; contiguous selection scans through one visible duration on each side plus the sentinel day beyond each limit, then merges discovered bounds into cells, focus and navigation.",
         "rustOwner": "RangeCalendar",
         "rust": "is_date_unavailable(callback)",
-        "status": "partial"
+        "status": "implemented"
       },
       {
         "owner": "RangeCalendar",
         "prop": "firstDayOfWeek",
         "type": "'sun' | 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat'",
         "default": "Locale default",
-        "description": "Explicit weekdays work; the GPUI default is Monday rather than locale-derived.",
+        "description": "Defaults from the operating system's regional date preferences through CLDR week data; an explicit weekday overrides it, with Sunday as the invalid-locale fallback.",
         "rustOwner": "RangeCalendar",
         "rust": "first_day_of_week(Weekday)",
-        "status": "partial"
+        "status": "implemented"
       },
       {
         "owner": "RangeCalendar",
@@ -14324,7 +14519,7 @@
         "prop": "selectionAlignment",
         "type": "'start' | 'center' | 'end'",
         "default": "'center'",
-        "description": "Explicit alignment wins; otherwise a range extending beyond the centered window automatically starts at the first visible unit.",
+        "description": "Explicit alignment wins; otherwise a range extending beyond the centered window automatically starts at the first visible unit. The first pick preserves that aligned view.",
         "rustOwner": "RangeCalendar",
         "rust": "selection_alignment(SelectionAlignment)",
         "status": "implemented"
@@ -14504,7 +14699,7 @@
         "prop": "isDisabled",
         "type": "boolean",
         "default": "—",
-        "description": "Reports disabled, out-of-range and outside-month cells without conflating unavailable or read-only state.",
+        "description": "Reports root-disabled, outside-month and effective min/max cells, including anchor-derived contiguous-range bounds; isUnavailable remains independently observable.",
         "rustOwner": "RangeCalendar",
         "rust": "cell(render)",
         "status": "implemented"
@@ -14615,9 +14810,9 @@
       {
         "name": "RangeCalendar.YearPickerGrid",
         "slot": "calendar-year-picker-grid",
-        "description": "Three-column year selection surface.",
+        "description": "Scrollable three-column year surface overlaying the retained day area.",
         "rustOwner": "RangeCalendar",
-        "status": "partial"
+        "status": "implemented"
       },
       {
         "name": "RangeCalendar.YearPickerGridBody",
@@ -14701,7 +14896,7 @@
       {
         "state": "Focus visible",
         "selector": ":focus-visible or [data-focus-visible=\"true\"]",
-        "description": "Roving in-month focus ring shared by hover and keyboard.",
+        "description": "Roving in-month focus ring shared by hover and keyboard. Month boundaries, paging, alignment and year selection follow the chosen calendar system while focus values stay Gregorian.",
         "rust": "grid_focus + with_focus_ring",
         "status": "implemented"
       },
@@ -14722,35 +14917,35 @@
       {
         "state": "Year picker open",
         "selector": ".calendar-year-picker__trigger[data-open=\"true\"]",
-        "description": "Replaces the day grid without v3's staggered crossfade.",
-        "rust": "year_picker_open conditional tree",
+        "description": "The scrollable year grid overlays the retained day layout, without the staggered crossfade.",
+        "rust": "year_picker_open overlay + invisible day body",
         "status": "partial"
       }
     ],
     "styling": [
       {
         "token": ".range-calendar",
-        "description": "Week/day roots use 252px, but month view paints 266px; GPUI also has no container-query context.",
-        "rust": "CALENDAR_WIDTH 252px / month column 266px",
+        "description": "Single-month, week and day roots use 252px; multiple months use the documented 256px panels, 32px gaps and horizontal scrolling. GPUI has no container-query context.",
+        "rust": "CALENDAR_WIDTH 252px / multiple-month column 256px",
         "status": "partial"
       },
       {
         "token": ".range-calendar--week/day-view",
-        "description": "Week layout matches; long day runs stay linear instead of wrapping like v3.",
+        "description": "Day rows start at the week boundary, disable leading dates and pad the visible end with blank cells.",
         "rust": "VisibleDuration week/day branches",
-        "status": "partial"
+        "status": "implemented"
       },
       {
         "token": ".range-calendar__header",
-        "description": "Alignment and inset match; vertical spacing is supplied by the root gap.",
-        "rust": "items_center + justify_between + px(2px)",
-        "status": "partial"
+        "description": "Header alignment, 2px horizontal inset and 16px bottom padding match.",
+        "rust": "items_center + justify_between + px(2px) + pb(16px)",
+        "status": "implemented"
       },
       {
         "token": ".range-calendar__heading",
-        "description": "Size matches; the port uses semibold weight.",
-        "rust": "text_size(14px) + SEMIBOLD",
-        "status": "partial"
+        "description": "Month headings use 14px/20px medium text independent of the host line height.",
+        "rust": "text_size(14px) + line_height(20px) + MEDIUM",
+        "status": "implemented"
       },
       {
         "token": ".range-calendar__nav-button",
@@ -14766,33 +14961,33 @@
       },
       {
         "token": ".range-calendar__grid",
-        "description": "Seven flex cells are fixed at 38px rather than v3's 36px columns inside a 252px root.",
-        "rust": "seven 38px cells per flex row",
+        "description": "Seven equal flex columns fill each panel, including the wider multiple-month layout.",
+        "rust": "seven flex_1 cells per row",
         "status": "partial"
       },
       {
         "token": ".range-calendar__grid-header/body",
-        "description": "Explicit flex siblings replace flattened table contents.",
+        "description": "Seven-column flex rows start 4px below the weekday block; each range cell retains its 2px vertical margins.",
         "rust": "weekday_header + month_grid flex columns",
         "status": "partial"
       },
       {
         "token": ".range-calendar__header-cell",
-        "description": "Size and color match; padding and medium weight do not.",
-        "rust": "text_size(12px) + muted",
-        "status": "partial"
+        "description": "Weekday labels use 12px/16px medium muted text with 8px bottom padding.",
+        "rust": "text_size(12px) + line_height(16px) + MEDIUM + muted + pb(8px)",
+        "status": "implemented"
       },
       {
         "token": ".range-calendar__cell",
-        "description": "The port uses 38px cells, 13px text and simplified row boundaries instead of v3's 36px/14px surface.",
-        "rust": "38px range segment + 13px text",
+        "description": "Each range segment spans one seventh of the panel width and contains a separate square day button; 4px row gaps reproduce the spacing between cells.",
+        "rust": "flex_1 range segment + cell_size height + row gap(4px) + grid py(2px)",
         "status": "partial"
       },
       {
         "token": ".range-calendar__cell-button",
-        "description": "The monolithic GPUI cell reproduces the inner hit surface without a separate DOM part.",
-        "rust": "centered cell content",
-        "status": "partial"
+        "description": "The inner day button centers 14px/20px medium text, including selected endpoints and custom cell content.",
+        "rust": "cell_size = column_width / 7 + text_size(14px) + line_height(20px) + MEDIUM",
+        "status": "implemented"
       },
       {
         "token": ".range-calendar__cell-button transition",
@@ -14862,20 +15057,20 @@
       },
       {
         "token": ".range-calendar:has(.calendar-year-picker__year-grid) > [data-slot=\"range-calendar-grid\"]",
-        "description": "The day grid is replaced immediately.",
-        "rust": "conditional tree replacement",
+        "description": "The day body is hidden immediately beneath the year overlay.",
+        "rust": "invisible day body + absolute year overlay",
         "status": "unavailable"
       },
       {
         "token": ".calendar-year-picker__year-grid",
-        "description": "Columns, gap and padding match; overlay positioning and scrolling do not.",
-        "rust": "three-cell rows + gap(4px) + p(4px)",
-        "status": "partial"
+        "description": "The scrollable three-column year grid occupies the retained day area; opening and keyboard movement reveal the active row.",
+        "rust": "absolute inset_0 + retained day layout + ScrollHandle + three-cell rows + gap(4px) + p(4px)",
+        "status": "implemented"
       },
       {
         "token": ".calendar-year-picker__year-cell",
         "description": "Geometry and core states exist; transitions are absent.",
-        "rust": "32px + px(10px) + control radius",
+        "rust": "32px + px(10px) + control radius + text_size(14px) + line_height(20px) + MEDIUM",
         "status": "partial"
       }
     ]
@@ -15279,8 +15474,8 @@
       {
         "state": "Active",
         "selector": ":active / [data-pressed=\"true\"]",
-        "description": "Applied to the trigger and close button when pressed; the close button dims on press, and the absent trigger has no surface.",
-        "rust": "CloseButton .active opacity 0.7",
+        "description": "Applied to the trigger and close button when pressed; the close button uses a centered root-bounds shrink while fixed child content remains unscaled, and the absent trigger has no surface.",
+        "rust": "CloseButton .active centered root-bounds shrink",
         "status": "partial"
       },
       {
@@ -15308,8 +15503,8 @@
     "styling": [
       {
         "token": ".drawer__content",
-        "description": "Full-window positioning wrapper; gpui has no pointer-events, so outside presses dismiss through the panel's own bounds instead.",
-        "rust": "overlay absolute inset_0 + trap_tab",
+        "description": "Covers the window even inside clipped or positioned containers, paints above later page content, and blocks pointer input to the page beneath. Outside presses dismiss through the panel's bounds.",
+        "rust": "util::window_overlay + trap_tab",
         "status": "implemented"
       },
       {
@@ -15855,8 +16050,8 @@
       {
         "state": "Active",
         "selector": ":active / [data-pressed=\"true\"]",
-        "description": "Applied to the trigger and close button when pressed; the close button dims on press, and the absent trigger has no surface.",
-        "rust": "CloseButton .active opacity 0.7",
+        "description": "Applied to the trigger and close button when pressed; the close button uses a centered root-bounds shrink while fixed child content remains unscaled, and the absent trigger has no surface.",
+        "rust": "CloseButton .active centered root-bounds shrink",
         "status": "partial"
       },
       {
@@ -15914,8 +16109,8 @@
       },
       {
         "token": ".modal__container",
-        "description": "Window-pinning wrapper: the port uses inset_0 and the 40px sm padding, since a desktop app is past the breakpoint, and applies the placement alignment inside rather than sizing to fit; gpui has no pointer-events, so outside presses dismiss through the panel's own bounds instead.",
-        "rust": "overlay absolute inset_0 + p(px(40.)) + placement/scroll flex match",
+        "description": "Covers the window even inside clipped or positioned containers, paints above later page content, and blocks pointer input to the page beneath. The desktop container keeps 40px padding and applies placement alignment inside.",
+        "rust": "util::window_overlay + p(px(40.)) + placement/scroll flex match",
         "status": "implemented"
       },
       {
@@ -15944,9 +16139,9 @@
       },
       {
         "token": ".modal__dialog--scroll-inside",
-        "description": "v3 caps the dialog at the container's content box and keeps a 40px margin of scrim; the port caps at the viewport instead, which only differs when the content overflows.",
-        "rust": "panel max_h(viewport_size().height) + overflow_hidden",
-        "status": "partial"
+        "description": "Caps the dialog at the container's content box, retaining 40px of scrim even with overflowing content; Full removes that margin.",
+        "rust": "panel max_h(panel_max) + overflow_hidden",
+        "status": "implemented"
       },
       {
         "token": ".modal__dialog--scroll-outside",
@@ -16524,7 +16719,7 @@
         "prop": "placement",
         "type": "\"bottom\" | \"bottom left\" | \"bottom right\" | \"bottom start\" | \"bottom end\" | \"top\" | \"top left\" | \"top right\" | \"top start\" | \"top end\" | \"left\" | \"left top\" | \"left bottom\" | \"start\" | \"start top\" | \"start bottom\" | \"right\" | \"right top\" | \"right bottom\" | \"end\" | \"end top\" | \"end bottom\"",
         "default": "\"bottom\"",
-        "description": "Placement of the popover relative to the input group; the port maps its supported placement enum to the floating panel.",
+        "description": "Eight cardinal/start/end placements are available; RAC's full 22-value placement union is not. The panel anchors to the measured field with an 8px gap and flips when the preferred side cannot fit and the opposite side has more room.",
         "rustOwner": "ComboBox",
         "rust": "placement(Placement)",
         "status": "partial"
@@ -16814,6 +17009,12 @@
     ],
     "styling": [
       {
+        "token": "text-sm / .header",
+        "description": "Text keeps its line height under surrounding styles. Section headers have 8px horizontal, 6px top and 4px bottom padding; selecting an option does not add font weight.",
+        "rust": "ComboBox text_size + line_height + section header styles",
+        "status": "implemented"
+      },
+      {
         "token": ".combo-box",
         "description": "Root field stack; the port matches the 4px gap but also enforces a local 180px minimum when not full width.",
         "rust": "flex_col + gap(px(4.)) + min_w(px(180.))",
@@ -16863,8 +17064,8 @@
       },
       {
         "token": ".combo-box__popover",
-        "description": "Floating list surface; the port matches the overlay palette, shadow, scrolling and placement but uses its own 4px panel inset and fixed 240px cap.",
-        "rust": "floating + placed_field_panel + overlay bg/shadow + p(px(4.)) + max_h(px(240.))",
+        "description": "Anchored to the field with an 8px gap, flipping to the side with more room when the preferred side cannot fit, keeping a 12px cross-axis viewport inset with the scroller capped to the available height; plain and virtual lists scroll within the available height and wheel input stays in the panel. The port uses its own 4px panel inset and exact trigger width rather than upstream p-0 and min-width.",
+        "rust": "scrollable_field_popover + max_h_full (plain) / Infer (virtual) + occlude + p(px(4.)) + overlay bg/shadow",
         "status": "partial"
       },
       {
@@ -17191,10 +17392,10 @@
         "prop": "placement",
         "type": "PopoverPlacement",
         "default": "\"bottom\"",
-        "description": "Places the popover relative to its trigger.",
+        "description": "Eight cardinal/start/end placements are available; RAC's full 22-value placement union is not. The panel anchors to the measured trigger with an 8px gap and flips when the preferred side cannot fit and the opposite side has more room.",
         "rustOwner": "Autocomplete",
         "rust": "placement(Placement)",
-        "status": "implemented"
+        "status": "partial"
       },
       {
         "owner": "Autocomplete.Popover",
@@ -17473,6 +17674,12 @@
     ],
     "styling": [
       {
+        "token": "text-sm / .header",
+        "description": "Text keeps its line height under surrounding styles. Section headers have 8px horizontal, 6px top and 4px bottom padding; selecting an option does not add font weight.",
+        "rust": "Autocomplete text_size + line_height + section header styles",
+        "status": "implemented"
+      },
+      {
         "token": ".autocomplete",
         "description": "Four-pixel field stack with label and message siblings.",
         "rust": "flex_col + gap(px(4.))",
@@ -17516,8 +17723,8 @@
       },
       {
         "token": ".autocomplete__popover",
-        "description": "Palette, top inset, radius and shadow match; GPUI placement supplies a local width cap rather than a CSS trigger-width variable.",
-        "rust": "placed_field_panel + pt(px(8.)) + overlay tokens",
+        "description": "Anchors to the measured trigger with an 8px gap, flipping to the side with more room when the preferred side cannot fit and keeping a 12px cross-axis viewport inset with the scroller capped to the available height; the search stays visible while the inner list scrolls and shrinks to the available height within the upstream 320px max, and virtual paging follows the visible list height. The reduced placement vocabulary and placement slide remain unported.",
+        "rust": "placement(Placement) + pt(px(8.)) + max_h(px(320.)) + scroll + overlay bg/shadow",
         "status": "partial"
       },
       {
@@ -17534,13 +17741,13 @@
       },
       {
         "token": ".autocomplete__popover [data-slot=\"search-field\"]",
-        "description": "The built-in secondary SearchField uses the documented 12px/4px wrapper inset.",
+        "description": "The built-in secondary SearchField uses the documented 12px/4px wrapper inset and stays visible while the inner list scrolls.",
         "rust": "SearchField::new + px(px(12.)) + py(px(4.))",
         "status": "implemented"
       },
       {
         "token": ".autocomplete__popover [data-slot=\"list-box\"]",
-        "description": "Both normal and virtual lists use the 320px cap, six-pixel inset and scrolling behavior.",
+        "description": "Both normal and virtual lists use the upstream 320px cap with a six-pixel inset; the list shrinks below the cap to the available height and virtual paging follows the visible list height.",
         "rust": "max_h/h(px(320.)) + p(px(6.)) + scroll",
         "status": "implemented"
       },
@@ -17755,8 +17962,8 @@
       },
       {
         "token": "[data-slot=label] / .progress-bar__output",
-        "description": "Text size and weight match; GPUI does not request tabular numeral font features on the output alone.",
-        "rust": "text_size(px(14.)) + FontWeight::MEDIUM",
+        "description": "Text size, 20px line height and weight match; GPUI does not request tabular numeral font features on the output alone.",
+        "rust": "text_size(px(14.)) + line_height(px(20.)) + FontWeight::MEDIUM",
         "status": "partial"
       },
       {
@@ -18023,6 +18230,347 @@
         "description": "Indeterminate track rotation and its reduced-motion override.",
         "rust": "PROGRESS_CIRCLE_SPIN_MS + progress_circle_spin_turn + reduce_motion",
         "status": "implemented"
+      }
+    ]
+  },
+  "meter": {
+    "page": "Meter",
+    "importLine": "use herogpui::components::meter::Meter;",
+    "version": "3.2.4",
+    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.4/apps/docs/content/docs/en/react/components/(feedback)/meter.mdx",
+    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/react/src/components/meter/meter.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.20.0/packages/react-aria-components/src/Meter.tsx",
+    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/styles/components/meter.css",
+    "requiredParts": [
+      "Meter",
+      "Meter.Output",
+      "Meter.Track",
+      "Meter.Fill"
+    ],
+    "api": [
+      {
+        "owner": "Meter",
+        "prop": "value",
+        "type": "number",
+        "default": "0",
+        "description": "Current value within the configured range.",
+        "rustOwner": "Meter",
+        "rust": "new(id, value) / value(f32)",
+        "status": "implemented"
+      },
+      {
+        "owner": "Meter",
+        "prop": "minValue",
+        "type": "number",
+        "default": "0",
+        "description": "Minimum value used to normalize the fill.",
+        "rustOwner": "Meter",
+        "rust": "min_value(f32)",
+        "status": "implemented"
+      },
+      {
+        "owner": "Meter",
+        "prop": "maxValue",
+        "type": "number",
+        "default": "100",
+        "description": "Maximum value used to normalize the fill.",
+        "rustOwner": "Meter",
+        "rust": "max_value(f32)",
+        "status": "implemented"
+      },
+      {
+        "owner": "Meter",
+        "prop": "size",
+        "type": "'sm' | 'md' | 'lg'",
+        "default": "'md'",
+        "description": "Selects the meter track thickness.",
+        "rustOwner": "Meter",
+        "rust": "size(Size)",
+        "status": "implemented"
+      },
+      {
+        "owner": "Meter",
+        "prop": "color",
+        "type": "'default' | 'accent' | 'success' | 'warning' | 'danger'",
+        "default": "'accent'",
+        "description": "Semantic color of the fill bar.",
+        "rustOwner": "Meter",
+        "rust": "color(Color)",
+        "status": "implemented"
+      },
+      {
+        "owner": "Meter",
+        "prop": "formatOptions",
+        "type": "Intl.NumberFormatOptions",
+        "default": "{style: 'percent'}",
+        "description": "Formats the value label; the port covers common numeric styles without caller-selected locale data.",
+        "rustOwner": "Meter",
+        "rust": "format_options(NumberFormat)",
+        "status": "partial"
+      },
+      {
+        "owner": "Meter",
+        "prop": "valueLabel",
+        "type": "ReactNode",
+        "default": "—",
+        "description": "Replaces the generated value text; the port accepts text or a value render closure.",
+        "rustOwner": "Meter",
+        "rust": "value_label(text) / value_content(render)",
+        "status": "partial"
+      },
+      {
+        "owner": "Meter",
+        "prop": "children",
+        "type": "ReactNode | (values: MeterRenderProps) => ReactNode",
+        "default": "—",
+        "description": "The port composes a label and output renderer while track and fill remain built in.",
+        "rustOwner": "Meter",
+        "rust": "label(text) + value_content(render)",
+        "status": "partial"
+      },
+      {
+        "owner": "MeterRenderProps",
+        "prop": "percentage",
+        "type": "number",
+        "default": "—",
+        "description": "Normalized percentage handed to the output renderer.",
+        "rustOwner": "Meter",
+        "rust": "value_content(render)",
+        "status": "implemented"
+      },
+      {
+        "owner": "MeterRenderProps",
+        "prop": "valueText",
+        "type": "string",
+        "default": "—",
+        "description": "Formatted value text handed to the output renderer.",
+        "rustOwner": "Meter",
+        "rust": "value_content(render)",
+        "status": "implemented"
+      }
+    ],
+    "parts": [
+      {
+        "name": "Meter",
+        "slot": "meter",
+        "description": "Root meter state and layout owner.",
+        "rustOwner": "Meter",
+        "status": "implemented"
+      },
+      {
+        "name": "Meter.Output",
+        "slot": "meter-output",
+        "description": "Formatted output beside the label, customizable through the value closure.",
+        "rustOwner": "Meter",
+        "status": "partial"
+      },
+      {
+        "name": "Meter.Track",
+        "slot": "meter-track",
+        "description": "Clipped default-color track delegated to ProgressBar.",
+        "rustOwner": "Meter",
+        "status": "partial"
+      },
+      {
+        "name": "Meter.Fill",
+        "slot": "meter-fill",
+        "description": "Semantic fill proportional to the normalized value.",
+        "rustOwner": "Meter",
+        "status": "partial"
+      }
+    ],
+    "states": [
+      {
+        "state": "Determinate",
+        "selector": "[aria-valuenow]",
+        "description": "Fill width and output follow the normalized value.",
+        "rust": "ProgressBar::value + min_value + max_value",
+        "status": "implemented"
+      }
+    ],
+    "styling": [
+      {
+        "token": ".meter",
+        "description": "Full-width label/output row above the track; 14px text uses a 20px line height.",
+        "rust": "ProgressBar root layout",
+        "status": "implemented"
+      },
+      {
+        "token": ".meter__track",
+        "description": "Track thickness follows the three documented sizes.",
+        "rust": "ProgressBar::size(Size)",
+        "status": "implemented"
+      },
+      {
+        "token": ".meter__fill",
+        "description": "Fill color follows the selected semantic role.",
+        "rust": "ProgressBar::color(Color)",
+        "status": "implemented"
+      }
+    ]
+  },
+  "skeleton": {
+    "page": "Skeleton",
+    "importLine": "use herogpui::components::skeleton::Skeleton;",
+    "version": "3.2.4",
+    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.4/apps/docs/content/docs/en/react/components/(feedback)/skeleton.mdx",
+    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/react/src/components/skeleton/skeleton.tsx",
+    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/styles/components/skeleton.css",
+    "requiredParts": [
+      "Skeleton"
+    ],
+    "api": [
+      {
+        "owner": "Skeleton",
+        "prop": "animationType",
+        "type": "'shimmer' | 'pulse' | 'none'",
+        "default": "theme",
+        "description": "Selects shimmer, pulse, or no animation; the theme token supplies the default.",
+        "rustOwner": "Skeleton",
+        "rust": "animation_type(SkeletonAnimation)",
+        "status": "implemented"
+      },
+      {
+        "owner": "Skeleton",
+        "prop": "className",
+        "type": "string",
+        "default": "—",
+        "description": "Browser CSS classes are unavailable.",
+        "rustOwner": "Skeleton",
+        "rust": "—",
+        "status": "unavailable"
+      }
+    ],
+    "parts": [
+      {
+        "name": "Skeleton",
+        "slot": "skeleton",
+        "description": "Clipped placeholder surface with optional hidden layout content.",
+        "rustOwner": "Skeleton",
+        "status": "implemented"
+      }
+    ],
+    "states": [
+      {
+        "state": "Shimmer",
+        "selector": ".skeleton--shimmer",
+        "description": "A highlight band sweeps across the placeholder.",
+        "rust": "SkeletonAnimation::Shimmer",
+        "status": "implemented"
+      },
+      {
+        "state": "Pulse",
+        "selector": ".skeleton--pulse",
+        "description": "The placeholder opacity pulses.",
+        "rust": "SkeletonAnimation::Pulse",
+        "status": "implemented"
+      },
+      {
+        "state": "No animation",
+        "selector": ".skeleton--none",
+        "description": "A static placeholder is rendered, including when reduced motion is requested.",
+        "rust": "SkeletonAnimation::None / reduce_motion",
+        "status": "implemented"
+      }
+    ],
+    "styling": [
+      {
+        "token": ".skeleton",
+        "description": "Theme secondary-surface placeholder clipped to the shared hairline radius.",
+        "rust": "surface_tertiary + hairline_radius + overflow_hidden",
+        "status": "partial"
+      },
+      {
+        "token": ".skeleton--shimmer",
+        "description": "A translucent background-colored band sweeps left to right.",
+        "rust": "SkeletonAnimation::Shimmer + 1400ms repeated animation",
+        "status": "implemented"
+      },
+      {
+        "token": ".skeleton--pulse",
+        "description": "Opacity oscillates while motion is enabled.",
+        "rust": "SkeletonAnimation::Pulse + 1600ms repeated animation",
+        "status": "implemented"
+      }
+    ]
+  },
+  "spinner": {
+    "page": "Spinner",
+    "importLine": "use herogpui::components::spinner::Spinner;",
+    "version": "3.2.4",
+    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.4/apps/docs/content/docs/en/react/components/(feedback)/spinner.mdx",
+    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/react/src/components/spinner/spinner.tsx",
+    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/styles/components/spinner.css",
+    "requiredParts": [
+      "Spinner"
+    ],
+    "api": [
+      {
+        "owner": "Spinner",
+        "prop": "size",
+        "type": "'sm' | 'md' | 'lg' | 'xl'",
+        "default": "'md'",
+        "description": "Selects the 16, 24, 32 or 40px indicator size.",
+        "rustOwner": "Spinner",
+        "rust": "size(SpinnerSize)",
+        "status": "implemented"
+      },
+      {
+        "owner": "Spinner",
+        "prop": "color",
+        "type": "'current' | 'accent' | 'success' | 'warning' | 'danger'",
+        "default": "'accent'",
+        "description": "Selects a semantic color or a caller-resolved current text color.",
+        "rustOwner": "Spinner",
+        "rust": "color(Color) / current_color(Hsla)",
+        "status": "partial"
+      },
+      {
+        "owner": "Spinner",
+        "prop": "className",
+        "type": "string",
+        "default": "—",
+        "description": "Browser CSS classes and animation utilities are unavailable.",
+        "rustOwner": "Spinner",
+        "rust": "—",
+        "status": "unavailable"
+      }
+    ],
+    "parts": [
+      {
+        "name": "Spinner",
+        "slot": "spinner",
+        "description": "Rotating arc indicator with semantic color and fixed size.",
+        "rustOwner": "Spinner",
+        "status": "implemented"
+      }
+    ],
+    "states": [
+      {
+        "state": "Spinning",
+        "selector": ".spinner",
+        "description": "The arc rotates continuously at the configured duration.",
+        "rust": "Animation::repeat + Transformation::rotate",
+        "status": "implemented"
+      }
+    ],
+    "styling": [
+      {
+        "token": ".spinner",
+        "description": "The default indicator keeps its 24px diameter in flex layouts and rotates while motion is enabled; duration_ms provides the gallery's speed customization point.",
+        "rust": "SpinnerSize::Md + duration_ms(u64) + repeated rotation",
+        "status": "implemented"
+      },
+      {
+        "token": ".spinner--sm / --md / --lg / --xl",
+        "description": "All four documented diameters map directly.",
+        "rust": "SpinnerSize::px",
+        "status": "implemented"
+      },
+      {
+        "token": ".spinner--current / semantic colors",
+        "description": "GPUI SVGs require current text color to be resolved by the caller; semantic roles resolve from the active theme.",
+        "rust": "current_color(Hsla) / color(Color)",
+        "status": "partial"
       }
     ]
   },
@@ -18323,10 +18871,10 @@
         "prop": "fullWidth",
         "type": "boolean",
         "default": "false",
-        "description": "Expands the trigger inside a root that remains capped at 320px.",
+        "description": "Expands both the root and trigger to the available width.",
         "rustOwner": "Select",
         "rust": "full_width(bool)",
-        "status": "partial"
+        "status": "implemented"
       },
       {
         "owner": "Select",
@@ -18443,7 +18991,7 @@
         "prop": "placement",
         "type": "Placement",
         "default": "\"bottom\"",
-        "description": "Eight cardinal/start/end placements are available; RAC's full 22-value placement union is not.",
+        "description": "Eight cardinal/start/end placements are available; RAC's full 22-value placement union is not. The panel anchors to the measured trigger with an 8px gap and flips when the preferred side cannot fit and the opposite side has more room.",
         "rustOwner": "Select",
         "rust": "placement(Placement)",
         "status": "partial"
@@ -18541,7 +19089,7 @@
       {
         "name": "Select.Popover",
         "slot": "select-popover",
-        "description": "Anchored list surface with a reduced placement vocabulary.",
+        "description": "List surface anchored to the trigger; it can flip within the window and supports a reduced placement vocabulary.",
         "rustOwner": "Select",
         "status": "partial"
       }
@@ -18557,7 +19105,7 @@
       {
         "state": "Focus visible",
         "selector": ".select__trigger[data-focus-visible]",
-        "description": "Keyboard focus rings the trigger and applies the field-focus background.",
+        "description": "Keyboard focus rings the trigger and applies the field-focus background. Enter and Space finish a single selection without reopening a popup closed by its owner.",
         "rust": "ring_if_focused + focus-visible background",
         "status": "implemented"
       },
@@ -18634,9 +19182,15 @@
     ],
     "styling": [
       {
+        "token": "text-sm / .header",
+        "description": "Text keeps its line height under surrounding styles. Section headers have 8px horizontal, 6px top and 4px bottom padding; selecting an option does not add font weight.",
+        "rust": "Select text_size + line_height + section header styles",
+        "status": "implemented"
+      },
+      {
         "token": ".select",
-        "description": "The inner field wrapper stacks at four pixels only when label or description content exists; the root also adds a 320px cap.",
-        "rust": "conditional flex_col + gap(px(4.)) inside max_w(px(320.))",
+        "description": "The inner field wrapper stacks at four pixels only when label or description content exists; the root adds a 320px cap unless full width is enabled.",
+        "rust": "conditional flex_col + gap(px(4.)) + default max_w(px(320.))",
         "status": "partial"
       },
       {
@@ -18719,8 +19273,8 @@
       },
       {
         "token": ".select__popover",
-        "description": "Anchored overlay surface, radius, scrolling and shadow.",
-        "rust": "anchored panel + floating_radius + overlay_shadow",
+        "description": "Anchored to the measured trigger width with an 8px gap, flipping to the side with more room when the preferred side cannot fit and keeping a 12px cross-axis viewport inset with the scroller capped to the available height; the plain list scrolls the panel and the virtual list sizes itself to the same bound. Overlay surface, radius and shadow.",
+        "rust": "scrollable_field_popover + max_h_full (plain) / Infer (virtual) + floating_radius + overlay_shadow",
         "status": "implemented"
       },
       {
@@ -18749,9 +19303,9 @@
       },
       {
         "token": ".select--full-width / .select__trigger--full-width",
-        "description": "The trigger expands, but the root retains its unconditional 320px maximum width.",
-        "rust": "field.w_full() inside root.max_w(px(320.))",
-        "status": "partial"
+        "description": "Both the root and trigger expand to the available container width.",
+        "rust": "root.w_full() + field.w_full()",
+        "status": "implemented"
       }
     ]
   },
@@ -19019,7 +19573,7 @@
     "styling": [
       {
         "token": ".popover surface",
-        "description": "Surface colour, 14px text, capped radius and overlay shadow match; the monolithic panel combines root and dialog padding.",
+        "description": "Surface colour, 14/20px text, capped radius and overlay shadow match; the monolithic panel combines root and dialog padding.",
         "rust": "overlay colors + text_size(px(14.)) + container_radius + overlay_shadow",
         "status": "partial"
       },
@@ -19769,10 +20323,10 @@
         "prop": "width",
         "type": "ColumnSize | null",
         "default": "—",
-        "description": "Controlled column width; the port stores a default and keyed drag result, not a caller-owned controlled width.",
+        "description": "Caller-owned controlled width in pixels; CSS length and fractional strings are not accepted.",
         "rustOwner": "TableColumn",
-        "rust": "—",
-        "status": "unavailable"
+        "rust": "width(width)",
+        "status": "partial"
       },
       {
         "owner": "Table.Column",
@@ -20105,6 +20659,36 @@
         "status": "partial"
       },
       {
+        "owner": "Table.ResizableContainer",
+        "prop": "onResizeStart",
+        "type": "(widths: Map<Key, ColumnSize>) => void",
+        "default": "—",
+        "description": "Reports known pixel widths when pointer or keyboard resizing begins.",
+        "rustOwner": "Table",
+        "rust": "on_resize_start(callback)",
+        "status": "partial"
+      },
+      {
+        "owner": "Table.ResizableContainer",
+        "prop": "onResize",
+        "type": "(widths: Map<Key, ColumnSize>) => void",
+        "default": "—",
+        "description": "Reports each proposed pixel width map; feed values back through controlled TableColumn.width.",
+        "rustOwner": "Table",
+        "rust": "on_resize(callback)",
+        "status": "partial"
+      },
+      {
+        "owner": "Table.ResizableContainer",
+        "prop": "onResizeEnd",
+        "type": "(widths: Map<Key, ColumnSize>) => void",
+        "default": "—",
+        "description": "Reports the final known pixel widths after pointer or keyboard resizing ends.",
+        "rustOwner": "Table",
+        "rust": "on_resize_end(callback)",
+        "status": "partial"
+      },
+      {
         "owner": "Table.LoadMore",
         "prop": "isLoading",
         "type": "boolean",
@@ -20199,7 +20783,7 @@
         "prop": "rowHeight",
         "type": "number | undefined",
         "default": "48",
-        "description": "Fixed virtual row height; with virtual_rows this selects gpui uniform_list.",
+        "description": "Fixed virtual row height; with virtual_rows this selects gpui uniform_list, caps at max_h, shrinks below it in a bounded parent, and pages by the visible viewport while skipping disabled stops.",
         "rustOwner": "Table",
         "rust": "row_height(height)",
         "status": "implemented"
@@ -20400,7 +20984,7 @@
       {
         "state": "Focus visible",
         "selector": ":focus-visible / [data-focus-visible=\"true\"]",
-        "description": "Inset focus ring on the focused row, sortable header and resizer; one overlay stands in for v3's per-cell split ring.",
+        "description": "Inset focus ring on the focused row, column header and resizer; one overlay stands in for v3's per-cell split ring. PageUp enters the first header — from the top of a virtual body, paging by viewport mid-body; Down and PageDown return to the first and last enabled body rows.",
         "rust": "inset_focus_ring",
         "status": "partial"
       },
@@ -20482,14 +21066,14 @@
       },
       {
         "token": ".table__scroll-container",
-        "description": "Horizontal scroller around the content column; custom scrollbar styling is absent.",
+        "description": "Horizontal input scrolls the content column; vertical input is not remapped sideways. Custom scrollbar styling is absent.",
         "rust": "overflow_x_scroll",
         "status": "partial"
       },
       {
         "token": ".table__content",
-        "description": "14px type matches; the port is a flex column rather than a border-separate table.",
-        "rust": "min_w_full flex_col text_size(px(14.))",
+        "description": "14px type and 20px line height match; the port is a flex column rather than a border-separate table, so column tracks resolve per row and a table narrower than its columns times their widest cell staggers the body against the header.",
+        "rust": "min_w_full flex_col text_size(px(14.)) line_height(px(20.))",
         "status": "partial"
       },
       {
@@ -20500,8 +21084,8 @@
       },
       {
         "token": ".table__column",
-        "description": "16/10px inset and 12px type match; the port uses medium caller-case labels, but short vertical column separators are not drawn.",
-        "rust": "px(16.) py(10.) text_size(12.) MEDIUM + label.clone()",
+        "description": "16/10px inset and 12px type with 16px lines match; the port uses medium caller-case labels, but short vertical column separators are not drawn.",
+        "rust": "px(16.) py(10.) text_size(12.) line_height(16.) MEDIUM + label.clone()",
         "status": "partial"
       },
       {
@@ -21000,15 +21584,15 @@
       },
       {
         "token": ".accordion__body",
-        "description": "Body content uses 14px type.",
-        "rust": "text_size(px(14.))",
+        "description": "Body content uses 14px type with a 20px line height independently of host leading.",
+        "rust": "text_size(px(14.)) + line_height(px(20.))",
         "status": "implemented"
       },
       {
         "token": ".accordion__body-inner",
-        "description": "Horizontal and bottom inset and muted color match; the port retains a 2px top inset.",
-        "rust": "px(16.) pt(2.) pb(16.) text_color(muted)",
-        "status": "partial"
+        "description": "Horizontal and bottom inset, zero top inset and muted color match.",
+        "rust": "px(16.) pt(0.) pb(16.) text_color(muted)",
+        "status": "implemented"
       },
       {
         "token": ".accordion__heading",
@@ -21198,9 +21782,9 @@
         "prop": "children",
         "type": "ReactNode | RenderFunction",
         "default": "—",
-        "description": "Compound heading, trigger and panel children; the GPUI control builds the trigger and accepts body children.",
+        "description": "Compound heading, trigger and panel children; the GPUI control builds the trigger and accepts static body children through ParentElement or a state-aware body render closure.",
         "rustOwner": "Disclosure",
-        "rust": "—",
+        "rust": "content(render)",
         "status": "partial"
       },
       {
@@ -21248,9 +21832,9 @@
         "prop": "children",
         "type": "ReactNode",
         "default": "—",
-        "description": "Panel body content supplied through ParentElement composition.",
+        "description": "Panel body content supplied through ParentElement composition or the state-aware render closure.",
         "rustOwner": "Disclosure",
-        "rust": "—",
+        "rust": "content(render)",
         "status": "partial"
       },
       {
@@ -21278,20 +21862,20 @@
         "prop": "isExpanded",
         "type": "boolean",
         "default": "—",
-        "description": "Current expanded state; drawn internally but not delegated to a child closure.",
+        "description": "Current expanded state supplied to the body render closure.",
         "rustOwner": "Disclosure",
-        "rust": "is_expanded(bool)",
-        "status": "partial"
+        "rust": "content(render)",
+        "status": "implemented"
       },
       {
         "owner": "DisclosureRenderProps",
         "prop": "isDisabled",
         "type": "boolean",
         "default": "—",
-        "description": "Current disabled state; drawn internally but not delegated to a child closure.",
+        "description": "Current disabled state supplied to the body render closure.",
         "rustOwner": "Disclosure",
-        "rust": "is_disabled(bool)",
-        "status": "partial"
+        "rust": "content(render)",
+        "status": "implemented"
       },
       {
         "owner": "DisclosureGroupRenderProps",
@@ -21533,7 +22117,7 @@
       {
         "name": "Toolbar",
         "slot": "toolbar",
-        "description": "Root container; the orientation is the modifier class.",
+        "description": "Root container; set its orientation before separator() to append a centred divider half the bar's cross size.",
         "rustOwner": "Toolbar",
         "status": "implemented"
       }
@@ -22215,7 +22799,7 @@
       {
         "name": "AlertDialog.Body",
         "slot": "alert-dialog-body",
-        "description": "One scrolling slot holding the description and the composed children, capped under the panel and given flex-1 only when Cover fixes the panel height.",
+        "description": "One scrolling slot holding the wrapping description and composed children, capped under the panel and given flex-1 only when Cover fixes the panel height.",
         "rustOwner": "AlertDialog",
         "status": "implemented"
       },
@@ -22259,8 +22843,8 @@
       {
         "state": "Active",
         "selector": ":active / [data-pressed=\"true\"]",
-        "description": "Applied to the trigger and the close button when pressed; the close button dims on press, and the absent trigger has no surface.",
-        "rust": "CloseButton .active opacity 0.7",
+        "description": "Applied to the trigger and the close button when pressed; the close button uses a centered root-bounds shrink while fixed child content remains unscaled, and the absent trigger has no surface.",
+        "rust": "CloseButton .active centered root-bounds shrink",
         "status": "partial"
       },
       {
@@ -22318,8 +22902,8 @@
       },
       {
         "token": ".alert-dialog__container",
-        "description": "Window-pinning wrapper: the port uses inset_0 and the 40px sm padding, since a desktop app is past the breakpoint, and applies the placement alignment inside; gpui has no pointer-events, so outside presses dismiss through the panel's own bounds instead.",
-        "rust": "overlay absolute inset_0 + p(px(40.)) + placement flex match",
+        "description": "Covers the window even inside clipped or positioned containers, paints above later page content, and blocks pointer input to the page beneath. The desktop container keeps 40px padding and applies placement alignment inside.",
+        "rust": "util::window_overlay + p(px(40.)) + placement flex match",
         "status": "implemented"
       },
       {
@@ -23386,25 +23970,25 @@
       },
       {
         "token": ".typography--weight-normal",
-        "description": "Normal weight override.",
+        "description": "Normal (400) weight override, demonstrated in the gallery weight examples.",
         "rust": "FontWeight::Normal => gpui::FontWeight::NORMAL",
         "status": "implemented"
       },
       {
         "token": ".typography--weight-medium",
-        "description": "Medium weight override.",
+        "description": "Medium (500) weight override, demonstrated in the gallery weight examples.",
         "rust": "FontWeight::Medium => gpui::FontWeight::MEDIUM",
         "status": "implemented"
       },
       {
         "token": ".typography--weight-semibold",
-        "description": "Semibold weight override.",
+        "description": "Semibold (600) weight override, demonstrated in the gallery weight examples.",
         "rust": "FontWeight::Semibold => gpui::FontWeight::SEMIBOLD",
         "status": "implemented"
       },
       {
         "token": ".typography--weight-bold",
-        "description": "Bold weight override.",
+        "description": "Bold (700) weight override, demonstrated in the gallery weight examples.",
         "rust": "FontWeight::Bold => gpui::FontWeight::BOLD",
         "status": "implemented"
       }
@@ -24014,16 +24598,16 @@
       {
         "name": "Avatar.Image",
         "slot": "avatar__image",
-        "description": "`absolute inset-0 aspect-square size-full` image with an opacity transition. The port draws the loaded image directly inside the root (`img(data).size_full()`), replacing the fallback instead of overlaying it, and does not animate the swap.",
+        "description": "`absolute inset-0 aspect-square size-full` image with an opacity transition. The port draws the loaded image directly inside the root (`img(data).size_full().rounded(radius)`), applying the root radius to keep the image inside the Avatar boundary, and does not animate the swap.",
         "rustOwner": "Avatar",
         "status": "partial"
       },
       {
         "name": "Avatar.Fallback",
         "slot": "avatar__fallback",
-        "description": "`flex size-full items-center justify-center bg-default text-sm font-medium` fallback box. The port folds it into the root container and draws the initials — or any custom `fallback` children — directly, painted `text-{role}-soft-foreground`.",
+        "description": "`flex size-full items-center justify-center bg-default text-sm font-medium` fallback box. The separate fallback container centers initials or custom `fallback` children with 14px/20px medium text (16px/24px for large avatars), painted `text-{role}-soft-foreground`.",
         "rustOwner": "Avatar",
-        "status": "partial"
+        "status": "implemented"
       }
     ],
     "states": [],
@@ -24042,20 +24626,20 @@
       },
       {
         "token": ".avatar--lg .avatar__fallback",
-        "description": "The large avatar steps the fallback text up from 14px to 16px.",
+        "description": "The large avatar steps fallback text from 14px/20px to 16px/24px.",
         "rust": "let font = if self.large { px(16.) } else { px(14.) }",
         "status": "implemented"
       },
       {
         "token": ".avatar__fallback",
-        "description": "Folded into the root container: the initials or custom fallback children are drawn by the root itself, 14px medium in the color's soft foreground.",
-        "rust": "root's items_center + justify_center + text_size(px(14.)) + FontWeight::MEDIUM + soft_foreground(colors.foreground)",
-        "status": "partial"
+        "description": "A separate full-size fallback container centers initials or custom children with 14px/20px medium text in the color's soft foreground.",
+        "rust": "fallback size_full + items_center + justify_center + text_size(font) + line_height(leading) + FontWeight::MEDIUM + soft_foreground(colors.foreground)",
+        "status": "implemented"
       },
       {
         "token": ".avatar__image",
-        "description": "The port draws the loaded image as the root's child (`img(data).size_full()`) instead of an absolutely positioned overlay, and the swap is not interpolated.",
-        "rust": "img(data).size_full()",
+        "description": "The port draws the loaded image as the root's child, applies the same radius so every renderer clips it to the Avatar boundary, and does not interpolate the swap.",
+        "rust": "img(data).size_full().rounded(radius)",
         "status": "partial"
       },
       {
@@ -24068,6 +24652,171 @@
         "token": ".avatar--soft / .avatar--soft .avatar__fallback--{color}",
         "description": "The soft variant clears the base fill and the compound rules paint the per-role soft mix behind the same soft-foreground text.",
         "rust": "AvatarVariant::Soft => (fb_role.soft(), soft_fg)",
+        "status": "implemented"
+      }
+    ]
+  },
+  "scroll-shadow": {
+    "page": "ScrollShadow",
+    "importLine": "use herogpui::components::scroll_shadow::ScrollShadow;",
+    "version": "3.2.4",
+    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.4/apps/docs/content/docs/en/react/components/(utilities)/scroll-shadow.mdx",
+    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/react/src/components/scroll-shadow/scroll-shadow.tsx + https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/react/src/components/scroll-shadow/use-scroll-shadow.ts",
+    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/styles/components/scroll-shadow.css",
+    "requiredParts": [
+      "ScrollShadow"
+    ],
+    "api": [
+      {
+        "owner": "ScrollShadow",
+        "prop": "orientation",
+        "type": "'vertical' | 'horizontal'",
+        "default": "'vertical'",
+        "description": "Axis along which content scrolls and fades appear.",
+        "rustOwner": "ScrollShadow",
+        "rust": "orientation(Orientation)",
+        "status": "implemented"
+      },
+      {
+        "owner": "ScrollShadow",
+        "prop": "variant",
+        "type": "'fade'",
+        "default": "'fade'",
+        "description": "The documented API has one visual variant, which is the port's built-in treatment.",
+        "rustOwner": "ScrollShadow",
+        "rust": "—",
+        "status": "unavailable"
+      },
+      {
+        "owner": "ScrollShadow",
+        "prop": "size",
+        "type": "number",
+        "default": "40",
+        "description": "Depth of each fade gradient in pixels.",
+        "rustOwner": "ScrollShadow",
+        "rust": "size(Pixels)",
+        "status": "implemented"
+      },
+      {
+        "owner": "ScrollShadow",
+        "prop": "offset",
+        "type": "number",
+        "default": "0",
+        "description": "Scroll distance before the corresponding fade appears.",
+        "rustOwner": "ScrollShadow",
+        "rust": "offset(Pixels)",
+        "status": "implemented"
+      },
+      {
+        "owner": "ScrollShadow",
+        "prop": "hideScrollBar",
+        "type": "boolean",
+        "default": "false",
+        "description": "GPUI draws no browser-native scrollbar for this component to hide.",
+        "rustOwner": "ScrollShadow",
+        "rust": "—",
+        "status": "unavailable"
+      },
+      {
+        "owner": "ScrollShadow",
+        "prop": "isEnabled",
+        "type": "boolean",
+        "default": "true",
+        "description": "Turns fade rendering and visibility reporting on or off.",
+        "rustOwner": "ScrollShadow",
+        "rust": "is_enabled(bool)",
+        "status": "implemented"
+      },
+      {
+        "owner": "ScrollShadow",
+        "prop": "visibility",
+        "type": "'auto' | 'both' | 'top' | 'bottom' | 'left' | 'right' | 'none'",
+        "default": "'auto'",
+        "description": "Controls which edge fades are eligible to render.",
+        "rustOwner": "ScrollShadow",
+        "rust": "visibility(ScrollShadowVisibility)",
+        "status": "implemented"
+      },
+      {
+        "owner": "ScrollShadow",
+        "prop": "onVisibilityChange",
+        "type": "(visibility: ScrollShadowVisibility) => void",
+        "default": "—",
+        "description": "Reports resolved visible edges when they change.",
+        "rustOwner": "ScrollShadow",
+        "rust": "on_visibility_change(callback)",
+        "status": "implemented"
+      },
+      {
+        "owner": "ScrollShadow",
+        "prop": "className",
+        "type": "string",
+        "default": "—",
+        "description": "Browser CSS classes are unavailable.",
+        "rustOwner": "ScrollShadow",
+        "rust": "—",
+        "status": "unavailable"
+      },
+      {
+        "owner": "ScrollShadow",
+        "prop": "children",
+        "type": "ReactNode",
+        "default": "—",
+        "description": "Scrollable child content.",
+        "rustOwner": "ScrollShadow",
+        "rust": "—",
+        "status": "partial"
+      }
+    ],
+    "parts": [
+      {
+        "name": "ScrollShadow",
+        "slot": "scroll-shadow",
+        "description": "Scrollable root plus edge-fade overlays.",
+        "rustOwner": "ScrollShadow",
+        "status": "implemented"
+      }
+    ],
+    "states": [
+      {
+        "state": "Leading edge",
+        "selector": "[data-top-scroll] / [data-left-scroll]",
+        "description": "Leading fade appears after content moves beyond the configured offset.",
+        "rust": "ScrollHandle::offset + offset",
+        "status": "implemented"
+      },
+      {
+        "state": "Trailing edge",
+        "selector": "[data-bottom-scroll] / [data-right-scroll]",
+        "description": "Trailing fade appears while more content remains after the viewport.",
+        "rust": "ScrollHandle::max_offset + offset",
+        "status": "implemented"
+      },
+      {
+        "state": "Both edges",
+        "selector": "[data-top-bottom-scroll] / [data-left-right-scroll]",
+        "description": "Both fades render when content can scroll in either direction.",
+        "rust": "ScrollShadowVisibility::Both",
+        "status": "implemented"
+      }
+    ],
+    "styling": [
+      {
+        "token": ".scroll-shadow",
+        "description": "The port uses a tracked GPUI scroller with explicit gradient overlays.",
+        "rust": "track_scroll + overflow_x_scroll / overflow_y_scroll",
+        "status": "partial"
+      },
+      {
+        "token": "--scroll-shadow-size",
+        "description": "Fade depth follows the size builder.",
+        "rust": "size(Pixels)",
+        "status": "implemented"
+      },
+      {
+        "token": "[data-orientation]",
+        "description": "Orientation switches scroll axis and fade direction; wheel input from the other axis is not remapped.",
+        "rust": "orientation(Orientation)",
         "status": "implemented"
       }
     ]

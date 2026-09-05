@@ -7,8 +7,10 @@
 //! already assumes: `,` between groups and `.` before the fraction.
 //!
 //! What is deliberately absent is `locale`. Choosing separators, digit systems
-//! and currency placement per locale needs CLDR data, and inventing a partial
-//! table would be worse than not offering the prop.
+//! and currency placement per locale needs CLDR *number* data, which this crate
+//! carries no ICU dependency for -- the date components do, which is why a
+//! calendar heads itself in the reader's locale and a number does not follow
+//! one. Inventing a partial table would be worse than not offering the prop.
 
 /// `Intl.NumberFormatOptions["style"]`.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]

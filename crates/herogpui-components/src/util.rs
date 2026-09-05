@@ -4,6 +4,13 @@ use gpui::{App, BorrowAppContext, Div, Hsla, ParentElement, Pixels, Styled};
 use herogpui_core::{FieldVariant, Prominence};
 use herogpui_theme::ActiveTheme;
 
+// Browser hosts register the bundled mono family before opening a window.
+pub(crate) const MONO_FONT: &str = if cfg!(target_family = "wasm") {
+    "JetBrains Mono"
+} else {
+    "Consolas"
+};
+
 /// The one height every v3 form field has: `.date-input-group` and
 /// `.color-input-group` are `h-9`, and `.input`'s `py-2` plus its line box comes
 /// to the same 36px. v3 removed `size` from the field
@@ -132,6 +139,7 @@ pub fn apply_field_chrome<T: Styled>(
                 offset: gpui::point(gpui::px(0.), gpui::px(0.)),
                 blur_radius: gpui::px(1.),
                 spread_radius: gpui::px(2.),
+                inset: false,
             });
         } else {
             el = el
@@ -162,6 +170,25 @@ pub fn apply_field_chrome<T: Styled>(
 /// floating surface needs.
 pub fn floating(el: impl gpui::IntoElement) -> gpui::Deferred {
     gpui::deferred(el)
+}
+
+pub(crate) fn window_overlay(el: impl gpui::IntoElement, window: &gpui::Window) -> gpui::Deferred {
+    use gpui::InteractiveElement;
+
+    let viewport = window.viewport_size();
+    floating(
+        gpui::anchored()
+            .position(gpui::point(gpui::px(0.), gpui::px(0.)))
+            .child(
+                gpui::div()
+                    .relative()
+                    .occlude()
+                    .w(viewport.width)
+                    .h(viewport.height)
+                    .flex_shrink_0()
+                    .child(el),
+            ),
+    )
 }
 
 /// The result of an explicit overlay dismissal attempt.
@@ -458,7 +485,7 @@ pub fn panel_focus(
             .filter(|focused| focused.tab_stop)
             .map(|focused| focused.downgrade())
             .or_else(|| Some(trigger.downgrade()));
-        window.focus(&handle);
+        window.focus(&handle, cx);
         state.update(cx, |state, _| {
             state.was_open = true;
             state.restore = restore;
@@ -466,7 +493,7 @@ pub fn panel_focus(
     } else if !open && current.was_open {
         if handle.contains_focused(window, cx) {
             if let Some(restore) = current.restore.and_then(|handle| handle.upgrade()) {
-                window.focus(&restore);
+                window.focus(&restore, cx);
             }
         }
         state.update(cx, |state, _| {
@@ -692,7 +719,7 @@ pub fn focus_once(
 ) {
     let done = window.use_keyed_state(key.into(), cx, |_, _| false);
     if !*done.read(cx) {
-        window.focus(handle);
+        window.focus(handle, cx);
         done.update(cx, |d, _| *d = true);
     }
 }
@@ -786,7 +813,7 @@ pub fn overlay_scope_with_exit(
             cx.background_executor()
                 .timer(std::time::Duration::from_millis(exit_ms))
                 .await;
-            let _ = cx.update(|cx| {
+            cx.update(|cx| {
                 let _ = held.update(cx, |state, cx| {
                     if state.phase == OverlayPhase::Exiting
                         && state.exit_generation == exit_generation
@@ -867,7 +894,7 @@ pub fn overlay_phase(
             cx.background_executor()
                 .timer(std::time::Duration::from_millis(crate::anim::EXITING_MS))
                 .await;
-            let _ = cx.update(|cx| {
+            cx.update(|cx| {
                 held.update(cx, |s, cx| {
                     if s.exiting && s.exit_generation == exit_generation {
                         s.exiting = false;
@@ -1222,7 +1249,7 @@ where
         .read(cx)
         .clone();
     if !root.contains_focused(window, cx) {
-        window.focus(&root);
+        window.focus(&root, cx);
     }
     el.track_focus(&root)
         .capture_any_mouse_down(|_, _, cx| set_focus_visible(false, cx))
@@ -1233,10 +1260,13 @@ where
         })
         .on_key_down(|event, window, cx| {
             set_focus_visible(true, cx);
-            match event.keystroke.key.as_str() {
-                "tab" if event.keystroke.modifiers.shift => window.focus_prev(),
-                "tab" => window.focus_next(),
-                _ => {}
+            if event.keystroke.key == "tab" {
+                if event.keystroke.modifiers.shift {
+                    window.focus_prev(cx);
+                } else {
+                    window.focus_next(cx);
+                }
+                cx.stop_propagation();
             }
         })
         .on_key_up(|event, window, cx| {
@@ -1279,7 +1309,7 @@ where
 /// gpui registers a tab stop from the **handle's** own `tab_stop` flag; the
 /// element's `tab_index` builder only configures a handle the element creates
 /// for itself, which a component that has to read its own focus state cannot
-/// use. Marking the handle is what makes `window.focus_next()` see it.
+/// use. Marking the handle is what makes `window.focus_next(cx)` see it.
 pub fn tab_stop_handle(
     id: gpui::ElementId,
     window: &mut gpui::Window,
@@ -1321,6 +1351,7 @@ pub fn focus_ring_shadows(offset: bool, cx: &App) -> Vec<gpui::BoxShadow> {
         offset: gpui::point(gpui::px(0.), gpui::px(0.)),
         blur_radius: blur,
         spread_radius: gap + ring,
+        inset: false,
     }];
     if gap > gpui::px(0.) {
         shadows.push(gpui::BoxShadow {
@@ -1328,6 +1359,7 @@ pub fn focus_ring_shadows(offset: bool, cx: &App) -> Vec<gpui::BoxShadow> {
             offset: gpui::point(gpui::px(0.), gpui::px(0.)),
             blur_radius: blur,
             spread_radius: gap,
+            inset: false,
         });
     }
     shadows
@@ -1358,24 +1390,24 @@ pub fn trap_tab<T: gpui::InteractiveElement>(el: T, scope: &gpui::FocusHandle) -
         set_focus_visible(true, cx);
         let back = event.keystroke.modifiers.shift;
         if back {
-            window.focus_prev();
+            window.focus_prev(cx);
         } else {
-            window.focus_next();
+            window.focus_next(cx);
         }
         if scope.contains_focused(window, cx) {
             return;
         }
         // Out of the scope: re-enter from the other side.
-        window.focus(&scope);
-        window.focus_next();
+        window.focus(&scope, cx);
+        window.focus_next(cx);
         if !back {
             return;
         }
         // Backwards: walk to the last stop inside, then stop one short.
         for _ in 0..256 {
-            window.focus_next();
+            window.focus_next(cx);
             if !scope.contains_focused(window, cx) {
-                window.focus_prev();
+                window.focus_prev(cx);
                 return;
             }
         }

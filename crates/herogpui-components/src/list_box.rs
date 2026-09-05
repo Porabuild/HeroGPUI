@@ -16,7 +16,7 @@ use gpui::{
 use herogpui_core::SelectionMode;
 use herogpui_theme::ActiveTheme;
 
-use crate::{icons, util};
+use crate::{icons, util, EscapeKeyBehavior};
 
 /// Visual variant of a list item.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -206,6 +206,7 @@ pub struct ListBox {
     default_selected_keys: HashSet<SharedString>,
     is_controlled: bool,
     disallow_empty_selection: bool,
+    escape_key_behavior: EscapeKeyBehavior,
     disabled_keys: HashSet<SharedString>,
     /// Applies to every item unless the item overrides it.
     variant: ListBoxItemVariant,
@@ -249,6 +250,7 @@ impl ListBox {
             default_selected_keys: HashSet::new(),
             is_controlled: false,
             disallow_empty_selection: false,
+            escape_key_behavior: EscapeKeyBehavior::ClearSelection,
             disabled_keys: HashSet::new(),
             variant: ListBoxItemVariant::Default,
             should_focus_wrap: false,
@@ -294,6 +296,12 @@ impl ListBox {
     /// `disallowEmptySelection` — keeps the final selected item selected.
     pub fn disallow_empty_selection(mut self, v: bool) -> Self {
         self.disallow_empty_selection = v;
+        self
+    }
+
+    /// `escapeKeyBehavior` — whether unmodified Escape clears selection.
+    pub fn escape_key_behavior(mut self, behavior: EscapeKeyBehavior) -> Self {
+        self.escape_key_behavior = behavior;
         self
     }
 
@@ -540,7 +548,7 @@ impl RenderOnce for ListBox {
             // arrow keys would go nowhere after a pointer selection.
             .on_mouse_down(gpui::MouseButton::Left, {
                 let fh = focus_handle.clone();
-                move |_, window, _| window.focus(&fh)
+                move |_, window, cx| window.focus(&fh, cx)
             });
 
         // A virtualized list scrolls inside `uniform_list`, which owns the
@@ -606,11 +614,13 @@ impl RenderOnce for ListBox {
             let stops_for_keys = stops;
             let wrap = self.should_focus_wrap;
             let fixed_virtual = self.row_height.is_some();
-            let fixed_page_step = self.row_height.map(|row_height| {
-                let viewport_height = self.max_h.unwrap_or(px(400.));
-                ((f32::from(viewport_height) / f32::from(row_height)).ceil() as usize)
-                    .saturating_sub(1)
-            });
+            // Pinned `ListKeyboardDelegate` pages by one visible rectangle, so
+            // the step reads the virtual list's own laid-out viewport -- the
+            // pinned handle's `base_handle.bounds()` -- and not the configured
+            // `max_h` cap: a bounded parent (or a resized window) shows fewer
+            // rows than the cap allows. A zero viewport answers nothing, which
+            // the shared resolver turns into no movement.
+            let fixed_row_height = self.row_height;
             let variable_scroll = self
                 .row_height
                 .is_none()
@@ -641,6 +651,7 @@ impl RenderOnce for ListBox {
             let typed_keys = typed;
             let mode = self.selection_mode;
             let disallow_empty = self.disallow_empty_selection;
+            let escape_key_behavior = self.escape_key_behavior;
             let selected_now = self.selected_keys.clone();
             let on_selection_change = self.on_selection_change.clone();
             let on_action = self.on_action.clone();
@@ -697,6 +708,7 @@ impl RenderOnce for ListBox {
                 // on Escape by default and leaves an empty collection alone.
                 if key_name == "escape"
                     && !event.keystroke.modifiers.modified()
+                    && escape_key_behavior == EscapeKeyBehavior::ClearSelection
                     && crate::selection::reports_changes(mode)
                     && !disallow_empty
                     && !selected_now.is_empty()
@@ -737,9 +749,17 @@ impl RenderOnce for ListBox {
                     }
                     _ => None,
                 };
-                let fixed_page_move = from
-                    .zip(fixed_page_step)
-                    .and_then(|(from, step)| page_by_step(from, step));
+                let fixed_page_move = from.and_then(|from| {
+                    let row_height = fixed_row_height?;
+                    let viewport_height =
+                        f32::from(key_list_scroll.0.borrow().base_handle.bounds().size.height);
+                    if viewport_height <= 0. {
+                        return None;
+                    }
+                    let step = ((viewport_height / f32::from(row_height)).ceil() as usize)
+                        .saturating_sub(1);
+                    page_by_step(from, step)
+                });
                 let variable_page_move = from.and_then(|from| {
                     let viewport_height = variable_scroll.as_ref()?.viewport_bounds().size.height;
                     let heights = variable_heights.as_ref()?.read(cx);
@@ -1004,7 +1024,7 @@ impl RenderOnce for ListBox {
                         if !crate::list_nav::is_typeahead_key(key) {
                             return;
                         }
-                        let now = std::time::Instant::now();
+                        let now = web_time::Instant::now();
                         let (query, repeat) = typed_keys.update(cx, |t, _| {
                             let query = t.push(key, now);
                             (query, t.is_repeat())
@@ -1098,6 +1118,14 @@ impl RenderOnce for ListBox {
             let rows = std::rc::Rc::new(self);
             let interaction = interaction.clone();
             let row_range = selection_range.clone();
+            // The headless probe name for the virtual viewport's bounds.
+            let rows_selector = format!("{base}-rows");
+            // The viewport scrolls inside `uniform_list`, which builds only
+            // the shown rows. A fixed height caps the roomy-window viewport
+            // at the configured value so an unbounded parent sizes to cap +
+            // padding instead of the rows' full natural height; `min_h_0`
+            // lets that fixed height shrink as a flex item with a bounded
+            // parent, handing the viewport its real height for paging.
             return list
                 .child(
                     gpui::uniform_list(
@@ -1120,10 +1148,12 @@ impl RenderOnce for ListBox {
                                 .collect::<Vec<_>>()
                         },
                     )
-                    .track_scroll(list_scroll_now)
+                    .track_scroll(&list_scroll_now)
                     .id(list_id)
                     .h(height)
-                    .w_full(),
+                    .min_h_0()
+                    .w_full()
+                    .debug_selector(move || rows_selector),
                 )
                 .into_any_element();
         }
@@ -1189,6 +1219,7 @@ impl ListBox {
                     .pt(px(6.))
                     .pb(px(4.))
                     .text_size(px(12.))
+                    .line_height(px(16.))
                     .font_weight(gpui::FontWeight::MEDIUM)
                     .text_color(colors.muted)
                     .child(label.to_string()),
@@ -1238,6 +1269,7 @@ impl ListBox {
                     .py(px(6.))
                     .rounded(util::soft_radius(cx))
                     .text_size(text_size)
+                    .line_height(px(20.))
                     .text_color(fg);
 
                 if disabled {
@@ -1300,11 +1332,14 @@ impl ListBox {
                             .flex()
                             .flex_col()
                             .flex_1()
-                            .child(div().child(label.to_string()))
+                            // `[data-slot="description"]` is `text-wrap`, which
+                            // needs a column that can shrink below its content.
+                            .min_w_0()
+                            .child(div().font_weight(gpui::FontWeight::MEDIUM).child(label.to_string()))
                             .when_some(description.clone(), |el, d| {
                                 el.child(
                                     div()
-                                        .text_size(px(11.))
+                                        .text_size(px(12.)).line_height(px(16.))
                                         .text_color(colors.muted)
                                         .child(d.to_string()),
                                 )
@@ -1328,10 +1363,8 @@ impl ListBox {
                     );
                 } else if let Some(sc) = shortcut {
                     row = row.child(
-                        div()
-                            // A shortcut is a `Kbd`, which is `text-xs`.
-                            .text_size(px(12.))
-                            .text_color(colors.muted)
+                        crate::kbd::Kbd::new()
+                            .variant(crate::kbd::KbdVariant::Light)
                             .child(sc.to_string()),
                     );
                 }

@@ -570,6 +570,11 @@ impl RenderOnce for Select {
             |_, _| None::<usize>,
         );
         let cursor_at = *cursor.read(cx);
+        let keyboard_press_open = window.use_keyed_state(
+            el_name(format!("select-{}-keyboard-press", id_debug(&self.id))),
+            cx,
+            |_, _| None::<bool>,
+        );
         // The Shift-range anchor lives beside the cursor, keyed off the same
         // instance id, so two selects never share an anchor and a closed
         // popover leaves its anchor standing for the reopen.
@@ -627,6 +632,7 @@ impl RenderOnce for Select {
         let (h, text) = (util::FIELD_HEIGHT, util::FIELD_TEXT);
 
         let trigger_id = el_name(format!("select-{}", id_debug(&self.id)));
+        let trigger_selector = format!("select-trigger-{}", id_debug(&self.id));
         // Whether the pointer went down on the trigger. The panel's
         // outside-press dismissal treats the trigger as outside its own bounds,
         // so a press on the trigger of an *open* list would dismiss it on the
@@ -638,6 +644,7 @@ impl RenderOnce for Select {
         let trigger_pressed = Rc::new(std::cell::Cell::new(false));
         let mut field = gpui::div()
             .id(trigger_id)
+            .debug_selector(move || trigger_selector)
             .flex()
             .items_center()
             .justify_between()
@@ -645,6 +652,7 @@ impl RenderOnce for Select {
             .min_h(h)
             .px(px(12.))
             .text_size(text)
+            .line_height(px(20.))
             .cursor_pointer();
 
         let _border_color = if is_open { sem.color } else { colors.separator };
@@ -708,14 +716,24 @@ impl RenderOnce for Select {
             let key_list_scroll = list_scroll_now.clone();
             let key_panel_scroll = panel_scroll_now.clone();
             let fh = focus_handle.clone();
+            let press_open = keyboard_press_open.clone();
             field = field
                 .track_focus(&focus_handle)
                 .key_context("Select")
-                .on_mouse_down(gpui::MouseButton::Left, move |_, window, _| {
-                    window.focus(&fh);
+                .on_mouse_down(gpui::MouseButton::Left, move |_, window, cx| {
+                    window.focus(&fh, cx);
                 })
                 .on_key_down(move |event, window, cx| {
                     let key = event.keystroke.key.as_str();
+                    if matches!(key, "enter" | "space") {
+                        // The browser's default newline can synthesize another
+                        // Enter through beforeinput, including while held.
+                        cx.stop_propagation();
+                        if event.is_held {
+                            return;
+                        }
+                        press_open.update(cx, |value, _| *value = Some(was_open));
+                    }
                     if !was_open {
                         // Closed: Down and Up open the list. Enter and Space are
                         // *not* handled here -- the trigger has a click listener
@@ -749,7 +767,7 @@ impl RenderOnce for Select {
                         if !crate::list_nav::is_typeahead_key(key) {
                             return;
                         }
-                        let now = std::time::Instant::now();
+                        let now = web_time::Instant::now();
                         let (query, repeat) = typed.update(cx, |t, _| {
                             let query = t.push(key, now);
                             (query, t.is_repeat())
@@ -943,10 +961,8 @@ impl RenderOnce for Select {
                             }
                         }
                         crate::list_nav::Move::Activate => {
-                            // Take the selection only. Closing is the trigger's
-                            // click listener, which gpui fires from the same
-                            // keystroke -- doing it here as well would toggle the
-                            // list back open.
+                            // Select on key-down; the trigger click owns closing
+                            // on key-up.
                             let Some(index) = from else { return };
                             if multiple {
                                 let added = !selected_indices_keys.contains(&index);
@@ -1010,7 +1026,7 @@ impl RenderOnce for Select {
                             if !crate::list_nav::is_typeahead_key(key) {
                                 return;
                             }
-                            let now = std::time::Instant::now();
+                            let now = web_time::Instant::now();
                             let (query, repeat) = typed.update(cx, |t, _| {
                                 let query = t.push(key, now);
                                 (query, t.is_repeat())
@@ -1114,25 +1130,52 @@ impl RenderOnce for Select {
                     // Enter and Space activate the highlighted option before
                     // gpui synthesizes this trigger click. Multiple selection
                     // keeps the popover open for the next pick.
-                    if multiple && open && matches!(event, gpui::ClickEvent::Keyboard(_)) {
+                    let keyboard = matches!(event, gpui::ClickEvent::Keyboard(_));
+                    let press_open = keyboard_press_open.update(cx, |value, _| value.take());
+                    let started_open = if keyboard {
+                        press_open.unwrap_or(open)
+                    } else {
+                        open
+                    };
+                    if multiple && started_open && keyboard {
+                        return;
+                    }
+                    // A selection callback can close a controlled popup and
+                    // redraw between key-down and key-up. Finish that press's
+                    // close rather than toggling the new frame back open.
+                    let next_open = !started_open;
+                    if next_open == open {
                         return;
                     }
                     // Uncontrolled: flip our own copy, or the trigger would be
                     // inert without a caller handler.
                     if let Some(held) = &own {
                         held.update(cx, |v, cx| {
-                            *v = !open;
+                            *v = next_open;
                             cx.notify();
                         });
                     }
                     if let Some(cb) = &on_open_change {
-                        cb(!open, window, cx);
+                        cb(next_open, window, cx);
                     }
                 });
         }
 
+        // The popup anchors to the trigger bounds — not to the
+        // label-to-description wrapper root — the way RAC's
+        // `useOverlayPosition` positions against the trigger rect.
+        // `scrollable_field_popover` below reads these bounds to flip and
+        // cap the panel; the measure element itself only records them.
+        let anchor_bounds = Rc::new(std::cell::Cell::new(None));
+        let field = crate::popover::PopoverTriggerMeasure::new(field, anchor_bounds.clone());
+
         // listbox panel
-        let mut root = gpui::div().relative().max_w(px(320.));
+        let mut root = gpui::div().relative();
+        root = if self.full_width {
+            root.w_full()
+        } else {
+            root.max_w(px(320.))
+        };
         if self.label.is_some() || self.description.is_some() {
             let mut wrapper = gpui::div().flex().flex_col().gap(px(4.)).w_full();
             // Reuse the shared field slots so the required/invalid/disabled
@@ -1214,9 +1257,20 @@ impl RenderOnce for Select {
                 // `.select__popover` is `overflow-y-auto`: a long list scrolls
                 // rather than being clipped. gpui needs an id for that.
                 .id(el_name(format!("{base}-scroll")))
+                .debug_selector({
+                    let base = base.clone();
+                    move || format!("{base}-panel")
+                })
                 .overflow_y_scroll()
+                // `overscroll-contain` upstream: a wheel over the popup must
+                // not scroll the page behind it (ColorPicker pattern).
+                .occlude()
                 .track_scroll(&panel_scroll_now)
-                .max_h(px(280.));
+                // RAC caps the popover at the available viewport height
+                // (`calculatePosition`'s `getMaxHeight`); the positioner
+                // below re-lays the panel out with that cap, so the panel
+                // carries a viewport-relative bound rather than a fixed one.
+                .max_h_full();
 
             // React Aria dismisses the list on a press outside it. Escape is
             // already read by the trigger's key handler, so only the press half
@@ -1291,8 +1345,10 @@ impl RenderOnce for Select {
                         gpui::div()
                             .px(px(8.))
                             .pt(px(6.))
-                            .pb(px(2.))
+                            .pb(px(4.))
                             .text_size(px(12.))
+                            .line_height(px(16.))
+                            .font_weight(gpui::FontWeight::MEDIUM)
                             .text_color(row_muted)
                             .child(label.to_string())
                             .into_any_element(),
@@ -1304,8 +1360,10 @@ impl RenderOnce for Select {
                     selected == Some(i)
                 };
                 let opt_disabled = opt_disabled_keys.contains(&i);
+                let row_selector = format!("{base}-opt-{i}");
                 let mut item = gpui::div()
-                        .id(el_name(format!("{base}-opt-{i}")))
+                        .id(el_name(row_selector.clone()))
+                        .debug_selector(move || row_selector)
                         .flex()
                         .items_center()
                         .justify_between()
@@ -1316,7 +1374,8 @@ impl RenderOnce for Select {
                         .px(px(10.))
                         .py(px(6.))
                         .gap(px(12.))
-                        .text_size(util::FIELD_TEXT);
+                        .text_size(util::FIELD_TEXT)
+                        .line_height(px(20.));
 
                 if opt_disabled {
                     item = item.opacity(row_disabled_opacity);
@@ -1325,9 +1384,7 @@ impl RenderOnce for Select {
                 }
 
                 if is_sel {
-                    item = item
-                        .text_color(row_accent)
-                        .font_weight(gpui::FontWeight::MEDIUM);
+                    item = item.text_color(row_accent);
                 } else {
                     item = item.text_color(row_fg);
                 }
@@ -1377,7 +1434,7 @@ impl RenderOnce for Select {
                                 // on the row and deafen the trigger's key
                                 // handler; the trigger is what holds focus so
                                 // the open list stays keyboard-walkable.
-                                window.focus(&focus_click);
+                                window.focus(&focus_click, cx);
                                 let mut next = current.clone();
                                 // A Shift click extends from the anchor
                                 // through `extendSelection`; an ordinary or
@@ -1487,7 +1544,14 @@ impl RenderOnce for Select {
 
             match self.row_height {
                 // Virtual: only the rows in view are built, which is what makes
-                // a thousand options affordable.
+                // a thousand options affordable. The list itself is the scroll
+                // container: `Infer` sizes it from its rows — the full
+                // natural height on the positioner's measure pass (so the
+                // flip sees the real extent, like upstream's `overlaySize`),
+                // capped to the available height on the capped pass — while
+                // the ListBox stays `overflow-clip`, as in v3. A fixed inner
+                // height plus an outer scroller would nest two scroll
+                // containers and strand rows between them.
                 Some(row_height) => {
                     panel = panel.child(
                         gpui::uniform_list(
@@ -1499,8 +1563,8 @@ impl RenderOnce for Select {
                                     .collect::<Vec<_>>()
                             },
                         )
-                        .track_scroll(list_scroll_now)
-                        .h(px(280.))
+                        .track_scroll(&list_scroll_now)
+                        .with_sizing_behavior(gpui::ListSizingBehavior::Infer)
                         .w_full(),
                     );
                 }
@@ -1529,9 +1593,15 @@ impl RenderOnce for Select {
                     cx,
                 )
             };
-            root = root.child(util::floating(
-                util::placed_field_panel(self.placement, px(6.)).child(panel),
-            ));
+            // RAC positions the popover against the trigger with an 8px gap,
+            // flips it when the other side has more room, and caps it at the
+            // available viewport height past a 12px inset — which `Select`
+            // inherits unchanged from `useOverlayPosition`/`Popover`.
+            root = root.child(util::floating(crate::popover::scrollable_field_popover(
+                anchor_bounds,
+                self.placement,
+                panel,
+            )));
         }
 
         root.track_focus(&blur_scope)

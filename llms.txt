@@ -16,7 +16,7 @@ macOS and Linux.
 - **Core:** `herogpui-core` — `Color`, `Variant`, `FieldVariant`, `Prominence`,
   `Backdrop`, `Size`, `SizeXl`, `Orientation`, `SelectionMode`, OKLCH math
 - **Components:** `herogpui-components` — one module per `@heroui/*` package
-- **Gallery:** `cargo run -p herogpui-gallery` or `cargo install herogpui-gallery` — living docs, the fifteen v3
+- **Gallery:** `cargo run -p herogpui-gallery` or `cargo install --path gallery --locked` — living docs, the fifteen v3
   categories, theme switcher
 
 **This is v3 only.** v2 names (`content1..4`, numbered 50–900 scales,
@@ -27,12 +27,13 @@ macOS and Linux.
 
 ```toml
 [dependencies]
-gpui = "0.2"
-herogpui = "0.1"
+gpui = { git = "https://github.com/zed-industries/zed", rev = "ee3b5558c581429633937e458fad8d109f29e9ee" }
+gpui_platform = { git = "https://github.com/zed-industries/zed", rev = "ee3b5558c581429633937e458fad8d109f29e9ee", features = ["font-kit", "wayland", "x11", "runtime_shaders"] }
+herogpui = { path = "../HeroGPUI/crates/herogpui" }
 ```
 
-The registry release is prepared but not published yet. Before `v0.1.0`, clone
-the repository and use `herogpui = { path = "../HeroGPUI/crates/herogpui" }`.
+Clone the repository for the source dependency above. The matching GPUI API
+is available from the pinned Zed git revision, not its crates.io release.
 
 ```rust
 use gpui::*;
@@ -51,7 +52,7 @@ impl Render for MyRoot {
 }
 
 fn main() {
-    Application::new().with_assets(HeroGpuiAssets).run(|cx: &mut App| {
+    gpui_platform::application().with_assets(HeroGpuiAssets).run(|cx: &mut App| {
         ThemeProvider::init(cx); // light + dark
         // or ThemeProvider::init_with(Theme::dark(), cx);
         let bounds = Bounds::centered(None, size(px(1280.), px(820.)), cx);
@@ -65,7 +66,7 @@ fn main() {
 component chrome. Use `HeroGpuiAssets::with_fallback(MyAppAssets)` when the app
 also has assets. Wrap the window's root element with
 `app_focus_root(root, window, cx)` to enable Tab traversal, focus-visible state,
-and root capture handlers.
+and root capture handlers. Tab traversal consumes the browser default so DOM focus stays in the GPUI input surface.
 
 Set root bg/fg via tokens:
 
@@ -151,7 +152,10 @@ every breakpoint. A labelled button has no minimum width: it hugs its content, a
 `currency_sign`, `unit_display`, `minimum_fraction_digits`,
 `maximum_fraction_digits` and `use_grouping`. Taken by `Meter`, `NumberField`,
 `ProgressBar`, `ProgressCircle` and `Slider`. `locale` is not offered: choosing
-separators and currency placement per locale needs CLDR data.
+separators, digit systems and currency placement per locale needs CLDR *number*
+data, and `herogpui-core`, where `NumberFormat` lives, carries no ICU
+dependency. The date components do carry one, which is why a calendar follows
+the reader's locale and a formatted number does not.
 
 v3 replaced v2's `variant` × `color` matrix with distinct enums:
 
@@ -194,7 +198,7 @@ caller to supply them — so the prop is real, just inverted:
   `Dropdown.Item`, handed `isSelected` / `isIndeterminate`
 - `Slider::thumb(|index, value| ..)` — `Slider.Thumb`, handed `index`
 - `TimeField::segment(|TimeSegment, text| ..)` — `TimeField.Segment`
-- `DateField::segment(|DateSegment, text| ..)` — `DateField.Segment`
+- `DateField::segment(|FieldSegment, text| ..)` — `DateField.Segment`, covering date and optional time slots
 
 ## Controlled and uncontrolled
 
@@ -297,68 +301,104 @@ ProgressBar, ProgressCircle, Spinner and Typography; elsewhere `variant` (or
 ### Buttons
 - **Button** — `variant(Variant)`, `size`, `full_width`, `is_icon_only`, `is_disabled`, `is_pending`, ordered children (the icons and label text are children in order, matching v3 — there are no start/end content slots), `on_press`
 - **ButtonGroup** — `variant`, `size`, `orientation`, `button(Button)` (members inherit), `is_disabled`, `full_width`
-- **CloseButton** — `is_disabled`, `icon(el)`, `on_press` (v3's `variant` has one value, so there is nothing to select and no builder for it)
+- **CloseButton** — `is_disabled`, `icon(el)`, `content(|state| el)`, `on_press` (v3's `variant` has one value, so there is nothing to select and no builder for it)
 - **ToggleButton / ToggleButtonGroup** — `is_selected`, `variant(ToggleVariant::{Default,Ghost})`, `size`, `selection_mode`, `is_detached`, `orientation`, `full_width`, `ToggleSeparator`. Both apply v3's `scale(0.97)` press.
   - `ToggleButton::on_change(bool)` reports the selection a press moves to, alongside `on_press`. A button's selection key is `key()` when given, otherwise its element id, so a group can namespace child ids without breaking selection.
 
 ### Collections
-- **Dropdown** — `Dropdown::new(trigger, items, is_open).placement(Placement).on_open_change(bool).on_action(&str)`, `MenuItem::new(key,label).shortcut().icon().danger()`, `MenuItem::SectionLabel`, `MenuItem::Separator`
+- **Dropdown** — `Dropdown::new(trigger, items, is_open).placement(Placement).on_open_change(bool).on_action(&str)`, `MenuItem::new(key,label).shortcut().icon().danger()`, `MenuItem::SectionLabel`, `MenuItem::Separator`. Built-in labels use 14px/20px medium text, descriptions and section headers use 12px/16px, and shortcut hints render as light `Kbd`.
+  The menu positions against the measured trigger: all eight placements flip
+  to the side with more room when the preferred side cannot fit, keep a 12px
+  cross-axis viewport inset, and cap the scroller to the available height with
+  short menus keeping their natural height.
+  Submenus position independently against their row end top and flip sides to
+  the side with more room when needed; the parent stays anchored and outside
+  presses still dismiss the whole menu.
+  Descriptions wrap within the popover width; long menus remain scrollable.
   - selection: `selection_mode(SelectionMode)`, `selected_keys`, `disabled_keys`, `on_selection_change(&[SharedString])`, `on_action(&str)`. Selected items draw a check; disabled ones are muted and inert. The next selection comes from `selection::next_selection`, shared with ToggleButtonGroup and Table.
-- **ListBox** — `ListBox::new(id, items).selection_mode().selected_keys().disabled_keys().max_h().on_selection_change().on_action()`, `ListBoxItem::new(key,label).description().icon().shortcut().danger()`, `::section()`, `::separator()`
-- **TagGroup** — `TagGroup::new(id, tags).label().selection_mode().selected_keys().size().variant(TagVariant::{Default,Surface}).empty_state().on_remove().on_selection_change()`, `Tag::new(key,label)`
+- **ListBox** — `ListBox::new(id, items).selection_mode().selected_keys().disabled_keys().escape_key_behavior(EscapeKeyBehavior::{ClearSelection,None}).max_h().on_selection_change().on_action()`, `ListBoxItem::new(key,label).description().icon().shortcut().danger()`, `::section()`, `::separator()`. Built-in labels use 14px/20px medium text, descriptions and section headers use 12px/16px, and shortcut hints render as light `Kbd`. Fixed-row virtual lists cap at `max_h`, shrink below it in a bounded parent, and page by the visible viewport, including after resize, while skipping disabled stops.
+- **TagGroup** — `TagGroup::new(id, tags).label().selection_mode().selected_keys().escape_key_behavior(EscapeKeyBehavior::{ClearSelection,None}).size().variant(TagVariant::{Default,Surface}).empty_state().on_remove().on_selection_change()`, `Tag::new(key,label).icon().remove_content(render)`
+  Small/medium tags set 12px text with 16px leading; large tags set 14px text
+  with 20px leading. Labels, descriptions, and empty states also set their own
+  line height, so inherited leading does not change tag heights.
 
 ### Colors
+ColorSlider labels/output, ColorPicker triggers, and ColorField display text use 14px text with a 20px line height independent of their parent.
 - **PickerColor** — shared value: `from_hex`, `to_hex`, `from_rgb`, `to_rgb`, `to_hsla`, `channel()`, `with_channel()`, `with_alpha()`
 - **ColorArea** — `ColorArea::new(id, value)`; `color_space(ColorSpace)` sets both axes to that space's channel pair, `x_channel` / `y_channel` override either, `size(w,h)`, `show_dots` (the dot-grid overlay), `is_disabled`, `on_change`, `on_change_end`
 - **ColorField** — `ColorField::new(id, value)`; `channel(ColorChannel)`, `color_space(ColorSpace)`, `label`, `description`, `variant`, `full_width`, the validity flags
+  - `full_width(true)` expands both the outer wrapper and control to the available parent width.
   - `state(Entity<InputState>)` makes it **editable**; without one it is a read-only display of `value`. `placeholder`, and `on_change(Option<PickerColor>)` reporting `None` when the text is not a colour, exactly as v3 types it. With a `channel` the text is that channel's number rather than a hex value.
 - **ColorPicker** — `label`, `is_open`, `show_alpha`, `on_change`, `on_open_change`
+  - When the preferred side cannot fit the popup, it flips to the side with more room, keeping a 12px cross-axis viewport inset and an 8px trigger gap, and its scroller caps to the available height so taller control stacks scroll vertically; Tab moves through area/hue/alpha and reveals each focused control.
 - **ColorSlider** — `ColorSlider::new(id, value, channel).color_space(ColorSpace).orientation().length().show_label().on_change().on_change_end()`
   - `color_space` is not cosmetic: HSL and HSB saturation are different quantities for the same colour, so a saturation slider reads and writes through `PickerColor::{channel_in, with_channel_in}`. Every other channel is space-independent.
 - **ColorSwatch** — `ColorSwatch::new(color)`, `size(SizeXl)`, `shape(SwatchShape::{Circle,Square})` (v3's `colorName` is an accessible name and has nowhere to go here)
 - **ColorSwatchPicker** — `value`, `size`, `shape`, `layout(SwatchLayout::{Grid,Stack})`, `on_change`
 
 ### Controls
-- **Slider** — `Slider::new(id, value).value().default_value().min_value().max_value().step().orientation().label().show_value().format_options().on_change(f32).on_change_end(f32)`. The multi-thumb form is `values(Vec<f32>)` + `on_change_all(&[f32])`; dragging moves whichever thumb is nearest, and `thumb(|index, value|)` is v3's `Slider.Thumb` render prop.
-- **Switch** — `is_selected`, `size`, `is_disabled`, `is_read_only`, `is_invalid`, `is_required`, `label(el)`, `on_change(bool)` / `on_press`. v3's `value` is the form-submission value, not the state, so there is no builder for it.
+- **Slider** — `Slider::new(id, value).value().default_value().min_value().max_value().step().orientation().label().show_value().format_options().on_change(f32).on_change_end(f32)`. The multi-thumb form is `values(Vec<f32>)` + `on_change_all(&[f32])`; dragging moves whichever thumb is nearest, and `thumb(|index, value|)` is v3's `Slider.Thumb` render prop. Labels and outputs use 14px text with a fixed 20px line height.
+- **Switch** — `is_selected`, `size`, `is_disabled`, `is_read_only`, `is_invalid`, `is_required`, `label(el)`, `on_change(bool)` / `on_press`. v3's `value` is the form-submission value, not the state, so there is no builder for it. Content uses 14px text with 20px lines; the built-in label uses 16px text with 24px lines.
 
 ### Data Display
 - **Badge** — `BadgeAnchor::new()` is v3's `Badge.Anchor`, the positioning wrapper whose children are the anchored element plus the `Badge::new().variant(BadgeVariant::{Primary,Secondary,Soft}).color().size().placement(BadgePlacement)` composed as a later child. `BadgeLabel::new()` is the `px-0.5` text slot — v3 auto-wraps plain text children in it, which GPUI cannot intercept, so the wrap is explicit. No children on the badge is v3's dot badge, and the page-background ring stays unconditional.
 - **Chip** — `Chip::new().variant(ChipVariant::{Primary,Secondary,Tertiary,Soft}).color().size()` renders arbitrary ordered children verbatim (an icon, a dot, a `ChipLabel`, a trailing element); `ChipLabel::new()` is the `px-0.5` text slot for the label text. A removable chip is `TagGroup`, which is where v3 puts `onRemove`.
-- **Table** — `Table::new(columns).row(cells).variant(TableVariant::{Primary,Secondary}).on_row_click(usize)` — `variant` is the whole visual story in v3; `isStriped`/`isBordered` were v2
+- **Table** — `Table::new(columns).row(cells).variant(TableVariant::{Primary,Secondary}).on_row_click(usize)` — `variant` is the whole visual story in v3; `isStriped`/`isBordered` were v2. Headers use 12px/16px text; body cells use 14px/20px text in ordinary and virtual rows.
+  - Horizontal wheel input scrolls columns; vertical input does not shift them sideways.
   - columns: `column(TableColumn::new("Name").allows_sorting(true).is_row_header(true))`. `is_row_header` has no a11y layer to reach, so it renders that column's cells in medium weight.
   - selection: `selection_mode`, `selected_keys`, `on_selection_change(&[SharedString])`, `keyed_row(key, cells)` (a row's key defaults to its index). Adds a checkbox column, with select-all in the header for `Multiple`.
   - sorting: `sort_descriptor(SortDescriptor::new(col, SortDirection::Ascending))`, `on_sort_change`, `show_indicator`. `SortDescriptor::next` gives the descriptor a header click should produce — flip the sorted column, start any other ascending. **The table never reorders its own rows**: a row is already-rendered cells, so the caller sorts its data and rebuilds.
-  - `empty_state(el)` for `renderEmptyState`; `is_pending(bool)` + `on_load_more(fn)` for the load-more sentinel (click-driven, since a `RenderOnce` element gets no scroll offset).
+  - keyboard: PageUp moves from the body to the first column header — from the top of a virtual body; mid-body it pages by the visible viewport. Enter/Space sorts a sortable header; Down/PageDown returns to the first/last enabled row. Unsortable headers remain outside the Tab order and preserve their configured column widths.
+  - virtualization: with `row_height` + `virtual_rows`, the fixed-row body caps at `max_h`, shrinks below it in a bounded parent, and PageUp/PageDown move by the visible viewport, including after resize, while skipping disabled stops.
+  - resizing: `TableColumn::allows_resizing(true).default_width(px(..)).min_width(px(..)).max_width(px(..))`; use `width(px(..))` plus `Table::on_resize` for controlled widths. `on_resize_start` / `on_resize` / `on_resize_end` receive the known `(column label, pixel width)` map for pointer and keyboard resizing.
+  - `empty_state(el)` for `renderEmptyState`; `is_pending(bool)` + `on_load_more(fn)` for the scroll-intersection load-more sentinel.
 
 ### Date and Time
-- **DateConstraints** — shared by all five: `min_value`, `max_value`, `is_date_unavailable(fn)`, `first_day_of_week(Weekday)`, `weeks_in_month`. Each component takes them individually, or a whole set via `.constraints(..)`.
-- **Calendar** — `CalendarState::new(cx)`, `Calendar::new(state).value(..).is_disabled().is_read_only().is_invalid().focused_value().on_focus_change().on_change(Option<Date>)` plus the constraints
-- **DateField** — three editable segments (`mm / dd / yyyy`) with click-to-focus, arrow steppers that roll over month and year correctly, and the `segment(|DateSegment, text|)` render prop. The ISO text stays in the bound `InputState`, so `name`, `FormField::text` and `on_change` are unchanged. `DateField::new(InputState).label().full_width().is_required().is_invalid().variant().placeholder_value().value(Option<Date>, cx).on_change(Option<Date>)` 
+- **DateConstraints** — shared by all five: `min_value`, `max_value`, `is_date_unavailable(fn)`, `first_day_of_week(Weekday)`, `weeks_in_month`. Each component takes them individually, or a whole set via `.constraints(..)`. The default first weekday comes from the operating system's regional date preferences and ICU4X's compiled CLDR week data; invalid or unavailable preferences fall back to Sunday, and `first_day_of_week` remains an explicit override. The month grid's own text follows the same preference: the month and weekday names, and the order of the year-and-month heading, come from ICU4X's compiled CLDR (a Japanese reader gets a year-first heading, not a translated template), falling back to English when CLDR does not know the reported locale. On `wasm32-unknown-unknown` there is no operating system to ask -- the browser exposes no locale to `locale_config` -- so a calendar compiled for the web always draws that English fallback, whatever the visitor's browser language.
+- **Calendar** — `CalendarState::new(cx)`, `Calendar::new(state).value(..).is_disabled().is_read_only().is_invalid().focused_value().on_focus_change().on_change(Option<Date>)` plus the constraints. The `locale(tag)` Unicode calendar extension selects the grid system; month/year navigation, bounds and alignment use that system, while values and callbacks stay Gregorian.
+- **DateField** — three editable date segments in the operating system's regional order and separators, plus optional time segments in the regional order, separators, padding, and localized day-period names, with click-to-focus, arrow steppers that roll over month and year correctly, and the `segment(|FieldSegment, text|)` render prop. The ISO text stays in the bound `InputState`, so `name`, `FormField::text` and `on_change` are unchanged. `DateField::new(InputState).label().full_width().is_required().is_invalid().variant().placeholder_value().should_force_leading_zeros(true).value(Option<Date>, cx).on_change(Option<Date>)`; month, day and hour padding can be forced to two digits.
+  - Group text and text slots use 14px text with a 20px line height, independent of parent leading.
   - constraints: `min_value`, `max_value`, `is_date_unavailable`, or `constraints(DateConstraints)`. The three ways a typed date can be wrong — unparseable, out of range, unavailable — report as distinct messages, and `on_change` yields `None` for a date the constraints reject, so a caller never receives a value it said it would not accept.
-- **DatePicker** — `DatePicker::new(CalendarState).label().is_open().on_open_change().value().is_disabled().is_invalid().on_change()` plus the constraints
-- **DateRangePicker** — `DateRangeState::new(cx)`, `DateRangePicker::new(state).label().placeholder().size().is_open().is_disabled().is_invalid().on_open_change(bool).on_change()`, plus the `DateConstraints` setters
+- **DatePicker** — `DatePicker::new(CalendarState).label().is_open().on_open_change().value().is_disabled().is_invalid().on_change()` plus the constraints; its embedded date field uses the operating system's regional date order, separators, and padding while state and form data remain ISO-formatted
+- **DateRangePicker** — `DateRangeState::new(cx)`, `DateRangePicker::new(state).label().placeholder().size().is_open().is_disabled().is_invalid().on_open_change(bool).on_change()`, plus the `DateConstraints` setters; both embedded date fields use the operating system's regional date format while state and form data remain ISO-formatted
   - the popover renders `RangeCalendar`, so the hover preview between the anchor and the cursor, the constraint treatments and the year picker all come along.
-- **RangeCalendar** — `RangeCalendar::new(DateRangeState).value(start, end).allows_non_contiguous_ranges().focused_value().on_focus_change().on_change(start, end)` plus the constraints
-- **TimeField** — `TimeState::with_value(cx, Time::new(9,30))`, `TimeField::new(state).value().min_value().max_value().placeholder_value().hour_cycle(HourCycle::{H12,H24}).show_seconds().on_change(Option<Time>)`
+- **RangeCalendar** — `RangeCalendar::new(DateRangeState).value(start, end).allows_non_contiguous_ranges().focused_value().on_focus_change().on_change(start, end)` plus the constraints. During a contiguous selection, `is_date_unavailable` receives the first endpoint and derives temporary cell, focus and navigation bounds by scanning through one visible duration on each side plus the sentinel day beyond each limit; non-contiguous mode removes those interior bounds while unavailable endpoints remain inert. `locale(tag)` uses the same calendar-system conversions for the grid, paging, year picker and unavailable-range scan. Day buttons use 14px/20px medium text in all states; custom `cell` content inherits these metrics.
+- **TimeField** — `TimeState::with_value(cx, Time::new(9,30))`, `TimeField::new(state).value().min_value().max_value().placeholder_value().hour_cycle(HourCycle::{H12,H24}).should_force_leading_zeros(true).show_seconds().on_change(Option<Time>)`; without explicit overrides, `TimeField` and time-granularity `DateField` use the system regional segment order, literals, numeric padding, localized day-period names, and 12/24-hour cycle, while an empty time starts at midnight
+  - Group text and text slots use 14px text with a 20px line height, independent of parent leading.
+  - `full_width(true)` expands both the outer wrapper and control to the available parent width.
 
 ### Feedback
 - **Alert** — `Alert::new(title).description().status(Color)` plus composed children (v3 spells it `status`, removed `variant`/`radius`, and removed `isClosable`/`onClose` — a close affordance is an ordinary child, e.g. a composed `CloseButton`)
-- **Meter** — `Meter::new(id, value).value().min_value().max_value().value_label().label().show_value().color().size()`
-- **ProgressBar** — `ProgressBar::new(id)`, then `value`, `min_value`, `max_value`, `value_label`, `is_indeterminate`, `size`, `color`, `label`, `show_value_label`, `format_options(NumberFormat)`
+- **Meter** — `Meter::new(id, value).value().min_value().max_value().value_label().label().show_value().color().size()`. Labels and outputs use 14px text with a fixed 20px line height.
+- **ProgressBar** — `ProgressBar::new(id)`, then `value`, `min_value`, `max_value`, `value_label`, `is_indeterminate`, `size`, `color`, `label`, `show_value_label`, `format_options(NumberFormat)`. Labels and outputs use 14px text with a fixed 20px line height.
 - **ProgressCircle** — `value`, `min_value`, `max_value`, `is_indeterminate`, `color`, `size(Size)` (32/48/64px), `show_value_label`. The ring weight is 10% of the diameter, as v3 scales it with `size`.
 - **Skeleton** — `id`, `w`, `h`, `animation_type(SkeletonAnimation::{Shimmer,Pulse,None})` (defaults to `--skeleton-animation`). v3 renders the skeleton *or* the content, so there is no `isLoaded`.
-- **Spinner** — `size(SpinnerSize::{Sm,Md,Lg,Xl})`, `color`, `current_color(Hsla)` for `color="current"` (gpui svgs do not inherit text colour)
+- **Spinner** — `size(SpinnerSize::{Sm,Md,Lg,Xl})`, `color`, `current_color(Hsla)` for `color="current"` (gpui svgs do not inherit text colour). The diameter does not shrink in flex layouts; the app reduced-motion preference stops rotation.
 
 ### Calendar view model (`calendar_view`)
 
 `Calendar` and `RangeCalendar` show a month grid, several month grids side by
-side, a run of week rows, or a rolling window of days:
+side, a run of week rows, or a rolling window of days. Day cells, month headings and
+year cells use 14px/20px medium text; weekday labels use 12px/16px medium text.
+Headers have 16px bottom padding, weekday labels have 8px bottom padding, and
+date rows start 4px below the weekday block. Calendar rows are contiguous;
+RangeCalendar retains 2px vertical cell margins.
+Calendar single-month, week and day rows use seven 36px columns without horizontal gaps, aligned
+with their weekday headings.
+Multiple-month views use 256px panels separated by 32px, with square cells one
+seventh of the panel width and horizontal scrolling when the host is narrower.
+Day views retain seven weekday columns, render dates before the requested start
+as disabled, and leave blank cells after its end. Navigation still uses the
+requested day count.
+The year picker overlays the retained day area without changing the view dimensions.
+Its year list scrolls independently and reveals the active row on opening, keyboard
+navigation, or a date-bound change that moves that year to another row.
 
 - `visible_duration(VisibleDuration::Months(2) | Weeks(2) | Days(5))`
 - `page_behavior(PageBehavior::Visible | Single)` — step the whole range or one unit
 - `selection_alignment(SelectionAlignment::Start | Center | End)` — applied until
-  the user navigates, after which `CalendarState::user_navigated` pins the range.
+  the user navigates or picks, after which the state pins the displayed range.
+  Picking from an initially aligned view preserves its month/week/day anchor.
   `Center` matches React Aria: it halves the duration and then backs off again on
   an even count, so a 2-up range aligns like `Start`.
 - `is_year_picker_open(bool)` + `on_year_picker_open_change(fn)` — supplying the
@@ -369,19 +409,20 @@ The geometry is pure and testable: `calendar_view::{page, aligned_anchor,
 week_start, month_headings, linear_cells, range_heading, year_page}`.
 
 ### Forms
-- **Input** — `InputState {value,cursor,anchor,focus_handle}`, `variant(FieldVariant)`, `label`, `placeholder`, `description`, `error_message`, `start/end_content`, `full_width`, `is_clearable`, `is_required`, `is_disabled`, `is_read_only`, `is_invalid`, `on_change(&str)`, `on_submit(&str)`
+- **Input** — `InputState {value,cursor,anchor,focus_handle}`, `variant(FieldVariant)`, `label`, `placeholder`, `description`, `error_message`, `start/end_content`, `full_width`, `is_clearable`, `is_required`, `is_disabled`, `is_read_only`, `is_invalid`, `on_change(&str)`, `on_submit(&str)`. Text adornments inherit the field's 14px text and 20px line height. Labels use 14px/20px and descriptions/errors use 12px/16px, independent of host leading. Platform text replacement, composition updates, and paste preserve selection, filtering, and change callbacks. Enter during composition does not submit the field.
   - `input_type(InputType::{Text,Password,Email,Number,Tel,Url,Search})` — `Password` masks, `Number` filters keystrokes
   - `max_length` (enforced while typing), `min_length`, `min`, `max`, `step`, `pattern(fn)`
   - `validity(&str) -> InputValidity` — a pure query; feed the result back through `is_invalid` / `error_message`
 - **TextField** — the labelled wrapper around `Input`
-- **TextArea** — genuinely multi-line: one wrapping paragraph per newline, Enter inserts a newline, and the caret sits in the line it belongs to. gpui wraps text by default (`WhiteSpace::Normal`); it is the single-line field that opts out with `whitespace_nowrap`. `rows`, `variant`, `full_width`, `max_length`, `min_length`, the validation flags, `on_change`
-- **SearchField** — Input with a magnifier and clear action; `on_clear`, `is_required`, `is_read_only`, `is_invalid`
+- **TextArea** — genuinely multi-line: one wrapping paragraph per newline, Enter inserts a newline, and the caret sits in the line it belongs to. Platform composition and paste use the shared Input handler; Enter confirms active composition before inserting a newline. Label/helper/error typography follows the shared Input wrapper (14px/20px labels; 12px/16px helper and error text). gpui wraps text by default (`WhiteSpace::Normal`); it is the single-line field that opts out with `whitespace_nowrap`. `rows`, `variant`, `full_width`, `max_length`, `min_length`, the validation flags, `on_change`
+- **SearchField** — Input with a magnifier and clear action; labels use 14px/20px and helper/error text uses 12px/16px via the shared Input wrapper. `on_clear`, `is_required`, `is_read_only`, `is_invalid`
 - **NumberField** — `format_options(NumberFormat)`, `NumberState {value,min,max,step,input}`, `hide_steppers`, `on_change(f64)`
-- **InputOTP** — `OtpState::with_length(cx, n)`, `separator`, `on_complete(&str)`
-- **InputGroup** — `variant`, `label`, `description`, `error_message` + children; `InputAddon::new("$")`
-- **Checkbox** — `is_selected`, `is_indeterminate`, `is_disabled`, `is_read_only`, `is_required`, `is_invalid`, `variant(FieldVariant)`, `label(el)`, `on_change(bool)`
-- **CheckboxGroup** — `CheckboxGroup::new(id, options).label().value(keys).orientation().variant().is_read_only().error_message().on_change(HashSet)`, `CheckboxOption::new(key,label).description()`
-- **RadioGroup** — `RadioGroup::new(id, options).selected(Option<usize>).orientation().on_change(usize)`
+  - Group text and text slots use 14px text with a 20px line height, independent of parent leading.
+- **InputOTP** — `OtpState::with_length(cx, n)`, `separator`, `on_complete(&str)`. Custom slot content inherits 14px/20px text; the built-in digits use 18px/24px text.
+- **InputGroup** — `variant`, `label`, `description`, `error_message` + children; `InputAddon::new("$")`. Prefix and suffix text uses 14px text with 20px lines alongside the input.
+- **Checkbox** — `is_selected`, `is_indeterminate`, `is_disabled`, `is_read_only`, `is_required`, `is_invalid`, `variant(FieldVariant)`, `label(el)`, `on_change(bool)`. Label content uses 14px medium text with 20px lines, independent of surrounding line height.
+- **CheckboxGroup** — `CheckboxGroup::new(id, options).label().value(keys).orientation().variant().is_read_only().error_message().on_change(HashSet)`, `CheckboxOption::new(key,label).description()`. Option labels use 14px/20px medium text; descriptions use 12px/16px regular text.
+- **RadioGroup** — `RadioGroup::new(id, options).selected(Option<usize>).orientation().on_change(usize)`. Option content uses 14px medium text with 20px lines, independent of surrounding line height.
 - **Form** — `Form::new().field(FormField::text(state).is_required(true)).on_submit(&FormData).on_invalid(&FormData).on_reset()`, plus `submit_handler()` / `reset_handler()` to wire to buttons. v3's `name` rides on the field: the entity-backed ones (`Input`, `TextField`, `SearchField`, `TextArea`, `NumberField`) store it on their state and `FormField::text`/`number` read it back; the prop-based ones (`Checkbox`, `Switch`, `CheckboxGroup`, `RadioGroup`, `Select`, `Slider`, `ColorSlider`, `ColorField`, `InputOTP`, `Autocomplete`, `DatePicker`, `TimeField`) expose `form_field()`, which borrows, so the control is still yours to place. `DateRangePicker` has `start_name`/`end_name` and `form_fields()`. `validationBehavior` travels the same way: `Allow` shows a field's message without blocking submission. `FormData::text(name)` reads a submission. The HTTP half — `action`/`method`/`encType`/`target` — has no browser to post to.
 - **Label / Description / ErrorMessage / FieldError / Fieldset** — the composition slots; `Label::new(t).is_required().is_disabled().is_invalid()`, `FieldError::new().message(t)`, `Fieldset` + `FieldsetLegend` / `FieldGroup` / `FieldsetActions`
 
@@ -389,30 +430,36 @@ week_start, month_headings, linear_cells, range_heading, year_page}`.
 - **Card** — `variant(CardVariant::{Transparent,Default,Secondary,Tertiary})`, `w`, parts `CardHeader`, `CardTitle`, `CardDescription`, `CardContent`, `CardFooter`. The card itself is the padded box (`gap-3 p-4` and the capped container radius) and its parts carry none of their own: the header is a plain column, the title is `text-sm` medium on the foreground, the description `text-sm` muted, the content a `gap-1` column — its upstream `flex-1` is dropped, because the pinned-geometry test in `tests/card_deep.rs` measures the card as an auto-height column hugging its parts, which flex-1 regresses — and the footer a centered row. `transparent` paints nothing: no border, background or shadow. v3's Card is presentational: `isPressable`/`isHoverable`/`isBlurred` were v2, and an interactive card composes a `Button`.
 - **Separator** — `orientation`, `variant(SeparatorVariant::{Default,Secondary,Tertiary})`, `mx`/`my`. The weight is `--border-width`; v3 has no per-instance override.
 - **Surface** — `variant(SurfaceVariant::{Transparent,Default,Secondary,Tertiary})`. The v3 component is a strict root — `relative text-foreground` plus each variant's background and foreground pair — with zero default padding and gap, and no radius or border; `transparent` is just a transparent background (the outlined look in the docs examples comes from their own `className`). `padding`/`gap` are port conveniences, not v3 props: they stand in for the `flex flex-col gap-3 rounded-3xl p-6` skeleton every docs example adds through `className`. v3 also publishes its variant through `SurfaceContext` so children can read it; GPUI has no ancestor context propagation, so nothing downstream reads the surrounding surface here.
-- **Toolbar** — `orientation`, `is_attached`, `gap`
+- **Toolbar** — `orientation`, `is_attached`, `gap`, `separator()`. Set the orientation before appending a separator; the bar creates a centred divider half its cross size.
 
 ### Media
-- **Avatar** — `Avatar::new(id).name().src(ImageSource).custom_source_key(key).size().color().variant(AvatarVariant::{Default,Soft})`, plus `on_error(f)` / `on_load(f)` for `Avatar.Image.onError`/`onLoad` (fired once per instance, no event payload), `delay_ms(ms)` for `Avatar.Fallback.delayMs` (measured from mount), `fallback(el)` for `Avatar.Fallback` children (an icon, a `+N` counter, custom text) and `fallback_color(Color)` for `Avatar.Fallback.color` — its own documented prop that overrides the parent color for everything the fallback paints. The constructor id is not a v3 prop: the image lifecycle (delay window and once-only callbacks) is keyed per instance under it, and it is required at construction so repeated avatars cannot silently merge into one instance. A changed source resets that lifecycle, so callbacks refire for the new source; a gpui `ImageSource::Custom` loader has no value identity, so omitting `custom_source_key` keeps its lifecycle stable when the closure is rebuilt inline per frame. Set `custom_source_key(key)` to identify a changed logical custom image and reset its load/error latches without using closure pointer identity. `Avatar::initials(name)` renders the default two-letter initials. A plain string `src` loads through gpui's asset system; a gpui `ImageSource::Custom` loader is the custom-image-component seam. v3 has no AvatarGroup — its Avatar Group example is plain `Avatar` composition (`-space-x-2` overlap, `ring-2 ring-background`, an explicit +N fallback avatar).
+- **Avatar** — `Avatar::new(id).name().src(ImageSource).custom_source_key(key).size().color().variant(AvatarVariant::{Default,Soft})`, plus `on_error(f)` / `on_load(f)` for `Avatar.Image.onError`/`onLoad` (fired once per instance, no event payload), `delay_ms(ms)` for `Avatar.Fallback.delayMs` (measured from mount), `fallback(el)` for `Avatar.Fallback` children (an icon, a `+N` counter, custom text) and `fallback_color(Color)` for `Avatar.Fallback.color` — its own documented prop that overrides the parent color for everything the fallback paints. The constructor id is not a v3 prop: the image lifecycle (delay window and once-only callbacks) is keyed per instance under it, and it is required at construction so repeated avatars cannot silently merge into one instance. A changed source resets that lifecycle, so callbacks refire for the new source; a gpui `ImageSource::Custom` loader has no value identity, so omitting `custom_source_key` keeps its lifecycle stable when the closure is rebuilt inline per frame. Set `custom_source_key(key)` to identify a changed logical custom image and reset its load/error latches without using closure pointer identity. `Avatar::initials(name)` renders the default two-letter initials. Fallback text uses 14px/20px for small and medium avatars and 16px/24px for large avatars. A plain string `src` loads through gpui's asset system; a gpui `ImageSource::Custom` loader is the custom-image-component seam. Loaded images carry the same radius as the Avatar root so WebGPU and native renderers keep them inside its boundary. v3 has no AvatarGroup — its Avatar Group example is plain `Avatar` composition (`-space-x-2` overlap, `ring-2 ring-background`, an explicit +N fallback avatar).
 
 ### Navigation
-- **Accordion** — `Accordion::new(items).expanded_keys(HashSet).variant(AccordionVariant::{Default,Surface}).hide_separator().on_toggle(&SharedString)`, `AccordionItem::new(key,title).subtitle().content(el)`
+- **Accordion** — `Accordion::new(items).expanded_keys(HashSet).variant(AccordionVariant::{Default,Surface}).hide_separator().on_toggle(&SharedString)`, `AccordionItem::new(key,title).subtitle().content(el)`; title, subtitle and body line heights are 20px, 16px and 20px independently of host leading, with no extra top inset above the body.
 - **Breadcrumbs** — `Breadcrumbs::new(vec![Crumb::new("Home").href("#")]).id().separator(BreadcrumbSeparator::{Slash,Chevron,Dash}).separator_render(|i| custom node).is_disabled(bool).on_navigate(|i, crumb, ev|)`; the last crumb is the current page — link-coloured, inert, no tab stop — even if it carries an `href`. Every link crumb is a tab stop and Enter/Space activates it.
-- **Disclosure / DisclosureGroup** — `Disclosure::new(title).is_expanded().on_expanded_change(bool)`, `DisclosureGroup::new().item(key,title,content).expanded_keys().on_toggle()`
+- **Disclosure / DisclosureGroup** — `Disclosure::new(id,title).is_expanded().on_expanded_change(bool).content(|state: DisclosureRenderState| ..)`, `DisclosureGroup::new(id).item(key,title,content).expanded_keys().on_expanded_change()`
 - **Link** — `Link::new(id).label().href().icon(el).icon_first(bool).auto_focus().is_disabled().on_press()` plus `render(|state| el)` — v3's render function receives the link's interactive state (`isHovered`/`isPressed`/`isFocused`/`isFocusVisible`/`isDisabled`); the root keeps the `href`, `onPress`, focus and disabled wiring, and GPUI has no DOM props to spread. `.link` is `font-medium text-link no-underline decoration-[1.5px]` — the stylesheet is the contract, not the docs' `font-semibold` Global CSS snippet — and hover/press only recolour the decoration (`muted/50` → `muted`), never the text. Opening goes through the OS handler, so v3's `target` / `rel` / `download` have no meaning and are not offered.
-- **Pagination** — `Pagination::new(id, page, total).size().on_change(usize)`
-- **Tabs** — `Tabs::new(id, items, selected_key).variant(TabsVariant::{Primary,Secondary}).orientation().selected_key().default_selected_key().on_selection_change()`, `TabItem::new(key,label).content(el)`
+- **Pagination** — `Pagination::new(id, page, total).size().on_change(usize)`; summary, link and navigation text use size-specific 12/16, 14/20 and 16/24 font/line-height pairs independently of host leading.
+- **Tabs** — `Tabs::new(id, items, selected_key).variant(TabsVariant::{Primary,Secondary}).orientation().selected_key().default_selected_key().on_selection_change()`, `TabItem::new(key,label).content(el)`; both tab variants use 14px labels with a 20px line height independently of host leading.
+  - Wheel input scrolls the tab list only along its configured orientation.
 
 ### Overlays
+
+Modal, Drawer, and AlertDialog cover the window even inside clipped or positioned containers. They paint above later page content and block pointer input to the page beneath.
+
 - **AlertDialog** — `AlertDialog::new(title).id().description().is_open().size(AlertDialogSize::{Xs,Sm,Md,Lg,Cover}).backdrop(Backdrop).placement(ModalPlacement).status(Color).is_dismissible(bool).is_keyboard_dismiss_disabled(bool).confirm_label().cancel_label().on_confirm().on_cancel().on_open_change(bool)` plus composed children; `.child(AlertDialogCloseTrigger::new())` composes v3's `AlertDialog.CloseTrigger` X and `.footer_child(Button)` composes the caller-owned footer
+  The description wraps inside the body; overflowing body content scrolls within the panel.
   - every close path — the composed X, the backdrop and Escape — reports through `on_open_change(false)` first; the built-in confirm/cancel stand-in reports through it too, then fires the consumer action. Escape and the backdrop are plain closes and never call `on_cancel`.
   - a composed footer retires the built-in pair: the caller's own `Button`s own their close wiring and the danger/pending spellings (`variant(Variant::Danger)`, `is_pending(true)`), the way v3 composes `slot="close"` buttons.
   - `is_dismissible` and `is_keyboard_dismiss_disabled` default to v3's values (backdrop dismissal off, Escape off), so opting in is explicit. `status` renders the alert glyph in that role's colour and only when set.
   - placement is anchored like Modal's, but v3's ±4px enter slide for top/bottom/auto is not ported — the fade and the zoom are.
 - **Drawer** — `placement(DrawerPlacement)`, `size(px)`, `title`, `backdrop(Backdrop)`, `is_dismissible`, `is_keyboard_dismiss_disabled`, `footer_child`, `on_close`, `on_open_change(bool)`; `.child(DrawerCloseTrigger::new())` composes v3's `Drawer.CloseTrigger` X
 - **Modal** — `is_open`, `title`, `size(ModalSize::{Xs,Sm,Md,Lg,Cover,Full})`, `backdrop(Backdrop)`, `placement(ModalPlacement::{Auto,Center,Top,Bottom})`, `scroll(ModalScroll::{Inside,Outside})`, `is_dismissible`, `is_keyboard_dismiss_disabled`, `footer_child`, `on_close`, `on_open_change(bool)`; `.child(ModalCloseTrigger::new())` composes v3's `Modal.CloseTrigger` X — the part draws only where composed, like v3
+  - `Inside` scrolling retains a 40px outer margin, including with long content; `Full` fills the viewport.
   - every dismissal path reports through **both** `on_close` and `on_open_change(false)`, so either callback alone is sufficient.
   - Escape closes it unless `is_keyboard_dismiss_disabled`. The overlay takes a focus handle and claims focus while nothing inside holds it; keys bubble from the focused descendant, so a text field inside keeps working. Drawer and AlertDialog behave the same way (AlertDialog defaults keyboard dismissal *off*, as v3 does).
-- **Popover** — `Popover::new(trigger).is_open().placement(Placement).offset(px).should_flip(bool).title().show_close_button().on_open_change(bool)`; `.child(PopoverArrow::new())` composes v3's `Popover.Arrow` part — the built-in 12px curve, or a custom child element at the resolved position but without the rotation (upstream rotates it through its `data-slot` placement CSS; GPUI 0.2.2 transforms only `svg()` elements at construction)
+- **Popover** — `Popover::new(trigger).is_open().placement(Placement).offset(px).should_flip(bool).title().show_close_button().on_open_change(bool)`; panel text defaults to 14px with a 20px line height independently of host leading; `.child(PopoverArrow::new())` composes v3's `Popover.Arrow` part — the built-in 12px curve, or a custom child element at the resolved position but without the rotation (upstream rotates it through its `data-slot` placement CSS; The pinned GPUI transforms only `svg()` elements at construction)
   - `should_flip` routes through gpui's `anchored().snap_to_window()`, which slides the panel back inside the viewport rather than mirroring it to the opposite side.
 - **Toast** — `Toast::new(title).description().variant(Color).closable().push(duration, cx)`; `ToastViewport::new().placement(ToastPlacement).gap().max_visible_toasts().width()` is `Toast.Provider`; `toast_store(cx)` global
 - **Tooltip** — `Tooltip::new("tip").placement(TooltipPlacement::{Top,Bottom,Left,Right}).show_arrow(bool).offset(px).delay(ms).close_delay(ms).is_disabled().child(trigger)`
@@ -421,17 +468,19 @@ week_start, month_headings, linear_cells, range_heading, year_page}`.
   - the key defaults to the tip text; give two tooltips with the same text distinct `id`s.
 
 ### Pickers
-- **Autocomplete** — `Autocomplete::new(state, items).placement(Placement).max_items().on_selection_change()` — filters while focused. Items are `PickerItem::new(key, label)`: v3 keeps a stable `Key` separate from the visible `textValue`, so `value` / `defaultValue` / `disabledKeys`, the selection callbacks and the form value address items by key, while filtering and the trigger's visible text use labels — duplicate labels never alias each other's selection or row.
+- **Autocomplete** — `Autocomplete::new(state, items).placement(Placement).max_items().on_selection_change()` — filters while focused. Items are `PickerItem::new(key, label)`: v3 keeps a stable `Key` separate from the visible `textValue`, so `value` / `defaultValue` / `disabledKeys`, the selection callbacks and the form value address items by key, while filtering and the trigger's visible text use labels — duplicate labels never alias each other's selection or row. Value, option and empty-result text uses 14px/20px metrics; section headers use 12px/16px medium text. The popup anchors to the measured trigger with an 8px gap, flipping to the side with more room when the preferred side cannot fit and keeping a 12px cross-axis viewport inset with the scroller capped to the available height; the search stays visible while the inner list scrolls and shrinks to the available height within the upstream 320px max, and virtual paging follows the visible list height.
   - `filter(fn(item_label, input) -> bool)` replaces the default case-insensitive substring match and owns the whole decision, including what an empty query means; `input_value` / `on_input_change` for a controlled query; `on_clear` is only the after-clear callback — the clear affordance is always mounted with the trigger, invisible and inert while the selection is empty or the field is disabled, and still working when read-only.
-- **ComboBox** — `ComboBox::new(state, items).is_open().placement(Placement).menu_trigger(MenuTrigger::{Input,Manual,Focus}).allows_custom_value().max_items().on_selection_change().on_open_change()` — items are keyed `PickerItem::new(key, label)`s: the selection, `disabledKeys`, the callbacks and the form value address items by key, while filtering and the input text use labels. `selected_keys(keys)` is the controlled ordered selection; `selected_key(key, cx)` the single-key spelling (the empty string is v3's `null`). A committed custom value keeps the typed text and reports a null selected key — as an empty `on_selection_change_all` slice, and only when a selection actually existed; `form_value(ComboBoxFormValue::{Key,Text})` chooses what a named field submits (key by default — an empty selection still submits one empty value — and text under `allowsCustomValue`).
-- **Select** — `Select::new(id, options).selected(..)/.value(..).is_open().placement(Placement).variant().full_width().disabled_keys().is_invalid().is_required().on_selection_change()/.on_change().on_open_change()`; `selection_mode(SelectionMode::Multiple)` with `selected_indices()` + `on_selection_change_all()`
+- **ComboBox** — `ComboBox::new(state, items).is_open().placement(Placement).menu_trigger(MenuTrigger::{Input,Manual,Focus}).allows_custom_value().max_items().on_selection_change().on_open_change()` — items are keyed `PickerItem::new(key, label)`s: the selection, `disabledKeys`, the callbacks and the form value address items by key, while filtering and the input text use labels. `selected_keys(keys)` is the controlled ordered selection; `selected_key(key, cx)` the single-key spelling (the empty string is v3's `null`). A committed custom value keeps the typed text and reports a null selected key — as an empty `on_selection_change_all` slice, and only when a selection actually existed; `form_value(ComboBoxFormValue::{Key,Text})` chooses what a named field submits (key by default — an empty selection still submits one empty value — and text under `allowsCustomValue`). Value, option and empty-result text uses 14px/20px metrics; section headers use 12px/16px medium text. When the preferred side cannot fit the popup, it flips to the side with more room, keeping a 12px cross-axis viewport inset with the scroller capped to the available height; plain and virtual lists use the available height with an 8px field gap, and wheel input stays in the list.
+- **Select** — `Select::new(id, options).selected(..)/.value(..).is_open().placement(Placement).variant().full_width().disabled_keys().is_invalid().is_required().on_selection_change()/.on_change().on_open_change()`; `selection_mode(SelectionMode::Multiple)` with `selected_indices()` + `on_selection_change_all()`. Enter and Space commit the highlighted option in single mode; if the selection callback closes the controlled popup, key release keeps it closed and leaves focus on the trigger. Value and option text uses 14px/20px metrics; section headers use 12px/16px medium text. `full_width(true)` expands both the root and trigger to the available container width. When the preferred side cannot fit the popup, it flips to the side with more room, keeping a 12px cross-axis viewport inset with the scroller capped to the available height; plain and virtual lists use the available height with an 8px trigger gap.
 
 ### Typography
+The browser gallery bundles distinct Inter faces for Normal, Medium, Semibold and Bold weights.
 - **Kbd** — `Kbd::new().variant(KbdVariant::{Default,Light}).child("Ctrl")`
 - **Typography** — `Typography::new(text).kind(TypographyType::{H1..H6,Body,BodySm,BodyXs,Code}).align().color(TextColor::{Default,Muted}).weight(FontWeight).truncate()`; helpers `heading(level, t)`, `paragraph(ParagraphSize, t)`, `code(t)`; `Prose::new()` for rich text
 
 ### Utilities
 - **ScrollShadow** — `ScrollShadow::new(id).orientation().size(px).offset(px).visibility(ScrollShadowVisibility).is_enabled(bool).max_h()/.max_w()`, `horizontal()` shorthand. v3's `variant` has one value, and gpui draws no native scrollbar for `hideScrollBar` to hide.
+  - Wheel input scrolls only along the configured orientation.
 
 ## Gallery
 
@@ -441,7 +490,7 @@ Screenshots are the visual regression source.
 
 ## Code style
 
-GPUI 0.2.2 notes: `f32::from(px)` for `Pixels`, no `select_none`, `on_click`
+Pinned GPUI notes: `f32::from(px)` for `Pixels`, no `select_none`, `on_click`
 and `.active()` need `.id()`, `svg()` never inherits text color, `Arc` for
 shared callbacks, `.into_any_element()` for branch unification. Theme tokens are
 already `Hsla` — never wrap them in `Hsla::from`. Divs are `Display::Block`, so
@@ -483,12 +532,12 @@ is the gpui equivalent and the single place the timings live.
 - `anim::ENTERING_MS` (150), `EXITING_MS` (100), `TRANSITION_MS` (100),
   `PRESS_MS` (250 — recorded, since gpui's `active` has no timeline to ramp
   along), `PRESSED_SCALE`, `anim::pressed_inset`.
-- **Reduced motion:** `cx.reduce_motion()` gates every animation with no opt-in
+- **Reduced motion:** `ActiveTheme::reduce_motion(cx)` gates every animation with no opt-in
   from the caller. Set it with `theme::set_reduce_motion(bool, cx)` or
   `theme::toggle_reduce_motion(cx)`; `HEROGPUI_REDUCE_MOTION=1` seeds it at
-  startup in place of the OS preference gpui does not expose.
+  startup. This is separate from GPUI's inherent `App::reduce_motion()` state.
 
-**No div transforms.** gpui 0.2.2 plumbs `TransformationMatrix` into
+**No div transforms.** the pinned GPUI plumbs `TransformationMatrix` into
 `paint_svg` alone, so quads and text cannot be scaled or rotated. Two
 consequences — both worked around geometrically rather than left undone:
 

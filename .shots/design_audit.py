@@ -35,6 +35,10 @@ sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 CACHE = os.path.join(os.environ.get('TEMP', '/tmp'), 'heroui-css')
 COMPONENTS = ('https://raw.githubusercontent.com/heroui-inc/heroui/v3.2.4'
               '/packages/styles/components/%s.css')
+# The same stylesheets are vendored (47KB) so the audit needs no network and
+# every run measures the same v3.2.4 tag. `--fetch` still refreshes upstream.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from bundle import css_cache as unpack
 
 # v3's own scales, from themes/shared/theme.css and themes/default/variables.css.
 SPACING = 4.0            # --spacing: 0.25rem
@@ -117,6 +121,35 @@ def helper_px(name):
     return None
 
 
+def pagination_summary_text(_body):
+    src = mask_comments(strip_cfg_test(io.open(SRC + 'pagination.rs', encoding='utf-8').read()))
+    body = re.search(r'\.children\(self\.summary\.map\(\|text\| \{([\s\S]*?)\n            \}\)\)', src)
+    if not body or not re.search(r'\.text_size\(cell_text\)', body.group(1)):
+        return None
+    if not re.search(r'let cell_text = self\.size\.text_size\(\);', src):
+        return None
+    core = mask_comments(strip_cfg_test(io.open(CORE, encoding='utf-8').read()))
+    block = re.search(r'pub fn text_size\(self\)[\s\S]*?match self \{([\s\S]*?)\n        \}', core)
+    value = re.search(r'Size::Md => gpui::px\(([\d.]+)\)', block.group(1)) if block else None
+    return float(value.group(1)) if value else None
+
+
+def accordion_body_metric(property):
+    source = mask_comments(strip_cfg_test(io.open(SRC + 'accordion.rs', encoding='utf-8').read()))
+    for opening in re.finditer(r'gpui::div\(\)', mask_literals(source)):
+        value = None
+        owns_body = False
+        for name, args in builder_chain_methods(source, opening.end()):
+            if name == 'child' and args.strip() == 'item.content':
+                owns_body = True
+            if name == property:
+                number = re.fullmatch(r'px\(([\d.]+)\)', args.strip())
+                value = float(number.group(1)) if number else None
+        if owns_body:
+            return value
+    return None
+
+
 def fraction_leading(text_px):
     """A unitless `leading-[f]` resolves against the rule's own text size.
 
@@ -139,6 +172,15 @@ def press_scale(name):
     src = io.open(SRC + 'anim.rs', encoding='utf-8').read()
     m = re.search(r'pub const ' + re.escape(name) + r': f32 = ([\d.]+);', src)
     return float(m.group(1)) * 100.0 if m else None
+
+
+def relative_pct(fraction):
+    """`gpui::relative(f)` -> its percentage, to compare with `h-<n>/<m>`.
+
+    v3 sizes a toolbar's separator as a fraction of the bar; the port spells
+    the same thing as a relative length, so the two meet in percent.
+    """
+    return float(fraction) * 100.0
 
 
 def SIZE_XL(name):
@@ -277,6 +319,81 @@ CHECKS = [
     ('separator', '.separator', 'radius', 'Separator -> util::_radius',
      SRC + 'separator.rs',
      r'let radius = crate::util::(\w+_radius)\(cx\)', helper_px),
+    # Anchored on the declaration that builds the half-length mark, so a
+    # reader follows the construction rather than a character window.
+    # v3 declares a heading's leading through the `text-base` pair rather than
+    # a `leading-*` utility, so a port that sets only the size inherits
+    # whatever the host shell says -- 20px in this repository's gallery, four
+    # short. `Drawer` and `AlertDialog` always had the pair; `Modal` and
+    # `Switch` did not, and nothing compared them.
+    ('modal', '.modal__heading', 'leading', 'Modal heading leading', SRC + 'modal.rs',
+     r'`\.modal__heading` is `text-base`[\s\S]{0,400}?'
+     r'\.line_height\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('switch', '.switch__label', 'leading', 'Switch label leading', SRC + 'switch.rs',
+     r'`\.switch__label` is `text-base`[\s\S]{0,400}?'
+     r'\.line_height\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    # Meter's track, read off the ProgressBar the component delegates to.
+    ('meter', '.meter .meter__track', 'h', 'Meter md track', SRC + 'progress.rs',
+     r'let \(h, radius\) = match self\.size \{[\s\S]{0,300}?'
+     r'Size::Md => \(px\((\d+(?:\.\d*)?)\.\)', None),
+    ('meter', '.meter .meter__track', 'radius', 'Meter md radius', SRC + 'progress.rs',
+     r'Size::Md => \(px\(8\.\), crate::util::(\w+_radius)\(cx\)\)', helper_px),
+    ('meter', '.meter--sm .meter__track', 'h', 'Meter sm track', SRC + 'progress.rs',
+     r'let \(h, radius\) = match self\.size \{[\s\S]{0,300}?'
+     r'Size::Sm => \(px\((\d+(?:\.\d*)?)\.\)', None),
+    ('meter', '.meter--sm .meter__track', 'radius', 'Meter sm radius', SRC + 'progress.rs',
+     r'Size::Sm => \(px\(4\.\), crate::util::(\w+_radius)\(cx\)\)', helper_px),
+    ('meter', '.meter--lg .meter__track', 'h', 'Meter lg track', SRC + 'progress.rs',
+     r'let \(h, radius\) = match self\.size \{[\s\S]{0,300}?'
+     r'Size::Lg => \(px\((\d+(?:\.\d*)?)\.\)', None),
+    ('meter', '.meter--lg .meter__track', 'radius', 'Meter lg radius', SRC + 'progress.rs',
+     r'Size::Lg => \(px\(12\.\), crate::util::(\w+_radius)\(cx\)\)', helper_px),
+    # ColorSlider's thumb, and the thickness of its horizontal track. The
+    # track's own corner is deliberately not compared: v3 leaves the
+    # horizontal track `rounded-none` and rounds the two overhanging caps
+    # `rounded-*-2xl`, which CSS then clamps to half the 20px cross size. The
+    # port spells the clamped 10 directly, so the declared numbers differ
+    # while the drawn corner does not.
+    ('color-slider',
+     '.color-slider[data-orientation="horizontal"] .color-slider__track', 'h',
+     'ColorSlider track thickness', SRC + 'color_picker.rs',
+     r'let track_h = px\((\d+(?:\.\d*)?)\.\)', None),
+    ('color-slider', '.color-slider__thumb', 'radius', 'ColorSlider thumb radius',
+     SRC + 'color_picker.rs',
+     r'`\.color-slider__thumb` is `size-4`\.[\s\S]{0,120}?'
+     r'\.rounded\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('color-slider', '.color-slider__thumb', 'border', 'ColorSlider thumb border',
+     SRC + 'color_picker.rs',
+     r'`\.color-slider__thumb` is `size-4`\.[\s\S]{0,180}?'
+     r'\.border\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    # `.color-area` is `w-full max-w-56`: the square never grows past 224.
+    ('color-area', '.color-area', 'max_w', 'ColorArea maximum width',
+     SRC + 'color_picker.rs',
+     r'width: px\((\d+(?:\.\d*)?)\.\),\s*\n\s*height: px\(\d+(?:\.\d*)?\.\),', None),
+    # `.calendar` and `.range-calendar` are both `w-63 max-w-63`, so the width
+    # the port pins is also its ceiling.
+    ('calendar', '.calendar', 'max_w', 'Calendar maximum width', SRC + 'calendar.rs',
+     r'pub const CALENDAR_WIDTH: gpui::Pixels = px\((\d+(?:\.\d*)?)\.\)', None),
+    ('range-calendar', '.range-calendar', 'max_w', 'RangeCalendar maximum width',
+     SRC + 'calendar.rs',
+     r'pub const CALENDAR_WIDTH: gpui::Pixels = px\((\d+(?:\.\d*)?)\.\)', None),
+    # `.textarea`'s `min-height: 38px` floor, which `rows` raises.
+    ('textarea', '.textarea', 'min_h', 'TextArea minimum height', SRC + 'input.rs',
+     r'let multiline_h = self\.min_h\.unwrap_or\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    # The stepper glyph inside a NumberField button.
+    ('number-field', '[data-slot="number-field-decrement-button-icon"]', 'size',
+     'NumberField stepper icon', SRC + 'number_field.rs',
+     r'\.size\(crate::util::(FIELD_ICON)\)', lambda _: 16.0),
+    ('toolbar', '.toolbar .separator--vertical', 'h_pct',
+     'Toolbar vertical divider length', SRC + 'separator.rs',
+     r'"toolbar-separator-mark"[\s\S]{0,500}?Orientation::Vertical =>'
+     r'[\s\S]{0,260}?\.h\(gpui::relative\((\d(?:\.\d*)?)\)\)',
+     relative_pct),
+    ('toolbar', '.toolbar .separator--horizontal', 'w_pct',
+     'Toolbar horizontal divider length', SRC + 'separator.rs',
+     r'"toolbar-separator-mark"[\s\S]{0,300}?Orientation::Horizontal =>'
+     r'[\s\S]{0,260}?\.w\(gpui::relative\((\d(?:\.\d*)?)\)\)',
+     relative_pct),
     ('toolbar', '.toolbar--attached', 'p', 'Toolbar attached padding',
      SRC + 'toolbar.rs',
      r'`\.toolbar--attached` is `p-1 rounded-3xl bg-surface shadow-overlay`\.'
@@ -356,7 +473,8 @@ CHECKS = [
      r'Size::Md => \(px\(8\.\), px\(2\.\), px\((\d+(?:\.\d*)?)\.\)', None),
     ('alert', '.alert__title', 'text', 'Alert title text',
      SRC + 'alert.rs',
-     r'let mut text_col[\s\S]{0,200}?\.text_size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+     r'\.text_size\(px\((\d+(?:\.\d*)?)\.\)\) // `\.alert__title` is `text-sm',
+     None),
     ('toggle-button', '.toggle-button', 'px', 'ToggleButton Md px',
      SRC + 'toggle_button.rs',
      r'Size::Md => \(px\(36\.\), px\((\d+(?:\.\d*)?)\.\)', None),
@@ -485,10 +603,11 @@ CHECKS = [
      r'`md:min-w-55`[\s\S]{0,160}?\.min_w\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('dropdown', '.dropdown__menu', 'gap', 'Dropdown menu gap',
      SRC + 'dropdown.rs',
-     r'`gap-0\.5 p-1`[\s\S]{0,160}?\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+     r'\.max_w\(window\.viewport_size\(\)\.width \* 0\.48\)\s*'
+     r'\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('dropdown', '.dropdown__menu', 'p', 'Dropdown menu padding',
      SRC + 'dropdown.rs',
-     r'`gap-0\.5 p-1`[\s\S]{0,200}?\.p\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+     r'\.gap\(px\(2\.\)\)\s*\.p\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('dropdown', '.dropdown__popover [data-slot="dropdown-menu"]', 'p',
      'Dropdown contextual menu padding', SRC + 'dropdown.rs', None, None),
     ('color-swatch', '.color-swatch--xs', 'size', 'ColorSwatch Xs', CORE,
@@ -501,10 +620,10 @@ CHECKS = [
      r'SizeXl::Xl => gpui::px\((\d+(?:\.\d*)?)\)', None),
     ('calendar-year-picker', '.calendar-year-picker__year-grid', 'gap',
      'Year grid gap', SRC + 'calendar.rs',
-     r'`\.calendar-year-picker__year-grid` is `gap-1 p-1`\.[\s\S]{0,80}?\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+     r'\.track_scroll\(&view\.scroll\.handle\)[^;]*?\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('calendar-year-picker', '.calendar-year-picker__year-grid', 'p',
      'Year grid padding', SRC + 'calendar.rs',
-     r'`gap-1 p-1`\.[\s\S]{0,120}?\.p\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+     r'\.absolute\(\)\s*\.inset_0\(\)\s*\.p\(px\((\d+(?:\.\d*)?)\.\)\)\s*\.child\(grid\)', None),
     ('calendar-year-picker', '.calendar-year-picker__year-cell', 'h',
      'Year cell height', SRC + 'calendar.rs',
      r'`h-8 px-2\.5[\s\S]{0,120}?\.h\(px\((\d+(?:\.\d*)?)\.\)\)', None),
@@ -651,9 +770,7 @@ CHECKS = [
     ('range-calendar', '.range-calendar', 'w',
      'RangeCalendar: seven day cells fill the 252px root',
      SRC + 'range_calendar.rs',
-     r'let track_key = format!\("\{key\}-track"\);[\s\S]{0,400}?'
-     r'\.size\(px\((\d+(?:\.\d*)?)\.\)\)',
-     lambda cell: float(cell) * 7.0),
+     'range_calendar_grid_width', None),
     # The selected outer cell is `rounded-none bg-accent-soft` -- a square
     # that reads as one continuous run. The port rounds it per corner: caps
     # take `3xl` and row edges `lg` (the two rows below), while the interior
@@ -757,7 +874,7 @@ CHECKS = [
      r'Size::Md => px\((\d+(?:\.\d*)?)\.\)', None),
     ('pagination', '.pagination__link--nav', 'gap', 'Pagination nav gap',
      SRC + 'pagination.rs',
-     r'`w-auto gap-1\.5 px-2\.5`[\s\S]{0,120}?\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+     r'`w-auto gap-1\.5 px-2\.5`[\s\S]{0,220}?\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('pagination', '.pagination__link--nav', 'px', 'Pagination nav px',
      SRC + 'pagination.rs',
      r'let nav_padding = match self\.size \{[\s\S]{0,120}?Size::Md => px\((\d+(?:\.\d*)?)\.\)', None),
@@ -870,6 +987,12 @@ CHECKS = [
      r'Size::Lg => \(px\(10\.\), px\((\d+(?:\.\d*)?)\.\)', None),
     ('tag', '.tag--lg', 'text', 'Tag Lg text', SRC + 'tag_group.rs',
      r'Size::Lg => \(px\(10\.\), px\(6\.\), px\((\d+(?:\.\d*)?)\.\)', None),
+    ('tag', '.tag--sm', 'leading', 'Tag Sm leading', SRC + 'tag_group.rs',
+     'tag_leading_Sm', None),
+    ('tag', '.tag--md', 'leading', 'Tag Md leading', SRC + 'tag_group.rs',
+     'tag_leading_Md', None),
+    ('tag', '.tag--lg', 'leading', 'Tag Lg leading', SRC + 'tag_group.rs',
+     'tag_leading_Lg', None),
     ('tag', '.tag', 'radius', 'Tag Sm/Md -> util::_radius', SRC + 'tag_group.rs',
      r'Size::Sm \| Size::Md => crate::util::(\w+_radius)', helper_px),
     ('tag', '.tag--lg', 'radius', 'Tag Lg -> util::_radius', SRC + 'tag_group.rs',
@@ -946,20 +1069,32 @@ CHECKS = [
      r'Control height[\s\S]*?Size::Sm => gpui::px\((\d+(?:\.\d*)?)\)', None),
     ('button', '.button--lg', 'h', 'Size::control_height Lg', CORE,
      r'Control height[\s\S]*?Size::Lg => gpui::px\((\d+(?:\.\d*)?)\)', None),
-    ('button', '.button', 'px', 'Size::padding_x Md', CORE,
-     r'Horizontal padding[\s\S]*?Size::Md => gpui::px\((\d+(?:\.\d*)?)\)', None),
-    ('button', '.button--sm', 'px', 'Size::padding_x Sm', CORE,
-     r'Horizontal padding[\s\S]*?Size::Sm => gpui::px\((\d+(?:\.\d*)?)\)', None),
-    ('button', '.button', 'text', 'Size::text_size Md', CORE,
-     r'Label size[\s\S]*?Size::Md => gpui::px\((\d+(?:\.\d*)?)\)', None),
-    ('button', '.button--lg', 'text', 'Size::text_size Lg', CORE,
-     r'Label size[\s\S]*?Size::Lg => gpui::px\((\d+(?:\.\d*)?)\)', None),
-    ('button', '.button', 'gap', 'Size::gap Md', CORE,
-     r"icon and its label[\s\S]*?Size::Sm \| Size::Md => gpui::px\((\d+(?:\.\d*)?)\)", None),
+    ('button', '.button', 'px', 'button_metrics px Md', SRC + 'button.rs',
+     r'padding_x: match size[\s\S]*?Size::Md \| Size::Lg => gpui::px\((\d+(?:\.\d*)?)\.\)',
+     None),
+    ('button', '.button--sm', 'px', 'button_metrics px Sm', SRC + 'button.rs',
+     r'padding_x: match size \{\s*Size::Sm => gpui::px\((\d+(?:\.\d*)?)\.\)', None),
+    ('button', '.button--lg', 'px', 'button_metrics px Lg', SRC + 'button.rs',
+     r'padding_x: match size[\s\S]*?Size::Md \| Size::Lg => gpui::px\((\d+(?:\.\d*)?)\.\)',
+     None),
+    ('button', '.button', 'text', 'button_metrics text Md', SRC + 'button.rs',
+     r'fn button_metrics[\s\S]*?Size::Sm \| Size::Md => \(gpui::px\((\d+(?:\.\d*)?)\.\)',
+     None),
+    ('button', '.button--sm', 'text', 'button_metrics text Sm', SRC + 'button.rs',
+     r'fn button_metrics[\s\S]*?Size::Sm \| Size::Md => \(gpui::px\((\d+(?:\.\d*)?)\.\)',
+     None),
+    ('button', '.button--lg', 'text', 'button_metrics text Lg', SRC + 'button.rs',
+     r'fn button_metrics[\s\S]*?Size::Lg => \(gpui::px\((\d+(?:\.\d*)?)\.\)', None),
+    ('button', '.button', 'gap', 'button_metrics gap Md', SRC + 'button.rs',
+     r'gap: gpui::px\((\d+(?:\.\d*)?)\.\),\s*\}', None),
+    ('button', '.button--sm', 'gap', 'button_metrics gap Sm', SRC + 'button.rs',
+     r'gap: gpui::px\((\d+(?:\.\d*)?)\.\),\s*\}', None),
+    ('button', '.button--lg', 'gap', 'button_metrics gap Lg', SRC + 'button.rs',
+     r'gap: gpui::px\((\d+(?:\.\d*)?)\.\),\s*\}', None),
     # `.button` is `w-fit` with no `min-w-*`: a v3 button hugs its label. Ours
     # used to force 64/80/96px, which made every short label sit in a wide pill.
     ('button', '.button', 'min_w', 'Button min_w (none)', SRC + 'button.rs',
-     r'el\.px\(self\.size\.padding_x\(\)\)\.gap\(self\.size\.gap\(\)\)',
+     r'el\.px\(metrics\.padding_x\)\.gap\(metrics\.gap\)',
      lambda _: 0.0),
     ('button', '.button--icon-only', 'w', 'Size::icon_control_size Md', CORE,
      r'Control height[\s\S]*?Size::Md => gpui::px\((\d+(?:\.\d*)?)\)', None),
@@ -1049,9 +1184,8 @@ CHECKS = [
     # Anchor the menu metrics to the row's own construction chain. A fixed
     # window was outrun when the row gained a bounds-recording canvas.
     ('menu-item', '.menu-item', 'radius', 'Menu row -> util::_radius', SRC + 'dropdown.rs',
-     r'let mut row = gpui::div\(\)[\s\S]*?\.relative\(\)\s*\.flex\(\)\s*'
-     r'\.items_center\(\)\s*\.gap\(px\(12\.\)\)\s*\.px\(px\(8\.\)\)\s*'
-     r'\.rounded\(crate::util::(\w+_radius)\(cx\)\)', helper_px),
+     r'\.px\(px\(8\.\)\)\s*\.rounded\(crate::util::(\w+_radius)\(cx\)\)',
+     helper_px),
     ('menu-item', '.menu-item', 'px', 'Menu row padding_x', SRC + 'dropdown.rs',
      r'\.px\(px\((\d+(?:\.\d*)?)\)\)\s+\.rounded\(crate::util::\w+_radius\(cx\)\)',
      None),
@@ -1200,7 +1334,7 @@ CHECKS = [
     ('calendar', '.calendar', 'w', 'Calendar width', SRC + 'calendar.rs',
      'CALENDAR_WIDTH: gpui::Pixels = px\((\d+(?:\.\d*)?)\.\)', None),
     ('calendar', '.calendar__cell', 'text', 'Calendar cell text', SRC + 'calendar.rs',
-     '\.size\(px\(36\.\)\)\s+\.rounded_full\(\)(?:\s+\.\w+\(\))*\s+\.text_size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+     r'\.size\(frame\.cell_size\)\s+\.rounded_full\(\)(?:\s+\.\w+\(\))*\s+\.text_size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('list-box-item', '.list-box-item', 'radius', 'Select row -> util::_radius',
      SRC + 'select.rs',
      r'let mut item = gpui::div\(\)(?:(?!if opt_disabled)[\s\S])*?'
@@ -1278,7 +1412,11 @@ CHECKS = [
      r'`\.modal__icon` is `size-10 rounded-3xl`[\s\S]{0,1000}?'
      r'\.rounded\(crate::util::(\w+_radius)\(cx\)\)', helper_px),
     ('accordion', '.accordion__body', 'text', 'Accordion body text', SRC + 'accordion.rs',
-     r'\.pt\(px\(2\.\)\)\s*\.text_size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+     r'impl RenderOnce for (Accordion)', lambda _: accordion_body_metric('text_size')),
+    ('accordion', '.accordion__body', 'leading', 'Accordion body leading', SRC + 'accordion.rs',
+     r'impl RenderOnce for (Accordion)', lambda _: accordion_body_metric('line_height')),
+    ('accordion', '.accordion__body-inner', 'pt', 'Accordion body top inset', SRC + 'accordion.rs',
+     r'impl RenderOnce for (Accordion)', lambda _: accordion_body_metric('pt')),
 
     # --- every field wrapper is `gap-1` --------------------------------------
     ('checkbox', '.checkbox', 'gap', 'Checkbox content/description gap',
@@ -1293,13 +1431,13 @@ CHECKS = [
      SRC + 'checkbox.rs',
      r'\(box_px, icon_px, text\) = \(px\(16\.\), px\(12\.\), px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('color-field', '.color-field', 'gap', 'ColorField wrapper gap', SRC + 'color_picker.rs',
-     r'`\.color-field` is `flex flex-col gap-1`\.\s*'
-     r'let mut root = div\(\)\.flex\(\)\.flex_col\(\)\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+     'field_wrapper_gap:ColorField:root', None),
     ('color-slider', '.color-slider', 'gap', 'ColorSlider wrapper gap', SRC + 'color_picker.rs',
      r'`\.color-slider` is `grid w-full gap-1`\.\s*\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
-    ('date-field', '.date-field', 'gap', 'DateField wrapper gap', SRC + 'time_field.rs',
-     r'`\.date-field` is `flex flex-col gap-1`\.\s*'
-     r'let mut root = div\(\)\.flex\(\)\.flex_col\(\)\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('date-field', '.date-field', 'gap', 'DateField wrapper gap', SRC + 'date_picker.rs',
+     'field_wrapper_gap:DateField:el', None),
+    ('time-field', '.time-field', 'gap', 'TimeField wrapper gap', SRC + 'time_field.rs',
+     'field_wrapper_gap:TimeField:root', None),
     ('dropdown', '.dropdown', 'gap', 'Dropdown wrapper gap', SRC + 'dropdown.rs',
      r'`\.dropdown` is `flex flex-col gap-1`\.\s*\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('combo-box', '.combo-box', 'gap', 'ComboBox wrapper gap', SRC + 'combo_box.rs',
@@ -1311,11 +1449,11 @@ CHECKS = [
      None),
     ('progress-bar', '[data-slot="label"]', 'text', 'ProgressBar label text',
      SRC + 'progress.rs',
-     r'\.text_size\(px\((\d+(?:\.\d*)?)\.\)\)\s*\.font_weight\(gpui::FontWeight::MEDIUM\)',
+     r'\.text_size\(px\((\d+(?:\.\d*)?)\.\)\)\s*\.line_height\(px\(20\.\)\)\s*\.font_weight\(gpui::FontWeight::MEDIUM\)',
      None),
     ('progress-bar', '.progress-bar__output', 'text', 'ProgressBar output text',
      SRC + 'progress.rs',
-     r'\.text_size\(px\((\d+(?:\.\d*)?)\.\)\)\s*\.font_weight\(gpui::FontWeight::MEDIUM\)',
+     r'\.text_size\(px\((\d+(?:\.\d*)?)\.\)\)\s*\.line_height\(px\(20\.\)\)\s*\.font_weight\(gpui::FontWeight::MEDIUM\)',
      None),
     # A Meter renders a ProgressBar, so it is the same wrapper.
     ('meter', '.meter', 'gap', 'Meter wrapper gap -> ProgressBar', SRC + 'progress.rs',
@@ -1391,8 +1529,7 @@ CHECKS = [
 
     # --- a menu row ----------------------------------------------------------
     ('menu-item', '.menu-item', 'gap', 'Menu item gap', SRC + 'dropdown.rs',
-     r'let mut row = gpui::div\(\)[\s\S]*?\.relative\(\)\s*\.flex\(\)\s*'
-     r'\.items_center\(\)\s*\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+     r'\.gap\(px\((\d+(?:\.\d*)?)\.\)\)\s*\.px\(px\(8\.\)\)', None),
     ('menu-item', '.menu-item', 'min_h', 'Menu item min height', SRC + 'dropdown.rs',
      r'`\.menu-item` is `min-h-9 py-1\.5`[\s\S]{0,160}?'
      r'\.min_h\(px\((\d+(?:\.\d*)?)\.\)\)', None),
@@ -1480,7 +1617,8 @@ CHECKS = [
      'Autocomplete popover row text -> FIELD_TEXT', SRC + 'autocomplete.rs',
      r'\.text_size\(util::(FIELD_TEXT)\)', lambda _: 14.0),
     ('dropdown', '.dropdown__popover', 'text', 'Dropdown row text', SRC + 'dropdown.rs',
-     r'let mut row = gpui::div\(\)[\s\S]{0,420}?\.text_size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+     r'\.rounded\(crate::util::soft_radius\(cx\)\)\s*'
+     r'\.text_size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('alert-dialog', '.alert-dialog__body', 'text', 'AlertDialog body text',
      SRC + 'alert_dialog.rs',
      r'\.when\(self\.size == AlertDialogSize::Cover, \|e\| e\.flex_1\(\)\)\s*\n\s*\.text_size\(px\((\d+(?:\.\d*)?)\.\)\)',
@@ -1507,8 +1645,18 @@ CHECKS = [
     ('list-box-item', '.list-box-item__indicator', 'size', 'ListBox check size',
      SRC + 'list_box.rs',
      r'`\.list-box-item__indicator` is `size-4`\.\s*\.size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
-    ('toggle-button', '.toggle-button--lg', 'text', 'Size::text_size Lg', CORE,
-     r'Label size[\s\S]*?Size::Lg => gpui::px\((\d+(?:\.\d*)?)\)', None),
+    ('toggle-button', '.toggle-button', 'text', 'ToggleButton text Md',
+     SRC + 'toggle_button.rs',
+     r'let \(text, line\) = match self\.size \{\s*'
+     r'Size::Sm \| Size::Md => \(px\((\d+(?:\.\d*)?)\.\)', None),
+    ('toggle-button', '.toggle-button--sm', 'text', 'ToggleButton text Sm',
+     SRC + 'toggle_button.rs',
+     r'let \(text, line\) = match self\.size \{\s*'
+     r'Size::Sm \| Size::Md => \(px\((\d+(?:\.\d*)?)\.\)', None),
+    ('toggle-button', '.toggle-button--lg', 'text', 'ToggleButton text Lg',
+     SRC + 'toggle_button.rs',
+     r'let \(text, line\) = match self\.size[\s\S]*?'
+     r'Size::Lg => \(px\((\d+(?:\.\d*)?)\.\)', None),
     ('toggle-button-group', '.toggle-button-group__separator', 'radius',
      'ToggleButtonGroup separator -> hairline_radius', SRC + 'toggle_button.rs',
      r'let separator_radius = crate::util::(\w+_radius)\(cx\)', helper_px),
@@ -1524,8 +1672,8 @@ CHECKS = [
      r'\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('pagination', '.pagination__summary', 'text', 'Pagination summary text',
      SRC + 'pagination.rs',
-     r'`\.pagination__summary` is `gap-2 text-sm text-muted`\.[\s\S]{0,120}?'
-     r'\.text_size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+     r'\.children\(self\.summary\.map\(\|text\| \{([\s\S]*?)\n            \}\)\)',
+     pagination_summary_text),
     ('pagination', '.pagination__link', 'radius', 'Pagination link -> control_radius',
      SRC + 'pagination.rs',
      r'\.rounded\(crate::util::(\w+_radius)\(cx\)\)', helper_px),
@@ -1634,7 +1782,7 @@ CHECKS = [
      r'None => gpui::svg\(\)\s*\.size\(px\((\d+(?:\.\d*)?)\.\)\)\s*'
      r'\.path\(descriptor\.direction\.indicator\(\)\)', None),
     ('pagination', '.pagination__link', 'text', 'Pagination link -> Size::text_size Md', CORE,
-     r'Label size[\s\S]{0,200}?Size::Md => gpui::px\((\d+(?:\.\d*)?)\)', None),
+     r'text-base` ladder[\s\S]{0,400}?Size::Md => gpui::px\((\d+(?:\.\d*)?)\)', None),
 
     ('select', '.select__trigger', 'px', 'Select trigger px', SRC + 'select.rs',
      r'\.min_h\(h\)\s*\.px\(px\((\d+(?:\.\d*)?)\.\)\)', None),
@@ -1699,6 +1847,25 @@ THEME_FILES = (
 
 
 NESTED_SELECTOR_CHAINS = {
+    # `.toolbar` restyles the separator crossing its flow rather than the
+    # separator sheet doing it, so both rules only exist nested here.
+    ('toolbar', '.toolbar .separator--vertical'): (
+        '.toolbar', '.separator--vertical'),
+    ('toolbar', '.toolbar .separator--horizontal'): (
+        '.toolbar', '.separator--horizontal'),
+    # Meter delegates its bar to `ProgressBar`, so these rows compare
+    # `meter.css`'s own ladder with the shared implementation: if v3 ever gave
+    # the two components different track geometry the delegation would be
+    # wrong, and only a meter-side row would say so.
+    ('meter', '.meter .meter__track'): ('.meter', '.meter__track'),
+    ('meter', '.meter--sm .meter__track'): ('.meter--sm', '.meter__track'),
+    ('meter', '.meter--lg .meter__track'): ('.meter--lg', '.meter__track'),
+    ('color-slider', '.color-slider__thumb'): (
+        '.color-slider', '.color-slider__thumb'),
+    ('color-slider',
+     '.color-slider[data-orientation="horizontal"] .color-slider__track'): (
+        '.color-slider', '&[data-orientation="horizontal"]',
+        '.color-slider__track'),
     ('progress-bar', '.progress-bar__track'): (
         '.progress-bar', '.progress-bar__track'),
     ('progress-bar', '.progress-bar--sm .progress-bar__track'): (
@@ -1785,7 +1952,7 @@ def fetch():
     for name, url in THEME_FILES:
         subprocess.run(['curl', '-sL', '--max-time', '30', '-o',
                         os.path.join(CACHE, name), url], check=False)
-    names = sorted({c for c, *_ in CHECKS})
+    names = sorted({c for c, *_ in CHECKS} | {c for c, *_ in FILLS})
     for name in names:
         subprocess.run(['curl', '-sL', '--max-time', '30', '-o',
                         os.path.join(CACHE, name + '.css'), COMPONENTS % name],
@@ -2239,6 +2406,12 @@ def measure(body, inherited_leading=None):
     # The switch declares `height: 1.25rem` rather than `h-5`, so a rem
     # declaration counts as the same metric. rem is root-relative (16px), not
     # font-relative -- v3's own comments guess otherwise.
+    # `.textarea`'s 38px floor is a plain declaration, not a `min-h-*` step,
+    # because Tailwind's spacing scale has no 9.5. Same metric either way.
+    m = re.search(r'(?<![\w-])min-height:\s*(\d+(?:\.\d*)?)px', body)
+    if m:
+        offer('min_h', float(m.group(1)), '')
+
     for prop, metric in (('height', 'h'), ('width', 'w')):
         m = re.search(
             prop + r':\s*calc\(([\d.]+)rem\s*\+\s*([\d.]+)rem\)',
@@ -2296,11 +2469,21 @@ def measure(body, inherited_leading=None):
                                    ('size-', 'size'), ('min-w-', 'min_w'),
                                    ('mt-', 'mt'), ('ms-', 'ms'), ('min-h-', 'min_h'),
                                    ('ps-', 'ps'), ('leading-', 'leading'),
+                                   ('max-w-', 'max_w'),
                                    ('pt-', 'pt'), ('space-y-', 'gap')):
                 if tok.startswith(prefix):
                     v = px(tok[len(prefix):])
                     if v is not None:
                         offer(metric, v, bp)
+            # A fractional track size (`h-1/2`) is a percentage of the
+            # parent, not a spacing step, so it cannot share the pixel
+            # `h`/`w` metric -- a rule is free to declare both. `.toolbar`'s
+            # separator rules are the only place v3 sizes a part this way,
+            # and the port spells them with `gpui::relative`.
+            m = re.fullmatch(r'([hw])-(\d+)/(\d+)', tok)
+            if m:
+                offer(f'{m.group(1)}_pct',
+                      float(m.group(2)) / float(m.group(3)) * 100.0, bp)
             # A unitless arbitrary leading (`leading-[1.34]`) is a
             # multiplier of the rule's own text size, not a spacing
             # step; it resolves once the text size is known.
@@ -2413,7 +2596,34 @@ def measure(body, inherited_leading=None):
     return {k: v for k, (v, _) in found.items()}
 
 
+def range_calendar_grid_width(path):
+    """Read the default panel width through its cell divisor and row count."""
+    try:
+        source = mask_literals(mask_comments(strip_cfg_test(
+            io.open(path, encoding='utf-8').read())))
+        calendar = mask_literals(mask_comments(strip_cfg_test(
+            io.open(os.path.join(os.path.dirname(path), 'calendar.rs'),
+                    encoding='utf-8').read())))
+    except OSError:
+        return None
+    if not re.search(r'let column_width = if [^;]*?}\s*else\s*{\s*'
+                     r'crate::calendar::CALENDAR_WIDTH\s*};', source):
+        return None
+    if not re.search(r'\.flex_1\(\)\s*\.min_w_0\(\)\s*\.h\(frame\.cell_size\)', source):
+        return None
+    width = re.search(r'CALENDAR_WIDTH: gpui::Pixels = px\(([\d.]+)\)', calendar)
+    divisor = re.search(r'cell_size: column_width / ([\d.]+)', source)
+    columns = re.search(r'for column in 0\.\.(\d+)', source)
+    if not (width and divisor and columns) or float(divisor.group(1)) == 0:
+        return None
+    return float(width.group(1)) / float(divisor.group(1)) * int(columns.group(1))
+
+
 def our_value(path, pattern, transform):
+    if pattern == 'range_calendar_grid_width':
+        return range_calendar_grid_width(path)
+    if pattern.startswith('tag_leading_'):
+        return tag_leading(path, pattern.removeprefix('tag_leading_'))
     if pattern == 'alert_indicator_padding':
         return alert_indicator_padding(path)
     if pattern == 'avatar_fallback_text_sm':
@@ -2428,6 +2638,9 @@ def our_value(path, pattern, transform):
         src = io.open(path, encoding='utf-8').read()
     except OSError:
         return None
+    if pattern.startswith('field_wrapper_gap:'):
+        _, owner, binding = pattern.split(':')
+        return field_wrapper_gap_from(src, owner, binding)
     m = re.search(pattern, src)
     if not m:
         return None
@@ -2571,6 +2784,24 @@ def builder_chain_methods(source, index):
         index = end
 
 
+def field_wrapper_gap_from(source, owner, binding):
+    source = strip_cfg_test(source)
+    renders = list(rust_blocks_after(source, 'impl RenderOnce for ' + owner + ' '))
+    if len(renders) != 1:
+        return None
+    body = renders[0]
+    declarations = list(re.finditer(
+        r'\blet\s+mut\s+' + re.escape(binding) + r'\s*=\s*(?:gpui::)?div\(\)', body))
+    if len(declarations) != 1:
+        return None
+    gap = None
+    for name, args in builder_chain_methods(body, declarations[0].end()):
+        if name in ('gap', 'gap_y'):
+            value = re.fullmatch(r'\s*px\((\d+(?:\.\d*)?)\)\s*', args)
+            gap = float(value.group(1)) if value else None
+    return gap
+
+
 def indicator_padding_from(source):
     """Read Alert indicator padding from its owning builder chain."""
     source = mask_comments(source)
@@ -2623,6 +2854,24 @@ _AVATAR_FONT_ASSIGN = re.compile(
     r'(?<![A-Za-z0-9_])let\s+font\s*=\s*if\s+self\.large\s*'
     r'\{\s*px\((\d+(?:\.\d*)?)\.\)\s*\}\s*'
     r'else\s*\{\s*px\((\d+(?:\.\d*)?)\.\)\s*\}')
+
+
+def tag_leading(path, size):
+    """Read the size metric only while the production tag builder applies it."""
+    try:
+        source = mask_literals(strip_cfg_test(io.open(path, encoding='utf-8').read()))
+    except OSError:
+        return None
+    renders = list(rust_blocks_after(source, 'impl RenderOnce for TagGroup'))
+    metrics = list(rust_blocks_after(source, 'fn metrics('))
+    if len(renders) != 1 or len(metrics) != 1:
+        return None
+    binding = r'let\s+\(pad_x,\s*pad_y,\s*text_size,\s*leading\)\s*=\s*Self::metrics\(self.size\)'
+    chip = re.search(r'let mut chip = div\(\)(.*?);', renders[0], re.S)
+    if not re.search(binding, renders[0]) or not chip or not re.search(r'\.line_height\(leading\)', chip.group(1)):
+        return None
+    value = re.search(r'Size::' + re.escape(size) + r'\s*=>\s*\(\s*(?:px\([0-9.]+\),\s*){3}px\(([0-9.]+)\)', metrics[0])
+    return float(value.group(1)) if value else None
 
 
 def avatar_fallback_text_from(source, large):
@@ -2702,6 +2951,12 @@ FILLS = [
      SRC + 'input_otp.rs', 'colors.field.background'),
     ('tabs', '.tabs__list-container', 'bg-default',
      SRC + 'tabs.rs', 'colors.default.color'),
+    # The one fill v3 dilutes. A skeleton is meant to read as a tint of
+    # whatever it sits on, so the `/70` is part of the token rather than a
+    # detail: painted solid it came out the full tertiary fill, three points
+    # darker than v3 on the light page.
+    ('skeleton', '.skeleton', 'bg-surface-tertiary/70',
+     SRC + 'skeleton.rs', 'colors.surface_tertiary.alpha(0.7)'),
     # Every floating panel is `bg-overlay`, which is a distinct token from
     # `--surface` -- a panel painted with the surface colour is the right shade
     # in light mode and the wrong one in dark.
@@ -3423,6 +3678,34 @@ def self_test():
         expect(avatar_fallback_text_from(fixture, False) is None,
                '%s Avatar assignment must stay unreadable' % name)
 
+    for owner, binding in [('ColorField', 'root'), ('DateField', 'el'), ('TimeField', 'root')]:
+        def field_fixture(chain, target=owner):
+            return ('impl RenderOnce for ' + target + ' { fn render() { '
+                    'let mut ' + binding + ' = div()' + chain + '; } }')
+
+        inline = '.flex().flex_col().gap(px(4.))'
+        multiline = '.flex()\n .flex_col()\n .gap(px(4.))\n .when(self.full_width, |root| root.w_full())'
+        for chain in [inline, multiline]:
+            expect(field_wrapper_gap_from(field_fixture(chain), owner, binding) == 4.,
+                   owner + ' wrapper gap must survive rustfmt line breaks')
+        expect(field_wrapper_gap_from(field_fixture(inline.replace('4.', '8.')), owner, binding) == 8.,
+               owner + ' incorrect wrapper gap must remain a mismatch')
+        for chain, expected in [
+                (inline + '.gap_y(px(8.))', 8.),
+                (inline + '.gap_y(px(8.)).gap(px(4.))', 4.),
+                (inline + '.gap_x(px(8.))', 4.)]:
+            expect(field_wrapper_gap_from(field_fixture(chain), owner, binding) == expected,
+                   owner + ' vertical gap must honor the last applicable setter')
+        for fixture in [
+                field_fixture('.flex().child(div().gap(px(4.)))'),
+                field_fixture('.flex() /* .gap(px(4.)) */'),
+                field_fixture('.flex(); let other = div().gap(px(4.))'),
+                field_fixture(inline, 'OtherField'),
+                '#[cfg(test)] mod tests { ' + field_fixture(inline) + ' }',
+                'let docs = r#"' + field_fixture(inline) + '"#;']:
+            expect(field_wrapper_gap_from(fixture, owner, binding) is None,
+                   owner + ' must reject missing, nested, commented, or foreign gaps')
+
     if failures:
         for failure in failures:
             print('! self-test: ' + failure)
@@ -3432,7 +3715,8 @@ def self_test():
           'padding reads from its owning builder chain and stays unreadable '
           'when the call is missing, commented, nested, or in another chain; '
           'Avatar fallback text reads the production let font assignment and '
-          'ignores cfg(test), comments, parent, and nested matches')
+          'ignores cfg(test), comments, parent, and nested matches; field wrapper '
+          'gaps follow their owning render, binding, and vertical-gap overrides')
     return 0
 
 
@@ -3445,7 +3729,7 @@ def main():
     if '--coverage' in sys.argv:
         coverage()
         return
-    if not os.path.isdir(CACHE):
+    if not unpack():
         print('no cache: run `python .shots/design_audit.py --fetch` first')
         sys.exit(2)
 

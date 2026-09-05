@@ -1576,9 +1576,9 @@ fn toggle_button_group_reverse_tab_restores_last_focused_member(cx: &mut TestApp
                 if event.keystroke.key == "tab" {
                     cx.stop_propagation();
                     if event.keystroke.modifiers.shift {
-                        window.focus_prev();
+                        window.focus_prev(cx);
                     } else {
-                        window.focus_next();
+                        window.focus_next(cx);
                     }
                 }
             })
@@ -1625,9 +1625,9 @@ fn toggle_button_group_reentry_skips_a_now_disabled_last_member(cx: &mut TestApp
                 if event.keystroke.key == "tab" {
                     cx.stop_propagation();
                     if event.keystroke.modifiers.shift {
-                        window.focus_prev();
+                        window.focus_prev(cx);
                     } else {
-                        window.focus_next();
+                        window.focus_next(cx);
                     }
                 }
             })
@@ -1807,4 +1807,53 @@ fn toggle_button_group_size_propagates_unless_child_overrides(cx: &mut TestAppCo
         ["bold"],
         "the group must make an unspecified child large while an explicit small child stays small"
     );
+}
+
+#[gpui::test]
+fn choice_content_keeps_twenty_pixel_lines(cx: &mut TestAppContext) {
+    for kind in 0..5 {
+        for leading in [None, Some(48.)] {
+            let cx = open_host(cx, move || {
+                let control = match kind {
+                    0 => herogpui_components::Checkbox::new("leading-checkbox")
+                        .label("First\nSecond")
+                        .into_any_element(),
+                    1 => RadioGroup::new("leading-radio", vec![RadioOption::new("First\nSecond")])
+                        .into_any_element(),
+                    2 => Switch::new("leading-switch")
+                        .content(|_| gpui::div().child("First\nSecond").into_any_element())
+                        .into_any_element(),
+                    3 => herogpui_components::CheckboxGroup::new(
+                        "leading-checkbox-group",
+                        vec![herogpui_components::CheckboxOption::new("option", "Label")
+                            .description("First\nSecond")],
+                    )
+                    .into_any_element(),
+                    _ => Switch::new("leading-switch-label")
+                        .label("First\nSecond")
+                        .into_any_element(),
+                };
+                gpui::div()
+                    .when_some(leading, |el, leading| el.line_height(px(leading)))
+                    .child(
+                        gpui::div()
+                            .debug_selector(|| "choice-leading".into())
+                            .child(control),
+                    )
+                    .into_any_element()
+            });
+            assert_eq!(
+                cx.debug_bounds("choice-leading")
+                    .expect("choice content paints")
+                    .size
+                    .height,
+                px(match kind {
+                    3 => 56.,
+                    4 => 48.,
+                    _ => 40.,
+                }),
+                "pinned label/description lines; kind={kind}, host={leading:?}"
+            );
+        }
+    }
 }

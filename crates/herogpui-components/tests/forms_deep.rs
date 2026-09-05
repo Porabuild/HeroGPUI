@@ -3633,6 +3633,19 @@ fn submit_select(data: &FormData, name: &str) -> String {
         .map_or_else(|| "omitted".to_owned(), |value| value.as_text().to_string())
 }
 
+/// Advances the test clock past `anim::EXITING_MS` (100ms) plus slack and
+/// forces the repaint the exit timer only scheduled. A submit/reset click must
+/// not land on the exiting, still-mounted Select panel: it occludes the Form
+/// buttons until the exit finishes (`panel.occlude` keeps hit-testing it).
+fn let_select_exit_finish(cx: &mut gpui::VisualTestContext) {
+    cx.executor()
+        .advance_clock(std::time::Duration::from_millis(
+            herogpui_components::anim::EXITING_MS + 200,
+        ));
+    cx.update(|window, _| window.refresh());
+    cx.run_until_parked();
+}
+
 #[gpui::test]
 fn select_form_field_reads_changed_uncontrolled_value(cx: &mut TestAppContext) {
     let submitted = events();
@@ -3659,9 +3672,11 @@ fn select_form_field_reads_changed_uncontrolled_value(cx: &mut TestAppContext) {
 
     // Trigger centre (60, 18). Gamma is row 2 of the open list:
     // y = 66 + 2*36 = 138. After the pick the panel closes, so the Form's
-    // 16px gap puts the md submit button at y 52..88.
+    // 16px gap puts the md submit button at y 52..88. The closing panel still
+    // occludes that button until its exit finishes, so let it finish first.
     click(cx, 60., 18.);
     click(cx, 60., 138.);
+    let_select_exit_finish(cx);
     click(cx, 60., 70.);
 
     assert_eq!(
@@ -3795,6 +3810,7 @@ fn select_reset_restores_the_uncontrolled_default(cx: &mut TestAppContext) {
     click(cx, 60., 18.);
     press(cx, "end");
     press(cx, "enter");
+    let_select_exit_finish(cx);
     click(cx, 60., 70.);
     click(cx, 60., 122.);
     click(cx, 60., 70.);
@@ -3848,6 +3864,7 @@ fn controlled_select_form_reads_parent_value_only_after_acceptance(cx: &mut Test
 
     click(cx, 60., 18.);
     click(cx, 60., 102.);
+    let_select_exit_finish(cx);
     click(cx, 60., 70.);
     assert_eq!(changes.borrow().as_slice(), ["Some(1)"]);
     assert_eq!(
@@ -3859,6 +3876,7 @@ fn controlled_select_form_reads_parent_value_only_after_acceptance(cx: &mut Test
     accept.set(true);
     click(cx, 60., 18.);
     click(cx, 60., 102.);
+    let_select_exit_finish(cx);
     click(cx, 60., 70.);
     assert_eq!(changes.borrow().as_slice(), ["Some(1)", "Some(1)"]);
     assert_eq!(
@@ -4041,10 +4059,12 @@ fn multiple_select_form_data_tracks_live_selected_values(cx: &mut TestAppContext
     });
 
     // Multiple picks do not close the list; close it via the trigger before
-    // the submit button at y=70 can be reached.
+    // the submit button at y=70 can be reached. The closing panel still
+    // occludes that button until its exit finishes, so let it finish first.
     click(cx, 60., 18.);
     click(cx, 60., 102.);
     click(cx, 60., 18.);
+    let_select_exit_finish(cx);
     click(cx, 60., 70.);
 
     assert_eq!(
@@ -4092,9 +4112,12 @@ fn uncontrolled_multiple_select_form_resets_to_its_default_values(cx: &mut TestA
     });
 
     // Add Beta to the default Alpha/Gamma set, close the list, and submit.
+    // The closing panel still occludes the submit button until its exit
+    // finishes, so let it finish first.
     click(cx, 60., 18.);
     click(cx, 60., 102.);
     click(cx, 60., 18.);
+    let_select_exit_finish(cx);
     click(cx, 60., 70.);
 
     // Reset restores the initial array held by the uncontrolled Select.
@@ -4147,6 +4170,7 @@ fn controlled_multiple_select_form_waits_for_owner_acceptance(cx: &mut TestAppCo
     click(cx, 60., 18.);
     click(cx, 60., 102.);
     click(cx, 60., 18.);
+    let_select_exit_finish(cx);
     click(cx, 60., 70.);
     assert_eq!(
         submitted.borrow().as_slice(),
@@ -4243,6 +4267,7 @@ fn controlled_multiple_select_reset_reports_the_default_to_its_owner(cx: &mut Te
     click(cx, 60., 18.);
     click(cx, 60., 102.);
     click(cx, 60., 18.);
+    let_select_exit_finish(cx);
     click(cx, 60., 122.);
     click(cx, 60., 70.);
 

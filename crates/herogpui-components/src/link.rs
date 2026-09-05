@@ -240,15 +240,11 @@ impl RenderOnce for Link {
             el = el
                 .cursor_pointer()
                 .hover(move |mut s: StyleRefinement| {
-                    s.text_style()
-                        .get_or_insert_with(Default::default)
-                        .underline = Some(underline(hover_decoration));
+                    s.text_style().underline = Some(underline(hover_decoration));
                     s
                 })
                 .active(move |mut s: StyleRefinement| {
-                    s.text_style()
-                        .get_or_insert_with(Default::default)
-                        .underline = Some(underline(pressed_decoration));
+                    s.text_style().underline = Some(underline(pressed_decoration));
                     s
                 });
         }

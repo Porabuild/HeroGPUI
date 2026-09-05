@@ -415,7 +415,9 @@ Enter inserts a newline here, and a long paragraph wraps inside the field instea
             demo_range: HashMap::new(),
             demo_flags: HashMap::new(),
             overlays_open: std::env::var("HEROGPUI_OPEN_OVERLAYS").is_ok(),
-            toast_placement: h::ToastPlacement::BottomEnd,
+            // v3's `ToastProvider` defaults `placement` to `"bottom"`, so the
+            // shell starts there and the Toast page's Placements demo moves it.
+            toast_placement: h::ToastPlacement::default(),
             demo_values: HashMap::new(),
             demo_strings: HashMap::new(),
             demo_selections: HashMap::new(),
@@ -426,6 +428,21 @@ Enter inserts a newline here, and a long paragraph wraps inside the field instea
 impl Render for Gallery {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<'_, Self>) -> impl IntoElement {
         let colors = cx.colors().clone();
+
+        if crate::control::preview_only(cx) {
+            return h::util::app_focus_root(gpui::div(), _window, cx)
+                .size_full()
+                .flex()
+                .items_center()
+                .justify_center()
+                .p(px(32.))
+                .bg(colors.background)
+                .text_color(colors.foreground)
+                .font_family(FONT_FAMILY)
+                .text_size(px(14.))
+                .line_height(px(20.))
+                .child(self.render_current_page(cx));
+        }
 
         // ---- top navbar ----------------------------------------------------
         let is_dark = cx.is_dark_theme();
@@ -449,7 +466,7 @@ impl Render for Gallery {
 
         // v3 exposes reduced motion as an app-level switch that every animated
         // component honours without opt-in.
-        let reduce_motion = cx.reduce_motion();
+        let reduce_motion = ActiveTheme::reduce_motion(&**cx);
         let motion_button = h::Button::new("motion-toggle")
             .variant(if reduce_motion {
                 h::Variant::Secondary
@@ -596,6 +613,7 @@ impl Render for Gallery {
             .w(px(232.))
             .flex_shrink_0()
             .overflow_y_scroll()
+            .restrict_scroll_to_axis()
             .border_r_1()
             .border_color(colors.separator)
             .px(px(16.))
@@ -670,6 +688,7 @@ impl Render for Gallery {
             .id("content")
             .flex_1()
             .overflow_y_scroll()
+            .restrict_scroll_to_axis()
             .px(px(36.))
             .py(px(28.))
             .min_w_0()

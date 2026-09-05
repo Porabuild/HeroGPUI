@@ -131,31 +131,15 @@ Run through these on the production URL:
   trailing slash).
 - `porabuild.com/herogpui/llms.txt` serves `text/plain` — the repo's
   llms.txt, prerendered at build time.
-- A component page (`/herogpui/docs/components/button`) shows its GPUI
-  screenshot; the `<img src>` resolves under `/herogpui/shots/…`.
+- A component page (`/herogpui/docs/components/button`) lazily mounts one live
+  GPUI/WASM canvas. Switching the example dropdown updates that same canvas,
+  description and Rust code without creating another iframe.
 - Navigate Docs → Components → a component page: internal navigation stays
   inside the `/herogpui` prefix (it is one zone, so these are soft
   navigations).
 - View source: canonical/Open Graph URLs begin with
   `https://porabuild.com/herogpui` (that is `NEXT_PUBLIC_SITE_URL` doing
   its job via `metadataBase`).
-
-### Known issue found while verifying the base path
-
-The component pages' native screenshots use `next/image`
-(`src/components/preview/native-shot.tsx`), and under a basePath the
-optimizer URLs it emits do not resolve: `<Image src="/shots/x.png">`
-renders `src="/herogpui/_next/image?url=%2Fshots%2Fx.png&…"` — endpoint
-prefixed, `url` parameter not — and Next 16.3.3's optimizer rejects that
-with 400 `The requested resource isn't a valid image`. The identical
-endpoint answers 200 when the parameter is prefixed
-(`url=%2Fherogpui%2Fshots%2Fx.png`). Verified against a production build
-served by `next start`; whether Vercel's edge optimizer behaves the same
-cannot be confirmed before the first deployment, so check the component
-pages in the list above. The likely fix, for the file's owner to apply, is
-the same `publicUrl()` wrapper the plain `<img>` sites already use — pass
-`publicUrl(component.shot)` to `<Image>` (and keep passing the raw path to
-`pngSize()`) — which works identically when the base path is empty.
 
 ## 6. The live WebAssembly gallery
 
@@ -168,26 +152,49 @@ they live in `public/gallery/` and are served by the same deployment:
 |---|---|
 | `index.html` | the hosting page (loading spinner, error UI, boot script; canonical source: `crates/herogpui-web/index.html` in the wasm worktree) |
 | `herogpui_web.js` | `wasm-bindgen` glue |
-| `herogpui_web_bg.wasm` | the application, ~26 MB raw / ~7 MB gzipped |
+| `herogpui_web_bg.wasm` | the application, ~15.7 MiB raw / ~5.0 MiB gzipped |
+
+Keep this as one browser-cached module. A measured Button-only link was
+12,211,369 bytes raw / 4,106,509 bytes gzipped versus the shared artifact's
+16,501,641 bytes raw / 5,209,520 bytes gzipped: about 21% less transfer for one
+page, but repeating the GPUI runtime across 66 checked-in artifacts would
+multiply repository/deployment storage and make navigation download it again.
+The component page instead defers this shared download until its preview nears
+the viewport and keeps one instance alive while examples switch.
 
 `next.config.ts` maps `/gallery` onto `/gallery/index.html` (public/ has no
-directory-index resolution), so `NEXT_PUBLIC_GALLERY_URL=/gallery` is the
-intended value. It is a build-time variable: setting or changing it takes
-effect on the next deployment. It is unset by default — without the artifact
-at that path, previews render nothing and pages fall back to the native
-screenshot, which is the honest state.
+directory-index resolution), so `/gallery` is the default. The checked-in
+artifact therefore renders without environment configuration.
+`NEXT_PUBLIC_GALLERY_URL` is an optional build-time override for hosting the
+artifact at another path or origin; changing it takes effect on the next
+deployment.
 
 The three files are **tracked in git** (alongside `public/shots/`): remote
 builds run `next build` alone — no Rust toolchain, no capture rig — so the
-artifact and the screenshots must ship in the tree. The 26 MB binary only
+artifact and the screenshots must ship in the tree. The wasm binary only
 changes when the wasm build is regenerated; rebuilding it means running
 the commands below and committing the result.
 
-Because the artifact lives under the same origin, the embedded gallery
+Because the artifact lives under the same origin, the embedded component
 follows the site's live light/dark toggle (`GalleryFrame` also passes
-`?theme=` at boot for the first paint). Deep links ride the query string:
-`/gallery/?story=button&theme=dark` opens the Button page in dark — the
-same slug the component URLs use, resolved by the wasm itself.
+`?theme=` at boot for the first paint). Component previews use
+`?story=button&preview=component&section=Usage&theme=dark`: `story` selects the
+component and `section` selects its one example. Preview mode omits the gallery
+shell and does not construct unrelated examples. The shared wasm binary is
+still downloaded once, lazily when the preview nears the viewport, and then
+cached across component-page navigation. The host then switches examples over
+the `herogpui:preview-section` message bridge, so one page keeps one wasm
+application alive rather than creating an iframe per example.
+
+Known issue fixed: the embed used to point at the bare `/gallery/?story=…`
+form. Production answers that with `308 → /gallery?story=…` (Next strips the
+trailing slash), and the gallery page then imported `./herogpui_web.js`
+relative to `/gallery`, which resolved to `/herogpui_web.js` and 404'd — the
+preview spinner spun forever. The iframe now targets the real file path
+`/gallery/index.html?story=…`, and `index.html` resolves its module through
+an `assetUrl()` helper (strip a trailing `index.html`, ensure a trailing
+slash, then resolve) so both URL forms boot. The `/gallery` rewrite in
+`next.config.ts` is kept for direct deep links.
 
 ### Rebuilding the artifact (Rust side)
 
@@ -196,16 +203,25 @@ From the wasm worktree `D:\herogpui-wasm` (full log: its
 
 ```powershell
 $env:CARGO_TARGET_DIR='D:/herogpui-wasm-target'; $env:CARGO_HOME='D:/cargo-home'
-cargo build --target wasm32-unknown-unknown --release -p herogpui-web
+node <this repo>\web\scripts\lift-wasm-descriptions.mjs `
+  D:\herogpui-wasm\gallery\src\pages\components.rs
+cargo build --target wasm32-unknown-unknown --profile wasm-release -p herogpui-web
 D:\cargo-home\bin\wasm-bindgen.exe `
-  D:\herogpui-wasm-target\wasm32-unknown-unknown\release\herogpui_web.wasm `
+  D:\herogpui-wasm-target\wasm32-unknown-unknown\wasm-release\herogpui_web.wasm `
   --out-dir <this repo>\web\public\gallery --target web --no-typescript
+node <this repo>\web\scripts\extract-wasm-sections.mjs `
+  --source D:\herogpui-wasm\gallery\src\pages\components.rs
 ```
 
 Copy `index.html` from `crates/herogpui-web/` alongside (the bindgen output
 only produces the two `herogpui_web.*` files). The `wasm-bindgen` CLI
 version must match the `wasm-bindgen` crate in `Cargo.lock` exactly
 (0.2.127 when written) — a mismatched CLI refuses the binary.
+The extraction command writes both `wasm-sections.json` and
+`wasm-parity.json`. It fails if descriptions diverge or a new code-drift key
+appears; `--accept-drift` is reserved for a reviewed GPUI-version adaptation.
+The description lift is idempotent and keeps explanatory copy outside the
+component canvas while retaining it in the full native-style gallery page.
 
 Two load-bearing details on the Rust side, both verified empirically:
 
@@ -232,7 +248,7 @@ Two load-bearing details on the Rust side, both verified empirically:
    open a component page, and let the preview scroll into view: the
    "HeroGPUI / WebAssembly" frame boots the gallery.
 2. Toggle the site theme: the embedded gallery follows live.
-3. `http://localhost:3000/gallery/?story=<slug>` directly: the gallery
+3. `http://localhost:3000/gallery/index.html?story=<slug>` directly: the gallery
    fills the tab, deep-linked to that component.
 
 ## Current status

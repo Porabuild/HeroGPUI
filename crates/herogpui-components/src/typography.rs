@@ -18,7 +18,7 @@ use gpui::{
 };
 use herogpui_theme::ActiveTheme;
 
-const MONO_FONT: &str = "Consolas";
+use crate::util::MONO_FONT;
 
 /// Semantic typography style (`type` prop).
 ///

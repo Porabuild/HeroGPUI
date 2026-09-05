@@ -1137,6 +1137,53 @@ fn spinner_renders_every_documented_size_and_color(cx: &mut TestAppContext) {
     });
 }
 
+#[gpui::test]
+fn spinner_stops_scheduling_frames_when_motion_is_disabled(cx: &mut TestAppContext) {
+    still();
+    let cx = open_host(cx, || Spinner::new("motion-spinner").into_any_element());
+    assert_eq!(cx.update(|window, cx| window.simulate_next_frame(cx)), 0);
+    cx.update(|_, cx| herogpui_theme::set_reduce_motion(false, cx));
+    flush_frame(cx);
+    assert!(cx.update(|window, cx| window.simulate_next_frame(cx)) > 0);
+    cx.update(|_, cx| herogpui_theme::set_reduce_motion(true, cx));
+    flush_frame(cx);
+    // A previously queued frame may still run once after the preference changes.
+    cx.update(|window, cx| window.simulate_next_frame(cx));
+    assert_eq!(cx.update(|window, cx| window.simulate_next_frame(cx)), 0);
+}
+
+#[gpui::test]
+fn spinner_keeps_its_diameter_when_a_flex_parent_is_smaller(cx: &mut TestAppContext) {
+    for vertical in [false, true] {
+        let measured = Rc::new(RefCell::new(None));
+        let captured = measured.clone();
+        open_host(cx, move || {
+            let captured = captured.clone();
+            gpui::div()
+                .flex()
+                .when(vertical, |row| row.flex_col())
+                .size(px(8.))
+                .child(Spinner::new("constrained-spinner"))
+                .child(
+                    canvas(
+                        move |bounds, _, _| *captured.borrow_mut() = Some(bounds),
+                        |_, _, _, _| {},
+                    )
+                    .size(px(1.))
+                    .flex_shrink_0(),
+                )
+                .into_any_element()
+        });
+        let bounds = measured.borrow().expect("following marker must render");
+        let offset = if vertical {
+            bounds.origin.y
+        } else {
+            bounds.origin.x
+        };
+        assert_eq!(offset, px(24.), "Spinner must keep its 24px diameter");
+    }
+}
+
 /// Skeleton's v3 table is `animationType` plus `className` — no callback and
 /// no state, so the only behavioural claim is renderability: the default
 /// (deferred to the `--skeleton-animation` token), `none`, `pulse` and
@@ -1480,4 +1527,45 @@ fn avatar_renders_every_variant_with_and_without_src(cx: &mut TestAppContext) {
             .child(small_src)
             .into_any_element()
     });
+}
+
+#[gpui::test]
+fn progress_and_meter_text_keep_twenty_pixel_lines(cx: &mut TestAppContext) {
+    for leading in [None, Some(48.)] {
+        for meter in [false, true] {
+            for label_only in [false, true] {
+                let cx = open_host(cx, move || {
+                    let content = if meter {
+                        Meter::new("leading-meter", 50.)
+                            .label(if label_only { "First\nSecond" } else { "Label" })
+                            .show_value(!label_only)
+                            .value_content(|_, _| {
+                                gpui::div().child("50\npercent").into_any_element()
+                            })
+                            .into_any_element()
+                    } else {
+                        ProgressBar::new("leading-progress")
+                            .value(50.)
+                            .label(if label_only { "First\nSecond" } else { "Label" })
+                            .show_value_label(!label_only)
+                            .value_content(|_, _, _| {
+                                gpui::div().child("50\npercent").into_any_element()
+                            })
+                            .into_any_element()
+                    };
+                    gpui::div()
+                        .w(px(300.))
+                        .when_some(leading, |el, leading| el.line_height(px(leading)))
+                        .child(
+                            gpui::div()
+                                .debug_selector(|| "leading-bar".into())
+                                .child(content),
+                        )
+                        .into_any_element()
+                });
+                let bounds = cx.debug_bounds("leading-bar").expect("bar must paint");
+                assert_eq!(bounds.size.height, px(52.), "two 20px lines, 4px gap and 8px track; meter={meter}, label_only={label_only}, host={leading:?}");
+            }
+        }
+    }
 }

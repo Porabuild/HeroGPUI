@@ -10,8 +10,9 @@ export const metadata: Metadata = {
 };
 
 const CARGO_TOML = `[dependencies]
-gpui = "0.2"
-herogpui = "0.1"`;
+gpui = { git = "https://github.com/zed-industries/zed", rev = "ee3b5558c581429633937e458fad8d109f29e9ee" }
+gpui_platform = { git = "https://github.com/zed-industries/zed", rev = "ee3b5558c581429633937e458fad8d109f29e9ee", features = ["font-kit", "wayland", "x11", "runtime_shaders"] }
+herogpui = { path = "../HeroGPUI/crates/herogpui" }`;
 
 const MAIN_RS = `use gpui::*;
 use herogpui::prelude::*;
@@ -29,7 +30,7 @@ impl Render for MyRoot {
 }
 
 fn main() {
-    Application::new().with_assets(HeroGpuiAssets).run(|cx: &mut App| {
+    gpui_platform::application().with_assets(HeroGpuiAssets).run(|cx: &mut App| {
         ThemeProvider::init(cx); // light + dark
         // or ThemeProvider::init_with(Theme::dark(), cx);
         let bounds = Bounds::centered(None, size(px(1280.), px(820.)), cx);
@@ -59,7 +60,7 @@ export default function InstallationPage() {
           A Rust toolchain that supports <strong>Rust 1.98</strong>.
         </li>
         <li>
-          <strong>GPUI 0.2.2</strong>.
+          <strong>GPUI from the pinned Zed revision below</strong>.
         </li>
         <li>
           Platform tooling: Xcode on macOS; Wayland/X11 dev packages on Linux; nothing extra on
@@ -69,7 +70,8 @@ export default function InstallationPage() {
 
       <h2 id="add-the-dependency">Add the dependency</h2>
       <p>
-        Add <code>herogpui</code> and its GPUI dependency to <code>Cargo.toml</code>:
+        Clone this repository and add the source dependency with the matching GPUI revision to{" "}
+        <code>Cargo.toml</code>:
       </p>
       <div className="mt-4">
         <CodeBlock code={CARGO_TOML} lang="toml" filename="Cargo.toml" />
@@ -91,8 +93,8 @@ export default function InstallationPage() {
         </strong>{" "}
         embeds the <code>herogpui/icons/*.svg</code> files used by built-in component chrome —
         checkmarks, chevrons, the clear button. Register it with{" "}
-        <code>Application::new().with_assets(HeroGpuiAssets)</code>. Apps that bring their own
-        assets use <code>HeroGpuiAssets::with_fallback(MyAppAssets)</code> so both are served.
+        <code>gpui_platform::application().with_assets(HeroGpuiAssets)</code>. Apps that bring their
+        own assets use <code>HeroGpuiAssets::with_fallback(MyAppAssets)</code> so both are served.
       </p>
       <p>
         <strong>
@@ -134,8 +136,8 @@ export default function InstallationPage() {
         <CodeBlock code={GALLERY_ENV} lang="bash" />
       </div>
       <Callout kind="tip" title="Installed launcher">
-        Install the gallery as a CLI with <code>cargo install herogpui-gallery</code> when you want
-        to run the documentation app outside the workspace.
+        Install the gallery as a CLI with <code>cargo install --path gallery --locked</code> when
+        you want to run the documentation app outside the workspace.
       </Callout>
     </>
   );

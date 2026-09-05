@@ -139,8 +139,20 @@ export default function IntroductionPage() {
           register the assets and theme provider, render your first component.
         </li>
         <li>
+          <Link href="/docs/getting-started/state">State</Link> — controlled and uncontrolled
+          components, and which ones hand you a state entity to own.
+        </li>
+        <li>
           <Link href="/docs/getting-started/theming">Theming</Link> — the OKLCH semantic token
           system shared by every component.
+        </li>
+        <li>
+          <Link href="/docs/getting-started/composition">Composition</Link> — ordered children,
+          composed parts, and the render props v3 inverts.
+        </li>
+        <li>
+          <Link href="/docs/getting-started/animation">Animation</Link> — v3's per-overlay curves,
+          reduced motion, and what GPUI's missing transforms cost.
         </li>
         <li>
           <Link href="/docs/components">Components</Link> — browse the catalog, grouped by 15

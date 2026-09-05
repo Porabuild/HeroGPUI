@@ -13,6 +13,7 @@ use std::{
     cell::{Cell, RefCell},
     collections::HashMap,
     rc::Rc,
+    sync::OnceLock,
 };
 
 use crate::{
@@ -141,6 +142,9 @@ pub struct DatePickerRenderState {
 /// HeroUI DatePicker (controlled open state; selection lives in the entity).
 #[derive(IntoElement)]
 pub struct DatePicker {
+    /// The locale whose calendar system the popover's grid is drawn in, when
+    /// the caller names one. Forwarded to the embedded [`Calendar`].
+    locale: Option<SharedString>,
     /// v3's children-as-a-function root composition.
     content: Option<std::sync::Arc<dyn Fn(DatePickerRenderState) -> gpui::AnyElement + 'static>>,
     /// `name` — read back by [`DatePicker::form_field`].
@@ -174,6 +178,15 @@ pub struct DatePicker {
 }
 
 impl DatePicker {
+    /// The locale whose calendar system the popover's grid is drawn in.
+    ///
+    /// Forwarded to the embedded calendar; see [`crate::Calendar::locale`] for
+    /// why this is a builder rather than v3's `I18nProvider`.
+    pub fn locale(mut self, tag: impl Into<SharedString>) -> Self {
+        self.locale = Some(tag.into());
+        self
+    }
+
     /// `value` — writes the selection through to the bound state.
     pub fn value(self, date: Option<Date>, cx: &mut App) -> Self {
         self.state.update(cx, |s, _| {
@@ -322,6 +335,7 @@ impl DatePicker {
             });
         form_state.borrow_mut().restore = Some(restore);
         Self {
+            locale: None,
             content: None,
             name: None,
             default_value: None,
@@ -689,7 +703,7 @@ impl RenderOnce for DatePicker {
                 .track_focus(&trigger_focus)
                 .cursor_pointer()
                 .on_mouse_down(gpui::MouseButton::Left, move |_, window, cx| {
-                    window.focus(&focus_on_press);
+                    window.focus(&focus_on_press, cx);
                     cx.stop_propagation();
                 })
                 .on_click(move |_, window, cx| {
@@ -808,14 +822,15 @@ impl RenderOnce for DatePicker {
                     cb(false, window, cx);
                 }
                 if *restore_part.read(cx) == 1 {
-                    window.focus(&restore_trigger);
+                    window.focus(&restore_trigger, cx);
                 } else {
-                    window.focus(&restore_field);
+                    window.focus(&restore_field, cx);
                 }
             });
 
             let mut cal = Calendar::new(self.state.clone())
                 .constraints(self.constraints.clone())
+                .when_some(self.locale.clone(), |cal, tag| cal.locale(tag))
                 .is_disabled(self.is_disabled)
                 .is_read_only(self.is_read_only)
                 // React Aria moves the focus into the calendar as the popover
@@ -1012,6 +1027,9 @@ pub struct DateRangePickerRenderState {
 /// HeroUI DateRangePicker.
 #[derive(IntoElement)]
 pub struct DateRangePicker {
+    /// The locale whose calendar system the popover's grid is drawn in, when
+    /// the caller names one. Forwarded to the embedded [`RangeCalendar`].
+    locale: Option<SharedString>,
     content:
         Option<std::sync::Arc<dyn Fn(DateRangePickerRenderState) -> gpui::AnyElement + 'static>>,
     /// `startName` / `endName` — read back by
@@ -1051,6 +1069,15 @@ pub struct DateRangePicker {
 }
 
 impl DateRangePicker {
+    /// The locale whose calendar system the popover's grid is drawn in.
+    ///
+    /// Forwarded to the embedded calendar; see [`crate::Calendar::locale`] for
+    /// why this is a builder rather than v3's `I18nProvider`.
+    pub fn locale(mut self, tag: impl Into<SharedString>) -> Self {
+        self.locale = Some(tag.into());
+        self
+    }
+
     pub fn new(state: Entity<DateRangeState>) -> Self {
         let entity_id = state.entity_id().as_u64();
         let start_form_state = date_range_picker_form_state(entity_id, false);
@@ -1127,6 +1154,7 @@ impl DateRangePicker {
             });
         start_form_state.borrow_mut().restore = Some(restore.clone());
         Self {
+            locale: None,
             content: None,
             start_name: None,
             end_name: None,
@@ -1879,7 +1907,7 @@ impl RenderOnce for DateRangePicker {
                 .track_focus(&trigger_focus)
                 .cursor_pointer()
                 .on_mouse_down(gpui::MouseButton::Left, move |_, window, cx| {
-                    window.focus(&focus_on_press);
+                    window.focus(&focus_on_press, cx);
                     cx.stop_propagation();
                 })
                 .on_click(move |_, window, cx| {
@@ -1951,9 +1979,9 @@ impl RenderOnce for DateRangePicker {
                     cb(false, window, cx);
                 }
                 match *restore_part.read(cx) {
-                    1 => window.focus(&restore_end),
-                    2 => window.focus(&restore_trigger),
-                    _ => window.focus(&restore_start),
+                    1 => window.focus(&restore_end, cx),
+                    2 => window.focus(&restore_trigger, cx),
+                    _ => window.focus(&restore_start, cx),
                 }
             });
 
@@ -1973,6 +2001,7 @@ impl RenderOnce for DateRangePicker {
             let range_state = self.state.clone();
             let mut calendar = crate::range_calendar::RangeCalendar::new(self.state.clone())
                 .constraints(self.constraints.clone())
+                .when_some(self.locale.clone(), |cal, tag| cal.locale(tag))
                 .autofocus_grid(panel_open)
                 .is_read_only(self.is_read_only)
                 .is_invalid(start_invalid || end_invalid);
@@ -2060,7 +2089,7 @@ impl RenderOnce for DateRangePicker {
 // DateField (segmented)
 // ---------------------------------------------------------------------------
 
-/// One editable part of a [`DateField`], in en-US reading order.
+/// One editable part of a [`DateField`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum DateSegment {
     Month,
@@ -2069,7 +2098,7 @@ pub enum DateSegment {
 }
 
 impl DateSegment {
-    /// The segments a date field shows, in the order it shows them.
+    /// All date segments in canonical month/day/year order.
     pub const ALL: [DateSegment; 3] = [DateSegment::Month, DateSegment::Day, DateSegment::Year];
 
     pub fn label(self) -> &'static str {
@@ -2185,6 +2214,110 @@ impl DateSegment {
             ),
         }
     }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct RegionalDateFormat {
+    order: [DateSegment; 3],
+    literals: [String; 4],
+    month_has_leading_zero: bool,
+    day_has_leading_zero: bool,
+}
+
+impl RegionalDateFormat {
+    fn for_locale(locale: &str) -> Option<Self> {
+        use icu_datetime::{
+            fieldsets,
+            input::Date as IcuDate,
+            options::YearStyle,
+            provider::{
+                fields::{FieldLength, FieldSymbol},
+                pattern::{reference, runtime, PatternItem},
+            },
+            DateTimeFormatter,
+        };
+        use icu_locale_core::Locale as IcuLocale;
+
+        let locale = locale.parse::<IcuLocale>().ok()?;
+        let formatter = DateTimeFormatter::try_new(
+            locale.into(),
+            fieldsets::YMD::short().with_year_style(YearStyle::Full),
+        )
+        .ok()?;
+        let formatted = formatter.format(&IcuDate::try_new_iso(2000, 1, 1).ok()?);
+        let pattern: runtime::Pattern<'_> = formatted.pattern().into();
+        let mut order = Vec::with_capacity(3);
+        let mut literals = Vec::with_capacity(4);
+        let mut literal = String::new();
+        let mut month_has_leading_zero = None;
+        let mut day_has_leading_zero = None;
+        for item in reference::Pattern::from(&pattern).into_items() {
+            let field = match item {
+                PatternItem::Literal(ch) => {
+                    literal.push(ch);
+                    continue;
+                }
+                PatternItem::Field(field) => field,
+            };
+            let segment = match field.symbol {
+                FieldSymbol::Month(_) => {
+                    month_has_leading_zero = Some(field.length == FieldLength::Two);
+                    DateSegment::Month
+                }
+                FieldSymbol::Day(_) => {
+                    day_has_leading_zero = Some(field.length == FieldLength::Two);
+                    DateSegment::Day
+                }
+                FieldSymbol::Year(_) => DateSegment::Year,
+                _ => return None,
+            };
+            if order.contains(&segment) {
+                return None;
+            }
+            literals.push(std::mem::take(&mut literal));
+            order.push(segment);
+        }
+        literals.push(literal);
+        Some(Self {
+            order: order.try_into().ok()?,
+            literals: literals.try_into().ok()?,
+            month_has_leading_zero: month_has_leading_zero?,
+            day_has_leading_zero: day_has_leading_zero?,
+        })
+    }
+
+    fn for_preferences(locale: &locale_config::Locale) -> Option<Self> {
+        locale
+            .tags_for("time")
+            .find_map(|tag| Self::for_locale(tag.as_ref()))
+    }
+
+    fn date_hint(&self) -> String {
+        let mut hint = self.literals[0].clone();
+        for (index, segment) in self.order.iter().enumerate() {
+            hint.push_str(match segment {
+                DateSegment::Month => "MM",
+                DateSegment::Day => "DD",
+                DateSegment::Year => "YYYY",
+            });
+            hint.push_str(&self.literals[index + 1]);
+        }
+        hint
+    }
+}
+
+fn system_date_format() -> &'static RegionalDateFormat {
+    static SYSTEM_DATE_FORMAT: OnceLock<RegionalDateFormat> = OnceLock::new();
+    SYSTEM_DATE_FORMAT.get_or_init(|| {
+        RegionalDateFormat::for_preferences(&locale_config::Locale::user_default()).unwrap_or(
+            RegionalDateFormat {
+                order: DateSegment::ALL,
+                literals: [String::new(), "/".to_owned(), "/".to_owned(), String::new()],
+                month_has_leading_zero: false,
+                day_has_leading_zero: false,
+            },
+        )
+    })
 }
 
 fn cycle_value(value: i32, delta: i32, min: i32, max: i32) -> i32 {
@@ -2328,8 +2461,8 @@ impl DateFieldDisplay {
     }
 }
 
-type DateSegmentRender =
-    std::sync::Arc<dyn Fn(DateSegment, SharedString) -> gpui::AnyElement + 'static>;
+type FieldSegmentRender =
+    std::sync::Arc<dyn Fn(FieldSegment, SharedString) -> gpui::AnyElement + 'static>;
 
 /// State supplied to v3's DateField children render function.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -2357,9 +2490,9 @@ pub struct DateFieldRenderState {
 pub struct DateField {
     /// See [`DateField::content`].
     content: Option<std::sync::Arc<dyn Fn(DateFieldRenderState) -> gpui::AnyElement + 'static>>,
-    /// `segment` — v3's render prop for one editable segment,
+    /// `segment` — v3's render prop for one editable date or time segment,
     /// handed which segment it is and the text the field would show.
-    segment: Option<DateSegmentRender>,
+    segment: Option<FieldSegmentRender>,
     /// `validationBehavior` — written into the text state on render.
     validation_behavior: Option<crate::form::ValidationBehavior>,
     /// `defaultValue` — seeds the text state on the first render only.
@@ -2392,7 +2525,8 @@ pub struct DateField {
     name: Option<SharedString>,
     /// `autoFocus` — take focus on the first render.
     auto_focus: bool,
-    /// `shouldForceLeadingZeros` — pad the month and day to two digits.
+    /// `shouldForceLeadingZeros` — force month, day and hour to two digits
+    /// instead of using the system regional format.
     should_force_leading_zeros: bool,
     is_disabled: bool,
     is_read_only: bool,
@@ -2449,8 +2583,9 @@ impl DateField {
         self
     }
 
-    /// `shouldForceLeadingZeros` — whether the month and day are padded to two
-    /// digits. On by default, which is what the `MM/DD/YYYY` hint promises.
+    /// `shouldForceLeadingZeros` — force month, day and hour to two digits.
+    /// Without this flag those segments follow the system regional format;
+    /// minute and second segments are always two digits.
     pub fn should_force_leading_zeros(mut self, v: bool) -> Self {
         self.should_force_leading_zeros = v;
         self
@@ -2584,7 +2719,7 @@ impl DateField {
             content: None,
             segment: None,
             granularity: Granularity::Day,
-            hour_cycle: crate::time_field::HourCycle::H24,
+            hour_cycle: crate::time_field::HourCycle::default(),
             validation_behavior: None,
             default_value: None,
             full_width: false,
@@ -2602,8 +2737,7 @@ impl DateField {
             description: None,
             name: None,
             auto_focus: false,
-            // v3 defaults this on for the en-US order this port formats in.
-            should_force_leading_zeros: true,
+            should_force_leading_zeros: false,
             is_disabled: false,
             is_read_only: false,
             on_change: None,
@@ -2632,11 +2766,12 @@ impl DateField {
 
     /// `segment` — replaces the contents of each editable segment.
     ///
-    /// The closure receives which [`DateSegment`] it is drawing and the text the
-    /// field would have shown, the values v3 passes into the same render prop.
+    /// The closure receives which [`FieldSegment`] it is drawing and the text
+    /// the field would have shown, including time segments below day
+    /// granularity.
     pub fn segment(
         mut self,
-        render: impl Fn(DateSegment, SharedString) -> gpui::AnyElement + 'static,
+        render: impl Fn(FieldSegment, SharedString) -> gpui::AnyElement + 'static,
     ) -> Self {
         self.segment = Some(std::sync::Arc::new(render));
         self
@@ -2682,18 +2817,16 @@ fn parse_iso(text: &str) -> Option<Date> {
     Some(Date::new(y, m, d))
 }
 
-/// The format a field of this granularity accepts, which is the description v3
-/// shows when the caller supplies none of their own.
-fn format_hint(granularity: Granularity, twelve_hour: bool) -> String {
-    let mut hint = String::from("MM/DD/YYYY");
-    match granularity {
-        Granularity::Day => return hint,
-        Granularity::Hour => hint.push_str(", HH"),
-        Granularity::Minute => hint.push_str(", HH:MM"),
-        Granularity::Second => hint.push_str(", HH:MM:SS"),
-    }
-    if twelve_hour {
-        hint.push_str(" AM");
+/// The regional format a field of this granularity accepts, which is the
+/// description v3 shows when the caller supplies none of their own.
+fn format_hint(
+    regional_date: &RegionalDateFormat,
+    regional_time: Option<&crate::time_field::RegionalTimePattern>,
+) -> String {
+    let mut hint = regional_date.date_hint();
+    if let Some(regional_time) = regional_time {
+        hint.push_str(", ");
+        hint.push_str(&regional_time.hint());
     }
     hint
 }
@@ -2794,12 +2927,15 @@ impl RenderOnce for DateField {
             );
         }
 
+        let regional_date = system_date_format();
+
         // Which segment the arrows and typing act on. `use_keyed_state` takes
         // `cx` mutably, so this precedes the theme tokens.
+        let first_date_segment = regional_date.order[0];
         let focused_seg = window.use_keyed_state(
             gpui::ElementId::Name(format!("datefield-{entity_id}-seg").into()),
             cx,
-            |_, _| FieldSegment::Date(DateSegment::Month),
+            move |_, _| FieldSegment::Date(first_date_segment),
         );
         let mut focused = *focused_seg.read(cx);
         // Digits typed into the focused segment but not yet complete, so `1` in
@@ -2817,21 +2953,18 @@ impl RenderOnce for DateField {
         let (parsed, _) = parse_value(&text);
         let non_empty = !text.trim().is_empty();
 
-        // The slots this field shows: the three date parts, then the time parts
-        // `granularity` asks for. `TimeSegment::order` is the time field's own,
-        // so a minute field looks the same wherever it appears.
         let twelve_hour = self.hour_cycle == crate::time_field::HourCycle::H12;
-        let mut segments: Vec<FieldSegment> = DateSegment::ALL
+        let regional_time = self.granularity.time().map(|granularity| {
+            crate::time_field::regional_time_pattern(granularity, self.hour_cycle)
+        });
+        let mut segments: Vec<FieldSegment> = regional_date
+            .order
             .iter()
             .copied()
             .map(FieldSegment::Date)
             .collect();
-        if let Some(time_granularity) = self.granularity.time() {
-            segments.extend(
-                crate::time_field::TimeSegment::order(time_granularity, twelve_hour)
-                    .into_iter()
-                    .map(FieldSegment::Time),
-            );
+        if let Some(regional_time) = regional_time.as_ref() {
+            segments.extend(regional_time.order.iter().copied().map(FieldSegment::Time));
         }
         // A narrower granularity can leave the caret on a slot that is gone.
         if !segments.contains(&focused) {
@@ -2921,7 +3054,27 @@ impl RenderOnce for DateField {
             .into_any_element();
         }
 
-        let pad = self.should_force_leading_zeros;
+        let pad_month = self.should_force_leading_zeros || regional_date.month_has_leading_zero;
+        let pad_day = self.should_force_leading_zeros || regional_date.day_has_leading_zero;
+        let pad_hour = self.should_force_leading_zeros
+            || regional_time
+                .as_ref()
+                .is_some_and(|format| format.hour_has_leading_zero);
+        let pad_minute = regional_time
+            .as_ref()
+            .is_none_or(|format| format.minute_has_leading_zero);
+        let pad_second = regional_time
+            .as_ref()
+            .is_none_or(|format| format.second_has_leading_zero);
+        let zero_based_twelve_hour = regional_time
+            .as_ref()
+            .is_some_and(|format| format.hour_zero_based);
+        let am = regional_time
+            .as_ref()
+            .map_or_else(|| "AM".to_owned(), |format| format.am.clone());
+        let pm = regional_time
+            .as_ref()
+            .map_or_else(|| "PM".to_owned(), |format| format.pm.clone());
         let segment_text = move |segment: FieldSegment| -> String {
             use crate::time_field::TimeSegment as T;
             match segment {
@@ -2933,8 +3086,8 @@ impl RenderOnce for DateField {
                         return segment.hint().to_owned();
                     };
                     match segment {
-                        DateSegment::Month if pad => format!("{:02}", d.month),
-                        DateSegment::Day if pad => format!("{:02}", d.day),
+                        DateSegment::Month if pad_month => format!("{:02}", d.month),
+                        DateSegment::Day if pad_day => format!("{:02}", d.day),
                         DateSegment::Month => d.month.to_string(),
                         DateSegment::Day => d.day.to_string(),
                         DateSegment::Year => format!("{:04}", d.year),
@@ -2943,7 +3096,7 @@ impl RenderOnce for DateField {
                 FieldSegment::Time(segment) => {
                     if cleared.contains(&FieldSegment::Time(segment)) {
                         return if segment == T::Meridiem {
-                            "AM".to_owned()
+                            am.clone()
                         } else {
                             "--".to_owned()
                         };
@@ -2952,11 +3105,34 @@ impl RenderOnce for DateField {
                         return "--".to_owned();
                     };
                     match segment {
-                        T::Hour if twelve_hour => format!("{:02}", t.twelve_hour().0),
-                        T::Hour => format!("{:02}", t.hour),
-                        T::Minute => format!("{:02}", t.minute),
-                        T::Second => format!("{:02}", t.second),
-                        T::Meridiem => t.twelve_hour().1.to_owned(),
+                        T::Hour if twelve_hour && pad_hour => {
+                            let hour = if zero_based_twelve_hour {
+                                t.hour % 12
+                            } else {
+                                t.twelve_hour().0
+                            };
+                            format!("{hour:02}")
+                        }
+                        T::Hour if twelve_hour => {
+                            if zero_based_twelve_hour {
+                                (t.hour % 12).to_string()
+                            } else {
+                                t.twelve_hour().0.to_string()
+                            }
+                        }
+                        T::Hour if pad_hour => format!("{:02}", t.hour),
+                        T::Hour => t.hour.to_string(),
+                        T::Minute if pad_minute => format!("{:02}", t.minute),
+                        T::Minute => t.minute.to_string(),
+                        T::Second if pad_second => format!("{:02}", t.second),
+                        T::Second => t.second.to_string(),
+                        T::Meridiem => {
+                            if t.hour < 12 {
+                                am.clone()
+                            } else {
+                                pm.clone()
+                            }
+                        }
                     }
                 }
             }
@@ -2972,7 +3148,8 @@ impl RenderOnce for DateField {
             .items_center()
             .gap(px(2.))
             .text_size(crate::util::FIELD_TEXT)
-            .font_family("Consolas")
+            .line_height(px(20.))
+            .font_family(crate::util::MONO_FONT)
             .text_color(colors.field.foreground)
             .when(!self.bare, |el| {
                 // `.date-input-group` is `h-9 items-center overflow-hidden`
@@ -3002,8 +3179,8 @@ impl RenderOnce for DateField {
             group = group
                 .track_focus(&focus_handle)
                 .key_context("DateField")
-                .on_mouse_down(gpui::MouseButton::Left, move |_, window, _| {
-                    window.focus(&fh);
+                .on_mouse_down(gpui::MouseButton::Left, move |_, window, cx| {
+                    window.focus(&fh, cx);
                 })
                 .on_key_down(move |event, window, cx| {
                     let key = event.keystroke.key.as_str();
@@ -3123,6 +3300,7 @@ impl RenderOnce for DateField {
                                             seed_time,
                                             if maximum { u32::MAX } else { 0 },
                                             twelve_hour,
+                                            zero_based_twelve_hour,
                                         ),
                                     };
                                     commit(focused, base, Some(next), window, cx);
@@ -3194,7 +3372,12 @@ impl RenderOnce for DateField {
                                 FieldSegment::Time(segment) => commit(
                                     focused,
                                     display_date.unwrap_or(seed),
-                                    Some(segment.with_value(seed_time, value, twelve_hour)),
+                                    Some(segment.with_value(
+                                        seed_time,
+                                        value,
+                                        twelve_hour,
+                                        zero_based_twelve_hour,
+                                    )),
                                     window,
                                     cx,
                                 ),
@@ -3247,24 +3430,23 @@ impl RenderOnce for DateField {
         }
 
         for (index, segment) in segments.iter().copied().enumerate() {
-            // `/` between the date parts, `:` between the time parts, a comma
-            // where the two meet and a space before the meridiem -- the order
-            // v3 formats `02/03/2025, 08:45 AM` in.
-            use crate::time_field::TimeSegment as T;
             let separator = match (index, segment) {
-                (0, _) => None,
-                (_, FieldSegment::Date(_)) => Some("/"),
-                (_, FieldSegment::Time(T::Hour)) => Some(","),
-                (_, FieldSegment::Time(T::Meridiem)) => Some(" "),
-                (_, FieldSegment::Time(_)) => Some(":"),
+                (index, FieldSegment::Date(_)) => Some(regional_date.literals[index].clone()),
+                (index, FieldSegment::Time(_)) => {
+                    let time_index = index - regional_date.order.len();
+                    regional_time.as_ref().and_then(|format| {
+                        format.literals.get(time_index).map(|literal| {
+                            if time_index == 0 {
+                                format!(", {literal}")
+                            } else {
+                                literal.clone()
+                            }
+                        })
+                    })
+                }
             };
-            if let Some(separator) = separator {
-                group = group.child(
-                    gpui::div()
-                        .text_color(colors.muted)
-                        .child(separator)
-                        .when(separator == ",", |el| el.mr(px(2.))),
-                );
+            if let Some(separator) = separator.filter(|separator| !separator.is_empty()) {
+                group = group.child(gpui::div().text_color(colors.muted).child(separator));
             }
 
             let mut seg = gpui::div()
@@ -3277,12 +3459,8 @@ impl RenderOnce for DateField {
                 .rounded(cx.layout().radius_md())
                 // `segment` is v3's render prop on `DateField.Segment`: the
                 // closure is handed which segment it is drawing.
-                .child(match (&self.segment, segment) {
-                    // v3's render prop names a *date* segment; a time slot has
-                    // none to hand over, so it draws itself.
-                    (Some(render), FieldSegment::Date(part)) => {
-                        render(part, segment_text(segment).into())
-                    }
+                .child(match &self.segment {
+                    Some(render) => render(segment, segment_text(segment).into()),
                     _ => segment_text(segment).into_any_element(),
                 });
 
@@ -3306,6 +3484,20 @@ impl RenderOnce for DateField {
             }
 
             group = group.child(seg);
+            if index == regional_date.order.len() - 1 && !regional_date.literals[3].is_empty() {
+                group = group.child(
+                    gpui::div()
+                        .text_color(colors.muted)
+                        .child(regional_date.literals[3].clone()),
+                );
+            }
+        }
+        if let Some(literal) = regional_time
+            .as_ref()
+            .and_then(|format| format.literals.last())
+            .filter(|literal| !literal.is_empty())
+        {
+            group = group.child(gpui::div().text_color(colors.muted).child(literal.clone()));
         }
 
         if let Some(suffix) = self.suffix {
@@ -3353,7 +3545,7 @@ impl RenderOnce for DateField {
                 let description = self
                     .description
                     .clone()
-                    .unwrap_or_else(|| format_hint(granularity, twelve_hour).into());
+                    .unwrap_or_else(|| format_hint(regional_date, regional_time.as_ref()).into());
                 el = el.child(crate::field::Description::new(description));
             }
         }
@@ -3366,6 +3558,8 @@ impl RenderOnce for DateField {
 
 #[cfg(test)]
 mod tests {
+    use std::process::Command;
+
     use super::*;
     use crate::time_field::{HourCycle, Time, TimeSegment};
 
@@ -3374,6 +3568,101 @@ mod tests {
         let date = Date::new(2025, 2, 3);
         assert_eq!(format_value(date, None, Granularity::Day), "2025-02-03");
         assert_eq!(parse_value("2025-02-03"), (Some(date), None));
+    }
+
+    #[test]
+    fn date_order_literals_and_padding_follow_locale_patterns() {
+        let us = RegionalDateFormat::for_locale("en-US").unwrap();
+        assert_eq!(us.order, DateSegment::ALL);
+        assert_eq!(us.literals, ["", "/", "/", ""]);
+        assert!(!us.month_has_leading_zero);
+        assert!(!us.day_has_leading_zero);
+
+        let gb = RegionalDateFormat::for_locale("en-GB").unwrap();
+        assert_eq!(
+            gb.order,
+            [DateSegment::Day, DateSegment::Month, DateSegment::Year]
+        );
+        assert_eq!(gb.literals, ["", "/", "/", ""]);
+        assert!(gb.month_has_leading_zero);
+        assert!(gb.day_has_leading_zero);
+
+        let german = RegionalDateFormat::for_locale("de-DE").unwrap();
+        assert_eq!(
+            german.order,
+            [DateSegment::Day, DateSegment::Month, DateSegment::Year]
+        );
+        assert_eq!(german.literals, ["", ".", ".", ""]);
+
+        let japanese = RegionalDateFormat::for_locale("ja-JP").unwrap();
+        assert_eq!(
+            japanese.order,
+            [DateSegment::Year, DateSegment::Month, DateSegment::Day]
+        );
+        assert_eq!(japanese.literals, ["", "/", "/", ""]);
+        assert_eq!(RegionalDateFormat::for_locale("not_a_locale"), None);
+    }
+
+    #[test]
+    fn date_padding_prefers_the_system_time_category() {
+        let locale = locale_config::Locale::new("en-US,time=en-GB").unwrap();
+        assert_eq!(
+            RegionalDateFormat::for_preferences(&locale),
+            RegionalDateFormat::for_locale("en-GB")
+        );
+    }
+
+    #[gpui::test]
+    fn date_field_hour_cycle_follows_the_system_time_locale(cx: &mut gpui::TestAppContext) {
+        const CHILD: &str = "HEROGPUI_DATE_FIELD_TIME_LOCALE_TEST";
+        if std::env::var_os(CHILD).is_none() {
+            let output = Command::new(std::env::current_exe().unwrap())
+                .args([
+                    "--exact",
+                    "date_picker::tests::date_field_hour_cycle_follows_the_system_time_locale",
+                    "--nocapture",
+                ])
+                .env(CHILD, "1")
+                .env_remove("LC_ALL")
+                .env("LC_TIME", "en_US.UTF-8")
+                .output()
+                .unwrap();
+            assert!(
+                output.status.success(),
+                "12-hour DateField locale child failed:\n{}\n{}",
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr),
+            );
+            return;
+        }
+
+        assert_eq!(HourCycle::default(), HourCycle::H12);
+        let state = cx.new(|cx| crate::input::InputState::new(cx));
+        let field = DateField::new(state.clone()).granularity(Granularity::Minute);
+        assert_eq!(field.hour_cycle, HourCycle::H12);
+        assert_eq!(
+            TimeSegment::order(
+                field.granularity.time().unwrap(),
+                field.hour_cycle == HourCycle::H12,
+            ),
+            [
+                TimeSegment::Hour,
+                TimeSegment::Minute,
+                TimeSegment::Meridiem,
+            ]
+        );
+
+        let explicit = DateField::new(state)
+            .granularity(Granularity::Minute)
+            .hour_cycle(HourCycle::H24);
+        assert_eq!(explicit.hour_cycle, HourCycle::H24);
+        assert_eq!(
+            TimeSegment::order(
+                explicit.granularity.time().unwrap(),
+                explicit.hour_cycle == HourCycle::H12,
+            ),
+            [TimeSegment::Hour, TimeSegment::Minute]
+        );
     }
 
     #[test]
@@ -3439,14 +3728,47 @@ mod tests {
 
     #[test]
     fn the_hint_says_what_the_field_takes() {
-        assert_eq!(format_hint(Granularity::Day, false), "MM/DD/YYYY");
-        assert_eq!(format_hint(Granularity::Minute, false), "MM/DD/YYYY, HH:MM");
+        let us = RegionalDateFormat::for_locale("en-US").unwrap();
+        let gb = RegionalDateFormat::for_locale("en-GB").unwrap();
+        let german = RegionalDateFormat::for_locale("de-DE").unwrap();
+        assert_eq!(format_hint(&us, None), "MM/DD/YYYY");
+        assert_eq!(format_hint(&gb, None), "DD/MM/YYYY");
+        assert_eq!(format_hint(&german, None), "DD.MM.YYYY");
+        let minute = crate::time_field::RegionalTimePattern {
+            order: vec![TimeSegment::Hour, TimeSegment::Minute],
+            literals: vec![String::new(), ":".to_owned(), String::new()],
+            hour_has_leading_zero: true,
+            hour_zero_based: false,
+            minute_has_leading_zero: true,
+            second_has_leading_zero: false,
+            am: "AM".to_owned(),
+            pm: "PM".to_owned(),
+        };
+        assert_eq!(format_hint(&us, Some(&minute)), "MM/DD/YYYY, HH:MM");
+        let second_twelve = crate::time_field::RegionalTimePattern {
+            order: vec![
+                TimeSegment::Hour,
+                TimeSegment::Minute,
+                TimeSegment::Second,
+                TimeSegment::Meridiem,
+            ],
+            literals: vec![
+                String::new(),
+                ":".to_owned(),
+                ":".to_owned(),
+                " ".to_owned(),
+                String::new(),
+            ],
+            hour_has_leading_zero: false,
+            hour_zero_based: false,
+            minute_has_leading_zero: true,
+            second_has_leading_zero: true,
+            am: "AM".to_owned(),
+            pm: "PM".to_owned(),
+        };
         assert_eq!(
-            format_hint(Granularity::Second, true),
+            format_hint(&us, Some(&second_twelve)),
             "MM/DD/YYYY, HH:MM:SS AM"
         );
-        // The cycle only shows where there is an hour to qualify.
-        assert_eq!(format_hint(Granularity::Day, true), "MM/DD/YYYY");
-        let _ = HourCycle::H12;
     }
 }

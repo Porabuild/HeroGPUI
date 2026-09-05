@@ -1,3 +1,23 @@
+/*
+ * Vendored Porabuild brand tokens (see src/styles/porabuild/, synced from
+ * @porabuild/brand by `pnpm run brand:sync`).
+ *
+ * Cascade-layer reasoning, verified against CSS Cascading and Inheritance
+ * Level 5 (MDN `@layer`) and against this site's own production bundle:
+ * an *unlayered* author declaration beats *any* layered one, so importing
+ * the package bare would let its sRGB hex `:root` tokens override this
+ * file's OKLCH conversions in `@layer base`. `@import ... layer(porabuild)`
+ * instead assigns the whole vendored stylesheet to the `porabuild` layer.
+ * Layer order follows first declaration, and the framework import below
+ * declares Tailwind's `theme, base, components, utilities` — so the package
+ * import MUST stay above it: that declares `porabuild` before `base`, and
+ * `@layer base` wins wherever both layers define the same token while the
+ * package still supplies the rest. (An explicit `@layer porabuild, base;`
+ * order statement cannot do this once `base` is already declared upstream,
+ * and the production minifier drops it as redundant — import position is
+ * the mechanism, so do not reorder these two lines.)
+ */
+@import "../styles/porabuild/index.css" layer(porabuild);
 @import "@heroui/styles";
 
 @source "../../node_modules/.pnpm/@heroui+react@*/node_modules/@heroui/react/dist";
@@ -20,6 +40,14 @@
  */
 @layer base {
   :root {
+    /* The OKLCH values below are the exact conversions of the vendored sRGB
+       --pb-* hex tokens (conversion table above,
+       src/styles/porabuild/tokens.css). HeroUI's token pipeline needs
+       OKLCH-friendly values, so the site keeps these conversions rather than
+       the raw hex. Regenerate them if @porabuild/brand changes. The sRGB-only
+       tokens (--pb-line, --pb-line-strong, --pb-accent-glow) are intentionally
+       not redefined here: the vendored values are visually identical to the
+       old color-mix definitions, so they come from layer `porabuild`. */
     --pb-night: oklch(0.129693 0.005049 285.67);
     --pb-tile: oklch(0.166733 0.012495 284.97);
     --pb-tile-2: oklch(0.195111 0.016025 284.82);
@@ -28,9 +56,6 @@
     --pb-accent: oklch(0.660852 0.188995 285.52);
     --pb-accent-soft: oklch(0.783881 0.117028 288.92);
     --pb-ice: oklch(0.849178 0.118007 191.11);
-    --pb-line: color-mix(in srgb, var(--pb-moon) 8%, transparent);
-    --pb-line-strong: color-mix(in srgb, var(--pb-moon) 14%, transparent);
-    --pb-accent-glow: color-mix(in srgb, var(--pb-accent) 65%, transparent);
   }
 
   :root,
@@ -124,6 +149,15 @@
   --color-brand-ice: var(--pb-ice);
 }
 
+/* Strictly no underlines across the entire Porabuild design system */
+a,
+a:hover,
+a:focus,
+[data-slot="link"],
+.link {
+  text-decoration: none !important;
+}
+
 @layer base {
   html,
   body {
@@ -145,26 +179,49 @@
   /* Typography for the rendered article. In the base layer so page-level
      utilities (text-lg, …) and HeroUI components still override. */
   [data-docs-article] h2 {
-    margin-top: 2.5rem;
+    margin-top: 3.5rem;
     font-size: 1.5rem;
     line-height: 2rem;
-    font-weight: 600;
+    font-weight: var(--pb-subheading-weight);
     letter-spacing: -0.01em;
     color: var(--foreground);
   }
 
   [data-docs-article] h3 {
-    margin-top: 2rem;
+    margin-top: 2.25rem;
     font-size: 1.1875rem;
     line-height: 1.6;
-    font-weight: 600;
+    font-weight: var(--pb-subheading-weight);
     color: var(--foreground);
+  }
+
+  /* The article opens with the page header, which carries its own bottom
+     margin — no extra top margin on the first child. */
+  [data-docs-article] > :first-child {
+    margin-top: 0;
+  }
+
+  /* Intro copy directly under a heading sits close to it; page-level
+     `mt-2` utilities say the same thing where they are used. */
+  [data-docs-article] :is(h2, h3) + p {
+    margin-top: 0.5rem;
   }
 
   [data-docs-article] p {
     margin-top: 1rem;
     line-height: 1.75;
     color: var(--foreground);
+  }
+
+  [data-docs-article] a {
+    text-decoration: none !important;
+    color: var(--accent-text);
+    transition: color 0.15s ease;
+  }
+
+  [data-docs-article] a:hover {
+    text-decoration: none !important;
+    color: var(--pb-accent-soft);
   }
 
   [data-docs-article] ul,
@@ -247,36 +304,35 @@
 /* Reference tables.                                                   */
 /* ------------------------------------------------------------------ */
 
-/* The docs column is a size container so a data block can measure the space
-   the prose measure is leaving on the table. Container query units are the
-   only way to read that width from a descendant nested inside the article. */
+/* The docs main column is a size container so `.docs-bleed` can measure the
+   column width in cqi units. Container query units are the only way to read
+   that width from a descendant nested inside the article. */
 [data-docs-main] {
-  --docs-main-inline-padding: 1rem;
   container-type: inline-size;
 }
 
-@media (min-width: 640px) {
-  [data-docs-main] {
-    --docs-main-inline-padding: 2rem;
-  }
-}
-
-/* Break out of `.docs-measure` to the edges of the docs main column. The
-   container query measures the main's content box, so add back its horizontal
-   padding; the matching negative margin keeps prose at its comfortable
-   measure. Scoped to the docs column so the class is inert elsewhere. */
+/* Bleed to the RIGHT only, so the table's left edge stays aligned with the
+   article's headings while the table still uses the full docs column to its
+   right. Width is 100cqi (the main content box) minus the article's left
+   offset, which lands the right edge exactly on the column's content edge.
+   Keeping the full column width — rather than dropping the bleed and
+   scrolling inside the 72ch measure — is what keeps the five-column props
+   table readable at 1440px; the scroll container below stays as the
+   narrow-viewport fallback. Scoped to the docs column so the class is inert
+   elsewhere. */
 [data-docs-main] .docs-bleed {
-  width: calc(100cqi + var(--docs-main-inline-padding) + var(--docs-main-inline-padding));
-  margin-inline: calc(50% - 50cqi - var(--docs-main-inline-padding));
+  width: calc((100cqi + 100%) / 2);
+  margin-left: 0;
+  margin-right: 0;
 }
 
 /* A reference row is up to five columns of code inside a docs column that is
    often under 700px wide, so it carries HeroUI's table look at a tighter
-   horizontal rhythm. Vertical padding is left alone — the rows still breathe,
-   and the 4px reclaimed on each side of each column is what lets the props
-   table fit its column instead of scrolling. */
+   horizontal rhythm. All cells top-align with one shared padding, so a code
+   chip in the Prop column starts on the same line as its Description. */
 .docs-reference-table :is(.table__cell, .table__column) {
-  padding-inline: 0.75rem;
+  padding: 0.875rem 0.75rem;
+  vertical-align: top;
 }
 
 /* Reference cells hold code tokens, not prose. `break-all` used to split them
@@ -353,20 +409,20 @@ body {
 }
 
 [data-docs-article] h1 {
-  font-weight: 650;
+  font-weight: var(--pb-display-weight);
   letter-spacing: -0.05em;
   line-height: 1.05;
 }
 
 [data-docs-article] h2 {
-  font-weight: 620;
-  letter-spacing: -0.045em;
+  font-weight: var(--pb-heading-weight);
+  letter-spacing: var(--pb-heading-tracking);
   line-height: 1.15;
 }
 
 [data-docs-article] h3 {
-  font-weight: 600;
-  letter-spacing: -0.035em;
+  font-weight: var(--pb-subheading-weight);
+  letter-spacing: var(--pb-subheading-tracking);
   line-height: 1.3;
 }
 
@@ -384,7 +440,7 @@ body {
 }
 
 .docs-page-header h1 {
-  font-weight: 650;
+  font-weight: var(--pb-display-weight);
   letter-spacing: -0.05em;
 }
 
@@ -393,11 +449,46 @@ body {
   font-family: var(--font-mono);
   font-size: 0.625rem;
   font-weight: 500;
-  letter-spacing: 0.08em;
+  letter-spacing: var(--pb-mono-tracking-wide);
+  text-transform: uppercase;
+  color: var(--muted);
 }
 
-.docs-toc-label {
-  text-transform: uppercase;
+/* Active sidebar link carries a 2px accent bar on its left edge. Links are
+   `relative` in the component so this positions against the link box. */
+.docs-sidebar-nav a[aria-current="page"]::before {
+  content: "";
+  position: absolute;
+  top: 6px;
+  bottom: 6px;
+  left: 0;
+  width: 2px;
+  border-radius: 2px;
+  background: var(--accent);
+}
+
+/* Sidebar and TOC scrollbars stay invisible until hovered: thin, with a
+   transparent thumb that only appears on hover. */
+.scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+
+.scrollbar:hover {
+  scrollbar-color: var(--separator) transparent;
+}
+
+.scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.scrollbar::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 3px;
+}
+
+.scrollbar:hover::-webkit-scrollbar-thumb {
+  background: var(--separator);
 }
 
 .docs-callout {
@@ -408,7 +499,7 @@ body {
   font-family: var(--font-mono);
   font-size: 0.625rem;
   font-weight: 500;
-  letter-spacing: 0.06em;
+  letter-spacing: var(--pb-mono-tracking);
   text-transform: uppercase;
 }
 
@@ -417,7 +508,7 @@ body {
   font-family: var(--font-mono);
   font-size: 0.625rem;
   font-weight: 500;
-  letter-spacing: 0.06em;
+  letter-spacing: var(--pb-mono-tracking);
   text-transform: uppercase;
 }
 
@@ -431,15 +522,15 @@ body {
 }
 
 .site-brand-dot {
-  width: 0.45rem;
-  height: 0.45rem;
+  width: 0.4rem;
+  height: 0.4rem;
 }
 
-.site-wordmark {
+.site-wordmark,
+.site-brand-lockup {
   font-family: var(--font-sans);
-  font-size: 0.9375rem;
-  font-weight: 620;
-  letter-spacing: -0.045em;
+  font-size: 1.0625rem;
+  letter-spacing: -0.05em;
   line-height: 1;
   white-space: nowrap;
 }
@@ -460,13 +551,33 @@ body {
 .window-bar {
   font-family: var(--font-mono);
   font-weight: 500;
-  letter-spacing: 0.06em;
+  letter-spacing: var(--pb-mono-tracking);
 }
 
 .site-header nav,
 .site-version-chip {
   font-size: 0.6875rem;
   text-transform: uppercase;
+}
+
+/* Desktop nav links: Porabuild style clean subtle pill/highlight.
+   Strictly NO underlines. */
+.site-nav > a {
+  border-radius: 0.375rem;
+  transition:
+    color 0.15s ease,
+    background-color 0.15s ease;
+}
+
+.site-nav > a:hover {
+  color: var(--foreground);
+  background: color-mix(in srgb, var(--foreground) 6%, transparent);
+}
+
+.site-nav > a[aria-current="page"] {
+  color: var(--foreground);
+  background: color-mix(in srgb, var(--foreground) 9%, transparent);
+  font-weight: 500;
 }
 
 .site-version-chip {
@@ -479,7 +590,7 @@ body {
 
 .site-footer-brand {
   font-family: var(--font-sans);
-  letter-spacing: -0.045em;
+  letter-spacing: var(--pb-heading-tracking);
 }
 
 .site-footer-copy {
@@ -496,17 +607,17 @@ body {
 .landing-hero {
   background:
     radial-gradient(
-      circle at 80% 18%,
-      color-mix(in srgb, var(--accent) 11%, transparent),
-      transparent 34rem
+      50% 60% at 75% 26%,
+      color-mix(in srgb, var(--accent) 13%, transparent),
+      transparent 70%
     ),
     var(--background);
 }
 
 .landing-hero h1 {
   font-size: clamp(2.6rem, 6vw, 4.75rem);
-  font-weight: 650;
-  letter-spacing: -0.052em;
+  font-weight: var(--pb-display-weight);
+  letter-spacing: var(--pb-display-tracking);
   line-height: 1;
 }
 
@@ -528,7 +639,7 @@ body {
   color: var(--accent-text);
   font-size: 0.6875rem;
   font-weight: 500;
-  letter-spacing: 0.08em;
+  letter-spacing: var(--pb-mono-tracking-wide);
   text-transform: uppercase;
 }
 
@@ -546,14 +657,14 @@ body {
 
 .landing-section-heading h2,
 .landing-final-cta h2 {
-  font-weight: 620;
+  font-weight: var(--pb-heading-weight);
   letter-spacing: -0.048em;
   line-height: 1.08;
 }
 
 .landing-proof-strip dd {
-  font-weight: 620;
-  letter-spacing: -0.045em;
+  font-weight: var(--pb-heading-weight);
+  letter-spacing: var(--pb-heading-tracking);
 }
 
 .landing-proof-strip dt {
@@ -571,11 +682,11 @@ body {
 
 .landing-features li > span:first-child {
   font-size: 0.6875rem;
-  letter-spacing: 0.08em;
+  letter-spacing: var(--pb-mono-tracking-wide);
 }
 
 .landing-features h3 {
-  font-weight: 600;
+  font-weight: var(--pb-subheading-weight);
   letter-spacing: -0.025em;
 }
 
@@ -594,7 +705,7 @@ body {
 
 .catalog-category-nav a {
   font-size: 0.6875rem;
-  letter-spacing: 0.06em;
+  letter-spacing: var(--pb-mono-tracking);
   text-transform: uppercase;
 }
 
@@ -606,9 +717,11 @@ body {
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
   padding-inline: 0.75rem;
-  color: var(--muted);
-  border-bottom: 1px solid var(--separator);
-  background: var(--surface-secondary);
+  /* Compact site variant (not the 45px package bar); colors sourced from the
+     brand tokens, resolving to the same values as the theme mappings. */
+  color: var(--pb-dim);
+  border-bottom: 1px solid var(--pb-line);
+  background: var(--pb-tile-2);
   font-size: 0.625rem;
   line-height: 1;
   text-transform: uppercase;
@@ -647,61 +760,5 @@ body {
   font-family: var(--font-mono);
   font-size: 0.6875rem;
   font-weight: 500;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
-.shot-window-caption {
-  font-size: 0.625rem;
-  letter-spacing: 0.06em;
-  line-height: 1.5;
-  text-transform: uppercase;
-}
-
-.shot-window-dot {
-  box-shadow: 0 0 0.55rem var(--pb-accent-glow);
-}
-
-@media (max-width: 639px) {
-  .site-footer-copy {
-    max-width: 40ch;
-  }
-
-  .landing-section-heading h2,
-  .landing-final-cta h2 {
-    letter-spacing: -0.045em;
-  }
-}
-
-/* Line numbers are text and must clear WCAG AA like any other text. The old
-   treatment was `text-muted` at 60% opacity, measuring 2.28:1 against
-   `--surface-secondary` in light mode — a clear fail.
-
-   The correction is per-theme rather than one formula, because the two themes
-   fail differently. In light mode muted is too pale, so the gutter mixes
-   toward the foreground to darken it. In dark mode muted already measures
-   7.49:1 and needs no help; mixing it toward a near-white foreground there
-   pushed the gutter to exactly the brightness of the code beside it, which
-   defeats the point of a gutter. So dark simply uses muted. */
-.code-gutter {
-  /* The line-number spans sit inside `.shiki`, so the dual-theme rule above
-     (`.dark .shiki span { color: var(--shiki-dark) !important }`) repaints
-     them at the code's own brightness in dark mode. `!important` cannot win
-     that fight: for important declarations the cascade inverts layer order,
-     so a layered `!important` outranks an unlayered one.
-
-     Rather than escalating, feed Shiki the value it is going to use. Setting
-     `--shiki-dark` on the gutter makes Shiki's own rule paint the gutter
-     colour, and light mode reads the plain `color` below. */
-  --shiki-dark: var(--code-gutter);
-
-  color: var(--code-gutter);
-}
-
-/* Same reasoning at 10px, where the margin matters more: these column headers
-   measured 4.50:1 on `--surface-secondary` in light mode, passing with nothing
-   to spare. Dark mode is already comfortable and is left alone. */
-:root .docs-static-table .table__column,
-[data-theme="default"] .docs-static-table .table__column {
-  color: color-mix(in oklab, var(--muted) 70%, var(--foreground) 30%);
+  letter-spacing: var(--pb-mono-tracking);
 }

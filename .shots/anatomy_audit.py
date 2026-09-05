@@ -48,6 +48,12 @@ from state_audit import MODULE  # noqa: E402  (one table of sheet -> module)
 sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 
 CSS = os.path.join(os.environ.get('TEMP', '/tmp'), 'heroui-css')
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from bundle import css_cache as _css_cache
+
+if not _css_cache():
+    sys.stderr.write('anatomy_audit: no v3 stylesheets; run design_audit.py --fetch\n')
+    raise SystemExit(2)
 SRC = 'crates/herogpui-components/src/'
 
 # The symbol that draws each contained component. A slot is only listed when v3

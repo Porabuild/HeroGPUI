@@ -1,0 +1,34 @@
+/* Vendored from @porabuild/brand 0.1.0. Do not edit; run pnpm run brand:sync. */
+:root {
+  --pb-night: #070709;
+  --pb-tile: #0e0e14;
+  --pb-tile-2: #14141c;
+  --pb-moon: #eaf0fb;
+  --pb-dim: #9ba6be;
+  --pb-accent: #8b7bff;
+  --pb-accent-soft: #b6acff;
+  --pb-ice: #5ee6e0;
+  --pb-line: rgba(234, 240, 251, 0.08);
+  --pb-line-strong: rgba(234, 240, 251, 0.14);
+  --pb-accent-glow: rgba(139, 123, 255, 0.65);
+  --pb-accent-tint: rgba(139, 123, 255, 0.035);
+  --pb-site-max: 1920px;
+  --pb-font-sans: var(--font-geist), Inter, system-ui, sans-serif;
+  --pb-font-mono: var(--font-mono), ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --pb-mono-size-xs: 9px;
+  --pb-mono-size-sm: 10px;
+  --pb-mono-size-md: 11px;
+  --pb-mono-size-lg: 12px;
+  --pb-mono-tracking: 0.06em;
+  --pb-mono-tracking-wide: 0.08em;
+  --pb-display-tracking: -0.052em;
+  --pb-heading-tracking: -0.045em;
+  --pb-subheading-tracking: -0.035em;
+  --pb-display-weight: 650;
+  --pb-heading-weight: 620;
+  --pb-subheading-weight: 600;
+  --pb-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --pb-radius-sm: 6px;
+  --pb-radius-md: 8px;
+  --pb-radius-lg: 18px;
+}
