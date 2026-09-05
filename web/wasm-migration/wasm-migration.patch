@@ -14902,7 +14902,7 @@ index 2992b3ba..317899ab 100644
                      .text_color(colors.muted),
              ),
 diff --git a/crates/herogpui-components/src/color_picker.rs b/crates/herogpui-components/src/color_picker.rs
-index f9e6947d..3ecd1c88 100644
+index f9e6947d..15c2f086 100644
 --- a/crates/herogpui-components/src/color_picker.rs
 +++ b/crates/herogpui-components/src/color_picker.rs
 @@ -427,6 +427,16 @@ fn normalize_hue(hue: f32) -> f32 {
@@ -15076,7 +15076,23 @@ index f9e6947d..3ecd1c88 100644
                          if let Some(next) = slider_color_from_pointer(
                              &down_bounds,
                              event.position,
-@@ -3392,11 +3412,7 @@ impl RenderOnce for ColorSwatchPicker {
+@@ -2198,6 +2218,7 @@ impl RenderOnce for ColorSlider {
+                     .justify_between()
+                     .w(self.length)
+                     .text_size(px(14.))
++                    .line_height(px(20.))
+                     .font_weight(gpui::FontWeight::MEDIUM)
+                     .child(
+                         div()
+@@ -2948,6 +2969,7 @@ impl RenderOnce for ColorField {
+             .h(util::FIELD_HEIGHT)
+             .rounded(util::field_radius(cx))
+             .text_size(util::FIELD_TEXT)
++            .line_height(px(20.))
+             .text_color(colors.field.foreground)
+             // `.color-input-group__prefix` is `shrink-0 ms-3` in the
+             // placeholder colour, and v3's example puts the swatch in it;
+@@ -3392,11 +3414,7 @@ impl RenderOnce for ColorSwatchPicker {
                                  gpui::svg()
                                      .size(px(f32::from(item_edge) / 3.))
                                      .path(crate::icons::CHECK)
@@ -15089,7 +15105,7 @@ index f9e6947d..3ecd1c88 100644
                              ),
                      );
                  }
-@@ -3452,7 +3468,7 @@ impl RenderOnce for ColorSwatchPicker {
+@@ -3452,7 +3470,7 @@ impl RenderOnce for ColorSwatchPicker {
                                  *focused = Some(index);
                                  cx.notify();
                              });
@@ -15098,7 +15114,7 @@ index f9e6947d..3ecd1c88 100644
                          },
                      );
                  } else {
-@@ -3465,7 +3481,7 @@ impl RenderOnce for ColorSwatchPicker {
+@@ -3465,7 +3483,7 @@ impl RenderOnce for ColorSwatchPicker {
                              *focused = Some(index);
                              cx.notify();
                          });
@@ -15107,7 +15123,15 @@ index f9e6947d..3ecd1c88 100644
                      });
                  }
              }
-@@ -3769,7 +3785,7 @@ impl RenderOnce for ColorPicker {
+@@ -3715,6 +3733,7 @@ impl RenderOnce for ColorPicker {
+             .gap(px(12.))
+             .rounded(util::hairline_radius(cx))
+             .text_size(px(14.))
++            .line_height(px(20.))
+             .text_color(colors.foreground)
+             .child(ColorSwatch::new(self.value).size(SizeXl::Sm))
+             .child(div().child(self.value.to_hex()));
+@@ -3769,7 +3788,7 @@ impl RenderOnce for ColorPicker {
              let cb = self.on_open_change.clone();
              let own = open_own;
              move |window: &mut Window, cx: &mut App| -> util::DismissResult {
@@ -15116,7 +15140,7 @@ index f9e6947d..3ecd1c88 100644
                  if let Some(held) = &own {
                      held.update(cx, |value, cx| {
                          *value = false;
-@@ -3881,7 +3897,7 @@ impl RenderOnce for ColorPicker {
+@@ -3881,7 +3900,7 @@ impl RenderOnce for ColorPicker {
          panel = panel.child(
              div()
                  .text_size(px(12.))
@@ -15125,7 +15149,7 @@ index f9e6947d..3ecd1c88 100644
                  .text_color(colors.muted)
                  .child(self.value.to_hex()),
          );
-@@ -4086,4 +4102,16 @@ mod tests {
+@@ -4086,4 +4105,16 @@ mod tests {
          let next = c.with_channel(ColorChannel::Green, 128.0);
          assert!((next.channel(ColorChannel::Green) - 128.0).abs() < 1.0);
      }
@@ -29336,6 +29360,64 @@ index ea5c7833..6223aa65 100644
  // ---------------------------------------------------------------------------
  // TagGroup
  // ---------------------------------------------------------------------------
+diff --git a/crates/herogpui-components/tests/color_geometry_deep.rs b/crates/herogpui-components/tests/color_geometry_deep.rs
+index f214d1f2..cfd0bd36 100644
+--- a/crates/herogpui-components/tests/color_geometry_deep.rs
++++ b/crates/herogpui-components/tests/color_geometry_deep.rs
+@@ -1609,3 +1609,53 @@ fn controlled_color_field_reset_reports_the_initial_value_once(cx: &mut TestAppC
+     click(cx, 60., 70.);
+     assert_eq!(changes.borrow().as_slice(), ["181", "180"]);
+ }
++
++#[gpui::test]
++fn color_text_metrics_do_not_inherit_host_leading(cx: &mut TestAppContext) {
++    for inherited in [12., 48.] {
++        let heights = Rc::new(RefCell::new(Vec::new()));
++        let seen = heights.clone();
++        let cx = open_host(cx, move || {
++            let seen = seen.clone();
++            gpui::div()
++                .flex()
++                .flex_col()
++                .items_start()
++                .text_size(px(32.))
++                .line_height(px(inherited))
++                .on_children_prepainted(move |bounds, _, _| {
++                    *seen.borrow_mut() = bounds.iter().map(|b| b.size.height).collect();
++                })
++                .child(ColorSlider::new(
++                    "leading-slider",
++                    PickerColor::hsb(0., 1., 1.),
++                    ColorChannel::Hue,
++                ))
++                .child(herogpui_components::ColorPicker::new(
++                    "leading-picker",
++                    PickerColor::hsb(0., 1., 1.),
++                ))
++                .child(
++                    ColorField::new("leading-field", PickerColor::hsb(0., 1., 1.)).suffix(
++                        gpui::div()
++                            .debug_selector(|| "leading-suffix".to_owned())
++                            .child("HEX"),
++                    ),
++                )
++                .into_any_element()
++        });
++        flush_frame(cx);
++        assert_eq!(
++            heights.borrow().as_slice(),
++            [px(44.), px(24.), px(36.)],
++            "host leading {inherited}"
++        );
++        assert_eq!(
++            cx.debug_bounds("leading-suffix")
++                .expect("suffix paints")
++                .size
++                .height,
++            px(20.)
++        );
++    }
++}
 diff --git a/crates/herogpui-components/tests/date_field_picker_deep.rs b/crates/herogpui-components/tests/date_field_picker_deep.rs
 index 55d6b2d2..86f0107d 100644
 --- a/crates/herogpui-components/tests/date_field_picker_deep.rs
@@ -202355,7 +202437,7 @@ index 6452b2b7..b70b6484 100644
      }
  }
 diff --git a/gallery/src/pages/reference_metadata.rs b/gallery/src/pages/reference_metadata.rs
-index 71065ac8..d2add3a1 100644
+index 71065ac8..bd35e8b2 100644
 --- a/gallery/src/pages/reference_metadata.rs
 +++ b/gallery/src/pages/reference_metadata.rs
 @@ -22,7 +22,12 @@ impl ImplementationStatus {
@@ -203238,6 +203320,33 @@ index 71065ac8..d2add3a1 100644
      StyleDoc { class_or_token: ".tag--default", value: "bg-default text-default-foreground; bg-default-hover", description: "Default fill, foreground, and unselected hover token match.", rust: "TagVariant::Default", status: ImplementationStatus::Implemented },
      StyleDoc { class_or_token: ".tag--surface", value: "bg-surface text-surface-foreground; bg-surface-hover", description: "Borderless surface fill, foreground, and derived hover token match.", rust: "TagVariant::Surface + SurfaceColor::hover", status: ImplementationStatus::Implemented },
      StyleDoc { class_or_token: ".tag selected", value: "bg-accent-soft text-accent-soft-foreground; bg-accent-soft-hover", description: "Selected and selected-hover semantic tokens match.", rust: "selected_keys", status: ImplementationStatus::Implemented },
+@@ -12485,7 +12524,7 @@ const COLOR_SLIDER_STATES: &[StateDoc] = &[
+ 
+ const COLOR_SLIDER_STYLING: &[StyleDoc] = &[
+     StyleDoc { class_or_token: ".color-slider", value: "grid w-full gap-1", description: "The four-pixel label/output-to-track gap matches; the port uses flex rows instead of CSS grid areas.", rust: "flex_col + gap(4)", status: ImplementationStatus::Partial },
+-    StyleDoc { class_or_token: ".color-slider label / output", value: "text-sm font-medium tabular-nums", description: "Placement, 14px size, medium weight, and disabled label/output opacity split match; GPUI has no tabular-number switch.", rust: "14px MEDIUM label/output row", status: ImplementationStatus::Partial },
++    StyleDoc { class_or_token: ".color-slider label / output", value: "text-sm font-medium tabular-nums", description: "Placement, 14px size, explicit 20px line height, medium weight, and disabled label/output opacity split match; GPUI has no tabular-number switch.", rust: "14px/20px MEDIUM label/output row", status: ImplementationStatus::Partial },
+     StyleDoc { class_or_token: ".color-slider__track horizontal / vertical", value: "20px cross-axis; total length minus 20px with 10px edge caps", description: "Cross-axis thickness, rounded total footprint, endpoint inset, and pointer travel match; the Rust gradient continues through the rounded caps rather than drawing separate solid endpoint fills.", rust: "track_h=20 + COLOR_SLIDER_TRACK_INSET_PX", status: ImplementationStatus::Partial },
+     StyleDoc { class_or_token: ".color-slider__track shadows", value: "orientation-specific 1px inset borders", description: "A theme border substitutes for the pinned inset edge shadows.", rust: "theme border", status: ImplementationStatus::Partial },
+     StyleDoc { class_or_token: ".color-slider alpha checkerboard", value: "repeating-conic 16px checkerboard under gradient", description: "The alpha gradient is present but its checkerboard is not drawn.", rust: "alpha gradient only", status: ImplementationStatus::Unavailable },
+@@ -12662,7 +12701,7 @@ const COLOR_PICKER_STATES: &[StateDoc] = &[
+ 
+ const COLOR_PICKER_STYLING: &[StyleDoc] = &[
+     StyleDoc { class_or_token: ".color-picker", value: "inline-flex", description: "The Rust root also establishes a relative column and optional eight-pixel label gap around its monolithic composition.", rust: "relative + flex_col + gap(8)", status: ImplementationStatus::Partial },
+-    StyleDoc { class_or_token: ".color-picker__trigger", value: "inline-flex items-center gap-3 rounded-sm text-sm", description: "Trigger alignment, 12px gap, 4px radius, and 14px type match.", rust: "flex row + gap(12) + hairline_radius + 14px", status: ImplementationStatus::Implemented },
++    StyleDoc { class_or_token: ".color-picker__trigger", value: "inline-flex items-center gap-3 rounded-sm text-sm", description: "Trigger alignment, 12px gap, 4px radius, and 14px/20px type match regardless of parent line height.", rust: "flex row + gap(12) + hairline_radius + 14px", status: ImplementationStatus::Implemented },
+     StyleDoc { class_or_token: ".color-picker__trigger cursor", value: "var(--cursor-interactive)", description: "Enabled triggers use the interactive pointer cursor.", rust: "cursor_pointer", status: ImplementationStatus::Implemented },
+     StyleDoc { class_or_token: ".color-picker__trigger transitions", value: "background 150ms ease-smooth; shadow 150ms ease-out", description: "Trigger state colors and rings still change on a frame rather than interpolating.", rust: "immediate trigger chrome", status: ImplementationStatus::Unavailable },
+     StyleDoc { class_or_token: ".color-picker__trigger focus-visible", value: "status-focused", description: "Keyboard focus uses the theme status ring.", rust: "ring_if_focused", status: ImplementationStatus::Implemented },
+@@ -12771,7 +12810,7 @@ const COLOR_FIELD_STYLING: &[StyleDoc] = &[
+     StyleDoc { class_or_token: ".color-input-group disabled", value: "status-disabled", description: "Disabled opacity and listener suppression match.", rust: "Input::is_disabled", status: ImplementationStatus::Implemented },
+     StyleDoc { class_or_token: ".color-input-group__input", value: "h-full flex-1 cursor-text px-3 py-2 text-sm bg-transparent", description: "State-backed Input supplies the cursor, horizontal inset, transparent fill, and unified 36px/14px field metrics.", rust: "Input", status: ImplementationStatus::Implemented },
+     StyleDoc { class_or_token: ".color-input-group__prefix", value: "shrink-0 text-field-placeholder ms-3 me-0", description: "The fixed 16px swatch starts at the 12px field inset; text follows after the pinned eight-pixel prefix gap.", rust: "Input start_content(ColorSwatch)", status: ImplementationStatus::Implemented },
+-    StyleDoc { class_or_token: ".color-input-group__suffix", value: "shrink-0 text-field-placeholder me-3", description: "Editable and display suffix content stays at the trailing 12px inset.", rust: "suffix + Input::end_content", status: ImplementationStatus::Implemented },
++    StyleDoc { class_or_token: ".color-input-group__suffix", value: "shrink-0 text-field-placeholder me-3", description: "Editable and display suffix content stays at the trailing 12px inset and uses a 20px line height.", rust: "suffix + Input::end_content", status: ImplementationStatus::Implemented },
+     StyleDoc { class_or_token: ".color-input-group--secondary", value: "shadow-none bg-default; hover default-hover", description: "Resting fill and shadow match; the absent group hover leaves the hover token undrawn.", rust: "FieldVariant::Secondary", status: ImplementationStatus::Partial },
+ ];
+ 
 @@ -13014,10 +13053,10 @@ const TOAST_STATES: &[StateDoc] = &[
  const TOAST_STYLING: &[StyleDoc] = &[
      StyleDoc { class_or_token: ".toast-region", value: "fixed z-50 pointer-events-none; responsive width", description: "The root is absolutely placed in the app overlay; z-index, viewport-responsive width, and region focus outline are unavailable.", rust: "absolute ToastViewport", status: ImplementationStatus::Partial },

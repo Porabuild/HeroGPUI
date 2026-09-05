@@ -2218,6 +2218,7 @@ impl RenderOnce for ColorSlider {
                     .justify_between()
                     .w(self.length)
                     .text_size(px(14.))
+                    .line_height(px(20.))
                     .font_weight(gpui::FontWeight::MEDIUM)
                     .child(
                         div()
@@ -2968,6 +2969,7 @@ impl RenderOnce for ColorField {
             .h(util::FIELD_HEIGHT)
             .rounded(util::field_radius(cx))
             .text_size(util::FIELD_TEXT)
+            .line_height(px(20.))
             .text_color(colors.field.foreground)
             // `.color-input-group__prefix` is `shrink-0 ms-3` in the
             // placeholder colour, and v3's example puts the swatch in it;
@@ -3731,6 +3733,7 @@ impl RenderOnce for ColorPicker {
             .gap(px(12.))
             .rounded(util::hairline_radius(cx))
             .text_size(px(14.))
+            .line_height(px(20.))
             .text_color(colors.foreground)
             .child(ColorSwatch::new(self.value).size(SizeXl::Sm))
             .child(div().child(self.value.to_hex()));

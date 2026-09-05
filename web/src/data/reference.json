@@ -2569,8 +2569,8 @@
       },
       {
         "token": ".color-slider label / output",
-        "description": "Placement, 14px size, medium weight, and disabled label/output opacity split match; GPUI has no tabular-number switch.",
-        "rust": "14px MEDIUM label/output row",
+        "description": "Placement, 14px size, explicit 20px line height, medium weight, and disabled label/output opacity split match; GPUI has no tabular-number switch.",
+        "rust": "14px/20px MEDIUM label/output row",
         "status": "partial"
       },
       {
@@ -3901,7 +3901,7 @@
       },
       {
         "token": ".color-picker__trigger",
-        "description": "Trigger alignment, 12px gap, 4px radius, and 14px type match.",
+        "description": "Trigger alignment, 12px gap, 4px radius, and 14px/20px type match regardless of parent line height.",
         "rust": "flex row + gap(12) + hairline_radius + 14px",
         "status": "implemented"
       },
@@ -4505,7 +4505,7 @@
       },
       {
         "token": ".color-input-group__suffix",
-        "description": "Editable and display suffix content stays at the trailing 12px inset.",
+        "description": "Editable and display suffix content stays at the trailing 12px inset and uses a 20px line height.",
         "rust": "suffix + Input::end_content",
         "status": "implemented"
       },

@@ -320,6 +320,7 @@ ProgressBar, ProgressCircle, Spinner and Typography; elsewhere `variant` (or
   line height, so inherited leading does not change tag heights.
 
 ### Colors
+ColorSlider labels/output, ColorPicker triggers, and ColorField display text use 14px text with a 20px line height independent of their parent.
 - **PickerColor** — shared value: `from_hex`, `to_hex`, `from_rgb`, `to_rgb`, `to_hsla`, `channel()`, `with_channel()`, `with_alpha()`
 - **ColorArea** — `ColorArea::new(id, value)`; `color_space(ColorSpace)` sets both axes to that space's channel pair, `x_channel` / `y_channel` override either, `size(w,h)`, `show_dots` (the dot-grid overlay), `is_disabled`, `on_change`, `on_change_end`
 - **ColorField** — `ColorField::new(id, value)`; `channel(ColorChannel)`, `color_space(ColorSpace)`, `label`, `description`, `variant`, `full_width`, the validity flags
