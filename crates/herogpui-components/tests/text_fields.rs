@@ -53,8 +53,8 @@ use gpui::{
 };
 use herogpui_components::{
     Button, ColorField, Date, DateField, FieldGroup, Fieldset, FieldsetLegend, Input, InputAddon,
-    InputGroup, InputOTP, InputState, OtpPattern, OtpState, PickerColor, SearchField, TextArea,
-    TextField, Time, TimeField, TimeState,
+    InputGroup, InputOTP, InputState, NumberField, NumberState, OtpPattern, OtpState, PickerColor,
+    SearchField, TextArea, TextField, Time, TimeField, TimeState,
 };
 
 use harness::{click, events, open_host, press};
@@ -1558,11 +1558,13 @@ fn text_area_click_places_the_caret_inside_a_wrapped_line(cx: &mut TestAppContex
 }
 
 #[gpui::test]
-fn input_addons_and_custom_otp_slots_keep_twenty_pixel_lines(cx: &mut TestAppContext) {
-    for kind in 0..3 {
-        for leading in [None, Some(48.)] {
+fn field_addons_and_custom_slots_keep_twenty_pixel_lines(cx: &mut TestAppContext) {
+    for kind in 0..7 {
+        for leading in [None, Some(12.), Some(48.)] {
             let state = cx.new(|cx| InputState::new(cx));
             let otp = cx.new(|cx| OtpState::with_length(cx, 1));
+            let time = cx.new(|cx| TimeState::new(cx));
+            let number = cx.new(|cx| NumberState::new(cx, 4.));
             let cx = open_host(cx, move || {
                 let probe = || {
                     gpui::div()
@@ -1581,8 +1583,18 @@ fn input_addons_and_custom_otp_slots_keep_twenty_pixel_lines(cx: &mut TestAppCon
                         )
                         .input(Input::new(state.clone()))
                         .into_any_element(),
-                    _ => InputOTP::new(otp.clone())
+                    2 => InputOTP::new(otp.clone())
                         .slot(move |_, _| probe().into_any_element())
+                        .into_any_element(),
+                    3 => DateField::new(state.clone())
+                        .prefix(probe())
+                        .into_any_element(),
+                    4 => TimeField::new(time.clone())
+                        .prefix(probe())
+                        .into_any_element(),
+                    _ => NumberField::new(number.clone())
+                        .increment_icon(probe())
+                        .is_disabled(kind == 6)
                         .into_any_element(),
                 };
                 gpui::div()
@@ -1599,6 +1611,27 @@ fn input_addons_and_custom_otp_slots_keep_twenty_pixel_lines(cx: &mut TestAppCon
                 px(20.),
                 "kind={kind}, host={leading:?}"
             );
+            if kind == 5 {
+                let at = bounds_centre(cx.debug_bounds("input-leading-text").unwrap());
+                cx.simulate_mouse_down(at, MouseButton::Left, Modifiers::none());
+                flush_frame(cx);
+                let pressed = cx
+                    .debug_bounds("input-leading-text")
+                    .expect("pressed slot paints");
+                assert!(
+                    near(
+                        pressed.size.height,
+                        20. * herogpui_components::PRESSED_SCALE
+                    ),
+                    "stepper press scales the 20px line: {pressed:?}"
+                );
+                cx.simulate_mouse_up(at, MouseButton::Left, Modifiers::none());
+                flush_frame(cx);
+                assert_eq!(
+                    cx.debug_bounds("input-leading-text").unwrap().size.height,
+                    px(20.)
+                );
+            }
         }
     }
 }

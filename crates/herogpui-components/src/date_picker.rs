@@ -3148,6 +3148,7 @@ impl RenderOnce for DateField {
             .items_center()
             .gap(px(2.))
             .text_size(crate::util::FIELD_TEXT)
+            .line_height(px(20.))
             .font_family(crate::util::MONO_FONT)
             .text_color(colors.field.foreground)
             .when(!self.bare, |el| {

@@ -12392,7 +12392,7 @@
       },
       {
         "token": ".date-input-group",
-        "description": "Base group geometry and primary field chrome.",
+        "description": "Base group geometry and primary field chrome; group text and slots use explicit 14px/20px metrics.",
         "rust": "FIELD_HEIGHT + field_radius + field tokens",
         "status": "implemented"
       },
@@ -13780,7 +13780,7 @@
       },
       {
         "token": ".number-field__group",
-        "description": "The default flex anatomy matches the three column geometry and shared field shell; GPUI has no CSS grid or autofill pseudo-state.",
+        "description": "The default flex anatomy matches the three column geometry and shared field shell, with explicit 14px/20px group text; GPUI has no CSS grid or autofill pseudo-state.",
         "rust": "FIELD_HEIGHT + 40px buttons + apply_field_chrome",
         "status": "partial"
       },
@@ -14318,7 +14318,7 @@
       },
       {
         "token": ".date-input-group",
-        "description": "Shared base group geometry and primary field chrome.",
+        "description": "Shared base group geometry and primary field chrome; group text and slots use explicit 14px/20px metrics.",
         "rust": "FIELD_HEIGHT + field_radius + field tokens",
         "status": "implemented"
       },

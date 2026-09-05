@@ -653,7 +653,8 @@ impl RenderOnce for NumberField {
             .items_center()
             .h(h)
             .overflow_hidden()
-            .text_size(crate::util::FIELD_TEXT);
+            .text_size(crate::util::FIELD_TEXT)
+            .line_height(px(20.));
         group = crate::util::apply_field_chrome(
             group,
             self.variant,
@@ -1045,7 +1046,7 @@ fn stepper_btn(
                 width: Some(btn_px),
                 min_width: None,
                 text_size: crate::util::FIELD_TEXT,
-                line_height: crate::util::FIELD_TEXT,
+                line_height: px(20.),
                 gap: px(0.),
                 radius: px(0.),
                 scale: crate::anim::PRESSED_SCALE,

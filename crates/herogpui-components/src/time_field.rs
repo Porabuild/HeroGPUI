@@ -1263,6 +1263,7 @@ impl RenderOnce for TimeField {
             .h(util::FIELD_HEIGHT)
             .rounded(util::field_radius(cx))
             .text_size(util::FIELD_TEXT)
+            .line_height(px(20.))
             .font_family(util::MONO_FONT)
             .text_color(colors.field.foreground);
 

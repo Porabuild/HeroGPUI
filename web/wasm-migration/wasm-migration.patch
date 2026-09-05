@@ -15917,7 +15917,7 @@ index c8713596..c1a9fea8 100644
          };
          assert_eq!(locale_default.rows(2026, 2), 5);
 diff --git a/crates/herogpui-components/src/date_picker.rs b/crates/herogpui-components/src/date_picker.rs
-index 9cc8ae0e..4616691f 100644
+index 9cc8ae0e..6669bd24 100644
 --- a/crates/herogpui-components/src/date_picker.rs
 +++ b/crates/herogpui-components/src/date_picker.rs
 @@ -13,6 +13,7 @@ use std::{
@@ -16426,16 +16426,17 @@ index 9cc8ae0e..4616691f 100644
                      }
                  }
              }
-@@ -2972,7 +3148,7 @@ impl RenderOnce for DateField {
+@@ -2972,7 +3148,8 @@ impl RenderOnce for DateField {
              .items_center()
              .gap(px(2.))
              .text_size(crate::util::FIELD_TEXT)
 -            .font_family("Consolas")
++            .line_height(px(20.))
 +            .font_family(crate::util::MONO_FONT)
              .text_color(colors.field.foreground)
              .when(!self.bare, |el| {
                  // `.date-input-group` is `h-9 items-center overflow-hidden`
-@@ -3002,8 +3178,8 @@ impl RenderOnce for DateField {
+@@ -3002,8 +3179,8 @@ impl RenderOnce for DateField {
              group = group
                  .track_focus(&focus_handle)
                  .key_context("DateField")
@@ -16446,7 +16447,7 @@ index 9cc8ae0e..4616691f 100644
                  })
                  .on_key_down(move |event, window, cx| {
                      let key = event.keystroke.key.as_str();
-@@ -3123,6 +3299,7 @@ impl RenderOnce for DateField {
+@@ -3123,6 +3300,7 @@ impl RenderOnce for DateField {
                                              seed_time,
                                              if maximum { u32::MAX } else { 0 },
                                              twelve_hour,
@@ -16454,7 +16455,7 @@ index 9cc8ae0e..4616691f 100644
                                          ),
                                      };
                                      commit(focused, base, Some(next), window, cx);
-@@ -3194,7 +3371,12 @@ impl RenderOnce for DateField {
+@@ -3194,7 +3372,12 @@ impl RenderOnce for DateField {
                                  FieldSegment::Time(segment) => commit(
                                      focused,
                                      display_date.unwrap_or(seed),
@@ -16468,7 +16469,7 @@ index 9cc8ae0e..4616691f 100644
                                      window,
                                      cx,
                                  ),
-@@ -3247,24 +3429,23 @@ impl RenderOnce for DateField {
+@@ -3247,24 +3430,23 @@ impl RenderOnce for DateField {
          }
  
          for (index, segment) in segments.iter().copied().enumerate() {
@@ -16508,7 +16509,7 @@ index 9cc8ae0e..4616691f 100644
              }
  
              let mut seg = gpui::div()
-@@ -3277,12 +3458,8 @@ impl RenderOnce for DateField {
+@@ -3277,12 +3459,8 @@ impl RenderOnce for DateField {
                  .rounded(cx.layout().radius_md())
                  // `segment` is v3's render prop on `DateField.Segment`: the
                  // closure is handed which segment it is drawing.
@@ -16523,7 +16524,7 @@ index 9cc8ae0e..4616691f 100644
                      _ => segment_text(segment).into_any_element(),
                  });
  
-@@ -3306,6 +3483,20 @@ impl RenderOnce for DateField {
+@@ -3306,6 +3484,20 @@ impl RenderOnce for DateField {
              }
  
              group = group.child(seg);
@@ -16544,7 +16545,7 @@ index 9cc8ae0e..4616691f 100644
          }
  
          if let Some(suffix) = self.suffix {
-@@ -3353,7 +3544,7 @@ impl RenderOnce for DateField {
+@@ -3353,7 +3545,7 @@ impl RenderOnce for DateField {
                  let description = self
                      .description
                      .clone()
@@ -16553,7 +16554,7 @@ index 9cc8ae0e..4616691f 100644
                  el = el.child(crate::field::Description::new(description));
              }
          }
-@@ -3366,6 +3557,8 @@ impl RenderOnce for DateField {
+@@ -3366,6 +3558,8 @@ impl RenderOnce for DateField {
  
  #[cfg(test)]
  mod tests {
@@ -16562,7 +16563,7 @@ index 9cc8ae0e..4616691f 100644
      use super::*;
      use crate::time_field::{HourCycle, Time, TimeSegment};
  
-@@ -3376,6 +3569,101 @@ mod tests {
+@@ -3376,6 +3570,101 @@ mod tests {
          assert_eq!(parse_value("2025-02-03"), (Some(date), None));
      }
  
@@ -16664,7 +16665,7 @@ index 9cc8ae0e..4616691f 100644
      #[test]
      fn a_time_value_round_trips_at_every_granularity() {
          let date = Date::new(2025, 2, 3);
-@@ -3439,14 +3727,47 @@ mod tests {
+@@ -3439,14 +3728,47 @@ mod tests {
  
      #[test]
      fn the_hint_says_what_the_field_takes() {
@@ -19503,10 +19504,20 @@ index 70e84e5d..a358b8ec 100644
      }
  }
 diff --git a/crates/herogpui-components/src/number_field.rs b/crates/herogpui-components/src/number_field.rs
-index e24642fd..12b93bfe 100644
+index e24642fd..8d1534aa 100644
 --- a/crates/herogpui-components/src/number_field.rs
 +++ b/crates/herogpui-components/src/number_field.rs
-@@ -968,7 +968,7 @@ fn stepper_btn(
+@@ -653,7 +653,8 @@ impl RenderOnce for NumberField {
+             .items_center()
+             .h(h)
+             .overflow_hidden()
+-            .text_size(crate::util::FIELD_TEXT);
++            .text_size(crate::util::FIELD_TEXT)
++            .line_height(px(20.));
+         group = crate::util::apply_field_chrome(
+             group,
+             self.variant,
+@@ -968,7 +969,7 @@ fn stepper_btn(
          b = b.cursor_pointer().on_mouse_down(
              gpui::MouseButton::Left,
              move |_: &MouseDownEvent, window, cx| {
@@ -19515,6 +19526,15 @@ index e24642fd..12b93bfe 100644
                  let generation = press.update(cx, |press, _| {
                      press.active = true;
                      press.generation = press.generation.wrapping_add(1);
+@@ -1045,7 +1046,7 @@ fn stepper_btn(
+                 width: Some(btn_px),
+                 min_width: None,
+                 text_size: crate::util::FIELD_TEXT,
+-                line_height: crate::util::FIELD_TEXT,
++                line_height: px(20.),
+                 gap: px(0.),
+                 radius: px(0.),
+                 scale: crate::anim::PRESSED_SCALE,
 diff --git a/crates/herogpui-components/src/pagination.rs b/crates/herogpui-components/src/pagination.rs
 index 380beb7a..2abd28d5 100644
 --- a/crates/herogpui-components/src/pagination.rs
@@ -23708,7 +23728,7 @@ index 57ca147b..cae51807 100644
                      .child(description.to_string()),
              );
 diff --git a/crates/herogpui-components/src/time_field.rs b/crates/herogpui-components/src/time_field.rs
-index 4833fa7d..6a393d14 100644
+index 4833fa7d..42a9611a 100644
 --- a/crates/herogpui-components/src/time_field.rs
 +++ b/crates/herogpui-components/src/time_field.rs
 @@ -3,7 +3,12 @@
@@ -24233,16 +24253,17 @@ index 4833fa7d..6a393d14 100644
              }
          };
  
-@@ -919,7 +1263,7 @@ impl RenderOnce for TimeField {
+@@ -919,7 +1263,8 @@ impl RenderOnce for TimeField {
              .h(util::FIELD_HEIGHT)
              .rounded(util::field_radius(cx))
              .text_size(util::FIELD_TEXT)
 -            .font_family("Consolas")
++            .line_height(px(20.))
 +            .font_family(util::MONO_FONT)
              .text_color(colors.field.foreground);
  
          group = util::apply_field_chrome(
-@@ -937,15 +1281,17 @@ impl RenderOnce for TimeField {
+@@ -937,15 +1282,17 @@ impl RenderOnce for TimeField {
              let on_change = self.on_change.clone();
              let buffer = typing;
              let fh = focus_handle.clone();
@@ -24264,7 +24285,7 @@ index 4833fa7d..6a393d14 100644
                  })
                  .on_key_down(move |event, window, cx| {
                      let key = event.keystroke.key.as_str();
-@@ -979,15 +1325,8 @@ impl RenderOnce for TimeField {
+@@ -979,15 +1326,8 @@ impl RenderOnce for TimeField {
                              let delta = if key == "up" { 1 } else { -1 };
                              buffer.update(cx, |b, _| b.clear());
                              let base = state.read(cx).display_value.unwrap_or(seed);
@@ -24282,7 +24303,7 @@ index 4833fa7d..6a393d14 100644
                          }
                          "backspace" | "delete" => {
                              buffer.update(cx, |b, _| b.clear());
-@@ -1029,7 +1368,16 @@ impl RenderOnce for TimeField {
+@@ -1029,7 +1369,16 @@ impl RenderOnce for TimeField {
                                  return;
                              };
                              let base = state.read(cx).display_value.unwrap_or(seed);
@@ -24300,7 +24321,7 @@ index 4833fa7d..6a393d14 100644
                              if text.len() >= width {
                                  buffer.update(cx, |b, _| b.clear());
                                  if let Some(segment) = order.get(here + 1).copied() {
-@@ -1066,11 +1414,12 @@ impl RenderOnce for TimeField {
+@@ -1066,11 +1415,12 @@ impl RenderOnce for TimeField {
          }
  
          for (index, segment) in segments.iter().copied().enumerate() {
@@ -24318,7 +24339,7 @@ index 4833fa7d..6a393d14 100644
              }
  
              let mut seg = div()
-@@ -1106,13 +1455,20 @@ impl RenderOnce for TimeField {
+@@ -1106,13 +1456,20 @@ impl RenderOnce for TimeField {
  
              group = group.child(seg);
          }
@@ -24340,7 +24361,7 @@ index 4833fa7d..6a393d14 100644
              let mut steppers = div().flex().flex_col().ml(px(8.)).flex_shrink_0();
              for (icon, delta, key) in [
                  (icons::CHEVRON_UP, 1i32, "up"),
-@@ -1174,7 +1530,11 @@ impl RenderOnce for TimeField {
+@@ -1174,7 +1531,11 @@ impl RenderOnce for TimeField {
          }
  
          // `.date-field` is `flex flex-col gap-1`.
@@ -24353,7 +24374,7 @@ index 4833fa7d..6a393d14 100644
          if let Some(label) = self.label {
              root = root.child(
                  crate::field::Label::new(label)
-@@ -1227,6 +1587,157 @@ mod tests {
+@@ -1227,6 +1588,157 @@ mod tests {
          assert_eq!(Time::new(11, 0).twelve_hour(), (11, "AM"));
      }
  
@@ -34695,7 +34716,7 @@ index 00000000..b590b5a2
 +    assert_eq!(empty.size.height, px(60.));
 +}
 diff --git a/crates/herogpui-components/tests/text_fields.rs b/crates/herogpui-components/tests/text_fields.rs
-index 6c5c1f0d..3371ed8f 100644
+index 6c5c1f0d..46c0c1f9 100644
 --- a/crates/herogpui-components/tests/text_fields.rs
 +++ b/crates/herogpui-components/tests/text_fields.rs
 @@ -20,7 +20,8 @@
@@ -34719,9 +34740,10 @@ index 6c5c1f0d..3371ed8f 100644
 +};
  use herogpui_components::{
      Button, ColorField, Date, DateField, FieldGroup, Fieldset, FieldsetLegend, Input, InputAddon,
-     InputGroup, InputOTP, InputState, OtpPattern, OtpState, PickerColor, SearchField, TextArea,
+-    InputGroup, InputOTP, InputState, OtpPattern, OtpState, PickerColor, SearchField, TextArea,
 -    TextField,
-+    TextField, Time, TimeField, TimeState,
++    InputGroup, InputOTP, InputState, NumberField, NumberState, OtpPattern, OtpState, PickerColor,
++    SearchField, TextArea, TextField, Time, TimeField, TimeState,
  };
  
  use harness::{click, events, open_host, press};
@@ -35084,7 +35106,7 @@ index 6c5c1f0d..3371ed8f 100644
  #[gpui::test]
  fn search_field_custom_clear_icon_preserves_clear_behavior(cx: &mut TestAppContext) {
      let changes = events();
-@@ -1198,3 +1514,157 @@ fn fieldset_disabled_disables_its_children(cx: &mut TestAppContext) {
+@@ -1198,3 +1514,190 @@ fn fieldset_disabled_disables_its_children(cx: &mut TestAppContext) {
      let value = cx.update(|_, cx| state.read(cx).value().to_owned());
      assert_eq!(value, "abc", "the InputState must hold the typed value");
  }
@@ -35132,11 +35154,13 @@ index 6c5c1f0d..3371ed8f 100644
 +}
 +
 +#[gpui::test]
-+fn input_addons_and_custom_otp_slots_keep_twenty_pixel_lines(cx: &mut TestAppContext) {
-+    for kind in 0..3 {
-+        for leading in [None, Some(48.)] {
++fn field_addons_and_custom_slots_keep_twenty_pixel_lines(cx: &mut TestAppContext) {
++    for kind in 0..7 {
++        for leading in [None, Some(12.), Some(48.)] {
 +            let state = cx.new(|cx| InputState::new(cx));
 +            let otp = cx.new(|cx| OtpState::with_length(cx, 1));
++            let time = cx.new(|cx| TimeState::new(cx));
++            let number = cx.new(|cx| NumberState::new(cx, 4.));
 +            let cx = open_host(cx, move || {
 +                let probe = || {
 +                    gpui::div()
@@ -35155,8 +35179,18 @@ index 6c5c1f0d..3371ed8f 100644
 +                        )
 +                        .input(Input::new(state.clone()))
 +                        .into_any_element(),
-+                    _ => InputOTP::new(otp.clone())
++                    2 => InputOTP::new(otp.clone())
 +                        .slot(move |_, _| probe().into_any_element())
++                        .into_any_element(),
++                    3 => DateField::new(state.clone())
++                        .prefix(probe())
++                        .into_any_element(),
++                    4 => TimeField::new(time.clone())
++                        .prefix(probe())
++                        .into_any_element(),
++                    _ => NumberField::new(number.clone())
++                        .increment_icon(probe())
++                        .is_disabled(kind == 6)
 +                        .into_any_element(),
 +                };
 +                gpui::div()
@@ -35173,6 +35207,27 @@ index 6c5c1f0d..3371ed8f 100644
 +                px(20.),
 +                "kind={kind}, host={leading:?}"
 +            );
++            if kind == 5 {
++                let at = bounds_centre(cx.debug_bounds("input-leading-text").unwrap());
++                cx.simulate_mouse_down(at, MouseButton::Left, Modifiers::none());
++                flush_frame(cx);
++                let pressed = cx
++                    .debug_bounds("input-leading-text")
++                    .expect("pressed slot paints");
++                assert!(
++                    near(
++                        pressed.size.height,
++                        20. * herogpui_components::PRESSED_SCALE
++                    ),
++                    "stepper press scales the 20px line: {pressed:?}"
++                );
++                cx.simulate_mouse_up(at, MouseButton::Left, Modifiers::none());
++                flush_frame(cx);
++                assert_eq!(
++                    cx.debug_bounds("input-leading-text").unwrap().size.height,
++                    px(20.)
++                );
++            }
 +        }
 +    }
 +}
@@ -213098,7 +213153,7 @@ index 6452b2b7..b70b6484 100644
      }
  }
 diff --git a/gallery/src/pages/reference_metadata.rs b/gallery/src/pages/reference_metadata.rs
-index 71065ac8..11c638f6 100644
+index 71065ac8..71750878 100644
 --- a/gallery/src/pages/reference_metadata.rs
 +++ b/gallery/src/pages/reference_metadata.rs
 @@ -22,7 +22,12 @@ impl ImplementationStatus {
@@ -213386,6 +213441,24 @@ index 71065ac8..11c638f6 100644
      PartDoc { name: "DateField.Prefix", slot: "date-input-group-prefix", description: "Inert leading content.", rust_owner: "DateField", status: ImplementationStatus::Implemented },
      PartDoc { name: "DateField.Suffix", slot: "date-input-group-suffix", description: "Inert trailing content.", rust_owner: "DateField", status: ImplementationStatus::Implemented },
      PartDoc { name: "Description", slot: "description", description: "Help text or generated format hint, hidden when invalid.", rust_owner: "DateField", status: ImplementationStatus::Implemented },
+@@ -6478,7 +6509,7 @@ const DATE_FIELD_STYLING: &[StyleDoc] = &[
+     StyleDoc { class_or_token: ".date-field", value: "flex flex-col gap-1", description: "Four-pixel field stack with label, group and message.", rust: "flex_col + gap(px(4.))", status: ImplementationStatus::Implemented },
+     StyleDoc { class_or_token: ".date-field[data-invalid] [data-slot=description]", value: "hidden", description: "Invalid state replaces help text with the first resolved error.", rust: "validity.first() branch", status: ImplementationStatus::Implemented },
+     StyleDoc { class_or_token: ".date-field--full-width", value: "w-full", description: "Full-width root and group.", rust: "full_width(true)", status: ImplementationStatus::Implemented },
+-    StyleDoc { class_or_token: ".date-input-group", value: "h-9 rounded-field border bg-field text-sm shadow-field overflow-hidden", description: "Base group geometry and primary field chrome.", rust: "FIELD_HEIGHT + field_radius + field tokens", status: ImplementationStatus::Implemented },
++    StyleDoc { class_or_token: ".date-input-group", value: "h-9 rounded-field border bg-field text-sm shadow-field overflow-hidden", description: "Base group geometry and primary field chrome; group text and slots use explicit 14px/20px metrics.", rust: "FIELD_HEIGHT + field_radius + field tokens", status: ImplementationStatus::Implemented },
+     StyleDoc { class_or_token: ".date-input-group transitions", value: "background/border 150ms ease-smooth; shadow 150ms ease-out; reduced-motion none", description: "The port reaches each state endpoint without interpolating field properties.", rust: "immediate hover/focus/invalid styles", status: ImplementationStatus::Partial },
+     StyleDoc { class_or_token: ".date-input-group__input", value: "flex flex-1 gap-px px-3 py-2 bg-transparent", description: "Segment row uses 12px horizontal padding and a 2px GPUI gap rather than CSS's 1px gap.", rust: "group px(12px) + gap(2px)", status: ImplementationStatus::Partial },
+     StyleDoc { class_or_token: ".date-input-group__input-container", value: "flex flex-1 width fit-content overflow-x auto overflow-y clip", description: "No public multi-input scroll container is rendered.", rust: "—", status: ImplementationStatus::Unavailable },
+@@ -6580,7 +6611,7 @@ const NUMBER_FIELD_STATES: &[StateDoc] = &[
+ 
+ const NUMBER_FIELD_STYLING: &[StyleDoc] = &[
+     StyleDoc { class_or_token: ".number-field", value: "flex flex-col gap-1", description: "Root field stack and four-pixel label/message spacing.", rust: "flex_col + gap(px(4.))", status: ImplementationStatus::Implemented },
+-    StyleDoc { class_or_token: ".number-field__group", value: "grid h-9; 40px 1fr 40px; rounded-field border bg-field text-sm shadow-field", description: "The default flex anatomy matches the three column geometry and shared field shell; GPUI has no CSS grid or autofill pseudo-state.", rust: "FIELD_HEIGHT + 40px buttons + apply_field_chrome", status: ImplementationStatus::Partial },
++    StyleDoc { class_or_token: ".number-field__group", value: "grid h-9; 40px 1fr 40px; rounded-field border bg-field text-sm shadow-field", description: "The default flex anatomy matches the three column geometry and shared field shell, with explicit 14px/20px group text; GPUI has no CSS grid or autofill pseudo-state.", rust: "FIELD_HEIGHT + 40px buttons + apply_field_chrome", status: ImplementationStatus::Partial },
+     StyleDoc { class_or_token: ".number-field__group transitions", value: "background/border 150ms ease-smooth; shadow 150ms ease-out; reduced motion none", description: "State colors and focus shadow swap on a frame rather than interpolating.", rust: "apply_field_chrome", status: ImplementationStatus::Partial },
+     StyleDoc { class_or_token: ".number-field__input", value: "min-w-0 rounded-none border-0 bg-transparent px-3 py-2 text-base sm:text-sm tabular-nums", description: "Inset, transparent grouped chrome and desktop text size match; GPUI text does not expose tabular numeral selection.", rust: "Input::in_group + FIELD_TEXT", status: ImplementationStatus::Partial },
+     StyleDoc { class_or_token: ".number-field__increment-button / .number-field__decrement-button", value: "h-full w-10 rounded-none bg-transparent; icon size-4", description: "Default cell and icon metrics match with a 15% placeholder seam.", rust: "stepper_btn 40x36 + FIELD_ICON", status: ImplementationStatus::Implemented },
 @@ -6628,7 +6659,7 @@ const TIME_FIELD_API: &[ApiDoc] = &[
      ApiDoc { owner: "TimeField", prop: "value", ty: "TimeValue | null", default: "—", description: "Controlled plain-time value; calendar date-time and zoned types are not represented.", rust_owner: "TimeField", rust: "value(Option<Time>, cx)", status: ImplementationStatus::Partial },
      ApiDoc { owner: "TimeField", prop: "defaultValue", ty: "TimeValue | null", default: "—", description: "Seeds an uncontrolled plain-time value once.", rust_owner: "TimeField", rust: "default_value(Time)", status: ImplementationStatus::Partial },
@@ -213416,15 +213489,17 @@ index 71065ac8..11c638f6 100644
      ApiDoc { owner: "TimeField.Prefix", prop: "children", ty: "ReactNode", default: "—", description: "Inert content before the segments.", rust_owner: "TimeField", rust: "prefix(element)", status: ImplementationStatus::Implemented },
      ApiDoc { owner: "TimeField.Suffix", prop: "children", ty: "ReactNode", default: "—", description: "Inert content after the segments.", rust_owner: "TimeField", rust: "suffix(element)", status: ImplementationStatus::Implemented },
      ApiDoc { owner: "Composition parts", prop: "className", ty: "string", default: "—", description: "Per-part browser CSS classes are unavailable.", rust_owner: "TimeField", rust: "—", status: ImplementationStatus::Unavailable },
-@@ -6781,7 +6812,7 @@ const TIME_FIELD_STATES: &[StateDoc] = &[
+@@ -6781,8 +6812,8 @@ const TIME_FIELD_STATES: &[StateDoc] = &[
  const TIME_FIELD_STYLING: &[StyleDoc] = &[
      StyleDoc { class_or_token: ".time-field", value: "flex flex-col gap-1", description: "Four-pixel field stack with label, group and message.", rust: "flex_col + gap(px(4.))", status: ImplementationStatus::Implemented },
      StyleDoc { class_or_token: ".time-field[data-invalid] [data-slot=description]", value: "hidden", description: "Invalid state replaces help text with the first error.", rust: "validity.first() branch", status: ImplementationStatus::Implemented },
 -    StyleDoc { class_or_token: ".time-field--full-width", value: "w-full", description: "Full-width root and group.", rust: "full_width(true)", status: ImplementationStatus::Implemented },
+-    StyleDoc { class_or_token: ".date-input-group", value: "h-9 rounded-field border bg-field text-sm shadow-field overflow-hidden", description: "Shared base group geometry and primary field chrome.", rust: "FIELD_HEIGHT + field_radius + field tokens", status: ImplementationStatus::Implemented },
 +    StyleDoc { class_or_token: ".time-field--full-width", value: "w-full", description: "Full-width root and group stretch even in a non-stretching parent.", rust: "full_width(true)", status: ImplementationStatus::Implemented },
-     StyleDoc { class_or_token: ".date-input-group", value: "h-9 rounded-field border bg-field text-sm shadow-field overflow-hidden", description: "Shared base group geometry and primary field chrome.", rust: "FIELD_HEIGHT + field_radius + field tokens", status: ImplementationStatus::Implemented },
++    StyleDoc { class_or_token: ".date-input-group", value: "h-9 rounded-field border bg-field text-sm shadow-field overflow-hidden", description: "Shared base group geometry and primary field chrome; group text and slots use explicit 14px/20px metrics.", rust: "FIELD_HEIGHT + field_radius + field tokens", status: ImplementationStatus::Implemented },
      StyleDoc { class_or_token: ".date-input-group transitions", value: "background/border 150ms ease-smooth; shadow 150ms ease-out; reduced-motion none", description: "The port reaches state endpoints without property interpolation.", rust: "immediate hover/focus/invalid styles", status: ImplementationStatus::Partial },
      StyleDoc { class_or_token: ".date-input-group__input", value: "flex flex-1 gap-px px-3 py-2 bg-transparent", description: "Segment row uses the correct padding with a 2px GPUI gap rather than CSS's 1px gap.", rust: "group px(12px) + gap(2px)", status: ImplementationStatus::Partial },
+     StyleDoc { class_or_token: ".date-input-group__segment", value: "rounded-md px-0.5 text-end tabular-nums", description: "Radius and padding match; Consolas supplies tabular figures without independent text-end alignment.", rust: "px(2px) + radius_md + Consolas", status: ImplementationStatus::Partial },
 @@ -6931,10 +6962,10 @@ const CALENDAR_API: &[ApiDoc] = &[
          prop: "firstDayOfWeek",
          ty: "'sun' | 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat'",
