@@ -29,10 +29,10 @@
 //! suite:
 //!
 //! - Every trigger field is a 36px row (`util::FIELD_HEIGHT`) at the window
-//!   origin, so its centre is (60, 18). Autocomplete and ComboBox panels hang
-//!   from `placed_field_panel(BottomStart, 6px)`: top = 42. The Select panel
-//!   is positioned from the measured trigger bounds with RAC's 8px popover
-//!   gap instead: top = 44.
+//!   origin, so its centre is (60, 18). Autocomplete panels hang
+//!   from `placed_field_panel(BottomStart, 6px)`: top = 42. ComboBox panels
+//!   are positioned from the measured field bounds with RAC's 8px popover
+//!   gap instead: top = 44. The Select panel uses the same 8px gap.
 //! - Autocomplete: panel `pt(8)` + search wrapper `py(4)` + 36px field + list
 //!   `p(6)` puts row *i* at y 100+36i; clicking y = 124+36i lands inside it in
 //!   every phase of the entry zoom. A `section_before` heading rides above its
@@ -44,9 +44,9 @@
 //!   flex row; the 320px trigger (`max_w(320)`) has `pr(28)`, so the button
 //!   ends at x = 292 and centres at (282, 18), clear of the absolute chevron
 //!   (`right(8)`, 16px, x 296..312).
-//! - ComboBox: panel `p(4)` puts row *i* at y 46+36i; clicking y = 64+36i
-//!   covers it. The field caps at `max_w(320)`, so the chevron centre is
-//!   (298, 18).
+//! - ComboBox: panel `p(4)` below the 8px gap puts row *i* at y 48+36i;
+//!   clicking y = 64+36i covers it. The field caps at `max_w(320)`, so the
+//!   chevron centre is (298, 18).
 //! - Select: panel `py(6)` below the 8px gap puts option *i*'s centre at y
 //!   68+36i.
 //! - Drawer (window 1920x1080, 384px desktop side width): the Right panel is
@@ -4402,5 +4402,501 @@ fn select_panel_anchors_to_the_trigger_and_dismisses_with_escape(cx: &mut TestAp
     assert!(
         recorded.borrow().is_empty(),
         "a dismissed panel must not answer the pointer"
+    );
+}
+
+// ComboBox popup viewport visibility
+// ---------------------------------------------------------------------------
+//
+// Upstream, `ComboBox.Popover` is a React Aria Components `Popover` exactly
+// like `Select.Popover`: no `offset`, `containerPadding`, `shouldFlip` or
+// `maxHeight` override, so the inherited contract is RAC's own — `offset` 8
+// (`Popover`'s `props.offset ?? 8`), `containerPadding` 12 and
+// `shouldFlip: true` (`useOverlayPosition` defaults), with a computed
+// `maxHeight` from `calculatePosition`'s `getMaxHeight`: the space from the
+// placed edge to the viewport boundary minus padding, flipping toward the
+// roomier side. The popover itself scrolls (`combo-box.css`:
+// `.combo-box__popover` is `overflow-y-auto overscroll-contain,
+// min-w-(--trigger-width)`) while the ListBox inside is `overflow-clip` —
+// there is no 240px cap anywhere upstream. RAC also tracks the trigger width
+// through a resize observer (`--trigger-width`), so the panel follows resizes.
+//
+// The port previously hung the panel from `util::placed_field_panel` with a
+// fixed `max_h(240)` (and a fixed `h(240)` virtual list): no flip, no
+// viewport clamp, no available-height cap, no wheel containment. A trigger
+// near the bottom of the window pushed the list off-screen and the last rows
+// stayed unreachable. These tests pin the upstream behavior with real bounds
+// and real interaction, mirroring the Select viewport tests above: flip above
+// the trigger, trigger-width alignment, an available-height cap with a
+// reachable last row, resize tracking, and the keyboard path — for both the
+// plain and the virtual lists.
+
+/// `debug_bounds` wants a `&'static str`; dynamic selectors leak one short
+/// string per probe.
+fn combo_probe(name: String) -> &'static str {
+    let leaked: &'static mut str = Box::leak(name.into_boxed_str());
+    &*leaked
+}
+
+/// Twelve plain rows: natural panel height (~462px) fits neither below a
+/// bottom trigger nor, in a 480px window, above it uncapped.
+fn combo_options(n: usize) -> Vec<PickerItem> {
+    (0..n)
+        .map(|i| {
+            let label = format!("Option {i:02}");
+            PickerItem::new(label.clone(), label)
+        })
+        .collect()
+}
+
+/// A ComboBox whose 320px field sits at (40, `top`) in a 640px window.
+fn combo_at(top: f32, combo: ComboBox) -> gpui::AnyElement {
+    gpui::div()
+        .size_full()
+        .child(
+            gpui::div()
+                .absolute()
+                .left(px(40.))
+                .top(px(top))
+                .w(px(320.))
+                .child(combo)
+                .into_any_element(),
+        )
+        .into_any_element()
+}
+
+/// The same field inside a tracked scrollable page. The inner content is
+/// 2000px tall so the page can scroll at both the 480px and 1100px test
+/// viewports; with the page at offset zero the field sits at the same window
+/// coordinates as `combo_at`, while a wheel over the deferred popup must not
+/// move the page (`overscroll-contain`).
+fn combo_in_page(top: f32, combo: ComboBox, page_scroll: gpui::ScrollHandle) -> gpui::AnyElement {
+    gpui::div()
+        .id("combobox-viewport-page")
+        .size_full()
+        .overflow_y_scroll()
+        .track_scroll(&page_scroll)
+        .child(
+            gpui::div().relative().h(px(2000.)).child(
+                gpui::div()
+                    .absolute()
+                    .left(px(40.))
+                    .top(px(top))
+                    .w(px(320.))
+                    .child(combo)
+                    .into_any_element(),
+            ),
+        )
+        .into_any_element()
+}
+
+#[gpui::test]
+fn combo_box_panel_flips_above_and_keeps_every_row_reachable(cx: &mut TestAppContext) {
+    still();
+    let picked = events();
+    let recorded = picked.clone();
+    let opened = events();
+    let opens = opened.clone();
+    let page_scroll = gpui::ScrollHandle::new();
+    let page_for_view = page_scroll.clone();
+    let state = search_state(cx);
+    let entity_id = state.entity_id().as_u64();
+    let state_for_view = state;
+    let cx = open_host(cx, move || {
+        let recorded = picked.clone();
+        let opens = opened.clone();
+        let page_scroll = page_for_view.clone();
+        combo_in_page(
+            408.,
+            ComboBox::new(state_for_view.clone(), combo_options(12))
+                .full_width(true)
+                .max_items(12)
+                .on_selection_change(move |key, _, _| recorded.borrow_mut().push(key.to_string()))
+                .on_open_change(move |open, _, _| opens.borrow_mut().push(format!("{open}"))),
+            page_scroll,
+        )
+    });
+    settle_select(cx, 640., 480.);
+    click(cx, 200., 426.);
+    settle_select(cx, 640., 480.);
+    assert_eq!(opens.borrow().as_slice(), ["true"]);
+
+    let trigger = cx
+        .debug_bounds(combo_probe(format!("combobox-field-{entity_id}")))
+        .expect("the field must be laid out");
+    let panel = cx
+        .debug_bounds(combo_probe(format!("combobox-panel-{entity_id}")))
+        .expect("the open panel must be laid out");
+
+    // The natural list (~462px) fits nowhere below the field, so the panel
+    // flips above it with RAC's 8px gap, stays on the 12px viewport inset,
+    // and matches the field width like `min-w-(--trigger-width)`.
+    assert!(
+        near_px(panel.bottom(), f32::from(trigger.top()) - 8.),
+        "the panel must flip above a bottom field with an 8px gap: panel={panel:?} trigger={trigger:?}"
+    );
+    assert!(
+        f32::from(panel.top()) >= 12. - 1.5,
+        "the flipped panel must stay on the viewport inset, got {panel:?}"
+    );
+    assert!(
+        f32::from(panel.bottom()) <= 480. - 12. + 1.5,
+        "the panel must stay inside the window, got {panel:?}"
+    );
+    assert!(
+        near_px(panel.left(), f32::from(trigger.left())),
+        "the panel must align with the field: panel={panel:?} trigger={trigger:?}"
+    );
+    assert!(
+        near_px(panel.size.width, f32::from(trigger.size.width)),
+        "the panel must match the field width: panel={panel:?} trigger={trigger:?}"
+    );
+
+    // Neither side fits the natural height, so the panel caps at the
+    // available height instead of the arbitrary 240px.
+    assert!(
+        f32::from(panel.size.height) > 240. + 1.5,
+        "the capped panel must use the room above the field, got {panel:?}"
+    );
+
+    // The last row starts below the capped panel; scrolling the panel must
+    // bring it into view and keep it clickable without moving the page.
+    let last_selector = combo_probe(format!("combobox-{entity_id}-item-Option 11"));
+    let hidden = cx
+        .debug_bounds(last_selector)
+        .expect("rows must be laid out");
+    assert!(
+        f32::from(hidden.top()) >= f32::from(panel.bottom()),
+        "the last row must start out of view in a capped panel: row={hidden:?} panel={panel:?}"
+    );
+    let trigger_before = cx
+        .debug_bounds(combo_probe(format!("combobox-field-{entity_id}")))
+        .expect("the field must be laid out");
+    for _ in 0..3 {
+        cx.simulate_event(gpui::ScrollWheelEvent {
+            position: panel.center(),
+            delta: gpui::ScrollDelta::Pixels(point(px(0.), px(-1000.))),
+            modifiers: Modifiers::none(),
+            touch_phase: gpui::TouchPhase::Moved,
+        });
+        cx.update(|window, _| window.refresh());
+        cx.run_until_parked();
+    }
+    let panel = cx
+        .debug_bounds(combo_probe(format!("combobox-panel-{entity_id}")))
+        .expect("the open panel must be laid out");
+    let last = cx
+        .debug_bounds(last_selector)
+        .expect("rows must be laid out");
+    assert!(
+        f32::from(last.top()) >= f32::from(panel.top()) - 1.5
+            && f32::from(last.bottom()) <= f32::from(panel.bottom()) + 1.5,
+        "scrolling must reveal the last row: row={last:?} panel={panel:?}"
+    );
+    assert_eq!(
+        page_scroll.offset().y,
+        px(0.),
+        "scrolling the popup must not move the page"
+    );
+    let trigger_after = cx
+        .debug_bounds(combo_probe(format!("combobox-field-{entity_id}")))
+        .expect("the field must be laid out");
+    assert_eq!(
+        trigger_after.origin, trigger_before.origin,
+        "the page must not scroll under the open popup"
+    );
+    // Reaching the popup boundary must still contain the wheel.
+    cx.simulate_event(gpui::ScrollWheelEvent {
+        position: panel.center(),
+        delta: gpui::ScrollDelta::Pixels(point(px(0.), px(-1000.))),
+        modifiers: Modifiers::none(),
+        touch_phase: gpui::TouchPhase::Moved,
+    });
+    cx.update(|window, _| window.refresh());
+    cx.run_until_parked();
+    assert_eq!(
+        page_scroll.offset().y,
+        px(0.),
+        "scrolling at the popup boundary must not move the page"
+    );
+    let last = cx
+        .debug_bounds(combo_probe(format!("combobox-{entity_id}-item-Option 11")))
+        .expect("rows must be laid out");
+    click(cx, f32::from(last.center().x), f32::from(last.center().y));
+    assert_eq!(recorded.borrow().as_slice(), ["Option 11"]);
+    assert_eq!(opens.borrow().as_slice(), ["true", "false"]);
+}
+
+#[gpui::test]
+fn combo_box_virtual_panel_flips_caps_and_tracks_resize(cx: &mut TestAppContext) {
+    still();
+    let picked = events();
+    let recorded = picked.clone();
+    let opened = events();
+    let opens = opened.clone();
+    let page_scroll = gpui::ScrollHandle::new();
+    let page_for_view = page_scroll.clone();
+    let state = search_state(cx);
+    let entity_id = state.entity_id().as_u64();
+    let state_for_view = state;
+    let cx = open_host(cx, move || {
+        let recorded = picked.clone();
+        let opens = opened.clone();
+        let page_scroll = page_for_view.clone();
+        combo_in_page(
+            408.,
+            ComboBox::new(state_for_view.clone(), combo_options(200))
+                .full_width(true)
+                .max_items(200)
+                .row_height(px(36.))
+                .on_selection_change(move |key, _, _| recorded.borrow_mut().push(key.to_string()))
+                .on_open_change(move |open, _, _| opens.borrow_mut().push(format!("{open}"))),
+            page_scroll,
+        )
+    });
+    settle_select(cx, 640., 480.);
+    click(cx, 200., 426.);
+    settle_select(cx, 640., 480.);
+    assert_eq!(opens.borrow().as_slice(), ["true"]);
+
+    let trigger = cx
+        .debug_bounds(combo_probe(format!("combobox-field-{entity_id}")))
+        .expect("the field must be laid out");
+    let panel = cx
+        .debug_bounds(combo_probe(format!("combobox-panel-{entity_id}")))
+        .expect("the open panel must be laid out");
+
+    // A 200-row virtual list never fits uncapped: it flips above and caps at
+    // the available height rather than the fixed 240px list viewport.
+    assert!(
+        near_px(panel.bottom(), f32::from(trigger.top()) - 8.),
+        "the virtual panel must flip above a bottom field with an 8px gap: panel={panel:?} trigger={trigger:?}"
+    );
+    assert!(
+        f32::from(panel.top()) >= 12. - 1.5 && f32::from(panel.bottom()) <= 480. - 12. + 1.5,
+        "the capped virtual panel must stay inside the window, got {panel:?}"
+    );
+    assert!(
+        near_px(panel.left(), f32::from(trigger.left()))
+            && near_px(panel.size.width, f32::from(trigger.size.width)),
+        "the virtual panel must match the field width: panel={panel:?} trigger={trigger:?}"
+    );
+
+    // Growing the window must reposition the still-open panel: below the
+    // field now has the most room, so it flips back and stays inset.
+    settle_select(cx, 640., 1100.);
+    let trigger = cx
+        .debug_bounds(combo_probe(format!("combobox-field-{entity_id}")))
+        .expect("the field must be laid out");
+    let panel = cx
+        .debug_bounds(combo_probe(format!("combobox-panel-{entity_id}")))
+        .expect("the open panel must be laid out");
+    assert!(
+        near_px(panel.top(), f32::from(trigger.bottom()) + 8.),
+        "the panel must flip back below once the window grows with an 8px gap: panel={panel:?} trigger={trigger:?}"
+    );
+    assert!(
+        f32::from(panel.bottom()) <= 1100. - 12. + 1.5,
+        "the repositioned panel must stay inside the window, got {panel:?}"
+    );
+
+    // The pointer reaches the last virtual row through the wheel: scrolling
+    // the popup must not move the page, and clicking the revealed row picks
+    // it and closes the panel.
+    let trigger_before = cx
+        .debug_bounds(combo_probe(format!("combobox-field-{entity_id}")))
+        .expect("the field must be laid out");
+    for _ in 0..10 {
+        cx.simulate_event(gpui::ScrollWheelEvent {
+            position: panel.center(),
+            delta: gpui::ScrollDelta::Pixels(point(px(0.), px(-1000.))),
+            modifiers: Modifiers::none(),
+            touch_phase: gpui::TouchPhase::Moved,
+        });
+        cx.update(|window, _| window.refresh());
+        cx.run_until_parked();
+    }
+    let panel = cx
+        .debug_bounds(combo_probe(format!("combobox-panel-{entity_id}")))
+        .expect("the open panel must be laid out");
+    let last = cx
+        .debug_bounds(combo_probe(format!("combobox-{entity_id}-item-Option 199")))
+        .expect("rows must be laid out");
+    assert!(
+        f32::from(last.top()) >= f32::from(panel.top()) - 1.5
+            && f32::from(last.bottom()) <= f32::from(panel.bottom()) + 1.5,
+        "wheel must scroll the last virtual row into view: row={last:?} panel={panel:?}"
+    );
+    assert_eq!(
+        page_scroll.offset().y,
+        px(0.),
+        "scrolling the virtual popup must not move the page"
+    );
+    let trigger_after = cx
+        .debug_bounds(combo_probe(format!("combobox-field-{entity_id}")))
+        .expect("the field must be laid out");
+    assert_eq!(
+        trigger_after.origin, trigger_before.origin,
+        "the page must not scroll under the open virtual popup"
+    );
+    click(cx, f32::from(last.center().x), f32::from(last.center().y));
+    assert_eq!(recorded.borrow().as_slice(), ["Option 199"]);
+    assert_eq!(opens.borrow().as_slice(), ["true", "false"]);
+
+    // Reopen for the keyboard path: End still reaches the last virtual row
+    // and Enter picks it, which closes the panel.
+    click(cx, 338., 426.);
+    settle_select(cx, 640., 1100.);
+    flush_frame(cx);
+    press(cx, "end");
+    flush_frame(cx);
+    let panel = cx
+        .debug_bounds(combo_probe(format!("combobox-panel-{entity_id}")))
+        .expect("the open panel must be laid out");
+    let last = cx
+        .debug_bounds(combo_probe(format!("combobox-{entity_id}-item-Option 199")))
+        .expect("rows must be laid out");
+    assert!(
+        f32::from(last.top()) >= f32::from(panel.top()) - 1.5
+            && f32::from(last.bottom()) <= f32::from(panel.bottom()) + 1.5,
+        "End must scroll the last virtual row into view: row={last:?} panel={panel:?}"
+    );
+    press(cx, "enter");
+    assert_eq!(recorded.borrow().as_slice(), ["Option 199", "Option 199"]);
+    assert_eq!(
+        opens.borrow().as_slice(),
+        ["true", "false", "true", "false"]
+    );
+}
+
+#[gpui::test]
+fn combo_box_panel_anchors_to_the_field_and_dismisses_with_escape(cx: &mut TestAppContext) {
+    still();
+    let picked = events();
+    let recorded = picked.clone();
+    let opened = events();
+    let opens = opened.clone();
+    let state = search_state(cx);
+    let entity_id = state.entity_id().as_u64();
+    let state_for_view = state;
+    let cx = open_host(cx, move || {
+        let recorded = picked.clone();
+        let opens = opened.clone();
+        combo_at(
+            40.,
+            ComboBox::new(state_for_view.clone(), combo_options(3))
+                .full_width(true)
+                .label("Language")
+                .description("Pick one")
+                .on_selection_change(move |key, _, _| recorded.borrow_mut().push(key.to_string()))
+                .on_open_change(move |open, _, _| opens.borrow_mut().push(format!("{open}"))),
+        )
+    });
+    settle_select(cx, 640., 480.);
+
+    // The anchor is the Input's 36px field row — not the label-to-error
+    // wrapper — the way RAC's `triggerRef` reads `groupRef.current ||
+    // inputRef.current`. At top 40 the 20px label plus 4px gap puts the row
+    // at 64..100; the 16px description starts at 104, so both live outside
+    // the measured bounds. Three rows fit below, so the preferred side
+    // stays below with RAC's 8px gap (panel 108, not the wrapper-based 128).
+    let trigger = cx
+        .debug_bounds(combo_probe(format!("combobox-field-{entity_id}")))
+        .expect("the field must be laid out");
+    assert!(
+        near_px(trigger.top(), 64.) && near_px(trigger.bottom(), 100.),
+        "the anchor must be the 36px field row below the label: trigger={trigger:?}"
+    );
+    assert!(
+        near_px(trigger.size.height, 36.),
+        "the anchor must be exactly one field tall: trigger={trigger:?}"
+    );
+    click(cx, 200., f32::from(trigger.center().y));
+    settle_select(cx, 640., 480.);
+    assert_eq!(opens.borrow().as_slice(), ["true"]);
+
+    let panel = cx
+        .debug_bounds(combo_probe(format!("combobox-panel-{entity_id}")))
+        .expect("the open panel must be laid out");
+    assert!(
+        near_px(panel.top(), 108.),
+        "a labeled panel must sit 8px below the field row itself: panel={panel:?} trigger={trigger:?}"
+    );
+    assert!(
+        near_px(panel.top(), f32::from(trigger.bottom()) + 8.),
+        "a labeled panel must sit 8px below the field row: panel={panel:?} trigger={trigger:?}"
+    );
+    assert!(
+        f32::from(panel.bottom()) <= 480. - 12. + 1.5,
+        "the labeled panel must stay inside the window, got {panel:?}"
+    );
+
+    // Escape dismisses; clicking where the last row was must then hit
+    // nothing and record nothing.
+    let last = cx
+        .debug_bounds(combo_probe(format!("combobox-{entity_id}-item-Option 02")))
+        .expect("rows must be laid out");
+    let stale = (f32::from(last.center().x), f32::from(last.center().y));
+    press(cx, "escape");
+    assert_eq!(opens.borrow().as_slice(), ["true", "false"]);
+    click(cx, stale.0.min(639.), stale.1.min(479.));
+    assert!(
+        recorded.borrow().is_empty(),
+        "a dismissed panel must not answer the pointer"
+    );
+}
+
+#[gpui::test]
+fn combo_box_panel_anchors_to_the_field_under_error_and_value(cx: &mut TestAppContext) {
+    still();
+    let opened = events();
+    let opens = opened.clone();
+    let state = search_state(cx);
+    let entity_id = state.entity_id().as_u64();
+    let state_for_view = state;
+    let cx = open_host(cx, move || {
+        let opens = opened.clone();
+        combo_at(
+            40.,
+            ComboBox::new(state_for_view.clone(), combo_options(3))
+                .full_width(true)
+                .label("Language")
+                .is_invalid(true)
+                .error_message("Required")
+                .value_content(|v| v.default_children)
+                .on_open_change(move |open, _, _| opens.borrow_mut().push(format!("{open}"))),
+        )
+    });
+    settle_select(cx, 640., 480.);
+
+    // The error slot replaces the description at the same 104 offset and the
+    // value row hangs below the field inside the root: both must stay outside
+    // the 64..100 field anchor, so the panel still sits at 108.
+    let trigger = cx
+        .debug_bounds(combo_probe(format!("combobox-field-{entity_id}")))
+        .expect("the field must be laid out");
+    assert!(
+        near_px(trigger.top(), 64.) && near_px(trigger.bottom(), 100.),
+        "the anchor must stay the field row under error and value: trigger={trigger:?}"
+    );
+    assert!(
+        near_px(trigger.size.height, 36.),
+        "the anchor must stay exactly one field tall: trigger={trigger:?}"
+    );
+    click(cx, 200., f32::from(trigger.center().y));
+    settle_select(cx, 640., 480.);
+    assert_eq!(opens.borrow().as_slice(), ["true"]);
+
+    let panel = cx
+        .debug_bounds(combo_probe(format!("combobox-panel-{entity_id}")))
+        .expect("the open panel must be laid out");
+    assert!(
+        near_px(panel.top(), 108.)
+            && near_px(panel.top(), f32::from(trigger.bottom()) + 8.),
+        "the panel must sit 8px below the field row under error and value: panel={panel:?} trigger={trigger:?}"
+    );
+    assert!(
+        f32::from(panel.bottom()) <= 480. - 12. + 1.5,
+        "the error/value panel must stay inside the window, got {panel:?}"
     );
 }

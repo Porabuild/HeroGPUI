@@ -1865,6 +1865,7 @@
     },
     {
       "heading": "States",
+      "description": "Labels use 14px text with 20px lines; descriptions and errors use 12px text with 16px lines, independent of surrounding leading.",
       "imports": "use herogpui::prelude::{Input, InputState};\nuse gpui::prelude::*;\nuse gpui::px;",
       "code": "gpui::div()\n    .flex()\n    .flex_col()\n    .w(px(256.))\n    .gap(px(12.))\n    .children(vec![\n        Input::new(self.demo_text(\"in-required\", \"\", cx))\n            .label(\"Required\")\n            .placeholder(\"Enter a value\")\n            .is_required(true)\n            .into_any_element(),\n        Input::new(self.demo_text(\"in-invalid\", \"\", cx))\n            .label(\"Invalid\")\n            .placeholder(\"Taken name\")\n            .error_message(\"That name is taken.\")\n            .into_any_element(),\n        Input::new(self.demo_text(\"in-disabled\", \"\", cx))\n            .label(\"Disabled\")\n            .placeholder(\"Unavailable\")\n            .is_disabled(true)\n            .into_any_element(),\n        Input::new(self.demo_text(\"in-clearable\", \"Ada\", cx))\n            .label(\"Clearable\")\n            .placeholder(\"Ada Lovelace\")\n            .is_clearable(true)\n            .into_any_element(),\n    ])"
     }
@@ -2205,6 +2206,7 @@
     },
     {
       "heading": "With Description",
+      "description": "Labels use 14px text with 20px lines; helper and error text use 12px text with 16px lines.",
       "imports": "use herogpui::prelude::SearchField;",
       "code": "SearchField::new(described)\n    .label(\"Search\")\n    .placeholder(\"Search products...\")\n    .description(\"Searches titles and body text\")"
     },
@@ -2269,6 +2271,7 @@
     },
     {
       "heading": "Variants",
+      "description": "Labels use 14px text with 20px lines; helper and error text use 12px text with 16px lines.",
       "imports": "use herogpui::prelude::{FieldVariant, TextArea};\nuse gpui::prelude::*;\nuse gpui::px;",
       "code": "gpui::div()\n    .flex()\n    .flex_col()\n    .w(px(256.))\n    .gap(px(12.))\n    .children(vec![\n        TextArea::new(self.demo_text(\"ta-primary\", \"\", cx))\n            .label(\"Primary\")\n            .placeholder(\"Primary textarea\")\n            .rows(3)\n            .into_any_element(),\n        TextArea::new(self.demo_text(\"ta-secondary\", \"\", cx))\n            .label(\"Secondary\")\n            .placeholder(\"Secondary textarea\")\n            .variant(FieldVariant::Secondary)\n            .rows(3)\n            .into_any_element(),\n    ])"
     },
@@ -3134,7 +3137,7 @@
   "combo-box": [
     {
       "heading": "Usage",
-      "description": "Values and options use 14px text with 20px lines. Section headers use 12px text with 16px lines and keep their own spacing.",
+      "description": "Values and options use 14px text with 20px lines. Section headers use 12px text with 16px lines and keep their own spacing. The popup flips near window edges and scrolls to keep options reachable in short windows.",
       "imports": "use herogpui::prelude::ComboBox;",
       "code": "ComboBox::new(\n    self.combo_state.clone(),\n    language_items(),\n)\n.label(\"Language\")\n.placeholder(\"Pick or type\")\n.is_open(is_open)\n.on_open_change(bool_cb(cx.listener(|this, open: &bool, _, cx| {\n    this.combo_open = *open;\n    cx.notify();\n})))\n.on_selection_change(cx.listener(|this, _key: &SharedString, _, cx| {\n    this.combo_open = false;\n    cx.notify();\n}))"
     },
@@ -3142,7 +3145,7 @@
       "heading": "Virtualization",
       "description": "v3 wraps the popover's list in React Aria's `Virtualizer`; `row_height` carries that here, and gpui's `uniform_list` builds only the rows in view. A thousand options, forty pixels each.",
       "imports": "use herogpui::prelude::ComboBox;\nuse gpui::prelude::*;\nuse gpui::px;",
-      "code": "gpui::div()\n    .w(px(256.))\n    .flex()\n    .flex_col()\n    .child(ComboBox::new(\n                self.demo_text(\"cb-virtual\", \"\", cx),\n                virtual_picker_items(),\n            )\n            .label(\"User\")\n            .placeholder(\"Select a user\")\n            .row_height(px(40.)))"
+      "code": "gpui::div()\n    .w(px(256.))\n    .flex()\n    .flex_col()\n    .child(ComboBox::new(\n                self.demo_text(\"cb-virtual\", \"\", cx),\n                virtual_picker_items(),\n            )\n            .label(\"User\")\n            .placeholder(\"Select a user\")\n            .max_items(1000)\n            .row_height(px(40.)))"
     },
     {
       "heading": "Full Width",

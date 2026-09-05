@@ -6845,6 +6845,7 @@ impl Gallery {
                 ),
                 (
                     "States",
+                    "Labels use 14px text with 20px lines; descriptions and errors use 12px text with 16px lines, independent of surrounding leading.",
                     field_col(vec![
                         h::Input::new(self.demo_text("in-required", "", cx))
                             .label("Required")
@@ -7899,6 +7900,7 @@ impl Gallery {
                 ),
                 (
                     "With Description",
+                    "Labels use 14px text with 20px lines; helper and error text use 12px text with 16px lines.",
                     field_col(vec![h::SearchField::new(described)
                         .label("Search")
                         .placeholder("Search products...")
@@ -8070,6 +8072,7 @@ impl Gallery {
                 ),
                 (
                     "Variants",
+                    "Labels use 14px text with 20px lines; helper and error text use 12px text with 16px lines.",
                     field_col(vec![
                         h::TextArea::new(self.demo_text("ta-primary", "", cx))
                             .label("Primary")
@@ -11994,7 +11997,7 @@ impl Gallery {
             crate::pages::Page::ComboBox.import_line(),
             vec![
                 (
-                    "Usage", "Values and options use 14px text with 20px lines. Section headers use 12px text with 16px lines and keep their own spacing.",
+                    "Usage", "Values and options use 14px text with 20px lines. Section headers use 12px text with 16px lines and keep their own spacing. The popup flips near window edges and scrolls to keep options reachable in short windows.",
                     field_col(vec![h::ComboBox::new(
                         self.combo_state.clone(),
                         language_items(),
@@ -12022,6 +12025,7 @@ impl Gallery {
                             )
                             .label("User")
                             .placeholder("Select a user")
+                            .max_items(1000)
                             .row_height(px(40.)),
                         ),
                     ]),

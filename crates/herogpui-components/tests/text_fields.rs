@@ -1701,3 +1701,62 @@ fn color_and_time_full_width_reaches_the_parent_edge(cx: &mut TestAppContext) {
         }
     }
 }
+
+/// The `Input` wrapper's label, description, and error slots keep v3.2.4's
+/// pinned line boxes even under a hostile inherited leading.
+///
+/// v3.2.4's `.label` is `text-sm` (14px over a 20px line) and both
+/// `.description` and `.error-message` are `text-xs` (12px over a 16px line);
+/// `field.rs`'s `Label`/`Description`/`ErrorMessage` already pin 20/16, and
+/// the field box itself pins 14/20 (`input.rs`). The wrapper must pin the
+/// same three lines, so a labelled field with helper copy is
+/// 20 (label) + 4 + 36 (field) + 4 + 16 (description/error) = 80px at any
+/// host leading. The error case also carries a description: the error
+/// replaces it (still 80px, never 100px), and the required star rides in the
+/// 20px label row without growing it.
+#[gpui::test]
+fn input_label_description_and_error_keep_pinned_line_heights(cx: &mut TestAppContext) {
+    for leading in [None, Some(12.), Some(48.)] {
+        let desc_state = cx.new(|cx| InputState::new(cx));
+        let err_state = cx.new(|cx| InputState::new(cx));
+        let cx = open_host(cx, move || {
+            let mut root = gpui::div().flex().flex_col().gap(px(16.)).items_start();
+            if let Some(leading) = leading {
+                root = root.text_size(px(32.)).line_height(px(leading));
+            }
+            root.child(
+                gpui::div()
+                    .debug_selector(|| "input-desc".to_owned())
+                    .child(
+                        Input::new(desc_state.clone())
+                            .label("Name")
+                            .description("Help"),
+                    ),
+            )
+            .child(
+                gpui::div()
+                    .debug_selector(|| "input-error".to_owned())
+                    .child(
+                        Input::new(err_state.clone())
+                            .label("Name")
+                            .is_required(true)
+                            .description("Help")
+                            .validation_errors(["Oops"]),
+                    ),
+            )
+            .into_any_element()
+        });
+        cx.run_until_parked();
+        assert_eq!(
+            cx.debug_bounds("input-desc").unwrap().size.height,
+            px(80.),
+            "label + description must stay 20 + 4 + 36 + 4 + 16, host={leading:?}"
+        );
+        assert_eq!(
+            cx.debug_bounds("input-error").unwrap().size.height,
+            px(80.),
+            "required label + error must stay 80px and the error must replace \
+             the description rather than stack under it, host={leading:?}"
+        );
+    }
+}

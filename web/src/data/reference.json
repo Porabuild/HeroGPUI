@@ -8742,6 +8742,18 @@
         "status": "implemented"
       },
       {
+        "token": ".label",
+        "description": "Wrapper labels use 14px medium text with 20px lines, independent of host leading.",
+        "rust": "text_size(14px) + line_height(20px) + MEDIUM",
+        "status": "implemented"
+      },
+      {
+        "token": ".description / .error-message",
+        "description": "Helper and error text use 12px text with 16px lines; the error replaces the description.",
+        "rust": "text_size(12px) + line_height(16px) + validity-first branch",
+        "status": "implemented"
+      },
+      {
         "token": ".input base",
         "description": "Desktop field height, 12px inline inset, 14px desktop type, field radius, colours and shadow match.",
         "rust": "FIELD_HEIGHT + px(px(12.)) + FIELD_TEXT + field_radius + apply_field_chrome",
@@ -9323,6 +9335,12 @@
         "status": "implemented"
       },
       {
+        "token": ".label / .description / .error-message",
+        "description": "Labels use 14px/20px and helper/error text use 12px/16px, independent of host leading.",
+        "rust": "inner Input wrapper text",
+        "status": "implemented"
+      },
+      {
         "token": ".textarea min-height",
         "description": "The documented three-row default uses three 20px lines plus 16px vertical padding.",
         "rust": "rows_height(3) = 76px",
@@ -9790,7 +9808,7 @@
     "styling": [
       {
         "token": ".search-field",
-        "description": "Root field stack and invalid description replacement.",
+        "description": "Root field stack and invalid description replacement; labels use 14px/20px and helper/error text use 12px/16px.",
         "rust": "Input wrapper flex_col + gap(4px)",
         "status": "implemented"
       },
@@ -16701,7 +16719,7 @@
         "prop": "placement",
         "type": "\"bottom\" | \"bottom left\" | \"bottom right\" | \"bottom start\" | \"bottom end\" | \"top\" | \"top left\" | \"top right\" | \"top start\" | \"top end\" | \"left\" | \"left top\" | \"left bottom\" | \"start\" | \"start top\" | \"start bottom\" | \"right\" | \"right top\" | \"right bottom\" | \"end\" | \"end top\" | \"end bottom\"",
         "default": "\"bottom\"",
-        "description": "Placement of the popover relative to the input group; the port maps its supported placement enum to the floating panel.",
+        "description": "Eight cardinal/start/end placements are available; RAC's full 22-value placement union is not. The panel anchors to the measured field with an 8px gap and flips when the preferred side cannot fit and the opposite side has more room.",
         "rustOwner": "ComboBox",
         "rust": "placement(Placement)",
         "status": "partial"
@@ -17046,8 +17064,8 @@
       },
       {
         "token": ".combo-box__popover",
-        "description": "Floating list surface; the port matches the overlay palette, shadow, scrolling and placement but uses its own 4px panel inset and fixed 240px cap.",
-        "rust": "floating + placed_field_panel + overlay bg/shadow + p(px(4.)) + max_h(px(240.))",
+        "description": "Anchored to the field with an 8px gap and 12px viewport inset, flipping when the preferred side cannot fit and the opposite side has more room; plain and virtual lists scroll within the available height and wheel input stays in the panel. The port uses its own 4px panel inset and exact trigger width rather than upstream p-0 and min-width.",
+        "rust": "scrollable_field_popover + max_h_full (plain) / Infer (virtual) + occlude + p(px(4.)) + overlay bg/shadow",
         "status": "partial"
       },
       {

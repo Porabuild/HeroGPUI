@@ -1223,6 +1223,16 @@ pub struct Input {
     on_clear: Option<ClearCallback>,
     on_change: Option<TextCallback>,
     on_submit: Option<TextCallback>,
+    /// ComboBox popup anchor: when set, the field row (not the
+    /// label-to-error wrapper) records its bounds into `anchor` and carries
+    /// `selector` for headless probes — the way RAC's `triggerRef` reads
+    /// `groupRef.current || inputRef.current` (pinned 1.20.0
+    /// `dist/private/ComboBox.js`: "Position popover relative to group if
+    /// available, otherwise input").
+    field_anchor: Option<(
+        std::rc::Rc<std::cell::Cell<Option<gpui::Bounds<gpui::Pixels>>>>,
+        SharedString,
+    )>,
 }
 
 impl Input {
@@ -1310,6 +1320,7 @@ impl Input {
             on_clear: None,
             on_change: None,
             on_submit: None,
+            field_anchor: None,
         }
     }
 
@@ -1349,6 +1360,19 @@ impl Input {
     /// field's own so the opacity does not nest twice.
     pub(crate) fn group_dim(mut self, v: bool) -> Self {
         self.group_dim = v;
+        self
+    }
+
+    /// ComboBox popup anchor: records the 36px field row's bounds (not the
+    /// label-to-error wrapper) and tags that row with `selector` for headless
+    /// probes — the way RAC's `triggerRef` reads `groupRef.current ||
+    /// inputRef.current`.
+    pub(crate) fn field_anchor(
+        mut self,
+        anchor: std::rc::Rc<std::cell::Cell<Option<gpui::Bounds<gpui::Pixels>>>>,
+        selector: impl Into<SharedString>,
+    ) -> Self {
+        self.field_anchor = Some((anchor, selector.into()));
         self
     }
 
@@ -2425,12 +2449,28 @@ impl RenderOnce for Input {
             }
         });
 
+        // The anchor is the 36px field row itself — not the
+        // label-to-error wrapper below — the way RAC's `triggerRef` reads
+        // `groupRef.current || inputRef.current`. Wrapping here keeps the
+        // label, description, error and value rows outside the measured
+        // bounds while preserving their existing rendering order.
+        let field_element: gpui::AnyElement = if let Some((anchor, selector)) = self.field_anchor {
+            let selector_text = selector.to_string();
+            crate::popover::PopoverTriggerMeasure::new(
+                field.debug_selector(move || selector_text),
+                anchor,
+            )
+            .into_any_element()
+        } else {
+            field.into_any_element()
+        };
+
         // Inside a group the surrounding component owns the label, the
         // description and the error slot -- v3's `InputGroup.Input` is the input
         // and nothing else. Returning the wrapper here would drop a whole
         // labelled column into the group's row.
         if self.in_group.is_some() {
-            return field.into_any_element();
+            return field_element;
         }
 
         // -- wrapper with label / description / error --------------------------
@@ -2446,6 +2486,7 @@ impl RenderOnce for Input {
                 .items_center()
                 .gap(px(4.))
                 .text_size(px(14.))
+                .line_height(px(20.))
                 .font_weight(gpui::FontWeight::MEDIUM)
                 .text_color(colors.foreground)
                 .child(label.to_string());
@@ -2458,13 +2499,14 @@ impl RenderOnce for Input {
             }
             el = el.child(label_row);
         }
-        el = el.child(field);
+        el = el.child(field_element);
         if !validity.messages.is_empty() {
             // Every message, space-joined in upstream order — React Aria's
             // `FieldError` default — not just the first.
             el = el.child(
                 gpui::div()
                     .text_size(px(12.))
+                    .line_height(px(16.))
                     .text_color(colors.danger.color)
                     .child(validity.joined()),
             );
@@ -2472,6 +2514,7 @@ impl RenderOnce for Input {
             el = el.child(
                 gpui::div()
                     .text_size(px(12.))
+                    .line_height(px(16.))
                     .text_color(colors.muted)
                     .child(desc.to_string()),
             );

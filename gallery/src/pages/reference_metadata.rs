@@ -4942,6 +4942,8 @@ const INPUT_STATES: &[StateDoc] = &[
 
 const INPUT_STYLING: &[StyleDoc] = &[
     StyleDoc { class_or_token: "text-sm", value: "14px text with 20px line height", description: "Text adornments inherit the field's 14px text and 20px line height.", rust: "text_size + line_height", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".label", value: "text-sm font-medium", description: "Wrapper labels use 14px medium text with 20px lines, independent of host leading.", rust: "text_size(14px) + line_height(20px) + MEDIUM", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".description / .error-message", value: "text-xs", description: "Helper and error text use 12px text with 16px lines; the error replaces the description.", rust: "text_size(12px) + line_height(16px) + validity-first branch", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".input base", value: "rounded-field border bg-field px-3 py-2 text-base sm:text-sm shadow-field outline-none", description: "Desktop field height, 12px inline inset, 14px desktop type, field radius, colours and shadow match.", rust: "FIELD_HEIGHT + px(px(12.)) + FIELD_TEXT + field_radius + apply_field_chrome", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".input border", value: "--border-width-field / --field-border", description: "Theme field border width and colour chain.", rust: "apply_field_chrome", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".input transitions", value: "background/border 150ms Smooth; shadow 150ms Out; reduced-motion none", description: "State colours switch directly; GPUI has no property-transition implementation for these three values.", rust: "direct apply_field_chrome state colours", status: ImplementationStatus::Partial },
@@ -5165,6 +5167,7 @@ const TEXT_AREA_STATES: &[StateDoc] = &[
 
 const TEXT_AREA_STYLING: &[StyleDoc] = &[
     StyleDoc { class_or_token: ".textarea base", value: "rounded-field border bg-field px-3 py-2 text-base sm:text-sm shadow-field outline-none", description: "12px inline inset, 14px desktop type, field radius, colours and shadow match.", rust: "inner Input px(px(12.)) + FIELD_TEXT + field_radius + apply_field_chrome", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".label / .description / .error-message", value: "text-sm / text-xs", description: "Labels use 14px/20px and helper/error text use 12px/16px, independent of host leading.", rust: "inner Input wrapper text", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".textarea min-height", value: "38px; rows default 3", description: "The documented three-row default uses three 20px lines plus 16px vertical padding.", rust: "rows_height(3) = 76px", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".textarea border", value: "--border-width-field / --field-border", description: "Theme field border width and colour chain.", rust: "apply_field_chrome", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".textarea transitions", value: "background/border 150ms Smooth; shadow 150ms Out; reduced-motion none", description: "State colours switch directly; GPUI has no property-transition implementation for these values.", rust: "direct apply_field_chrome state colours", status: ImplementationStatus::Partial },
@@ -5408,7 +5411,7 @@ const SEARCH_FIELD_STYLING: &[StyleDoc] = &[
     StyleDoc {
         class_or_token: ".search-field",
         value: "flex flex-col gap-1",
-        description: "Root field stack and invalid description replacement.",
+        description: "Root field stack and invalid description replacement; labels use 14px/20px and helper/error text use 12px/16px.",
         rust: "Input wrapper flex_col + gap(4px)",
         status: ImplementationStatus::Implemented,
     },
@@ -9868,7 +9871,7 @@ const COMBO_BOX_API: &[ApiDoc] = &[
         prop: "placement",
         ty: "\"bottom\" | \"bottom left\" | \"bottom right\" | \"bottom start\" | \"bottom end\" | \"top\" | \"top left\" | \"top right\" | \"top start\" | \"top end\" | \"left\" | \"left top\" | \"left bottom\" | \"start\" | \"start top\" | \"start bottom\" | \"right\" | \"right top\" | \"right bottom\" | \"end\" | \"end top\" | \"end bottom\"",
         default: "\"bottom\"",
-        description: "Placement of the popover relative to the input group; the port maps its supported placement enum to the floating panel.",
+        description: "Eight cardinal/start/end placements are available; RAC's full 22-value placement union is not. The panel anchors to the measured field with an 8px gap and flips when the preferred side cannot fit and the opposite side has more room.",
         rust_owner: "ComboBox",
         rust: "placement(Placement)",
         status: ImplementationStatus::Partial,
@@ -10220,8 +10223,8 @@ const COMBO_BOX_STYLING: &[StyleDoc] = &[
     StyleDoc {
         class_or_token: ".combo-box__popover",
         value: "min-w-(--trigger-width) scroll-py-1 scrollbar overflow-y-auto overscroll-contain bg-overlay p-0 text-sm; radius min(32px, var(--radius-3xl)); shadow-overlay",
-        description: "Floating list surface; the port matches the overlay palette, shadow, scrolling and placement but uses its own 4px panel inset and fixed 240px cap.",
-        rust: "floating + placed_field_panel + overlay bg/shadow + p(px(4.)) + max_h(px(240.))",
+        description: "Anchored to the field with an 8px gap and 12px viewport inset, flipping when the preferred side cannot fit and the opposite side has more room; plain and virtual lists scroll within the available height and wheel input stays in the panel. The port uses its own 4px panel inset and exact trigger width rather than upstream p-0 and min-width.",
+        rust: "scrollable_field_popover + max_h_full (plain) / Infer (virtual) + occlude + p(px(4.)) + overlay bg/shadow",
         status: ImplementationStatus::Partial,
     },
     StyleDoc {
