@@ -172,6 +172,25 @@ pub fn floating(el: impl gpui::IntoElement) -> gpui::Deferred {
     gpui::deferred(el)
 }
 
+pub(crate) fn window_overlay(el: impl gpui::IntoElement, window: &gpui::Window) -> gpui::Deferred {
+    use gpui::InteractiveElement;
+
+    let viewport = window.viewport_size();
+    floating(
+        gpui::anchored()
+            .position(gpui::point(gpui::px(0.), gpui::px(0.)))
+            .child(
+                gpui::div()
+                    .relative()
+                    .occlude()
+                    .w(viewport.width)
+                    .h(viewport.height)
+                    .flex_shrink_0()
+                    .child(el),
+            ),
+    )
+}
+
 /// The result of an explicit overlay dismissal attempt.
 ///
 /// Only `Handled` consumes the event. A declined outside press continues to

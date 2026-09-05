@@ -8579,8 +8579,8 @@ const DRAWER_STYLING: &[StyleDoc] = &[
     StyleDoc {
         class_or_token: ".drawer__content",
         value: "fixed inset-0 z-50 flex h-(--visual-viewport-height) w-full min-w-0; pointer-events-none",
-        description: "Full-window positioning wrapper; gpui has no pointer-events, so outside presses dismiss through the panel's own bounds instead.",
-        rust: "overlay absolute inset_0 + trap_tab",
+        description: "Covers the window even inside clipped or positioned containers, paints above later page content, and blocks pointer input to the page beneath. Outside presses dismiss through the panel's bounds.",
+        rust: "util::window_overlay + trap_tab",
         status: ImplementationStatus::Implemented,
     },
     StyleDoc {
@@ -9225,8 +9225,8 @@ const MODAL_STYLING: &[StyleDoc] = &[
     StyleDoc {
         class_or_token: ".modal__container",
         value: "flex flex-col items-center; h-(--visual-viewport-height) w-full min-w-0 flex-1; p-4; sm:w-fit sm:p-10; pointer-events-none",
-        description: "Window-pinning wrapper: the port uses inset_0 and the 40px sm padding, since a desktop app is past the breakpoint, and applies the placement alignment inside rather than sizing to fit; gpui has no pointer-events, so outside presses dismiss through the panel's own bounds instead.",
-        rust: "overlay absolute inset_0 + p(px(40.)) + placement/scroll flex match",
+        description: "Covers the window even inside clipped or positioned containers, paints above later page content, and blocks pointer input to the page beneath. The desktop container keeps 40px padding and applies placement alignment inside.",
+        rust: "util::window_overlay + p(px(40.)) + placement/scroll flex match",
         status: ImplementationStatus::Implemented,
     },
     StyleDoc {
@@ -13967,8 +13967,8 @@ const ALERT_DIALOG_STYLING: &[StyleDoc] = &[
     StyleDoc {
         class_or_token: ".alert-dialog__container",
         value: "flex flex-col items-center; h-(--visual-viewport-height) w-full min-w-0 flex-1; p-4; sm:w-fit sm:p-10; pointer-events-none",
-        description: "Window-pinning wrapper: the port uses inset_0 and the 40px sm padding, since a desktop app is past the breakpoint, and applies the placement alignment inside; gpui has no pointer-events, so outside presses dismiss through the panel's own bounds instead.",
-        rust: "overlay absolute inset_0 + p(px(40.)) + placement flex match",
+        description: "Covers the window even inside clipped or positioned containers, paints above later page content, and blocks pointer input to the page beneath. The desktop container keeps 40px padding and applies placement alignment inside.",
+        rust: "util::window_overlay + p(px(40.)) + placement flex match",
         status: ImplementationStatus::Implemented,
     },
     StyleDoc {

@@ -432,6 +432,9 @@ week_start, month_headings, linear_cells, range_heading, year_page}`.
 - **Tabs** — `Tabs::new(id, items, selected_key).variant(TabsVariant::{Primary,Secondary}).orientation().selected_key().default_selected_key().on_selection_change()`, `TabItem::new(key,label).content(el)`; both tab variants use 14px labels with a 20px line height independently of host leading.
 
 ### Overlays
+
+Modal, Drawer, and AlertDialog cover the window even inside clipped or positioned containers. They paint above later page content and block pointer input to the page beneath.
+
 - **AlertDialog** — `AlertDialog::new(title).id().description().is_open().size(AlertDialogSize::{Xs,Sm,Md,Lg,Cover}).backdrop(Backdrop).placement(ModalPlacement).status(Color).is_dismissible(bool).is_keyboard_dismiss_disabled(bool).confirm_label().cancel_label().on_confirm().on_cancel().on_open_change(bool)` plus composed children; `.child(AlertDialogCloseTrigger::new())` composes v3's `AlertDialog.CloseTrigger` X and `.footer_child(Button)` composes the caller-owned footer
   The description wraps inside the body; overflowing body content scrolls within the panel.
   - every close path — the composed X, the backdrop and Escape — reports through `on_open_change(false)` first; the built-in confirm/cancel stand-in reports through it too, then fires the consumer action. Escape and the backdrop are plain closes and never call `on_cancel`.

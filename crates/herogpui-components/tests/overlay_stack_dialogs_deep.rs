@@ -4,12 +4,104 @@ mod harness;
 
 use std::{cell::RefCell, rc::Rc};
 
-use gpui::{prelude::*, TestAppContext};
+use gpui::{prelude::*, px, TestAppContext};
 use harness::{click, events, open_host, press};
-use herogpui_components::{AlertDialog, Drawer, Modal};
+use herogpui_components::{AlertDialog, Drawer, DrawerPlacement, Modal};
 
 fn still() {
     harness::still();
+}
+
+#[gpui::test]
+fn window_dialogs_escape_clipped_ancestors_and_later_siblings(cx: &mut TestAppContext) {
+    for kind in ["modal", "drawer", "alert"] {
+        still();
+        let hits = events();
+        let recorded = hits.clone();
+        let cx = open_host(cx, move || {
+            let content_hits = hits.clone();
+            let close_hits = hits.clone();
+            let background_hits = hits.clone();
+            let content = gpui::div()
+                .id("window-dialog-content")
+                .debug_selector(|| "window-dialog-content".to_owned())
+                .w_full()
+                .h(px(36.))
+                .flex_shrink_0()
+                .on_click(move |_, _, _| content_hits.borrow_mut().push("content".into()))
+                .child("Dialog content");
+            let on_open_change = move |open: bool, _: &mut gpui::Window, _: &mut gpui::App| {
+                close_hits.borrow_mut().push(format!("open:{open}"));
+            };
+            let dialog = match kind {
+                "modal" => Modal::new()
+                    .is_open(true)
+                    .is_dismissible(true)
+                    .child(content)
+                    .on_open_change(on_open_change)
+                    .into_any_element(),
+                "drawer" => Drawer::new()
+                    .is_open(true)
+                    .placement(DrawerPlacement::Right)
+                    .is_dismissible(true)
+                    .child(content)
+                    .on_open_change(on_open_change)
+                    .into_any_element(),
+                _ => AlertDialog::new("Confirm")
+                    .is_open(true)
+                    .is_dismissible(true)
+                    .child(content)
+                    .on_open_change(on_open_change)
+                    .into_any_element(),
+            };
+            gpui::div()
+                .relative()
+                .size_full()
+                .child(
+                    gpui::div()
+                        .relative()
+                        .ml(px(100.))
+                        .mt(px(100.))
+                        .w(px(240.))
+                        .h(px(180.))
+                        .overflow_hidden()
+                        .child(dialog),
+                )
+                .child(
+                    gpui::div()
+                        .id("later-background")
+                        .absolute()
+                        .inset_0()
+                        .occlude()
+                        .on_click(move |_, _, _| {
+                            background_hits.borrow_mut().push("background".into());
+                        }),
+                )
+                .into_any_element()
+        });
+        let bounds = cx.debug_bounds("window-dialog-content").unwrap();
+        let viewport = cx.update(|window, _| window.viewport_size());
+        if kind == "drawer" {
+            assert!(bounds.left() > viewport.width / 2., "{kind}: {bounds:?}");
+        } else {
+            assert!(
+                bounds.left() < viewport.width / 2. && bounds.right() > viewport.width / 2.,
+                "{kind}: content must span the window center, got {bounds:?}"
+            );
+        }
+        click(
+            cx,
+            f32::from(bounds.center().x),
+            f32::from(bounds.center().y),
+        );
+        assert_eq!(recorded.borrow().as_slice(), ["content"], "{kind}");
+        click(cx, 10., 10.);
+        assert_eq!(
+            recorded.borrow().as_slice(),
+            ["content", "open:false"],
+            "{kind}"
+        );
+    }
 }
 
 #[gpui::test]

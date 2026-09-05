@@ -1,7 +1,7 @@
 //! Modal — port of `@heroui/modal`.
 //!
-//! Render the returned element from your root view; it covers the window
-//! with a dimmed backdrop and a centered panel when `is_open`.
+//! Covers the window with a dimmed backdrop and a centered panel when `is_open`,
+//! including when composed inside a clipped or positioned container.
 
 use gpui::{
     prelude::*, px, AnyElement, App, ClickEvent, IntoElement, ParentElement, RenderOnce,
@@ -709,13 +709,10 @@ impl RenderOnce for Modal {
         }
 
         // Backdrop dismissal lives on the **panel**, not on the backdrop.
-        // gpui has no hitbox occlusion, so a `on_click` on the full-window
-        // backdrop fires for a press on the panel above it as well — the
-        // close button reported every press twice. `on_mouse_down_out` reads
-        // the element's own bounds instead of hit-testing, so `close` runs
-        // exactly when the press landed outside this box, which is the
-        // backdrop. `is_dismissible` gates it, and the exit phase gets none:
-        // the dialog is already closing.
+        // `on_mouse_down_out` uses the panel's bounds, so presses on its
+        // children do not also dismiss through the full-window backdrop.
+        // `is_dismissible` gates it, and the exit phase gets none: the dialog
+        // is already closing.
         let panel = if self.is_dismissible && !exiting {
             if let Some(on_close) = dismiss.clone() {
                 crate::util::dismiss_on_press_outside_with_token(
@@ -849,6 +846,6 @@ impl RenderOnce for Modal {
             )
         });
 
-        overlay.into_any_element()
+        crate::util::window_overlay(overlay, window).into_any_element()
     }
 }

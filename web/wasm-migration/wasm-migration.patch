@@ -11357,7 +11357,7 @@ index 93eefc95..93d2db87 100644
          );
      }
 diff --git a/crates/herogpui-components/src/alert_dialog.rs b/crates/herogpui-components/src/alert_dialog.rs
-index a9a7079c..2ff6de5b 100644
+index a9a7079c..e87df465 100644
 --- a/crates/herogpui-components/src/alert_dialog.rs
 +++ b/crates/herogpui-components/src/alert_dialog.rs
 @@ -321,6 +321,9 @@ impl RenderOnce for AlertDialog {
@@ -11389,6 +11389,15 @@ index a9a7079c..2ff6de5b 100644
                  .min_h_0()
                  .max_h(body_max_h)
                  .overflow_y_scroll()
+@@ -698,7 +700,7 @@ impl RenderOnce for AlertDialog {
+                     util::DismissResult::Handled
+                 });
+         }
+-        overlay.into_any_element()
++        util::window_overlay(overlay, window).into_any_element()
+     }
+ }
+ 
 diff --git a/crates/herogpui-components/src/anim.rs b/crates/herogpui-components/src/anim.rs
 index 03f0c94f..018b302a 100644
 --- a/crates/herogpui-components/src/anim.rs
@@ -16739,10 +16748,19 @@ index c213dd06..7e684f57 100644
                      crate::anim::Motion::DISCLOSURE,
                      cx,
 diff --git a/crates/herogpui-components/src/drawer.rs b/crates/herogpui-components/src/drawer.rs
-index eda76857..6eb7b305 100644
+index eda76857..f702378c 100644
 --- a/crates/herogpui-components/src/drawer.rs
 +++ b/crates/herogpui-components/src/drawer.rs
-@@ -8,7 +8,7 @@ use gpui::{
+@@ -1,14 +1,14 @@
+ //! Drawer — port of `@heroui/drawer`.
+ //!
+-//! Edge-anchored overlay panel. Render from your root view like
+-//! [`Modal`](crate::modal::Modal).
++//! Window-edge overlay panel, including when composed inside a clipped or
++//! positioned container, like [`Modal`](crate::modal::Modal).
+ 
+ use gpui::{
+     prelude::*, px, AnyElement, App, Bounds, ClickEvent, IntoElement, ParentElement, RenderOnce,
      SharedString, Styled, Window,
  };
  use herogpui_theme::ActiveTheme;
@@ -16772,6 +16790,15 @@ index eda76857..6eb7b305 100644
  
          // A drag in progress: where it started along the dismissal axis, and how
          // far it has come. `use_keyed_state` takes `cx` mutably, so it precedes
+@@ -726,7 +727,7 @@ impl RenderOnce for Drawer {
+             )
+         });
+ 
+-        overlay.into_any_element()
++        crate::util::window_overlay(overlay, window).into_any_element()
+     }
+ }
+ 
 diff --git a/crates/herogpui-components/src/dropdown.rs b/crates/herogpui-components/src/dropdown.rs
 index d8df4852..5ef0d5d1 100644
 --- a/crates/herogpui-components/src/dropdown.rs
@@ -19240,9 +19267,19 @@ index 00000000..afdca727
 +    }
 +}
 diff --git a/crates/herogpui-components/src/modal.rs b/crates/herogpui-components/src/modal.rs
-index 70e84e5d..9d0b30d6 100644
+index 70e84e5d..7f92fccf 100644
 --- a/crates/herogpui-components/src/modal.rs
 +++ b/crates/herogpui-components/src/modal.rs
+@@ -1,7 +1,7 @@
+ //! Modal — port of `@heroui/modal`.
+ //!
+-//! Render the returned element from your root view; it covers the window
+-//! with a dimmed backdrop and a centered panel when `is_open`.
++//! Covers the window with a dimmed backdrop and a centered panel when `is_open`,
++//! including when composed inside a clipped or positioned container.
+ 
+ use gpui::{
+     prelude::*, px, AnyElement, App, ClickEvent, IntoElement, ParentElement, RenderOnce,
 @@ -114,6 +114,53 @@ pub(crate) fn dialog_key(id: &gpui::ElementId, part: &str) -> gpui::ElementId {
      gpui::ElementId::Name(format!("{id:?}-{part}").into())
  }
@@ -19331,6 +19368,32 @@ index 70e84e5d..9d0b30d6 100644
                                  .font_weight(gpui::FontWeight::MEDIUM)
                                  .child(title.to_string()),
                          )
+@@ -655,13 +709,10 @@ impl RenderOnce for Modal {
+         }
+ 
+         // Backdrop dismissal lives on the **panel**, not on the backdrop.
+-        // gpui has no hitbox occlusion, so a `on_click` on the full-window
+-        // backdrop fires for a press on the panel above it as well — the
+-        // close button reported every press twice. `on_mouse_down_out` reads
+-        // the element's own bounds instead of hit-testing, so `close` runs
+-        // exactly when the press landed outside this box, which is the
+-        // backdrop. `is_dismissible` gates it, and the exit phase gets none:
+-        // the dialog is already closing.
++        // `on_mouse_down_out` uses the panel's bounds, so presses on its
++        // children do not also dismiss through the full-window backdrop.
++        // `is_dismissible` gates it, and the exit phase gets none: the dialog
++        // is already closing.
+         let panel = if self.is_dismissible && !exiting {
+             if let Some(on_close) = dismiss.clone() {
+                 crate::util::dismiss_on_press_outside_with_token(
+@@ -795,6 +846,6 @@ impl RenderOnce for Modal {
+             )
+         });
+ 
+-        overlay.into_any_element()
++        crate::util::window_overlay(overlay, window).into_any_element()
+     }
+ }
 diff --git a/crates/herogpui-components/src/number_field.rs b/crates/herogpui-components/src/number_field.rs
 index e24642fd..12b93bfe 100644
 --- a/crates/herogpui-components/src/number_field.rs
@@ -24927,7 +24990,7 @@ index e9f1e859..4e28892c 100644
  /// Semantic typography style (`type` prop).
  ///
 diff --git a/crates/herogpui-components/src/util.rs b/crates/herogpui-components/src/util.rs
-index 4c44b4a3..65be5de9 100644
+index 4c44b4a3..43a172c9 100644
 --- a/crates/herogpui-components/src/util.rs
 +++ b/crates/herogpui-components/src/util.rs
 @@ -4,6 +4,13 @@ use gpui::{App, BorrowAppContext, Div, Hsla, ParentElement, Pixels, Styled};
@@ -24952,7 +25015,33 @@ index 4c44b4a3..65be5de9 100644
              });
          } else {
              el = el
-@@ -458,7 +466,7 @@ pub fn panel_focus(
+@@ -164,6 +172,25 @@ pub fn floating(el: impl gpui::IntoElement) -> gpui::Deferred {
+     gpui::deferred(el)
+ }
+ 
++pub(crate) fn window_overlay(el: impl gpui::IntoElement, window: &gpui::Window) -> gpui::Deferred {
++    use gpui::InteractiveElement;
++
++    let viewport = window.viewport_size();
++    floating(
++        gpui::anchored()
++            .position(gpui::point(gpui::px(0.), gpui::px(0.)))
++            .child(
++                gpui::div()
++                    .relative()
++                    .occlude()
++                    .w(viewport.width)
++                    .h(viewport.height)
++                    .flex_shrink_0()
++                    .child(el),
++            ),
++    )
++}
++
+ /// The result of an explicit overlay dismissal attempt.
+ ///
+ /// Only `Handled` consumes the event. A declined outside press continues to
+@@ -458,7 +485,7 @@ pub fn panel_focus(
              .filter(|focused| focused.tab_stop)
              .map(|focused| focused.downgrade())
              .or_else(|| Some(trigger.downgrade()));
@@ -24961,7 +25050,7 @@ index 4c44b4a3..65be5de9 100644
          state.update(cx, |state, _| {
              state.was_open = true;
              state.restore = restore;
-@@ -466,7 +474,7 @@ pub fn panel_focus(
+@@ -466,7 +493,7 @@ pub fn panel_focus(
      } else if !open && current.was_open {
          if handle.contains_focused(window, cx) {
              if let Some(restore) = current.restore.and_then(|handle| handle.upgrade()) {
@@ -24970,7 +25059,7 @@ index 4c44b4a3..65be5de9 100644
              }
          }
          state.update(cx, |state, _| {
-@@ -692,7 +700,7 @@ pub fn focus_once(
+@@ -692,7 +719,7 @@ pub fn focus_once(
  ) {
      let done = window.use_keyed_state(key.into(), cx, |_, _| false);
      if !*done.read(cx) {
@@ -24979,7 +25068,7 @@ index 4c44b4a3..65be5de9 100644
          done.update(cx, |d, _| *d = true);
      }
  }
-@@ -786,7 +794,7 @@ pub fn overlay_scope_with_exit(
+@@ -786,7 +813,7 @@ pub fn overlay_scope_with_exit(
              cx.background_executor()
                  .timer(std::time::Duration::from_millis(exit_ms))
                  .await;
@@ -24988,7 +25077,7 @@ index 4c44b4a3..65be5de9 100644
                  let _ = held.update(cx, |state, cx| {
                      if state.phase == OverlayPhase::Exiting
                          && state.exit_generation == exit_generation
-@@ -867,7 +875,7 @@ pub fn overlay_phase(
+@@ -867,7 +894,7 @@ pub fn overlay_phase(
              cx.background_executor()
                  .timer(std::time::Duration::from_millis(crate::anim::EXITING_MS))
                  .await;
@@ -24997,7 +25086,7 @@ index 4c44b4a3..65be5de9 100644
                  held.update(cx, |s, cx| {
                      if s.exiting && s.exit_generation == exit_generation {
                          s.exiting = false;
-@@ -1114,6 +1122,13 @@ where
+@@ -1114,6 +1141,13 @@ where
      let key_down = slot.clone();
      let key_up = slot.clone();
      let outside_up = slot.clone();
@@ -25011,7 +25100,7 @@ index 4c44b4a3..65be5de9 100644
      let release = gpui::canvas(
          |bounds, _, _| bounds,
          move |_, _, window, _| {
-@@ -1215,7 +1230,7 @@ where
+@@ -1215,7 +1249,7 @@ where
          .read(cx)
          .clone();
      if !root.contains_focused(window, cx) {
@@ -25020,7 +25109,7 @@ index 4c44b4a3..65be5de9 100644
      }
      el.track_focus(&root)
          .capture_any_mouse_down(|_, _, cx| set_focus_visible(false, cx))
-@@ -1226,10 +1241,13 @@ where
+@@ -1226,10 +1260,13 @@ where
          })
          .on_key_down(|event, window, cx| {
              set_focus_visible(true, cx);
@@ -25038,7 +25127,7 @@ index 4c44b4a3..65be5de9 100644
              }
          })
          .on_key_up(|event, window, cx| {
-@@ -1272,7 +1290,7 @@ where
+@@ -1272,7 +1309,7 @@ where
  /// gpui registers a tab stop from the **handle's** own `tab_stop` flag; the
  /// element's `tab_index` builder only configures a handle the element creates
  /// for itself, which a component that has to read its own focus state cannot
@@ -25047,7 +25136,7 @@ index 4c44b4a3..65be5de9 100644
  pub fn tab_stop_handle(
      id: gpui::ElementId,
      window: &mut gpui::Window,
-@@ -1314,6 +1332,7 @@ pub fn focus_ring_shadows(offset: bool, cx: &App) -> Vec<gpui::BoxShadow> {
+@@ -1314,6 +1351,7 @@ pub fn focus_ring_shadows(offset: bool, cx: &App) -> Vec<gpui::BoxShadow> {
          offset: gpui::point(gpui::px(0.), gpui::px(0.)),
          blur_radius: blur,
          spread_radius: gap + ring,
@@ -25055,7 +25144,7 @@ index 4c44b4a3..65be5de9 100644
      }];
      if gap > gpui::px(0.) {
          shadows.push(gpui::BoxShadow {
-@@ -1321,6 +1340,7 @@ pub fn focus_ring_shadows(offset: bool, cx: &App) -> Vec<gpui::BoxShadow> {
+@@ -1321,6 +1359,7 @@ pub fn focus_ring_shadows(offset: bool, cx: &App) -> Vec<gpui::BoxShadow> {
              offset: gpui::point(gpui::px(0.), gpui::px(0.)),
              blur_radius: blur,
              spread_radius: gap,
@@ -25063,7 +25152,7 @@ index 4c44b4a3..65be5de9 100644
          });
      }
      shadows
-@@ -1351,24 +1371,24 @@ pub fn trap_tab<T: gpui::InteractiveElement>(el: T, scope: &gpui::FocusHandle) -
+@@ -1351,24 +1390,24 @@ pub fn trap_tab<T: gpui::InteractiveElement>(el: T, scope: &gpui::FocusHandle) -
          set_focus_visible(true, cx);
          let back = event.keystroke.modifiers.shift;
          if back {
@@ -32111,6 +32200,119 @@ index 40d72192..fae85572 100644
  /// At page 1 the Previous arrow is disabled (v3: `isDisabled` communicates
  /// "disabled states properly" and React Aria's press never fires for them),
  /// and at the last page the Next arrow is. Neither disabled arrow is a tab stop
+diff --git a/crates/herogpui-components/tests/overlay_stack_dialogs_deep.rs b/crates/herogpui-components/tests/overlay_stack_dialogs_deep.rs
+index fb7d84db..f4592739 100644
+--- a/crates/herogpui-components/tests/overlay_stack_dialogs_deep.rs
++++ b/crates/herogpui-components/tests/overlay_stack_dialogs_deep.rs
+@@ -4,14 +4,106 @@ mod harness;
+ 
+ use std::{cell::RefCell, rc::Rc};
+ 
+-use gpui::{prelude::*, TestAppContext};
++use gpui::{prelude::*, px, TestAppContext};
+ use harness::{click, events, open_host, press};
+-use herogpui_components::{AlertDialog, Drawer, Modal};
++use herogpui_components::{AlertDialog, Drawer, DrawerPlacement, Modal};
+ 
+ fn still() {
+     harness::still();
+ }
+ 
++#[gpui::test]
++fn window_dialogs_escape_clipped_ancestors_and_later_siblings(cx: &mut TestAppContext) {
++    for kind in ["modal", "drawer", "alert"] {
++        still();
++        let hits = events();
++        let recorded = hits.clone();
++        let cx = open_host(cx, move || {
++            let content_hits = hits.clone();
++            let close_hits = hits.clone();
++            let background_hits = hits.clone();
++            let content = gpui::div()
++                .id("window-dialog-content")
++                .debug_selector(|| "window-dialog-content".to_owned())
++                .w_full()
++                .h(px(36.))
++                .flex_shrink_0()
++                .on_click(move |_, _, _| content_hits.borrow_mut().push("content".into()))
++                .child("Dialog content");
++            let on_open_change = move |open: bool, _: &mut gpui::Window, _: &mut gpui::App| {
++                close_hits.borrow_mut().push(format!("open:{open}"));
++            };
++            let dialog = match kind {
++                "modal" => Modal::new()
++                    .is_open(true)
++                    .is_dismissible(true)
++                    .child(content)
++                    .on_open_change(on_open_change)
++                    .into_any_element(),
++                "drawer" => Drawer::new()
++                    .is_open(true)
++                    .placement(DrawerPlacement::Right)
++                    .is_dismissible(true)
++                    .child(content)
++                    .on_open_change(on_open_change)
++                    .into_any_element(),
++                _ => AlertDialog::new("Confirm")
++                    .is_open(true)
++                    .is_dismissible(true)
++                    .child(content)
++                    .on_open_change(on_open_change)
++                    .into_any_element(),
++            };
++            gpui::div()
++                .relative()
++                .size_full()
++                .child(
++                    gpui::div()
++                        .relative()
++                        .ml(px(100.))
++                        .mt(px(100.))
++                        .w(px(240.))
++                        .h(px(180.))
++                        .overflow_hidden()
++                        .child(dialog),
++                )
++                .child(
++                    gpui::div()
++                        .id("later-background")
++                        .absolute()
++                        .inset_0()
++                        .occlude()
++                        .on_click(move |_, _, _| {
++                            background_hits.borrow_mut().push("background".into());
++                        }),
++                )
++                .into_any_element()
++        });
++        let bounds = cx.debug_bounds("window-dialog-content").unwrap();
++        let viewport = cx.update(|window, _| window.viewport_size());
++        if kind == "drawer" {
++            assert!(bounds.left() > viewport.width / 2., "{kind}: {bounds:?}");
++        } else {
++            assert!(
++                bounds.left() < viewport.width / 2. && bounds.right() > viewport.width / 2.,
++                "{kind}: content must span the window center, got {bounds:?}"
++            );
++        }
++        click(
++            cx,
++            f32::from(bounds.center().x),
++            f32::from(bounds.center().y),
++        );
++        assert_eq!(recorded.borrow().as_slice(), ["content"], "{kind}");
++        click(cx, 10., 10.);
++        assert_eq!(
++            recorded.borrow().as_slice(),
++            ["content", "open:false"],
++            "{kind}"
++        );
++    }
++}
++
+ #[gpui::test]
+ fn nested_modals_escape_only_the_topmost_then_reaches_parent(cx: &mut TestAppContext) {
+     still();
 diff --git a/crates/herogpui-components/tests/overlays.rs b/crates/herogpui-components/tests/overlays.rs
 index d2e733ea..9c5fbcba 100644
 --- a/crates/herogpui-components/tests/overlays.rs
@@ -200236,7 +200438,7 @@ index 6452b2b7..b70b6484 100644
      }
  }
 diff --git a/gallery/src/pages/reference_metadata.rs b/gallery/src/pages/reference_metadata.rs
-index 71065ac8..8c32406a 100644
+index 71065ac8..d2add3a1 100644
 --- a/gallery/src/pages/reference_metadata.rs
 +++ b/gallery/src/pages/reference_metadata.rs
 @@ -22,7 +22,12 @@ impl ImplementationStatus {
@@ -200867,6 +201069,17 @@ index 71065ac8..8c32406a 100644
          status: ImplementationStatus::Partial,
      },
      StateDoc {
+@@ -8546,8 +8579,8 @@ const DRAWER_STYLING: &[StyleDoc] = &[
+     StyleDoc {
+         class_or_token: ".drawer__content",
+         value: "fixed inset-0 z-50 flex h-(--visual-viewport-height) w-full min-w-0; pointer-events-none",
+-        description: "Full-window positioning wrapper; gpui has no pointer-events, so outside presses dismiss through the panel's own bounds instead.",
+-        rust: "overlay absolute inset_0 + trap_tab",
++        description: "Covers the window even inside clipped or positioned containers, paints above later page content, and blocks pointer input to the page beneath. Outside presses dismiss through the panel's bounds.",
++        rust: "util::window_overlay + trap_tab",
+         status: ImplementationStatus::Implemented,
+     },
+     StyleDoc {
 @@ -9126,8 +9159,8 @@ const MODAL_STATES: &[StateDoc] = &[
      StateDoc {
          state: "Active",
@@ -200878,6 +201091,17 @@ index 71065ac8..8c32406a 100644
          status: ImplementationStatus::Partial,
      },
      StateDoc {
+@@ -9192,8 +9225,8 @@ const MODAL_STYLING: &[StyleDoc] = &[
+     StyleDoc {
+         class_or_token: ".modal__container",
+         value: "flex flex-col items-center; h-(--visual-viewport-height) w-full min-w-0 flex-1; p-4; sm:w-fit sm:p-10; pointer-events-none",
+-        description: "Window-pinning wrapper: the port uses inset_0 and the 40px sm padding, since a desktop app is past the breakpoint, and applies the placement alignment inside rather than sizing to fit; gpui has no pointer-events, so outside presses dismiss through the panel's own bounds instead.",
+-        rust: "overlay absolute inset_0 + p(px(40.)) + placement/scroll flex match",
++        description: "Covers the window even inside clipped or positioned containers, paints above later page content, and blocks pointer input to the page beneath. The desktop container keeps 40px padding and applies placement alignment inside.",
++        rust: "util::window_overlay + p(px(40.)) + placement/scroll flex match",
+         status: ImplementationStatus::Implemented,
+     },
+     StyleDoc {
 @@ -10127,6 +10160,7 @@ const COMBO_BOX_STATES: &[StateDoc] = &[
  ];
  
@@ -201140,6 +201364,17 @@ index 71065ac8..8c32406a 100644
          status: ImplementationStatus::Partial,
      },
      StateDoc {
+@@ -13928,8 +13967,8 @@ const ALERT_DIALOG_STYLING: &[StyleDoc] = &[
+     StyleDoc {
+         class_or_token: ".alert-dialog__container",
+         value: "flex flex-col items-center; h-(--visual-viewport-height) w-full min-w-0 flex-1; p-4; sm:w-fit sm:p-10; pointer-events-none",
+-        description: "Window-pinning wrapper: the port uses inset_0 and the 40px sm padding, since a desktop app is past the breakpoint, and applies the placement alignment inside; gpui has no pointer-events, so outside presses dismiss through the panel's own bounds instead.",
+-        rust: "overlay absolute inset_0 + p(px(40.)) + placement flex match",
++        description: "Covers the window even inside clipped or positioned containers, paints above later page content, and blocks pointer input to the page beneath. The desktop container keeps 40px padding and applies placement alignment inside.",
++        rust: "util::window_overlay + p(px(40.)) + placement flex match",
+         status: ImplementationStatus::Implemented,
+     },
+     StyleDoc {
 @@ -15163,6 +15202,1663 @@ pub(crate) const TYPOGRAPHY: ReferenceMetadata = ReferenceMetadata {
      styling: TYPOGRAPHY_STYLING,
  };

@@ -700,7 +700,7 @@ impl RenderOnce for AlertDialog {
                     util::DismissResult::Handled
                 });
         }
-        overlay.into_any_element()
+        util::window_overlay(overlay, window).into_any_element()
     }
 }
 

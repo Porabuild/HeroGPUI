@@ -15485,8 +15485,8 @@
     "styling": [
       {
         "token": ".drawer__content",
-        "description": "Full-window positioning wrapper; gpui has no pointer-events, so outside presses dismiss through the panel's own bounds instead.",
-        "rust": "overlay absolute inset_0 + trap_tab",
+        "description": "Covers the window even inside clipped or positioned containers, paints above later page content, and blocks pointer input to the page beneath. Outside presses dismiss through the panel's bounds.",
+        "rust": "util::window_overlay + trap_tab",
         "status": "implemented"
       },
       {
@@ -16091,8 +16091,8 @@
       },
       {
         "token": ".modal__container",
-        "description": "Window-pinning wrapper: the port uses inset_0 and the 40px sm padding, since a desktop app is past the breakpoint, and applies the placement alignment inside rather than sizing to fit; gpui has no pointer-events, so outside presses dismiss through the panel's own bounds instead.",
-        "rust": "overlay absolute inset_0 + p(px(40.)) + placement/scroll flex match",
+        "description": "Covers the window even inside clipped or positioned containers, paints above later page content, and blocks pointer input to the page beneath. The desktop container keeps 40px padding and applies placement alignment inside.",
+        "rust": "util::window_overlay + p(px(40.)) + placement/scroll flex match",
         "status": "implemented"
       },
       {
@@ -22884,8 +22884,8 @@
       },
       {
         "token": ".alert-dialog__container",
-        "description": "Window-pinning wrapper: the port uses inset_0 and the 40px sm padding, since a desktop app is past the breakpoint, and applies the placement alignment inside; gpui has no pointer-events, so outside presses dismiss through the panel's own bounds instead.",
-        "rust": "overlay absolute inset_0 + p(px(40.)) + placement flex match",
+        "description": "Covers the window even inside clipped or positioned containers, paints above later page content, and blocks pointer input to the page beneath. The desktop container keeps 40px padding and applies placement alignment inside.",
+        "rust": "util::window_overlay + p(px(40.)) + placement flex match",
         "status": "implemented"
       },
       {
