@@ -589,6 +589,7 @@ impl RenderOnce for RadioGroup {
                 .items_center()
                 .gap(gap)
                 .text_size(text)
+                .line_height(px(20.))
                 .font_weight(gpui::FontWeight::MEDIUM)
                 .text_color(colors.foreground)
                 .when(!row_disabled && !self.is_read_only, |r| r.cursor_pointer())

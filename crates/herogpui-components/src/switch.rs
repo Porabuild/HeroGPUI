@@ -675,7 +675,9 @@ impl RenderOnce for Switch {
             .flex()
             .items_center()
             .gap(px(12.))
-            .text_size(px(14.));
+            .text_size(px(14.))
+            .line_height(px(20.))
+            .font_weight(gpui::FontWeight::MEDIUM);
         let content_row = self.content.clone().map(|render| {
             let (is_hovered, is_pressed) = *interaction.read(cx);
             let focused = focus_handle.is_focused(window);

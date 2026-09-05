@@ -3237,7 +3237,7 @@ impl Gallery {
             crate::pages::Page::Switch.import_line(),
             vec![
                 (
-                    "Usage",
+                    "Usage", "Content uses 14px text with 20px lines; the built-in label uses 16px text with 24px lines.",
                     col(vec![
                         h::Switch::new("sw-a")
                             .is_selected(a)
@@ -5966,7 +5966,7 @@ impl Gallery {
             crate::pages::Page::Checkbox.import_line(),
             vec![
                 (
-                    "Usage",
+                    "Usage", "Label content uses 14px medium text with 20px lines, independent of surrounding line height.",
                     col(vec![
                         h::Checkbox::new("cb-1")
                             .is_selected(basic)
@@ -6182,7 +6182,7 @@ impl Gallery {
             crate::pages::Page::CheckboxGroup.import_line(),
             vec![
                 (
-                    "Usage",
+                    "Usage", "Option labels use 14px/20px medium text; descriptions use 12px/16px regular text.",
                     col(vec![h::CheckboxGroup::new("cbg-usage", group_options())
                         .label("Notifications")
                         .into_any_element()]),
@@ -6750,6 +6750,7 @@ impl Gallery {
                 ),
                 (
                     "Usage",
+                    "Text adornments inherit the field's 14px text and 20px line height.",
                     field_col(vec![h::Input::new(self.demo_text("in-usage", "", cx))
                         .label("Name")
                         .placeholder("Enter your name")
@@ -6862,6 +6863,7 @@ impl Gallery {
             vec![
                 (
                     "Usage",
+                    "Prefix and suffix text uses 14px text with 20px lines alongside the input.",
                     field_col(vec![h::InputGroup::new()
                         .label("Website")
                         .prefix(h::InputAddon::new("https://"))
@@ -7217,7 +7219,7 @@ impl Gallery {
             crate::pages::Page::InputOtp.import_line(),
             vec![
                 (
-                    "Usage",
+                    "Usage", "Custom slot content inherits 14px/20px text; the built-in digits use 18px/24px text.",
                     // v3 labels the field, explains where the code went, and
                     // splits the six slots into two groups around a separator.
                     col(vec![
@@ -7637,7 +7639,7 @@ impl Gallery {
             crate::pages::Page::RadioGroup.import_line(),
             vec![
                 (
-                    "Usage",
+                    "Usage", "Option content uses 14px medium text with 20px lines, independent of surrounding line height.",
                     col(vec![h::RadioGroup::new("rg-usage", plans())
                         .default_value("Free")
                         // v3's own example opens with the group's `<Label>` and

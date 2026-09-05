@@ -1712,6 +1712,7 @@ const CHECKBOX_STATES: &[StateDoc] = &[
 ];
 
 const CHECKBOX_STYLING: &[StyleDoc] = &[
+    StyleDoc { class_or_token: "text-sm", value: "14px text with 20px line height", description: "Label content uses 14px medium text with 20px lines, independent of surrounding line height.", rust: "text_size + line_height", status: ImplementationStatus::Implemented },
     StyleDoc {
         class_or_token: ".checkbox",
         value: "flex flex-col items-start gap-1",
@@ -2056,6 +2057,14 @@ const CHECKBOX_GROUP_STATES: &[StateDoc] = &[
 ];
 
 const CHECKBOX_GROUP_STYLING: &[StyleDoc] = &[
+    StyleDoc {
+        class_or_token: "text-sm",
+        value: "14px text with 20px line height",
+        description:
+            "Option labels use 14px/20px medium text; descriptions use 12px/16px regular text.",
+        rust: "text_size + line_height",
+        status: ImplementationStatus::Implemented,
+    },
     StyleDoc {
         class_or_token: ".checkbox-group",
         value: "flex flex-col",
@@ -2498,6 +2507,7 @@ const RADIO_GROUP_STATES: &[StateDoc] = &[
 ];
 
 const RADIO_GROUP_STYLING: &[StyleDoc] = &[
+    StyleDoc { class_or_token: "text-sm", value: "14px text with 20px line height", description: "Option content uses 14px medium text with 20px lines, independent of surrounding line height.", rust: "text_size + line_height", status: ImplementationStatus::Implemented },
     StyleDoc {
         class_or_token: ".radio-group",
         value: "flex flex-col",
@@ -4276,6 +4286,7 @@ const SWITCH_STATES: &[StateDoc] = &[
 ];
 
 const SWITCH_STYLING: &[StyleDoc] = &[
+    StyleDoc { class_or_token: "text-sm", value: "14px text with 20px line height", description: "Content uses 14px text with 20px lines; the built-in label uses 16px text with 24px lines.", rust: "text_size + line_height", status: ImplementationStatus::Implemented },
     StyleDoc {
         class_or_token: ".switch",
         value: "flex flex-col items-start gap-1",
@@ -4930,6 +4941,7 @@ const INPUT_STATES: &[StateDoc] = &[
 ];
 
 const INPUT_STYLING: &[StyleDoc] = &[
+    StyleDoc { class_or_token: "text-sm", value: "14px text with 20px line height", description: "Text adornments inherit the field's 14px text and 20px line height.", rust: "text_size + line_height", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".input base", value: "rounded-field border bg-field px-3 py-2 text-base sm:text-sm shadow-field outline-none", description: "Desktop field height, 12px inline inset, 14px desktop type, field radius, colours and shadow match.", rust: "FIELD_HEIGHT + px(px(12.)) + FIELD_TEXT + field_radius + apply_field_chrome", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".input border", value: "--border-width-field / --field-border", description: "Theme field border width and colour chain.", rust: "apply_field_chrome", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".input transitions", value: "background/border 150ms Smooth; shadow 150ms Out; reduced-motion none", description: "State colours switch directly; GPUI has no property-transition implementation for these three values.", rust: "direct apply_field_chrome state colours", status: ImplementationStatus::Partial },
@@ -5270,6 +5282,7 @@ const INPUT_GROUP_STATES: &[StateDoc] = &[
 ];
 
 const INPUT_GROUP_STYLING: &[StyleDoc] = &[
+    StyleDoc { class_or_token: "text-sm", value: "14px text with 20px line height", description: "Prefix and suffix text uses 14px text with 20px lines alongside the input.", rust: "text_size + line_height", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".input-group", value: "inline-flex min-h-9 items-center rounded-field border bg-field text-sm text-field-foreground shadow-field", description: "The 36px floor, field radius, fill, 14px type, foreground and shadow match; GPUI has no inline-flex display mode, so the box leans on its parent for intrinsic width.", rust: "div flex + min_h(FIELD_HEIGHT) + FIELD_TEXT + apply_field_chrome", status: ImplementationStatus::Partial },
     StyleDoc { class_or_token: ".input-group:hover:not(:focus-within)", value: "bg-field-hover; border-color --field-border-hover; secondary bg --default-hover", description: "The pinned hover-only group state, suppressed while the focus is inside; a disabled group paints none.", rust: "group.hover(field.hover() / default.hover() + border_hover()) when !focus_within && !is_disabled", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".input-group:has([data-slot=\"input-group-textarea\"])", value: "items-start; height: auto", description: "A textarea group top-aligns its children and grows around the multi-line field instead of centring it.", rust: "items_start + min_h(FIELD_HEIGHT) only", status: ImplementationStatus::Implemented },
@@ -5786,6 +5799,14 @@ const INPUT_OTP_STATES: &[StateDoc] = &[
 ];
 
 const INPUT_OTP_STYLING: &[StyleDoc] = &[
+    StyleDoc {
+        class_or_token: "text-sm",
+        value: "14px text with 20px line height",
+        description:
+            "Custom slot content inherits 14px/20px text; the built-in digits use 18px/24px text.",
+        rust: "text_size + line_height",
+        status: ImplementationStatus::Implemented,
+    },
     StyleDoc {
         class_or_token: ".input-otp",
         value: "relative flex w-full items-center gap-2",

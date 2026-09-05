@@ -594,6 +594,7 @@ impl RenderOnce for InputOTP {
                 .h(cell_h)
                 .rounded(crate::util::field_radius(cx))
                 .text_size(text)
+                .line_height(px(20.))
                 .font_weight(gpui::FontWeight::SEMIBOLD);
 
             // Every slot is filled and shadowed, empty or not -- v3 gives

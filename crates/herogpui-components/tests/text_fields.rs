@@ -1525,3 +1525,49 @@ fn text_area_click_places_the_caret_inside_a_wrapped_line(cx: &mut TestAppContex
         "the click must move the caret, not select and replace"
     );
 }
+
+#[gpui::test]
+fn input_addons_and_custom_otp_slots_keep_twenty_pixel_lines(cx: &mut TestAppContext) {
+    for kind in 0..3 {
+        for leading in [None, Some(48.)] {
+            let state = cx.new(|cx| InputState::new(cx));
+            let otp = cx.new(|cx| OtpState::with_length(cx, 1));
+            let cx = open_host(cx, move || {
+                let probe = || {
+                    gpui::div()
+                        .debug_selector(|| "input-leading-text".into())
+                        .child("$")
+                };
+                let control = match kind {
+                    0 => Input::new(state.clone())
+                        .start_content(probe())
+                        .into_any_element(),
+                    1 => InputGroup::new()
+                        .prefix(
+                            gpui::div()
+                                .debug_selector(|| "input-leading-text".into())
+                                .child(InputAddon::new("$")),
+                        )
+                        .input(Input::new(state.clone()))
+                        .into_any_element(),
+                    _ => InputOTP::new(otp.clone())
+                        .slot(move |_, _| probe().into_any_element())
+                        .into_any_element(),
+                };
+                gpui::div()
+                    .w(px(300.))
+                    .when_some(leading, |el, leading| el.line_height(px(leading)))
+                    .child(control)
+                    .into_any_element()
+            });
+            assert_eq!(
+                cx.debug_bounds("input-leading-text")
+                    .expect("slot text paints")
+                    .size
+                    .height,
+                px(20.),
+                "kind={kind}, host={leading:?}"
+            );
+        }
+    }
+}

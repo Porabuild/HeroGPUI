@@ -8983,7 +8983,7 @@ index db7d3f78..deba8d7b 100644
      }
  }
 diff --git a/crates/herogpui-components/src/checkbox.rs b/crates/herogpui-components/src/checkbox.rs
-index aef0b564..bbacde28 100644
+index aef0b564..8bcb5336 100644
 --- a/crates/herogpui-components/src/checkbox.rs
 +++ b/crates/herogpui-components/src/checkbox.rs
 @@ -371,7 +371,13 @@ impl RenderOnce for Checkbox {
@@ -9020,6 +9020,23 @@ index aef0b564..bbacde28 100644
          } else {
              boxel = boxel.bg(match self.variant {
                  herogpui_core::FieldVariant::Primary => colors.field.background,
+@@ -470,6 +485,7 @@ impl RenderOnce for Checkbox {
+                     })),
+             )
+             .text_size(text)
++            .line_height(px(20.))
+             .font_weight(gpui::FontWeight::MEDIUM)
+             .text_color(colors.foreground);
+ 
+@@ -837,6 +853,8 @@ impl RenderOnce for CheckboxGroup {
+                 label_el = label_el.child(
+                     gpui::div()
+                         .text_size(px(12.))
++                        .line_height(px(16.))
++                        .font_weight(gpui::FontWeight::NORMAL)
+                         .text_color(colors.muted)
+                         .child(description.to_string()),
+                 );
 diff --git a/crates/herogpui-components/src/close_button.rs b/crates/herogpui-components/src/close_button.rs
 index 2992b3ba..317899ab 100644
 --- a/crates/herogpui-components/src/close_button.rs
@@ -11472,7 +11489,7 @@ index 6cc62142..e0e7e01c 100644
 +pub const TRASH: &str = "herogpui/icons/trash.svg";
 +pub const GEAR: &str = "herogpui/icons/gear.svg";
 diff --git a/crates/herogpui-components/src/input.rs b/crates/herogpui-components/src/input.rs
-index 89fec17e..85b14c9b 100644
+index 89fec17e..04a25597 100644
 --- a/crates/herogpui-components/src/input.rs
 +++ b/crates/herogpui-components/src/input.rs
 @@ -18,6 +18,9 @@ pub struct InputState {
@@ -11656,7 +11673,15 @@ index 89fec17e..85b14c9b 100644
          // The font the field draws with, captured here: at event time the text
          // style stack is empty and the shaping would use the wrong face.
          let text_font = window.text_style().font();
-@@ -1337,19 +1458,34 @@ impl RenderOnce for Input {
+@@ -1320,6 +1441,7 @@ impl RenderOnce for Input {
+                     .pr(if suffix { px(0.) } else { px(12.) }),
+             })
+             .text_size(text)
++            .line_height(px(20.))
+             .rounded(crate::util::field_radius(cx))
+             .when(!self.is_disabled, |e| {
+                 e.cursor(gpui::CursorStyle::IBeam)
+@@ -1337,19 +1459,34 @@ impl RenderOnce for Input {
                          let font = text_font.clone();
                          let masks = self.input_type.masks();
                          let multiline = self.multiline;
@@ -11701,7 +11726,7 @@ index 89fec17e..85b14c9b 100644
                              st.update(cx, |s, cx| {
                                  s.cursor = at;
                                  s.anchor = None;
-@@ -1374,16 +1510,36 @@ impl RenderOnce for Input {
+@@ -1374,16 +1511,36 @@ impl RenderOnce for Input {
                          let font = text_font.clone();
                          let masks = self.input_type.masks();
                          let multiline = self.multiline;
@@ -11743,7 +11768,7 @@ index 89fec17e..85b14c9b 100644
                              st.update(cx, |s, cx| {
                                  if s.anchor.is_none() {
                                      s.anchor = Some(s.cursor);
-@@ -1463,6 +1619,7 @@ impl RenderOnce for Input {
+@@ -1463,6 +1620,7 @@ impl RenderOnce for Input {
                  gpui::ElementId::Name(format!("caret-{}", self.state.entity_id().as_u64()).into());
              row = row.child(multiline_body(
                  MultilineBody {
@@ -11751,7 +11776,7 @@ index 89fec17e..85b14c9b 100644
                      value: &value,
                      cursor,
                      selection,
-@@ -1563,6 +1720,7 @@ impl RenderOnce for Input {
+@@ -1563,6 +1721,7 @@ impl RenderOnce for Input {
          field = field.child(row);
          // isClearable — show X when has value and not disabled/readonly
          if self.is_clearable && !is_empty && !self.is_disabled && !self.is_read_only {
@@ -11759,7 +11784,7 @@ index 89fec17e..85b14c9b 100644
              let clear_content = match self.clear_content {
                  Some(content) => content,
                  None => gpui::svg()
-@@ -1582,56 +1740,100 @@ impl RenderOnce for Input {
+@@ -1582,56 +1741,100 @@ impl RenderOnce for Input {
              // `.close-button:hover` fills `bg-default-hover` -- not a
              // hand-mixed wash.
              let clear_hover_bg = colors.default.hover();
@@ -11910,10 +11935,18 @@ index 89fec17e..85b14c9b 100644
          field = field.children(self.end_content);
  
 diff --git a/crates/herogpui-components/src/input_group.rs b/crates/herogpui-components/src/input_group.rs
-index 3c18ea0a..2a9975ec 100644
+index 3c18ea0a..a1ff479d 100644
 --- a/crates/herogpui-components/src/input_group.rs
 +++ b/crates/herogpui-components/src/input_group.rs
-@@ -281,7 +281,7 @@ impl RenderOnce for InputGroup {
+@@ -212,6 +212,7 @@ impl RenderOnce for InputGroup {
+             })
+             .min_h(util::FIELD_HEIGHT)
+             .text_size(util::FIELD_TEXT)
++            .line_height(px(20.))
+             .text_color(colors.field.foreground);
+         if let Some(entity) = entity {
+             group = group.debug_selector(move || format!("input-group-{entity}-group"));
+@@ -281,7 +282,7 @@ impl RenderOnce for InputGroup {
              if let Some(focus) = self.input.as_ref().map(|input| input.state_focus(cx)) {
                  group = group.on_mouse_down(MouseButton::Left, move |_, window, cx| {
                      if !window.focused(cx).is_some_and(|held| held == focus) {
@@ -11923,7 +11956,7 @@ index 3c18ea0a..2a9975ec 100644
                      window.prevent_default();
                  });
 diff --git a/crates/herogpui-components/src/input_otp.rs b/crates/herogpui-components/src/input_otp.rs
-index a623b5ae..47343cac 100644
+index a623b5ae..e4bef268 100644
 --- a/crates/herogpui-components/src/input_otp.rs
 +++ b/crates/herogpui-components/src/input_otp.rs
 @@ -249,7 +249,7 @@ pub struct InputOTP {
@@ -11980,7 +12013,15 @@ index a623b5ae..47343cac 100644
                      if !was_focused {
                          return;
                      }
-@@ -653,11 +658,9 @@ impl RenderOnce for InputOTP {
+@@ -589,6 +594,7 @@ impl RenderOnce for InputOTP {
+                 .h(cell_h)
+                 .rounded(crate::util::field_radius(cx))
+                 .text_size(text)
++                .line_height(px(20.))
+                 .font_weight(gpui::FontWeight::SEMIBOLD);
+ 
+             // Every slot is filled and shadowed, empty or not -- v3 gives
+@@ -653,11 +659,9 @@ impl RenderOnce for InputOTP {
                      ),
                      cx,
                  ));
@@ -13103,7 +13144,7 @@ index d15cabed..ba280b82 100644
          let paint_rotation = rotation.clone();
  
 diff --git a/crates/herogpui-components/src/radio_group.rs b/crates/herogpui-components/src/radio_group.rs
-index ebaa04a1..4e9b05ce 100644
+index ebaa04a1..5172cd64 100644
 --- a/crates/herogpui-components/src/radio_group.rs
 +++ b/crates/herogpui-components/src/radio_group.rs
 @@ -378,8 +378,11 @@ impl RenderOnce for RadioGroup {
@@ -13194,7 +13235,15 @@ index ebaa04a1..4e9b05ce 100644
                  .when(!row_disabled && i == cursor_index, |r| {
                      r.track_focus(&group_focus)
                  })
-@@ -592,7 +596,7 @@ impl RenderOnce for RadioGroup {
+@@ -585,6 +589,7 @@ impl RenderOnce for RadioGroup {
+                 .items_center()
+                 .gap(gap)
+                 .text_size(text)
++                .line_height(px(20.))
+                 .font_weight(gpui::FontWeight::MEDIUM)
+                 .text_color(colors.foreground)
+                 .when(!row_disabled && !self.is_read_only, |r| r.cursor_pointer())
+@@ -592,7 +597,7 @@ impl RenderOnce for RadioGroup {
                  .child(circle_el)
                  .child(match &self.option_content {
                      Some(render) => render(&label, option_state),
@@ -13203,7 +13252,7 @@ index ebaa04a1..4e9b05ce 100644
                  });
              if !row_disabled && !self.is_read_only {
                  if let Some(slot) = interaction.get(i) {
-@@ -650,7 +654,7 @@ impl RenderOnce for RadioGroup {
+@@ -650,7 +655,7 @@ impl RenderOnce for RadioGroup {
                  let click_focus = group_focus.clone();
                  let click_form_state = self.form_state.clone();
                  row = row.on_click(move |_, window, cx| {
@@ -13212,7 +13261,7 @@ index ebaa04a1..4e9b05ce 100644
                      click_cursor.update(cx, |v, cx| {
                          *v = i;
                          cx.notify();
-@@ -732,3 +736,47 @@ impl RenderOnce for RadioGroup {
+@@ -732,3 +737,47 @@ impl RenderOnce for RadioGroup {
  fn element_id_name(id: &gpui::ElementId) -> String {
      format!("{id:?}").trim_matches('"').to_owned()
  }
@@ -14642,7 +14691,7 @@ index b9da1b79..837ff157 100644
      }
  }
 diff --git a/crates/herogpui-components/src/switch.rs b/crates/herogpui-components/src/switch.rs
-index 76d363c8..d890e556 100644
+index 76d363c8..40995553 100644
 --- a/crates/herogpui-components/src/switch.rs
 +++ b/crates/herogpui-components/src/switch.rs
 @@ -142,7 +142,7 @@ fn thumb_motion(
@@ -14694,7 +14743,18 @@ index 76d363c8..d890e556 100644
                      },
                  ])
          } else {
-@@ -695,6 +698,10 @@ impl RenderOnce for Switch {
+@@ -672,7 +675,9 @@ impl RenderOnce for Switch {
+             .flex()
+             .items_center()
+             .gap(px(12.))
+-            .text_size(px(14.));
++            .text_size(px(14.))
++            .line_height(px(20.))
++            .font_weight(gpui::FontWeight::MEDIUM);
+         let content_row = self.content.clone().map(|render| {
+             let (is_hovered, is_pressed) = *interaction.read(cx);
+             let focused = focus_handle.is_focused(window);
+@@ -695,6 +700,10 @@ impl RenderOnce for Switch {
                  // `.switch__label` is `text-base`, a step larger than the
                  // content around it.
                  .text_size(px(16.))
@@ -20411,8 +20471,28 @@ index e0d0085a..5a3b3e29 100644
              .into_any_element()
      });
  
+diff --git a/crates/herogpui-components/tests/checkbox_form_deep.rs b/crates/herogpui-components/tests/checkbox_form_deep.rs
+index ccc4c533..033b24c8 100644
+--- a/crates/herogpui-components/tests/checkbox_form_deep.rs
++++ b/crates/herogpui-components/tests/checkbox_form_deep.rs
+@@ -882,11 +882,12 @@ fn checkbox_validation_message_occupies_the_field_error_row(cx: &mut TestAppCont
+     });
+ 
+     // Without the sibling FieldError row this was the button's centre. The
+-    // message now occupies 16px plus the root's 4px gap.
+-    click(cx, 60., 57.);
++    // 20px label + 16px outer gap + 18px half-button = 54px.
++    // The message adds 16px plus the root's 4px gap.
++    click(cx, 60., 54.);
+     assert!(recorded.borrow().is_empty());
+ 
+-    click(cx, 60., 77.);
++    click(cx, 60., 74.);
+     assert_eq!(recorded.borrow().as_slice(), ["pressed"]);
+ }
+ 
 diff --git a/crates/herogpui-components/tests/choice_controls_deep.rs b/crates/herogpui-components/tests/choice_controls_deep.rs
-index 125a457a..4cd9598e 100644
+index 125a457a..2a5effb3 100644
 --- a/crates/herogpui-components/tests/choice_controls_deep.rs
 +++ b/crates/herogpui-components/tests/choice_controls_deep.rs
 @@ -714,6 +714,65 @@ fn radio_group_home_and_end_are_unconsumed_no_ops(cx: &mut TestAppContext) {
@@ -20505,6 +20585,59 @@ index 125a457a..4cd9598e 100644
                      }
                  }
              })
+@@ -1749,3 +1808,52 @@ fn toggle_button_group_size_propagates_unless_child_overrides(cx: &mut TestAppCo
+         "the group must make an unspecified child large while an explicit small child stays small"
+     );
+ }
++
++#[gpui::test]
++fn choice_content_keeps_twenty_pixel_lines(cx: &mut TestAppContext) {
++    for kind in 0..5 {
++        for leading in [None, Some(48.)] {
++            let cx = open_host(cx, move || {
++                let control = match kind {
++                    0 => herogpui_components::Checkbox::new("leading-checkbox")
++                        .label("First\nSecond")
++                        .into_any_element(),
++                    1 => RadioGroup::new("leading-radio", vec![RadioOption::new("First\nSecond")])
++                        .into_any_element(),
++                    2 => Switch::new("leading-switch")
++                        .content(|_| gpui::div().child("First\nSecond").into_any_element())
++                        .into_any_element(),
++                    3 => herogpui_components::CheckboxGroup::new(
++                        "leading-checkbox-group",
++                        vec![herogpui_components::CheckboxOption::new("option", "Label")
++                            .description("First\nSecond")],
++                    )
++                    .into_any_element(),
++                    _ => Switch::new("leading-switch-label")
++                        .label("First\nSecond")
++                        .into_any_element(),
++                };
++                gpui::div()
++                    .when_some(leading, |el, leading| el.line_height(px(leading)))
++                    .child(
++                        gpui::div()
++                            .debug_selector(|| "choice-leading".into())
++                            .child(control),
++                    )
++                    .into_any_element()
++            });
++            assert_eq!(
++                cx.debug_bounds("choice-leading")
++                    .expect("choice content paints")
++                    .size
++                    .height,
++                px(match kind {
++                    3 => 56.,
++                    4 => 48.,
++                    _ => 40.,
++                }),
++                "pinned label/description lines; kind={kind}, host={leading:?}"
++            );
++        }
++    }
++}
 diff --git a/crates/herogpui-components/tests/close_button_deep.rs b/crates/herogpui-components/tests/close_button_deep.rs
 new file mode 100644
 index 00000000..142da936
@@ -25730,7 +25863,7 @@ index 00000000..b590b5a2
 +    assert_eq!(empty.size.height, px(60.));
 +}
 diff --git a/crates/herogpui-components/tests/text_fields.rs b/crates/herogpui-components/tests/text_fields.rs
-index 6c5c1f0d..b6caf5d6 100644
+index 6c5c1f0d..4b5f8196 100644
 --- a/crates/herogpui-components/tests/text_fields.rs
 +++ b/crates/herogpui-components/tests/text_fields.rs
 @@ -20,7 +20,8 @@
@@ -26079,7 +26212,7 @@ index 6c5c1f0d..b6caf5d6 100644
  #[gpui::test]
  fn search_field_custom_clear_icon_preserves_clear_behavior(cx: &mut TestAppContext) {
      let changes = events();
-@@ -1198,3 +1483,45 @@ fn fieldset_disabled_disables_its_children(cx: &mut TestAppContext) {
+@@ -1198,3 +1483,91 @@ fn fieldset_disabled_disables_its_children(cx: &mut TestAppContext) {
      let value = cx.update(|_, cx| state.read(cx).value().to_owned());
      assert_eq!(value, "abc", "the InputState must hold the typed value");
  }
@@ -26124,6 +26257,52 @@ index 6c5c1f0d..b6caf5d6 100644
 +        end + 1,
 +        "the click must move the caret, not select and replace"
 +    );
++}
++
++#[gpui::test]
++fn input_addons_and_custom_otp_slots_keep_twenty_pixel_lines(cx: &mut TestAppContext) {
++    for kind in 0..3 {
++        for leading in [None, Some(48.)] {
++            let state = cx.new(|cx| InputState::new(cx));
++            let otp = cx.new(|cx| OtpState::with_length(cx, 1));
++            let cx = open_host(cx, move || {
++                let probe = || {
++                    gpui::div()
++                        .debug_selector(|| "input-leading-text".into())
++                        .child("$")
++                };
++                let control = match kind {
++                    0 => Input::new(state.clone())
++                        .start_content(probe())
++                        .into_any_element(),
++                    1 => InputGroup::new()
++                        .prefix(
++                            gpui::div()
++                                .debug_selector(|| "input-leading-text".into())
++                                .child(InputAddon::new("$")),
++                        )
++                        .input(Input::new(state.clone()))
++                        .into_any_element(),
++                    _ => InputOTP::new(otp.clone())
++                        .slot(move |_, _| probe().into_any_element())
++                        .into_any_element(),
++                };
++                gpui::div()
++                    .w(px(300.))
++                    .when_some(leading, |el, leading| el.line_height(px(leading)))
++                    .child(control)
++                    .into_any_element()
++            });
++            assert_eq!(
++                cx.debug_bounds("input-leading-text")
++                    .expect("slot text paints")
++                    .size
++                    .height,
++                px(20.),
++                "kind={kind}, host={leading:?}"
++            );
++        }
++    }
 +}
 diff --git a/crates/herogpui-components/tests/theme_repaint.rs b/crates/herogpui-components/tests/theme_repaint.rs
 index 1ac095ae..9e2f8193 100644
@@ -31649,7 +31828,7 @@ index 723274b0..f4c6f34d 100644
              // `HEROGPUI_WINDOW_SIZE=1200x2000` opens the window at that size.
              // A capture is one PrintWindow of the whole window, so a taller
 diff --git a/gallery/src/pages/components.rs b/gallery/src/pages/components.rs
-index 5eb12cd4..b8802bf9 100644
+index 5eb12cd4..663a5d9f 100644
 --- a/gallery/src/pages/components.rs
 +++ b/gallery/src/pages/components.rs
 @@ -1,7 +1,7 @@
@@ -32933,6 +33112,15 @@ index 5eb12cd4..b8802bf9 100644
                      ]),
                  ),
              ],
+@@ -3041,7 +3228,7 @@ impl Gallery {
+             crate::pages::Page::Switch.import_line(),
+             vec![
+                 (
+-                    "Usage",
++                    "Usage", "Content uses 14px text with 20px lines; the built-in label uses 16px text with 24px lines.",
+                     col(vec![
+                         h::Switch::new("sw-a")
+                             .is_selected(a)
 @@ -3304,10 +3491,37 @@ impl Gallery {
              vec![
                  (
@@ -34161,6 +34349,24 @@ index 5eb12cd4..b8802bf9 100644
                      row(vec![h::Spinner::new("sp-usage").into_any_element()]),
                  ),
                  (
+@@ -5664,7 +5963,7 @@ impl Gallery {
+             crate::pages::Page::Checkbox.import_line(),
+             vec![
+                 (
+-                    "Usage",
++                    "Usage", "Label content uses 14px medium text with 20px lines, independent of surrounding line height.",
+                     col(vec![
+                         h::Checkbox::new("cb-1")
+                             .is_selected(basic)
+@@ -5880,7 +6179,7 @@ impl Gallery {
+             crate::pages::Page::CheckboxGroup.import_line(),
+             vec![
+                 (
+-                    "Usage",
++                    "Usage", "Option labels use 14px/20px medium text; descriptions use 12px/16px regular text.",
+                     col(vec![h::CheckboxGroup::new("cbg-usage", group_options())
+                         .label("Notifications")
+                         .into_any_element()]),
 @@ -5905,12 +6204,8 @@ impl Gallery {
                  ),
                  (
@@ -34377,8 +34583,9 @@ index 5eb12cd4..b8802bf9 100644
                      ]),
                  ),
                  (
-                     "Usage",
+-                    "Usage",
 -                    col(vec![h::Input::new(self.demo_text("in-usage", "", cx))
++                    "Usage", "Text adornments inherit the field's 14px text and 20px line height.",
 +                    field_col(vec![h::Input::new(self.demo_text("in-usage", "", cx))
                          .label("Name")
 -                        .placeholder("Ada Lovelace")
@@ -34455,11 +34662,13 @@ index 5eb12cd4..b8802bf9 100644
                              .is_clearable(true)
                              .into_any_element(),
                      ]),
-@@ -6584,7 +6865,7 @@ impl Gallery {
+@@ -6583,8 +6864,8 @@ impl Gallery {
+             crate::pages::Page::InputGroup.import_line(),
              vec![
                  (
-                     "Usage",
+-                    "Usage",
 -                    col(vec![h::InputGroup::new()
++                    "Usage", "Prefix and suffix text uses 14px text with 20px lines alongside the input.",
 +                    field_col(vec![h::InputGroup::new()
                          .label("Website")
                          .prefix(h::InputAddon::new("https://"))
@@ -34736,10 +34945,12 @@ index 5eb12cd4..b8802bf9 100644
                          .variant(FieldVariant::Secondary)
                          .input(h::Input::new(self.input_email.clone()).placeholder("Email"))
                          .suffix(
-@@ -6899,21 +7221,32 @@ impl Gallery {
+@@ -6898,22 +7220,33 @@ impl Gallery {
+             crate::pages::Page::InputOtp.import_line(),
              vec![
                  (
-                     "Usage",
+-                    "Usage",
++                    "Usage", "Custom slot content inherits 14px/20px text; the built-in digits use 18px/24px text.",
 +                    // v3 labels the field, explains where the code went, and
 +                    // splits the six slots into two groups around a separator.
                      col(vec![
@@ -34847,6 +35058,15 @@ index 5eb12cd4..b8802bf9 100644
                  ),
                  (
                      "Without steppers",
+@@ -7299,7 +7640,7 @@ impl Gallery {
+             crate::pages::Page::RadioGroup.import_line(),
+             vec![
+                 (
+-                    "Usage",
++                    "Usage", "Option content uses 14px medium text with 20px lines, independent of surrounding line height.",
+                     col(vec![h::RadioGroup::new("rg-usage", plans())
+                         .default_value("Free")
+                         // v3's own example opens with the group's `<Label>` and
 @@ -7384,12 +7725,8 @@ impl Gallery {
                  ),
                  (
@@ -35297,7 +35517,7 @@ index 5eb12cd4..b8802bf9 100644
                              .input_type(h::InputType::Email)
                              .into_any_element(),
                      ]),
-@@ -7944,18 +8318,38 @@ impl Gallery {
+@@ -7944,16 +8318,36 @@ impl Gallery {
              vec![
                  (
                      "Usage",
@@ -35322,8 +35542,6 @@ index 5eb12cd4..b8802bf9 100644
                                  ),
                          )
 -                        .child(h::CardContent::new().child("Sessions are up 12% week over week."))
--                        .into_any_element()]),
--                ),
 +                        .child(
 +                            h::CardFooter::new().child(
 +                                h::Link::new("card-usage-link")
@@ -35337,11 +35555,9 @@ index 5eb12cd4..b8802bf9 100644
 +                                    ),
 +                            ),
 +                        )
-+                        .into_any_element()]),
-+                ),
+                         .into_any_element()]),
+                 ),
                  (
-                     "Variants",
-                     row(h::CardVariant::ALL.iter().map(|v| card(*v)).els()),
 @@ -8011,7 +8405,7 @@ impl Gallery {
                          )
                          .child(

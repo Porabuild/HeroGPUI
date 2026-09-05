@@ -212,6 +212,7 @@ impl RenderOnce for InputGroup {
             })
             .min_h(util::FIELD_HEIGHT)
             .text_size(util::FIELD_TEXT)
+            .line_height(px(20.))
             .text_color(colors.field.foreground);
         if let Some(entity) = entity {
             group = group.debug_selector(move || format!("input-group-{entity}-group"));

@@ -485,6 +485,7 @@ impl RenderOnce for Checkbox {
                     })),
             )
             .text_size(text)
+            .line_height(px(20.))
             .font_weight(gpui::FontWeight::MEDIUM)
             .text_color(colors.foreground);
 
@@ -852,6 +853,8 @@ impl RenderOnce for CheckboxGroup {
                 label_el = label_el.child(
                     gpui::div()
                         .text_size(px(12.))
+                        .line_height(px(16.))
+                        .font_weight(gpui::FontWeight::NORMAL)
                         .text_color(colors.muted)
                         .child(description.to_string()),
                 );

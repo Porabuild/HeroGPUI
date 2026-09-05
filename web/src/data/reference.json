@@ -5871,6 +5871,12 @@
     ],
     "styling": [
       {
+        "token": "text-sm",
+        "description": "Label content uses 14px medium text with 20px lines, independent of surrounding line height.",
+        "rust": "text_size + line_height",
+        "status": "implemented"
+      },
+      {
         "token": ".checkbox",
         "description": "Field root and sibling help/error layout.",
         "rust": "Checkbox::render flex_col + items_start + gap(px(4.))",
@@ -6192,6 +6198,12 @@
       }
     ],
     "styling": [
+      {
+        "token": "text-sm",
+        "description": "Option labels use 14px/20px medium text; descriptions use 12px/16px regular text.",
+        "rust": "text_size + line_height",
+        "status": "implemented"
+      },
       {
         "token": ".checkbox-group",
         "description": "Group root stacks label, options and help/error text.",
@@ -6618,6 +6630,12 @@
       }
     ],
     "styling": [
+      {
+        "token": "text-sm",
+        "description": "Option content uses 14px medium text with 20px lines, independent of surrounding line height.",
+        "rust": "text_size + line_height",
+        "status": "implemented"
+      },
       {
         "token": ".radio-group",
         "description": "Group root around label, description, options and field error.",
@@ -7935,6 +7953,12 @@
     ],
     "styling": [
       {
+        "token": "text-sm",
+        "description": "Content uses 14px text with 20px lines; the built-in label uses 16px text with 24px lines.",
+        "rust": "text_size + line_height",
+        "status": "implemented"
+      },
+      {
         "token": ".switch",
         "description": "Field root around content, description and error.",
         "rust": "flex_col + gap(px(4.))",
@@ -8711,6 +8735,12 @@
       }
     ],
     "styling": [
+      {
+        "token": "text-sm",
+        "description": "Text adornments inherit the field's 14px text and 20px line height.",
+        "rust": "text_size + line_height",
+        "status": "implemented"
+      },
       {
         "token": ".input base",
         "description": "Desktop field height, 12px inline inset, 14px desktop type, field radius, colours and shadow match.",
@@ -10132,6 +10162,12 @@
     ],
     "styling": [
       {
+        "token": "text-sm",
+        "description": "Custom slot content inherits 14px/20px text; the built-in digits use 18px/24px text.",
+        "rust": "text_size + line_height",
+        "status": "implemented"
+      },
+      {
         "token": ".input-otp",
         "description": "Root container geometry.",
         "rust": "flex + items_center + gap(px(8.))",
@@ -10671,6 +10707,12 @@
       }
     ],
     "styling": [
+      {
+        "token": "text-sm",
+        "description": "Prefix and suffix text uses 14px text with 20px lines alongside the input.",
+        "rust": "text_size + line_height",
+        "status": "implemented"
+      },
       {
         "token": ".input-group",
         "description": "The 36px floor, field radius, fill, 14px type, foreground and shadow match; GPUI has no inline-flex display mode, so the box leans on its parent for intrinsic width.",

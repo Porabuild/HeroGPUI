@@ -772,6 +772,7 @@
   "switch": [
     {
       "heading": "Usage",
+      "description": "Content uses 14px text with 20px lines; the built-in label uses 16px text with 24px lines.",
       "imports": "use herogpui::prelude::Switch;\nuse gpui::prelude::*;\nuse gpui::px;",
       "code": "gpui::div()\n    .flex()\n    .flex_col()\n    .items_start()\n    .gap(px(12.))\n    .children(vec![\n        Switch::new(\"switch-a\")\n            .is_selected(a)\n            .label(gpui::div().child(\"Enable notifications\"))\n            .on_change(bool_cb(cx.listener(|this, v: &bool, _, cx| {\n                this.switch_a = *v;\n                cx.notify();\n            })))\n            .into_any_element(),\n        Switch::new(\"switch-b\")\n            .is_selected(b)\n            .label(gpui::div().child(\"Share usage data\"))\n            .on_change(bool_cb(cx.listener(|this, v: &bool, _, cx| {\n                this.switch_b = *v;\n                cx.notify();\n            })))\n            .into_any_element(),\n    ])"
     },
@@ -1609,6 +1610,7 @@
   "checkbox": [
     {
       "heading": "Usage",
+      "description": "Label content uses 14px medium text with 20px lines, independent of surrounding line height.",
       "imports": "use herogpui::prelude::{Checkbox, FieldVariant};\nuse gpui::prelude::*;\nuse gpui::px;",
       "code": "gpui::div()\n    .flex()\n    .flex_col()\n    .items_start()\n    .gap(px(12.))\n    .children(vec![\n        Checkbox::new(\"checkbox-1\")\n            .is_selected(basic)\n            .label(gpui::div().child(\"Accept the terms\"))\n            .on_change(bool_cb(cx.listener(|this, v: &bool, _, cx| {\n                this.cb_basic = *v;\n                cx.notify();\n            })))\n            .into_any_element(),\n        Checkbox::new(\"checkbox-2\")\n            .is_selected(colored)\n            .variant(FieldVariant::Secondary)\n            .label(gpui::div().child(\"Subscribe to updates\"))\n            .on_change(bool_cb(cx.listener(|this, v: &bool, _, cx| {\n                this.cb_color = *v;\n                cx.notify();\n            })))\n            .into_any_element(),\n    ])"
     },
@@ -1671,6 +1673,7 @@
   "checkbox-group": [
     {
       "heading": "Usage",
+      "description": "Option labels use 14px/20px medium text; descriptions use 12px/16px regular text.",
       "imports": "use herogpui::prelude::CheckboxGroup;",
       "code": "CheckboxGroup::new(\"checkbox-group\", group_options())\n    .label(\"Notifications\")"
     },
@@ -1826,6 +1829,7 @@
     },
     {
       "heading": "Usage",
+      "description": "Text adornments inherit the field's 14px text and 20px line height.",
       "imports": "use herogpui::prelude::{Input, InputState};",
       "code": "Input::new(self.demo_text(\"in-usage\", \"\", cx))\n    .label(\"Name\")\n    .placeholder(\"Enter your name\")"
     },
@@ -1858,6 +1862,7 @@
   "input-group": [
     {
       "heading": "Usage",
+      "description": "Prefix and suffix text uses 14px text with 20px lines alongside the input.",
       "imports": "use herogpui::prelude::{Input, InputAddon, InputGroup};",
       "code": "InputGroup::new()\n    .label(\"Website\")\n    .prefix(InputAddon::new(\"https://\"))\n    .input(\n        Input::new(self.demo_text(\"ig-usage\", \"\", cx))\n            // v3's group example seeds the input with\n            // `defaultValue`; `value` is the controlled\n            // spelling of the same thing.\n            .default_value(\"heroui.com\")\n            .placeholder(\"heroui.com\"),\n    )"
     },
@@ -1980,6 +1985,7 @@
   "input-otp": [
     {
       "heading": "Usage",
+      "description": "Custom slot content inherits 14px/20px text; the built-in digits use 18px/24px text.",
       "imports": "use herogpui::prelude::{InputOTP, Label, Link, OtpState};\nuse gpui::prelude::*;\nuse gpui::px;",
       "code": "gpui::div()\n    .flex()\n    .flex_col()\n    .items_start()\n    .gap(px(12.))\n    .children(vec![\n        Label::new(\"Verify account\").into_any_element(),\n        muted_para(\"We've sent a code to a****@gmail.com\", cx),\n        InputOTP::new(self.otp.clone())\n            .separator()\n            .on_complete(cx.listener(|this, code: &str, _, cx| {\n                this.otp_done = code.to_owned();\n                cx.notify();\n            }))\n            .into_any_element(),\n        gpui::div()\n            .flex()\n            .items_center()\n            .gap(px(5.))\n            .child(muted_para(\n                &if done.is_empty() {\n                    \"Didn't receive a code?\".to_owned()\n                } else {\n                    format!(\"Complete: {done}\")\n                },\n                cx,\n            ))\n            .child(Link::new(\"input-otp-resend\").label(\"Resend\").href(\"#\"))\n            .into_any_element(),\n    ])"
     },
@@ -2120,6 +2126,7 @@
   "radio-group": [
     {
       "heading": "Usage",
+      "description": "Option content uses 14px medium text with 20px lines, independent of surrounding line height.",
       "imports": "use herogpui::prelude::RadioGroup;",
       "code": "RadioGroup::new(\"radio-group\", plans())\n    .default_value(\"Free\")\n    // v3's own example opens with the group's `<Label>` and\n    // `<Description>`, then a `<Description>` per `<Radio>`.\n    .label(\"Plan selection\")\n    .description(\"Choose the plan that suits you best\")\n    .descriptions([\n        Some(\"Includes 100 messages per month\"),\n        Some(\"Includes 200 messages per month\"),\n        None,\n    ])"
     },

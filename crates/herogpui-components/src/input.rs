@@ -1441,6 +1441,7 @@ impl RenderOnce for Input {
                     .pr(if suffix { px(0.) } else { px(12.) }),
             })
             .text_size(text)
+            .line_height(px(20.))
             .rounded(crate::util::field_radius(cx))
             .when(!self.is_disabled, |e| {
                 e.cursor(gpui::CursorStyle::IBeam)

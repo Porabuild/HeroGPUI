@@ -882,11 +882,12 @@ fn checkbox_validation_message_occupies_the_field_error_row(cx: &mut TestAppCont
     });
 
     // Without the sibling FieldError row this was the button's centre. The
-    // message now occupies 16px plus the root's 4px gap.
-    click(cx, 60., 57.);
+    // 20px label + 16px outer gap + 18px half-button = 54px.
+    // The message adds 16px plus the root's 4px gap.
+    click(cx, 60., 54.);
     assert!(recorded.borrow().is_empty());
 
-    click(cx, 60., 77.);
+    click(cx, 60., 74.);
     assert_eq!(recorded.borrow().as_slice(), ["pressed"]);
 }
 
