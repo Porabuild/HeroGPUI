@@ -2372,10 +2372,12 @@ impl RenderOnce for Table {
                     // Other collection keys belong only to the body's roving
                     // focus stop. A nested cell action must keep its own Enter
                     // and Space handling even though Mod+A bubbles to the root.
-                    if plain_rows
-                        && headers_for_keys
-                            .iter()
-                            .any(|header| header.is_focused(window))
+                    // Pinned TableKeyboardDelegate crosses header<->body in
+                    // both plain and virtual tables: Down/PageDown from a
+                    // focused header enters the body.
+                    if headers_for_keys
+                        .iter()
+                        .any(|header| header.is_focused(window))
                     {
                         let next = match key_name {
                             "down" => stops.first(),
@@ -2553,12 +2555,33 @@ impl RenderOnce for Table {
                     // enabled row, and PageUp out of the body entirely, into
                     // the first column header. The header is focusable whether
                     // or not it sorts, so this leaves the body rather than
-                    // stopping at its first row.
+                    // stopping at its first row. Virtual tables page by
+                    // viewport first; only when the upward page move has
+                    // nowhere to go (the cursor is already the first enabled
+                    // stop, or the computed page target equals it) does
+                    // PageUp enter the header. The cursor stays seated so
+                    // Down from the header returns to the first enabled row.
                     if plain_rows && key_name == "pageup" {
                         if let Some(header) = &page_up_header {
                             window.focus(header, cx);
                             cx.stop_propagation();
                             return;
+                        }
+                    } else if !plain_rows && key_name == "pageup" {
+                        let at_top = match from {
+                            Some(position) => {
+                                stops.first().is_some_and(|first| *first == position)
+                                    || fixed_page_move.is_some_and(|target| Some(target) == from)
+                                    || variable_page_move.is_some_and(|target| Some(target) == from)
+                            }
+                            None => false,
+                        };
+                        if at_top {
+                            if let Some(header) = &page_up_header {
+                                window.focus(header, cx);
+                                cx.stop_propagation();
+                                return;
+                            }
                         }
                     }
                     let plain_page_move =

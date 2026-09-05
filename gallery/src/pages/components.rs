@@ -3892,7 +3892,7 @@ impl Gallery {
                 ),
                 (
                     "Sorting",
-                    "In a non-virtual table, PageUp moves from the body to the first header. Enter sorts a sortable header; Down or PageDown returns to the first or last enabled row.",
+                    "PageUp moves from the body to the first header — from the top of a virtual body; mid-body it pages by viewport. Enter sorts a sortable header; Down or PageDown returns to the first or last enabled row.",
                     col(vec![
                         {
                             let mut rows = [

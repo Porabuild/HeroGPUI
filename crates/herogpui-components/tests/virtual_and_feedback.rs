@@ -1016,6 +1016,85 @@ fn variable_height_table_page_key_stays_on_a_viewport_tall_row(cx: &mut TestAppC
     );
 }
 
+/// Pinned React Aria's `TableKeyboardDelegate` runs one focus machine over
+/// {columns..., rows...}: Down/PageDown cross header->body and PageUp from the
+/// top of the body enters the header. The virtual body still pages by viewport
+/// mid-list, so only a PageUp with nowhere to go (the cursor already on the
+/// first enabled stop) leaves for the header; the cursor stays seated, so Down
+/// returns to the first enabled row and PageDown from the header reaches the
+/// last enabled row.
+#[gpui::test]
+fn virtual_table_page_keys_cross_between_header_and_body(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        Table::new(vec![])
+            .id("vt-header-crossing")
+            .columns(vec![TableColumn::new("Name").default_width(px(160.))])
+            .virtual_rows(
+                20,
+                "virtual-header-crossing-users",
+                |i| format!("key-{i:02}").into(),
+                |i| {
+                    TableRow::new(vec![gpui::div()
+                        .child(format!("Row {i}"))
+                        .into_any_element()])
+                },
+            )
+            .row_height(px(40.))
+            .max_h(px(160.))
+            .disabled_keys(["key-00", "key-19"])
+            .on_row_click(move |i, _, _, _| recorded.borrow_mut().push(format!("row-{i}")))
+            .into_any_element()
+    });
+
+    // Tab lands on the wrapper; Down enters the body at the first enabled row.
+    press(cx, "tab");
+    press(cx, "down");
+    press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["row-1"],
+        "Down must enter a virtual body at its first enabled row"
+    );
+
+    // PageUp from the top of the body leaves for the header. The proof is that
+    // Enter no longer activates a row: the non-sortable header answers nothing.
+    press(cx, "pageup");
+    press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["row-1"],
+        "PageUp from the first enabled row must enter the header, so Enter no longer reaches the body"
+    );
+
+    // Down from the header returns to the first enabled row.
+    press(cx, "down");
+    press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["row-1", "row-1"],
+        "Down from a virtual header must return to the first enabled row"
+    );
+
+    // Back to the header, then PageDown reaches the last enabled row.
+    press(cx, "pageup");
+    press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["row-1", "row-1"],
+        "PageUp from the first enabled row must re-enter the header"
+    );
+    press(cx, "pagedown");
+    press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["row-1", "row-1", "row-18"],
+        "PageDown from a virtual header must reach the last enabled row"
+    );
+}
+
 /// `estimatedRowHeight` takes the `gpui::list` path, which measures *each*
 /// built row instead of multiplying one. Rows of two real heights — 45px and
 /// 85px — must lay out without overlapping: a click aimed mid-way down a tall

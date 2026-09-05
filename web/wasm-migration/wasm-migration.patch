@@ -23189,7 +23189,7 @@ index 76d363c8..40995553 100644
                  .child(label)
                  .when(self.is_required, |r| {
 diff --git a/crates/herogpui-components/src/table.rs b/crates/herogpui-components/src/table.rs
-index a97e013d..c185a0a2 100644
+index a97e013d..77ccab6d 100644
 --- a/crates/herogpui-components/src/table.rs
 +++ b/crates/herogpui-components/src/table.rs
 @@ -21,6 +21,7 @@ type OnRowClick = std::sync::Arc<dyn Fn(usize, &ClickEvent, &mut Window, &mut Ap
@@ -24334,14 +24334,16 @@ index a97e013d..c185a0a2 100644
                              if let Some(held) = &selection_own_for_keys {
                                  held.update(cx, |value, cx| {
                                      *value = next.clone();
-@@ -1868,6 +2372,26 @@ impl RenderOnce for Table {
+@@ -1868,6 +2372,28 @@ impl RenderOnce for Table {
                      // Other collection keys belong only to the body's roving
                      // focus stop. A nested cell action must keep its own Enter
                      // and Space handling even though Mod+A bubbles to the root.
-+                    if plain_rows
-+                        && headers_for_keys
-+                            .iter()
-+                            .any(|header| header.is_focused(window))
++                    // Pinned TableKeyboardDelegate crosses header<->body in
++                    // both plain and virtual tables: Down/PageDown from a
++                    // focused header enters the body.
++                    if headers_for_keys
++                        .iter()
++                        .any(|header| header.is_focused(window))
 +                    {
 +                        let next = match key_name {
 +                            "down" => stops.first(),
@@ -24361,7 +24363,7 @@ index a97e013d..c185a0a2 100644
                      if !table_focus_for_keys.is_focused(window) {
                          return;
                      }
-@@ -1963,9 +2487,17 @@ impl RenderOnce for Table {
+@@ -1963,9 +2489,17 @@ impl RenderOnce for Table {
                          }
                          _ => None,
                      };
@@ -24382,7 +24384,7 @@ index a97e013d..c185a0a2 100644
                      let variable_page_move = from.and_then(|from| {
                          let viewport_height =
                              variable_scroll.as_ref()?.viewport_bounds().size.height;
-@@ -2018,12 +2550,20 @@ impl RenderOnce for Table {
+@@ -2018,12 +2552,41 @@ impl RenderOnce for Table {
                      let is_variable_page =
                          fixed_page_move.is_none() && variable_page_move.is_some();
                      // Pinned TableKeyboardDelegate sends PageDown to the last
@@ -24391,12 +24393,33 @@ index a97e013d..c185a0a2 100644
 +                    // enabled row, and PageUp out of the body entirely, into
 +                    // the first column header. The header is focusable whether
 +                    // or not it sorts, so this leaves the body rather than
-+                    // stopping at its first row.
++                    // stopping at its first row. Virtual tables page by
++                    // viewport first; only when the upward page move has
++                    // nowhere to go (the cursor is already the first enabled
++                    // stop, or the computed page target equals it) does
++                    // PageUp enter the header. The cursor stays seated so
++                    // Down from the header returns to the first enabled row.
 +                    if plain_rows && key_name == "pageup" {
 +                        if let Some(header) = &page_up_header {
 +                            window.focus(header, cx);
 +                            cx.stop_propagation();
 +                            return;
++                        }
++                    } else if !plain_rows && key_name == "pageup" {
++                        let at_top = match from {
++                            Some(position) => {
++                                stops.first().is_some_and(|first| *first == position)
++                                    || fixed_page_move.is_some_and(|target| Some(target) == from)
++                                    || variable_page_move.is_some_and(|target| Some(target) == from)
++                            }
++                            None => false,
++                        };
++                        if at_top {
++                            if let Some(header) = &page_up_header {
++                                window.focus(header, cx);
++                                cx.stop_propagation();
++                                return;
++                            }
 +                        }
 +                    }
                      let plain_page_move =
@@ -24406,7 +24429,7 @@ index a97e013d..c185a0a2 100644
                              _ => None,
                          });
                      let page_move = fixed_page_move
-@@ -2096,7 +2636,10 @@ impl RenderOnce for Table {
+@@ -2096,7 +2659,10 @@ impl RenderOnce for Table {
                                      let next_selection = extend_selection_range(
                                          &selected_now,
                                          &keys,
@@ -24418,7 +24441,7 @@ index a97e013d..c185a0a2 100644
                                          &range,
                                          target,
                                      );
-@@ -2169,7 +2712,10 @@ impl RenderOnce for Table {
+@@ -2169,7 +2735,10 @@ impl RenderOnce for Table {
                                              extend_selection_range(
                                                  &selected_now,
                                                  &keys,
@@ -24430,7 +24453,7 @@ index a97e013d..c185a0a2 100644
                                                  &range,
                                                  key,
                                              )
-@@ -2239,7 +2785,7 @@ impl RenderOnce for Table {
+@@ -2239,7 +2808,7 @@ impl RenderOnce for Table {
          };
          let virtual_projection = std::rc::Rc::new(
              virtual_projection
@@ -24439,7 +24462,7 @@ index a97e013d..c185a0a2 100644
                  .unwrap_or_default(),
          );
  
-@@ -2250,10 +2796,19 @@ impl RenderOnce for Table {
+@@ -2250,10 +2819,19 @@ impl RenderOnce for Table {
              (self.row_height, self.virtual_rows.clone())
          {
              // The body scrolls inside `uniform_list`, which asks for the rows the
@@ -24460,7 +24483,7 @@ index a97e013d..c185a0a2 100644
              body = body.child(
                  gpui::uniform_list(
                      gpui::ElementId::Name(format!("{table_id}-virtual-rows").into()),
-@@ -2276,9 +2831,11 @@ impl RenderOnce for Table {
+@@ -2276,9 +2854,11 @@ impl RenderOnce for Table {
                              .collect::<Vec<_>>()
                      },
                  )
@@ -24474,7 +24497,7 @@ index a97e013d..c185a0a2 100644
              );
          } else if let (Some(state), Some((_, _, _, factory))) =
              (virtual_list_state, self.virtual_rows.clone())
-@@ -2469,18 +3026,29 @@ impl RenderOnce for Table {
+@@ -2469,18 +3049,29 @@ impl RenderOnce for Table {
              );
          }
  
@@ -24508,7 +24531,7 @@ index a97e013d..c185a0a2 100644
                  .child(table),
          )
      }
-@@ -2524,7 +3092,8 @@ impl RowCtx {
+@@ -2524,7 +3115,8 @@ impl RowCtx {
      /// from.
      #[allow(clippy::too_many_arguments)]
      /// One `.table__row`: `relative h-full` with a `border-separator/50`
@@ -24518,7 +24541,7 @@ index a97e013d..c185a0a2 100644
      fn row(
          &self,
          i: usize,
-@@ -2551,9 +3120,10 @@ impl RowCtx {
+@@ -2551,9 +3143,10 @@ impl RowCtx {
              // is true of both virtual paths, so it is not conditional on the
              // fixed height any more -- `gpui::list`'s rows have none.
              .w_full()
@@ -24532,7 +24555,7 @@ index a97e013d..c185a0a2 100644
  
          if self.selectable {
              let mut cell = gpui::div()
-@@ -2684,7 +3254,7 @@ impl RowCtx {
+@@ -2684,7 +3277,7 @@ impl RowCtx {
                                      next.push(key.clone());
                                  }
                                  cb(&next, window, cx);
@@ -24541,7 +24564,7 @@ index a97e013d..c185a0a2 100644
                                  cursor.update(cx, |value, cx| {
                                      *value = Some(key.clone());
                                      cx.notify();
-@@ -2752,7 +3322,7 @@ impl RowCtx {
+@@ -2752,7 +3345,7 @@ impl RowCtx {
                      if window.default_prevented() {
                          return;
                      }
@@ -24550,7 +24573,7 @@ index a97e013d..c185a0a2 100644
                      moved.update(cx, |value, cx| {
                          *value = Some(key_for_cursor.clone());
                          cx.notify();
-@@ -3086,4 +3656,68 @@ mod tests {
+@@ -3086,4 +3679,68 @@ mod tests {
              "the selected row must not paint a role soft wash"
          );
      }
@@ -205243,7 +205266,7 @@ index 723274b0..f4c6f34d 100644
              // `HEROGPUI_WINDOW_SIZE=1200x2000` opens the window at that size.
              // A capture is one PrintWindow of the whole window, so a taller
 diff --git a/gallery/src/pages/components.rs b/gallery/src/pages/components.rs
-index 5eb12cd4..5f209653 100644
+index 5eb12cd4..8bd6c7a8 100644
 --- a/gallery/src/pages/components.rs
 +++ b/gallery/src/pages/components.rs
 @@ -1,7 +1,7 @@
@@ -206725,7 +206748,7 @@ index 5eb12cd4..5f209653 100644
                  ),
                  (
                      "Sorting",
-+                    "In a non-virtual table, PageUp moves from the body to the first header. Enter sorts a sortable header; Down or PageDown returns to the first or last enabled row.",
++                    "PageUp moves from the body to the first header — from the top of a virtual body; mid-body it pages by viewport. Enter sorts a sortable header; Down or PageDown returns to the first or last enabled row.",
                      col(vec![
                          {
 +                            let mut rows = [
@@ -217013,7 +217036,7 @@ index 6452b2b7..b70b6484 100644
      }
  }
 diff --git a/gallery/src/pages/reference_metadata.rs b/gallery/src/pages/reference_metadata.rs
-index 71065ac8..d1a2e101 100644
+index 71065ac8..d72acbcb 100644
 --- a/gallery/src/pages/reference_metadata.rs
 +++ b/gallery/src/pages/reference_metadata.rs
 @@ -22,7 +22,12 @@ impl ImplementationStatus {
@@ -217918,7 +217941,7 @@ index 71065ac8..d1a2e101 100644
      StateDoc { state: "Hovered", selector: ":hover / [data-hovered=\"true\"]", description: "v3 tints cells with bg-surface/40 (secondary: bg-default/50); the port paints default.soft on the whole interactive row.", rust: "row.hover(default.soft)", status: ImplementationStatus::Partial },
      StateDoc { state: "Selected", selector: "[data-selected=\"true\"]", description: "v3 uses bg-surface/10 on cells; the port fills the row with accent.soft so selection still reads when the checkbox is off-screen.", rust: "row.bg(accent.soft)", status: ImplementationStatus::Partial },
 -    StateDoc { state: "Focus visible", selector: ":focus-visible / [data-focus-visible=\"true\"]", description: "Inset focus ring on the focused row, sortable header and resizer; one overlay stands in for v3's per-cell split ring.", rust: "inset_focus_ring", status: ImplementationStatus::Partial },
-+    StateDoc { state: "Focus visible", selector: ":focus-visible / [data-focus-visible=\"true\"]", description: "Inset focus ring on the focused row, column header and resizer; one overlay stands in for v3's per-cell split ring. In a non-virtual table, PageUp enters the first header; Down and PageDown return to the first and last enabled body rows.", rust: "inset_focus_ring", status: ImplementationStatus::Partial },
++    StateDoc { state: "Focus visible", selector: ":focus-visible / [data-focus-visible=\"true\"]", description: "Inset focus ring on the focused row, column header and resizer; one overlay stands in for v3's per-cell split ring. PageUp enters the first header — from the top of a virtual body, paging by viewport mid-body; Down and PageDown return to the first and last enabled body rows.", rust: "inset_focus_ring", status: ImplementationStatus::Partial },
      StateDoc { state: "Disabled row", selector: "[aria-disabled=\"true\"] / [data-disabled=\"true\"]", description: "disabledKeys rows are dimmed and removed from selection, actions and keyboard stops.", rust: "disabled_keys + disabled_opacity", status: ImplementationStatus::Implemented },
      StateDoc { state: "Disabled table", selector: ":disabled / [aria-disabled=\"true\"]", description: "v3 styles a disabled table, but documents no prop that can disable the whole control.", rust: "—", status: ImplementationStatus::Unavailable },
      StateDoc { state: "Sortable", selector: "[data-allows-sorting=\"true\"]", description: "Sortable headers use the interactive cursor, hover fill and keyboard activation.", rust: "allows_sorting + cursor_pointer + sort_focus", status: ImplementationStatus::Implemented },

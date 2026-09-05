@@ -565,10 +565,15 @@ EVIDENCE = {
     ('NumberField', 'spin-keys'): ('number_field.rs', r'"up" \| "pageup"'),
     ('Table', 'table-page-down'): ('table.rs', r'"pagedown" => stops\.last\(\)\.copied\(\)'),
     # PageUp leaves the body for the header rather than stopping at the first
-    # row, which needs the header focusable whether or not it sorts.
+    # row, which needs the header focusable whether or not it sorts. Plain
+    # tables always leave; virtual tables page by viewport mid-list and only
+    # leave when the upward page move has nowhere to go (`at_top`: the cursor
+    # is already the first enabled stop or the computed page target equals it).
     ('Table', 'table-page-up-header'): (
         'table.rs',
         r'(?s)(?=.*if plain_rows && key_name == "pageup")'
+        r'(?=.*else if !plain_rows && key_name == "pageup")'
+        r'(?=.*let at_top = match from)'
         r'(?=.*window\.focus\(header[^)]*\))'
         r'(?=.*let header_focus: Vec<gpui::FocusHandle>)',
     ),
