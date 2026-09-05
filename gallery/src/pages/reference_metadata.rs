@@ -180,7 +180,7 @@ const DROPDOWN_API: &[ApiDoc] = &[
         prop: "placement",
         ty: "PopoverPlacement",
         default: "\"bottom\"",
-        description: "Placement relative to the trigger. Top/bottom menus shift horizontally to a 12px viewport inset; left/right menus do not yet flip at edges.",
+        description: "Placement relative to the measured trigger. All eight placements flip to the side with more room when the preferred side cannot fit, keeping a 12px cross-axis viewport inset with the scroller capped to the available height.",
         rust_owner: "Dropdown",
         rust: "placement(DropdownPlacement)",
         status: ImplementationStatus::Implemented,
@@ -691,8 +691,8 @@ const DROPDOWN_STYLING: &[StyleDoc] = &[
     StyleDoc {
         class_or_token: ".dropdown__popover",
         value: "max-w-48svw; md:min-w-55; bg-overlay; p-0; text-sm; shadow-overlay",
-        description: "Popover dimensions, surface and overflow behavior.",
-        rust: "placed_panel + overlay surface",
+        description: "Positions against the measured trigger; all eight placements flip to the side with more room when the preferred side cannot fit, keeping a 12px cross-axis viewport inset with the scroller capped to the available height. Overlay surface.",
+        rust: "floating + scrollable_popover + max_h_full + overlay surface",
         status: ImplementationStatus::Implemented,
     },
     StyleDoc {

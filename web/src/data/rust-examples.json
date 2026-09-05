@@ -199,6 +199,7 @@
   "dropdown": [
     {
       "heading": "Usage",
+      "description": "The menu positions against the measured trigger: all eight placements flip to the side with more room when the preferred side cannot fit, keep a 12px cross-axis viewport inset, and cap the scroller to the available height with short menus keeping their natural height.",
       "imports": "use herogpui::prelude::{Button, Dropdown, MenuItem, Variant};\nuse gpui::prelude::*;\nuse gpui::px;",
       "code": "gpui::div()\n    .flex()\n    .flex_col()\n    .items_start()\n    .gap(px(12.))\n    .children(vec![\n        Dropdown::new(\n            \"dropdown-trigger-dd\",\n            Button::new(\"dropdown-trigger\")\n                .label(\"Actions\")\n                .variant(Variant::Secondary),\n            items,\n            is_open,\n        )\n        .id(\"dropdown-trigger-dd\")\n        .on_open_change(bool_cb(cx.listener(|this, open: &bool, _, cx| {\n            this.dropdown_open = *open;\n            cx.notify();\n        })))\n        .on_action(cx.listener(|this, key: &SharedString, _, cx| {\n            this.dropdown_selected = Some(key.clone());\n            this.dropdown_open = false;\n            cx.notify();\n        }))\n        .into_any_element(),\n        para(&format!(\"Last action: {selected}\"), cx),\n    ])"
     },
@@ -261,6 +262,7 @@
     },
     {
       "heading": "With Submenus",
+      "description": "Submenus position independently against their row end top and flip sides to the side with more room when needed; the parent stays anchored and outside presses still dismiss the whole menu.",
       "imports": "use herogpui::prelude::{Button, Dropdown, MenuItem, Variant};",
       "code": "Dropdown::uncontrolled(\n    \"dd-submenu-dd\",\n    Button::new(\"dropdown-submenu\")\n        .label(\"Share\")\n        .variant(Variant::Secondary),\n    vec![\n        MenuItem::new(\"link\", \"Copy link\"),\n        MenuItem::new(\"email\", \"Email\"),\n        MenuItem::new(\"other\", \"Other\").submenu(vec![\n            MenuItem::new(\"sms\", \"SMS\"),\n            MenuItem::new(\"airdrop\", \"AirDrop\"),\n            MenuItem::new(\"more\", \"More\\u{2026}\"),\n        ]),\n    ],\n)\n.id(\"dropdown-submenu-dd\")"
     },

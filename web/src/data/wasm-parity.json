@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "artifactSha256": "0c088aed9421de7c395244548e22ed32a66c9972503a0961fa23d860db202481",
-  "glueSha256": "0d35a8772218e3677dc28d56b1726908186119bca7ca80aeae292a6bd501f8ee",
+  "artifactSha256": "a3ecfdfb76f9a20e39139dc6729dc300aaa574bb8c0ff526b0c8bf422bcd4f8f",
+  "glueSha256": "fd7c3e47bacee9496e3be1ba6fc22b8095c9ff4693f05f4ece6e80255e4fb173",
   "examples": {
     "accordion/Controlled": {
       "nativeCodeSha256": "2816548407263e0fdeada0ff2ec1e8f9fd45a2d33b24ab2cf163539711fe6f8a",
@@ -1081,7 +1081,7 @@
     },
     "dropdown/Usage": {
       "nativeCodeSha256": "7c3941e744dd7fe8465b16bcde901337812c330cba46dd497bb5e4d7e5f3ae3b",
-      "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      "descriptionSha256": "1a4f79a3f654e6b7a0341d9c0eb083344a68e8779b426771b3734f75cbe27a4a"
     },
     "dropdown/With Custom Submenu Indicator": {
       "nativeCodeSha256": "e5d2368851e659683505b67ba0860664b87b49b86d32847e095c36afa7a6e881",
@@ -1117,7 +1117,7 @@
     },
     "dropdown/With Submenus": {
       "nativeCodeSha256": "ba27b2c0d109c5ce86de9cf0a5dd710616191aff16f365bf251e80a9d6e285d6",
-      "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      "descriptionSha256": "177e9e39474595a93a7f0ca570fea968d1ac445e73be29f4f8ac6a12fc5be7c2"
     },
     "fieldset/In Surface": {
       "nativeCodeSha256": "6ef8b4339da9aa72532c2f5518fefc008e89d4db1243e43dd41012c153a0591a",

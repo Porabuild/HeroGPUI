@@ -17328,19 +17328,91 @@ index eda76857..f702378c 100644
  }
  
 diff --git a/crates/herogpui-components/src/dropdown.rs b/crates/herogpui-components/src/dropdown.rs
-index d8df4852..5ef0d5d1 100644
+index d8df4852..e12b27ec 100644
 --- a/crates/herogpui-components/src/dropdown.rs
 +++ b/crates/herogpui-components/src/dropdown.rs
-@@ -439,7 +439,7 @@ impl RenderOnce for Menu {
+@@ -150,6 +150,12 @@ pub struct Menu {
+     on_dismiss: Option<OnDismiss>,
+     overlay_token: Option<crate::util::OverlayToken>,
+     dropdown_composition: bool,
++    /// Test-only label for the panel, read with `debug_bounds`.
++    ///
++    /// Not a v3 prop: naming the laid-out panel beats wrapping it, because a
++    /// wrapper between the positioner and the menu would measure and cap
++    /// while the real panel kept its natural size underneath.
++    panel_debug_label: Option<&'static str>,
+ }
+ 
+ impl Menu {
+@@ -177,6 +183,7 @@ impl Menu {
+             on_dismiss: None,
+             overlay_token: None,
+             dropdown_composition: false,
++            panel_debug_label: None,
+         }
+     }
+ 
+@@ -203,6 +210,15 @@ impl Menu {
+         self
+     }
+ 
++    /// Labels the panel for behavior tests (`debug_bounds`).
++    ///
++    /// Not a v3 prop: see the field docs for why tests name the panel instead
++    /// of wrapping it.
++    pub(crate) fn panel_debug_label(mut self, label: &'static str) -> Self {
++        self.panel_debug_label = Some(label);
++        self
++    }
++
+     /// The element id every piece of this menu's state is keyed by.
+     ///
+     /// Not a v3 prop -- gpui needs an explicit id on a stateful element, and
+@@ -361,7 +377,7 @@ impl RenderOnce for Menu {
+             cx,
+             |_, _| None::<SharedString>,
+         );
+-        let submenu_open = submenu_state.read(cx).clone();
++        let mut submenu_open = submenu_state.read(cx).clone();
+         let submenu_focus = window.use_keyed_state(
+             gpui::ElementId::Name(format!("{base}-submenu-focus").into()),
+             cx,
+@@ -438,8 +454,21 @@ impl RenderOnce for Menu {
+         if self.exiting {
              let done = window.use_keyed_state(autofocus, cx, |_, _| false);
              done.update(cx, |d, _| *d = false);
++            // A trigger toggle or a controlled close shuts the menu without
++            // running `dismiss`, so an open child would paint full-size
++            // beside its exiting parent and greet the next open. Exiting is
++            // the close every path funnels through, which is where the child
++            // goes quiet.
++            submenu_state.update(cx, |value, cx| {
++                if value.is_some() {
++                    *value = None;
++                    cx.notify();
++                }
++            });
++            submenu_focus.update(cx, |value, _| *value = false);
++            submenu_open = None;
          } else if focus_first {
 -            window.focus(&focus_handle);
 +            window.focus(&focus_handle, cx);
          } else if self.on_back.is_none() {
              crate::util::focus_once(window, cx, autofocus, &focus_handle);
          }
-@@ -530,6 +530,15 @@ impl RenderOnce for Menu {
+@@ -507,11 +536,6 @@ impl RenderOnce for Menu {
+                 _ => false,
+             })
+             .collect();
+-        let panel_bounds = window.use_keyed_state(
+-            gpui::ElementId::Name(format!("{base}-panel-bounds").into()),
+-            cx,
+-            |_, _| None::<Bounds<Pixels>>,
+-        );
+         let item_bounds = self
+             .items
+             .iter()
+@@ -530,11 +554,20 @@ impl RenderOnce for Menu {
              .panel_bounds
              .clone()
              .unwrap_or_else(|| std::rc::Rc::new(std::cell::RefCell::new(Vec::new())));
@@ -17356,7 +17428,13 @@ index d8df4852..5ef0d5d1 100644
  
          let colors = cx.colors();
          let dropdown_composition = self.dropdown_composition;
-@@ -542,6 +551,10 @@ impl RenderOnce for Menu {
+ 
+-        let mut panel = gpui::div()
++        let panel = gpui::div()
+             .relative()
+             .flex()
+             .flex_col()
+@@ -542,46 +575,48 @@ impl RenderOnce for Menu {
              // it is `gap-0.5 p-1` -- `.dropdown__menu` overrides `.menu`'s
              // `gap-1` with half a step.
              .min_w(px(220.))
@@ -17367,7 +17445,70 @@ index d8df4852..5ef0d5d1 100644
              .gap(px(2.))
              .p(px(4.))
              .bg(colors.overlay.background)
-@@ -743,7 +756,7 @@ impl RenderOnce for Menu {
+             .rounded(crate::util::container_radius(cx))
+-            .shadow(cx.layout().overlay_shadow.clone())
++            .shadow(cx.layout().overlay_shadow.clone());
++        let mut panel = panel
+             // A long menu scrolls rather than being clipped, and gpui needs an
+-            // id for that. React Aria sizes the popover to the space the
+-            // viewport leaves; the closest thing here is a share of the window,
+-            // since a menu is anchored to a trigger that can be anywhere in it.
++            // id for that. Pinned `.dropdown__popover` owns the overflow
++            // (`overflow-y-auto`) while the menu inside is `overflow-clip`, and
++            // React Aria caps the popover at the space the viewport leaves
++            // (`calculatePosition`'s `getMaxHeight`). Inside a
++            // height-constraining positioner -- the dropdown root and each
++            // submenu popover -- the panel carries a viewport-relative bound so
++            // the positioner's capped pass sizes it, and a short menu keeps its
++            // natural height. A standalone menu keeps the old window share.
+             .id(gpui::ElementId::Name(format!("{base}-list").into()))
+-            .max_h(window.viewport_size().height * 0.6)
+             .overflow_y_scroll()
+             .track_scroll(&menu_scroll_now)
+             .track_focus(&focus_handle)
+             .key_context("Menu");
++        if dropdown_composition || !self.deferred {
++            // The surface already carries the positioner's bound; the panel
++            // stretches to the surface's resolved height. A percentage `max_h`
++            // cannot tunnel through the auto-height surface -- it would keep
++            // its natural height with padding-only scroll room -- while flex
++            // stretch follows the resolved size.
++            panel = panel.self_stretch();
++        } else {
++            panel = panel.max_h(window.viewport_size().height * 0.6);
++        }
+         if dropdown_composition {
+             // Dropdown's nested `[data-slot="dropdown-menu"]` overrides the
+             // standalone Menu p-1 inset with p-1.5.
+             panel = panel.p(px(6.));
+         }
+-
+-        let recorded_panel_bounds = panel_bounds.clone();
+-        let registered_panel_bounds = all_panel_bounds.clone();
+-        panel = panel.child(
+-            gpui::canvas(
+-                move |bounds, _, cx| {
+-                    registered_panel_bounds.borrow_mut().push(bounds);
+-                    recorded_panel_bounds.update(cx, |value, cx| {
+-                        if value.as_ref() != Some(&bounds) {
+-                            *value = Some(bounds);
+-                            cx.notify();
+-                        }
+-                    });
+-                    bounds
+-                },
+-                |_, _, _, _| {},
+-            )
+-            .absolute()
+-            .inset_0(),
+-        );
++        if let Some(label) = self.panel_debug_label {
++            panel = panel.debug_selector(move || label.to_owned());
++        }
+ 
+         // v3 gives a floating panel no border: it is `bg-overlay shadow-overlay`
+         // and a radius, and dark mode's inset hairline is what separates the
+@@ -743,7 +778,7 @@ impl RenderOnce for Menu {
                          if !crate::list_nav::is_typeahead_key(key) {
                              return;
                          }
@@ -17376,7 +17517,7 @@ index d8df4852..5ef0d5d1 100644
                          let (query, repeat) = typed_keys.update(cx, |t, _| {
                              let query = t.push(key, now);
                              (query, t.is_repeat())
-@@ -784,6 +797,7 @@ impl RenderOnce for Menu {
+@@ -784,6 +819,7 @@ impl RenderOnce for Menu {
                              .pt(px(6.))
                              .pb(px(4.))
                              .text_size(px(12.))
@@ -17384,7 +17525,7 @@ index d8df4852..5ef0d5d1 100644
                              .font_weight(gpui::FontWeight::MEDIUM)
                              .text_color(colors.muted)
                              .child(label.to_string()),
-@@ -815,11 +829,15 @@ impl RenderOnce for Menu {
+@@ -815,11 +851,15 @@ impl RenderOnce for Menu {
                          .id(gpui::ElementId::Name(format!("{base}-item-{i}").into()))
                          .relative()
                          .flex()
@@ -17400,7 +17541,7 @@ index d8df4852..5ef0d5d1 100644
                          .text_color(text_color);
                      if let Some(recorded_item_bounds) = item_bounds[i].clone() {
                          row = row.child(
-@@ -880,7 +898,7 @@ impl RenderOnce for Menu {
+@@ -880,7 +920,7 @@ impl RenderOnce for Menu {
                          let pointer_cursor = cursor.clone();
                          let pointer_focus = focus_handle.clone();
                          row = row.on_mouse_down(gpui::MouseButton::Left, move |_, window, cx| {
@@ -17409,7 +17550,7 @@ index d8df4852..5ef0d5d1 100644
                              pointer_cursor.update(cx, |value, cx| {
                                  *value = Some(i);
                                  cx.notify();
-@@ -892,7 +910,7 @@ impl RenderOnce for Menu {
+@@ -892,7 +932,7 @@ impl RenderOnce for Menu {
                              if crate::util::focus_visible(cx) || *hover_cursor.read(cx) == Some(i) {
                                  return;
                              }
@@ -17418,7 +17559,7 @@ index d8df4852..5ef0d5d1 100644
                              hover_cursor.update(cx, |value, cx| {
                                  *value = Some(i);
                                  cx.notify();
-@@ -975,54 +993,69 @@ impl RenderOnce for Menu {
+@@ -975,54 +1015,69 @@ impl RenderOnce for Menu {
                      // `children` on `Dropdown.Item` is a render function in
                      // v3, handed the row's state.
                      row = row.child(
@@ -17530,7 +17671,7 @@ index d8df4852..5ef0d5d1 100644
                      );
                      // The slot's hover and press handlers keep the press the
                      // closure reads current. Disabled rows expose idle state.
-@@ -1033,9 +1066,8 @@ impl RenderOnce for Menu {
+@@ -1033,9 +1088,8 @@ impl RenderOnce for Menu {
                      }
                      if let Some(sc) = shortcut {
                          row = row.child(
@@ -17542,7 +17683,90 @@ index d8df4852..5ef0d5d1 100644
                                  .child(sc.to_string()),
                          );
                      }
-@@ -1241,7 +1273,7 @@ impl RenderOnce for Menu {
+@@ -1201,31 +1255,68 @@ impl RenderOnce for Menu {
+             }
+         }
+ 
+-        // Parent and child menus share one deferred surface. The submenu is a
+-        // sibling of the parent's overflow scroller, so a low trigger cannot
+-        // clip a tall child.
++        // The zoom grows the panel's own vertical padding, so the border box
++        // the positioner places IS the painted panel: at rest the animated
++        // padding equals the panel's natural padding (`p-1.5` under the
++        // dropdown composition, `p-1` otherwise) and adds nothing, and
++        // mid-animation only the internal padding flexes, never the origin.
++        // Animating the surface instead would hang its `py` between the
++        // placed box and the painted panel (one RAC gap plus ~6px).
++        let zoom = crate::anim::ZoomBox::panel(
++            if dropdown_composition { px(6.) } else { px(4.) },
++            crate::util::container_radius(cx),
++        );
++        let panel = if self.exiting {
++            crate::anim::exiting(
++                panel,
++                gpui::ElementId::Name(format!("{base}-panel-out").into()),
++                zoom,
++                crate::anim::Motion::LIST_OUT,
++                cx,
++            )
++        } else {
++            crate::anim::entering_zoom(
++                panel,
++                gpui::ElementId::Name(format!("{base}-panel").into()),
++                zoom,
++                crate::anim::Motion::POPOVER_IN,
++                cx,
++            )
++        };
++
++        // Parent and child menus share one deferred surface. The submenu is its
++        // own popover positioned against its row -- pinned RAC 1.20.0 renders
++        // each submenu in a separate `Popover` with `placement: 'end top'` --
++        // so it is a sibling of the parent's overflow scroller, never clipped
++        // by it, and it flips and caps against the viewport on its own. The
++        // positioner element itself is absolute, so it takes no flex space.
++        // The surface carries the positioner's relative bound through to the
++        // panel: `layout_as_root` only offers definite space, and the cap
++        // resolves through `max_h_full` at every level -- a bare flex surface
++        // would size to its content and shield the panel, leaving it at its
++        // natural height with padding-only scroll room.
+         let mut surface = gpui::div()
+             .relative()
+             .flex()
+             .items_start()
+             .gap(px(4.))
++            .max_h_full()
+             .child(panel);
+         if let Some((index, submenu_id, submenu)) = open_submenu {
+-            let item_bounds_now = item_bounds[index]
+-                .as_ref()
+-                .and_then(|bounds| bounds.read(cx).to_owned());
+-            let panel_bounds_now = panel_bounds.read(cx).to_owned();
+-            let top = match (item_bounds_now, panel_bounds_now) {
+-                (Some(item), Some(parent)) if item.origin.y > parent.origin.y => {
+-                    item.origin.y - parent.origin.y
+-                }
+-                _ => px(0.),
+-            };
++            // The row canvas records these bounds every frame, so the bridge
++            // carries last frame's row rect and the positioner settles the
++            // same frame the submenu opens.
++            let row_trigger = std::rc::Rc::new(std::cell::Cell::new(
++                item_bounds[index]
++                    .as_ref()
++                    .and_then(|bounds| bounds.read(cx).to_owned()),
++            ));
+             let mut sub = Menu::new(submenu_id.clone(), submenu)
+                 .id(gpui::ElementId::Name(format!("{submenu_id}-menu").into()))
++                .panel_debug_label("dropdown-submenu")
+                 .indicator(self.indicator)
+                 .disabled_keys(self.disabled_keys)
+-                .embedded(all_panel_bounds)
++                .embedded(all_panel_bounds.clone())
+                 .focus_first(submenu_focus.clone());
+             sub.item_content = self.item_content.clone();
+             sub.indicator_content = self.indicator_content.clone();
+@@ -1241,7 +1332,7 @@ impl RenderOnce for Menu {
                      cx.notify();
                  });
                  close_focus_state.update(cx, |value, _| *value = false);
@@ -17551,7 +17775,96 @@ index d8df4852..5ef0d5d1 100644
              });
              if let Some(cb) = self.on_action.clone() {
                  sub = sub.on_action(move |key, window, cx| cb(key, window, cx));
-@@ -1748,18 +1780,83 @@ impl RenderOnce for Dropdown {
+@@ -1249,9 +1340,30 @@ impl RenderOnce for Menu {
+             if let Some(cb) = dismiss.clone() {
+                 sub = sub.on_dismiss(move |refocus, window, cx| cb(refocus, window, cx));
+             }
+-            surface = surface.child(gpui::div().pt(top).child(sub));
++            surface = surface.child(crate::popover::scrollable_submenu_popover(row_trigger, sub));
+         }
+ 
++        // The union outside-press check reads this frame's panel frames. The
++        // canvas lives on the surface, not the panel: the panel owns the
++        // vertical scroll container, so a canvas inside it reports scrolled
++        // content-space bounds after a wheel (its origin walks up with the
++        // rows) and a press on a scrolled-into-view row reads as outside.
++        // The surface never scrolls -- its only other child is the absolute
++        // submenu positioner, which takes no flex space -- so its frame
++        // coincides with the panel's.
++        let registered_panel_bounds = all_panel_bounds;
++        surface = surface.child(
++            gpui::canvas(
++                move |bounds, _, _| {
++                    registered_panel_bounds.borrow_mut().push(bounds);
++                    bounds
++                },
++                |_, _, _, _| {},
++            )
++            .absolute()
++            .inset_0(),
++        );
++
+         // Escape bubbles from the focused descendant to this root surface.
+         let surface = if self.deferred {
+             match dismiss {
+@@ -1272,28 +1384,10 @@ impl RenderOnce for Menu {
+             surface
+         };
+ 
+-        let zoom = crate::anim::ZoomBox::panel(px(6.), crate::util::container_radius(cx));
+-        let panel = if self.exiting {
+-            crate::anim::exiting(
+-                surface,
+-                gpui::ElementId::Name(format!("{base}-panel-out").into()),
+-                zoom,
+-                crate::anim::Motion::LIST_OUT,
+-                cx,
+-            )
+-        } else {
+-            crate::anim::entering_zoom(
+-                surface,
+-                gpui::ElementId::Name(format!("{base}-panel").into()),
+-                zoom,
+-                crate::anim::Motion::POPOVER_IN,
+-                cx,
+-            )
+-        };
+         if self.deferred {
+-            crate::util::floating(panel).into_any_element()
++            crate::util::floating(surface).into_any_element()
+         } else {
+-            panel.into_any_element()
++            surface.into_any_element()
+         }
+     }
+ }
+@@ -1685,7 +1779,15 @@ impl RenderOnce for Dropdown {
+ 
+         // A flex column with `items_start` keeps the trigger at its natural
+         // width; a plain block root would stretch it (gpui divs are
+-        // Display::Block, so a block-level flex child fills the line).
++        // Display::Block, so a block-level flex child fills the line). The
++        // trigger is measured the way RAC's `useOverlayPosition` positions
++        // against the trigger rect -- the measure element only records the
++        // bounds the popover below reads to flip and cap the panel.
++        let anchor_bounds = std::rc::Rc::new(std::cell::Cell::new(None));
++        let trigger = crate::popover::PopoverTriggerMeasure::new(
++            trigger_wrap.child(self.trigger),
++            anchor_bounds.clone(),
++        );
+         let mut root = gpui::div()
+             .relative()
+             .flex()
+@@ -1693,7 +1795,7 @@ impl RenderOnce for Dropdown {
+             // `.dropdown` is `flex flex-col gap-1`.
+             .gap(px(4.))
+             .items_start()
+-            .child(trigger_wrap.child(self.trigger));
++            .child(trigger);
+ 
+         // v3 keeps a closing menu on screen for its `[data-exiting]` run.
+         if phase != crate::util::OverlayPhase::Closed {
+@@ -1748,12 +1850,26 @@ impl RenderOnce for Dropdown {
                      // would activate the trigger on key up and reopen the menu
                      // -- the keyboard path asks for no refocus for that reason.
                      if refocus {
@@ -17562,153 +17875,25 @@ index d8df4852..5ef0d5d1 100644
              }
 -            let anchor = crate::util::placed_panel(self.placement, px(6.));
 -            root = root.child(anchor.child(menu));
-+            // Measure the menu and its submenu siblings, not the centered
-+            // anchor's trigger-width span. Subtract the previous shift so a
-+            // correction does not undo itself on the next frame.
-+            let shifts = !matches!(
++            // RAC renders the menu in a `Popover` against the trigger: an 8px
++            // gap (`offset ?? 8` in pinned RAC 1.20.0's `Popover`, which `Menu`
++            // passes no offset to), flipping to the side with more room when
++            // the menu cannot fit and capping at the available viewport height
++            // past the 12px container padding. The shared `scrollable_popover`
++            // owns that contract -- including `Left`/`Right`, which the old
++            // cross-axis-only shift left to overflow -- and the panel's
++            // `max_h_full` keeps short menus at their natural height. The menu
++            // itself is the positioner's child: a wrapper between them would
++            // measure and cap while the panel kept its natural size (and its
++            // scroll range would collapse to the padding).
++            root = root.child(crate::util::floating(crate::popover::scrollable_popover(
++                anchor_bounds,
 +                self.placement,
-+                herogpui_core::Placement::Left | herogpui_core::Placement::Right
-+            );
-+            let shift_state = window.use_keyed_state(
-+                gpui::ElementId::Name(format!("{wrap_base}-viewport-shift").into()),
-+                cx,
-+                |_, _| px(0.),
-+            );
-+            let shift = if shifts {
-+                *shift_state.read(cx)
-+            } else {
-+                px(0.)
-+            };
-+            let viewport_width = window.viewport_size().width;
-+            let mut measured = gpui::div()
-+                .debug_selector(|| "dropdown-menu".to_owned())
-+                .child(menu);
-+            if shifts {
-+                measured = measured.child(
-+                    gpui::canvas(
-+                        move |bounds, _, cx| {
-+                            let next = viewport_shift(
-+                                bounds.origin.x - shift,
-+                                bounds.size.width,
-+                                viewport_width,
-+                            );
-+                            // Half a pixel of slack: layout rounds, and an
-+                            // unconditional write would notify every frame.
-+                            if f32::from(next - shift).abs() > 0.5 {
-+                                shift_state.update(cx, |value, cx| {
-+                                    *value = next;
-+                                    cx.notify();
-+                                });
-+                            }
-+                            bounds
-+                        },
-+                        |_, _, _, _| {},
-+                    )
-+                    .absolute()
-+                    .inset_0(),
-+                );
-+            }
-+            let mut anchor = crate::util::placed_panel(self.placement, px(6.));
-+            if shifts {
-+                anchor = match self.placement.align() {
-+                    herogpui_core::PlacementAlign::Start => anchor.left(shift),
-+                    herogpui_core::PlacementAlign::End => anchor.right(-shift),
-+                    herogpui_core::PlacementAlign::Center => anchor.left(shift).right(-shift),
-+                };
-+            }
-+            root = root.child(anchor.child(measured));
++                menu.panel_debug_label("dropdown-menu"),
++            )));
          }
  
          root
-     }
- }
- 
-+// React Aria 3.51.0 useOverlayPosition defaults containerPadding to 12px.
-+const OVERLAY_VIEWPORT_INSET: Pixels = px(12.);
-+
-+// Cross-axis getDelta: preserve alignment when fitting, otherwise clamp to
-+// the inset. If the menu is wider than the viewport, the start edge wins.
-+fn viewport_shift(left: Pixels, width: Pixels, viewport_width: Pixels) -> Pixels {
-+    let lo = OVERLAY_VIEWPORT_INSET;
-+    let hi = viewport_width - OVERLAY_VIEWPORT_INSET - width;
-+    let target = if hi < lo { lo } else { left.max(lo).min(hi) };
-+    target - left
-+}
-+
- // The pinned `.menu-item:hover` fills with `bg-default`, the full token.
- // `soft()` is a lighter wash that looks plausible on screen, so the check is
- // mechanical.
-@@ -1783,3 +1880,70 @@ mod hover_tokens {
-         );
-     }
- }
-+
-+/// `viewport_shift` is react-aria's cross-axis `getDelta`, so these cases are
-+/// that function's branches: inside the boundary, past either edge, and wider
-+/// than the boundary can hold.
-+#[cfg(test)]
-+mod viewport_shift_tests {
-+    use super::{viewport_shift, OVERLAY_VIEWPORT_INSET};
-+    use gpui::px;
-+
-+    /// The inset the pinned react-aria (3.51.0) defaults `containerPadding` to.
-+    #[test]
-+    fn the_inset_is_the_pinned_container_padding() {
-+        assert_eq!(OVERLAY_VIEWPORT_INSET, px(12.));
-+    }
-+
-+    #[test]
-+    fn a_panel_inside_the_boundary_is_not_moved() {
-+        assert_eq!(viewport_shift(px(100.), px(220.), px(600.)), px(0.));
-+        // Exactly on both insets still counts as fitting.
-+        assert_eq!(viewport_shift(px(12.), px(576.), px(600.)), px(0.));
-+    }
-+
-+    #[test]
-+    fn a_panel_past_the_end_edge_slides_back_to_the_inset() {
-+        // 500 + 220 = 720, which is 132 past a 600-wide window's 588 edge.
-+        assert_eq!(viewport_shift(px(500.), px(220.), px(600.)), px(-132.));
-+        // The result puts the right edge exactly on the inset.
-+        let shift = viewport_shift(px(500.), px(220.), px(600.));
-+        assert_eq!(
-+            px(500.) + shift + px(220.),
-+            px(600.) - OVERLAY_VIEWPORT_INSET
-+        );
-+    }
-+
-+    #[test]
-+    fn a_panel_past_the_start_edge_slides_forward_to_the_inset() {
-+        assert_eq!(viewport_shift(px(-40.), px(220.), px(600.)), px(52.));
-+        let shift = viewport_shift(px(-40.), px(220.), px(600.));
-+        assert_eq!(px(-40.) + shift, OVERLAY_VIEWPORT_INSET);
-+    }
-+
-+    /// Upstream's `Math.max(endTerm, startTerm)` resolves to the start term
-+    /// when the overlay cannot fit, so the start edge wins and the overflow is
-+    /// left at the end.
-+    #[test]
-+    fn a_panel_wider_than_the_boundary_aligns_to_the_start_inset() {
-+        let shift = viewport_shift(px(200.), px(900.), px(600.));
-+        assert_eq!(px(200.) + shift, OVERLAY_VIEWPORT_INSET);
-+    }
-+
-+    /// The property the dropdown relies on to settle in one frame: feeding the
-+    /// corrected geometry back in asks for no further correction.
-+    #[test]
-+    fn the_shift_is_a_fixed_point() {
-+        for left in [-80., -1., 0., 37., 260., 500., 900.] {
-+            for width in [80., 220., 288., 590.] {
-+                let first = viewport_shift(px(left), px(width), px(600.));
-+                let again = viewport_shift(px(left) + first, px(width), px(600.));
-+                assert_eq!(
-+                    again,
-+                    px(0.),
-+                    "left={left} width={width} shifted by {first:?} then wanted {again:?}"
-+                );
-+            }
-+        }
-+    }
-+}
 diff --git a/crates/herogpui-components/src/field.rs b/crates/herogpui-components/src/field.rs
 index c3f870ea..58319ec9 100644
 --- a/crates/herogpui-components/src/field.rs
@@ -20407,14 +20592,22 @@ index 380beb7a..2abd28d5 100644
 +    }
 +}
 diff --git a/crates/herogpui-components/src/popover.rs b/crates/herogpui-components/src/popover.rs
-index c47881af..7d630c1a 100644
+index c47881af..cd408512 100644
 --- a/crates/herogpui-components/src/popover.rs
 +++ b/crates/herogpui-components/src/popover.rs
-@@ -60,6 +60,14 @@ struct PopoverPositioner {
+@@ -60,6 +60,22 @@ struct PopoverPositioner {
      offset: Pixels,
      should_flip: bool,
      has_arrow: bool,
 +    constrain_height: bool,
++    /// Align a side panel's cross axis to the trigger's start edge instead of
++    /// `placement`'s alignment.
++    ///
++    /// RAC opens each submenu with `placement: 'end top'`: beside the row and
++    /// top-aligned. `Placement::Right` alone would centre the panel on the
++    /// row, so the submenu positioner carries this explicit override. It only
++    /// affects the `Left`/`Right` arms of [`PopoverPositioner::origin`].
++    cross_start: bool,
 +    /// Size the panel from the trigger width instead of `MaxContent`.
 +    ///
 +    /// Field panels (Select) are `w_full`: against a `MaxContent` root width
@@ -20425,7 +20618,7 @@ index c47881af..7d630c1a 100644
      children: Vec<AnyElement>,
  }
  
-@@ -243,13 +251,13 @@ impl IntoElement for PopoverArrow {
+@@ -243,13 +259,13 @@ impl IntoElement for PopoverArrow {
      }
  }
  
@@ -20441,16 +20634,17 @@ index c47881af..7d630c1a 100644
          child: impl IntoElement,
          bounds: std::rc::Rc<std::cell::Cell<Option<Bounds<Pixels>>>>,
      ) -> Self {
-@@ -333,6 +341,8 @@ impl PopoverPositioner {
+@@ -333,6 +349,9 @@ impl PopoverPositioner {
              offset,
              should_flip,
              has_arrow,
 +            constrain_height: false,
++            cross_start: false,
 +            match_trigger_width: false,
              children: Vec::new(),
          }
      }
-@@ -352,12 +362,18 @@ impl PopoverPositioner {
+@@ -352,12 +371,18 @@ impl PopoverPositioner {
          trigger: Bounds<Pixels>,
          viewport: Size<Pixels>,
      ) -> Pixels {
@@ -20471,7 +20665,26 @@ index c47881af..7d630c1a 100644
      }
  
      fn resolved_side(
-@@ -417,17 +433,22 @@ impl PopoverPositioner {
+@@ -405,10 +430,14 @@ impl PopoverPositioner {
+             PlacementAlign::Center => trigger.center().x - px(f32::from(popup.width) / 2.0),
+             PlacementAlign::End => trigger.right() - popup.width,
+         };
+-        let aligned_y = match align {
+-            PlacementAlign::Start => trigger.top(),
+-            PlacementAlign::Center => trigger.center().y - px(f32::from(popup.height) / 2.0),
+-            PlacementAlign::End => trigger.bottom() - popup.height,
++        let aligned_y = if self.cross_start {
++            trigger.top()
++        } else {
++            match align {
++                PlacementAlign::Start => trigger.top(),
++                PlacementAlign::Center => trigger.center().y - px(f32::from(popup.height) / 2.0),
++                PlacementAlign::End => trigger.bottom() - popup.height,
++            }
+         };
+         let mut origin = match side {
+             PopoverSide::Top => point(aligned_x, trigger.top() - popup.height - gap),
+@@ -417,17 +446,22 @@ impl PopoverPositioner {
              PopoverSide::Right => point(trigger.right() + gap, aligned_y),
          };
  
@@ -20502,7 +20715,7 @@ index c47881af..7d630c1a 100644
              }
          }
          origin
-@@ -527,9 +548,40 @@ impl Element for PopoverPositioner {
+@@ -527,9 +561,40 @@ impl Element for PopoverPositioner {
          let Some(trigger) = self.trigger.get() else {
              return false;
          };
@@ -20546,7 +20759,7 @@ index c47881af..7d630c1a 100644
          self.resolved.set(Some(PopoverResolved {
              trigger,
              panel: Bounds {
-@@ -538,7 +590,12 @@ impl Element for PopoverPositioner {
+@@ -538,7 +603,12 @@ impl Element for PopoverPositioner {
              },
              side,
          }));
@@ -20560,7 +20773,7 @@ index c47881af..7d630c1a 100644
          let offset = point(offset.x.round(), offset.y.round());
          window.with_element_offset(offset, |window| {
              self.children[0].prepaint(window, cx);
-@@ -572,6 +629,50 @@ impl IntoElement for PopoverPositioner {
+@@ -572,6 +642,75 @@ impl IntoElement for PopoverPositioner {
      }
  }
  
@@ -20608,10 +20821,35 @@ index c47881af..7d630c1a 100644
 +    positioner.child(panel)
 +}
 +
++/// A submenu variant of [`scrollable_popover`].
++///
++/// RAC renders each submenu in its own `Popover` against the parent row with
++/// `placement: 'end top'` (pinned RAC 1.20.0 `Menu.js`): beside the row,
++/// top-aligned, with the default 8px gap, flipping to the other side when it
++/// has more room and capping at the available viewport height past the 12px
++/// container padding. The panel must use `max_h_full()` and own its vertical
++/// scroll container, as with [`scrollable_popover`].
++pub(crate) fn scrollable_submenu_popover(
++    trigger: std::rc::Rc<std::cell::Cell<Option<Bounds<Pixels>>>>,
++    panel: impl IntoElement,
++) -> impl IntoElement {
++    let mut positioner = PopoverPositioner::new(
++        trigger,
++        std::rc::Rc::new(std::cell::Cell::new(None)),
++        PopoverPlacement::Right,
++        px(8.),
++        true,
++        false,
++    );
++    positioner.constrain_height = true;
++    positioner.cross_start = true;
++    positioner.child(panel)
++}
++
  /// HeroUI Popover (controlled).
  #[derive(IntoElement)]
  pub struct Popover {
-@@ -729,20 +830,6 @@ impl RenderOnce for Popover {
+@@ -729,20 +868,6 @@ impl RenderOnce for Popover {
              ))
              .flex()
              .track_focus(&trigger_focus)
@@ -20632,7 +20870,7 @@ index c47881af..7d630c1a 100644
              .cursor_pointer();
          if self.on_open_change.is_some() || open_own.is_some() {
              let on_open_change = self.on_open_change.clone();
-@@ -750,24 +837,41 @@ impl RenderOnce for Popover {
+@@ -750,24 +875,41 @@ impl RenderOnce for Popover {
              let open = is_open;
              let capture_pressed = trigger_pressed.clone();
              let click_pressed = trigger_pressed.clone();
@@ -20685,7 +20923,7 @@ index c47881af..7d630c1a 100644
                      click_pressed.set(false);
                  });
          }
-@@ -840,6 +944,7 @@ impl RenderOnce for Popover {
+@@ -840,6 +982,7 @@ impl RenderOnce for Popover {
              .text_color(colors.surface.foreground)
              // `.popover` is `text-sm`.
              .text_size(px(14.))
@@ -205005,7 +205243,7 @@ index 723274b0..f4c6f34d 100644
              // `HEROGPUI_WINDOW_SIZE=1200x2000` opens the window at that size.
              // A capture is one PrintWindow of the whole window, so a taller
 diff --git a/gallery/src/pages/components.rs b/gallery/src/pages/components.rs
-index 5eb12cd4..f326c51f 100644
+index 5eb12cd4..5f209653 100644
 --- a/gallery/src/pages/components.rs
 +++ b/gallery/src/pages/components.rs
 @@ -1,7 +1,7 @@
@@ -205456,6 +205694,15 @@ index 5eb12cd4..f326c51f 100644
                          h::Dropdown::uncontrolled(
                              "dd-render-props-dd",
                              h::Button::new("dd-render-props")
+@@ -1282,7 +1453,7 @@ impl Gallery {
+                     .into_any_element()]),
+                 ),
+                 (
+-                    "With Submenus",
++                    "With Submenus", "Submenus position independently against their row end top and flip sides to the side with more room when needed; the parent stays anchored and outside presses still dismiss the whole menu.",
+                     col(vec![h::Dropdown::uncontrolled(
+                         "dd-submenu-dd",
+                         h::Button::new("dd-submenu")
 @@ -1303,12 +1474,8 @@ impl Gallery {
                  ),
                  (
@@ -205489,6 +205736,15 @@ index 5eb12cd4..f326c51f 100644
                          h::Dropdown::uncontrolled(
                              "dd-long-dd",
                              h::Button::new("dd-long")
+@@ -1358,7 +1525,7 @@ impl Gallery {
+                     ]),
+                 ),
+                 (
+-                    "Usage",
++                    "Usage", "The menu positions against the measured trigger: all eight placements flip to the side with more room when the preferred side cannot fit, keep a 12px cross-axis viewport inset, and cap the scroller to the available height with short menus keeping their natural height.",
+                     col(vec![
+                         h::Dropdown::new(
+                             "dd-trigger-dd",
 @@ -1437,9 +1604,9 @@ impl Gallery {
              crate::pages::Page::ListBox.import_line(),
              vec![
@@ -207155,7 +207411,7 @@ index 5eb12cd4..f326c51f 100644
                              .on_focus_change(date_cb(cx.listener(|this, d: &h::Date, _, cx| {
                                  this.set_demo_text_value("rc-focus", d.format_iso());
                                  cx.notify();
-@@ -4905,23 +5192,33 @@ impl Gallery {
+@@ -4905,25 +5192,35 @@ impl Gallery {
                  ),
                  (
                      "Unavailable Dates",
@@ -207167,6 +207423,17 @@ index 5eb12cd4..f326c51f 100644
 -                        weekday == 0 || weekday == 6
 -                    })
 -                    .into_any_element()]),
+-                ),
+-                (
+-                    "Anchor-Based Unavailable Dates",
+-                    col(vec![
+-                        para(
+-                            "After the first date is selected, earlier dates become unavailable \
+-                             because the predicate receives that active anchor.",
+-                            cx,
+-                        ),
+-                        h::RangeCalendar::new(self.demo_range("rc-anchor", cx))
+-                            .is_date_unavailable(|date, anchor| {
 +                    col({
 +                        let blocked_ranges = [
 +                            (h::add_days(&today, 2), h::add_days(&today, 5)),
@@ -207189,19 +207456,16 @@ index 5eb12cd4..f326c51f 100644
 +                                .into_any_element(),
 +                        ]
 +                    }),
-                 ),
-                 (
-                     "Anchor-Based Unavailable Dates",
++                ),
++                (
++                    "Anchor-Based Unavailable Dates",
 +                    "After the first date is selected, earlier dates become unavailable because the predicate receives that active anchor.",
-                     col(vec![
--                        para(
--                            "After the first date is selected, earlier dates become unavailable \
--                             because the predicate receives that active anchor.",
--                            cx,
--                        ),
-                         h::RangeCalendar::new(self.demo_range("rc-anchor", cx))
-                             .is_date_unavailable(|date, anchor| {
++                    col(vec![
++                        h::RangeCalendar::new(self.demo_range("rc-anchor", cx))
++                            .is_date_unavailable(|date, anchor| {
                                  anchor.is_some_and(|anchor| {
+                                     (date.year, date.month, date.day)
+                                         < (anchor.year, anchor.month, anchor.day)
 @@ -4957,6 +5254,7 @@ impl Gallery {
                  ),
                  (

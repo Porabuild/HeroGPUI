@@ -61,6 +61,14 @@ struct PopoverPositioner {
     should_flip: bool,
     has_arrow: bool,
     constrain_height: bool,
+    /// Align a side panel's cross axis to the trigger's start edge instead of
+    /// `placement`'s alignment.
+    ///
+    /// RAC opens each submenu with `placement: 'end top'`: beside the row and
+    /// top-aligned. `Placement::Right` alone would centre the panel on the
+    /// row, so the submenu positioner carries this explicit override. It only
+    /// affects the `Left`/`Right` arms of [`PopoverPositioner::origin`].
+    cross_start: bool,
     /// Size the panel from the trigger width instead of `MaxContent`.
     ///
     /// Field panels (Select) are `w_full`: against a `MaxContent` root width
@@ -342,6 +350,7 @@ impl PopoverPositioner {
             should_flip,
             has_arrow,
             constrain_height: false,
+            cross_start: false,
             match_trigger_width: false,
             children: Vec::new(),
         }
@@ -421,10 +430,14 @@ impl PopoverPositioner {
             PlacementAlign::Center => trigger.center().x - px(f32::from(popup.width) / 2.0),
             PlacementAlign::End => trigger.right() - popup.width,
         };
-        let aligned_y = match align {
-            PlacementAlign::Start => trigger.top(),
-            PlacementAlign::Center => trigger.center().y - px(f32::from(popup.height) / 2.0),
-            PlacementAlign::End => trigger.bottom() - popup.height,
+        let aligned_y = if self.cross_start {
+            trigger.top()
+        } else {
+            match align {
+                PlacementAlign::Start => trigger.top(),
+                PlacementAlign::Center => trigger.center().y - px(f32::from(popup.height) / 2.0),
+                PlacementAlign::End => trigger.bottom() - popup.height,
+            }
         };
         let mut origin = match side {
             PopoverSide::Top => point(aligned_x, trigger.top() - popup.height - gap),
@@ -670,6 +683,31 @@ pub(crate) fn scrollable_field_popover(
     );
     positioner.constrain_height = true;
     positioner.match_trigger_width = true;
+    positioner.child(panel)
+}
+
+/// A submenu variant of [`scrollable_popover`].
+///
+/// RAC renders each submenu in its own `Popover` against the parent row with
+/// `placement: 'end top'` (pinned RAC 1.20.0 `Menu.js`): beside the row,
+/// top-aligned, with the default 8px gap, flipping to the other side when it
+/// has more room and capping at the available viewport height past the 12px
+/// container padding. The panel must use `max_h_full()` and own its vertical
+/// scroll container, as with [`scrollable_popover`].
+pub(crate) fn scrollable_submenu_popover(
+    trigger: std::rc::Rc<std::cell::Cell<Option<Bounds<Pixels>>>>,
+    panel: impl IntoElement,
+) -> impl IntoElement {
+    let mut positioner = PopoverPositioner::new(
+        trigger,
+        std::rc::Rc::new(std::cell::Cell::new(None)),
+        PopoverPlacement::Right,
+        px(8.),
+        true,
+        false,
+    );
+    positioner.constrain_height = true;
+    positioner.cross_start = true;
     positioner.child(panel)
 }
 

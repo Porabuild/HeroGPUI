@@ -1232,7 +1232,7 @@ impl Gallery {
             crate::pages::Page::Dropdown.import_line(),
             vec![
                 (
-                    "Usage",
+                    "Usage", "The menu positions against the measured trigger: all eight placements flip to the side with more room when the preferred side cannot fit, keep a 12px cross-axis viewport inset, and cap the scroller to the available height with short menus keeping their natural height.",
                     col(vec![
                         h::Dropdown::new(
                             "dd-trigger-dd",
@@ -1497,7 +1497,7 @@ impl Gallery {
                     .into_any_element()]),
                 ),
                 (
-                    "With Submenus",
+                    "With Submenus", "Submenus position independently against their row end top and flip sides to the side with more room when needed; the parent stays anchored and outside presses still dismiss the whole menu.",
                     col(vec![h::Dropdown::uncontrolled(
                         "dd-submenu-dd",
                         h::Button::new("dd-submenu")
