@@ -582,35 +582,13 @@ impl RenderOnce for Modal {
 
         let has_header = header.is_some();
         let has_body = !self.body.is_empty();
-        // `Inside` scrolls the body; the two heights below are how. Both are
-        // absolute pixels on purpose: gpui resolves `relative()` against the
-        // parent's *content box* (the overlay's viewport minus its 40px
-        // padding), so every percentage this file tried landed short of the
-        // window and left the body clipped. The panel's cap is the viewport
-        // itself, so an overflowing Inside dialog spans the window edge to
-        // edge. v3's `.modal__dialog--scroll-inside` (`max-h-full`) caps at
-        // the container's content box and keeps a `p-10` margin of scrim on
-        // all four sides; copying that (a 1000px cap here) parks the panel's
-        // top at 40 and leaves the deepest revealed rows at the window's
-        // bottom edge, where the long-body behaviour test drives presses that
-        // must stay on the panel. The viewport cap is the closest arrangement
-        // that keeps every control reachable by the body's scroll alone, and
-        // it only differs from v3 in the overflow case -- a dialog whose
-        // content fits is still content-sized and centred. The body's budget
-        // is the cap minus the dialog's `p-6` inset; the header and the
-        // footer claim their own space from the flex layout before the body's
-        // max height ever binds.
+        // Inside scrolling fits the container's content box: p-10 keeps
+        // 40px of scrim around the panel; Full removes that padding.
         let scroll_inside = self.scroll == ModalScroll::Inside;
-        let inside_body_max = window.viewport_size().height
-            - px(48.)
-            - if self.size == ModalSize::Cover {
-                px(80.)
-            } else {
-                px(0.)
-            };
-        // `.modal__dialog`: `w-full` with a `max-w-*` per size, `p-6`, and the
-        // floating-panel radius. `Full` drops the radius and the shadow.
         let full = self.size == ModalSize::Full;
+        let panel_max = window.viewport_size().height - if full { px(0.) } else { px(80.) };
+        let inside_body_max = panel_max - px(48.);
+        // `.modal__dialog`: w-full, a per-size max width, and p-6.
         let panel = gpui::div()
             .relative()
             .flex()
@@ -635,9 +613,7 @@ impl RenderOnce for Modal {
             )
             .when(self.scroll == ModalScroll::Outside, |e| e.flex_shrink_0())
             .p(px(24.))
-            .when(self.scroll == ModalScroll::Inside, |e| {
-                e.max_h(window.viewport_size().height)
-            })
+            .when(self.scroll == ModalScroll::Inside, |e| e.max_h(panel_max))
             .bg(colors.overlay.background)
             .text_color(colors.foreground)
             .when(!full, |e| {
@@ -667,7 +643,7 @@ impl RenderOnce for Modal {
                         // heading and its footer with nothing between them.
                         // `Outside` keeps the working arrangement: the body is
                         // content-sized and the container scrolls. `Inside`
-                        // caps the panel at the viewport above and scrolls the
+                        // caps the panel within the scrim and scrolls the
                         // body itself within that budget, and the budget is a
                         // *max* height, so a header and a footer still sit
                         // between the body and the panel's edges.

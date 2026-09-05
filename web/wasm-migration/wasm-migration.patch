@@ -19301,7 +19301,7 @@ index 00000000..afdca727
 +    }
 +}
 diff --git a/crates/herogpui-components/src/modal.rs b/crates/herogpui-components/src/modal.rs
-index 70e84e5d..7f92fccf 100644
+index 70e84e5d..a358b8ec 100644
 --- a/crates/herogpui-components/src/modal.rs
 +++ b/crates/herogpui-components/src/modal.rs
 @@ -1,7 +1,7 @@
@@ -19402,7 +19402,68 @@ index 70e84e5d..7f92fccf 100644
                                  .font_weight(gpui::FontWeight::MEDIUM)
                                  .child(title.to_string()),
                          )
-@@ -655,13 +709,10 @@ impl RenderOnce for Modal {
+@@ -528,35 +582,13 @@ impl RenderOnce for Modal {
+ 
+         let has_header = header.is_some();
+         let has_body = !self.body.is_empty();
+-        // `Inside` scrolls the body; the two heights below are how. Both are
+-        // absolute pixels on purpose: gpui resolves `relative()` against the
+-        // parent's *content box* (the overlay's viewport minus its 40px
+-        // padding), so every percentage this file tried landed short of the
+-        // window and left the body clipped. The panel's cap is the viewport
+-        // itself, so an overflowing Inside dialog spans the window edge to
+-        // edge. v3's `.modal__dialog--scroll-inside` (`max-h-full`) caps at
+-        // the container's content box and keeps a `p-10` margin of scrim on
+-        // all four sides; copying that (a 1000px cap here) parks the panel's
+-        // top at 40 and leaves the deepest revealed rows at the window's
+-        // bottom edge, where the long-body behaviour test drives presses that
+-        // must stay on the panel. The viewport cap is the closest arrangement
+-        // that keeps every control reachable by the body's scroll alone, and
+-        // it only differs from v3 in the overflow case -- a dialog whose
+-        // content fits is still content-sized and centred. The body's budget
+-        // is the cap minus the dialog's `p-6` inset; the header and the
+-        // footer claim their own space from the flex layout before the body's
+-        // max height ever binds.
++        // Inside scrolling fits the container's content box: p-10 keeps
++        // 40px of scrim around the panel; Full removes that padding.
+         let scroll_inside = self.scroll == ModalScroll::Inside;
+-        let inside_body_max = window.viewport_size().height
+-            - px(48.)
+-            - if self.size == ModalSize::Cover {
+-                px(80.)
+-            } else {
+-                px(0.)
+-            };
+-        // `.modal__dialog`: `w-full` with a `max-w-*` per size, `p-6`, and the
+-        // floating-panel radius. `Full` drops the radius and the shadow.
+         let full = self.size == ModalSize::Full;
++        let panel_max = window.viewport_size().height - if full { px(0.) } else { px(80.) };
++        let inside_body_max = panel_max - px(48.);
++        // `.modal__dialog`: w-full, a per-size max width, and p-6.
+         let panel = gpui::div()
+             .relative()
+             .flex()
+@@ -581,9 +613,7 @@ impl RenderOnce for Modal {
+             )
+             .when(self.scroll == ModalScroll::Outside, |e| e.flex_shrink_0())
+             .p(px(24.))
+-            .when(self.scroll == ModalScroll::Inside, |e| {
+-                e.max_h(window.viewport_size().height)
+-            })
++            .when(self.scroll == ModalScroll::Inside, |e| e.max_h(panel_max))
+             .bg(colors.overlay.background)
+             .text_color(colors.foreground)
+             .when(!full, |e| {
+@@ -613,7 +643,7 @@ impl RenderOnce for Modal {
+                         // heading and its footer with nothing between them.
+                         // `Outside` keeps the working arrangement: the body is
+                         // content-sized and the container scrolls. `Inside`
+-                        // caps the panel at the viewport above and scrolls the
++                        // caps the panel within the scrim and scrolls the
+                         // body itself within that budget, and the budget is a
+                         // *max* height, so a header and a footer still sit
+                         // between the body and the panel's edges.
+@@ -655,13 +685,10 @@ impl RenderOnce for Modal {
          }
  
          // Backdrop dismissal lives on the **panel**, not on the backdrop.
@@ -19420,7 +19481,7 @@ index 70e84e5d..7f92fccf 100644
          let panel = if self.is_dismissible && !exiting {
              if let Some(on_close) = dismiss.clone() {
                  crate::util::dismiss_on_press_outside_with_token(
-@@ -795,6 +846,6 @@ impl RenderOnce for Modal {
+@@ -795,6 +822,6 @@ impl RenderOnce for Modal {
              )
          });
  
@@ -33316,6 +33377,190 @@ index 4cf8efaf..275f6d04 100644
 +        }
 +    }
 +}
+diff --git a/crates/herogpui-components/tests/placement.rs b/crates/herogpui-components/tests/placement.rs
+index 60ac95fe..106307a5 100644
+--- a/crates/herogpui-components/tests/placement.rs
++++ b/crates/herogpui-components/tests/placement.rs
+@@ -1001,82 +1001,108 @@ fn modal_full_covers_every_viewport_edge_without_backdrop_dismissal(cx: &mut Tes
+ 
+ #[gpui::test]
+ fn modal_long_body_scrolls_to_reach_the_deepest_control(cx: &mut TestAppContext) {
+-    still();
+-    let hits = events();
+-    let probed = hits.clone();
+-    let closes = events();
+-    let recorded = closes.clone();
+-    let open = Rc::new(RefCell::new(true));
+-    let open_flag = open;
+-
+-    let cx = open_host(cx, move || {
++    for with_chrome in [false, true] {
++        still();
++        let hits = events();
+         let probed = hits.clone();
++        let closes = events();
+         let recorded = closes.clone();
+-        let is_open = *open_flag.borrow();
+-        let mut body = gpui::div().flex().flex_col().gap(px(10.));
+-        for i in 0..24 {
+-            // The click closure owns its `label`; the div renders another
+-            // copy, so the two start as clones.
+-            let label = format!("p{i}");
+-            let click_label = label.clone();
+-            let recorded = probed.clone();
+-            body = body.child(
+-                gpui::div()
+-                    .id(gpui::SharedString::from(format!("pl-scroll-probe-{i}")))
+-                    .w_full()
+-                    .h(px(36.))
+-                    .flex()
+-                    .items_center()
+-                    .justify_center()
+-                    .cursor_pointer()
+-                    .on_click(move |_, _, _| recorded.borrow_mut().push(click_label.clone()))
+-                    .child(label),
+-            );
+-        }
+-        Modal::new()
+-            .id("pl-modal-scroll")
+-            .is_open(is_open)
+-            .child(body)
+-            .on_open_change({
+-                let open_flag = open_flag.clone();
+-                move |v, window, _| {
+-                    *open_flag.borrow_mut() = v;
+-                    recorded.borrow_mut().push(format!("open:{v}"));
+-                    window.refresh();
+-                }
+-            })
+-            .into_any_element()
+-    });
++        let open = Rc::new(RefCell::new(true));
++        let open_flag = open;
+ 
+-    // The top of the body is reachable at rest: probe 0 sits at body top
+-    // (panel padding 24) + 18 in the panel's column.
+-    click(cx, 960., 42.);
+-    assert!(probed.borrow().contains(&"p0".to_owned()));
++        let cx = open_host(cx, move || {
++            let probed = hits.clone();
++            let recorded = closes.clone();
++            let is_open = *open_flag.borrow();
++            let mut body = gpui::div().flex().flex_col().gap(px(10.));
++            for i in 0..24 {
++                // The click closure owns its `label`; the div renders another
++                // copy, so the two start as clones.
++                let label = format!("p{i}");
++                let click_label = label.clone();
++                let recorded = probed.clone();
++                body = body.child(
++                    gpui::div()
++                        .id(gpui::SharedString::from(format!("pl-scroll-probe-{i}")))
++                        .debug_selector(move || format!("pl-scroll-probe-{i}"))
++                        .w_full()
++                        .h(px(36.))
++                        .flex()
++                        .items_center()
++                        .justify_center()
++                        .cursor_pointer()
++                        .on_click(move |_, _, _| recorded.borrow_mut().push(click_label.clone()))
++                        .child(label),
++                );
++            }
++            Modal::new()
++                .id("pl-modal-scroll")
++                .is_open(is_open)
++                .when(with_chrome, |modal| {
++                    modal.title("Long dialog").footer_child(
++                        gpui::div()
++                            .h(px(36.))
++                            .debug_selector(|| "pl-scroll-footer".to_owned())
++                            .child("Footer"),
++                    )
++                })
++                .child(body)
++                .on_open_change({
++                    let open_flag = open_flag.clone();
++                    move |v, window, _| {
++                        *open_flag.borrow_mut() = v;
++                        recorded.borrow_mut().push(format!("open:{v}"));
++                        window.refresh();
++                    }
++                })
++                .into_any_element()
++        });
+ 
+-    // Scroll down hard and sweep the panel's column (Md width 448, so x 960
+-    // is inside it) across the lower half of the window. The deepest probe
+-    // must report at some point, and no sweep press may dismiss the modal:
+-    // a dismiss would mean the press landed on the scrim because the deep
+-    // content was clipped, not scrolled into view.
+-    for _ in 0..6 {
+-        wheel(cx, 960., 500., -1000.);
+-    }
+-    let mut y = 500.;
+-    while y < 1060. {
+-        click(cx, 960., y);
+-        y += 55.;
+-    }
++        let first = cx
++            .debug_bounds("pl-scroll-probe-0")
++            .expect("first row paints");
++        assert!(
++            first.origin.y >= px(64.),
++            "40px scrim plus 24px panel padding: {first:?}"
++        );
++        click(cx, f32::from(first.center().x), f32::from(first.center().y));
++        assert!(probed.borrow().contains(&"p0".to_owned()));
+ 
+-    assert!(
+-        recorded.borrow().is_empty(),
+-        "no press anywhere in the modal's column may dismiss it: deep content \
+-         must be scrolled into view, not missing"
+-    );
+-    assert!(
+-        probed.borrow().iter().any(|hit| hit == "p23"),
+-        "the deepest probe must be reachable after scrolling; recorded: {:?}",
+-        probed.borrow().as_slice()
+-    );
++        let footer = cx.debug_bounds("pl-scroll-footer");
++        assert_eq!(footer.is_some(), with_chrome, "requested footer must paint");
++        for _ in 0..6 {
++            wheel(cx, 960., 500., -1000.);
++        }
++        let last = cx
++            .debug_bounds("pl-scroll-probe-23")
++            .expect("last row paints");
++        let viewport_height = cx.update(|window, _| window.viewport_size().height);
++        assert!(
++            last.bottom() <= viewport_height - px(64.),
++            "last row fits above padding and scrim: {last:?}"
++        );
++        assert_eq!(
++            cx.debug_bounds("pl-scroll-footer"),
++            footer,
++            "footer must not scroll with the body"
++        );
++        if let Some(footer) = footer {
++            assert!(
++                last.bottom() <= footer.origin.y,
++                "deepest row stays above the footer"
++            );
++            assert!(footer.bottom() <= viewport_height - px(64.));
++        }
++        click(cx, f32::from(last.center().x), f32::from(last.center().y));
++        assert!(
++            recorded.borrow().is_empty(),
++            "body presses must not dismiss"
++        );
++        assert!(
++            probed.borrow().iter().any(|hit| hit == "p23"),
++            "deepest row responds after scrolling"
++        );
++    }
+ }
+ 
+ #[gpui::test]
 diff --git a/crates/herogpui-components/tests/placement_extra.rs b/crates/herogpui-components/tests/placement_extra.rs
 index 8dd85714..84a1532e 100644
 --- a/crates/herogpui-components/tests/placement_extra.rs
@@ -202437,7 +202682,7 @@ index 6452b2b7..b70b6484 100644
      }
  }
 diff --git a/gallery/src/pages/reference_metadata.rs b/gallery/src/pages/reference_metadata.rs
-index 71065ac8..bd35e8b2 100644
+index 71065ac8..df601567 100644
 --- a/gallery/src/pages/reference_metadata.rs
 +++ b/gallery/src/pages/reference_metadata.rs
 @@ -22,7 +22,12 @@ impl ImplementationStatus {
@@ -203101,6 +203346,19 @@ index 71065ac8..bd35e8b2 100644
          status: ImplementationStatus::Implemented,
      },
      StyleDoc {
+@@ -9227,9 +9260,9 @@ const MODAL_STYLING: &[StyleDoc] = &[
+     StyleDoc {
+         class_or_token: ".modal__dialog--scroll-inside",
+         value: "max-h-full min-h-0 overflow-clip",
+-        description: "v3 caps the dialog at the container's content box and keeps a 40px margin of scrim; the port caps at the viewport instead, which only differs when the content overflows.",
+-        rust: "panel max_h(viewport_size().height) + overflow_hidden",
+-        status: ImplementationStatus::Partial,
++        description: "Caps the dialog at the container's content box, retaining 40px of scrim even with overflowing content; Full removes that margin.",
++        rust: "panel max_h(panel_max) + overflow_hidden",
++        status: ImplementationStatus::Implemented,
+     },
+     StyleDoc {
+         class_or_token: ".modal__dialog--scroll-outside",
 @@ -10127,6 +10160,7 @@ const COMBO_BOX_STATES: &[StateDoc] = &[
  ];
  

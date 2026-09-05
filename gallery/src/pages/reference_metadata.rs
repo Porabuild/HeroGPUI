@@ -9260,9 +9260,9 @@ const MODAL_STYLING: &[StyleDoc] = &[
     StyleDoc {
         class_or_token: ".modal__dialog--scroll-inside",
         value: "max-h-full min-h-0 overflow-clip",
-        description: "v3 caps the dialog at the container's content box and keeps a 40px margin of scrim; the port caps at the viewport instead, which only differs when the content overflows.",
-        rust: "panel max_h(viewport_size().height) + overflow_hidden",
-        status: ImplementationStatus::Partial,
+        description: "Caps the dialog at the container's content box, retaining 40px of scrim even with overflowing content; Full removes that margin.",
+        rust: "panel max_h(panel_max) + overflow_hidden",
+        status: ImplementationStatus::Implemented,
     },
     StyleDoc {
         class_or_token: ".modal__dialog--scroll-outside",
