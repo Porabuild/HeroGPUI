@@ -28,6 +28,7 @@ sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from bundle import resolve as _resolve_bundle
+from design_audit import mask_literals, strip_cfg_test
 
 # The pinned v3.2.4 bundle. See .shots/bundle.py: reading upstream live would
 # measure this port against whatever HeroUI shipped most recently.
@@ -657,7 +658,12 @@ EVIDENCE = {
     ),
     ('Input', 'text-keys'): ('input.rs', r'fn word_target'),
     ('TextArea', 'text-keys'): ('input.rs', r'fn vertical_target'),
-    ('TextField', 'text-keys'): ('input.rs', r'key_char'),
+    ('TextField', 'text-keys'): (
+        'input.rs',
+        r'(?s)(?=.*impl gpui::InputHandler for PlatformTextInput)'
+        r'(?=.*fn replace_text_in_range\([^}]*?self\.replace\()'
+        r'(?=.*window\.handle_input\(\s*&platform_focus,\s*PlatformTextInput)',
+    ),
     # The whole native submission contract on one shared implementation: the
     # button door (`submit_handler`) and the Enter door (the form root's key
     # handler) both route through `run_submission`, and the Enter door fires
@@ -747,7 +753,10 @@ EVIDENCE = {
     # slot — and refresh the same mirror — through their own modules.)
     ('Form', 'server-errors-suppress'): (
         'input.rs',
-        r'(?s)if changed \{(?:(?!if let Some\(cb\)).){0,400}?clear_routed_errors\(\)',
+        r'(?s)(?=.*let edit_callback: TextCallback = crate::util::shared\('
+        r'.{0,200}?clear_routed_errors\(\).{0,100}?refresh_stored_validity\()'
+        r'(?=.*if changed \{\s*let value = self\.state.{0,100}?\(self\.on_edit\))'
+        r'(?=.*if changed \{(?:(?!if cleared).){0,500}?edit_callback\(&value, window, cx\))',
     ),
     # Reset hides the routed errors without rewinding the field's delivery
     # receipt — the record that delivered already named the field, so a
@@ -1188,6 +1197,8 @@ def table_resize_keys_evidence(source):
 def evidence_matches(key, evidence, source):
     if key == ('Table', 'resize-keys'):
         return table_resize_keys_evidence(source)
+    if key in {('TextField', 'text-keys'), ('Form', 'server-errors-suppress')}:
+        source = mask_literals(strip_cfg_test(source))
     return re.search(evidence, source)
 
 
@@ -1197,6 +1208,26 @@ def main():
     claimed = implemented = excused = 0
     missing, unmapped = [], []
     by_reason = {}
+
+    input_source = io.open(SRC + 'input.rs', encoding='utf-8').read()
+    for key, token in (
+        (('TextField', 'text-keys'), 'window.handle_input('),
+        (('Form', 'server-errors-suppress'), 'edit_state.update(cx, |s, _| s.clear_routed_errors());'),
+    ):
+        pattern = EVIDENCE[key][1]
+        if token not in input_source:
+            print('AUDIT READER ERROR: input self-test cannot find %s' % token)
+            return 1
+        start = input_source.index(token)
+        end = input_source.index(');', start) + 2
+        statement = input_source[start:end]
+        for label, mutant in (
+            ('commented statement', input_source[:start] + '/*' + statement + '*/' + input_source[end:]),
+            ('test-only implementation', '#[cfg(test)]\nmod fixture {\n' + input_source + '\n}'),
+        ):
+            if evidence_matches(key, pattern, mutant):
+                print('AUDIT READER ERROR: %s accepts %s' % (key, label))
+                return 1
 
     table_source = io.open(SRC + 'table.rs', encoding='utf-8', errors='replace').read()
     for label, token, replacement in (

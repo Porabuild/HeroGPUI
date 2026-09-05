@@ -6750,7 +6750,7 @@ impl Gallery {
                 ),
                 (
                     "Usage",
-                    "Text adornments inherit the field's 14px text and 20px line height.",
+                    "Text adornments inherit the field's 14px text and 20px line height. Platform text replacement, composition updates, and paste use the same editable state as keyboard input.",
                     field_col(vec![h::Input::new(self.demo_text("in-usage", "", cx))
                         .label("Name")
                         .placeholder("Enter your name")
@@ -8039,6 +8039,7 @@ impl Gallery {
             vec![
                 (
                     "Usage",
+                    "Platform edits support composed text and paste. Enter confirms active composition before inserting a newline.",
                     col(vec![fixed_demo(
                         384.,
                         h::TextArea::new(self.demo_text("ta-usage", "", cx))

@@ -92,6 +92,37 @@ fn near(value: Pixels, expected: f32) -> bool {
 // ---------------------------------------------------------------------------
 
 #[gpui::test]
+fn text_field_accepts_platform_text_without_a_printable_key(cx: &mut TestAppContext) {
+    let changes = events();
+    let recorded = changes.clone();
+    let state = cx.new(|cx| InputState::with_value(cx, "replace me"));
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        let changes = changes.clone();
+        TextField::new(state_for_view.clone())
+            .on_change(move |text, _, _| changes.borrow_mut().push(text.to_owned()))
+            .into_any_element()
+    });
+    click(cx, 60., 18.);
+    cx.simulate_keystrokes("ctrl-a");
+    cx.update(|window, app| {
+        window.dispatch_keystroke(
+            gpui::Keystroke {
+                key: "unidentified".into(),
+                key_char: Some("東京😀".into()),
+                modifiers: Modifiers::default(),
+            },
+            app,
+        );
+    });
+    assert_eq!(
+        state.read_with(cx, |state, _| state.value().to_owned()),
+        "東京😀"
+    );
+    assert_eq!(recorded.borrow().as_slice(), ["東京😀"]);
+}
+
+#[gpui::test]
 fn text_field_typing_reports_and_holds(cx: &mut TestAppContext) {
     let changes = events();
     let recorded = changes.clone();

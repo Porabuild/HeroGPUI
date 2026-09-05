@@ -1829,7 +1829,7 @@
     },
     {
       "heading": "Usage",
-      "description": "Text adornments inherit the field's 14px text and 20px line height.",
+      "description": "Text adornments inherit the field's 14px text and 20px line height. Platform text replacement, composition updates, and paste use the same editable state as keyboard input.",
       "imports": "use herogpui::prelude::{Input, InputState};",
       "code": "Input::new(self.demo_text(\"in-usage\", \"\", cx))\n    .label(\"Name\")\n    .placeholder(\"Enter your name\")"
     },
@@ -2253,6 +2253,7 @@
   "text-area": [
     {
       "heading": "Usage",
+      "description": "Platform edits support composed text and paste. Enter confirms active composition before inserting a newline.",
       "imports": "use herogpui::prelude::TextArea;\nuse gpui::prelude::*;\nuse gpui::px;",
       "code": "gpui::div()\n    .w(px(384.))\n    .child(TextArea::new(self.demo_text(\"ta-usage\", \"\", cx))\n            .placeholder(\"Share a quick project update...\")\n            .cols(48)\n            .rows(6)\n            .full_width())"
     },

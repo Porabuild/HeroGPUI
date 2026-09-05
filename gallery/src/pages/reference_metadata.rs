@@ -4906,7 +4906,7 @@ const INPUT_STATES: &[StateDoc] = &[
     StateDoc {
         state: "Focused",
         selector: ".input:focus / [data-focused=true]",
-        description: "Draws focused field background, border and ring.",
+        description: "Draws focused field background, border and ring. Registers platform text replacement, composition and paste against the same editable state.",
         rust: "track_focus + apply_field_chrome",
         status: ImplementationStatus::Implemented,
     },

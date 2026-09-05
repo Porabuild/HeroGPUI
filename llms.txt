@@ -383,12 +383,12 @@ The geometry is pure and testable: `calendar_view::{page, aligned_anchor,
 week_start, month_headings, linear_cells, range_heading, year_page}`.
 
 ### Forms
-- **Input** — `InputState {value,cursor,anchor,focus_handle}`, `variant(FieldVariant)`, `label`, `placeholder`, `description`, `error_message`, `start/end_content`, `full_width`, `is_clearable`, `is_required`, `is_disabled`, `is_read_only`, `is_invalid`, `on_change(&str)`, `on_submit(&str)`. Text adornments inherit the field's 14px text and 20px line height.
+- **Input** — `InputState {value,cursor,anchor,focus_handle}`, `variant(FieldVariant)`, `label`, `placeholder`, `description`, `error_message`, `start/end_content`, `full_width`, `is_clearable`, `is_required`, `is_disabled`, `is_read_only`, `is_invalid`, `on_change(&str)`, `on_submit(&str)`. Text adornments inherit the field's 14px text and 20px line height. Platform text replacement, composition updates, and paste preserve selection, filtering, and change callbacks. Enter during composition does not submit the field.
   - `input_type(InputType::{Text,Password,Email,Number,Tel,Url,Search})` — `Password` masks, `Number` filters keystrokes
   - `max_length` (enforced while typing), `min_length`, `min`, `max`, `step`, `pattern(fn)`
   - `validity(&str) -> InputValidity` — a pure query; feed the result back through `is_invalid` / `error_message`
 - **TextField** — the labelled wrapper around `Input`
-- **TextArea** — genuinely multi-line: one wrapping paragraph per newline, Enter inserts a newline, and the caret sits in the line it belongs to. gpui wraps text by default (`WhiteSpace::Normal`); it is the single-line field that opts out with `whitespace_nowrap`. `rows`, `variant`, `full_width`, `max_length`, `min_length`, the validation flags, `on_change`
+- **TextArea** — genuinely multi-line: one wrapping paragraph per newline, Enter inserts a newline, and the caret sits in the line it belongs to. Platform composition and paste use the shared Input handler; Enter confirms active composition before inserting a newline. gpui wraps text by default (`WhiteSpace::Normal`); it is the single-line field that opts out with `whitespace_nowrap`. `rows`, `variant`, `full_width`, `max_length`, `min_length`, the validation flags, `on_change`
 - **SearchField** — Input with a magnifier and clear action; `on_clear`, `is_required`, `is_read_only`, `is_invalid`
 - **NumberField** — `format_options(NumberFormat)`, `NumberState {value,min,max,step,input}`, `hide_steppers`, `on_change(f64)`
 - **InputOTP** — `OtpState::with_length(cx, n)`, `separator`, `on_complete(&str)`. Custom slot content inherits 14px/20px text; the built-in digits use 18px/24px text.

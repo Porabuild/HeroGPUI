@@ -11489,12 +11489,14 @@ index 6cc62142..e0e7e01c 100644
 +pub const TRASH: &str = "herogpui/icons/trash.svg";
 +pub const GEAR: &str = "herogpui/icons/gear.svg";
 diff --git a/crates/herogpui-components/src/input.rs b/crates/herogpui-components/src/input.rs
-index 89fec17e..04a25597 100644
+index 89fec17e..0ad62f7a 100644
 --- a/crates/herogpui-components/src/input.rs
 +++ b/crates/herogpui-components/src/input.rs
-@@ -18,6 +18,9 @@ pub struct InputState {
+@@ -17,7 +17,11 @@ pub struct InputState {
+     cursor: usize,
      /// Selection anchor in char indices; `None` when the caret is collapsed.
      anchor: Option<usize>,
++    marked: Option<std::ops::Range<usize>>,
      pub(crate) focus_handle: FocusHandle,
 +    /// Clear-button handle. Created without `tab_stop`, matching pinned
 +    /// `useSearchField` `excludeFromTabOrder: true`. Never a `tab_stop_handle`.
@@ -11502,8 +11504,11 @@ index 89fec17e..04a25597 100644
      /// `name` — what this field submits under, written in by the component's
      /// `name` builder. The state carries it because gpui gives a child no way
      /// to reach its `Form`; `FormField::text` reads it back out.
-@@ -67,6 +70,8 @@ impl InputState {
+@@ -65,8 +69,11 @@ impl InputState {
+             value: String::new(),
+             cursor: 0,
              anchor: None,
++            marked: None,
              // A field is a tab stop: the handle carries that, not the element.
              focus_handle: cx.focus_handle().tab_stop(true),
 +            // Plain handle: Tab never seats on the clear button.
@@ -11511,7 +11516,16 @@ index 89fec17e..04a25597 100644
              name: None,
              validation_behavior: crate::form::ValidationBehavior::Native,
              validity: crate::validation::Validity::default(),
-@@ -182,6 +187,11 @@ impl InputState {
+@@ -175,6 +182,8 @@ impl InputState {
+ 
+     pub fn set_value(&mut self, value: impl Into<String>) {
+         self.value = value.into();
++        self.marked = None;
++        self.anchor = None;
+         self.cursor = self.value.chars().count();
+     }
+ 
+@@ -182,6 +191,11 @@ impl InputState {
          self.value.is_empty()
      }
  
@@ -11523,7 +11537,7 @@ index 89fec17e..04a25597 100644
      /// Normalized `(start, end)` char range of the active selection.
      pub fn selection(&self) -> Option<(usize, usize)> {
          let a = self.anchor?;
-@@ -515,6 +525,79 @@ fn char_at_x(
+@@ -515,6 +529,79 @@ fn char_at_x(
      value[..byte.min(value.len())].chars().count()
  }
  
@@ -11603,7 +11617,7 @@ index 89fec17e..04a25597 100644
  /// The char indices bounding the line the caret is on, newlines excluded.
  fn line_bounds(value: &str, cursor: usize) -> (usize, usize) {
      let chars: Vec<char> = value.chars().collect();
-@@ -531,8 +614,11 @@ fn line_bounds(value: &str, cursor: usize) -> (usize, usize) {
+@@ -531,8 +618,11 @@ fn line_bounds(value: &str, cursor: usize) -> (usize, usize) {
  
  /// Where Up / Down lands in a multiline field, keeping the column where it can.
  ///
@@ -11617,7 +11631,315 @@ index 89fec17e..04a25597 100644
  fn vertical_target(value: &str, cursor: usize, down: bool) -> usize {
      let (start, end) = line_bounds(value, cursor);
      let column = cursor - start;
-@@ -654,6 +740,9 @@ struct MultilineBody<'a> {
+@@ -642,6 +732,307 @@ impl InputType {
+ type TextCallback = std::sync::Arc<dyn Fn(&str, &mut Window, &mut App) + 'static>;
+ type ClearCallback = std::sync::Arc<dyn Fn(&mut Window, &mut App) + 'static>;
+ 
++fn char_to_utf16(value: &str, offset: usize) -> usize {
++    value.chars().take(offset).map(char::len_utf16).sum()
++}
++
++fn utf16_to_char(value: &str, offset: usize) -> usize {
++    let mut units = 0;
++    value
++        .chars()
++        .take_while(|ch| {
++            units += ch.len_utf16();
++            units <= offset
++        })
++        .count()
++}
++
++struct PlatformTextInput {
++    state: Entity<InputState>,
++    on_edit: TextCallback,
++    input_type: InputType,
++    max_length: Option<usize>,
++    multiline: bool,
++    bounds: gpui::Bounds<gpui::Pixels>,
++    font: gpui::Font,
++    paragraphs: Entity<Vec<gpui::Bounds<gpui::Pixels>>>,
++}
++
++impl PlatformTextInput {
++    fn replace(
++        &mut self,
++        range: Option<std::ops::Range<usize>>,
++        text: &str,
++        marked_selection: Option<Option<std::ops::Range<usize>>>,
++        window: &mut Window,
++        cx: &mut App,
++    ) {
++        let changed = self.state.update(cx, |state, cx| {
++            if state.is_read_only || !state.is_successful {
++                return false;
++            }
++            let range = range
++                .map(|range| {
++                    utf16_to_char(&state.value, range.start)..utf16_to_char(&state.value, range.end)
++                })
++                .or_else(|| state.marked.clone())
++                .unwrap_or_else(|| {
++                    let (start, end) = state.selection().unwrap_or((state.cursor, state.cursor));
++                    start..end
++                });
++            let old_value = state.value.clone();
++            let old_cursor = state.cursor;
++            let old_anchor = state.anchor;
++            state.anchor = Some(range.start);
++            state.cursor = range.end;
++            let mut inserted = false;
++            for ch in text.chars() {
++                if (ch == '\n' && self.multiline || !ch.is_control())
++                    && state_accepts(state, ch, self.input_type, self.max_length)
++                {
++                    insert_char(state, ch);
++                    inserted = true;
++                }
++            }
++            if text.is_empty() {
++                delete_selection(state);
++            } else if !inserted {
++                state.cursor = old_cursor;
++                state.anchor = old_anchor;
++                return false;
++            }
++            let end = state.cursor;
++            state.anchor = None;
++            state.marked = marked_selection
++                .as_ref()
++                .and_then(|_| (end > range.start).then_some(range.start..end));
++            if let Some(Some(selection)) = marked_selection {
++                let inserted: String = state
++                    .value
++                    .chars()
++                    .skip(range.start)
++                    .take(end - range.start)
++                    .collect();
++                state.anchor = Some(range.start + utf16_to_char(&inserted, selection.start));
++                state.cursor = range.start + utf16_to_char(&inserted, selection.end);
++            }
++            cx.notify();
++            state.value != old_value
++        });
++        if changed {
++            let value = self.state.read(cx).value.clone();
++            (self.on_edit)(&value, window, cx);
++        }
++    }
++}
++
++impl gpui::InputHandler for PlatformTextInput {
++    fn selected_text_range(
++        &mut self,
++        _: bool,
++        _: &mut Window,
++        cx: &mut App,
++    ) -> Option<gpui::UTF16Selection> {
++        let state = self.state.read(cx);
++        let (start, end) = state.selection().unwrap_or((state.cursor, state.cursor));
++        Some(gpui::UTF16Selection {
++            range: char_to_utf16(&state.value, start)..char_to_utf16(&state.value, end),
++            reversed: state.anchor.is_some_and(|anchor| anchor > state.cursor),
++        })
++    }
++
++    fn marked_text_range(
++        &mut self,
++        _: &mut Window,
++        cx: &mut App,
++    ) -> Option<std::ops::Range<usize>> {
++        let state = self.state.read(cx);
++        state.marked.as_ref().map(|range| {
++            char_to_utf16(&state.value, range.start)..char_to_utf16(&state.value, range.end)
++        })
++    }
++
++    fn text_for_range(
++        &mut self,
++        range: std::ops::Range<usize>,
++        actual: &mut Option<std::ops::Range<usize>>,
++        _: &mut Window,
++        cx: &mut App,
++    ) -> Option<String> {
++        let value = &self.state.read(cx).value;
++        let start = utf16_to_char(value, range.start);
++        let end = utf16_to_char(value, range.end);
++        *actual = Some(char_to_utf16(value, start)..char_to_utf16(value, end));
++        Some(
++            value
++                .chars()
++                .skip(start)
++                .take(end.saturating_sub(start))
++                .collect(),
++        )
++    }
++
++    fn replace_text_in_range(
++        &mut self,
++        range: Option<std::ops::Range<usize>>,
++        text: &str,
++        window: &mut Window,
++        cx: &mut App,
++    ) {
++        self.replace(range, text, None, window, cx);
++    }
++
++    fn replace_and_mark_text_in_range(
++        &mut self,
++        range: Option<std::ops::Range<usize>>,
++        text: &str,
++        selection: Option<std::ops::Range<usize>>,
++        window: &mut Window,
++        cx: &mut App,
++    ) {
++        self.replace(range, text, Some(selection), window, cx);
++    }
++
++    fn unmark_text(&mut self, _: &mut Window, cx: &mut App) {
++        self.state.update(cx, |state, cx| {
++            state.marked = None;
++            cx.notify();
++        });
++    }
++
++    fn set_selected_text_range(
++        &mut self,
++        range: std::ops::Range<usize>,
++        _: &mut Window,
++        cx: &mut App,
++    ) {
++        self.state.update(cx, |state, cx| {
++            state.anchor = Some(utf16_to_char(&state.value, range.start));
++            state.cursor = utf16_to_char(&state.value, range.end);
++            cx.notify();
++        });
++    }
++
++    fn text_length_utf16(&mut self, _: &mut Window, cx: &mut App) -> Option<usize> {
++        Some(self.state.read(cx).value.encode_utf16().count())
++    }
++
++    fn accepts_text_input(&mut self, _: &mut Window, cx: &mut App) -> bool {
++        let state = self.state.read(cx);
++        !state.is_read_only && state.is_successful
++    }
++
++    fn prefers_ime_for_printable_keys(&mut self, _: &mut Window, _: &mut App) -> bool {
++        true
++    }
++
++    fn element_bounds(
++        &mut self,
++        _: &mut Window,
++        _: &mut App,
++    ) -> Option<gpui::Bounds<gpui::Pixels>> {
++        Some(self.bounds)
++    }
++
++    fn bounds_for_range(
++        &mut self,
++        range: std::ops::Range<usize>,
++        window: &mut Window,
++        cx: &mut App,
++    ) -> Option<gpui::Bounds<gpui::Pixels>> {
++        let state = self.state.read(cx);
++        let start = utf16_to_char(&state.value, range.start);
++        let end = utf16_to_char(&state.value, range.end);
++        let shown = displayed_value(state, self.input_type.masks());
++        let (line, offset, bounds) = if self.multiline {
++            let prefix: String = shown.chars().take(start).collect();
++            let paragraph = prefix.chars().filter(|&ch| ch == '\n').count();
++            let offset = prefix.rsplit('\n').next()?.chars().count();
++            (
++                shown.split('\n').nth(paragraph)?,
++                offset,
++                *self.paragraphs.read(cx).get(paragraph)?,
++            )
++        } else {
++            (shown.as_str(), start, self.bounds)
++        };
++        let size = crate::util::FIELD_TEXT;
++        let height = px(20.);
++        let run = gpui::TextRun {
++            len: line.len(),
++            font: self.font.clone(),
++            color: gpui::black(),
++            background_color: None,
++            underline: None,
++            strikethrough: None,
++        };
++        let shaped = window
++            .text_system()
++            .shape_text(
++                line.to_owned().into(),
++                size,
++                &[run],
++                self.multiline.then_some(bounds.size.width.max(px(1.))),
++                None,
++            )
++            .ok()?;
++        let shaped = shaped.first()?;
++        let left = shaped.position_for_index(char_to_byte(line, offset), height)?;
++        let right = shaped
++            .position_for_index(
++                char_to_byte(line, offset + end.saturating_sub(start)),
++                height,
++            )
++            .unwrap_or(left);
++        let y = if self.multiline {
++            bounds.top()
++        } else {
++            bounds.top() + (bounds.size.height - height) / 2.
++        };
++        Some(gpui::Bounds::new(
++            gpui::point(bounds.left() + left.x, y + left.y),
++            gpui::size(
++                if left.y == right.y {
++                    (right.x - left.x).max(px(1.))
++                } else {
++                    px(1.)
++                },
++                height,
++            ),
++        ))
++    }
++
++    fn character_index_for_point(
++        &mut self,
++        point: gpui::Point<gpui::Pixels>,
++        window: &mut Window,
++        cx: &mut App,
++    ) -> Option<usize> {
++        let state = self.state.read(cx);
++        let shown = displayed_value(state, self.input_type.masks());
++        let offset = if self.multiline {
++            char_at_point(
++                &shown,
++                point,
++                self.paragraphs.read(cx),
++                &self.font,
++                crate::util::FIELD_TEXT,
++                px(20.),
++                window,
++            )?
++        } else {
++            char_at_x(
++                &shown,
++                point.x - self.bounds.left(),
++                &self.font,
++                crate::util::FIELD_TEXT,
++                window,
++            )
++        };
++        Some(char_to_utf16(&state.value, offset))
++    }
++}
++
+ /// The character Enter inserts in a multi-line field.
+ const NEWLINE: char = '\n';
+ 
+@@ -654,6 +1045,9 @@ struct MultilineBody<'a> {
      /// The caret's element id, height and colour.
      caret: (gpui::ElementId, gpui::Pixels, gpui::Hsla),
      selection_bg: gpui::Hsla,
@@ -11627,7 +11949,7 @@ index 89fec17e..04a25597 100644
  }
  
  /// One paragraph per newline, each wrapping, with the caret and selection
-@@ -682,6 +771,30 @@ fn multiline_body(b: MultilineBody<'_>, cx: &App) -> gpui::AnyElement {
+@@ -682,6 +1076,30 @@ fn multiline_body(b: MultilineBody<'_>, cx: &App) -> gpui::AnyElement {
              .w_full()
              .min_w_0();
  
@@ -11658,7 +11980,7 @@ index 89fec17e..04a25597 100644
          // The selection, clipped to this line.
          let local_sel = b.selection.and_then(|(lo, hi)| {
              let lo = lo.max(start);
-@@ -1243,6 +1356,14 @@ impl RenderOnce for Input {
+@@ -1243,13 +1661,24 @@ impl RenderOnce for Input {
              cx,
              |_, _| None::<gpui::Pixels>,
          );
@@ -11673,7 +11995,18 @@ index 89fec17e..04a25597 100644
          // The font the field draws with, captured here: at event time the text
          // style stack is empty and the shaping would use the wrong face.
          let text_font = window.text_style().font();
-@@ -1320,6 +1441,7 @@ impl RenderOnce for Input {
+         let disabled_opacity = cx.layout().disabled_opacity;
++        let focused = focus_handle.is_focused(window);
++        if !focused && self.state.read(cx).marked.is_some() {
++            self.state.update(cx, |state, _| state.marked = None);
++        }
+         let colors = cx.colors();
+         let accent = colors.accent;
+-        let focused = focus_handle.is_focused(window);
+         let field_focus = crate::util::FieldFocus {
+             is_focused: focused,
+             is_focus_within: focus_handle.contains_focused(window, cx),
+@@ -1320,6 +1749,7 @@ impl RenderOnce for Input {
                      .pr(if suffix { px(0.) } else { px(12.) }),
              })
              .text_size(text)
@@ -11681,14 +12014,13 @@ index 89fec17e..04a25597 100644
              .rounded(crate::util::field_radius(cx))
              .when(!self.is_disabled, |e| {
                  e.cursor(gpui::CursorStyle::IBeam)
-@@ -1337,19 +1459,34 @@ impl RenderOnce for Input {
+@@ -1337,20 +1767,35 @@ impl RenderOnce for Input {
                          let font = text_font.clone();
                          let masks = self.input_type.masks();
                          let multiline = self.multiline;
 +                        let paras = paragraph_bounds.clone();
-+                        // The caret is drawn at 1.3x the font size; the rows a wrapped
-+                        // paragraph is measured in are the same height.
-+                        let line_h = text * 1.3;
++                        // Hit testing follows the text row advance, not the caret glyph height.
++                        let line_h = px(20.);
                          let size = text;
                          move |ev: &gpui::MouseDownEvent, window, cx| {
 -                            window.focus(&fh);
@@ -11724,9 +12056,11 @@ index 89fec17e..04a25597 100644
 +                                char_at_x(&shown, ev.position.x - left, &font, size, window)
 +                            };
                              st.update(cx, |s, cx| {
++                                s.marked = None;
                                  s.cursor = at;
                                  s.anchor = None;
-@@ -1374,16 +1511,36 @@ impl RenderOnce for Input {
+                                 // A double click takes the word under the
+@@ -1374,20 +1819,41 @@ impl RenderOnce for Input {
                          let font = text_font.clone();
                          let masks = self.input_type.masks();
                          let multiline = self.multiline;
@@ -11768,15 +12102,80 @@ index 89fec17e..04a25597 100644
                              st.update(cx, |s, cx| {
                                  if s.anchor.is_none() {
                                      s.anchor = Some(s.cursor);
-@@ -1463,6 +1620,7 @@ impl RenderOnce for Input {
+                                 }
++                                s.marked = None;
+                                 s.cursor = at;
+                                 cx.notify();
+                             });
+@@ -1463,6 +1929,7 @@ impl RenderOnce for Input {
                  gpui::ElementId::Name(format!("caret-{}", self.state.entity_id().as_u64()).into());
              row = row.child(multiline_body(
                  MultilineBody {
-+                    paragraphs: paragraph_bounds,
++                    paragraphs: paragraph_bounds.clone(),
                      value: &value,
                      cursor,
                      selection,
-@@ -1563,6 +1721,7 @@ impl RenderOnce for Input {
+@@ -1559,10 +2026,67 @@ impl RenderOnce for Input {
+             }
+         };
+ 
++        let edit_state = self.state.clone();
++        let on_change = self.on_change.clone();
++        let platform_native_validity = native_validity.clone();
++        let platform_error_message = edit_error_message.clone();
++        let platform_validate = edit_validate.clone();
++        let platform_validation_errors = edit_validation_errors.clone();
++        let edit_callback: TextCallback = crate::util::shared(move |value, window, cx| {
++            edit_state.update(cx, |s, _| s.clear_routed_errors());
++            refresh_stored_validity(
++                &edit_state,
++                edit_is_invalid,
++                &platform_validation_errors,
++                platform_validate.as_ref(),
++                platform_error_message.clone(),
++                &platform_native_validity,
++                cx,
++            );
++            if let Some(callback) = &on_change {
++                callback(value, window, cx);
++            }
++        });
++        let platform_state = self.state.clone();
++        let platform_edit = edit_callback.clone();
++        let platform_focus = focus_handle.clone();
++        let platform_font = text_font;
++        let platform_paragraphs = paragraph_bounds;
++        let platform_type = self.input_type;
++        let platform_max = self.max_length;
++        let platform_multiline = self.multiline;
++        let platform_disabled = self.is_disabled;
++        row = row.relative().child(
++            gpui::canvas(
++                |_, _, _| {},
++                move |bounds, _, window, cx| {
++                    if !platform_disabled {
++                        window.handle_input(
++                            &platform_focus,
++                            PlatformTextInput {
++                                state: platform_state.clone(),
++                                on_edit: platform_edit.clone(),
++                                input_type: platform_type,
++                                max_length: platform_max,
++                                multiline: platform_multiline,
++                                bounds,
++                                font: platform_font.clone(),
++                                paragraphs: platform_paragraphs.clone(),
++                            },
++                            cx,
++                        );
++                    }
++                },
++            )
++            .absolute()
++            .size_full(),
++        );
++
+         field = field.children(self.start_content);
          field = field.child(row);
          // isClearable — show X when has value and not disabled/readonly
          if self.is_clearable && !is_empty && !self.is_disabled && !self.is_read_only {
@@ -11784,7 +12183,17 @@ index 89fec17e..04a25597 100644
              let clear_content = match self.clear_content {
                  Some(content) => content,
                  None => gpui::svg()
-@@ -1582,56 +1741,100 @@ impl RenderOnce for Input {
+@@ -1574,88 +2098,147 @@ impl RenderOnce for Input {
+             let clear_state = self.state.clone();
+             let clear_on_change = self.on_change.clone();
+             let on_clear = self.on_clear.clone();
+-            let clear_validation_errors = edit_validation_errors.clone();
++            let clear_validation_errors = edit_validation_errors;
+             let clear_validate = edit_validate.clone();
+-            let clear_error_message = edit_error_message.clone();
++            let clear_error_message = edit_error_message;
+             let clear_native = native_validity.clone();
+             // `.search-field__clear-button` *is* a `CloseButton`, and
              // `.close-button:hover` fills `bg-default-hover` -- not a
              // hand-mixed wash.
              let clear_hover_bg = colors.default.hover();
@@ -11894,6 +12303,7 @@ index 89fec17e..04a25597 100644
 +                    window.focus(&input_focus_after_clear, cx);
 +                    clear_state.update(cx, |s, cx| {
 +                        s.value.clear();
++                        s.marked = None;
 +                        s.cursor = 0;
 +                        s.anchor = None;
 +                        // The clear affordance is a user modification:
@@ -11934,6 +12344,365 @@ index 89fec17e..04a25597 100644
          }
          field = field.children(self.end_content);
  
+         // -- editing ----------------------------------------------------------
+         let state_entity = self.state.clone();
+-        let on_change = self.on_change.clone();
+         let on_submit = self.on_submit.clone();
+         let on_clear = self.on_clear.clone();
+         let clear_on_escape = self.clear_on_escape;
+         let is_read_only = self.is_read_only;
+         let is_disabled = self.is_disabled;
+-        let key_validation_errors = edit_validation_errors;
+-        let key_validate = edit_validate.clone();
+-        let key_error_message = edit_error_message;
+-        let key_native = native_validity;
+         field = field.on_key_down(move |ev: &KeyDownEvent, window, cx| {
+             if is_disabled {
+                 return;
+             }
++            crate::util::set_focus_visible(true, cx);
+             let key: &str = &ev.keystroke.key;
+             let mods = ev.keystroke.modifiers;
++            if state_entity.read(cx).marked.is_some() && !matches!(key, "escape" | "tab") {
++                cx.stop_propagation();
++                return;
++            }
+             let input_type = self.input_type;
+             let max_length = self.max_length;
+             let multiline = self.multiline;
++            let owns_key = (!mods.control
++                && !mods.alt
++                && !mods.platform
++                && (matches!(key, "backspace" | "delete" | "left" | "right")
++                    || multiline && matches!(key, "up" | "down" | "home" | "end" | "enter")))
++                || (mods.control || mods.platform)
++                    && !mods.alt
++                    && matches!(key, "a" | "left" | "right");
++            if owns_key {
++                cx.stop_propagation();
++            }
++            if owns_key || key == "escape" {
++                state_entity.update(cx, |state, _| state.marked = None);
++            }
+             let mut changed = false;
+             let mut cleared = false;
+             let mut submit = false;
+@@ -1778,6 +2361,7 @@ impl RenderOnce for Input {
+                     // A multi-line field takes Enter as a newline, the way a
+                     // `<textarea>` does; a single-line one submits.
+                     "enter" if multiline => {
++                        cx.stop_propagation();
+                         if is_read_only {
+                             return;
+                         }
+@@ -1791,19 +2375,6 @@ impl RenderOnce for Input {
+                         });
+                     }
+                     "enter" => submit = true,
+-                    "space" => {
+-                        if is_read_only {
+-                            return;
+-                        }
+-                        changed = state_entity.update(cx, |s, cx| {
+-                            let inserted = state_accepts(s, ' ', input_type, max_length);
+-                            if inserted {
+-                                insert_char(s, ' ');
+-                                cx.notify();
+-                            }
+-                            inserted
+-                        });
+-                    }
+                     "escape" => {
+                         let had_value = !state_entity.read(cx).is_empty();
+                         state_entity.update(cx, |s, cx| {
+@@ -1819,57 +2390,17 @@ impl RenderOnce for Input {
+                             cleared = true;
+                         }
+                     }
+-                    single if single.chars().count() == 1 && !single.is_empty() => {
+-                        if is_read_only {
+-                            return;
+-                        }
+-                        // `keystroke.key` is the *key cap*: "a" for shift+a and
+-                        // "1" for shift+1. What was typed is `key_char`, and it
+-                        // is the only source that gets a capital or a shifted
+-                        // symbol right -- typing "AbC dEf" used to land as
+-                        // "abc def", and every shifted symbol as its digit.
+-                        let typed = ev.keystroke.key_char.as_deref().unwrap_or(single);
+-                        let mut chars = typed.chars();
+-                        let (Some(c), None) = (chars.next(), chars.next()) else {
+-                            return;
+-                        };
+-                        changed = state_entity.update(cx, |s, cx| {
+-                            let inserted = state_accepts(s, c, input_type, max_length);
+-                            if inserted {
+-                                insert_char(s, c);
+-                                cx.notify();
+-                            }
+-                            inserted
+-                        });
+-                    }
+                     _ => {}
+                 }
+             }
+ 
+             if changed {
+-                // v3: server errors are "cleared when user modifies the
+-                // field" — this edit suppresses only this field's routed
+-                // messages, and only because the value really changed.
+-                state_entity.update(cx, |s, _| s.clear_routed_errors());
+-                // The stored mirror is refreshed in the same stroke: an
+-                // `on_change` may submit the enclosing `Form` synchronously,
+-                // and it must not be blocked by the routed error the edit
+-                // just answered.
+-                refresh_stored_validity(
+-                    &state_entity,
+-                    edit_is_invalid,
+-                    &key_validation_errors,
+-                    key_validate.as_ref(),
+-                    key_error_message.clone(),
+-                    &key_native,
+-                    cx,
+-                );
+-                if let Some(cb) = &on_change {
+-                    {
+-                        let v = state_entity.read(cx).value().to_owned();
+-                        cb(&v, window, cx);
+-                    }
++                if mods.control || mods.platform {
++                    cx.stop_propagation();
+                 }
++                state_entity.update(cx, |state, _| state.marked = None);
++                let value = state_entity.read(cx).value().to_owned();
++                edit_callback(&value, window, cx);
+             }
+             if cleared {
+                 if let Some(cb) = &on_clear {
+@@ -2431,6 +2962,224 @@ impl RenderOnce for SearchField {
+ mod tests {
+     use super::*;
+ 
++    #[gpui::test]
++    fn platform_composition_replaces_marked_utf16_ranges(cx: &mut gpui::TestAppContext) {
++        use gpui::InputHandler;
++        let cx = cx.add_empty_window();
++        cx.update(|window, cx| {
++            let state = cx.new(|cx| InputState::with_value(cx, "a😀z"));
++            let mut handler = PlatformTextInput {
++                state: state.clone(),
++                on_edit: crate::util::shared(|_, _, _| {}),
++                input_type: InputType::Text,
++                max_length: None,
++                multiline: false,
++                bounds: gpui::Bounds::default(),
++                font: window.text_style().font(),
++                paragraphs: cx.new(|_| Vec::new()),
++            };
++            handler.set_selected_text_range(1..3, window, cx);
++            handler.replace_and_mark_text_in_range(None, "に", Some(1..1), window, cx);
++            assert_eq!(state.read(cx).value(), "aにz");
++            assert_eq!(handler.marked_text_range(window, cx), Some(1..2));
++            handler.replace_and_mark_text_in_range(None, "日本😀", Some(2..4), window, cx);
++            assert_eq!(state.read(cx).value(), "a日本😀z");
++            assert_eq!(handler.marked_text_range(window, cx), Some(1..5));
++            assert_eq!(
++                handler
++                    .selected_text_range(false, window, cx)
++                    .unwrap()
++                    .range,
++                3..5
++            );
++            let mut actual = None;
++            assert_eq!(
++                handler
++                    .text_for_range(3..5, &mut actual, window, cx)
++                    .as_deref(),
++                Some("😀")
++            );
++            assert_eq!(actual, Some(3..5));
++            handler.replace_text_in_range(None, "東京", window, cx);
++            assert_eq!(state.read(cx).value(), "a東京z");
++            assert_eq!(handler.marked_text_range(window, cx), None);
++            assert_eq!(
++                handler
++                    .selected_text_range(false, window, cx)
++                    .unwrap()
++                    .range,
++                3..3
++            );
++            handler.replace_text_in_range(Some(1..3), "", window, cx);
++            assert_eq!(state.read(cx).value(), "az");
++        });
++    }
++
++    #[gpui::test]
++    fn platform_edits_preserve_filters_and_read_only_state(cx: &mut gpui::TestAppContext) {
++        use gpui::InputHandler;
++        let cx = cx.add_empty_window();
++        cx.update(|window, cx| {
++            let state = cx.new(|cx| InputState::with_value(cx, "12"));
++            let changes = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
++            let recorded = changes.clone();
++            let mut handler = PlatformTextInput {
++                state: state.clone(),
++                on_edit: crate::util::shared(move |value, _, _| {
++                    recorded.borrow_mut().push(value.to_owned());
++                }),
++                input_type: InputType::Number,
++                max_length: Some(3),
++                multiline: false,
++                bounds: gpui::Bounds::default(),
++                font: window.text_style().font(),
++                paragraphs: cx.new(|_| Vec::new()),
++            };
++            handler.set_selected_text_range(0..2, window, cx);
++            handler.replace_text_in_range(None, "abc", window, cx);
++            assert_eq!(state.read(cx).value(), "12");
++            assert_eq!(
++                handler
++                    .selected_text_range(false, window, cx)
++                    .unwrap()
++                    .range,
++                0..2
++            );
++            handler.replace_text_in_range(None, "3x456", window, cx);
++            assert_eq!(state.read(cx).value(), "345");
++            assert_eq!(changes.borrow().as_slice(), ["345"]);
++            state.update(cx, |state, _| state.set_read_only(true));
++            handler.replace_text_in_range(Some(0..3), "7", window, cx);
++            assert_eq!(state.read(cx).value(), "345");
++            assert_eq!(changes.borrow().as_slice(), ["345"]);
++            assert!(!handler.accepts_text_input(window, cx));
++        });
++    }
++
++    #[gpui::test]
++    fn platform_geometry_uses_rendered_row_spacing_and_password_offsets(
++        cx: &mut gpui::TestAppContext,
++    ) {
++        use gpui::InputHandler;
++        let cx = cx.add_empty_window();
++        cx.update(|window, cx| {
++            let state = cx.new(|cx| InputState::with_value(cx, "😀secret"));
++            let origin = gpui::point(px(30.), px(70.));
++            let bounds = gpui::Bounds::new(origin, gpui::size(px(80.), px(20.)));
++            let mut handler = PlatformTextInput {
++                state: state.clone(),
++                on_edit: crate::util::shared(|_, _, _| {}),
++                input_type: InputType::Password,
++                max_length: None,
++                multiline: false,
++                bounds,
++                font: window.text_style().font(),
++                paragraphs: cx.new(|_| vec![bounds]),
++            };
++            let caret = handler.bounds_for_range(2..2, window, cx).unwrap();
++            assert!(caret.left() > origin.x);
++            assert_eq!(caret.top(), origin.y);
++            assert_eq!(
++                handler.character_index_for_point(caret.origin, window, cx),
++                Some(2)
++            );
++            state.update(cx, |state, _| state.set_value(""));
++            assert_eq!(
++                handler.bounds_for_range(0..0, window, cx).unwrap().origin,
++                origin
++            );
++            state.update(cx, |state, _| {
++                state.set_value("one two three four five six seven eight nine ten");
++            });
++            handler.input_type = InputType::Text;
++            handler.multiline = true;
++            let text = state.read(cx).value.clone();
++            let run = gpui::TextRun {
++                len: text.len(),
++                font: handler.font.clone(),
++                color: gpui::black(),
++                background_color: None,
++                underline: None,
++                strikethrough: None,
++            };
++            let shaped = window
++                .text_system()
++                .shape_text(
++                    text.clone().into(),
++                    crate::util::FIELD_TEXT,
++                    &[run],
++                    Some(bounds.size.width),
++                    None,
++                )
++                .unwrap();
++            let third_row = (0..text.len())
++                .find(|&index| {
++                    shaped[0]
++                        .position_for_index(index, px(20.))
++                        .is_some_and(|point| point.y == px(40.))
++                })
++                .expect("fixture must wrap into at least three rows");
++            let caret = handler
++                .bounds_for_range(third_row..third_row, window, cx)
++                .unwrap();
++            assert_eq!(caret.top(), origin.y + px(40.));
++            assert_eq!(caret.size.height, px(20.));
++        });
++    }
++
++    #[gpui::test]
++    fn composition_enter_does_not_submit_or_insert_a_newline(cx: &mut gpui::TestAppContext) {
++        struct View {
++            state: Entity<InputState>,
++            submitted: std::rc::Rc<std::cell::Cell<usize>>,
++            multiline: bool,
++        }
++        impl Render for View {
++            fn render(&mut self, _: &mut Window, _: &mut Context<'_, Self>) -> impl IntoElement {
++                let submitted = self.submitted.clone();
++                Input::new(self.state.clone())
++                    .multiline(self.multiline)
++                    .on_submit(move |_, _, _| {
++                        submitted.set(submitted.get() + 1);
++                    })
++            }
++        }
++        cx.update(herogpui_theme::ThemeProvider::init);
++        for multiline in [false, true] {
++            let state = cx.new(|cx| InputState::with_value(cx, "ab日本z"));
++            let submitted = std::rc::Rc::new(std::cell::Cell::new(0));
++            let window = cx.add_window(|window, cx| {
++                let focus = state.read(cx).focus_handle.clone();
++                window.focus(&focus, cx);
++                View {
++                    state: state.clone(),
++                    submitted: submitted.clone(),
++                    multiline,
++                }
++            });
++            let mut visual = gpui::VisualTestContext::from_window(window.into(), cx);
++            visual.update(|window, cx| {
++                state.update(cx, |state, cx| {
++                    state.marked = Some(2..4);
++                    state.cursor = 4;
++                    cx.notify();
++                });
++                window.refresh();
++            });
++            visual.simulate_keystrokes("enter");
++            assert_eq!(submitted.get(), 0);
++            assert_eq!(
++                state.read_with(&visual, |state, _| state.value.clone()),
++                "ab日本z"
++            );
++            visual.simulate_keystrokes("escape");
++            assert_eq!(
++                state.read_with(&visual, |state, _| state.marked.clone()),
++                None
++            );
++        }
++    }
++
+     fn check(
+         value: &str,
+         ty: InputType,
 diff --git a/crates/herogpui-components/src/input_group.rs b/crates/herogpui-components/src/input_group.rs
 index 3c18ea0a..a1ff479d 100644
 --- a/crates/herogpui-components/src/input_group.rs
@@ -25863,7 +26632,7 @@ index 00000000..b590b5a2
 +    assert_eq!(empty.size.height, px(60.));
 +}
 diff --git a/crates/herogpui-components/tests/text_fields.rs b/crates/herogpui-components/tests/text_fields.rs
-index 6c5c1f0d..4b5f8196 100644
+index 6c5c1f0d..d302da53 100644
 --- a/crates/herogpui-components/tests/text_fields.rs
 +++ b/crates/herogpui-components/tests/text_fields.rs
 @@ -20,7 +20,8 @@
@@ -25888,7 +26657,7 @@ index 6c5c1f0d..4b5f8196 100644
  use herogpui_components::{
      Button, ColorField, Date, DateField, FieldGroup, Fieldset, FieldsetLegend, Input, InputAddon,
      InputGroup, InputOTP, InputState, OtpPattern, OtpState, PickerColor, SearchField, TextArea,
-@@ -60,6 +64,29 @@ fn flush_frame(cx: &mut VisualTestContext) {
+@@ -60,10 +64,64 @@ fn flush_frame(cx: &mut VisualTestContext) {
      cx.update(|window, _| window.refresh());
  }
  
@@ -25918,7 +26687,42 @@ index 6c5c1f0d..4b5f8196 100644
  // ---------------------------------------------------------------------------
  // TextField
  // ---------------------------------------------------------------------------
-@@ -205,8 +232,10 @@ fn text_area_typing_and_newline(cx: &mut TestAppContext) {
+ 
++#[gpui::test]
++fn text_field_accepts_platform_text_without_a_printable_key(cx: &mut TestAppContext) {
++    let changes = events();
++    let recorded = changes.clone();
++    let state = cx.new(|cx| InputState::with_value(cx, "replace me"));
++    let state_for_view = state.clone();
++    let cx = open_host(cx, move || {
++        let changes = changes.clone();
++        TextField::new(state_for_view.clone())
++            .on_change(move |text, _, _| changes.borrow_mut().push(text.to_owned()))
++            .into_any_element()
++    });
++    click(cx, 60., 18.);
++    cx.simulate_keystrokes("ctrl-a");
++    cx.update(|window, app| {
++        window.dispatch_keystroke(
++            gpui::Keystroke {
++                key: "unidentified".into(),
++                key_char: Some("東京😀".into()),
++                modifiers: Modifiers::default(),
++            },
++            app,
++        );
++    });
++    assert_eq!(
++        state.read_with(cx, |state, _| state.value().to_owned()),
++        "東京😀"
++    );
++    assert_eq!(recorded.borrow().as_slice(), ["東京😀"]);
++}
++
+ #[gpui::test]
+ fn text_field_typing_reports_and_holds(cx: &mut TestAppContext) {
+     let changes = events();
+@@ -205,8 +263,10 @@ fn text_area_typing_and_newline(cx: &mut TestAppContext) {
      // content: the row has no `whitespace_nowrap` to force a width, so the
      // field is only ~32px wide until text wraps inside it. Measured by
      // probing: clicks at x = 40 already miss it, x = 20 focus it. A click at
@@ -25931,7 +26735,7 @@ index 6c5c1f0d..4b5f8196 100644
      click(cx, 10., 40.);
      cx.simulate_input("ab");
      // `WhiteSpace::Normal` wraps by default (AGENTS.md), so the only way a
-@@ -257,6 +286,147 @@ fn text_area_max_length_rejects_a_newline_without_change(cx: &mut TestAppContext
+@@ -257,6 +317,147 @@ fn text_area_max_length_rejects_a_newline_without_change(cx: &mut TestAppContext
  // SearchField
  // ---------------------------------------------------------------------------
  
@@ -26079,7 +26883,7 @@ index 6c5c1f0d..4b5f8196 100644
  #[gpui::test]
  fn search_field_clear_and_submit(cx: &mut TestAppContext) {
      let changes = events();
-@@ -305,8 +475,19 @@ fn search_field_clear_and_submit(cx: &mut TestAppContext) {
+@@ -305,8 +506,19 @@ fn search_field_clear_and_submit(cx: &mut TestAppContext) {
      let empty = cx.update(|_, cx| state.read(cx).value().to_owned());
      assert_eq!(empty, "", "clearing must empty the InputState");
  
@@ -26101,7 +26905,7 @@ index 6c5c1f0d..4b5f8196 100644
      cx.simulate_input("abc");
      press(cx, "enter");
      assert_eq!(
-@@ -319,6 +500,110 @@ fn search_field_clear_and_submit(cx: &mut TestAppContext) {
+@@ -319,6 +531,110 @@ fn search_field_clear_and_submit(cx: &mut TestAppContext) {
      assert_eq!(after, "abc", "the InputState must hold the typed value");
  }
  
@@ -26212,7 +27016,7 @@ index 6c5c1f0d..4b5f8196 100644
  #[gpui::test]
  fn search_field_custom_clear_icon_preserves_clear_behavior(cx: &mut TestAppContext) {
      let changes = events();
-@@ -1198,3 +1483,91 @@ fn fieldset_disabled_disables_its_children(cx: &mut TestAppContext) {
+@@ -1198,3 +1514,91 @@ fn fieldset_disabled_disables_its_children(cx: &mut TestAppContext) {
      let value = cx.update(|_, cx| state.read(cx).value().to_owned());
      assert_eq!(value, "abc", "the InputState must hold the typed value");
  }
@@ -31828,7 +32632,7 @@ index 723274b0..f4c6f34d 100644
              // `HEROGPUI_WINDOW_SIZE=1200x2000` opens the window at that size.
              // A capture is one PrintWindow of the whole window, so a taller
 diff --git a/gallery/src/pages/components.rs b/gallery/src/pages/components.rs
-index 5eb12cd4..663a5d9f 100644
+index 5eb12cd4..efe474f6 100644
 --- a/gallery/src/pages/components.rs
 +++ b/gallery/src/pages/components.rs
 @@ -1,7 +1,7 @@
@@ -34585,7 +35389,7 @@ index 5eb12cd4..663a5d9f 100644
                  (
 -                    "Usage",
 -                    col(vec![h::Input::new(self.demo_text("in-usage", "", cx))
-+                    "Usage", "Text adornments inherit the field's 14px text and 20px line height.",
++                    "Usage", "Text adornments inherit the field's 14px text and 20px line height. Platform text replacement, composition updates, and paste use the same editable state as keyboard input.",
 +                    field_col(vec![h::Input::new(self.demo_text("in-usage", "", cx))
                          .label("Name")
 -                        .placeholder("Ada Lovelace")
@@ -35281,7 +36085,7 @@ index 5eb12cd4..663a5d9f 100644
                          .end_content(h::Kbd::new().child("Shift S"))
                          .description("Press Shift+S to focus")
                          .into_any_element()]),
-@@ -7692,21 +8042,26 @@ impl Gallery {
+@@ -7692,21 +8042,27 @@ impl Gallery {
              vec![
                  (
                      "Usage",
@@ -35290,6 +36094,7 @@ index 5eb12cd4..663a5d9f 100644
 -                        .placeholder("Tell us about yourself")
 -                        .description("Markdown is supported.")
 -                        .into_any_element()]),
++                    "Platform edits support composed text and paste. Enter confirms active composition before inserting a newline.",
 +                    col(vec![fixed_demo(
 +                        384.,
 +                        h::TextArea::new(self.demo_text("ta-usage", "", cx))
@@ -35314,7 +36119,7 @@ index 5eb12cd4..663a5d9f 100644
                              .variant(FieldVariant::Secondary)
                              .rows(3)
                              .into_any_element(),
-@@ -7714,12 +8069,13 @@ impl Gallery {
+@@ -7714,12 +8070,13 @@ impl Gallery {
                  ),
                  (
                      "In Surface",
@@ -35329,7 +36134,7 @@ index 5eb12cd4..663a5d9f 100644
                                  .variant(FieldVariant::Secondary)
                                  .rows(3),
                          )
-@@ -7729,6 +8085,7 @@ impl Gallery {
+@@ -7729,6 +8086,7 @@ impl Gallery {
                      "Full Width",
                      col(vec![h::TextArea::new(self.demo_text("ta-full", "", cx))
                          .label("Notes")
@@ -35337,7 +36142,7 @@ index 5eb12cd4..663a5d9f 100644
                          .rows(3)
                          .full_width()
                          .into_any_element()]),
-@@ -7736,18 +8093,21 @@ impl Gallery {
+@@ -7736,18 +8094,21 @@ impl Gallery {
                  (
                      "Controlled",
                      col(vec![
@@ -35365,7 +36170,7 @@ index 5eb12cd4..663a5d9f 100644
                          .rows(6)
                          .into_any_element()]),
                  ),
-@@ -7770,7 +8130,7 @@ impl Gallery {
+@@ -7770,7 +8131,7 @@ impl Gallery {
              vec![
                  (
                      "Usage",
@@ -35374,7 +36179,7 @@ index 5eb12cd4..663a5d9f 100644
                          .label("Full name")
                          .placeholder("Ada Lovelace")
                          .description("As it appears on your ID.")
-@@ -7778,12 +8138,13 @@ impl Gallery {
+@@ -7778,12 +8139,13 @@ impl Gallery {
                  ),
                  (
                      "In Surface",
@@ -35389,7 +36194,7 @@ index 5eb12cd4..663a5d9f 100644
                                  .variant(FieldVariant::Secondary)
                                  .description("Use the secondary variant on a surface"),
                          )
-@@ -7791,26 +8152,29 @@ impl Gallery {
+@@ -7791,26 +8153,29 @@ impl Gallery {
                  ),
                  (
                      "With Description",
@@ -35422,7 +36227,7 @@ index 5eb12cd4..663a5d9f 100644
                      .is_disabled(true)
                      .into_any_element()]),
                  ),
-@@ -7818,14 +8182,16 @@ impl Gallery {
+@@ -7818,14 +8183,16 @@ impl Gallery {
                      "Full Width",
                      col(vec![h::TextField::new(self.demo_text("tf-full", "", cx))
                          .label("Full name")
@@ -35440,7 +36245,7 @@ index 5eb12cd4..663a5d9f 100644
                              .is_required(true)
                              .validate(|value| value
                                  .trim()
-@@ -7834,6 +8200,7 @@ impl Gallery {
+@@ -7834,6 +8201,7 @@ impl Gallery {
                              .into_any_element(),
                          h::TextField::new(self.demo_text("tf-invalid", "", cx))
                          .label("Full name")
@@ -35448,7 +36253,7 @@ index 5eb12cd4..663a5d9f 100644
                          // `isInvalid` marks it invalid from the outside, which is
                          // what a server-side error looks like.
                          .is_invalid(true)
-@@ -7844,16 +8211,18 @@ impl Gallery {
+@@ -7844,16 +8212,18 @@ impl Gallery {
                  (
                      "Controlled",
                      col(vec![
@@ -35472,7 +36277,7 @@ index 5eb12cd4..663a5d9f 100644
                          let field = tf_render_props.clone();
                          h::TextField::new(tf_render_props)
                              .content(move |state| {
-@@ -7872,6 +8241,7 @@ impl Gallery {
+@@ -7872,6 +8242,7 @@ impl Gallery {
                                              "unfocused"
                                          },
                                      ))
@@ -35480,7 +36285,7 @@ index 5eb12cd4..663a5d9f 100644
                                      .is_required(true)
                                      .into_any_element()
                              })
-@@ -7881,29 +8251,33 @@ impl Gallery {
+@@ -7881,29 +8252,33 @@ impl Gallery {
                  ),
                  (
                      "Error Message",
@@ -35517,7 +36322,7 @@ index 5eb12cd4..663a5d9f 100644
                              .input_type(h::InputType::Email)
                              .into_any_element(),
                      ]),
-@@ -7944,16 +8318,36 @@ impl Gallery {
+@@ -7944,16 +8319,36 @@ impl Gallery {
              vec![
                  (
                      "Usage",
@@ -35558,7 +36363,7 @@ index 5eb12cd4..663a5d9f 100644
                          .into_any_element()]),
                  ),
                  (
-@@ -8011,7 +8405,7 @@ impl Gallery {
+@@ -8011,7 +8406,7 @@ impl Gallery {
                          )
                          .child(
                              h::CardFooter::new()
@@ -35567,7 +36372,7 @@ index 5eb12cd4..663a5d9f 100644
                                  .child("By Martha"),
                          )
                          .into_any_element()]),
-@@ -8181,7 +8575,7 @@ impl Gallery {
+@@ -8181,7 +8576,7 @@ impl Gallery {
                  ),
                  (
                      "With form components",
@@ -35576,7 +36381,7 @@ index 5eb12cd4..663a5d9f 100644
                          // Same as the variants panel: upstream adds its
                          // `p-6` + `gap-4` through className; these explicit
                          // paddings/gaps exercise the port's own layout
-@@ -8195,7 +8589,8 @@ impl Gallery {
+@@ -8195,7 +8590,8 @@ impl Gallery {
                          )
                          .child(
                              h::TextArea::new(self.input_bio.clone())
@@ -35586,7 +36391,7 @@ index 5eb12cd4..663a5d9f 100644
                          )
                          .into_any_element()]),
                  ),
-@@ -8223,10 +8618,9 @@ impl Gallery {
+@@ -8223,10 +8619,9 @@ impl Gallery {
                              h::ToggleButton::new(el_id(format!("tbar-{key}-i"))).label("I"),
                          ),
                  )
@@ -35600,7 +36405,7 @@ index 5eb12cd4..663a5d9f 100644
                  .child(
                      h::ButtonGroup::new()
                          .variant(Variant::Tertiary)
-@@ -8278,7 +8672,7 @@ impl Gallery {
+@@ -8278,7 +8673,7 @@ impl Gallery {
                                  .button(h::Button::new("tb-bg-2").label("Center"))
                                  .button(h::Button::new("tb-bg-3").label("Right")),
                          )
@@ -35609,7 +36414,7 @@ index 5eb12cd4..663a5d9f 100644
                          .child(
                              h::Button::new("tb-bg-4")
                                  .label("Reset")
-@@ -8341,7 +8735,7 @@ impl Gallery {
+@@ -8341,7 +8736,7 @@ impl Gallery {
              .take(3)
              .enumerate()
              .map(|(i, n)| {
@@ -35618,7 +36423,7 @@ index 5eb12cd4..663a5d9f 100644
                  if i == 0 {
                      d.into_any_element()
                  } else {
-@@ -8369,40 +8763,61 @@ impl Gallery {
+@@ -8369,40 +8764,61 @@ impl Gallery {
              vec![
                  (
                      "Usage",
@@ -35690,7 +36495,7 @@ index 5eb12cd4..663a5d9f 100644
                                  cx,
                              )
                          })
-@@ -8412,17 +8827,22 @@ impl Gallery {
+@@ -8412,17 +8828,22 @@ impl Gallery {
                      "Colors",
                      row(Color::ALL
                          .iter()
@@ -35717,7 +36522,7 @@ index 5eb12cd4..663a5d9f 100644
                                  cx,
                              )
                          })
-@@ -8440,7 +8860,8 @@ impl Gallery {
+@@ -8440,7 +8861,8 @@ impl Gallery {
                              gpui::div()
                                  .flex()
                                  .children(names.iter().take(4).enumerate().map(|(i, n)| {
@@ -35727,7 +36532,7 @@ index 5eb12cd4..663a5d9f 100644
                                      if i == 0 {
                                          d.into_any_element()
                                      } else {
-@@ -8455,6 +8876,24 @@ impl Gallery {
+@@ -8455,6 +8877,24 @@ impl Gallery {
                          )
                          .into_any_element()]),
                  ),
@@ -35752,7 +36557,7 @@ index 5eb12cd4..663a5d9f 100644
              ],
              cx,
          )
-@@ -8486,6 +8925,7 @@ impl Gallery {
+@@ -8486,6 +8926,7 @@ impl Gallery {
              vec![
                  (
                      "Usage",
@@ -35760,7 +36565,7 @@ index 5eb12cd4..663a5d9f 100644
                      col(vec![h::Accordion::new(items())
                          .id("acc-usage")
                          .default_expanded("1")
-@@ -8774,6 +9214,30 @@ impl Gallery {
+@@ -8774,6 +9215,30 @@ impl Gallery {
                      .child(gpui::div().child("Ships in 2-4 business days."))
                      .into_any_element()]),
                  ),
@@ -35791,7 +36596,7 @@ index 5eb12cd4..663a5d9f 100644
                  (
                      "Controlled",
                      col(vec![
-@@ -8866,14 +9330,8 @@ impl Gallery {
+@@ -8866,14 +9331,8 @@ impl Gallery {
                  ),
                  (
                      "Text Decoration",
@@ -35807,7 +36612,7 @@ index 5eb12cd4..663a5d9f 100644
                          h::Link::new("ln-decor")
                              .label("Underlined on hover")
                              .href("#")
-@@ -8888,6 +9346,37 @@ impl Gallery {
+@@ -8888,6 +9347,37 @@ impl Gallery {
                          .href("#")
                          .into_any_element()]),
                  ),
@@ -35845,7 +36650,7 @@ index 5eb12cd4..663a5d9f 100644
              ],
              cx,
          )
-@@ -8911,10 +9400,12 @@ impl Gallery {
+@@ -8911,10 +9401,12 @@ impl Gallery {
                  ),
                  (
                      "Sizes",
@@ -35858,7 +36663,7 @@ index 5eb12cd4..663a5d9f 100644
                          })
                          .els()),
                  ),
-@@ -8998,13 +9489,8 @@ impl Gallery {
+@@ -8998,13 +9490,8 @@ impl Gallery {
                          .into_any_element()]),
                  ),
                  (
@@ -35873,7 +36678,7 @@ index 5eb12cd4..663a5d9f 100644
                          h::Pagination::new("pg-render-props", page, 5)
                              .link(|page, is_active| {
                                  gpui::div()
-@@ -9023,13 +9509,8 @@ impl Gallery {
+@@ -9023,13 +9510,8 @@ impl Gallery {
                      ]),
                  ),
                  (
@@ -35888,7 +36693,7 @@ index 5eb12cd4..663a5d9f 100644
                          h::Pagination::new("pg-custom", page, 5)
                              .previous_icon(icon(h::icons::ARROW_LEFT, cx))
                              .next_icon(icon(h::icons::ARROW_RIGHT, cx))
-@@ -9071,6 +9552,7 @@ impl Gallery {
+@@ -9071,6 +9553,7 @@ impl Gallery {
              vec![
                  (
                      "Usage",
@@ -35896,7 +36701,7 @@ index 5eb12cd4..663a5d9f 100644
                      col(vec![h::Tabs::new(
                          "tabs-usage",
                          vec![
-@@ -9104,8 +9586,8 @@ impl Gallery {
+@@ -9104,8 +9587,8 @@ impl Gallery {
                  ),
                  (
                      "Overflow",
@@ -35906,7 +36711,7 @@ index 5eb12cd4..663a5d9f 100644
                          para("Horizontal", cx),
                          // The list only overflows inside a bounded box, which is
                          // how v3's own example frames it.
-@@ -9226,7 +9708,7 @@ impl Gallery {
+@@ -9226,7 +9709,7 @@ impl Gallery {
              vec![
                  (
                      "Sizes",
@@ -35915,7 +36720,7 @@ index 5eb12cd4..663a5d9f 100644
                          ("ad-size-xs", "Xs", h::AlertDialogSize::Xs),
                          ("ad-size-sm", "Sm", h::AlertDialogSize::Sm),
                          ("ad-size-md", "Md", h::AlertDialogSize::Md),
-@@ -9237,6 +9719,7 @@ impl Gallery {
+@@ -9237,6 +9720,7 @@ impl Gallery {
                      .map(|(key, label, size)| {
                          let open = self.demo_overlay(key);
                          overlay_demo(
@@ -35923,7 +36728,7 @@ index 5eb12cd4..663a5d9f 100644
                              key,
                              label,
                              h::AlertDialog::new(format!("Size: {label}")).id(key)
-@@ -9258,7 +9741,7 @@ impl Gallery {
+@@ -9258,7 +9742,7 @@ impl Gallery {
                  ),
                  (
                      "Statuses",
@@ -35932,7 +36737,7 @@ index 5eb12cd4..663a5d9f 100644
                          ("ad-st-default", "Default", Color::Default),
                          ("ad-st-accent", "Accent", Color::Accent),
                          ("ad-st-success", "Success", Color::Success),
-@@ -9269,6 +9752,7 @@ impl Gallery {
+@@ -9269,6 +9753,7 @@ impl Gallery {
                      .map(|(key, label, status)| {
                          let open = self.demo_overlay(key);
                          overlay_demo(
@@ -35940,7 +36745,7 @@ index 5eb12cd4..663a5d9f 100644
                              key,
                              label,
                              h::AlertDialog::new(format!("{label} status")).id(key)
-@@ -9290,7 +9774,7 @@ impl Gallery {
+@@ -9290,7 +9775,7 @@ impl Gallery {
                  ),
                  (
                      "Placements",
@@ -35949,7 +36754,7 @@ index 5eb12cd4..663a5d9f 100644
                          ("ad-pl-auto", "Auto", h::ModalPlacement::Auto),
                          ("ad-pl-center", "Center", h::ModalPlacement::Center),
                          ("ad-pl-top", "Top", h::ModalPlacement::Top),
-@@ -9300,6 +9784,7 @@ impl Gallery {
+@@ -9300,6 +9785,7 @@ impl Gallery {
                      .map(|(key, label, placement)| {
                          let open = self.demo_overlay(key);
                          overlay_demo(
@@ -35957,7 +36762,7 @@ index 5eb12cd4..663a5d9f 100644
                              key,
                              label,
                              h::AlertDialog::new(format!("Placement: {label}")).id(key)
-@@ -9321,7 +9806,7 @@ impl Gallery {
+@@ -9321,7 +9807,7 @@ impl Gallery {
                  ),
                  (
                      "Backdrop Variants",
@@ -35966,7 +36771,7 @@ index 5eb12cd4..663a5d9f 100644
                          .iter()
                          .map(|backdrop| {
                              let key: &'static str = match backdrop {
-@@ -9331,6 +9816,7 @@ impl Gallery {
+@@ -9331,6 +9817,7 @@ impl Gallery {
                              };
                              let open = self.demo_overlay(key);
                              overlay_demo(
@@ -35974,7 +36779,7 @@ index 5eb12cd4..663a5d9f 100644
                                  key,
                                  backdrop.label(),
                                  h::AlertDialog::new(format!("Backdrop: {}", backdrop.label())).id(key)
-@@ -9352,7 +9838,8 @@ impl Gallery {
+@@ -9352,7 +9839,8 @@ impl Gallery {
                  ),
                  (
                      "Controlled State",
@@ -35984,7 +36789,7 @@ index 5eb12cd4..663a5d9f 100644
                          "ad-controlled",
                          "Open (controlled)",
                          h::AlertDialog::new("Controlled").id("ad-controlled")
-@@ -9369,7 +9856,8 @@ impl Gallery {
+@@ -9369,7 +9857,8 @@ impl Gallery {
                  ),
                  (
                      "Custom Icon",
@@ -35994,7 +36799,7 @@ index 5eb12cd4..663a5d9f 100644
                          "ad-icon",
                          "Open with a status icon",
                          h::AlertDialog::new("Heads up").id("ad-icon")
-@@ -9387,7 +9875,8 @@ impl Gallery {
+@@ -9387,7 +9876,8 @@ impl Gallery {
                  ),
                  (
                      "Custom Backdrop",
@@ -36004,7 +36809,7 @@ index 5eb12cd4..663a5d9f 100644
                          "ad-custom-bd",
                          "Open with a blurred backdrop",
                          h::AlertDialog::new("Blurred").id("ad-custom-bd")
-@@ -9405,7 +9894,8 @@ impl Gallery {
+@@ -9405,7 +9895,8 @@ impl Gallery {
                  ),
                  (
                      "Dismiss Behavior",
@@ -36014,7 +36819,7 @@ index 5eb12cd4..663a5d9f 100644
                          "ad-dismiss",
                          "Open a non-dismissable dialog",
                          h::AlertDialog::new("Confirm first").id("ad-dismiss")
-@@ -9424,12 +9914,13 @@ impl Gallery {
+@@ -9424,12 +9915,13 @@ impl Gallery {
                  ),
                  (
                      "Close Methods",
@@ -36030,7 +36835,7 @@ index 5eb12cd4..663a5d9f 100644
                                  .is_open(self.demo_overlay("ad-close"))
                                  .footer_child(
                                      h::Button::new("ad-close-cancel")
-@@ -9457,6 +9948,7 @@ impl Gallery {
+@@ -9457,6 +9949,7 @@ impl Gallery {
                              cx,
                          ),
                          overlay_demo(
@@ -36038,7 +36843,7 @@ index 5eb12cd4..663a5d9f 100644
                              "ad-pending",
                              "Open (pending confirm)",
                              h::AlertDialog::new("Deploying").id("ad-pending")
-@@ -9487,7 +9979,8 @@ impl Gallery {
+@@ -9487,7 +9980,8 @@ impl Gallery {
                  ),
                  (
                      "Custom Animations",
@@ -36048,7 +36853,7 @@ index 5eb12cd4..663a5d9f 100644
                          "ad-anim",
                          "Open and watch the panel",
                          h::AlertDialog::new("Animated").id("ad-anim")
-@@ -9504,13 +9997,18 @@ impl Gallery {
+@@ -9504,13 +9998,18 @@ impl Gallery {
                  ),
                  (
                      "Custom Trigger",
@@ -36074,7 +36879,7 @@ index 5eb12cd4..663a5d9f 100644
                          .child(
                              gpui::div()
                                  .id("ad-custom-trigger")
-@@ -9529,7 +10027,7 @@ impl Gallery {
+@@ -9529,7 +10028,7 @@ impl Gallery {
                          .child(
                              h::AlertDialog::new("Delete this account?").id("ad-custom")
                                  .description("Any element can open an alert dialog; a composed CloseTrigger draws the corner X and a composed footer owns the danger confirm.")
@@ -36083,7 +36888,7 @@ index 5eb12cd4..663a5d9f 100644
                                  .child(h::AlertDialogCloseTrigger::new())
                                  .footer_child(
                                      h::Button::new("ad-custom-cancel")
-@@ -9554,58 +10052,64 @@ impl Gallery {
+@@ -9554,58 +10053,64 @@ impl Gallery {
                                      cx.notify();
                                  })))
                          )
@@ -36197,7 +37002,7 @@ index 5eb12cd4..663a5d9f 100644
              )],
              cx,
          )
-@@ -9620,7 +10124,7 @@ impl Gallery {
+@@ -9620,7 +10125,7 @@ impl Gallery {
              vec![
                  (
                      "Placement",
@@ -36206,7 +37011,7 @@ index 5eb12cd4..663a5d9f 100644
                          ("dr-left", "Left", h::DrawerPlacement::Left),
                          ("dr-right", "Right", h::DrawerPlacement::Right),
                          ("dr-top", "Top", h::DrawerPlacement::Top),
-@@ -9630,6 +10134,7 @@ impl Gallery {
+@@ -9630,6 +10135,7 @@ impl Gallery {
                      .map(|(key, label, placement)| {
                          let open = self.demo_overlay(key);
                          overlay_demo(
@@ -36214,7 +37019,7 @@ index 5eb12cd4..663a5d9f 100644
                              key,
                              label,
                              h::Drawer::new()
-@@ -9654,7 +10159,8 @@ impl Gallery {
+@@ -9654,7 +10160,8 @@ impl Gallery {
                  ),
                  (
                      "Non-Dismissable",
@@ -36224,7 +37029,7 @@ index 5eb12cd4..663a5d9f 100644
                          "dr-no-dismiss",
                          "Open a non-dismissable drawer",
                          h::Drawer::new()
-@@ -9682,7 +10188,8 @@ impl Gallery {
+@@ -9682,7 +10189,8 @@ impl Gallery {
                  ),
                  (
                      "Scrollable Content",
@@ -36234,7 +37039,7 @@ index 5eb12cd4..663a5d9f 100644
                          "dr-scroll",
                          "Open a long drawer",
                          h::Drawer::new()
-@@ -9706,7 +10213,7 @@ impl Gallery {
+@@ -9706,7 +10214,7 @@ impl Gallery {
                  ),
                  (
                      "Controlled State",
@@ -36243,7 +37048,7 @@ index 5eb12cd4..663a5d9f 100644
                          para(
                              &format!(
                                  "The flag lives with the caller: {}",
-@@ -9719,6 +10226,7 @@ impl Gallery {
+@@ -9719,6 +10227,7 @@ impl Gallery {
                              cx,
                          ),
                          overlay_demo(
@@ -36251,7 +37056,7 @@ index 5eb12cd4..663a5d9f 100644
                              "dr-controlled",
                              "Open (controlled)",
                              h::Drawer::new()
-@@ -9739,7 +10247,8 @@ impl Gallery {
+@@ -9739,7 +10248,8 @@ impl Gallery {
                  ),
                  (
                      "With Form",
@@ -36261,7 +37066,7 @@ index 5eb12cd4..663a5d9f 100644
                          "dr-form",
                          "Open a form drawer",
                          h::Drawer::new()
-@@ -9779,7 +10288,8 @@ impl Gallery {
+@@ -9779,7 +10289,8 @@ impl Gallery {
                  ),
                  (
                      "Navigation Drawer",
@@ -36271,7 +37076,7 @@ index 5eb12cd4..663a5d9f 100644
                          "dr-nav",
                          "Open the navigation",
                          h::Drawer::new()
-@@ -9809,7 +10319,7 @@ impl Gallery {
+@@ -9809,7 +10320,7 @@ impl Gallery {
                  ),
                  (
                      "Backdrop Variants",
@@ -36280,7 +37085,7 @@ index 5eb12cd4..663a5d9f 100644
                          .iter()
                          .map(|backdrop| {
                              let key: &'static str = match backdrop {
-@@ -9819,6 +10329,7 @@ impl Gallery {
+@@ -9819,6 +10330,7 @@ impl Gallery {
                              };
                              let open = self.demo_overlay(key);
                              overlay_demo(
@@ -36288,7 +37093,7 @@ index 5eb12cd4..663a5d9f 100644
                                  key,
                                  backdrop.label(),
                                  h::Drawer::new()
-@@ -9843,39 +10354,44 @@ impl Gallery {
+@@ -9843,39 +10355,44 @@ impl Gallery {
                  ),
                  (
                      "Usage",
@@ -36362,7 +37167,7 @@ index 5eb12cd4..663a5d9f 100644
                  ),
              ],
              cx,
-@@ -9898,7 +10414,7 @@ impl Gallery {
+@@ -9898,7 +10415,7 @@ impl Gallery {
              vec![
                  (
                      "Sizes",
@@ -36371,7 +37176,7 @@ index 5eb12cd4..663a5d9f 100644
                          ("md-size-xs", "Xs", h::ModalSize::Xs),
                          ("md-size-sm", "Sm", h::ModalSize::Sm),
                          ("md-size-md", "Md", h::ModalSize::Md),
-@@ -9910,6 +10426,7 @@ impl Gallery {
+@@ -9910,6 +10427,7 @@ impl Gallery {
                      .map(|(key, label, size)| {
                          let open = self.demo_overlay(key);
                          overlay_demo(
@@ -36379,7 +37184,7 @@ index 5eb12cd4..663a5d9f 100644
                              key,
                              label,
                              h::Modal::new()
-@@ -9934,7 +10451,7 @@ impl Gallery {
+@@ -9934,7 +10452,7 @@ impl Gallery {
                  ),
                  (
                      "Placement",
@@ -36388,7 +37193,7 @@ index 5eb12cd4..663a5d9f 100644
                          ("md-place-auto", "Auto", h::ModalPlacement::Auto),
                          ("md-place-center", "Center", h::ModalPlacement::Center),
                          ("md-place-top", "Top", h::ModalPlacement::Top),
-@@ -9944,6 +10461,7 @@ impl Gallery {
+@@ -9944,6 +10462,7 @@ impl Gallery {
                      .map(|(key, label, placement)| {
                          let open = self.demo_overlay(key);
                          overlay_demo(
@@ -36396,7 +37201,7 @@ index 5eb12cd4..663a5d9f 100644
                              key,
                              label,
                              h::Modal::new()
-@@ -9968,7 +10486,7 @@ impl Gallery {
+@@ -9968,7 +10487,7 @@ impl Gallery {
                  ),
                  (
                      "Scroll Behavior",
@@ -36405,7 +37210,7 @@ index 5eb12cd4..663a5d9f 100644
                          ("md-scroll-inside", "Inside", h::ModalScroll::Inside),
                          ("md-scroll-outside", "Outside", h::ModalScroll::Outside),
                      ]
-@@ -9976,6 +10494,7 @@ impl Gallery {
+@@ -9976,6 +10495,7 @@ impl Gallery {
                      .map(|(key, label, scroll)| {
                          let open = self.demo_overlay(key);
                          overlay_demo(
@@ -36413,7 +37218,7 @@ index 5eb12cd4..663a5d9f 100644
                              key,
                              label,
                              h::Modal::new()
-@@ -10004,7 +10523,7 @@ impl Gallery {
+@@ -10004,7 +10524,7 @@ impl Gallery {
                  ),
                  (
                      "Controlled State",
@@ -36422,7 +37227,7 @@ index 5eb12cd4..663a5d9f 100644
                          para(
                              &format!(
                                  "The flag lives with the caller: {}",
-@@ -10013,6 +10532,7 @@ impl Gallery {
+@@ -10013,6 +10533,7 @@ impl Gallery {
                              cx,
                          ),
                          overlay_demo(
@@ -36430,7 +37235,7 @@ index 5eb12cd4..663a5d9f 100644
                              "md-controlled",
                              "Open (controlled)",
                              h::Modal::new()
-@@ -10033,7 +10553,8 @@ impl Gallery {
+@@ -10033,7 +10554,8 @@ impl Gallery {
                  ),
                  (
                      "With Form",
@@ -36440,7 +37245,7 @@ index 5eb12cd4..663a5d9f 100644
                          "md-form",
                          "Open form modal",
                          h::Modal::new()
-@@ -10075,18 +10596,21 @@ impl Gallery {
+@@ -10075,18 +10597,21 @@ impl Gallery {
                  ),
                  (
                      "Custom Trigger",
@@ -36470,7 +37275,7 @@ index 5eb12cd4..663a5d9f 100644
                                  .on_click(cx.listener(|this, _, _, cx| {
                                      this.set_demo_flag("md-custom", true);
                                      cx.notify();
-@@ -10109,7 +10633,7 @@ impl Gallery {
+@@ -10109,7 +10634,7 @@ impl Gallery {
                  ),
                  (
                      "Backdrop Variants",
@@ -36479,7 +37284,7 @@ index 5eb12cd4..663a5d9f 100644
                          .iter()
                          .map(|backdrop| {
                              let key: &'static str = match backdrop {
-@@ -10119,6 +10643,7 @@ impl Gallery {
+@@ -10119,6 +10644,7 @@ impl Gallery {
                              };
                              let open = self.demo_overlay(key);
                              overlay_demo(
@@ -36487,7 +37292,7 @@ index 5eb12cd4..663a5d9f 100644
                                  key,
                                  backdrop.label(),
                                  h::Modal::new()
-@@ -10143,14 +10668,10 @@ impl Gallery {
+@@ -10143,14 +10669,10 @@ impl Gallery {
                  ),
                  (
                      "Custom Backdrop",
@@ -36505,7 +37310,7 @@ index 5eb12cd4..663a5d9f 100644
                              "md-bd-custom",
                              "Open with a blurred backdrop",
                              h::Modal::new()
-@@ -10172,13 +10693,10 @@ impl Gallery {
+@@ -10172,13 +10694,10 @@ impl Gallery {
                  ),
                  (
                      "Dismiss Behavior",
@@ -36522,7 +37327,7 @@ index 5eb12cd4..663a5d9f 100644
                              "md-no-dismiss",
                              "Open a non-dismissable modal",
                              h::Modal::new()
-@@ -10210,15 +10728,10 @@ impl Gallery {
+@@ -10210,15 +10729,10 @@ impl Gallery {
                  ),
                  (
                      "Close Methods",
@@ -36541,7 +37346,7 @@ index 5eb12cd4..663a5d9f 100644
                              "md-close",
                              "Open (no close trigger)",
                              h::Modal::new()
-@@ -10250,16 +10763,10 @@ impl Gallery {
+@@ -10250,16 +10764,10 @@ impl Gallery {
                  ),
                  (
                      "Custom Animations",
@@ -36561,7 +37366,7 @@ index 5eb12cd4..663a5d9f 100644
                              "md-anim",
                              "Open and watch the panel",
                              h::Modal::new()
-@@ -10280,13 +10787,17 @@ impl Gallery {
+@@ -10280,13 +10788,17 @@ impl Gallery {
                  ),
                  (
                      "Usage",
@@ -36586,7 +37391,7 @@ index 5eb12cd4..663a5d9f 100644
                          .child(
                              h::Button::new("md-open")
                                  .label("Open modal")
-@@ -10325,7 +10836,8 @@ impl Gallery {
+@@ -10325,7 +10837,8 @@ impl Gallery {
                                      cx.notify();
                                  })),
                          )
@@ -36596,7 +37401,7 @@ index 5eb12cd4..663a5d9f 100644
                  ),
              ],
              cx,
-@@ -10335,6 +10847,20 @@ impl Gallery {
+@@ -10335,6 +10848,20 @@ impl Gallery {
      pub fn page_popover(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
          let is_open = self.popover_open;
          let po_following = self.demo_flag("po-following", false);
@@ -36617,7 +37422,7 @@ index 5eb12cd4..663a5d9f 100644
          component_doc_page!(
              "Popover",
              crate::pages::Page::Popover.description(),
-@@ -10342,79 +10868,121 @@ impl Gallery {
+@@ -10342,79 +10869,121 @@ impl Gallery {
              vec![
                  (
                      "With Arrow",
@@ -36773,7 +37578,7 @@ index 5eb12cd4..663a5d9f 100644
                              .title("Sarah Johnson")
                              .child(
                                  gpui::div()
-@@ -10442,16 +11010,16 @@ impl Gallery {
+@@ -10442,16 +11011,16 @@ impl Gallery {
                                      ),
                              ),
                          )
@@ -36796,7 +37601,7 @@ index 5eb12cd4..663a5d9f 100644
                          .children(
                              [
                                  ("po-pl-top", "Top", h::PopoverPlacement::Top),
-@@ -10461,7 +11029,24 @@ impl Gallery {
+@@ -10461,7 +11030,24 @@ impl Gallery {
                              ]
                              .into_iter()
                              .map(|(id, label, placement)| {
@@ -36822,7 +37627,7 @@ index 5eb12cd4..663a5d9f 100644
                                      h::Popover::new(
                                          h::Button::new(el_id(format!("{id}-trigger")))
                                              .label(label)
-@@ -10469,30 +11054,221 @@ impl Gallery {
+@@ -10469,30 +11055,221 @@ impl Gallery {
                                              .size(Size::Sm),
                                      )
                                      .id(id)
@@ -37059,7 +37864,7 @@ index 5eb12cd4..663a5d9f 100644
                  ),
              ],
              cx,
-@@ -10541,13 +11317,8 @@ impl Gallery {
+@@ -10541,13 +11318,8 @@ impl Gallery {
                  ),
                  (
                      "Placements",
@@ -37074,7 +37879,7 @@ index 5eb12cd4..663a5d9f 100644
                          row([
                              ("TopStart", h::ToastPlacement::TopStart),
                              ("Top", h::ToastPlacement::Top),
-@@ -10592,13 +11363,8 @@ impl Gallery {
+@@ -10592,13 +11364,8 @@ impl Gallery {
                  ),
                  (
                      "Custom Indicators",
@@ -37089,7 +37894,7 @@ index 5eb12cd4..663a5d9f 100644
                          row(vec![
                              h::Button::new("toast-ind-success")
                                  .label("Success")
-@@ -10646,13 +11412,8 @@ impl Gallery {
+@@ -10646,13 +11413,8 @@ impl Gallery {
                  ),
                  (
                      "Custom Toast Rendering",
@@ -37104,7 +37909,7 @@ index 5eb12cd4..663a5d9f 100644
                          row(vec![h::Button::new("toast-custom")
                              .label("Push a two-line toast")
                              .variant(Variant::Secondary)
-@@ -10669,13 +11430,8 @@ impl Gallery {
+@@ -10669,13 +11431,8 @@ impl Gallery {
                  ),
                  (
                      "Promise & Loading",
@@ -37119,7 +37924,7 @@ index 5eb12cd4..663a5d9f 100644
                          row(vec![h::Button::new("toast-promise")
                              .label("Upload a file")
                              .variant(Variant::Secondary)
-@@ -10708,13 +11464,9 @@ impl Gallery {
+@@ -10708,13 +11465,9 @@ impl Gallery {
                  ),
                  (
                      "Callbacks",
@@ -37134,7 +37939,7 @@ index 5eb12cd4..663a5d9f 100644
                          row(vec![h::Button::new("toast-callback")
                              .label("Push a closable toast")
                              .variant(Variant::Secondary)
-@@ -10731,12 +11483,8 @@ impl Gallery {
+@@ -10731,12 +11484,8 @@ impl Gallery {
                  ),
                  (
                      "Custom Queues",
@@ -37148,7 +37953,7 @@ index 5eb12cd4..663a5d9f 100644
                          row(vec![h::Button::new("toast-queue")
                              .label("Push four")
                              .variant(Variant::Secondary)
-@@ -10753,12 +11501,8 @@ impl Gallery {
+@@ -10753,12 +11502,8 @@ impl Gallery {
                  ),
                  (
                      "Setup",
@@ -37162,7 +37967,7 @@ index 5eb12cd4..663a5d9f 100644
                          crate::pages::code_block(TOAST_SETUP, cx),
                      ]),
                  ),
-@@ -10822,7 +11566,7 @@ impl Gallery {
+@@ -10822,7 +11567,7 @@ impl Gallery {
                          h::Tooltip::new("Jane Doe")
                              .delay(0)
                              .show_arrow(true)
@@ -37171,7 +37976,7 @@ index 5eb12cd4..663a5d9f 100644
                              .into_any_element(),
                          h::Tooltip::new("Verified account")
                              .delay(0)
-@@ -10928,110 +11672,120 @@ impl Gallery {
+@@ -10928,110 +11673,120 @@ impl Gallery {
              vec![
                  (
                      "Virtualization",
@@ -37319,7 +38124,7 @@ index 5eb12cd4..663a5d9f 100644
                          self.demo_text("ac-sections", "", cx),
                          vec![
                              h::PickerItem::new("rust", "Rust"),
-@@ -11041,6 +11795,7 @@ impl Gallery {
+@@ -11041,6 +11796,7 @@ impl Gallery {
                          ],
                      )
                      .label("Language")
@@ -37327,7 +38132,7 @@ index 5eb12cd4..663a5d9f 100644
                      .section_before("rust", "Systems")
                      .section_before("typescript", "Scripting")
                      .default_open(true)
-@@ -11048,11 +11803,12 @@ impl Gallery {
+@@ -11048,11 +11804,12 @@ impl Gallery {
                  ),
                  (
                      "Multiple Select",
@@ -37341,7 +38146,7 @@ index 5eb12cd4..663a5d9f 100644
                      .selection_mode(SelectionMode::Multiple)
                      // `defaultValue` is `Key | Key[]`: the uncontrolled
                      // selection, seeded once, by key.
-@@ -11065,6 +11821,7 @@ impl Gallery {
+@@ -11065,6 +11822,7 @@ impl Gallery {
                      col(vec![
                          h::Autocomplete::new(self.demo_text("ac-controlled", "", cx), language_items())
                              .label("Language")
@@ -37349,7 +38154,7 @@ index 5eb12cd4..663a5d9f 100644
                              .input_value(ac_typed)
                              .on_input_change(cx.listener(|this, text: &str, _, cx| {
                                  this.set_demo_text_value("ac-typed", text.to_owned());
-@@ -11087,11 +11844,12 @@ impl Gallery {
+@@ -11087,11 +11845,12 @@ impl Gallery {
                  ),
                  (
                      "Controlled Multiple",
@@ -37363,7 +38168,7 @@ index 5eb12cd4..663a5d9f 100644
                      .selection_mode(SelectionMode::Multiple)
                      .selected_keys(ac_multi.iter().cloned())
                      .on_selection_change_all(cx.listener(|this, keys: &[SharedString], _, cx| {
-@@ -11117,6 +11875,7 @@ impl Gallery {
+@@ -11117,6 +11876,7 @@ impl Gallery {
                          ]),
                          h::Autocomplete::new(self.demo_text("ac-open", "", cx), language_items())
                              .label("Language")
@@ -37371,7 +38176,7 @@ index 5eb12cd4..663a5d9f 100644
                              .is_open(ac_open)
                              .on_open_change(bool_cb(cx.listener(|this, v: &bool, _, cx| {
                                  this.set_demo_flag("ac-open", *v);
-@@ -11127,16 +11886,12 @@ impl Gallery {
+@@ -11127,16 +11887,12 @@ impl Gallery {
                  ),
                  (
                      "Asynchronous Filtering",
@@ -37390,7 +38195,7 @@ index 5eb12cd4..663a5d9f 100644
                                  // `useFilter({sensitivity: "base"}).contains`:
                                  // case and accents both ignored, so "cafe"
                                  // finds "Café". The closure receives
-@@ -11153,11 +11908,12 @@ impl Gallery {
+@@ -11153,11 +11909,12 @@ impl Gallery {
                  ),
                  (
                      "Custom Indicator",
@@ -37404,7 +38209,7 @@ index 5eb12cd4..663a5d9f 100644
                      .default_open(true)
                      .indicator(|is_open| {
                          gpui::div()
-@@ -11169,17 +11925,11 @@ impl Gallery {
+@@ -11169,17 +11926,11 @@ impl Gallery {
                  ),
                  (
                      "Custom Value",
@@ -37424,7 +38229,7 @@ index 5eb12cd4..663a5d9f 100644
                              .selection_mode(SelectionMode::Multiple)
                              .default_value(["rust", "go"])
                              .value_content(|value| {
-@@ -11204,8 +11954,8 @@ impl Gallery {
+@@ -11204,8 +11955,8 @@ impl Gallery {
                      ]),
                  ),
                  (
@@ -37435,7 +38240,7 @@ index 5eb12cd4..663a5d9f 100644
                          self.ac_entity.clone(),
                          language_items(),
                      )
-@@ -11235,94 +11985,105 @@ impl Gallery {
+@@ -11235,94 +11986,105 @@ impl Gallery {
              vec![
                  (
                      "Virtualization",
@@ -37564,7 +38369,7 @@ index 5eb12cd4..663a5d9f 100644
                          self.demo_text("cb-sections", "", cx),
                          vec![
                              h::PickerItem::new("rust", "Rust"),
-@@ -11332,6 +12093,7 @@ impl Gallery {
+@@ -11332,6 +12094,7 @@ impl Gallery {
                          ],
                      )
                      .label("Language")
@@ -37572,7 +38377,7 @@ index 5eb12cd4..663a5d9f 100644
                      .section_before("rust", "Systems")
                      .section_before("typescript", "Scripting")
                      .default_open(true)
-@@ -11342,6 +12104,7 @@ impl Gallery {
+@@ -11342,6 +12105,7 @@ impl Gallery {
                      col(vec![
                          h::ComboBox::new(self.demo_text("cb-controlled", "", cx), language_items())
                              .label("Language")
@@ -37580,7 +38385,7 @@ index 5eb12cd4..663a5d9f 100644
                              // `selectedKey` is the controlled selection key
                              // (empty string is v3's `null`); the input shows
                              // that key's label and `inputValue` holds the
-@@ -11371,6 +12134,7 @@ impl Gallery {
+@@ -11371,6 +12135,7 @@ impl Gallery {
                      col(vec![
                          h::ComboBox::new(self.demo_text("cb-input", "", cx), language_items())
                              .label("Language")
@@ -37588,7 +38393,7 @@ index 5eb12cd4..663a5d9f 100644
                              .on_input_change(cx.listener(|this, text: &str, _, cx| {
                                  this.set_demo_text_value("cb-typed", text.to_owned());
                                  cx.notify();
-@@ -11381,11 +12145,12 @@ impl Gallery {
+@@ -11381,11 +12146,12 @@ impl Gallery {
                  ),
                  (
                      "Controlled Selection",
@@ -37602,7 +38407,7 @@ index 5eb12cd4..663a5d9f 100644
                      .selection_mode(SelectionMode::Multiple)
                      .selected_keys(cb_multi.iter().cloned())
                      .on_selection_change_all(cx.listener(|this, keys: &[SharedString], _, cx| {
-@@ -11396,22 +12161,24 @@ impl Gallery {
+@@ -11396,22 +12162,24 @@ impl Gallery {
                  ),
                  (
                      "Multiple Selection",
@@ -37629,7 +38434,7 @@ index 5eb12cd4..663a5d9f 100644
                      .selected_keys(cb_value.iter().cloned())
                      .on_selection_change_all(cx.listener(
                          |this, keys: &[SharedString], _, cx| {
-@@ -11433,36 +12200,34 @@ impl Gallery {
+@@ -11433,36 +12201,34 @@ impl Gallery {
                  ),
                  (
                      "Default Selected Key",
@@ -37673,7 +38478,7 @@ index 5eb12cd4..663a5d9f 100644
                                  .allows_empty_collection(true)
                                  // v3 pairs the flag with async loading: type a
                                  // query nothing matches and the panel stays up
-@@ -11479,11 +12244,12 @@ impl Gallery {
+@@ -11479,11 +12245,12 @@ impl Gallery {
                  ),
                  (
                      "Custom Indicator",
@@ -37687,7 +38492,7 @@ index 5eb12cd4..663a5d9f 100644
                      .selection_mode(SelectionMode::Multiple)
                      .default_open(true)
                      .indicator(|is_selected| {
-@@ -11496,14 +12262,11 @@ impl Gallery {
+@@ -11496,14 +12263,11 @@ impl Gallery {
                  ),
                  (
                      "Custom Filtering",
@@ -37704,7 +38509,7 @@ index 5eb12cd4..663a5d9f 100644
                              .filter(|item, input| {
                                  h::Filter::new(h::Sensitivity::Base).starts_with(item, input)
                              })
-@@ -11518,6 +12281,7 @@ impl Gallery {
+@@ -11518,6 +12282,7 @@ impl Gallery {
                              "Input (opens as you type)",
                              h::ComboBox::new(self.demo_text("cb-mt-input", "", cx), language_items())
                                  .label("Language")
@@ -37712,7 +38517,7 @@ index 5eb12cd4..663a5d9f 100644
                                  .menu_trigger(h::MenuTrigger::Input),
                              cx,
                          ),
-@@ -11525,6 +12289,7 @@ impl Gallery {
+@@ -11525,6 +12290,7 @@ impl Gallery {
                              "Manual (only the chevron opens it)",
                              h::ComboBox::new(self.demo_text("cb-mt-manual", "", cx), language_items())
                                  .label("Language")
@@ -37720,7 +38525,7 @@ index 5eb12cd4..663a5d9f 100644
                                  .menu_trigger(h::MenuTrigger::Manual),
                              cx,
                          ),
-@@ -11532,21 +12297,15 @@ impl Gallery {
+@@ -11532,21 +12298,15 @@ impl Gallery {
                  ),
                  (
                      "Form Value",
@@ -37744,7 +38549,7 @@ index 5eb12cd4..663a5d9f 100644
                              .name("language")
                              .is_required(true);
                              h::Form::new()
-@@ -11580,6 +12339,7 @@ impl Gallery {
+@@ -11580,6 +12340,7 @@ impl Gallery {
                                  language_items(),
                              )
                              .label("Language")
@@ -37752,7 +38557,7 @@ index 5eb12cd4..663a5d9f 100644
                              .name("custom-language")
                              .allows_custom_value(true)
                              .form_value(h::ComboBoxFormValue::Text),
-@@ -11594,6 +12354,7 @@ impl Gallery {
+@@ -11594,6 +12355,7 @@ impl Gallery {
                              "Native (blocks the submit)",
                              h::ComboBox::new(self.demo_text("cb-vb-native", "", cx), language_items())
                                  .label("Language")
@@ -37760,7 +38565,7 @@ index 5eb12cd4..663a5d9f 100644
                                  .is_required(true)
                                  .validation_behavior(h::ValidationBehavior::Native),
                              cx,
-@@ -11602,6 +12363,7 @@ impl Gallery {
+@@ -11602,6 +12364,7 @@ impl Gallery {
                              "Allow (shows the message, submits anyway)",
                              h::ComboBox::new(self.demo_text("cb-vb-allow", "", cx), language_items())
                                  .label("Language")
@@ -37768,7 +38573,7 @@ index 5eb12cd4..663a5d9f 100644
                                  .is_required(true)
                                  .validation_behavior(h::ValidationBehavior::Allow),
                              cx,
-@@ -11610,7 +12372,7 @@ impl Gallery {
+@@ -11610,7 +12373,7 @@ impl Gallery {
                  ),
                  (
                      "Custom Validation",
@@ -37777,7 +38582,7 @@ index 5eb12cd4..663a5d9f 100644
                          self.demo_text("cb-validate", "Zig", cx),
                          language_items(),
                      )
-@@ -11623,8 +12385,8 @@ impl Gallery {
+@@ -11623,8 +12386,8 @@ impl Gallery {
                      .into_any_element()]),
                  ),
                  (
@@ -37788,7 +38593,7 @@ index 5eb12cd4..663a5d9f 100644
                          self.combo_state.clone(),
                          language_items(),
                      )
-@@ -11643,11 +12405,12 @@ impl Gallery {
+@@ -11643,11 +12406,12 @@ impl Gallery {
                  ),
                  (
                      "Custom values allowed",
@@ -37802,7 +38607,7 @@ index 5eb12cd4..663a5d9f 100644
                      .allows_custom_value(true)
                      .is_open(is_open)
                      .on_open_change(bool_cb(cx.listener(|this, open: &bool, _, cx| {
-@@ -11672,23 +12435,19 @@ impl Gallery {
+@@ -11672,23 +12436,19 @@ impl Gallery {
              vec![
                  (
                      "Virtualization",
@@ -37833,7 +38638,7 @@ index 5eb12cd4..663a5d9f 100644
                          .label("Language")
                          .placeholder("Choose one")
                          .description("Used for spell-checking")
-@@ -11696,7 +12455,7 @@ impl Gallery {
+@@ -11696,7 +12456,7 @@ impl Gallery {
                  ),
                  (
                      "Required",
@@ -37842,7 +38647,7 @@ index 5eb12cd4..663a5d9f 100644
                          .label("Language")
                          .placeholder("Choose one")
                          .is_required(true)
-@@ -11704,7 +12463,7 @@ impl Gallery {
+@@ -11704,7 +12464,7 @@ impl Gallery {
                  ),
                  (
                      "Disabled",
@@ -37851,7 +38656,7 @@ index 5eb12cd4..663a5d9f 100644
                          .label("Language")
                          .placeholder("Choose one")
                          .is_disabled(true)
-@@ -11712,7 +12471,7 @@ impl Gallery {
+@@ -11712,7 +12472,7 @@ impl Gallery {
                  ),
                  (
                      "With Disabled Options",
@@ -37860,7 +38665,7 @@ index 5eb12cd4..663a5d9f 100644
                          .label("Language")
                          .placeholder("Choose one")
                          .disabled_keys([1, 3])
-@@ -11721,7 +12480,7 @@ impl Gallery {
+@@ -11721,7 +12481,7 @@ impl Gallery {
                  ),
                  (
                      "With Sections",
@@ -37869,7 +38674,7 @@ index 5eb12cd4..663a5d9f 100644
                          "sel-sections",
                          vec![
                              "United States".into(),
-@@ -11796,13 +12555,8 @@ impl Gallery {
+@@ -11796,13 +12556,8 @@ impl Gallery {
                  ),
                  (
                      "Asynchronous Loading",
@@ -37884,7 +38689,7 @@ index 5eb12cd4..663a5d9f 100644
                          row(vec![
                              h::Select::new("sel-async", languages())
                                  .label("Language")
-@@ -11816,7 +12570,7 @@ impl Gallery {
+@@ -11816,7 +12571,7 @@ impl Gallery {
                  ),
                  (
                      "Custom Indicator",
@@ -37893,7 +38698,7 @@ index 5eb12cd4..663a5d9f 100644
                          .label("Language")
                          .placeholder("Choose one")
                          .value(selected)
-@@ -11837,7 +12591,7 @@ impl Gallery {
+@@ -11837,7 +12592,7 @@ impl Gallery {
                  ),
                  (
                      "Custom Value",
@@ -37902,7 +38707,7 @@ index 5eb12cd4..663a5d9f 100644
                          .label("Language")
                          .placeholder("Choose one")
                          .value(selected)
-@@ -11867,8 +12621,8 @@ impl Gallery {
+@@ -11867,8 +12622,8 @@ impl Gallery {
                          .into_any_element()]),
                  ),
                  (
@@ -37913,7 +38718,7 @@ index 5eb12cd4..663a5d9f 100644
                          .label("Language")
                          .placeholder("Choose one")
                          .value(selected)
-@@ -11888,18 +12642,20 @@ impl Gallery {
+@@ -11888,18 +12643,20 @@ impl Gallery {
                  ),
                  (
                      "Uncontrolled",
@@ -37936,7 +38741,7 @@ index 5eb12cd4..663a5d9f 100644
                                  .value(selected)
                                  .on_selection_change(opt_usize_cb(cx.listener(
                                      |this, i: &Option<usize>, _, cx| {
-@@ -11913,21 +12669,26 @@ impl Gallery {
+@@ -11913,21 +12670,26 @@ impl Gallery {
                  ),
                  (
                      "Full width",
@@ -37974,7 +38779,7 @@ index 5eb12cd4..663a5d9f 100644
                          .label("Languages")
                          .placeholder("Pick several")
                          .selection_mode(SelectionMode::Multiple)
-@@ -12050,14 +12811,8 @@ impl Gallery {
+@@ -12050,14 +12812,8 @@ impl Gallery {
                  ),
                  (
                      "Render Props",
@@ -37990,7 +38795,7 @@ index 5eb12cd4..663a5d9f 100644
                          h::Prose::new()
                              .child(h::Typography::paragraph(
                                  h::ParagraphSize::Base,
-@@ -12265,12 +13020,8 @@ impl Gallery {
+@@ -12265,12 +13021,8 @@ impl Gallery {
                  ),
                  (
                      "Hide Scroll Bar",
@@ -38004,7 +38809,7 @@ index 5eb12cd4..663a5d9f 100644
                          h::ScrollShadow::new("ss-no-bar")
                              .max_h(px(140.))
                              .children(
-@@ -12385,13 +13136,45 @@ fn icon(path: &'static str, cx: &gpui::App) -> AnyElement {
+@@ -12385,13 +13137,45 @@ fn icon(path: &'static str, cx: &gpui::App) -> AnyElement {
          .into_any_element()
  }
  

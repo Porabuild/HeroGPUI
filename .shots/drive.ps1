@@ -52,6 +52,8 @@ Add-Type @"
 using System;
 using System.Runtime.InteropServices;
 public class Drive {
+    [DllImport("user32.dll")] public static extern uint MapVirtualKey(uint code, uint kind);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern short VkKeyScan(char ch);
     [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out RECT r);
     [DllImport("user32.dll")] public static extern bool GetClientRect(IntPtr h, out RECT r);
     [DllImport("user32.dll")] public static extern bool ClientToScreen(IntPtr h, ref POINT p);
@@ -71,7 +73,6 @@ $WM_LBUTTONDBLCLK = 0x0203
 $WM_MOUSEWHEEL  = 0x020A
 $WM_KEYDOWN     = 0x0100
 $WM_KEYUP       = 0x0101
-$WM_CHAR        = 0x0102
 $MK_LBUTTON     = 1
 
 # NB: PowerShell variable names are case-insensitive, so a local `$vk` would be
@@ -94,6 +95,13 @@ function Get-Vk([string]$name) {
     throw "unknown key '$name'"
 }
 
+function Post-Key($h, [uint32]$message, [int]$code) {
+    [long]$flags = 1 -bor ([Drive]::MapVirtualKey($code, 0) -shl 16)
+    if ($code -ge 0x21 -and $code -le 0x2E) { $flags = $flags -bor 0x01000000 }
+    if ($message -eq $WM_KEYUP) { $flags = $flags -bor [long]3221225472 }
+    [void][Drive]::PostMessage($h, $message, [IntPtr]$code, [IntPtr]$flags)
+}
+
 function Send-Key($h, [string]$spec) {
     # `ctrl+a`, `shift+pageup`, or a bare key name.
     $parts = $spec.Split('+')
@@ -103,28 +111,28 @@ function Send-Key($h, [string]$spec) {
         if ($m -ne $key -and $m -ne "") { $mods += (Get-Vk $m) }
     }
     foreach ($m in $mods) {
-        [void][Drive]::PostMessage($h, $WM_KEYDOWN, [IntPtr]$m, [IntPtr]0)
+        Post-Key $h $WM_KEYDOWN $m
     }
     $code = Get-Vk $key
-    [void][Drive]::PostMessage($h, $WM_KEYDOWN, [IntPtr]$code, [IntPtr]0)
-    [void][Drive]::PostMessage($h, $WM_KEYUP, [IntPtr]$code, [IntPtr]0)
+    Post-Key $h $WM_KEYDOWN $code
+    Post-Key $h $WM_KEYUP $code
     foreach ($m in $mods) {
-        [void][Drive]::PostMessage($h, $WM_KEYUP, [IntPtr]$m, [IntPtr]0)
+        Post-Key $h $WM_KEYUP $m
     }
     Start-Sleep -Milliseconds 90
 }
 
 function Send-Text($h, [string]$text) {
-    # A posted WM_CHAR alone types nothing: gpui reads the character from the
-    # key event it is already handling, so the key-down is what has to arrive.
-    # That also means a posted key carries no modifier state -- Windows keeps
-    # `GetKeyState` for real input, and gpui asks it -- so a capital or a shifted
-    # symbol needs `capture2.ps1` and the foreground.
+    # Key-down is translated into WM_CHAR by the platform. Posting another
+    # WM_CHAR would insert twice in fields that register an input handler.
+    # Posted keys cannot change Windows modifier state; shifted characters
+    # still need capture2.ps1 and explicit foreground permission.
     foreach ($ch in $text.ToCharArray()) {
-        $code = [int][char]([string]$ch).ToUpper()
-        [void][Drive]::PostMessage($h, $WM_KEYDOWN, [IntPtr]$code, [IntPtr]0)
-        [void][Drive]::PostMessage($h, $WM_CHAR, [IntPtr][int][char]$ch, [IntPtr]0)
-        [void][Drive]::PostMessage($h, $WM_KEYUP, [IntPtr]$code, [IntPtr]0)
+        $mapped = [Drive]::VkKeyScan($ch)
+        if ($mapped -eq -1) { throw "character has no key on the current keyboard layout: $ch" }
+        $code = $mapped -band 0xFF
+        Post-Key $h $WM_KEYDOWN $code
+        Post-Key $h $WM_KEYUP $code
         Start-Sleep -Milliseconds 45
     }
 }
