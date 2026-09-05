@@ -104,6 +104,44 @@ use herogpui_components::{
 
 use harness::{click, events, open_host, press, Events};
 
+#[gpui::test]
+fn accordion_subtitle_and_body_keep_their_line_boxes(cx: &mut TestAppContext) {
+    for leading in [None, Some(48.)] {
+        let cx = open_host(cx, move || {
+            let mut root = gpui::div();
+            if let Some(leading) = leading {
+                root = root.text_size(px(32.)).line_height(px(leading));
+            }
+            root.child(
+                gpui::div()
+                    .debug_selector(|| "accordion-box".to_owned())
+                    .child(
+                        Accordion::new(vec![AccordionItem::new("one", "Title")
+                            .subtitle("Subtitle")
+                            .content(
+                                gpui::div()
+                                    .debug_selector(|| "accordion-body-text".to_owned())
+                                    .child("Body"),
+                            )])
+                        .id("line-box-accordion")
+                        .default_expanded("one")
+                        .hide_separator(true),
+                    ),
+            )
+            .into_any_element()
+        });
+        cx.run_until_parked();
+        assert_eq!(
+            cx.debug_bounds("accordion-body-text").unwrap().size.height,
+            px(20.)
+        );
+        assert_eq!(
+            cx.debug_bounds("accordion-box").unwrap().size.height,
+            px(104.)
+        );
+    }
+}
+
 /// A div probe: a full-width, 36px-tall clickable strip recording `label` when
 /// pressed. It is *not* a tab stop (no `track_focus`), so it can be used as
 /// body content without inserting its own stop into a keyboard walk.

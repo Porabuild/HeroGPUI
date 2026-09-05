@@ -21494,15 +21494,15 @@
       },
       {
         "token": ".accordion__body",
-        "description": "Body content uses 14px type.",
-        "rust": "text_size(px(14.))",
+        "description": "Body content uses 14px type with a 20px line height independently of host leading.",
+        "rust": "text_size(px(14.)) + line_height(px(20.))",
         "status": "implemented"
       },
       {
         "token": ".accordion__body-inner",
-        "description": "Horizontal and bottom inset and muted color match; the port retains a 2px top inset.",
-        "rust": "px(16.) pt(2.) pb(16.) text_color(muted)",
-        "status": "partial"
+        "description": "Horizontal and bottom inset, zero top inset and muted color match.",
+        "rust": "px(16.) pt(0.) pb(16.) text_color(muted)",
+        "status": "implemented"
       },
       {
         "token": ".accordion__heading",

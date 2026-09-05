@@ -8907,6 +8907,7 @@ impl Gallery {
             vec![
                 (
                     "Usage",
+                    "Titles, subtitles and body text keep their line heights when used inside larger text containers.",
                     col(vec![h::Accordion::new(items())
                         .id("acc-usage")
                         .default_expanded("1")

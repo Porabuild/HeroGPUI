@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "artifactSha256": "e6bfa70c7acabf818f9ce3d73f871c0e9c25e9fc5f670c60c007ff12abae6c48",
+  "artifactSha256": "6357e1006c91d5656f416337013ff69084f1da137504b5d293b7a592060dc0b7",
   "glueSha256": "95a36b0f65ed3744f41cc8ae9df87868c99d893093997662bbda07e2b410971f",
   "examples": {
     "accordion/Controlled": {
@@ -37,7 +37,7 @@
     },
     "accordion/Usage": {
       "nativeCodeSha256": "3b663beacc19f1b618aa515c44b9d939fcbc07b3936dd9045127cbbbc514916d",
-      "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      "descriptionSha256": "c33029894bd7d6249a512d0ec7707f338411878606d2a865e5d6ba3f5232e5e9"
     },
     "accordion/Without Separator": {
       "nativeCodeSha256": "92e38c6c3a491d38c5923db3bf483dab79023f7cb8b15701e9404942c02ea0b3",

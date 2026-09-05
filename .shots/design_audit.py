@@ -134,6 +134,22 @@ def pagination_summary_text(_body):
     return float(value.group(1)) if value else None
 
 
+def accordion_body_metric(property):
+    source = mask_comments(strip_cfg_test(io.open(SRC + 'accordion.rs', encoding='utf-8').read()))
+    for opening in re.finditer(r'gpui::div\(\)', mask_literals(source)):
+        value = None
+        owns_body = False
+        for name, args in builder_chain_methods(source, opening.end()):
+            if name == 'child' and args.strip() == 'item.content':
+                owns_body = True
+            if name == property:
+                number = re.fullmatch(r'px\(([\d.]+)\)', args.strip())
+                value = float(number.group(1)) if number else None
+        if owns_body:
+            return value
+    return None
+
+
 def fraction_leading(text_px):
     """A unitless `leading-[f]` resolves against the rule's own text size.
 
@@ -1398,7 +1414,11 @@ CHECKS = [
      r'`\.modal__icon` is `size-10 rounded-3xl`[\s\S]{0,1000}?'
      r'\.rounded\(crate::util::(\w+_radius)\(cx\)\)', helper_px),
     ('accordion', '.accordion__body', 'text', 'Accordion body text', SRC + 'accordion.rs',
-     r'\.pt\(px\(2\.\)\)\s*\.text_size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+     r'impl RenderOnce for (Accordion)', lambda _: accordion_body_metric('text_size')),
+    ('accordion', '.accordion__body', 'leading', 'Accordion body leading', SRC + 'accordion.rs',
+     r'impl RenderOnce for (Accordion)', lambda _: accordion_body_metric('line_height')),
+    ('accordion', '.accordion__body-inner', 'pt', 'Accordion body top inset', SRC + 'accordion.rs',
+     r'impl RenderOnce for (Accordion)', lambda _: accordion_body_metric('pt')),
 
     # --- every field wrapper is `gap-1` --------------------------------------
     ('checkbox', '.checkbox', 'gap', 'Checkbox content/description gap',

@@ -349,6 +349,7 @@ impl RenderOnce for Accordion {
                 title_col = title_col.child(
                     gpui::div()
                         .text_size(px(12.))
+                        .line_height(px(16.))
                         .text_color(colors.muted)
                         .child(sub.to_string()),
                 );
@@ -432,9 +433,9 @@ impl RenderOnce for Accordion {
                     gpui::div()
                         .px(px(16.))
                         .pb(px(16.))
-                        .pt(px(2.))
+                        .pt(px(0.))
                         .text_size(px(14.))
-                        .line_height(px(22.))
+                        .line_height(px(20.))
                         .text_color(colors.muted)
                         .child(item.content),
                 );

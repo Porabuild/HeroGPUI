@@ -2475,6 +2475,7 @@
   "accordion": [
     {
       "heading": "Usage",
+      "description": "Titles, subtitles and body text keep their line heights when used inside larger text containers.",
       "imports": "use herogpui::prelude::{Accordion, AccordionItem};",
       "code": "Accordion::new(items())\n    .id(\"accordion\")\n    .default_expanded(\"1\")"
     },
