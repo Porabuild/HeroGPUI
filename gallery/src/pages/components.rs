@@ -12863,6 +12863,12 @@ impl Gallery {
                         h::Typography::new("Muted foreground")
                             .color(h::TextColor::Muted)
                             .into_any_element(),
+                        h::Typography::new("Medium body")
+                            .weight(h::FontWeight::Medium)
+                            .into_any_element(),
+                        h::Typography::new("Semibold body")
+                            .weight(h::FontWeight::Semibold)
+                            .into_any_element(),
                         h::Typography::new("Bold body")
                             .weight(h::FontWeight::Bold)
                             .into_any_element(),

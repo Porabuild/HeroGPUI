@@ -464,6 +464,7 @@ Modal, Drawer, and AlertDialog cover the window even inside clipped or positione
 - **Select** — `Select::new(id, options).selected(..)/.value(..).is_open().placement(Placement).variant().full_width().disabled_keys().is_invalid().is_required().on_selection_change()/.on_change().on_open_change()`; `selection_mode(SelectionMode::Multiple)` with `selected_indices()` + `on_selection_change_all()`. Enter and Space commit the highlighted option in single mode; if the selection callback closes the controlled popup, key release keeps it closed and leaves focus on the trigger. Value and option text uses 14px/20px metrics; section headers use 12px/16px medium text. `full_width(true)` expands both the root and trigger to the available container width.
 
 ### Typography
+The browser gallery bundles distinct Inter faces for Normal, Medium, Semibold and Bold weights.
 - **Kbd** — `Kbd::new().variant(KbdVariant::{Default,Light}).child("Ctrl")`
 - **Typography** — `Typography::new(text).kind(TypographyType::{H1..H6,Body,BodySm,BodyXs,Code}).align().color(TextColor::{Default,Muted}).weight(FontWeight).truncate()`; helpers `heading(level, t)`, `paragraph(ParagraphSize, t)`, `code(t)`; `Prose::new()` for rich text
 

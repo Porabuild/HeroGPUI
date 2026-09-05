@@ -3404,7 +3404,7 @@
     {
       "heading": "Colors & weights",
       "imports": "use herogpui::prelude::{FontWeight, TextColor, Typography, TypographyType};\nuse gpui::prelude::*;\nuse gpui::px;",
-      "code": "gpui::div()\n    .flex()\n    .flex_col()\n    .items_start()\n    .gap(px(12.))\n    .children(vec![\n        Typography::new(\"Default foreground\").into_any_element(),\n        Typography::new(\"Muted foreground\")\n            .color(TextColor::Muted)\n            .into_any_element(),\n        Typography::new(\"Bold body\")\n            .weight(FontWeight::Bold)\n            .into_any_element(),\n    ])"
+      "code": "gpui::div()\n    .flex()\n    .flex_col()\n    .items_start()\n    .gap(px(12.))\n    .children(vec![\n        Typography::new(\"Default foreground\").into_any_element(),\n        Typography::new(\"Muted foreground\")\n            .color(TextColor::Muted)\n            .into_any_element(),\n        Typography::new(\"Medium body\")\n            .weight(FontWeight::Medium)\n            .into_any_element(),\n        Typography::new(\"Semibold body\")\n            .weight(FontWeight::Semibold)\n            .into_any_element(),\n        Typography::new(\"Bold body\")\n            .weight(FontWeight::Bold)\n            .into_any_element(),\n    ])"
     },
     {
       "heading": "Alignment & truncation",

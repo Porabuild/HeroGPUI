@@ -23952,25 +23952,25 @@
       },
       {
         "token": ".typography--weight-normal",
-        "description": "Normal weight override.",
+        "description": "Normal (400) weight override, demonstrated in the gallery weight examples.",
         "rust": "FontWeight::Normal => gpui::FontWeight::NORMAL",
         "status": "implemented"
       },
       {
         "token": ".typography--weight-medium",
-        "description": "Medium weight override.",
+        "description": "Medium (500) weight override, demonstrated in the gallery weight examples.",
         "rust": "FontWeight::Medium => gpui::FontWeight::MEDIUM",
         "status": "implemented"
       },
       {
         "token": ".typography--weight-semibold",
-        "description": "Semibold weight override.",
+        "description": "Semibold (600) weight override, demonstrated in the gallery weight examples.",
         "rust": "FontWeight::Semibold => gpui::FontWeight::SEMIBOLD",
         "status": "implemented"
       },
       {
         "token": ".typography--weight-bold",
-        "description": "Bold weight override.",
+        "description": "Bold (700) weight override, demonstrated in the gallery weight examples.",
         "rust": "FontWeight::Bold => gpui::FontWeight::BOLD",
         "status": "implemented"
       }
