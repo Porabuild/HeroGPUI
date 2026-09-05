@@ -4974,7 +4974,7 @@
       {
         "token": "[data-slot=\"label\"] / .slider__output",
         "description": "Label and output typography.",
-        "rust": "Slider::render text_size(px(14.)) + FontWeight::MEDIUM",
+        "rust": "Slider::render text_size(px(14.)) + line_height(px(20.)) + FontWeight::MEDIUM",
         "status": "implemented"
       },
       {
@@ -17878,8 +17878,8 @@
       },
       {
         "token": "[data-slot=label] / .progress-bar__output",
-        "description": "Text size and weight match; GPUI does not request tabular numeral font features on the output alone.",
-        "rust": "text_size(px(14.)) + FontWeight::MEDIUM",
+        "description": "Text size, 20px line height and weight match; GPUI does not request tabular numeral font features on the output alone.",
+        "rust": "text_size(px(14.)) + line_height(px(20.)) + FontWeight::MEDIUM",
         "status": "partial"
       },
       {
@@ -18306,7 +18306,7 @@
     "styling": [
       {
         "token": ".meter",
-        "description": "Full-width label/output row above the track.",
+        "description": "Full-width label/output row above the track; 14px text uses a 20px line height.",
         "rust": "ProgressBar root layout",
         "status": "implemented"
       },

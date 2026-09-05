@@ -1451,11 +1451,11 @@ CHECKS = [
      None),
     ('progress-bar', '[data-slot="label"]', 'text', 'ProgressBar label text',
      SRC + 'progress.rs',
-     r'\.text_size\(px\((\d+(?:\.\d*)?)\.\)\)\s*\.font_weight\(gpui::FontWeight::MEDIUM\)',
+     r'\.text_size\(px\((\d+(?:\.\d*)?)\.\)\)\s*\.line_height\(px\(20\.\)\)\s*\.font_weight\(gpui::FontWeight::MEDIUM\)',
      None),
     ('progress-bar', '.progress-bar__output', 'text', 'ProgressBar output text',
      SRC + 'progress.rs',
-     r'\.text_size\(px\((\d+(?:\.\d*)?)\.\)\)\s*\.font_weight\(gpui::FontWeight::MEDIUM\)',
+     r'\.text_size\(px\((\d+(?:\.\d*)?)\.\)\)\s*\.line_height\(px\(20\.\)\)\s*\.font_weight\(gpui::FontWeight::MEDIUM\)',
      None),
     # A Meter renders a ProgressBar, so it is the same wrapper.
     ('meter', '.meter', 'gap', 'Meter wrapper gap -> ProgressBar', SRC + 'progress.rs',

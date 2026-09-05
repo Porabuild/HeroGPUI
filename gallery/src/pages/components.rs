@@ -2973,7 +2973,7 @@ impl Gallery {
             crate::pages::Page::Slider.import_line(),
             vec![
                 (
-                    "Usage",
+                    "Usage", "Labels and values use 14px text with a 20px line height, independent of the surrounding text style.",
                     // v3: `<Slider defaultValue={30}>` -- uncontrolled, with
                     // "Controlled Value" below for the other half.
                     col(vec![gpui::div()
@@ -5517,7 +5517,7 @@ impl Gallery {
             crate::pages::Page::Meter.import_line(),
             vec![
                 (
-                    "Usage",
+                    "Usage", "Labels and values use 14px text with a 20px line height, independent of the surrounding text style.",
                     col(vec![gpui::div()
                         .w(px(256.))
                         .child(
@@ -5578,7 +5578,7 @@ impl Gallery {
             crate::pages::Page::ProgressBar.import_line(),
             vec![
                 (
-                    "Usage",
+                    "Usage", "Labels and values use 14px text with a 20px line height, independent of the surrounding text style.",
                     col(vec![gpui::div()
                         .w(px(256.))
                         .child(

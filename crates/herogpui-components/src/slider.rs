@@ -599,6 +599,7 @@ impl RenderOnce for Slider {
                     .flex()
                     .justify_between()
                     .text_size(px(14.))
+                    .line_height(px(20.))
                     .font_weight(gpui::FontWeight::MEDIUM)
                     .text_color(colors.foreground)
                     .child(self.label.clone().unwrap_or_default())

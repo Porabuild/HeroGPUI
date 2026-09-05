@@ -261,3 +261,40 @@ fn vertical_pointer_values_reach_the_full_border_box(cx: &mut TestAppContext) {
         "vertical pointer presses must map over the full border box"
     );
 }
+
+#[gpui::test]
+fn slider_label_and_output_keep_twenty_pixel_lines(cx: &mut TestAppContext) {
+    for leading in [None, Some(48.)] {
+        for label_only in [false, true] {
+            let cx = open_host(cx, move || {
+                let slider = Slider::new("leading-slider", 50.).label(if label_only {
+                    "First\nSecond"
+                } else {
+                    "Label"
+                });
+                let slider = if label_only {
+                    slider.show_value(false)
+                } else {
+                    slider.output(|_, _| gpui::div().child("50\npercent").into_any_element())
+                };
+                gpui::div()
+                    .w(px(300.))
+                    .when_some(leading, |el, leading| el.line_height(px(leading)))
+                    .child(
+                        gpui::div()
+                            .debug_selector(|| "leading-slider".into())
+                            .child(slider),
+                    )
+                    .into_any_element()
+            });
+            let bounds = cx
+                .debug_bounds("leading-slider")
+                .expect("slider must paint");
+            assert_eq!(
+                bounds.size.height,
+                px(64.),
+                "two 20px lines, 4px gap and 20px track; label_only={label_only}, host={leading:?}"
+            );
+        }
+    }
+}

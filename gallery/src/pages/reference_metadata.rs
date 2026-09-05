@@ -1299,7 +1299,7 @@ const SLIDER_STYLING: &[StyleDoc] = &[
         class_or_token: "[data-slot=\"label\"] / .slider__output",
         value: "text-sm font-medium; output tabular-nums",
         description: "Label and output typography.",
-        rust: "Slider::render text_size(px(14.)) + FontWeight::MEDIUM",
+        rust: "Slider::render text_size(px(14.)) + line_height(px(20.)) + FontWeight::MEDIUM",
         status: ImplementationStatus::Implemented,
     },
     StyleDoc {
@@ -10564,8 +10564,8 @@ const PROGRESS_BAR_STYLING: &[StyleDoc] = &[
     StyleDoc {
         class_or_token: "[data-slot=label] / .progress-bar__output",
         value: "text-sm font-medium; output tabular-nums",
-        description: "Text size and weight match; GPUI does not request tabular numeral font features on the output alone.",
-        rust: "text_size(px(14.)) + FontWeight::MEDIUM",
+        description: "Text size, 20px line height and weight match; GPUI does not request tabular numeral font features on the output alone.",
+        rust: "text_size(px(14.)) + line_height(px(20.)) + FontWeight::MEDIUM",
         status: ImplementationStatus::Partial,
     },
     StyleDoc {
@@ -16449,21 +16449,22 @@ const METER_STATES: &[StateDoc] = &[StateDoc {
 const METER_STYLING: &[StyleDoc] = &[
     StyleDoc {
         class_or_token: ".meter",
-        value: "grid w-full gap-2",
-        description: "Full-width label/output row above the track.",
+        value: "grid w-full gap-1",
+        description:
+            "Full-width label/output row above the track; 14px text uses a 20px line height.",
         rust: "ProgressBar root layout",
         status: ImplementationStatus::Implemented,
     },
     StyleDoc {
         class_or_token: ".meter__track",
-        value: "h-2 rounded-full; sm h-1; lg h-3",
+        value: "h-2 rounded-sm; sm h-1 rounded-xs; lg h-3 rounded-md",
         description: "Track thickness follows the three documented sizes.",
         rust: "ProgressBar::size(Size)",
         status: ImplementationStatus::Implemented,
     },
     StyleDoc {
         class_or_token: ".meter__fill",
-        value: "rounded-full semantic fill",
+        value: "matching track radius; semantic fill",
         description: "Fill color follows the selected semantic role.",
         rust: "ProgressBar::color(Color)",
         status: ImplementationStatus::Implemented,

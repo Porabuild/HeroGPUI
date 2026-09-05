@@ -708,6 +708,7 @@
   "slider": [
     {
       "heading": "Usage",
+      "description": "Labels and values use 14px text with a 20px line height, independent of the surrounding text style.",
       "imports": "use herogpui::prelude::Slider;\nuse gpui::prelude::*;\nuse gpui::px;",
       "code": "gpui::div()\n    .w(px(320.))\n    .child(\n        Slider::new(\"slider-main\", 30.)\n            .default_value(30.)\n            .label(\"Volume\")\n            .show_value(true),\n    )"
     },
@@ -1445,6 +1446,7 @@
   "meter": [
     {
       "heading": "Usage",
+      "description": "Labels and values use 14px text with a 20px line height, independent of the surrounding text style.",
       "imports": "use herogpui::prelude::Meter;\nuse gpui::prelude::*;\nuse gpui::px;",
       "code": "gpui::div()\n    .w(px(256.))\n    .child(\n        Meter::new(\"meter-usage\", value)\n            .label(\"Disk usage\")\n            .show_value(true),\n    )"
     },
@@ -1472,6 +1474,7 @@
   "progress-bar": [
     {
       "heading": "Usage",
+      "description": "Labels and values use 14px text with a 20px line height, independent of the surrounding text style.",
       "imports": "use herogpui::prelude::ProgressBar;\nuse gpui::prelude::*;\nuse gpui::px;",
       "code": "gpui::div()\n    .w(px(256.))\n    .child(\n        ProgressBar::new(\"progress-bar\")\n            .value(65.0)\n            .label(\"Uploading\")\n            .show_value_label(true),\n    )"
     },

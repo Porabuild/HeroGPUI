@@ -1528,3 +1528,44 @@ fn avatar_renders_every_variant_with_and_without_src(cx: &mut TestAppContext) {
             .into_any_element()
     });
 }
+
+#[gpui::test]
+fn progress_and_meter_text_keep_twenty_pixel_lines(cx: &mut TestAppContext) {
+    for leading in [None, Some(48.)] {
+        for meter in [false, true] {
+            for label_only in [false, true] {
+                let cx = open_host(cx, move || {
+                    let content = if meter {
+                        Meter::new("leading-meter", 50.)
+                            .label(if label_only { "First\nSecond" } else { "Label" })
+                            .show_value(!label_only)
+                            .value_content(|_, _| {
+                                gpui::div().child("50\npercent").into_any_element()
+                            })
+                            .into_any_element()
+                    } else {
+                        ProgressBar::new("leading-progress")
+                            .value(50.)
+                            .label(if label_only { "First\nSecond" } else { "Label" })
+                            .show_value_label(!label_only)
+                            .value_content(|_, _, _| {
+                                gpui::div().child("50\npercent").into_any_element()
+                            })
+                            .into_any_element()
+                    };
+                    gpui::div()
+                        .w(px(300.))
+                        .when_some(leading, |el, leading| el.line_height(px(leading)))
+                        .child(
+                            gpui::div()
+                                .debug_selector(|| "leading-bar".into())
+                                .child(content),
+                        )
+                        .into_any_element()
+                });
+                let bounds = cx.debug_bounds("leading-bar").expect("bar must paint");
+                assert_eq!(bounds.size.height, px(52.), "two 20px lines, 4px gap and 8px track; meter={meter}, label_only={label_only}, host={leading:?}");
+            }
+        }
+    }
+}

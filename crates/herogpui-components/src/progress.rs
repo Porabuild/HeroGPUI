@@ -273,6 +273,7 @@ impl RenderOnce for ProgressBar {
                     .flex()
                     .justify_between()
                     .text_size(px(14.))
+                    .line_height(px(20.))
                     .font_weight(gpui::FontWeight::MEDIUM)
                     .text_color(text_color)
                     .child(self.label.clone().unwrap_or_default())

@@ -331,7 +331,7 @@ ProgressBar, ProgressCircle, Spinner and Typography; elsewhere `variant` (or
 - **ColorSwatchPicker** — `value`, `size`, `shape`, `layout(SwatchLayout::{Grid,Stack})`, `on_change`
 
 ### Controls
-- **Slider** — `Slider::new(id, value).value().default_value().min_value().max_value().step().orientation().label().show_value().format_options().on_change(f32).on_change_end(f32)`. The multi-thumb form is `values(Vec<f32>)` + `on_change_all(&[f32])`; dragging moves whichever thumb is nearest, and `thumb(|index, value|)` is v3's `Slider.Thumb` render prop.
+- **Slider** — `Slider::new(id, value).value().default_value().min_value().max_value().step().orientation().label().show_value().format_options().on_change(f32).on_change_end(f32)`. The multi-thumb form is `values(Vec<f32>)` + `on_change_all(&[f32])`; dragging moves whichever thumb is nearest, and `thumb(|index, value|)` is v3's `Slider.Thumb` render prop. Labels and outputs use 14px text with a fixed 20px line height.
 - **Switch** — `is_selected`, `size`, `is_disabled`, `is_read_only`, `is_invalid`, `is_required`, `label(el)`, `on_change(bool)` / `on_press`. v3's `value` is the form-submission value, not the state, so there is no builder for it.
 
 ### Data Display
@@ -358,8 +358,8 @@ ProgressBar, ProgressCircle, Spinner and Typography; elsewhere `variant` (or
 
 ### Feedback
 - **Alert** — `Alert::new(title).description().status(Color)` plus composed children (v3 spells it `status`, removed `variant`/`radius`, and removed `isClosable`/`onClose` — a close affordance is an ordinary child, e.g. a composed `CloseButton`)
-- **Meter** — `Meter::new(id, value).value().min_value().max_value().value_label().label().show_value().color().size()`
-- **ProgressBar** — `ProgressBar::new(id)`, then `value`, `min_value`, `max_value`, `value_label`, `is_indeterminate`, `size`, `color`, `label`, `show_value_label`, `format_options(NumberFormat)`
+- **Meter** — `Meter::new(id, value).value().min_value().max_value().value_label().label().show_value().color().size()`. Labels and outputs use 14px text with a fixed 20px line height.
+- **ProgressBar** — `ProgressBar::new(id)`, then `value`, `min_value`, `max_value`, `value_label`, `is_indeterminate`, `size`, `color`, `label`, `show_value_label`, `format_options(NumberFormat)`. Labels and outputs use 14px text with a fixed 20px line height.
 - **ProgressCircle** — `value`, `min_value`, `max_value`, `is_indeterminate`, `color`, `size(Size)` (32/48/64px), `show_value_label`. The ring weight is 10% of the diameter, as v3 scales it with `size`.
 - **Skeleton** — `id`, `w`, `h`, `animation_type(SkeletonAnimation::{Shimmer,Pulse,None})` (defaults to `--skeleton-animation`). v3 renders the skeleton *or* the content, so there is no `isLoaded`.
 - **Spinner** — `size(SpinnerSize::{Sm,Md,Lg,Xl})`, `color`, `current_color(Hsla)` for `color="current"` (gpui svgs do not inherit text colour). The diameter does not shrink in flex layouts; the app reduced-motion preference stops rotation.

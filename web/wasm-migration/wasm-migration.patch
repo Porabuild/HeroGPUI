@@ -12903,7 +12903,7 @@ index c47881af..6ab0a89f 100644
              // v3 gives a floating panel no border: `.popover` and friends are
              // `bg-overlay shadow-overlay` and a radius, and dark mode's
 diff --git a/crates/herogpui-components/src/progress.rs b/crates/herogpui-components/src/progress.rs
-index d15cabed..c14669f9 100644
+index d15cabed..ba280b82 100644
 --- a/crates/herogpui-components/src/progress.rs
 +++ b/crates/herogpui-components/src/progress.rs
 @@ -230,7 +230,7 @@ impl RenderOnce for ProgressBar {
@@ -12915,7 +12915,15 @@ index d15cabed..c14669f9 100644
              window,
              cx,
          );
-@@ -298,7 +298,7 @@ impl RenderOnce for ProgressBar {
+@@ -273,6 +273,7 @@ impl RenderOnce for ProgressBar {
+                     .flex()
+                     .justify_between()
+                     .text_size(px(14.))
++                    .line_height(px(20.))
+                     .font_weight(gpui::FontWeight::MEDIUM)
+                     .text_color(text_color)
+                     .child(self.label.clone().unwrap_or_default())
+@@ -298,7 +299,7 @@ impl RenderOnce for ProgressBar {
  
          // Indeterminate bars sweep a 40% segment; reduced motion leaves that
          // same segment static so the state is still legible.
@@ -12924,7 +12932,7 @@ index d15cabed..c14669f9 100644
              track
                  .child(
                      gpui::div()
-@@ -509,7 +509,7 @@ impl RenderOnce for ProgressCircle {
+@@ -509,7 +510,7 @@ impl RenderOnce for ProgressCircle {
          };
          // v3 uses stroke-width 4 in a 36-unit viewBox.
          let stroke_w = self.size_px / 9.;
@@ -14180,10 +14188,18 @@ index 1b92a064..b6e49988 100644
          } else {
              self.animation_type
 diff --git a/crates/herogpui-components/src/slider.rs b/crates/herogpui-components/src/slider.rs
-index 770d5efd..c1631415 100644
+index 770d5efd..80dd5f13 100644
 --- a/crates/herogpui-components/src/slider.rs
 +++ b/crates/herogpui-components/src/slider.rs
-@@ -662,28 +662,110 @@ impl RenderOnce for Slider {
+@@ -599,6 +599,7 @@ impl RenderOnce for Slider {
+                     .flex()
+                     .justify_between()
+                     .text_size(px(14.))
++                    .line_height(px(20.))
+                     .font_weight(gpui::FontWeight::MEDIUM)
+                     .text_color(colors.foreground)
+                     .child(self.label.clone().unwrap_or_default())
+@@ -662,28 +663,110 @@ impl RenderOnce for Slider {
              .inset_0(),
          );
  
@@ -14299,7 +14315,7 @@ index 770d5efd..c1631415 100644
          for (index, f) in fractions.iter().copied().enumerate() {
              let mut thumb_el = gpui::div()
                  .absolute()
-@@ -746,8 +828,9 @@ impl RenderOnce for Slider {
+@@ -746,8 +829,9 @@ impl RenderOnce for Slider {
                      cx,
                  );
              }
@@ -14310,7 +14326,7 @@ index 770d5efd..c1631415 100644
  
          // v3 drives a slider from the keyboard: the arrows step it, Home and End
          // jump to the ends, and Page Up/Down move by a tenth of the range --
-@@ -888,7 +971,7 @@ impl RenderOnce for Slider {
+@@ -888,7 +972,7 @@ impl RenderOnce for Slider {
                      // React Aria focuses and activates the chosen thumb before
                      // it writes the track press, so the following keys and
                      // pointer moves keep that thumb's identity.
@@ -14319,7 +14335,7 @@ index 770d5efd..c1631415 100644
                      active_for_press.update(cx, |active, cx| {
                          *active = index;
                          cx.notify();
-@@ -1225,6 +1308,25 @@ fn round_to_step_precision(value: f32, step: f32) -> f32 {
+@@ -1225,6 +1309,25 @@ fn round_to_step_precision(value: f32, step: f32) -> f32 {
      (value * scale).round() / scale
  }
  
@@ -14345,7 +14361,7 @@ index 770d5efd..c1631415 100644
  /// Where the pointer sits along the slider's own axis, as a 0..1 fraction of
  /// the track.
  ///
-@@ -1252,7 +1354,7 @@ fn axis_fraction(pos: gpui::Point<gpui::Pixels>, bounds: Bounds<f32>, vertical:
+@@ -1252,7 +1355,7 @@ fn axis_fraction(pos: gpui::Point<gpui::Pixels>, bounds: Bounds<f32>, vertical:
  
  #[cfg(test)]
  mod tests {
@@ -14354,7 +14370,7 @@ index 770d5efd..c1631415 100644
  
      #[test]
      fn range_output_formats_every_thumb_and_joins_the_labels() {
-@@ -1260,4 +1362,21 @@ mod tests {
+@@ -1260,4 +1363,21 @@ mod tests {
          let labels = format_value_labels(&[20., 80.], Some(&format));
          assert_eq!(default_output(&labels), "$20.00 \u{2013} $80.00");
      }
@@ -21872,7 +21888,7 @@ index 00000000..b0a5dab7
 +    assert_eq!(&*actions.borrow(), &["mail"]);
 +}
 diff --git a/crates/herogpui-components/tests/feedback.rs b/crates/herogpui-components/tests/feedback.rs
-index 6ab6e33a..2336a018 100644
+index 6ab6e33a..d31ffdfc 100644
 --- a/crates/herogpui-components/tests/feedback.rs
 +++ b/crates/herogpui-components/tests/feedback.rs
 @@ -1137,6 +1137,53 @@ fn spinner_renders_every_documented_size_and_color(cx: &mut TestAppContext) {
@@ -21958,6 +21974,51 @@ index 6ab6e33a..2336a018 100644
              .name("Jane Doe")
              .size(Size::Sm)
              .src("fb-avatar-missing.png");
+@@ -1481,3 +1528,44 @@ fn avatar_renders_every_variant_with_and_without_src(cx: &mut TestAppContext) {
+             .into_any_element()
+     });
+ }
++
++#[gpui::test]
++fn progress_and_meter_text_keep_twenty_pixel_lines(cx: &mut TestAppContext) {
++    for leading in [None, Some(48.)] {
++        for meter in [false, true] {
++            for label_only in [false, true] {
++                let cx = open_host(cx, move || {
++                    let content = if meter {
++                        Meter::new("leading-meter", 50.)
++                            .label(if label_only { "First\nSecond" } else { "Label" })
++                            .show_value(!label_only)
++                            .value_content(|_, _| {
++                                gpui::div().child("50\npercent").into_any_element()
++                            })
++                            .into_any_element()
++                    } else {
++                        ProgressBar::new("leading-progress")
++                            .value(50.)
++                            .label(if label_only { "First\nSecond" } else { "Label" })
++                            .show_value_label(!label_only)
++                            .value_content(|_, _, _| {
++                                gpui::div().child("50\npercent").into_any_element()
++                            })
++                            .into_any_element()
++                    };
++                    gpui::div()
++                        .w(px(300.))
++                        .when_some(leading, |el, leading| el.line_height(px(leading)))
++                        .child(
++                            gpui::div()
++                                .debug_selector(|| "leading-bar".into())
++                                .child(content),
++                        )
++                        .into_any_element()
++                });
++                let bounds = cx.debug_bounds("leading-bar").expect("bar must paint");
++                assert_eq!(bounds.size.height, px(52.), "two 20px lines, 4px gap and 8px track; meter={meter}, label_only={label_only}, host={leading:?}");
++            }
++        }
++    }
++}
 diff --git a/crates/herogpui-components/tests/feedback_compose.rs b/crates/herogpui-components/tests/feedback_compose.rs
 index 8affa649..1eb1c6e6 100644
 --- a/crates/herogpui-components/tests/feedback_compose.rs
@@ -24524,10 +24585,10 @@ index 44d2efa6..594e86ca 100644
      // the moving end, the days between turn selected.
 diff --git a/crates/herogpui-components/tests/slider_geometry_deep.rs b/crates/herogpui-components/tests/slider_geometry_deep.rs
 new file mode 100644
-index 00000000..06d12622
+index 00000000..aefc8a0d
 --- /dev/null
 +++ b/crates/herogpui-components/tests/slider_geometry_deep.rs
-@@ -0,0 +1,263 @@
+@@ -0,0 +1,300 @@
 +//! Slider paint geometry: the 12px start/end border inset.
 +//!
 +//! HeroUI v3.2.4's track draws transparent `border-x-[0.75rem]` (horizontal)
@@ -24790,6 +24851,43 @@ index 00000000..06d12622
 +        ["3", "100"],
 +        "vertical pointer presses must map over the full border box"
 +    );
++}
++
++#[gpui::test]
++fn slider_label_and_output_keep_twenty_pixel_lines(cx: &mut TestAppContext) {
++    for leading in [None, Some(48.)] {
++        for label_only in [false, true] {
++            let cx = open_host(cx, move || {
++                let slider = Slider::new("leading-slider", 50.).label(if label_only {
++                    "First\nSecond"
++                } else {
++                    "Label"
++                });
++                let slider = if label_only {
++                    slider.show_value(false)
++                } else {
++                    slider.output(|_, _| gpui::div().child("50\npercent").into_any_element())
++                };
++                gpui::div()
++                    .w(px(300.))
++                    .when_some(leading, |el, leading| el.line_height(px(leading)))
++                    .child(
++                        gpui::div()
++                            .debug_selector(|| "leading-slider".into())
++                            .child(slider),
++                    )
++                    .into_any_element()
++            });
++            let bounds = cx
++                .debug_bounds("leading-slider")
++                .expect("slider must paint");
++            assert_eq!(
++                bounds.size.height,
++                px(64.),
++                "two 20px lines, 4px gap and 20px track; label_only={label_only}, host={leading:?}"
++            );
++        }
++    }
 +}
 diff --git a/crates/herogpui-components/tests/table_and_drag.rs b/crates/herogpui-components/tests/table_and_drag.rs
 index 038b8693..8c3936d3 100644
@@ -31149,7 +31247,7 @@ index 723274b0..f4c6f34d 100644
              // `HEROGPUI_WINDOW_SIZE=1200x2000` opens the window at that size.
              // A capture is one PrintWindow of the whole window, so a taller
 diff --git a/gallery/src/pages/components.rs b/gallery/src/pages/components.rs
-index 5eb12cd4..3f9b9436 100644
+index 5eb12cd4..9e55499a 100644
 --- a/gallery/src/pages/components.rs
 +++ b/gallery/src/pages/components.rs
 @@ -1,7 +1,7 @@
@@ -32096,7 +32194,8 @@ index 5eb12cd4..3f9b9436 100644
 +                    )]),
                  ),
                  (
-                     "Usage",
+-                    "Usage",
++                    "Usage", "Labels and values use 14px text with a 20px line height, independent of the surrounding text style.",
                      // v3: `<Slider defaultValue={30}>` -- uncontrolled, with
                      // "Controlled Value" below for the other half.
 -                    col(vec![h::Slider::new("sl-main", 30.)
@@ -32122,35 +32221,6 @@ index 5eb12cd4..3f9b9436 100644
 -                             a `Track` whose render prop is handed the state so it can draw one \
 -                             `Thumb` per value. The `thumb` closure is that render prop.",
 -                            cx,
--                        ),
--                        h::Slider::new("sl-anatomy", 0.)
--                            .values([25., 75.])
--                            .label("Price range")
--                            .show_value(true)
--                            .thumb(|index, value| {
--                                gpui::div()
--                                    .id(("sl-anatomy-thumb", index))
--                                    .size(px(18.))
--                                    .rounded_full()
--                                    .border_2()
--                                    .border_color(gpui::white())
--                                    .bg(gpui::rgb(0x0085F5))
--                                    // The closure is handed the value the slider
--                                    // already computed for this thumb, so the
--                                    // caller never re-derives it.
--                                    .flex()
--                                    .items_center()
--                                    .justify_center()
--                                    .child(
--                                        gpui::div()
--                                            .absolute()
--                                            .top(px(-20.))
--                                            .text_size(px(11.))
--                                            .child(format!("{value:.0}")),
--                                    )
--                                    .into_any_element()
--                            })
--                            .into_any_element(),
 +                        fixed_demo(
 +                            320.,
 +                            h::Slider::new("sl-anatomy", 25.)
@@ -32180,7 +32250,35 @@ index 5eb12cd4..3f9b9436 100644
 +                                        )
 +                                        .into_any_element()
 +                                }),
-+                        ),
+                         ),
+-                        h::Slider::new("sl-anatomy", 0.)
+-                            .values([25., 75.])
+-                            .label("Price range")
+-                            .show_value(true)
+-                            .thumb(|index, value| {
+-                                gpui::div()
+-                                    .id(("sl-anatomy-thumb", index))
+-                                    .size(px(18.))
+-                                    .rounded_full()
+-                                    .border_2()
+-                                    .border_color(gpui::white())
+-                                    .bg(gpui::rgb(0x0085F5))
+-                                    // The closure is handed the value the slider
+-                                    // already computed for this thumb, so the
+-                                    // caller never re-derives it.
+-                                    .flex()
+-                                    .items_center()
+-                                    .justify_center()
+-                                    .child(
+-                                        gpui::div()
+-                                            .absolute()
+-                                            .top(px(-20.))
+-                                            .text_size(px(11.))
+-                                            .child(format!("{value:.0}")),
+-                                    )
+-                                    .into_any_element()
+-                            })
+-                            .into_any_element(),
                      ]),
                  ),
                  (
@@ -33329,13 +33427,15 @@ index 5eb12cd4..3f9b9436 100644
                          if self.alert_visible {
                              h::Alert::new("Saved")
                                  .description("Your changes are live.")
-@@ -5250,9 +5513,13 @@ impl Gallery {
+@@ -5249,10 +5512,14 @@ impl Gallery {
+             crate::pages::Page::Meter.import_line(),
              vec![
                  (
-                     "Usage",
+-                    "Usage",
 -                    col(vec![h::Meter::new("meter-usage", value)
 -                        .label("Disk usage")
 -                        .show_value(true)
++                    "Usage", "Labels and values use 14px text with a 20px line height, independent of the surrounding text style.",
 +                    col(vec![gpui::div()
 +                        .w(px(256.))
 +                        .child(
@@ -33398,14 +33498,16 @@ index 5eb12cd4..3f9b9436 100644
                  ),
              ],
              cx,
-@@ -5300,10 +5574,14 @@ impl Gallery {
+@@ -5299,11 +5573,15 @@ impl Gallery {
+             crate::pages::Page::ProgressBar.import_line(),
              vec![
                  (
-                     "Usage",
+-                    "Usage",
 -                    col(vec![h::ProgressBar::new("progress-usage")
 -                        .value(65.0)
 -                        .label("Uploading")
 -                        .show_value_label(true)
++                    "Usage", "Labels and values use 14px text with a 20px line height, independent of the surrounding text style.",
 +                    col(vec![gpui::div()
 +                        .w(px(256.))
 +                        .child(
