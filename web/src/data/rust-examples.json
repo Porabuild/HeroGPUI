@@ -3266,13 +3266,13 @@
   "select": [
     {
       "heading": "Usage",
-      "description": "Use the arrow keys and Enter or Space to select a language. Selection closes the list and keeps focus on the trigger. Values and options use 14px text with 20px lines. Section headers use 12px text with 16px lines and keep their own spacing.",
+      "description": "Use the arrow keys and Enter or Space to select a language. Selection closes the list and keeps focus on the trigger. Values and options use 14px text with 20px lines. Section headers use 12px text with 16px lines and keep their own spacing. The popup flips near window edges and scrolls to keep options reachable in short windows.",
       "imports": "use herogpui::prelude::Select;",
       "code": "Select::new(\"select-main\", languages())\n    .label(\"Language\")\n    .placeholder(\"Choose one\")\n    .value(selected)\n    .is_open(is_open)\n    .on_open_change(bool_cb(cx.listener(|this, open: &bool, _, cx| {\n        this.select_open = *open;\n        cx.notify();\n    })))\n    .on_change(opt_usize_cb(cx.listener(\n        |this, i: &Option<usize>, _, cx| {\n            this.select_lang = *i;\n            this.select_open = false;\n            cx.notify();\n        },\n    )))"
     },
     {
       "heading": "Virtualization",
-      "description": "v3 wraps the popover's list in React Aria's `Virtualizer`; `row_height` carries that here, and gpui's `uniform_list` builds only the rows in view. A thousand options, forty pixels each.",
+      "description": "v3 wraps the popover's list in React Aria's `Virtualizer`; `row_height` carries that here, and gpui's `uniform_list` builds only the rows in view. A thousand options, forty pixels each. The list sizes to the available height. Options remain reachable with the keyboard and mouse wheel.",
       "imports": "use herogpui::prelude::Select;\nuse gpui::prelude::*;\nuse gpui::px;",
       "code": "gpui::div()\n    .w(px(256.))\n    .flex()\n    .flex_col()\n    .child(Select::new(\"select-virtual\", virtual_names())\n                .label(\"User\")\n            .placeholder(\"Choose one\")\n            .row_height(px(40.)))"
     },

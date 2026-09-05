@@ -18973,7 +18973,7 @@
         "prop": "placement",
         "type": "Placement",
         "default": "\"bottom\"",
-        "description": "Eight cardinal/start/end placements are available; RAC's full 22-value placement union is not.",
+        "description": "Eight cardinal/start/end placements are available; RAC's full 22-value placement union is not. The panel anchors to the measured trigger with an 8px gap and flips when the preferred side cannot fit and the opposite side has more room.",
         "rustOwner": "Select",
         "rust": "placement(Placement)",
         "status": "partial"
@@ -19071,7 +19071,7 @@
       {
         "name": "Select.Popover",
         "slot": "select-popover",
-        "description": "Anchored list surface with a reduced placement vocabulary.",
+        "description": "List surface anchored to the trigger; it can flip within the window and supports a reduced placement vocabulary.",
         "rustOwner": "Select",
         "status": "partial"
       }
@@ -19255,8 +19255,8 @@
       },
       {
         "token": ".select__popover",
-        "description": "Anchored overlay surface, radius, scrolling and shadow.",
-        "rust": "anchored panel + floating_radius + overlay_shadow",
+        "description": "Anchored to the measured trigger width with an 8px gap and 12px viewport inset, scrolling within the available height; the plain list scrolls the panel and the virtual list sizes itself to the same bound. Overlay surface, radius and shadow.",
+        "rust": "scrollable_field_popover + max_h_full (plain) / Infer (virtual) + floating_radius + overlay_shadow",
         "status": "implemented"
       },
       {

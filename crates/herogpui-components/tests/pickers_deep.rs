@@ -29,8 +29,10 @@
 //! suite:
 //!
 //! - Every trigger field is a 36px row (`util::FIELD_HEIGHT`) at the window
-//!   origin, so its centre is (60, 18), and the pickers' panels hang from
-//!   `placed_field_panel(BottomStart, 6px)`: top = 42.
+//!   origin, so its centre is (60, 18). Autocomplete and ComboBox panels hang
+//!   from `placed_field_panel(BottomStart, 6px)`: top = 42. The Select panel
+//!   is positioned from the measured trigger bounds with RAC's 8px popover
+//!   gap instead: top = 44.
 //! - Autocomplete: panel `pt(8)` + search wrapper `py(4)` + 36px field + list
 //!   `p(6)` puts row *i* at y 100+36i; clicking y = 124+36i lands inside it in
 //!   every phase of the entry zoom. A `section_before` heading rides above its
@@ -45,7 +47,8 @@
 //! - ComboBox: panel `p(4)` puts row *i* at y 46+36i; clicking y = 64+36i
 //!   covers it. The field caps at `max_w(320)`, so the chevron centre is
 //!   (298, 18).
-//! - Select: panel `py(6)` puts option *i*'s centre at y 66+36i.
+//! - Select: panel `py(6)` below the 8px gap puts option *i*'s centre at y
+//!   68+36i.
 //! - Drawer (window 1920x1080, 384px desktop side width): the Right panel is
 //!   x 1536..1920, y 0..1080, `p-6` (24px). Inside it: the handle
 //!   (bar 4px + `pb-2` 8px) at y 24..36, the 24px title line (the drag
@@ -3979,4 +3982,425 @@ fn picker_text_metrics_keep_sections_and_options_in_place(cx: &mut TestAppContex
             assert_eq!(recorded.borrow().as_slice(), ["picked"], "36px option follows two 16px header lines plus 10px header padding: kind={kind}, host={leading:?}");
         }
     }
+}
+
+// ---------------------------------------------------------------------------
+// Select popup viewport visibility
+// ---------------------------------------------------------------------------
+//
+// Upstream, `Select.Popover` is a React Aria Components `Popover` with only
+// `placement` defaulted (`"bottom"`): no `offset`, `containerPadding`,
+// `shouldFlip`, or `maxHeight` override. The inherited contract is therefore
+// RAC's own — `offset` 8 (`Popover`'s `props.offset ?? 8`), `containerPadding`
+// 12 and `shouldFlip: true` (`useOverlayPosition` defaults), and a computed
+// `maxHeight` from `calculatePosition`'s `getMaxHeight`: the space from the
+// placed edge to the viewport boundary minus padding, with the side flipped
+// when the full overlay fits better on the other side (`overlaySize[size] >
+// space` flips only toward the roomier side). The popover itself scrolls
+// (`select.css`: `.select__popover` is `overflow-y-auto`, `min-w-(--trigger-width)`)
+// while the ListBox inside is `overflow-clip` — there is no 280px cap
+// anywhere upstream.
+//
+// The port previously hung the panel from `util::placed_field_panel` with a
+// fixed `max_h(280)` (and a fixed `h(280)` virtual list): no flip, no
+// viewport clamp, no available-height cap. A trigger near the bottom of the
+// window pushed the list off-screen and the last rows stayed unreachable.
+// These tests pin the upstream behavior with real bounds and real
+// interaction: flip above the trigger, trigger-width alignment, an
+// available-height cap with a reachable last row, resize tracking, and the
+// keyboard paths — for both the plain and the virtual lists.
+
+/// Twelve plain rows: natural panel height (~444px) fits neither below a
+/// bottom trigger nor, in a 480px window, above it uncapped.
+fn viewport_options(n: usize) -> Vec<gpui::SharedString> {
+    (0..n)
+        .map(|i| gpui::SharedString::from(format!("Option {i:02}")))
+        .collect()
+}
+
+/// Resize plus frames for the measured position to settle; the positioner
+/// measures and places in the same frame.
+fn settle_select(cx: &mut VisualTestContext, width: f32, height: f32) {
+    cx.simulate_resize(gpui::size(px(width), px(height)));
+    for _ in 0..4 {
+        cx.update(|window, _| window.refresh());
+        cx.run_until_parked();
+    }
+}
+
+/// Layout rounds to whole pixels, and `float_cmp` is denied.
+fn near_px(value: gpui::Pixels, expected: f32) -> bool {
+    (f32::from(value) - expected).abs() < 1.5
+}
+
+/// A Select whose 320px trigger sits at (40, `top`) in a 640px window.
+fn select_at(top: f32, select: Select) -> gpui::AnyElement {
+    gpui::div()
+        .size_full()
+        .child(
+            gpui::div()
+                .absolute()
+                .left(px(40.))
+                .top(px(top))
+                .w(px(320.))
+                .child(select)
+                .into_any_element(),
+        )
+        .into_any_element()
+}
+
+/// The same trigger inside a tracked scrollable page. The inner content is
+/// 2000px tall so the page can scroll at both the 480px and 1100px test
+/// viewports; with the page at offset zero the trigger sits at the same
+/// window coordinates as `select_at`, while a wheel over the deferred popup
+/// must not move the page (`overscroll-contain`).
+fn select_in_page(top: f32, select: Select, page_scroll: gpui::ScrollHandle) -> gpui::AnyElement {
+    gpui::div()
+        .id("select-viewport-page")
+        .size_full()
+        .overflow_y_scroll()
+        .track_scroll(&page_scroll)
+        .child(
+            gpui::div().relative().h(px(2000.)).child(
+                gpui::div()
+                    .absolute()
+                    .left(px(40.))
+                    .top(px(top))
+                    .w(px(320.))
+                    .child(select)
+                    .into_any_element(),
+            ),
+        )
+        .into_any_element()
+}
+
+#[gpui::test]
+fn select_panel_flips_above_and_keeps_every_row_reachable(cx: &mut TestAppContext) {
+    still();
+    let picked = events();
+    let recorded = picked.clone();
+    let opened = events();
+    let opens = opened.clone();
+    let page_scroll = gpui::ScrollHandle::new();
+    let page_for_view = page_scroll.clone();
+    let cx = open_host(cx, move || {
+        let recorded = picked.clone();
+        let opens = opened.clone();
+        let page_scroll = page_for_view.clone();
+        select_in_page(
+            408.,
+            Select::new("sel-vp", viewport_options(12))
+                .full_width(true)
+                .on_change(move |i, _, _| recorded.borrow_mut().push(format!("{i:?}")))
+                .on_open_change(move |open, _, _| opens.borrow_mut().push(format!("{open}"))),
+            page_scroll,
+        )
+    });
+    settle_select(cx, 640., 480.);
+    click(cx, 200., 426.);
+    settle_select(cx, 640., 480.);
+    assert_eq!(opens.borrow().as_slice(), ["true"]);
+
+    let trigger = cx
+        .debug_bounds("select-trigger-Name(\"sel-vp\")")
+        .expect("the trigger must be laid out");
+    let panel = cx
+        .debug_bounds("select-list-Name(\"sel-vp\")-panel")
+        .expect("the open panel must be laid out");
+
+    // The natural list (~444px) fits nowhere below the trigger, so the panel
+    // flips above it with RAC's 8px gap, stays on the 12px viewport inset,
+    // and matches the trigger width like `min-w-(--trigger-width)`.
+    assert!(
+        near_px(panel.bottom(), f32::from(trigger.top()) - 8.),
+        "the panel must flip above a bottom trigger with an 8px gap: panel={panel:?} trigger={trigger:?}"
+    );
+    assert!(
+        f32::from(panel.top()) >= 12. - 1.5,
+        "the flipped panel must stay on the viewport inset, got {panel:?}"
+    );
+    assert!(
+        f32::from(panel.bottom()) <= 480. - 12. + 1.5,
+        "the panel must stay inside the window, got {panel:?}"
+    );
+    assert!(
+        near_px(panel.left(), f32::from(trigger.left())),
+        "the panel must align with the trigger: panel={panel:?} trigger={trigger:?}"
+    );
+    assert!(
+        near_px(panel.size.width, f32::from(trigger.size.width)),
+        "the panel must match the trigger width: panel={panel:?} trigger={trigger:?}"
+    );
+
+    // Neither side fits the natural height, so the panel caps at the
+    // available height instead of the arbitrary 280px.
+    assert!(
+        f32::from(panel.size.height) > 280. + 1.5,
+        "the capped panel must use the room above the trigger, got {panel:?}"
+    );
+
+    // The last row starts below the capped panel; scrolling the panel must
+    // bring it into view and keep it clickable without moving the page.
+    let last_selector = "select-list-Name(\"sel-vp\")-opt-11";
+    let hidden = cx
+        .debug_bounds(last_selector)
+        .expect("rows must be laid out");
+    assert!(
+        f32::from(hidden.top()) >= f32::from(panel.bottom()),
+        "the last row must start out of view in a capped panel: row={hidden:?} panel={panel:?}"
+    );
+    let trigger_before = cx
+        .debug_bounds("select-trigger-Name(\"sel-vp\")")
+        .expect("the trigger must be laid out");
+    for _ in 0..3 {
+        cx.simulate_event(gpui::ScrollWheelEvent {
+            position: panel.center(),
+            delta: gpui::ScrollDelta::Pixels(point(px(0.), px(-1000.))),
+            modifiers: Modifiers::none(),
+            touch_phase: gpui::TouchPhase::Moved,
+        });
+        cx.update(|window, _| window.refresh());
+        cx.run_until_parked();
+    }
+    let panel = cx
+        .debug_bounds("select-list-Name(\"sel-vp\")-panel")
+        .expect("the open panel must be laid out");
+    let last = cx
+        .debug_bounds(last_selector)
+        .expect("rows must be laid out");
+    assert!(
+        f32::from(last.top()) >= f32::from(panel.top()) - 1.5
+            && f32::from(last.bottom()) <= f32::from(panel.bottom()) + 1.5,
+        "scrolling must reveal the last row: row={last:?} panel={panel:?}"
+    );
+    assert_eq!(
+        page_scroll.offset().y,
+        px(0.),
+        "scrolling the popup must not move the page"
+    );
+    let trigger_after = cx
+        .debug_bounds("select-trigger-Name(\"sel-vp\")")
+        .expect("the trigger must be laid out");
+    assert_eq!(
+        trigger_after.origin, trigger_before.origin,
+        "the page must not scroll under the open popup"
+    );
+    // Reaching the popup boundary must still contain the wheel.
+    cx.simulate_event(gpui::ScrollWheelEvent {
+        position: panel.center(),
+        delta: gpui::ScrollDelta::Pixels(point(px(0.), px(-1000.))),
+        modifiers: Modifiers::none(),
+        touch_phase: gpui::TouchPhase::Moved,
+    });
+    cx.update(|window, _| window.refresh());
+    cx.run_until_parked();
+    assert_eq!(
+        page_scroll.offset().y,
+        px(0.),
+        "scrolling at the popup boundary must not move the page"
+    );
+    let last = cx
+        .debug_bounds(last_selector)
+        .expect("rows must be laid out");
+    click(cx, f32::from(last.center().x), f32::from(last.center().y));
+    assert_eq!(recorded.borrow().as_slice(), ["Some(11)"]);
+    assert_eq!(opens.borrow().as_slice(), ["true", "false"]);
+}
+
+#[gpui::test]
+fn select_virtual_panel_flips_caps_and_tracks_resize(cx: &mut TestAppContext) {
+    still();
+    let picked = events();
+    let recorded = picked.clone();
+    let opened = events();
+    let opens = opened.clone();
+    let page_scroll = gpui::ScrollHandle::new();
+    let page_for_view = page_scroll.clone();
+    let cx = open_host(cx, move || {
+        let recorded = picked.clone();
+        let opens = opened.clone();
+        let page_scroll = page_for_view.clone();
+        select_in_page(
+            408.,
+            Select::new("sel-vv", viewport_options(200))
+                .full_width(true)
+                .row_height(px(36.))
+                .on_change(move |i, _, _| recorded.borrow_mut().push(format!("{i:?}")))
+                .on_open_change(move |open, _, _| opens.borrow_mut().push(format!("{open}"))),
+            page_scroll,
+        )
+    });
+    settle_select(cx, 640., 480.);
+    click(cx, 200., 426.);
+    settle_select(cx, 640., 480.);
+    assert_eq!(opens.borrow().as_slice(), ["true"]);
+
+    let trigger = cx
+        .debug_bounds("select-trigger-Name(\"sel-vv\")")
+        .expect("the trigger must be laid out");
+    let panel = cx
+        .debug_bounds("select-list-Name(\"sel-vv\")-panel")
+        .expect("the open panel must be laid out");
+
+    // A 200-row virtual list never fits uncapped: it flips above and caps at
+    // the available height rather than the fixed 280px list viewport.
+    assert!(
+        near_px(panel.bottom(), f32::from(trigger.top()) - 8.),
+        "the virtual panel must flip above a bottom trigger with an 8px gap: panel={panel:?} trigger={trigger:?}"
+    );
+    assert!(
+        f32::from(panel.top()) >= 12. - 1.5 && f32::from(panel.bottom()) <= 480. - 12. + 1.5,
+        "the capped virtual panel must stay inside the window, got {panel:?}"
+    );
+    assert!(
+        near_px(panel.left(), f32::from(trigger.left()))
+            && near_px(panel.size.width, f32::from(trigger.size.width)),
+        "the virtual panel must match the trigger width: panel={panel:?} trigger={trigger:?}"
+    );
+
+    // Growing the window must reposition the still-open panel: below the
+    // trigger now has the most room, so it flips back and stays inset.
+    settle_select(cx, 640., 1100.);
+    let trigger = cx
+        .debug_bounds("select-trigger-Name(\"sel-vv\")")
+        .expect("the trigger must be laid out");
+    let panel = cx
+        .debug_bounds("select-list-Name(\"sel-vv\")-panel")
+        .expect("the open panel must be laid out");
+    assert!(
+        near_px(panel.top(), f32::from(trigger.bottom()) + 8.),
+        "the panel must flip back below once the window grows with an 8px gap: panel={panel:?} trigger={trigger:?}"
+    );
+    assert!(
+        f32::from(panel.bottom()) <= 1100. - 12. + 1.5,
+        "the repositioned panel must stay inside the window, got {panel:?}"
+    );
+
+    // The pointer reaches the last virtual row through the wheel: scrolling
+    // the popup must not move the page, and clicking the revealed row picks
+    // it and closes the panel.
+    let trigger_before = cx
+        .debug_bounds("select-trigger-Name(\"sel-vv\")")
+        .expect("the trigger must be laid out");
+    for _ in 0..10 {
+        cx.simulate_event(gpui::ScrollWheelEvent {
+            position: panel.center(),
+            delta: gpui::ScrollDelta::Pixels(point(px(0.), px(-1000.))),
+            modifiers: Modifiers::none(),
+            touch_phase: gpui::TouchPhase::Moved,
+        });
+        cx.update(|window, _| window.refresh());
+        cx.run_until_parked();
+    }
+    let panel = cx
+        .debug_bounds("select-list-Name(\"sel-vv\")-panel")
+        .expect("the open panel must be laid out");
+    let last = cx
+        .debug_bounds("select-list-Name(\"sel-vv\")-opt-199")
+        .expect("rows must be laid out");
+    assert!(
+        f32::from(last.top()) >= f32::from(panel.top()) - 1.5
+            && f32::from(last.bottom()) <= f32::from(panel.bottom()) + 1.5,
+        "wheel must scroll the last virtual row into view: row={last:?} panel={panel:?}"
+    );
+    assert_eq!(
+        page_scroll.offset().y,
+        px(0.),
+        "scrolling the virtual popup must not move the page"
+    );
+    let trigger_after = cx
+        .debug_bounds("select-trigger-Name(\"sel-vv\")")
+        .expect("the trigger must be laid out");
+    assert_eq!(
+        trigger_after.origin, trigger_before.origin,
+        "the page must not scroll under the open virtual popup"
+    );
+    click(cx, f32::from(last.center().x), f32::from(last.center().y));
+    assert_eq!(recorded.borrow().as_slice(), ["Some(199)"]);
+    assert_eq!(opens.borrow().as_slice(), ["true", "false"]);
+
+    // Reopen for the keyboard path: End still reaches the last virtual row
+    // and Enter picks it, which closes the panel.
+    click(cx, 200., 426.);
+    settle_select(cx, 640., 1100.);
+    flush_frame(cx);
+    press(cx, "end");
+    flush_frame(cx);
+    let panel = cx
+        .debug_bounds("select-list-Name(\"sel-vv\")-panel")
+        .expect("the open panel must be laid out");
+    let last = cx
+        .debug_bounds("select-list-Name(\"sel-vv\")-opt-199")
+        .expect("rows must be laid out");
+    assert!(
+        f32::from(last.top()) >= f32::from(panel.top()) - 1.5
+            && f32::from(last.bottom()) <= f32::from(panel.bottom()) + 1.5,
+        "End must scroll the last virtual row into view: row={last:?} panel={panel:?}"
+    );
+    press(cx, "enter");
+    assert_eq!(recorded.borrow().as_slice(), ["Some(199)", "Some(199)"]);
+    assert_eq!(
+        opens.borrow().as_slice(),
+        ["true", "false", "true", "false"]
+    );
+}
+
+#[gpui::test]
+fn select_panel_anchors_to_the_trigger_and_dismisses_with_escape(cx: &mut TestAppContext) {
+    still();
+    let picked = events();
+    let recorded = picked.clone();
+    let opened = events();
+    let opens = opened.clone();
+    let cx = open_host(cx, move || {
+        let recorded = picked.clone();
+        let opens = opened.clone();
+        select_at(
+            40.,
+            Select::new("sel-vl", viewport_options(3))
+                .full_width(true)
+                .label("Language")
+                .description("Pick one")
+                .on_change(move |i, _, _| recorded.borrow_mut().push(format!("{i:?}")))
+                .on_open_change(move |open, _, _| opens.borrow_mut().push(format!("{open}"))),
+        )
+    });
+    settle_select(cx, 640., 480.);
+
+    // The trigger sits below its label: the panel must anchor to the trigger
+    // bounds, not to the label-to-description wrapper root. Three rows fit
+    // below, so the preferred side stays below with RAC's 8px gap.
+    let trigger = cx
+        .debug_bounds("select-trigger-Name(\"sel-vl\")")
+        .expect("the trigger must be laid out");
+    click(cx, 200., f32::from(trigger.center().y));
+    settle_select(cx, 640., 480.);
+    assert_eq!(opens.borrow().as_slice(), ["true"]);
+
+    let panel = cx
+        .debug_bounds("select-list-Name(\"sel-vl\")-panel")
+        .expect("the open panel must be laid out");
+    assert!(
+        near_px(panel.top(), f32::from(trigger.bottom()) + 8.),
+        "a labeled panel must sit 8px below the trigger itself: panel={panel:?} trigger={trigger:?}"
+    );
+    assert!(
+        f32::from(panel.bottom()) <= 480. - 12. + 1.5,
+        "the labeled panel must stay inside the window, got {panel:?}"
+    );
+
+    // Escape dismisses; clicking where the last row was must then hit
+    // nothing and record nothing.
+    let last = cx
+        .debug_bounds("select-list-Name(\"sel-vl\")-opt-2")
+        .expect("rows must be laid out");
+    let stale = (f32::from(last.center().x), f32::from(last.center().y));
+    press(cx, "escape");
+    assert_eq!(opens.borrow().as_slice(), ["true", "false"]);
+    let_exit_finish(cx);
+    click(cx, stale.0.min(639.), stale.1.min(479.));
+    assert!(
+        recorded.borrow().is_empty(),
+        "a dismissed panel must not answer the pointer"
+    );
 }

@@ -632,6 +632,7 @@ impl RenderOnce for Select {
         let (h, text) = (util::FIELD_HEIGHT, util::FIELD_TEXT);
 
         let trigger_id = el_name(format!("select-{}", id_debug(&self.id)));
+        let trigger_selector = format!("select-trigger-{}", id_debug(&self.id));
         // Whether the pointer went down on the trigger. The panel's
         // outside-press dismissal treats the trigger as outside its own bounds,
         // so a press on the trigger of an *open* list would dismiss it on the
@@ -643,6 +644,7 @@ impl RenderOnce for Select {
         let trigger_pressed = Rc::new(std::cell::Cell::new(false));
         let mut field = gpui::div()
             .id(trigger_id)
+            .debug_selector(move || trigger_selector)
             .flex()
             .items_center()
             .justify_between()
@@ -1159,6 +1161,14 @@ impl RenderOnce for Select {
                 });
         }
 
+        // The popup anchors to the trigger bounds — not to the
+        // label-to-description wrapper root — the way RAC's
+        // `useOverlayPosition` positions against the trigger rect.
+        // `scrollable_field_popover` below reads these bounds to flip and
+        // cap the panel; the measure element itself only records them.
+        let anchor_bounds = Rc::new(std::cell::Cell::new(None));
+        let field = crate::popover::PopoverTriggerMeasure::new(field, anchor_bounds.clone());
+
         // listbox panel
         let mut root = gpui::div().relative();
         root = if self.full_width {
@@ -1247,9 +1257,20 @@ impl RenderOnce for Select {
                 // `.select__popover` is `overflow-y-auto`: a long list scrolls
                 // rather than being clipped. gpui needs an id for that.
                 .id(el_name(format!("{base}-scroll")))
+                .debug_selector({
+                    let base = base.clone();
+                    move || format!("{base}-panel")
+                })
                 .overflow_y_scroll()
+                // `overscroll-contain` upstream: a wheel over the popup must
+                // not scroll the page behind it (ColorPicker pattern).
+                .occlude()
                 .track_scroll(&panel_scroll_now)
-                .max_h(px(280.));
+                // RAC caps the popover at the available viewport height
+                // (`calculatePosition`'s `getMaxHeight`); the positioner
+                // below re-lays the panel out with that cap, so the panel
+                // carries a viewport-relative bound rather than a fixed one.
+                .max_h_full();
 
             // React Aria dismisses the list on a press outside it. Escape is
             // already read by the trigger's key handler, so only the press half
@@ -1339,8 +1360,10 @@ impl RenderOnce for Select {
                     selected == Some(i)
                 };
                 let opt_disabled = opt_disabled_keys.contains(&i);
+                let row_selector = format!("{base}-opt-{i}");
                 let mut item = gpui::div()
-                        .id(el_name(format!("{base}-opt-{i}")))
+                        .id(el_name(row_selector.clone()))
+                        .debug_selector(move || row_selector)
                         .flex()
                         .items_center()
                         .justify_between()
@@ -1521,7 +1544,14 @@ impl RenderOnce for Select {
 
             match self.row_height {
                 // Virtual: only the rows in view are built, which is what makes
-                // a thousand options affordable.
+                // a thousand options affordable. The list itself is the scroll
+                // container: `Infer` sizes it from its rows — the full
+                // natural height on the positioner's measure pass (so the
+                // flip sees the real extent, like upstream's `overlaySize`),
+                // capped to the available height on the capped pass — while
+                // the ListBox stays `overflow-clip`, as in v3. A fixed inner
+                // height plus an outer scroller would nest two scroll
+                // containers and strand rows between them.
                 Some(row_height) => {
                     panel = panel.child(
                         gpui::uniform_list(
@@ -1534,7 +1564,7 @@ impl RenderOnce for Select {
                             },
                         )
                         .track_scroll(&list_scroll_now)
-                        .h(px(280.))
+                        .with_sizing_behavior(gpui::ListSizingBehavior::Infer)
                         .w_full(),
                     );
                 }
@@ -1563,9 +1593,15 @@ impl RenderOnce for Select {
                     cx,
                 )
             };
-            root = root.child(util::floating(
-                util::placed_field_panel(self.placement, px(6.)).child(panel),
-            ));
+            // RAC positions the popover against the trigger with an 8px gap,
+            // flips it when the other side has more room, and caps it at the
+            // available viewport height past a 12px inset — which `Select`
+            // inherits unchanged from `useOverlayPosition`/`Popover`.
+            root = root.child(util::floating(crate::popover::scrollable_field_popover(
+                anchor_bounds,
+                self.placement,
+                panel,
+            )));
         }
 
         root.track_focus(&blur_scope)

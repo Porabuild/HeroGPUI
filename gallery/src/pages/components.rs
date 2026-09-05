@@ -12440,7 +12440,7 @@ impl Gallery {
             crate::pages::Page::Select.import_line(),
             vec![
                 (
-                    "Usage", "Use the arrow keys and Enter or Space to select a language. Selection closes the list and keeps focus on the trigger. Values and options use 14px text with 20px lines. Section headers use 12px text with 16px lines and keep their own spacing.",
+                    "Usage", "Use the arrow keys and Enter or Space to select a language. Selection closes the list and keeps focus on the trigger. Values and options use 14px text with 20px lines. Section headers use 12px text with 16px lines and keep their own spacing. The popup flips near window edges and scrolls to keep options reachable in short windows.",
                     field_col(vec![h::Select::new("sel-main", languages())
                         .label("Language")
                         .placeholder("Choose one")
@@ -12460,7 +12460,7 @@ impl Gallery {
                         .into_any_element()]),
                 ),
                 (
-                    "Virtualization", "v3 wraps the popover's list in React Aria's `Virtualizer`; `row_height` carries that here, and gpui's `uniform_list` builds only the rows in view. A thousand options, forty pixels each.",
+                    "Virtualization", "v3 wraps the popover's list in React Aria's `Virtualizer`; `row_height` carries that here, and gpui's `uniform_list` builds only the rows in view. A thousand options, forty pixels each. The list sizes to the available height. Options remain reachable with the keyboard and mouse wheel.",
                     col(vec![
                         demo_field(
                             h::Select::new("sel-virtual", virtual_names())

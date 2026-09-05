@@ -19900,18 +19900,25 @@ index 380beb7a..2abd28d5 100644
 +    }
 +}
 diff --git a/crates/herogpui-components/src/popover.rs b/crates/herogpui-components/src/popover.rs
-index c47881af..fe8696ab 100644
+index c47881af..7d630c1a 100644
 --- a/crates/herogpui-components/src/popover.rs
 +++ b/crates/herogpui-components/src/popover.rs
-@@ -60,6 +60,7 @@ struct PopoverPositioner {
+@@ -60,6 +60,14 @@ struct PopoverPositioner {
      offset: Pixels,
      should_flip: bool,
      has_arrow: bool,
 +    constrain_height: bool,
++    /// Size the panel from the trigger width instead of `MaxContent`.
++    ///
++    /// Field panels (Select) are `w_full`: against a `MaxContent` root width
++    /// that resolves incorrectly, so both measurements use the measured
++    /// trigger width. With the widths equal, start/center/end alignment
++    /// coincide and only the flipped side differs.
++    match_trigger_width: bool,
      children: Vec<AnyElement>,
  }
  
-@@ -243,13 +244,13 @@ impl IntoElement for PopoverArrow {
+@@ -243,13 +251,13 @@ impl IntoElement for PopoverArrow {
      }
  }
  
@@ -19927,15 +19934,16 @@ index c47881af..fe8696ab 100644
          child: impl IntoElement,
          bounds: std::rc::Rc<std::cell::Cell<Option<Bounds<Pixels>>>>,
      ) -> Self {
-@@ -333,6 +334,7 @@ impl PopoverPositioner {
+@@ -333,6 +341,8 @@ impl PopoverPositioner {
              offset,
              should_flip,
              has_arrow,
 +            constrain_height: false,
++            match_trigger_width: false,
              children: Vec::new(),
          }
      }
-@@ -352,12 +354,18 @@ impl PopoverPositioner {
+@@ -352,12 +362,18 @@ impl PopoverPositioner {
          trigger: Bounds<Pixels>,
          viewport: Size<Pixels>,
      ) -> Pixels {
@@ -19956,7 +19964,7 @@ index c47881af..fe8696ab 100644
      }
  
      fn resolved_side(
-@@ -417,17 +425,22 @@ impl PopoverPositioner {
+@@ -417,17 +433,22 @@ impl PopoverPositioner {
              PopoverSide::Right => point(trigger.right() + gap, aligned_y),
          };
  
@@ -19987,7 +19995,7 @@ index c47881af..fe8696ab 100644
              }
          }
          origin
-@@ -527,9 +540,39 @@ impl Element for PopoverPositioner {
+@@ -527,9 +548,40 @@ impl Element for PopoverPositioner {
          let Some(trigger) = self.trigger.get() else {
              return false;
          };
@@ -19995,13 +20003,17 @@ index c47881af..fe8696ab 100644
 -        let side = self.resolved_side(trigger, popup, window.viewport_size());
 -        let origin = self.origin(side, trigger, popup, window.viewport_size());
 +        let viewport = window.viewport_size();
++        // A trigger-width panel resolves `w_full` against this width, not
++        // against `MaxContent`.
++        let width_space = if self.match_trigger_width {
++            gpui::AvailableSpace::Definite(trigger.size.width)
++        } else {
++            gpui::AvailableSpace::MaxContent
++        };
 +        let mut popup = window.layout_bounds(state.children[0]).size;
 +        if self.constrain_height {
 +            popup = self.children[0].layout_as_root(
-+                gpui::size(
-+                    gpui::AvailableSpace::MaxContent,
-+                    gpui::AvailableSpace::MaxContent,
-+                ),
++                gpui::size(width_space, gpui::AvailableSpace::MaxContent),
 +                window,
 +                cx,
 +            );
@@ -20018,10 +20030,7 @@ index c47881af..fe8696ab 100644
 +            }
 +            .max(px(0.));
 +            popup = self.children[0].layout_as_root(
-+                gpui::size(
-+                    gpui::AvailableSpace::MaxContent,
-+                    gpui::AvailableSpace::Definite(max_height),
-+                ),
++                gpui::size(width_space, gpui::AvailableSpace::Definite(max_height)),
 +                window,
 +                cx,
 +            );
@@ -20030,7 +20039,7 @@ index c47881af..fe8696ab 100644
          self.resolved.set(Some(PopoverResolved {
              trigger,
              panel: Bounds {
-@@ -538,7 +581,12 @@ impl Element for PopoverPositioner {
+@@ -538,7 +590,12 @@ impl Element for PopoverPositioner {
              },
              side,
          }));
@@ -20044,7 +20053,7 @@ index c47881af..fe8696ab 100644
          let offset = point(offset.x.round(), offset.y.round());
          window.with_element_offset(offset, |window| {
              self.children[0].prepaint(window, cx);
-@@ -572,6 +620,24 @@ impl IntoElement for PopoverPositioner {
+@@ -572,6 +629,50 @@ impl IntoElement for PopoverPositioner {
      }
  }
  
@@ -20066,10 +20075,36 @@ index c47881af..fe8696ab 100644
 +    positioner.child(panel)
 +}
 +
++/// A trigger-width variant of [`scrollable_popover`] for field panels.
++///
++/// `Select.Popover` is `min-w-(--trigger-width)`: the panel matches the
++/// trigger width, so the positioner measures with that width on both passes
++/// instead of `MaxContent`. The panel must still use `max_h_full()`; a plain
++/// list owns the panel's vertical scroll container, while a virtual list
++/// sizes itself from its rows (`Infer`) so it caps together with the panel
++/// instead of nesting a fixed viewport inside an outer scroller.
++pub(crate) fn scrollable_field_popover(
++    trigger: std::rc::Rc<std::cell::Cell<Option<Bounds<Pixels>>>>,
++    placement: PopoverPlacement,
++    panel: impl IntoElement,
++) -> impl IntoElement {
++    let mut positioner = PopoverPositioner::new(
++        trigger,
++        std::rc::Rc::new(std::cell::Cell::new(None)),
++        placement,
++        px(8.),
++        true,
++        false,
++    );
++    positioner.constrain_height = true;
++    positioner.match_trigger_width = true;
++    positioner.child(panel)
++}
++
  /// HeroUI Popover (controlled).
  #[derive(IntoElement)]
  pub struct Popover {
-@@ -729,20 +795,6 @@ impl RenderOnce for Popover {
+@@ -729,20 +830,6 @@ impl RenderOnce for Popover {
              ))
              .flex()
              .track_focus(&trigger_focus)
@@ -20090,7 +20125,7 @@ index c47881af..fe8696ab 100644
              .cursor_pointer();
          if self.on_open_change.is_some() || open_own.is_some() {
              let on_open_change = self.on_open_change.clone();
-@@ -750,24 +802,41 @@ impl RenderOnce for Popover {
+@@ -750,24 +837,41 @@ impl RenderOnce for Popover {
              let open = is_open;
              let capture_pressed = trigger_pressed.clone();
              let click_pressed = trigger_pressed.clone();
@@ -20143,7 +20178,7 @@ index c47881af..fe8696ab 100644
                      click_pressed.set(false);
                  });
          }
-@@ -840,6 +909,7 @@ impl RenderOnce for Popover {
+@@ -840,6 +944,7 @@ impl RenderOnce for Popover {
              .text_color(colors.surface.foreground)
              // `.popover` is `text-sm`.
              .text_size(px(14.))
@@ -21650,7 +21685,7 @@ index 4525f723..9dd36a50 100644
          };
          let (past_start, before_end) = (
 diff --git a/crates/herogpui-components/src/select.rs b/crates/herogpui-components/src/select.rs
-index 753f8e92..5fb61d08 100644
+index 753f8e92..aaac88f6 100644
 --- a/crates/herogpui-components/src/select.rs
 +++ b/crates/herogpui-components/src/select.rs
 @@ -570,6 +570,11 @@ impl RenderOnce for Select {
@@ -21665,7 +21700,23 @@ index 753f8e92..5fb61d08 100644
          // The Shift-range anchor lives beside the cursor, keyed off the same
          // instance id, so two selects never share an anchor and a closed
          // popover leaves its anchor standing for the reopen.
-@@ -645,6 +650,7 @@ impl RenderOnce for Select {
+@@ -627,6 +632,7 @@ impl RenderOnce for Select {
+         let (h, text) = (util::FIELD_HEIGHT, util::FIELD_TEXT);
+ 
+         let trigger_id = el_name(format!("select-{}", id_debug(&self.id)));
++        let trigger_selector = format!("select-trigger-{}", id_debug(&self.id));
+         // Whether the pointer went down on the trigger. The panel's
+         // outside-press dismissal treats the trigger as outside its own bounds,
+         // so a press on the trigger of an *open* list would dismiss it on the
+@@ -638,6 +644,7 @@ impl RenderOnce for Select {
+         let trigger_pressed = Rc::new(std::cell::Cell::new(false));
+         let mut field = gpui::div()
+             .id(trigger_id)
++            .debug_selector(move || trigger_selector)
+             .flex()
+             .items_center()
+             .justify_between()
+@@ -645,6 +652,7 @@ impl RenderOnce for Select {
              .min_h(h)
              .px(px(12.))
              .text_size(text)
@@ -21673,7 +21724,7 @@ index 753f8e92..5fb61d08 100644
              .cursor_pointer();
  
          let _border_color = if is_open { sem.color } else { colors.separator };
-@@ -708,14 +714,24 @@ impl RenderOnce for Select {
+@@ -708,14 +716,24 @@ impl RenderOnce for Select {
              let key_list_scroll = list_scroll_now.clone();
              let key_panel_scroll = panel_scroll_now.clone();
              let fh = focus_handle.clone();
@@ -21700,7 +21751,7 @@ index 753f8e92..5fb61d08 100644
                      if !was_open {
                          // Closed: Down and Up open the list. Enter and Space are
                          // *not* handled here -- the trigger has a click listener
-@@ -749,7 +765,7 @@ impl RenderOnce for Select {
+@@ -749,7 +767,7 @@ impl RenderOnce for Select {
                          if !crate::list_nav::is_typeahead_key(key) {
                              return;
                          }
@@ -21709,7 +21760,7 @@ index 753f8e92..5fb61d08 100644
                          let (query, repeat) = typed.update(cx, |t, _| {
                              let query = t.push(key, now);
                              (query, t.is_repeat())
-@@ -943,10 +959,8 @@ impl RenderOnce for Select {
+@@ -943,10 +961,8 @@ impl RenderOnce for Select {
                              }
                          }
                          crate::list_nav::Move::Activate => {
@@ -21722,7 +21773,7 @@ index 753f8e92..5fb61d08 100644
                              let Some(index) = from else { return };
                              if multiple {
                                  let added = !selected_indices_keys.contains(&index);
-@@ -1010,7 +1024,7 @@ impl RenderOnce for Select {
+@@ -1010,7 +1026,7 @@ impl RenderOnce for Select {
                              if !crate::list_nav::is_typeahead_key(key) {
                                  return;
                              }
@@ -21731,7 +21782,7 @@ index 753f8e92..5fb61d08 100644
                              let (query, repeat) = typed.update(cx, |t, _| {
                                  let query = t.push(key, now);
                                  (query, t.is_repeat())
-@@ -1114,25 +1128,44 @@ impl RenderOnce for Select {
+@@ -1114,25 +1130,52 @@ impl RenderOnce for Select {
                      // Enter and Space activate the highlighted option before
                      // gpui synthesizes this trigger click. Multiple selection
                      // keeps the popover open for the next pick.
@@ -21769,6 +21820,14 @@ index 753f8e92..5fb61d08 100644
                  });
          }
  
++        // The popup anchors to the trigger bounds — not to the
++        // label-to-description wrapper root — the way RAC's
++        // `useOverlayPosition` positions against the trigger rect.
++        // `scrollable_field_popover` below reads these bounds to flip and
++        // cap the panel; the measure element itself only records them.
++        let anchor_bounds = Rc::new(std::cell::Cell::new(None));
++        let field = crate::popover::PopoverTriggerMeasure::new(field, anchor_bounds.clone());
++
          // listbox panel
 -        let mut root = gpui::div().relative().max_w(px(320.));
 +        let mut root = gpui::div().relative();
@@ -21780,7 +21839,29 @@ index 753f8e92..5fb61d08 100644
          if self.label.is_some() || self.description.is_some() {
              let mut wrapper = gpui::div().flex().flex_col().gap(px(4.)).w_full();
              // Reuse the shared field slots so the required/invalid/disabled
-@@ -1291,8 +1324,10 @@ impl RenderOnce for Select {
+@@ -1214,9 +1257,20 @@ impl RenderOnce for Select {
+                 // `.select__popover` is `overflow-y-auto`: a long list scrolls
+                 // rather than being clipped. gpui needs an id for that.
+                 .id(el_name(format!("{base}-scroll")))
++                .debug_selector({
++                    let base = base.clone();
++                    move || format!("{base}-panel")
++                })
+                 .overflow_y_scroll()
++                // `overscroll-contain` upstream: a wheel over the popup must
++                // not scroll the page behind it (ColorPicker pattern).
++                .occlude()
+                 .track_scroll(&panel_scroll_now)
+-                .max_h(px(280.));
++                // RAC caps the popover at the available viewport height
++                // (`calculatePosition`'s `getMaxHeight`); the positioner
++                // below re-lays the panel out with that cap, so the panel
++                // carries a viewport-relative bound rather than a fixed one.
++                .max_h_full();
+ 
+             // React Aria dismisses the list on a press outside it. Escape is
+             // already read by the trigger's key handler, so only the press half
+@@ -1291,8 +1345,10 @@ impl RenderOnce for Select {
                          gpui::div()
                              .px(px(8.))
                              .pt(px(6.))
@@ -21792,7 +21873,19 @@ index 753f8e92..5fb61d08 100644
                              .text_color(row_muted)
                              .child(label.to_string())
                              .into_any_element(),
-@@ -1316,7 +1351,8 @@ impl RenderOnce for Select {
+@@ -1304,8 +1360,10 @@ impl RenderOnce for Select {
+                     selected == Some(i)
+                 };
+                 let opt_disabled = opt_disabled_keys.contains(&i);
++                let row_selector = format!("{base}-opt-{i}");
+                 let mut item = gpui::div()
+-                        .id(el_name(format!("{base}-opt-{i}")))
++                        .id(el_name(row_selector.clone()))
++                        .debug_selector(move || row_selector)
+                         .flex()
+                         .items_center()
+                         .justify_between()
+@@ -1316,7 +1374,8 @@ impl RenderOnce for Select {
                          .px(px(10.))
                          .py(px(6.))
                          .gap(px(12.))
@@ -21802,7 +21895,7 @@ index 753f8e92..5fb61d08 100644
  
                  if opt_disabled {
                      item = item.opacity(row_disabled_opacity);
-@@ -1325,9 +1361,7 @@ impl RenderOnce for Select {
+@@ -1325,9 +1384,7 @@ impl RenderOnce for Select {
                  }
  
                  if is_sel {
@@ -21813,7 +21906,7 @@ index 753f8e92..5fb61d08 100644
                  } else {
                      item = item.text_color(row_fg);
                  }
-@@ -1377,7 +1411,7 @@ impl RenderOnce for Select {
+@@ -1377,7 +1434,7 @@ impl RenderOnce for Select {
                                  // on the row and deafen the trigger's key
                                  // handler; the trigger is what holds focus so
                                  // the open list stays keyboard-walkable.
@@ -21822,15 +21915,52 @@ index 753f8e92..5fb61d08 100644
                                  let mut next = current.clone();
                                  // A Shift click extends from the anchor
                                  // through `extendSelection`; an ordinary or
-@@ -1499,7 +1533,7 @@ impl RenderOnce for Select {
+@@ -1487,7 +1544,14 @@ impl RenderOnce for Select {
+ 
+             match self.row_height {
+                 // Virtual: only the rows in view are built, which is what makes
+-                // a thousand options affordable.
++                // a thousand options affordable. The list itself is the scroll
++                // container: `Infer` sizes it from its rows — the full
++                // natural height on the positioner's measure pass (so the
++                // flip sees the real extent, like upstream's `overlaySize`),
++                // capped to the available height on the capped pass — while
++                // the ListBox stays `overflow-clip`, as in v3. A fixed inner
++                // height plus an outer scroller would nest two scroll
++                // containers and strand rows between them.
+                 Some(row_height) => {
+                     panel = panel.child(
+                         gpui::uniform_list(
+@@ -1499,8 +1563,8 @@ impl RenderOnce for Select {
                                      .collect::<Vec<_>>()
                              },
                          )
 -                        .track_scroll(list_scroll_now)
+-                        .h(px(280.))
 +                        .track_scroll(&list_scroll_now)
-                         .h(px(280.))
++                        .with_sizing_behavior(gpui::ListSizingBehavior::Infer)
                          .w_full(),
                      );
+                 }
+@@ -1529,9 +1593,15 @@ impl RenderOnce for Select {
+                     cx,
+                 )
+             };
+-            root = root.child(util::floating(
+-                util::placed_field_panel(self.placement, px(6.)).child(panel),
+-            ));
++            // RAC positions the popover against the trigger with an 8px gap,
++            // flips it when the other side has more room, and caps it at the
++            // available viewport height past a 12px inset — which `Select`
++            // inherits unchanged from `useOverlayPosition`/`Popover`.
++            root = root.child(util::floating(crate::popover::scrollable_field_popover(
++                anchor_bounds,
++                self.placement,
++                panel,
++            )));
+         }
+ 
+         root.track_focus(&blur_scope)
 diff --git a/crates/herogpui-components/src/selection.rs b/crates/herogpui-components/src/selection.rs
 index 752fd945..fd2e595c 100644
 --- a/crates/herogpui-components/src/selection.rs
@@ -31818,7 +31948,7 @@ index 00000000..7da0be60
 +    );
 +}
 diff --git a/crates/herogpui-components/tests/forms_deep.rs b/crates/herogpui-components/tests/forms_deep.rs
-index 26f4a286..223656f8 100644
+index 26f4a286..39a64d25 100644
 --- a/crates/herogpui-components/tests/forms_deep.rs
 +++ b/crates/herogpui-components/tests/forms_deep.rs
 @@ -47,8 +47,9 @@
@@ -31875,6 +32005,106 @@ index 26f4a286..223656f8 100644
      assert_eq!(
          recorded_resets.borrow().as_slice(),
          ["v=Main St"],
+@@ -3632,6 +3633,19 @@ fn submit_select(data: &FormData, name: &str) -> String {
+         .map_or_else(|| "omitted".to_owned(), |value| value.as_text().to_string())
+ }
+ 
++/// Advances the test clock past `anim::EXITING_MS` (100ms) plus slack and
++/// forces the repaint the exit timer only scheduled. A submit/reset click must
++/// not land on the exiting, still-mounted Select panel: it occludes the Form
++/// buttons until the exit finishes (`panel.occlude` keeps hit-testing it).
++fn let_select_exit_finish(cx: &mut gpui::VisualTestContext) {
++    cx.executor()
++        .advance_clock(std::time::Duration::from_millis(
++            herogpui_components::anim::EXITING_MS + 200,
++        ));
++    cx.update(|window, _| window.refresh());
++    cx.run_until_parked();
++}
++
+ #[gpui::test]
+ fn select_form_field_reads_changed_uncontrolled_value(cx: &mut TestAppContext) {
+     let submitted = events();
+@@ -3658,9 +3672,11 @@ fn select_form_field_reads_changed_uncontrolled_value(cx: &mut TestAppContext) {
+ 
+     // Trigger centre (60, 18). Gamma is row 2 of the open list:
+     // y = 66 + 2*36 = 138. After the pick the panel closes, so the Form's
+-    // 16px gap puts the md submit button at y 52..88.
++    // 16px gap puts the md submit button at y 52..88. The closing panel still
++    // occludes that button until its exit finishes, so let it finish first.
+     click(cx, 60., 18.);
+     click(cx, 60., 138.);
++    let_select_exit_finish(cx);
+     click(cx, 60., 70.);
+ 
+     assert_eq!(
+@@ -3794,6 +3810,7 @@ fn select_reset_restores_the_uncontrolled_default(cx: &mut TestAppContext) {
+     click(cx, 60., 18.);
+     press(cx, "end");
+     press(cx, "enter");
++    let_select_exit_finish(cx);
+     click(cx, 60., 70.);
+     click(cx, 60., 122.);
+     click(cx, 60., 70.);
+@@ -3847,6 +3864,7 @@ fn controlled_select_form_reads_parent_value_only_after_acceptance(cx: &mut Test
+ 
+     click(cx, 60., 18.);
+     click(cx, 60., 102.);
++    let_select_exit_finish(cx);
+     click(cx, 60., 70.);
+     assert_eq!(changes.borrow().as_slice(), ["Some(1)"]);
+     assert_eq!(
+@@ -3858,6 +3876,7 @@ fn controlled_select_form_reads_parent_value_only_after_acceptance(cx: &mut Test
+     accept.set(true);
+     click(cx, 60., 18.);
+     click(cx, 60., 102.);
++    let_select_exit_finish(cx);
+     click(cx, 60., 70.);
+     assert_eq!(changes.borrow().as_slice(), ["Some(1)", "Some(1)"]);
+     assert_eq!(
+@@ -4040,10 +4059,12 @@ fn multiple_select_form_data_tracks_live_selected_values(cx: &mut TestAppContext
+     });
+ 
+     // Multiple picks do not close the list; close it via the trigger before
+-    // the submit button at y=70 can be reached.
++    // the submit button at y=70 can be reached. The closing panel still
++    // occludes that button until its exit finishes, so let it finish first.
+     click(cx, 60., 18.);
+     click(cx, 60., 102.);
+     click(cx, 60., 18.);
++    let_select_exit_finish(cx);
+     click(cx, 60., 70.);
+ 
+     assert_eq!(
+@@ -4091,9 +4112,12 @@ fn uncontrolled_multiple_select_form_resets_to_its_default_values(cx: &mut TestA
+     });
+ 
+     // Add Beta to the default Alpha/Gamma set, close the list, and submit.
++    // The closing panel still occludes the submit button until its exit
++    // finishes, so let it finish first.
+     click(cx, 60., 18.);
+     click(cx, 60., 102.);
+     click(cx, 60., 18.);
++    let_select_exit_finish(cx);
+     click(cx, 60., 70.);
+ 
+     // Reset restores the initial array held by the uncontrolled Select.
+@@ -4146,6 +4170,7 @@ fn controlled_multiple_select_form_waits_for_owner_acceptance(cx: &mut TestAppCo
+     click(cx, 60., 18.);
+     click(cx, 60., 102.);
+     click(cx, 60., 18.);
++    let_select_exit_finish(cx);
+     click(cx, 60., 70.);
+     assert_eq!(
+         submitted.borrow().as_slice(),
+@@ -4242,6 +4267,7 @@ fn controlled_multiple_select_reset_reports_the_default_to_its_owner(cx: &mut Te
+     click(cx, 60., 18.);
+     click(cx, 60., 102.);
+     click(cx, 60., 18.);
++    let_select_exit_finish(cx);
+     click(cx, 60., 122.);
+     click(cx, 60., 70.);
+ 
 diff --git a/crates/herogpui-components/tests/harness/mod.rs b/crates/herogpui-components/tests/harness/mod.rs
 index 148bd867..62d27497 100644
 --- a/crates/herogpui-components/tests/harness/mod.rs
@@ -33438,10 +33668,19 @@ index f411cbcd..da2436c1 100644
      let state_for_view = state;
      let cx = open_host(cx, move || {
 diff --git a/crates/herogpui-components/tests/pickers_deep.rs b/crates/herogpui-components/tests/pickers_deep.rs
-index 4cf8efaf..275f6d04 100644
+index 4cf8efaf..89c5dc61 100644
 --- a/crates/herogpui-components/tests/pickers_deep.rs
 +++ b/crates/herogpui-components/tests/pickers_deep.rs
-@@ -34,9 +34,9 @@
+@@ -29,14 +29,16 @@
+ //! suite:
+ //!
+ //! - Every trigger field is a 36px row (`util::FIELD_HEIGHT`) at the window
+-//!   origin, so its centre is (60, 18), and the pickers' panels hang from
+-//!   `placed_field_panel(BottomStart, 6px)`: top = 42.
++//!   origin, so its centre is (60, 18). Autocomplete and ComboBox panels hang
++//!   from `placed_field_panel(BottomStart, 6px)`: top = 42. The Select panel
++//!   is positioned from the measured trigger bounds with RAC's 8px popover
++//!   gap instead: top = 44.
  //! - Autocomplete: panel `pt(8)` + search wrapper `py(4)` + 36px field + list
  //!   `p(6)` puts row *i* at y 100+36i; clicking y = 124+36i lands inside it in
  //!   every phase of the entry zoom. A `section_before` heading rides above its
@@ -33454,7 +33693,17 @@ index 4cf8efaf..275f6d04 100644
  //!   S+14 and the option S+42.
  //! - The Autocomplete clear button is the 20px (`size-5`) box in the trigger's
  //!   flex row; the 320px trigger (`max_w(320)`) has `pr(28)`, so the button
-@@ -174,7 +174,7 @@ fn autocomplete_programmatic_focus_departure_closes_without_refocusing(cx: &mut
+@@ -45,7 +47,8 @@
+ //! - ComboBox: panel `p(4)` puts row *i* at y 46+36i; clicking y = 64+36i
+ //!   covers it. The field caps at `max_w(320)`, so the chevron centre is
+ //!   (298, 18).
+-//! - Select: panel `py(6)` puts option *i*'s centre at y 66+36i.
++//! - Select: panel `py(6)` below the 8px gap puts option *i*'s centre at y
++//!   68+36i.
+ //! - Drawer (window 1920x1080, 384px desktop side width): the Right panel is
+ //!   x 1536..1920, y 0..1080, `p-6` (24px). Inside it: the handle
+ //!   (bar 4px + `pb-2` 8px) at y 24..36, the 24px title line (the drag
+@@ -174,7 +177,7 @@ fn autocomplete_programmatic_focus_departure_closes_without_refocusing(cx: &mut
      flush_frame(cx);
      cx.update(|window, cx| {
          let next = next.read(cx).focus_handle(cx);
@@ -33463,7 +33712,7 @@ index 4cf8efaf..275f6d04 100644
      });
      flush_frame(cx);
  
-@@ -501,7 +501,7 @@ fn autocomplete_section_heading_is_never_a_stop(cx: &mut TestAppContext) {
+@@ -501,7 +504,7 @@ fn autocomplete_section_heading_is_never_a_stop(cx: &mut TestAppContext) {
      assert_eq!(opened.borrow().as_slice(), ["open:true", "open:false"]);
  
      // The section's slot starts at y = 100 + 36*2 = 172: the heading spans
@@ -33472,7 +33721,7 @@ index 4cf8efaf..275f6d04 100644
      // A press at 172+14 = 186 hits the heading: no selection, no dismissal.
      click(cx, 60., 18.);
      assert_eq!(
-@@ -1675,6 +1675,216 @@ fn autocomplete_filter_matches_labels_not_keys(cx: &mut TestAppContext) {
+@@ -1675,6 +1678,216 @@ fn autocomplete_filter_matches_labels_not_keys(cx: &mut TestAppContext) {
      );
  }
  
@@ -33689,7 +33938,7 @@ index 4cf8efaf..275f6d04 100644
  fn form_entry(data: &FormData, name: &str) -> String {
      data.get(name)
          .map_or_else(|| "omitted".to_owned(), |value| value.as_text().to_string())
-@@ -2120,9 +2330,15 @@ fn combo_box_blur_restores_selected_text_closes_and_keeps_destination_focus(
+@@ -2120,9 +2333,15 @@ fn combo_box_blur_restores_selected_text_closes_and_keeps_destination_focus(
              .into_any_element()
      });
  
@@ -33707,7 +33956,7 @@ index 4cf8efaf..275f6d04 100644
      flush_frame(cx);
  
      assert_eq!(
-@@ -2170,9 +2386,15 @@ fn combo_box_custom_single_blur_keeps_text_and_clears_selection(cx: &mut TestApp
+@@ -2170,9 +2389,15 @@ fn combo_box_custom_single_blur_keeps_text_and_clears_selection(cx: &mut TestApp
              .into_any_element()
      });
  
@@ -33725,7 +33974,7 @@ index 4cf8efaf..275f6d04 100644
      flush_frame(cx);
  
      assert_eq!(
-@@ -2222,9 +2444,15 @@ fn combo_box_custom_multiple_blur_preserves_query_and_selection(cx: &mut TestApp
+@@ -2222,9 +2447,15 @@ fn combo_box_custom_multiple_blur_preserves_query_and_selection(cx: &mut TestApp
              .into_any_element()
      });
  
@@ -33743,7 +33992,7 @@ index 4cf8efaf..275f6d04 100644
      flush_frame(cx);
  
      assert_eq!(
-@@ -2266,9 +2494,15 @@ fn combo_box_noncustom_multiple_blur_clears_only_the_query(cx: &mut TestAppConte
+@@ -2266,9 +2497,15 @@ fn combo_box_noncustom_multiple_blur_clears_only_the_query(cx: &mut TestAppConte
              .into_any_element()
      });
  
@@ -33761,7 +34010,7 @@ index 4cf8efaf..275f6d04 100644
      flush_frame(cx);
  
      assert_eq!(combo.read_with(cx, |state, _| state.value().to_owned()), "");
-@@ -2309,7 +2543,10 @@ fn combo_box_click_away_commits_and_closes_exactly_once(cx: &mut TestAppContext)
+@@ -2309,7 +2546,10 @@ fn combo_box_click_away_commits_and_closes_exactly_once(cx: &mut TestAppContext)
              .into_any_element()
      });
  
@@ -33773,7 +34022,7 @@ index 4cf8efaf..275f6d04 100644
      flush_frame(cx);
      click(cx, 60., 354.);
      flush_frame(cx);
-@@ -2351,7 +2588,10 @@ fn controlled_combo_box_click_away_reports_one_close(cx: &mut TestAppContext) {
+@@ -2351,7 +2591,10 @@ fn controlled_combo_box_click_away_reports_one_close(cx: &mut TestAppContext) {
              .into_any_element()
      });
  
@@ -33785,7 +34034,7 @@ index 4cf8efaf..275f6d04 100644
      flush_frame(cx);
      click(cx, 60., 354.);
      flush_frame(cx);
-@@ -2388,7 +2628,10 @@ fn combo_box_tab_commits_the_highlight_then_moves_focus_on(cx: &mut TestAppConte
+@@ -2388,7 +2631,10 @@ fn combo_box_tab_commits_the_highlight_then_moves_focus_on(cx: &mut TestAppConte
              .into_any_element()
      });
  
@@ -33797,7 +34046,7 @@ index 4cf8efaf..275f6d04 100644
      flush_frame(cx);
      press(cx, "down");
      press(cx, "tab");
-@@ -2434,7 +2677,10 @@ fn combo_box_multiple_tab_adds_the_highlight_then_moves_focus_on(cx: &mut TestAp
+@@ -2434,7 +2680,10 @@ fn combo_box_multiple_tab_adds_the_highlight_then_moves_focus_on(cx: &mut TestAp
              .into_any_element()
      });
  
@@ -33809,7 +34058,7 @@ index 4cf8efaf..275f6d04 100644
      flush_frame(cx);
      press(cx, "down");
      press(cx, "tab");
-@@ -2742,6 +2988,46 @@ fn combo_box_caret_stays_at_the_end_when_the_list_opens(cx: &mut TestAppContext)
+@@ -2742,6 +2991,46 @@ fn combo_box_caret_stays_at_the_end_when_the_list_opens(cx: &mut TestAppContext)
  // Select
  // ---------------------------------------------------------------------------
  
@@ -33856,7 +34105,7 @@ index 4cf8efaf..275f6d04 100644
  /// v3's `Select.Value` render props include `isPlaceholder` ("Whether the
  /// value is a placeholder"), and the port hands it over. Recording what the
  /// closure is told each frame pins the placeholder ↔ value flip without
-@@ -2877,6 +3163,85 @@ fn select_disabled_rows_are_unclickable_and_not_a_stop(cx: &mut TestAppContext)
+@@ -2877,6 +3166,85 @@ fn select_disabled_rows_are_unclickable_and_not_a_stop(cx: &mut TestAppContext)
      );
  }
  
@@ -33942,7 +34191,7 @@ index 4cf8efaf..275f6d04 100644
  /// A select whose whole collection is disabled opens but answers nothing: the
  /// rows have no handlers and the arrow-key resolver has no stops, so neither
  /// path can choose anything, and nothing is ever reported.
-@@ -3589,3 +3954,65 @@ fn drawer_footer_sits_after_the_body_and_both_answer(cx: &mut TestAppContext) {
+@@ -3589,3 +3957,486 @@ fn drawer_footer_sits_after_the_body_and_both_answer(cx: &mut TestAppContext) {
           puts it"
      );
  }
@@ -34007,6 +34256,427 @@ index 4cf8efaf..275f6d04 100644
 +            assert_eq!(recorded.borrow().as_slice(), ["picked"], "36px option follows two 16px header lines plus 10px header padding: kind={kind}, host={leading:?}");
 +        }
 +    }
++}
++
++// ---------------------------------------------------------------------------
++// Select popup viewport visibility
++// ---------------------------------------------------------------------------
++//
++// Upstream, `Select.Popover` is a React Aria Components `Popover` with only
++// `placement` defaulted (`"bottom"`): no `offset`, `containerPadding`,
++// `shouldFlip`, or `maxHeight` override. The inherited contract is therefore
++// RAC's own — `offset` 8 (`Popover`'s `props.offset ?? 8`), `containerPadding`
++// 12 and `shouldFlip: true` (`useOverlayPosition` defaults), and a computed
++// `maxHeight` from `calculatePosition`'s `getMaxHeight`: the space from the
++// placed edge to the viewport boundary minus padding, with the side flipped
++// when the full overlay fits better on the other side (`overlaySize[size] >
++// space` flips only toward the roomier side). The popover itself scrolls
++// (`select.css`: `.select__popover` is `overflow-y-auto`, `min-w-(--trigger-width)`)
++// while the ListBox inside is `overflow-clip` — there is no 280px cap
++// anywhere upstream.
++//
++// The port previously hung the panel from `util::placed_field_panel` with a
++// fixed `max_h(280)` (and a fixed `h(280)` virtual list): no flip, no
++// viewport clamp, no available-height cap. A trigger near the bottom of the
++// window pushed the list off-screen and the last rows stayed unreachable.
++// These tests pin the upstream behavior with real bounds and real
++// interaction: flip above the trigger, trigger-width alignment, an
++// available-height cap with a reachable last row, resize tracking, and the
++// keyboard paths — for both the plain and the virtual lists.
++
++/// Twelve plain rows: natural panel height (~444px) fits neither below a
++/// bottom trigger nor, in a 480px window, above it uncapped.
++fn viewport_options(n: usize) -> Vec<gpui::SharedString> {
++    (0..n)
++        .map(|i| gpui::SharedString::from(format!("Option {i:02}")))
++        .collect()
++}
++
++/// Resize plus frames for the measured position to settle; the positioner
++/// measures and places in the same frame.
++fn settle_select(cx: &mut VisualTestContext, width: f32, height: f32) {
++    cx.simulate_resize(gpui::size(px(width), px(height)));
++    for _ in 0..4 {
++        cx.update(|window, _| window.refresh());
++        cx.run_until_parked();
++    }
++}
++
++/// Layout rounds to whole pixels, and `float_cmp` is denied.
++fn near_px(value: gpui::Pixels, expected: f32) -> bool {
++    (f32::from(value) - expected).abs() < 1.5
++}
++
++/// A Select whose 320px trigger sits at (40, `top`) in a 640px window.
++fn select_at(top: f32, select: Select) -> gpui::AnyElement {
++    gpui::div()
++        .size_full()
++        .child(
++            gpui::div()
++                .absolute()
++                .left(px(40.))
++                .top(px(top))
++                .w(px(320.))
++                .child(select)
++                .into_any_element(),
++        )
++        .into_any_element()
++}
++
++/// The same trigger inside a tracked scrollable page. The inner content is
++/// 2000px tall so the page can scroll at both the 480px and 1100px test
++/// viewports; with the page at offset zero the trigger sits at the same
++/// window coordinates as `select_at`, while a wheel over the deferred popup
++/// must not move the page (`overscroll-contain`).
++fn select_in_page(top: f32, select: Select, page_scroll: gpui::ScrollHandle) -> gpui::AnyElement {
++    gpui::div()
++        .id("select-viewport-page")
++        .size_full()
++        .overflow_y_scroll()
++        .track_scroll(&page_scroll)
++        .child(
++            gpui::div().relative().h(px(2000.)).child(
++                gpui::div()
++                    .absolute()
++                    .left(px(40.))
++                    .top(px(top))
++                    .w(px(320.))
++                    .child(select)
++                    .into_any_element(),
++            ),
++        )
++        .into_any_element()
++}
++
++#[gpui::test]
++fn select_panel_flips_above_and_keeps_every_row_reachable(cx: &mut TestAppContext) {
++    still();
++    let picked = events();
++    let recorded = picked.clone();
++    let opened = events();
++    let opens = opened.clone();
++    let page_scroll = gpui::ScrollHandle::new();
++    let page_for_view = page_scroll.clone();
++    let cx = open_host(cx, move || {
++        let recorded = picked.clone();
++        let opens = opened.clone();
++        let page_scroll = page_for_view.clone();
++        select_in_page(
++            408.,
++            Select::new("sel-vp", viewport_options(12))
++                .full_width(true)
++                .on_change(move |i, _, _| recorded.borrow_mut().push(format!("{i:?}")))
++                .on_open_change(move |open, _, _| opens.borrow_mut().push(format!("{open}"))),
++            page_scroll,
++        )
++    });
++    settle_select(cx, 640., 480.);
++    click(cx, 200., 426.);
++    settle_select(cx, 640., 480.);
++    assert_eq!(opens.borrow().as_slice(), ["true"]);
++
++    let trigger = cx
++        .debug_bounds("select-trigger-Name(\"sel-vp\")")
++        .expect("the trigger must be laid out");
++    let panel = cx
++        .debug_bounds("select-list-Name(\"sel-vp\")-panel")
++        .expect("the open panel must be laid out");
++
++    // The natural list (~444px) fits nowhere below the trigger, so the panel
++    // flips above it with RAC's 8px gap, stays on the 12px viewport inset,
++    // and matches the trigger width like `min-w-(--trigger-width)`.
++    assert!(
++        near_px(panel.bottom(), f32::from(trigger.top()) - 8.),
++        "the panel must flip above a bottom trigger with an 8px gap: panel={panel:?} trigger={trigger:?}"
++    );
++    assert!(
++        f32::from(panel.top()) >= 12. - 1.5,
++        "the flipped panel must stay on the viewport inset, got {panel:?}"
++    );
++    assert!(
++        f32::from(panel.bottom()) <= 480. - 12. + 1.5,
++        "the panel must stay inside the window, got {panel:?}"
++    );
++    assert!(
++        near_px(panel.left(), f32::from(trigger.left())),
++        "the panel must align with the trigger: panel={panel:?} trigger={trigger:?}"
++    );
++    assert!(
++        near_px(panel.size.width, f32::from(trigger.size.width)),
++        "the panel must match the trigger width: panel={panel:?} trigger={trigger:?}"
++    );
++
++    // Neither side fits the natural height, so the panel caps at the
++    // available height instead of the arbitrary 280px.
++    assert!(
++        f32::from(panel.size.height) > 280. + 1.5,
++        "the capped panel must use the room above the trigger, got {panel:?}"
++    );
++
++    // The last row starts below the capped panel; scrolling the panel must
++    // bring it into view and keep it clickable without moving the page.
++    let last_selector = "select-list-Name(\"sel-vp\")-opt-11";
++    let hidden = cx
++        .debug_bounds(last_selector)
++        .expect("rows must be laid out");
++    assert!(
++        f32::from(hidden.top()) >= f32::from(panel.bottom()),
++        "the last row must start out of view in a capped panel: row={hidden:?} panel={panel:?}"
++    );
++    let trigger_before = cx
++        .debug_bounds("select-trigger-Name(\"sel-vp\")")
++        .expect("the trigger must be laid out");
++    for _ in 0..3 {
++        cx.simulate_event(gpui::ScrollWheelEvent {
++            position: panel.center(),
++            delta: gpui::ScrollDelta::Pixels(point(px(0.), px(-1000.))),
++            modifiers: Modifiers::none(),
++            touch_phase: gpui::TouchPhase::Moved,
++        });
++        cx.update(|window, _| window.refresh());
++        cx.run_until_parked();
++    }
++    let panel = cx
++        .debug_bounds("select-list-Name(\"sel-vp\")-panel")
++        .expect("the open panel must be laid out");
++    let last = cx
++        .debug_bounds(last_selector)
++        .expect("rows must be laid out");
++    assert!(
++        f32::from(last.top()) >= f32::from(panel.top()) - 1.5
++            && f32::from(last.bottom()) <= f32::from(panel.bottom()) + 1.5,
++        "scrolling must reveal the last row: row={last:?} panel={panel:?}"
++    );
++    assert_eq!(
++        page_scroll.offset().y,
++        px(0.),
++        "scrolling the popup must not move the page"
++    );
++    let trigger_after = cx
++        .debug_bounds("select-trigger-Name(\"sel-vp\")")
++        .expect("the trigger must be laid out");
++    assert_eq!(
++        trigger_after.origin, trigger_before.origin,
++        "the page must not scroll under the open popup"
++    );
++    // Reaching the popup boundary must still contain the wheel.
++    cx.simulate_event(gpui::ScrollWheelEvent {
++        position: panel.center(),
++        delta: gpui::ScrollDelta::Pixels(point(px(0.), px(-1000.))),
++        modifiers: Modifiers::none(),
++        touch_phase: gpui::TouchPhase::Moved,
++    });
++    cx.update(|window, _| window.refresh());
++    cx.run_until_parked();
++    assert_eq!(
++        page_scroll.offset().y,
++        px(0.),
++        "scrolling at the popup boundary must not move the page"
++    );
++    let last = cx
++        .debug_bounds(last_selector)
++        .expect("rows must be laid out");
++    click(cx, f32::from(last.center().x), f32::from(last.center().y));
++    assert_eq!(recorded.borrow().as_slice(), ["Some(11)"]);
++    assert_eq!(opens.borrow().as_slice(), ["true", "false"]);
++}
++
++#[gpui::test]
++fn select_virtual_panel_flips_caps_and_tracks_resize(cx: &mut TestAppContext) {
++    still();
++    let picked = events();
++    let recorded = picked.clone();
++    let opened = events();
++    let opens = opened.clone();
++    let page_scroll = gpui::ScrollHandle::new();
++    let page_for_view = page_scroll.clone();
++    let cx = open_host(cx, move || {
++        let recorded = picked.clone();
++        let opens = opened.clone();
++        let page_scroll = page_for_view.clone();
++        select_in_page(
++            408.,
++            Select::new("sel-vv", viewport_options(200))
++                .full_width(true)
++                .row_height(px(36.))
++                .on_change(move |i, _, _| recorded.borrow_mut().push(format!("{i:?}")))
++                .on_open_change(move |open, _, _| opens.borrow_mut().push(format!("{open}"))),
++            page_scroll,
++        )
++    });
++    settle_select(cx, 640., 480.);
++    click(cx, 200., 426.);
++    settle_select(cx, 640., 480.);
++    assert_eq!(opens.borrow().as_slice(), ["true"]);
++
++    let trigger = cx
++        .debug_bounds("select-trigger-Name(\"sel-vv\")")
++        .expect("the trigger must be laid out");
++    let panel = cx
++        .debug_bounds("select-list-Name(\"sel-vv\")-panel")
++        .expect("the open panel must be laid out");
++
++    // A 200-row virtual list never fits uncapped: it flips above and caps at
++    // the available height rather than the fixed 280px list viewport.
++    assert!(
++        near_px(panel.bottom(), f32::from(trigger.top()) - 8.),
++        "the virtual panel must flip above a bottom trigger with an 8px gap: panel={panel:?} trigger={trigger:?}"
++    );
++    assert!(
++        f32::from(panel.top()) >= 12. - 1.5 && f32::from(panel.bottom()) <= 480. - 12. + 1.5,
++        "the capped virtual panel must stay inside the window, got {panel:?}"
++    );
++    assert!(
++        near_px(panel.left(), f32::from(trigger.left()))
++            && near_px(panel.size.width, f32::from(trigger.size.width)),
++        "the virtual panel must match the trigger width: panel={panel:?} trigger={trigger:?}"
++    );
++
++    // Growing the window must reposition the still-open panel: below the
++    // trigger now has the most room, so it flips back and stays inset.
++    settle_select(cx, 640., 1100.);
++    let trigger = cx
++        .debug_bounds("select-trigger-Name(\"sel-vv\")")
++        .expect("the trigger must be laid out");
++    let panel = cx
++        .debug_bounds("select-list-Name(\"sel-vv\")-panel")
++        .expect("the open panel must be laid out");
++    assert!(
++        near_px(panel.top(), f32::from(trigger.bottom()) + 8.),
++        "the panel must flip back below once the window grows with an 8px gap: panel={panel:?} trigger={trigger:?}"
++    );
++    assert!(
++        f32::from(panel.bottom()) <= 1100. - 12. + 1.5,
++        "the repositioned panel must stay inside the window, got {panel:?}"
++    );
++
++    // The pointer reaches the last virtual row through the wheel: scrolling
++    // the popup must not move the page, and clicking the revealed row picks
++    // it and closes the panel.
++    let trigger_before = cx
++        .debug_bounds("select-trigger-Name(\"sel-vv\")")
++        .expect("the trigger must be laid out");
++    for _ in 0..10 {
++        cx.simulate_event(gpui::ScrollWheelEvent {
++            position: panel.center(),
++            delta: gpui::ScrollDelta::Pixels(point(px(0.), px(-1000.))),
++            modifiers: Modifiers::none(),
++            touch_phase: gpui::TouchPhase::Moved,
++        });
++        cx.update(|window, _| window.refresh());
++        cx.run_until_parked();
++    }
++    let panel = cx
++        .debug_bounds("select-list-Name(\"sel-vv\")-panel")
++        .expect("the open panel must be laid out");
++    let last = cx
++        .debug_bounds("select-list-Name(\"sel-vv\")-opt-199")
++        .expect("rows must be laid out");
++    assert!(
++        f32::from(last.top()) >= f32::from(panel.top()) - 1.5
++            && f32::from(last.bottom()) <= f32::from(panel.bottom()) + 1.5,
++        "wheel must scroll the last virtual row into view: row={last:?} panel={panel:?}"
++    );
++    assert_eq!(
++        page_scroll.offset().y,
++        px(0.),
++        "scrolling the virtual popup must not move the page"
++    );
++    let trigger_after = cx
++        .debug_bounds("select-trigger-Name(\"sel-vv\")")
++        .expect("the trigger must be laid out");
++    assert_eq!(
++        trigger_after.origin, trigger_before.origin,
++        "the page must not scroll under the open virtual popup"
++    );
++    click(cx, f32::from(last.center().x), f32::from(last.center().y));
++    assert_eq!(recorded.borrow().as_slice(), ["Some(199)"]);
++    assert_eq!(opens.borrow().as_slice(), ["true", "false"]);
++
++    // Reopen for the keyboard path: End still reaches the last virtual row
++    // and Enter picks it, which closes the panel.
++    click(cx, 200., 426.);
++    settle_select(cx, 640., 1100.);
++    flush_frame(cx);
++    press(cx, "end");
++    flush_frame(cx);
++    let panel = cx
++        .debug_bounds("select-list-Name(\"sel-vv\")-panel")
++        .expect("the open panel must be laid out");
++    let last = cx
++        .debug_bounds("select-list-Name(\"sel-vv\")-opt-199")
++        .expect("rows must be laid out");
++    assert!(
++        f32::from(last.top()) >= f32::from(panel.top()) - 1.5
++            && f32::from(last.bottom()) <= f32::from(panel.bottom()) + 1.5,
++        "End must scroll the last virtual row into view: row={last:?} panel={panel:?}"
++    );
++    press(cx, "enter");
++    assert_eq!(recorded.borrow().as_slice(), ["Some(199)", "Some(199)"]);
++    assert_eq!(
++        opens.borrow().as_slice(),
++        ["true", "false", "true", "false"]
++    );
++}
++
++#[gpui::test]
++fn select_panel_anchors_to_the_trigger_and_dismisses_with_escape(cx: &mut TestAppContext) {
++    still();
++    let picked = events();
++    let recorded = picked.clone();
++    let opened = events();
++    let opens = opened.clone();
++    let cx = open_host(cx, move || {
++        let recorded = picked.clone();
++        let opens = opened.clone();
++        select_at(
++            40.,
++            Select::new("sel-vl", viewport_options(3))
++                .full_width(true)
++                .label("Language")
++                .description("Pick one")
++                .on_change(move |i, _, _| recorded.borrow_mut().push(format!("{i:?}")))
++                .on_open_change(move |open, _, _| opens.borrow_mut().push(format!("{open}"))),
++        )
++    });
++    settle_select(cx, 640., 480.);
++
++    // The trigger sits below its label: the panel must anchor to the trigger
++    // bounds, not to the label-to-description wrapper root. Three rows fit
++    // below, so the preferred side stays below with RAC's 8px gap.
++    let trigger = cx
++        .debug_bounds("select-trigger-Name(\"sel-vl\")")
++        .expect("the trigger must be laid out");
++    click(cx, 200., f32::from(trigger.center().y));
++    settle_select(cx, 640., 480.);
++    assert_eq!(opens.borrow().as_slice(), ["true"]);
++
++    let panel = cx
++        .debug_bounds("select-list-Name(\"sel-vl\")-panel")
++        .expect("the open panel must be laid out");
++    assert!(
++        near_px(panel.top(), f32::from(trigger.bottom()) + 8.),
++        "a labeled panel must sit 8px below the trigger itself: panel={panel:?} trigger={trigger:?}"
++    );
++    assert!(
++        f32::from(panel.bottom()) <= 480. - 12. + 1.5,
++        "the labeled panel must stay inside the window, got {panel:?}"
++    );
++
++    // Escape dismisses; clicking where the last row was must then hit
++    // nothing and record nothing.
++    let last = cx
++        .debug_bounds("select-list-Name(\"sel-vl\")-opt-2")
++        .expect("rows must be laid out");
++    let stale = (f32::from(last.center().x), f32::from(last.center().y));
++    press(cx, "escape");
++    assert_eq!(opens.borrow().as_slice(), ["true", "false"]);
++    let_exit_finish(cx);
++    click(cx, stale.0.min(639.), stale.1.min(479.));
++    assert!(
++        recorded.borrow().is_empty(),
++        "a dismissed panel must not answer the pointer"
++    );
 +}
 diff --git a/crates/herogpui-components/tests/placement.rs b/crates/herogpui-components/tests/placement.rs
 index 60ac95fe..106307a5 100644
@@ -201982,7 +202652,7 @@ index 723274b0..f4c6f34d 100644
              // `HEROGPUI_WINDOW_SIZE=1200x2000` opens the window at that size.
              // A capture is one PrintWindow of the whole window, so a taller
 diff --git a/gallery/src/pages/components.rs b/gallery/src/pages/components.rs
-index 5eb12cd4..0f6593ee 100644
+index 5eb12cd4..e6967578 100644
 --- a/gallery/src/pages/components.rs
 +++ b/gallery/src/pages/components.rs
 @@ -1,7 +1,7 @@
@@ -208102,7 +208772,7 @@ index 5eb12cd4..0f6593ee 100644
              vec![
                  (
                      "Virtualization",
-+                    "v3 wraps the popover's list in React Aria's `Virtualizer`; `row_height` carries that here, and gpui's `uniform_list` builds only the rows in view. A thousand options, forty pixels each.",
++                    "v3 wraps the popover's list in React Aria's `Virtualizer`; `row_height` carries that here, and gpui's `uniform_list` builds only the rows in view. A thousand options, forty pixels each. The list sizes to the available height. Options remain reachable with the keyboard and mouse wheel.",
                      col(vec![
 -                        para(
 -                            "v3 wraps the popover's list in React Aria's `Virtualizer`; `row_height` \
@@ -208204,7 +208874,7 @@ index 5eb12cd4..0f6593ee 100644
                  (
 -                    "Usage",
 -                    col(vec![h::Select::new("sel-main", languages())
-+                    "Usage", "Use the arrow keys and Enter or Space to select a language. Selection closes the list and keeps focus on the trigger. Values and options use 14px text with 20px lines. Section headers use 12px text with 16px lines and keep their own spacing.",
++                    "Usage", "Use the arrow keys and Enter or Space to select a language. Selection closes the list and keeps focus on the trigger. Values and options use 14px text with 20px lines. Section headers use 12px text with 16px lines and keep their own spacing. The popup flips near window edges and scrolls to keep options reachable in short windows.",
 +                    field_col(vec![h::Select::new("sel-main", languages())
                          .label("Language")
                          .placeholder("Choose one")
@@ -213721,7 +214391,7 @@ index 6452b2b7..b70b6484 100644
      }
  }
 diff --git a/gallery/src/pages/reference_metadata.rs b/gallery/src/pages/reference_metadata.rs
-index 71065ac8..2ab21703 100644
+index 71065ac8..0c145697 100644
 --- a/gallery/src/pages/reference_metadata.rs
 +++ b/gallery/src/pages/reference_metadata.rs
 @@ -22,7 +22,12 @@ impl ImplementationStatus {
@@ -214472,7 +215142,22 @@ index 71065ac8..2ab21703 100644
      ApiDoc { owner: "Select", prop: "variant", ty: "\"primary\" | \"secondary\"", default: "\"primary\"", description: "Selects the shadowed or lower-emphasis field chrome.", rust_owner: "Select", rust: "variant(FieldVariant)", status: ImplementationStatus::Implemented },
      ApiDoc { owner: "Select", prop: "className", ty: "string", default: "—", description: "Additional CSS classes.", rust_owner: "Select", rust: "—", status: ImplementationStatus::Unavailable },
      ApiDoc { owner: "Select", prop: "children", ty: "ReactNode | RenderFunction", default: "—", description: "Compound parts; GPUI takes a typed option collection and draws the field structure.", rust_owner: "Select", rust: "new(id, options)", status: ImplementationStatus::Partial },
-@@ -11087,7 +11122,7 @@ const SELECT_PARTS: &[PartDoc] = &[
+@@ -11068,7 +11103,7 @@ const SELECT_API: &[ApiDoc] = &[
+     ApiDoc { owner: "Select.Value", prop: "render", ty: "DOMRenderFunction<SelectValueRenderProps>", default: "—", description: "DOM element substitution has no GPUI equivalent.", rust_owner: "Select", rust: "—", status: ImplementationStatus::Unavailable },
+     ApiDoc { owner: "Select.Indicator", prop: "className", ty: "string", default: "—", description: "Additional trigger-indicator classes.", rust_owner: "Select", rust: "—", status: ImplementationStatus::Unavailable },
+     ApiDoc { owner: "Select.Indicator", prop: "children", ty: "ReactNode", default: "—", description: "The similarly named GPUI builder replaces option checkmarks, not the trigger chevron.", rust_owner: "Select", rust: "indicator(render)", status: ImplementationStatus::Partial },
+-    ApiDoc { owner: "Select.Popover", prop: "placement", ty: "Placement", default: "\"bottom\"", description: "Eight cardinal/start/end placements are available; RAC's full 22-value placement union is not.", rust_owner: "Select", rust: "placement(Placement)", status: ImplementationStatus::Partial },
++    ApiDoc { owner: "Select.Popover", prop: "placement", ty: "Placement", default: "\"bottom\"", description: "Eight cardinal/start/end placements are available; RAC's full 22-value placement union is not. The panel anchors to the measured trigger with an 8px gap and flips when the preferred side cannot fit and the opposite side has more room.", rust_owner: "Select", rust: "placement(Placement)", status: ImplementationStatus::Partial },
+     ApiDoc { owner: "Select.Popover", prop: "className", ty: "string", default: "—", description: "Additional popover classes.", rust_owner: "Select", rust: "—", status: ImplementationStatus::Unavailable },
+     ApiDoc { owner: "Select.Popover", prop: "children", ty: "ReactNode", default: "—", description: "The popover draws the typed options rather than arbitrary content children.", rust_owner: "Select", rust: "new(id, options)", status: ImplementationStatus::Partial },
+     ApiDoc { owner: "Render Props", prop: "defaultChildren", ty: "ReactNode", default: "—", description: "Default selected text supplied to the value closure.", rust_owner: "Select", rust: "value_content(render)", status: ImplementationStatus::Implemented },
+@@ -11082,12 +11117,12 @@ const SELECT_PARTS: &[PartDoc] = &[
+     PartDoc { name: "Select.Trigger", slot: "select-trigger", description: "Focus and press target; its internal content is not separately composable.", rust_owner: "Select", status: ImplementationStatus::Partial },
+     PartDoc { name: "Select.Value", slot: "select-value", description: "Placeholder or selected-value content with a live render projection.", rust_owner: "Select", status: ImplementationStatus::Implemented },
+     PartDoc { name: "Select.Indicator", slot: "select-indicator", description: "Built-in trigger chevron; the public indicator closure belongs to list options instead.", rust_owner: "Select", status: ImplementationStatus::Partial },
+-    PartDoc { name: "Select.Popover", slot: "select-popover", description: "Anchored list surface with a reduced placement vocabulary.", rust_owner: "Select", status: ImplementationStatus::Partial },
++    PartDoc { name: "Select.Popover", slot: "select-popover", description: "List surface anchored to the trigger; it can flip within the window and supports a reduced placement vocabulary.", rust_owner: "Select", status: ImplementationStatus::Partial },
+ ];
  
  const SELECT_STATES: &[StateDoc] = &[
      StateDoc { state: "Hovered trigger", selector: ".select__trigger[data-hovered]", description: "Field background changes on pointer hover.", rust: "trigger hover style", status: ImplementationStatus::Implemented },
@@ -214491,7 +215176,13 @@ index 71065ac8..2ab21703 100644
      StyleDoc { class_or_token: ".select[data-invalid] [data-slot=description]", value: "hidden", description: "Description text is suppressed while the field is invalid.", rust: "description rendered only when !is_invalid", status: ImplementationStatus::Implemented },
      StyleDoc { class_or_token: ".select > [data-slot=label]", value: "w-fit", description: "The shared label has natural content but does not explicitly opt out of flex-column stretching.", rust: "Label natural width", status: ImplementationStatus::Partial },
      StyleDoc { class_or_token: ".select__trigger", value: "min-h-9 px-3 py-2 rounded-field border bg-field shadow-field text-sm", description: "Primary trigger dimensions, chrome and typography.", rust: "h(px(36.)) + px(px(12.)) + field chrome", status: ImplementationStatus::Implemented },
-@@ -11120,7 +11156,7 @@ const SELECT_STYLING: &[StyleDoc] = &[
+@@ -11115,12 +11151,12 @@ const SELECT_STYLING: &[StyleDoc] = &[
+     StyleDoc { class_or_token: ".select__value[data-placeholder]", value: "text-muted", description: "Placeholder colour.", rust: "muted foreground", status: ImplementationStatus::Implemented },
+     StyleDoc { class_or_token: ".select__value [data-slot=list-box-item-indicator]", value: "hidden", description: "Selected-value rendering does not include option checkmarks.", rust: "SelectionValue text/items only", status: ImplementationStatus::Implemented },
+     StyleDoc { class_or_token: ".select__indicator", value: "absolute end-2 size-4; rotate 150ms when open", description: "GPUI uses a flow-positioned chevron and swaps glyphs without rotation animation.", rust: "chevron_down/chevron_up", status: ImplementationStatus::Partial },
+-    StyleDoc { class_or_token: ".select__popover", value: "min trigger width; overflow-auto; bg-overlay; radius min(32px, 3xl); shadow-overlay", description: "Anchored overlay surface, radius, scrolling and shadow.", rust: "anchored panel + floating_radius + overlay_shadow", status: ImplementationStatus::Implemented },
++    StyleDoc { class_or_token: ".select__popover", value: "min trigger width; overflow-auto; bg-overlay; radius min(32px, 3xl); shadow-overlay", description: "Anchored to the measured trigger width with an 8px gap and 12px viewport inset, scrolling within the available height; the plain list scrolls the panel and the virtual list sizes itself to the same bound. Overlay surface, radius and shadow.", rust: "scrollable_field_popover + max_h_full (plain) / Infer (virtual) + floating_radius + overlay_shadow", status: ImplementationStatus::Implemented },
+     StyleDoc { class_or_token: ".select__popover[data-entering]", value: "150ms ease-smooth fade-in zoom-in-95 + placement slide 4px", description: "Fade and zoom match; transform origin and placement slide are absent.", rust: "Motion::LIST_IN + entering_zoom", status: ImplementationStatus::Partial },
      StyleDoc { class_or_token: ".select__popover[data-exiting]", value: "100ms ease-smooth fade-out zoom-out-95", description: "Exit motion matches.", rust: "Motion::LIST_OUT + exiting", status: ImplementationStatus::Implemented },
      StyleDoc { class_or_token: ".select__popover .list-box / .list-box-item", value: "p-1.5 / px-2.5", description: "Six-pixel list inset and ten-pixel option-row horizontal padding.", rust: "panel p(px(6.)) + option px(px(10.))", status: ImplementationStatus::Implemented },
      StyleDoc { class_or_token: ".select:not([data-selection-mode=multiple]) indicators", value: "transition-none", description: "GPUI has no indicator transition in either selection mode.", rust: "static indicator", status: ImplementationStatus::Partial },

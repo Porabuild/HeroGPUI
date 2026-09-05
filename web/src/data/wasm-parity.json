@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "artifactSha256": "22445bd06db25358b197d2d9e131ab771460ddfab2fa8e52d3e9f21ab5e5934f",
+  "artifactSha256": "7cf778e4ea509d33adbc9b139ca04a901efa94677a69e2d86fe02296ddd87333",
   "glueSha256": "cb0ec348336292ab7021d4144ab146cf1d48fe45514093a612c8eb9704ac5e33",
   "examples": {
     "accordion/Controlled": {
@@ -1949,7 +1949,7 @@
     },
     "select/Usage": {
       "nativeCodeSha256": "6c55d044d05d998a41ad8841e27ef7624ad462808072eef28b173e3e3baeba46",
-      "descriptionSha256": "196e91846d64cef418fd9e8727735316ac0129f572e9b0b25ede48594197df45"
+      "descriptionSha256": "e9814dc9f371ffa5fd2ecc6a423d528d2f365c4b834d84142e5bc93f932ebb21"
     },
     "select/Variants": {
       "nativeCodeSha256": "88ec88f50251b349553a0184a74f85dbec734bc76e288b0f321a8c0af8dd527d",
@@ -1957,7 +1957,7 @@
     },
     "select/Virtualization": {
       "nativeCodeSha256": "93388f7b8ecd416e2a23819966f85cc39c0002dddcee0819daa5e8a9590eaa72",
-      "descriptionSha256": "fa5339bbaef9973b95441384c9c3acca6a188922c9415993743c02cfee8667d4"
+      "descriptionSha256": "2a4caca2717d9d1da22165861f77d54e097044456db5b7ac0fc52df0ec72f1c2"
     },
     "select/With Description": {
       "nativeCodeSha256": "89860741c8154c74af617e6261610139a47d6634b7e2f3b4a26333a8374fa91c",

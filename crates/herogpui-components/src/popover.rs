@@ -61,6 +61,13 @@ struct PopoverPositioner {
     should_flip: bool,
     has_arrow: bool,
     constrain_height: bool,
+    /// Size the panel from the trigger width instead of `MaxContent`.
+    ///
+    /// Field panels (Select) are `w_full`: against a `MaxContent` root width
+    /// that resolves incorrectly, so both measurements use the measured
+    /// trigger width. With the widths equal, start/center/end alignment
+    /// coincide and only the flipped side differs.
+    match_trigger_width: bool,
     children: Vec<AnyElement>,
 }
 
@@ -335,6 +342,7 @@ impl PopoverPositioner {
             should_flip,
             has_arrow,
             constrain_height: false,
+            match_trigger_width: false,
             children: Vec::new(),
         }
     }
@@ -541,13 +549,17 @@ impl Element for PopoverPositioner {
             return false;
         };
         let viewport = window.viewport_size();
+        // A trigger-width panel resolves `w_full` against this width, not
+        // against `MaxContent`.
+        let width_space = if self.match_trigger_width {
+            gpui::AvailableSpace::Definite(trigger.size.width)
+        } else {
+            gpui::AvailableSpace::MaxContent
+        };
         let mut popup = window.layout_bounds(state.children[0]).size;
         if self.constrain_height {
             popup = self.children[0].layout_as_root(
-                gpui::size(
-                    gpui::AvailableSpace::MaxContent,
-                    gpui::AvailableSpace::MaxContent,
-                ),
+                gpui::size(width_space, gpui::AvailableSpace::MaxContent),
                 window,
                 cx,
             );
@@ -564,10 +576,7 @@ impl Element for PopoverPositioner {
             }
             .max(px(0.));
             popup = self.children[0].layout_as_root(
-                gpui::size(
-                    gpui::AvailableSpace::MaxContent,
-                    gpui::AvailableSpace::Definite(max_height),
-                ),
+                gpui::size(width_space, gpui::AvailableSpace::Definite(max_height)),
                 window,
                 cx,
             );
@@ -635,6 +644,32 @@ pub(crate) fn scrollable_popover(
         false,
     );
     positioner.constrain_height = true;
+    positioner.child(panel)
+}
+
+/// A trigger-width variant of [`scrollable_popover`] for field panels.
+///
+/// `Select.Popover` is `min-w-(--trigger-width)`: the panel matches the
+/// trigger width, so the positioner measures with that width on both passes
+/// instead of `MaxContent`. The panel must still use `max_h_full()`; a plain
+/// list owns the panel's vertical scroll container, while a virtual list
+/// sizes itself from its rows (`Infer`) so it caps together with the panel
+/// instead of nesting a fixed viewport inside an outer scroller.
+pub(crate) fn scrollable_field_popover(
+    trigger: std::rc::Rc<std::cell::Cell<Option<Bounds<Pixels>>>>,
+    placement: PopoverPlacement,
+    panel: impl IntoElement,
+) -> impl IntoElement {
+    let mut positioner = PopoverPositioner::new(
+        trigger,
+        std::rc::Rc::new(std::cell::Cell::new(None)),
+        placement,
+        px(8.),
+        true,
+        false,
+    );
+    positioner.constrain_height = true;
+    positioner.match_trigger_width = true;
     positioner.child(panel)
 }
 
