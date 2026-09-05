@@ -31,7 +31,11 @@
 //! *selection's* order, not the collection's. The selection is therefore an
 //! ordered unique key list, and toggling removes in place or appends.
 
-use std::{cell::RefCell, collections::HashMap, rc::Rc};
+use std::{
+    cell::{Cell, RefCell},
+    collections::HashMap,
+    rc::Rc,
+};
 
 use gpui::{
     prelude::*, px, App, Entity, IntoElement, RenderOnce, SharedString, StatefulInteractiveElement,
@@ -823,7 +827,7 @@ impl RenderOnce for Autocomplete {
         // contradictory reports. The trigger's capture-phase handler runs
         // before the panel's `on_mouse_down_out` in the same dispatch, so the
         // dismissal can see it and leave the close to the trigger's click.
-        let trigger_pressed = Rc::new(std::cell::Cell::new(false));
+        let trigger_pressed = Rc::new(Cell::new(false));
         // `.autocomplete__trigger` is `relative isolate inline-flex min-h-9
         // rounded-field border bg-field px-3 py-2 text-sm shadow-field`, plus
         // `pe-7` because the indicator sits inside it.
@@ -1091,6 +1095,14 @@ impl RenderOnce for Autocomplete {
                 });
         }
 
+        // The popup anchors to the trigger bounds -- not to the
+        // label-to-description wrapper root -- the way RAC's
+        // `useOverlayPosition` positions against the trigger rect.
+        // `scrollable_field_popover` below reads these bounds to flip and
+        // cap the panel; the measure element itself only records them.
+        let anchor_bounds: Rc<Cell<Option<gpui::Bounds<gpui::Pixels>>>> = Rc::new(Cell::new(None));
+        let field = crate::popover::PopoverTriggerMeasure::new(field, anchor_bounds.clone());
+
         // --- the wrapper: `.autocomplete` is `flex flex-col gap-1` -----------
         let mut wrapper = gpui::div().flex().flex_col().gap(px(4.)).w_full();
         if let Some(label) = &self.label {
@@ -1233,14 +1245,22 @@ impl RenderOnce for Autocomplete {
                 // walk runs out. The default rows are laid out, so the
                 // boundary reads real `ScrollHandle` rects (the plain ListBox
                 // shape); a `row_height` list is uniform and pages by
-                // whole-row steps across its fixed 320px viewport (the fixed
-                // ListBox shape).
-                let fixed_page_step = page_row_height.map(|row_height| {
-                    ((f32::from(px(320.)) / f32::from(row_height)).ceil() as usize)
-                        .saturating_sub(1)
-                });
+                // whole-row steps across its *actual* laid-out viewport: the
+                // panel caps together with the positioner, so the 320px
+                // upstream maximum is only the roomy-window height, never the
+                // paging ruler. The step reads the virtual list's own
+                // `UniformListScrollHandle` viewport bounds -- the pinned
+                // handle's `base_handle.bounds()` -- so a capped panel pages
+                // by what it shows.
                 let page_target = |from: usize| -> Option<usize> {
-                    if let Some(step) = fixed_page_step {
+                    if let Some(row_height) = page_row_height {
+                        let viewport_height =
+                            f32::from(key_list_scroll.0.borrow().base_handle.bounds().size.height);
+                        if viewport_height <= 0. {
+                            return None;
+                        }
+                        let step = ((viewport_height / f32::from(row_height)).ceil() as usize)
+                            .saturating_sub(1);
                         let boundary = match key {
                             "pagedown" => (from + step).min(rows.len().saturating_sub(1)),
                             "pageup" => from.saturating_sub(step),
@@ -1391,6 +1411,7 @@ impl RenderOnce for Autocomplete {
         // when it is unmounted.
         let show_panel = overlay_active;
         if show_panel {
+            let panel_selector = format!("{base}-panel");
             let panel = gpui::div()
                 .w_full()
                 .flex()
@@ -1406,7 +1427,18 @@ impl RenderOnce for Autocomplete {
                 .when_some(layout.overlay_hairline, |el, hairline| {
                     el.border(layout.border_width).border_color(hairline)
                 })
-                .shadow(layout.overlay_shadow.clone());
+                .shadow(layout.overlay_shadow.clone())
+                .debug_selector(move || panel_selector)
+                // `.autocomplete__popover` is `overflow-hidden
+                // overscroll-contain`: the panel clips while the inner list
+                // owns the scrolling, and a wheel over it never reaches the
+                // page behind. RAC caps the popover at the available viewport
+                // height past a 12px inset; the positioner below re-lays the
+                // panel out with that cap, so the panel carries a
+                // viewport-relative bound rather than a fixed one.
+                .max_h_full()
+                .overflow_hidden()
+                .occlude();
 
             // React Aria dismisses the popover on a press outside it; Escape is
             // read by the key handler above. A press that started on the
@@ -1463,6 +1495,10 @@ impl RenderOnce for Autocomplete {
                     .flex_shrink_0()
                     .px(px(12.))
                     .py(px(4.))
+                    .debug_selector({
+                        let base = base.clone();
+                        move || format!("{base}-search")
+                    })
                     .child(search),
             );
 
@@ -1531,8 +1567,10 @@ impl RenderOnce for Autocomplete {
                 let item_disabled = row_disabled_keys.contains(item.key());
                 let item_interactive = !item_disabled && !overlay_exiting;
                 let row_selected = row_selected_keys.contains(item.key());
+                let row_selector = format!("{base}-{}", item.key());
                 let mut row = gpui::div()
-                    .id(el_name(format!("{base}-{}", item.key())))
+                    .id(el_name(row_selector.clone()))
+                    .debug_selector(move || row_selector)
                     .flex()
                     .items_center()
                     .justify_between()
@@ -1636,14 +1674,26 @@ impl RenderOnce for Autocomplete {
             };
 
             // The list: `[data-slot="list-box"]` inside the popover is
-            // `max-h-[320px] p-1.5 overflow-y-auto`.
+            // `max-h-[320px] min-h-0 p-1.5 overflow-y-auto`. The search header
+            // above stays fixed (`shrink-0`) while this list shrinks with the
+            // capped panel and owns the scrolling -- the outer panel only
+            // clips (`overflow-hidden`).
             match self.row_height {
                 // Virtual: only the rows in view are built, which is what makes
-                // a thousand options affordable.
+                // a thousand options affordable. The list itself is the scroll
+                // container: `Infer` sizes it from its rows -- the full
+                // natural height on the positioner's measure pass (so the
+                // flip sees the real extent, like upstream's `overlaySize`),
+                // capped to the available height on the capped pass -- while
+                // `max-h-[320px]` keeps the roomy-window height at the
+                // upstream maximum and `min-h-0` lets it shrink with the
+                // panel. A fixed inner height would strand rows outside a
+                // capped panel.
                 Some(row_height) => {
+                    let rows_selector = format!("{base}-rows");
                     panel = panel.child(
                         gpui::uniform_list(
-                            el_name(format!("{base}-rows")),
+                            el_name(rows_selector.clone()),
                             matches_len,
                             move |range, _window, cx| {
                                 range
@@ -1652,19 +1702,25 @@ impl RenderOnce for Autocomplete {
                             },
                         )
                         .track_scroll(&list_scroll_now)
-                        .h(px(320.))
+                        .with_sizing_behavior(gpui::ListSizingBehavior::Infer)
                         .w_full()
-                        .p(px(6.)),
+                        .max_h(px(320.))
+                        .min_h_0()
+                        .p(px(6.))
+                        .debug_selector(move || rows_selector),
                     );
                 }
                 None => {
+                    let list_selector = format!("{base}-list-scroll");
                     let mut list = gpui::div()
-                        .id(el_name(format!("{base}-list-scroll")))
+                        .id(el_name(list_selector.clone()))
+                        .debug_selector(move || list_selector)
                         .flex()
                         .flex_col()
                         .w_full()
                         .p(px(6.))
                         .max_h(px(320.))
+                        .min_h_0()
                         .overflow_y_scroll()
                         .track_scroll(&panel_scroll_now);
                     for index in 0..matches_len {
@@ -1706,9 +1762,16 @@ impl RenderOnce for Autocomplete {
                     cx,
                 )
             };
-            root = root.child(util::floating(
-                util::placed_field_panel(self.placement, px(6.)).child(panel),
-            ));
+            // RAC positions the popover against the trigger with an 8px gap,
+            // flips it when the other side has more room, and caps it at the
+            // available viewport height past a 12px inset -- which
+            // `scrollable_field_popover` reads from the measured trigger
+            // bounds above.
+            root = root.child(util::floating(crate::popover::scrollable_field_popover(
+                anchor_bounds,
+                self.placement,
+                panel,
+            )));
         }
 
         root

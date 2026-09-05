@@ -609,15 +609,18 @@ EVIDENCE = {
     # The load-bearing shape in the opposite direction from Select/ComboBox/
     # Dropdown's: Autocomplete's list element is itself the scroller, so the
     # required lookaheads demand the cursor gate (`page_move = from.and_then`)
-    # and the real geometry -- the fixed whole-row step for a `rowHeight`
-    # list and the laid-out `bounds_for_item` rect walk for the default rows
-    # -- while the negative lookaheads fail the file if the cursor-gated
-    # enabled-end mapping ever returns.
+    # and the real measured geometry -- whole-row steps across the actual
+    # laid-out `UniformListScrollHandle` viewport (`base_handle.bounds()` height,
+    # never a fixed 320px ruler) for a `rowHeight` list and the laid-out
+    # `bounds_for_item` rect walk to a viewport-sized boundary for the default
+    # rows, taking the enabled end only when the walk runs out -- while the
+    # negative lookaheads fail the file if the cursor-gated enabled-end
+    # end-jump mapping ever returns.
     ('Autocomplete', 'autocomplete-paging'): (
         'autocomplete.rs',
         r'(?s)\A(?!.*"pagedown" if from\.is_some\(\) => stops\.last\(\))'
         r'(?!.*"pageup" if from\.is_some\(\) => stops\.first\(\))'
-        r'(?=.*page_move = from\.and_then)(?=.*fixed_page_step)'
+        r'(?=.*page_move = from\.and_then)(?=.*base_handle\.bounds\(\)\.size\.height)'
         r'(?=.*bounds_for_item)',
     ),
     ('Dropdown', 'popup-paging'): (

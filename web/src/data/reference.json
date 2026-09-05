@@ -17392,10 +17392,10 @@
         "prop": "placement",
         "type": "PopoverPlacement",
         "default": "\"bottom\"",
-        "description": "Places the popover relative to its trigger.",
+        "description": "Eight cardinal/start/end placements are available; RAC's full 22-value placement union is not. The panel anchors to the measured trigger with an 8px gap and flips when the preferred side cannot fit and the opposite side has more room.",
         "rustOwner": "Autocomplete",
         "rust": "placement(Placement)",
-        "status": "implemented"
+        "status": "partial"
       },
       {
         "owner": "Autocomplete.Popover",
@@ -17723,8 +17723,8 @@
       },
       {
         "token": ".autocomplete__popover",
-        "description": "Palette, top inset, radius and shadow match; GPUI placement supplies a local width cap rather than a CSS trigger-width variable.",
-        "rust": "placed_field_panel + pt(px(8.)) + overlay tokens",
+        "description": "Anchors to the measured trigger with an 8px gap and 12px viewport inset, flipping when the preferred side cannot fit and the opposite side has more room; the search stays visible while the inner list scrolls and shrinks to the available height within the upstream 320px max, and virtual paging follows the visible list height. The reduced placement vocabulary and placement slide remain unported.",
+        "rust": "placement(Placement) + pt(px(8.)) + max_h(px(320.)) + scroll + overlay bg/shadow",
         "status": "partial"
       },
       {
@@ -17741,13 +17741,13 @@
       },
       {
         "token": ".autocomplete__popover [data-slot=\"search-field\"]",
-        "description": "The built-in secondary SearchField uses the documented 12px/4px wrapper inset.",
+        "description": "The built-in secondary SearchField uses the documented 12px/4px wrapper inset and stays visible while the inner list scrolls.",
         "rust": "SearchField::new + px(px(12.)) + py(px(4.))",
         "status": "implemented"
       },
       {
         "token": ".autocomplete__popover [data-slot=\"list-box\"]",
-        "description": "Both normal and virtual lists use the 320px cap, six-pixel inset and scrolling behavior.",
+        "description": "Both normal and virtual lists use the upstream 320px cap with a six-pixel inset; the list shrinks below the cap to the available height and virtual paging follows the visible list height.",
         "rust": "max_h/h(px(320.)) + p(px(6.)) + scroll",
         "status": "implemented"
       },

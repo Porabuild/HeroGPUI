@@ -3041,7 +3041,7 @@
   "autocomplete": [
     {
       "heading": "Usage",
-      "description": "Values and options use 14px text with 20px lines. Section headers use 12px text with 16px lines and keep their own spacing.",
+      "description": "Values and options use 14px text with 20px lines. Section headers use 12px text with 16px lines and keep their own spacing. The popup anchors to the trigger with an 8px gap, flips when the preferred side cannot fit and the opposite side has more room, keeps the search visible, and scrolls the list within the available height up to 320px; virtual paging follows the visible list height.",
       "imports": "use herogpui::prelude::Autocomplete;",
       "code": "Autocomplete::new(\n    self.ac_entity.clone(),\n    language_items(),\n)\n.label(\"Language\")\n.placeholder(\"Select a language\")"
     },
@@ -3049,7 +3049,7 @@
       "heading": "Virtualization",
       "description": "v3 wraps the popover's list in React Aria's `Virtualizer`; `row_height` carries that here, and gpui's `uniform_list` builds only the rows in view. A thousand options, forty pixels each.",
       "imports": "use herogpui::prelude::Autocomplete;\nuse gpui::prelude::*;\nuse gpui::px;",
-      "code": "gpui::div()\n    .w(px(256.))\n    .flex()\n    .flex_col()\n    .child(Autocomplete::new(\n                self.demo_text(\"ac-virtual\", \"\", cx),\n                virtual_picker_items(),\n            )\n            .label(\"User\")\n            .placeholder(\"Select a user\")\n            .row_height(px(40.)))"
+      "code": "gpui::div()\n    .w(px(256.))\n    .flex()\n    .flex_col()\n    .child(Autocomplete::new(\n                self.demo_text(\"ac-virtual\", \"\", cx),\n                virtual_picker_items(),\n            )\n            .label(\"User\")\n            .placeholder(\"Select a user\")\n            .max_items(1000)\n            .row_height(px(40.)))"
     },
     {
       "heading": "Variants",

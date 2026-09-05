@@ -29,12 +29,12 @@
 //! suite:
 //!
 //! - Every trigger field is a 36px row (`util::FIELD_HEIGHT`) at the window
-//!   origin, so its centre is (60, 18). Autocomplete panels hang
-//!   from `placed_field_panel(BottomStart, 6px)`: top = 42. ComboBox panels
-//!   are positioned from the measured field bounds with RAC's 8px popover
-//!   gap instead: top = 44. The Select panel uses the same 8px gap.
+//!   origin, so its centre is (60, 18). Autocomplete panels are positioned
+//!   from the measured trigger bounds with RAC's 8px popover gap: top = 44.
+//!   ComboBox panels use the same measured 8px gap: top = 44. The Select
+//!   panel uses the same 8px gap.
 //! - Autocomplete: panel `pt(8)` + search wrapper `py(4)` + 36px field + list
-//!   `p(6)` puts row *i* at y 100+36i; clicking y = 124+36i lands inside it in
+//!   `p(6)` puts row *i* at y 102+36i; clicking y = 126+36i lands inside it in
 //!   every phase of the entry zoom. A `section_before` heading rides above its
 //!   item inside the same slot: `pt(6) pb(4)` around a 16px line, so for the
 //!   slot starting at y S the heading occupies S..S+26 and the row
@@ -4898,5 +4898,694 @@ fn combo_box_panel_anchors_to_the_field_under_error_and_value(cx: &mut TestAppCo
     assert!(
         f32::from(panel.bottom()) <= 480. - 12. + 1.5,
         "the error/value panel must stay inside the window, got {panel:?}"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Autocomplete popup viewport visibility
+// ---------------------------------------------------------------------------
+//
+// Upstream, `Autocomplete.Popover` is `.autocomplete__popover`: `flex
+// w-(--trigger-width)` with `overflow-hidden overscroll-contain` and `pt-2`,
+// holding a fixed search header (`[data-slot="search-field"]` is `shrink-0
+// px-3 py-1`) above the list itself (`[data-slot="list-box"]` is
+// `max-h-[320px] min-h-0 overflow-y-auto p-1.5`). The list -- not an outer
+// scroller -- owns the scrolling, and `min-h-0` in the flex column lets it
+// shrink below 320px when the popover is capped (short viewport), keeping
+// the last options reachable. Positioning is RAC's `useOverlayPosition`
+// against the trigger rect: an 8px gap, flip toward the roomier side, and a
+// cap at the available viewport height past a 12px inset.
+//
+// The port previously hung the panel from `util::placed_field_panel` with a
+// 6px gap, measured nothing (so label/description/error rows pushed the
+// panel down), clipped with no `min-h-0` inner list, and fixed the virtual
+// list at `h(320)` with a 320px paging step: a trigger away from the origin
+// pushed the list off-screen, the last rows stayed unreachable, and paging
+// overshot every capped panel. These tests pin the upstream behavior with
+// real bounds and real interaction, mirroring the Select/ComboBox viewport
+// tests above: the trigger anchor excludes the label-to-error wrapper, the
+// 8px gap, trigger-width alignment, the 12px inset with flip and cap, the
+// fixed search header, reachable last rows for both lists, resize tracking,
+// wheel containment over a scrollable page, label-based filtering, and
+// virtual paging derived from the actual laid-out viewport height.
+
+/// Choices whose key is the label itself.
+fn auto_options(n: usize) -> Vec<PickerItem> {
+    (0..n)
+        .map(|i| {
+            let label = format!("Choice {i:02}");
+            PickerItem::new(label.clone(), label)
+        })
+        .collect()
+}
+
+/// An Autocomplete whose 320px field sits at (40, `top`) in a 640px window.
+fn auto_at(top: f32, auto: Autocomplete) -> gpui::AnyElement {
+    gpui::div()
+        .size_full()
+        .child(
+            gpui::div()
+                .absolute()
+                .left(px(40.))
+                .top(px(top))
+                .w(px(320.))
+                .child(auto)
+                .into_any_element(),
+        )
+        .into_any_element()
+}
+
+/// The same field inside a tracked scrollable page. The inner content is
+/// 2000px tall so the page can scroll at both the 480px and 1100px test
+/// viewports; with the page at offset zero the field sits at the same window
+/// coordinates as `auto_at`, while a wheel over the deferred popup must not
+/// move the page (`overscroll-contain`).
+fn auto_in_page(top: f32, auto: Autocomplete, page_scroll: gpui::ScrollHandle) -> gpui::AnyElement {
+    gpui::div()
+        .id("autocomplete-viewport-page")
+        .size_full()
+        .overflow_y_scroll()
+        .track_scroll(&page_scroll)
+        .child(
+            gpui::div().relative().h(px(2000.)).child(
+                gpui::div()
+                    .absolute()
+                    .left(px(40.))
+                    .top(px(top))
+                    .w(px(320.))
+                    .child(auto)
+                    .into_any_element(),
+            ),
+        )
+        .into_any_element()
+}
+
+/// The trigger's headless probe: the clear-hover refinement makes the
+/// selector carry its state, and an empty selection keeps it `false`.
+fn auto_trigger(base: &str) -> &'static str {
+    combo_probe(format!("{base}-trigger-suppressed-false"))
+}
+
+#[gpui::test]
+fn autocomplete_panel_matches_trigger_width_with_8px_gap_and_320_list_cap(cx: &mut TestAppContext) {
+    still();
+    let picked = events();
+    let recorded = picked.clone();
+    let opened = events();
+    let opens = opened.clone();
+    let state = search_state(cx);
+    let entity_id = state.entity_id().as_u64();
+    let base = format!("autocomplete-{entity_id}");
+    let state_for_view = state;
+    let cx = open_host(cx, move || {
+        let recorded = picked.clone();
+        let opens = opened.clone();
+        auto_at(
+            100.,
+            Autocomplete::new(state_for_view.clone(), auto_options(12))
+                .full_width(true)
+                .max_items(12)
+                .label("Language")
+                .description("Pick one")
+                .on_selection_change(move |key, _, _| recorded.borrow_mut().push(key.to_string()))
+                .on_open_change(move |open, _, _| opens.borrow_mut().push(format!("{open}"))),
+        )
+    });
+    settle_select(cx, 640., 900.);
+
+    // The anchor is the 36px trigger row itself -- not the
+    // label-to-description wrapper. At top 100 the 20px label plus 4px gap
+    // puts the row at 124..160; the description starts at 164, so both live
+    // outside the measured bounds.
+    let trigger = cx
+        .debug_bounds(auto_trigger(&base))
+        .expect("the trigger must be laid out");
+    assert!(
+        near_px(trigger.top(), 124.) && near_px(trigger.bottom(), 160.),
+        "the anchor must be the 36px trigger row below the label: trigger={trigger:?}"
+    );
+    assert!(
+        near_px(trigger.size.height, 36.),
+        "the anchor must be exactly one row tall: trigger={trigger:?}"
+    );
+    click(cx, 200., f32::from(trigger.center().y));
+    settle_select(cx, 640., 900.);
+    assert_eq!(opens.borrow().as_slice(), ["true"]);
+
+    // Twelve rows need ~444px, so the roomy-window list caps at the upstream
+    // 320px maximum while the panel sits 8px below the trigger, matches its
+    // width, and stays on the viewport inset.
+    let trigger = cx
+        .debug_bounds(auto_trigger(&base))
+        .expect("the trigger must be laid out");
+    let panel = cx
+        .debug_bounds(combo_probe(format!("{base}-panel")))
+        .expect("the open panel must be laid out");
+    assert!(
+        near_px(panel.top(), f32::from(trigger.bottom()) + 8.),
+        "the panel must sit 8px below the trigger row itself: panel={panel:?} trigger={trigger:?}"
+    );
+    assert!(
+        near_px(panel.left(), f32::from(trigger.left())),
+        "the panel must align with the trigger: panel={panel:?} trigger={trigger:?}"
+    );
+    assert!(
+        near_px(panel.size.width, f32::from(trigger.size.width)),
+        "the panel must match the trigger width: panel={panel:?} trigger={trigger:?}"
+    );
+    assert!(
+        f32::from(panel.bottom()) <= 900. - 12. + 1.5,
+        "the panel must stay inside the window, got {panel:?}"
+    );
+    let list = cx
+        .debug_bounds(combo_probe(format!("{base}-list-scroll")))
+        .expect("the open list must be laid out");
+    assert!(
+        near_px(list.size.height, 320.),
+        "the roomy-window list must keep the upstream 320px maximum, got {list:?}"
+    );
+    let search = cx
+        .debug_bounds(combo_probe(format!("{base}-search")))
+        .expect("the search header must be laid out");
+    assert!(
+        f32::from(search.top()) >= f32::from(panel.top()) - 1.5
+            && f32::from(search.bottom()) <= f32::from(panel.bottom()) + 1.5,
+        "the search header must stay visible inside the panel: search={search:?} panel={panel:?}"
+    );
+
+    // The last row starts below the capped list; scrolling the list must
+    // bring it into view and keep it clickable.
+    let last_selector = combo_probe(format!("{base}-list-Choice 11"));
+    let hidden = cx
+        .debug_bounds(last_selector)
+        .expect("rows must be laid out");
+    assert!(
+        f32::from(hidden.top()) >= f32::from(list.bottom()),
+        "the last row must start out of view in a capped list: row={hidden:?} list={list:?}"
+    );
+    for _ in 0..3 {
+        cx.simulate_event(gpui::ScrollWheelEvent {
+            position: list.center(),
+            delta: gpui::ScrollDelta::Pixels(point(px(0.), px(-1000.))),
+            modifiers: Modifiers::none(),
+            touch_phase: gpui::TouchPhase::Moved,
+        });
+        cx.update(|window, _| window.refresh());
+        cx.run_until_parked();
+    }
+    let list = cx
+        .debug_bounds(combo_probe(format!("{base}-list-scroll")))
+        .expect("the open list must be laid out");
+    let last = cx
+        .debug_bounds(last_selector)
+        .expect("rows must be laid out");
+    assert!(
+        f32::from(last.top()) >= f32::from(list.top()) - 1.5
+            && f32::from(last.bottom()) <= f32::from(list.bottom()) + 1.5,
+        "scrolling must reveal the last row: row={last:?} list={list:?}"
+    );
+    click(cx, f32::from(last.center().x), f32::from(last.center().y));
+    assert_eq!(recorded.borrow().as_slice(), ["Choice 11"]);
+    assert_eq!(opens.borrow().as_slice(), ["true", "false"]);
+}
+
+#[gpui::test]
+fn autocomplete_trigger_anchor_excludes_error_and_escapes_cleanly(cx: &mut TestAppContext) {
+    still();
+    let picked = events();
+    let recorded = picked.clone();
+    let opened = events();
+    let opens = opened.clone();
+    let state = search_state(cx);
+    let entity_id = state.entity_id().as_u64();
+    let base = format!("autocomplete-{entity_id}");
+    let state_for_view = state;
+    let cx = open_host(cx, move || {
+        let recorded = picked.clone();
+        let opens = opened.clone();
+        auto_at(
+            40.,
+            Autocomplete::new(state_for_view.clone(), auto_options(3))
+                .full_width(true)
+                .max_items(3)
+                .label("Language")
+                .is_invalid(true)
+                .error_message("Required")
+                .on_selection_change(move |key, _, _| recorded.borrow_mut().push(key.to_string()))
+                .on_open_change(move |open, _, _| opens.borrow_mut().push(format!("{open}"))),
+        )
+    });
+    settle_select(cx, 640., 480.);
+
+    // The error slot replaces the description at the same offset below the
+    // field: both must stay outside the 64..100 field anchor, so the panel
+    // still sits at 108.
+    let trigger = cx
+        .debug_bounds(auto_trigger(&base))
+        .expect("the trigger must be laid out");
+    assert!(
+        near_px(trigger.top(), 64.) && near_px(trigger.bottom(), 100.),
+        "the anchor must stay the field row under error: trigger={trigger:?}"
+    );
+    assert!(
+        near_px(trigger.size.height, 36.),
+        "the anchor must stay exactly one row tall: trigger={trigger:?}"
+    );
+    click(cx, 200., f32::from(trigger.center().y));
+    settle_select(cx, 640., 480.);
+    assert_eq!(opens.borrow().as_slice(), ["true"]);
+
+    let panel = cx
+        .debug_bounds(combo_probe(format!("{base}-panel")))
+        .expect("the open panel must be laid out");
+    assert!(
+        near_px(panel.top(), 108.)
+            && near_px(panel.top(), f32::from(trigger.bottom()) + 8.),
+        "the panel must sit 8px below the field row under error: panel={panel:?} trigger={trigger:?}"
+    );
+    assert!(
+        f32::from(panel.bottom()) <= 480. - 12. + 1.5,
+        "the error panel must stay inside the window, got {panel:?}"
+    );
+
+    // Escape dismisses; clicking where the last row was must then hit
+    // nothing and record nothing.
+    let last = cx
+        .debug_bounds(combo_probe(format!("{base}-list-Choice 02")))
+        .expect("rows must be laid out");
+    let stale = (f32::from(last.center().x), f32::from(last.center().y));
+    press(cx, "escape");
+    assert_eq!(opens.borrow().as_slice(), ["true", "false"]);
+    click(cx, stale.0.min(639.), stale.1.min(479.));
+    assert!(
+        recorded.borrow().is_empty(),
+        "a dismissed panel must not answer the pointer"
+    );
+}
+
+#[gpui::test]
+fn autocomplete_short_panel_flips_caps_and_keeps_header_visible(cx: &mut TestAppContext) {
+    still();
+    let picked = events();
+    let recorded = picked.clone();
+    let opened = events();
+    let opens = opened.clone();
+    let page_scroll = gpui::ScrollHandle::new();
+    let page_for_view = page_scroll.clone();
+    let state = search_state(cx);
+    let entity_id = state.entity_id().as_u64();
+    let base = format!("autocomplete-{entity_id}");
+    let state_for_view = state;
+    let cx = open_host(cx, move || {
+        let recorded = picked.clone();
+        let opens = opened.clone();
+        let page_scroll = page_for_view.clone();
+        auto_in_page(
+            320.,
+            Autocomplete::new(state_for_view.clone(), auto_options(12))
+                .full_width(true)
+                .max_items(12)
+                .on_selection_change(move |key, _, _| recorded.borrow_mut().push(key.to_string()))
+                .on_open_change(move |open, _, _| opens.borrow_mut().push(format!("{open}"))),
+            page_scroll,
+        )
+    });
+    settle_select(cx, 640., 480.);
+    click(cx, 200., 338.);
+    settle_select(cx, 640., 480.);
+    assert_eq!(opens.borrow().as_slice(), ["true"]);
+
+    // Neither side fits the natural ~372px panel, so it flips above the
+    // trigger with the 8px gap, caps at the available height, and the inner
+    // list shrinks below the 320px maximum through `min-h-0`.
+    let trigger = cx
+        .debug_bounds(auto_trigger(&base))
+        .expect("the field must be laid out");
+    let panel = cx
+        .debug_bounds(combo_probe(format!("{base}-panel")))
+        .expect("the open panel must be laid out");
+    assert!(
+        near_px(panel.bottom(), f32::from(trigger.top()) - 8.),
+        "the panel must flip above the trigger with an 8px gap: panel={panel:?} trigger={trigger:?}"
+    );
+    assert!(
+        f32::from(panel.top()) >= 12. - 1.5 && f32::from(panel.bottom()) <= 480. - 12. + 1.5,
+        "the capped panel must stay on the viewport inset, got {panel:?}"
+    );
+    assert!(
+        near_px(panel.left(), f32::from(trigger.left()))
+            && near_px(panel.size.width, f32::from(trigger.size.width)),
+        "the flipped panel must match the trigger width: panel={panel:?} trigger={trigger:?}"
+    );
+    let list = cx
+        .debug_bounds(combo_probe(format!("{base}-list-scroll")))
+        .expect("the open list must be laid out");
+    assert!(
+        f32::from(list.size.height) < 320. - 1.5,
+        "the capped list must shrink below the upstream maximum, got {list:?}"
+    );
+
+    // The search header is fixed above the list: wheeling the list must move
+    // the rows without moving the header or the page behind the popup.
+    let search_before = cx
+        .debug_bounds(combo_probe(format!("{base}-search")))
+        .expect("the search header must be laid out");
+    for _ in 0..3 {
+        cx.simulate_event(gpui::ScrollWheelEvent {
+            position: list.center(),
+            delta: gpui::ScrollDelta::Pixels(point(px(0.), px(-1000.))),
+            modifiers: Modifiers::none(),
+            touch_phase: gpui::TouchPhase::Moved,
+        });
+        cx.update(|window, _| window.refresh());
+        cx.run_until_parked();
+    }
+    let panel = cx
+        .debug_bounds(combo_probe(format!("{base}-panel")))
+        .expect("the open panel must be laid out");
+    let search_after = cx
+        .debug_bounds(combo_probe(format!("{base}-search")))
+        .expect("the search header must be laid out");
+    assert_eq!(
+        search_after, search_before,
+        "the search header must stay fixed while the inner list scrolls"
+    );
+    assert!(
+        f32::from(search_after.bottom()) <= f32::from(panel.bottom()) + 1.5,
+        "the fixed header must stay inside the capped panel: search={search_after:?} panel={panel:?}"
+    );
+    assert_eq!(
+        page_scroll.offset().y,
+        px(0.),
+        "scrolling the popup must not move the page"
+    );
+    // Reaching the popup boundary must still contain the wheel.
+    cx.simulate_event(gpui::ScrollWheelEvent {
+        position: panel.center(),
+        delta: gpui::ScrollDelta::Pixels(point(px(0.), px(-1000.))),
+        modifiers: Modifiers::none(),
+        touch_phase: gpui::TouchPhase::Moved,
+    });
+    cx.update(|window, _| window.refresh());
+    cx.run_until_parked();
+    assert_eq!(
+        page_scroll.offset().y,
+        px(0.),
+        "scrolling at the popup boundary must not move the page"
+    );
+
+    // The wheel reveals the last row inside the shrunken list; clicking it
+    // picks it and closes the panel.
+    let list = cx
+        .debug_bounds(combo_probe(format!("{base}-list-scroll")))
+        .expect("the open list must be laid out");
+    let last = cx
+        .debug_bounds(combo_probe(format!("{base}-list-Choice 11")))
+        .expect("rows must be laid out");
+    assert!(
+        f32::from(last.top()) >= f32::from(list.top()) - 1.5
+            && f32::from(last.bottom()) <= f32::from(list.bottom()) + 1.5,
+        "wheel must scroll the last row into the shrunken list: row={last:?} list={list:?}"
+    );
+    click(cx, f32::from(last.center().x), f32::from(last.center().y));
+    assert_eq!(recorded.borrow().as_slice(), ["Choice 11"]);
+    assert_eq!(opens.borrow().as_slice(), ["true", "false"]);
+}
+
+#[gpui::test]
+fn autocomplete_virtual_panel_flips_caps_tracks_resize_and_answers_end(cx: &mut TestAppContext) {
+    still();
+    let picked = events();
+    let recorded = picked.clone();
+    let opened = events();
+    let opens = opened.clone();
+    let page_scroll = gpui::ScrollHandle::new();
+    let page_for_view = page_scroll.clone();
+    let state = search_state(cx);
+    let entity_id = state.entity_id().as_u64();
+    let base = format!("autocomplete-{entity_id}");
+    let state_for_view = state;
+    let cx = open_host(cx, move || {
+        let recorded = picked.clone();
+        let opens = opened.clone();
+        let page_scroll = page_for_view.clone();
+        auto_in_page(
+            320.,
+            Autocomplete::new(state_for_view.clone(), auto_options(200))
+                .full_width(true)
+                .max_items(200)
+                .row_height(px(36.))
+                .on_selection_change(move |key, _, _| recorded.borrow_mut().push(key.to_string()))
+                .on_open_change(move |open, _, _| opens.borrow_mut().push(format!("{open}"))),
+            page_scroll,
+        )
+    });
+    settle_select(cx, 640., 480.);
+    click(cx, 200., 338.);
+    settle_select(cx, 640., 480.);
+    assert_eq!(opens.borrow().as_slice(), ["true"]);
+
+    // A 200-row virtual list never fits uncapped: it flips above and caps at
+    // the available height instead of a fixed 320px viewport.
+    let trigger = cx
+        .debug_bounds(auto_trigger(&base))
+        .expect("the field must be laid out");
+    let panel = cx
+        .debug_bounds(combo_probe(format!("{base}-panel")))
+        .expect("the open panel must be laid out");
+    assert!(
+        near_px(panel.bottom(), f32::from(trigger.top()) - 8.),
+        "the virtual panel must flip above with an 8px gap: panel={panel:?} trigger={trigger:?}"
+    );
+    assert!(
+        f32::from(panel.top()) >= 12. - 1.5 && f32::from(panel.bottom()) <= 480. - 12. + 1.5,
+        "the capped virtual panel must stay inside the window, got {panel:?}"
+    );
+    assert!(
+        near_px(panel.left(), f32::from(trigger.left()))
+            && near_px(panel.size.width, f32::from(trigger.size.width)),
+        "the virtual panel must match the field width: panel={panel:?} trigger={trigger:?}"
+    );
+
+    // Growing the window must reposition the still-open panel: below the
+    // field now has the most room, so it flips back and stays inset, and the
+    // list returns to the upstream 320px maximum.
+    settle_select(cx, 640., 1100.);
+    let trigger = cx
+        .debug_bounds(auto_trigger(&base))
+        .expect("the field must be laid out");
+    let panel = cx
+        .debug_bounds(combo_probe(format!("{base}-panel")))
+        .expect("the open panel must be laid out");
+    assert!(
+        near_px(panel.top(), f32::from(trigger.bottom()) + 8.),
+        "the panel must flip back below once the window grows with an 8px gap: panel={panel:?} trigger={trigger:?}"
+    );
+    assert!(
+        f32::from(panel.bottom()) <= 1100. - 12. + 1.5,
+        "the repositioned panel must stay inside the window, got {panel:?}"
+    );
+    let list = cx
+        .debug_bounds(combo_probe(format!("{base}-rows")))
+        .expect("the virtual list must be laid out");
+    assert!(
+        near_px(list.size.height, 320.),
+        "the roomy-window virtual list must keep the upstream 320px maximum, got {list:?}"
+    );
+
+    // The pointer reaches the last virtual row through the wheel: scrolling
+    // the popup must not move the page, and clicking the revealed row picks
+    // it and closes the panel.
+    for _ in 0..10 {
+        cx.simulate_event(gpui::ScrollWheelEvent {
+            position: panel.center(),
+            delta: gpui::ScrollDelta::Pixels(point(px(0.), px(-1000.))),
+            modifiers: Modifiers::none(),
+            touch_phase: gpui::TouchPhase::Moved,
+        });
+        cx.update(|window, _| window.refresh());
+        cx.run_until_parked();
+    }
+    let panel = cx
+        .debug_bounds(combo_probe(format!("{base}-panel")))
+        .expect("the open panel must be laid out");
+    let last = cx
+        .debug_bounds(combo_probe(format!("{base}-list-Choice 199")))
+        .expect("rows must be laid out");
+    assert!(
+        f32::from(last.top()) >= f32::from(panel.top()) - 1.5
+            && f32::from(last.bottom()) <= f32::from(panel.bottom()) + 1.5,
+        "wheel must scroll the last virtual row into view: row={last:?} panel={panel:?}"
+    );
+    assert_eq!(
+        page_scroll.offset().y,
+        px(0.),
+        "scrolling the virtual popup must not move the page"
+    );
+    click(cx, f32::from(last.center().x), f32::from(last.center().y));
+    assert_eq!(recorded.borrow().as_slice(), ["Choice 199"]);
+    assert_eq!(opens.borrow().as_slice(), ["true", "false"]);
+
+    // Reopen for the keyboard path: End reaches the last virtual row and
+    // Enter picks it, which closes the panel.
+    click(cx, 200., 338.);
+    settle_select(cx, 640., 1100.);
+    flush_frame(cx);
+    press(cx, "end");
+    flush_frame(cx);
+    let panel = cx
+        .debug_bounds(combo_probe(format!("{base}-panel")))
+        .expect("the open panel must be laid out");
+    let last = cx
+        .debug_bounds(combo_probe(format!("{base}-list-Choice 199")))
+        .expect("rows must be laid out");
+    assert!(
+        f32::from(last.top()) >= f32::from(panel.top()) - 1.5
+            && f32::from(last.bottom()) <= f32::from(panel.bottom()) + 1.5,
+        "End must scroll the last virtual row into view: row={last:?} panel={panel:?}"
+    );
+    press(cx, "enter");
+    assert_eq!(recorded.borrow().as_slice(), ["Choice 199", "Choice 199"]);
+    assert_eq!(
+        opens.borrow().as_slice(),
+        ["true", "false", "true", "false"]
+    );
+}
+
+#[gpui::test]
+fn autocomplete_virtual_pagedown_derives_its_step_from_the_shown_viewport(cx: &mut TestAppContext) {
+    still();
+    let picked = events();
+    let recorded = picked.clone();
+    let state = search_state(cx);
+    let entity_id = state.entity_id().as_u64();
+    let base = format!("autocomplete-{entity_id}");
+    let state_for_view = state;
+    let cx = open_host(cx, move || {
+        let recorded = picked.clone();
+        auto_at(
+            320.,
+            Autocomplete::new(state_for_view.clone(), auto_options(200))
+                .full_width(true)
+                .max_items(200)
+                .row_height(px(36.))
+                .on_selection_change(move |key, _, _| recorded.borrow_mut().push(key.to_string())),
+        )
+    });
+
+    // A capped panel shows fewer than 320px of rows, so one page from the
+    // top is shorter than the roomy-window eight-row step.
+    settle_select(cx, 640., 480.);
+    click(cx, 200., 338.);
+    settle_select(cx, 640., 480.);
+    let list = cx
+        .debug_bounds(combo_probe(format!("{base}-rows")))
+        .expect("the virtual list must be laid out");
+    let shown = f32::from(list.size.height);
+    assert!(
+        shown < 320. - 1.5,
+        "the capped virtual list must shrink below the upstream maximum, got {list:?}"
+    );
+    let step = ((shown / 36.).ceil() as usize).saturating_sub(1);
+    press(cx, "down");
+    press(cx, "pagedown");
+    press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        [format!("Choice {step:02}")],
+        "PageDown must page by the shown viewport, not the 320px maximum"
+    );
+
+    // Growing the window grows the viewport, so the same key pages further.
+    // The cursor stands on the committed row, so Down steps one past it
+    // before the second page.
+    settle_select(cx, 640., 1100.);
+    click(cx, 200., 338.);
+    settle_select(cx, 640., 1100.);
+    let list = cx
+        .debug_bounds(combo_probe(format!("{base}-rows")))
+        .expect("the virtual list must be laid out");
+    let grown = f32::from(list.size.height);
+    assert!(
+        near_px(list.size.height, 320.),
+        "the grown virtual list must return to the upstream maximum, got {list:?}"
+    );
+    assert!(
+        grown > shown + 1.5,
+        "resizing must grow the virtual viewport: {shown} -> {grown}"
+    );
+    let grown_step = ((grown / 36.).ceil() as usize).saturating_sub(1);
+    assert!(
+        grown_step > step,
+        "a taller viewport must page further: {step} -> {grown_step}"
+    );
+    press(cx, "down");
+    press(cx, "pagedown");
+    press(cx, "enter");
+    let second = (step + 1 + grown_step).min(199);
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        [format!("Choice {step:02}"), format!("Choice {second:02}")],
+        "PageDown after resize must page by the grown viewport"
+    );
+}
+
+#[gpui::test]
+fn autocomplete_filter_reads_labels_and_end_commits_the_last_match(cx: &mut TestAppContext) {
+    still();
+    let picked = events();
+    let recorded = picked.clone();
+    let state = search_state(cx);
+    let entity_id = state.entity_id().as_u64();
+    let base = format!("autocomplete-{entity_id}");
+    let state_for_view = state;
+    let items = vec![
+        PickerItem::new("a", "Alpha"),
+        PickerItem::new("b", "Alpine"),
+        PickerItem::new("c", "Beta"),
+        PickerItem::new("d", "Alphabet"),
+    ];
+
+    let cx = open_host(cx, move || {
+        let recorded = picked.clone();
+        let state = state_for_view.clone();
+        Autocomplete::new(state, items.clone())
+            .on_selection_change(move |key, _, _| recorded.borrow_mut().push(key.to_string()))
+            .into_any_element()
+    });
+
+    // The keys carry none of the query text, so only label matching can
+    // answer it: "alp" is a substring of Alpha, Alpine and Alphabet, never
+    // of Beta.
+    click(cx, 60., 18.);
+    cx.simulate_input("alp");
+    flush_frame(cx);
+    assert!(
+        cx.debug_bounds(combo_probe(format!("{base}-list-c")))
+            .is_none(),
+        "a label the query does not match must leave the list"
+    );
+    assert!(
+        cx.debug_bounds(combo_probe(format!("{base}-list-a")))
+            .is_some(),
+        "a label matching the query must stay in the list"
+    );
+    press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["a"],
+        "forward typing must focus the first label match so Enter commits its key"
+    );
+
+    // Reopen on the retained query and take the other end instead: End seats
+    // the cursor on the last filtered row and Enter commits its key.
+    click(cx, 60., 18.);
+    flush_frame(cx);
+    press(cx, "end");
+    press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["a", "d"],
+        "End must reach the last filtered row and Enter must commit its key"
     );
 }
