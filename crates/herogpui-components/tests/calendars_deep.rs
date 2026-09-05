@@ -1176,6 +1176,120 @@ fn calendar_disabled_nav_buttons_leave_the_tab_order(cx: &mut TestAppContext) {
     assert_eq!(presses.borrow().as_slice(), ["after"]);
 }
 
+#[gpui::test]
+fn year_picker_keeps_the_day_view_dimensions(cx: &mut TestAppContext) {
+    for range in [false, true] {
+        for duration in [
+            VisibleDuration::Months(1),
+            VisibleDuration::Months(2),
+            VisibleDuration::Weeks(2),
+            VisibleDuration::Days(3),
+        ] {
+            let mut sizes = Vec::new();
+            for open in [false, true] {
+                let calendar = cx.new(|cx| CalendarState::new(cx));
+                let range_calendar = cx.new(|cx| DateRangeState::new(cx));
+                let cx = open_host(cx, move || {
+                    let content = if range {
+                        RangeCalendar::new(range_calendar.clone())
+                            .default_value((Date::new(2026, 8, 10), Date::new(2026, 8, 15)))
+                            .visible_duration(duration)
+                            .default_year_picker_open(open)
+                            .into_any_element()
+                    } else {
+                        Calendar::new(calendar.clone())
+                            .default_value(Date::new(2026, 8, 10))
+                            .visible_duration(duration)
+                            .default_year_picker_open(open)
+                            .into_any_element()
+                    };
+                    gpui::div()
+                        .flex()
+                        .child(
+                            gpui::div()
+                                .debug_selector(|| "year-picker-footprint".to_owned())
+                                .child(content),
+                        )
+                        .into_any_element()
+                });
+                sizes.push(cx.debug_bounds("year-picker-footprint").unwrap().size);
+            }
+            assert_eq!(sizes[0], sizes[1], "range={range}, duration={duration:?}");
+        }
+    }
+}
+
+#[gpui::test]
+fn year_picker_reveals_the_opening_and_keyboard_year(cx: &mut TestAppContext) {
+    for range in [false, true] {
+        let calendar = cx.new(|cx| CalendarState::new(cx));
+        let range_calendar = cx.new(|cx| DateRangeState::new(cx));
+        let base = if range {
+            format!(
+                r#"Name("range-cal-{}")"#,
+                range_calendar.entity_id().as_u64()
+            )
+        } else {
+            format!(r#"Name("cal-{}")"#, calendar.entity_id().as_u64())
+        };
+        let lower_bound = Rc::new(std::cell::Cell::new(2000));
+        let view_lower_bound = lower_bound.clone();
+        let cx = open_host(cx, move || {
+            if range {
+                RangeCalendar::new(range_calendar.clone())
+                    .default_value((Date::new(2020, 8, 10), Date::new(2020, 8, 15)))
+                    .min_value(Date::new(view_lower_bound.get(), 1, 1))
+                    .max_value(Date::new(2040, 12, 31))
+                    .default_year_picker_open(true)
+                    .into_any_element()
+            } else {
+                Calendar::new(calendar.clone())
+                    .default_value(Date::new(2020, 8, 10))
+                    .min_value(Date::new(view_lower_bound.get(), 1, 1))
+                    .max_value(Date::new(2040, 12, 31))
+                    .default_year_picker_open(true)
+                    .into_any_element()
+            }
+        });
+        let mut column_width = None;
+        for (key, year) in [(None, 2020), (Some("end"), 2040), (Some("home"), 2000)] {
+            if let Some(key) = key {
+                press(cx, key);
+            }
+            cx.run_until_parked();
+            let viewport = cx
+                .debug_bounds(Box::leak(format!("{base}-year-viewport").into_boxed_str()))
+                .unwrap();
+            let cell = cx
+                .debug_bounds(Box::leak(format!("{base}-y{year}").into_boxed_str()))
+                .unwrap();
+            assert!(
+                cell.top() >= viewport.top() && cell.bottom() <= viewport.bottom(),
+                "range={range}, year={year}: {cell:?} outside {viewport:?}"
+            );
+            assert_eq!(cell.size.height, px(32.));
+            let width = *column_width.get_or_insert(cell.size.width);
+            assert!(
+                (f32::from(cell.size.width - width)).abs() <= 1.,
+                "partial year rows must retain three equal columns"
+            );
+        }
+        lower_bound.set(1900);
+        cx.update(|window, _| window.refresh());
+        cx.run_until_parked();
+        let viewport = cx
+            .debug_bounds(Box::leak(format!("{base}-year-viewport").into_boxed_str()))
+            .unwrap();
+        let cell = cx
+            .debug_bounds(Box::leak(format!("{base}-y2000").into_boxed_str()))
+            .unwrap();
+        assert!(
+            cell.top() >= viewport.top() && cell.bottom() <= viewport.bottom(),
+            "range={range}: changed bounds must reveal the same active year: {cell:?} in {viewport:?}"
+        );
+    }
+}
+
 /// v3 overlays the year grid on the calendar and makes the month chevrons
 /// pointer-inert while it is open. The port previously left both chevrons live
 /// and repurposed them as twelve-year paging controls.

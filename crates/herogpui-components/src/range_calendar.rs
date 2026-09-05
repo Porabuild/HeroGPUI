@@ -966,13 +966,28 @@ impl RangeCalendar {
         };
         let active_year = view.active_year;
         let base = view.base;
-        let mut grid = div().flex().flex_col().gap(px(4.)).p(px(4.));
+        let mut grid = div()
+            .id(ElementId::Name(format!("{base}-year-viewport").into()))
+            .debug_selector({
+                let key = format!("{base}-year-viewport");
+                move || key
+            })
+            .size_full()
+            .overflow_y_scroll()
+            .track_scroll(&view.scroll.handle)
+            .flex()
+            .flex_col()
+            .gap(px(4.));
         for chunk in view.years.chunks(3) {
-            let mut row = div().flex().gap(px(4.));
+            let mut row = div().flex().flex_shrink_0().gap(px(4.));
             for &year in chunk {
                 let is_active = year == active_year;
                 let mut cell = div()
                     .id(ElementId::Name(format!("{base}-y{year}").into()))
+                    .debug_selector({
+                        let key = format!("{base}-y{year}");
+                        move || key
+                    })
                     .when(!self.is_disabled && is_active, |cell| {
                         cell.track_focus(year_focus)
                     })
@@ -1036,9 +1051,23 @@ impl RangeCalendar {
                 }
                 row = row.child(cell.child(year.to_string()));
             }
+            row = row.children((chunk.len()..3).map(|_| div().flex_1().px(px(10.))));
             grid = grid.child(row);
         }
-        grid.into_any_element()
+        div()
+            .absolute()
+            .inset_0()
+            .p(px(4.))
+            .child(grid)
+            .when_some(view.reveal_row, |viewport, row| {
+                let scroll = view.scroll.clone();
+                viewport.on_children_prepainted(move |_, window, cx| {
+                    scroll.last_target.set(Some((active_year, row)));
+                    scroll.handle.scroll_to_item(row);
+                    window.defer(cx, |window, _| window.refresh());
+                })
+            })
+            .into_any_element()
     }
 }
 
@@ -1239,6 +1268,7 @@ impl RenderOnce for RangeCalendar {
             year_cursor.update(cx, |year, _| *year = Some(initial_year));
             window.focus(&year_focus, cx);
         }
+        let year_just_opened = year_picker_open && !*year_was_open.read(cx);
         year_was_open.update(cx, |was_open, _| *was_open = year_picker_open);
         let active_year = focused_value
             .map(|date| self.system().from_gregorian(date).0)
@@ -1246,6 +1276,24 @@ impl RenderOnce for RangeCalendar {
             .unwrap_or(initial_year)
             .max(first_year)
             .min(last_year);
+        let year_scroll_state = window.use_keyed_state(
+            ElementId::Name(format!("{base}-year-scroll").into()),
+            cx,
+            |_, _| std::rc::Rc::new(calendar_view::YearGridScroll::default()),
+        );
+        let year_scroll = year_scroll_state.read(cx).clone();
+        let reveal_year_row =
+            years
+                .iter()
+                .position(|year| *year == active_year)
+                .and_then(|index| {
+                    let row = index / 3;
+                    (year_picker_open
+                        && (year_just_opened
+                            || year_scroll.last_target.get() != Some((active_year, row))))
+                    .then_some(row)
+                });
+
         // Taking the focus puts the ring where v3 would have focused -- the
         // range's start, or today.
         let ring_at = focused_value
@@ -1351,7 +1399,8 @@ impl RenderOnce for RangeCalendar {
                         });
                     crate::anim::pressed(pressed, press_box, cx)
                 })
-                .when(disabled, |b| b.opacity(layout.disabled_opacity));
+                .when(disabled, |b| b.opacity(layout.disabled_opacity))
+                .when(year_picker_open, |b| b.invisible());
             util::ring_if_focused(button, focus, true, Vec::new(), window, cx).child(
                 gpui::svg()
                     // `.range-calendar__nav-button-icon` is `size-4`, painted
@@ -1773,42 +1822,13 @@ impl RenderOnce for RangeCalendar {
             });
         }
 
-        if year_picker_open {
-            root = root.w(crate::calendar::CALENDAR_WIDTH);
-            root = root.child(
-                div()
-                    .flex()
-                    .items_center()
-                    .justify_between()
-                    .w_full()
-                    // `.range-calendar__header` is `px-0.5`.
-                    .px(px(2.))
-                    .child(div().size(px(24.)))
-                    .child(heading(
-                        {
-                            let (ay, am, _) = self.system().from_gregorian(anchor);
-                            self.month_heading_text(ay, am)
-                        },
-                        format!("{base}-yheading"),
-                        &active_heading_focus,
-                        active_heading_index,
-                    ))
-                    .child(div().size(px(24.))),
-            );
-            root = root.child(self.year_grid(
-                calendar_view::YearGridView {
-                    years: &years,
-                    active_year,
-                    base: &base,
-                },
-                &year_focus,
-                &active_heading_focus,
-                year_picker_own.clone(),
-                window,
-                cx,
-            ));
-        } else if self.duration.is_month_view() {
+        let mut body = div().flex().flex_col().gap(px(8.));
+        if self.duration.is_month_view() {
+            root = root
+                .w(crate::calendar::CALENDAR_WIDTH * columns as f32
+                    + px(20.) * (columns - 1) as f32);
             let mut row = div().flex().gap(px(20.));
+            let mut headings = div().flex().gap(px(20.));
             for (i, &(y, m)) in months.iter().enumerate() {
                 let first = i == 0;
                 let last = i + 1 == columns;
@@ -1817,8 +1837,9 @@ impl RenderOnce for RangeCalendar {
                 // same-size spacer so every heading lines up.
                 // The same box as a nav button, so every heading lines up.
                 let spacer = || div().size(px(24.)).into_any_element();
-                col = col.child(
-                    div()
+                headings = headings.child(
+                    div().w(crate::calendar::CALENDAR_WIDTH).child(
+                        div()
                         .flex()
                         .flex_row()
                         .items_center()
@@ -1856,12 +1877,14 @@ impl RenderOnce for RangeCalendar {
                         } else {
                             spacer()
                         }),
+                    ),
                 );
                 col = col.child(self.weekday_header(cx));
                 col = col.child(self.month_grid(y, m, &frame, cx));
                 row = row.child(col);
             }
-            root = root.child(row);
+            root = root.child(headings);
+            body = body.child(row);
         } else {
             // Week and day views: a flat run of real dates, so no lead blanks.
             let per_row = if matches!(self.duration, VisibleDuration::Weeks(_)) {
@@ -1901,9 +1924,9 @@ impl RenderOnce for RangeCalendar {
                     )),
             );
             if per_row == 7 {
-                root = root.child(self.weekday_header(cx));
+                body = body.child(self.weekday_header(cx));
             } else {
-                root = root.child(div().flex().flex_row().children(linear.iter().map(|d| {
+                body = body.child(div().flex().flex_row().children(linear.iter().map(|d| {
                     div()
                         .w(px(36.))
                         .text_center()
@@ -1937,8 +1960,29 @@ impl RenderOnce for RangeCalendar {
                 }
                 grid = grid.child(line);
             }
-            root = root.child(grid);
+            body = body.child(grid);
         }
+
+        let mut viewport = div()
+            .relative()
+            .child(body.when(year_picker_open, |body| body.invisible()));
+        if year_picker_open {
+            viewport = viewport.child(self.year_grid(
+                calendar_view::YearGridView {
+                    years: &years,
+                    active_year,
+                    base: &base,
+                    scroll: &year_scroll,
+                    reveal_row: reveal_year_row,
+                },
+                &year_focus,
+                &active_heading_focus,
+                year_picker_own.clone(),
+                window,
+                cx,
+            ));
+        }
+        root = root.child(viewport);
 
         if self.is_disabled {
             root = root.opacity(layout.disabled_opacity);

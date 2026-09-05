@@ -5118,6 +5118,7 @@ impl Gallery {
                 ),
                 (
                     "Year Picker",
+                    "Years scroll within the day-grid area. Opening and keyboard navigation reveal the focused year without expanding the calendar.",
                     col(vec![h::RangeCalendar::new(self.demo_range("rc-year", cx))
                         .default_year_picker_open(true)
                         // `firstDayOfWeek` reorders the seven columns.

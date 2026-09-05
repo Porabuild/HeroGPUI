@@ -3,8 +3,8 @@
 //!
 //! v3 lets a calendar show a month grid, several month grids side by side, a
 //! run of week rows, or a rolling window of days. All three views share one
-//! anchor date; everything below is pure so the geometry can be tested without
-//! a window.
+//! anchor date. Date calculations are pure; the shared year-grid render state
+//! also lives here.
 
 use crate::calendar::{add_days, bump_month, days_from_civil, days_in_month, Date};
 use crate::date_constraints::Weekday;
@@ -506,11 +506,19 @@ pub(crate) fn year_window(
         .collect()
 }
 
+#[derive(Default)]
+pub(crate) struct YearGridScroll {
+    pub(crate) handle: gpui::ScrollHandle,
+    pub(crate) last_target: std::cell::Cell<Option<(i32, usize)>>,
+}
+
 /// The shared render inputs for Calendar and RangeCalendar's year grid.
 pub(crate) struct YearGridView<'a> {
     pub(crate) years: &'a [i32],
     pub(crate) active_year: i32,
     pub(crate) base: &'a str,
+    pub(crate) scroll: &'a std::rc::Rc<YearGridScroll>,
+    pub(crate) reveal_row: Option<usize>,
 }
 
 #[cfg(test)]

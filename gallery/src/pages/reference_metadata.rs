@@ -7244,9 +7244,9 @@ const CALENDAR_PARTS: &[PartDoc] = &[
     PartDoc {
         name: "Calendar.YearPickerGrid",
         slot: "calendar-year-picker-grid",
-        description: "Three-column year selection surface.",
+        description: "Scrollable three-column year surface overlaying the retained day area.",
         rust_owner: "Calendar",
-        status: ImplementationStatus::Partial,
+        status: ImplementationStatus::Implemented,
     },
     PartDoc {
         name: "Calendar.YearPickerGridBody",
@@ -7334,8 +7334,8 @@ const CALENDAR_STATES: &[StateDoc] = &[
     StateDoc {
         state: "Year picker open",
         selector: ".calendar-year-picker__trigger[data-open=\"true\"]",
-        description: "The year grid replaces the day grid, without v3's staggered crossfade.",
-        rust: "year_picker_open conditional tree",
+        description: "The scrollable year grid overlays the retained day layout, without the staggered crossfade.",
+        rust: "year_picker_open overlay + invisible day body",
         status: ImplementationStatus::Partial,
     },
     StateDoc {
@@ -7512,16 +7512,16 @@ const CALENDAR_STYLING: &[StyleDoc] = &[
     StyleDoc {
         class_or_token: ".calendar:has(.calendar-year-picker__year-grid) > [data-slot=\"calendar-grid\"]",
         value: "day grid 150ms fade; year grid 200ms fade after 50ms; reduced-motion none",
-        description: "The port replaces the day grid immediately without the pinned staggered crossfade.",
-        rust: "conditional tree replacement",
+        description: "The day body is hidden immediately beneath the year overlay without the pinned staggered crossfade.",
+        rust: "invisible day body + absolute year overlay",
         status: ImplementationStatus::Unavailable,
     },
     StyleDoc {
         class_or_token: ".calendar-year-picker__year-grid",
         value: "absolute 3-column grid gap-1 overflow-y-auto p-1",
-        description: "Columns, gap and padding match; overlay positioning and scrolling do not.",
-        rust: "three-cell flex rows + gap(4px) + p(4px)",
-        status: ImplementationStatus::Partial,
+        description: "The scrollable three-column year grid occupies the retained day area; opening and keyboard movement reveal the active row.",
+        rust: "absolute inset_0 + retained day layout + ScrollHandle + three-cell rows + gap(4px) + p(4px)",
+        status: ImplementationStatus::Implemented,
     },
     StyleDoc {
         class_or_token: ".calendar-year-picker__year-cell",
@@ -7695,9 +7695,9 @@ const RANGE_CALENDAR_PARTS: &[PartDoc] = &[
     PartDoc {
         name: "RangeCalendar.YearPickerGrid",
         slot: "calendar-year-picker-grid",
-        description: "Three-column year selection surface.",
+        description: "Scrollable three-column year surface overlaying the retained day area.",
         rust_owner: "RangeCalendar",
-        status: ImplementationStatus::Partial,
+        status: ImplementationStatus::Implemented,
     },
     PartDoc {
         name: "RangeCalendar.YearPickerGridBody",
@@ -7803,8 +7803,8 @@ const RANGE_CALENDAR_STATES: &[StateDoc] = &[
     StateDoc {
         state: "Year picker open",
         selector: ".calendar-year-picker__trigger[data-open=\"true\"]",
-        description: "Replaces the day grid without v3's staggered crossfade.",
-        rust: "year_picker_open conditional tree",
+        description: "The scrollable year grid overlays the retained day layout, without the staggered crossfade.",
+        rust: "year_picker_open overlay + invisible day body",
         status: ImplementationStatus::Partial,
     },
 ];
@@ -7832,8 +7832,8 @@ const RANGE_CALENDAR_STYLING: &[StyleDoc] = &[
     StyleDoc { class_or_token: ".range-calendar__cell-indicator", value: "bottom-1 centered 3px dot; selected accent foreground", description: "Size and selection color match; the inset is 2px rather than 4px.", rust: "bottom(2px) + size(3px)", status: ImplementationStatus::Partial },
     StyleDoc { class_or_token: ".calendar-year-picker__trigger", value: "flex-1 gap-1 rounded-lg", description: "Composed and focusable, with extra padding and hover fill.", rust: "gap(4px) + key_radius + padding", status: ImplementationStatus::Partial },
     StyleDoc { class_or_token: ".calendar-year-picker__trigger-indicator", value: "rotate 90deg over 150ms when open", description: "The port swaps up/down glyphs without rotation interpolation.", rust: "CHEVRON_UP / CHEVRON_DOWN", status: ImplementationStatus::Partial },
-    StyleDoc { class_or_token: ".range-calendar:has(.calendar-year-picker__year-grid) > [data-slot=\"range-calendar-grid\"]", value: "day 150ms fade; year 200ms fade after 50ms", description: "The day grid is replaced immediately.", rust: "conditional tree replacement", status: ImplementationStatus::Unavailable },
-    StyleDoc { class_or_token: ".calendar-year-picker__year-grid", value: "absolute three-column grid gap-1 overflow-y-auto p-1", description: "Columns, gap and padding match; overlay positioning and scrolling do not.", rust: "three-cell rows + gap(4px) + p(4px)", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".range-calendar:has(.calendar-year-picker__year-grid) > [data-slot=\"range-calendar-grid\"]", value: "day 150ms fade; year 200ms fade after 50ms", description: "The day body is hidden immediately beneath the year overlay.", rust: "invisible day body + absolute year overlay", status: ImplementationStatus::Unavailable },
+    StyleDoc { class_or_token: ".calendar-year-picker__year-grid", value: "absolute three-column grid gap-1 overflow-y-auto p-1", description: "The scrollable three-column year grid occupies the retained day area; opening and keyboard movement reveal the active row.", rust: "absolute inset_0 + retained day layout + ScrollHandle + three-cell rows + gap(4px) + p(4px)", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".calendar-year-picker__year-cell", value: "h-8 px-2.5 rounded-3xl text-sm font-medium", description: "Geometry and core states exist; transitions are absent.", rust: "32px + px(10px) + control radius + text_size(14px) + line_height(20px) + MEDIUM", status: ImplementationStatus::Partial },
 ];
 

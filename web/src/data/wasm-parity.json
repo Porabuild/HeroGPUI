@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "artifactSha256": "11a6a8e8d8a39e0a0a5ea29599b40f8453ce9264ace60a1c22089ee4e09e8301",
-  "glueSha256": "79d094e3fc922c1dc81586a67c0bd0a53840b1c3bd36856a36167987bf6208a2",
+  "artifactSha256": "d6a8e385d1f4816101b5bc1869e19402cbbd3693d8ef2b0ef2d868a11cc583ca",
+  "glueSha256": "f99826d632a238bd164e7b31ad747aea3d47f367ef9706f6894d7490f0b245cb",
   "examples": {
     "accordion/Controlled": {
       "nativeCodeSha256": "2816548407263e0fdeada0ff2ec1e8f9fd45a2d33b24ab2cf163539711fe6f8a",
@@ -1809,7 +1809,7 @@
     },
     "range-calendar/Year Picker": {
       "nativeCodeSha256": "05e7b3fe27becbefc4a2c5dc84b5095b9cb09a7a30b871a06a15ef27bc3829c3",
-      "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      "descriptionSha256": "1334ce47870a4aeb2f5b2c753b185011ecb2021ed21f997c8f450680df40274f"
     },
     "scroll-shadow/Hide Scroll Bar": {
       "nativeCodeSha256": "a38dd31e645ee833688093193e42be49c72d5b052c87053854a79cc1d8c81b5a",

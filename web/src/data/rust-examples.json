@@ -1269,6 +1269,7 @@
     },
     {
       "heading": "Year Picker",
+      "description": "Years scroll within the day-grid area. Opening and keyboard navigation reveal the focused year without expanding the calendar.",
       "imports": "use herogpui::prelude::{RangeCalendar, Weekday};",
       "code": "RangeCalendar::new(self.demo_range(\"rc-year\", cx))\n    .default_year_picker_open(true)\n    // `firstDayOfWeek` reorders the seven columns.\n    .first_day_of_week(Weekday::Mon)"
     },
