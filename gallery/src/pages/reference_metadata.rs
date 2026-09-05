@@ -7435,8 +7435,8 @@ const CALENDAR_STYLING: &[StyleDoc] = &[
     StyleDoc {
         class_or_token: ".calendar__cell",
         value: "aspect-square size-full rounded-3xl text-sm font-medium",
-        description: "A centered 36px circular hit area matches the desktop cell geometry.",
-        rust: "36px circle + radius(18px) + text_size(14px)",
+        description: "Day cells center 14px/20px medium text in a 36px hit area, including selected, disabled and custom cells.",
+        rust: "36px circle + radius(18px) + text_size(14px) + line_height(20px) + MEDIUM",
         status: ImplementationStatus::Partial,
     },
     StyleDoc {

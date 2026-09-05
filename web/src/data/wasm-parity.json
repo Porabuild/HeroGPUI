@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "artifactSha256": "d6a8e385d1f4816101b5bc1869e19402cbbd3693d8ef2b0ef2d868a11cc583ca",
+  "artifactSha256": "da1756f2a33fc5f385e86e99b6af3aabd0d2db88b2d7ed4cff7ff87688d0616c",
   "glueSha256": "f99826d632a238bd164e7b31ad747aea3d47f367ef9706f6894d7490f0b245cb",
   "examples": {
     "accordion/Controlled": {
@@ -389,7 +389,7 @@
     },
     "calendar/Usage": {
       "nativeCodeSha256": "3f3ca2d802a81bf70b6cfa772787b1beca67fbc2e09a161bb0ea0496c7a3b05a",
-      "descriptionSha256": "c8cbdc19934a6c9cc5c0e97d1f868d37ee69cbe4e0fb28f651e21a32599f5613"
+      "descriptionSha256": "7065f7724e0cfa188cd9893b9f06c85891e2c38037a8f20dd83bd88cb4dadec9"
     },
     "calendar/Week view": {
       "nativeCodeSha256": "957bb1c4d1b2b728b1fb127a06a982ed5e674bf9a21365dbad44d348a217bd14",

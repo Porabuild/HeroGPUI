@@ -12445,7 +12445,7 @@ index 7a8f3282..96febab1 100644
                      shrink_x: !self.full_width,
                      scale: press_scale,
 diff --git a/crates/herogpui-components/src/calendar.rs b/crates/herogpui-components/src/calendar.rs
-index 87d98a71..9132bc07 100644
+index 87d98a71..684977d1 100644
 --- a/crates/herogpui-components/src/calendar.rs
 +++ b/crates/herogpui-components/src/calendar.rs
 @@ -5,6 +5,8 @@ use gpui::{
@@ -12650,7 +12650,38 @@ index 87d98a71..9132bc07 100644
              cell_indicator: None,
              cell: None,
              nav_icons: None,
-@@ -776,14 +913,14 @@ impl Calendar {
+@@ -640,7 +777,9 @@ impl Calendar {
+             .flex()
+             .items_center()
+             .justify_center()
+-            .text_size(px(14.));
++            .text_size(px(14.))
++            .line_height(px(20.))
++            .font_weight(gpui::FontWeight::MEDIUM);
+ 
+         let marker = if self.is_invalid {
+             colors.danger.color
+@@ -665,14 +804,11 @@ impl Calendar {
+         if outside_month {
+             circle = circle.text_color(colors.muted);
+         } else if is_sel {
+-            circle = circle
+-                .bg(marker)
+-                .text_color(if self.is_invalid {
+-                    colors.danger.foreground
+-                } else {
+-                    accent.foreground
+-                })
+-                .font_weight(gpui::FontWeight::SEMIBOLD);
++            circle = circle.bg(marker).text_color(if self.is_invalid {
++                colors.danger.foreground
++            } else {
++                accent.foreground
++            });
+             if selectable {
+                 // `.calendar__cell[data-pressed][data-selected]` fills
+                 // `bg-accent-hover`, the one pressed recolour the pinned CSS
+@@ -776,14 +912,14 @@ impl Calendar {
              .child(match &self.cell {
                  Some(render) => circle.child(render(CalendarCellState {
                      date,
@@ -12667,7 +12698,7 @@ index 87d98a71..9132bc07 100644
              })
              .when(marked, |cell| {
                  cell.child(
-@@ -821,16 +958,64 @@ impl Calendar {
+@@ -821,16 +957,64 @@ impl Calendar {
                      .text_center()
                      // `.calendar__header-cell` is `text-xs`.
                      .text_size(px(12.))
@@ -12735,7 +12766,7 @@ index 87d98a71..9132bc07 100644
  
          // `.calendar__grid` holds the header and `.calendar__grid-body`, whose
          // children are `.calendar__grid-row`s of cells.
-@@ -840,10 +1025,10 @@ impl Calendar {
+@@ -840,10 +1024,10 @@ impl Calendar {
              for c in 0..7 {
                  let idx = r * 7 + c;
                  let slot: gpui::AnyElement = if idx < lead {
@@ -12750,7 +12781,7 @@ index 87d98a71..9132bc07 100644
                          true,
                          frame,
                          format!("{}-{y}-{m}-outside-{py}-{pm}-d{day}", frame.base),
-@@ -859,17 +1044,17 @@ impl Calendar {
+@@ -859,17 +1043,17 @@ impl Calendar {
                          // render prop a real `CalendarDate`, and the closure is
                          // the only identity a caller has.
                          let nd = day_num - dim;
@@ -12773,7 +12804,7 @@ index 87d98a71..9132bc07 100644
                              false,
                              frame,
                              format!("{}-{y}-{m}-d{day_num}", frame.base),
-@@ -899,13 +1084,30 @@ impl Calendar {
+@@ -899,13 +1083,30 @@ impl Calendar {
          let active_year = view.active_year;
          let base = view.base;
          // `.calendar-year-picker__year-grid` is `gap-1 p-1`.
@@ -12806,7 +12837,7 @@ index 87d98a71..9132bc07 100644
                      .when(!self.is_disabled && is_active, |cell| {
                          cell.track_focus(year_focus)
                      })
-@@ -918,13 +1120,12 @@ impl Calendar {
+@@ -918,13 +1119,12 @@ impl Calendar {
                      .items_center()
                      .justify_center()
                      .text_size(px(14.))
@@ -12823,7 +12854,7 @@ index 87d98a71..9132bc07 100644
                  } else if !self.is_disabled {
                      // `.calendar-year-picker__year-cell:hover` fills
                      // `bg-default text-default-foreground`.
-@@ -942,10 +1143,12 @@ impl Calendar {
+@@ -942,10 +1142,12 @@ impl Calendar {
                      let on_focus = self.on_focus_change.clone();
                      let own = year_picker_own.clone();
                      let back_to_trigger = heading_focus.clone();
@@ -12838,7 +12869,7 @@ index 87d98a71..9132bc07 100644
                              s.set_anchor(next);
                              cx.notify();
                              next
-@@ -964,7 +1167,7 @@ impl Calendar {
+@@ -964,7 +1166,7 @@ impl Calendar {
                          if let Some(cb) = &on_open {
                              cb(false, window, cx);
                          }
@@ -12847,7 +12878,7 @@ index 87d98a71..9132bc07 100644
                      });
                  }
  
-@@ -980,9 +1183,23 @@ impl Calendar {
+@@ -980,9 +1182,23 @@ impl Calendar {
                  }
                  row = row.child(cell.child(year.to_string()));
              }
@@ -12872,7 +12903,7 @@ index 87d98a71..9132bc07 100644
      }
  }
  
-@@ -1116,7 +1333,8 @@ impl RenderOnce for Calendar {
+@@ -1116,7 +1332,8 @@ impl RenderOnce for Calendar {
          // `selectionAlignment` frames the range around the selection, but only
          // until the user drives navigation themselves.
          let anchor = match (navigated, selected) {
@@ -12882,7 +12913,7 @@ index 87d98a71..9132bc07 100644
                  self.duration,
                  self.selection_alignment,
                  first_day,
-@@ -1126,8 +1344,9 @@ impl RenderOnce for Calendar {
+@@ -1126,8 +1343,9 @@ impl RenderOnce for Calendar {
          };
          let anchor = focused_value.map_or(anchor, |focused| {
              let (visible_start, visible_end) =
@@ -12894,7 +12925,7 @@ index 87d98a71..9132bc07 100644
                  self.duration,
                  first_day,
                  anchor,
-@@ -1136,26 +1355,49 @@ impl RenderOnce for Calendar {
+@@ -1136,26 +1354,49 @@ impl RenderOnce for Calendar {
                  focused,
              )
          });
@@ -12949,7 +12980,7 @@ index 87d98a71..9132bc07 100644
          // `focusedValue` wins; without it the keyboard's own cursor does, and it
          // starts from the selection or today.
          // Taking the focus puts the ring on the date v3 would have focused --
-@@ -1175,7 +1417,7 @@ impl RenderOnce for Calendar {
+@@ -1175,7 +1416,7 @@ impl RenderOnce for Calendar {
              focused: ring_at,
          };
  
@@ -12958,7 +12989,7 @@ index 87d98a71..9132bc07 100644
          let linear = calendar_view::linear_cells(self.duration, first_day, anchor);
          let columns = months.len().max(1);
          let mut heading_focuses = Vec::with_capacity(columns);
-@@ -1192,10 +1434,17 @@ impl RenderOnce for Calendar {
+@@ -1192,10 +1433,17 @@ impl RenderOnce for Calendar {
          let colors = cx.colors();
          let layout = cx.layout();
  
@@ -12979,7 +13010,7 @@ index 87d98a71..9132bc07 100644
          // React Stately checks only the day immediately outside the visible
          // range against minValue/maxValue. Unavailable dates do not block
          // paging, and readOnly prevents selection without preventing paging.
-@@ -1256,7 +1505,8 @@ impl RenderOnce for Calendar {
+@@ -1256,7 +1504,8 @@ impl RenderOnce for Calendar {
                          cx,
                      )
                  })
@@ -12989,7 +13020,7 @@ index 87d98a71..9132bc07 100644
              crate::util::ring_if_focused(button, focus, true, Vec::new(), window, cx).child(
                  gpui::svg()
                          // `.calendar__nav-button-icon` is `size-4`.
-@@ -1277,7 +1527,8 @@ impl RenderOnce for Calendar {
+@@ -1277,7 +1526,8 @@ impl RenderOnce for Calendar {
           -> gpui::AnyElement {
              let label = gpui::div()
                  .text_size(px(14.))
@@ -12999,7 +13030,7 @@ index 87d98a71..9132bc07 100644
                  .child(text);
              match &self.on_year_picker_open_change {
                  // No handler and no state of our own: a plain label.
-@@ -1415,6 +1666,7 @@ impl RenderOnce for Calendar {
+@@ -1415,6 +1665,7 @@ impl RenderOnce for Calendar {
              let on_change = self.on_change.clone();
              let on_change_all = self.on_change_all.clone();
              let on_focus = self.on_focus_change.clone();
@@ -13007,7 +13038,7 @@ index 87d98a71..9132bc07 100644
              let duration = self.duration;
              let page_behavior = self.page_behavior;
              root = root.on_key_down(move |event, window, cx| {
-@@ -1430,7 +1682,8 @@ impl RenderOnce for Calendar {
+@@ -1430,7 +1681,8 @@ impl RenderOnce for Calendar {
                  let key = event.keystroke.key.as_str();
                  let shift = event.keystroke.modifiers.shift;
                  if matches!(key, "enter" | "space") {
@@ -13017,7 +13048,7 @@ index 87d98a71..9132bc07 100644
                          return;
                      }
                      let selected_dates = state.update(cx, |s, cx| {
-@@ -1451,14 +1704,24 @@ impl RenderOnce for Calendar {
+@@ -1451,14 +1703,24 @@ impl RenderOnce for Calendar {
                      "right" => add_days(&at, 1),
                      "up" => add_days(&at, -7),
                      "down" => add_days(&at, 7),
@@ -13050,7 +13081,7 @@ index 87d98a71..9132bc07 100644
                      _ => return,
                  };
                  if controlled_focus.is_none() {
-@@ -1473,7 +1736,8 @@ impl RenderOnce for Calendar {
+@@ -1473,7 +1735,8 @@ impl RenderOnce for Calendar {
                          if matches!(key, "pageup" | "pagedown") {
                              let dir = if key == "pageup" { -1 } else { 1 };
                              let next_anchor = match duration {
@@ -13060,7 +13091,7 @@ index 87d98a71..9132bc07 100644
                                      duration,
                                      page_behavior,
                                      anchor,
-@@ -1481,7 +1745,8 @@ impl RenderOnce for Calendar {
+@@ -1481,7 +1744,8 @@ impl RenderOnce for Calendar {
                                      shift,
                                  ),
                                  _ if days_from_civil(&next) < days_from_civil(&visible_start) => {
@@ -13070,7 +13101,7 @@ index 87d98a71..9132bc07 100644
                                          duration,
                                          SelectionAlignment::End,
                                          first_day,
-@@ -1489,7 +1754,8 @@ impl RenderOnce for Calendar {
+@@ -1489,7 +1753,8 @@ impl RenderOnce for Calendar {
                                      )
                                  }
                                  _ if days_from_civil(&next) > days_from_civil(&visible_end) => {
@@ -13080,7 +13111,7 @@ index 87d98a71..9132bc07 100644
                                          duration,
                                          SelectionAlignment::Start,
                                          first_day,
-@@ -1503,7 +1769,8 @@ impl RenderOnce for Calendar {
+@@ -1503,7 +1768,8 @@ impl RenderOnce for Calendar {
                                  cx.notify();
                              }
                          } else {
@@ -13090,7 +13121,7 @@ index 87d98a71..9132bc07 100644
                                  duration,
                                  first_day,
                                  anchor,
-@@ -1531,7 +1798,8 @@ impl RenderOnce for Calendar {
+@@ -1531,7 +1797,8 @@ impl RenderOnce for Calendar {
              let own = year_picker_own.clone();
              let on_open = self.on_year_picker_open_change.clone();
              let on_focus = self.on_focus_change.clone();
@@ -13100,7 +13131,7 @@ index 87d98a71..9132bc07 100644
              let back_to_trigger = active_heading_focus.clone();
              root = root.on_key_down(move |event, window, cx| {
                  if !focus.is_focused(window) {
-@@ -1548,7 +1816,7 @@ impl RenderOnce for Calendar {
+@@ -1548,7 +1815,7 @@ impl RenderOnce for Calendar {
                      if let Some(cb) = &on_open {
                          cb(false, window, cx);
                      }
@@ -13109,7 +13140,7 @@ index 87d98a71..9132bc07 100644
                      cx.stop_propagation();
                      return;
                  }
-@@ -1577,11 +1845,7 @@ impl RenderOnce for Calendar {
+@@ -1577,11 +1844,7 @@ impl RenderOnce for Calendar {
                      }
                      if let Some(cb) = &on_focus {
                          cb(
@@ -13122,7 +13153,7 @@ index 87d98a71..9132bc07 100644
                              window,
                              cx,
                          );
-@@ -1591,43 +1855,11 @@ impl RenderOnce for Calendar {
+@@ -1591,43 +1854,11 @@ impl RenderOnce for Calendar {
              });
          }
  
@@ -13170,7 +13201,7 @@ index 87d98a71..9132bc07 100644
              for (i, &(y, m)) in months.iter().enumerate() {
                  let first = i == 0;
                  let last = i + 1 == columns;
-@@ -1636,8 +1868,9 @@ impl RenderOnce for Calendar {
+@@ -1636,8 +1867,9 @@ impl RenderOnce for Calendar {
                  // a same-size spacer so every heading lines up.
                  // The same box as a nav button, so every heading lines up.
                  let spacer = || gpui::div().size(px(24.)).into_any_element();
@@ -13182,7 +13213,7 @@ index 87d98a71..9132bc07 100644
                          .flex()
                          .items_center()
                          .justify_between()
-@@ -1656,11 +1889,7 @@ impl RenderOnce for Calendar {
+@@ -1656,11 +1888,7 @@ impl RenderOnce for Calendar {
                              spacer()
                          })
                          .child(heading(
@@ -13195,7 +13226,7 @@ index 87d98a71..9132bc07 100644
                              format!("{base}-heading{i}"),
                              &heading_focuses[i],
                              i,
-@@ -1677,12 +1906,14 @@ impl RenderOnce for Calendar {
+@@ -1677,12 +1905,14 @@ impl RenderOnce for Calendar {
                          } else {
                              spacer()
                          }),
@@ -13211,7 +13242,7 @@ index 87d98a71..9132bc07 100644
          } else {
              // Week and day views: one flat run of real dates, so there are no
              // lead blanks and no spill into the next month.
-@@ -1721,14 +1952,16 @@ impl RenderOnce for Calendar {
+@@ -1721,14 +1951,16 @@ impl RenderOnce for Calendar {
                      )),
              );
              if per_row == 7 {
@@ -13231,7 +13262,7 @@ index 87d98a71..9132bc07 100644
                          .text_color(colors.muted)
                          .child(Weekday::ALL[weekday_index(*d)].short_label().to_owned())
                  })));
-@@ -1747,8 +1980,29 @@ impl RenderOnce for Calendar {
+@@ -1747,8 +1979,29 @@ impl RenderOnce for Calendar {
                  }
                  grid = grid.child(line);
              }
@@ -13262,7 +13293,7 @@ index 87d98a71..9132bc07 100644
  
          if self.is_disabled {
              root = root.opacity(layout.disabled_opacity);
-@@ -1760,6 +2014,97 @@ impl RenderOnce for Calendar {
+@@ -1760,6 +2013,97 @@ impl RenderOnce for Calendar {
  
  #[cfg(test)]
  mod tests {
@@ -26594,10 +26625,10 @@ index 1da38740..c14d9ce3 100644
          }
      };
 diff --git a/crates/herogpui-components/tests/calendars_deep.rs b/crates/herogpui-components/tests/calendars_deep.rs
-index e0d0085a..26c36793 100644
+index e0d0085a..99c3ff76 100644
 --- a/crates/herogpui-components/tests/calendars_deep.rs
 +++ b/crates/herogpui-components/tests/calendars_deep.rs
-@@ -27,9 +27,103 @@ use harness::{click, events, open_host, press};
+@@ -27,9 +27,112 @@ use harness::{click, events, open_host, press};
  use herogpui_components::{
      calendar::{Date, CALENDAR_WIDTH},
      Button, Calendar, CalendarState, DateConstraints, DateRangeState, RangeCalendar,
@@ -26606,54 +26637,63 @@ index e0d0085a..26c36793 100644
  };
  
 +#[gpui::test]
-+fn range_day_text_keeps_pinned_metrics_in_every_state(cx: &mut TestAppContext) {
-+    for (disabled, read_only) in [(false, false), (true, false), (false, true)] {
-+        for inherited in [20., 48.] {
-+            let seen = Rc::new(RefCell::new(Vec::new()));
-+            let view_seen = seen.clone();
-+            let state = cx.new(|cx| DateRangeState::new(cx));
-+            let cx = open_host(cx, move || {
-+                let seen = view_seen.clone();
-+                gpui::div()
-+                    .line_height(px(inherited))
-+                    .child(
-+                        RangeCalendar::new(state.clone())
++fn calendar_day_text_keeps_pinned_metrics_in_every_state(cx: &mut TestAppContext) {
++    for range in [false, true] {
++        for (disabled, read_only) in [(false, false), (true, false), (false, true)] {
++            for inherited in [20., 48.] {
++                let seen = Rc::new(RefCell::new(Vec::new()));
++                let view_seen = seen.clone();
++                let calendar = cx.new(|cx| CalendarState::new(cx));
++                let range_calendar = cx.new(|cx| DateRangeState::new(cx));
++                let cx = open_host(cx, move || {
++                    let seen = view_seen.clone();
++                    let probe = move |label: gpui::SharedString| {
++                        let seen = seen.clone();
++                        gpui::div()
++                            .child(label)
++                            .child(gpui::canvas(
++                                |_, _, _| {},
++                                move |_, _, window, _| {
++                                    let style = window.text_style();
++                                    let rem = window.rem_size();
++                                    seen.borrow_mut().push((
++                                        style.font_size.to_pixels(rem),
++                                        style
++                                            .line_height
++                                            .to_pixels(gpui::AbsoluteLength::Pixels(rem), rem),
++                                        style.font_weight,
++                                    ));
++                                },
++                            ))
++                            .into_any_element()
++                    };
++                    let content = if range {
++                        RangeCalendar::new(range_calendar.clone())
 +                            .default_value((Date::new(2026, 8, 10), Date::new(2026, 8, 15)))
 +                            .is_disabled(disabled)
 +                            .is_read_only(read_only)
-+                            .cell(move |cell| {
-+                                let seen = seen.clone();
-+                                gpui::div()
-+                                    .child(cell.formatted_date)
-+                                    .child(gpui::canvas(
-+                                        |_, _, _| {},
-+                                        move |_, _, window, _| {
-+                                            let style = window.text_style();
-+                                            let rem = window.rem_size();
-+                                            seen.borrow_mut().push((
-+                                                style.font_size.to_pixels(rem),
-+                                                style.line_height.to_pixels(
-+                                                    gpui::AbsoluteLength::Pixels(rem),
-+                                                    rem,
-+                                                ),
-+                                                style.font_weight,
-+                                            ));
-+                                        },
-+                                    ))
-+                                    .into_any_element()
-+                            }),
-+                    )
-+                    .into_any_element()
-+            });
-+            cx.update(|window, _| window.refresh());
-+            let seen = seen.borrow();
-+            assert!(!seen.is_empty());
-+            for metrics in seen.iter() {
-+                assert_eq!(
-+                    *metrics,
-+                    (px(14.), px(20.), gpui::FontWeight::MEDIUM),
-+                    "disabled={disabled}, read_only={read_only}, inherited={inherited}"
-+                );
++                            .cell(move |cell| probe(cell.formatted_date))
++                            .into_any_element()
++                    } else {
++                        Calendar::new(calendar.clone())
++                            .default_value(Date::new(2026, 8, 10))
++                            .is_disabled(disabled)
++                            .is_read_only(read_only)
++                            .cell(move |cell| probe(cell.formatted_date))
++                            .into_any_element()
++                    };
++                    gpui::div()
++                        .line_height(px(inherited))
++                        .child(content)
++                        .into_any_element()
++                });
++                cx.update(|window, _| window.refresh());
++                let seen = seen.borrow();
++                assert!(!seen.is_empty());
++                for metrics in seen.iter() {
++                    assert_eq!(*metrics, (px(14.), px(20.), gpui::FontWeight::MEDIUM),
++                        "range={range}, disabled={disabled}, read_only={read_only}, inherited={inherited}");
++                }
 +            }
 +        }
 +    }
@@ -26702,7 +26742,7 @@ index e0d0085a..26c36793 100644
  /// Column *c*'s centre in a bare Calendar: seven cells across
  /// `CALENDAR_WIDTH` minus six 2px gaps.
  fn cal_col_x(col: usize) -> f32 {
-@@ -308,6 +402,12 @@ fn range_calendar_first_endpoint_does_not_publish_a_half_open_value(cx: &mut Tes
+@@ -308,6 +411,12 @@ fn range_calendar_first_endpoint_does_not_publish_a_half_open_value(cx: &mut Tes
      let changes = events();
      let changed = changes.clone();
      let state = cx.new(|cx| DateRangeState::new(cx));
@@ -26715,7 +26755,7 @@ index e0d0085a..26c36793 100644
      let state_for_view = state.clone();
      let cx = open_host(cx, move || {
          let changes = changes.clone();
-@@ -541,8 +641,8 @@ fn range_calendar_unavailable_dates_follow_the_active_anchor(cx: &mut TestAppCon
+@@ -541,8 +650,8 @@ fn range_calendar_unavailable_dates_follow_the_active_anchor(cx: &mut TestAppCon
      cx.update(|window, _| window.refresh());
      assert_eq!(
          selected_probe.borrow().get(&12),
@@ -26726,7 +26766,7 @@ index e0d0085a..26c36793 100644
      );
      assert_eq!(
          selected_probe.borrow().get(&13),
-@@ -552,7 +652,7 @@ fn range_calendar_unavailable_dates_follow_the_active_anchor(cx: &mut TestAppCon
+@@ -552,7 +661,7 @@ fn range_calendar_unavailable_dates_follow_the_active_anchor(cx: &mut TestAppCon
      assert_eq!(
          selected_probe.borrow().get(&14),
          Some(&false),
@@ -26735,7 +26775,7 @@ index e0d0085a..26c36793 100644
      );
      let (selectable_end_x, selectable_end_y) = range_day(2026, 8, 12);
      click(cx, selectable_end_x, selectable_end_y);
-@@ -1076,6 +1176,120 @@ fn calendar_disabled_nav_buttons_leave_the_tab_order(cx: &mut TestAppContext) {
+@@ -1076,6 +1185,120 @@ fn calendar_disabled_nav_buttons_leave_the_tab_order(cx: &mut TestAppContext) {
      assert_eq!(presses.borrow().as_slice(), ["after"]);
  }
  
@@ -26856,7 +26896,7 @@ index e0d0085a..26c36793 100644
  /// v3 overlays the year grid on the calendar and makes the month chevrons
  /// pointer-inert while it is open. The port previously left both chevrons live
  /// and repurposed them as twelve-year paging controls.
-@@ -1536,13 +1750,14 @@ fn calendar_pages_dec_to_jan_and_clamps_into_leap_february(cx: &mut TestAppConte
+@@ -1536,13 +1759,14 @@ fn calendar_pages_dec_to_jan_and_clamps_into_leap_february(cx: &mut TestAppConte
      );
  }
  
@@ -26877,7 +26917,7 @@ index e0d0085a..26c36793 100644
      let changes = events();
      let changed = changes.clone();
      let selected_cells = Rc::new(RefCell::new(HashMap::new()));
-@@ -1554,7 +1769,7 @@ fn range_calendar_clamps_around_an_unavailable_date_by_default(cx: &mut TestAppC
+@@ -1554,7 +1778,7 @@ fn range_calendar_clamps_around_an_unavailable_date_by_default(cx: &mut TestAppC
          state.view_day = 1;
          state.user_navigated = true;
      });
@@ -26886,7 +26926,7 @@ index e0d0085a..26c36793 100644
  
      let cx = open_host(cx, move || {
          let changes = changes.clone();
-@@ -1567,10 +1782,11 @@ fn range_calendar_clamps_around_an_unavailable_date_by_default(cx: &mut TestAppC
+@@ -1567,10 +1791,11 @@ fn range_calendar_clamps_around_an_unavailable_date_by_default(cx: &mut TestAppC
                      .push(format!("{}->{}", start.format_iso(), end.format_iso()));
              })
              .cell(move |state| {
@@ -26902,7 +26942,7 @@ index e0d0085a..26c36793 100644
                  }
                  gpui::div().size(px(20.)).into_any_element()
              })
-@@ -1579,6 +1795,30 @@ fn range_calendar_clamps_around_an_unavailable_date_by_default(cx: &mut TestAppC
+@@ -1579,6 +1804,30 @@ fn range_calendar_clamps_around_an_unavailable_date_by_default(cx: &mut TestAppC
  
      let (start_x, start_y) = range_day(2026, 8, 5);
      click(cx, start_x, start_y);
@@ -26933,7 +26973,7 @@ index e0d0085a..26c36793 100644
      let (end_x, end_y) = range_day(2026, 8, 10);
      cx.simulate_mouse_move(
          point(px(end_x), px(end_y)),
-@@ -1588,30 +1828,41 @@ fn range_calendar_clamps_around_an_unavailable_date_by_default(cx: &mut TestAppC
+@@ -1588,30 +1837,41 @@ fn range_calendar_clamps_around_an_unavailable_date_by_default(cx: &mut TestAppC
      cx.update(|window, _| window.refresh());
      assert_eq!(
          selected_probe.borrow().get(&6),
@@ -26982,7 +27022,7 @@ index e0d0085a..26c36793 100644
  
      assert_eq!(
          changed.borrow().as_slice(),
-@@ -1620,6 +1871,122 @@ fn range_calendar_clamps_around_an_unavailable_date_by_default(cx: &mut TestAppC
+@@ -1620,6 +1880,122 @@ fn range_calendar_clamps_around_an_unavailable_date_by_default(cx: &mut TestAppC
      );
  }
  
@@ -27105,7 +27145,7 @@ index e0d0085a..26c36793 100644
  /// Enabling `allowsNonContiguousRanges` removes only the interior gap
  /// constraint. Available endpoints on either side of August 7 may complete the
  /// range, while the unavailable day itself remains unavailable as an endpoint.
-@@ -2467,9 +2834,9 @@ fn range_indicator_selector(entity_id: u64, year: i32, month: u32, day: u32) ->
+@@ -2467,9 +2843,9 @@ fn range_indicator_selector(entity_id: u64, year: i32, month: u32, day: u32) ->
  /// The pinned range track runs under the caps too, and it stays continuous
  /// across a week boundary: the last column of a row closes the run at the
  /// 252px right edge, the first column of the next row reopens it at x = 0
@@ -27118,7 +27158,7 @@ index e0d0085a..26c36793 100644
  #[gpui::test]
  fn range_calendar_track_crosses_the_row_boundary_and_caps_carry_it(cx: &mut TestAppContext) {
      let state = cx.new(|cx| DateRangeState::new(cx));
-@@ -2477,6 +2844,7 @@ fn range_calendar_track_crosses_the_row_boundary_and_caps_carry_it(cx: &mut Test
+@@ -2477,6 +2853,7 @@ fn range_calendar_track_crosses_the_row_boundary_and_caps_carry_it(cx: &mut Test
      let cx = open_host(cx, move || {
          RangeCalendar::new(state_for_view.clone())
              .default_value((Date::new(2026, 8, 13), Date::new(2026, 8, 20)))
@@ -188004,7 +188044,7 @@ index 723274b0..f4c6f34d 100644
              // `HEROGPUI_WINDOW_SIZE=1200x2000` opens the window at that size.
              // A capture is one PrintWindow of the whole window, so a taller
 diff --git a/gallery/src/pages/components.rs b/gallery/src/pages/components.rs
-index 5eb12cd4..1fd36232 100644
+index 5eb12cd4..0cef7ea9 100644
 --- a/gallery/src/pages/components.rs
 +++ b/gallery/src/pages/components.rs
 @@ -1,7 +1,7 @@
@@ -189648,7 +189688,7 @@ index 5eb12cd4..1fd36232 100644
 +                ),
                  (
                      "Usage",
-+                    "Month and year labels use 14px/20px medium text; weekday labels use 12px/16px medium text.",
++                    "Day, month and year labels use 14px/20px medium text; weekday labels use 12px/16px medium text.",
                      col(vec![
                          h::Calendar::new(self.calendar.clone())
                              .on_change(opt_date_cb(cx.listener(
@@ -194419,7 +194459,7 @@ index 6452b2b7..371b4704 100644
                          .child(row.cells[2].clone()),
                  )
 diff --git a/gallery/src/pages/reference_metadata.rs b/gallery/src/pages/reference_metadata.rs
-index 71065ac8..79e5311d 100644
+index 71065ac8..61be75cb 100644
 --- a/gallery/src/pages/reference_metadata.rs
 +++ b/gallery/src/pages/reference_metadata.rs
 @@ -7213,9 +7213,9 @@ const CALENDAR_PARTS: &[PartDoc] = &[
@@ -194458,7 +194498,7 @@ index 71065ac8..79e5311d 100644
      },
      StyleDoc {
          class_or_token: ".calendar__header:has([data-open=\"true\"])",
-@@ -7397,8 +7397,8 @@ const CALENDAR_STYLING: &[StyleDoc] = &[
+@@ -7397,15 +7397,15 @@ const CALENDAR_STYLING: &[StyleDoc] = &[
      StyleDoc {
          class_or_token: ".calendar__header-cell",
          value: "pb-2 text-xs font-medium text-muted",
@@ -194466,6 +194506,15 @@ index 71065ac8..79e5311d 100644
 -        rust: "text_size(12px) + muted",
 +        description: "Weekday labels use 12px/16px medium muted text; bottom padding remains absent.",
 +        rust: "text_size(12px) + line_height(16px) + MEDIUM + muted",
+         status: ImplementationStatus::Partial,
+     },
+     StyleDoc {
+         class_or_token: ".calendar__cell",
+         value: "aspect-square size-full rounded-3xl text-sm font-medium",
+-        description: "A centered 36px circular hit area matches the desktop cell geometry.",
+-        rust: "36px circle + radius(18px) + text_size(14px)",
++        description: "Day cells center 14px/20px medium text in a 36px hit area, including selected, disabled and custom cells.",
++        rust: "36px circle + radius(18px) + text_size(14px) + line_height(20px) + MEDIUM",
          status: ImplementationStatus::Partial,
      },
      StyleDoc {

@@ -777,7 +777,9 @@ impl Calendar {
             .flex()
             .items_center()
             .justify_center()
-            .text_size(px(14.));
+            .text_size(px(14.))
+            .line_height(px(20.))
+            .font_weight(gpui::FontWeight::MEDIUM);
 
         let marker = if self.is_invalid {
             colors.danger.color
@@ -802,14 +804,11 @@ impl Calendar {
         if outside_month {
             circle = circle.text_color(colors.muted);
         } else if is_sel {
-            circle = circle
-                .bg(marker)
-                .text_color(if self.is_invalid {
-                    colors.danger.foreground
-                } else {
-                    accent.foreground
-                })
-                .font_weight(gpui::FontWeight::SEMIBOLD);
+            circle = circle.bg(marker).text_color(if self.is_invalid {
+                colors.danger.foreground
+            } else {
+                accent.foreground
+            });
             if selectable {
                 // `.calendar__cell[data-pressed][data-selected]` fills
                 // `bg-accent-hover`, the one pressed recolour the pinned CSS
