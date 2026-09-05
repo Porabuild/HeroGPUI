@@ -13,7 +13,7 @@ use gpui::{
 use herogpui_theme::ActiveTheme;
 
 use crate::{
-    calendar::{add_days, days_from_civil, weekday_index, Date},
+    calendar::{add_days, days_from_civil, Date},
     calendar_view::{self, PageBehavior, SelectionAlignment, VisibleDuration},
     date_constraints::{DateConstraints, Weekday},
     date_picker::DateRangeState,
@@ -500,6 +500,7 @@ struct Frame<'a> {
     /// it, otherwise wherever the arrow keys have walked to. `None` while the
     /// grid does not hold the keyboard.
     focused: Option<Date>,
+    visible_start: Option<Date>,
 }
 
 /// Where a cell sits in its row: the row's first and last columns drive the
@@ -546,7 +547,12 @@ impl RangeCalendar {
             date,
             frame.unavailable_anchor,
         );
-        let disabled = outside_month || self.is_disabled || frame.constraints.out_of_range(date);
+        let disabled = outside_month
+            || self.is_disabled
+            || frame.constraints.out_of_range(date)
+            || frame
+                .visible_start
+                .is_some_and(|start| days_from_civil(&date) < days_from_civil(&start));
         let eligible = !disabled && !unavailable;
         let selectable = eligible && !self.is_read_only;
 
@@ -1312,6 +1318,7 @@ impl RenderOnce for RangeCalendar {
             selection_before_anchor: &selection_before_anchor,
             base: &base,
             focused: ring_at,
+            visible_start: matches!(self.duration, VisibleDuration::Days(_)).then_some(anchor),
         };
 
         let months = calendar_view::month_headings_in(self.system(), self.duration, anchor);
@@ -1886,12 +1893,6 @@ impl RenderOnce for RangeCalendar {
             root = root.child(headings);
             body = body.child(row);
         } else {
-            // Week and day views: a flat run of real dates, so no lead blanks.
-            let per_row = if matches!(self.duration, VisibleDuration::Weeks(_)) {
-                7
-            } else {
-                linear.len().max(1)
-            };
             root = root.w(crate::calendar::CALENDAR_WIDTH);
             root = root.child(
                 div()
@@ -1923,40 +1924,22 @@ impl RenderOnce for RangeCalendar {
                         next_disabled,
                     )),
             );
-            if per_row == 7 {
-                body = body.child(self.weekday_header(cx));
-            } else {
-                body = body.child(div().flex().flex_row().children(linear.iter().map(|d| {
-                    div()
-                        .w(px(36.))
-                        .text_center()
-                        // A header cell is `text-xs`, like the seven-column one.
-                        .text_size(px(12.))
-                        .line_height(px(16.))
-                        .font_weight(gpui::FontWeight::MEDIUM)
-                        .text_color(colors.muted)
-                        .child(Weekday::ALL[weekday_index(*d)].short_label().to_owned())
-                })));
-            }
-            // `.range-calendar__grid` wraps the header and
-            // `.range-calendar__grid-body`; each line is a
-            // `.range-calendar__grid-row` of `.range-calendar__cell-button`s.
-            // Rows sit 4px apart, matching the pinned cell margins.
+            body = body.child(self.weekday_header(cx));
             let mut grid = div().flex().flex_col().gap(px(4.));
-            for chunk in linear.chunks(per_row) {
+            for row in calendar_view::week_aligned_rows(visible_start, visible_end, first_day) {
                 let mut line = div().flex().flex_row();
-                for (index, &date) in chunk.iter().enumerate() {
-                    line = line.child(self.range_cell(
-                        date,
-                        false,
-                        &frame,
-                        format!("{base}-{}", date.format_iso()),
-                        CellSlot {
-                            column: index,
-                            columns: chunk.len(),
-                        },
-                        cx,
-                    ));
+                for (column, date) in row.into_iter().enumerate() {
+                    line = line.child(match date {
+                        Some(date) => self.range_cell(
+                            date,
+                            false,
+                            &frame,
+                            format!("{base}-{}", date.format_iso()),
+                            CellSlot { column, columns: 7 },
+                            cx,
+                        ),
+                        None => div().size(px(36.)).into_any_element(),
+                    });
                 }
                 grid = grid.child(line);
             }

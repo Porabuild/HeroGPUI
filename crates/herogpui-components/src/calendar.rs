@@ -738,6 +738,7 @@ struct Frame<'a> {
     /// it, otherwise wherever the arrow keys have walked to. `None` while the
     /// grid does not hold the keyboard.
     focused: Option<Date>,
+    visible_start: Option<Date>,
 }
 
 impl Calendar {
@@ -753,7 +754,12 @@ impl Calendar {
         let colors = cx.colors();
         let accent = colors.accent;
         let unavailable = self.constraints.is_unavailable(date);
-        let disabled = outside_month || self.is_disabled || self.constraints.out_of_range(date);
+        let disabled = outside_month
+            || self.is_disabled
+            || self.constraints.out_of_range(date)
+            || frame
+                .visible_start
+                .is_some_and(|start| days_from_civil(&date) < days_from_civil(&start));
         let focusable = !disabled;
         let eligible = focusable && !unavailable;
         let selectable = eligible && !self.is_read_only;
@@ -1423,6 +1429,7 @@ impl RenderOnce for Calendar {
             cursor: &cursor,
             base: &base,
             focused: ring_at,
+            visible_start: matches!(self.duration, VisibleDuration::Days(_)).then_some(anchor),
         };
 
         let months = calendar_view::month_headings_in(self.system(), self.duration, anchor);
@@ -1923,13 +1930,6 @@ impl RenderOnce for Calendar {
             root = root.child(headings);
             body = body.child(row);
         } else {
-            // Week and day views: one flat run of real dates, so there are no
-            // lead blanks and no spill into the next month.
-            let per_row = if matches!(self.duration, VisibleDuration::Weeks(_)) {
-                7
-            } else {
-                linear.len().max(1)
-            };
             root = root.w(CALENDAR_WIDTH);
             root = root.child(
                 gpui::div()
@@ -1959,32 +1959,21 @@ impl RenderOnce for Calendar {
                         next_disabled,
                     )),
             );
-            if per_row == 7 {
-                body = body.child(self.weekday_header(cx));
-            } else {
-                // A day view labels each visible column with its own weekday.
-                body = body.child(gpui::div().flex().children(linear.iter().map(|d| {
-                    gpui::div()
-                        .flex_1()
-                        .text_center()
-                        .text_size(px(12.))
-                        .line_height(px(16.))
-                        .font_weight(gpui::FontWeight::MEDIUM)
-                        .text_color(colors.muted)
-                        .child(Weekday::ALL[weekday_index(*d)].short_label().to_owned())
-                })));
-            }
+            body = body.child(self.weekday_header(cx));
             let mut grid = gpui::div().flex().flex_col().gap(px(2.));
-            for chunk in linear.chunks(per_row) {
+            for row in calendar_view::week_aligned_rows(visible_start, visible_end, first_day) {
                 let mut line = gpui::div().flex();
-                for &date in chunk {
-                    line = line.child(self.day_cell(
-                        date,
-                        false,
-                        &frame,
-                        format!("{base}-{}", date.format_iso()),
-                        cx,
-                    ));
+                for date in row {
+                    line = line.child(match date {
+                        Some(date) => self.day_cell(
+                            date,
+                            false,
+                            &frame,
+                            format!("{base}-{}", date.format_iso()),
+                            cx,
+                        ),
+                        None => gpui::div().flex_1().h(px(36.)).into_any_element(),
+                    });
                 }
                 grid = grid.child(line);
             }

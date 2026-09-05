@@ -169,6 +169,98 @@ fn calendar_days_align_with_the_seven_weekday_columns(cx: &mut TestAppContext) {
     }
 }
 
+#[gpui::test]
+fn day_views_keep_week_columns_and_disable_leading_dates(cx: &mut TestAppContext) {
+    for range in [false, true] {
+        let calendar = cx.new(|cx| CalendarState::new(cx));
+        let range_calendar = cx.new(|cx| DateRangeState::new(cx));
+        let states = Rc::new(RefCell::new(HashMap::new()));
+        let view_states = states.clone();
+        let changes = events();
+        let view_changes = changes.clone();
+        let cx = open_host(cx, move || {
+            let states = view_states.clone();
+            let changes = view_changes.clone();
+            let probe = move |date: Date, label: gpui::SharedString, disabled, outside| {
+                states
+                    .borrow_mut()
+                    .insert(date.format_iso(), (disabled, outside));
+                gpui::div().child(label).into_any_element()
+            };
+            if range {
+                RangeCalendar::new(range_calendar.clone())
+                    .default_value((Date::new(2026, 9, 2), Date::new(2026, 9, 4)))
+                    .selection_alignment(herogpui_components::SelectionAlignment::Start)
+                    .visible_duration(VisibleDuration::Days(3))
+                    .first_day_of_week(Weekday::Mon)
+                    .cell(move |cell| {
+                        probe(
+                            cell.date,
+                            cell.formatted_date,
+                            cell.is_disabled,
+                            cell.is_outside_month,
+                        )
+                    })
+                    .on_change(move |start, end, _, _| {
+                        changes.borrow_mut().push(format!(
+                            "{}..{}",
+                            start.format_iso(),
+                            end.format_iso()
+                        ));
+                    })
+                    .into_any_element()
+            } else {
+                Calendar::new(calendar.clone())
+                    .default_value(Date::new(2026, 9, 2))
+                    .selection_alignment(herogpui_components::SelectionAlignment::Start)
+                    .visible_duration(VisibleDuration::Days(3))
+                    .first_day_of_week(Weekday::Mon)
+                    .cell(move |cell| {
+                        probe(
+                            cell.date,
+                            cell.formatted_date,
+                            cell.is_disabled,
+                            cell.is_outside_month,
+                        )
+                    })
+                    .on_change(move |date, _, _| {
+                        changes.borrow_mut().push(date.unwrap().format_iso());
+                    })
+                    .into_any_element()
+            }
+        });
+        assert_eq!(
+            states.borrow().len(),
+            5,
+            "range={range}: two leading dates and three visible dates"
+        );
+        for date in ["2026-08-31", "2026-09-01"] {
+            assert_eq!(
+                states.borrow().get(date),
+                Some(&(true, false)),
+                "range={range}: {date}"
+            );
+        }
+        for date in ["2026-09-02", "2026-09-03", "2026-09-04"] {
+            assert_eq!(
+                states.borrow().get(date),
+                Some(&(false, false)),
+                "range={range}: {date}"
+            );
+        }
+        click(cx, 18., 74.);
+        click(cx, 54., 74.);
+        assert!(changes.borrow().is_empty(), "leading dates cannot select");
+        click(cx, 126., 74.);
+        if range {
+            click(cx, 162., 74.);
+            assert_eq!(changes.borrow().as_slice(), ["2026-09-03..2026-09-04"]);
+        } else {
+            assert_eq!(changes.borrow().as_slice(), ["2026-09-03"]);
+        }
+    }
+}
+
 /// Column *c*'s centre in a bare Calendar: seven cells across
 /// `CALENDAR_WIDTH` with no horizontal gaps.
 fn cal_col_x(col: usize) -> f32 {

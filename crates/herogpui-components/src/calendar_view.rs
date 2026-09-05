@@ -20,6 +20,7 @@ pub enum VisibleDuration {
     /// `{weeks: n}` — one grid of n week rows.
     Weeks(usize),
     /// `{days: n}` — a rolling window of n consecutive days.
+    /// Its displayed week rows may also contain disabled leading dates.
     Days(usize),
 }
 
@@ -385,7 +386,7 @@ pub fn month_headings_in(
     out
 }
 
-/// The consecutive dates a week or day view shows; empty for a month view,
+/// The consecutive dates in a week or day view's logical range; empty for a month view,
 /// which builds its cells from lead offsets instead.
 pub fn linear_cells(duration: VisibleDuration, first_day: Weekday, anchor: Date) -> Vec<Date> {
     let n = duration.count();
@@ -397,6 +398,25 @@ pub fn linear_cells(duration: VisibleDuration, first_day: Weekday, anchor: Date)
         }
         VisibleDuration::Days(_) => (0..n as i64).map(|i| add_days(&anchor, i)).collect(),
     }
+}
+
+/// Day views retain the whole weekday grid. Leading dates are rendered disabled
+/// by the caller; trailing slots after the visible end stay empty.
+pub(crate) fn week_aligned_rows(
+    start: Date,
+    end: Date,
+    first_day: Weekday,
+) -> Vec<[Option<Date>; 7]> {
+    let first = week_start(start, first_day);
+    let rows = (days_from_civil(&end) - days_from_civil(&first)) / 7 + 1;
+    (0..rows)
+        .map(|row| {
+            std::array::from_fn(|column| {
+                let date = add_days(&first, row * 7 + column as i64);
+                (days_from_civil(&date) <= days_from_civil(&end)).then_some(date)
+            })
+        })
+        .collect()
 }
 
 /// The first and last dates in the visible range, excluding month-grid spill
@@ -524,6 +544,38 @@ pub(crate) struct YearGridView<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn day_rows_keep_leading_dates_and_pad_the_visible_end() {
+        let rows = week_aligned_rows(d(2026, 9, 2), d(2026, 9, 4), Weekday::Mon);
+        assert_eq!(
+            rows,
+            vec![[
+                Some(d(2026, 8, 31)),
+                Some(d(2026, 9, 1)),
+                Some(d(2026, 9, 2)),
+                Some(d(2026, 9, 3)),
+                Some(d(2026, 9, 4)),
+                None,
+                None
+            ]]
+        );
+        let rows = week_aligned_rows(d(2026, 9, 2), d(2026, 9, 9), Weekday::Sun);
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0][0], Some(d(2026, 8, 30)));
+        assert_eq!(
+            rows[1],
+            [
+                Some(d(2026, 9, 6)),
+                Some(d(2026, 9, 7)),
+                Some(d(2026, 9, 8)),
+                Some(d(2026, 9, 9)),
+                None,
+                None,
+                None
+            ]
+        );
+    }
 
     #[test]
     fn explicit_calendar_bounds_and_year_pages_keep_gregorian_values() {

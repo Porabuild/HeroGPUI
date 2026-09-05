@@ -7365,8 +7365,8 @@ const CALENDAR_STYLING: &[StyleDoc] = &[
     StyleDoc {
         class_or_token: ".calendar--day-view",
         value: "isolated header/body grids with repeat(7, 1fr) and mt-1 body spacing",
-        description: "Day labels are isolated from dates, but more than seven days do not wrap into v3's grid.",
-        rust: "VisibleDuration::Days linear flex row",
+        description: "Seven weekday columns, disabled leading dates and trailing blanks match; header/body spacing still uses root gaps.",
+        rust: "week_aligned_rows + visible_start disabled guard",
         status: ImplementationStatus::Partial,
     },
     StyleDoc {
@@ -7407,7 +7407,7 @@ const CALENDAR_STYLING: &[StyleDoc] = &[
     StyleDoc {
         class_or_token: ".calendar__grid",
         value: "grid repeat(7, 1fr) w-full",
-        description: "Single-month and week columns align at 36px without horizontal gaps; multi-month and short-day layouts still differ from the pinned grid.",
+        description: "Single-month, week and day columns align at 36px without horizontal gaps; multi-month columns still use a narrower width.",
         rust: "seven flex_1 cells per row + no horizontal gap",
         status: ImplementationStatus::Partial,
     },
@@ -7811,7 +7811,7 @@ const RANGE_CALENDAR_STATES: &[StateDoc] = &[
 
 const RANGE_CALENDAR_STYLING: &[StyleDoc] = &[
     StyleDoc { class_or_token: ".range-calendar", value: "w-63 max-w-63; container-type inline-size", description: "Week/day roots use 252px, but month view paints 266px; GPUI also has no container-query context.", rust: "CALENDAR_WIDTH 252px / month column 266px", status: ImplementationStatus::Partial },
-    StyleDoc { class_or_token: ".range-calendar--week/day-view", value: "circular cells; isolated seven-column headers and bodies", description: "Week layout matches; long day runs stay linear instead of wrapping like v3.", rust: "VisibleDuration week/day branches", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".range-calendar--week/day-view", value: "circular cells; isolated seven-column headers and bodies", description: "Day rows start at the week boundary, disable leading dates and pad the visible end with blank cells.", rust: "VisibleDuration week/day branches", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".range-calendar__header", value: "flex items-center justify-between px-0.5 pb-4", description: "Alignment and inset match; vertical spacing is supplied by the root gap.", rust: "items_center + justify_between + px(2px)", status: ImplementationStatus::Partial },
     StyleDoc { class_or_token: ".range-calendar__heading", value: "flex-1 text-sm font-medium", description: "Month headings use 14px/20px medium text independent of the host line height.", rust: "text_size(14px) + line_height(20px) + MEDIUM", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".range-calendar__nav-button", value: "size-6 rounded-xl; transform 250ms; colors/shadow 100ms", description: "Geometry, hover, disabled and focus exist; press and property interpolation are incomplete.", rust: "24px + small_radius + hover + focus ring", status: ImplementationStatus::Partial },

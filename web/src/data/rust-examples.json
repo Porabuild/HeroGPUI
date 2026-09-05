@@ -1072,6 +1072,7 @@
     },
     {
       "heading": "Day view",
+      "description": "Seven weekday columns show the requested dates, disabled leading dates and blank trailing cells.",
       "imports": "use herogpui::prelude::{Calendar, CalendarState, VisibleDuration};",
       "code": "Calendar::new(self.calendar.clone())\n    .visible_duration(VisibleDuration::Days(5))"
     },
@@ -1324,6 +1325,7 @@
     },
     {
       "heading": "Day View",
+      "description": "Seven weekday columns show the requested dates, disabled leading dates and blank trailing cells.",
       "imports": "use herogpui::prelude::{RangeCalendar, VisibleDuration};",
       "code": "RangeCalendar::new(\n    self.demo_range(\"rc-day-view\", cx),\n)\n.visible_duration(VisibleDuration::Days(5))"
     },

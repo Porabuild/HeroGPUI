@@ -4503,6 +4503,7 @@ impl Gallery {
                 ),
                 (
                     "Day view",
+                    "Seven weekday columns show the requested dates, disabled leading dates and blank trailing cells.",
                     col(vec![h::Calendar::new(self.calendar.clone())
                         .visible_duration(h::VisibleDuration::Days(5))
                         .into_any_element()]),
@@ -5247,6 +5248,7 @@ impl Gallery {
                 ),
                 (
                     "Day View",
+                    "Seven weekday columns show the requested dates, disabled leading dates and blank trailing cells.",
                     col(vec![h::RangeCalendar::new(
                         self.demo_range("rc-day-view", cx),
                     )
