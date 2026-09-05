@@ -14,9 +14,12 @@
 #   )
 #
 # Each step is a hashtable: page, section, do, out, theme ('dark'), overlays
-# ('1'). Anything omitted resets to the default, so a step never inherits the
-# previous one's section or theme by accident. `out` defaults to
-# `.shots/~batch-<n>.png`.
+# ('1'), wheelat ('x,y'), settle (ms). Anything omitted resets to the default,
+# so a step never inherits the previous one's section or theme by accident.
+# `out` defaults to `.shots/~batch-<n>.png`. `wheelat` selects the client
+# point for `wheel:N` steps, which a short window would otherwise clip;
+# `settle` delays the capture so a short exit animation can still be
+# photographed.
 #
 # Coordinates are the ones you read off the PNG; the frame offset is measured
 # from the window, as in `drive.ps1`.
@@ -83,7 +86,7 @@ function Get-Lparam([int]$x, [int]$y) {
     [IntPtr]((($y - $script:offY) -shl 16) -bor (($x - $script:offX) -band 0xFFFF))
 }
 
-function Invoke-Step($h, [string]$do) {
+function Invoke-Step($h, [string]$do, [int]$wheelX = 600, [int]$wheelY = 400) {
     foreach ($token in ($do -split '\s+')) {
         if ($token -eq "") { continue }
         $kind, $arg = $token.Split(':', 2)
@@ -148,7 +151,7 @@ function Invoke-Step($h, [string]$do) {
             }
             'wheel' {
                 for ($i = 0; $i -lt [int]$arg; $i++) {
-                    [void][Batch]::PostMessage($h, $WM_MOUSEWHEEL, [IntPtr](-120 -shl 16), (Get-Lparam 600 400))
+                    [void][Batch]::PostMessage($h, $WM_MOUSEWHEEL, [IntPtr](-120 -shl 16), (Get-Lparam $wheelX $wheelY))
                     Start-Sleep -Milliseconds 35
                 }
             }
@@ -251,7 +254,20 @@ foreach ($step in $Steps) {
         continue
     }
 
-    if ($step.do) { Invoke-Step $h $step.do }
+    if ($step.do) {
+        $wheelX = 600; $wheelY = 400
+        if ($step.wheelat) {
+            # A short window clips the default wheel point, so a step can name
+            # a client point inside the visible content.
+            $at = ("$($step.wheelat)").Split(',')
+            $wheelX = [int]$at[0]; $wheelY = [int]$at[1]
+        }
+        Invoke-Step $h $step.do $wheelX $wheelY
+    }
+    if ($step.settle) {
+        # A small settle can catch a short exit animation before capture.
+        Start-Sleep -Milliseconds ([int]$step.settle)
+    }
 
     if (-not $NoShot) {
         $out = if ($step.out) { $step.out } else { "E:\work\HeroGPUI\.shots\~batch-$n.png" }

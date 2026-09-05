@@ -19,9 +19,11 @@ before Cargo writes a new one; plain `cargo build` can fail with `Access is
 denied` after a capture and leave the next screenshot using the old binary.
 
 The gallery scripts expect
-`E:\work\HeroGPUI\target\debug\herogpui-gallery.exe`. If `CARGO_TARGET_DIR`
-points elsewhere, clear it for these scripts or verify the executable path
-before diagnosing a stale render.
+`E:\work\HeroGPUI\target\debug\herogpui-gallery.exe`. `rebuild.ps1` resolves the
+image Cargo writes through `CARGO_TARGET_DIR` and re-points that launcher at
+the fresh build, failing loudly when what it serves is not the image just
+built; a bare `cargo build` leaves the launcher stale, so rebuild before
+diagnosing a stale render.
 
 `smoke.ps1` uses one off-screen process and the `HEROGPUI_CONTROL` protocol to
 walk every current route, then retries a suspected crash alone. Trust the
@@ -47,7 +49,10 @@ python .shots/sections.py Table
 ```
 
 Supported steps include `click:X,Y`, `dblclick:X,Y`, `drag:X,Y>X,Y`,
-`key:tab`, `key:down*15`, `type:hello_world`, `wheel:N`, and `wait:400`.
+`key:tab`, `key:down*15`, `type:hello_world`, `wheel:N` (at `-WheelX,-WheelY`),
+and `wait:400`. Drive waits `-SettleMs` (default 500) after the steps before
+capturing; batch steps accept `wheelat='x,y'` and `settle=<ms>` for the same
+wheel point and pre-capture delay.
 
 Use `.shots/batch.ps1` when several checks can share one process:
 

@@ -33,6 +33,7 @@ param(
     #   key:tab          a key by name; `key:ctrl+a`, `key:shift+pageup` chord
     #   key:down*15      the same key fifteen times
     #   type:hello       characters, one WM_CHAR each (use _ for a space)
+    #   wheel:N          notches at WheelX,WheelY
     #   wait:400         milliseconds
     [string]$Do = "",
     [string]$Out = "",
@@ -42,6 +43,13 @@ param(
     # oversized keeps its height, and a taller window is more of the page per
     # capture.
     [int]$Height = 2000,
+    # Wheel messages need a client point inside the window; a short window
+    # clips the default, so the point is overridable.
+    [int]$WheelX = 600,
+    [int]$WheelY = 400,
+    # Delay after the steps before capture; a small value can catch a short
+    # exit animation.
+    [int]$SettleMs = 500,
     [switch]$Dark,
     [switch]$Overlays,
     [switch]$ReduceMotion
@@ -242,7 +250,7 @@ foreach ($step in ($Do -split '\s+')) {
         'wheel' {
             # Wheel messages carry screen coordinates; Get-Lparam handles the capture inset.
             for ($i = 0; $i -lt [int]$arg; $i++) {
-                [void][Drive]::PostMessage($h, $WM_MOUSEWHEEL, [IntPtr](-120 -shl 16), (Get-Lparam ($origin.X + 600) ($origin.Y + 400)))
+                [void][Drive]::PostMessage($h, $WM_MOUSEWHEEL, [IntPtr](-120 -shl 16), (Get-Lparam ($origin.X + $WheelX) ($origin.Y + $WheelY)))
                 Start-Sleep -Milliseconds 40
             }
         }
@@ -250,7 +258,7 @@ foreach ($step in ($Do -split '\s+')) {
         default { throw "unknown step '$step'" }
     }
 }
-Start-Sleep -Milliseconds 500
+Start-Sleep -Milliseconds $SettleMs
 
 # -- capture -----------------------------------------------------------------
 $r = New-Object Drive+RECT
