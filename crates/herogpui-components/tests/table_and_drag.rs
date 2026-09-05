@@ -70,7 +70,7 @@ use gpui::{
 };
 use herogpui_components::{
     ColorArea, ColorChannel, ColorSlider, ColorSwatchPicker, PickerColor, SelectionMode, Slider,
-    SortDescriptor, SortDirection, Table, TableColumn,
+    SortDescriptor, SortDirection, Table, TableColumn, TableRow,
 };
 
 use harness::{click, events, open_host, press};
@@ -1222,6 +1222,238 @@ fn table_load_more_rearms_when_the_row_collection_changes(cx: &mut TestAppContex
         recorded.borrow().as_slice(),
         ["load-more", "load-more"],
         "an unchanged collection must remain silent on later frames"
+    );
+}
+
+/// Resizes the window and drains the layout queue, so a bounded virtual body
+/// re-resolves its viewport before the next probe reads it.
+fn settle_window(cx: &mut VisualTestContext, width: f32, height: f32) {
+    cx.simulate_resize(gpui::size(px(width), px(height)));
+    for _ in 0..4 {
+        cx.update(|window, _| window.refresh());
+        cx.run_until_parked();
+    }
+}
+
+/// `debug_bounds` wants a `&'static str`; the virtual body's probe name is
+/// the table's own `{id}-virtual-rows` selector, so one short leak per call.
+fn virtual_rows_probe(table_id: &str) -> &'static str {
+    let name = format!("{table_id}-virtual-rows");
+    let leaked: &'static mut str = Box::leak(name.into_boxed_str());
+    &*leaked
+}
+
+/// Pinned `TableKeyboardDelegate` pages a virtual body by one *visible*
+/// rectangle. A window shorter than this body's 160px cap shows fewer 40px
+/// rows, so PageDown must step by the shown viewport -- one row here -- and
+/// not by the cap's three-row ruler; the old ruler lands rows too far at
+/// every step and skips past the disabled row differently. Growing the window
+/// restores the cap step, and a near-zero viewport keeps the cursor in place.
+#[gpui::test]
+fn fixed_height_virtual_table_pages_by_the_shown_viewport(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        gpui::div()
+            .flex()
+            .flex_col()
+            .size_full()
+            .child(
+                Table::new(vec![])
+                    .id("vt-bounded-page")
+                    .columns(vec![TableColumn::new("Name").default_width(px(160.))])
+                    .virtual_rows(
+                        20,
+                        "virtual-bounded-page-users",
+                        |i| format!("key-{i:02}").into(),
+                        |i| {
+                            TableRow::new(vec![gpui::div()
+                                .child(format!("Row {i}"))
+                                .into_any_element()])
+                        },
+                    )
+                    .row_height(px(40.))
+                    .max_h(px(160.))
+                    .disabled_keys(["key-05"])
+                    .on_row_click(move |i, _, _, _| recorded.borrow_mut().push(format!("row-{i}")))
+                    .into_any_element(),
+            )
+            .into_any_element()
+    });
+
+    // A 100px window shows fewer than the 160px cap allows, so one page is
+    // shorter than the roomy-window three-row step.
+    settle_window(cx, 640., 100.);
+    let body = cx
+        .debug_bounds(virtual_rows_probe("vt-bounded-page"))
+        .expect("the virtual body must be laid out");
+    let shown = f32::from(body.size.height);
+    assert!(
+        shown < 160. - 1.5,
+        "the bounded virtual body must shrink below its cap, got {body:?}"
+    );
+    let step = ((shown / 40.).ceil() as usize).saturating_sub(1);
+    let capped_step = ((160f32 / 40.).ceil() as usize).saturating_sub(1);
+    assert!(
+        step < capped_step,
+        "a shorter viewport must page shorter than the cap ruler: {step} vs {capped_step}"
+    );
+
+    // Three Downs seat row 2. Each page then moves `step` rows: 2 -> 3,
+    // 3 -> 4, and 4 -> 6 with the boundary landing on disabled row 5, which
+    // the stops skip; PageUp lands on it from above and skips back to 4. The
+    // cap ruler would walk 2 -> 6 -> 9 -> 12 -> 9.
+    press(cx, "tab");
+    for _ in 0..3 {
+        press(cx, "down");
+    }
+    press(cx, "pagedown");
+    press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["row-3"],
+        "a bounded PageDown must step by the shown viewport, not the cap"
+    );
+    press(cx, "pagedown");
+    press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["row-3", "row-4"],
+        "a bounded PageDown must advance by the shown viewport"
+    );
+    press(cx, "pagedown");
+    press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["row-3", "row-4", "row-6"],
+        "a bounded PageDown must still skip the disabled row"
+    );
+    press(cx, "pageup");
+    press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["row-3", "row-4", "row-6", "row-4"],
+        "a bounded PageUp must skip back over the disabled row"
+    );
+
+    // Growing the window restores the cap viewport, so the same key pages
+    // further: row 4 reaches row 7 with the three-row step.
+    settle_window(cx, 640., 800.);
+    let grown = cx
+        .debug_bounds(virtual_rows_probe("vt-bounded-page"))
+        .expect("the virtual body must be laid out");
+    assert!(
+        (f32::from(grown.size.height) - 160.).abs() < 1.5,
+        "the grown virtual body must return to its cap, got {grown:?}"
+    );
+    press(cx, "pagedown");
+    press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["row-3", "row-4", "row-6", "row-4", "row-7"],
+        "PageDown after resize must page by the grown viewport"
+    );
+
+    // A near-zero viewport has no page to turn: the cursor stays on row 7,
+    // so Enter reports it again instead of a neighbour.
+    settle_window(cx, 640., 32.);
+    press(cx, "pagedown");
+    press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["row-3", "row-4", "row-6", "row-4", "row-7", "row-7"],
+        "a page key with no viewport to cross must not move the cursor"
+    );
+}
+
+/// Gallery Virtualization regression: the first table's 1000x40px body caps
+/// at `max_h(320)` inside a natural/unbounded page parent. The virtual list's
+/// own bounds stay at the cap while the outer table ends at
+/// header + 320 + tray padding, so the marker -- and the second table below
+/// it -- directly follow instead of sliding past a white body that extends
+/// to the rows' full natural height (40_000px).
+#[gpui::test]
+fn fixed_height_virtual_table_caps_in_an_unbounded_parent(cx: &mut TestAppContext) {
+    fn virtual_table(id: &str, identity: &'static str) -> gpui::AnyElement {
+        Table::new(vec![])
+            .id(id)
+            .columns(vec![TableColumn::new("Name").default_width(px(160.))])
+            .virtual_rows(
+                1000,
+                identity,
+                |i| format!("key-{i:04}").into(),
+                |i| {
+                    TableRow::new(vec![gpui::div()
+                        .child(format!("Row {i}"))
+                        .into_any_element()])
+                },
+            )
+            .row_height(px(40.))
+            .max_h(px(320.))
+            .into_any_element()
+    }
+
+    let cx = open_host(cx, move || {
+        gpui::div()
+            .size_full()
+            .child(
+                gpui::div()
+                    .id("unbounded-page-scroll")
+                    .overflow_y_scroll()
+                    .size_full()
+                    .child(
+                        gpui::div()
+                            .flex()
+                            .flex_col()
+                            .w_full()
+                            .child(virtual_table("vt-unbounded", "virtual-unbounded-users"))
+                            .child(
+                                gpui::div()
+                                    .h(px(8.))
+                                    .w_full()
+                                    .debug_selector(|| "after-first-table".to_owned()),
+                            )
+                            .child(virtual_table("vt-second", "virtual-second-users")),
+                    ),
+            )
+            .into_any_element()
+    });
+    cx.run_until_parked();
+
+    let body = cx
+        .debug_bounds(virtual_rows_probe("vt-unbounded"))
+        .expect("the first virtual body must be laid out");
+    assert!(
+        (f32::from(body.size.height) - 320.).abs() < 1.5,
+        "the unbounded virtual body must cap at 320, got {body:?}"
+    );
+
+    let after = cx
+        .debug_bounds("after-first-table")
+        .expect("the marker below the first table must be laid out");
+    let after_top = f32::from(after.origin.y);
+    let body_bottom = f32::from(body.origin.y) + f32::from(body.size.height);
+    assert!(
+        after_top < 800.,
+        "the first table must end near header+320+padding, marker at y={after_top} body={body:?}"
+    );
+    assert!(
+        (after_top - body_bottom) < 120.,
+        "the marker must directly follow the first body, marker y={after_top} body bottom={body_bottom}"
+    );
+
+    let second = cx
+        .debug_bounds(virtual_rows_probe("vt-second"))
+        .expect("the second virtual body must be laid out");
+    let second_top = f32::from(second.origin.y);
+    assert!(
+        second_top < 1200.,
+        "the second table must directly follow the first, second at y={second_top} marker at y={after_top}"
+    );
+    assert!(
+        (f32::from(second.size.height) - 320.).abs() < 1.5,
+        "the second virtual body must cap at 320, got {second:?}"
     );
 }
 

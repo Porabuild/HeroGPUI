@@ -1430,10 +1430,16 @@ impl RenderOnce for Table {
 
         let mut wrapper = gpui::div()
             .w_full()
+            .flex()
+            .flex_col()
             .track_focus(&table_focus)
             .overflow_hidden()
             .rounded(crate::util::container_radius(cx))
             .text_color(colors.foreground);
+        // A column, so the scroll container below is a vertical flex item: it
+        // shrinks with a bounded parent (its `overflow_hidden` zeroes the
+        // minimum), handing the virtual body its real viewport. A block would
+        // size it to content and only clip the overflow.
 
         // `.table-root--primary` is a `bg-surface-secondary px-1 pb-1` tray with
         // `border-radius: min(32px, --radius * 2.5)`, and the rows sit in a
@@ -1448,18 +1454,30 @@ impl RenderOnce for Table {
                 .pb(px(4.));
         }
 
-        // The content column, whose width is what the scroller at the bottom of
-        // the render measures against. A `w_full` child commits to the
+        // The wrapper is a column, so this content column may shrink
+        // vertically with a bounded parent -- that is what lets a virtual
+        // body take the laid-out viewport rather than the `max_h` cap.
+        // Horizontally it must never shrink: the scroll container at the
+        // bottom of the render is a column with `items_start`, whose cross
+        // axis leaves this child at its max-content width, so a table wider
+        // than its box still slides on it. (A row-flex scroller would need
+        // `flex_shrink_0` here for the same guarantee, which would also
+        // forbid the vertical shrink.)
+        //
+        // The content column, whose width is what the scroller at the bottom
+        // of the render measures against. A `w_full` child commits to the
         // scroller's width, which is exactly the scroller's own -- the scroll
         // maxima are then zero and a wide table clips at the tray edge instead
         // of sliding. `min_w_full` keeps the column at the viewport when no
-        // column pins a width, and `flex_shrink_0` keeps it at the columns'
-        // width when they exceed the viewport (a shrinking row only ever fits).
+        // column pins a width. `min_h_0` lets the column shrink vertically
+        // with a bounded parent: without it the content-based minimum keeps
+        // the max-content height and a virtual body never sees its real
+        // viewport.
         let mut table = gpui::div()
             .flex()
             .flex_col()
-            .flex_shrink_0()
             .min_w_full()
+            .min_h_0()
             .text_size(px(14.))
             .line_height(px(20.))
             .when_some(self.gap, |el, g| el.gap(g))
@@ -2197,10 +2215,13 @@ impl RenderOnce for Table {
             let mode = self.selection_mode;
             let plain_rows = self.virtual_rows.is_none();
             let fixed_virtual = self.row_height.is_some() && self.virtual_rows.is_some();
-            let fixed_page_step = self.row_height.filter(|_| fixed_virtual).map(|row_height| {
-                let viewport_height = f32::from(self.max_h.unwrap_or(px(400.)));
-                ((viewport_height / f32::from(row_height)).ceil() as usize).saturating_sub(1)
-            });
+            // Pinned `TableKeyboardDelegate` pages by one visible rectangle, so
+            // the step reads the virtual body's own laid-out viewport -- the
+            // pinned handle's `base_handle.bounds()` -- and not the configured
+            // `max_h` cap: a bounded parent (or a resized window) shows fewer
+            // rows than the cap allows. A zero viewport answers nothing, which
+            // the shared resolver turns into no movement.
+            let fixed_row_height = self.row_height.filter(|_| fixed_virtual);
             let fixed_scroll = virtual_scroll_now.clone();
             let variable_scroll = virtual_list_state.clone();
             let variable_heights = virtual_row_heights.clone();
@@ -2466,9 +2487,17 @@ impl RenderOnce for Table {
                         }
                         _ => None,
                     };
-                    let fixed_page_move = from
-                        .zip(fixed_page_step)
-                        .and_then(|(from, step)| page_by_step(from, step));
+                    let fixed_page_move = from.and_then(|from| {
+                        let row_height = fixed_row_height?;
+                        let viewport_height =
+                            f32::from(fixed_scroll.0.borrow().base_handle.bounds().size.height);
+                        if viewport_height <= 0. {
+                            return None;
+                        }
+                        let step = ((viewport_height / f32::from(row_height)).ceil() as usize)
+                            .saturating_sub(1);
+                        page_by_step(from, step)
+                    });
                     let variable_page_move = from.and_then(|from| {
                         let viewport_height =
                             variable_scroll.as_ref()?.viewport_bounds().size.height;
@@ -2767,10 +2796,19 @@ impl RenderOnce for Table {
             (self.row_height, self.virtual_rows.clone())
         {
             // The body scrolls inside `uniform_list`, which asks for the rows the
-            // viewport shows and no others.
+            // viewport shows and no others. A fixed height caps the roomy-window
+            // body at the configured value, so an unbounded (natural-height)
+            // page parent sizes the whole table to header + cap + padding
+            // instead of the rows' full natural height; `min_h_0` lets that
+            // fixed height shrink as a flex item with a bounded parent, handing
+            // the virtual body its real viewport. (`Infer` + `max_h` caps the
+            // list's own bounds but reports the full natural height upward, so
+            // the outer table stretches white past the shown rows.)
             let height = self.max_h.unwrap_or(px(400.));
             let rows = ctx.clone();
             let projection = virtual_projection;
+            // The headless probe name for the virtual viewport's bounds.
+            let rows_selector = format!("{table_id}-virtual-rows");
             body = body.child(
                 gpui::uniform_list(
                     gpui::ElementId::Name(format!("{table_id}-virtual-rows").into()),
@@ -2795,7 +2833,9 @@ impl RenderOnce for Table {
                 )
                 .track_scroll(&virtual_scroll_now)
                 .h(height)
-                .w_full(),
+                .min_h_0()
+                .w_full()
+                .debug_selector(move || rows_selector),
             );
         } else if let (Some(state), Some((_, _, _, factory))) =
             (virtual_list_state, self.virtual_rows.clone())
@@ -2986,17 +3026,27 @@ impl RenderOnce for Table {
             );
         }
 
-        // `.table__scroll-container` is `overflow-x-auto` around the content:
-        // a row flex, so its one child (the content column above) is free to be
-        // wider than the scroller itself, which is what a table wider than its
-        // box scrolls *on*.
+        // `.table__scroll-container` is `overflow-x-auto` around the content: a
+        // column whose cross axis leaves the content column at its
+        // max-content width, so a table wider than its box is free to exceed
+        // the scroller and scroll *on* it, while `min_w_full` still fills a
+        // narrow box. A row flex here would shrink that child to the viewport
+        // unless it carried `flex_shrink_0`, which would also forbid the
+        // column's vertical shrink inside a bounded parent; the column
+        // direction shrinks the content vertically while never touching its
+        // width. `min_h_0` is what permits that shrink: the scroller only
+        // scrolls horizontally, so its visible y-overflow would otherwise keep
+        // the content-based minimum and never yield.
         wrapper.child(
             gpui::div()
                 .id(gpui::ElementId::Name(
                     format!("{}-scroll-x", self.id).into(),
                 ))
                 .flex()
+                .flex_col()
+                .items_start()
                 .w_full()
+                .min_h_0()
                 .overflow_x_scroll()
                 .restrict_scroll_to_axis()
                 .child(table),

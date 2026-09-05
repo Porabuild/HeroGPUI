@@ -1777,7 +1777,7 @@ impl Gallery {
                     ]),
                 ),
                 (
-                    "Virtualization", "v3 wraps the list in React Aria's `Virtualizer` with `ListLayout`; `row_height` carries that here, because a fixed row height is what lets the geometry be computed instead of laid out. gpui's `uniform_list` then builds only the rows in view — one thousand users, fifty pixels each.",
+                    "Virtualization", "v3 wraps the list in React Aria's `Virtualizer` with `ListLayout`; `row_height` carries that here, because a fixed row height is what lets the geometry be computed instead of laid out. gpui's `uniform_list` then builds only the rows in view — one thousand users, fifty pixels each. The fixed-row list caps at `max_h`, shrinks below it in a bounded parent, and PageUp/PageDown move by the visible viewport, including after resize, while skipping disabled stops.",
                     col(vec![
                         gpui::div()
                             .w(px(300.))
@@ -3941,7 +3941,7 @@ impl Gallery {
                     ]),
                 ),
                 (
-                    "Virtualization", "v3 wraps the table in `Virtualizer` with `TableLayout`. Cells here are built elements, which cannot be handed out twice, so a virtual table takes a row factory and asks for the rows the viewport shows — one thousand of them, forty pixels each.",
+                    "Virtualization", "v3 wraps the table in `Virtualizer` with `TableLayout`. Cells here are built elements, which cannot be handed out twice, so a virtual table takes a row factory and asks for the rows the viewport shows — one thousand of them, forty pixels each. The fixed-row body caps at `max_h`, shrinks below it in a bounded parent, and PageUp/PageDown move by the visible viewport, including after resize, while skipping disabled stops.",
                     col(vec![
                         h::Table::new(vec![])
                             .id("tbl-virtualization")

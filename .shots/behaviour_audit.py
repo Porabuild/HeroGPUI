@@ -572,9 +572,18 @@ EVIDENCE = {
         r'(?=.*window\.focus\(header[^)]*\))'
         r'(?=.*let header_focus: Vec<gpui::FocusHandle>)',
     ),
+    # Pinned `ListKeyboardDelegate` pages by one visible rectangle: the uniform
+    # path (`fixed_page_move` from the configured `fixed_row_height`) must read
+    # the virtual list's own laid-out viewport (`base_handle.bounds()` height,
+    # never the configured `max_h` cap / fixed 400px ruler), while the variable
+    # (`variable_page_move`) and plain (`plain_page_move`) paths stay wired to
+    # the PageUp/PageDown keys. The negative lookahead fails the file if the
+    # capped `fixed_page_step` ruler ever returns.
     ('ListBox', 'listbox-paging'): (
         'list_box.rs',
-        r'(?s)\A(?=.*fixed_page_step)(?=.*variable_page_move)(?=.*plain_page_move)'
+        r'(?s)\A(?!.*fixed_page_step)(?=.*fixed_page_move)(?=.*fixed_row_height)'
+        r'(?=.*base_handle\.bounds\(\)\.size\.height)'
+        r'(?=.*variable_page_move)(?=.*plain_page_move)'
         r'(?=.*"pagedown")(?=.*"pageup")',
     ),
     # The cursor-gated enabled-end mapping is required, and the discarded

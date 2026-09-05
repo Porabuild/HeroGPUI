@@ -986,7 +986,7 @@
         "prop": "rowHeight",
         "type": "number | undefined",
         "default": "48",
-        "description": "Fixed row geometry enables uniform-list virtualization.",
+        "description": "Fixed row geometry enables uniform-list virtualization; the virtual list caps at max_h, shrinks below it in a bounded parent, and pages by the visible viewport while skipping disabled stops.",
         "rustOwner": "ListBox",
         "rust": "row_height(px)",
         "status": "implemented"
@@ -20783,7 +20783,7 @@
         "prop": "rowHeight",
         "type": "number | undefined",
         "default": "48",
-        "description": "Fixed virtual row height; with virtual_rows this selects gpui uniform_list.",
+        "description": "Fixed virtual row height; with virtual_rows this selects gpui uniform_list, caps at max_h, shrinks below it in a bounded parent, and pages by the visible viewport while skipping disabled stops.",
         "rustOwner": "Table",
         "rust": "row_height(height)",
         "status": "implemented"

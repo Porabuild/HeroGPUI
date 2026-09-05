@@ -614,11 +614,13 @@ impl RenderOnce for ListBox {
             let stops_for_keys = stops;
             let wrap = self.should_focus_wrap;
             let fixed_virtual = self.row_height.is_some();
-            let fixed_page_step = self.row_height.map(|row_height| {
-                let viewport_height = self.max_h.unwrap_or(px(400.));
-                ((f32::from(viewport_height) / f32::from(row_height)).ceil() as usize)
-                    .saturating_sub(1)
-            });
+            // Pinned `ListKeyboardDelegate` pages by one visible rectangle, so
+            // the step reads the virtual list's own laid-out viewport -- the
+            // pinned handle's `base_handle.bounds()` -- and not the configured
+            // `max_h` cap: a bounded parent (or a resized window) shows fewer
+            // rows than the cap allows. A zero viewport answers nothing, which
+            // the shared resolver turns into no movement.
+            let fixed_row_height = self.row_height;
             let variable_scroll = self
                 .row_height
                 .is_none()
@@ -747,9 +749,17 @@ impl RenderOnce for ListBox {
                     }
                     _ => None,
                 };
-                let fixed_page_move = from
-                    .zip(fixed_page_step)
-                    .and_then(|(from, step)| page_by_step(from, step));
+                let fixed_page_move = from.and_then(|from| {
+                    let row_height = fixed_row_height?;
+                    let viewport_height =
+                        f32::from(key_list_scroll.0.borrow().base_handle.bounds().size.height);
+                    if viewport_height <= 0. {
+                        return None;
+                    }
+                    let step = ((viewport_height / f32::from(row_height)).ceil() as usize)
+                        .saturating_sub(1);
+                    page_by_step(from, step)
+                });
                 let variable_page_move = from.and_then(|from| {
                     let viewport_height = variable_scroll.as_ref()?.viewport_bounds().size.height;
                     let heights = variable_heights.as_ref()?.read(cx);
@@ -1108,6 +1118,14 @@ impl RenderOnce for ListBox {
             let rows = std::rc::Rc::new(self);
             let interaction = interaction.clone();
             let row_range = selection_range.clone();
+            // The headless probe name for the virtual viewport's bounds.
+            let rows_selector = format!("{base}-rows");
+            // The viewport scrolls inside `uniform_list`, which builds only
+            // the shown rows. A fixed height caps the roomy-window viewport
+            // at the configured value so an unbounded parent sizes to cap +
+            // padding instead of the rows' full natural height; `min_h_0`
+            // lets that fixed height shrink as a flex item with a bounded
+            // parent, handing the viewport its real height for paging.
             return list
                 .child(
                     gpui::uniform_list(
@@ -1133,7 +1151,9 @@ impl RenderOnce for ListBox {
                     .track_scroll(&list_scroll_now)
                     .id(list_id)
                     .h(height)
-                    .w_full(),
+                    .min_h_0()
+                    .w_full()
+                    .debug_selector(move || rows_selector),
                 )
                 .into_any_element();
         }

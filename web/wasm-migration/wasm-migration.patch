@@ -19542,7 +19542,7 @@ index ada6b895..cb0cd2f9 100644
  
          if !self.is_disabled {
 diff --git a/crates/herogpui-components/src/list_box.rs b/crates/herogpui-components/src/list_box.rs
-index 81d4e2e9..3a1f5fc5 100644
+index 81d4e2e9..fbfc017e 100644
 --- a/crates/herogpui-components/src/list_box.rs
 +++ b/crates/herogpui-components/src/list_box.rs
 @@ -1,6 +1,7 @@
@@ -19621,7 +19621,26 @@ index 81d4e2e9..3a1f5fc5 100644
              });
  
          // A virtualized list scrolls inside `uniform_list`, which owns the
-@@ -635,6 +649,7 @@ impl RenderOnce for ListBox {
+@@ -600,11 +614,13 @@ impl RenderOnce for ListBox {
+             let stops_for_keys = stops;
+             let wrap = self.should_focus_wrap;
+             let fixed_virtual = self.row_height.is_some();
+-            let fixed_page_step = self.row_height.map(|row_height| {
+-                let viewport_height = self.max_h.unwrap_or(px(400.));
+-                ((f32::from(viewport_height) / f32::from(row_height)).ceil() as usize)
+-                    .saturating_sub(1)
+-            });
++            // Pinned `ListKeyboardDelegate` pages by one visible rectangle, so
++            // the step reads the virtual list's own laid-out viewport -- the
++            // pinned handle's `base_handle.bounds()` -- and not the configured
++            // `max_h` cap: a bounded parent (or a resized window) shows fewer
++            // rows than the cap allows. A zero viewport answers nothing, which
++            // the shared resolver turns into no movement.
++            let fixed_row_height = self.row_height;
+             let variable_scroll = self
+                 .row_height
+                 .is_none()
+@@ -635,6 +651,7 @@ impl RenderOnce for ListBox {
              let typed_keys = typed;
              let mode = self.selection_mode;
              let disallow_empty = self.disallow_empty_selection;
@@ -19629,7 +19648,7 @@ index 81d4e2e9..3a1f5fc5 100644
              let selected_now = self.selected_keys.clone();
              let on_selection_change = self.on_selection_change.clone();
              let on_action = self.on_action.clone();
-@@ -691,6 +706,7 @@ impl RenderOnce for ListBox {
+@@ -691,6 +708,7 @@ impl RenderOnce for ListBox {
                  // on Escape by default and leaves an empty collection alone.
                  if key_name == "escape"
                      && !event.keystroke.modifiers.modified()
@@ -19637,7 +19656,28 @@ index 81d4e2e9..3a1f5fc5 100644
                      && crate::selection::reports_changes(mode)
                      && !disallow_empty
                      && !selected_now.is_empty()
-@@ -998,7 +1014,7 @@ impl RenderOnce for ListBox {
+@@ -731,9 +749,17 @@ impl RenderOnce for ListBox {
+                     }
+                     _ => None,
+                 };
+-                let fixed_page_move = from
+-                    .zip(fixed_page_step)
+-                    .and_then(|(from, step)| page_by_step(from, step));
++                let fixed_page_move = from.and_then(|from| {
++                    let row_height = fixed_row_height?;
++                    let viewport_height =
++                        f32::from(key_list_scroll.0.borrow().base_handle.bounds().size.height);
++                    if viewport_height <= 0. {
++                        return None;
++                    }
++                    let step = ((viewport_height / f32::from(row_height)).ceil() as usize)
++                        .saturating_sub(1);
++                    page_by_step(from, step)
++                });
+                 let variable_page_move = from.and_then(|from| {
+                     let viewport_height = variable_scroll.as_ref()?.viewport_bounds().size.height;
+                     let heights = variable_heights.as_ref()?.read(cx);
+@@ -998,7 +1024,7 @@ impl RenderOnce for ListBox {
                          if !crate::list_nav::is_typeahead_key(key) {
                              return;
                          }
@@ -19646,7 +19686,22 @@ index 81d4e2e9..3a1f5fc5 100644
                          let (query, repeat) = typed_keys.update(cx, |t, _| {
                              let query = t.push(key, now);
                              (query, t.is_repeat())
-@@ -1114,7 +1130,7 @@ impl RenderOnce for ListBox {
+@@ -1092,6 +1118,14 @@ impl RenderOnce for ListBox {
+             let rows = std::rc::Rc::new(self);
+             let interaction = interaction.clone();
+             let row_range = selection_range.clone();
++            // The headless probe name for the virtual viewport's bounds.
++            let rows_selector = format!("{base}-rows");
++            // The viewport scrolls inside `uniform_list`, which builds only
++            // the shown rows. A fixed height caps the roomy-window viewport
++            // at the configured value so an unbounded parent sizes to cap +
++            // padding instead of the rows' full natural height; `min_h_0`
++            // lets that fixed height shrink as a flex item with a bounded
++            // parent, handing the viewport its real height for paging.
+             return list
+                 .child(
+                     gpui::uniform_list(
+@@ -1114,10 +1148,12 @@ impl RenderOnce for ListBox {
                                  .collect::<Vec<_>>()
                          },
                      )
@@ -19654,8 +19709,14 @@ index 81d4e2e9..3a1f5fc5 100644
 +                    .track_scroll(&list_scroll_now)
                      .id(list_id)
                      .h(height)
-                     .w_full(),
-@@ -1183,6 +1199,7 @@ impl ListBox {
+-                    .w_full(),
++                    .min_h_0()
++                    .w_full()
++                    .debug_selector(move || rows_selector),
+                 )
+                 .into_any_element();
+         }
+@@ -1183,6 +1219,7 @@ impl ListBox {
                      .pt(px(6.))
                      .pb(px(4.))
                      .text_size(px(12.))
@@ -19663,7 +19724,7 @@ index 81d4e2e9..3a1f5fc5 100644
                      .font_weight(gpui::FontWeight::MEDIUM)
                      .text_color(colors.muted)
                      .child(label.to_string()),
-@@ -1232,6 +1249,7 @@ impl ListBox {
+@@ -1232,6 +1269,7 @@ impl ListBox {
                      .py(px(6.))
                      .rounded(util::soft_radius(cx))
                      .text_size(text_size)
@@ -19671,7 +19732,7 @@ index 81d4e2e9..3a1f5fc5 100644
                      .text_color(fg);
  
                  if disabled {
-@@ -1294,11 +1312,14 @@ impl ListBox {
+@@ -1294,11 +1332,14 @@ impl ListBox {
                              .flex()
                              .flex_col()
                              .flex_1()
@@ -19688,7 +19749,7 @@ index 81d4e2e9..3a1f5fc5 100644
                                          .text_color(colors.muted)
                                          .child(d.to_string()),
                                  )
-@@ -1322,10 +1343,8 @@ impl ListBox {
+@@ -1322,10 +1363,8 @@ impl ListBox {
                      );
                  } else if let Some(sc) = shortcut {
                      row = row.child(
@@ -22890,7 +22951,7 @@ index 76d363c8..40995553 100644
                  .child(label)
                  .when(self.is_required, |r| {
 diff --git a/crates/herogpui-components/src/table.rs b/crates/herogpui-components/src/table.rs
-index a97e013d..f52a9480 100644
+index a97e013d..c185a0a2 100644
 --- a/crates/herogpui-components/src/table.rs
 +++ b/crates/herogpui-components/src/table.rs
 @@ -21,6 +21,7 @@ type OnRowClick = std::sync::Arc<dyn Fn(usize, &ClickEvent, &mut Window, &mut Ap
@@ -23379,7 +23440,7 @@ index a97e013d..f52a9480 100644
                  if column.allows_resizing {
                      let (min, max) = resize_limits[column_index];
                      width.map(|width| px(f32::from(width).floor().min(max).max(min)))
-@@ -1152,24 +1393,39 @@ impl RenderOnce for Table {
+@@ -1152,32 +1393,53 @@ impl RenderOnce for Table {
                  }
              })
              .collect();
@@ -23426,15 +23487,59 @@ index a97e013d..f52a9480 100644
          };
  
          let mut wrapper = gpui::div()
-@@ -1205,6 +1461,7 @@ impl RenderOnce for Table {
-             .flex_shrink_0()
+             .w_full()
++            .flex()
++            .flex_col()
+             .track_focus(&table_focus)
+             .overflow_hidden()
+             .rounded(crate::util::container_radius(cx))
+             .text_color(colors.foreground);
++        // A column, so the scroll container below is a vertical flex item: it
++        // shrinks with a bounded parent (its `overflow_hidden` zeroes the
++        // minimum), handing the virtual body its real viewport. A block would
++        // size it to content and only clip the overflow.
+ 
+         // `.table-root--primary` is a `bg-surface-secondary px-1 pb-1` tray with
+         // `border-radius: min(32px, --radius * 2.5)`, and the rows sit in a
+@@ -1192,19 +1454,32 @@ impl RenderOnce for Table {
+                 .pb(px(4.));
+         }
+ 
+-        // The content column, whose width is what the scroller at the bottom of
+-        // the render measures against. A `w_full` child commits to the
++        // The wrapper is a column, so this content column may shrink
++        // vertically with a bounded parent -- that is what lets a virtual
++        // body take the laid-out viewport rather than the `max_h` cap.
++        // Horizontally it must never shrink: the scroll container at the
++        // bottom of the render is a column with `items_start`, whose cross
++        // axis leaves this child at its max-content width, so a table wider
++        // than its box still slides on it. (A row-flex scroller would need
++        // `flex_shrink_0` here for the same guarantee, which would also
++        // forbid the vertical shrink.)
++        //
++        // The content column, whose width is what the scroller at the bottom
++        // of the render measures against. A `w_full` child commits to the
+         // scroller's width, which is exactly the scroller's own -- the scroll
+         // maxima are then zero and a wide table clips at the tray edge instead
+         // of sliding. `min_w_full` keeps the column at the viewport when no
+-        // column pins a width, and `flex_shrink_0` keeps it at the columns'
+-        // width when they exceed the viewport (a shrinking row only ever fits).
++        // column pins a width. `min_h_0` lets the column shrink vertically
++        // with a bounded parent: without it the content-based minimum keeps
++        // the max-content height and a virtual body never sees its real
++        // viewport.
+         let mut table = gpui::div()
+             .flex()
+             .flex_col()
+-            .flex_shrink_0()
              .min_w_full()
++            .min_h_0()
              .text_size(px(14.))
 +            .line_height(px(20.))
              .when_some(self.gap, |el, g| el.gap(g))
              .when_some(self.padding, |el, p| el.p(p));
  
-@@ -1214,7 +1471,7 @@ impl RenderOnce for Table {
+@@ -1214,7 +1489,7 @@ impl RenderOnce for Table {
          let mut header = gpui::div()
              .flex()
              .border_b_1()
@@ -23443,7 +23548,7 @@ index a97e013d..f52a9480 100644
              .when(!secondary, |h| h.bg(colors.surface_secondary));
  
          if selectable {
-@@ -1229,8 +1486,12 @@ impl RenderOnce for Table {
+@@ -1229,8 +1504,12 @@ impl RenderOnce for Table {
              if self.selection_mode == SelectionMode::Multiple {
                  // The `Mod+A` keydown handler reads the same set, so it gets a
                  // clone rather than the variable itself.
@@ -23458,7 +23563,7 @@ index a97e013d..f52a9480 100644
                  let mut box_el = Checkbox::new(gpui::ElementId::Name(
                      format!("{}-select-all", self.id).into(),
                  ))
-@@ -1245,7 +1506,7 @@ impl RenderOnce for Table {
+@@ -1245,7 +1524,7 @@ impl RenderOnce for Table {
                          let next: Vec<SharedString> = if all_selected {
                              Vec::new()
                          } else {
@@ -23467,7 +23572,7 @@ index a97e013d..f52a9480 100644
                          };
                          if let Some(held) = &selection_own {
                              held.update(cx, |value, cx| {
-@@ -1293,13 +1554,14 @@ impl RenderOnce for Table {
+@@ -1293,13 +1572,14 @@ impl RenderOnce for Table {
                  .px(px(16.))
                  .py(px(10.))
                  .text_size(px(12.))
@@ -23484,7 +23589,7 @@ index a97e013d..f52a9480 100644
  
              if let Some(descriptor) = sorted {
                  if self.show_indicator {
-@@ -1338,9 +1600,7 @@ impl RenderOnce for Table {
+@@ -1338,9 +1618,7 @@ impl RenderOnce for Table {
                          .cursor_pointer()
                          // The focus is what makes Enter and Space sort: gpui
                          // fires a *focused* element's click listeners for them.
@@ -23495,7 +23600,7 @@ index a97e013d..f52a9480 100644
                          .on_click(move |_, window, cx| cb(next.clone(), window, cx))
                          .child(cell.group_hover(sort_group, |s| s.text_color(colors.foreground)));
                      // `.table__column` rings *inside* itself: the next column
-@@ -1348,12 +1608,23 @@ impl RenderOnce for Table {
+@@ -1348,12 +1626,23 @@ impl RenderOnce for Table {
                      // through the transparent cell and filled it.
                      header_cell
                          .relative()
@@ -23521,7 +23626,7 @@ index a97e013d..f52a9480 100644
              };
  
              // `allowsResizing` puts a handle on the column's trailing edge. The
-@@ -1367,8 +1638,12 @@ impl RenderOnce for Table {
+@@ -1367,8 +1656,12 @@ impl RenderOnce for Table {
                      .unwrap_or(px(160.));
                  let keyboard = keyboard_resizing.clone();
                  let keyboard_out = keyboard.clone();
@@ -23534,7 +23639,7 @@ index a97e013d..f52a9480 100644
                  let focus_for_mouse = resize_focus[column_index]
                      .as_ref()
                      .expect("resizable columns have a focus handle")
-@@ -1379,6 +1654,18 @@ impl RenderOnce for Table {
+@@ -1379,6 +1672,18 @@ impl RenderOnce for Table {
                  let is_resizing = drag_now.is_some_and(|(index, _, _)| index == column_index)
                      || keyboard_resize_now == Some(column_index);
                  let measured = measured_widths.clone();
@@ -23553,7 +23658,7 @@ index a97e013d..f52a9480 100644
                  gpui::div()
                      .relative()
                      .when(effective.is_none(), flex_cell)
-@@ -1447,43 +1734,136 @@ impl RenderOnce for Table {
+@@ -1447,43 +1752,136 @@ impl RenderOnce for Table {
                              )
                              .cursor(gpui::CursorStyle::ResizeLeftRight)
                              .on_mouse_down(gpui::MouseButton::Left, move |ev, window, cx| {
@@ -23705,7 +23810,7 @@ index a97e013d..f52a9480 100644
                                          cx.stop_propagation();
                                      }
                                      "right" | "up" | "left" | "down" if editing => {
-@@ -1492,18 +1872,33 @@ impl RenderOnce for Table {
+@@ -1492,18 +1890,33 @@ impl RenderOnce for Table {
                                          } else {
                                              -10.
                                          };
@@ -23741,7 +23846,7 @@ index a97e013d..f52a9480 100644
                                          cx.stop_propagation();
                                      }
                                      _ => {}
-@@ -1528,34 +1923,106 @@ impl RenderOnce for Table {
+@@ -1528,34 +1941,106 @@ impl RenderOnce for Table {
                  .overflow_hidden();
          }
  
@@ -23872,7 +23977,7 @@ index a97e013d..f52a9480 100644
          }
          // ---- rows --------------------------------------------------------
          // Depth-first, and only through the parents that are open: a nested row
-@@ -1598,8 +2065,9 @@ impl RenderOnce for Table {
+@@ -1598,8 +2083,9 @@ impl RenderOnce for Table {
                      .map(|(_, _, has_children, _, parent)| (*has_children, parent.clone()))
                      .collect()
              },
@@ -23884,7 +23989,7 @@ index a97e013d..f52a9480 100644
                      .iter()
                      .map(|(_, _, metadata)| (metadata.has_children, metadata.parent_key.clone()))
                      .collect()
-@@ -1620,8 +2088,9 @@ impl RenderOnce for Table {
+@@ -1620,8 +2106,9 @@ impl RenderOnce for Table {
              },
              |_| Vec::new(),
          );
@@ -23896,7 +24001,7 @@ index a97e013d..f52a9480 100644
                  .iter()
                  .map(|(source_index, _, _)| *source_index)
                  .collect::<Vec<_>>()
-@@ -1654,7 +2123,12 @@ impl RenderOnce for Table {
+@@ -1654,7 +2141,12 @@ impl RenderOnce for Table {
          // keeps its cells flush, rather than reserving a chevron's width.
          let tree_column_has_children = virtual_projection.as_ref().map_or_else(
              || flat.iter().any(|(_, _, has, _, _)| *has),
@@ -23910,7 +24015,25 @@ index a97e013d..f52a9480 100644
          );
          let expanded_keys = std::rc::Rc::new(std::mem::take(&mut self.expanded_keys));
  
-@@ -1757,7 +2231,7 @@ impl RenderOnce for Table {
+@@ -1723,10 +2215,13 @@ impl RenderOnce for Table {
+             let mode = self.selection_mode;
+             let plain_rows = self.virtual_rows.is_none();
+             let fixed_virtual = self.row_height.is_some() && self.virtual_rows.is_some();
+-            let fixed_page_step = self.row_height.filter(|_| fixed_virtual).map(|row_height| {
+-                let viewport_height = f32::from(self.max_h.unwrap_or(px(400.)));
+-                ((viewport_height / f32::from(row_height)).ceil() as usize).saturating_sub(1)
+-            });
++            // Pinned `TableKeyboardDelegate` pages by one visible rectangle, so
++            // the step reads the virtual body's own laid-out viewport -- the
++            // pinned handle's `base_handle.bounds()` -- and not the configured
++            // `max_h` cap: a bounded parent (or a resized window) shows fewer
++            // rows than the cap allows. A zero viewport answers nothing, which
++            // the shared resolver turns into no movement.
++            let fixed_row_height = self.row_height.filter(|_| fixed_virtual);
+             let fixed_scroll = virtual_scroll_now.clone();
+             let variable_scroll = virtual_list_state.clone();
+             let variable_heights = virtual_row_heights.clone();
+@@ -1757,7 +2252,7 @@ impl RenderOnce for Table {
                      let key_name = event.keystroke.key.as_str();
                      let typed = event.keystroke.key_char.as_deref().unwrap_or(key_name);
                      let modifiers = &event.keystroke.modifiers;
@@ -23919,7 +24042,7 @@ index a97e013d..f52a9480 100644
                      let is_space = key_name == "space" || typed == " ";
                      if is_space
                          && capture_typeahead.state.read(cx).is_active(now)
-@@ -1781,7 +2255,7 @@ impl RenderOnce for Table {
+@@ -1781,7 +2276,7 @@ impl RenderOnce for Table {
                          && capture_typeahead_up
                              .state
                              .read(cx)
@@ -23928,7 +24051,7 @@ index a97e013d..f52a9480 100644
                          && !modifiers.control
                          && !modifiers.platform
                          && !modifiers.alt
-@@ -1790,6 +2264,10 @@ impl RenderOnce for Table {
+@@ -1790,6 +2285,10 @@ impl RenderOnce for Table {
                      }
                  });
                  let key_typeahead = typeahead_navigation;
@@ -23939,7 +24062,7 @@ index a97e013d..f52a9480 100644
                  wrapper = wrapper.on_key_down(move |event, window, cx| {
                      if !table_focus_for_keys.contains_focused(window, cx) {
                          return;
-@@ -1805,7 +2283,7 @@ impl RenderOnce for Table {
+@@ -1805,7 +2304,7 @@ impl RenderOnce for Table {
                      let key_name = event.keystroke.key.as_str();
                      let typed = event.keystroke.key_char.as_deref().unwrap_or(key_name);
                      let modifiers = &event.keystroke.modifiers;
@@ -23948,7 +24071,7 @@ index a97e013d..f52a9480 100644
                      let is_space = key_name == "space" || typed == " ";
                      let is_character = {
                          let mut chars = key_name.chars();
-@@ -1836,16 +2314,21 @@ impl RenderOnce for Table {
+@@ -1836,16 +2335,21 @@ impl RenderOnce for Table {
                          }
                          && mode == SelectionMode::Multiple
                      {
@@ -23973,7 +24096,7 @@ index a97e013d..f52a9480 100644
                              if let Some(held) = &selection_own_for_keys {
                                  held.update(cx, |value, cx| {
                                      *value = next.clone();
-@@ -1868,6 +2351,26 @@ impl RenderOnce for Table {
+@@ -1868,6 +2372,26 @@ impl RenderOnce for Table {
                      // Other collection keys belong only to the body's roving
                      // focus stop. A nested cell action must keep its own Enter
                      // and Space handling even though Mod+A bubbles to the root.
@@ -24000,7 +24123,28 @@ index a97e013d..f52a9480 100644
                      if !table_focus_for_keys.is_focused(window) {
                          return;
                      }
-@@ -2018,12 +2521,20 @@ impl RenderOnce for Table {
+@@ -1963,9 +2487,17 @@ impl RenderOnce for Table {
+                         }
+                         _ => None,
+                     };
+-                    let fixed_page_move = from
+-                        .zip(fixed_page_step)
+-                        .and_then(|(from, step)| page_by_step(from, step));
++                    let fixed_page_move = from.and_then(|from| {
++                        let row_height = fixed_row_height?;
++                        let viewport_height =
++                            f32::from(fixed_scroll.0.borrow().base_handle.bounds().size.height);
++                        if viewport_height <= 0. {
++                            return None;
++                        }
++                        let step = ((viewport_height / f32::from(row_height)).ceil() as usize)
++                            .saturating_sub(1);
++                        page_by_step(from, step)
++                    });
+                     let variable_page_move = from.and_then(|from| {
+                         let viewport_height =
+                             variable_scroll.as_ref()?.viewport_bounds().size.height;
+@@ -2018,12 +2550,20 @@ impl RenderOnce for Table {
                      let is_variable_page =
                          fixed_page_move.is_none() && variable_page_move.is_some();
                      // Pinned TableKeyboardDelegate sends PageDown to the last
@@ -24024,7 +24168,7 @@ index a97e013d..f52a9480 100644
                              _ => None,
                          });
                      let page_move = fixed_page_move
-@@ -2096,7 +2607,10 @@ impl RenderOnce for Table {
+@@ -2096,7 +2636,10 @@ impl RenderOnce for Table {
                                      let next_selection = extend_selection_range(
                                          &selected_now,
                                          &keys,
@@ -24036,7 +24180,7 @@ index a97e013d..f52a9480 100644
                                          &range,
                                          target,
                                      );
-@@ -2169,7 +2683,10 @@ impl RenderOnce for Table {
+@@ -2169,7 +2712,10 @@ impl RenderOnce for Table {
                                              extend_selection_range(
                                                  &selected_now,
                                                  &keys,
@@ -24048,7 +24192,7 @@ index a97e013d..f52a9480 100644
                                                  &range,
                                                  key,
                                              )
-@@ -2239,7 +2756,7 @@ impl RenderOnce for Table {
+@@ -2239,7 +2785,7 @@ impl RenderOnce for Table {
          };
          let virtual_projection = std::rc::Rc::new(
              virtual_projection
@@ -24057,24 +24201,76 @@ index a97e013d..f52a9480 100644
                  .unwrap_or_default(),
          );
  
-@@ -2276,7 +2793,7 @@ impl RenderOnce for Table {
+@@ -2250,10 +2796,19 @@ impl RenderOnce for Table {
+             (self.row_height, self.virtual_rows.clone())
+         {
+             // The body scrolls inside `uniform_list`, which asks for the rows the
+-            // viewport shows and no others.
++            // viewport shows and no others. A fixed height caps the roomy-window
++            // body at the configured value, so an unbounded (natural-height)
++            // page parent sizes the whole table to header + cap + padding
++            // instead of the rows' full natural height; `min_h_0` lets that
++            // fixed height shrink as a flex item with a bounded parent, handing
++            // the virtual body its real viewport. (`Infer` + `max_h` caps the
++            // list's own bounds but reports the full natural height upward, so
++            // the outer table stretches white past the shown rows.)
+             let height = self.max_h.unwrap_or(px(400.));
+             let rows = ctx.clone();
+             let projection = virtual_projection;
++            // The headless probe name for the virtual viewport's bounds.
++            let rows_selector = format!("{table_id}-virtual-rows");
+             body = body.child(
+                 gpui::uniform_list(
+                     gpui::ElementId::Name(format!("{table_id}-virtual-rows").into()),
+@@ -2276,9 +2831,11 @@ impl RenderOnce for Table {
                              .collect::<Vec<_>>()
                      },
                  )
 -                .track_scroll(virtual_scroll_now)
 +                .track_scroll(&virtual_scroll_now)
                  .h(height)
-                 .w_full(),
+-                .w_full(),
++                .min_h_0()
++                .w_full()
++                .debug_selector(move || rows_selector),
              );
-@@ -2481,6 +2998,7 @@ impl RenderOnce for Table {
+         } else if let (Some(state), Some((_, _, _, factory))) =
+             (virtual_list_state, self.virtual_rows.clone())
+@@ -2469,18 +3026,29 @@ impl RenderOnce for Table {
+             );
+         }
+ 
+-        // `.table__scroll-container` is `overflow-x-auto` around the content:
+-        // a row flex, so its one child (the content column above) is free to be
+-        // wider than the scroller itself, which is what a table wider than its
+-        // box scrolls *on*.
++        // `.table__scroll-container` is `overflow-x-auto` around the content: a
++        // column whose cross axis leaves the content column at its
++        // max-content width, so a table wider than its box is free to exceed
++        // the scroller and scroll *on* it, while `min_w_full` still fills a
++        // narrow box. A row flex here would shrink that child to the viewport
++        // unless it carried `flex_shrink_0`, which would also forbid the
++        // column's vertical shrink inside a bounded parent; the column
++        // direction shrinks the content vertically while never touching its
++        // width. `min_h_0` is what permits that shrink: the scroller only
++        // scrolls horizontally, so its visible y-overflow would otherwise keep
++        // the content-based minimum and never yield.
+         wrapper.child(
+             gpui::div()
+                 .id(gpui::ElementId::Name(
+                     format!("{}-scroll-x", self.id).into(),
+                 ))
                  .flex()
++                .flex_col()
++                .items_start()
                  .w_full()
++                .min_h_0()
                  .overflow_x_scroll()
 +                .restrict_scroll_to_axis()
                  .child(table),
          )
      }
-@@ -2524,7 +3042,8 @@ impl RowCtx {
+@@ -2524,7 +3092,8 @@ impl RowCtx {
      /// from.
      #[allow(clippy::too_many_arguments)]
      /// One `.table__row`: `relative h-full` with a `border-separator/50`
@@ -24084,7 +24280,7 @@ index a97e013d..f52a9480 100644
      fn row(
          &self,
          i: usize,
-@@ -2551,9 +3070,10 @@ impl RowCtx {
+@@ -2551,9 +3120,10 @@ impl RowCtx {
              // is true of both virtual paths, so it is not conditional on the
              // fixed height any more -- `gpui::list`'s rows have none.
              .w_full()
@@ -24098,7 +24294,7 @@ index a97e013d..f52a9480 100644
  
          if self.selectable {
              let mut cell = gpui::div()
-@@ -2684,7 +3204,7 @@ impl RowCtx {
+@@ -2684,7 +3254,7 @@ impl RowCtx {
                                      next.push(key.clone());
                                  }
                                  cb(&next, window, cx);
@@ -24107,7 +24303,7 @@ index a97e013d..f52a9480 100644
                                  cursor.update(cx, |value, cx| {
                                      *value = Some(key.clone());
                                      cx.notify();
-@@ -2752,7 +3272,7 @@ impl RowCtx {
+@@ -2752,7 +3322,7 @@ impl RowCtx {
                      if window.default_prevented() {
                          return;
                      }
@@ -24116,7 +24312,7 @@ index a97e013d..f52a9480 100644
                      moved.update(cx, |value, cx| {
                          *value = Some(key_for_cursor.clone());
                          cx.notify();
-@@ -3086,4 +3606,68 @@ mod tests {
+@@ -3086,4 +3656,68 @@ mod tests {
              "the selected row must not paint a role soft wash"
          );
      }
@@ -30278,10 +30474,10 @@ index c9cb2548..3d34d8ff 100644
  /// roving cursor on the tag that owned the button. Pinned
  /// `useSelectableItem` only isolates the child's press and hands DOM focus
 diff --git a/crates/herogpui-components/tests/collections.rs b/crates/herogpui-components/tests/collections.rs
-index ea5c7833..6223aa65 100644
+index ea5c7833..cdf894a0 100644
 --- a/crates/herogpui-components/tests/collections.rs
 +++ b/crates/herogpui-components/tests/collections.rs
-@@ -43,7 +43,7 @@
+@@ -43,10 +43,12 @@
  mod harness;
  
  use std::cell::RefCell;
@@ -30289,8 +30485,14 @@ index ea5c7833..6223aa65 100644
 +use std::collections::{HashMap, HashSet};
  use std::rc::Rc;
  
- use gpui::{prelude::*, px, Font, FontFeatures, FontStyle, FontWeight, TestAppContext};
-@@ -125,6 +125,7 @@ fn list_box_click_selects_and_arrows_move(cx: &mut TestAppContext) {
+-use gpui::{prelude::*, px, Font, FontFeatures, FontStyle, FontWeight, TestAppContext};
++use gpui::{
++    prelude::*, px, Font, FontFeatures, FontStyle, FontWeight, TestAppContext, VisualTestContext,
++};
+ use herogpui_components::{
+     util::FIELD_HEIGHT, Accordion, AccordionItem, Breadcrumbs, Crumb, ListBox, ListBoxItem,
+     Pagination, SelectionMode, TabItem, Tabs, Tag, TagGroup,
+@@ -125,6 +127,7 @@ fn list_box_click_selects_and_arrows_move(cx: &mut TestAppContext) {
                  ListBoxItem::new("gamma", "Gamma"),
              ],
          )
@@ -30298,7 +30500,7 @@ index ea5c7833..6223aa65 100644
          .on_selection_change(move |keys, _, _| events.borrow_mut().push(sorted_join(keys)))
          .into_any_element()
      });
-@@ -219,6 +220,7 @@ fn list_box_typeahead_moves_the_cursor(cx: &mut TestAppContext) {
+@@ -219,6 +222,7 @@ fn list_box_typeahead_moves_the_cursor(cx: &mut TestAppContext) {
                  ListBoxItem::new("go", "Go"),
              ],
          )
@@ -30306,7 +30508,7 @@ index ea5c7833..6223aa65 100644
          .on_selection_change(move |keys, _, _| events.borrow_mut().push(sorted_join(keys)))
          .into_any_element()
      });
-@@ -254,6 +256,7 @@ fn list_box_disabled_key_cannot_be_chosen(cx: &mut TestAppContext) {
+@@ -254,6 +258,7 @@ fn list_box_disabled_key_cannot_be_chosen(cx: &mut TestAppContext) {
                  ListBoxItem::new("gamma", "Gamma"),
              ],
          )
@@ -30314,7 +30516,7 @@ index ea5c7833..6223aa65 100644
          .disabled_keys(["beta".into()])
          .on_selection_change(move |keys, _, _| events.borrow_mut().push(sorted_join(keys)))
          .into_any_element()
-@@ -281,6 +284,101 @@ fn list_box_disabled_key_cannot_be_chosen(cx: &mut TestAppContext) {
+@@ -281,6 +286,309 @@ fn list_box_disabled_key_cannot_be_chosen(cx: &mut TestAppContext) {
      );
  }
  
@@ -30410,6 +30612,214 @@ index ea5c7833..6223aa65 100644
 +    assert!(
 +        !single_selected.borrow()["beta"] && !single_selected.borrow()["gamma"],
 +        "the pick must not spill onto the unpicked rows"
++    );
++}
++
++/// Resizes the window and drains the layout queue, so a bounded virtual list
++/// re-resolves its viewport before the next probe reads it.
++fn settle_window(cx: &mut VisualTestContext, width: f32, height: f32) {
++    cx.simulate_resize(gpui::size(px(width), px(height)));
++    for _ in 0..4 {
++        cx.update(|window, _| window.refresh());
++        cx.run_until_parked();
++    }
++}
++
++/// `debug_bounds` wants a `&'static str`; the virtual viewport's probe name
++/// is the component's own `{base}-rows` selector, so one short leak per call.
++fn virtual_rows_probe(list_id: &'static str) -> &'static str {
++    let name = format!("{:?}-rows", gpui::ElementId::from(list_id));
++    let leaked: &'static mut str = Box::leak(name.into_boxed_str());
++    &*leaked
++}
++
++/// Pinned `ListKeyboardDelegate` pages a virtual list by one *visible*
++/// rectangle. A window shorter than this list's 160px cap shows fewer 40px
++/// rows, so PageDown must step by the shown viewport -- two rows here -- and
++/// not by the cap's three-row ruler; the old ruler lands a row too far at
++/// every step and skips past the disabled row differently. Growing the window
++/// restores the cap step, and a near-zero viewport keeps the cursor in place.
++#[gpui::test]
++fn fixed_height_virtual_list_box_pages_by_the_shown_viewport(cx: &mut TestAppContext) {
++    let recorded = events();
++    let for_view = recorded.clone();
++    let cx = open_host(cx, move || {
++        let recorded = for_view.clone();
++        let items: Vec<ListBoxItem> = (0..20)
++            .map(|i| {
++                ListBoxItem::new(format!("key-{i:02}"), format!("Item {i}")).is_disabled(i == 5)
++            })
++            .collect();
++        gpui::div()
++            .flex()
++            .flex_col()
++            .size_full()
++            .child(
++                ListBox::new("vlb-bounded-page", items)
++                    .row_height(px(40.))
++                    .max_h(px(160.))
++                    .on_action(move |key, _, _| recorded.borrow_mut().push(key.to_string()))
++                    .into_any_element(),
++            )
++            .into_any_element()
++    });
++
++    // A 120px window shows fewer than the 160px cap allows, so one page from
++    // the top is shorter than the roomy-window three-row step.
++    settle_window(cx, 640., 120.);
++    let list = cx
++        .debug_bounds(virtual_rows_probe("vlb-bounded-page"))
++        .expect("the virtual list must be laid out");
++    let shown = f32::from(list.size.height);
++    assert!(
++        shown < 160. - 1.5,
++        "the bounded virtual list must shrink below its cap, got {list:?}"
++    );
++    let step = ((shown / 40.).ceil() as usize).saturating_sub(1);
++    let capped_step = ((160f32 / 40.).ceil() as usize).saturating_sub(1);
++    assert!(
++        step < capped_step,
++        "a shorter viewport must page shorter than the cap ruler: {step} vs {capped_step}"
++    );
++
++    // Two Downs seat row 2 (the first Down moves off the unfocused entry row
++    // 0). Each page then moves `step` rows: 2 -> 4, 4 -> 6 across disabled
++    // row 5, and back 6 -> 4. The cap ruler would walk 2 -> 6 -> 9 -> 6.
++    press(cx, "tab");
++    press(cx, "down");
++    press(cx, "down");
++    press(cx, "pagedown");
++    press(cx, "enter");
++    assert_eq!(
++        recorded.borrow().as_slice(),
++        ["key-04"],
++        "a bounded PageDown must step by the shown viewport, not the cap"
++    );
++    press(cx, "pagedown");
++    press(cx, "enter");
++    assert_eq!(
++        recorded.borrow().as_slice(),
++        ["key-04", "key-06"],
++        "a bounded PageDown must still skip the disabled row"
++    );
++    press(cx, "pageup");
++    press(cx, "enter");
++    assert_eq!(
++        recorded.borrow().as_slice(),
++        ["key-04", "key-06", "key-04"],
++        "a bounded PageUp must step back by the shown viewport"
++    );
++
++    // Growing the window restores the cap viewport, so the same key pages
++    // further: row 4 reaches row 7 with the three-row step.
++    settle_window(cx, 640., 800.);
++    let grown = cx
++        .debug_bounds(virtual_rows_probe("vlb-bounded-page"))
++        .expect("the virtual list must be laid out");
++    assert!(
++        (f32::from(grown.size.height) - 160.).abs() < 1.5,
++        "the grown virtual list must return to its cap, got {grown:?}"
++    );
++    press(cx, "pagedown");
++    press(cx, "enter");
++    assert_eq!(
++        recorded.borrow().as_slice(),
++        ["key-04", "key-06", "key-04", "key-07"],
++        "PageDown after resize must page by the grown viewport"
++    );
++
++    // A near-zero viewport has no page to turn: the cursor stays on row 7,
++    // so Enter reports it again instead of a neighbour.
++    settle_window(cx, 640., 20.);
++    press(cx, "pagedown");
++    press(cx, "enter");
++    assert_eq!(
++        recorded.borrow().as_slice(),
++        ["key-04", "key-06", "key-04", "key-07", "key-07"],
++        "a page key with no viewport to cross must not move the cursor"
++    );
++}
++
++/// Gallery Virtualization regression: a 1000x50px fixed-row list caps at
++/// `max_h(400)` inside a natural/unbounded page parent. A fixed viewport
++/// height sizes the unbounded parent to cap + padding instead of the rows'
++/// full natural height (50_000px) -- the gallery would otherwise show eight
++/// rows followed by a huge blank instead of the next example -- while
++/// `min_h_0` lets it shrink with a bounded parent. The virtual viewport stays
++/// at the cap while the marker -- and the second list below it -- directly
++/// follow at cap+insets.
++#[gpui::test]
++fn fixed_height_virtual_list_box_caps_in_an_unbounded_parent(cx: &mut TestAppContext) {
++    fn virtual_list(id: &'static str) -> gpui::AnyElement {
++        let items: Vec<ListBoxItem> = (0..1000)
++            .map(|i| ListBoxItem::new(format!("key-{i:04}"), format!("User {i}")))
++            .collect();
++        ListBox::new(id, items)
++            .row_height(px(50.))
++            .max_h(px(400.))
++            .into_any_element()
++    }
++
++    let cx = open_host(cx, move || {
++        gpui::div()
++            .size_full()
++            .child(
++                gpui::div()
++                    .id("unbounded-page-scroll")
++                    .overflow_y_scroll()
++                    .size_full()
++                    .child(
++                        gpui::div()
++                            .flex()
++                            .flex_col()
++                            .w_full()
++                            .child(virtual_list("vlb-unbounded"))
++                            .child(
++                                gpui::div()
++                                    .h(px(8.))
++                                    .w_full()
++                                    .debug_selector(|| "after-first-list".to_owned()),
++                            )
++                            .child(virtual_list("vlb-second")),
++                    ),
++            )
++            .into_any_element()
++    });
++    cx.run_until_parked();
++
++    let body = cx
++        .debug_bounds(virtual_rows_probe("vlb-unbounded"))
++        .expect("the first virtual list must be laid out");
++    assert!(
++        (f32::from(body.size.height) - 400.).abs() < 1.5,
++        "the unbounded virtual list must cap at 400, got {body:?}"
++    );
++
++    let after = cx
++        .debug_bounds("after-first-list")
++        .expect("the marker below the first list must be laid out");
++    let after_top = f32::from(after.origin.y);
++    let body_bottom = f32::from(body.origin.y) + f32::from(body.size.height);
++    assert!(
++        after_top < 800.,
++        "the first list must end near 400+insets, marker at y={after_top} body={body:?}"
++    );
++    assert!(
++        (after_top - body_bottom) < 120.,
++        "the marker must directly follow the first body, marker y={after_top} body bottom={body_bottom}"
++    );
++
++    let second = cx
++        .debug_bounds(virtual_rows_probe("vlb-second"))
++        .expect("the second virtual list must be laid out");
++    let second_top = f32::from(second.origin.y);
++    assert!(
++        second_top < 1200.,
++        "the second list must directly follow the first, second at y={second_top} marker at y={after_top}"
++    );
++    assert!(
++        (f32::from(second.size.height) - 400.).abs() < 1.5,
++        "the second virtual list must cap at 400, got {second:?}"
 +    );
 +}
 +
@@ -36984,9 +37394,18 @@ index 00000000..aefc8a0d
 +    }
 +}
 diff --git a/crates/herogpui-components/tests/table_and_drag.rs b/crates/herogpui-components/tests/table_and_drag.rs
-index 038b8693..8c3936d3 100644
+index 038b8693..09974bfb 100644
 --- a/crates/herogpui-components/tests/table_and_drag.rs
 +++ b/crates/herogpui-components/tests/table_and_drag.rs
+@@ -70,7 +70,7 @@ use gpui::{
+ };
+ use herogpui_components::{
+     ColorArea, ColorChannel, ColorSlider, ColorSwatchPicker, PickerColor, SelectionMode, Slider,
+-    SortDescriptor, SortDirection, Table, TableColumn,
++    SortDescriptor, SortDirection, Table, TableColumn, TableRow,
+ };
+ 
+ use harness::{click, events, open_host, press};
 @@ -106,6 +106,15 @@ fn probe_cell(
          .into_any_element()
  }
@@ -37187,6 +37606,245 @@ index 038b8693..8c3936d3 100644
  /// React Stately starts a resize from the column's current laid-out width, not
  /// from a constant fallback. In a 600px primary table, the 4px tray padding
  /// leaves 592px and two un-sized columns measure 296px each.
+@@ -1054,6 +1225,238 @@ fn table_load_more_rearms_when_the_row_collection_changes(cx: &mut TestAppContex
+     );
+ }
+ 
++/// Resizes the window and drains the layout queue, so a bounded virtual body
++/// re-resolves its viewport before the next probe reads it.
++fn settle_window(cx: &mut VisualTestContext, width: f32, height: f32) {
++    cx.simulate_resize(gpui::size(px(width), px(height)));
++    for _ in 0..4 {
++        cx.update(|window, _| window.refresh());
++        cx.run_until_parked();
++    }
++}
++
++/// `debug_bounds` wants a `&'static str`; the virtual body's probe name is
++/// the table's own `{id}-virtual-rows` selector, so one short leak per call.
++fn virtual_rows_probe(table_id: &str) -> &'static str {
++    let name = format!("{table_id}-virtual-rows");
++    let leaked: &'static mut str = Box::leak(name.into_boxed_str());
++    &*leaked
++}
++
++/// Pinned `TableKeyboardDelegate` pages a virtual body by one *visible*
++/// rectangle. A window shorter than this body's 160px cap shows fewer 40px
++/// rows, so PageDown must step by the shown viewport -- one row here -- and
++/// not by the cap's three-row ruler; the old ruler lands rows too far at
++/// every step and skips past the disabled row differently. Growing the window
++/// restores the cap step, and a near-zero viewport keeps the cursor in place.
++#[gpui::test]
++fn fixed_height_virtual_table_pages_by_the_shown_viewport(cx: &mut TestAppContext) {
++    let recorded = events();
++    let for_view = recorded.clone();
++    let cx = open_host(cx, move || {
++        let recorded = for_view.clone();
++        gpui::div()
++            .flex()
++            .flex_col()
++            .size_full()
++            .child(
++                Table::new(vec![])
++                    .id("vt-bounded-page")
++                    .columns(vec![TableColumn::new("Name").default_width(px(160.))])
++                    .virtual_rows(
++                        20,
++                        "virtual-bounded-page-users",
++                        |i| format!("key-{i:02}").into(),
++                        |i| {
++                            TableRow::new(vec![gpui::div()
++                                .child(format!("Row {i}"))
++                                .into_any_element()])
++                        },
++                    )
++                    .row_height(px(40.))
++                    .max_h(px(160.))
++                    .disabled_keys(["key-05"])
++                    .on_row_click(move |i, _, _, _| recorded.borrow_mut().push(format!("row-{i}")))
++                    .into_any_element(),
++            )
++            .into_any_element()
++    });
++
++    // A 100px window shows fewer than the 160px cap allows, so one page is
++    // shorter than the roomy-window three-row step.
++    settle_window(cx, 640., 100.);
++    let body = cx
++        .debug_bounds(virtual_rows_probe("vt-bounded-page"))
++        .expect("the virtual body must be laid out");
++    let shown = f32::from(body.size.height);
++    assert!(
++        shown < 160. - 1.5,
++        "the bounded virtual body must shrink below its cap, got {body:?}"
++    );
++    let step = ((shown / 40.).ceil() as usize).saturating_sub(1);
++    let capped_step = ((160f32 / 40.).ceil() as usize).saturating_sub(1);
++    assert!(
++        step < capped_step,
++        "a shorter viewport must page shorter than the cap ruler: {step} vs {capped_step}"
++    );
++
++    // Three Downs seat row 2. Each page then moves `step` rows: 2 -> 3,
++    // 3 -> 4, and 4 -> 6 with the boundary landing on disabled row 5, which
++    // the stops skip; PageUp lands on it from above and skips back to 4. The
++    // cap ruler would walk 2 -> 6 -> 9 -> 12 -> 9.
++    press(cx, "tab");
++    for _ in 0..3 {
++        press(cx, "down");
++    }
++    press(cx, "pagedown");
++    press(cx, "enter");
++    assert_eq!(
++        recorded.borrow().as_slice(),
++        ["row-3"],
++        "a bounded PageDown must step by the shown viewport, not the cap"
++    );
++    press(cx, "pagedown");
++    press(cx, "enter");
++    assert_eq!(
++        recorded.borrow().as_slice(),
++        ["row-3", "row-4"],
++        "a bounded PageDown must advance by the shown viewport"
++    );
++    press(cx, "pagedown");
++    press(cx, "enter");
++    assert_eq!(
++        recorded.borrow().as_slice(),
++        ["row-3", "row-4", "row-6"],
++        "a bounded PageDown must still skip the disabled row"
++    );
++    press(cx, "pageup");
++    press(cx, "enter");
++    assert_eq!(
++        recorded.borrow().as_slice(),
++        ["row-3", "row-4", "row-6", "row-4"],
++        "a bounded PageUp must skip back over the disabled row"
++    );
++
++    // Growing the window restores the cap viewport, so the same key pages
++    // further: row 4 reaches row 7 with the three-row step.
++    settle_window(cx, 640., 800.);
++    let grown = cx
++        .debug_bounds(virtual_rows_probe("vt-bounded-page"))
++        .expect("the virtual body must be laid out");
++    assert!(
++        (f32::from(grown.size.height) - 160.).abs() < 1.5,
++        "the grown virtual body must return to its cap, got {grown:?}"
++    );
++    press(cx, "pagedown");
++    press(cx, "enter");
++    assert_eq!(
++        recorded.borrow().as_slice(),
++        ["row-3", "row-4", "row-6", "row-4", "row-7"],
++        "PageDown after resize must page by the grown viewport"
++    );
++
++    // A near-zero viewport has no page to turn: the cursor stays on row 7,
++    // so Enter reports it again instead of a neighbour.
++    settle_window(cx, 640., 32.);
++    press(cx, "pagedown");
++    press(cx, "enter");
++    assert_eq!(
++        recorded.borrow().as_slice(),
++        ["row-3", "row-4", "row-6", "row-4", "row-7", "row-7"],
++        "a page key with no viewport to cross must not move the cursor"
++    );
++}
++
++/// Gallery Virtualization regression: the first table's 1000x40px body caps
++/// at `max_h(320)` inside a natural/unbounded page parent. The virtual list's
++/// own bounds stay at the cap while the outer table ends at
++/// header + 320 + tray padding, so the marker -- and the second table below
++/// it -- directly follow instead of sliding past a white body that extends
++/// to the rows' full natural height (40_000px).
++#[gpui::test]
++fn fixed_height_virtual_table_caps_in_an_unbounded_parent(cx: &mut TestAppContext) {
++    fn virtual_table(id: &str, identity: &'static str) -> gpui::AnyElement {
++        Table::new(vec![])
++            .id(id)
++            .columns(vec![TableColumn::new("Name").default_width(px(160.))])
++            .virtual_rows(
++                1000,
++                identity,
++                |i| format!("key-{i:04}").into(),
++                |i| {
++                    TableRow::new(vec![gpui::div()
++                        .child(format!("Row {i}"))
++                        .into_any_element()])
++                },
++            )
++            .row_height(px(40.))
++            .max_h(px(320.))
++            .into_any_element()
++    }
++
++    let cx = open_host(cx, move || {
++        gpui::div()
++            .size_full()
++            .child(
++                gpui::div()
++                    .id("unbounded-page-scroll")
++                    .overflow_y_scroll()
++                    .size_full()
++                    .child(
++                        gpui::div()
++                            .flex()
++                            .flex_col()
++                            .w_full()
++                            .child(virtual_table("vt-unbounded", "virtual-unbounded-users"))
++                            .child(
++                                gpui::div()
++                                    .h(px(8.))
++                                    .w_full()
++                                    .debug_selector(|| "after-first-table".to_owned()),
++                            )
++                            .child(virtual_table("vt-second", "virtual-second-users")),
++                    ),
++            )
++            .into_any_element()
++    });
++    cx.run_until_parked();
++
++    let body = cx
++        .debug_bounds(virtual_rows_probe("vt-unbounded"))
++        .expect("the first virtual body must be laid out");
++    assert!(
++        (f32::from(body.size.height) - 320.).abs() < 1.5,
++        "the unbounded virtual body must cap at 320, got {body:?}"
++    );
++
++    let after = cx
++        .debug_bounds("after-first-table")
++        .expect("the marker below the first table must be laid out");
++    let after_top = f32::from(after.origin.y);
++    let body_bottom = f32::from(body.origin.y) + f32::from(body.size.height);
++    assert!(
++        after_top < 800.,
++        "the first table must end near header+320+padding, marker at y={after_top} body={body:?}"
++    );
++    assert!(
++        (after_top - body_bottom) < 120.,
++        "the marker must directly follow the first body, marker y={after_top} body bottom={body_bottom}"
++    );
++
++    let second = cx
++        .debug_bounds(virtual_rows_probe("vt-second"))
++        .expect("the second virtual body must be laid out");
++    let second_top = f32::from(second.origin.y);
++    assert!(
++        second_top < 1200.,
++        "the second table must directly follow the first, second at y={second_top} marker at y={after_top}"
++    );
++    assert!(
++        (f32::from(second.size.height) - 320.).abs() < 1.5,
++        "the second virtual body must cap at 320, got {second:?}"
++    );
++}
++
+ // ---------------------------------------------------------------------------
+ // Slider
+ // ---------------------------------------------------------------------------
 diff --git a/crates/herogpui-components/tests/table_deep.rs b/crates/herogpui-components/tests/table_deep.rs
 index e707f297..a2943496 100644
 --- a/crates/herogpui-components/tests/table_deep.rs
@@ -204347,7 +205005,7 @@ index 723274b0..f4c6f34d 100644
              // `HEROGPUI_WINDOW_SIZE=1200x2000` opens the window at that size.
              // A capture is one PrintWindow of the whole window, so a taller
 diff --git a/gallery/src/pages/components.rs b/gallery/src/pages/components.rs
-index 5eb12cd4..db613266 100644
+index 5eb12cd4..f326c51f 100644
 --- a/gallery/src/pages/components.rs
 +++ b/gallery/src/pages/components.rs
 @@ -1,7 +1,7 @@
@@ -204934,7 +205592,7 @@ index 5eb12cd4..db613266 100644
                  ),
                  (
                      "Virtualization",
-+                    "v3 wraps the list in React Aria's `Virtualizer` with `ListLayout`; `row_height` carries that here, because a fixed row height is what lets the geometry be computed instead of laid out. gpui's `uniform_list` then builds only the rows in view — one thousand users, fifty pixels each.",
++                    "v3 wraps the list in React Aria's `Virtualizer` with `ListLayout`; `row_height` carries that here, because a fixed row height is what lets the geometry be computed instead of laid out. gpui's `uniform_list` then builds only the rows in view — one thousand users, fifty pixels each. The fixed-row list caps at `max_h`, shrinks below it in a bounded parent, and PageUp/PageDown move by the visible viewport, including after resize, while skipping disabled stops.",
                      col(vec![
 -                        para(
 -                            "v3 wraps the list in React Aria's `Virtualizer` with `ListLayout`; \
@@ -205860,7 +206518,7 @@ index 5eb12cd4..db613266 100644
                  ),
                  (
                      "Virtualization",
-+                    "v3 wraps the table in `Virtualizer` with `TableLayout`. Cells here are built elements, which cannot be handed out twice, so a virtual table takes a row factory and asks for the rows the viewport shows — one thousand of them, forty pixels each.",
++                    "v3 wraps the table in `Virtualizer` with `TableLayout`. Cells here are built elements, which cannot be handed out twice, so a virtual table takes a row factory and asks for the rows the viewport shows — one thousand of them, forty pixels each. The fixed-row body caps at `max_h`, shrinks below it in a bounded parent, and PageUp/PageDown move by the visible viewport, including after resize, while skipping disabled stops.",
                      col(vec![
 -                        para(
 -                            "v3 wraps the table in `Virtualizer` with `TableLayout`. Cells here \
@@ -216091,7 +216749,7 @@ index 6452b2b7..b70b6484 100644
      }
  }
 diff --git a/gallery/src/pages/reference_metadata.rs b/gallery/src/pages/reference_metadata.rs
-index 71065ac8..0cc1aa3a 100644
+index 71065ac8..d1a2e101 100644
 --- a/gallery/src/pages/reference_metadata.rs
 +++ b/gallery/src/pages/reference_metadata.rs
 @@ -22,7 +22,12 @@ impl ImplementationStatus {
@@ -216982,6 +217640,15 @@ index 71065ac8..0cc1aa3a 100644
      ApiDoc { owner: "Table.LoadMore", prop: "isLoading", ty: "boolean", default: "false", description: "Shows the load-more sentinel content; the port spells the v3 loading flag as is_pending.", rust_owner: "Table", rust: "is_pending(bool)", status: ImplementationStatus::Implemented },
      ApiDoc { owner: "Table.LoadMore", prop: "onLoadMore", ty: "() => void", default: "—", description: "Called when the sentinel intersects the scroll viewport.", rust_owner: "Table", rust: "on_load_more(callback)", status: ImplementationStatus::Implemented },
      ApiDoc { owner: "Table.LoadMore", prop: "scrollOffset", ty: "number", default: "1", description: "Pinned RAC inherited viewport-height margin before the sentinel counts as visible.", rust_owner: "Table", rust: "scroll_offset(offset)", status: ImplementationStatus::Implemented },
+@@ -11378,7 +11420,7 @@ const TABLE_API: &[ApiDoc] = &[
+     ApiDoc { owner: "Table.LoadMoreContent", prop: "children", ty: "React.ReactNode", default: "—", description: "Custom loading content; the port's sentinel content is built in.", rust_owner: "Table", rust: "is_pending(bool)", status: ImplementationStatus::Partial },
+     ApiDoc { owner: "Table.Collection", prop: "items", ty: "T[]", default: "—", description: "RAC Collection items for mixing static and dynamic cells; the port's analogue is the virtual row factory, not a cell-level collection mixer.", rust_owner: "Table", rust: "virtual_rows(count, identity, key, row)", status: ImplementationStatus::Partial },
+     ApiDoc { owner: "Table.Collection", prop: "children", ty: "(item: T) => React.ReactNode", default: "—", description: "Per-item cell render prop; static rows and the virtual factory both produce whole TableRow values.", rust_owner: "Table", rust: "virtual_rows(count, identity, key, row)", status: ImplementationStatus::Partial },
+-    ApiDoc { owner: "TableLayout", prop: "rowHeight", ty: "number | undefined", default: "48", description: "Fixed virtual row height; with virtual_rows this selects gpui uniform_list.", rust_owner: "Table", rust: "row_height(height)", status: ImplementationStatus::Implemented },
++    ApiDoc { owner: "TableLayout", prop: "rowHeight", ty: "number | undefined", default: "48", description: "Fixed virtual row height; with virtual_rows this selects gpui uniform_list, caps at max_h, shrinks below it in a bounded parent, and pages by the visible viewport while skipping disabled stops.", rust_owner: "Table", rust: "row_height(height)", status: ImplementationStatus::Implemented },
+     ApiDoc { owner: "TableLayout", prop: "estimatedRowHeight", ty: "number | undefined", default: "—", description: "Estimated height for variable virtual rows; selects gpui list instead of uniform_list.", rust_owner: "Table", rust: "estimated_row_height(height)", status: ImplementationStatus::Implemented },
+     ApiDoc { owner: "TableLayout", prop: "headingHeight", ty: "number | undefined", default: "48", description: "Section-header height; this table has expandable rows, not section rows to size.", rust_owner: "Table", rust: "—", status: ImplementationStatus::Unavailable },
+     ApiDoc { owner: "TableLayout", prop: "estimatedHeadingHeight", ty: "number | undefined", default: "—", description: "Variable section-header estimate; unused without section rows.", rust_owner: "Table", rust: "—", status: ImplementationStatus::Unavailable },
 @@ -11409,7 +11451,7 @@ const TABLE_PARTS: &[PartDoc] = &[
  const TABLE_STATES: &[StateDoc] = &[
      StateDoc { state: "Hovered", selector: ":hover / [data-hovered=\"true\"]", description: "v3 tints cells with bg-surface/40 (secondary: bg-default/50); the port paints default.soft on the whole interactive row.", rust: "row.hover(default.soft)", status: ImplementationStatus::Partial },
@@ -217062,6 +217729,15 @@ index 71065ac8..0cc1aa3a 100644
      ApiDoc { owner: "ListBox", prop: "renderEmptyState", ty: "(props: ListBoxRenderProps) => ReactNode", default: "—", description: "An empty collection renders no synthetic option and has no empty-state slot.", rust_owner: "ListBox", rust: "—", status: ImplementationStatus::Unavailable },
      ApiDoc { owner: "ListBox", prop: "layout / orientation", ty: "\"stack\" | \"grid\" / Orientation", default: "\"stack\" / \"vertical\"", description: "This port exposes the pinned vertical stack layout only.", rust_owner: "ListBox", rust: "fixed vertical stack", status: ImplementationStatus::Unavailable },
      ApiDoc { owner: "ListBox", prop: "children", ty: "ReactNode", default: "—", description: "Items, sections, and separators are supplied as the constructor collection.", rust_owner: "ListBox", rust: "new(id, items)", status: ImplementationStatus::Implemented },
+@@ -11770,7 +11812,7 @@ const LIST_BOX_API: &[ApiDoc] = &[
+     ApiDoc { owner: "ListBox.Item", prop: "render", ty: "DOM render function", default: "—", description: "DOM element substitution and link attributes are unavailable.", rust_owner: "ListBoxItem", rust: "—", status: ImplementationStatus::Unavailable },
+     ApiDoc { owner: "ListBox.ItemIndicator", prop: "children", ty: "ReactNode | RenderFunction", default: "checkmark", description: "Replaces the selected indicator and receives isSelected.", rust_owner: "ListBox", rust: "indicator(render)", status: ImplementationStatus::Implemented },
+     ApiDoc { owner: "ListBox.Section", prop: "children", ty: "ReactNode", default: "—", description: "Section headers and separators are explicit collection records.", rust_owner: "ListBoxItem", rust: "section(label) / separator()", status: ImplementationStatus::Implemented },
+-    ApiDoc { owner: "ListLayout", prop: "rowHeight", ty: "number | undefined", default: "48", description: "Fixed row geometry enables uniform-list virtualization.", rust_owner: "ListBox", rust: "row_height(px)", status: ImplementationStatus::Implemented },
++    ApiDoc { owner: "ListLayout", prop: "rowHeight", ty: "number | undefined", default: "48", description: "Fixed row geometry enables uniform-list virtualization; the virtual list caps at max_h, shrinks below it in a bounded parent, and pages by the visible viewport while skipping disabled stops.", rust_owner: "ListBox", rust: "row_height(px)", status: ImplementationStatus::Implemented },
+     ApiDoc { owner: "ListLayout", prop: "estimatedRowHeight", ty: "number | undefined", default: "—", description: "Estimated variable row geometry enables measured list virtualization.", rust_owner: "ListBox", rust: "estimated_row_height(px)", status: ImplementationStatus::Implemented },
+     ApiDoc { owner: "ListLayout", prop: "headingHeight", ty: "number | undefined", default: "48", description: "Sets virtual section-row height.", rust_owner: "ListBox", rust: "heading_height(px)", status: ImplementationStatus::Implemented },
+     ApiDoc { owner: "ListLayout", prop: "estimatedHeadingHeight", ty: "number | undefined", default: "—", description: "Section headings are single-line records rather than independently estimated layouts.", rust_owner: "ListBox", rust: "—", status: ImplementationStatus::Unavailable },
 @@ -11796,6 +11838,7 @@ const LIST_BOX_STATES: &[StateDoc] = &[
  ];
  
