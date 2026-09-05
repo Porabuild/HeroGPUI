@@ -1,7 +1,7 @@
 {
   "baselineCommit": "39eafe365b8546762fd7458cc051bb5ea9ffd3ee",
   "patch": "wasm-migration.patch",
-  "patchSha256": "2c2cf9d3da744b6684e4e75993f049c3acd9a7c56b317c79a6fe74308a623d09",
-  "artifactSha256": "bda47149dcf63cd22b6bca69c5a269e68438dfb625003105f0f642c75e7af28b",
+  "patchSha256": "45dd63e14db16294cc92df98a4a42e28470612fd2751505ec751c5b6c4de6504",
+  "artifactSha256": "83dac61a4270fd56c3683ac6169d89e8842771a45207c1feeba1e0e2449436c7",
   "glueSha256": "af88177f950f73b2a327b0fc163a5319009804247f38ab48402aadc85c317ece"
 }

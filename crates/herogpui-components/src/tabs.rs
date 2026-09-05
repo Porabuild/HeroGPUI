@@ -1178,6 +1178,7 @@ impl RenderOnce for Tabs {
                     .flex()
                     .when(!vertical, |e| e.w_full().overflow_x_scroll())
                     .when(vertical, |e| e.h_full().flex_col().overflow_y_scroll())
+                    .restrict_scroll_to_axis()
                     .track_scroll(&scroll)
                     .child(list),
             )

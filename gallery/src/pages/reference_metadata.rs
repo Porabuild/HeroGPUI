@@ -6230,7 +6230,7 @@ const TABS_STYLING: &[StyleDoc] = &[
     StyleDoc {
         class_or_token: ".tabs__list-container__scroller",
         value: "ScrollShadow size 64 with hidden scrollbar",
-        description: "Scrollable viewport and fading overflow edges.",
+        description: "Scrollable viewport follows the configured axis without remapping wheel input from the other axis; fading overflow edges remain unavailable.",
         rust: "raw overflow scroller; chevrons are measured but edge fades are absent",
         status: ImplementationStatus::Partial,
     },
@@ -11463,7 +11463,7 @@ const TABLE_STYLING: &[StyleDoc] = &[
     StyleDoc { class_or_token: ".table-root", value: "relative grid w-full overflow-clip", description: "The port is a full-width overflow-hidden flex tray, not a CSS grid with minmax(0,1fr) tracks.", rust: "w_full + overflow_hidden", status: ImplementationStatus::Partial },
     StyleDoc { class_or_token: ".table-root--primary", value: "bg-surface-secondary px-1 pb-1; radius min(32px, radius * 2.5)", description: "Gray tray inset and overlay-sized radius around the surface card.", rust: "surface_secondary + px/pb(px(4.)) + radius_lg * 2.5 min 32", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".table-root--secondary", value: "no root fill, padding or rounding", description: "Secondary leaves the root flat; first/last header rounding and per-cell hover fills are not reproduced.", rust: "variant Secondary skips the tray", status: ImplementationStatus::Partial },
-    StyleDoc { class_or_token: ".table__scroll-container", value: "scrollbar overflow-x-auto", description: "Horizontal scroller around the content column; custom scrollbar styling is absent.", rust: "overflow_x_scroll", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".table__scroll-container", value: "scrollbar overflow-x-auto", description: "Horizontal input scrolls the content column; vertical input is not remapped sideways. Custom scrollbar styling is absent.", rust: "overflow_x_scroll", status: ImplementationStatus::Partial },
     StyleDoc { class_or_token: ".table__content", value: "w-full border-separate border-spacing-0 text-sm", description: "14px type and 20px line height match; the port is a flex column rather than a border-separate table.", rust: "min_w_full flex_col text_size(px(14.)) line_height(px(20.))", status: ImplementationStatus::Partial },
     StyleDoc { class_or_token: ".table__header", value: "border-b border-separator/50 bg-surface-secondary", description: "Header rule and secondary fill on primary; the separator is rendered at 50% alpha.", rust: "border_b_1 + separator.alpha(0.5) + surface_secondary", status: ImplementationStatus::Partial },
     StyleDoc { class_or_token: ".table__column", value: "px-4 py-2.5 text-xs font-medium text-muted", description: "16/10px inset and 12px type with 16px lines match; the port uses medium caller-case labels, but short vertical column separators are not drawn.", rust: "px(16.) py(10.) text_size(12.) line_height(16.) MEDIUM + label.clone()", status: ImplementationStatus::Partial },
@@ -16668,7 +16668,7 @@ const SCROLL_SHADOW_STYLING: &[StyleDoc] = &[
     StyleDoc {
         class_or_token: "[data-orientation]",
         value: "vertical | horizontal",
-        description: "Orientation switches scroll axis and fade direction.",
+        description: "Orientation switches scroll axis and fade direction; wheel input from the other axis is not remapped.",
         rust: "orientation(Orientation)",
         status: ImplementationStatus::Implemented,
     },

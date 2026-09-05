@@ -184,6 +184,7 @@ impl RenderOnce for ScrollShadow {
         let mut scroller = div()
             .id(self.id.clone())
             .track_scroll(&scroll)
+            .restrict_scroll_to_axis()
             .overflow_hidden()
             .flex()
             .gap(self.gap);

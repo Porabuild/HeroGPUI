@@ -4002,7 +4002,7 @@ impl Gallery {
                             .into_any_element(),
                     ]),
                 ),
-                ("Column Resizing", "Drag a trailing-edge divider, or focus it with Tab, press Enter, and use the arrow keys. This example feeds onResize values back as controlled column widths and reports completion through onResizeEnd.", {
+                ("Column Resizing", "Drag a trailing-edge divider, or focus it with Tab, press Enter, and use the arrow keys. This example feeds onResize values back as controlled column widths and reports completion through onResizeEnd. Scroll horizontally to reach wide columns; vertical wheel input does not shift them sideways.", {
                     let resize_name = self.demo_value("tbl-resize-name", 220.);
                     let resize_role = self.demo_value("tbl-resize-role", 180.);
                     let resize_status = self.demo_text_value("tbl-resize-status");
@@ -9605,7 +9605,7 @@ impl Gallery {
                 ),
                 (
                     "Overflow",
-                    "More tabs than fit scroll along their axis.",
+                    "More tabs than fit scroll along their axis. Wheel input from the other axis continues to the page.",
                     col(vec![
                         para("Horizontal", cx),
                         // The list only overflows inside a bounded box, which is
@@ -13095,6 +13095,7 @@ impl Gallery {
                 ),
                 (
                     "Horizontal",
+                    "Scroll sideways to reveal more cards. Vertical wheel input continues to the page.",
                     col(vec![h::ScrollShadow::new("ss-h")
                         .orientation(Orientation::Horizontal)
                         .max_w(px(520.))

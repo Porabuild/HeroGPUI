@@ -790,6 +790,16 @@ fn tabs_vertical_overflow_chevrons_scroll_the_list(cx: &mut TestAppContext) {
     flush_frame(cx);
     flush_frame(cx);
 
+    let indicator = cx
+        .debug_bounds(r#"Name("tb-vertical-overflow")-indicator"#)
+        .expect("indicator paints");
+    wheel_h(cx, 40., 80., -40.);
+    assert_eq!(
+        cx.debug_bounds(r#"Name("tb-vertical-overflow")-indicator"#),
+        Some(indicator),
+        "horizontal wheel must not scroll vertical tabs"
+    );
+
     click(cx, 40., 164.);
     assert!(
         recorded.borrow().is_empty(),
@@ -1188,4 +1198,94 @@ fn disclosure_group_third_item_reports_with_bodies_pushing(cx: &mut TestAppConte
         "pressing the pushed-down second and third triggers must report their \
          keys; only the first item's open body can have put them there"
     );
+}
+
+#[gpui::test]
+fn horizontal_components_keep_vertical_wheels_on_the_page(cx: &mut TestAppContext) {
+    for kind in 0..3 {
+        harness::still();
+        let page_scroll = gpui::ScrollHandle::new();
+        let page_for_view = page_scroll.clone();
+        let probe_name = if kind == 1 {
+            r#"Name("axis-tabs")-indicator"#
+        } else {
+            "axis-content"
+        };
+        let cx = open_host(cx, move || {
+            let content = match kind {
+                0 => Table::new(vec![])
+                    .id("axis-table")
+                    .columns(vec![TableColumn::new("Column")
+                        .default_width(px(480.))
+                        .min_width(px(480.))])
+                    .row(vec![gpui::div()
+                        .h(px(80.))
+                        .w_full()
+                        .debug_selector(|| "axis-content".to_owned())
+                        .into_any_element()])
+                    .into_any_element(),
+                1 => Tabs::new(
+                    "axis-tabs",
+                    (0..10)
+                        .map(|i| TabItem::new(format!("{i}"), format!("Tab {i}")))
+                        .collect(),
+                    "0",
+                )
+                .into_any_element(),
+                _ => herogpui_components::ScrollShadow::new("axis-shadow")
+                    .orientation(Orientation::Horizontal)
+                    .max_w(px(240.))
+                    .child(
+                        gpui::div()
+                            .w(px(480.))
+                            .h(px(80.))
+                            .flex_shrink_0()
+                            .debug_selector(|| "axis-content".to_owned()),
+                    )
+                    .into_any_element(),
+            };
+            gpui::div()
+                .id("axis-page")
+                .w(px(240.))
+                .h(px(200.))
+                .overflow_y_scroll()
+                .restrict_scroll_to_axis()
+                .track_scroll(&page_for_view)
+                .child(gpui::div().h(px(600.)).child(content))
+                .into_any_element()
+        });
+        flush_frame(cx);
+        flush_frame(cx);
+        let before = cx.debug_bounds(probe_name).expect("content paints");
+        let y = if kind == 0 { 90. } else { 20. };
+        cx.simulate_event(ScrollWheelEvent {
+            position: point(px(100.), px(y)),
+            delta: ScrollDelta::Pixels(point(px(0.), px(-10.))),
+            ..Default::default()
+        });
+        flush_frame(cx);
+        assert_eq!(
+            page_scroll.offset().y,
+            px(-10.),
+            "vertical wheel reaches page: kind={kind}"
+        );
+        let after_vertical = cx.debug_bounds(probe_name).expect("content stays visible");
+        assert_eq!(
+            after_vertical.origin.x, before.origin.x,
+            "vertical wheel must not move content sideways: kind={kind}"
+        );
+        wheel_h(cx, 100., y - 10., -20.);
+        let after_horizontal = cx
+            .debug_bounds(probe_name)
+            .expect("content stays visible after horizontal wheel");
+        assert!(
+            after_horizontal.origin.x < before.origin.x,
+            "horizontal wheel moves component: kind={kind}"
+        );
+        assert_eq!(
+            page_scroll.offset().y,
+            px(-10.),
+            "horizontal wheel leaves page in place: kind={kind}"
+        );
+    }
 }

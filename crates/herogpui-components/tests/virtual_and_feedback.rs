@@ -1453,6 +1453,18 @@ fn scroll_shadow_reports_visibility_as_it_scrolls(cx: &mut TestAppContext) {
         "at the top of a scrollable box only the bottom edge shades"
     );
 
+    cx.simulate_event(ScrollWheelEvent {
+        position: point(px(100.), px(80.)),
+        delta: ScrollDelta::Pixels(point(px(-80.), px(0.))),
+        ..Default::default()
+    });
+    flush_frame(cx);
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["bottom"],
+        "horizontal wheel must not move a vertical ScrollShadow"
+    );
+
     // Half the max (156 of 312): past the start and short of the end → Both.
     wheel(cx, 100., 80., -156.);
     assert_eq!(

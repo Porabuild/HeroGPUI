@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "artifactSha256": "bda47149dcf63cd22b6bca69c5a269e68438dfb625003105f0f642c75e7af28b",
+  "artifactSha256": "83dac61a4270fd56c3683ac6169d89e8842771a45207c1feeba1e0e2449436c7",
   "glueSha256": "af88177f950f73b2a327b0fc163a5319009804247f38ab48402aadc85c317ece",
   "examples": {
     "accordion/Controlled": {
@@ -1817,7 +1817,7 @@
     },
     "scroll-shadow/Horizontal": {
       "nativeCodeSha256": "9b6e9bd27f4490722838f0ab379bf15ec4d346a74b50e91e9ad4231bd0656c7a",
-      "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      "descriptionSha256": "0d0920ec29197460ad545bf6e9268f198a7e134b1fd9618205b3bdabe8186f53"
     },
     "scroll-shadow/Orientation": {
       "nativeCodeSha256": "0f5d0732d76076656e453edd08a989f2b17a8748e867905d522213bb344bd291",
@@ -2153,7 +2153,7 @@
     },
     "table/Column Resizing": {
       "nativeCodeSha256": "6c8706380d058e2b15e35ed828a13cfcad7118538bd057da3f2fbc962c1bba06",
-      "descriptionSha256": "fad2beb383fd736fb0b561a8b1766335c18a0a7cebe73f5073b070f831c39820"
+      "descriptionSha256": "e09e5978dd33821f3cecb398cde1c9a64c3bebafab50a6758be238f7ca09d1a7"
     },
     "table/Custom Cells": {
       "nativeCodeSha256": "89a5867e008ee6b913439421a4cbff22a0d3eff956018ef382b9fe294dc2c023",
@@ -2205,7 +2205,7 @@
     },
     "tabs/Overflow": {
       "nativeCodeSha256": "e2c9db6cc444ca161efcc86eb9fb34aa66bdabb7989c1c7e200045f74c55e52c",
-      "descriptionSha256": "05d57d732a78491842ef8a473fb44d41286528b1b353de1efc1e7304aae9c4f2"
+      "descriptionSha256": "bb249695c8df3e09848147564c0ff986baa4eef5d12fbe14a7415f099293b7fd"
     },
     "tabs/Primary": {
       "nativeCodeSha256": "ed15822e92f7f78713ba32733ee79b1f98143ac19bceefc99eaa5ce25fc80b0a",

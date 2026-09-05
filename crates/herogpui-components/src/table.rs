@@ -2998,6 +2998,7 @@ impl RenderOnce for Table {
                 .flex()
                 .w_full()
                 .overflow_x_scroll()
+                .restrict_scroll_to_axis()
                 .child(table),
         )
     }

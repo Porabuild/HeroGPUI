@@ -340,6 +340,7 @@ ColorSlider labels/output, ColorPicker triggers, and ColorField display text use
 - **Badge** — `BadgeAnchor::new()` is v3's `Badge.Anchor`, the positioning wrapper whose children are the anchored element plus the `Badge::new().variant(BadgeVariant::{Primary,Secondary,Soft}).color().size().placement(BadgePlacement)` composed as a later child. `BadgeLabel::new()` is the `px-0.5` text slot — v3 auto-wraps plain text children in it, which GPUI cannot intercept, so the wrap is explicit. No children on the badge is v3's dot badge, and the page-background ring stays unconditional.
 - **Chip** — `Chip::new().variant(ChipVariant::{Primary,Secondary,Tertiary,Soft}).color().size()` renders arbitrary ordered children verbatim (an icon, a dot, a `ChipLabel`, a trailing element); `ChipLabel::new()` is the `px-0.5` text slot for the label text. A removable chip is `TagGroup`, which is where v3 puts `onRemove`.
 - **Table** — `Table::new(columns).row(cells).variant(TableVariant::{Primary,Secondary}).on_row_click(usize)` — `variant` is the whole visual story in v3; `isStriped`/`isBordered` were v2. Headers use 12px/16px text; body cells use 14px/20px text in ordinary and virtual rows.
+  - Horizontal wheel input scrolls columns; vertical input does not shift them sideways.
   - columns: `column(TableColumn::new("Name").allows_sorting(true).is_row_header(true))`. `is_row_header` has no a11y layer to reach, so it renders that column's cells in medium weight.
   - selection: `selection_mode`, `selected_keys`, `on_selection_change(&[SharedString])`, `keyed_row(key, cells)` (a row's key defaults to its index). Adds a checkbox column, with select-all in the header for `Multiple`.
   - sorting: `sort_descriptor(SortDescriptor::new(col, SortDirection::Ascending))`, `on_sort_change`, `show_indicator`. `SortDescriptor::next` gives the descriptor a header click should produce — flip the sorted column, start any other ascending. **The table never reorders its own rows**: a row is already-rendered cells, so the caller sorts its data and rebuilds.
@@ -433,6 +434,7 @@ week_start, month_headings, linear_cells, range_heading, year_page}`.
 - **Link** — `Link::new(id).label().href().icon(el).icon_first(bool).auto_focus().is_disabled().on_press()` plus `render(|state| el)` — v3's render function receives the link's interactive state (`isHovered`/`isPressed`/`isFocused`/`isFocusVisible`/`isDisabled`); the root keeps the `href`, `onPress`, focus and disabled wiring, and GPUI has no DOM props to spread. `.link` is `font-medium text-link no-underline decoration-[1.5px]` — the stylesheet is the contract, not the docs' `font-semibold` Global CSS snippet — and hover/press only recolour the decoration (`muted/50` → `muted`), never the text. Opening goes through the OS handler, so v3's `target` / `rel` / `download` have no meaning and are not offered.
 - **Pagination** — `Pagination::new(id, page, total).size().on_change(usize)`; summary, link and navigation text use size-specific 12/16, 14/20 and 16/24 font/line-height pairs independently of host leading.
 - **Tabs** — `Tabs::new(id, items, selected_key).variant(TabsVariant::{Primary,Secondary}).orientation().selected_key().default_selected_key().on_selection_change()`, `TabItem::new(key,label).content(el)`; both tab variants use 14px labels with a 20px line height independently of host leading.
+  - Wheel input scrolls the tab list only along its configured orientation.
 
 ### Overlays
 
@@ -470,6 +472,7 @@ The browser gallery bundles distinct Inter faces for Normal, Medium, Semibold an
 
 ### Utilities
 - **ScrollShadow** — `ScrollShadow::new(id).orientation().size(px).offset(px).visibility(ScrollShadowVisibility).is_enabled(bool).max_h()/.max_w()`, `horizontal()` shorthand. v3's `variant` has one value, and gpui draws no native scrollbar for `hideScrollBar` to hide.
+  - Wheel input scrolls only along the configured orientation.
 
 ## Gallery
 

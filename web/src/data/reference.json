@@ -11101,7 +11101,7 @@
       },
       {
         "token": ".tabs__list-container__scroller",
-        "description": "Scrollable viewport and fading overflow edges.",
+        "description": "Scrollable viewport follows the configured axis without remapping wheel input from the other axis; fading overflow edges remain unavailable.",
         "rust": "raw overflow scroller; chevrons are measured but edge fades are absent",
         "status": "partial"
       },
@@ -21048,7 +21048,7 @@
       },
       {
         "token": ".table__scroll-container",
-        "description": "Horizontal scroller around the content column; custom scrollbar styling is absent.",
+        "description": "Horizontal input scrolls the content column; vertical input is not remapped sideways. Custom scrollbar styling is absent.",
         "rust": "overflow_x_scroll",
         "status": "partial"
       },
@@ -24797,7 +24797,7 @@
       },
       {
         "token": "[data-orientation]",
-        "description": "Orientation switches scroll axis and fade direction.",
+        "description": "Orientation switches scroll axis and fade direction; wheel input from the other axis is not remapped.",
         "rust": "orientation(Orientation)",
         "status": "implemented"
       }

@@ -21293,10 +21293,18 @@ index 59f7766e..bff492d6 100644
 +    }
 +}
 diff --git a/crates/herogpui-components/src/scroll_shadow.rs b/crates/herogpui-components/src/scroll_shadow.rs
-index 4525f723..87a522e0 100644
+index 4525f723..9dd36a50 100644
 --- a/crates/herogpui-components/src/scroll_shadow.rs
 +++ b/crates/herogpui-components/src/scroll_shadow.rs
-@@ -224,13 +224,13 @@ impl RenderOnce for ScrollShadow {
+@@ -184,6 +184,7 @@ impl RenderOnce for ScrollShadow {
+         let mut scroller = div()
+             .id(self.id.clone())
+             .track_scroll(&scroll)
++            .restrict_scroll_to_axis()
+             .overflow_hidden()
+             .flex()
+             .gap(self.gap);
+@@ -224,13 +225,13 @@ impl RenderOnce for ScrollShadow {
          let max = scroll.max_offset();
          let (scrolled, scroll_max) = if horizontal {
              (
@@ -21979,7 +21987,7 @@ index 76d363c8..40995553 100644
                  .child(label)
                  .when(self.is_required, |r| {
 diff --git a/crates/herogpui-components/src/table.rs b/crates/herogpui-components/src/table.rs
-index a97e013d..53dd79cf 100644
+index a97e013d..f52a9480 100644
 --- a/crates/herogpui-components/src/table.rs
 +++ b/crates/herogpui-components/src/table.rs
 @@ -21,6 +21,7 @@ type OnRowClick = std::sync::Arc<dyn Fn(usize, &ClickEvent, &mut Window, &mut Ap
@@ -23155,7 +23163,15 @@ index a97e013d..53dd79cf 100644
                  .h(height)
                  .w_full(),
              );
-@@ -2524,7 +3041,8 @@ impl RowCtx {
+@@ -2481,6 +2998,7 @@ impl RenderOnce for Table {
+                 .flex()
+                 .w_full()
+                 .overflow_x_scroll()
++                .restrict_scroll_to_axis()
+                 .child(table),
+         )
+     }
+@@ -2524,7 +3042,8 @@ impl RowCtx {
      /// from.
      #[allow(clippy::too_many_arguments)]
      /// One `.table__row`: `relative h-full` with a `border-separator/50`
@@ -23165,7 +23181,7 @@ index a97e013d..53dd79cf 100644
      fn row(
          &self,
          i: usize,
-@@ -2551,9 +3069,10 @@ impl RowCtx {
+@@ -2551,9 +3070,10 @@ impl RowCtx {
              // is true of both virtual paths, so it is not conditional on the
              // fixed height any more -- `gpui::list`'s rows have none.
              .w_full()
@@ -23179,7 +23195,7 @@ index a97e013d..53dd79cf 100644
  
          if self.selectable {
              let mut cell = gpui::div()
-@@ -2684,7 +3203,7 @@ impl RowCtx {
+@@ -2684,7 +3204,7 @@ impl RowCtx {
                                      next.push(key.clone());
                                  }
                                  cb(&next, window, cx);
@@ -23188,7 +23204,7 @@ index a97e013d..53dd79cf 100644
                                  cursor.update(cx, |value, cx| {
                                      *value = Some(key.clone());
                                      cx.notify();
-@@ -2752,7 +3271,7 @@ impl RowCtx {
+@@ -2752,7 +3272,7 @@ impl RowCtx {
                      if window.default_prevented() {
                          return;
                      }
@@ -23197,7 +23213,7 @@ index a97e013d..53dd79cf 100644
                      moved.update(cx, |value, cx| {
                          *value = Some(key_for_cursor.clone());
                          cx.notify();
-@@ -3086,4 +3605,68 @@ mod tests {
+@@ -3086,4 +3606,68 @@ mod tests {
              "the selected row must not paint a role soft wash"
          );
      }
@@ -23267,7 +23283,7 @@ index a97e013d..53dd79cf 100644
 +    }
  }
 diff --git a/crates/herogpui-components/src/tabs.rs b/crates/herogpui-components/src/tabs.rs
-index 04bbd81e..6dfb192d 100644
+index 04bbd81e..0aaac0a4 100644
 --- a/crates/herogpui-components/src/tabs.rs
 +++ b/crates/herogpui-components/src/tabs.rs
 @@ -117,7 +117,7 @@ fn indicator_motion(
@@ -23377,7 +23393,15 @@ index 04bbd81e..6dfb192d 100644
                  }
              });
          }
-@@ -1192,12 +1195,12 @@ impl RenderOnce for Tabs {
+@@ -1175,6 +1178,7 @@ impl RenderOnce for Tabs {
+                     .flex()
+                     .when(!vertical, |e| e.w_full().overflow_x_scroll())
+                     .when(vertical, |e| e.h_full().flex_col().overflow_y_scroll())
++                    .restrict_scroll_to_axis()
+                     .track_scroll(&scroll)
+                     .child(list),
+             )
+@@ -1192,12 +1196,12 @@ impl RenderOnce for Tabs {
                          let next = if vertical {
                              (
                                  f32::from(offset.y) < -0.5,
@@ -23392,7 +23416,7 @@ index 04bbd81e..6dfb192d 100644
                              )
                          };
                          if *measured.read(cx) != next {
-@@ -1286,11 +1289,11 @@ impl RenderOnce for Tabs {
+@@ -1286,11 +1290,11 @@ impl RenderOnce for Tabs {
                                  // should land on it when moving backward.
                                  let skip_panel = !panel_focus_for_keys.is_focused(window)
                                      && window.focused(cx).is_some_and(|handle| handle.tab_stop);
@@ -23407,7 +23431,7 @@ index 04bbd81e..6dfb192d 100644
                                      }
                                  }
                              } else if probe_on_key_up
-@@ -1302,13 +1305,13 @@ impl RenderOnce for Tabs {
+@@ -1302,13 +1306,13 @@ impl RenderOnce for Tabs {
                                  // the child it stands in for and then one real
                                  // step, skipping the wrapper again on wrap.
                                  cx.stop_propagation();
@@ -23424,7 +23448,7 @@ index 04bbd81e..6dfb192d 100644
                                      }
                                  }
                              }
-@@ -1324,9 +1327,9 @@ impl RenderOnce for Tabs {
+@@ -1324,9 +1328,9 @@ impl RenderOnce for Tabs {
                              // An all-disabled list has no focused tab whose
                              // key-down can run the forward probe. Tab key-up is
                              // delivered to the wrapper it just reached.
@@ -34387,7 +34411,7 @@ index e707f297..a2943496 100644
 +    }
 +}
 diff --git a/crates/herogpui-components/tests/table_tabs_accordion.rs b/crates/herogpui-components/tests/table_tabs_accordion.rs
-index 7446367b..6fa09fa1 100644
+index 7446367b..84b43ae9 100644
 --- a/crates/herogpui-components/tests/table_tabs_accordion.rs
 +++ b/crates/herogpui-components/tests/table_tabs_accordion.rs
 @@ -211,8 +211,11 @@ fn table_keyboard_rows_rove_and_activate(cx: &mut TestAppContext) {
@@ -34416,22 +34440,22 @@ index 7446367b..6fa09fa1 100644
 +
 +    // PageUp leaves the body. The proof is that Enter no longer activates a
 +    // row: the focus is on the header, not on the cursor it left behind.
-     press(cx, "pageup");
-     press(cx, "enter");
-     assert_eq!(
-         recorded.borrow().as_slice(),
--        ["row:2", "row:1"],
--        "PageDown and PageUp must reach the enabled ends of a plain Table body"
++    press(cx, "pageup");
++    press(cx, "enter");
++    assert_eq!(
++        recorded.borrow().as_slice(),
 +        ["row:2"],
 +        "PageUp must move the focus into the first column header, so Enter no          longer reaches the row the cursor was left on"
 +    );
 +    press(cx, "pagedown");
 +    press(cx, "enter");
-+    press(cx, "pageup");
+     press(cx, "pageup");
 +    press(cx, "down");
-+    press(cx, "enter");
-+    assert_eq!(
-+        recorded.borrow().as_slice(),
+     press(cx, "enter");
+     assert_eq!(
+         recorded.borrow().as_slice(),
+-        ["row:2", "row:1"],
+-        "PageDown and PageUp must reach the enabled ends of a plain Table body"
 +        ["row:2", "row:2", "row:1"],
 +        "PageDown and Down from a header must reach the last and first enabled body rows"
      );
@@ -34470,6 +34494,117 @@ index 7446367b..6fa09fa1 100644
  /// A sortable header is its own tab stop (the port's reading of "one stop per
  /// sortable column"), and gpui fires a *focused* element's click listeners on
  /// Enter and Space. The descriptor reported by the keys must be exactly the
+@@ -739,6 +790,16 @@ fn tabs_vertical_overflow_chevrons_scroll_the_list(cx: &mut TestAppContext) {
+     flush_frame(cx);
+     flush_frame(cx);
+ 
++    let indicator = cx
++        .debug_bounds(r#"Name("tb-vertical-overflow")-indicator"#)
++        .expect("indicator paints");
++    wheel_h(cx, 40., 80., -40.);
++    assert_eq!(
++        cx.debug_bounds(r#"Name("tb-vertical-overflow")-indicator"#),
++        Some(indicator),
++        "horizontal wheel must not scroll vertical tabs"
++    );
++
+     click(cx, 40., 164.);
+     assert!(
+         recorded.borrow().is_empty(),
+@@ -1138,3 +1199,93 @@ fn disclosure_group_third_item_reports_with_bodies_pushing(cx: &mut TestAppConte
+          keys; only the first item's open body can have put them there"
+     );
+ }
++
++#[gpui::test]
++fn horizontal_components_keep_vertical_wheels_on_the_page(cx: &mut TestAppContext) {
++    for kind in 0..3 {
++        harness::still();
++        let page_scroll = gpui::ScrollHandle::new();
++        let page_for_view = page_scroll.clone();
++        let probe_name = if kind == 1 {
++            r#"Name("axis-tabs")-indicator"#
++        } else {
++            "axis-content"
++        };
++        let cx = open_host(cx, move || {
++            let content = match kind {
++                0 => Table::new(vec![])
++                    .id("axis-table")
++                    .columns(vec![TableColumn::new("Column")
++                        .default_width(px(480.))
++                        .min_width(px(480.))])
++                    .row(vec![gpui::div()
++                        .h(px(80.))
++                        .w_full()
++                        .debug_selector(|| "axis-content".to_owned())
++                        .into_any_element()])
++                    .into_any_element(),
++                1 => Tabs::new(
++                    "axis-tabs",
++                    (0..10)
++                        .map(|i| TabItem::new(format!("{i}"), format!("Tab {i}")))
++                        .collect(),
++                    "0",
++                )
++                .into_any_element(),
++                _ => herogpui_components::ScrollShadow::new("axis-shadow")
++                    .orientation(Orientation::Horizontal)
++                    .max_w(px(240.))
++                    .child(
++                        gpui::div()
++                            .w(px(480.))
++                            .h(px(80.))
++                            .flex_shrink_0()
++                            .debug_selector(|| "axis-content".to_owned()),
++                    )
++                    .into_any_element(),
++            };
++            gpui::div()
++                .id("axis-page")
++                .w(px(240.))
++                .h(px(200.))
++                .overflow_y_scroll()
++                .restrict_scroll_to_axis()
++                .track_scroll(&page_for_view)
++                .child(gpui::div().h(px(600.)).child(content))
++                .into_any_element()
++        });
++        flush_frame(cx);
++        flush_frame(cx);
++        let before = cx.debug_bounds(probe_name).expect("content paints");
++        let y = if kind == 0 { 90. } else { 20. };
++        cx.simulate_event(ScrollWheelEvent {
++            position: point(px(100.), px(y)),
++            delta: ScrollDelta::Pixels(point(px(0.), px(-10.))),
++            ..Default::default()
++        });
++        flush_frame(cx);
++        assert_eq!(
++            page_scroll.offset().y,
++            px(-10.),
++            "vertical wheel reaches page: kind={kind}"
++        );
++        let after_vertical = cx.debug_bounds(probe_name).expect("content stays visible");
++        assert_eq!(
++            after_vertical.origin.x, before.origin.x,
++            "vertical wheel must not move content sideways: kind={kind}"
++        );
++        wheel_h(cx, 100., y - 10., -20.);
++        let after_horizontal = cx
++            .debug_bounds(probe_name)
++            .expect("content stays visible after horizontal wheel");
++        assert!(
++            after_horizontal.origin.x < before.origin.x,
++            "horizontal wheel moves component: kind={kind}"
++        );
++        assert_eq!(
++            page_scroll.offset().y,
++            px(-10.),
++            "horizontal wheel leaves page in place: kind={kind}"
++        );
++    }
++}
 diff --git a/crates/herogpui-components/tests/tabs_deep.rs b/crates/herogpui-components/tests/tabs_deep.rs
 index 11656b22..4f8cf9ca 100644
 --- a/crates/herogpui-components/tests/tabs_deep.rs
@@ -35393,7 +35528,7 @@ index 00000000..244391e3
 +    );
 +}
 diff --git a/crates/herogpui-components/tests/virtual_and_feedback.rs b/crates/herogpui-components/tests/virtual_and_feedback.rs
-index afc5d406..d231dcfc 100644
+index afc5d406..4ce81bfd 100644
 --- a/crates/herogpui-components/tests/virtual_and_feedback.rs
 +++ b/crates/herogpui-components/tests/virtual_and_feedback.rs
 @@ -58,8 +58,8 @@ use gpui::{
@@ -35577,6 +35712,25 @@ index afc5d406..d231dcfc 100644
  /// React Aria's pinned `useTable` builds its keyboard delegate from the full
  /// collection and passes the virtual layout delegate alongside it, so rows do
  /// not stop being keyboard destinations merely because they are not painted.
+@@ -1290,6 +1453,18 @@ fn scroll_shadow_reports_visibility_as_it_scrolls(cx: &mut TestAppContext) {
+         "at the top of a scrollable box only the bottom edge shades"
+     );
+ 
++    cx.simulate_event(ScrollWheelEvent {
++        position: point(px(100.), px(80.)),
++        delta: ScrollDelta::Pixels(point(px(-80.), px(0.))),
++        ..Default::default()
++    });
++    flush_frame(cx);
++    assert_eq!(
++        recorded.borrow().as_slice(),
++        ["bottom"],
++        "horizontal wheel must not move a vertical ScrollShadow"
++    );
++
+     // Half the max (156 of 312): past the start and short of the end → Both.
+     wheel(cx, 100., 80., -156.);
+     assert_eq!(
 diff --git a/crates/herogpui-core/src/enums.rs b/crates/herogpui-core/src/enums.rs
 index 9a9bf10b..780d64d2 100644
 --- a/crates/herogpui-core/src/enums.rs
@@ -201213,7 +201367,7 @@ index 723274b0..f4c6f34d 100644
              // `HEROGPUI_WINDOW_SIZE=1200x2000` opens the window at that size.
              // A capture is one PrintWindow of the whole window, so a taller
 diff --git a/gallery/src/pages/components.rs b/gallery/src/pages/components.rs
-index 5eb12cd4..d319e05f 100644
+index 5eb12cd4..14127821 100644
 --- a/gallery/src/pages/components.rs
 +++ b/gallery/src/pages/components.rs
 @@ -1,7 +1,7 @@
@@ -202734,7 +202888,7 @@ index 5eb12cd4..d319e05f 100644
                  ),
                  (
                      "Column Resizing",
-+                    "Drag a trailing-edge divider, or focus it with Tab, press Enter, and use the arrow keys. This example feeds onResize values back as controlled column widths and reports completion through onResizeEnd.",
++                    "Drag a trailing-edge divider, or focus it with Tab, press Enter, and use the arrow keys. This example feeds onResize values back as controlled column widths and reports completion through onResizeEnd. Scroll horizontally to reach wide columns; vertical wheel input does not shift them sideways.",
 +                    {
 +                    let resize_name = self.demo_value("tbl-resize-name", 220.);
 +                    let resize_role = self.demo_value("tbl-resize-role", 180.);
@@ -205419,7 +205573,7 @@ index 5eb12cd4..d319e05f 100644
                  ),
                  (
                      "Overflow",
-+                    "More tabs than fit scroll along their axis.",
++                    "More tabs than fit scroll along their axis. Wheel input from the other axis continues to the page.",
                      col(vec![
 -                        para("More tabs than fit scroll along their axis.", cx),
                          para("Horizontal", cx),
@@ -207536,7 +207690,15 @@ index 5eb12cd4..d319e05f 100644
                          h::ScrollShadow::new("ss-no-bar")
                              .max_h(px(140.))
                              .children(
-@@ -12385,13 +13168,45 @@ fn icon(path: &'static str, cx: &gpui::App) -> AnyElement {
+@@ -12337,6 +13120,7 @@ impl Gallery {
+                 ),
+                 (
+                     "Horizontal",
++                    "Scroll sideways to reveal more cards. Vertical wheel input continues to the page.",
+                     col(vec![h::ScrollShadow::new("ss-h")
+                         .orientation(Orientation::Horizontal)
+                         .max_w(px(520.))
+@@ -12385,13 +13169,45 @@ fn icon(path: &'static str, cx: &gpui::App) -> AnyElement {
          .into_any_element()
  }
  
@@ -212936,7 +213098,7 @@ index 6452b2b7..b70b6484 100644
      }
  }
 diff --git a/gallery/src/pages/reference_metadata.rs b/gallery/src/pages/reference_metadata.rs
-index 71065ac8..abe498a3 100644
+index 71065ac8..11c638f6 100644
 --- a/gallery/src/pages/reference_metadata.rs
 +++ b/gallery/src/pages/reference_metadata.rs
 @@ -22,7 +22,12 @@ impl ImplementationStatus {
@@ -213173,6 +213335,15 @@ index 71065ac8..abe498a3 100644
      StyleDoc {
          class_or_token: ".input-otp",
          value: "relative flex w-full items-center gap-2",
+@@ -6199,7 +6230,7 @@ const TABS_STYLING: &[StyleDoc] = &[
+     StyleDoc {
+         class_or_token: ".tabs__list-container__scroller",
+         value: "ScrollShadow size 64 with hidden scrollbar",
+-        description: "Scrollable viewport and fading overflow edges.",
++        description: "Scrollable viewport follows the configured axis without remapping wheel input from the other axis; fading overflow edges remain unavailable.",
+         rust: "raw overflow scroller; chevrons are measured but edge fades are absent",
+         status: ImplementationStatus::Partial,
+     },
 @@ -6234,7 +6265,7 @@ const TABS_STYLING: &[StyleDoc] = &[
      StyleDoc {
          class_or_token: ".tabs__tab",
@@ -213723,13 +213894,15 @@ index 71065ac8..abe498a3 100644
      StateDoc { state: "Disabled row", selector: "[aria-disabled=\"true\"] / [data-disabled=\"true\"]", description: "disabledKeys rows are dimmed and removed from selection, actions and keyboard stops.", rust: "disabled_keys + disabled_opacity", status: ImplementationStatus::Implemented },
      StateDoc { state: "Disabled table", selector: ":disabled / [aria-disabled=\"true\"]", description: "v3 styles a disabled table, but documents no prop that can disable the whole control.", rust: "—", status: ImplementationStatus::Unavailable },
      StateDoc { state: "Sortable", selector: "[data-allows-sorting=\"true\"]", description: "Sortable headers use the interactive cursor, hover fill and keyboard activation.", rust: "allows_sorting + cursor_pointer + sort_focus", status: ImplementationStatus::Implemented },
-@@ -11425,14 +11464,14 @@ const TABLE_STYLING: &[StyleDoc] = &[
+@@ -11424,15 +11463,15 @@ const TABLE_STYLING: &[StyleDoc] = &[
+     StyleDoc { class_or_token: ".table-root", value: "relative grid w-full overflow-clip", description: "The port is a full-width overflow-hidden flex tray, not a CSS grid with minmax(0,1fr) tracks.", rust: "w_full + overflow_hidden", status: ImplementationStatus::Partial },
      StyleDoc { class_or_token: ".table-root--primary", value: "bg-surface-secondary px-1 pb-1; radius min(32px, radius * 2.5)", description: "Gray tray inset and overlay-sized radius around the surface card.", rust: "surface_secondary + px/pb(px(4.)) + radius_lg * 2.5 min 32", status: ImplementationStatus::Implemented },
      StyleDoc { class_or_token: ".table-root--secondary", value: "no root fill, padding or rounding", description: "Secondary leaves the root flat; first/last header rounding and per-cell hover fills are not reproduced.", rust: "variant Secondary skips the tray", status: ImplementationStatus::Partial },
-     StyleDoc { class_or_token: ".table__scroll-container", value: "scrollbar overflow-x-auto", description: "Horizontal scroller around the content column; custom scrollbar styling is absent.", rust: "overflow_x_scroll", status: ImplementationStatus::Partial },
+-    StyleDoc { class_or_token: ".table__scroll-container", value: "scrollbar overflow-x-auto", description: "Horizontal scroller around the content column; custom scrollbar styling is absent.", rust: "overflow_x_scroll", status: ImplementationStatus::Partial },
 -    StyleDoc { class_or_token: ".table__content", value: "w-full border-separate border-spacing-0 text-sm", description: "14px type matches; the port is a flex column rather than a border-separate table.", rust: "min_w_full flex_col text_size(px(14.))", status: ImplementationStatus::Partial },
 -    StyleDoc { class_or_token: ".table__header", value: "border-b border-separator/50 bg-surface-secondary", description: "Header rule and secondary fill on primary; separator alpha is the solid separator token.", rust: "border_b_1 + separator + surface_secondary", status: ImplementationStatus::Partial },
 -    StyleDoc { class_or_token: ".table__column", value: "px-4 py-2.5 text-xs font-medium text-muted", description: "16/10px inset and 12px type match; the port uses semibold uppercase labels instead of medium sentence case.", rust: "px(16.) py(10.) text_size(12.) SEMIBOLD to_uppercase", status: ImplementationStatus::Partial },
++    StyleDoc { class_or_token: ".table__scroll-container", value: "scrollbar overflow-x-auto", description: "Horizontal input scrolls the content column; vertical input is not remapped sideways. Custom scrollbar styling is absent.", rust: "overflow_x_scroll", status: ImplementationStatus::Partial },
 +    StyleDoc { class_or_token: ".table__content", value: "w-full border-separate border-spacing-0 text-sm", description: "14px type and 20px line height match; the port is a flex column rather than a border-separate table.", rust: "min_w_full flex_col text_size(px(14.)) line_height(px(20.))", status: ImplementationStatus::Partial },
 +    StyleDoc { class_or_token: ".table__header", value: "border-b border-separator/50 bg-surface-secondary", description: "Header rule and secondary fill on primary; the separator is rendered at 50% alpha.", rust: "border_b_1 + separator.alpha(0.5) + surface_secondary", status: ImplementationStatus::Partial },
 +    StyleDoc { class_or_token: ".table__column", value: "px-4 py-2.5 text-xs font-medium text-muted", description: "16/10px inset and 12px type with 16px lines match; the port uses medium caller-case labels, but short vertical column separators are not drawn.", rust: "px(16.) py(10.) text_size(12.) line_height(16.) MEDIUM + label.clone()", status: ImplementationStatus::Partial },
@@ -215443,7 +215616,7 @@ index 71065ac8..abe498a3 100644
 +    StyleDoc {
 +        class_or_token: "[data-orientation]",
 +        value: "vertical | horizontal",
-+        description: "Orientation switches scroll axis and fade direction.",
++        description: "Orientation switches scroll axis and fade direction; wheel input from the other axis is not remapped.",
 +        rust: "orientation(Orientation)",
 +        status: ImplementationStatus::Implemented,
 +    },
