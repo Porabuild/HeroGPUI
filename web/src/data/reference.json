@@ -16949,6 +16949,12 @@
     ],
     "styling": [
       {
+        "token": "text-sm / .header",
+        "description": "Text keeps its line height under surrounding styles. Section headers have 8px horizontal, 6px top and 4px bottom padding; selecting an option does not add font weight.",
+        "rust": "ComboBox text_size + line_height + section header styles",
+        "status": "implemented"
+      },
+      {
         "token": ".combo-box",
         "description": "Root field stack; the port matches the 4px gap but also enforces a local 180px minimum when not full width.",
         "rust": "flex_col + gap(px(4.)) + min_w(px(180.))",
@@ -17607,6 +17613,12 @@
       }
     ],
     "styling": [
+      {
+        "token": "text-sm / .header",
+        "description": "Text keeps its line height under surrounding styles. Section headers have 8px horizontal, 6px top and 4px bottom padding; selecting an option does not add font weight.",
+        "rust": "Autocomplete text_size + line_height + section header styles",
+        "status": "implemented"
+      },
       {
         "token": ".autocomplete",
         "description": "Four-pixel field stack with label and message siblings.",
@@ -19109,6 +19121,12 @@
       }
     ],
     "styling": [
+      {
+        "token": "text-sm / .header",
+        "description": "Text keeps its line height under surrounding styles. Section headers have 8px horizontal, 6px top and 4px bottom padding; selecting an option does not add font weight.",
+        "rust": "Select text_size + line_height + section header styles",
+        "status": "implemented"
+      },
       {
         "token": ".select",
         "description": "The inner field wrapper stacks at four pixels only when label or description content exists; the root also adds a 320px cap.",

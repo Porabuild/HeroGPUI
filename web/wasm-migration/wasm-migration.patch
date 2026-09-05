@@ -6347,7 +6347,7 @@ index 03f0c94f..018b302a 100644
      }
  
 diff --git a/crates/herogpui-components/src/autocomplete.rs b/crates/herogpui-components/src/autocomplete.rs
-index debe0354..3c60d5fc 100644
+index debe0354..ab7aa154 100644
 --- a/crates/herogpui-components/src/autocomplete.rs
 +++ b/crates/herogpui-components/src/autocomplete.rs
 @@ -43,6 +43,7 @@ use herogpui_theme::ActiveTheme;
@@ -6479,7 +6479,17 @@ index debe0354..3c60d5fc 100644
  
          // --- the trigger ----------------------------------------------------
          // Whether the pointer went down on the trigger (or on the clear
-@@ -837,12 +886,7 @@ impl RenderOnce for Autocomplete {
+@@ -794,7 +843,8 @@ impl RenderOnce for Autocomplete {
+             .min_h(util::FIELD_HEIGHT)
+             .px(px(12.))
+             .pr(px(28.))
+-            .text_size(util::FIELD_TEXT);
++            .text_size(util::FIELD_TEXT)
++            .line_height(px(20.));
+         field = util::apply_field_chrome(field, self.variant, is_invalid, false, cx);
+         // `.autocomplete__trigger:focus-visible` is `status-focused` -- the
+         // offset ring, not a field's flush one, which is why the chrome above is
+@@ -837,12 +887,7 @@ impl RenderOnce for Autocomplete {
          let mut selected_items: Vec<SharedString> = Vec::new();
          let mut selected_indices: Vec<usize> = Vec::new();
          for key in &self.selected_keys {
@@ -6493,7 +6503,15 @@ index debe0354..3c60d5fc 100644
                  selected_items.push(item.label().clone());
                  selected_indices.push(index);
              }
-@@ -1330,7 +1374,7 @@ impl RenderOnce for Autocomplete {
+@@ -868,6 +913,7 @@ impl RenderOnce for Autocomplete {
+             .min_w_0()
+             .truncate()
+             .text_size(util::FIELD_TEXT)
++            .line_height(px(20.))
+             .text_color(if is_placeholder {
+                 colors.field.placeholder
+             } else {
+@@ -1330,7 +1376,7 @@ impl RenderOnce for Autocomplete {
                      cb(false, window, cx);
                  }
                  if let Some(handle) = &escape_focus {
@@ -6502,7 +6520,41 @@ index debe0354..3c60d5fc 100644
                  }
                  util::DismissResult::Handled
              });
-@@ -1579,7 +1623,7 @@ impl RenderOnce for Autocomplete {
+@@ -1469,10 +1515,12 @@ impl RenderOnce for Autocomplete {
+                 if let Some((_, label)) = sections.iter().find(|(at, _)| at == item.key()) {
+                     head.push(
+                         gpui::div()
+-                            .px(px(10.))
++                            .px(px(8.))
+                             .pt(px(6.))
+-                            .pb(px(2.))
++                            .pb(px(4.))
+                             .text_size(px(12.))
++                            .line_height(px(16.))
++                            .font_weight(gpui::FontWeight::MEDIUM)
+                             .text_color(row_muted)
+                             .child(label.to_string())
+                             .into_any_element(),
+@@ -1498,6 +1546,7 @@ impl RenderOnce for Autocomplete {
+                     .py(px(6.))
+                     .gap(px(12.))
+                     .text_size(util::FIELD_TEXT)
++                    .line_height(px(20.))
+                     .child(gpui::div().truncate().child(item.label().to_string()));
+ 
+                 if item_disabled {
+@@ -1506,9 +1555,7 @@ impl RenderOnce for Autocomplete {
+                     row = row.cursor_pointer().hover(move |s| s.bg(row_hover_bg));
+                 }
+                 if row_selected {
+-                    row = row
+-                        .text_color(row_accent)
+-                        .font_weight(gpui::FontWeight::MEDIUM);
++                    row = row.text_color(row_accent);
+                 } else {
+                     row = row.text_color(row_fg);
+                 }
+@@ -1579,7 +1626,7 @@ impl RenderOnce for Autocomplete {
                                  cb(false, window, cx);
                              }
                              if let Some(handle) = &trigger_focus {
@@ -6511,7 +6563,7 @@ index debe0354..3c60d5fc 100644
                              }
                          }
                      });
-@@ -1604,7 +1648,7 @@ impl RenderOnce for Autocomplete {
+@@ -1604,7 +1651,7 @@ impl RenderOnce for Autocomplete {
                                      .collect::<Vec<_>>()
                              },
                          )
@@ -6520,6 +6572,14 @@ index debe0354..3c60d5fc 100644
                          .h(px(320.))
                          .w_full()
                          .p(px(6.)),
+@@ -1635,6 +1682,7 @@ impl RenderOnce for Autocomplete {
+                         .py(px(12.))
+                         .text_center()
+                         .text_size(util::FIELD_TEXT)
++                        .line_height(px(20.))
+                         .text_color(empty_fg)
+                         .child("No results found"),
+                 );
 diff --git a/crates/herogpui-components/src/avatar.rs b/crates/herogpui-components/src/avatar.rs
 index da3c0c96..5bc08817 100644
 --- a/crates/herogpui-components/src/avatar.rs
@@ -9267,7 +9327,7 @@ index f9e6947d..3ecd1c88 100644
 +    }
  }
 diff --git a/crates/herogpui-components/src/combo_box.rs b/crates/herogpui-components/src/combo_box.rs
-index 82400fcf..b8c2b52d 100644
+index 82400fcf..2ec7d3cf 100644
 --- a/crates/herogpui-components/src/combo_box.rs
 +++ b/crates/herogpui-components/src/combo_box.rs
 @@ -45,6 +45,7 @@ use herogpui_theme::ActiveTheme;
@@ -9526,7 +9586,7 @@ index 82400fcf..b8c2b52d 100644
              let selection_change = self.on_selection_change_all.clone();
              let input_change = self.on_input_change.clone();
              let allows_custom = self.allows_custom_value;
-@@ -1209,20 +1278,17 @@ impl RenderOnce for ComboBox {
+@@ -1209,35 +1278,33 @@ impl RenderOnce for ComboBox {
          // item now sits; a key with no item renders nothing.
          let mut value_content = None;
          if let Some(render) = self.value_content.take() {
@@ -9552,7 +9612,11 @@ index 82400fcf..b8c2b52d 100644
                  .iter()
                  .map(ToString::to_string)
                  .collect::<Vec<_>>()
-@@ -1233,11 +1299,11 @@ impl RenderOnce for ComboBox {
+                 .join(", ");
+             let default_children = div()
+                 .text_size(util::FIELD_TEXT)
++                .line_height(px(20.))
+                 .text_color(colors.field.foreground)
                  .child(text.clone())
                  .into_any_element();
              value_content = Some(render(util::SelectionValue {
@@ -9566,7 +9630,7 @@ index 82400fcf..b8c2b52d 100644
                  default_children,
              }));
          }
-@@ -1248,11 +1314,17 @@ impl RenderOnce for ComboBox {
+@@ -1248,11 +1315,17 @@ impl RenderOnce for ComboBox {
          // Up, down, Home, End and Enter walk the suggestions; the inner input
          // keeps left and right for the caret.
          if !self.is_disabled && !self.is_read_only {
@@ -9589,7 +9653,7 @@ index 82400fcf..b8c2b52d 100644
              let stops: Vec<usize> = (0..key_rows.len())
                  .filter(|i| {
                      key_rows
-@@ -1275,7 +1347,8 @@ impl RenderOnce for ComboBox {
+@@ -1275,7 +1348,8 @@ impl RenderOnce for ComboBox {
              let on_input_change = self.on_input_change.clone();
              let selected_now = self.selected_keys.clone();
              let key_query = raw_query.clone();
@@ -9599,7 +9663,7 @@ index 82400fcf..b8c2b52d 100644
              let key_filter = self.filter.clone();
              let key_max_items = self.max_items;
              let key_disabled = self.disabled_keys.clone();
-@@ -1293,34 +1366,30 @@ impl RenderOnce for ComboBox {
+@@ -1293,34 +1367,30 @@ impl RenderOnce for ComboBox {
                      .map_or(was_open, |held| *held.read(cx));
                  let stale_cursor = held.read(cx).as_ref().is_some_and(|focused| {
                      let current_query = state.read(cx).value().to_owned();
@@ -9656,7 +9720,35 @@ index 82400fcf..b8c2b52d 100644
                          };
                      let visible = cursor_position(&current_rows, focused).is_some();
                      let retained_hidden = focused.hidden_query.as_deref()
-@@ -1759,7 +1828,8 @@ impl RenderOnce for ComboBox {
+@@ -1637,6 +1707,7 @@ impl RenderOnce for ComboBox {
+                         .px(px(8.))
+                         .py(px(6.))
+                         .text_size(util::FIELD_TEXT)
++                        .line_height(px(20.))
+                         .text_color(colors.muted)
+                         .child(message),
+                 );
+@@ -1687,8 +1758,10 @@ impl RenderOnce for ComboBox {
+                         div()
+                             .px(px(8.))
+                             .pt(px(6.))
+-                            .pb(px(2.))
++                            .pb(px(4.))
+                             .text_size(px(12.))
++                            .line_height(px(16.))
++                            .font_weight(gpui::FontWeight::MEDIUM)
+                             .text_color(row_muted)
+                             .child(label.to_string())
+                             .into_any_element(),
+@@ -1712,6 +1785,7 @@ impl RenderOnce for ComboBox {
+                         .items_center()
+                         .justify_between()
+                         .text_size(util::FIELD_TEXT)
++                        .line_height(px(20.))
+                         .child(item.label().to_string());
+ 
+                 if item_disabled {
+@@ -1759,7 +1833,8 @@ impl RenderOnce for ComboBox {
                          let input_change = row_input_change.clone();
                          row = row.on_click(move |_, window, cx| {
                              let had_query = !state.read(cx).value().is_empty();
@@ -9666,7 +9758,7 @@ index 82400fcf..b8c2b52d 100644
                              state.update(cx, |st, cx| {
                                  st.set_value(String::new());
                                  cx.notify();
-@@ -1842,7 +1912,7 @@ impl RenderOnce for ComboBox {
+@@ -1842,7 +1917,7 @@ impl RenderOnce for ComboBox {
                                      .collect::<Vec<_>>()
                              },
                          )
@@ -13973,7 +14065,7 @@ index 4525f723..87a522e0 100644
          };
          let (past_start, before_end) = (
 diff --git a/crates/herogpui-components/src/select.rs b/crates/herogpui-components/src/select.rs
-index 753f8e92..bf01881f 100644
+index 753f8e92..c46637d7 100644
 --- a/crates/herogpui-components/src/select.rs
 +++ b/crates/herogpui-components/src/select.rs
 @@ -570,6 +570,11 @@ impl RenderOnce for Select {
@@ -13988,7 +14080,15 @@ index 753f8e92..bf01881f 100644
          // The Shift-range anchor lives beside the cursor, keyed off the same
          // instance id, so two selects never share an anchor and a closed
          // popover leaves its anchor standing for the reopen.
-@@ -708,14 +713,24 @@ impl RenderOnce for Select {
+@@ -645,6 +650,7 @@ impl RenderOnce for Select {
+             .min_h(h)
+             .px(px(12.))
+             .text_size(text)
++            .line_height(px(20.))
+             .cursor_pointer();
+ 
+         let _border_color = if is_open { sem.color } else { colors.separator };
+@@ -708,14 +714,24 @@ impl RenderOnce for Select {
              let key_list_scroll = list_scroll_now.clone();
              let key_panel_scroll = panel_scroll_now.clone();
              let fh = focus_handle.clone();
@@ -14015,7 +14115,7 @@ index 753f8e92..bf01881f 100644
                      if !was_open {
                          // Closed: Down and Up open the list. Enter and Space are
                          // *not* handled here -- the trigger has a click listener
-@@ -749,7 +764,7 @@ impl RenderOnce for Select {
+@@ -749,7 +765,7 @@ impl RenderOnce for Select {
                          if !crate::list_nav::is_typeahead_key(key) {
                              return;
                          }
@@ -14024,7 +14124,7 @@ index 753f8e92..bf01881f 100644
                          let (query, repeat) = typed.update(cx, |t, _| {
                              let query = t.push(key, now);
                              (query, t.is_repeat())
-@@ -943,10 +958,8 @@ impl RenderOnce for Select {
+@@ -943,10 +959,8 @@ impl RenderOnce for Select {
                              }
                          }
                          crate::list_nav::Move::Activate => {
@@ -14037,7 +14137,7 @@ index 753f8e92..bf01881f 100644
                              let Some(index) = from else { return };
                              if multiple {
                                  let added = !selected_indices_keys.contains(&index);
-@@ -1010,7 +1023,7 @@ impl RenderOnce for Select {
+@@ -1010,7 +1024,7 @@ impl RenderOnce for Select {
                              if !crate::list_nav::is_typeahead_key(key) {
                                  return;
                              }
@@ -14046,7 +14146,7 @@ index 753f8e92..bf01881f 100644
                              let (query, repeat) = typed.update(cx, |t, _| {
                                  let query = t.push(key, now);
                                  (query, t.is_repeat())
-@@ -1114,19 +1127,33 @@ impl RenderOnce for Select {
+@@ -1114,19 +1128,33 @@ impl RenderOnce for Select {
                      // Enter and Space activate the highlighted option before
                      // gpui synthesizes this trigger click. Multiple selection
                      // keeps the popover open for the next pick.
@@ -14083,7 +14183,40 @@ index 753f8e92..bf01881f 100644
                      }
                  });
          }
-@@ -1377,7 +1404,7 @@ impl RenderOnce for Select {
+@@ -1291,8 +1319,10 @@ impl RenderOnce for Select {
+                         gpui::div()
+                             .px(px(8.))
+                             .pt(px(6.))
+-                            .pb(px(2.))
++                            .pb(px(4.))
+                             .text_size(px(12.))
++                            .line_height(px(16.))
++                            .font_weight(gpui::FontWeight::MEDIUM)
+                             .text_color(row_muted)
+                             .child(label.to_string())
+                             .into_any_element(),
+@@ -1316,7 +1346,8 @@ impl RenderOnce for Select {
+                         .px(px(10.))
+                         .py(px(6.))
+                         .gap(px(12.))
+-                        .text_size(util::FIELD_TEXT);
++                        .text_size(util::FIELD_TEXT)
++                        .line_height(px(20.));
+ 
+                 if opt_disabled {
+                     item = item.opacity(row_disabled_opacity);
+@@ -1325,9 +1356,7 @@ impl RenderOnce for Select {
+                 }
+ 
+                 if is_sel {
+-                    item = item
+-                        .text_color(row_accent)
+-                        .font_weight(gpui::FontWeight::MEDIUM);
++                    item = item.text_color(row_accent);
+                 } else {
+                     item = item.text_color(row_fg);
+                 }
+@@ -1377,7 +1406,7 @@ impl RenderOnce for Select {
                                  // on the row and deafen the trigger's key
                                  // handler; the trigger is what holds focus so
                                  // the open list stays keyboard-walkable.
@@ -14092,7 +14225,7 @@ index 753f8e92..bf01881f 100644
                                  let mut next = current.clone();
                                  // A Shift click extends from the anchor
                                  // through `extendSelection`; an ordinary or
-@@ -1499,7 +1526,7 @@ impl RenderOnce for Select {
+@@ -1499,7 +1528,7 @@ impl RenderOnce for Select {
                                      .collect::<Vec<_>>()
                              },
                          )
@@ -24101,9 +24234,22 @@ index 2b51c981..15eaec05 100644
  fn custom_navigation_icons_own_the_previous_and_next_slots(cx: &mut TestAppContext) {
      let recorded = events();
 diff --git a/crates/herogpui-components/tests/pickers_deep.rs b/crates/herogpui-components/tests/pickers_deep.rs
-index 4cf8efaf..c44cb77a 100644
+index 4cf8efaf..777626d7 100644
 --- a/crates/herogpui-components/tests/pickers_deep.rs
 +++ b/crates/herogpui-components/tests/pickers_deep.rs
+@@ -34,9 +34,9 @@
+ //! - Autocomplete: panel `pt(8)` + search wrapper `py(4)` + 36px field + list
+ //!   `p(6)` puts row *i* at y 100+36i; clicking y = 124+36i lands inside it in
+ //!   every phase of the entry zoom. A `section_before` heading rides above its
+-//!   item inside the same slot: `pt(6) pb(2)` at 12px (~19.4px line at gpui's
+-//!   phi default), so for the slot starting at y S the heading occupies
+-//!   roughly S+6..S+27 and the row S+27..S+63; the heading probe clicks
++//!   item inside the same slot: `pt(6) pb(4)` around a 16px line, so for the
++//!   slot starting at y S the heading occupies S..S+26 and the row
++//!   S+26..S+62; the heading probe clicks
+ //!   S+14 and the option S+42.
+ //! - The Autocomplete clear button is the 20px (`size-5`) box in the trigger's
+ //!   flex row; the 320px trigger (`max_w(320)`) has `pr(28)`, so the button
 @@ -174,7 +174,7 @@ fn autocomplete_programmatic_focus_departure_closes_without_refocusing(cx: &mut
      flush_frame(cx);
      cx.update(|window, cx| {
@@ -24113,6 +24259,15 @@ index 4cf8efaf..c44cb77a 100644
      });
      flush_frame(cx);
  
+@@ -501,7 +501,7 @@ fn autocomplete_section_heading_is_never_a_stop(cx: &mut TestAppContext) {
+     assert_eq!(opened.borrow().as_slice(), ["open:true", "open:false"]);
+ 
+     // The section's slot starts at y = 100 + 36*2 = 172: the heading spans
+-    // ~172..199 (pt-6 + a 12px line + pb-2) and the option 36px below it.
++    // 172..198 (pt-6 + a 16px line + pb-4) and the option 36px below it.
+     // A press at 172+14 = 186 hits the heading: no selection, no dismissal.
+     click(cx, 60., 18.);
+     assert_eq!(
 @@ -1675,6 +1675,216 @@ fn autocomplete_filter_matches_labels_not_keys(cx: &mut TestAppContext) {
      );
  }
@@ -24536,6 +24691,72 @@ index 4cf8efaf..c44cb77a 100644
  /// A select whose whole collection is disabled opens but answers nothing: the
  /// rows have no handlers and the arrow-key resolver has no stops, so neither
  /// path can choose anything, and nothing is ever reported.
+@@ -3589,3 +3914,65 @@ fn drawer_footer_sits_after_the_body_and_both_answer(cx: &mut TestAppContext) {
+          puts it"
+     );
+ }
++
++#[gpui::test]
++fn picker_text_metrics_keep_sections_and_options_in_place(cx: &mut TestAppContext) {
++    for kind in 0..3 {
++        for leading in [None, Some(48.)] {
++            harness::still();
++            let state = search_state(cx);
++            let changes = events();
++            let recorded = changes.clone();
++            let cx = open_host(cx, move || {
++                let changes = changes.clone();
++                let control = match kind {
++                    0 => Select::new("leading-select", vec!["Alpha".into()])
++                        .default_open(true)
++                        .section_before(0, "First\nSecond")
++                        .on_change(move |_, _, _| changes.borrow_mut().push("picked".into()))
++                        .into_any_element(),
++                    1 => Autocomplete::new(state.clone(), keyed(&["Alpha"]))
++                        .default_open(true)
++                        .section_before("Alpha", "First\nSecond")
++                        .on_change(move |_, _, _| changes.borrow_mut().push("picked".into()))
++                        .into_any_element(),
++                    _ => ComboBox::new(state.clone(), keyed(&["Alpha"]))
++                        .default_open(true)
++                        .section_before("Alpha", "First\nSecond")
++                        .on_change(move |_, _, _| changes.borrow_mut().push("picked".into()))
++                        .into_any_element(),
++                };
++                gpui::div()
++                    .w(px(320.))
++                    .when_some(leading, |el, leading| el.line_height(px(leading)))
++                    .child(
++                        gpui::div()
++                            .debug_selector(|| "picker-leading-trigger".into())
++                            .child(control),
++                    )
++                    .into_any_element()
++            });
++            flush_frame(cx);
++            assert_eq!(
++                cx.debug_bounds("picker-leading-trigger")
++                    .expect("trigger paints")
++                    .size
++                    .height,
++                px(36.),
++                "kind={kind}, host={leading:?}"
++            );
++            let option_center = match kind {
++                0 => 108.,
++                1 => 160.,
++                _ => 106.,
++            };
++            click(cx, 60., option_center - 36.);
++            assert!(
++                recorded.borrow().is_empty(),
++                "section is inert: kind={kind}, host={leading:?}"
++            );
++            click(cx, 60., option_center);
++            assert_eq!(recorded.borrow().as_slice(), ["picked"], "36px option follows two 16px header lines plus 10px header padding: kind={kind}, host={leading:?}");
++        }
++    }
++}
 diff --git a/crates/herogpui-components/tests/placement_extra.rs b/crates/herogpui-components/tests/placement_extra.rs
 index 8dd85714..84a1532e 100644
 --- a/crates/herogpui-components/tests/placement_extra.rs
@@ -31428,7 +31649,7 @@ index 723274b0..f4c6f34d 100644
              // `HEROGPUI_WINDOW_SIZE=1200x2000` opens the window at that size.
              // A capture is one PrintWindow of the whole window, so a taller
 diff --git a/gallery/src/pages/components.rs b/gallery/src/pages/components.rs
-index 5eb12cd4..9a305703 100644
+index 5eb12cd4..b8802bf9 100644
 --- a/gallery/src/pages/components.rs
 +++ b/gallery/src/pages/components.rs
 @@ -1,7 +1,7 @@
@@ -36987,11 +37208,13 @@ index 5eb12cd4..9a305703 100644
                              .selection_mode(SelectionMode::Multiple)
                              .default_value(["rust", "go"])
                              .value_content(|value| {
-@@ -11205,7 +11955,7 @@ impl Gallery {
+@@ -11204,8 +11954,8 @@ impl Gallery {
+                     ]),
                  ),
                  (
-                     "Usage",
+-                    "Usage",
 -                    col(vec![h::Autocomplete::new(
++                    "Usage", "Values and options use 14px text with 20px lines. Section headers use 12px text with 16px lines and keep their own spacing.",
 +                    field_col(vec![h::Autocomplete::new(
                          self.ac_entity.clone(),
                          language_items(),
@@ -37338,11 +37561,13 @@ index 5eb12cd4..9a305703 100644
                          self.demo_text("cb-validate", "Zig", cx),
                          language_items(),
                      )
-@@ -11624,7 +12386,7 @@ impl Gallery {
+@@ -11623,8 +12385,8 @@ impl Gallery {
+                     .into_any_element()]),
                  ),
                  (
-                     "Usage",
+-                    "Usage",
 -                    col(vec![h::ComboBox::new(
++                    "Usage", "Values and options use 14px text with 20px lines. Section headers use 12px text with 16px lines and keep their own spacing.",
 +                    field_col(vec![h::ComboBox::new(
                          self.combo_state.clone(),
                          language_items(),
@@ -37461,17 +37686,18 @@ index 5eb12cd4..9a305703 100644
                          .label("Language")
                          .placeholder("Choose one")
                          .value(selected)
-@@ -11868,7 +12622,8 @@ impl Gallery {
+@@ -11867,8 +12621,8 @@ impl Gallery {
+                         .into_any_element()]),
                  ),
                  (
-                     "Usage",
+-                    "Usage",
 -                    col(vec![h::Select::new("sel-main", languages())
-+                    "Use the arrow keys and Enter or Space to select a language. Selection closes the list and keeps focus on the trigger.",
++                    "Usage", "Use the arrow keys and Enter or Space to select a language. Selection closes the list and keeps focus on the trigger. Values and options use 14px text with 20px lines. Section headers use 12px text with 16px lines and keep their own spacing.",
 +                    field_col(vec![h::Select::new("sel-main", languages())
                          .label("Language")
                          .placeholder("Choose one")
                          .value(selected)
-@@ -11888,18 +12643,20 @@ impl Gallery {
+@@ -11888,18 +12642,20 @@ impl Gallery {
                  ),
                  (
                      "Uncontrolled",
@@ -37494,7 +37720,7 @@ index 5eb12cd4..9a305703 100644
                                  .value(selected)
                                  .on_selection_change(opt_usize_cb(cx.listener(
                                      |this, i: &Option<usize>, _, cx| {
-@@ -11913,21 +12670,26 @@ impl Gallery {
+@@ -11913,21 +12669,26 @@ impl Gallery {
                  ),
                  (
                      "Full width",
@@ -37532,7 +37758,7 @@ index 5eb12cd4..9a305703 100644
                          .label("Languages")
                          .placeholder("Pick several")
                          .selection_mode(SelectionMode::Multiple)
-@@ -12050,14 +12812,8 @@ impl Gallery {
+@@ -12050,14 +12811,8 @@ impl Gallery {
                  ),
                  (
                      "Render Props",
@@ -37548,7 +37774,7 @@ index 5eb12cd4..9a305703 100644
                          h::Prose::new()
                              .child(h::Typography::paragraph(
                                  h::ParagraphSize::Base,
-@@ -12265,12 +13021,8 @@ impl Gallery {
+@@ -12265,12 +13020,8 @@ impl Gallery {
                  ),
                  (
                      "Hide Scroll Bar",
@@ -37562,7 +37788,7 @@ index 5eb12cd4..9a305703 100644
                          h::ScrollShadow::new("ss-no-bar")
                              .max_h(px(140.))
                              .children(
-@@ -12385,13 +13137,45 @@ fn icon(path: &'static str, cx: &gpui::App) -> AnyElement {
+@@ -12385,13 +13136,45 @@ fn icon(path: &'static str, cx: &gpui::App) -> AnyElement {
          .into_any_element()
  }
  

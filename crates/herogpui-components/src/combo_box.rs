@@ -1295,6 +1295,7 @@ impl RenderOnce for ComboBox {
                 .join(", ");
             let default_children = div()
                 .text_size(util::FIELD_TEXT)
+                .line_height(px(20.))
                 .text_color(colors.field.foreground)
                 .child(text.clone())
                 .into_any_element();
@@ -1706,6 +1707,7 @@ impl RenderOnce for ComboBox {
                         .px(px(8.))
                         .py(px(6.))
                         .text_size(util::FIELD_TEXT)
+                        .line_height(px(20.))
                         .text_color(colors.muted)
                         .child(message),
                 );
@@ -1756,8 +1758,10 @@ impl RenderOnce for ComboBox {
                         div()
                             .px(px(8.))
                             .pt(px(6.))
-                            .pb(px(2.))
+                            .pb(px(4.))
                             .text_size(px(12.))
+                            .line_height(px(16.))
+                            .font_weight(gpui::FontWeight::MEDIUM)
                             .text_color(row_muted)
                             .child(label.to_string())
                             .into_any_element(),
@@ -1781,6 +1785,7 @@ impl RenderOnce for ComboBox {
                         .items_center()
                         .justify_between()
                         .text_size(util::FIELD_TEXT)
+                        .line_height(px(20.))
                         .child(item.label().to_string());
 
                 if item_disabled {

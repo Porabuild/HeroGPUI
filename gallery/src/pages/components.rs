@@ -11660,7 +11660,7 @@ impl Gallery {
             crate::pages::Page::Autocomplete.import_line(),
             vec![
                 (
-                    "Usage",
+                    "Usage", "Values and options use 14px text with 20px lines. Section headers use 12px text with 16px lines and keep their own spacing.",
                     field_col(vec![h::Autocomplete::new(
                         self.ac_entity.clone(),
                         language_items(),
@@ -11970,7 +11970,7 @@ impl Gallery {
             crate::pages::Page::ComboBox.import_line(),
             vec![
                 (
-                    "Usage",
+                    "Usage", "Values and options use 14px text with 20px lines. Section headers use 12px text with 16px lines and keep their own spacing.",
                     field_col(vec![h::ComboBox::new(
                         self.combo_state.clone(),
                         language_items(),
@@ -12416,8 +12416,7 @@ impl Gallery {
             crate::pages::Page::Select.import_line(),
             vec![
                 (
-                    "Usage",
-                    "Use the arrow keys and Enter or Space to select a language. Selection closes the list and keeps focus on the trigger.",
+                    "Usage", "Use the arrow keys and Enter or Space to select a language. Selection closes the list and keeps focus on the trigger. Values and options use 14px text with 20px lines. Section headers use 12px text with 16px lines and keep their own spacing.",
                     field_col(vec![h::Select::new("sel-main", languages())
                         .label("Language")
                         .placeholder("Choose one")

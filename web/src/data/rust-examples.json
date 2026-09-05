@@ -3019,6 +3019,7 @@
   "autocomplete": [
     {
       "heading": "Usage",
+      "description": "Values and options use 14px text with 20px lines. Section headers use 12px text with 16px lines and keep their own spacing.",
       "imports": "use herogpui::prelude::Autocomplete;",
       "code": "Autocomplete::new(\n    self.ac_entity.clone(),\n    language_items(),\n)\n.label(\"Language\")\n.placeholder(\"Select a language\")"
     },
@@ -3114,6 +3115,7 @@
   "combo-box": [
     {
       "heading": "Usage",
+      "description": "Values and options use 14px text with 20px lines. Section headers use 12px text with 16px lines and keep their own spacing.",
       "imports": "use herogpui::prelude::ComboBox;",
       "code": "ComboBox::new(\n    self.combo_state.clone(),\n    language_items(),\n)\n.label(\"Language\")\n.placeholder(\"Pick or type\")\n.is_open(is_open)\n.on_open_change(bool_cb(cx.listener(|this, open: &bool, _, cx| {\n    this.combo_open = *open;\n    cx.notify();\n})))\n.on_selection_change(cx.listener(|this, _key: &SharedString, _, cx| {\n    this.combo_open = false;\n    cx.notify();\n}))"
     },
@@ -3245,7 +3247,7 @@
   "select": [
     {
       "heading": "Usage",
-      "description": "Use the arrow keys and Enter or Space to select a language. Selection closes the list and keeps focus on the trigger.",
+      "description": "Use the arrow keys and Enter or Space to select a language. Selection closes the list and keeps focus on the trigger. Values and options use 14px text with 20px lines. Section headers use 12px text with 16px lines and keep their own spacing.",
       "imports": "use herogpui::prelude::Select;",
       "code": "Select::new(\"select-main\", languages())\n    .label(\"Language\")\n    .placeholder(\"Choose one\")\n    .value(selected)\n    .is_open(is_open)\n    .on_open_change(bool_cb(cx.listener(|this, open: &bool, _, cx| {\n        this.select_open = *open;\n        cx.notify();\n    })))\n    .on_change(opt_usize_cb(cx.listener(\n        |this, i: &Option<usize>, _, cx| {\n            this.select_lang = *i;\n            this.select_open = false;\n            cx.notify();\n        },\n    )))"
     },

@@ -843,7 +843,8 @@ impl RenderOnce for Autocomplete {
             .min_h(util::FIELD_HEIGHT)
             .px(px(12.))
             .pr(px(28.))
-            .text_size(util::FIELD_TEXT);
+            .text_size(util::FIELD_TEXT)
+            .line_height(px(20.));
         field = util::apply_field_chrome(field, self.variant, is_invalid, false, cx);
         // `.autocomplete__trigger:focus-visible` is `status-focused` -- the
         // offset ring, not a field's flush one, which is why the chrome above is
@@ -912,6 +913,7 @@ impl RenderOnce for Autocomplete {
             .min_w_0()
             .truncate()
             .text_size(util::FIELD_TEXT)
+            .line_height(px(20.))
             .text_color(if is_placeholder {
                 colors.field.placeholder
             } else {
@@ -1513,10 +1515,12 @@ impl RenderOnce for Autocomplete {
                 if let Some((_, label)) = sections.iter().find(|(at, _)| at == item.key()) {
                     head.push(
                         gpui::div()
-                            .px(px(10.))
+                            .px(px(8.))
                             .pt(px(6.))
-                            .pb(px(2.))
+                            .pb(px(4.))
                             .text_size(px(12.))
+                            .line_height(px(16.))
+                            .font_weight(gpui::FontWeight::MEDIUM)
                             .text_color(row_muted)
                             .child(label.to_string())
                             .into_any_element(),
@@ -1542,6 +1546,7 @@ impl RenderOnce for Autocomplete {
                     .py(px(6.))
                     .gap(px(12.))
                     .text_size(util::FIELD_TEXT)
+                    .line_height(px(20.))
                     .child(gpui::div().truncate().child(item.label().to_string()));
 
                 if item_disabled {
@@ -1550,9 +1555,7 @@ impl RenderOnce for Autocomplete {
                     row = row.cursor_pointer().hover(move |s| s.bg(row_hover_bg));
                 }
                 if row_selected {
-                    row = row
-                        .text_color(row_accent)
-                        .font_weight(gpui::FontWeight::MEDIUM);
+                    row = row.text_color(row_accent);
                 } else {
                     row = row.text_color(row_fg);
                 }
@@ -1679,6 +1682,7 @@ impl RenderOnce for Autocomplete {
                         .py(px(12.))
                         .text_center()
                         .text_size(util::FIELD_TEXT)
+                        .line_height(px(20.))
                         .text_color(empty_fg)
                         .child("No results found"),
                 );

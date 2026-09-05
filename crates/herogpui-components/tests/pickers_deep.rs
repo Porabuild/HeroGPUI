@@ -34,9 +34,9 @@
 //! - Autocomplete: panel `pt(8)` + search wrapper `py(4)` + 36px field + list
 //!   `p(6)` puts row *i* at y 100+36i; clicking y = 124+36i lands inside it in
 //!   every phase of the entry zoom. A `section_before` heading rides above its
-//!   item inside the same slot: `pt(6) pb(2)` at 12px (~19.4px line at gpui's
-//!   phi default), so for the slot starting at y S the heading occupies
-//!   roughly S+6..S+27 and the row S+27..S+63; the heading probe clicks
+//!   item inside the same slot: `pt(6) pb(4)` around a 16px line, so for the
+//!   slot starting at y S the heading occupies S..S+26 and the row
+//!   S+26..S+62; the heading probe clicks
 //!   S+14 and the option S+42.
 //! - The Autocomplete clear button is the 20px (`size-5`) box in the trigger's
 //!   flex row; the 320px trigger (`max_w(320)`) has `pr(28)`, so the button
@@ -501,7 +501,7 @@ fn autocomplete_section_heading_is_never_a_stop(cx: &mut TestAppContext) {
     assert_eq!(opened.borrow().as_slice(), ["open:true", "open:false"]);
 
     // The section's slot starts at y = 100 + 36*2 = 172: the heading spans
-    // ~172..199 (pt-6 + a 12px line + pb-2) and the option 36px below it.
+    // 172..198 (pt-6 + a 16px line + pb-4) and the option 36px below it.
     // A press at 172+14 = 186 hits the heading: no selection, no dismissal.
     click(cx, 60., 18.);
     assert_eq!(
@@ -3877,4 +3877,66 @@ fn drawer_footer_sits_after_the_body_and_both_answer(cx: &mut TestAppContext) {
         "the footer probe must be reachable where the footer's own extent \
          puts it"
     );
+}
+
+#[gpui::test]
+fn picker_text_metrics_keep_sections_and_options_in_place(cx: &mut TestAppContext) {
+    for kind in 0..3 {
+        for leading in [None, Some(48.)] {
+            harness::still();
+            let state = search_state(cx);
+            let changes = events();
+            let recorded = changes.clone();
+            let cx = open_host(cx, move || {
+                let changes = changes.clone();
+                let control = match kind {
+                    0 => Select::new("leading-select", vec!["Alpha".into()])
+                        .default_open(true)
+                        .section_before(0, "First\nSecond")
+                        .on_change(move |_, _, _| changes.borrow_mut().push("picked".into()))
+                        .into_any_element(),
+                    1 => Autocomplete::new(state.clone(), keyed(&["Alpha"]))
+                        .default_open(true)
+                        .section_before("Alpha", "First\nSecond")
+                        .on_change(move |_, _, _| changes.borrow_mut().push("picked".into()))
+                        .into_any_element(),
+                    _ => ComboBox::new(state.clone(), keyed(&["Alpha"]))
+                        .default_open(true)
+                        .section_before("Alpha", "First\nSecond")
+                        .on_change(move |_, _, _| changes.borrow_mut().push("picked".into()))
+                        .into_any_element(),
+                };
+                gpui::div()
+                    .w(px(320.))
+                    .when_some(leading, |el, leading| el.line_height(px(leading)))
+                    .child(
+                        gpui::div()
+                            .debug_selector(|| "picker-leading-trigger".into())
+                            .child(control),
+                    )
+                    .into_any_element()
+            });
+            flush_frame(cx);
+            assert_eq!(
+                cx.debug_bounds("picker-leading-trigger")
+                    .expect("trigger paints")
+                    .size
+                    .height,
+                px(36.),
+                "kind={kind}, host={leading:?}"
+            );
+            let option_center = match kind {
+                0 => 108.,
+                1 => 160.,
+                _ => 106.,
+            };
+            click(cx, 60., option_center - 36.);
+            assert!(
+                recorded.borrow().is_empty(),
+                "section is inert: kind={kind}, host={leading:?}"
+            );
+            click(cx, 60., option_center);
+            assert_eq!(recorded.borrow().as_slice(), ["picked"], "36px option follows two 16px header lines plus 10px header padding: kind={kind}, host={leading:?}");
+        }
+    }
 }

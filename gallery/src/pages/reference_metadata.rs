@@ -10139,6 +10139,7 @@ const COMBO_BOX_STATES: &[StateDoc] = &[
 ];
 
 const COMBO_BOX_STYLING: &[StyleDoc] = &[
+    StyleDoc { class_or_token: "text-sm / .header", value: "14px/20px value, option and empty-state text; Header 12px/16px medium px-2 pt-1.5 pb-1", description: "Text keeps its line height under surrounding styles. Section headers have 8px horizontal, 6px top and 4px bottom padding; selecting an option does not add font weight.", rust: "ComboBox text_size + line_height + section header styles", status: ImplementationStatus::Implemented },
     StyleDoc {
         class_or_token: ".combo-box",
         value: "flex flex-col gap-1",
@@ -10335,6 +10336,7 @@ const AUTOCOMPLETE_STATES: &[StateDoc] = &[
 ];
 
 const AUTOCOMPLETE_STYLING: &[StyleDoc] = &[
+    StyleDoc { class_or_token: "text-sm / .header", value: "14px/20px value, option and empty-state text; Header 12px/16px medium px-2 pt-1.5 pb-1", description: "Text keeps its line height under surrounding styles. Section headers have 8px horizontal, 6px top and 4px bottom padding; selecting an option does not add font weight.", rust: "Autocomplete text_size + line_height + section header styles", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".autocomplete", value: "flex flex-col gap-1", description: "Four-pixel field stack with label and message siblings.", rust: "flex_col + gap(px(4.))", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".autocomplete__trigger", value: "min-h-9 rounded-field border bg-field px-3 py-2 text-sm shadow-field", description: "The port matches the field tokens but adds a 180px local floor when fullWidth is false.", rust: "FIELD_HEIGHT + apply_field_chrome + px(px(12.))", status: ImplementationStatus::Partial },
     StyleDoc { class_or_token: ".autocomplete__trigger transitions", value: "background-color 150ms ease-smooth; border-color 150ms ease-smooth; box-shadow 150ms ease-out; reduced motion none", description: "Static hover, focus and invalid colors match, but those trigger-color changes still swap in one frame.", rust: "apply_field_chrome + field.hover", status: ImplementationStatus::Partial },
@@ -11113,6 +11115,7 @@ const SELECT_STATES: &[StateDoc] = &[
 ];
 
 const SELECT_STYLING: &[StyleDoc] = &[
+    StyleDoc { class_or_token: "text-sm / .header", value: "14px/20px value and option text; Header 12px/16px medium px-2 pt-1.5 pb-1", description: "Text keeps its line height under surrounding styles. Section headers have 8px horizontal, 6px top and 4px bottom padding; selecting an option does not add font weight.", rust: "Select text_size + line_height + section header styles", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".select", value: "flex flex-col gap-1", description: "The inner field wrapper stacks at four pixels only when label or description content exists; the root also adds a 320px cap.", rust: "conditional flex_col + gap(px(4.)) inside max_w(px(320.))", status: ImplementationStatus::Partial },
     StyleDoc { class_or_token: ".select[data-invalid] [data-slot=description]", value: "hidden", description: "Description text is suppressed while the field is invalid.", rust: "description rendered only when !is_invalid", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".select > [data-slot=label]", value: "w-fit", description: "The shared label has natural content but does not explicitly opt out of flex-column stretching.", rust: "Label natural width", status: ImplementationStatus::Partial },

@@ -650,6 +650,7 @@ impl RenderOnce for Select {
             .min_h(h)
             .px(px(12.))
             .text_size(text)
+            .line_height(px(20.))
             .cursor_pointer();
 
         let _border_color = if is_open { sem.color } else { colors.separator };
@@ -1318,8 +1319,10 @@ impl RenderOnce for Select {
                         gpui::div()
                             .px(px(8.))
                             .pt(px(6.))
-                            .pb(px(2.))
+                            .pb(px(4.))
                             .text_size(px(12.))
+                            .line_height(px(16.))
+                            .font_weight(gpui::FontWeight::MEDIUM)
                             .text_color(row_muted)
                             .child(label.to_string())
                             .into_any_element(),
@@ -1343,7 +1346,8 @@ impl RenderOnce for Select {
                         .px(px(10.))
                         .py(px(6.))
                         .gap(px(12.))
-                        .text_size(util::FIELD_TEXT);
+                        .text_size(util::FIELD_TEXT)
+                        .line_height(px(20.));
 
                 if opt_disabled {
                     item = item.opacity(row_disabled_opacity);
@@ -1352,9 +1356,7 @@ impl RenderOnce for Select {
                 }
 
                 if is_sel {
-                    item = item
-                        .text_color(row_accent)
-                        .font_weight(gpui::FontWeight::MEDIUM);
+                    item = item.text_color(row_accent);
                 } else {
                     item = item.text_color(row_fg);
                 }
