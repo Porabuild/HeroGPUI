@@ -1813,9 +1813,9 @@ fn detail_table<'a>(
         .text_size(px(12.))
         .font_weight(gpui::FontWeight::SEMIBOLD)
         .gap(px(12.))
-        .child(gpui::div().w(px(180.)).flex_shrink_0().child(headers[0]))
-        .child(gpui::div().w(px(220.)).flex_shrink_0().child(headers[1]))
-        .child(gpui::div().w(px(220.)).flex_shrink_0().child(headers[2]))
+        .child(gpui::div().flex_1().min_w_0().child(headers[0]))
+        .child(gpui::div().flex_1().min_w_0().child(headers[1]))
+        .child(gpui::div().flex_1().min_w_0().child(headers[2]))
         .child(gpui::div().flex_1().min_w_0().child(headers[3]));
 
     gpui::div()
@@ -1838,24 +1838,24 @@ fn detail_table<'a>(
                 .gap(px(12.))
                 .child(
                     gpui::div()
-                        .w(px(180.))
-                        .flex_shrink_0()
+                        .flex_1()
+                        .min_w_0()
                         .font_family(crate::app::MONO_FONT)
                         .text_color(colors.foreground)
                         .child(row.cells[0].clone()),
                 )
                 .child(
                     gpui::div()
-                        .w(px(220.))
-                        .flex_shrink_0()
+                        .flex_1()
+                        .min_w_0()
                         .font_family(crate::app::MONO_FONT)
                         .text_color(colors.foreground)
                         .child(row.cells[1].clone()),
                 )
                 .child(
                     gpui::div()
-                        .w(px(220.))
-                        .flex_shrink_0()
+                        .flex_1()
+                        .min_w_0()
                         .text_color(colors.foreground)
                         .child(row.cells[2].clone()),
                 )

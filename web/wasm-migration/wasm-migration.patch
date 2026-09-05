@@ -193603,7 +193603,7 @@ index f01f8245..00f9624a 100644
  pub fn para(text: &str, cx: &App) -> gpui::AnyElement {
      let colors = cx.colors();
 diff --git a/gallery/src/pages/reference.rs b/gallery/src/pages/reference.rs
-index 6452b2b7..4d9957c3 100644
+index 6452b2b7..371b4704 100644
 --- a/gallery/src/pages/reference.rs
 +++ b/gallery/src/pages/reference.rs
 @@ -17,7 +17,7 @@ struct ApiMethod {
@@ -193624,6 +193624,50 @@ index 6452b2b7..4d9957c3 100644
      let methods = methods_for(source, &owners);
      if methods.is_empty() {
          return Vec::new();
+@@ -617,9 +617,9 @@ fn detail_table(
+         .text_size(px(12.))
+         .font_weight(gpui::FontWeight::SEMIBOLD)
+         .gap(px(12.))
+-        .child(gpui::div().w(px(180.)).flex_shrink_0().child(headers[0]))
+-        .child(gpui::div().w(px(220.)).flex_shrink_0().child(headers[1]))
+-        .child(gpui::div().w(px(220.)).flex_shrink_0().child(headers[2]))
++        .child(gpui::div().flex_1().min_w_0().child(headers[0]))
++        .child(gpui::div().flex_1().min_w_0().child(headers[1]))
++        .child(gpui::div().flex_1().min_w_0().child(headers[2]))
+         .child(gpui::div().flex_1().min_w_0().child(headers[3]));
+ 
+     gpui::div()
+@@ -642,24 +642,24 @@ fn detail_table(
+                 .gap(px(12.))
+                 .child(
+                     gpui::div()
+-                        .w(px(180.))
+-                        .flex_shrink_0()
++                        .flex_1()
++                        .min_w_0()
+                         .font_family(crate::app::MONO_FONT)
+                         .text_color(colors.foreground)
+                         .child(row.cells[0].clone()),
+                 )
+                 .child(
+                     gpui::div()
+-                        .w(px(220.))
+-                        .flex_shrink_0()
++                        .flex_1()
++                        .min_w_0()
+                         .font_family(crate::app::MONO_FONT)
+                         .text_color(colors.foreground)
+                         .child(row.cells[1].clone()),
+                 )
+                 .child(
+                     gpui::div()
+-                        .w(px(220.))
+-                        .flex_shrink_0()
++                        .flex_1()
++                        .min_w_0()
+                         .text_color(colors.foreground)
+                         .child(row.cells[2].clone()),
+                 )
 diff --git a/gallery/src/pages/reference_metadata.rs b/gallery/src/pages/reference_metadata.rs
 index 71065ac8..d43d623f 100644
 --- a/gallery/src/pages/reference_metadata.rs
