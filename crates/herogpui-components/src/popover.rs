@@ -60,6 +60,7 @@ struct PopoverPositioner {
     offset: Pixels,
     should_flip: bool,
     has_arrow: bool,
+    constrain_height: bool,
     children: Vec<AnyElement>,
 }
 
@@ -243,13 +244,13 @@ impl IntoElement for PopoverArrow {
     }
 }
 
-struct PopoverTriggerMeasure {
+pub(crate) struct PopoverTriggerMeasure {
     child: AnyElement,
     bounds: std::rc::Rc<std::cell::Cell<Option<Bounds<Pixels>>>>,
 }
 
 impl PopoverTriggerMeasure {
-    fn new(
+    pub(crate) fn new(
         child: impl IntoElement,
         bounds: std::rc::Rc<std::cell::Cell<Option<Bounds<Pixels>>>>,
     ) -> Self {
@@ -333,6 +334,7 @@ impl PopoverPositioner {
             offset,
             should_flip,
             has_arrow,
+            constrain_height: false,
             children: Vec::new(),
         }
     }
@@ -352,12 +354,18 @@ impl PopoverPositioner {
         trigger: Bounds<Pixels>,
         viewport: Size<Pixels>,
     ) -> Pixels {
-        match side {
+        let available = match side {
             PopoverSide::Top => trigger.top(),
             PopoverSide::Bottom => viewport.height - trigger.bottom(),
             PopoverSide::Left => trigger.left(),
             PopoverSide::Right => viewport.width - trigger.right(),
-        }
+        };
+        available
+            - if self.constrain_height {
+                px(12.)
+            } else {
+                px(0.)
+            }
     }
 
     fn resolved_side(
@@ -417,17 +425,22 @@ impl PopoverPositioner {
             PopoverSide::Right => point(trigger.right() + gap, aligned_y),
         };
 
-        let max_x = (viewport.width - popup.width).max(px(0.));
-        let max_y = (viewport.height - popup.height).max(px(0.));
+        let inset = if self.constrain_height {
+            px(12.)
+        } else {
+            px(0.)
+        };
+        let max_x = (viewport.width - popup.width - inset).max(inset);
+        let max_y = (viewport.height - popup.height - inset).max(inset);
         if matches!(side, PopoverSide::Top | PopoverSide::Bottom) {
-            origin.x = origin.x.max(px(0.)).min(max_x);
-            if self.should_flip {
-                origin.y = origin.y.max(px(0.)).min(max_y);
+            origin.x = origin.x.max(inset).min(max_x);
+            if self.should_flip && !self.constrain_height {
+                origin.y = origin.y.max(inset).min(max_y);
             }
         } else {
-            origin.y = origin.y.max(px(0.)).min(max_y);
-            if self.should_flip {
-                origin.x = origin.x.max(px(0.)).min(max_x);
+            origin.y = origin.y.max(inset).min(max_y);
+            if self.should_flip && !self.constrain_height {
+                origin.x = origin.x.max(inset).min(max_x);
             }
         }
         origin
@@ -527,9 +540,39 @@ impl Element for PopoverPositioner {
         let Some(trigger) = self.trigger.get() else {
             return false;
         };
-        let popup = window.layout_bounds(state.children[0]).size;
-        let side = self.resolved_side(trigger, popup, window.viewport_size());
-        let origin = self.origin(side, trigger, popup, window.viewport_size());
+        let viewport = window.viewport_size();
+        let mut popup = window.layout_bounds(state.children[0]).size;
+        if self.constrain_height {
+            popup = self.children[0].layout_as_root(
+                gpui::size(
+                    gpui::AvailableSpace::MaxContent,
+                    gpui::AvailableSpace::MaxContent,
+                ),
+                window,
+                cx,
+            );
+        }
+        let side = self.resolved_side(trigger, popup, viewport);
+        if self.constrain_height {
+            let max_height = match side {
+                PopoverSide::Top | PopoverSide::Bottom => {
+                    self.available(side, trigger, viewport) - self.offset
+                }
+                PopoverSide::Left | PopoverSide::Right => {
+                    viewport.height - self.origin(side, trigger, popup, viewport).y - px(12.)
+                }
+            }
+            .max(px(0.));
+            popup = self.children[0].layout_as_root(
+                gpui::size(
+                    gpui::AvailableSpace::MaxContent,
+                    gpui::AvailableSpace::Definite(max_height),
+                ),
+                window,
+                cx,
+            );
+        }
+        let origin = self.origin(side, trigger, popup, viewport);
         self.resolved.set(Some(PopoverResolved {
             trigger,
             panel: Bounds {
@@ -538,7 +581,12 @@ impl Element for PopoverPositioner {
             },
             side,
         }));
-        let offset = origin - bounds.origin;
+        let layout_origin = if self.constrain_height {
+            window.layout_bounds(state.children[0]).origin
+        } else {
+            bounds.origin
+        };
+        let offset = origin - layout_origin;
         let offset = point(offset.x.round(), offset.y.round());
         window.with_element_offset(offset, |window| {
             self.children[0].prepaint(window, cx);
@@ -570,6 +618,24 @@ impl IntoElement for PopoverPositioner {
     fn into_element(self) -> Self::Element {
         self
     }
+}
+
+/// The panel must use `max_h_full()` and own its vertical scroll container.
+pub(crate) fn scrollable_popover(
+    trigger: std::rc::Rc<std::cell::Cell<Option<Bounds<Pixels>>>>,
+    placement: PopoverPlacement,
+    panel: impl IntoElement,
+) -> impl IntoElement {
+    let mut positioner = PopoverPositioner::new(
+        trigger,
+        std::rc::Rc::new(std::cell::Cell::new(None)),
+        placement,
+        px(8.),
+        true,
+        false,
+    );
+    positioner.constrain_height = true;
+    positioner.child(panel)
 }
 
 /// HeroUI Popover (controlled).

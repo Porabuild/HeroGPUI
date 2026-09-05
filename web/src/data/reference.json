@@ -3785,7 +3785,7 @@
         "prop": "placement",
         "type": "Placement",
         "default": "bottom left",
-        "description": "Positions and flips the floating panel through the shared placement engine.",
+        "description": "Positions and flips the floating panel through the shared placement engine, with an 8px trigger gap and 12px viewport inset.",
         "rustOwner": "ColorPicker",
         "rust": "placement(Placement)",
         "status": "implemented"
@@ -3937,9 +3937,9 @@
       },
       {
         "token": ".color-picker__popover overflow",
-        "description": "The Rust panel does not yet provide a scroll container for constrained viewport height.",
-        "rust": "—",
-        "status": "unavailable"
+        "description": "The panel hides horizontal overflow and scrolls vertically within the available viewport height without shrinking its controls; Tab reveals each slider and boundary scrolling never moves the page, and scrollbars are not drawn.",
+        "rust": "scrollable_popover + max_h_full + overflow_y_scroll",
+        "status": "implemented"
       },
       {
         "token": ".color-picker__popover radius / shadow",

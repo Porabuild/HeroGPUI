@@ -2438,6 +2438,7 @@ impl Gallery {
             vec![
                 (
                     "Usage",
+                    "The panel flips near window edges and scrolls to keep the alpha control reachable in short windows.",
                     col(vec![h::ColorPicker::new("cp-main", value)
                         // v3's Usage is uncontrolled; "Controlled" is separate.
                         .default_value(value)

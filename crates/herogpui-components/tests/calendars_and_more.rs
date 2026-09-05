@@ -1061,10 +1061,10 @@ fn color_picker_trigger_opens_and_area_reports(cx: &mut TestAppContext) {
         "the trigger must open the popover"
     );
 
-    // The area: panel top (24 trigger + 6) + pt-2 (8) puts the 160px-tall
-    // area at y 38..198; px-2 puts it at x 8..248. The press reports its
+    // The area: panel top (24 trigger + 8) + pt-2 (8) puts the 160px-tall
+    // area at y 40..200; the 12px viewport inset plus px-2 puts it at x 20..260. The press reports its
     // local fractions within those bounds.
-    click(cx, 120., 80.);
+    click(cx, 132., 82.);
     assert_eq!(
         reported.borrow().as_slice(),
         [expected_hex],
@@ -1083,7 +1083,7 @@ fn color_picker_trigger_opens_and_area_reports(cx: &mut TestAppContext) {
     );
 
     // Closed proof: where the area was, nothing answers now.
-    click(cx, 120., 80.);
+    click(cx, 132., 82.);
     assert_eq!(
         reported.borrow().as_slice(),
         [expected_hex],
@@ -1104,7 +1104,7 @@ fn color_picker_default_trigger_owns_open_state_without_callback(cx: &mut TestAp
     });
 
     click(cx, 60., 12.);
-    click(cx, 120., 80.);
+    click(cx, 132., 82.);
     assert_eq!(
         colors.borrow().as_slice(),
         ["#6490BD"],
@@ -1114,7 +1114,7 @@ fn color_picker_default_trigger_owns_open_state_without_callback(cx: &mut TestAp
     press(cx, "tab tab escape");
     cx.executor()
         .advance_clock(std::time::Duration::from_millis(150));
-    click(cx, 120., 80.);
+    click(cx, 132., 82.);
     assert_eq!(
         colors.borrow().as_slice(),
         ["#6490BD"],

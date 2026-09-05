@@ -327,6 +327,7 @@ ColorSlider labels/output, ColorPicker triggers, and ColorField display text use
   - `full_width(true)` expands both the outer wrapper and control to the available parent width.
   - `state(Entity<InputState>)` makes it **editable**; without one it is a read-only display of `value`. `placeholder`, and `on_change(Option<PickerColor>)` reporting `None` when the text is not a colour, exactly as v3 types it. With a `channel` the text is that channel's number rather than a hex value.
 - **ColorPicker** — `label`, `is_open`, `show_alpha`, `on_change`, `on_open_change`
+  - When the preferred side cannot fit the popup, it flips if the opposite side has more room, keeps a 12px viewport inset and 8px trigger gap, and scrolls vertically when its controls exceed the available height; Tab moves through area/hue/alpha and reveals each focused control.
 - **ColorSlider** — `ColorSlider::new(id, value, channel).color_space(ColorSpace).orientation().length().show_label().on_change().on_change_end()`
   - `color_space` is not cosmetic: HSL and HSB saturation are different quantities for the same colour, so a saturation slider reads and writes through `PickerColor::{channel_in, with_channel_in}`. Every other channel is space-independent.
 - **ColorSwatch** — `ColorSwatch::new(color)`, `size(SizeXl)`, `shape(SwatchShape::{Circle,Square})` (v3's `colorName` is an accessible name and has nowhere to go here)

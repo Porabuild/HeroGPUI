@@ -536,6 +536,7 @@
   "color-picker": [
     {
       "heading": "Usage",
+      "description": "The panel flips near window edges and scrolls to keep the alpha control reachable in short windows.",
       "imports": "use herogpui::prelude::{ColorPicker, PickerColor};",
       "code": "ColorPicker::new(\"color-picker-main\", value)\n    // v3's Usage is uncontrolled; \"Controlled\" is separate.\n    .default_value(value)\n    .label(\"Accent\")\n    .show_alpha(true)\n    .on_change(color_cb(cx.listener(|this, c: &PickerColor, _, cx| {\n        this.picker_color = *c;\n        cx.notify();\n    })))"
     },
