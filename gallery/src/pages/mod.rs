@@ -1116,6 +1116,7 @@ impl RenderOnce for DocsCodeBlock {
                 format!("{:?}-content", self.id).into(),
             ))
             .w_full()
+            .flex()
             .px(px(CODE_PAD_X))
             .py(px(CODE_PAD_Y))
             .overflow_x_scroll()
@@ -1125,7 +1126,12 @@ impl RenderOnce for DocsCodeBlock {
             .text_size(px(CODE_TEXT_SIZE))
             .line_height(px(CODE_LINE_HEIGHT))
             .text_color(gpui::rgb(CODE_TEXT))
-            .child(highlighted_code(&code));
+            .child(
+                gpui::div()
+                    .min_w_full()
+                    .flex_shrink_0()
+                    .child(highlighted_code(&code)),
+            );
         if self.collapsible && !is_expanded {
             code_pane = code_pane.max_h(px(150.)).overflow_hidden();
         }
