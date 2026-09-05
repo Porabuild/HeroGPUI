@@ -1431,13 +1431,13 @@ CHECKS = [
      SRC + 'checkbox.rs',
      r'\(box_px, icon_px, text\) = \(px\(16\.\), px\(12\.\), px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('color-field', '.color-field', 'gap', 'ColorField wrapper gap', SRC + 'color_picker.rs',
-     r'`\.color-field` is `flex flex-col gap-1`\.\s*'
-     r'let mut root = div\(\)\.flex\(\)\.flex_col\(\)\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+     'field_wrapper_gap:ColorField:root', None),
     ('color-slider', '.color-slider', 'gap', 'ColorSlider wrapper gap', SRC + 'color_picker.rs',
      r'`\.color-slider` is `grid w-full gap-1`\.\s*\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
-    ('date-field', '.date-field', 'gap', 'DateField wrapper gap', SRC + 'time_field.rs',
-     r'`\.date-field` is `flex flex-col gap-1`\.\s*'
-     r'let mut root = div\(\)\.flex\(\)\.flex_col\(\)\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('date-field', '.date-field', 'gap', 'DateField wrapper gap', SRC + 'date_picker.rs',
+     'field_wrapper_gap:DateField:el', None),
+    ('time-field', '.time-field', 'gap', 'TimeField wrapper gap', SRC + 'time_field.rs',
+     'field_wrapper_gap:TimeField:root', None),
     ('dropdown', '.dropdown', 'gap', 'Dropdown wrapper gap', SRC + 'dropdown.rs',
      r'`\.dropdown` is `flex flex-col gap-1`\.\s*\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('combo-box', '.combo-box', 'gap', 'ComboBox wrapper gap', SRC + 'combo_box.rs',
@@ -2638,6 +2638,9 @@ def our_value(path, pattern, transform):
         src = io.open(path, encoding='utf-8').read()
     except OSError:
         return None
+    if pattern.startswith('field_wrapper_gap:'):
+        _, owner, binding = pattern.split(':')
+        return field_wrapper_gap_from(src, owner, binding)
     m = re.search(pattern, src)
     if not m:
         return None
@@ -2779,6 +2782,24 @@ def builder_chain_methods(source, index):
             return
         yield match.group(1), source[args_start:end - 1]
         index = end
+
+
+def field_wrapper_gap_from(source, owner, binding):
+    source = strip_cfg_test(source)
+    renders = list(rust_blocks_after(source, 'impl RenderOnce for ' + owner + ' '))
+    if len(renders) != 1:
+        return None
+    body = renders[0]
+    declarations = list(re.finditer(
+        r'\blet\s+mut\s+' + re.escape(binding) + r'\s*=\s*(?:gpui::)?div\(\)', body))
+    if len(declarations) != 1:
+        return None
+    gap = None
+    for name, args in builder_chain_methods(body, declarations[0].end()):
+        if name in ('gap', 'gap_y'):
+            value = re.fullmatch(r'\s*px\((\d+(?:\.\d*)?)\)\s*', args)
+            gap = float(value.group(1)) if value else None
+    return gap
 
 
 def indicator_padding_from(source):
@@ -3657,6 +3678,34 @@ def self_test():
         expect(avatar_fallback_text_from(fixture, False) is None,
                '%s Avatar assignment must stay unreadable' % name)
 
+    for owner, binding in [('ColorField', 'root'), ('DateField', 'el'), ('TimeField', 'root')]:
+        def field_fixture(chain, target=owner):
+            return ('impl RenderOnce for ' + target + ' { fn render() { '
+                    'let mut ' + binding + ' = div()' + chain + '; } }')
+
+        inline = '.flex().flex_col().gap(px(4.))'
+        multiline = '.flex()\n .flex_col()\n .gap(px(4.))\n .when(self.full_width, |root| root.w_full())'
+        for chain in [inline, multiline]:
+            expect(field_wrapper_gap_from(field_fixture(chain), owner, binding) == 4.,
+                   owner + ' wrapper gap must survive rustfmt line breaks')
+        expect(field_wrapper_gap_from(field_fixture(inline.replace('4.', '8.')), owner, binding) == 8.,
+               owner + ' incorrect wrapper gap must remain a mismatch')
+        for chain, expected in [
+                (inline + '.gap_y(px(8.))', 8.),
+                (inline + '.gap_y(px(8.)).gap(px(4.))', 4.),
+                (inline + '.gap_x(px(8.))', 4.)]:
+            expect(field_wrapper_gap_from(field_fixture(chain), owner, binding) == expected,
+                   owner + ' vertical gap must honor the last applicable setter')
+        for fixture in [
+                field_fixture('.flex().child(div().gap(px(4.)))'),
+                field_fixture('.flex() /* .gap(px(4.)) */'),
+                field_fixture('.flex(); let other = div().gap(px(4.))'),
+                field_fixture(inline, 'OtherField'),
+                '#[cfg(test)] mod tests { ' + field_fixture(inline) + ' }',
+                'let docs = r#"' + field_fixture(inline) + '"#;']:
+            expect(field_wrapper_gap_from(fixture, owner, binding) is None,
+                   owner + ' must reject missing, nested, commented, or foreign gaps')
+
     if failures:
         for failure in failures:
             print('! self-test: ' + failure)
@@ -3666,7 +3715,8 @@ def self_test():
           'padding reads from its owning builder chain and stays unreadable '
           'when the call is missing, commented, nested, or in another chain; '
           'Avatar fallback text reads the production let font assignment and '
-          'ignores cfg(test), comments, parent, and nested matches')
+          'ignores cfg(test), comments, parent, and nested matches; field wrapper '
+          'gaps follow their owning render, binding, and vertical-gap overrides')
     return 0
 
 
