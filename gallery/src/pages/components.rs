@@ -5164,12 +5164,8 @@ impl Gallery {
                 (
                     "Controlled", "The range lives in the state entity the caller owns.",
                     col(vec![
-                        h::RangeCalendar::new(self.date_range.clone())
-                            .value(
-                                Some(h::Date::new(2025, 12, 8)),
-                                Some(h::Date::new(2025, 12, 14)),
-                                cx,
-                            )
+                        h::RangeCalendar::new(self.demo_range("rc-controlled", cx))
+                            .default_value((h::Date::new(2025, 12, 8), h::Date::new(2025, 12, 14)))
                             .on_focus_change(date_cb(cx.listener(|this, d: &h::Date, _, cx| {
                                 this.set_demo_text_value("rc-focus", d.format_iso());
                                 cx.notify();
@@ -5267,10 +5263,11 @@ impl Gallery {
                 ),
                 (
                     "Read Only",
+                    "Browse dates without changing the supplied range.",
                     col(vec![h::RangeCalendar::new(
                         self.demo_range("rc-readonly", cx),
                     )
-                    .default_value((h::Date::new(2025, 12, 8), h::Date::new(2025, 12, 14)))
+                    .value(Some(h::Date::new(2025, 12, 8)), Some(h::Date::new(2025, 12, 14)), cx)
                     .is_read_only(true)
                     .into_any_element()]),
                 ),
@@ -5311,7 +5308,7 @@ impl Gallery {
                 ),
                 (
                     "Usage",
-                    col(vec![h::RangeCalendar::new(self.date_range.clone())
+                    col(vec![h::RangeCalendar::new(self.demo_range("rc-usage", cx))
                         .on_change(|_start, _end, _, _cx| {})
                         .into_any_element()]),
                 ),

@@ -30,6 +30,146 @@ use herogpui_components::{
 };
 
 #[gpui::test]
+fn calendar_picking_keeps_the_selection_aligned_view(cx: &mut TestAppContext) {
+    for keyboard in [false, true] {
+        let state = cx.new(|cx| {
+            let mut state = CalendarState::with_selected(cx, Date::new(2025, 12, 8));
+            state.view_year = 2035;
+            state.view_month = 7;
+            state.view_day = 1;
+            state
+        });
+        let id = state.entity_id().as_u64();
+        let view_state = state.clone();
+        let cx = open_host(cx, move || {
+            Calendar::new(view_state.clone())
+                .visible_duration(VisibleDuration::Months(2))
+                .selection_alignment(herogpui_components::SelectionAlignment::End)
+                .first_day_of_week(Weekday::Mon)
+                .into_any_element()
+        });
+        if keyboard {
+            press(cx, "tab");
+            press(cx, "right");
+            press(cx, "right");
+            press(cx, "enter");
+        } else {
+            let key = cal_cell_selector(id, 2025, 12, 10);
+            let bounds = cx.debug_bounds(Box::leak(key.into_boxed_str())).unwrap();
+            click(
+                cx,
+                f32::from(bounds.center().x),
+                f32::from(bounds.center().y),
+            );
+        }
+        assert_eq!(
+            cx.update(|_, cx| (state.read(cx).anchor(), state.read(cx).selected)),
+            (Date::new(2025, 11, 8), Some(Date::new(2025, 12, 10))),
+            "keyboard={keyboard}: picking must retain both displayed months"
+        );
+    }
+}
+
+#[gpui::test]
+fn range_picking_keeps_the_selection_aligned_view(cx: &mut TestAppContext) {
+    use herogpui_components::SelectionAlignment;
+    for (duration, alignment, expected_anchor) in [
+        (
+            VisibleDuration::Months(1),
+            SelectionAlignment::Start,
+            Date::new(2025, 12, 8),
+        ),
+        (
+            VisibleDuration::Months(2),
+            SelectionAlignment::End,
+            Date::new(2025, 11, 8),
+        ),
+        (
+            VisibleDuration::Weeks(2),
+            SelectionAlignment::Start,
+            Date::new(2025, 12, 8),
+        ),
+        (
+            VisibleDuration::Days(5),
+            SelectionAlignment::Start,
+            Date::new(2025, 12, 8),
+        ),
+    ] {
+        for keyboard in [false, true] {
+            let state = cx.new(|cx| {
+                let mut state = DateRangeState::with_range(
+                    cx,
+                    Some(Date::new(2025, 12, 8)),
+                    Some(Date::new(2025, 12, 14)),
+                );
+                state.view_year = 2035;
+                state.view_month = 7;
+                state.view_day = 1;
+                state
+            });
+            let id = state.entity_id().as_u64();
+            let view_state = state.clone();
+            let picked = events();
+            let view_picked = picked.clone();
+            let cx = open_host(cx, move || {
+                let picked = view_picked.clone();
+                RangeCalendar::new(view_state.clone())
+                    .visible_duration(duration)
+                    .selection_alignment(alignment)
+                    .first_day_of_week(Weekday::Mon)
+                    .on_change(move |start, end, _, _| {
+                        picked.borrow_mut().push(format!(
+                            "{}..{}",
+                            start.format_iso(),
+                            end.format_iso()
+                        ));
+                    })
+                    .into_any_element()
+            });
+            let key = |day| {
+                if duration.is_month_view() {
+                    range_cell_selector(id, 2025, 12, day)
+                } else {
+                    format!(
+                        r#"Name("range-cal-{id}")-{}"#,
+                        Date::new(2025, 12, day).format_iso()
+                    )
+                }
+            };
+            if keyboard {
+                press(cx, "tab");
+                press(cx, "right");
+                press(cx, "right");
+                press(cx, "enter");
+            } else {
+                let bounds = cx
+                    .debug_bounds(Box::leak(key(10).into_boxed_str()))
+                    .unwrap();
+                click(
+                    cx,
+                    f32::from(bounds.center().x),
+                    f32::from(bounds.center().y),
+                );
+            }
+            assert_eq!(
+                cx.update(|_, cx| state.read(cx).anchor()),
+                expected_anchor,
+                "{duration:?}, keyboard={keyboard}: preserve the displayed range"
+            );
+            let bounds = cx
+                .debug_bounds(Box::leak(key(12).into_boxed_str()))
+                .unwrap();
+            click(
+                cx,
+                f32::from(bounds.center().x),
+                f32::from(bounds.center().y),
+            );
+            assert_eq!(picked.borrow().as_slice(), ["2025-12-10..2025-12-12"]);
+        }
+    }
+}
+
+#[gpui::test]
 fn calendar_spacing_matches_the_pinned_rendered_grids(cx: &mut TestAppContext) {
     for range in [false, true] {
         for duration in [

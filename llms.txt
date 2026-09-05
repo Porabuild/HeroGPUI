@@ -386,7 +386,8 @@ navigation, or a date-bound change that moves that year to another row.
 - `visible_duration(VisibleDuration::Months(2) | Weeks(2) | Days(5))`
 - `page_behavior(PageBehavior::Visible | Single)` — step the whole range or one unit
 - `selection_alignment(SelectionAlignment::Start | Center | End)` — applied until
-  the user navigates, after which `CalendarState::user_navigated` pins the range.
+  the user navigates or picks, after which the state pins the displayed range.
+  Picking from an initially aligned view preserves its month/week/day anchor.
   `Center` matches React Aria: it halves the duration and then backs off again on
   an even count, so a 2-up range aligns like `Start`.
 - `is_year_picker_open(bool)` + `on_year_picker_open_change(fn)` — supplying the

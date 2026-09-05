@@ -738,6 +738,7 @@ struct Frame<'a> {
     /// it, otherwise wherever the arrow keys have walked to. `None` while the
     /// grid does not hold the keyboard.
     focused: Option<Date>,
+    anchor: Date,
     visible_start: Option<Date>,
     cell_size: gpui::Pixels,
 }
@@ -881,6 +882,7 @@ impl Calendar {
             let on_change = self.on_change.clone();
             let on_change_all = self.on_change_all.clone();
             let on_focus = self.on_focus_change.clone();
+            let anchor = frame.anchor;
             circle = circle.on_click(move |_, window, cx| {
                 cursor.update(cx, |focused, cx| {
                     *focused = Some(date);
@@ -894,6 +896,7 @@ impl Calendar {
                     // `toggle` also records that the user took over
                     // navigation, so the alignment pass stops moving the range.
                     s.toggle(date, mode);
+                    s.set_anchor(anchor);
                     cx.notify();
                     s.selected_dates.clone()
                 });
@@ -1436,6 +1439,7 @@ impl RenderOnce for Calendar {
             cursor: &cursor,
             base: &base,
             focused: ring_at,
+            anchor,
             visible_start: matches!(self.duration, VisibleDuration::Days(_)).then_some(anchor),
             cell_size: column_width / 7.,
         };
@@ -1704,6 +1708,7 @@ impl RenderOnce for Calendar {
                     }
                     let selected_dates = state.update(cx, |s, cx| {
                         s.toggle(at, mode);
+                        s.set_anchor(anchor);
                         cx.notify();
                         s.selected_dates.clone()
                     });

@@ -620,10 +620,10 @@ CHECKS = [
      r'SizeXl::Xl => gpui::px\((\d+(?:\.\d*)?)\)', None),
     ('calendar-year-picker', '.calendar-year-picker__year-grid', 'gap',
      'Year grid gap', SRC + 'calendar.rs',
-     r'`\.calendar-year-picker__year-grid` is `gap-1 p-1`\.[\s\S]{0,80}?\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+     r'\.track_scroll\(&view\.scroll\.handle\)[^;]*?\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('calendar-year-picker', '.calendar-year-picker__year-grid', 'p',
      'Year grid padding', SRC + 'calendar.rs',
-     r'`gap-1 p-1`\.[\s\S]{0,120}?\.p\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+     r'\.absolute\(\)\s*\.inset_0\(\)\s*\.p\(px\((\d+(?:\.\d*)?)\.\)\)\s*\.child\(grid\)', None),
     ('calendar-year-picker', '.calendar-year-picker__year-cell', 'h',
      'Year cell height', SRC + 'calendar.rs',
      r'`h-8 px-2\.5[\s\S]{0,120}?\.h\(px\((\d+(?:\.\d*)?)\.\)\)', None),
@@ -770,9 +770,7 @@ CHECKS = [
     ('range-calendar', '.range-calendar', 'w',
      'RangeCalendar: seven day cells fill the 252px root',
      SRC + 'range_calendar.rs',
-     r'let track_key = format!\("\{key\}-track"\);[\s\S]{0,400}?'
-     r'\.size\(px\((\d+(?:\.\d*)?)\.\)\)',
-     lambda cell: float(cell) * 7.0),
+     'range_calendar_grid_width', None),
     # The selected outer cell is `rounded-none bg-accent-soft` -- a square
     # that reads as one continuous run. The port rounds it per corner: caps
     # take `3xl` and row edges `lg` (the two rows below), while the interior
@@ -1336,7 +1334,7 @@ CHECKS = [
     ('calendar', '.calendar', 'w', 'Calendar width', SRC + 'calendar.rs',
      'CALENDAR_WIDTH: gpui::Pixels = px\((\d+(?:\.\d*)?)\.\)', None),
     ('calendar', '.calendar__cell', 'text', 'Calendar cell text', SRC + 'calendar.rs',
-     '\.size\(px\(36\.\)\)\s+\.rounded_full\(\)(?:\s+\.\w+\(\))*\s+\.text_size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+     r'\.size\(frame\.cell_size\)\s+\.rounded_full\(\)(?:\s+\.\w+\(\))*\s+\.text_size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('list-box-item', '.list-box-item', 'radius', 'Select row -> util::_radius',
      SRC + 'select.rs',
      r'let mut item = gpui::div\(\)(?:(?!if opt_disabled)[\s\S])*?'
@@ -2598,7 +2596,32 @@ def measure(body, inherited_leading=None):
     return {k: v for k, (v, _) in found.items()}
 
 
+def range_calendar_grid_width(path):
+    """Read the default panel width through its cell divisor and row count."""
+    try:
+        source = mask_literals(mask_comments(strip_cfg_test(
+            io.open(path, encoding='utf-8').read())))
+        calendar = mask_literals(mask_comments(strip_cfg_test(
+            io.open(os.path.join(os.path.dirname(path), 'calendar.rs'),
+                    encoding='utf-8').read())))
+    except OSError:
+        return None
+    if not re.search(r'let column_width = if [^;]*?}\s*else\s*{\s*'
+                     r'crate::calendar::CALENDAR_WIDTH\s*};', source):
+        return None
+    if not re.search(r'\.flex_1\(\)\s*\.min_w_0\(\)\s*\.h\(frame\.cell_size\)', source):
+        return None
+    width = re.search(r'CALENDAR_WIDTH: gpui::Pixels = px\(([\d.]+)\)', calendar)
+    divisor = re.search(r'cell_size: column_width / ([\d.]+)', source)
+    columns = re.search(r'for column in 0\.\.(\d+)', source)
+    if not (width and divisor and columns) or float(divisor.group(1)) == 0:
+        return None
+    return float(width.group(1)) / float(divisor.group(1)) * int(columns.group(1))
+
+
 def our_value(path, pattern, transform):
+    if pattern == 'range_calendar_grid_width':
+        return range_calendar_grid_width(path)
     if pattern.startswith('tag_leading_'):
         return tag_leading(path, pattern.removeprefix('tag_leading_'))
     if pattern == 'alert_indicator_padding':

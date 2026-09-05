@@ -11372,7 +11372,7 @@
         "prop": "selectionAlignment",
         "type": "'start' | 'center' | 'end'",
         "default": "'center'",
-        "description": "Aligns the initial visible range around the selection.",
+        "description": "Aligns the initial visible range around the selection; picking preserves that displayed range.",
         "rustOwner": "Calendar",
         "rust": "selection_alignment(SelectionAlignment)",
         "status": "implemented"
@@ -14501,7 +14501,7 @@
         "prop": "selectionAlignment",
         "type": "'start' | 'center' | 'end'",
         "default": "'center'",
-        "description": "Explicit alignment wins; otherwise a range extending beyond the centered window automatically starts at the first visible unit.",
+        "description": "Explicit alignment wins; otherwise a range extending beyond the centered window automatically starts at the first visible unit. The first pick preserves that aligned view.",
         "rustOwner": "RangeCalendar",
         "rust": "selection_alignment(SelectionAlignment)",
         "status": "implemented"

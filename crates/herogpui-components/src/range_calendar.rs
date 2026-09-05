@@ -500,6 +500,7 @@ struct Frame<'a> {
     /// it, otherwise wherever the arrow keys have walked to. `None` while the
     /// grid does not hold the keyboard.
     focused: Option<Date>,
+    anchor: Date,
     visible_start: Option<Date>,
     cell_size: gpui::Pixels,
 }
@@ -772,6 +773,7 @@ impl RangeCalendar {
             let cursor = frame.cursor.clone();
             let focus_preview = frame.focus_preview.clone();
             let selection_before_anchor = frame.selection_before_anchor.clone();
+            let anchor = frame.anchor;
             cell = cell.on_click(move |_, window, cx| {
                 if let Some(cb) = &on_focus {
                     cb(date, window, cx);
@@ -788,7 +790,7 @@ impl RangeCalendar {
                     if let Some((start, end)) = next {
                         s.start = Some(start);
                         s.end = end;
-                        s.user_navigated = true;
+                        s.set_anchor(anchor);
                         cx.notify();
                     }
                     (next, previous)
@@ -1337,6 +1339,7 @@ impl RenderOnce for RangeCalendar {
             selection_before_anchor: &selection_before_anchor,
             base: &base,
             focused: ring_at,
+            anchor,
             visible_start: matches!(self.duration, VisibleDuration::Days(_)).then_some(anchor),
             cell_size: column_width / 7.,
         };
@@ -1639,7 +1642,7 @@ impl RenderOnce for RangeCalendar {
                             s.start = Some(start);
                             s.end = end;
                             s.hovered = None;
-                            s.user_navigated = true;
+                            s.set_anchor(anchor);
                             cx.notify();
                         }
                         (next, previous)

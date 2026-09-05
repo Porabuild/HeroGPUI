@@ -1291,7 +1291,7 @@
       "heading": "Controlled",
       "description": "The range lives in the state entity the caller owns.",
       "imports": "use herogpui::prelude::{Date, RangeCalendar};",
-      "code": "RangeCalendar::new(self.date_range.clone())\n    .value(\n        Some(Date::new(2025, 12, 8)),\n        Some(Date::new(2025, 12, 14)),\n        cx,\n    )\n    .on_focus_change(date_cb(cx.listener(|this, d: &Date, _, cx| {\n        this.set_demo_text_value(\"rc-focus\", d.format_iso());\n        cx.notify();\n    })))"
+      "code": "RangeCalendar::new(self.demo_range(\"rc-controlled\", cx))\n    .default_value((Date::new(2025, 12, 8), Date::new(2025, 12, 14)))\n    .on_focus_change(date_cb(cx.listener(|this, d: &Date, _, cx| {\n        this.set_demo_text_value(\"rc-focus\", d.format_iso());\n        cx.notify();\n    })))"
     },
     {
       "heading": "Min and Max Dates",
@@ -1338,8 +1338,9 @@
     },
     {
       "heading": "Read Only",
+      "description": "Browse dates without changing the supplied range.",
       "imports": "use herogpui::prelude::{Date, RangeCalendar};",
-      "code": "RangeCalendar::new(\n    self.demo_range(\"rc-readonly\", cx),\n)\n.default_value((Date::new(2025, 12, 8), Date::new(2025, 12, 14)))\n.is_read_only(true)"
+      "code": "RangeCalendar::new(\n    self.demo_range(\"rc-readonly\", cx),\n)\n.value(Some(Date::new(2025, 12, 8)), Some(Date::new(2025, 12, 14)), cx)\n.is_read_only(true)"
     },
     {
       "heading": "Invalid",
@@ -1359,7 +1360,7 @@
     {
       "heading": "Usage",
       "imports": "use herogpui::prelude::RangeCalendar;",
-      "code": "RangeCalendar::new(self.date_range.clone())\n    .on_change(|_start, _end, _, _cx| {})"
+      "code": "RangeCalendar::new(self.demo_range(\"rc-usage\", cx))\n    .on_change(|_start, _end, _, _cx| {})"
     }
   ],
   "time-field": [
