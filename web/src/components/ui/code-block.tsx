@@ -56,6 +56,8 @@ export interface CodeBlockProps {
   id?: string;
   /** Whether long snippets should start collapsed. */
   collapsible?: boolean;
+  /** Wrap long lines instead of scrolling horizontally. */
+  wrap?: boolean;
 }
 
 const COLLAPSE_AFTER_LINES = 18;
@@ -76,6 +78,7 @@ export async function CodeBlock({
   className,
   id,
   collapsible = true,
+  wrap = false,
 }: CodeBlockProps) {
   // Unknown langs would throw inside shiki; fall back to unstyled plaintext.
   const safeLang: CodeLang = CODE_LANGS.includes(lang) ? lang : "plaintext";
@@ -114,6 +117,7 @@ export async function CodeBlock({
     <figure
       className={cn(
         "overflow-hidden rounded-xl border border-separator bg-surface-secondary",
+        wrap && "code-wrap",
         className,
       )}
     >
@@ -138,10 +142,12 @@ export async function CodeBlock({
           <CopyButton value={code} />
         </span>
       </figcaption>
-      {/* shiki's output is trusted, statically generated markup. */}
+      {/* shiki's output is trusted, statically generated markup. The
+          scroller keeps a CSS-only ghost bar so this server component never
+          needs a client scrollbar wrapper. */}
       <div
         className={cn(
-          "relative overflow-x-auto p-4 font-mono",
+          "code-scroll relative overflow-x-auto p-4 font-mono",
           isCollapsible &&
             "max-h-80 overflow-y-hidden bg-surface-secondary after:pointer-events-none after:absolute after:inset-x-0 after:bottom-0 after:h-16 after:bg-gradient-to-t after:from-surface-secondary after:to-transparent after:transition-opacity peer-checked:max-h-none peer-checked:after:opacity-0",
         )}

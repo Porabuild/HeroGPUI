@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import type { ReactNode } from "react";
+import { BodyScrollbars } from "@/components/site/body-scrollbars";
 import { SiteProviders } from "@/components/site/providers";
 import "./globals.css";
 
@@ -47,7 +48,7 @@ export const metadata: Metadata = {
  * HeroUI's default theme is class-based: `.dark` on an ancestor switches
  * the token set (see @heroui/styles themes/default/variables.css).
  */
-const themeInitScript = `(function(){try{var s=localStorage.getItem("herogpui-theme");var d=s?s==="dark":window.matchMedia("(prefers-color-scheme: dark)").matches;var r=document.documentElement;r.classList.toggle("dark",d);r.style.colorScheme=d?"dark":"light";}catch(e){}})();`;
+const themeInitScript = `(function(){try{var s=localStorage.getItem("herogpui-theme");var d=s?s==="dark":window.matchMedia("(prefers-color-scheme: dark)").matches;var r=document.documentElement;r.classList.toggle("dark",d);r.style.colorScheme=d?"dark":"light";if(!window.matchMedia("(prefers-reduced-motion: reduce)").matches)r.setAttribute("data-overlayscrollbars-initialize","");}catch(e){}})();`;
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
@@ -55,7 +56,8 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
       </head>
-      <body className="min-h-dvh bg-background font-sans text-foreground antialiased">
+      <body className="pb-root min-h-dvh bg-background font-sans text-foreground antialiased">
+        <BodyScrollbars />
         <SiteProviders>{children}</SiteProviders>
       </body>
     </html>
