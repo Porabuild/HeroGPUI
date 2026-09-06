@@ -139,8 +139,9 @@ jobs:
 
       - name: Install the gallery CLI from source
         # `cargo install` builds into a throwaway directory unless it is told
-        # otherwise, so this step could never read the shared cache and rebuilt
-        # all 486 crates from scratch.
+        # otherwise, so there was nothing for the job's cache to hold and this
+        # step rebuilt all 486 crates from scratch in 694s. Writing into the
+        # workspace `target/` makes the step cacheable: 14s once it is warm.
         run: cargo install --path gallery --locked --debug --force --target-dir target
 
   # What the -O0 workspace gives up, this takes back. `test` builds the workspace

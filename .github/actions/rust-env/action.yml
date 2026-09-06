@@ -1,8 +1,8 @@
 name: rust-env
 description: >-
   Shared Linux setup for the Rust gate jobs: the system libraries GPUI links
-  against, which optimization level the workspace crates build at, and one
-  dependency cache every one of those jobs can read.
+  against, which optimization level the workspace crates build at, and the
+  dependency cache that job builds against.
 
 inputs:
   profile:
@@ -40,25 +40,25 @@ runs:
           libfreetype-dev
 
     # The gate is compile-bound, not test-bound: its 70 test binaries finish in
-    # five seconds, and the `test` job measured 221s against 842s at the
-    # Cargo.toml profile. Cargo.toml's `-O1` workspace / `-O3` dependencies is a
-    # local-dev choice -- a gallery you interact with should be responsive --
+    # five seconds, while the `test` job measured 842s at Cargo.toml's profile
+    # and 107s unoptimized. Cargo.toml's `-O1` workspace / `-O3` dependencies is
+    # a local-dev choice -- a gallery you interact with should be responsive --
     # and only the workspace half is on a PR's critical path, because
     # dependencies come out of the cache. So unoptimize that half and nothing
     # else.
     #
     # The `nothing else` is measured, not cautious. Dropping dependencies to -O0
-    # too made layout assertions in dropdown_viewport_deep fail 40/40 -- a
-    # height-capped panel is laid out twice per frame and its reported height
-    # lands one pixel either side depending on codegen -- while workspace -O0
-    # with dependencies at Cargo.toml's -O3 passed 0/12 in the same regime. That
-    # keeps every test assertion exact, and it keeps CI's dependencies identical
-    # to a developer's, which is the point of a gate.
+    # too made `assert_settled` in dropdown_viewport_deep fail 40 runs out of 40
+    # -- a height-capped panel is laid out twice per frame and its reported
+    # height lands a pixel either side depending on codegen. Keeping
+    # dependencies at Cargo.toml's -O3 gave 0 failures in 92 runs. That keeps
+    # every test assertion exact, and it keeps CI's dependencies identical to a
+    # developer's, which is the point of a gate.
     #
     # The override goes in $CARGO_HOME rather than as a `--config` flag because
     # `.shots/lint.ps1` owns its own cargo invocation. One config file reaches
     # every call in a job, and calls within a job that disagree about the
-    # profile would rebuild the workspace and thrash the shared cache.
+    # profile would rebuild the workspace and thrash that job's cache.
     - name: Build the workspace crates unoptimized
       if: inputs.profile == 'fast'
       shell: bash
@@ -90,10 +90,12 @@ runs:
     # Per-job keys are still warm across branches: rust-cache embeds
     # `github.job_id`, which is the YAML job *key* -- the old entries were named
     # `v0-rust-check-...` and `v0-rust-install-...` -- and that is identical on
-    # master and on a PR, so master's runs keep serving PRs. What must NOT go
-    # into the key is the event, and what was killing `Source install` all along
-    # is a few lines below -- `cargo install` builds into a throwaway directory,
-    # so it had no `target/` to cache.
+    # master and on a PR, so master's runs keep serving PRs. A PR did pay one
+    # cold run here, because renaming a job renames its key and nothing matched
+    # to restore; `install`, whose key survived the split, hit master's entry on
+    # its first run. What must NOT go into the key is the event, and what was
+    # killing `install` all along is in ci.yml: `cargo install` builds into a
+    # throwaway directory, so it had no `target/` to cache.
     - name: Rust Cache
       uses: Swatinem/rust-cache@v2
       with:
