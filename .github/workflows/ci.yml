@@ -143,13 +143,12 @@ jobs:
         # all 486 crates from scratch.
         run: cargo install --path gallery --locked --debug --force --target-dir target
 
-  # What the -O0 gate gives up, this takes back. The claim "a codegen flag cannot
-  # change whether a test passes" turned out to be false on this very pipeline --
-  # a settle assertion in dropdown_viewport_deep tracked the build profile until
-  # the tolerance it depends on was fixed -- so the profile developers actually
-  # run has to be gated, not just assumed. Every merged commit gets the
-  # Cargo.toml profile here, off the PR critical path where its length costs
-  # nobody a review cycle.
+  # What the -O0 workspace gives up, this takes back. `test` builds the workspace
+  # crates unoptimized; nothing else in the pipeline then compiles them the way a
+  # developer's `cargo test` does, and this repo has already shown that a
+  # codegen flag can change what a layout assertion reports. So every merged
+  # commit gets the Cargo.toml profile here, off the PR critical path where its
+  # length costs nobody a review cycle.
   optimized:
     name: Tests (Cargo.toml profile)
     if: github.event_name == 'push'

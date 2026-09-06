@@ -1,15 +1,15 @@
 name: rust-env
 description: >-
   Shared Linux setup for the Rust gate jobs: the system libraries GPUI links
-  against, which build profile the job compiles under, and one dependency cache
-  every job on that profile can read.
+  against, which optimization level the workspace crates build at, and one
+  dependency cache every one of those jobs can read.
 
 inputs:
   profile:
     description: >-
-      `fast` unoptimizes the build for the correctness gates; `real` keeps the
-      profile from Cargo.toml. It selects the cache key too, because artifacts
-      from one profile never satisfy the fingerprints of the other.
+      `fast` builds the workspace crates at -O0; `real` keeps Cargo.toml's
+      profile for them. Dependencies stay at Cargo.toml's -O3 either way, so
+      both profiles read and write the same dependency cache.
     default: fast
     type: choice
     options:
@@ -39,25 +39,27 @@ runs:
           libfontconfig-dev \
           libfreetype-dev
 
-    # The gate is compile-bound, not test-bound -- its 70 test binaries finish
-    # in five seconds (the `test` job measured 237s at -O0 against ~430s at the
-    # Cargo.toml profile, nearly all of it the serial `core -> theme ->
-    # components -> herogpui -> gallery` chain). `Cargo.toml` builds dependencies
-    # at -O3 and the workspace at -O1 because a gallery you interact with should
-    # be responsive; that is a local-dev choice, and a correctness gate only has
-    # to prove correctness. So the PR jobs build at -O0 and the `optimized` job
-    # re-runs the same tests at the real profile on every push to master.
+    # The gate is compile-bound, not test-bound: its 70 test binaries finish in
+    # five seconds, and the `test` job measured 221s against 842s at the
+    # Cargo.toml profile. Cargo.toml's `-O1` workspace / `-O3` dependencies is a
+    # local-dev choice -- a gallery you interact with should be responsive --
+    # and only the workspace half is on a PR's critical path, because
+    # dependencies come out of the cache. So unoptimize that half and nothing
+    # else.
     #
-    # That second job is not ceremony. One assertion in `dropdown_viewport_deep`
-    # did track the profile -- the height-capped panel is laid out twice a frame
-    # and its reported height is ambiguous by a pixel -- so -O0 and -O1/-O3 are
-    # observably different builds here, and both get gated.
+    # The `nothing else` is measured, not cautious. Dropping dependencies to -O0
+    # too made layout assertions in dropdown_viewport_deep fail 40/40 -- a
+    # height-capped panel is laid out twice per frame and its reported height
+    # lands one pixel either side depending on codegen -- while workspace -O0
+    # with dependencies at Cargo.toml's -O3 passed 0/12 in the same regime. That
+    # keeps every test assertion exact, and it keeps CI's dependencies identical
+    # to a developer's, which is the point of a gate.
     #
     # The override goes in $CARGO_HOME rather than as a `--config` flag because
     # `.shots/lint.ps1` owns its own cargo invocation. One config file reaches
     # every call in a job, and calls within a job that disagree about the
     # profile would rebuild the workspace and thrash the shared cache.
-    - name: Build the correctness gates unoptimized
+    - name: Build the workspace crates unoptimized
       if: inputs.profile == 'fast'
       shell: bash
       run: |
@@ -67,8 +69,10 @@ runs:
         if grep -q '^\[profile\.dev\]$' "$cargo_home/config.toml" 2>/dev/null; then
           echo "::warning::$cargo_home/config.toml already defines [profile.dev]; not overriding it."
         else
-          printf '\n[profile.dev]\nopt-level = 0\n\n[profile.dev.package."*"]\nopt-level = 0\n' \
-            >> "$cargo_home/config.toml"
+          # No [profile.dev.package."*"] block on purpose: `test` inherits
+          # `dev` (there is no [profile.test]), so this reaches test binaries,
+          # while dependencies keep Cargo.toml's -O3.
+          printf '\n[profile.dev]\nopt-level = 0\n' >> "$cargo_home/config.toml"
         fi
         # Echo it. A silent no-op here surfaces as an unexplained slow gate in
         # every step downstream, which is an awful thing to debug from timings.
@@ -79,15 +83,20 @@ runs:
     # crates from nothing: the jobs could not see each other's cache.
     #
     # The key must NOT vary by event. A cache created by a push to the default
-    # branch is restorable by any PR targeting it, so master's runs are what
-    # keep this warm for PRs -- keying by event would throw that away and make
-    # every PR start cold. The profile is the only thing that has to be
-    # separated, and `optimized` is the only job that uses `real`.
+    # branch is restorable by any PR targeting it, so master's runs are what keep
+    # this warm for PRs -- keying by event would throw that away and make every
+    # PR start cold.
+    #
+    # One key now covers both profiles, because the only thing the `fast` profile
+    # changes is the workspace crates -- which are rebuilt on every run anyway,
+    # sources having just changed -- while the ~480 dependency units are
+    # byte-identical to a developer's -O3 build and shared by everything. Keying
+    # by profile here would just store two copies of the same dependencies.
     #
     # `cache-all-crates` keeps the downloaded sources, which is mostly the zed
     # git checkout `gpui` comes from; without it every cold run refetches it.
     - name: Rust Cache
       uses: Swatinem/rust-cache@v2
       with:
-        shared-key: ci-${{ inputs.profile }}
+        shared-key: ci
         cache-all-crates: true
