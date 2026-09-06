@@ -5,7 +5,8 @@ on:
   push:
     branches: [master]
 
-# A new push to the same PR/ref cancels the superseded run instead of queueing behind it.
+# A new push to the same PR/ref cancels the superseded run instead of queueing
+# behind it.
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
@@ -13,39 +14,20 @@ concurrency:
 permissions:
   contents: read
 
+# The gate is compile-bound, not test-bound: all 70 test binaries finish in
+# five seconds. So the jobs are split by what has to be built, not by what is
+# cheapest to name -- clippy and `cargo test` cannot share artifacts (clippy
+# drives the workspace through a different wrapper), which the old single
+# `check` job paid for twice in a row, serially, in one 14m run.
 jobs:
-  # The PR gate: fast Linux runner running the full format, lint, test, and doc battery.
-  # Cheap checks fail first: fmt -> workspace lints -> clippy -> cargo-deny -> tests -> docs.
-  check:
-    name: Check & Test
+  # Everything that needs no Rust build. A formatting or gallery-sync failure
+  # reports in under a minute instead of after a full compile.
+  web:
+    name: Format, gallery sync & website
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v6
 
-      - name: Install Linux build dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            clang \
-            pkg-config \
-            libvulkan-dev \
-            libwayland-dev \
-            libxkbcommon-dev \
-            libxkbcommon-x11-dev \
-            libx11-dev \
-            libxcb1-dev \
-            libx11-xcb-dev \
-            libxcb-render0-dev \
-            libxcb-shape0-dev \
-            libxcb-xfixes0-dev \
-            libfontconfig-dev \
-            libfreetype-dev
-
-      - name: Rust Cache
-        uses: Swatinem/rust-cache@v2
-
-      # The website gates run from the same checkout: extract:check compares the
-      # generated component data against the Rust gallery, so it needs both.
       # There is no root package.json, so the action has to be told where the
       # pinned "packageManager" lives; without it the step fails outright
       # rather than defaulting to a version.
@@ -65,14 +47,11 @@ jobs:
         working-directory: web
         run: pnpm install --frozen-lockfile
 
-      - name: Install cargo-deny
-        uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-deny
-
       - name: Format check
         run: cargo fmt --all -- --check
 
+      # extract:check compares the generated component data against the Rust
+      # gallery, so this job is the one that needs both checkouts.
       - name: Component gallery sync
         working-directory: web
         run: pnpm run extract:check
@@ -84,21 +63,9 @@ jobs:
           pnpm run lint
           pnpm run build
 
-      - name: Lint gate (workspace lints, clippy -D warnings, cargo-deny)
-        shell: pwsh
-        run: .shots/lint.ps1
-
-      - name: Workspace tests
-        run: cargo test --workspace --locked
-
-      - name: Rustdoc
-        env:
-          RUSTDOCFLAGS: -D warnings
-        run: cargo doc --workspace --no-deps --locked
-
   # The parity contract. These read the pinned v3.2.4 bundle checked in at
   # .shots/heroui-bundle.txt.gz, so they need no network and no Rust build --
-  # they read the Rust sources as text. Kept off the Check job so a parity
+  # they read the Rust sources as text. Kept off the Rust jobs so a parity
   # regression and a compile error report separately.
   parity:
     name: HeroUI v3.2.4 parity audits
@@ -120,6 +87,47 @@ jobs:
           echo "==> .shots/write_only.py"
           python .shots/write_only.py
 
+  lint:
+    name: Lints & cargo-deny
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: ./.github/actions/rust-env
+
+      - name: Install cargo-deny
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-deny
+
+      - name: Lint gate (workspace lints, clippy -D warnings, cargo-deny)
+        shell: pwsh
+        run: .shots/lint.ps1
+
+  test:
+    name: Tests
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: ./.github/actions/rust-env
+
+      - name: Workspace tests
+        run: cargo test --workspace --locked
+
+  doc:
+    name: Rustdoc
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: ./.github/actions/rust-env
+
+      - name: Rustdoc
+        env:
+          RUSTDOCFLAGS: -D warnings
+        run: cargo doc --workspace --no-deps --locked
+
   # Git GPUI is not registry-publishable; validate installation from source.
   install:
     name: Source install
@@ -127,27 +135,32 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Install Linux build dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            clang \
-            pkg-config \
-            libvulkan-dev \
-            libwayland-dev \
-            libxkbcommon-dev \
-            libxkbcommon-x11-dev \
-            libx11-dev \
-            libxcb1-dev \
-            libx11-xcb-dev \
-            libxcb-render0-dev \
-            libxcb-shape0-dev \
-            libxcb-xfixes0-dev \
-            libfontconfig-dev \
-            libfreetype-dev
-
-      - name: Rust Cache
-        uses: Swatinem/rust-cache@v2
+      - uses: ./.github/actions/rust-env
 
       - name: Install the gallery CLI from source
-        run: cargo install --path gallery --locked --debug --force
+        # `cargo install` builds into a throwaway directory unless it is told
+        # otherwise, so there was nothing for the job's cache to hold and this
+        # step rebuilt all 486 crates from scratch in 694s. Writing into the
+        # workspace `target/` makes the step cacheable: 14s once it is warm.
+        run: cargo install --path gallery --locked --debug --force --target-dir target
+
+  # What the -O0 workspace gives up, this takes back. `test` builds the workspace
+  # crates unoptimized; nothing else in the pipeline then compiles them the way a
+  # developer's `cargo test` does, and this repo has already shown that a
+  # codegen flag can change what a layout assertion reports. So every merged
+  # commit gets the Cargo.toml profile here, off the PR critical path where its
+  # length costs nobody a review cycle.
+  optimized:
+    name: Tests (Cargo.toml profile)
+    if: github.event_name == 'push'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: ./.github/actions/rust-env
+        with:
+          profile: real
+
+      - name: Workspace tests at -O1/-O3
+        run: cargo test --workspace --locked
+
