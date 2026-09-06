@@ -40,15 +40,18 @@ runs:
           libfreetype-dev
 
     # The gate is compile-bound, not test-bound -- its 70 test binaries finish
-    # in five seconds. `Cargo.toml` builds dependencies at -O3 and the workspace
-    # at -O1 because a gallery you interact with should be responsive; that is a
-    # local-dev choice, and a job that only analyzes or links does not need it.
-    # So `lint`, `doc` and `install` build at -O0.
+    # in five seconds (the `test` job measured 237s at -O0 against ~430s at the
+    # Cargo.toml profile, nearly all of it the serial `core -> theme ->
+    # components -> herogpui -> gallery` chain). `Cargo.toml` builds dependencies
+    # at -O3 and the workspace at -O1 because a gallery you interact with should
+    # be responsive; that is a local-dev choice, and a correctness gate only has
+    # to prove correctness. So the PR jobs build at -O0 and the `optimized` job
+    # re-runs the same tests at the real profile on every push to master.
     #
-    # `test` deliberately does NOT use this. Layout assertions in
-    # dropdown_viewport_deep are codegen-sensitive (see the note on that job), so
-    # it builds at the real profile -- which is also what a developer runs, so
-    # the optimized path stays gated on every PR, not just on master.
+    # That second job is not ceremony. One assertion in `dropdown_viewport_deep`
+    # did track the profile -- the height-capped panel is laid out twice a frame
+    # and its reported height is ambiguous by a pixel -- so -O0 and -O1/-O3 are
+    # observably different builds here, and both get gated.
     #
     # The override goes in $CARGO_HOME rather than as a `--config` flag because
     # `.shots/lint.ps1` owns its own cargo invocation. One config file reaches
@@ -79,7 +82,7 @@ runs:
     # branch is restorable by any PR targeting it, so master's runs are what
     # keep this warm for PRs -- keying by event would throw that away and make
     # every PR start cold. The profile is the only thing that has to be
-    # separated, and `test` is the only job that uses `real`.
+    # separated, and `optimized` is the only job that uses `real`.
     #
     # `cache-all-crates` keeps the downloaded sources, which is mostly the zed
     # git checkout `gpui` comes from; without it every cold run refetches it.

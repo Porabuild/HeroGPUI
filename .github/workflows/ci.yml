@@ -104,12 +104,6 @@ jobs:
         shell: pwsh
         run: .shots/lint.ps1
 
-  # The one job that cannot build at -O0. A codegen flag *can* change whether a
-  # test passes: `assert_settled` in `dropdown_viewport_deep` failed 40/40 with
-  # the workspace compiled at -O0 and 0/40 at the Cargo.toml profile, because
-  # `popover::prepaint` lays the same node out up to three times a frame and the
-  # reported bounds depend on which pass ran last. A deterministic difference is
-  # not a flake I am allowed to retry away, so this job runs the real profile.
   test:
     name: Tests
     runs-on: ubuntu-24.04
@@ -117,8 +111,6 @@ jobs:
       - uses: actions/checkout@v6
 
       - uses: ./.github/actions/rust-env
-        with:
-          profile: real
 
       - name: Workspace tests
         run: cargo test --workspace --locked
@@ -150,4 +142,25 @@ jobs:
         # otherwise, so this step could never read the shared cache and rebuilt
         # all 486 crates from scratch.
         run: cargo install --path gallery --locked --debug --force --target-dir target
+
+  # What the -O0 gate gives up, this takes back. The claim "a codegen flag cannot
+  # change whether a test passes" turned out to be false on this very pipeline --
+  # a settle assertion in dropdown_viewport_deep tracked the build profile until
+  # the tolerance it depends on was fixed -- so the profile developers actually
+  # run has to be gated, not just assumed. Every merged commit gets the
+  # Cargo.toml profile here, off the PR critical path where its length costs
+  # nobody a review cycle.
+  optimized:
+    name: Tests (Cargo.toml profile)
+    if: github.event_name == 'push'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: ./.github/actions/rust-env
+        with:
+          profile: real
+
+      - name: Workspace tests at -O1/-O3
+        run: cargo test --workspace --locked
 

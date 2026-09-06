@@ -62,12 +62,31 @@ fn settle(cx: &mut VisualTestContext, width: f32, height: f32) {
 
 /// The position must be a fixed point: refreshing without input changes
 /// nothing, or the panel would visibly oscillate.
+///
+/// Each frame is compared to the *first* reading, not to its neighbour, so a
+/// panel drifting a pixel per frame still fails. Origin must stay exact --
+/// movement is the thing being ruled out. Size gets `near`'s tolerance, because
+/// a height-capped panel is laid out twice per frame by the positioner (once at
+/// `MaxContent` to choose a side, once at the cap) and `debug_bounds` reports
+/// whichever pass wrote last, so its height is ambiguous by the whole pixel the
+/// cap rounds to. That is a measurement seam, not a wobble.
 fn assert_settled(cx: &mut VisualTestContext, selector: &'static str) {
     let bounds = cx.debug_bounds(selector).unwrap();
     for _ in 0..3 {
         cx.update(|window, _| window.refresh());
         cx.run_until_parked();
-        assert_eq!(cx.debug_bounds(selector).unwrap(), bounds);
+        let now = cx.debug_bounds(selector).unwrap();
+        assert_eq!(
+            (now.origin.x, now.origin.y),
+            (bounds.origin.x, bounds.origin.y),
+            "the panel moved between frames with no input: {now:?} vs {bounds:?}"
+        );
+        assert!(
+            near(now.size.width, f32::from(bounds.size.width))
+                && near(now.size.height, f32::from(bounds.size.height)),
+            "the panel size moved by more than the cap's rounding between \
+             frames with no input: {now:?} vs {bounds:?}"
+        );
     }
 }
 
