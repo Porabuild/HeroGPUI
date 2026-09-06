@@ -129,12 +129,23 @@ export default async function ComponentPage({ params }: ComponentPageProps) {
         <section aria-labelledby="customization">
           <h2 id="customization">Customization</h2>
           <p className="mt-2 text-sm text-muted">
-            Typed builders that change how {component.title} looks. Behaviour builders live in the
-            API reference below.
+            Typed builders that change how {component.title} looks. There is no <code>sx</code> or{" "}
+            <code>className</code>: wrap the component in a <code>div()</code> you own and style
+            that with GPUI, or use a render closure for inner content. Behaviour builders live in
+            the API reference below.
           </p>
           <h3 id="styling-reference">Styling</h3>
           <div className="mt-4">
             <StylingTable api={reference.api} title={component.title} />
+          </div>
+          <div className="mt-4">
+            <CodeBlock
+              code={`div()
+    .p(px(8.))
+    .bg(cx.colors().surface.background)
+    .child(/* ${component.title} */)`}
+              lang="rust"
+            />
           </div>
         </section>
       ) : null}

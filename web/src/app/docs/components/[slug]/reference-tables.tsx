@@ -103,15 +103,15 @@ export function StatesTable({
       className={className}
       columns={[
         {
-          id: "builder",
-          header: "Builder",
-          isRowHeader: true,
-          cell: (row) => <Mono>{row.builder}</Mono>,
-        },
-        {
           id: "state",
           header: "State",
+          isRowHeader: true,
           cell: (row) => <Mono>{row.state}</Mono>,
+        },
+        {
+          id: "builder",
+          header: "Builder",
+          cell: (row) => <Mono>{row.builder}</Mono>,
         },
         {
           id: "description",
@@ -149,7 +149,7 @@ export function StylingTable({
         },
         {
           id: "type",
-          header: "Type",
+          header: "Values",
           cell: (row) => <Mono>{row.type}</Mono>,
         },
         {

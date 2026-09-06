@@ -210,6 +210,31 @@ function builderType(rust: string, fallbackType: string): string {
   return [...new Set(types)].join(" / ");
 }
 
+function quotedLiterals(ty: string): string[] | null {
+  const parts = ty.split("|").map((part) => part.trim());
+  if (parts.length === 0) return null;
+  const literals: string[] = [];
+  for (const part of parts) {
+    const match = part.match(/^['"]([^'"]+)['"]$/);
+    if (!match) return null;
+    literals.push(match[1]);
+  }
+  return literals;
+}
+
+/** The values a styling builder accepts, in Rust spelling. */
+export function acceptedStyleValues(apiType: string, rustType: string): string {
+  const trimmed = apiType.trim();
+  if (/^boolean$/i.test(trimmed) || rustType === "bool") {
+    return "true | false";
+  }
+  const literals = quotedLiterals(trimmed);
+  if (literals) {
+    return literals.map((literal) => rustDefault(`'${literal}'`, rustType)).join(" | ");
+  }
+  return rustValueType(trimmed);
+}
+
 export function rustDefault(raw: string | null | undefined, rustType: string): string {
   if (isBlank(raw) || !raw) return "—";
   const cleaned = raw.trim().replace(/^['"]|['"]$/g, "");
@@ -285,16 +310,35 @@ export interface GpuiStateRow {
   description: string;
 }
 
+function publicStateBuilder(rust: string | null | undefined): string {
+  if (isBlank(rust) || !rust) return "—";
+  const parts = rust
+    .split(" / ")[0]
+    .split("+")
+    .map((part) => part.trim())
+    .filter(Boolean);
+  const preferred = parts.find(
+    (part) => /^is_[a-z_]+(?:\(|$)/.test(part) || /^InteractiveState::is_/.test(part),
+  );
+  if (preferred) {
+    return preferred.replace(/^InteractiveState::/, "");
+  }
+  const kept = parts.filter(
+    (part) => !part.startsWith("anim::") && part !== "disabled_opacity" && !part.includes("="),
+  );
+  return kept[0] ?? parts[0] ?? "—";
+}
+
 export function gpuiStateRows(rows: StateRow[]): GpuiStateRow[] {
   return uniqueBy(
     rows
       .filter((row) => row.status !== "unavailable")
       .map((row) => ({
         state: row.state,
-        builder: isBlank(row.rust) ? "—" : row.rust!.trim(),
+        builder: publicStateBuilder(row.rust),
         description: scrubDescription(row.description),
       })),
-    (row) => `${row.state}\0${row.builder}`,
+    (row) => row.state.toLowerCase(),
   );
 }
 
@@ -333,13 +377,18 @@ function builderName(builder: string): string {
  */
 export function gpuiStyleRows(api: ApiRow[]): GpuiStyleRow[] {
   return uniqueBy(
-    gpuiPropRows(api)
-      .filter((row) => APPEARANCE_BUILDERS.has(builderName(row.builder)))
-      .map((row) => ({
-        style: row.builder,
-        type: row.type,
-        description: row.description,
-      })),
+    api
+      .filter((row) => isCallableRust(row.rust, row.status))
+      .filter((row) => APPEARANCE_BUILDERS.has(builderName(row.rust!.trim())))
+      .map((row) => {
+        const builder = row.rust!.trim();
+        const rustType = builderType(builder, row.type);
+        return {
+          style: builder,
+          type: acceptedStyleValues(row.type, rustType),
+          description: scrubDescription(row.description),
+        };
+      }),
     (row) => row.style,
   );
 }
