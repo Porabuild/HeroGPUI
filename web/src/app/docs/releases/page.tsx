@@ -1,57 +1,77 @@
 import type { Metadata } from "next";
-import type { ComponentProps } from "react";
-import { Button, Chip, Disclosure, Link } from "@heroui/react";
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { Chip, Link } from "@heroui/react";
 import { PageHeader } from "@/components/ui/page-header";
-import { Callout } from "@/components/ui/callout";
-import changelog from "@/data/changelog.json";
-
-const RELEASE_VERSION = changelog.version;
+import { ReleaseBody } from "./markdown";
 
 export const metadata: Metadata = {
   title: "Releases",
-  description: `HeroGPUI v${RELEASE_VERSION} brings HeroUI's component system, typed Rust builders, OKLCH tokens and a native desktop gallery to Rust applications.`,
+  description: "Release notes for HeroGPUI, published on GitHub.",
 };
+
+const RELEASES_URL = "https://github.com/Porabuild/HeroGPUI/releases";
 
 /*
- * `changelog.json` is generated from git by scripts/extract-changelog.mjs.
- * The log below keeps its subjects, short SHAs and kinds verbatim.
+ * `releases.json` is generated from the GitHub Releases API by
+ * scripts/extract-releases.mjs. Bodies are release-note markdown, stored
+ * verbatim; the page renders them with the local `./markdown` renderer.
  */
 
-type Kind = "feature" | "parity" | "fix" | "docs" | "infra";
-
-const KIND_CHIP: Record<Kind, { color: ComponentProps<typeof Chip>["color"]; label: string }> = {
-  feature: { color: "accent", label: "Feature" },
-  parity: { color: "success", label: "Components" },
-  fix: { color: "warning", label: "Fix" },
-  docs: { color: "default", label: "Docs" },
-  infra: { color: "default", label: "Infra" },
-};
-
-const KIND_ORDER: Kind[] = ["feature", "parity", "fix", "docs", "infra"];
-
-function KindChip({ kind }: { kind: string }) {
-  const chip = KIND_CHIP[kind as Kind] ?? { color: "default" as const, label: kind };
-  return (
-    <Chip color={chip.color} size="sm" variant="soft">
-      {chip.label}
-    </Chip>
-  );
+interface Release {
+  tag: string;
+  name: string;
+  publishedAt: string;
+  prerelease: boolean;
+  url: string;
+  body: string;
 }
 
-const RELEASE_HIGHLIGHTS = [
-  {
-    title: "Component library",
-    detail: "Use HeroUI's component system as typed Rust builders with explicit state.",
-  },
-  {
-    title: "Theme tokens",
-    detail: "Build with OKLCH semantic tokens and switch light and dark themes at runtime.",
-  },
-  {
-    title: "Desktop gallery",
-    detail: "Explore every component in a native gallery that ships with the library.",
-  },
-];
+interface ReleasesFile {
+  repository: string;
+  releases: Release[];
+}
+
+const EMPTY: ReleasesFile = { repository: "Porabuild/HeroGPUI", releases: [] };
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function asString(value: unknown, fallback = ""): string {
+  return typeof value === "string" ? value : fallback;
+}
+
+function parseRelease(value: unknown): Release | null {
+  if (!isRecord(value)) return null;
+  const tag = asString(value.tag);
+  if (tag === "") return null;
+  return {
+    tag,
+    name: asString(value.name, tag),
+    publishedAt: asString(value.publishedAt),
+    prerelease: value.prerelease === true,
+    url: asString(value.url),
+    body: asString(value.body),
+  };
+}
+
+function getReleases(): ReleasesFile {
+  try {
+    const file = path.join(process.cwd(), "src", "data", "releases.json");
+    const raw: unknown = JSON.parse(readFileSync(file, "utf8"));
+    if (!isRecord(raw)) return EMPTY;
+    const releases = Array.isArray(raw.releases)
+      ? raw.releases.flatMap((entry) => {
+          const parsed = parseRelease(entry);
+          return parsed ? [parsed] : [];
+        })
+      : [];
+    return { repository: asString(raw.repository, EMPTY.repository), releases };
+  } catch {
+    return EMPTY;
+  }
+}
 
 const DAY_FORMAT = new Intl.DateTimeFormat("en-US", {
   year: "numeric",
@@ -60,135 +80,61 @@ const DAY_FORMAT = new Intl.DateTimeFormat("en-US", {
   timeZone: "UTC",
 });
 
-function formatDay(date: string) {
-  return DAY_FORMAT.format(new Date(`${date}T00:00:00Z`));
+function formatDay(publishedAt: string): string {
+  const date = new Date(publishedAt);
+  if (Number.isNaN(date.getTime())) return publishedAt;
+  return DAY_FORMAT.format(date);
 }
 
-/** The N most recent days render open; the rest collapse behind the disclosure. */
-const RECENT_DAYS = 3;
-
-type Commit = (typeof changelog.days)[number]["commits"][number];
-type Day = (typeof changelog.days)[number];
-
-function DayLog({ day }: { day: Day }) {
+function ReleaseSection({ release }: { release: Release }) {
   return (
-    <section aria-labelledby={`log-${day.date}`} className="mt-8 first:mt-0">
-      <h3 id={`log-${day.date}`}>
-        {formatDay(day.date)}
-        <span className="ml-2 text-sm font-normal text-muted">
-          {day.commits.length} {day.commits.length === 1 ? "commit" : "commits"}
-        </span>
-      </h3>
-      <ol className="mt-3 space-y-1.5">
-        {day.commits.map((commit: Commit) => (
-          <li key={commit.sha} className="flex items-baseline gap-3 text-sm">
-            <code className="shrink-0 font-mono text-xs text-muted" title={commit.sha}>
-              {commit.sha}
-            </code>
-            <span className="min-w-0 flex-1">{commit.subject}</span>
-            <span className="shrink-0">
-              <KindChip kind={commit.kind} />
-            </span>
-          </li>
-        ))}
-      </ol>
+    <section aria-labelledby={release.tag} className="mt-12">
+      <h2 id={release.tag}>{release.tag}</h2>
+      <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-muted">
+        {release.name !== release.tag && (
+          <span className="font-medium text-foreground">{release.name}</span>
+        )}
+        {release.publishedAt !== "" && (
+          <time dateTime={release.publishedAt}>{formatDay(release.publishedAt)}</time>
+        )}
+        {release.prerelease && (
+          <Chip color="warning" size="sm" variant="soft">
+            Pre-release
+          </Chip>
+        )}
+      </p>
+      <div className="mt-4">
+        <ReleaseBody body={release.body} />
+      </div>
+      {release.url !== "" && (
+        <p className="mt-4">
+          <Link href={release.url} rel="noreferrer" target="_blank">
+            View {release.tag} on GitHub
+          </Link>
+        </p>
+      )}
     </section>
   );
 }
 
-const allCommits: Commit[] = changelog.days.flatMap((day) => day.commits);
-const kindCounts = KIND_ORDER.map((kind) => ({
-  kind,
-  count: allCommits.filter((commit) => commit.kind === kind).length,
-})).filter((entry) => entry.count > 0);
-
-const recentDays = changelog.days.slice(0, RECENT_DAYS);
-const olderDays = changelog.days.slice(RECENT_DAYS);
-const olderCommitCount = olderDays.reduce((sum, day) => sum + day.commits.length, 0);
-
-const FIRST_COMMIT_DAY = changelog.days[changelog.days.length - 1]?.date;
-const LAST_COMMIT_DAY = changelog.days[0]?.date;
-
 export default function ReleasesPage() {
+  const { releases } = getReleases();
+
   return (
     <>
-      <PageHeader
-        title="Releases"
-        description={`What version ${RELEASE_VERSION} contains, the changelog grouped by day, and how versions are published.`}
-      />
+      <PageHeader title="Releases" description="Release notes for HeroGPUI, published on GitHub." />
 
-      <Callout kind="note" title={`What v${RELEASE_VERSION} contains`}>
-        <p>
-          HeroGPUI brings HeroUI&apos;s component system to Rust desktop applications as typed
-          builders, with OKLCH semantic tokens and a native desktop gallery.
-        </p>
-        <p className="mt-2">
-          It runs on Windows, macOS and Linux from one codebase. The gallery documents every
-          component and ships with the library.
-        </p>
-      </Callout>
-
-      <h2 id="contents" className="mt-12">
-        Contents
-      </h2>
       <p>
-        Version {RELEASE_VERSION} gives Rust desktop applications the HeroUI component system as
-        typed builders with explicit state, OKLCH semantic tokens, and a desktop gallery with
-        documentation for every component. Components support reduced motion, and the library runs
-        on Windows, macOS and Linux from one codebase.
-      </p>
-      <ul className="mt-4 space-y-2">
-        {RELEASE_HIGHLIGHTS.map((item) => (
-          <li key={item.title}>
-            <strong>{item.title}</strong> — {item.detail}
-          </li>
-        ))}
-      </ul>
-
-      <h2 id="changelog" className="mt-12">
-        Changelog
-      </h2>
-      <p>
-        Every commit from <time dateTime={FIRST_COMMIT_DAY}>{formatDay(FIRST_COMMIT_DAY)}</time> to{" "}
-        <time dateTime={LAST_COMMIT_DAY}>{formatDay(LAST_COMMIT_DAY)}</time> —{" "}
-        {changelog.commitCount} commits, subjects verbatim, newest first.
-      </p>
-      <p className="mt-3 flex flex-wrap items-center gap-2 text-sm text-muted">
-        <span>Commit categories:</span>
-        {kindCounts.map(({ kind, count }) => (
-          <Chip key={kind} color={KIND_CHIP[kind].color} size="sm" variant="soft">
-            {KIND_CHIP[kind].label} · {count}
-          </Chip>
-        ))}
+        Releases are published on GitHub and listed here. Read them at{" "}
+        <Link href={RELEASES_URL} rel="noreferrer" target="_blank">
+          github.com/Porabuild/HeroGPUI/releases
+        </Link>
+        .
       </p>
 
-      <div className="mt-6">
-        {recentDays.map((day) => (
-          <DayLog key={day.date} day={day} />
-        ))}
-
-        {olderDays.length > 0 && (
-          <Disclosure defaultExpanded={false} className="mt-8">
-            <Disclosure.Heading>
-              <Button
-                className="w-full justify-between rounded-xl border border-border/70 px-4 py-3 font-medium text-foreground hover:bg-surface-secondary"
-                slot="trigger"
-                variant="ghost"
-              >
-                The older {olderDays.length} days — {olderCommitCount} commits
-                <Disclosure.Indicator className="text-muted" />
-              </Button>
-            </Disclosure.Heading>
-            <Disclosure.Content>
-              <Disclosure.Body className="pt-2">
-                {olderDays.map((day) => (
-                  <DayLog key={day.date} day={day} />
-                ))}
-              </Disclosure.Body>
-            </Disclosure.Content>
-          </Disclosure>
-        )}
-      </div>
+      {releases.map((release) => (
+        <ReleaseSection key={release.tag} release={release} />
+      ))}
 
       <h2 id="how-releases-work" className="mt-12">
         How releases work

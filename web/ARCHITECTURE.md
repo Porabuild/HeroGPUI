@@ -123,7 +123,7 @@ files, `package.json`, `pnpm-lock.yaml`, or this file.
 /docs/ai/agents-md                 AGENTS.md / CLAUDE.md guidance
 /docs/components                   all components, grouped by category
 /docs/components/[slug]            one component
-/docs/releases                     changelog
+/docs/releases                     GitHub Releases (src/data/releases.json via scripts/extract-releases.mjs)
 /llms.txt                          route handler serving the repo's llms.txt
 ```
 
