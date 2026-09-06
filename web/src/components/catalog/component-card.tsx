@@ -11,7 +11,7 @@ import { publicUrl } from "@/lib/public-url";
  */
 
 const STAGE =
-  "docs-stage docs-stage-cover relative aspect-[16/10] w-full overflow-hidden rounded-xl border border-separator";
+  "docs-stage relative aspect-[16/10] w-full overflow-hidden rounded-xl border border-separator";
 
 function ComponentShot({ component }: { component: CatalogComponent }) {
   const light = component.tile;
@@ -31,7 +31,7 @@ function ComponentShot({ component }: { component: CatalogComponent }) {
     <div className={STAGE}>
       <img
         alt=""
-        className={cn("absolute inset-0 h-full w-full object-contain p-6", dark && "dark:hidden")}
+        className={cn("absolute inset-0 h-full w-full object-cover", dark && "dark:hidden")}
         decoding="async"
         loading="lazy"
         src={publicUrl(light)}
@@ -39,7 +39,7 @@ function ComponentShot({ component }: { component: CatalogComponent }) {
       {dark ? (
         <img
           alt=""
-          className="absolute inset-0 hidden h-full w-full object-contain p-6 dark:block"
+          className="absolute inset-0 hidden h-full w-full object-cover dark:block"
           decoding="async"
           loading="lazy"
           src={publicUrl(dark)}

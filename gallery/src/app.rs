@@ -432,10 +432,6 @@ impl Render for Gallery {
         if crate::control::preview_only(cx) {
             return h::util::app_focus_root(gpui::div(), _window, cx)
                 .size_full()
-                .flex()
-                .items_center()
-                .justify_center()
-                .p(px(32.))
                 .bg(colors.background)
                 .text_color(colors.foreground)
                 .font_family(FONT_FAMILY)

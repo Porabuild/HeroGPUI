@@ -296,23 +296,6 @@ a:focus,
   background-position: center;
 }
 
-/* Screenshots and the WASM canvas paint an opaque fill, so the stage's own
-   background never shows. Paint the same grid on top; clicks pass through. */
-.docs-stage-cover {
-  position: relative;
-}
-
-.docs-stage-cover::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  pointer-events: none;
-  background-image: radial-gradient(var(--stage-dot) 1px, transparent 1.5px);
-  background-size: 16px 16px;
-  background-position: center;
-}
-
 /* Narrow, readable measure for prose blocks. */
 .docs-measure {
   max-width: 72ch;

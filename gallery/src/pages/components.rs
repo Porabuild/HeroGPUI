@@ -43,26 +43,65 @@ macro_rules! component_doc_section {
     };
 }
 
-fn preview_wrapper(body: impl IntoElement) -> AnyElement {
+fn preview_wrapper(body: impl IntoElement, cx: &gpui::App) -> AnyElement {
+    let dot = cx.colors().muted.alpha(0.22);
+    let stage = cx.colors().background;
     gpui::div()
+        .relative()
         .flex()
         .flex_col()
         .items_center()
         .justify_center()
         .size_full()
+        .bg(stage)
+        .child(stage_dot_grid(dot))
         .child(body)
         .into_any_element()
+}
+
+/// The docs site's dotted stage, painted inside the opaque preview canvas so
+/// the grid sits behind the example. The pinned GPUI web surface cannot clear
+/// to transparent, so the site cannot draw the grid underneath the canvas
+/// itself; 16px tiles with a centered 2.5px dot mirror the site's CSS.
+fn stage_dot_grid(dot: gpui::Hsla) -> impl IntoElement {
+    gpui::canvas(
+        |_, _, _| {},
+        move |bounds, _, window, _| {
+            let step = 16.;
+            let dot_size = px(2.5);
+            let center = bounds.center();
+            let reach_x = (f32::from(bounds.size.width) / step).ceil() as i32 / 2 + 1;
+            let reach_y = (f32::from(bounds.size.height) / step).ceil() as i32 / 2 + 1;
+            for column in -reach_x..=reach_x {
+                for row in -reach_y..=reach_y {
+                    let spot = gpui::Point::new(
+                        center.x + px(column as f32 * step),
+                        center.y + px(row as f32 * step),
+                    );
+                    window.paint_quad(
+                        gpui::fill(
+                            gpui::Bounds::centered_at(spot, gpui::size(dot_size, dot_size)),
+                            dot,
+                        )
+                        .corner_radii(dot_size / 2.),
+                    );
+                }
+            }
+        },
+    )
+    .absolute()
+    .inset_0()
 }
 
 macro_rules! component_preview_section {
     (($heading:expr, $body:expr $(,)?), $cx:expr) => {
         if crate::control::section_wanted($heading, $cx) {
-            return preview_wrapper($body);
+            return preview_wrapper($body, $cx);
         }
     };
     (($heading:expr, $description:literal, $body:expr $(,)?), $cx:expr) => {
         if crate::control::section_wanted($heading, $cx) {
-            return preview_wrapper($body);
+            return preview_wrapper($body, $cx);
         }
     };
 }
@@ -515,7 +554,7 @@ fn overlay_demo(
             .relative()
             .flex()
             .flex_col()
-            .items_start()
+            .items_center()
             .w_full(),
         open,
         320.,
@@ -9748,8 +9787,8 @@ impl Gallery {
                                 .relative()
                                 .flex()
                                 .flex_col()
-                                .items_start()
-                                .w_full(),
+                        .items_center()
+                        .w_full(),
                             is_open,
                             240.,
                         )
@@ -10094,8 +10133,8 @@ impl Gallery {
                                 .relative()
                                 .flex()
                                 .flex_col()
-                                .items_start()
-                                .w_full(),
+                        .items_center()
+                        .w_full(),
                             open,
                             120.,
                         )
@@ -10398,7 +10437,7 @@ impl Gallery {
                             .relative()
                             .flex()
                             .flex_col()
-                            .items_start()
+                            .items_center()
                             .w_full(),
                         is_open,
                         240.,
@@ -10640,7 +10679,7 @@ impl Gallery {
                             .relative()
                             .flex()
                             .flex_col()
-                            .items_start()
+                            .items_center()
                             .w_full(),
                         md_custom,
                         120.,
@@ -10828,8 +10867,8 @@ impl Gallery {
                                 .relative()
                                 .flex()
                                 .flex_col()
-                                .items_start()
-                                .w_full(),
+                        .items_center()
+                        .w_full(),
                             is_open,
                             280.,
                         )
@@ -13663,6 +13702,16 @@ mod example_quality {
             .expect("spec_row helper");
         assert!(spec_row.contains(".items_center()"));
         assert!(!spec_row.contains(".items_start()"));
+
+        // Overlay frames stretch to the preview's width so an open panel can
+        // fill it; a closed trigger must still sit centered, not top-left.
+        let overlay_frames = SRC
+            .split("fn overlay_min_h(")
+            .nth(1)
+            .expect("overlay demo frames")
+            .replace(' ', "");
+        assert!(overlay_frames.contains(".items_center()\n.w_full(),"));
+        assert!(!overlay_frames.contains(".items_start()\n.w_full(),"));
 
         let avatar = page_fn(SRC, "avatar");
         for caption in [
