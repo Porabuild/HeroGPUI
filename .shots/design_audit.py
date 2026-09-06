@@ -264,7 +264,9 @@ CHECKS = [
      r'let \(box_size, icon_size\) = \(px\((\d+(?:\.\d*)?)\.\)', None),
     ('close-button', '.close-button', 'radius', 'CloseButton -> util::_radius',
      SRC + 'close_button.rs',
-     r'rounded\(crate::util::(\w+_radius)', helper_px),
+     # Anchored on the hoisted declaration, like the toggle-button row: the
+     # press-scale radius multiplies the same helper and must not satisfy this.
+     r'let radius = crate::util::(\w+_radius)', helper_px),
     ('checkbox', '.checkbox__indicator', 'size', 'Checkbox tick size',
      SRC + 'checkbox.rs',
      r'`\.checkbox__indicator` `size-3`[\s\S]{0,160}?px\((\d+(?:\.\d*)?)\.\), px\(14', None),
@@ -3076,9 +3078,15 @@ def check_toggle_button_style_contract():
         ('no border', '.border_1()' not in render),
         ('font-medium', '.font_weight(gpui::FontWeight::MEDIUM)' in render),
         ('default fill', '.bg(colors.default.color)' in render),
+        # The hover-fade refactor splits the selected fill in two: the fade's
+        # idle color for a selected toggle is `sem.soft()`, and the selected
+        # branch keeps `sem.soft()` as its no-fade fallback ahead of the
+        # soft-foreground text. Both declarations must be present.
         ('selected soft fill', bool(re.search(
-            r'e\.bg\(sem\.soft\(\)\)\s*\.\s*'
-            r'text_color\(sem\.soft_foreground\(colors\.foreground\)\)',
+            r'let idle = if is_selected \{\s*sem\.soft\(\)\s*\}', render)) and
+         bool(re.search(
+            r'e\.bg\(sem\.soft\(\)\)\s*\}\s*else\s*\{\s*e\s*\}\s*;\s*'
+            r'e\.text_color\(sem\.soft_foreground\(colors\.foreground\)\)',
             render))),
         ('selected hover', 'colors.accent.soft_hover()' in render),
         ('default hover', 'colors.default.hover()' in render),

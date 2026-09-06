@@ -297,11 +297,19 @@ impl RenderOnce for ToggleButton {
             })
             .when(!is_selected, |e| match self.variant {
                 ToggleVariant::Default => {
-                    let e = if fade.is_none() { e.bg(colors.default.color) } else { e };
+                    let e = if fade.is_none() {
+                        e.bg(colors.default.color)
+                    } else {
+                        e
+                    };
                     e.text_color(colors.foreground)
                 }
                 ToggleVariant::Ghost => {
-                    let e = if fade.is_none() { e.bg(gpui::transparent_black()) } else { e };
+                    let e = if fade.is_none() {
+                        e.bg(gpui::transparent_black())
+                    } else {
+                        e
+                    };
                     e.text_color(colors.default.foreground)
                 }
             });

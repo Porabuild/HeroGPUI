@@ -13648,15 +13648,21 @@ mod example_quality {
     }
 
     #[test]
-    fn spec_rows_are_top_aligned_and_captions_are_compact() {
+    fn specimen_rows_are_center_aligned_and_captions_are_compact() {
         let row = SRC
             .split("fn row(")
             .nth(1)
             .and_then(|rest| rest.split("fn spec_row").next())
             .expect("row helper");
-        assert!(row.contains(".items_start()"));
-        assert!(!row.contains(".items_center()"));
-        assert!(SRC.contains("fn spec_row"));
+        assert!(row.contains(".items_center()"));
+        assert!(!row.contains(".items_start()"));
+        let spec_row = SRC
+            .split("fn spec_row(")
+            .nth(1)
+            .and_then(|rest| rest.split("fn col(").next())
+            .expect("spec_row helper");
+        assert!(spec_row.contains(".items_center()"));
+        assert!(!spec_row.contains(".items_start()"));
 
         let avatar = page_fn(SRC, "avatar");
         for caption in [
