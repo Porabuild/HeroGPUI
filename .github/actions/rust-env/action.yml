@@ -1,0 +1,86 @@
+name: rust-env
+description: >-
+  Shared Linux setup for the Rust gate jobs: the system libraries GPUI links
+  against, which build profile the job compiles under, and one dependency cache
+  every job on that profile can read.
+
+inputs:
+  profile:
+    description: >-
+      `fast` unoptimizes the build for the correctness gates; `real` keeps the
+      profile from Cargo.toml. It selects the cache key too, because artifacts
+      from one profile never satisfy the fingerprints of the other.
+    default: fast
+    type: choice
+    options:
+      - fast
+      - real
+
+runs:
+  using: composite
+  steps:
+    - name: Install Linux build dependencies
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          clang \
+          pkg-config \
+          libvulkan-dev \
+          libwayland-dev \
+          libxkbcommon-dev \
+          libxkbcommon-x11-dev \
+          libx11-dev \
+          libxcb1-dev \
+          libx11-xcb-dev \
+          libxcb-render0-dev \
+          libxcb-shape0-dev \
+          libxcb-xfixes0-dev \
+          libfontconfig-dev \
+          libfreetype-dev
+
+    # The gate is compile-bound, not test-bound -- its 70 test binaries finish
+    # in five seconds. `Cargo.toml` builds dependencies at -O3 and the workspace
+    # at -O1 because a gallery you interact with should be responsive; that is a
+    # local-dev choice, and a correctness gate only has to prove correctness. So
+    # the gates build at -O0 and the `optimized` job re-runs the same tests at
+    # the real profile on every push to master.
+    #
+    # The override goes in $CARGO_HOME rather than as a `--config` flag because
+    # `.shots/lint.ps1` owns its own cargo invocation. One config file reaches
+    # every call in a job, and calls within a job that disagree about the
+    # profile would rebuild the workspace and thrash the shared cache.
+    - name: Build the correctness gates unoptimized
+      if: inputs.profile == 'fast'
+      shell: bash
+      run: |
+        set -euo pipefail
+        cargo_home="${CARGO_HOME:-$HOME/.cargo}"
+        mkdir -p "$cargo_home"
+        if grep -q '^\[profile\.dev\]$' "$cargo_home/config.toml" 2>/dev/null; then
+          echo "::warning::$cargo_home/config.toml already defines [profile.dev]; not overriding it."
+        else
+          printf '\n[profile.dev]\nopt-level = 0\n\n[profile.dev.package."*"]\nopt-level = 0\n' \
+            >> "$cargo_home/config.toml"
+        fi
+        # Echo it. A silent no-op here surfaces as an unexplained slow gate in
+        # every step downstream, which is an awful thing to debug from timings.
+        cat "$cargo_home/config.toml"
+
+    # rust-cache's default key embeds `github.job_id`, which is why the old
+    # two-job CI logged "No cache found" for `Source install` and rebuilt 486
+    # crates from nothing: the jobs could not see each other's cache.
+    #
+    # The key must NOT vary by event. A cache created by a push to the default
+    # branch is restorable by any PR targeting it, so master's runs are what
+    # keep this warm for PRs -- keying by event would throw that away and make
+    # every PR start cold. The profile is the only thing that has to be
+    # separated, and `optimized` is the only job that uses `real`.
+    #
+    # `cache-all-crates` keeps the downloaded sources, which is mostly the zed
+    # git checkout `gpui` comes from; without it every cold run refetches it.
+    - name: Rust Cache
+      uses: Swatinem/rust-cache@v2
+      with:
+        shared-key: ci-${{ inputs.profile }}
+        cache-all-crates: true
