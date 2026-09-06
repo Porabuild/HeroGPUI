@@ -16,9 +16,9 @@ const AGENT_LINKS = [
     what: "Repository layout, verification commands and contribution guidance.",
   },
   {
-    path: ".agents/skills/",
-    href: "/docs/ai/agent-skills",
-    what: "Loadable skills for GPUI and idiomatic Rust.",
+    path: "docs/agents/",
+    href: "/docs/ai/task-guides",
+    what: "Task guides for workflow, components, audits, and the gallery.",
   },
 ] as const;
 
@@ -28,26 +28,26 @@ export function ForAgents() {
       <div className="mx-auto grid w-full max-w-[1440px] gap-10 px-4 py-16 sm:px-6 md:py-24 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] lg:gap-20">
         <SectionHeading
           eyebrow="For coding agents"
-          sub="The repository includes a machine-readable API reference, repository guidance and loadable skills. Give your agent the same context you use."
+          sub="The repository includes a machine-readable API reference, repository guidance, and task guides. Give your agent the same context you use."
           title="A repository your agent can navigate"
         />
 
-        <ul>
+        <ul className="list-none p-0">
           {AGENT_LINKS.map((link) => (
             <li className="border-t border-separator last:border-b" key={link.path}>
               <Link
-                className="group flex items-center justify-between gap-6 py-5 transition-colors"
+                className="landing-row-link group no-underline hover:no-underline"
                 href={link.href}
               >
                 <span className="min-w-0">
-                  <span className="block font-mono text-sm font-medium text-foreground transition-colors group-hover:text-accent">
+                  <span className="landing-row-title block font-mono text-sm font-medium text-foreground transition-colors">
                     {link.path}
                   </span>
                   <span className="mt-1 block text-sm leading-relaxed text-muted">{link.what}</span>
                 </span>
                 <ArrowUpRight
                   aria-hidden="true"
-                  className="size-5 shrink-0 text-muted transition-colors group-hover:text-accent"
+                  className="size-5 shrink-0 text-muted transition-colors"
                 />
               </Link>
             </li>

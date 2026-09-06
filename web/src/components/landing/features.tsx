@@ -39,19 +39,15 @@ export function Features() {
           title="The pieces desktop apps need"
         />
 
-        <ol className="mt-12">
+        <ol className="landing-principles mt-12 list-none p-0" data-reveal>
           {FEATURES.map((feature, index) => (
-            <li
-              className="grid items-baseline gap-2 border-t border-separator py-6 last:border-b md:grid-cols-[3rem_minmax(0,15rem)_1fr] md:gap-6 md:py-7"
-              key={feature.title}
-            >
-              <span aria-hidden="true" className="font-mono text-xs text-accent tabular-nums">
+            <li key={feature.title}>
+              <span aria-hidden="true" className="landing-principle-mark" />
+              <p aria-hidden="true" className="mt-4 mb-4 font-mono text-xs text-muted tabular-nums">
                 {String(index + 1).padStart(2, "0")}
-              </span>
-              <h3 className="text-base font-semibold tracking-tight text-foreground">
-                {feature.title}
-              </h3>
-              <p className="max-w-2xl text-sm leading-relaxed text-muted">{feature.body}</p>
+              </p>
+              <h3>{feature.title}</h3>
+              <p className="max-w-md text-sm leading-relaxed">{feature.body}</p>
             </li>
           ))}
         </ol>

@@ -7,7 +7,7 @@ import { getCatalog } from "@/lib/catalog";
 export const metadata: Metadata = {
   title: "Components",
   description:
-    "All HeroGPUI components, grouped by category — every card shows the real GPUI-rendered gallery capture, the available demos, and whether full API reference data exists.",
+    "Every HeroGPUI component, grouped by category, with a live WebAssembly preview and the Rust API.",
 };
 
 /**
@@ -24,23 +24,17 @@ export default function ComponentsPage() {
     slug: category.slug,
     components: category.components.flatMap((slug) => {
       const component = catalog.components[slug];
-      // A category entry without a matching component record is a pipeline
-      // inconsistency; skip the card rather than render a broken one.
       return component && component.slug && component.title ? [component] : [];
     }),
   }));
 
   const totalCount = groups.reduce((sum, group) => sum + group.components.length, 0);
-  const referenceCount = groups.reduce(
-    (sum, group) => sum + group.components.filter((component) => component.hasReference).length,
-    0,
-  );
 
   return (
     <>
       <PageHeader
         title="Components"
-        description={`HeroGPUI's ${totalCount} component pages are grouped by category and paired with native GPUI gallery captures; together they cover all 71 components HeroUI documents because a few pages group a component with its group or slot siblings, and ${referenceCount} pages include full API reference data.`}
+        description={`${totalCount} pages of typed Rust builders, grouped by what they help you build. Each page runs the component as WebAssembly next to its API.`}
       />
 
       {totalCount === 0 ? (

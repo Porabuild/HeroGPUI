@@ -14,7 +14,7 @@ edition = "2024"
 rust-version = "1.98"
 license = "Apache-2.0"
 readme = "README.md"
-repository = "https://github.com/heroui-inc/HeroGPUI"
+repository = "https://github.com/Porabuild/HeroGPUI"
 keywords = ["gpui", "gui", "components", "heroui", "desktop"]
 categories = ["gui"]
 

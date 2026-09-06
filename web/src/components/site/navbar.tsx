@@ -4,8 +4,10 @@ import { Button, Link } from "@heroui/react";
 import { Menu, X } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
+import { CommandPalette } from "@/components/site/command-palette";
 import { GitHubIcon } from "@/components/site/github-icon";
 import { ThemeToggle } from "@/components/site/theme-toggle";
+import type { SearchItem } from "@/lib/docs-nav";
 import { isNavLinkActive, NAV_LINKS, SITE } from "@/lib/nav";
 
 const NAV_LINK_CLASS =
@@ -17,7 +19,7 @@ const NAV_LINK_CLASS =
  * - Umbrella indicator: `.pb-chip` "by porabuild"
  * - Navigation links: clean mono, no bottom underline
  */
-export function Navbar() {
+export function Navbar({ searchItems = [] }: { searchItems?: SearchItem[] }) {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -70,6 +72,7 @@ export function Navbar() {
         </nav>
 
         <div className="site-header-actions ml-auto flex items-center gap-1.5">
+          {searchItems.length > 0 ? <CommandPalette items={searchItems} /> : null}
           <Link
             aria-label="View source on GitHub"
             className="hidden size-10 items-center justify-center rounded-md text-muted transition-colors hover:text-foreground no-underline sm:inline-flex"
@@ -105,7 +108,7 @@ export function Navbar() {
               return (
                 <li key={link.href}>
                   <Link
-                    className={`block rounded-md px-3 py-2 text-sm font-medium no-underline ${
+                    className={`block rounded-md px-3 py-2 font-mono text-xs font-medium tracking-wide uppercase no-underline ${
                       active
                         ? "bg-default-soft text-foreground"
                         : "text-muted hover:text-foreground"

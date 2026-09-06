@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Card, Link } from "@heroui/react";
 import { PageHeader } from "@/components/ui/page-header";
 import { StaticTable } from "@/components/ui/static-table";
+import { getCatalog } from "@/lib/catalog";
 
 export const metadata: Metadata = {
   title: "Introduction",
@@ -29,6 +30,9 @@ const CRATES = [
 ];
 
 export default function IntroductionPage() {
+  const catalog = getCatalog();
+  const componentCount = Object.keys(catalog.components).length;
+
   return (
     <>
       <PageHeader
@@ -40,9 +44,7 @@ export default function IntroductionPage() {
       <p>
         HeroGPUI is a UI library for Rust desktop applications built on GPUI, the GPU-accelerated
         framework behind the Zed editor. It runs on Windows, macOS and Linux from one codebase, with
-        typed builders, explicit component state and semantic themes. HeroGPUI brings HeroUI&apos;s
-        design system to Rust, including its OKLCH color vocabulary, component patterns and desktop
-        gallery.
+        typed builders, explicit component state, OKLCH semantic tokens and a desktop gallery.
       </p>
       <p>
         The workspace separates shared types and color math, theme tokens, component builders and
@@ -69,7 +71,7 @@ export default function IntroductionPage() {
         }))}
       />
 
-      <h2 id="beautiful-fast-and-modern">What you get</h2>
+      <h2 id="what-you-get">What you get</h2>
       <ul>
         <li>
           <strong>Native rendering</strong> — GPUI renders the interface without a browser DOM.
@@ -91,10 +93,10 @@ export default function IntroductionPage() {
       <div className="mt-4 grid gap-4 sm:grid-cols-3">
         <Card.Root>
           <Card.Content>
-            <Card.Title>71 components</Card.Title>
+            <Card.Title>{componentCount} components</Card.Title>
             <Card.Description>
-              HeroGPUI implements every component documented by HeroUI. The catalog indexes them as
-              66 pages because related components share a page.
+              The catalog indexes every component as focused pages, grouped by what they help you
+              build. Related builders share a page.
             </Card.Description>
           </Card.Content>
         </Card.Root>
@@ -118,52 +120,84 @@ export default function IntroductionPage() {
         </Card.Root>
       </div>
 
-      <h2 id="measured-parity">Build from the public surface</h2>
+      <h2 id="build-from-the-public-surface">Build from the public surface</h2>
       <p>
         The component pages, theme guides and root <code>llms.txt</code> describe the public Rust
         API. Start with the <code>herogpui</code> prelude, then use the component reference and
         gallery examples as you compose your application.
       </p>
 
-      <h2 id="what-is-deliberately-not-ported">Desktop application scope</h2>
+      <h2 id="desktop-application-scope">Desktop application scope</h2>
       <p>
         HeroGPUI is designed for native desktop applications. Its components provide GPUI focus,
         keyboard and theme behavior, while your application owns the surrounding window and domain
         logic.
       </p>
 
+      <h2 id="start-here">Start here</h2>
+      <ol>
+        <li>
+          <Link href="/docs/getting-started/quick-start">Quick Start</Link> — a window and a button
+          you can run.
+        </li>
+        <li>
+          <Link href="/docs/getting-started/gallery">Gallery</Link> — every example in a native
+          desktop app.
+        </li>
+        <li>
+          <Link href="/docs/components/button">Button</Link> — the first component page, with live
+          WebAssembly and the Rust builders.
+        </li>
+        <li>
+          <Link href="/docs/getting-started/theming">Theming</Link> — light, dark, and the tokens
+          every control reads.
+        </li>
+      </ol>
+
+      <h2 id="faq">FAQ</h2>
+      <h3 id="is-it-open-source">Is it open source?</h3>
+      <p>
+        Yes. Apache License 2.0. The repository is{" "}
+        <Link href="https://github.com/Porabuild/HeroGPUI">github.com/Porabuild/HeroGPUI</Link>.
+      </p>
+      <h3 id="what-platforms">What platforms?</h3>
+      <p>
+        Windows, macOS, and Linux from one Rust API. It is a native desktop library, not a web UI.
+      </p>
+      <h3 id="how-do-i-run-examples">How do I run the examples?</h3>
+      <p>
+        The website embeds the gallery as WebAssembly on each component page. For the real window,
+        run the <Link href="/docs/getting-started/gallery">desktop gallery</Link>.
+      </p>
+      <h3 id="how-does-this-relate-to-gpui">How does this relate to GPUI?</h3>
+      <p>
+        GPUI is the renderer and window runtime (the engine behind Zed). HeroGPUI is the component
+        kit you call from Rust: buttons, fields, overlays, and a theme.
+      </p>
+
       <h2 id="next-steps">Next steps</h2>
       <ul>
         <li>
-          <Link href="/docs/getting-started/installation">Installation</Link> — add the crate,
-          register the assets and theme provider, render your first component.
+          <Link href="/docs/getting-started/installation">Installation</Link> — assets, the theme
+          provider, and platform notes.
         </li>
         <li>
           <Link href="/docs/getting-started/state">State</Link> — controlled and uncontrolled
-          components, and which ones hand you a state entity to own.
+          components.
         </li>
         <li>
-          <Link href="/docs/getting-started/theming">Theming</Link> — the OKLCH semantic token
-          system shared by every component.
+          <Link href="/docs/getting-started/composition">Composition</Link> — parts and render
+          closures.
         </li>
         <li>
-          <Link href="/docs/getting-started/composition">Composition</Link> — ordered children,
-          composed parts, and the render props v3 inverts.
+          <Link href="/docs/getting-started/keyboard">Keyboard and focus</Link> — Tab, Escape, and{" "}
+          <code>app_focus_root</code>.
         </li>
         <li>
-          <Link href="/docs/getting-started/animation">Animation</Link> — v3's per-overlay curves,
-          reduced motion, and what GPUI's missing transforms cost.
+          <Link href="/docs/components">Components</Link> — the full catalog.
         </li>
         <li>
-          <Link href="/docs/components">Components</Link> — browse the catalog, grouped by 15
-          categories.
-        </li>
-        <li>
-          <Link href="/docs/releases">Releases</Link> — read the release notes.
-        </li>
-        <li>
-          <Link href="/llms.txt">llms.txt</Link> — the full public API reference, written for
-          agents.
+          <Link href="/llms.txt">llms.txt</Link> — the public API as plain text for agents.
         </li>
       </ul>
     </>

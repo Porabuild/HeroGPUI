@@ -3,6 +3,8 @@
 import { cn } from "@heroui/react";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
+import { OverlayScrollbarsComponent } from "overlayscrollbars-react";
+import { GHOST_SCROLLBAR_OPTIONS } from "@/components/site/sidebar";
 
 interface TocItem {
   id: string;
@@ -23,9 +25,9 @@ function slugify(text: string): string {
 
 /**
  * A heading's text, with its element children kept apart. `textContent` runs
- * every text node together, so the release log's
- * `<h3>August 29, 2026<span>5 commits</span></h3>` came out of it as
- * "August 29, 20265 commits". Only an element boundary earns a space: React
+ * every text node together, so the releases page's
+ * `<h2>v0.1.0<span>Pre-release</span></h2>` came out of it as
+ * "v0.1.0Pre-release". Only an element boundary earns a space: React
  * splits interpolated text with comment nodes, so `What v{version} contains`
  * arrives as three text nodes and has to stay "What v0.1.0 contains" rather
  * than becoming "What v 0.1.0 contains". Comments are skipped outright — a
@@ -135,37 +137,44 @@ export function Toc({ articleSelector = "[data-docs-article]" }: { articleSelect
 
   return (
     <aside className="docs-toc hidden w-64 shrink-0 xl:block">
-      <nav
-        aria-label="On this page"
-        className="scrollbar sticky top-16 max-h-[calc(100dvh-4rem)] overflow-y-auto py-10 pl-10"
-      >
-        <h3 className="docs-toc-label text-xs font-semibold tracking-wider text-muted uppercase">
-          On this page
-        </h3>
-        <ul className="mt-3 space-y-1 border-l border-separator">
-          {items.map((item) => {
-            const active = item.id === activeId;
-            return (
-              <li key={item.id}>
-                <a
-                  aria-current={active ? "location" : undefined}
-                  className={cn(
-                    "-ml-px block border-l py-1 text-sm transition-colors",
-                    item.level === 3 && "pl-7",
-                    item.level === 2 && "pl-4",
-                    active
-                      ? "border-accent font-medium text-accent"
-                      : "border-transparent text-muted hover:border-separator hover:text-foreground",
-                  )}
-                  href={`#${item.id}`}
-                >
-                  {item.text}
-                </a>
-              </li>
-            );
-          })}
-        </ul>
-      </nav>
+      {/* Sticky lives outside the OverlayScrollbars host: the library sets
+          `position: relative` on it from an unlayered stylesheet. */}
+      <div className="sticky top-16">
+        <OverlayScrollbarsComponent
+          aria-label="On this page"
+          className="max-h-[calc(100dvh-4rem)] py-10 pl-10"
+          defer
+          element="nav"
+          options={GHOST_SCROLLBAR_OPTIONS}
+        >
+          <h3 className="docs-toc-label text-xs font-semibold tracking-wider text-muted uppercase">
+            On this page
+          </h3>
+          <ul className="mt-3 space-y-1 border-l border-separator">
+            {items.map((item) => {
+              const active = item.id === activeId;
+              return (
+                <li key={item.id}>
+                  <a
+                    aria-current={active ? "location" : undefined}
+                    className={cn(
+                      "-ml-px block border-l py-1 text-sm transition-colors",
+                      item.level === 3 && "pl-7",
+                      item.level === 2 && "pl-4",
+                      active
+                        ? "border-accent font-medium text-accent"
+                        : "border-transparent text-muted hover:border-separator hover:text-foreground",
+                    )}
+                    href={`#${item.id}`}
+                  >
+                    {item.text}
+                  </a>
+                </li>
+              );
+            })}
+          </ul>
+        </OverlayScrollbarsComponent>
+      </div>
     </aside>
   );
 }

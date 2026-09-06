@@ -3,8 +3,21 @@
 import { Button, Drawer, Link, useOverlayState } from "@heroui/react";
 import { PanelLeft } from "lucide-react";
 import { usePathname } from "next/navigation";
+import { OverlayScrollbarsComponent } from "overlayscrollbars-react";
 import type { SidebarGroup } from "@/lib/catalog";
 import { AI_LINKS, GETTING_STARTED_LINKS, isNavLinkActive } from "@/lib/nav";
+
+/** Ghost scrollbar options shared by the docs sidebar rail and the TOC. */
+export const GHOST_SCROLLBAR_OPTIONS = {
+  overflow: { x: "hidden" as const, y: "scroll" as const },
+  scrollbars: {
+    theme: "os-theme-pb",
+    visibility: "auto" as const,
+    autoHide: "scroll" as const,
+    autoHideDelay: 800,
+    clickScroll: true,
+  },
+};
 
 interface SidebarNavProps {
   groups: SidebarGroup[];
@@ -76,8 +89,18 @@ function SidebarNav({ groups, onNavigate }: SidebarNavProps) {
 export function SidebarRail({ groups }: { groups: SidebarGroup[] }) {
   return (
     <aside className="docs-sidebar hidden w-64 shrink-0 lg:block">
-      <div className="scrollbar sticky top-16 max-h-[calc(100dvh-4rem)] overflow-y-auto border-r border-separator px-3 pt-6 pb-8">
-        <SidebarNav groups={groups} />
+      {/* OverlayScrollbars sets `position: relative` on its host from an
+          unlayered stylesheet, which beats Tailwind's layered `sticky`. The
+          rail therefore sticks from a wrapper the library does not touch. */}
+      <div className="sticky top-16">
+        <OverlayScrollbarsComponent
+          className="max-h-[calc(100dvh-4rem)] border-r border-separator px-3 pt-6 pb-8"
+          defer
+          element="div"
+          options={GHOST_SCROLLBAR_OPTIONS}
+        >
+          <SidebarNav groups={groups} />
+        </OverlayScrollbarsComponent>
       </div>
     </aside>
   );

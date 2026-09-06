@@ -104,6 +104,29 @@ export function GalleryFrame({ slug, title, section, className, bare = false }: 
 
   useEffect(selectSection, [selectSection]);
 
+  // Backstop for a `load` event that fired before React attached `onLoad`:
+  // once the frame document reads complete, deliver the section message.
+  // Same-origin only; a cross-origin gallery throws on `contentDocument`
+  // access and keeps the `onLoad` path.
+  useEffect(() => {
+    if (!frameTheme) return;
+    const frame = iframeRef.current;
+    if (!frame) return;
+    const timer = window.setInterval(() => {
+      let complete = false;
+      try {
+        complete = frame.contentDocument?.readyState === "complete";
+      } catch {
+        complete = false;
+      }
+      if (complete) {
+        window.clearInterval(timer);
+        selectSection();
+      }
+    }, 250);
+    return () => window.clearInterval(timer);
+  }, [frameTheme, slug, selectSection]);
+
   const frame = (
     <>
       <div aria-hidden="true" className="window-bar">
@@ -116,7 +139,7 @@ export function GalleryFrame({ slug, title, section, className, bare = false }: 
         <span className="shot-window-status">Live</span>
       </div>
       <div
-        className="relative h-[320px] bg-surface-secondary sm:h-[360px] lg:h-[400px]"
+        className="docs-stage docs-stage-cover relative h-[320px] sm:h-[360px] lg:h-[400px]"
         ref={viewportRef}
       >
         {frameTheme ? (

@@ -167,6 +167,8 @@
       "importLine": "use herogpui::prelude::{Button, Size, Variant};",
       "shot": "/shots/button-v3.png",
       "shotDark": "/shots/button-dark-v3.png",
+      "tile": "/shots/button-tile-v3.png",
+      "tileDark": "/shots/button-tile-dark-v3.png",
       "demos": [],
       "hasReference": true
     },
@@ -178,6 +180,8 @@
       "importLine": "use herogpui::components::button_group::ButtonGroup;",
       "shot": "/shots/buttongroup-v3.png",
       "shotDark": null,
+      "tile": "/shots/buttongroup-tile-v3.png",
+      "tileDark": "/shots/buttongroup-tile-dark-v3.png",
       "demos": [],
       "hasReference": true
     },
@@ -189,6 +193,8 @@
       "importLine": "use herogpui::components::close_button::CloseButton;",
       "shot": "/shots/closebutton-v3.png",
       "shotDark": null,
+      "tile": "/shots/closebutton-tile-v3.png",
+      "tileDark": "/shots/closebutton-tile-dark-v3.png",
       "demos": [],
       "hasReference": true
     },
@@ -200,6 +206,8 @@
       "importLine": "use herogpui::components::toggle_button::{ToggleButton, ToggleButtonGroup};",
       "shot": "/shots/togglebutton-v3.png",
       "shotDark": null,
+      "tile": "/shots/togglebutton-tile-v3.png",
+      "tileDark": "/shots/togglebutton-tile-dark-v3.png",
       "demos": [],
       "hasReference": true
     },
@@ -211,6 +219,8 @@
       "importLine": "use herogpui::components::dropdown::{Dropdown, MenuItem};",
       "shot": "/shots/dropdown-v3.png",
       "shotDark": null,
+      "tile": "/shots/dropdown-tile-v3.png",
+      "tileDark": "/shots/dropdown-tile-dark-v3.png",
       "demos": [],
       "hasReference": true
     },
@@ -222,6 +232,8 @@
       "importLine": "use herogpui::components::list_box::{ListBox, ListBoxItem};",
       "shot": "/shots/listbox-v3.png",
       "shotDark": null,
+      "tile": "/shots/listbox-tile-v3.png",
+      "tileDark": "/shots/listbox-tile-dark-v3.png",
       "demos": [],
       "hasReference": true
     },
@@ -233,6 +245,8 @@
       "importLine": "use herogpui::components::tag_group::{Tag, TagGroup};",
       "shot": "/shots/taggroup-v3.png",
       "shotDark": null,
+      "tile": "/shots/taggroup-tile-v3.png",
+      "tileDark": "/shots/taggroup-tile-dark-v3.png",
       "demos": [],
       "hasReference": true
     },
@@ -244,6 +258,8 @@
       "importLine": "use herogpui::components::color_picker::ColorArea;",
       "shot": "/shots/colorarea-v3.png",
       "shotDark": null,
+      "tile": "/shots/colorarea-tile-v3.png",
+      "tileDark": "/shots/colorarea-tile-dark-v3.png",
       "demos": [],
       "hasReference": true
     },
@@ -255,6 +271,8 @@
       "importLine": "use herogpui::components::color_picker::ColorField;",
       "shot": "/shots/colorfield-v3.png",
       "shotDark": null,
+      "tile": "/shots/colorfield-tile-v3.png",
+      "tileDark": "/shots/colorfield-tile-dark-v3.png",
       "demos": [],
       "hasReference": true
     },
@@ -266,6 +284,8 @@
       "importLine": "use herogpui::components::color_picker::ColorPicker;",
       "shot": "/shots/colorpicker-v3.png",
       "shotDark": null,
+      "tile": "/shots/colorpicker-tile-v3.png",
+      "tileDark": "/shots/colorpicker-tile-dark-v3.png",
       "demos": [],
       "hasReference": true
     },
@@ -277,6 +297,8 @@
       "importLine": "use herogpui::components::color_picker::{ColorChannel, ColorSlider};",
       "shot": "/shots/colorslider-v3.png",
       "shotDark": null,
+      "tile": "/shots/colorslider-tile-v3.png",
+      "tileDark": "/shots/colorslider-tile-dark-v3.png",
       "demos": [],
       "hasReference": true
     },
@@ -285,11 +307,13 @@
       "title": "Color Swatch",
       "description": "Preview a single color value.",
       "category": "Colors",
-      "importLine": null,
+      "importLine": "use herogpui::components::color_picker::ColorSwatch;",
       "shot": "/shots/colorswatch-v3.png",
       "shotDark": null,
+      "tile": "/shots/colorswatch-tile-v3.png",
+      "tileDark": "/shots/colorswatch-tile-dark-v3.png",
       "demos": [],
-      "hasReference": false
+      "hasReference": true
     },
     "color-swatch-picker": {
       "slug": "color-swatch-picker",
@@ -299,6 +323,8 @@
       "importLine": "use herogpui::components::color_picker::ColorSwatchPicker;",
       "shot": "/shots/colorswatchpicker-v3.png",
       "shotDark": null,
+      "tile": "/shots/colorswatchpicker-tile-v3.png",
+      "tileDark": "/shots/colorswatchpicker-tile-dark-v3.png",
       "demos": [],
       "hasReference": true
     },
@@ -310,6 +336,8 @@
       "importLine": "use herogpui::components::slider::Slider;",
       "shot": "/shots/slider-v3.png",
       "shotDark": null,
+      "tile": "/shots/slider-tile-v3.png",
+      "tileDark": "/shots/slider-tile-dark-v3.png",
       "demos": [],
       "hasReference": true
     },
@@ -321,6 +349,8 @@
       "importLine": "use herogpui::components::switch::Switch;",
       "shot": "/shots/switch-v3.png",
       "shotDark": null,
+      "tile": "/shots/switch-tile-v3.png",
+      "tileDark": "/shots/switch-tile-dark-v3.png",
       "demos": [],
       "hasReference": true
     },
@@ -332,6 +362,8 @@
       "importLine": "use herogpui::components::badge::{Badge, BadgeAnchor, BadgeLabel};",
       "shot": "/shots/badge-v3.png",
       "shotDark": null,
+      "tile": "/shots/badge-tile-v3.png",
+      "tileDark": "/shots/badge-tile-dark-v3.png",
       "demos": [],
       "hasReference": true
     },
@@ -343,6 +375,8 @@
       "importLine": "use herogpui::components::chip::{Chip, ChipLabel};",
       "shot": "/shots/chip-v3.png",
       "shotDark": null,
+      "tile": "/shots/chip-tile-v3.png",
+      "tileDark": "/shots/chip-tile-dark-v3.png",
       "demos": [],
       "hasReference": true
     },
@@ -354,6 +388,8 @@
       "importLine": "use herogpui::components::table::Table;",
       "shot": "/shots/table-v3.png",
       "shotDark": "/shots/table-dark-v3.png",
+      "tile": "/shots/table-tile-v3.png",
+      "tileDark": "/shots/table-tile-dark-v3.png",
       "demos": [],
       "hasReference": true
     },
@@ -365,6 +401,8 @@
       "importLine": "use herogpui::components::calendar::{Calendar, CalendarState};",
       "shot": "/shots/calendar-v3.png",
       "shotDark": "/shots/calendar-dark-v3.png",
+      "tile": "/shots/calendar-tile-v3.png",
+      "tileDark": "/shots/calendar-tile-dark-v3.png",
       "demos": [],
       "hasReference": true
     },
@@ -376,6 +414,8 @@
       "importLine": "use herogpui::components::date_picker::DateField;",
       "shot": "/shots/datefield-v3.png",
       "shotDark": null,
+      "tile": "/shots/datefield-tile-v3.png",
+      "tileDark": "/shots/datefield-tile-dark-v3.png",
       "demos": [],
       "hasReference": true
     },
@@ -387,6 +427,8 @@
       "importLine": "use herogpui::components::date_picker::DatePicker;",
       "shot": "/shots/datepicker-v3.png",
       "shotDark": null,
+      "tile": "/shots/datepicker-tile-v3.png",
+      "tileDark": "/shots/datepicker-tile-dark-v3.png",
       "demos": [],
       "hasReference": true
     },
@@ -398,6 +440,8 @@
       "importLine": "use herogpui::components::date_picker::{DateRangePicker, DateRangeState};",
       "shot": "/shots/daterangepicker-v3.png",
       "shotDark": null,
+      "tile": "/shots/daterangepicker-tile-v3.png",
+      "tileDark": "/shots/daterangepicker-tile-dark-v3.png",
       "demos": [],
       "hasReference": true
     },
@@ -409,6 +453,8 @@
       "importLine": "use herogpui::components::range_calendar::RangeCalendar;",
       "shot": "/shots/rangecalendar-v3.png",
       "shotDark": null,
+      "tile": "/shots/rangecalendar-tile-v3.png",
+      "tileDark": "/shots/rangecalendar-tile-dark-v3.png",
       "demos": [],
       "hasReference": true
     },
@@ -420,6 +466,8 @@
       "importLine": "use herogpui::components::time_field::{TimeField, TimeState};",
       "shot": "/shots/timefield-v3.png",
       "shotDark": null,
+      "tile": "/shots/timefield-tile-v3.png",
+      "tileDark": "/shots/timefield-tile-dark-v3.png",
       "demos": [],
       "hasReference": true
     },
@@ -431,6 +479,8 @@
       "importLine": "use herogpui::components::alert::Alert;",
       "shot": "/shots/alert-v3.png",
       "shotDark": null,
+      "tile": "/shots/alert-tile-v3.png",
+      "tileDark": "/shots/alert-tile-dark-v3.png",
       "demos": [],
       "hasReference": true
     },
@@ -439,11 +489,13 @@
       "title": "Meter",
       "description": "Show a value within a known range.",
       "category": "Feedback",
-      "importLine": null,
+      "importLine": "use herogpui::components::meter::Meter;",
       "shot": "/shots/meter-v3.png",
       "shotDark": null,
+      "tile": "/shots/meter-tile-v3.png",
+      "tileDark": "/shots/meter-tile-dark-v3.png",
       "demos": [],
-      "hasReference": false
+      "hasReference": true
     },
     "progress-bar": {
       "slug": "progress-bar",
@@ -453,6 +505,8 @@
       "importLine": "use herogpui::components::progress::ProgressBar;",
       "shot": "/shots/progressbar-v3.png",
       "shotDark": null,
+      "tile": "/shots/progressbar-tile-v3.png",
+      "tileDark": "/shots/progressbar-tile-dark-v3.png",
       "demos": [],
       "hasReference": true
     },
@@ -464,6 +518,8 @@
       "importLine": "use herogpui::components::progress::ProgressCircle;",
       "shot": "/shots/progresscircle-v3.png",
       "shotDark": null,
+      "tile": "/shots/progresscircle-tile-v3.png",
+      "tileDark": "/shots/progresscircle-tile-dark-v3.png",
       "demos": [],
       "hasReference": true
     },
@@ -472,22 +528,26 @@
       "title": "Skeleton",
       "description": "A placeholder shimmer shown while content loads.",
       "category": "Feedback",
-      "importLine": null,
+      "importLine": "use herogpui::components::skeleton::Skeleton;",
       "shot": "/shots/skeleton-v3.png",
       "shotDark": null,
+      "tile": "/shots/skeleton-tile-v3.png",
+      "tileDark": "/shots/skeleton-tile-dark-v3.png",
       "demos": [],
-      "hasReference": false
+      "hasReference": true
     },
     "spinner": {
       "slug": "spinner",
       "title": "Spinner",
       "description": "Indicate a busy state with a rotating arc.",
       "category": "Feedback",
-      "importLine": null,
+      "importLine": "use herogpui::components::spinner::Spinner;",
       "shot": "/shots/spinner-v3.png",
       "shotDark": null,
+      "tile": "/shots/spinner-tile-v3.png",
+      "tileDark": "/shots/spinner-tile-dark-v3.png",
       "demos": [],
-      "hasReference": false
+      "hasReference": true
     },
     "checkbox": {
       "slug": "checkbox",
@@ -497,6 +557,8 @@
       "importLine": "use herogpui::components::checkbox::Checkbox;",
       "shot": "/shots/checkbox-v3.png",
       "shotDark": null,
+      "tile": "/shots/checkbox-tile-v3.png",
+      "tileDark": "/shots/checkbox-tile-dark-v3.png",
       "demos": [],
       "hasReference": true
     },
@@ -508,6 +570,8 @@
       "importLine": "use herogpui::components::checkbox::CheckboxGroup;",
       "shot": "/shots/checkboxgroup-v3.png",
       "shotDark": null,
+      "tile": "/shots/checkboxgroup-tile-v3.png",
+      "tileDark": "/shots/checkboxgroup-tile-dark-v3.png",
       "demos": [],
       "hasReference": true
     },
@@ -519,6 +583,8 @@
       "importLine": "use herogpui::components::field::{Fieldset, FieldGroup, FieldsetLegend, FieldsetActions};",
       "shot": "/shots/fieldset-v3.png",
       "shotDark": null,
+      "tile": "/shots/fieldset-tile-v3.png",
+      "tileDark": "/shots/fieldset-tile-dark-v3.png",
       "demos": [],
       "hasReference": true
     },
@@ -530,6 +596,8 @@
       "importLine": "use herogpui::components::field::{Description, ErrorMessage, FieldError, Label};",
       "shot": "/shots/label&messages-v3.png",
       "shotDark": null,
+      "tile": "/shots/label&messages-tile-v3.png",
+      "tileDark": "/shots/label&messages-tile-dark-v3.png",
       "demos": [],
       "hasReference": true
     },
@@ -541,6 +609,8 @@
       "importLine": "use herogpui::components::form::Form;",
       "shot": "/shots/form-v3.png",
       "shotDark": null,
+      "tile": "/shots/form-tile-v3.png",
+      "tileDark": "/shots/form-tile-dark-v3.png",
       "demos": [],
       "hasReference": true
     },
@@ -552,6 +622,8 @@
       "importLine": "use herogpui::components::input::{Input, InputState};",
       "shot": "/shots/input-v3.png",
       "shotDark": "/shots/input-dark-v3.png",
+      "tile": "/shots/input-tile-v3.png",
+      "tileDark": "/shots/input-tile-dark-v3.png",
       "demos": [],
       "hasReference": true
     },
@@ -563,6 +635,8 @@
       "importLine": "use herogpui::components::input_group::InputGroup;",
       "shot": "/shots/inputgroup-v3.png",
       "shotDark": null,
+      "tile": "/shots/inputgroup-tile-v3.png",
+      "tileDark": "/shots/inputgroup-tile-dark-v3.png",
       "demos": [],
       "hasReference": true
     },
@@ -574,6 +648,8 @@
       "importLine": "use herogpui::components::input_otp::{InputOTP, OtpState};",
       "shot": "/shots/inputotp-v3.png",
       "shotDark": null,
+      "tile": "/shots/inputotp-tile-v3.png",
+      "tileDark": "/shots/inputotp-tile-dark-v3.png",
       "demos": [],
       "hasReference": true
     },
@@ -585,6 +661,8 @@
       "importLine": "use herogpui::components::number_field::{NumberField, NumberState};",
       "shot": "/shots/numberfield-v3.png",
       "shotDark": null,
+      "tile": "/shots/numberfield-tile-v3.png",
+      "tileDark": "/shots/numberfield-tile-dark-v3.png",
       "demos": [],
       "hasReference": true
     },
@@ -596,6 +674,8 @@
       "importLine": "use herogpui::components::radio_group::RadioGroup;",
       "shot": "/shots/radiogroup-v3.png",
       "shotDark": null,
+      "tile": "/shots/radiogroup-tile-v3.png",
+      "tileDark": "/shots/radiogroup-tile-dark-v3.png",
       "demos": [],
       "hasReference": true
     },
@@ -607,6 +687,8 @@
       "importLine": "use herogpui::components::input::SearchField;",
       "shot": "/shots/searchfield-v3.png",
       "shotDark": null,
+      "tile": "/shots/searchfield-tile-v3.png",
+      "tileDark": "/shots/searchfield-tile-dark-v3.png",
       "demos": [],
       "hasReference": true
     },
@@ -618,6 +700,8 @@
       "importLine": "use herogpui::components::textarea::TextArea;",
       "shot": "/shots/textarea-v3.png",
       "shotDark": null,
+      "tile": "/shots/textarea-tile-v3.png",
+      "tileDark": "/shots/textarea-tile-dark-v3.png",
       "demos": [],
       "hasReference": true
     },
@@ -629,6 +713,8 @@
       "importLine": "use herogpui::components::input::TextField;",
       "shot": "/shots/textfield-v3.png",
       "shotDark": null,
+      "tile": "/shots/textfield-tile-v3.png",
+      "tileDark": "/shots/textfield-tile-dark-v3.png",
       "demos": [],
       "hasReference": true
     },
@@ -640,6 +726,8 @@
       "importLine": "use herogpui::components::card::{Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle};",
       "shot": "/shots/card-v3.png",
       "shotDark": "/shots/card-dark-v3.png",
+      "tile": "/shots/card-tile-v3.png",
+      "tileDark": "/shots/card-tile-dark-v3.png",
       "demos": [],
       "hasReference": true
     },
@@ -651,6 +739,8 @@
       "importLine": "use herogpui::components::separator::Separator;",
       "shot": "/shots/separator-v3.png",
       "shotDark": null,
+      "tile": "/shots/separator-tile-v3.png",
+      "tileDark": "/shots/separator-tile-dark-v3.png",
       "demos": [],
       "hasReference": true
     },
@@ -662,6 +752,8 @@
       "importLine": "use herogpui::components::surface::Surface;",
       "shot": "/shots/surface-v3.png",
       "shotDark": null,
+      "tile": "/shots/surface-tile-v3.png",
+      "tileDark": "/shots/surface-tile-dark-v3.png",
       "demos": [],
       "hasReference": true
     },
@@ -673,6 +765,8 @@
       "importLine": "use herogpui::components::toolbar::Toolbar;",
       "shot": "/shots/toolbar-v3.png",
       "shotDark": null,
+      "tile": "/shots/toolbar-tile-v3.png",
+      "tileDark": "/shots/toolbar-tile-dark-v3.png",
       "demos": [],
       "hasReference": true
     },
@@ -684,6 +778,8 @@
       "importLine": "use herogpui::components::avatar::Avatar;",
       "shot": "/shots/avatar-v3.png",
       "shotDark": null,
+      "tile": "/shots/avatar-tile-v3.png",
+      "tileDark": "/shots/avatar-tile-dark-v3.png",
       "demos": [],
       "hasReference": true
     },
@@ -695,6 +791,8 @@
       "importLine": "use herogpui::components::accordion::{Accordion, AccordionItem};",
       "shot": "/shots/accordion-v3.png",
       "shotDark": null,
+      "tile": "/shots/accordion-tile-v3.png",
+      "tileDark": "/shots/accordion-tile-dark-v3.png",
       "demos": [],
       "hasReference": true
     },
@@ -706,6 +804,8 @@
       "importLine": "use herogpui::components::breadcrumbs::{Breadcrumbs, Crumb};",
       "shot": "/shots/breadcrumbs-v3.png",
       "shotDark": null,
+      "tile": "/shots/breadcrumbs-tile-v3.png",
+      "tileDark": "/shots/breadcrumbs-tile-dark-v3.png",
       "demos": [],
       "hasReference": true
     },
@@ -717,6 +817,8 @@
       "importLine": "use herogpui::components::disclosure::{Disclosure, DisclosureGroup};",
       "shot": "/shots/disclosure-v3.png",
       "shotDark": null,
+      "tile": "/shots/disclosure-tile-v3.png",
+      "tileDark": "/shots/disclosure-tile-dark-v3.png",
       "demos": [],
       "hasReference": true
     },
@@ -728,6 +830,8 @@
       "importLine": "use herogpui::components::link::Link;",
       "shot": "/shots/link-v3.png",
       "shotDark": null,
+      "tile": "/shots/link-tile-v3.png",
+      "tileDark": "/shots/link-tile-dark-v3.png",
       "demos": [],
       "hasReference": true
     },
@@ -739,6 +843,8 @@
       "importLine": "use herogpui::components::pagination::Pagination;",
       "shot": "/shots/pagination-v3.png",
       "shotDark": null,
+      "tile": "/shots/pagination-tile-v3.png",
+      "tileDark": "/shots/pagination-tile-dark-v3.png",
       "demos": [],
       "hasReference": true
     },
@@ -750,6 +856,8 @@
       "importLine": "use herogpui::components::tabs::{TabItem, Tabs};",
       "shot": "/shots/tabs-v3.png",
       "shotDark": "/shots/tabs-dark-v3.png",
+      "tile": "/shots/tabs-tile-v3.png",
+      "tileDark": "/shots/tabs-tile-dark-v3.png",
       "demos": [],
       "hasReference": true
     },
@@ -761,6 +869,8 @@
       "importLine": "use herogpui::components::alert_dialog::{AlertDialog, AlertDialogCloseTrigger};",
       "shot": "/shots/alertdialog-v3.png",
       "shotDark": null,
+      "tile": "/shots/alertdialog-tile-v3.png",
+      "tileDark": "/shots/alertdialog-tile-dark-v3.png",
       "demos": [],
       "hasReference": true
     },
@@ -772,6 +882,8 @@
       "importLine": "use herogpui::components::drawer::{Drawer, DrawerCloseTrigger, DrawerPlacement};",
       "shot": "/shots/drawer-v3.png",
       "shotDark": null,
+      "tile": "/shots/drawer-tile-v3.png",
+      "tileDark": "/shots/drawer-tile-dark-v3.png",
       "demos": [],
       "hasReference": true
     },
@@ -783,6 +895,8 @@
       "importLine": "use herogpui::components::modal::{Modal, ModalCloseTrigger, ModalSize};",
       "shot": "/shots/modal-v3.png",
       "shotDark": null,
+      "tile": "/shots/modal-tile-v3.png",
+      "tileDark": "/shots/modal-tile-dark-v3.png",
       "demos": [],
       "hasReference": true
     },
@@ -794,6 +908,8 @@
       "importLine": "use herogpui::components::popover::{Popover, PopoverArrow, PopoverPlacement};",
       "shot": "/shots/popover-v3.png",
       "shotDark": null,
+      "tile": "/shots/popover-tile-v3.png",
+      "tileDark": "/shots/popover-tile-dark-v3.png",
       "demos": [],
       "hasReference": true
     },
@@ -805,6 +921,8 @@
       "importLine": "use herogpui::components::toast::{Toast, ToastViewport};",
       "shot": "/shots/toast-v3.png",
       "shotDark": null,
+      "tile": "/shots/toast-tile-v3.png",
+      "tileDark": "/shots/toast-tile-dark-v3.png",
       "demos": [],
       "hasReference": true
     },
@@ -816,6 +934,8 @@
       "importLine": "use herogpui::components::tooltip::Tooltip;",
       "shot": "/shots/tooltip-v3.png",
       "shotDark": null,
+      "tile": "/shots/tooltip-tile-v3.png",
+      "tileDark": "/shots/tooltip-tile-dark-v3.png",
       "demos": [],
       "hasReference": true
     },
@@ -827,6 +947,8 @@
       "importLine": "use herogpui::components::autocomplete::Autocomplete;",
       "shot": "/shots/autocomplete-v3.png",
       "shotDark": null,
+      "tile": "/shots/autocomplete-tile-v3.png",
+      "tileDark": "/shots/autocomplete-tile-dark-v3.png",
       "demos": [],
       "hasReference": true
     },
@@ -838,6 +960,8 @@
       "importLine": "use herogpui::components::combo_box::ComboBox;",
       "shot": "/shots/combobox-v3.png",
       "shotDark": null,
+      "tile": "/shots/combobox-tile-v3.png",
+      "tileDark": "/shots/combobox-tile-dark-v3.png",
       "demos": [],
       "hasReference": true
     },
@@ -849,6 +973,8 @@
       "importLine": "use herogpui::components::select::Select;",
       "shot": "/shots/select-v3.png",
       "shotDark": null,
+      "tile": "/shots/select-tile-v3.png",
+      "tileDark": "/shots/select-tile-dark-v3.png",
       "demos": [],
       "hasReference": true
     },
@@ -860,6 +986,8 @@
       "importLine": "use herogpui::components::kbd::Kbd;",
       "shot": "/shots/kbd-v3.png",
       "shotDark": null,
+      "tile": "/shots/kbd-tile-v3.png",
+      "tileDark": "/shots/kbd-tile-dark-v3.png",
       "demos": [],
       "hasReference": true
     },
@@ -871,6 +999,8 @@
       "importLine": "use herogpui::components::typography::{Typography, TypographyType};",
       "shot": "/shots/typography-v3.png",
       "shotDark": null,
+      "tile": "/shots/typography-tile-v3.png",
+      "tileDark": "/shots/typography-tile-dark-v3.png",
       "demos": [],
       "hasReference": true
     },
@@ -879,11 +1009,13 @@
       "title": "Scroll Shadow",
       "description": "A scrollable area with soft fading edges.",
       "category": "Utilities",
-      "importLine": null,
+      "importLine": "use herogpui::components::scroll_shadow::ScrollShadow;",
       "shot": "/shots/scrollshadow-v3.png",
       "shotDark": null,
+      "tile": "/shots/scrollshadow-tile-v3.png",
+      "tileDark": "/shots/scrollshadow-tile-dark-v3.png",
       "demos": [],
-      "hasReference": false
+      "hasReference": true
     }
   }
 }

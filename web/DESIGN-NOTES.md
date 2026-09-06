@@ -38,28 +38,22 @@ tools, and the code genuinely lives in a file. So:
 Distinguish languages by the header label alone. A Rust block and a TOML block
 should differ in what they say, not in what colour they are.
 
-## Component example cards — the target shape
+## Component example cards — the current shape
 
-Each example is one bordered card: **the live component above, its Rust below**,
-in the same card, with a collapse control at the foot of the code.
+Each component page carries one live frame with its code: **the running
+component above, its Rust below**, in the same bordered card, with the next
+examples one selection away.
 
 The pane above is **HeroGPUI itself, compiled to WebAssembly and running** —
-that one example, rendered by GPUI. Not a screenshot of the gallery, and not a
-recreation in another framework. A reader sees the real component and the exact
-Rust that produced it, together.
+that component's examples, rendered by GPUI. Not a screenshot of the gallery,
+and not a recreation in another framework. A reader sees the real component
+and the exact Rust that produced it, together.
 
-A whole-window gallery screenshot parked at the top of the page with code-only
-cards below is **not** the destination. It is a placeholder that stands while
-the WebAssembly work lands, and it should be replaced, not built upon.
-
-### The shape, confirmed against a working implementation
+### The shape
 
 `gpui_web` attaches one canvas to `document.body` and supports one top-level
 GPUI window per application, so live examples cannot each be a canvas in the
-host document.
-
-`longbridge/gpui-component` solves this in production, and their docs pages
-were inspected directly rather than guessed at. Each component page embeds:
+host document. Each component page therefore embeds:
 
 ```html
 <iframe src="/gallery/?story=Accordion" title allow>
@@ -80,18 +74,16 @@ The essentials, measured on their Accordion page:
   or a picture.
 - The page's code blocks sit alongside the frame, nine of them on that page.
 
-So: one iframe per component page, framed as a window, with the Rust for each
-example below it. An `IntersectionObserver` still earns its place — boot the
-frame when it scrolls into view rather than on page load.
+So: one iframe per component page, framed as a window, with the Rust for the
+selected example below it. An `IntersectionObserver` boots the frame when it
+scrolls into view rather than on page load, and the example switcher selects
+among the component's examples over the message bridge without creating
+another frame.
 
 The embed mode this needs in the gallery: render one named story, no
 navigation chrome, sized to the frame, theme from the URL. `HEROGPUI_PAGE` is
 an environment variable and does not survive into wasm, so page selection
-comes from the query string — the same choice Longbridge made.
-
-Until the wasm artifact renders, the card shows code only. Do not fill an
-empty preview with a placeholder graphic, and do not treat the interim as
-finished.
+comes from the query string.
 
 ## Screenshots are screenshots
 

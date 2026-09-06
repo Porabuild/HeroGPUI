@@ -150,17 +150,14 @@ they live in `public/gallery/` and are served by the same deployment:
 
 | file | what it is |
 |---|---|
-| `index.html` | the hosting page (loading spinner, error UI, boot script; canonical source: `crates/herogpui-web/index.html` in the wasm worktree) |
+| `index.html` | the hosting page (loading spinner, error UI, boot script; checked in alongside the bindgen output) |
 | `herogpui_web.js` | `wasm-bindgen` glue |
-| `herogpui_web_bg.wasm` | the application, ~15.7 MiB raw / ~5.0 MiB gzipped |
+| `herogpui_web_bg.wasm` | the application, ~29.0 MiB raw / ~12.5 MiB gzipped (measured locally on the checked-in file) |
 
-Keep this as one browser-cached module. A measured Button-only link was
-12,211,369 bytes raw / 4,106,509 bytes gzipped versus the shared artifact's
-16,501,641 bytes raw / 5,209,520 bytes gzipped: about 21% less transfer for one
-page, but repeating the GPUI runtime across 66 checked-in artifacts would
-multiply repository/deployment storage and make navigation download it again.
-The component page instead defers this shared download until its preview nears
-the viewport and keeps one instance alive while examples switch.
+Keep this as one browser-cached module. The component page defers this
+shared download until its preview nears the viewport and keeps one instance
+alive while examples switch, so navigating the catalogue downloads the
+runtime once instead of once per page.
 
 `next.config.ts` maps `/gallery` onto `/gallery/index.html` (public/ has no
 directory-index resolution), so `/gallery` is the default. The checked-in
@@ -198,25 +195,29 @@ slash, then resolve) so both URL forms boot. The `/gallery` rewrite in
 
 ### Rebuilding the artifact (Rust side)
 
-From the wasm worktree `D:\herogpui-wasm` (full log: its
-`WASM-MIGRATION.md`):
+The artifact is compiled from a separate wasm32 checkout of this repository;
+its exact recipe is vendored in `web/wasm-migration/` (baseline commit plus
+working diff — the full procedure is that directory's README). In short, from
+the migration checkout:
 
 ```powershell
-$env:CARGO_TARGET_DIR='D:/herogpui-wasm-target'; $env:CARGO_HOME='D:/cargo-home'
+$env:CARGO_TARGET_DIR='<scratch>'; $env:CARGO_HOME='<scratch>'
 node <this repo>\web\scripts\lift-wasm-descriptions.mjs `
-  D:\herogpui-wasm\gallery\src\pages\components.rs
+  <migration>\gallery\src\pages\components.rs
 cargo build --target wasm32-unknown-unknown --profile wasm-release -p herogpui-web
-D:\cargo-home\bin\wasm-bindgen.exe `
-  D:\herogpui-wasm-target\wasm32-unknown-unknown\wasm-release\herogpui_web.wasm `
+<bindgen>\wasm-bindgen.exe `
+  <target>\wasm32-unknown-unknown\wasm-release\herogpui_web.wasm `
   --out-dir <this repo>\web\public\gallery --target web --no-typescript
 node <this repo>\web\scripts\extract-wasm-sections.mjs `
-  --source D:\herogpui-wasm\gallery\src\pages\components.rs
+  --source <migration>\gallery\src\pages\components.rs
 ```
 
-Copy `index.html` from `crates/herogpui-web/` alongside (the bindgen output
-only produces the two `herogpui_web.*` files). The `wasm-bindgen` CLI
-version must match the `wasm-bindgen` crate in `Cargo.lock` exactly
-(0.2.127 when written) — a mismatched CLI refuses the binary.
+Copy `index.html` from the migration's `crates/herogpui-web/` alongside (the
+bindgen output only produces the two `herogpui_web.*` files). The
+`wasm-bindgen` CLI version must match the `wasm-bindgen` crate in `Cargo.lock`
+exactly (0.2.127 when written) — a mismatched CLI refuses the binary.
+Then refresh the vendored recipe in the same commit (`pnpm run wasm:vendor`
+from `web/`).
 The extraction command writes both `wasm-sections.json` and
 `wasm-parity.json`. It fails if descriptions diverge or a new code-drift key
 appears; `--accept-drift` is reserved for a reviewed GPUI-version adaptation.
@@ -274,20 +275,17 @@ defaults: Root Directory `web`, Install Command
 
 ## Remaining items
 
-1. **The GitHub repository is private.** Every GitHub link **on the site**
-   — the nav, hero, and final-CTA buttons point at
-   `github.com/Porabuild/HeroGPUI` — 404s for visitors until it is made
-   public. (Links to `heroui-inc/heroui` in the component reference
-   sections are upstream and already work.)
-2. **The Vercel project is not Git-connected.** The deploy was CLI-based;
-   the git integration (Pull Request previews, deploy-on-push) is not set
-   up. Until it is, deploys are manual, exactly as above.
-3. **The parent-zone rewrites are not committed** to `Porabuild/website`
-   (applied and deployed from the checkout; a future Git-connected parent
-   deploy without them would drop the mount).
-4. **The registry release is not published.** Not a deployment blocker, but
-   the site says so honestly: `herogpui` on crates.io is prepared, not
-   published, and the install snippets show the path-dependency workaround.
+1. **The registry release is not published.** The `herogpui` crates return
+   404 on crates.io, and the install snippets show the git/path dependency.
+   Not a deployment blocker.
+2. **The Vercel project's git connection is not verified since 2026-08-30.**
+   The deploy was CLI-based; if the git integration (Pull Request previews,
+   deploy-on-push) is still not set up, deploys remain manual, exactly as in
+   "Current status" above.
+3. **The parent-zone rewrite commit is not verified since 2026-08-30.** The
+   rewrites were applied and deployed from the parent checkout; if they were
+   never committed to `Porabuild/website`, a future Git-connected parent
+   deploy without them would drop the mount.
 
 ## Why there is no `vercel.json`
 
