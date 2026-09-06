@@ -20,6 +20,9 @@ export default function DocsLayout({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex min-h-dvh flex-col">
+      <a className="site-skip-link" href="#main">
+        Skip to content
+      </a>
       <Navbar searchItems={searchItems} />
       <SidebarMobile groups={groups} />
 

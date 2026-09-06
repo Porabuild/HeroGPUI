@@ -107,7 +107,11 @@ export interface SectionHeadingProps {
   className?: string;
 }
 
-/** Eyebrow + display heading + optional standfirst, shared by all sections. */
+/**
+ * Eyebrow + display heading + optional standfirst, shared by all sections.
+ * Left-aligned headings use poratake's split header: the oversized h2 on the
+ * left, the dim standfirst bottom-aligned on the right.
+ */
 export function SectionHeading({
   eyebrow,
   title,
@@ -115,23 +119,22 @@ export function SectionHeading({
   align = "left",
   className,
 }: SectionHeadingProps) {
+  const centered = align === "center";
   return (
-    <div className={cn("landing-section-heading", align === "center" && "text-center", className)}>
+    <div className={cn("landing-section-heading", centered && "text-center", className)}>
       <p className="font-mono text-xs font-medium tracking-[0.16em] text-accent uppercase">
         {eyebrow}
       </p>
-      <h2 className="mt-3 text-3xl font-semibold tracking-tight text-foreground text-balance sm:text-4xl">
-        {title}
-      </h2>
-      {sub && (
-        <p
-          className={cn(
-            "mt-4 max-w-2xl text-base leading-relaxed text-muted",
-            align === "center" && "mx-auto",
-          )}
-        >
-          {sub}
-        </p>
+      {centered ? (
+        <>
+          <h2 className="landing-section-title mt-3 text-balance">{title}</h2>
+          {sub && <p className="landing-section-sub mx-auto mt-4 max-w-2xl">{sub}</p>}
+        </>
+      ) : (
+        <div className="landing-section-heading-grid mt-3 grid items-end gap-4 md:grid-cols-[minmax(0,1fr)_minmax(280px,0.42fr)] md:gap-16">
+          <h2 className="landing-section-title text-balance">{title}</h2>
+          {sub ? <p className="landing-section-sub md:pb-1.5">{sub}</p> : null}
+        </div>
       )}
     </div>
   );

@@ -206,10 +206,8 @@ export function CommandPalette({ items }: { items: SearchItem[] }) {
         aria-haspopup="dialog"
         aria-label="Search documentation"
         className={cn(
-          "inline-flex h-9 items-center gap-2 rounded-lg border bg-surface px-2.5 transition-colors",
-          open
-            ? "border-accent/50 text-foreground"
-            : "border-separator text-muted hover:border-accent/50 hover:text-foreground",
+          "site-search-trigger inline-flex h-9 items-center gap-2 rounded-md border px-2.5",
+          open ? "border-accent/60 text-foreground" : "border-separator",
         )}
         onClick={() => (open ? close() : setOpen(true))}
         ref={triggerRef}

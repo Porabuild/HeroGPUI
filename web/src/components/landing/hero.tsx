@@ -1,6 +1,7 @@
 import { CodeBlock } from "@/components/ui/code-block";
 import { GitHubIcon } from "@/components/site/github-icon";
 import { SITE } from "@/lib/nav";
+import { getCatalog } from "@/lib/catalog";
 import { CtaLink } from "@/components/landing/cta-link";
 import { HeroWasmShowcase } from "@/components/landing/hero-wasm-showcase";
 import { Link } from "@heroui/react";
@@ -15,6 +16,10 @@ herogpui = { path = "../HeroGPUI/crates/herogpui" }`;
  * and a live WebAssembly specimen gallery rendered directly by GPUI.
  */
 export function Hero() {
+  const catalog = getCatalog();
+  const componentCount = Object.keys(catalog.components).length;
+  const categoryCount = catalog.categories.length;
+
   return (
     <section className="landing-hero relative overflow-hidden">
       <div aria-hidden="true" className="landing-hero-noise" />
@@ -45,7 +50,7 @@ export function Hero() {
             </CtaLink>
             <CtaLink
               aria-label="HeroGPUI on GitHub"
-              className="px-3"
+              className="site-cta--icon"
               href={SITE.github}
               rel="noopener noreferrer"
               target="_blank"
@@ -54,6 +59,8 @@ export function Hero() {
               <GitHubIcon className="size-5" />
             </CtaLink>
           </div>
+
+          <p className="landing-hero-footnote mt-5">Apache-2.0 · macOS · Windows · Linux</p>
 
           <div className="mt-10 w-full">
             <CodeBlock code={INSTALL_TOML} filename="Cargo.toml" lang="toml" wrap />
@@ -73,6 +80,28 @@ export function Hero() {
         {/* Live WebAssembly specimen gallery instead of static white screenshot */}
         <HeroWasmShowcase />
       </div>
+
+      {/* Poratake spec rail: hairline rows of the library's hard numbers. */}
+      <dl className="landing-specs mx-auto w-full max-w-[1440px] px-4 sm:px-6">
+        <div>
+          <dt>Components</dt>
+          <dd>
+            {componentCount} in {categoryCount} categories
+          </dd>
+        </div>
+        <div>
+          <dt>Platforms</dt>
+          <dd>macOS · Windows · Linux</dd>
+        </div>
+        <div>
+          <dt>Runtime</dt>
+          <dd>GPUI · WebAssembly</dd>
+        </div>
+        <div>
+          <dt>License</dt>
+          <dd>Apache-2.0</dd>
+        </div>
+      </dl>
     </section>
   );
 }

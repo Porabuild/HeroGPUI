@@ -48,8 +48,8 @@ function SidebarSection({
                 aria-current={active ? "page" : undefined}
                 className={
                   active
-                    ? "relative flex h-8 items-center rounded-md bg-accent-soft px-3 text-sm font-medium text-accent-soft-foreground"
-                    : "relative flex h-8 items-center rounded-md px-3 text-sm text-muted transition-colors hover:bg-[color-mix(in_srgb,var(--pb-moon)_4%,transparent)] hover:text-foreground"
+                    ? "relative flex h-8 items-center rounded-md px-3 text-sm font-medium text-foreground"
+                    : "relative flex h-8 items-center rounded-md px-3 text-sm text-muted transition-colors hover:text-foreground"
                 }
                 href={link.href}
                 onPress={onNavigate}
@@ -92,9 +92,9 @@ export function SidebarRail({ groups }: { groups: SidebarGroup[] }) {
       {/* OverlayScrollbars sets `position: relative` on its host from an
           unlayered stylesheet, which beats Tailwind's layered `sticky`. The
           rail therefore sticks from a wrapper the library does not touch. */}
-      <div className="sticky top-16">
+      <div className="sticky top-[68px]">
         <OverlayScrollbarsComponent
-          className="max-h-[calc(100dvh-4rem)] border-r border-separator px-3 pt-6 pb-8"
+          className="max-h-[calc(100dvh-68px)] border-r border-separator px-3 pt-6 pb-8"
           defer
           element="div"
           options={GHOST_SCROLLBAR_OPTIONS}

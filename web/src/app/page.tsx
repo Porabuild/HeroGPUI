@@ -14,6 +14,9 @@ export default function HomePage() {
   const searchItems = buildSearchItems(getCatalog());
   return (
     <div className="flex min-h-dvh flex-col">
+      <a className="site-skip-link" href="#main">
+        Skip to content
+      </a>
       <Navbar searchItems={searchItems} />
       <main className="flex-1" id="main">
         <Hero />

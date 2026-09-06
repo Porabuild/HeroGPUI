@@ -1,13 +1,28 @@
 // Copy every gallery screenshot (.shots/*.png) into web/public/shots/ so the
 // site can serve them at /shots/<name>. Filenames are preserved verbatim —
 // catalog.json's `shot`/`shotDark` fields reference them by exact name (see
-// scripts/extract-catalog.mjs). Offline step; part of build-data.
+// scripts/extract-catalog.mjs). Catalog tiles are cropped to their content on
+// the way (see lib/crop-tile.mjs); the .shots originals are left as captured.
+// Offline step; part of build-data.
 //
 //   node scripts/copy-shots.mjs
 
-import { copyFileSync, existsSync, mkdirSync, readdirSync, rmSync, statSync } from "node:fs";
+import {
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { cropTile } from "./lib/crop-tile.mjs";
+
+/** Catalog tiles (`<slug>-tile-v3.png`, `<slug>-tile-dark-v3.png`). */
+const TILE_RE = /-tile(-dark)?-v\d+\.png$/;
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const webRoot = resolve(scriptDir, "..");
@@ -39,12 +54,20 @@ export function run() {
     .filter((f) => f.endsWith(".png") && !f.startsWith("~"))
     .sort();
   let bytes = 0;
+  let tiles = 0;
   for (const file of files) {
-    copyFileSync(join(SRC, file), join(DEST, file));
-    bytes += statSync(join(SRC, file)).size;
+    if (TILE_RE.test(file)) {
+      writeFileSync(join(DEST, file), cropTile(readFileSync(join(SRC, file))));
+      tiles += 1;
+    } else {
+      copyFileSync(join(SRC, file), join(DEST, file));
+    }
+    bytes += statSync(join(DEST, file)).size;
   }
 
-  console.log(`copy-shots: ${files.length} screenshots, ${formatBytes(bytes)} -> public/shots`);
+  console.log(
+    `copy-shots: ${files.length} screenshots (${tiles} tiles cropped), ${formatBytes(bytes)} -> public/shots`,
+  );
   return { count: files.length, bytes };
 }
 

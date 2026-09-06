@@ -139,10 +139,10 @@ export function Toc({ articleSelector = "[data-docs-article]" }: { articleSelect
     <aside className="docs-toc hidden w-64 shrink-0 xl:block">
       {/* Sticky lives outside the OverlayScrollbars host: the library sets
           `position: relative` on it from an unlayered stylesheet. */}
-      <div className="sticky top-16">
+      <div className="sticky top-[68px]">
         <OverlayScrollbarsComponent
           aria-label="On this page"
-          className="max-h-[calc(100dvh-4rem)] py-10 pl-10"
+          className="max-h-[calc(100dvh-68px)] py-10 pl-10"
           defer
           element="nav"
           options={GHOST_SCROLLBAR_OPTIONS}

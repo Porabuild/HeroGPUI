@@ -37,7 +37,7 @@ export function ThemeToggle() {
   return (
     <Button
       aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
-      className="size-10"
+      className="size-9 text-muted"
       isIconOnly
       onPress={toggle}
       size="sm"

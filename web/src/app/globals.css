@@ -174,7 +174,7 @@ a:focus,
 
   /* Anchored headings should not hide under the sticky navbar. */
   [data-docs-article] :is(h2, h3, h4)[id] {
-    scroll-margin-top: 5.5rem;
+    scroll-margin-top: 6rem;
   }
 
   /* Typography for the rendered article. In the base layer so page-level
@@ -535,7 +535,7 @@ body {
 }
 
 .site-header nav,
-.site-version-chip,
+.site-github-link,
 .site-footer,
 .landing-hero-meta .text-muted,
 .landing-proof-strip dt,
@@ -550,34 +550,151 @@ body {
 }
 
 .site-header nav,
-.site-version-chip {
-  font-size: 0.75rem;
+.site-github-link {
+  font-size: 0.6875rem;
+}
+
+/* Poratake project bar: the utility strip above the sticky header. Mono
+   micro-copy in quiet ink on the panel surface, like poratake's own bar. */
+.site-project-bar {
+  color: color-mix(in oklab, var(--muted) 78%, transparent);
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
   text-transform: uppercase;
-  letter-spacing: var(--pb-mono-tracking);
 }
 
-/* Desktop nav links: Porabuild style clean subtle pill/highlight.
-   Strictly NO underlines. */
-.site-nav > a {
-  border-radius: 0.375rem;
-  transition:
-    color 0.15s ease,
-    background-color 0.15s ease;
-}
-
-.site-nav > a:hover {
+.site-project-bar a {
   color: var(--foreground);
-  background: color-mix(in srgb, var(--foreground) 6%, transparent);
+  transition: color 160ms ease;
 }
 
+.site-project-bar a:hover {
+  color: var(--accent-text);
+}
+
+/* Poratake shrinks its project bar to 8px under 600px so both ends of the
+   strip still fit a phone viewport. */
+@media (max-width: 600px) {
+  .site-project-bar {
+    font-size: 0.5rem;
+  }
+}
+
+.site-github-link {
+  color: var(--muted);
+  transition: color 160ms ease;
+}
+
+.site-github-link:hover {
+  color: var(--foreground);
+}
+
+/* Desktop nav links follow the poratake header: quiet mono labels that
+   brighten to the foreground ink. Strictly NO pills or underlines. */
+.site-nav > a {
+  transition: color 160ms ease;
+}
+
+.site-nav > a:hover,
 .site-nav > a[aria-current="page"] {
   color: var(--foreground);
-  background: color-mix(in srgb, var(--foreground) 9%, transparent);
-  font-weight: 500;
 }
 
-.site-version-chip {
-  letter-spacing: 0.04em;
+/* Search trigger: poratake's ghost-button hover — accent hairline border
+   and a faint accent wash instead of a filled field. */
+.site-search-trigger {
+  color: var(--muted);
+  background: transparent;
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  transition:
+    color 160ms ease,
+    border-color 160ms ease,
+    background 160ms ease;
+}
+
+.site-search-trigger:hover {
+  color: var(--foreground);
+  border-color: color-mix(in srgb, var(--pb-accent) 58%, transparent);
+  background: color-mix(in srgb, var(--pb-accent) 6%, transparent);
+}
+
+/* Poratake button recipe: 48px mono rectangles. The primary inverts to the
+   page ink (moon on night, night on moon); the ghost is a hairline box that
+   takes the accent border and wash on hover, like poratake's secondary CTA. */
+.site-cta {
+  display: inline-flex;
+  min-height: 48px;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  padding: 0 20px;
+  border: 1px solid transparent;
+  border-radius: var(--pb-radius-sm);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 620;
+  line-height: 1;
+  letter-spacing: var(--pb-mono-tracking);
+  transition:
+    transform 160ms ease,
+    color 160ms ease,
+    border-color 160ms ease,
+    background 160ms ease;
+}
+
+.site-cta--icon {
+  padding: 0 14px;
+}
+
+.site-cta--primary {
+  color: var(--background);
+  background: var(--foreground);
+}
+
+.site-cta--primary:hover {
+  transform: translateY(-2px);
+}
+
+.dark .site-cta--primary:hover {
+  background: white;
+}
+
+html:not(.dark) .site-cta--primary:hover {
+  background: color-mix(in srgb, var(--foreground) 88%, transparent);
+}
+
+.site-cta--ghost {
+  color: var(--foreground);
+  border-color: var(--border);
+  background: transparent;
+}
+
+.site-cta--ghost:hover {
+  border-color: color-mix(in srgb, var(--pb-accent) 58%, transparent);
+  background: color-mix(in srgb, var(--pb-accent) 6%, transparent);
+}
+
+/* Poratake skip link: hidden above the viewport until focused. */
+.site-skip-link {
+  position: fixed;
+  z-index: 100;
+  top: -64px;
+  left: 20px;
+  padding: 10px 14px;
+  color: var(--background);
+  background: var(--foreground);
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  transition: top 160ms ease;
+}
+
+.site-skip-link:focus {
+  top: 16px;
 }
 
 .site-footer {
@@ -587,10 +704,6 @@ body {
 .site-footer-brand {
   font-family: var(--font-sans);
   letter-spacing: var(--pb-heading-tracking);
-}
-
-.site-footer-nav {
-  text-transform: uppercase;
 }
 
 .landing-hero {
@@ -623,11 +736,13 @@ body {
   background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.35'/%3E%3C/svg%3E");
 }
 
+/* Poratake display scale: oversized statement type, tight leading and
+   tracking, so the landing opens like porabuild.com/poratake. */
 .landing-hero h1 {
-  font-size: clamp(48px, 5.4vw, 78px);
+  font-size: clamp(56px, 6.6vw, 96px);
   font-weight: var(--pb-display-weight);
-  letter-spacing: var(--pb-display-tracking);
-  line-height: 0.98;
+  letter-spacing: -0.07em;
+  line-height: 0.9;
   text-wrap: balance;
   color: var(--foreground);
 }
@@ -693,9 +808,83 @@ body {
 
 .landing-section-heading h2,
 .landing-final-cta h2 {
+  font-size: clamp(38px, 4.6vw, 66px);
   font-weight: var(--pb-heading-weight);
-  letter-spacing: -0.048em;
-  line-height: 1.08;
+  letter-spacing: -0.06em;
+  line-height: 0.98;
+}
+
+/* Poratake sets its eyebrows and section labels in accent-soft; the inverted
+   light theme keeps the contrast-safe accent-text ink instead. */
+.dark .pb-eyebrow,
+.dark .landing-section-heading > p:first-child {
+  color: var(--pb-accent-soft);
+}
+
+.landing-section-sub {
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1.65;
+}
+
+.landing-hero-footnote {
+  color: color-mix(in oklab, var(--muted) 80%, transparent);
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+/* Poratake spec rail: hairline-separated mono dt / dd columns. */
+.landing-specs {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  margin-top: clamp(56px, 7vw, 96px);
+  border-top: 1px solid var(--pb-line-strong);
+}
+
+@media (min-width: 900px) {
+  .landing-specs {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+.landing-specs div {
+  padding: 20px 22px 18px;
+  border-bottom: 1px solid var(--separator);
+  border-right: 1px solid var(--separator);
+}
+
+.landing-specs div:nth-child(2n) {
+  border-right: 0;
+}
+
+@media (min-width: 900px) {
+  .landing-specs div:nth-child(2n) {
+    border-right: 1px solid var(--separator);
+  }
+
+  .landing-specs div:last-child {
+    border-right: 0;
+  }
+}
+
+.landing-specs dt {
+  margin-bottom: 7px;
+  color: color-mix(in oklab, var(--muted) 80%, transparent);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.landing-specs dd {
+  margin: 0;
+  color: var(--foreground);
+  font-size: 13px;
+  line-height: 1.45;
 }
 
 .landing-proof-strip dd {
@@ -1109,7 +1298,16 @@ html:not(.dark) .product-visual {
 .os-theme-pb.os-scrollbar .os-scrollbar-handle {
   background: color-mix(in oklab, var(--pb-dim) 55%, transparent);
   border: 0;
+}
+
+/* Minimum thumb length along the scroll axis only. A shared min-width and
+   min-height also applied across the axis, so the vertical thumb was forced
+   out to 32px wide. */
+.os-theme-pb.os-scrollbar-vertical .os-scrollbar-handle {
   min-height: 32px;
+}
+
+.os-theme-pb.os-scrollbar-horizontal .os-scrollbar-handle {
   min-width: 32px;
 }
 
@@ -1157,6 +1355,53 @@ html:not(.dark) .os-theme-pb.os-scrollbar .os-scrollbar-handle.active {
 .code-scroll:hover::-webkit-scrollbar-thumb,
 .code-scroll:focus-within::-webkit-scrollbar-thumb {
   background: color-mix(in oklab, var(--pb-dim) 55%, transparent);
+}
+
+/* Native fallback for the page scrollbar. OverlayScrollbars is skipped
+   under `prefers-reduced-motion`, before hydration, and without JS, and the
+   classic Chromium/macOS "always show" bar is then 15px+ wide. Keep it a
+   thin, transparent-track ghost bar in those cases. Chromium ignores the
+   `::-webkit-scrollbar` rules once `scrollbar-width` is set, so the standard
+   property is only applied where the WebKit pseudo-elements are missing. */
+html {
+  scrollbar-color: color-mix(in oklab, var(--pb-dim) 55%, transparent) transparent;
+}
+
+@supports not selector(::-webkit-scrollbar) {
+  html {
+    scrollbar-width: thin;
+  }
+}
+
+html::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+html::-webkit-scrollbar-track,
+html::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+html::-webkit-scrollbar-thumb {
+  background: color-mix(in oklab, var(--pb-dim) 55%, transparent);
+  border-radius: 3px;
+}
+
+html::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in oklab, var(--pb-dim) 80%, transparent);
+}
+
+html:not(.dark) {
+  scrollbar-color: color-mix(in oklab, var(--pb-night) 38%, transparent) transparent;
+}
+
+html:not(.dark)::-webkit-scrollbar-thumb {
+  background: color-mix(in oklab, var(--pb-night) 38%, transparent);
+}
+
+html:not(.dark)::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in oklab, var(--pb-night) 55%, transparent);
 }
 
 /* Long Cargo.toml lines in the hero wrap instead of scrolling. `anywhere` is
