@@ -139,7 +139,7 @@ export function GalleryFrame({ slug, title, section, className, bare = false }: 
         <span className="shot-window-status">Live</span>
       </div>
       <div
-        className="relative h-[320px] bg-surface-secondary sm:h-[360px] lg:h-[400px]"
+        className="docs-stage docs-stage-cover relative h-[320px] sm:h-[360px] lg:h-[400px]"
         ref={viewportRef}
       >
         {frameTheme ? (

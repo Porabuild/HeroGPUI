@@ -11,7 +11,7 @@ export const metadata: Metadata = {
     "Style HeroGPUI components with typed props, theme tokens, slots, and render closures.",
 };
 
-const VARIANTS = `// Same prop names, checked at compile time.
+const VARIANTS = `// Variants and sizes are enums, checked at compile time.
 Button::new("edit")
     .label("Edit")
     .variant(Variant::Secondary)
@@ -43,35 +43,32 @@ fn save_button(id: impl Into<ElementId>) -> Button {
 save_button("save").is_pending(saving).full_width()`;
 
 interface MappingRow {
-  v3: string;
   route: string;
+  rust: string;
   detail: string;
 }
 
-const CLASS_MAPPINGS: MappingRow[] = [
+const STYLE_ROUTES: MappingRow[] = [
   {
-    v3: 'className="w-full"',
     route: "Layout",
-    detail:
-      "Wrap the control in a styled div, or use the prop the component documents for it (full_width).",
+    rust: "full_width(true)",
+    detail: "Use the builder the component documents, or wrap it in a styled div you own.",
   },
   {
-    v3: 'className="bg-accent"',
     route: "Colour",
-    detail:
-      "Read the token — cx.colors(), cx.role(Color::Accent) — so the value follows the active theme instead of pinning a shade.",
+    rust: "cx.role(Color::Accent)",
+    detail: "Read a theme token so the value follows light and dark instead of pinning a shade.",
   },
   {
-    v3: 'className="rounded-2xl"',
     route: "Radius",
+    rust: "util::soft_radius(cx)",
     detail:
-      "util::soft_radius(cx) and its siblings, one per radius step — see the table below. Each component names its own radius.",
+      "One helper per radius step — see the table below. Each component names its own radius.",
   },
   {
-    v3: 'className="px-3 text-sm"',
     route: "Spacing and type",
-    detail:
-      "gpui's Styled methods on the element you own. Inside a component, they are the component's business.",
+    rust: ".px(px(12.)).text_sm()",
+    detail: "GPUI's Styled methods on the element you own. Inside a component, they stay there.",
   },
 ];
 
@@ -115,16 +112,15 @@ export default function StylingPage() {
       />
 
       <p>
-        In HeroGPUI, use documented props for component variants, theme tokens for shared values,
-        GPUI&apos;s styling methods for elements you own, and render closures for state-aware
-        content. There are no CSS classes to pass through.
+        Use documented builders for variants, theme tokens for shared values, GPUI&apos;s styling
+        methods for elements you own, and render closures for state-aware content.
       </p>
 
       <h2 id="variants-carry-the-intent">Variants carry the intent</h2>
       <p>
-        Use the documented prop first. Variants, sizes and colors are typed values, so the component
-        API makes the available choices explicit. Use the hierarchy below to compare the meaning of
-        each button variant:
+        Use the documented builder first. Variants, sizes and colors are typed values, so the
+        component API makes the available choices explicit. Use the hierarchy below to compare the
+        meaning of each button variant:
       </p>
       <div className="docs-stage mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-separator p-4">
         <Button variant="primary">Save</Button>
@@ -136,28 +132,28 @@ export default function StylingPage() {
         <CodeBlock code={VARIANTS} lang="rust" />
       </div>
 
-      <h2 id="where-classname-goes">Where `className` goes</h2>
+      <h2 id="how-to-style">How to style</h2>
       <p>
-        A CSS class usually maps to one of four choices below. Nothing in the Rust API is styled by
-        a class string.
+        Use a documented builder for variants, a theme token for shared values, and GPUI&apos;s
+        styling methods for elements you own. There are no class strings to pass through.
       </p>
       <StaticTable
         className="mt-4"
         columns={[
-          { header: "In HeroUI", id: "v3", isRowHeader: true },
-          { header: "Route", id: "route" },
-          { header: "In HeroGPUI", id: "detail" },
+          { header: "Route", id: "route", isRowHeader: true },
+          { header: "Rust", id: "rust" },
+          { header: "When", id: "detail" },
         ]}
-        label="className routes"
+        label="Styling routes"
         layout="prose"
-        rows={CLASS_MAPPINGS.map((row) => ({
+        rows={STYLE_ROUTES.map((row) => ({
           cells: [
-            <code className="font-mono text-xs break-all" key="v3">
-              {row.v3}
-            </code>,
             <span className="text-sm font-medium" key="route">
               {row.route}
             </span>,
+            <code className="font-mono text-xs break-all" key="rust">
+              {row.rust}
+            </code>,
             <span className="text-sm text-muted" key="detail">
               {row.detail}
             </span>,
@@ -224,11 +220,11 @@ export default function StylingPage() {
         <CodeBlock code={WRAPPER} lang="rust" />
       </div>
 
-      <h2 id="the-class-reference-translated">The class reference, translated</h2>
+      <h2 id="style-through-the-rust-api">Style through the Rust API</h2>
       <p>
-        Style through the Rust API. The <code>Button</code> struct and its <code>variant</code>{" "}
-        method select the look, part builders such as <code>CardHeader</code> place the pieces, and
-        theme tokens supply the values.
+        The <code>Button</code> struct and its <code>variant</code> method select the look, part
+        builders such as <code>CardHeader</code> place the pieces, and theme tokens supply the
+        values.
       </p>
       <Callout kind="note" title="Control heights and widths">
         Desktop control heights are 32/36/40 for sm/md/lg. A labelled button has no minimum width:

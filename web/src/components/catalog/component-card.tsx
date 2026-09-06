@@ -1,116 +1,52 @@
-import { Chip, cn, Link } from "@heroui/react";
-import type { CSSProperties } from "react";
+import { cn, Link } from "@heroui/react";
 import type { CatalogComponent } from "@/lib/catalog";
 import { publicUrl } from "@/lib/public-url";
 
 /**
- * One card in the components index. The whole card is a HeroUI `Link` (so the
- * shell's RouterProvider navigates client-side to `/docs/components/<slug>`)
- * styled as the card surface itself. Title is intentionally not a heading —
- * the docs table of contents collects every h2/h3 in the article, and 66
- * component titles would drown out the category headings.
+ * One card in the components index. The whole card is a HeroUI `Link` so the
+ * shell's RouterProvider navigates client-side to `/docs/components/<slug>`.
+ * Title is intentionally not a heading — the docs table of contents collects
+ * every h2/h3 in the article, and component titles would drown out the
+ * category headings.
  */
 
-/** Source captures are full 1200x1392 gallery-window shots. */
-const SHOT_WIDTH = 1200;
-const SHOT_HEIGHT = 1392;
-
-/**
- * Four fifths of a capture is window furniture, which left the component it
- * advertises a few unreadable pixels wide once the shot was scaled into a
- * card. These offsets crop it to the window's content pane, and were measured
- * off the real files rather than estimated: a horizontal scan across any
- * capture finds the sidebar's trailing separator at x=239, a vertical scan
- * finds the top nav's at y=129, and the last drawn content column is 1139.
- * All three are identical on every card capture.
- */
-const CONTENT_LEFT = 240;
-const CONTENT_TOP = 130;
-const CROP_WIDTH = 900;
-/** The frame is `aspect-[16/10]`, so the crop has to be too. */
-const CROP_HEIGHT = (CROP_WIDTH * 10) / 16;
-
-/**
- * Scale the untouched image so `CROP_WIDTH` source pixels span the frame, then
- * shift the crop's top-left corner onto the frame's. Every percentage resolves
- * against the frame, whose box is exactly the crop, so the arithmetic holds at
- * any card width. `max-w-none` is required — preflight's `max-width: 100%`
- * would otherwise clamp the scaled width straight back down.
- */
-const CROP_STYLE: CSSProperties = {
-  height: `${(SHOT_HEIGHT / CROP_HEIGHT) * 100}%`,
-  left: `${(-CONTENT_LEFT / CROP_WIDTH) * 100}%`,
-  top: `${(-CONTENT_TOP / CROP_HEIGHT) * 100}%`,
-  width: `${(SHOT_WIDTH / CROP_WIDTH) * 100}%`,
-};
-
-/**
- * The captures sit inside a hairline mat framed rather than rawly embedded.
- */
-const MAT = "w-full shrink-0 rounded-lg border border-separator bg-surface-secondary p-1";
-const PANE = "relative aspect-[16/10] w-full overflow-hidden rounded-sm bg-surface-secondary";
+const STAGE =
+  "docs-stage docs-stage-cover relative aspect-[16/10] w-full overflow-hidden rounded-xl border border-separator";
 
 function ComponentShot({ component }: { component: CatalogComponent }) {
-  if (!component.shot) {
+  const light = component.tile;
+  const dark = component.tileDark;
+
+  if (!light) {
     return (
-      <div className={MAT} role="presentation">
-        <div className={cn(PANE, "flex flex-col items-center justify-center gap-1")}>
-          <span aria-hidden="true" className="text-3xl font-semibold text-muted">
-            {component.title.charAt(0).toUpperCase()}
-          </span>
-          <span className="text-xs text-muted">No native capture yet</span>
-        </div>
+      <div className={cn(STAGE, "flex items-center justify-center")} role="presentation">
+        <span aria-hidden="true" className="text-3xl font-semibold text-muted">
+          {component.title.charAt(0).toUpperCase()}
+        </span>
       </div>
     );
   }
 
-  const darkSrc = component.shotDark;
-
   return (
-    <div className={MAT}>
-      <div className={PANE}>
-        {darkSrc ? (
-          <>
-            <img
-              alt={`${component.title} rendered in the HeroGPUI gallery`}
-              className="absolute max-w-none dark:hidden"
-              decoding="async"
-              height={SHOT_HEIGHT}
-              loading="lazy"
-              src={publicUrl(component.shot)}
-              style={CROP_STYLE}
-              width={SHOT_WIDTH}
-            />
-            <img
-              alt={`${component.title} rendered in the HeroGPUI gallery (dark)`}
-              className="absolute hidden max-w-none dark:block"
-              decoding="async"
-              height={SHOT_HEIGHT}
-              loading="lazy"
-              src={publicUrl(darkSrc)}
-              style={CROP_STYLE}
-              width={SHOT_WIDTH}
-            />
-          </>
-        ) : (
-          <img
-            alt={`${component.title} rendered in the HeroGPUI gallery`}
-            className="absolute max-w-none"
-            decoding="async"
-            height={SHOT_HEIGHT}
-            loading="lazy"
-            src={publicUrl(component.shot)}
-            style={CROP_STYLE}
-            width={SHOT_WIDTH}
-          />
-        )}
-      </div>
+    <div className={STAGE}>
+      <img
+        alt=""
+        className={cn("absolute inset-0 h-full w-full object-contain p-6", dark && "dark:hidden")}
+        decoding="async"
+        loading="lazy"
+        src={publicUrl(light)}
+      />
+      {dark ? (
+        <img
+          alt=""
+          className="absolute inset-0 hidden h-full w-full object-contain p-6 dark:block"
+          decoding="async"
+          loading="lazy"
+          src={publicUrl(dark)}
+        />
+      ) : null}
     </div>
   );
-}
-
-function demoLabel(count: number): string {
-  return count === 1 ? "1 demo" : `${count} demos`;
 }
 
 export function ComponentCard({ component }: { component: CatalogComponent }) {
@@ -128,16 +64,8 @@ export function ComponentCard({ component }: { component: CatalogComponent }) {
         <span className="mt-3 text-sm font-semibold text-foreground transition-colors group-hover:text-accent">
           {component.title}
         </span>
-        <span className="mt-1 line-clamp-2 text-sm leading-relaxed text-muted">
+        <span className="mt-1 line-clamp-2 min-h-[2.75rem] text-sm leading-relaxed text-muted">
           {component.description}
-        </span>
-        <span className="mt-auto flex flex-wrap items-center gap-2 pt-3">
-          <span className="text-xs text-muted">{demoLabel(component.demos.length)}</span>
-          {component.hasReference && (
-            <Chip color="accent" size="sm" variant="soft">
-              Full reference
-            </Chip>
-          )}
         </span>
       </Link>
     </li>

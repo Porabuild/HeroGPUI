@@ -23,7 +23,7 @@ export function Hero() {
         <div className="min-w-0">
           <p className="landing-hero-fade landing-hero-delay-1 pb-eyebrow">
             <span aria-hidden="true" className="pb-live-dot" />
-            Porabuild / open source / HeroUI for Rust
+            Porabuild / open source / built on GPUI
           </p>
 
           <h1 className="landing-hero-fade landing-hero-delay-2 mt-8">
@@ -31,14 +31,14 @@ export function Hero() {
           </h1>
 
           <p className="landing-hero-fade landing-hero-delay-3 mt-6 max-w-xl text-lg leading-relaxed text-muted">
-            HeroGPUI brings HeroUI&apos;s design system to Rust desktop applications. Built on GPUI,
-            the GPU-accelerated framework behind Zed, it gives you typed builders, OKLCH semantic
+            HeroGPUI is a component library for Rust desktop applications. Built on GPUI, the
+            GPU-accelerated framework behind Zed, it gives you typed builders, OKLCH semantic
             tokens, and light and dark themes.
           </p>
 
           <div className="landing-hero-fade landing-hero-delay-3 mt-8 flex flex-wrap items-center gap-3">
-            <CtaLink href="/docs/getting-started" variant="primary">
-              Read the docs
+            <CtaLink href="/docs/getting-started/quick-start" variant="primary">
+              Get started
             </CtaLink>
             <CtaLink href="/docs/components" variant="outline">
               Browse components
@@ -61,11 +61,11 @@ export function Hero() {
               The library is added as a git/path dependency. See the{" "}
               <Link
                 className="text-accent transition-colors hover:text-[color:var(--pb-accent-soft)] no-underline"
-                href="/docs/getting-started/installation"
+                href="/docs/getting-started/quick-start"
               >
-                installation guide
+                Quick Start
               </Link>{" "}
-              for the full steps.
+              for a window you can run.
             </p>
           </div>
         </div>

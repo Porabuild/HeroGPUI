@@ -1,11 +1,11 @@
 import { cn } from "@heroui/react";
 import { Fragment, type ReactNode } from "react";
-import { StatusChip, type PortStatus } from "@/components/ui/status-chip";
 import { StaticTable } from "@/components/ui/static-table";
+import type { PortStatus } from "@/components/ui/status-chip";
+import { gpuiPropRows } from "@/lib/gpui-docs";
 
-/** One row of the upstream API contract, as extracted into reference.json. */
+/** One row of the extracted API contract. Displayed as the Rust builder. */
 export interface ApiRow {
-  /** HeroUI component owning the prop, e.g. `Button`. */
   owner: string;
   prop: string;
   type: string;
@@ -27,10 +27,7 @@ export interface PropsTableProps {
  * Zero-width break opportunities after the joints a reader already sees in a
  * signature: `.`, `::`, `|`, `,`, `<` and `(`. Reference cells keep
  * `word-break: normal` (see `globals.css`), so these end up being the only
- * places a value is allowed to wrap. `false` and `'md'` stay whole however
- * narrow the column gets, a union wraps at its `|` separators, and a
- * qualified name like `ButtonRenderProps.isFocusVisible` wraps after the dot
- * instead of forcing the column wider than the docs allow.
+ * places a value is allowed to wrap.
  */
 function withBreaks(value: string): ReactNode {
   const parts = value.split(/(?<=[.,|<(]|::)/);
@@ -44,60 +41,47 @@ function withBreaks(value: string): ReactNode {
 }
 
 function Mono({ children }: { children: string }) {
-  if (children.length === 0) {
+  if (children.length === 0 || children === "—") {
     return <span className="text-muted">—</span>;
   }
   return <code className="font-mono text-xs">{withBreaks(children)}</code>;
 }
 
 /**
- * Upstream prop contract vs the Rust components. "Not available" marks a
- * HeroUI prop with no HeroGPUI equivalent by design. Rendered with the
- * static table (see `static-table.tsx` for why not HeroUI's Table).
+ * The public Rust builders for a component. Web-only rows are omitted; the
+ * builder is the first column.
  */
 export function PropsTable({ rows, label, className }: PropsTableProps) {
-  if (rows.length === 0) {
+  const visible = gpuiPropRows(rows);
+  if (visible.length === 0) {
     return (
-      <p className={cn("text-sm text-muted", className)}>No documented props for this component.</p>
+      <p className={cn("text-sm text-muted", className)}>
+        No documented builders for this component.
+      </p>
     );
   }
 
   return (
-    <div className={cn("space-y-2", className)}>
-      <StaticTable
-        columns={[
-          { header: "Prop", id: "prop", isRowHeader: true },
-          { header: "Type", id: "type" },
-          { header: "Default", id: "default" },
-          { header: "Description", id: "description" },
-          { header: "HeroGPUI", id: "herogpui" },
-        ]}
-        label={label}
-        rows={rows.map((row) => {
-          const rowId = `${row.owner}.${row.prop}`;
-          return {
-            cells: [
-              <Mono key="prop">{rowId}</Mono>,
-              <Mono key="type">{row.type}</Mono>,
-              <Mono key="default">{row.default ?? ""}</Mono>,
-              <span className="text-sm text-muted" key="description">
-                {row.description}
-              </span>,
-              <div className="flex max-w-44 flex-col items-start gap-1.5 py-1" key="herogpui">
-                {row.rust ? <Mono>{row.rust}</Mono> : null}
-                <StatusChip status={row.status} />
-              </div>,
-            ],
-            id: rowId,
-          };
-        })}
-      />
-
-      <p className="text-xs text-muted">
-        <span className="font-medium text-foreground">Not available</span> marks a HeroUI prop that
-        has no HeroGPUI equivalent by design, usually because it targets the browser or an
-        accessibility tree GPUI does not expose.
-      </p>
-    </div>
+    <StaticTable
+      className={className}
+      columns={[
+        { header: "Builder", id: "builder", isRowHeader: true },
+        { header: "Type", id: "type" },
+        { header: "Default", id: "default" },
+        { header: "Description", id: "description" },
+      ]}
+      label={label}
+      rows={visible.map((row) => ({
+        cells: [
+          <Mono key="builder">{row.builder}</Mono>,
+          <Mono key="type">{row.type}</Mono>,
+          <Mono key="default">{row.default}</Mono>,
+          <span className="text-sm text-muted" key="description">
+            {row.description}
+          </span>,
+        ],
+        id: row.builder,
+      }))}
+    />
   );
 }

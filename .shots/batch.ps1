@@ -30,7 +30,10 @@ param(
     # Skip the capture and only report whether the app is still alive after each
     # step -- what the smoke sweep needs.
     [switch]$NoShot,
-    [switch]$Quiet
+    [switch]$Quiet,
+    # Save the client area only — catalog tiles should not include the
+    # Windows title bar that PrintWindow otherwise captures.
+    [switch]$ClientOnly
 )
 
 Add-Type -AssemblyName System.Drawing
@@ -39,6 +42,7 @@ using System;
 using System.Runtime.InteropServices;
 public class Batch {
     [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out RECT r);
+    [DllImport("user32.dll")] public static extern bool GetClientRect(IntPtr h, out RECT r);
     [DllImport("user32.dll")] public static extern bool ClientToScreen(IntPtr h, ref POINT p);
     [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr h, IntPtr after, int x, int y, int w, int hh, uint flags);
     [DllImport("user32.dll")] public static extern bool PrintWindow(IntPtr h, IntPtr hdc, uint flags);
@@ -180,9 +184,10 @@ $env:HEROGPUI_SECTION = $null
 $env:HEROGPUI_THEME = $null
 $env:HEROGPUI_OPEN_OVERLAYS = $null
 
+$repo = Split-Path $PSScriptRoot -Parent
 $psi = New-Object System.Diagnostics.ProcessStartInfo
-$psi.FileName = "E:\work\HeroGPUI\target\debug\herogpui-gallery.exe"
-$psi.WorkingDirectory = "E:\work\HeroGPUI"
+$psi.FileName = Join-Path $repo "target\debug\herogpui-gallery.exe"
+$psi.WorkingDirectory = $repo
 $psi.UseShellExecute = $false
 $psi.CreateNoWindow = $true
 # `Process::Start(psi)` returns null in pwsh for a console-subsystem binary
@@ -270,17 +275,31 @@ foreach ($step in $Steps) {
     }
 
     if (-not $NoShot) {
-        $out = if ($step.out) { $step.out } else { "E:\work\HeroGPUI\.shots\~batch-$n.png" }
+        $out = if ($step.out) { $step.out } else { Join-Path $PSScriptRoot "~batch-$n.png" }
         $r = New-Object Batch+RECT
         [void][Batch]::GetWindowRect($h, [ref]$r)
         $w2 = $r.Right - $r.Left
         $h2 = $r.Bottom - $r.Top
-        $bmp = New-Object System.Drawing.Bitmap($w2, $h2)
-        $g = [System.Drawing.Graphics]::FromImage($bmp)
+        $full = New-Object System.Drawing.Bitmap($w2, $h2)
+        $g = [System.Drawing.Graphics]::FromImage($full)
         $hdc = $g.GetHdc()
         [void][Batch]::PrintWindow($h, $hdc, 2)
         $g.ReleaseHdc($hdc)
         $g.Dispose()
+        $bmp = $full
+        if ($ClientOnly) {
+            $cr = New-Object Batch+RECT
+            [void][Batch]::GetClientRect($h, [ref]$cr)
+            $cw = $cr.Right - $cr.Left
+            $ch = $cr.Bottom - $cr.Top
+            if ($cw -gt 0 -and $ch -gt 0) {
+                $bmp = $full.Clone(
+                    [System.Drawing.Rectangle]::new($script:offX, $script:offY, $cw, $ch),
+                    $full.PixelFormat
+                )
+                $full.Dispose()
+            }
+        }
         $bmp.Save($out)
         $bmp.Dispose()
         if (-not $Quiet) { Write-Host ("{0,-22} {1,-24} -> {2}" -f $step.page, $step.section, $out) }

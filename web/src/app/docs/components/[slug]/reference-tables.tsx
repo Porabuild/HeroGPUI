@@ -1,18 +1,11 @@
 import type { ReactNode } from "react";
 import { cn } from "@heroui/react";
-import { StatusChip } from "@/components/ui/status-chip";
 import { StaticTable } from "@/components/ui/static-table";
+import { gpuiPartRows, gpuiStateRows, gpuiStyleRows } from "@/lib/gpui-docs";
 import type { PartRow, StateRow, StylingRow } from "./data";
 
-/**
- * The three non-prop reference tables — parts, states, styling tokens —
- * mirroring `@/components/ui/props-table`. Server components rendering static
- * markup (see `static-table.tsx` for why not HeroUI's Table); the only
- * interactive leaf on these pages is HeroUI's own Table-free chrome.
- */
-
 function Mono({ children }: { children: ReactNode }) {
-  if (children === undefined || children === null || children === "") {
+  if (children === undefined || children === null || children === "" || children === "—") {
     return <span className="text-muted">—</span>;
   }
   return <code className="font-mono text-xs break-all">{children}</code>;
@@ -20,15 +13,6 @@ function Mono({ children }: { children: ReactNode }) {
 
 function Description({ children }: { children: ReactNode }) {
   return <span className="text-sm text-muted">{children}</span>;
-}
-
-function PortedCell({ code, status }: { code: string | null; status: PartRow["status"] }) {
-  return (
-    <div className="flex max-w-56 flex-col items-start gap-1.5 py-1">
-      {code ? <Mono>{code}</Mono> : null}
-      <StatusChip status={status} />
-    </div>
-  );
 }
 
 export interface ReferenceColumn<Row> {
@@ -83,27 +67,22 @@ export function PartsTable({
   title: string;
   className?: string;
 }) {
+  const visible = gpuiPartRows(rows);
   return (
     <ReferenceTable
       className={className}
       columns={[
-        { id: "part", header: "Part", isRowHeader: true, cell: (row) => <Mono>{row.name}</Mono> },
-        { id: "slot", header: "Slot", cell: (row) => <Mono>{row.slot}</Mono> },
+        { id: "part", header: "Part", isRowHeader: true, cell: (row) => <Mono>{row.part}</Mono> },
         {
           id: "description",
           header: "Description",
           cell: (row) => <Description>{row.description}</Description>,
         },
-        {
-          id: "herogpui",
-          header: "Rust equivalent",
-          cell: (row) => <PortedCell code={row.rustOwner} status={row.status} />,
-        },
       ]}
-      empty="No compound parts are listed for this component."
+      empty="This component has no separate parts — it is a single builder."
       label={`${title} parts`}
-      rowId={(row) => row.name}
-      rows={rows}
+      rowId={(row) => row.part}
+      rows={visible}
     />
   );
 }
@@ -117,32 +96,32 @@ export function StatesTable({
   title: string;
   className?: string;
 }) {
+  const visible = gpuiStateRows(rows);
   return (
     <ReferenceTable
       className={className}
       columns={[
         {
+          id: "builder",
+          header: "Builder",
+          isRowHeader: true,
+          cell: (row) => <Mono>{row.builder}</Mono>,
+        },
+        {
           id: "state",
           header: "State",
-          isRowHeader: true,
           cell: (row) => <Mono>{row.state}</Mono>,
         },
-        { id: "selector", header: "Upstream selector", cell: (row) => <Mono>{row.selector}</Mono> },
         {
           id: "description",
           header: "Description",
           cell: (row) => <Description>{row.description}</Description>,
         },
-        {
-          id: "herogpui",
-          header: "Rust equivalent",
-          cell: (row) => <PortedCell code={row.rust} status={row.status} />,
-        },
       ]}
       empty="No interaction states are listed for this component."
       label={`${title} states`}
-      rowId={(row) => row.state}
-      rows={rows}
+      rowId={(row) => `${row.state}-${row.builder}`}
+      rows={visible}
     />
   );
 }
@@ -156,31 +135,27 @@ export function StylingTable({
   title: string;
   className?: string;
 }) {
+  const visible = gpuiStyleRows(rows);
   return (
     <ReferenceTable
       className={className}
       columns={[
         {
-          id: "token",
-          header: "Token",
+          id: "style",
+          header: "Style",
           isRowHeader: true,
-          cell: (row) => <Mono>{row.token}</Mono>,
+          cell: (row) => <Mono>{row.style}</Mono>,
         },
         {
           id: "description",
           header: "Description",
           cell: (row) => <Description>{row.description}</Description>,
         },
-        {
-          id: "herogpui",
-          header: "Rust equivalent",
-          cell: (row) => <PortedCell code={row.rust} status={row.status} />,
-        },
       ]}
-      empty="No styling tokens are listed for this component."
-      label={`${title} styling tokens`}
-      rowId={(row) => row.token}
-      rows={rows}
+      empty="This component follows the active theme and has no extra appearance builders."
+      label={`${title} styling`}
+      rowId={(row) => row.style}
+      rows={visible}
     />
   );
 }

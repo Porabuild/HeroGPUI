@@ -289,8 +289,25 @@ a:focus,
    carries the component; the dot grid is faint enough to read as texture
    rather than the "this area is transparent" checkerboard it replaced. */
 .docs-stage {
-  --stage-dot: color-mix(in oklab, var(--muted) 18%, transparent);
+  --stage-dot: color-mix(in oklab, var(--muted) 22%, transparent);
   background-color: var(--surface-secondary);
+  background-image: radial-gradient(var(--stage-dot) 1px, transparent 1.5px);
+  background-size: 16px 16px;
+  background-position: center;
+}
+
+/* Screenshots and the WASM canvas paint an opaque fill, so the stage's own
+   background never shows. Paint the same grid on top; clicks pass through. */
+.docs-stage-cover {
+  position: relative;
+}
+
+.docs-stage-cover::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
   background-image: radial-gradient(var(--stage-dot) 1px, transparent 1.5px);
   background-size: 16px 16px;
   background-position: center;
@@ -327,10 +344,10 @@ a:focus,
   margin-right: 0;
 }
 
-/* A reference row is up to five columns of code inside a docs column that is
-   often under 700px wide, so it carries HeroUI's table look at a tighter
-   horizontal rhythm. All cells top-align with one shared padding, so a code
-   chip in the Prop column starts on the same line as its Description. */
+/* A reference row is a few columns of code inside a docs column that is
+   often under 700px wide, so it uses a tighter horizontal rhythm. All cells
+   top-align with one shared padding, so a builder in the first column starts
+   on the same line as its description. */
 .docs-reference-table :is(.table__cell, .table__column) {
   padding: 0.875rem 0.75rem;
   vertical-align: top;
@@ -348,38 +365,32 @@ a:focus,
 }
 
 @media (min-width: 640px) {
-  /* Column proportions. Every reference table ends with the same pair —
-     a description, then the Rust equivalent — so both are addressable from the
-     end whether the table has three columns (styling tokens), four (parts,
-     states) or five (props). Fixed layout gives the description room for its
-     sentence while keeping the code columns predictable. */
+  /* Column proportions. The Rust builder is always first; Description is
+     always last. Fixed layout keeps code columns predictable while the
+     sentence gets the remaining width. */
   .docs-reference-table .table__content {
     table-layout: fixed;
   }
 
-  .docs-reference-table .table__column:nth-last-child(2) {
-    width: 42%;
+  .docs-reference-table .table__column:first-child {
+    width: 32%;
   }
 
   .docs-reference-table .table__column:last-child {
-    width: 18%;
+    width: 40%;
   }
 
-  /* Props is the only five-column shape: keep Prop and Type compact, reserve
-     enough width for a literal such as `false`, then give Description the room. */
-  .docs-reference-table .table__column:nth-child(1):nth-last-child(5),
-  .docs-reference-table .table__column:nth-child(2):nth-last-child(4) {
-    width: 14%;
+  /* Four-column builders table: Builder, Type, Default, Description. */
+  .docs-reference-table .table__column:nth-child(2):nth-last-child(3) {
+    width: 16%;
   }
 
-  .docs-reference-table .table__column:nth-child(3):nth-last-child(3) {
+  .docs-reference-table .table__column:nth-child(3):nth-last-child(2) {
     width: 12%;
   }
 
-  /* The Rust-equivalent cell is a flex column. Let its code item shrink so a
-     long builder name can use the existing word-break opportunities instead of
-     widening the table past its scroll container. */
-  .docs-reference-table .table__cell > div > code {
+  .docs-reference-table .table__cell > div > code,
+  .docs-reference-table .table__cell > code {
     min-width: 0;
     max-width: 100%;
   }

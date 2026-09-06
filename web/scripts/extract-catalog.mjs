@@ -38,9 +38,11 @@ const VERSION = "0.1.0";
 const SKIPPED_CATEGORIES = new Set(["Overview", "Releases", "Getting started"]);
 
 /// `Button Group` -> `buttongroup-v3.png`; dark variant appends `-dark`.
-function shotFile(title, dark) {
+/// Isolated catalog tiles use `-tile` before the theme suffix.
+function shotFile(title, dark, kind = "page") {
   const base = title.toLowerCase().replaceAll(" ", "");
-  return `${base}${dark ? "-dark" : ""}-v3.png`;
+  const infix = kind === "tile" ? "-tile" : "";
+  return `${base}${infix}${dark ? "-dark" : ""}-v3.png`;
 }
 
 /// PNG dimensions, read straight from the IHDR chunk (bytes 16..24).
@@ -55,8 +57,8 @@ function pngSize(path) {
   return { width: head.readUInt32BE(16), height: head.readUInt32BE(20) };
 }
 
-function shotField(title, dark) {
-  const file = shotFile(title, dark);
+function shotField(title, dark, kind = "page") {
+  const file = shotFile(title, dark, kind);
   const path = join(SHOTS_DIR, file);
   if (!existsSync(path)) return null;
   if (!dark) return `/shots/${file}`;
@@ -67,7 +69,7 @@ function shotField(title, dark) {
   // show components and prop vocabularies that no longer exist, so publishing
   // them on a current page documents the wrong API. Rather than hard-coding a
   // known-good size, which would rot, require the pair to agree.
-  const lightPath = join(SHOTS_DIR, shotFile(title, false));
+  const lightPath = join(SHOTS_DIR, shotFile(title, false, kind));
   if (!existsSync(lightPath)) return null;
   const dim = pngSize(path);
   const lightDim = pngSize(lightPath);
@@ -115,6 +117,8 @@ export function run() {
       importLine: refEntry ? refEntry.importLine : null,
       shot: shotField(page.title, false),
       shotDark: shotField(page.title, true),
+      tile: shotField(page.title, false, "tile"),
+      tileDark: shotField(page.title, true, "tile"),
       demos: [],
       hasReference: Boolean(refEntry),
     };
@@ -138,9 +142,12 @@ export function run() {
   }
 
   const missingShots = Object.values(components).filter((c) => !c.shot);
+  const missingTiles = Object.values(components).filter((c) => !c.tile);
+  const missingTileDark = Object.values(components).filter((c) => !c.tileDark);
   console.log(
     `catalog.json: ${Object.keys(components).length} components in ${categories.size} categories ` +
-      `(${missingShots.length} without a light screenshot)`,
+      `(${missingShots.length} without a light screenshot, ` +
+      `${missingTiles.length} without a light tile, ${missingTileDark.length} without a dark tile)`,
   );
   for (const category of catalog.categories) {
     console.log(`  ${category.name}: ${category.components.length}`);

@@ -23,6 +23,9 @@ export interface CatalogComponent {
   importLine: string;
   shot: string | null;
   shotDark: string | null;
+  /** Isolated Usage preview for catalog tiles. */
+  tile: string | null;
+  tileDark: string | null;
   demos: string[];
   hasReference: boolean;
 }
@@ -68,6 +71,8 @@ function parseComponent(value: unknown): CatalogComponent | null {
     importLine: asString(value.importLine),
     shot: asStringOrNull(value.shot),
     shotDark: asStringOrNull(value.shotDark),
+    tile: asStringOrNull(value.tile),
+    tileDark: asStringOrNull(value.tileDark),
     demos: asStringArray(value.demos),
     hasReference: value.hasReference === true,
   };

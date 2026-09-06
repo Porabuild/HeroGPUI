@@ -9,6 +9,8 @@ export const SITE = {
   github: "https://github.com/Porabuild/HeroGPUI",
   upstream: "https://heroui.com",
   llmsTxt: "/llms.txt",
+  /** Pinned Zed revision for gpui / gpui_platform. Keep in lockstep with Cargo.toml. */
+  gpuiRev: "ee3b5558c581429633937e458fad8d109f29e9ee",
 } as const;
 
 export interface NavLink {
@@ -21,7 +23,9 @@ export interface NavLink {
 /** The getting-started guides exposed in the site navigation. */
 export const GETTING_STARTED_LINKS: NavLink[] = [
   { href: "/docs/getting-started", label: "Overview", exact: true },
+  { href: "/docs/getting-started/quick-start", label: "Quick Start" },
   { href: "/docs/getting-started/installation", label: "Install" },
+  { href: "/docs/getting-started/gallery", label: "Gallery" },
   { href: "/docs/getting-started/state", label: "State" },
   { href: "/docs/getting-started/composition", label: "Composition" },
   { href: "/docs/getting-started/animation", label: "Animation" },
@@ -29,6 +33,8 @@ export const GETTING_STARTED_LINKS: NavLink[] = [
   { href: "/docs/getting-started/dark-mode", label: "Dark mode" },
   { href: "/docs/getting-started/customization", label: "Customize" },
   { href: "/docs/getting-started/styling", label: "Styling" },
+  { href: "/docs/getting-started/icons", label: "Icons" },
+  { href: "/docs/getting-started/keyboard", label: "Keyboard and focus" },
   { href: "/docs/getting-started/design-principles", label: "Design principles" },
 ];
 

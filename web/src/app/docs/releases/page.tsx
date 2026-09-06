@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { Chip, Link } from "@heroui/react";
+import { Callout } from "@/components/ui/callout";
 import { PageHeader } from "@/components/ui/page-header";
 import { ReleaseBody } from "./markdown";
 
@@ -132,9 +133,18 @@ export default function ReleasesPage() {
         .
       </p>
 
-      {releases.map((release) => (
-        <ReleaseSection key={release.tag} release={release} />
-      ))}
+      {releases.length === 0 ? (
+        <Callout kind="note" title="No GitHub releases are listed here yet">
+          This page is filled from the GitHub Releases API. Until a <code>vX.Y.Z</code> tag is
+          published, read notes on{" "}
+          <Link href={RELEASES_URL} rel="noreferrer" target="_blank">
+            github.com/Porabuild/HeroGPUI/releases
+          </Link>{" "}
+          or start from the <Link href="/docs/getting-started/quick-start">Quick Start</Link>.
+        </Callout>
+      ) : (
+        releases.map((release) => <ReleaseSection key={release.tag} release={release} />)
+      )}
 
       <h2 id="how-releases-work" className="mt-12">
         How releases work

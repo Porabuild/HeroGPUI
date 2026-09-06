@@ -17,8 +17,8 @@ export function FinalCta() {
         </p>
 
         <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
-          <CtaLink href="/docs/getting-started" variant="primary">
-            Read the docs
+          <CtaLink href="/docs/getting-started/quick-start" variant="primary">
+            Get started
           </CtaLink>
           <CtaLink href="/docs/components" variant="outline">
             Browse components

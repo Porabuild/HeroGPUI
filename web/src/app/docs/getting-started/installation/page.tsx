@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
+import { Link } from "@heroui/react";
 import { PageHeader } from "@/components/ui/page-header";
 import { CodeBlock } from "@/components/ui/code-block";
 import { Callout } from "@/components/ui/callout";
+import { SITE } from "@/lib/nav";
 
 export const metadata: Metadata = {
   title: "Installation",
@@ -10,8 +12,8 @@ export const metadata: Metadata = {
 };
 
 const CARGO_TOML = `[dependencies]
-gpui = { git = "https://github.com/zed-industries/zed", rev = "ee3b5558c581429633937e458fad8d109f29e9ee" }
-gpui_platform = { git = "https://github.com/zed-industries/zed", rev = "ee3b5558c581429633937e458fad8d109f29e9ee", features = ["font-kit", "wayland", "x11", "runtime_shaders"] }
+gpui = { git = "https://github.com/zed-industries/zed", rev = "${SITE.gpuiRev}" }
+gpui_platform = { git = "https://github.com/zed-industries/zed", rev = "${SITE.gpuiRev}", features = ["font-kit", "wayland", "x11", "runtime_shaders"] }
 herogpui = { path = "../HeroGPUI/crates/herogpui" }`;
 
 const MAIN_RS = `use gpui::*;
@@ -53,6 +55,11 @@ export default function InstallationPage() {
         title="Installation"
         description="Add HeroGPUI to a Rust desktop app, open a themed window, and run the component gallery."
       />
+
+      <p>
+        New to the library? Use <Link href="/docs/getting-started/quick-start">Quick Start</Link> to
+        get a button on screen, then come back here for assets, the gallery CLI, and platform notes.
+      </p>
 
       <h2 id="prerequisites">Prerequisites</h2>
       <ul>
@@ -123,7 +130,9 @@ export default function InstallationPage() {
       <h2 id="run-the-gallery">Run the gallery</h2>
       <p>
         The gallery is the library&apos;s desktop documentation: one page per component, 15
-        categories, runnable examples and a theme switcher.
+        categories, runnable examples and a theme switcher. The{" "}
+        <Link href="/docs/getting-started/gallery">Gallery</Link> guide covers deep links and the
+        installed CLI.
       </p>
       <div className="mt-4">
         <CodeBlock code={GALLERY} lang="bash" />

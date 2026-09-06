@@ -7,7 +7,7 @@ import { getCatalog } from "@/lib/catalog";
 export const metadata: Metadata = {
   title: "Components",
   description:
-    "The HeroGPUI component pages, grouped by category, each with the running component, its Rust code, and API reference data.",
+    "Every HeroGPUI component, grouped by category, with a live WebAssembly preview and the Rust API.",
 };
 
 /**
@@ -24,23 +24,17 @@ export default function ComponentsPage() {
     slug: category.slug,
     components: category.components.flatMap((slug) => {
       const component = catalog.components[slug];
-      // A category entry without a matching component record is a pipeline
-      // inconsistency; skip the card rather than render a broken one.
       return component && component.slug && component.title ? [component] : [];
     }),
   }));
 
   const totalCount = groups.reduce((sum, group) => sum + group.components.length, 0);
-  const referenceCount = groups.reduce(
-    (sum, group) => sum + group.components.filter((component) => component.hasReference).length,
-    0,
-  );
 
   return (
     <>
       <PageHeader
         title="Components"
-        description={`${totalCount} pages cover the 71 components HeroUI documents. Each page runs the component as WebAssembly with its Rust code, and ${referenceCount} pages include API reference data.`}
+        description={`${totalCount} pages of typed Rust builders, grouped by what they help you build. Each page runs the component as WebAssembly next to its API.`}
       />
 
       {totalCount === 0 ? (

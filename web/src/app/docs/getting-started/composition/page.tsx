@@ -96,10 +96,10 @@ export default function CompositionPage() {
 
       <h2 id="which-one-a-component-uses">Which one a component uses</h2>
       <p>
-        Each component page lists its parts and slots under{" "}
-        <Link href="/docs/components">API reference</Link>, generated from the same source the
-        library is built from. When a part takes a value the parent computes, it appears there as a
-        render closure rather than as a nested builder.
+        Each component page lists its parts and slots under the{" "}
+        <Link href="/docs/components/button#api-reference">Button API reference</Link>, generated
+        from the same source the library is built from. When a part takes a value the parent
+        computes, it appears there as a render closure rather than as a nested builder.
       </p>
       <p>
         State is the other half of this: see <Link href="/docs/getting-started/state">State</Link>{" "}

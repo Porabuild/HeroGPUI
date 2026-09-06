@@ -7,6 +7,14 @@ import { CodeBlock } from "@/components/ui/code-block";
 import { PageHeader } from "@/components/ui/page-header";
 import { PropsTable } from "@/components/ui/props-table";
 import { getCatalog } from "@/lib/catalog";
+import {
+  gpuiPartRows,
+  gpuiPropRows,
+  gpuiStateRows,
+  gpuiStyleRows,
+  rustRequiredParts,
+  scrubDescription,
+} from "@/lib/gpui-docs";
 import { getComponentReference, getRustExamples, getWasmSections, type RustExample } from "./data";
 import { buildExampleSections } from "./examples";
 import { PartsTable, StatesTable, StylingTable } from "./reference-tables";
@@ -35,7 +43,6 @@ export default async function ComponentPage({ params }: ComponentPageProps) {
   const { slug } = await params;
   const catalog = getCatalog();
   const component = catalog.components[slug];
-  // Every real slug is generated above; anything else is not a component.
   if (!component) notFound();
 
   const reference = getComponentReference(slug);
@@ -44,15 +51,30 @@ export default async function ComponentPage({ params }: ComponentPageProps) {
   const wasmSections = new Set(getWasmSections(slug));
   const liveSections = sections.filter((section) => wasmSections.has(section.heading));
   const importLine = component.importLine || reference?.importLine || "";
-  // Siblings in the same catalog category, the way getComponentSidebarGroups
-  // groups components: one group per category, in catalog order.
   const category = catalog.categories.find((entry) => entry.components.includes(slug));
   const related = (category?.components ?? []).filter(
     (sibling) => sibling !== slug && catalog.components[sibling]?.title,
   );
 
+  const rustParts = reference ? rustRequiredParts(reference.requiredParts, reference.parts) : [];
+  const hasProps = reference ? gpuiPropRows(reference.api).length > 0 : false;
+  const hasParts = reference ? gpuiPartRows(reference.parts).length > 0 : false;
+  const hasStates = reference ? gpuiStateRows(reference.states).length > 0 : false;
+  const hasStyles = reference ? gpuiStyleRows(reference.styling).length > 0 : false;
+  const hasApi = hasProps || hasParts || hasStates;
+
   return (
     <>
+      {category ? (
+        <p className="mb-3">
+          <Link className="no-underline" href={`/docs/components#category-${category.slug}`}>
+            <Chip size="sm" variant="soft">
+              {category.name}
+            </Chip>
+          </Link>
+        </p>
+      ) : null}
+
       <PageHeader
         description={component.description}
         importLine={importLine || undefined}
@@ -70,7 +92,9 @@ export default async function ComponentPage({ params }: ComponentPageProps) {
                 lang="rust"
               />
             ),
-            description: section.rust.description,
+            description: section.rust.description
+              ? scrubDescription(section.rust.description)
+              : section.rust.description,
             heading: section.heading,
             id: section.id,
           }))}
@@ -80,14 +104,14 @@ export default async function ComponentPage({ params }: ComponentPageProps) {
         />
       ) : null}
 
-      {reference ? (
+      {reference && (rustParts.length > 0 || hasParts) ? (
         <section aria-labelledby="anatomy">
           <h2 id="anatomy">Anatomy</h2>
-          {reference.requiredParts.length > 0 ? (
+          {rustParts.length > 0 ? (
             <div className="mt-4">
-              <p className="mb-2 text-sm font-medium text-foreground">Required parts</p>
+              <p className="mb-2 text-sm font-medium text-foreground">Rust types</p>
               <div className="flex flex-wrap gap-2">
-                {reference.requiredParts.map((part) => (
+                {rustParts.map((part) => (
                   <Chip key={part} size="sm" variant="soft">
                     {part}
                   </Chip>
@@ -96,46 +120,64 @@ export default async function ComponentPage({ params }: ComponentPageProps) {
             </div>
           ) : null}
           <p className="mt-4 text-sm leading-6 text-muted">
-            {component.title} is built from these parts. The API reference below lists each part and
-            its slots.
+            {component.title} is assembled from these builders. The API reference lists each one.
           </p>
         </section>
       ) : null}
 
-      {reference ? (
+      {reference && hasStyles ? (
         <section aria-labelledby="customization">
           <h2 id="customization">Customization</h2>
           <p className="mt-2 text-sm text-muted">
-            Styling tokens {component.title} reads from the theme.
+            Appearance builders and theme tokens {component.title} uses.
           </p>
-          <h3 id="styling-reference">Styling reference</h3>
+          <h3 id="styling-reference">Styling</h3>
           <div className="mt-4">
             <StylingTable rows={reference.styling} title={component.title} />
           </div>
         </section>
       ) : null}
 
-      {reference ? (
+      {reference && hasApi ? (
         <section aria-labelledby="api-reference">
           <h2 id="api-reference">API reference</h2>
-          <h3 id="props">Props</h3>
-          <div className="mt-4">
-            <PropsTable label={`${component.title} props`} rows={reference.api} />
-          </div>
+          {hasProps ? (
+            <>
+              <h3 id="props">Builders</h3>
+              <div className="mt-4">
+                <PropsTable label={`${component.title} builders`} rows={reference.api} />
+              </div>
+            </>
+          ) : null}
 
-          <h3 id="parts">Parts and slots</h3>
-          <div className="mt-4">
-            <PartsTable rows={reference.parts} title={component.title} />
-          </div>
+          {hasParts ? (
+            <>
+              <h3 id="parts">Parts</h3>
+              <div className="mt-4">
+                <PartsTable rows={reference.parts} title={component.title} />
+              </div>
+            </>
+          ) : null}
 
-          <h3 id="states">States</h3>
-          <div className="mt-4">
-            <StatesTable rows={reference.states} title={component.title} />
-          </div>
+          {hasStates ? (
+            <>
+              <h3 id="states">States</h3>
+              <div className="mt-4">
+                <StatesTable rows={reference.states} title={component.title} />
+              </div>
+            </>
+          ) : null}
         </section>
       ) : (
         <Callout kind="note" title={`No API reference for ${component.title}`}>
-          The examples above show {component.title} in use.
+          {liveSections.length > 0 ? (
+            <>The examples above show {component.title} in use.</>
+          ) : (
+            <>
+              There is no live preview or builder table for {component.title} yet. Run the{" "}
+              <Link href="/docs/getting-started/gallery">desktop gallery</Link> to see it locally.
+            </>
+          )}
         </Callout>
       )}
 
