@@ -11,7 +11,9 @@ const INSTALL_MAIN_RS: &str = r#"use gpui::{prelude::*, px, size, App,
     Bounds, Render, Window, WindowBounds, WindowOptions};
 use herogpui::prelude::*;
 
-const FONT_FAMILY: &str = if cfg!(target_os = "macos") {
+const FONT_FAMILY: &str = if cfg!(target_arch = "wasm32") {
+    "Inter Variable"
+} else if cfg!(target_os = "macos") {
     "Helvetica Neue"
 } else if cfg!(target_os = "linux") {
     "Ubuntu"

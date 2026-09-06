@@ -2863,9 +2863,9 @@ fn calendar_day_press_scales_and_still_selects(cx: &mut TestAppContext) {
         .expect("the pressed cell kept its bounds")
         .size;
     assert!(
-        (f32::from(pressed.width) - 34.2).abs() < 0.5
+        (f32::from(pressed.width) - f32::from(at_rest.width)).abs() < 0.5
             && (f32::from(pressed.height) - 34.2).abs() < 0.5,
-        "a pressed day cell must scale to 0.95 (34.2px), got {pressed:?}"
+        "a pressed day cell keeps its width and squashes its height to 0.95 (34.2px), got {pressed:?}"
     );
     cx.simulate_mouse_up(centre, MouseButton::Left, Modifiers::none());
     cx.refresh().unwrap();
@@ -2896,9 +2896,9 @@ fn calendar_day_press_scales_and_still_selects(cx: &mut TestAppContext) {
         .expect("the pressed plain cell kept its bounds")
         .size;
     assert!(
-        (f32::from(pressed.width) - 34.2).abs() < 0.5
+        (f32::from(pressed.width) - 36.).abs() < 0.5
             && (f32::from(pressed.height) - 34.2).abs() < 0.5,
-        "a pressed plain day cell must scale to 0.95 (34.2px), got {pressed:?}"
+        "a pressed plain day cell keeps its width and squashes its height to 0.95 (34.2px), got {pressed:?}"
     );
     cx.simulate_mouse_up(centre, MouseButton::Left, Modifiers::none());
     cx.refresh().unwrap();
@@ -2959,9 +2959,9 @@ fn calendar_nav_press_scales_and_still_pages(cx: &mut TestAppContext) {
             .expect("the pressed nav button kept its bounds")
             .size;
         assert!(
-            (f32::from(pressed.width) - 22.8).abs() < 0.5
+            (f32::from(pressed.width) - 24.).abs() < 0.5
                 && (f32::from(pressed.height) - 22.8).abs() < 0.5,
-            "a pressed nav button must scale to 0.95 (22.8px), got {pressed:?}"
+            "a pressed nav button keeps its width and squashes its height to 0.95 (22.8px), got {pressed:?}"
         );
         cx.simulate_mouse_up(centre, MouseButton::Left, Modifiers::none());
         cx.refresh().unwrap();
@@ -3013,12 +3013,12 @@ fn calendar_day_view_nav_presses_across_the_year_boundary(cx: &mut TestAppContex
         .expect("the pressed next button kept its bounds")
         .size;
     // The long range heading squeezes the fixed-width button horizontally at
-    // rest, so the horizontal check is the press inset giving way (2 * 0.6px)
-    // rather than the absolute 22.8; the height carries the 0.95 scale.
+    // rest; the press leaves that width alone and the height carries the
+    // 0.95 scale.
     assert!(
         (f32::from(pressed.height) - 22.8).abs() < 0.5
-            && (f32::from(pressed.width) - (f32::from(rest.width) - 1.2)).abs() < 0.5,
-        "the day view's pressed nav button must scale to 0.95, got {rest:?} -> {pressed:?}"
+            && (f32::from(pressed.width) - f32::from(rest.width)).abs() < 0.5,
+        "the day view's pressed nav button keeps its width and squashes its height to 0.95, got {rest:?} -> {pressed:?}"
     );
     cx.simulate_mouse_up(centre, MouseButton::Left, Modifiers::none());
     cx.refresh().unwrap();
@@ -3161,9 +3161,9 @@ fn range_calendar_press_scales_caps_and_interior_and_still_picks(cx: &mut TestAp
         .expect("the pressed cap kept its bounds")
         .size;
     assert!(
-        (f32::from(pressed.width) - 32.4).abs() < 0.5
+        (f32::from(pressed.width) - 36.).abs() < 0.5
             && (f32::from(pressed.height) - 32.4).abs() < 0.5,
-        "a pressed range cell must scale to 0.9 (32.4px), got {pressed:?}"
+        "a pressed range cell keeps its width and squashes its height to 0.9 (32.4px), got {pressed:?}"
     );
     cx.simulate_mouse_up(point(px(x), px(y)), MouseButton::Left, Modifiers::none());
     cx.refresh().unwrap();
@@ -3186,9 +3186,9 @@ fn range_calendar_press_scales_caps_and_interior_and_still_picks(cx: &mut TestAp
         .expect("the pressed middle cell kept its bounds")
         .size;
     assert!(
-        (f32::from(pressed.width) - 32.4).abs() < 0.5
+        (f32::from(pressed.width) - 36.).abs() < 0.5
             && (f32::from(pressed.height) - 32.4).abs() < 0.5,
-        "a pressed middle cell-button must scale to 0.9 (32.4px), got {pressed:?}"
+        "a pressed middle cell-button keeps its width and squashes its height to 0.9 (32.4px), got {pressed:?}"
     );
     for (selector, label) in [(track12, "the pressed"), (track11, "the neighbour")] {
         let held_bounds = cx
@@ -3269,9 +3269,9 @@ fn range_calendar_today_press_scales_the_inner_button_and_keeps_the_cell(cx: &mu
         .expect("the pressed today cell kept its bounds")
         .size;
     assert!(
-        (f32::from(pressed.width) - 32.4).abs() < 0.5
+        (f32::from(pressed.width) - 36.).abs() < 0.5
             && (f32::from(pressed.height) - 32.4).abs() < 0.5,
-        "a pressed today cell-button must scale to 0.9 (32.4px), got {pressed:?}"
+        "a pressed today cell-button keeps its width and squashes its height to 0.9 (32.4px), got {pressed:?}"
     );
     let held_cell = cx
         .debug_bounds(track)
@@ -3343,9 +3343,9 @@ fn range_calendar_invalid_press_scales_the_inner_button_and_keeps_the_track(
         .expect("the pressed invalid cap kept its bounds")
         .size;
     assert!(
-        (f32::from(pressed.width) - 32.4).abs() < 0.5
+        (f32::from(pressed.width) - 36.).abs() < 0.5
             && (f32::from(pressed.height) - 32.4).abs() < 0.5,
-        "a pressed invalid cap must scale to 0.9 (32.4px), got {pressed:?}"
+        "a pressed invalid cap keeps its width and squashes its height to 0.9 (32.4px), got {pressed:?}"
     );
     cx.simulate_mouse_up(point(px(x), px(y)), MouseButton::Left, Modifiers::none());
     cx.refresh().unwrap();
@@ -3367,9 +3367,9 @@ fn range_calendar_invalid_press_scales_the_inner_button_and_keeps_the_track(
         .expect("the pressed invalid middle cell kept its bounds")
         .size;
     assert!(
-        (f32::from(pressed.width) - 32.4).abs() < 0.5
+        (f32::from(pressed.width) - 36.).abs() < 0.5
             && (f32::from(pressed.height) - 32.4).abs() < 0.5,
-        "a pressed invalid middle cell-button must scale to 0.9 (32.4px), got {pressed:?}"
+        "a pressed invalid middle cell-button keeps its width and squashes its height to 0.9 (32.4px), got {pressed:?}"
     );
     for (selector, label) in [(track12, "the pressed"), (track11, "the neighbour")] {
         let held_bounds = cx
@@ -3616,9 +3616,9 @@ fn range_calendar_nav_press_scales_and_still_pages(cx: &mut TestAppContext) {
             .expect("the pressed nav button kept its bounds")
             .size;
         assert!(
-            (f32::from(pressed.width) - 22.8).abs() < 0.5
+            (f32::from(pressed.width) - 24.).abs() < 0.5
                 && (f32::from(pressed.height) - 22.8).abs() < 0.5,
-            "a pressed nav button must scale to 0.95 (22.8px), got {pressed:?}"
+            "a pressed nav button keeps its width and squashes its height to 0.95 (22.8px), got {pressed:?}"
         );
         cx.simulate_mouse_up(centre, MouseButton::Left, Modifiers::none());
         cx.refresh().unwrap();

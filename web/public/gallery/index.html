@@ -128,6 +128,90 @@
       let wasmSetTheme;
       let pendingPreviewSection;
 
+      // GPUI applies each wheel delta to the scroll offset instantly — no
+      // easing, no momentum (see `div.rs` scroll handling). With a mouse
+      // wheel that lands as one large jump per notch, so intercept trusted
+      // "chunky" events here and replay them as a short eased stream of
+      // synthetic events. Precise trackpad deltas already arrive smooth and
+      // pass through untouched, as do the synthetic events themselves
+      // (`isTrusted` is false for dispatch-constructed events and cannot be
+      // forged on real ones). GPUI listens on the canvas, so a
+      // capture-phase document listener always runs first.
+      const WHEEL_GLIDE_TAU = 60; // ms; higher = longer glide
+      const WHEEL_CHUNK_PX = 40; // notches arrive as one large pixel jump
+      const wheelGlide = {
+        x: 0,
+        y: 0,
+        raf: 0,
+        last: 0,
+        canvas: null,
+      };
+
+      function emitWheel(x, y, deltaX, deltaY) {
+        wheelGlide.canvas.dispatchEvent(
+          new WheelEvent('wheel', {
+            deltaX,
+            deltaY,
+            deltaMode: WheelEvent.DOM_DELTA_PIXEL,
+            clientX: x,
+            clientY: y,
+            screenX: x,
+            screenY: y,
+            bubbles: true,
+            cancelable: true,
+          }),
+        );
+      }
+
+      function glideWheel(timestamp) {
+        const dt = wheelGlide.last ? Math.min(64, timestamp - wheelGlide.last) : 16;
+        wheelGlide.last = timestamp;
+        const share = 1 - Math.exp(-dt / WHEEL_GLIDE_TAU);
+        const stepX = wheelGlide.x * share;
+        const stepY = wheelGlide.y * share;
+        wheelGlide.x -= stepX;
+        wheelGlide.y -= stepY;
+        if (Math.abs(wheelGlide.x) < 0.5 && Math.abs(wheelGlide.y) < 0.5) {
+          emitWheel(0, 0, wheelGlide.x, wheelGlide.y);
+          wheelGlide.x = 0;
+          wheelGlide.y = 0;
+          wheelGlide.raf = 0;
+          wheelGlide.last = 0;
+          return;
+        }
+        emitWheel(0, 0, stepX, stepY);
+        wheelGlide.raf = requestAnimationFrame(glideWheel);
+      }
+
+      function interceptWheel(event) {
+        if (!event.isTrusted) return; // our own replayed events
+        if (event.deltaMode !== WheelEvent.DOM_DELTA_LINE) {
+          if (Math.abs(event.deltaY) < WHEEL_CHUNK_PX && Math.abs(event.deltaX) < WHEEL_CHUNK_PX) {
+            return; // trackpad-precise: pass through
+          }
+        } else {
+          // Line-mode deltas convert to the site's 16px tile step, close to
+          // gpui's line height.
+          Object.defineProperty(event, 'deltaX', { value: event.deltaX * 16 });
+          Object.defineProperty(event, 'deltaY', { value: event.deltaY * 16 });
+        }
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        wheelGlide.canvas ??= document.querySelector('canvas');
+        if (!wheelGlide.canvas) return;
+        wheelGlide.y += event.deltaY;
+        wheelGlide.x += event.deltaX;
+        if (!wheelGlide.raf) {
+          wheelGlide.last = 0;
+          wheelGlide.raf = requestAnimationFrame(glideWheel);
+        }
+      }
+
+      document.addEventListener('wheel', interceptWheel, {
+        capture: true,
+        passive: false,
+      });
+
       window.addEventListener('message', (event) => {
         if (event.source !== window.parent) return;
         const message = event.data;

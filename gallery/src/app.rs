@@ -12,7 +12,11 @@ use herogpui_theme::{toggle_light_dark, toggle_reduce_motion, ActiveTheme};
 
 use crate::pages::{nav_sections, Page};
 
-pub const FONT_FAMILY: &str = if cfg!(target_os = "macos") {
+pub const FONT_FAMILY: &str = if cfg!(target_arch = "wasm32") {
+    // The web shell bundles Inter Variable and JetBrains Mono; the system
+    // families below do not exist in the browser and panic text resolution.
+    "Inter Variable"
+} else if cfg!(target_os = "macos") {
     "Helvetica Neue"
 } else if cfg!(target_os = "linux") {
     "Ubuntu"
@@ -20,7 +24,9 @@ pub const FONT_FAMILY: &str = if cfg!(target_os = "macos") {
     "Segoe UI"
 };
 
-pub const MONO_FONT: &str = if cfg!(target_os = "macos") {
+pub const MONO_FONT: &str = if cfg!(target_arch = "wasm32") {
+    "JetBrains Mono"
+} else if cfg!(target_os = "macos") {
     "Menlo"
 } else {
     "Consolas"

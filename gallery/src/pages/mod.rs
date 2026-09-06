@@ -1026,10 +1026,45 @@ pub fn section_heading(text: &str) -> gpui::Div {
     )
 }
 
+/// The docs site's dotted stage, painted inside the opaque preview canvas so
+/// the grid sits behind the example. The pinned GPUI web surface cannot clear
+/// to transparent, so the site cannot draw the grid underneath the canvas
+/// itself; 16px tiles with a centered 2.5px dot mirror the site's CSS.
+pub(crate) fn stage_dot_grid(dot: gpui::Hsla) -> impl IntoElement {
+    gpui::canvas(
+        |_, _, _| {},
+        move |bounds, _, window, _| {
+            let step = 16.;
+            let dot_size = px(2.5);
+            let center = bounds.center();
+            let reach_x = (f32::from(bounds.size.width) / step).ceil() as i32 / 2 + 1;
+            let reach_y = (f32::from(bounds.size.height) / step).ceil() as i32 / 2 + 1;
+            for column in -reach_x..=reach_x {
+                for row in -reach_y..=reach_y {
+                    let spot = gpui::Point::new(
+                        center.x + px(column as f32 * step),
+                        center.y + px(row as f32 * step),
+                    );
+                    window.paint_quad(
+                        gpui::fill(
+                            gpui::Bounds::centered_at(spot, gpui::size(dot_size, dot_size)),
+                            dot,
+                        )
+                        .corner_radii(dot_size / 2.),
+                    );
+                }
+            }
+        },
+    )
+    .absolute()
+    .inset_0()
+}
+
 /// Bordered live-demo container like HeroUI's "Usage" preview cards.
 pub fn example_frame(content: gpui::AnyElement, cx: &App) -> gpui::AnyElement {
     let colors = cx.colors();
     gpui::div()
+        .relative()
         .p(px(28.))
         .rounded(px(14.))
         .border_1()
@@ -1041,6 +1076,7 @@ pub fn example_frame(content: gpui::AnyElement, cx: &App) -> gpui::AnyElement {
         .items_center()
         .justify_center()
         .gap(px(16.))
+        .child(stage_dot_grid(colors.muted.alpha(0.22)))
         .child(content)
         .into_any_element()
 }
@@ -1216,6 +1252,7 @@ pub fn example_frame_with_code(
         .overflow_hidden()
         .child(
             gpui::div()
+                .relative()
                 .p(px(28.))
                 .min_h(px(260.))
                 .flex()
@@ -1223,6 +1260,7 @@ pub fn example_frame_with_code(
                 .items_center()
                 .justify_center()
                 .gap(px(16.))
+                .child(stage_dot_grid(colors.muted.alpha(0.22)))
                 .child(content),
         )
         .child(DocsCodeBlock {

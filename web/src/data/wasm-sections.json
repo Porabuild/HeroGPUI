@@ -23,9 +23,9 @@
   ],
   "close-button": [
     "Usage",
+    "Interactive",
     "With Custom Icon",
     "Render Function",
-    "Interactive",
     "Disabled"
   ],
   "toggle-button": [
@@ -45,6 +45,7 @@
     "Vertical & detached"
   ],
   "dropdown": [
+    "Usage",
     "With Icons",
     "With Descriptions",
     "With Disabled Items",
@@ -60,7 +61,6 @@
     "With Custom Submenu Indicator",
     "Custom Trigger",
     "Long Press Trigger",
-    "Usage",
     "Multiple selection"
   ],
   "list-box": [
@@ -70,11 +70,11 @@
     "Multi Select",
     "Controlled",
     "Disallow Empty Selection",
+    "Escape Key Behavior",
     "Virtualization",
     "Custom Check Icon",
     "Single selection",
-    "Multiple selection",
-    "Escape Key Behavior"
+    "Multiple selection"
   ],
   "tag-group": [
     "Usage",
@@ -82,14 +82,14 @@
     "Selection Modes",
     "Controlled",
     "Disallow Empty Selection",
+    "Escape Key Behavior",
     "With Error Message",
     "With List Data",
     "With Prefix",
     "With Remove Button",
     "Removable",
     "Selectable",
-    "Variants & sizes",
-    "Escape Key Behavior"
+    "Variants & sizes"
   ],
   "color-area": [
     "Usage",
@@ -158,8 +158,8 @@
     "Square, stacked"
   ],
   "slider": [
-    "Format options",
     "Usage",
+    "Format options",
     "Range Slider Anatomy",
     "Controlled Value",
     "Custom Value Formatting",
@@ -240,9 +240,9 @@
     "Heading Offset"
   ],
   "date-field": [
+    "Usage",
     "Granularity",
     "Forced Leading Zeros",
-    "Usage",
     "With Icons",
     "Variants",
     "In Surface",
@@ -615,6 +615,7 @@
     "Secondary"
   ],
   "alert-dialog": [
+    "Usage",
     "Sizes",
     "Statuses",
     "Placements",
@@ -625,8 +626,7 @@
     "Dismiss Behavior",
     "Close Methods",
     "Custom Animations",
-    "Custom Trigger",
-    "Usage"
+    "Custom Trigger"
   ],
   "drawer": [
     "Placement",
@@ -653,12 +653,12 @@
     "Usage"
   ],
   "popover": [
+    "Usage",
     "With Arrow",
     "Interactive Content",
     "Placement",
     "Render Function",
-    "Custom Styles",
-    "Usage"
+    "Custom Styles"
   ],
   "toast": [
     "Usage",
@@ -681,6 +681,7 @@
     "Delay"
   ],
   "autocomplete": [
+    "Usage",
     "Virtualization",
     "Variants",
     "In Surface",
@@ -697,10 +698,10 @@
     "Controlled Open State",
     "Asynchronous Filtering",
     "Custom Indicator",
-    "Custom Value",
-    "Usage"
+    "Custom Value"
   ],
   "combo-box": [
+    "Usage",
     "Virtualization",
     "Full Width",
     "With Description",
@@ -724,10 +725,10 @@
     "Form Value",
     "Validation Behavior",
     "Custom Validation",
-    "Usage",
     "Custom values allowed"
   ],
   "select": [
+    "Usage",
     "Virtualization",
     "With Description",
     "Required",
@@ -740,7 +741,6 @@
     "Asynchronous Loading",
     "Custom Indicator",
     "Custom Value",
-    "Usage",
     "Uncontrolled",
     "Variants",
     "Full width",

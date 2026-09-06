@@ -1618,12 +1618,10 @@ fn field_addons_and_custom_slots_keep_twenty_pixel_lines(cx: &mut TestAppContext
                 let pressed = cx
                     .debug_bounds("input-leading-text")
                     .expect("pressed slot paints");
-                assert!(
-                    near(
-                        pressed.size.height,
-                        20. * herogpui_components::PRESSED_SCALE
-                    ),
-                    "stepper press scales the 20px line: {pressed:?}"
+                assert_eq!(
+                    pressed.size.height,
+                    px(20.),
+                    "stepper press leaves the inner 20px line alone: {pressed:?}"
                 );
                 cx.simulate_mouse_up(at, MouseButton::Left, Modifiers::none());
                 flush_frame(cx);
