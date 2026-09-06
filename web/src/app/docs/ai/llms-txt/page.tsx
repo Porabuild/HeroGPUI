@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { Callout } from "@/components/ui/callout";
 import { CodeBlock } from "@/components/ui/code-block";
 import { PageHeader } from "@/components/ui/page-header";
@@ -12,6 +14,12 @@ export const metadata: Metadata = {
     "HeroGPUI publishes a plain-text llms.txt with the Rust API, theme model, component patterns, and GPUI conventions for coding agents.",
 };
 
+// Read the file at build time so the size below and the excerpt stay true to
+// the reference agents actually receive.
+const LLMS_TXT = readFileSync(path.join(process.cwd(), "..", "llms.txt"), "utf8");
+const LLMS_TXT_LINES = LLMS_TXT.trimEnd().split(/\r?\n/).length;
+const LLMS_TXT_KB = Math.max(1, Math.round(Buffer.byteLength(LLMS_TXT, "utf8") / 1024));
+
 const BUTTON_EXCERPT = `Button::new("save")
     .child(icon)          // ordered children: leading icon first, then label text
     .child("Save")
@@ -21,60 +29,59 @@ const BUTTON_EXCERPT = `Button::new("save")
     .full_width(true)
     .on_press(cx.listener(|this, _, _, cx| this.save(cx)))`;
 
-const SECTIONS: Array<{ name: string; gets: string }> = [
-  {
-    name: "Overview",
-    gets: "The crate layout — the `herogpui` umbrella, `herogpui-theme` (`ThemeProvider`, `ActiveTheme`), `herogpui-core` (shared enums and OKLCH math), `herogpui-components`, and the gallery app — plus the unsupported legacy names: `content1..4` tokens, numbered color scales, `primary`/`secondary` as colors, the `radius` prop, and components such as `Navbar`, `Image`, `User`, `Spacer`, `Code`, and `Snippet`.",
-  },
-  {
-    name: "Installation",
-    gets: "The Cargo dependency lines, and a complete minimal bootstrap: `Application::new`, `ThemeProvider::init`, a window with `app_focus_root`, and `HeroGpuiAssets` for built-in icon chrome. Also how to set root background/foreground from tokens and toggle light/dark.",
-  },
-  {
-    name: "Theming",
-    gets: "The OKLCH token vocabulary: base tokens (`background`, `muted`, `border`, `focus`, `link`, …), containers (`surface`, `overlay`, `segment`), roles (`accent`, `success`, `warning`, `danger` with derived `soft()`/`soft_hover()`), fields, layout tokens (the radius scale, spacing, shadows, tooltip delays), the custom theme builder, and the color-math helpers.",
-  },
-  {
-    name: "Prop vocabularies",
-    gets: "The enum tables for `Variant`, `FieldVariant`, `Prominence`, `Backdrop`, `Color`, `Size`, `SelectionMode`, `Placement`, and related types, with their values and users. It also covers radius helpers, desktop control heights, `NumberFormat`, and floating panels through `util::floating`.",
-  },
-  {
-    name: "Render props",
-    gets: "How render props are spelled in Rust: closures that receive the values the component already computes — `Table::indicator`, `Pagination::link`, `InputOTP::slot`, `Dropdown::item_content`, `Slider::thumb`, `DateField::segment`.",
-  },
-  {
-    name: "Controlled and uncontrolled",
-    gets: "Every controlled prop is an `Option`; leaving it unset seeds keyed internal state from the matching `default_*`. The full list of controlled/uncontrolled pairs per component, and why `Popover`, `Accordion`, and `Tooltip` take an `id`.",
-  },
-  {
-    name: "Validation",
-    gets: "The `validate` closure contract, `validation_errors`, the `validation::resolve` precedence (controlled `is_invalid`, then `validationErrors`, then `validate`), and how `Form` routes a server `ValidationErrors` record into per-field slots.",
-  },
-  {
-    name: "Component API pattern",
-    gets: "The shape every component shares: `#[derive(IntoElement)]` builders implementing `RenderOnce`, caller-owned state entities (`InputState`, `CalendarState`, `TimeState`, …), and callback signatures with `Arc` for closures that capture shared fields.",
-  },
-  {
-    name: "Components",
-    gets: "The bulk of the file: per-category API rundowns across sixteen subsections (Buttons, Collections, Colors, Controls, Data Display, Date and Time, Feedback, calendar_view, Forms, Layout, Media, Navigation, Overlays, Pickers, Typography, Utilities), naming every documented builder, part, and its Rust spelling. A few related components share one entry, including ToggleButton/ToggleButtonGroup, Disclosure/DisclosureGroup, and the Label/Description/ErrorMessage/FieldError slots.",
-  },
-  {
-    name: "Gallery",
-    gets: "How to run and capture the documentation app: `cargo run -p herogpui-gallery`, the `HEROGPUI_PAGE` / `HEROGPUI_THEME` environment controls, and the screenshot scripts used as the visual-regression source.",
-  },
-  {
-    name: "Code style",
-    gets: "GPUI 0.2.2 gotchas that produce wrong code silently: `f32::from(px)` for `Pixels`, no div transforms, `svg()` never inherits text color, block-by-default divs, and `util::floating` for paint order.",
-  },
-  {
-    name: "Animation",
-    gets: "The `anim` module that maps data-attribute motion onto GPUI: enter/exit/press helpers, the `Motion` timing and easing curves transcribed from the theme's `--ease-*` tokens, reduced-motion gating, and geometric press and zoom techniques.",
-  },
-  {
-    name: "License",
-    gets: "Apache-2.0 for HeroGPUI and HeroUI, with the Copyright 2025 NextUI Inc. attribution.",
-  },
-];
+function llmsSectionKey(heading: string): string {
+  return heading.replace(/\s+\(\d+\)$/, "");
+}
+
+// Hand-written "what an agent gets" blurbs, keyed by the stable section key
+// (the `## ` heading with any trailing " (N)" count stripped) so a count bump
+// cannot silently detach a row. Both directions are checked below and throw at
+// build time, so the table and the file cannot drift silently.
+const SECTION_DESCRIPTIONS: Record<string, string> = {
+  Overview:
+    "The crate layout — the `herogpui` umbrella, `herogpui-theme` (`ThemeProvider`, `ActiveTheme`), `herogpui-core` (shared enums and OKLCH math), `herogpui-components`, and the gallery app — plus the unsupported legacy names: `content1..4` tokens, numbered color scales, `primary`/`secondary` as colors, the `radius` prop, and components such as `Navbar`, `Image`, `User`, `Spacer`, `Code`, and `Snippet`.",
+  Installation:
+    "The Cargo dependency lines, and a complete minimal bootstrap: `gpui_platform::application()` with `HeroGpuiAssets`, `ThemeProvider::init`, a window with `app_focus_root`, and root background/foreground from tokens with a light/dark toggle.",
+  Theming:
+    "The OKLCH token vocabulary: base tokens (`background`, `muted`, `border`, `focus`, `link`, …), containers (`surface`, `overlay`, `segment`), roles (`accent`, `success`, `warning`, `danger` with derived `soft()`/`soft_hover()`), fields, layout tokens (the radius scale, spacing, shadows, tooltip delays), the custom theme builder, and the color-math helpers.",
+  "Prop vocabularies":
+    "The enum tables for `Variant`, `FieldVariant`, `Prominence`, `Backdrop`, `Color`, `Size`, `SelectionMode`, `Placement`, and related types, with their values and users. It also covers radius helpers, desktop control heights, `NumberFormat`, and floating panels through `util::floating`.",
+  "Render props":
+    "How render props are spelled in Rust: closures that receive the values the component already computes — `Table::indicator`, `Pagination::link`, `InputOTP::slot`, `Dropdown::item_content`, `Slider::thumb`, `TimeField::segment`, `DateField::segment`.",
+  "Controlled and uncontrolled":
+    "Every controlled prop is an `Option`; leaving it unset seeds keyed internal state from the matching `default_*`. The full list of controlled/uncontrolled pairs per component, and why `Popover`, `Accordion`, and `Tooltip` take an `id`.",
+  Validation:
+    "The `validate` closure contract, `validation_errors`, the `validation::resolve` precedence (controlled `is_invalid`, then `validationErrors`, then `validate`), and how `Form` routes a server `ValidationErrors` record into per-field slots.",
+  "Component API pattern":
+    "The shape every component shares: `#[derive(IntoElement)]` builders implementing `RenderOnce`, caller-owned state entities (`InputState`, `CalendarState`, `TimeState`, …), and callback signatures with `Arc` for closures that capture shared fields.",
+  Components:
+    "The bulk of the file: per-category API rundowns across sixteen subsections (Buttons, Collections, Colors, Controls, Data Display, Date and Time, Feedback, the calendar view model (`calendar_view`), Forms, Layout, Media, Navigation, Overlays, Pickers, Typography, Utilities), naming every documented builder, part, and its Rust spelling. A few related components share one entry, including ToggleButton/ToggleButtonGroup, Disclosure/DisclosureGroup, and the Label/Description/ErrorMessage/FieldError slots.",
+  Gallery:
+    "How to run and capture the documentation app: `cargo run -p herogpui-gallery`, the `HEROGPUI_PAGE` / `HEROGPUI_THEME` environment controls, and the screenshot scripts used as the visual-regression source.",
+  "Code style":
+    "Pinned-GPUI notes that produce wrong code silently: `f32::from(px)` for `Pixels`, no div transforms, `svg()` never inherits text color, block-by-default divs, and `util::floating` for paint order.",
+  Animation:
+    "The `anim` module that maps data-attribute motion onto GPUI: enter/exit/press helpers, the `Motion` timing and easing curves transcribed from the theme's `--ease-*` tokens, reduced-motion gating, and geometric press and zoom techniques.",
+  License: "Apache-2.0 for HeroGPUI and HeroUI, with the Copyright 2025 NextUI Inc. attribution.",
+};
+
+// Section names come from the file itself, so a heading or count change lands
+// here without a hand edit. `SECTIONS` keeps the file's order.
+const LLMS_SECTION_HEADINGS = [...LLMS_TXT.matchAll(/^## (.+)$/gm)].map((m) => m[1].trim());
+
+const SECTIONS: Array<{ name: string; gets: string }> = LLMS_SECTION_HEADINGS.map((heading) => {
+  const gets = SECTION_DESCRIPTIONS[llmsSectionKey(heading)];
+  if (gets === undefined) {
+    throw new Error(`llms.txt section "${heading}" has no description in SECTION_DESCRIPTIONS`);
+  }
+  return { name: heading, gets };
+});
+
+for (const key of Object.keys(SECTION_DESCRIPTIONS)) {
+  if (!LLMS_SECTION_HEADINGS.some((heading) => llmsSectionKey(heading) === key)) {
+    throw new Error(`SECTION_DESCRIPTIONS key "${key}" has no matching heading in llms.txt`);
+  }
+}
 
 export default function LlmsTxtPage() {
   return (
@@ -117,7 +124,10 @@ export default function LlmsTxtPage() {
       <H2 id="herogpuis-llms-txt">HeroGPUI&apos;s llms.txt</H2>
       <P>
         The file lives at the repository root, next to <C>README.md</C>. It is{" "}
-        <strong>515 lines (~44 KB)</strong> of plain markdown, and the repository&apos;s own{" "}
+        <strong>
+          {LLMS_TXT_LINES} lines (~{LLMS_TXT_KB} KB)
+        </strong>{" "}
+        of plain markdown, and the repository&apos;s own{" "}
         <Link href="/docs/ai/agents-md">agent guide</Link> designates it the public component API
         reference. The site serves it as <C>text/plain</C> — see{" "}
         <Link href={SITE.llmsTxt}>/llms.txt</Link>.
@@ -175,11 +185,11 @@ export default function LlmsTxtPage() {
           <C>Image</C> are not part of the library.
         </Li>
         <Li>
-          <strong>Use the pinned framework assumptions.</strong> The repository targets{" "}
-          <strong>GPUI 0.2.2</strong> and <strong>Rust 1.98</strong>. A newer GPUI API may not be
-          available here. Inherited behavior follows React Aria 3.51.0, React Stately 3.49.0 and
-          React Aria Components 1.20.0. Check this file and the repository task guides before using
-          an API.
+          <strong>Use the pinned framework assumptions.</strong> The repository targets the Zed GPUI
+          git revision in <C>Cargo.toml</C> and <C>Cargo.lock</C>, with <strong>Rust 1.98</strong>.
+          A newer GPUI API may not be available here. Inherited behavior follows React Aria 3.51.0,
+          React Stately 3.49.0 and React Aria Components 1.20.0. Check this file and the repository
+          task guides before using an API.
         </Li>
       </Ul>
       <P>

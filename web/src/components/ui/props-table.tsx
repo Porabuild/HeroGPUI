@@ -51,8 +51,8 @@ function Mono({ children }: { children: string }) {
 }
 
 /**
- * Upstream prop contract vs the Rust port. "Not ported" marks a deliberate,
- * documented omission from the API audit — not a defect. Rendered with the
+ * Upstream prop contract vs the Rust components. "Not available" marks a
+ * HeroUI prop with no HeroGPUI equivalent by design. Rendered with the
  * static table (see `static-table.tsx` for why not HeroUI's Table).
  */
 export function PropsTable({ rows, label, className }: PropsTableProps) {
@@ -94,8 +94,9 @@ export function PropsTable({ rows, label, className }: PropsTableProps) {
       />
 
       <p className="text-xs text-muted">
-        <span className="font-medium text-foreground">Not ported</span> marks a deliberate,
-        documented omission from the port — measured by the repo&apos;s API audit, not a defect.
+        <span className="font-medium text-foreground">Not available</span> marks a HeroUI prop that
+        has no HeroGPUI equivalent by design, usually because it targets the browser or an
+        accessibility tree GPUI does not expose.
       </p>
     </div>
   );

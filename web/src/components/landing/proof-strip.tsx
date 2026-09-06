@@ -7,7 +7,7 @@ interface Stat {
 }
 
 const STATS: Stat[] = [
-  { value: "71", label: "Components across 66 catalog pages" },
+  { value: "71", label: "Components on 66 pages" },
   { value: "3", label: "Desktop platforms" },
   { value: "OKLCH", label: "Semantic color tokens" },
   { value: "Rust", label: "Typed builder APIs" },

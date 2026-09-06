@@ -5,8 +5,8 @@ CLI, the native gallery binaries, and the Git tag.
 
 ## One-time setup
 
-1. Create the public `heroui-inc/HeroGPUI` GitHub repository and push the full
-   tracked tree. The repository URL does not resolve until this is done.
+1. Confirm the public `Porabuild/HeroGPUI` GitHub repository is in place and
+   the working tree is pushed to it.
 2. Create a protected `release` GitHub environment and protect `v*` tags.
 3. Enable immutable GitHub Releases.
 4. Reserve the five crates.io names. They were unclaimed when checked on
@@ -14,7 +14,7 @@ CLI, the native gallery binaries, and the Git tag.
 5. For the first tag only, add a short-lived `CRATES_IO_TOKEN` secret to the
    `release` environment, scoped to publishing these package names.
 6. After that first workflow succeeds, configure trusted publishers for all
-   five crates to the `heroui-inc/HeroGPUI` repository, `release.yml`
+   five crates to the `Porabuild/HeroGPUI` repository, `release.yml`
    workflow, and `release` environment.
 7. Only after every trusted publisher is configured, delete the bootstrap
    secret. Future releases use OIDC and need no registry secrets.

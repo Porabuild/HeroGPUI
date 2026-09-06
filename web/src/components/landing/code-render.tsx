@@ -39,7 +39,7 @@ export function CodeAndRender() {
             half-measure column, so the two-up row only starts at xl, where a
             2:1 split fits every line without an inner scrollbar. Below xl the
             code block spans the full measure instead. */}
-        <div className="mt-10 grid items-center gap-10 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] xl:gap-14">
+        <div className="mt-10 grid grid-cols-1 items-center gap-10 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] xl:gap-14">
           <CodeBlock code={BUTTON_EXAMPLE} filename="main.rs" lang="rust" />
           <GalleryFrame
             bare={false}

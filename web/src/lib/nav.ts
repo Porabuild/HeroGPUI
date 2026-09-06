@@ -7,7 +7,6 @@ export const SITE = {
   version: "v0.1.0",
   /** The checkout's actual remote (github.com/Porabuild/HeroGPUI). */
   github: "https://github.com/Porabuild/HeroGPUI",
-  cratesio: "https://crates.io/crates/herogpui",
   upstream: "https://heroui.com",
   llmsTxt: "/llms.txt",
 } as const;
@@ -36,7 +35,7 @@ export const GETTING_STARTED_LINKS: NavLink[] = [
 /** The three guides for coding agents. */
 export const AI_LINKS: NavLink[] = [
   { href: "/docs/ai/llms-txt", label: "llms.txt" },
-  { href: "/docs/ai/agent-skills", label: "Agent skills" },
+  { href: "/docs/ai/task-guides", label: "Task guides" },
   { href: "/docs/ai/agents-md", label: "Repository guide" },
 ];
 

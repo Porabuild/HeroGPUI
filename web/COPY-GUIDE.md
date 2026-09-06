@@ -25,12 +25,15 @@ Version numbers appear only where they are load-bearing:
 
 "HeroUI v3.2.4" in body prose is wrong. "HeroUI" is right.
 
-**2. Never say the library is unreleased.**
+**2. Never comment on release status.**
 
 Delete every trace of "not published yet", "prepared but not yet published",
 "the names were unclaimed", "before v0.1.0 use a path dependency", "in
-development", "no git tags". The install instructions are simply the install
-instructions. `herogpui = "0.1"` in `Cargo.toml` is how you install it.
+development", "no git tags". Do not comment on whether the library is
+released. The install instructions are simply the install instructions: quote
+the dependency block from the installation page — GPUI from the pinned Zed git
+revision plus `herogpui` as a git/path dependency — and never invent a
+registry version such as `herogpui = "0.1"`.
 
 **3. Drop the parity framing.**
 
@@ -108,18 +111,13 @@ company logos.
 
 ## The component preview labels
 
-The browser cannot run GPUI, so a component page shows a live React demo, the
-Rust code, and a screenshot of the real thing. This must stay honest, but it
-should be stated calmly and once per page rather than captioned on every
-element:
+Each component page embeds HeroGPUI itself, compiled to WebAssembly and
+running live in one frame, with the Rust code below it. Say so once per page,
+calmly, in the spirit of: "The frame runs HeroGPUI compiled to WebAssembly.
+The code below it is the Rust that produced the example."
 
-- Tab labels: **Live**, **Rust**, **Screenshot**.
-- One short explanatory line near the top of the examples section, in the
-  spirit of: "Live demos run HeroUI for React, the design system HeroGPUI
-  implements. The Rust tab is the HeroGPUI code. The screenshot is HeroGPUI
-  running natively."
-
-Never write anything implying the browser is running GPUI.
+Never write anything implying the frame is a screenshot or a recreation in
+another framework.
 
 ## Scope
 

@@ -105,7 +105,7 @@ export function Navbar() {
               return (
                 <li key={link.href}>
                   <Link
-                    className={`block rounded-md px-3 py-2 text-sm font-medium no-underline ${
+                    className={`block rounded-md px-3 py-2 font-mono text-xs font-medium tracking-wide uppercase no-underline ${
                       active
                         ? "bg-default-soft text-foreground"
                         : "text-muted hover:text-foreground"

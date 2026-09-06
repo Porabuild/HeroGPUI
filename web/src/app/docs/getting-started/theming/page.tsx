@@ -425,10 +425,9 @@ export default function ThemingPage() {
       />
 
       <p>
-        Every color in HeroGPUI is a semantic token resolved from the active <code>Theme</code>{" "}
-        global. The theme crate transcribes base values from HeroUI&apos;s{" "}
-        <code>packages/styles/themes/default/variables.css</code> in <code>oklch()</code>, and
-        derived values use the stylesheet&apos;s <code>color-mix(in oklab, …)</code> weights.
+        Every color in HeroGPUI is a semantic token resolved from the active <code>Theme</code>.
+        Base values are OKLCH, and derived values mix them in Oklab with fixed weights, so
+        overriding one token moves everything derived from it.
       </p>
       <p>
         The <code>ActiveTheme</code> trait reaches the tokens from any GPUI context —{" "}

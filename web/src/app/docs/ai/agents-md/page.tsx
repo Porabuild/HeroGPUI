@@ -16,6 +16,9 @@ export const metadata: Metadata = {
 // Build the copyable guide from its authoritative repository source so this
 // documentation cannot drift from the instructions agents actually receive.
 const ROOT_AGENTS_MD = readFileSync(path.join(process.cwd(), "..", "AGENTS.md"), "utf8");
+// Line count computed from the file above, so the callout below cannot go
+// stale when the guide grows.
+const ROOT_AGENTS_LINES = ROOT_AGENTS_MD.trimEnd().split(/\r?\n/).length;
 
 const LAYERS: Array<[string, string, string]> = [
   [
@@ -49,12 +52,12 @@ const GUIDES: Array<[string, string, string]> = [
   [
     "Component implementation",
     "components.md",
-    "GPUI 0.2.2 constraints that repeatedly produce plausible-but-wrong component code: controlled/uncontrolled semantics, keyed-state lifetimes, focus and overlay rules, and the headless behavior-test harness patterns.",
+    "Pinned-GPUI constraints that repeatedly produce plausible-but-wrong component code: controlled/uncontrolled semantics, keyed-state lifetimes, focus and overlay rules, and the headless behavior-test harness patterns.",
   ],
   [
     "Upstream contract and audits",
     "parity.md",
-    "The pinned upstream contract and the audit suite that proves it — which audit owns which claim, what a recorded omission must look like, and audit-reader integrity (an audit must fail loudly when it cannot find its input; empty input is not a zero-gap result).",
+    "The pinned upstream contract and the audit suite that checks it — which audit owns which claim, what a recorded omission must look like, and audit-reader integrity (an audit must fail loudly when it cannot find its input; empty input is not a zero-gap result).",
   ],
   [
     "Gallery and visual verification",
@@ -93,9 +96,22 @@ export default function AgentsMdPage() {
             {LAYERS.map(([layer, where, role]) => (
               <tr key={layer}>
                 <Td className="whitespace-nowrap font-medium text-foreground">{layer}</Td>
-                <Td>
-                  <C>{where}</C>
-                </Td>
+                {where.includes(", ") ? (
+                  <Td>
+                    {where.split(", ").map((part, index, parts) => (
+                      <span key={part}>
+                        <span className="whitespace-nowrap">
+                          <C>{part}</C>
+                        </span>
+                        {index < parts.length - 1 ? ", " : null}
+                      </span>
+                    ))}
+                  </Td>
+                ) : (
+                  <Td className="whitespace-nowrap">
+                    <C>{where}</C>
+                  </Td>
+                )}
                 <Td className="text-muted">{role}</Td>
               </tr>
             ))}
@@ -123,7 +139,7 @@ export default function AgentsMdPage() {
             {GUIDES.map(([guide, file, owns]) => (
               <tr key={file}>
                 <Td className="whitespace-nowrap font-medium text-foreground">{guide}</Td>
-                <Td>
+                <Td className="whitespace-nowrap">
                   <C>docs/agents/{file}</C>
                 </Td>
                 <Td className="text-muted">{owns}</Td>
@@ -153,10 +169,12 @@ export default function AgentsMdPage() {
 
       <H3 id="pin-every-upstream-contract">Pin every upstream contract</H3>
       <P>
-        Rule three names the supported framework targets: GPUI <strong>0.2.2</strong> and Rust 1.98.
-        &ldquo;Newer upstream APIs are not evidence that an API is available here&rdquo; is the
-        first paragraph of the root file. Check <Link href="/docs/ai/llms-txt">llms.txt</Link> and
-        the task guides before using an API that is not present in the checkout.
+        The first paragraph of the root file pins the framework targets: the Zed GPUI git revision
+        in <C>Cargo.toml</C> and <C>Cargo.lock</C>, with Rust 1.98. Newer upstream APIs are not
+        evidence that an API is available here. Rule three pins the design-system contract the same
+        way: HeroUI v3.2.4 with its React Aria and Stately versions. Check{" "}
+        <Link href="/docs/ai/llms-txt">llms.txt</Link> and the task guides before using an API that
+        is not present in the checkout.
       </P>
 
       <H3 id="verification-matches-the-change">Verification matches the change</H3>
@@ -171,9 +189,9 @@ export default function AgentsMdPage() {
       </P>
 
       <Callout kind="tip" title="Why the file stays short">
-        The root <C>AGENTS.md</C> is 44 lines. Everything else is one link away, scoped to the
-        subtree or task that needs it. When a rule would only matter for one kind of work, it
-        belongs in the guide for that work — not in the file every task pays for.
+        The root <C>AGENTS.md</C> is {ROOT_AGENTS_LINES} lines. Everything else is one link away,
+        scoped to the subtree or task that needs it. When a rule would only matter for one kind of
+        work, it belongs in the guide for that work — not in the file every task pays for.
       </Callout>
 
       <H2 id="adapting-the-pattern">Adapting the pattern</H2>

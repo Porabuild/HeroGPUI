@@ -43,31 +43,31 @@ export default function StatePage() {
       />
 
       <p>
-        HeroUI v3 has one answer to state: React hooks. This port has two, and which one a component
-        uses is the single thing worth learning before writing a form. A checkbox holds its own
-        value if you let it; a text field never does, and hands you a state entity to hold instead.
+        HeroGPUI components manage state two ways. Most hold their own value when you let them, and
+        report changes through callbacks. Text, number, date and time inputs work the other way:
+        they never keep the value internally, and hand you a state entity to hold instead. Which
+        pattern a component uses is the single thing worth learning before writing a form.
       </p>
 
       <h2 id="controlled-and-uncontrolled">Controlled and uncontrolled</h2>
       <p>
-        Every component takes its controlled prop as an <code>Option</code>. Setting it makes the
-        component controlled; leaving it unset hands the value to the component, seeded from the
-        matching <code>default_*</code>.
+        Pass the controlled prop and the component renders your value. Leave it unset and the
+        component keeps the value itself, seeded from the matching <code>default_*</code>.
       </p>
       <div className="mt-4">
         <CodeBlock code={SEED} lang="rust" />
       </div>
       <p>
-        Where the controlled prop is itself an <code>Option</code> —{" "}
-        <code>RadioGroup::value(None)</code> — supplying it at all is what makes the component
-        controlled. The pairs are <code>is_selected</code>/<code>default_selected</code>,{" "}
-        <code>is_open</code>/<code>default_open</code>, <code>selected_key</code>/
-        <code>default_selected_key</code>, <code>expanded_keys</code>/
-        <code>default_expanded_keys</code>, and <code>value</code>/<code>default_value</code>. The
-        full list per component is in <Link href="/llms.txt">llms.txt</Link>.
+        The pairs are <code>is_selected</code>/<code>default_selected</code>, <code>is_open</code>/
+        <code>default_open</code>, <code>selected_key</code>/<code>default_selected_key</code>,{" "}
+        <code>expanded_keys</code>/<code>default_expanded_keys</code>, and <code>value</code>/
+        <code>default_value</code>. The full list per component is in{" "}
+        <Link href="/llms.txt">llms.txt</Link>.
       </p>
 
-      <h2 id="ids-are-the-keyed-state">An uncontrolled value lives under the id</h2>
+      <h2 id="an-uncontrolled-value-lives-under-the-id">
+        An uncontrolled value lives under the id
+      </h2>
       <p>
         Uncontrolled state lives in <code>Window::use_keyed_state</code>, keyed on the
         component&apos;s id. That is why <code>Popover</code>, <code>Accordion</code> and{" "}
@@ -82,7 +82,7 @@ export default function StatePage() {
         component per row, derive the id from the row key.
       </Callout>
 
-      <h2 id="state-entities">Components that hand you a state entity</h2>
+      <h2 id="components-that-hand-you-a-state-entity">Components that hand you a state entity</h2>
       <p>
         Text, number, date and time inputs do not keep their value internally at all. Their value is
         a GPUI <code>Entity</code> you construct and own, because it is the thing you read on submit
@@ -109,7 +109,7 @@ export default function StatePage() {
         <CodeBlock code={SEEDED} lang="rust" />
       </div>
       <p>
-        The others are <code>NumberState::with_value</code>,{" "}
+        The others are <code>NumberState::with_value</code>, <code>OtpState::with_length</code>,{" "}
         <code>CalendarState::with_selected</code>, <code>DateRangeState::with_range</code> and{" "}
         <code>TimeState::with_value</code>. Read the current value back through the entity:
       </p>
@@ -119,16 +119,16 @@ export default function StatePage() {
 
       <h2 id="callbacks">Callbacks</h2>
       <p>
-        Change callbacks take the new value, the window and the app:{" "}
-        <code>Fn(&amp;T, &amp;mut Window, &amp;mut App)</code>. Anything captured by one must be{" "}
-        <code>Arc</code>-cloned, which is GPUI&apos;s constraint rather than this library&apos;s — a
-        callback outlives the frame that built it.
+        Each change callback receives the new value with the window and the app. The value&apos;s
+        type follows the component: <code>bool</code> for a checkbox, <code>f64</code> for a number
+        field, <code>usize</code> for pagination, <code>&amp;str</code> for text,{" "}
+        <code>Option&lt;Date&gt;</code> for a calendar. Anything a callback captures must be{" "}
+        <code>Arc</code>-cloned: it outlives the frame that built it.
       </p>
       <p>
-        The verbs follow v3 exactly rather than being regularised: <code>on_press</code> on the
-        controls v3 documents <code>onPress</code> for, <code>on_close</code> where it documents{" "}
-        <code>onClose</code>, <code>on_change</code> where it documents <code>onChange</code>. If
-        you know the React API you already know which one a component takes.
+        Callback names mirror the documented interaction: <code>on_press</code> starts an action,{" "}
+        <code>on_close</code> answers a dismissal, <code>on_change</code> reports a new value. The
+        component reference names each one.
       </p>
     </>
   );

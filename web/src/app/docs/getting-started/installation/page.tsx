@@ -129,8 +129,9 @@ export default function InstallationPage() {
         <CodeBlock code={GALLERY} lang="bash" />
       </div>
       <p>
-        It opens as a 1690×700 window. Two environment variables pick the page and the appearance,
-        which is also how the screenshots that gate the visual regressions are captured:
+        It opens as a 1280×820 window. Two environment variables pick the page and the appearance,
+        which is also how the screenshots that gate the visual regressions are captured.
+        <code>HEROGPUI_WINDOW_SIZE=1200x2000</code> overrides the size:
       </p>
       <div className="mt-4">
         <CodeBlock code={GALLERY_ENV} lang="bash" />

@@ -61,7 +61,7 @@ const BUILDER_ROWS: BuilderRow[] = [
   { method: "background / foreground / muted", sets: "The base page tokens." },
   {
     method: "border / separator / focus / link / backdrop",
-    sets: "The remaining base tokens. `--separator` defaults to the same value as `--border`.",
+    sets: "The remaining base tokens, each set on its own.",
   },
   {
     method: "surface(bg, fg)",

@@ -745,7 +745,7 @@ body {
 
 .shot-window-status {
   justify-self: end;
-  color: var(--accent-text);
+  color: var(--pb-accent);
 }
 
 .shot-window-frame {

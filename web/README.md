@@ -1,6 +1,6 @@
 # HeroGPUI website
 
-The documentation and marketing site for
+The documentation site for
 [HeroGPUI](https://github.com/Porabuild/HeroGPUI) — a native Rust/GPUI port
 of [HeroUI v3.2.4](https://heroui.com). Deployed to Vercel under the
 Porabuild team and mounted at <https://porabuild.com/herogpui> via a
@@ -10,16 +10,18 @@ architecture contract and directory ownership.
 
 ## How components are shown
 
-GPUI is a native GPU renderer with no WebAssembly target, so the browser
-cannot run HeroGPUI itself. Every component page shows three things and
-labels each one honestly:
+Each component page embeds the real HeroGPUI gallery — the Rust application
+compiled to WebAssembly — in one lazily booted iframe
+(`src/components/preview/gallery-frame.tsx`, served from
+`public/gallery/`). The frame runs the component live; an example switcher
+above it selects among the gallery's examples for that component, and the
+matching Rust code sits below. The caption on the frame says it is HeroGPUI
+compiled to WebAssembly. It is never a screenshot and never a recreation in
+another framework.
 
-1. **Live preview** — the upstream **HeroUI React 3.2.4** demo, running for
-   real in the browser. Legitimate because HeroGPUI ports exactly that
-   version: the React component *is* the parity reference.
-2. **Rust** — the equivalent `herogpui` builder code, syntax-highlighted.
-3. **Native render** — a real GPUI screenshot captured from the desktop
-   gallery.
+Component pages otherwise show: header with the Rust import line, Usage (the
+live frame plus code), Anatomy, Customization (the styling table), API
+reference (props, parts and slots, then states), and Related components.
 
 The catalog indexes **66 documentation pages covering all 71 components
 HeroUI v3 documents** — a few pages cover a component and its group or slot
@@ -30,8 +32,8 @@ Label, Description, ErrorMessage and FieldError).
 ## Stack
 
 - Next.js **16.3.3** (App Router, Turbopack), React **19.2.8**
-- `@heroui/react` **3.2.4** (the live previews), Tailwind CSS **4.3.3**,
-  TypeScript 5.9, Shiki for Rust highlighting
+- `@heroui/react` **3.2.4** for site UI chrome, `@heroui/styles` for tokens;
+  Tailwind CSS **4.3.3**, TypeScript 5, Shiki for Rust highlighting
 - Lint/format: **oxlint** + **oxfmt** (`pnpm run check`). No ESLint.
 - Package manager: **pnpm**. Never npm. Node `>=22.13.0`.
 
@@ -53,30 +55,33 @@ pnpm run typecheck  # tsc --noEmit (runs `next typegen` first)
 
 In local development the site serves at `/`. In production it serves under
 `/herogpui` — see `next.config.ts` (`basePath` from
-`NEXT_PUBLIC_BASE_PATH`) and [`.env.example`](.env.example). The landing
-and catalog code routes public assets through a `publicUrl()` helper so
-screenshots resolve under the prefix.
+`NEXT_PUBLIC_BASE_PATH`) and [`.env.example`](.env.example). Routes and
+components prefix public asset paths through the `publicUrl()` helper in
+`src/lib/public-url.ts` so screenshots and the gallery iframe resolve under
+the prefix.
 
 ## The generated data pipeline
 
 The pages are driven by JSON extracted from the Rust workspace — the same
-source files the desktop gallery renders — plus the upstream HeroUI v3.2.4
-demos. **The generated outputs are committed** (`src/data/*.json`,
-`public/shots/`, `src/demos/`), so a plain `pnpm run build` works from a
-fresh clone; Vercel never runs the pipeline. Re-run it by hand when the
-Rust sources they read change:
+source files the desktop gallery renders. **The generated outputs are
+committed** (`src/data/*.json`, `public/shots/`, `public/gallery/`), so a
+plain `pnpm run build` works from a fresh clone; Vercel never runs the
+pipeline. Re-run it by hand when the Rust sources they read change:
 
 | Command | Reads | Produces |
 |---|---|---|
-| `node scripts/extract-reference.mjs` (also `pnpm run extract`) | `gallery/src/pages/reference_metadata.rs` | `src/data/reference.json` — per-component API/parts/states/styling tables with implementation status |
-| `node scripts/extract-catalog.mjs` | `gallery/src/pages/mod.rs` (`Page` enum), `.shots/`, `src/demos/`, `reference.json` | `src/data/catalog.json` — the 66 component pages grouped into the 15 v3 categories |
+| `node scripts/extract-reference.mjs` | `gallery/src/pages/reference_metadata.rs` | `src/data/reference.json` — per-component API/parts/states/styling tables with implementation status |
+| `node scripts/extract-catalog.mjs` | `gallery/src/pages/mod.rs` (`Page` enum), `.shots/`, `reference.json` | `src/data/catalog.json` — the 66 component pages grouped into the 15 categories |
 | `node scripts/extract-rust-examples.mjs` | `gallery/src/pages/components.rs` | `src/data/rust-examples.json` — the per-component Rust snippets the pages display |
 | `node scripts/copy-shots.mjs` | `.shots/*.png` | `public/shots/` — the GPUI screenshots |
 | `node scripts/extract-changelog.mjs` | the repository's git history | `src/data/changelog.json` — the `/docs/releases` development log |
 | `node scripts/build-data.mjs` | — | runs the four offline extractors in dependency order with one summary |
-| `node scripts/vendor-demos.mjs [--fresh]` | the HeroUI v3.2.4 git tree (network) | `src/demos/**` + `src/demos/registry.ts` + `NOTICE` — the vendored live-preview sources, with attribution headers |
+| `node scripts/extract-wasm-sections.mjs --source <components.rs>` | the wasm migration checkout's `gallery/src/pages/components.rs`, plus the shipped artifact hashes | `src/data/wasm-sections.json` + `src/data/wasm-parity.json` — the examples compiled into the wasm artifact, so the live selector never advertises one the artifact lacks |
+| `node scripts/lift-wasm-descriptions.mjs <components.rs>` | the wasm migration checkout's `gallery/src/pages/components.rs`, edited in place | moves legacy static prose out of the live component canvas into section descriptions (run before rebuilding the artifact) |
+| `node scripts/vendor-wasm-source.mjs` (`pnpm run wasm:vendor`) | the wasm migration checkout | `web/wasm-migration/` — the baseline commit plus the working diff the artifact was built from, so a committed binary stays reviewable |
+| `node scripts/sync-wasm-component.mjs report` / `sync <file.rs>` | the native crate and the wasm migration crate | keeps the migration's copy of each component on the native implementation |
+| `node scripts/sync-porabuild-brand.mjs` (`pnpm run brand:sync`) | the sibling `@porabuild/brand` package | `src/styles/porabuild/` — the vendored brand layer (never hand-edit; re-sync instead) |
 
-The vendoring step is the only network step and is intentionally outside
-`build-data`; the changelog step reads git history and is run manually. The
-`/llms.txt` route handler is not generated — it serves the repository
-root's `llms.txt`, read once at build time.
+The changelog step reads git history and is run manually. The `/llms.txt`
+route handler is not generated — it serves the repository root's `llms.txt`,
+read once at build time.

@@ -16,6 +16,7 @@ Button::new("del").label("Delete").variant(Variant::Danger)`;
 
 const COMPOSITION = `// The same parts, as slots. \`input\` takes an \`Input\`, not an
 // element, so the group can strip the field's own chrome.
+let amount = cx.new(|cx| InputState::new(cx));
 InputGroup::new()
     .prefix(InputAddon::new("$"))
     .input(Input::new(amount).placeholder("0.00"))
@@ -39,8 +40,8 @@ Avatar::new("a").size(Size::Lg)
 .on_change(|value: &str, _window, _cx| { /* ... */ })`;
 
 const TYPES = `// A variant is an enum, so this does not compile:
-//     Button::new("b").variant(Variant::Solid)
-//                                      ^^^^^ no variant named \`Solid\`
+//     Button::new("b").variant(Variant::Round)
+//                                      ^^^^^ no variant named \`Round\`
 //
 // and an exhaustive match cannot miss one:
 match variant {
@@ -100,9 +101,8 @@ export default function DesignPrinciplesPage() {
 
       <h2 id="2-accessibility-as-foundation">2. Accessibility as foundation</h2>
       <p>
-        Design keyboard and focus behavior into every interactive flow. GPUI provides focus
-        handling, keyboard navigation and dismissal keys, but it does not expose an accessibility
-        tree, so ARIA-only annotations are not part of the component API.
+        Design keyboard and focus behavior into every interactive flow. Test the behavior users
+        operate directly:
       </p>
       <p>
         Test the behavior that users operate directly: <code>Escape</code> to dismiss, arrow keys
@@ -111,10 +111,10 @@ export default function DesignPrinciplesPage() {
 
       <h2 id="3-composition-over-configuration">3. Composition over configuration</h2>
       <p>
-        Compose parts through named builder slots: <code>Modal.Close</code>,{" "}
-        <code>Card.Header</code> and <code>InputGroup.Prefix</code> become methods on the Rust
-        builder. Use the typed component form when a slot carries behavior so the parent can still
-        configure it.
+        Compose parts through named builder slots: <code>ModalCloseTrigger</code>,{" "}
+        <code>CardHeader</code> and <code>InputGroup::prefix</code> attach behavior to the parent.
+        Use the typed component form when a slot carries behavior so the parent can still configure
+        it.
       </p>
       <div className="mt-4">
         <CodeBlock code={COMPOSITION} lang="rust" />

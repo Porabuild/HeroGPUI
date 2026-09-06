@@ -12,5 +12,11 @@ web/**/*.tsx text eol=lf
 web/**/*.mjs text eol=lf
 web/**/*.json text eol=lf
 web/**/*.css text eol=lf
+# Hash-pinned files: checked out byte-identical so SHA-256 pins match on
+# every OS. `* text=auto` would convert these to CRLF on Windows.
+web/public/gallery/*.js -text
+web/public/gallery/*.wasm binary
+web/public/gallery/index.html text eol=lf
+web/wasm-migration/*.patch -text
 # PowerShell is happier with CRLF on Windows.
 *.ps1 text eol=crlf

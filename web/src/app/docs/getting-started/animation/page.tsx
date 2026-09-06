@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { PageHeader } from "@/components/ui/page-header";
 import { CodeBlock } from "@/components/ui/code-block";
 import { Callout } from "@/components/ui/callout";
@@ -7,7 +6,7 @@ import { Callout } from "@/components/ui/callout";
 export const metadata: Metadata = {
   title: "Animation",
   description:
-    "Where the motion lives, how reduced motion is honoured, and what GPUI's missing transforms cost.",
+    "Where the motion lives, how reduced motion is honoured, and how presses render without transforms.",
 };
 
 const REDUCE = `// Anywhere you have an App context.
@@ -15,7 +14,7 @@ herogpui::theme::set_reduce_motion(true, cx);
 herogpui::theme::toggle_reduce_motion(cx);
 
 // Read it if your own view animates.
-if herogpui::theme::ActiveTheme::reduce_motion(cx) {
+if cx.reduce_motion() {
     // draw the end state directly
 }`;
 
@@ -26,23 +25,23 @@ export default function AnimationPage() {
     <>
       <PageHeader
         title="Animation"
-        description="Where the motion lives, how reduced motion is honoured, and what GPUI's missing transforms cost."
+        description="Where the motion lives, how reduced motion is honoured, and how presses render without transforms."
         importLine={"herogpui::theme::set_reduce_motion(true, cx);"}
       />
 
       <p>
-        v3 drives motion from data attributes and CSS. There is no CSS here, so the timings live in
-        one module — <code>anim.rs</code> — and every component reads them from there. You do not
-        wire animation up per component; composing a modal gets you v3&apos;s modal motion.
+        Timings live in one module — <code>anim.rs</code> — and every component reads them from
+        there. You do not wire animation up per component; composing a modal gets you the modal
+        motion.
       </p>
 
-      <h2 id="timings">The timings are v3&apos;s, per overlay</h2>
+      <h2 id="each-overlay-has-its-own-timing">Each overlay has its own timing</h2>
       <p>
-        Each overlay declares its own curve and duration upstream, and the port evaluates those
-        cubic-béziers exactly rather than substituting a built-in easing. A panel enters over 250ms
+        Each overlay declares its own duration, curve and starting scale. A panel enters over 250ms
         from <strong>1.05</strong> — a modal settles <em>down</em> onto the page rather than growing
         into it — while a popover enters over 150ms from 0.90, a list from 0.95, and the backdrop
-        fades alone over 150ms. Exits are 100ms.
+        fades alone over 150ms. Panel, popover, list and backdrop exits run 100ms. The drawer slides
+        in over 250ms and leaves over 200ms.
       </p>
       <p>
         A <code>RenderOnce</code> component leaves the tree the moment its open flag goes false, so
@@ -71,14 +70,14 @@ export default function AnimationPage() {
         the same animation preference.
       </Callout>
 
-      <h2 id="no-transforms">Why the press is geometric</h2>
+      <h2 id="why-the-press-is-geometric">Why the press is geometric</h2>
       <p>
-        The pinned GPUI plumbs its transformation matrix into SVG painting alone, so quads and text
-        cannot be scaled or rotated. v3&apos;s <code>scale(0.97)</code> press and{" "}
-        <code>zoom-in-90</code> overlay entry are therefore reproduced by changing geometry rather
-        than by transforming: the press scales height, padding, gap, corner radius, minimum width{" "}
-        <em>and type size</em>, with margins absorbing exactly what the box gives up, so the outer
-        footprint never changes and pressing a control cannot nudge its neighbour.
+        GPUI plumbs its transformation matrix into SVG painting alone, so quads and text cannot be
+        scaled or rotated. The <code>scale(0.97)</code> press and the overlay entry zoom are
+        therefore reproduced by changing geometry rather than by transforming: the press scales
+        height, padding, gap, corner radius, minimum width <em>and type size</em>, with margins
+        absorbing exactly what the box gives up, so the outer footprint never changes and pressing a
+        control cannot nudge its neighbour.
       </p>
       <p>Two differences from a real CSS transform remain, and they are visible:</p>
       <ul>
@@ -92,10 +91,8 @@ export default function AnimationPage() {
         </li>
       </ul>
       <p>
-        These are the only two places the port knowingly diverges from v3&apos;s motion, and they
-        are consequences of the framework rather than choices. Everything else — durations, curves,
-        scales, and which components animate at all — is measured against v3&apos;s stylesheets by{" "}
-        <Link href="/docs/ai/agents-md">the motion audit</Link> on every change.
+        Durations, curves, scales, and which components animate live in <code>anim.rs</code>, next
+        to the components that read them.
       </p>
     </>
   );

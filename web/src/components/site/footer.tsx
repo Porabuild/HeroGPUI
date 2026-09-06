@@ -62,16 +62,6 @@ export function SiteFooter() {
             <li>
               <Link
                 className="-my-2.5 py-2.5 text-muted transition-colors hover:text-foreground no-underline"
-                href={SITE.cratesio}
-                rel="noopener noreferrer"
-                target="_blank"
-              >
-                crates.io
-              </Link>
-            </li>
-            <li>
-              <Link
-                className="-my-2.5 py-2.5 text-muted transition-colors hover:text-foreground no-underline"
                 href={SITE.llmsTxt}
               >
                 llms.txt

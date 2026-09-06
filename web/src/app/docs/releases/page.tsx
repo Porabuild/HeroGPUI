@@ -114,7 +114,7 @@ export default function ReleasesPage() {
     <>
       <PageHeader
         title="Releases"
-        description={`The v${RELEASE_VERSION} release, its contents, the development log, and how versions are published.`}
+        description={`What version ${RELEASE_VERSION} contains, the changelog grouped by day, and how versions are published.`}
       />
 
       <Callout kind="note" title={`What v${RELEASE_VERSION} contains`}>
@@ -128,14 +128,14 @@ export default function ReleasesPage() {
         </p>
       </Callout>
 
-      <h2 id="current-development-line" className="mt-12">
-        What v{RELEASE_VERSION} contains
+      <h2 id="contents" className="mt-12">
+        Contents
       </h2>
       <p>
-        This release gives Rust desktop applications the full HeroUI component system, typed
-        builders with explicit state, OKLCH semantic tokens and a desktop gallery with live
-        documentation. Components support reduced motion, and the library runs on Windows, macOS and
-        Linux from one codebase.
+        Version {RELEASE_VERSION} gives Rust desktop applications the HeroUI component system as
+        typed builders with explicit state, OKLCH semantic tokens, and a desktop gallery with
+        documentation for every component. Components support reduced motion, and the library runs
+        on Windows, macOS and Linux from one codebase.
       </p>
       <ul className="mt-4 space-y-2">
         {RELEASE_HIGHLIGHTS.map((item) => (
@@ -145,14 +145,13 @@ export default function ReleasesPage() {
         ))}
       </ul>
 
-      <h2 id="development-log" className="mt-12">
-        Development log
+      <h2 id="changelog" className="mt-12">
+        Changelog
       </h2>
       <p>
         Every commit from <time dateTime={FIRST_COMMIT_DAY}>{formatDay(FIRST_COMMIT_DAY)}</time> to{" "}
         <time dateTime={LAST_COMMIT_DAY}>{formatDay(LAST_COMMIT_DAY)}</time> —{" "}
-        {changelog.commitCount} commits, subjects verbatim, newest first. It records the work that
-        shaped v{RELEASE_VERSION}.
+        {changelog.commitCount} commits, subjects verbatim, newest first.
       </p>
       <p className="mt-3 flex flex-wrap items-center gap-2 text-sm text-muted">
         <span>Commit categories:</span>
@@ -191,13 +190,15 @@ export default function ReleasesPage() {
         )}
       </div>
 
-      <h2 id="release-process" className="mt-12">
+      <h2 id="how-releases-work" className="mt-12">
         How releases work
       </h2>
       <p>
         HeroGPUI uses one version across its crates and the <code>herogpui-gallery</code> CLI. Each
-        release is built from a <code>vX.Y.Z</code> Git tag, and the tagged build publishes the
-        crates and gallery artifacts together. See the{" "}
+        release is cut from a <code>vX.Y.Z</code> Git tag that must match the workspace version in{" "}
+        <code>Cargo.toml</code>. The release workflow runs the workspace test suite, builds the
+        gallery for Windows, macOS and Linux, attests the binaries, and creates the GitHub Release
+        that ships them. See the{" "}
         <Link href="/docs/getting-started/installation">installation guide</Link> to add HeroGPUI to
         a Rust project.
       </p>

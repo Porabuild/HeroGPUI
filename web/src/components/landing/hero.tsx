@@ -3,10 +3,12 @@ import { GitHubIcon } from "@/components/site/github-icon";
 import { SITE } from "@/lib/nav";
 import { CtaLink } from "@/components/landing/cta-link";
 import { HeroWasmShowcase } from "@/components/landing/hero-wasm-showcase";
+import { Link } from "@heroui/react";
 
 const INSTALL_TOML = `[dependencies]
-gpui = "0.2"
-herogpui = "0.1"`;
+gpui = { git = "https://github.com/zed-industries/zed", rev = "ee3b5558c581429633937e458fad8d109f29e9ee" }
+gpui_platform = { git = "https://github.com/zed-industries/zed", rev = "ee3b5558c581429633937e458fad8d109f29e9ee", features = ["font-kit", "wayland", "x11", "runtime_shaders"] }
+herogpui = { path = "../HeroGPUI/crates/herogpui" }`;
 
 /**
  * Above the fold: Porabuild positioning, the two CTAs, Cargo.toml snippet,
@@ -27,8 +29,8 @@ export function Hero() {
         }}
       />
 
-      <div className="mx-auto grid w-full max-w-[1440px] items-center gap-12 px-4 pt-14 pb-16 sm:px-6 md:pt-20 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] lg:gap-16 lg:pb-24">
-        <div>
+      <div className="mx-auto grid w-full max-w-[1440px] grid-cols-1 items-center gap-12 px-4 pt-14 pb-16 sm:px-6 md:pt-20 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] lg:gap-16 lg:pb-24">
+        <div className="min-w-0">
           <div className="landing-hero-meta flex flex-wrap items-center gap-3">
             <p className="pb-eyebrow flex items-center gap-2 font-mono text-[11px] font-medium tracking-[0.06em] text-muted uppercase">
               <span className="pb-live-dot inline-block size-1.5 rounded-full bg-accent shadow-[0_0_10px_var(--pb-accent-glow)] animate-pulse" />
@@ -67,11 +69,17 @@ export function Hero() {
             </CtaLink>
           </div>
 
-          <div className="mt-10 max-w-md">
+          <div className="mt-10 max-w-xl">
             <CodeBlock code={INSTALL_TOML} filename="Cargo.toml" lang="toml" />
             <p className="mt-3 text-xs leading-relaxed text-muted">
-              Add HeroGPUI to <span className="font-mono">Cargo.toml</span> and follow the
-              installation guide.
+              The library is added as a git/path dependency. See the{" "}
+              <Link
+                className="text-accent transition-colors hover:text-accent-soft no-underline"
+                href="/docs/getting-started/installation"
+              >
+                installation guide
+              </Link>{" "}
+              for the full steps.
             </p>
           </div>
         </div>

@@ -1,10 +1,12 @@
 import { CodeBlock } from "@/components/ui/code-block";
 import { SITE } from "@/lib/nav";
 import { CtaLink } from "@/components/landing/cta-link";
+import { Link } from "@heroui/react";
 
 const INSTALL_TOML = `[dependencies]
-gpui = "0.2"
-herogpui = "0.1"`;
+gpui = { git = "https://github.com/zed-industries/zed", rev = "ee3b5558c581429633937e458fad8d109f29e9ee" }
+gpui_platform = { git = "https://github.com/zed-industries/zed", rev = "ee3b5558c581429633937e458fad8d109f29e9ee", features = ["font-kit", "wayland", "x11", "runtime_shaders"] }
+herogpui = { path = "../HeroGPUI/crates/herogpui" }`;
 
 export function FinalCta() {
   return (
@@ -20,8 +22,18 @@ export function FinalCta() {
           </p>
         </div>
 
-        <div className="mx-auto mt-10 max-w-md">
+        <div className="mx-auto mt-10 max-w-3xl">
           <CodeBlock code={INSTALL_TOML} filename="Cargo.toml" lang="toml" />
+          <p className="mt-3 text-xs leading-relaxed text-muted">
+            The library is added as a git/path dependency. See the{" "}
+            <Link
+              className="text-accent transition-colors hover:text-accent-soft no-underline"
+              href="/docs/getting-started/installation"
+            >
+              installation guide
+            </Link>{" "}
+            for the full steps.
+          </p>
         </div>
 
         <div className="mt-8 flex flex-wrap items-center justify-center gap-3">

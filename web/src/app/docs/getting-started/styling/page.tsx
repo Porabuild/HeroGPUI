@@ -17,13 +17,16 @@ Button::new("edit")
     .variant(Variant::Secondary)
     .size(Size::Lg)`;
 
-const STATES = `div()
-    .id("row")
-    .bg(colors.surface.background)
-    .hover(move |s| s.bg(colors.default.soft()))
+const STATES = `// .hover() styles an element you own; components do the same
+// internally with anim::hover_fade, and a press is anim::pressed.
+let colors = cx.colors();
+let resting = colors.surface.background;
+let hovered = colors.default.soft();
 
-// Components do this internally: \`anim::hover_fade\` fades the resting
-// surface, and a press is \`anim::pressed\`.`;
+div()
+    .id("row")
+    .bg(resting)
+    .hover(move |s| s.bg(hovered))`;
 
 const RENDER = `// The closure is handed the value the component computed.
 Slider::new("volume", 50.)
@@ -33,10 +36,7 @@ Slider::new("volume", 50.)
 
 const WRAPPER = `/// A save button, everywhere the same.
 fn save_button(id: impl Into<ElementId>) -> Button {
-    Button::new(id)
-        .variant(Variant::Primary)
-        .child(icon(icons::CHECK))
-        .child("Save")
+    Button::new(id).variant(Variant::Primary).child("Save")
 }
 
 // Still a \`Button\`, so the caller keeps every other prop.
@@ -102,7 +102,7 @@ const RADII: { rust: string; value: string; usedBy: string }[] = [
     rust: "util::container_radius(cx)",
     value: "min(32px, 3xl)",
     usedBy:
-      "cards, the table and every floating panel. Surface carries none — upstream `.surface` declares no radius.",
+      "cards, the table and every floating panel. Surface carries none — `.surface` declares no radius.",
   },
 ];
 
@@ -206,7 +206,7 @@ export default function StylingPage() {
         <CodeBlock code={STATES} lang="rust" />
       </div>
 
-      <h2 id="render-props">Render props</h2>
+      <h2 id="render-closures">Render closures</h2>
       <p>
         Render closures let you draw a component part from the state or value the component already
         computed. The closure receives that value, so the caller does not need to re-derive it.
@@ -226,10 +226,9 @@ export default function StylingPage() {
 
       <h2 id="the-class-reference-translated">The class reference, translated</h2>
       <p>
-        HeroUI&apos;s BEM class list (<code>.button</code>, <code>.button--primary</code>,{" "}
-        <code>.card__header</code>) maps to Rust modules, component structs and builder methods:{" "}
-        <code>herogpui::components::button::Button</code>, <code>Button::variant</code> and{" "}
-        <code>Card::header</code>.
+        Style through the Rust API. The <code>Button</code> struct and its <code>variant</code>{" "}
+        method select the look, part builders such as <code>CardHeader</code> place the pieces, and
+        theme tokens supply the values.
       </p>
       <Callout kind="note" title="Control heights and widths">
         Desktop control heights are 32/36/40 for sm/md/lg. A labelled button has no minimum width:

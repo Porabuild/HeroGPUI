@@ -7,7 +7,7 @@ import { getCatalog } from "@/lib/catalog";
 export const metadata: Metadata = {
   title: "Components",
   description:
-    "All HeroGPUI components, grouped by category — every card shows the real GPUI-rendered gallery capture, the available demos, and whether full API reference data exists.",
+    "The HeroGPUI component pages, grouped by category, each with the running component, its Rust code, and API reference data.",
 };
 
 /**
@@ -40,7 +40,7 @@ export default function ComponentsPage() {
     <>
       <PageHeader
         title="Components"
-        description={`HeroGPUI's ${totalCount} component pages are grouped by category and paired with native GPUI gallery captures; together they cover all 71 components HeroUI documents because a few pages group a component with its group or slot siblings, and ${referenceCount} pages include full API reference data.`}
+        description={`${totalCount} pages cover the 71 components HeroUI documents. Each page runs the component as WebAssembly with its Rust code, and ${referenceCount} pages include API reference data.`}
       />
 
       {totalCount === 0 ? (

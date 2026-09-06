@@ -9,7 +9,7 @@ export const metadata: Metadata = {
   description: "Register and switch light and dark themes at runtime in a GPUI application.",
 };
 
-const INIT = `Application::new().with_assets(HeroGpuiAssets).run(|cx: &mut App| {
+const INIT = `gpui_platform::application().with_assets(HeroGpuiAssets).run(|cx: &mut App| {
     ThemeProvider::init(cx); // registers light + dark
     // or ThemeProvider::init_with(Theme::dark(), cx);
     // ...open windows

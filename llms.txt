@@ -1,14 +1,13 @@
 # HeroGPUI — llms.txt
 
-> Beautiful, fast and modern cross-platform Rust UI library. A faithful port of
-> HeroUI **v3** to GPUI — Zed's GPU-accelerated UI framework. All 71 documented
-> v3 components, light & dark, fully typed.
+> UI library for Rust desktop applications. HeroUI's design system,
+> implemented in Rust on GPUI — Zed's GPU-accelerated UI framework.
+> 71 documented components, light and dark, fully typed.
 
 ## Overview
 
-HeroGPUI mirrors HeroUI v3: OKLCH semantic tokens, layout tokens, component
-variants/props and docs experience — rebuilt natively in Rust for Windows,
-macOS and Linux.
+HeroGPUI implements HeroUI's design system in Rust: OKLCH semantic tokens,
+layout tokens, and typed component builders for Windows, macOS and Linux.
 
 - **Crate:** `herogpui` (umbrella, like `@heroui/react`)
 - **Theme:** `herogpui-theme` — `ThemeProvider` global, `ActiveTheme` trait
@@ -19,9 +18,11 @@ macOS and Linux.
 - **Gallery:** `cargo run -p herogpui-gallery` or `cargo install --path gallery --locked` — living docs, the fifteen v3
   categories, theme switcher
 
-**This is v3 only.** v2 names (`content1..4`, numbered 50–900 scales,
-`primary`/`secondary` as colors, the `radius` prop) and v2-only components
-(`Navbar`, `Image`, `User`, `Spacer`, `Code`, `Snippet`) do not exist here.
+**Scope note.** This file documents the current HeroUI design system only.
+The previous major version used different names, and they do not exist here:
+`content1..4` surface tokens, numbered 50–900 colour scales,
+`primary`/`secondary` as colours, the `radius` prop, and the components
+`Navbar`, `Image`, `User`, `Spacer`, `Code`, `Snippet`. Do not emit them.
 
 ## Installation
 
@@ -288,7 +289,12 @@ TextField::new(name.clone()).label("Name").is_required(true)
 Callbacks: `Fn(&ClickEvent/&str/f32/usize/bool/Option<Date>, &mut Window, &mut App)`.
 Fields cloned into closures must be `Arc`.
 
-## Components (68)
+## Components (67)
+
+HeroUI documents 71 components; this file groups them into 67 entries — a few
+entries cover a component together with its group or slot siblings, and two
+entries (`PickerColor`, `DateConstraints`) describe shared helpers. The gallery
+and website group the same components into 66 pages.
 
 v3 keeps `size` on nineteen components (Button, ButtonGroup, ToggleButton*,
 Chip, TagGroup, Badge, Avatar, Switch, Meter, ProgressBar, ProgressCircle,
@@ -484,9 +490,12 @@ The browser gallery bundles distinct Inter faces for Normal, Medium, Semibold an
 
 ## Gallery
 
-`cargo run -p herogpui-gallery` — 1690×700 window, `HEROGPUI_PAGE="Button"` /
-`HEROGPUI_THEME=dark` env, `.shots/capture2.ps1 -PageList "Button,Calendar"`.
-Screenshots are the visual regression source.
+`cargo run -p herogpui-gallery` — 1280×820 window, centred. `HEROGPUI_PAGE`
+selects the page by nav title, `HEROGPUI_THEME=dark` selects the appearance,
+`HEROGPUI_WINDOW_SIZE=1200x2000` sets the window size,
+`HEROGPUI_UNFOCUSED=1` opens without taking focus, and
+`HEROGPUI_REDUCE_MOTION=1` seeds the reduced-motion preference at startup
+(see `gallery/src/main.rs`). Screenshots are the visual regression source.
 
 ## Code style
 

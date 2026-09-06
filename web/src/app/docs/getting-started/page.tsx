@@ -69,7 +69,7 @@ export default function IntroductionPage() {
         }))}
       />
 
-      <h2 id="beautiful-fast-and-modern">What you get</h2>
+      <h2 id="what-you-get">What you get</h2>
       <ul>
         <li>
           <strong>Native rendering</strong> — GPUI renders the interface without a browser DOM.
@@ -118,14 +118,14 @@ export default function IntroductionPage() {
         </Card.Root>
       </div>
 
-      <h2 id="measured-parity">Build from the public surface</h2>
+      <h2 id="build-from-the-public-surface">Build from the public surface</h2>
       <p>
         The component pages, theme guides and root <code>llms.txt</code> describe the public Rust
         API. Start with the <code>herogpui</code> prelude, then use the component reference and
         gallery examples as you compose your application.
       </p>
 
-      <h2 id="what-is-deliberately-not-ported">Desktop application scope</h2>
+      <h2 id="desktop-application-scope">Desktop application scope</h2>
       <p>
         HeroGPUI is designed for native desktop applications. Its components provide GPUI focus,
         keyboard and theme behavior, while your application owns the surrounding window and domain
@@ -148,11 +148,11 @@ export default function IntroductionPage() {
         </li>
         <li>
           <Link href="/docs/getting-started/composition">Composition</Link> — ordered children,
-          composed parts, and the render props v3 inverts.
+          composed parts, and closures that receive computed values.
         </li>
         <li>
-          <Link href="/docs/getting-started/animation">Animation</Link> — v3's per-overlay curves,
-          reduced motion, and what GPUI's missing transforms cost.
+          <Link href="/docs/getting-started/animation">Animation</Link> — per-component motion
+          curves, reduced motion, and how presses render without transforms.
         </li>
         <li>
           <Link href="/docs/components">Components</Link> — browse the catalog, grouped by 15

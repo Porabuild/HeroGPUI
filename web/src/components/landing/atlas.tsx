@@ -26,7 +26,7 @@ export function Atlas() {
               <li key={category.slug}>
                 <Link
                   className="group block w-full border-t border-separator py-4 transition-colors no-underline hover:no-underline"
-                  href="/docs/components"
+                  href={`/docs/components#category-${category.slug}`}
                 >
                   <span className="flex items-baseline justify-between gap-4">
                     <span className="font-medium text-foreground transition-colors group-hover:text-accent">

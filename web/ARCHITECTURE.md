@@ -17,22 +17,32 @@ route lives under `basePath: "/herogpui"`.
 
 ## How components are shown (the central design decision)
 
-GPUI is a native GPU renderer with no WebAssembly target in 0.2.2, so the
-browser cannot run HeroGPUI itself. Each component page follows this order:
+Each component page embeds HeroGPUI itself, compiled to WebAssembly and
+running live — one iframe per page, not per example (`GalleryFrame` in
+`src/components/preview/gallery-frame.tsx`, artifact in `public/gallery/`).
+The frame boots lazily when it nears the viewport, so the multi-megabyte
+module is never fetched on page load, and the browser caches it across
+navigations. Page order follows `web/AGENTS.md`:
 
 1. **Header** — the component title, description, and Rust import line.
-2. **Native preview** — one real capture from the desktop gallery near the top
-   of the page. The caption identifies it as a native gallery capture.
-3. **Examples** — one bordered card per Rust gallery snippet. Each card has a
-   heading and a Shiki-highlighted, line-numbered Rust block. Long blocks start
-   at a readable height with a fade and expand from a control at the foot;
-   short blocks remain open. Cards accept an optional `preview` slot for a
-   future per-example capture and render no preview pane when it is absent.
-4. **Reference** — API, anatomy, states, and styling tables when the extracted
-   reference data exists.
+2. **Usage** — one live WASM instance with an example switcher above it and
+   the matching Rust code below. The `story` query parameter selects the
+   component and `section` selects its first example; later selections travel
+   over the `herogpui:preview-section` message bridge while the description
+   and code update outside the frame. Preview mode constructs only the
+   requested example and omits the gallery shell.
+3. **Anatomy** — compact required-parts list.
+4. **Customization** — the styling table.
+5. **Reference** — API tables (props, parts and slots, then states) when the
+   extracted reference data exists.
+6. **Related components** — siblings in the same catalog category.
 
-The browser never presents a live GPUI render. The native capture is the only
-component preview until per-example captures or a WebAssembly gallery exist.
+Never substitute a checked-in screenshot for the live frame, and never embed
+the full gallery shell on a component page. When `public/gallery/herogpui_web*`
+is regenerated, also regenerate `src/data/wasm-sections.json` and
+`src/data/wasm-parity.json` from that build's migration source with
+`node scripts/extract-wasm-sections.mjs --source <components.rs>`, and refresh
+the vendored recipe with `pnpm run wasm:vendor` in the same commit.
 
 ## Verified toolchain recipe (do not re-derive)
 
@@ -56,7 +66,7 @@ component preview until per-example captures or a WebAssembly gallery exist.
   before using an API you are unsure about; your training data predates this
   release.
 
-## HeroUI v3 is compound-only — read the types before writing a demo
+## HeroUI v3 is compound-only — read the types before using the package
 
 v3 bears no resemblance to v2. Every component is a compound namespace, and
 guessing the shape will produce code that type-checks against nothing. For
@@ -191,6 +201,17 @@ Rust snippets per component, extracted from `../gallery/src/pages/components.rs`
 ```
 
 `imports` is optional; when present it is shown above the example expression.
+
+### `src/data/wasm-sections.json` and `src/data/wasm-parity.json`
+
+The live selector's contract with the checked-in artifact. `wasm-sections.json`
+maps each catalog slug to the example headings compiled into
+`public/gallery/herogpui_web_bg.wasm`; component pages only offer those.
+`wasm-parity.json` pins the native source, the artifact and glue hashes, and
+rejects newly introduced native/WASM drift at generation time. Both are
+regenerated from the artifact's build source with
+`node scripts/extract-wasm-sections.mjs --source <components.rs>`; do not
+hand-edit them.
 
 ## Attribution
 

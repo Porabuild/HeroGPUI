@@ -96,8 +96,8 @@ export default async function ComponentPage({ params }: ComponentPageProps) {
             </div>
           ) : null}
           <p className="mt-4 text-sm leading-6 text-muted">
-            {component.title} composes these parts into one native GPUI control. Detailed slot
-            support is listed in the API reference below.
+            {component.title} is built from these parts. The API reference below lists each part and
+            its slots.
           </p>
         </section>
       ) : null}
@@ -106,7 +106,7 @@ export default async function ComponentPage({ params }: ComponentPageProps) {
         <section aria-labelledby="customization">
           <h2 id="customization">Customization</h2>
           <p className="mt-2 text-sm text-muted">
-            Theme tokens for {component.title} and their HeroGPUI equivalents.
+            Styling tokens {component.title} reads from the theme.
           </p>
           <h3 id="styling-reference">Styling reference</h3>
           <div className="mt-4">
@@ -134,9 +134,8 @@ export default async function ComponentPage({ params }: ComponentPageProps) {
           </div>
         </section>
       ) : (
-        <Callout kind="note" title="Detailed prop documentation is not available yet">
-          Detailed prop documentation is not available for {component.title} yet. The examples above
-          show the available HeroGPUI usage.
+        <Callout kind="note" title={`No API reference for ${component.title}`}>
+          The examples above show {component.title} in use.
         </Callout>
       )}
 
