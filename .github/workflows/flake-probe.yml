@@ -42,8 +42,9 @@ jobs:
       # report 0/40 and I would read that as good news. One verbose build, and
       # each crate's own rustc command line answers for it -- `taffy` is not a
       # workspace member, so `cargo build -p taffy` is not available here.
-      # The `cargo clean` also guarantees both crates really compile in this run
-      # rather than being served by the restored cache.
+      # `tr -d '"'` because cargo -v quotes every argument separately
+      # ("--crate-name" "herogpui_core"), and every grep is guarded because this
+      # shell runs with -e: a no-match here must not end the job.
       - name: Show what the profile resolved to
         shell: bash
         run: |
@@ -54,11 +55,12 @@ jobs:
           grep -A1 'profile.dev.package' Cargo.toml
           cargo clean
           cargo build --locked --workspace -v > build.log 2>&1 || true
+          tr -d '"' < build.log > build.flat
           echo "--- workspace crate (expect opt-level=0):"
-          grep -- '-crate-name herogpui_core' build.log | grep -o 'opt-level=[0-9]*' | sort -u
+          grep -- '--crate-name herogpui_core' build.flat | grep -o 'opt-level=[0-9]*' | sort -u || echo "NO MATCH"
           echo "--- dependency (expect opt-level=3):"
-          grep -- '-crate-name taffy' build.log | grep -o 'opt-level=[0-9]*' | sort -u
-          rm -f build.log
+          grep -- '--crate-name taffy' build.flat | grep -o 'opt-level=[0-9]*' | sort -u || echo "NO MATCH"
+          rm -f build.log build.flat
 
       - name: Count settle failures over 40 runs (workspace -O0, deps -O3)
         shell: bash
