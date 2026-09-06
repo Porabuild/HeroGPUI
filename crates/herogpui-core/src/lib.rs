@@ -1,6 +1,6 @@
 //! Core utilities and shared types for [HeroGPUI].
 //!
-//! [HeroGPUI]: https://github.com/heroui-inc/HeroGPUI
+//! [HeroGPUI]: https://github.com/Porabuild/HeroGPUI
 
 mod color;
 mod enums;

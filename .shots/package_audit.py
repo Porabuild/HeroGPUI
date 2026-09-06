@@ -33,7 +33,7 @@ def main():
         "edition": "2024",
         "rust-version": "1.98",
         "license": "Apache-2.0",
-        "repository": "https://github.com/heroui-inc/HeroGPUI",
+        "repository": "https://github.com/Porabuild/HeroGPUI",
     }
     for key, value in expected.items():
         if shared.get(key) != value:

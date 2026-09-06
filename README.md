@@ -42,8 +42,19 @@ gpui_platform = { git = "https://github.com/zed-industries/zed", rev = "ee3b5558
 herogpui = { path = "../HeroGPUI/crates/herogpui" }
 ```
 
+The same three dependencies from the command line:
+
+```sh
+ZED=https://github.com/zed-industries/zed
+REV=ee3b5558c581429633937e458fad8d109f29e9ee
+cargo add --git $ZED --rev $REV gpui
+cargo add --git $ZED --rev $REV --features font-kit,wayland,x11,runtime_shaders gpui_platform
+cargo add herogpui --path <checkout>/crates/herogpui
+```
+
 The matching GPUI API is available from the pinned Zed git revision, not its
-crates.io release. Then:
+crates.io release. `gpui` and `gpui_platform` are direct dependencies, not just
+HeroGPUI's: the example above calls both. Then:
 
 1. Register the embedded icons with
    `gpui_platform::application().with_assets(HeroGpuiAssets)`.
