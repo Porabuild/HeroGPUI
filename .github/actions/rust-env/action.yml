@@ -78,25 +78,23 @@ runs:
         # every step downstream, which is an awful thing to debug from timings.
         cat "$cargo_home/config.toml"
 
-    # rust-cache's default key embeds `github.job_id`, which is why the old
-    # two-job CI logged "No cache found" for `Source install` and rebuilt 486
-    # crates from nothing: the jobs could not see each other's cache.
+    # One cache per job, not one shared cache. Measured, not assumed: with
+    # `shared-key: ci` every job logged a hit on the same entry, and then
+    # `cargo doc` rebuilt 0 crates, `clippy` 3, `cargo test --workspace` 479 and
+    # `cargo install` 467. The entry can only hold one artifact *shape* -- the
+    # rlib set a test build links against is not the one rustdoc or clippy
+    # consumes -- and the writers kept answering "Cache up-to-date", so it never
+    # converged on the shape the slowest job needed. Keyed per job, each one
+    # restores what it actually builds against.
     #
-    # The key must NOT vary by event. A cache created by a push to the default
-    # branch is restorable by any PR targeting it, so master's runs are what keep
-    # this warm for PRs -- keying by event would throw that away and make every
-    # PR start cold.
-    #
-    # One key now covers both profiles, because the only thing the `fast` profile
-    # changes is the workspace crates -- which are rebuilt on every run anyway,
-    # sources having just changed -- while the ~480 dependency units are
-    # byte-identical to a developer's -O3 build and shared by everything. Keying
-    # by profile here would just store two copies of the same dependencies.
-    #
-    # `cache-all-crates` keeps the downloaded sources, which is mostly the zed
-    # git checkout `gpui` comes from; without it every cold run refetches it.
+    # Per-job keys are still warm across branches: rust-cache embeds
+    # `github.job_id`, which is the YAML job *key* -- the old entries were named
+    # `v0-rust-check-...` and `v0-rust-install-...` -- and that is identical on
+    # master and on a PR, so master's runs keep serving PRs. What must NOT go
+    # into the key is the event, and what was killing `Source install` all along
+    # is a few lines below -- `cargo install` builds into a throwaway directory,
+    # so it had no `target/` to cache.
     - name: Rust Cache
       uses: Swatinem/rust-cache@v2
       with:
-        shared-key: ci
         cache-all-crates: true
