@@ -1,10 +1,26 @@
 name: flake-probe
 
-# TEMPORARY diagnostic, not a gate. `assert_settled` in
-# dropdown_viewport_deep.rs failed 5 tests on one -O0 run and 1 on the next,
-# same commit -- so the popover's measure-then-cap double layout can wobble by
-# 1px. This measures how often, at both build profiles, so the CI change can be
-# judged on a rate rather than on two samples. Delete with its PR.
+# TEMPORARY diagnostic, not a gate. Delete with its PR.
+#
+# `assert_settled` in dropdown_viewport_deep.rs fails 40/40 with the whole build
+# at -O0 and 0/40 at the Cargo.toml profile. That is deterministic, so it is a
+# real behavioral difference and not a flake -- but the earlier probe changed
+# *both* halves of the profile at once, and only one of them is on the critical
+# path:
+#
+#   - Dependency crates (gpui, taffy, ...) are ~480 units but they are CACHED.
+#     A PR does not rebuild them, so their opt-level buys no gate time.
+#   - Workspace crates are the 402s serial chain (core -> theme -> components ->
+#     herogpui -> gallery) that every PR pays for. That is the only half worth
+#     unoptimizing.
+#
+# So: if the wobble comes from gpui/taffy codegen, leaving dependencies at -O3
+# and dropping only the workspace to -O0 passes -- and the fast gate is available
+# without the layout fix. If it comes from *our* crates, -O0 is out for the job
+# that executes layout and the gate has to run `test` at the real profile.
+#
+# 12 runs, not 40: the -O0 failure was deterministic, so one failure is
+# disqualifying and 40 would only cost time.
 
 on:
   push:
@@ -19,45 +35,46 @@ concurrency:
 
 jobs:
   probe:
-    name: dropdown settle rate, -O0 vs -O1
+    name: settle rate with deps at -O3, workspace at -O0
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v6
 
+      # `real` = rust-env writes no profile override and restores the cache that
+      # holds -O3 dependency artifacts, so this job pays one cold dependency
+      # build and nothing downstream does.
       - uses: ./.github/actions/rust-env
+        with:
+          profile: real
 
-      - name: Count settle failures over 40 runs at -O0 (the gate profile)
+      - name: Count settle failures over 12 runs (workspace -O0, deps -O3)
         shell: bash
         run: |
           set -uo pipefail
+          # --config outranks Cargo.toml, and `test` inherits `dev` (there is no
+          # [profile.test]), so this is exactly "our crates at -O0, everyone
+          # else's at -O3".
+          SPLIT=(--config 'profile.dev.opt-level=0')
           fail=0
-          for i in $(seq 1 40); do
-            if ! cargo test --locked -p herogpui-components \
+          for i in $(seq 1 12); do
+            if ! cargo test --locked "${SPLIT[@]}" -p herogpui-components \
                  --test dropdown_viewport_deep -- --test-threads=1 > "run-$i.log" 2>&1; then
               fail=$((fail + 1))
               echo "--- run $i failed"
-              grep -E "^ *[a-z_]+$" "run-$i.log" | tail -8 || true
+              grep -E '^ +[a-z_0-9]+$' "run-$i.log" | tail -6 || true
             fi
             rm -f "run-$i.log"
           done
-          echo "::notice::-O0 settle failures: $fail / 40"
+          echo "::notice::split-profile settle failures: $fail / 12"
 
-      - name: Count settle failures over 40 runs at -O1/-O3 (Cargo.toml profile)
+      # Proof the override actually applied -- otherwise a silent no-op would
+      # report 0/12 and I would read that as good news.
+      - name: Show the opt-levels the override resolves to
         shell: bash
         run: |
           set -uo pipefail
-          # --config beats the $CARGO_HOME override rust-env wrote, so this
-          # rebuilds exactly what a developer and the `optimized` job build.
-          REAL=(--config 'profile.dev.opt-level=1' --config 'profile.dev.package."*".opt-level=3')
-          fail=0
-          for i in $(seq 1 40); do
-            if ! cargo test --locked "${REAL[@]}" -p herogpui-components \
-                 --test dropdown_viewport_deep -- --test-threads=1 > "run-$i.log" 2>&1; then
-              fail=$((fail + 1))
-              echo "--- run $i failed"
-              grep -E "^ *[a-z_]+$" "run-$i.log" | tail -8 || true
-            fi
-            rm -f "run-$i.log"
-          done
-          echo "::notice::-O1/-O3 settle failures: $fail / 40"
+          cargo build --locked -p herogpui-core --config 'profile.dev.opt-level=0' -v \
+            2>&1 | grep -o 'opt-level=[0-9]*' | sort -u | head
+          echo "--- and for a dependency"
+          cargo build --locked -p taffy -v 2>&1 | grep -o 'opt-level=[0-9]*' | sort -u | head
