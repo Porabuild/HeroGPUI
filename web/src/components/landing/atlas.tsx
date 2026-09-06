@@ -21,23 +21,28 @@ export function Atlas() {
         />
 
         {catalog.categories.length > 0 && (
-          <ul className="mt-12 grid gap-x-10 sm:grid-cols-2 lg:grid-cols-3">
+          <ul className="mt-12 list-none p-0 sm:grid sm:gap-x-10 lg:grid-cols-2">
+            {/* Two columns from `lg`: both of them have to close, so the final
+                cell of each column carries the bottom hairline. */}
             {catalog.categories.map((category) => (
-              <li key={category.slug}>
+              <li
+                className="border-t border-separator last:border-b lg:[&:nth-last-child(-n+2)]:border-b"
+                key={category.slug}
+              >
                 <Link
-                  className="group block w-full border-t border-separator py-4 transition-colors no-underline hover:no-underline"
+                  className="landing-row-link group w-full no-underline hover:no-underline"
                   href={`/docs/components#category-${category.slug}`}
                 >
-                  <span className="flex items-baseline justify-between gap-4">
-                    <span className="font-medium text-foreground transition-colors group-hover:text-accent">
+                  <span className="min-w-0">
+                    <span className="landing-row-title block font-medium text-foreground transition-colors">
                       {category.name}
                     </span>
-                    <span className="font-mono text-xs text-muted tabular-nums">
-                      {category.components.length}
+                    <span className="mt-1 block truncate text-xs text-muted">
+                      {previewTitles(catalog.components, category.components)}
                     </span>
                   </span>
-                  <span className="mt-1 block truncate text-xs text-muted">
-                    {previewTitles(catalog.components, category.components)}
+                  <span className="shrink-0 font-mono text-xs text-muted tabular-nums">
+                    {category.components.length}
                   </span>
                 </Link>
               </li>
@@ -46,7 +51,7 @@ export function Atlas() {
         )}
 
         <Link
-          className="group mt-8 inline-flex items-center gap-2 py-2.5 text-sm font-medium text-accent transition-colors hover:text-accent-soft no-underline hover:no-underline"
+          className="group mt-8 inline-flex items-center gap-2 py-2.5 text-sm font-medium text-accent transition-colors hover:text-[color:var(--pb-accent-soft)] no-underline hover:no-underline"
           href="/docs/components"
         >
           Open the component index

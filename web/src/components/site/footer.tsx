@@ -23,7 +23,7 @@ export function SiteFooter() {
             HeroGPUI is a Rust/GPUI UI library based on HeroUI&apos;s design system. Both projects
             are licensed under the Apache License 2.0. HeroUI is Copyright 2025 NextUI Inc; see{" "}
             <Link
-              className="py-1 text-accent transition-colors hover:text-accent-soft no-underline"
+              className="py-1 text-accent transition-colors hover:text-[color:var(--pb-accent-soft)] no-underline"
               href={SITE.upstream}
               rel="noopener noreferrer"
               target="_blank"

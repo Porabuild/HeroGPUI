@@ -52,6 +52,30 @@ export function HeroWasmShowcase() {
   const [mounted, setMounted] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
+  const stripRef = useRef<HTMLDivElement | null>(null);
+  // True while the specimen tab strip can scroll further right. Drives the
+  // right-edge fade mask so the last tab does not look unreachable on
+  // narrow viewports.
+  const [canScrollRight, setCanScrollRight] = useState(false);
+
+  const updateScrollFade = useCallback(() => {
+    const node = stripRef.current;
+    if (!node) return;
+    setCanScrollRight(node.scrollWidth - node.scrollLeft - node.clientWidth > 1);
+  }, []);
+
+  useEffect(() => {
+    updateScrollFade();
+    const node = stripRef.current;
+    if (!node) return;
+    const observer = new ResizeObserver(updateScrollFade);
+    observer.observe(node);
+    window.addEventListener("resize", updateScrollFade);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", updateScrollFade);
+    };
+  }, [updateScrollFade]);
 
   useEffect(() => {
     setMounted(true);
@@ -140,7 +164,7 @@ export function HeroWasmShowcase() {
 
   return (
     <figure className="relative m-0 w-full min-w-0 max-w-2xl lg:max-w-none">
-      <div className="relative overflow-hidden rounded-xl border border-separator bg-surface shadow-2xl">
+      <div className="product-visual" data-reveal>
         {/* Porabuild-spec Window Title Bar */}
         <div aria-hidden="true" className="window-bar">
           <div>
@@ -157,7 +181,19 @@ export function HeroWasmShowcase() {
 
         {/* Specimen Switcher Toolbar */}
         <div className="flex items-center justify-between gap-2 border-b border-separator/70 bg-surface-secondary/60 px-3 py-1.5 backdrop-blur-sm">
-          <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div
+            className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            onScroll={updateScrollFade}
+            ref={stripRef}
+            style={
+              canScrollRight
+                ? {
+                    maskImage: "linear-gradient(90deg, #000 calc(100% - 28px), transparent)",
+                    WebkitMaskImage: "linear-gradient(90deg, #000 calc(100% - 28px), transparent)",
+                  }
+                : undefined
+            }
+          >
             {SPECIMEN_TABS.map((tab) => {
               const active = tab.id === activeTab.id;
               return (

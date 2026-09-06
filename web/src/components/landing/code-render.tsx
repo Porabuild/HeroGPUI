@@ -40,14 +40,21 @@ export function CodeAndRender() {
             2:1 split fits every line without an inner scrollbar. Below xl the
             code block spans the full measure instead. */}
         <div className="mt-10 grid grid-cols-1 items-center gap-10 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] xl:gap-14">
-          <CodeBlock code={BUTTON_EXAMPLE} filename="main.rs" lang="rust" />
-          <GalleryFrame
-            bare={false}
-            className="mx-auto w-full max-w-2xl xl:max-w-none"
-            section="Variants"
-            slug="button"
-            title="Button"
-          />
+          <div data-reveal>
+            <CodeBlock code={BUTTON_EXAMPLE} filename="main.rs" lang="rust" />
+          </div>
+          {/* `bare` keeps the frame's own border off: the surrounding
+              product-visual card already provides it. The caption below
+              labels the frame like the other live-frame captions. */}
+          <figure className="m-0 mx-auto w-full max-w-2xl xl:max-w-none">
+            <div className="product-visual" data-reveal>
+              <GalleryFrame bare section="Variants" slug="button" title="Button" />
+            </div>
+            <figcaption className="mt-3 flex items-center gap-2 text-xs text-muted">
+              <span aria-hidden="true" className="shot-window-dot size-1.5 shrink-0 rounded-full" />
+              HeroGPUI compiled to WebAssembly, running in this frame.
+            </figcaption>
+          </figure>
         </div>
       </div>
     </section>
