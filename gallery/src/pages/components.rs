@@ -43,15 +43,26 @@ macro_rules! component_doc_section {
     };
 }
 
+fn preview_wrapper(body: impl IntoElement) -> AnyElement {
+    gpui::div()
+        .flex()
+        .flex_col()
+        .items_center()
+        .justify_center()
+        .size_full()
+        .child(body)
+        .into_any_element()
+}
+
 macro_rules! component_preview_section {
     (($heading:expr, $body:expr $(,)?), $cx:expr) => {
         if crate::control::section_wanted($heading, $cx) {
-            return ($body).into_any_element();
+            return preview_wrapper($body);
         }
     };
     (($heading:expr, $description:literal, $body:expr $(,)?), $cx:expr) => {
         if crate::control::section_wanted($heading, $cx) {
-            return ($body).into_any_element();
+            return preview_wrapper($body);
         }
     };
 }
@@ -109,21 +120,20 @@ fn row(children: Vec<AnyElement>) -> AnyElement {
     gpui::div()
         .flex()
         .flex_wrap()
-        .w_full()
-        .items_start()
+        .items_center()
+        .justify_center()
         .gap(px(12.))
         .children(children)
         .into_any_element()
 }
 
-/// Wrapping specimen row. Top-aligned so a wrapped caption cannot pull its
-/// neighbour down the way `row`'s `items_center` does.
+/// Wrapping specimen row.
 fn spec_row(children: Vec<AnyElement>) -> AnyElement {
     gpui::div()
         .flex()
         .flex_wrap()
-        .w_full()
-        .items_start()
+        .items_center()
+        .justify_center()
         .gap(px(12.))
         .children(children)
         .into_any_element()
@@ -133,10 +143,11 @@ fn col(children: Vec<AnyElement>) -> AnyElement {
     gpui::div()
         .flex()
         .flex_col()
-        // Components hug their content in a demo; `full_width` examples opt back
+        // Components hug their content in a demo; full_width examples opt back
         // in explicitly. Field examples that need a definite width use
-        // `field_col` / `demo_field` instead of stretching this helper.
-        .items_start()
+        // field_col / demo_field instead of stretching this helper.
+        .items_center()
+        .justify_center()
         .gap(px(12.))
         .children(children)
         .into_any_element()
@@ -208,7 +219,7 @@ fn spec(label: &str, el: impl IntoElement, cx: &gpui::App) -> AnyElement {
     gpui::div()
         .flex()
         .flex_col()
-        .items_start()
+        .items_center()
         .gap(px(6.))
         .child(el)
         .child(

@@ -103,11 +103,14 @@ impl RenderOnce for CloseButton {
             }
         }
 
-        let colors = cx.colors();
-        let layout = cx.layout();
+        let colors = cx.colors().clone();
+        let radius = crate::util::small_radius(cx);
+        let disabled_opacity = cx.layout().disabled_opacity;
         // `.close-button` is `h-6 p-1` with a `size-4` glyph.
         let (box_size, icon_size) = (px(24.), px(16.));
         let hover_bg = colors.default.hover();
+        let idle_bg = colors.default.color;
+        let fade = (!self.is_disabled).then_some((idle_bg, hover_bg));
 
         let mut el = div()
             .id(self.id.clone())
@@ -121,14 +124,29 @@ impl RenderOnce for CloseButton {
             .flex_shrink_0()
             .size(box_size)
             .p(px(4.))
-            .rounded(crate::util::small_radius(cx))
-            .bg(colors.default.color)
+            .rounded(radius)
+            .when(fade.is_none(), |e| e.bg(idle_bg))
             .text_color(colors.muted);
 
+        if let Some(fade_colors) = fade {
+            el = crate::anim::hover_fade(
+                el,
+                ElementId::Name(format!("{:?}-fade", self.id).into()),
+                fade_colors,
+                interaction.as_ref(),
+                move |fill| fill.rounded(radius),
+                window,
+                cx,
+            );
+        }
+
         if self.is_disabled {
-            el = el.opacity(layout.disabled_opacity);
+            el = el.opacity(disabled_opacity);
         } else {
-            el = el.cursor_pointer().hover(move |s| s.bg(hover_bg));
+            el = el.cursor_pointer();
+            if fade.is_none() {
+                el = el.hover(move |s| s.bg(hover_bg));
+            }
             // `.close-button--default:active, &[data-pressed="true"]` is
             // `transform: scale(0.93)`. gpui 0.2.2 has no div-level scale, so
             // the press shrinks the 24px box about its centre and the leftover

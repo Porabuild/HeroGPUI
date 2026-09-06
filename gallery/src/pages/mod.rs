@@ -1038,6 +1038,8 @@ pub fn example_frame(content: gpui::AnyElement, cx: &App) -> gpui::AnyElement {
         .shadow(cx.layout().surface_shadow.clone())
         .flex()
         .flex_col()
+        .items_center()
+        .justify_center()
         .gap(px(16.))
         .child(content)
         .into_any_element()

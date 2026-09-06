@@ -280,23 +280,14 @@ pub struct PressBox {
 /// Applies v3's `[data-pressed]` press.
 ///
 /// gpui 0.2.2 has no transform for a div — only `paint_svg` takes a
-/// transformation matrix — so `scale(0.97)` is reproduced by scaling everything
-/// the control is made of: its height, padding, gap, corner radius **and type
-/// size**, with margins absorbing what the box gives up so the outer footprint
-/// is unchanged and a press never reflows its neighbours.
+/// transformation matrix — so `scale(0.97)` is reproduced by scaling the
+/// visual bounds of the control: its height, padding, corner radius, with
+/// margins absorbing what the box gives up so the outer footprint is preserved
+/// and a press never reflows its neighbours.
 ///
-/// Scaling the type is what makes this a real scale rather than an inset: gpui
-/// takes fractional font sizes, so the glyphs shrink with the box. Two
-/// differences from a CSS transform remain: a label wider than the control's
-/// `min_w` narrows the control by ~3% of that overflow, because gpui cannot
-/// shrink text without affecting layout; and an icon child keeps its size,
-/// since its dimensions belong to the caller.
-///
-/// **The press arrives in one frame.** v3 declares
-/// `transform 250ms var(--ease-smooth)` ([`PRESS_MS`]), but gpui's `active` is a
-/// style swap with no timeline to animate along, so the scale lands instantly
-/// and springs back instantly. Everything about the geometry matches; only the
-/// quarter-second ramp is missing.
+/// Type size and gap are intentionally kept constant during the press so that
+/// text layout glyph advances remain invariant, preventing content-width
+/// controls from jittering or causing sibling elements to jump.
 ///
 /// Returns `el` untouched under reduced motion.
 pub fn pressed(el: gpui::Stateful<gpui::Div>, b: PressBox, cx: &App) -> gpui::Stateful<gpui::Div> {
@@ -336,9 +327,7 @@ fn pressed_with_optional_background(
             .h(shrink(b.height, inset + inset))
             .mt(inset)
             .mb(inset)
-            .text_size(scaled_by(b.text_size, b.scale))
             .line_height(scaled_by(b.line_height, b.scale))
-            .gap(scaled_by(b.gap, b.scale))
             .rounded(scaled_by(b.radius, b.scale));
         match (b.width, b.shrink_x) {
             // Fixed width: shrink it directly.
