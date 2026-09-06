@@ -1,0 +1,63 @@
+name: flake-probe
+
+# TEMPORARY diagnostic, not a gate. `assert_settled` in
+# dropdown_viewport_deep.rs failed 5 tests on one -O0 run and 1 on the next,
+# same commit -- so the popover's measure-then-cap double layout can wobble by
+# 1px. This measures how often, at both build profiles, so the CI change can be
+# judged on a rate rather than on two samples. Delete with its PR.
+
+on:
+  push:
+    branches: [poracode/tidy-meadow-2d08ef3f]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: flake-probe-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  probe:
+    name: dropdown settle rate, -O0 vs -O1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: ./.github/actions/rust-env
+
+      - name: Count settle failures over 40 runs at -O0 (the gate profile)
+        shell: bash
+        run: |
+          set -uo pipefail
+          fail=0
+          for i in $(seq 1 40); do
+            if ! cargo test --locked -p herogpui-components \
+                 --test dropdown_viewport_deep -- --test-threads=1 > "run-$i.log" 2>&1; then
+              fail=$((fail + 1))
+              echo "--- run $i failed"
+              grep -E "^ *[a-z_]+$" "run-$i.log" | tail -8 || true
+            fi
+            rm -f "run-$i.log"
+          done
+          echo "::notice::-O0 settle failures: $fail / 40"
+
+      - name: Count settle failures over 40 runs at -O1/-O3 (Cargo.toml profile)
+        shell: bash
+        run: |
+          set -uo pipefail
+          # --config beats the $CARGO_HOME override rust-env wrote, so this
+          # rebuilds exactly what a developer and the `optimized` job build.
+          REAL=(--config 'profile.dev.opt-level=1' --config 'profile.dev.package."*".opt-level=3')
+          fail=0
+          for i in $(seq 1 40); do
+            if ! cargo test --locked "${REAL[@]}" -p herogpui-components \
+                 --test dropdown_viewport_deep -- --test-threads=1 > "run-$i.log" 2>&1; then
+              fail=$((fail + 1))
+              echo "--- run $i failed"
+              grep -E "^ *[a-z_]+$" "run-$i.log" | tail -8 || true
+            fi
+            rm -f "run-$i.log"
+          done
+          echo "::notice::-O1/-O3 settle failures: $fail / 40"
