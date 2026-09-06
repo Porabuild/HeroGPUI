@@ -7,6 +7,7 @@ import { useState } from "react";
 import { CommandPalette } from "@/components/site/command-palette";
 import { GitHubIcon } from "@/components/site/github-icon";
 import { ThemeToggle } from "@/components/site/theme-toggle";
+import { PorabuildMark } from "@/components/site/porabuild-mark";
 import type { SearchItem } from "@/lib/docs-nav";
 import { isNavLinkActive, NAV_LINKS, SITE } from "@/lib/nav";
 
@@ -16,7 +17,7 @@ const NAV_LINK_CLASS =
 /**
  * Sticky site navbar. Aligned with Porabuild design system:
  * - Brand lockup: `Hero • GPUI` with glowing accent dot
- * - Umbrella indicator: `.pb-chip` "by porabuild"
+ * - Umbrella indicator: `.pb-chip` with the Pora • build lockup
  * - Navigation links: clean mono, no bottom underline
  */
 export function Navbar({ searchItems = [] }: { searchItems?: SearchItem[] }) {
@@ -26,27 +27,34 @@ export function Navbar({ searchItems = [] }: { searchItems?: SearchItem[] }) {
   return (
     <header className="site-header sticky top-0 z-40 border-b border-separator bg-background/85 backdrop-blur">
       <div className="mx-auto flex h-16 w-full max-w-[1440px] items-center gap-3 px-4 sm:px-6">
-        <Link
-          aria-label="HeroGPUI, a Porabuild project"
-          className="site-brand flex shrink-0 items-center gap-2.5 py-2 text-foreground no-underline hover:no-underline"
-          href="/"
-        >
-          <span className="pb-brand-lockup flex items-center text-[17px] tracking-[-0.04em]">
-            <strong className="font-semibold text-foreground">Hero</strong>
-            <span
-              aria-hidden="true"
-              className="pb-brand-dot mx-1 inline-block size-1.5 rounded-full bg-accent shadow-[0_0_8px_var(--pb-accent-glow)]"
-            />
-            <span className="pb-brand-lockup-word font-semibold text-accent">GPUI</span>
-          </span>
-          <span className="pb-chip hidden items-center gap-1.5 px-2 py-0.5 font-mono text-[10px] text-muted sm:inline-flex">
-            <span className="size-1 rounded-full bg-accent/60" />
-            by porabuild
-          </span>
+        <div className="site-brand flex shrink-0 items-center gap-2.5">
+          <Link
+            aria-label="HeroGPUI home"
+            className="flex items-center py-2 text-foreground no-underline hover:no-underline"
+            href="/"
+          >
+            <span className="pb-brand-lockup flex items-center text-[17px] tracking-[-0.04em]">
+              <strong className="font-semibold text-foreground">Hero</strong>
+              <span
+                aria-hidden="true"
+                className="pb-brand-dot mx-1 inline-block size-1.5 rounded-full bg-accent shadow-[0_0_8px_var(--pb-accent-glow)]"
+              />
+              <span className="pb-brand-lockup-word font-semibold text-accent">GPUI</span>
+            </span>
+          </Link>
+          <Link
+            aria-label="A Porabuild project"
+            className="pb-chip hidden items-center px-2 py-0.5 no-underline hover:no-underline sm:inline-flex"
+            href="https://porabuild.com/"
+            rel="noopener noreferrer"
+            target="_blank"
+          >
+            <PorabuildMark className="text-[11px]" />
+          </Link>
           <span className="hidden font-mono text-[10px] text-muted/70 md:inline-block">
             {SITE.version}
           </span>
-        </Link>
+        </div>
 
         <nav
           aria-label="Primary navigation"

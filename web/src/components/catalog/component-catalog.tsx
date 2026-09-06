@@ -88,7 +88,7 @@ export function ComponentCatalog({ groups, totalCount }: ComponentCatalogProps) 
   const isFiltering = normalizedQuery.length > 0;
 
   return (
-    <div className="docs-bleed">
+    <div>
       <div>
         <SearchField
           aria-label="Filter components by name or description"
@@ -138,7 +138,7 @@ export function ComponentCatalog({ groups, totalCount }: ComponentCatalogProps) 
             aria-labelledby={`category-${group.slug}`}
             className="catalog-category mt-10"
           >
-            <div className="flex items-center gap-3">
+            <div className="catalog-category-heading flex items-center gap-3">
               <h2 className="mt-0" id={`category-${group.slug}`}>
                 {group.name}
               </h2>
@@ -146,7 +146,7 @@ export function ComponentCatalog({ groups, totalCount }: ComponentCatalogProps) 
                 {group.components.length}
               </Chip>
             </div>
-            <ul className="mt-4 grid list-none grid-cols-1 items-stretch gap-4 ps-0 sm:grid-cols-2">
+            <ul className="catalog-grid mt-4 grid list-none grid-cols-1 items-stretch gap-4 ps-0 sm:grid-cols-2">
               {group.components.map((component) => (
                 <ComponentCard component={component} key={component.slug} />
               ))}

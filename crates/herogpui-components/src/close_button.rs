@@ -218,15 +218,28 @@ impl RenderOnce for CloseButton {
         }
 
         if self.is_disabled {
-            return el;
+            return div()
+                .size(box_size)
+                .flex()
+                .flex_shrink_0()
+                .items_center()
+                .justify_center()
+                .child(el);
         }
-        crate::util::ring_if_focused(
+        let el = crate::util::ring_if_focused(
             el.track_focus(&focus_handle),
             &focus_handle,
             true,
             Vec::new(),
             window,
             cx,
-        )
+        );
+        div()
+            .size(box_size)
+            .flex()
+            .flex_shrink_0()
+            .items_center()
+            .justify_center()
+            .child(el)
     }
 }

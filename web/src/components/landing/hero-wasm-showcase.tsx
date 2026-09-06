@@ -221,7 +221,7 @@ export function HeroWasmShowcase() {
         </div>
 
         {/* Canvas / Iframe Viewport */}
-        <div className="relative h-[300px] w-full bg-surface-secondary sm:h-[400px] lg:h-[440px]">
+        <div className="relative h-[300px] w-full overflow-hidden bg-surface-secondary sm:h-[400px] lg:h-[440px]">
           {/* Subtle loading skeleton before iframe loads */}
           {!isLoaded && (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-surface-secondary text-muted">

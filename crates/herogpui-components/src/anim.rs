@@ -280,14 +280,10 @@ pub struct PressBox {
 /// Applies v3's `[data-pressed]` press.
 ///
 /// gpui 0.2.2 has no transform for a div — only `paint_svg` takes a
-/// transformation matrix — so `scale(0.97)` is reproduced by scaling the
-/// visual bounds of the control: its height, padding, corner radius, with
-/// margins absorbing what the box gives up so the outer footprint is preserved
-/// and a press never reflows its neighbours.
-///
-/// Type size and gap are intentionally kept constant during the press so that
-/// text layout glyph advances remain invariant, preventing content-width
-/// controls from jittering or causing sibling elements to jump.
+/// transformation matrix — so `scale(0.97)` is reproduced by shrinking the
+/// painted height and corner radius. Vertical margin absorbs the height the
+/// box gives up. Width, padding, type and gap stay at rest so a content-sized
+/// control cannot pull its neighbours sideways.
 ///
 /// Returns `el` untouched under reduced motion.
 pub fn pressed(el: gpui::Stateful<gpui::Div>, b: PressBox, cx: &App) -> gpui::Stateful<gpui::Div> {
@@ -323,30 +319,14 @@ fn pressed_with_optional_background(
             Some(background) => s.bg(background),
             None => s,
         };
-        let s = s
-            .h(shrink(b.height, inset + inset))
+        // Only the painted box squashes, and only on the block axis. Width,
+        // padding, type and gap stay put so a content-sized control cannot
+        // pull its neighbours sideways. Vertical margin absorbs the height
+        // the box gives up, which is what keeps a row's other controls still.
+        s.h(shrink(b.height, inset + inset))
             .mt(inset)
             .mb(inset)
-            .line_height(scaled_by(b.line_height, b.scale))
-            .rounded(scaled_by(b.radius, b.scale));
-        match (b.width, b.shrink_x) {
-            // Fixed width: shrink it directly.
-            (Some(w), _) => s.w(shrink(w, inset + inset)).ml(inset).mr(inset),
-            // Content width: the padding gives way to the margin, and any
-            // minimum width scales with it.
-            (None, true) => {
-                let s = match b.padding_x {
-                    Some(px_) => s.px(shrink(px_, inset)).ml(inset).mr(inset),
-                    None => s.ml(inset).mr(inset),
-                };
-                match b.min_width {
-                    Some(w) => s.min_w(shrink(w, inset + inset)),
-                    None => s,
-                }
-            }
-            // Full width: leave the horizontal axis alone.
-            (None, false) => s,
-        }
+            .rounded(scaled_by(b.radius, b.scale))
     })
 }
 

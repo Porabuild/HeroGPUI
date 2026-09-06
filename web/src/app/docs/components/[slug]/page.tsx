@@ -60,7 +60,7 @@ export default async function ComponentPage({ params }: ComponentPageProps) {
   const hasProps = reference ? gpuiPropRows(reference.api).length > 0 : false;
   const hasParts = reference ? gpuiPartRows(reference.parts).length > 0 : false;
   const hasStates = reference ? gpuiStateRows(reference.states).length > 0 : false;
-  const hasStyles = reference ? gpuiStyleRows(reference.styling).length > 0 : false;
+  const hasStyles = reference ? gpuiStyleRows(reference.api).length > 0 : false;
   const hasApi = hasProps || hasParts || hasStates;
 
   return (
@@ -129,11 +129,12 @@ export default async function ComponentPage({ params }: ComponentPageProps) {
         <section aria-labelledby="customization">
           <h2 id="customization">Customization</h2>
           <p className="mt-2 text-sm text-muted">
-            Appearance builders and theme tokens {component.title} uses.
+            Typed builders that change how {component.title} looks. Behaviour builders live in the
+            API reference below.
           </p>
           <h3 id="styling-reference">Styling</h3>
           <div className="mt-4">
-            <StylingTable rows={reference.styling} title={component.title} />
+            <StylingTable api={reference.api} title={component.title} />
           </div>
         </section>
       ) : null}

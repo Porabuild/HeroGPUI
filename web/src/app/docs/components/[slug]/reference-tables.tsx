@@ -2,7 +2,8 @@ import type { ReactNode } from "react";
 import { cn } from "@heroui/react";
 import { StaticTable } from "@/components/ui/static-table";
 import { gpuiPartRows, gpuiStateRows, gpuiStyleRows } from "@/lib/gpui-docs";
-import type { PartRow, StateRow, StylingRow } from "./data";
+import type { PartRow, StateRow } from "./data";
+import type { ApiRow } from "@/components/ui/props-table";
 
 function Mono({ children }: { children: ReactNode }) {
   if (children === undefined || children === null || children === "" || children === "—") {
@@ -127,24 +128,29 @@ export function StatesTable({
 }
 
 export function StylingTable({
-  rows,
+  api,
   title,
   className,
 }: {
-  rows: StylingRow[];
+  api: ApiRow[];
   title: string;
   className?: string;
 }) {
-  const visible = gpuiStyleRows(rows);
+  const visible = gpuiStyleRows(api);
   return (
     <ReferenceTable
       className={className}
       columns={[
         {
-          id: "style",
-          header: "Style",
+          id: "method",
+          header: "Method",
           isRowHeader: true,
           cell: (row) => <Mono>{row.style}</Mono>,
+        },
+        {
+          id: "type",
+          header: "Type",
+          cell: (row) => <Mono>{row.type}</Mono>,
         },
         {
           id: "description",

@@ -750,10 +750,23 @@ body {
 
 .catalog-card {
   box-shadow: none;
+  height: 100%;
 }
 
 .catalog-card:hover {
   box-shadow: 0 18px 48px color-mix(in srgb, var(--pb-night) 12%, transparent);
+}
+
+/* Article h2/ul rules are for prose. Category headings sit in a flex row
+   with a chip, and the grid is a card list, so those defaults have to go. */
+.catalog-category-heading h2 {
+  margin-top: 0;
+}
+
+.catalog-grid {
+  list-style: none;
+  padding-inline-start: 0;
+  margin-top: 1rem;
 }
 
 .catalog-category-nav a {

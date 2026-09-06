@@ -61,10 +61,10 @@ export function ComponentCard({ component }: { component: CatalogComponent }) {
         href={`/docs/components/${component.slug}`}
       >
         <ComponentShot component={component} />
-        <span className="mt-3 text-sm font-semibold text-foreground transition-colors group-hover:text-accent">
+        <span className="mt-3 line-clamp-1 min-h-[1.25rem] text-sm font-semibold text-foreground transition-colors group-hover:text-accent">
           {component.title}
         </span>
-        <span className="mt-1 line-clamp-2 min-h-[2.75rem] text-sm leading-relaxed text-muted">
+        <span className="mt-1 line-clamp-2 min-h-[2.75rem] flex-1 text-sm leading-relaxed text-muted">
           {component.description}
         </span>
       </Link>

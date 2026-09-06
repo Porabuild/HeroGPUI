@@ -20,12 +20,6 @@ interface StateRow {
   status: string;
 }
 
-interface StylingRow {
-  description: string;
-  rust: string | null;
-  status: string;
-}
-
 /**
  * Display helpers that turn the checked-in HeroUI-shaped reference metadata
  * into the Rust/GPUI API a reader of these docs actually calls. Unavailable
@@ -306,16 +300,45 @@ export function gpuiStateRows(rows: StateRow[]): GpuiStateRow[] {
 
 export interface GpuiStyleRow {
   style: string;
+  type: string;
   description: string;
 }
 
-export function gpuiStyleRows(rows: StylingRow[]): GpuiStyleRow[] {
+/** Builders that change how a component looks, not how it behaves. */
+const APPEARANCE_BUILDERS = new Set([
+  "variant",
+  "size",
+  "color",
+  "radius",
+  "full_width",
+  "is_icon_only",
+  "orientation",
+  "placement",
+  "shadow",
+  "backdrop",
+  "shape",
+]);
+
+function builderName(builder: string): string {
+  const call = builder.split(" / ")[0]?.trim() ?? builder;
+  const name = call.replace(/\(.*$/, "").trim();
+  const last = name.split("::").pop() ?? name;
+  return last;
+}
+
+/**
+ * Appearance builders the component actually exposes. CSS-port internals
+ * (`flex + items_center + gap(8)`) are not listed; those are how the port is
+ * drawn, not methods a caller can set.
+ */
+export function gpuiStyleRows(api: ApiRow[]): GpuiStyleRow[] {
   return uniqueBy(
-    rows
-      .filter((row) => isCallableRust(row.rust, row.status))
+    gpuiPropRows(api)
+      .filter((row) => APPEARANCE_BUILDERS.has(builderName(row.builder)))
       .map((row) => ({
-        style: row.rust!.trim(),
-        description: scrubDescription(row.description),
+        style: row.builder,
+        type: row.type,
+        description: row.description,
       })),
     (row) => row.style,
   );

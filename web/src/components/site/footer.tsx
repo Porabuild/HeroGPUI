@@ -1,5 +1,6 @@
 import { Link } from "@heroui/react";
 import { GitHubIcon } from "@/components/site/github-icon";
+import { PorabuildMark } from "@/components/site/porabuild-mark";
 import { SITE } from "@/lib/nav";
 
 /** Site footer: project links plus the required HeroUI attribution. */
@@ -17,7 +18,16 @@ export function SiteFooter() {
               />
               <span className="pb-brand-lockup-word font-semibold text-accent">GPUI</span>
             </span>
-            <span className="font-mono text-[10px] text-muted/60">· by Porabuild</span>
+            <span className="text-muted/60">·</span>
+            <Link
+              aria-label="Porabuild"
+              className="no-underline hover:no-underline"
+              href="https://porabuild.com/"
+              rel="noopener noreferrer"
+              target="_blank"
+            >
+              <PorabuildMark className="text-[13px]" />
+            </Link>
           </p>
           <p className="site-footer-copy docs-measure mt-2 text-sm text-muted">
             HeroGPUI is a Rust/GPUI UI library based on HeroUI&apos;s design system. Both projects

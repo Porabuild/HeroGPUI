@@ -670,9 +670,24 @@ impl RenderOnce for Button {
             }
         }
 
-        // `fade` was consumed where the fill was added; the button is the
-        // plain styled div either way.
-        el.into_any_element()
+        // Group members share edges and stretch slots; wrapping them would
+        // open seams. A standalone button keeps a resting-size slot so the
+        // press squash cannot reflow the row.
+        if self.group_edge.is_some() {
+            return el.into_any_element();
+        }
+        let mut slot = div()
+            .flex()
+            .flex_shrink_0()
+            .items_center()
+            .justify_center()
+            .h(self.size.control_height());
+        if self.full_width {
+            slot = slot.w_full();
+        } else if self.is_icon_only {
+            slot = slot.w(self.size.icon_control_size());
+        }
+        slot.child(el).into_any_element()
     }
 }
 
