@@ -256,10 +256,31 @@ impl RenderOnce for ToggleButton {
                 cx,
             )
         });
-        let sem = cx.colors().accent;
-        let colors = cx.colors();
-        let layout = cx.layout();
+        let colors = cx.colors().clone();
+        let sem = colors.accent;
+        let disabled_opacity = cx.layout().disabled_opacity;
+        let radius = crate::util::control_radius(cx);
         let is_grouped = self.group_edge.is_some();
+
+        let fade = (!self.is_disabled).then(|| {
+            let idle = if is_selected {
+                sem.soft()
+            } else {
+                match self.variant {
+                    ToggleVariant::Default => colors.default.color,
+                    ToggleVariant::Ghost => gpui::transparent_black(),
+                }
+            };
+            let hover = if is_selected {
+                colors.accent.soft_hover()
+            } else {
+                match self.variant {
+                    ToggleVariant::Default => colors.default.hover(),
+                    ToggleVariant::Ghost => colors.default.color,
+                }
+            };
+            (idle, hover)
+        });
 
         let mut el = div()
             .id(self.id.clone())
@@ -271,14 +292,18 @@ impl RenderOnce for ToggleButton {
             .flex_shrink_0()
             .font_weight(gpui::FontWeight::MEDIUM)
             .when(is_selected, |e| {
-                e.bg(sem.soft())
-                    .text_color(sem.soft_foreground(colors.foreground))
+                let e = if fade.is_none() { e.bg(sem.soft()) } else { e };
+                e.text_color(sem.soft_foreground(colors.foreground))
             })
             .when(!is_selected, |e| match self.variant {
-                ToggleVariant::Default => e.bg(colors.default.color).text_color(colors.foreground),
-                ToggleVariant::Ghost => e
-                    .bg(gpui::transparent_black())
-                    .text_color(colors.default.foreground),
+                ToggleVariant::Default => {
+                    let e = if fade.is_none() { e.bg(colors.default.color) } else { e };
+                    e.text_color(colors.foreground)
+                }
+                ToggleVariant::Ghost => {
+                    let e = if fade.is_none() { e.bg(gpui::transparent_black()) } else { e };
+                    e.text_color(colors.default.foreground)
+                }
             });
 
         // sizing — kept in locals so the press geometry below scales exactly
@@ -295,7 +320,6 @@ impl RenderOnce for ToggleButton {
             Size::Sm | Size::Md => (px(14.), px(20.)),
             Size::Lg => (px(16.), px(24.)),
         };
-        let radius = crate::util::control_radius(cx);
         el = el.h(height).text_size(text).line_height(line);
         el = if self.is_icon_only {
             el.w(height)
@@ -305,8 +329,21 @@ impl RenderOnce for ToggleButton {
 
         el = crate::button::group_radius_any(el, self.group_edge, radius);
 
+        if let Some(colors) = fade {
+            let edge = self.group_edge;
+            el = crate::anim::hover_fade(
+                el,
+                ElementId::Name(format!("{:?}-fade", self.id).into()),
+                colors,
+                interaction.as_ref(),
+                move |fill| crate::button::group_radius_any(fill, edge, radius),
+                window,
+                cx,
+            );
+        }
+
         if self.is_disabled {
-            el = el.opacity(layout.disabled_opacity);
+            el = el.opacity(disabled_opacity);
         } else {
             let hover_bg = if is_selected {
                 colors.accent.soft_hover()
@@ -316,7 +353,10 @@ impl RenderOnce for ToggleButton {
                     ToggleVariant::Ghost => colors.default.color,
                 }
             };
-            el = el.cursor_pointer().hover(move |s| s.bg(hover_bg));
+            el = el.cursor_pointer();
+            if fade.is_none() {
+                el = el.hover(move |s| s.bg(hover_bg));
+            }
             // v3 documents ToggleButton's pressed state as including the same
             // size-specific scale. Group members suppress it so the attached
             // control never opens gaps between buttons while pressed.
