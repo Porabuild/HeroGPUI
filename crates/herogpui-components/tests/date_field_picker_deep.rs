@@ -1444,7 +1444,7 @@ fn date_picker_value_builder_seeds_once_and_never_clobbers_edits(cx: &mut TestAp
             s.selected = Some(Date::new(2026, 2, 3));
             s.selected_dates = vec![Date::new(2026, 2, 3)];
             cx.notify();
-        })
+        });
     });
     refresh(cx);
     assert_eq!(
@@ -1542,7 +1542,7 @@ fn date_range_picker_value_builder_seeds_once_and_never_clobbers_edits(cx: &mut 
             st.start = Some(Date::new(2026, 2, 3));
             st.end = Some(Date::new(2026, 2, 9));
             cx.notify();
-        })
+        });
     });
     refresh(cx);
     let (start, end) = cx.update(|_, cx| {

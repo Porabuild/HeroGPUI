@@ -14,7 +14,9 @@ $root = Split-Path -Parent $PSScriptRoot
 Push-Location $root
 try {
     # 1. Every member crate must opt in, or the policy is not what it looks like.
+    # Exclude vendored crates that form their own workspace roots (gpui_web).
     $members = Get-ChildItem -Path (Join-Path $root 'crates') -Directory |
+        Where-Object { $_.Name -ne 'gpui_web' } |
         ForEach-Object { Join-Path $_.FullName 'Cargo.toml' }
     $members += (Join-Path $root 'gallery/Cargo.toml')
 

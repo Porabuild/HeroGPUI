@@ -1462,7 +1462,7 @@ fn calendar_cell_renders_at_all(cx: &mut TestAppContext) {
             .default_value(Date::new(2026, 8, 15))
             .first_day_of_week(Weekday::Mon)
             .cell(move |state| {
-                record_cell(&record, &state);
+                record_cell(&record, state);
                 gpui::div().w(px(20.)).h(px(20.)).into_any_element()
             })
             .into_any_element()
@@ -1590,7 +1590,7 @@ fn calendar_outside_cells_keep_date_derived_unavailable_state(cx: &mut TestAppCo
                 date == Date::new(2026, 7, 31) || date == Date::new(2026, 9, 1)
             })
             .cell(move |state| {
-                record_cell(&record, &state);
+                record_cell(&record, state);
                 gpui::div().w(px(20.)).h(px(20.)).into_any_element()
             })
             .into_any_element()
@@ -1635,7 +1635,7 @@ fn calendar_cell_distinguishes_read_only_unavailable_and_disabled(cx: &mut TestA
                     .push(date.map_or_else(|| "none".into(), |date| date.format_iso()));
             })
             .cell(move |state| {
-                record_cell(&record, &state);
+                record_cell(&record, state);
                 gpui::div().w(px(20.)).h(px(20.)).into_any_element()
             })
             .into_any_element()
@@ -1682,7 +1682,7 @@ fn calendar_cell_suppresses_selection_for_unavailable_and_disabled_values(cx: &m
                     .default_value(Date::new(2026, 8, 14))
                     .min_value(Date::new(2026, 8, 15))
                     .cell(move |state| {
-                        record_cell(&disabled_record, &state);
+                        record_cell(&disabled_record, state);
                         gpui::div().into_any_element()
                     }),
             )
@@ -1691,7 +1691,7 @@ fn calendar_cell_suppresses_selection_for_unavailable_and_disabled_values(cx: &m
                     .default_value(Date::new(2026, 8, 16))
                     .is_date_unavailable(|date| date == Date::new(2026, 8, 16))
                     .cell(move |state| {
-                        record_cell(&unavailable_record, &state);
+                        record_cell(&unavailable_record, state);
                         gpui::div().into_any_element()
                     }),
             )
@@ -1772,7 +1772,7 @@ fn calendar_outside_selected_copy_is_unselected_and_inert(cx: &mut TestAppContex
                     .push(date.map_or_else(|| "none".into(), |date| date.format_iso()));
             })
             .cell(move |state| {
-                record_cell(&record, &state);
+                record_cell(&record, state);
                 gpui::div().w(px(20.)).h(px(20.)).into_any_element()
             })
             .into_any_element()
@@ -1849,7 +1849,7 @@ fn calendar_cell_tracks_selection(cx: &mut TestAppContext) {
         Calendar::new(state_for_view.clone())
             .default_value(Date::new(2026, 8, 15))
             .cell(move |state| {
-                record_cell(&record, &state);
+                record_cell(&record, state);
                 gpui::div().w(px(20.)).h(px(20.)).into_any_element()
             })
             .into_any_element()
@@ -1900,7 +1900,7 @@ fn range_calendar_cell_renders_at_all(cx: &mut TestAppContext) {
         let record = record.clone();
         RangeCalendar::new(state_for_view.clone())
             .cell(move |state| {
-                record_range_cell(&record, &state);
+                record_range_cell(&record, state);
                 gpui::div().w(px(20.)).h(px(20.)).into_any_element()
             })
             .into_any_element()
@@ -1956,7 +1956,7 @@ fn range_calendar_spill_dates_preserve_their_identity(cx: &mut TestAppContext) {
         RangeCalendar::new(state.clone())
             .first_day_of_week(Weekday::Mon)
             .cell(move |cell| {
-                record_range_cell(&record, &cell);
+                record_range_cell(&record, cell);
                 gpui::div().w(px(20.)).h(px(20.)).into_any_element()
             })
             .into_any_element()
@@ -2005,7 +2005,7 @@ fn range_calendar_weeks_in_month_keeps_exact_row_count(cx: &mut TestAppContext) 
             .first_day_of_week(Weekday::Mon)
             .weeks_in_month(7)
             .cell(move |cell| {
-                record_range_cell(&record, &cell);
+                record_range_cell(&record, cell);
                 gpui::div().w(px(20.)).h(px(20.)).into_any_element()
             })
             .into_any_element()
@@ -2044,7 +2044,7 @@ fn range_calendar_outside_cells_keep_date_derived_state(cx: &mut TestAppContext)
                     .push(format!("{}..{}", start.format_iso(), end.format_iso()));
             })
             .cell(move |cell| {
-                record_range_cell(&record, &cell);
+                record_range_cell(&record, cell);
                 gpui::div().w(px(20.)).h(px(20.)).into_any_element()
             })
             .into_any_element()
@@ -2093,7 +2093,7 @@ fn range_calendar_read_only_and_unavailable_states_stay_independent(cx: &mut Tes
             .is_date_unavailable(|date, _| date == Date::new(2026, 8, 16))
             .on_change(move |_, _, _, _| changes.borrow_mut().push("changed".into()))
             .cell(move |cell| {
-                record_range_cell(&record, &cell);
+                record_range_cell(&record, cell);
                 gpui::div().w(px(20.)).h(px(20.)).into_any_element()
             })
             .into_any_element()
@@ -2211,7 +2211,7 @@ fn range_calendar_cell_tracks_anchor_preview_and_range(cx: &mut TestAppContext) 
         let record = record.clone();
         RangeCalendar::new(state_for_view.clone())
             .cell(move |state| {
-                record_range_cell(&record, &state);
+                record_range_cell(&record, state);
                 gpui::div().w(px(20.)).h(px(20.)).into_any_element()
             })
             .into_any_element()

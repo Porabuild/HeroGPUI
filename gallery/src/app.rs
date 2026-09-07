@@ -371,7 +371,7 @@ Enter inserts a newline here, and a long paragraph wraps inside the field instea
             dropdown_last_basic: SharedString::from("none yet"),
             dropdown_doc_marks: vec![SharedString::from("bold")],
             lb_pair_selection: {
-                let mut keys = std::collections::HashSet::new();
+                let mut keys = HashSet::new();
                 keys.insert(SharedString::from("opt-1"));
                 keys
             },

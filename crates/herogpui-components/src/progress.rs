@@ -323,7 +323,7 @@ impl RenderOnce for ProgressBar {
         if self.label.is_some() || self.show_value {
             // The same text the node announces; an indeterminate bar shows
             // nothing where the value would be.
-            let value_text = announced_value_text.clone().unwrap_or_default();
+            let value_text = announced_value_text.unwrap_or_default();
             let percentage = if self.is_indeterminate {
                 0.0
             } else {
@@ -656,11 +656,10 @@ impl RenderOnce for ProgressCircle {
         .absolute()
         .inset_0();
 
-        let spin_id = self
-            .id
-            .as_ref()
-            .map(|id| element_id::scoped(id, "spin"))
-            .unwrap_or_else(|| gpui::ElementId::from("progress-circle-spin"));
+        let spin_id = match &self.id {
+            Some(id) => element_id::scoped(id, "spin"),
+            None => gpui::ElementId::from("progress-circle-spin"),
+        };
         let arc = if spins {
             arc.with_animation(
                 spin_id,

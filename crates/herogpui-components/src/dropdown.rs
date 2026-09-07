@@ -754,7 +754,7 @@ impl RenderOnce for Menu {
                         if has_submenu {
                             let open_key = element_id::scoped(
                                 &element_id::scoped(&submenu_base_for_keys, "sub"),
-                                item_key.clone(),
+                                item_key,
                             );
                             submenu_open_for_keys.update(cx, |value, cx| {
                                 *value = Some(open_key);

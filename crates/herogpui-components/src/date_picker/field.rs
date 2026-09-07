@@ -1129,7 +1129,7 @@ impl RenderOnce for DateField {
         // native input is `role: 'presentation'` and has no counterpart
         // element here.
         let mut group = gpui::div()
-            .id(base_id.clone())
+            .id(base_id)
             .a11y_named(
                 a11y::Role::Group,
                 &a11y::Name::field(self.label.as_ref(), self.description.as_ref(), &validity),

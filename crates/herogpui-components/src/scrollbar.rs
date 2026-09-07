@@ -107,7 +107,7 @@ impl RenderOnce for Scrollbar {
         let leave_state = state.clone();
 
         let mut track = div()
-            .id(self.id.clone())
+            .id(self.id)
             .absolute()
             .overflow_hidden()
             .when(horizontal, |el| {
@@ -154,7 +154,7 @@ impl RenderOnce for Scrollbar {
             });
 
         if show_thumb {
-            let paint_handle = handle.clone();
+            let paint_handle = handle;
             track = track.child(
                 canvas(
                     move |bounds, _, _| bounds,

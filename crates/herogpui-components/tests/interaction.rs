@@ -95,8 +95,7 @@ fn select_click_selects_and_closes(cx: &mut TestAppContext) {
         .on_selection_change(move |key, _, _| {
             let key = key
                 .as_ref()
-                .map(ToString::to_string)
-                .unwrap_or_else(|| "none".to_owned());
+                .map_or_else(|| "none".to_owned(), ToString::to_string);
             selection.borrow_mut().push(format!("select:{key}"));
         })
         .on_open_change(move |open, _, _| opening.borrow_mut().push(format!("open:{open}")))

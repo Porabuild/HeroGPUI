@@ -995,7 +995,7 @@ impl RenderOnce for Autocomplete {
             .a11y_named(
                 a11y::Role::Button,
                 &a11y::Name::maybe(self.label.clone())
-                    .described(Some(SharedString::from(selected_text.clone()))),
+                    .described(Some(SharedString::from(selected_text))),
             )
             .a11y_expanded(open);
         field = field.child(value_slot);

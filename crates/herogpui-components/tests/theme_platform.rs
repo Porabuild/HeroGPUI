@@ -146,6 +146,7 @@ impl Render for RawAnimation {
 /// (and GPUI internals) animating for a user who asked for stillness. The two
 /// values must be one value, readable and writable from either side.
 #[gpui::test]
+#[allow(clippy::float_cmp)]
 fn reduce_motion_is_mirrored_into_gpui(cx: &mut TestAppContext) {
     cx.update(ThemeProvider::init);
 

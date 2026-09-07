@@ -373,13 +373,13 @@ fn two_stacked_toasts_close_one_at_a_time(cx: &mut TestAppContext) {
         Toast::new("First")
             .timeout(std::time::Duration::ZERO)
             .action("Undo first", move |_| {
-                first.borrow_mut().push("first-action".into())
+                first.borrow_mut().push("first-action".into());
             })
             .push(None, cx);
         Toast::new("Second")
             .timeout(std::time::Duration::ZERO)
             .action("Undo second", move |_| {
-                second.borrow_mut().push("second-action".into())
+                second.borrow_mut().push("second-action".into());
             })
             .push(None, cx);
     });

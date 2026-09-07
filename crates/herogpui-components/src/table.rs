@@ -1501,9 +1501,7 @@ impl RenderOnce for Table {
         // collection with nested rows, virtual or not.
         let is_tree = self.virtual_tree_metadata.is_some()
             || self.rows.iter().any(|row| !row.children.is_empty());
-        let virtual_row_total = virtual_projection
-            .as_ref()
-            .map(|_| virtual_visible_count.max(0));
+        let virtual_row_total = virtual_projection.as_ref().map(|_| virtual_visible_count);
         let mut table = gpui::div()
             .flex()
             .flex_col()

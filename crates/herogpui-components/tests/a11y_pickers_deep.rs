@@ -89,8 +89,8 @@ fn two_calendars_select_independently(cx: &mut TestAppContext) {
     let right_state = cx.new(|cx| CalendarState::with_selected(cx, Date::new(2026, 8, 10)));
     let left_id = left_state.entity_id().as_u64();
     let right_id = right_state.entity_id().as_u64();
-    let left_view = left_state.clone();
-    let right_view = right_state.clone();
+    let left_view = left_state;
+    let right_view = right_state;
     let cx = open_host(cx, move || {
         let left = changed.clone();
         let right = changed.clone();
@@ -145,8 +145,8 @@ fn two_date_fields_step_independently(cx: &mut TestAppContext) {
     let recorded = changed.clone();
     let left_state = cx.new(|cx| InputState::with_value(cx, "2025-10-15"));
     let right_state = cx.new(|cx| InputState::with_value(cx, "2025-01-01"));
-    let left_view = left_state.clone();
-    let right_view = right_state.clone();
+    let left_view = left_state;
+    let right_view = right_state;
     let cx = open_host(cx, move || {
         let left = changed.clone();
         let right = changed.clone();
@@ -212,8 +212,8 @@ fn two_time_fields_step_independently(cx: &mut TestAppContext) {
     let recorded = changed.clone();
     let left_state = cx.new(|cx| TimeState::with_value(cx, Time::new(9, 30)));
     let right_state = cx.new(|cx| TimeState::with_value(cx, Time::new(14, 0)));
-    let left_view = left_state.clone();
-    let right_view = right_state.clone();
+    let left_view = left_state;
+    let right_view = right_state;
     let cx = open_host(cx, move || {
         let left = changed.clone();
         let right = changed.clone();
@@ -272,8 +272,8 @@ fn two_date_pickers_open_independently(cx: &mut TestAppContext) {
     let recorded = opened.clone();
     let left_state = cx.new(|cx| CalendarState::with_selected(cx, Date::new(2025, 6, 15)));
     let right_state = cx.new(|cx| CalendarState::with_selected(cx, Date::new(2025, 7, 1)));
-    let left_view = left_state.clone();
-    let right_view = right_state.clone();
+    let left_view = left_state;
+    let right_view = right_state;
     let cx = open_host(cx, move || {
         let left = opened.clone();
         let right = opened.clone();
@@ -386,7 +386,7 @@ fn two_color_swatch_pickers_select_independently(cx: &mut TestAppContext) {
         PickerColor::from_hex("#006FEE").unwrap(),
     ];
     let left_swatches = swatches.clone();
-    let right_swatches = swatches.clone();
+    let right_swatches = swatches;
     let cx = open_host(cx, move || {
         let left = changed.clone();
         let right = changed.clone();

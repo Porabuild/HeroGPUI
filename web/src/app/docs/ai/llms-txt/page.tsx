@@ -52,6 +52,8 @@ const SECTION_DESCRIPTIONS: Record<string, string> = {
     "Every controlled prop is an `Option`; leaving it unset seeds keyed internal state from the matching `default_*`. The full list of controlled/uncontrolled pairs per component, and why `Popover`, `Accordion`, and `Tooltip` take an `id`.",
   Validation:
     "The `validate` closure contract, `validation_errors`, the `validation::resolve` precedence (controlled `is_invalid`, then `validationErrors`, then `validate`), and how `Form` routes a server `ValidationErrors` record into per-field slots.",
+  Accessibility:
+    "How HeroGPUI translates React Aria 3.51.0 roles to GPUI and AccessKit: explicit roles and element ids, `a11y::Name::field` for labels and descriptions, overlay and collection semantics (ListBox, Grid, TabList), and recorded omissions where GPUI exposes no matching builder.",
   "Component API pattern":
     "The shape every component shares: `#[derive(IntoElement)]` builders implementing `RenderOnce`, caller-owned state entities (`InputState`, `CalendarState`, `TimeState`, …), and callback signatures with `Arc` for closures that capture shared fields.",
   Components:

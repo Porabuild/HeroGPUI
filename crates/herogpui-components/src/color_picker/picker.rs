@@ -386,10 +386,7 @@ impl RenderOnce for ColorPicker {
                 div()
                     .flex_shrink_0()
                     .track_focus(&child_focus[2])
-                    .debug_selector({
-                        let base = base.clone();
-                        move || format!("{base}-alpha")
-                    })
+                    .debug_selector(move || format!("{base}-alpha"))
                     .child(alpha),
             );
         }

@@ -1191,7 +1191,7 @@ impl RenderOnce for Select {
         field = field
             .a11y_named(
                 a11y::Role::Button,
-                &a11y::Name::maybe(self.label.clone()).described(Some(value_text.clone())),
+                &a11y::Name::maybe(self.label.clone()).described(Some(value_text)),
             )
             .a11y_expanded(is_open);
         field = field.child(value_slot).child(
@@ -1361,7 +1361,7 @@ impl RenderOnce for Select {
                 // defaulting to vertical. The scroller *is* that list here:
                 // the rows are its children. `aria-multiselectable` has no
                 // gpui builder (see `crate::a11y`).
-                .a11y_named(a11y::Role::ListBox, &a11y::Name::maybe(list_name.clone()))
+                .a11y_named(a11y::Role::ListBox, &a11y::Name::maybe(list_name))
                 .a11y_orientation(herogpui_core::Orientation::Vertical)
                 .debug_selector({
                     let base = base.clone();

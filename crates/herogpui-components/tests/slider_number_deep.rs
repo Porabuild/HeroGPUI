@@ -607,6 +607,7 @@ fn number_field_stepper_repeat_stops_when_unmounted(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
+#[allow(clippy::float_cmp)]
 fn number_field_value_builder_seeds_once_and_outranks_default_value(cx: &mut TestAppContext) {
     let state = cx.new(|cx| NumberState::new(cx, 0.));
     let state_for_view = state.clone();

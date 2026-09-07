@@ -766,7 +766,7 @@ impl RenderOnce for DatePicker {
                 form_state.is_invalid = crate::validation::resolve(
                     calendar_forced_invalid,
                     &calendar_validation_errors,
-                    calendar_validate.as_ref().and_then(|validate| validate(&d)),
+                    calendar_validate.as_ref().and_then(|validate| validate(d)),
                     None,
                 )
                 .is_invalid;

@@ -60,9 +60,9 @@
 //! | `aria-controls` | `useNumberField`'s stepper buttons, `useToggle`, `useDisclosure`, `useOverlayTrigger` | No gpui builder and no id graph to point at. A trigger can say it is expanded ([`A11y::a11y_expanded`]) but not what it expanded. |
 //! | `aria-roledescription` | `useNumberField`'s input ("number field") | No gpui builder. |
 //! | `aria-live="off"` | `useSlider`'s output | No gpui builder; gpui announces nothing live, so the suppression is moot. |
-//! | `role="meter progressbar"` | `useMeter` | AccessKit roles are a single enum; the fallback half of upstream's pair exists only for browsers that do not implement `meter`. [`accesskit::Role::Meter`] is the half that is true. |
+//! | `role="meter progressbar"` | `useMeter` | AccessKit roles are a single enum; the fallback half of upstream's pair exists only for browsers that do not implement `meter`. `accesskit::Role::Meter` is the half that is true. |
 //! | `role="spinbutton"` | `useSpinButton` | `useNumberField` deletes it again (`role: null`) before it reaches the DOM, so the port must not add it. |
-//! | `aria-modal="false"` | `useToast`'s `toastProps` | No gpui builder, and [`accesskit::Role`] is a single enum with no modality flag: `AlertDialog` is the role, and whether it traps focus is not something the node can say. `useDialog` deliberately sets no `aria-modal` at all (a WebKit bug), so a modal and a non-modal dialog are the same node upstream too. |
+//! | `aria-modal="false"` | `useToast`'s `toastProps` | No gpui builder, and `accesskit::Role` is a single enum with no modality flag: `AlertDialog` is the role, and whether it traps focus is not something the node can say. `useDialog` deliberately sets no `aria-modal` at all (a WebKit bug), so a modal and a non-modal dialog are the same node upstream too. |
 //! | `role="alert"` + `aria-atomic` | `useToast`'s `contentProps` | The point of that inner node is the live announcement. gpui exposes no live-region builder at all, so the port would be claiming an announcement it cannot make; the toast card's own `alertdialog` node carries the text instead. |
 //! | `aria-haspopup` | `useOverlayTrigger`, `useMenuItem`'s submenu rows | No gpui builder. |
 //! | `aria-hidden` | `useDisclosure`'s collapsed panel, `useToast`'s hidden content | No gpui builder. A collapsed panel leaves the element tree here instead, which is the stronger version of the same thing. |
@@ -232,10 +232,11 @@ impl Name {
         description: Option<&SharedString>,
         validity: &Validity,
     ) -> Self {
-        let errors = validity
-            .is_invalid
-            .then(|| validity.joined())
-            .unwrap_or_default();
+        let errors = if validity.is_invalid {
+            validity.joined()
+        } else {
+            String::new()
+        };
         let described = match (description.map(SharedString::as_ref), errors.as_str()) {
             (None, "") => None,
             (Some(d), "") => Some(SharedString::from(d.to_owned())),
@@ -636,6 +637,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::float_cmp)]
     fn an_indeterminate_range_keeps_its_bounds_and_drops_its_value() {
         let range = Range::indeterminate(0., 100.).text(Some("ignored"));
         assert_eq!(range.min(), 0.);
