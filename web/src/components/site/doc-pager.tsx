@@ -18,7 +18,7 @@ export function DocPager({ catalog }: { catalog: Catalog }) {
     >
       {pager.prev ? (
         <Link
-          className="group flex min-h-16 flex-col justify-center rounded-xl border border-separator px-4 py-3 no-underline transition-colors hover:border-accent/50 hover:no-underline"
+          className="group flex min-h-16 w-full flex-col justify-center rounded-xl border border-separator px-4 py-3 no-underline transition-colors hover:border-accent/50 hover:no-underline"
           href={pager.prev.href}
         >
           <span className="flex items-center gap-1.5 text-[11px] font-medium tracking-wide text-muted uppercase">
@@ -34,7 +34,7 @@ export function DocPager({ catalog }: { catalog: Catalog }) {
       )}
       {pager.next ? (
         <Link
-          className="group flex min-h-16 flex-col items-end justify-center rounded-xl border border-separator px-4 py-3 text-right no-underline transition-colors hover:border-accent/50 hover:no-underline"
+          className="group flex min-h-16 w-full flex-col items-end justify-center rounded-xl border border-separator px-4 py-3 text-right no-underline transition-colors hover:border-accent/50 hover:no-underline"
           href={pager.next.href}
         >
           <span className="flex items-center gap-1.5 text-[11px] font-medium tracking-wide text-muted uppercase">

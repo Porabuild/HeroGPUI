@@ -50,8 +50,10 @@ function ComponentShot({ component }: { component: CatalogComponent }) {
 }
 
 export function ComponentCard({ component }: { component: CatalogComponent }) {
+  // mt-0 opts out of the article prose `li + li` margin, which would offset
+  // every card but the first inside the grid row.
   return (
-    <li className="h-full">
+    <li className="mt-0 h-full">
       <Link
         className={cn(
           "catalog-card group flex h-full w-full flex-col items-stretch rounded-xl border border-separator bg-surface p-4",
