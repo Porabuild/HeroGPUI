@@ -87,6 +87,25 @@ jobs:
           echo "==> .shots/write_only.py"
           python .shots/write_only.py
 
+      # In the `.shots/*audit.py` glob above already; run again on its own so a
+      # broken *scanner* reports separately from a broken contract. The a11y
+      # audit's subject is not in the pinned docs bundle -- it is the React
+      # Aria hooks under `web/node_modules` -- so a parser regression there
+      # would otherwise look like a clean accessibility tree.
+      - name: Accessibility contract scanner
+        run: python .shots/a11y_audit.py --self-test
+
+      # Not in the `.shots/*audit.py` glob above on purpose: that step is
+      # documented as needing no network and no Rust build, while this is a
+      # generator whose --check fetches a pinned FontTools through uv. It
+      # guards a failure the compiler cannot see -- the embedded font files are
+      # subsets keyed to the glyphs the sources actually use, and adding a new
+      # string literal silently leaves a glyph with no outline to draw.
+      - uses: astral-sh/setup-uv@v5
+
+      - name: Web font subsets
+        run: python .shots/subset-fonts.py --check
+
   lint:
     name: Lints & cargo-deny
     runs-on: ubuntu-24.04
@@ -100,20 +119,100 @@ jobs:
         with:
           tool: cargo-deny
 
+      - name: Install cargo-hack
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-hack
+
+      - name: Install cargo-machete
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-machete
+
+      # Unused-dependency gate. cargo-machete reads every manifest in the
+      # tree and greps the crate sources for each dependency's name -- no
+      # build, not even a toolchain -- so it answers in seconds and sits
+      # before the clippy step below, which pays for a full compile. The
+      # vendored `crates/gpui_web` fork is clean under it too (verified by
+      # running machete on that directory directly).
+      #
+      # There is no ignore list today, deliberately: the tree is clean with
+      # none (verified against cargo-machete 0.9.2, what install-action
+      # currently resolves). If a future dependency genuinely needs one --
+      # build.rs-generated code machete cannot see, a renamed import --
+      # machete honors `[package.metadata.cargo-machete] ignored = [...]` in
+      # that crate's manifest, or the same table under
+      # `[workspace.metadata.cargo-machete]` in the root. Every entry must
+      # carry its reason in a comment beside it, the way
+      # `[package.metadata.cargo-shear]` does in crates/gpui_web; an entry
+      # without a reason is a hole in the gate.
+      - name: Unused dependencies (cargo-machete)
+        run: cargo machete
+
       - name: Lint gate (workspace lints, clippy -D warnings, cargo-deny)
         shell: pwsh
         run: .shots/lint.ps1
 
+      # `--all-features` (in lint.ps1's clippy step) only proves the union of
+      # every feature compiles together; it says nothing about any one
+      # feature alone. herogpui-components' `gallery-source` is the case that
+      # matters here: `--each-feature` builds it by itself, with no other
+      # feature unifying in dependencies it might otherwise lean on.
+      - name: Each feature alone
+        run: cargo hack check --workspace --each-feature --locked
+
+  # The test suite runs on all three hosts, not just Linux: the repo is
+  # developed against them (`.shots/*.ps1` and the rust-lld linker pin in
+  # `.cargo/config.toml` are Windows-first; the maintainer's gallery runs are
+  # on macOS and Windows), and linking the gpui platform crates is the one
+  # part of the build that differs per OS. `gpui_platform`'s font-kit,
+  # wayland and x11 features forward into target-gated crates in the gpui
+  # family and are inert off their own targets, so the single dependency spec
+  # in the workspace root builds everywhere with no per-OS feature matrix.
+  #
+  # `lint`, `doc` and `install` stay Linux-only on purpose: this workspace's
+  # own sources carry no `cfg(windows)`/`cfg(macos)` branches (only the wasm
+  # ones in herogpui/herogpui-web), so clippy and rustdoc analyze identical
+  # code on any host, while the OS-sensitive surface -- linking and running
+  # the suite -- is what this matrix exercises. `unsafe_code = "deny"` is a
+  # rustc lint inherited through `[workspace.lints]`, so every matrix leg's
+  # build enforces it on its own host even without clippy.
   test:
     name: Tests
-    runs-on: ubuntu-24.04
+    strategy:
+      # Which OS broke is exactly the information this matrix exists to
+      # surface, and it is invisible when the surviving legs are cancelled at
+      # the first failure.
+      fail-fast: false
+      matrix:
+        # rust-cache's key embeds the rustc host triple, so the three legs
+        # keep separate caches without a per-leg `key` here.
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v6
 
       - uses: ./.github/actions/rust-env
 
       - name: Workspace tests
-        run: cargo test --workspace --locked
+        # `.shots/run-tests.sh` wraps `cargo test`; a bare invocation reads
+        # the process exit code alone, which cannot be trusted either
+        # direction on this workspace — a killed binary with no summary line
+        # would read as green, and a run whose every test passed has still
+        # exited non-zero. The script judges the harness's own
+        # `test result:` lines instead.
+        #
+        # `shell: bash` is explicit because a `run:` step's default on a
+        # Windows runner is pwsh; the script is bash (its header says why)
+        # and git-bash ships on every GitHub Windows runner.
+        shell: bash
+        run: bash .shots/run-tests.sh --workspace --locked
+
+      # The workspace run above uses default features. `serde` is off by
+      # default on purpose, so its unit tests would otherwise never run.
+      - name: Theme serde feature tests
+        shell: bash
+        run: bash .shots/run-tests.sh -p herogpui-theme --features serde --locked
 
   doc:
     name: Rustdoc
@@ -125,7 +224,12 @@ jobs:
 
       - name: Rustdoc
         env:
-          RUSTDOCFLAGS: -D warnings
+          # `--cfg docsrs` matches the flag docs.rs itself builds with (see
+          # each crate's `[package.metadata.docs.rs]`), so a `#[cfg(docsrs)]`
+          # doc-only item and any docsrs-gated intra-doc link are exercised
+          # here instead of surfacing for the first time on the published
+          # docs.rs page.
+          RUSTDOCFLAGS: --cfg docsrs -D warnings
         run: cargo doc --workspace --no-deps --locked
 
   # Git GPUI is not registry-publishable; validate installation from source.
@@ -153,7 +257,15 @@ jobs:
   optimized:
     name: Tests (Cargo.toml profile)
     if: github.event_name == 'push'
-    runs-on: ubuntu-24.04
+    # The same three hosts as `test` for the same reasons (see that job's
+    # comment). Codegen is per-platform as well as per-opt-level, so the
+    # -O1/-O3 suite owes each OS its own run. Push-only keeps the three heavy
+    # legs off the PR critical path.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v6
 
@@ -162,5 +274,114 @@ jobs:
           profile: real
 
       - name: Workspace tests at -O1/-O3
-        run: cargo test --workspace --locked
+        # Same reasoning as the `test` job's step: a bare `cargo test` exit
+        # code cannot be trusted in either direction here, so this run is
+        # judged by .shots/run-tests.sh reading the harness's own summary.
+        # `shell: bash` for the same reason as there.
+        shell: bash
+        run: bash .shots/run-tests.sh --workspace --locked
+
+      - name: Theme serde feature tests at -O1/-O3
+        shell: bash
+        run: bash .shots/run-tests.sh -p herogpui-theme --features serde --locked
+
+  # The web gallery is built from this workspace now, not from a second
+  # checkout: `crates/herogpui-web` is a workspace member that links the
+  # `herogpui-gallery` library and compiles for wasm32. So a PR that breaks the
+  # web build has to fail here, before merge, rather than the next time someone
+  # regenerates the checked-in artifact by hand.
+  #
+  # This builds rather than checks. `wasm-bindgen` is the step that actually
+  # rejects a bad `#[wasm_bindgen]` surface, and it needs a real .wasm; a
+  # `cargo check` would pass on inputs it cannot process.
+  wasm:
+    name: Build (wasm32)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+
+      # No toolchain step: rustup reads `rust-toolchain.toml` in the checkout,
+      # so this job builds on the same pinned stable as every other one and the
+      # version is written down exactly once. Only the target has to be added.
+      #
+      # This job used to pin `nightly-2026-08-30`, and the reason was real:
+      # `wasm_thread` arrived through the web platform's `multithreaded`
+      # feature, and its lib.rs opens with a feature gate, so a stable build of
+      # this target failed outright with
+      #
+      #   error[E0554]: `#![feature]` may not be used on the stable release
+      #   channel
+      #    --> .../wasm_thread-0.3.3/src/lib.rs:1:1
+      #
+      # `multithreaded` is now off in the vendored fork's own manifest
+      # (`crates/gpui_web/Cargo.toml`, which `[patch.crates-io]` substitutes --
+      # the only place it can be switched, because `gpui_platform`'s wasm32
+      # edge enables default features and cargo unions feature sets). With it
+      # off, `wasm_thread` is not in the graph and stable builds this target,
+      # profile included. Nothing was using it: `crates/herogpui-web` starts the
+      # app with `single_threaded_web()`, and the multi-threaded platform needs
+      # cross-origin isolation that GitHub Pages does not provide. Turning it
+      # back on means bringing the nightly pin back with it.
+      - name: Add the wasm32 target to the pinned toolchain
+        run: rustup target add wasm32-unknown-unknown
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: wasm32
+
+      # `wasm-bindgen` output is version-sensitive in both directions: the
+      # crate compiled into the artifact and the CLI that post-processes it
+      # emit and consume a shared, unstable descriptor format. A mismatch
+      # fails with a schema-version error that names neither the lockfile nor
+      # the installed CLI, so the version is read out of Cargo.lock rather
+      # than written down twice.
+      - name: Install wasm-bindgen-cli pinned to Cargo.lock
+        run: |
+          set -euo pipefail
+          version=$(grep -A 1 '^name = "wasm-bindgen"$' Cargo.lock | grep '^version' | cut -d '"' -f 2)
+          echo "wasm-bindgen from Cargo.lock: $version"
+          test -n "$version"
+          cargo install -f wasm-bindgen-cli --version "$version"
+
+      # No `RUSTFLAGS` here, deliberately. `.cargo/config.toml`'s
+      # `[target.wasm32-unknown-unknown]` table sets `rustflags = []` (the
+      # shared-memory build was abandoned for `single_threaded_web()` under
+      # plain GitHub Pages hosting, which sends no COOP/COEP headers), and a
+      # `RUSTFLAGS` environment variable *replaces* a config file's rustflags
+      # rather than appending to them. Setting it here — even to the same
+      # value — would silently diverge from that table the moment either side
+      # changed.
+      - name: Build the web gallery
+        run: cargo build --locked --target wasm32-unknown-unknown --profile wasm-release -p herogpui-web
+
+      # The bindgen pass is the check, not a packaging convenience: it is what
+      # validates the generated glue against the artifact. The output is
+      # thrown away — `web/public/gallery/` holds the committed artifact and
+      # this job does not touch it.
+      - name: Generate bindings
+        run: |
+          set -euo pipefail
+          wasm-bindgen --target web --no-typescript \
+            --out-dir "$RUNNER_TEMP/wasm-bindgen-out" \
+            target/wasm32-unknown-unknown/wasm-release/herogpui_web.wasm
+          ls -l "$RUNNER_TEMP/wasm-bindgen-out"
+
+  # The one status branch protection should point at. Adding a job to this
+  # workflow means adding its name to `needs` below; a job left out of that
+  # list fails silently — branch protection just never learns it exists — so
+  # this jq check is the one place a missed job fails loudly, in review, on
+  # the PR that added it. `optimized` only runs on `push`, so `skipped` counts
+  # as passing for it on every pull request.
+  ci:
+    name: ci
+    if: always()
+    needs: [web, parity, lint, test, doc, install, optimized, wasm]
+    runs-on: ubuntu-24.04
+    steps:
+      - name: decide
+        env:
+          RESULTS: ${{ toJson(needs) }}
+        run: |
+          echo "$RESULTS"
+          echo "$RESULTS" | jq -e 'all(.[] | .result; . == "success" or . == "skipped")'
 

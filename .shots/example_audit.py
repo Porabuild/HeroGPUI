@@ -27,11 +27,12 @@ sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from bundle import resolve as _resolve_bundle
+from gallery_pages import page_sources
 
 # The pinned v3.2.4 bundle. See .shots/bundle.py: reading upstream live would
 # measure this port against whatever HeroUI shipped most recently.
 BUNDLE = _resolve_bundle()
-PAGES = ('gallery/src/pages/components.rs', 'gallery/src/pages/docs.rs')
+PAGES = page_sources()
 
 # v3 page name -> our `page_*` function suffix, where the mechanical
 # CamelCase -> snake_case conversion does not land on it.
@@ -89,12 +90,7 @@ WONT_DEMO = {
 #
 # These are not excused: they are counted separately so the number cannot hide
 # behind "unportable", and each one names the feature it is waiting on.
-NEEDS_FEATURE = {
-    # Their popovers support calendar systems, but the embedded date fields
-    # still format through the OS locale rather than the component override.
-    'DatePicker.International Calendar': 'date-field-locale',
-    'DateRangePicker.International Calendar': 'date-field-locale',
-}
+NEEDS_FEATURE = {}
 
 SYNONYM = {
     'usage': 'basic',

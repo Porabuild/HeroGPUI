@@ -3,6 +3,14 @@
 # listed: rustfmt silently ignores nightly-only keys on a stable toolchain, so
 # an unstable option here would read as enforced while doing nothing.
 edition = "2024"
+# Pinned, and deliberately NOT tracking `edition` above. When this key is
+# absent rustfmt's *style* edition follows the crate edition, so the `edition`
+# bump on the line above would have silently reformatted every file the next
+# time `cargo fmt` ran: style edition 2024 sorts `use` items case-sensitively,
+# which reorders almost every import block in the tree. Pinning 2021 keeps
+# that reflow a deliberate, standalone change rather than a side effect of an
+# unrelated edition bump. Raising this number is a whole-tree reformat and
+# belongs in its own commit with no other change in it.
 style_edition = "2021"
 
 # rustfmt's default. Stated explicitly because the gpui builder style produces

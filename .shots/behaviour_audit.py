@@ -27,6 +27,7 @@ import sys
 sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from component_source import list_modules, module_exists, read_module, read_path
 from bundle import resolve as _resolve_bundle
 from design_audit import mask_literals, strip_cfg_test
 
@@ -548,11 +549,14 @@ EVIDENCE = {
     ('Autocomplete', 'close-on-blur'): ('autocomplete.rs', r'util::close_on_blur'),
     ('DatePicker', 'close-on-blur'): (
         'date_picker.rs',
-        r'(?s)close_on_blur\(.*?&format!\("dp-\{\}"',
+        # `base_id` is `named_usize("dp", entity)` here and
+        # `named_usize("drp", entity)` for the range picker, so the prefix is
+        # what tells the two `close_on_blur` calls in this file apart.
+        r'(?s)named_usize\("dp", .*?util::close_on_blur\(window, cx, &base_id,',
     ),
     ('DateRangePicker', 'close-on-blur'): (
         'date_picker.rs',
-        r'(?s)close_on_blur\(.*?&format!\("drp-\{\}"',
+        r'(?s)named_usize\("drp", .*?util::close_on_blur\(window, cx, &base_id,',
     ),
     ('ColorPicker', 'close-on-blur'): ('color_picker.rs', r'util::close_on_blur'),
     ('ComboBox', 'blur-commit'): (
@@ -808,7 +812,7 @@ EVIDENCE = {
     # it -- a click on the trigger leaves the ring where the user put it, while
     # a controlled open, which focuses nothing, still gets a panel the keyboard
     # can reach. This is the regression the claim exists for.
-    ('Popover', 'panel-focus'): ('popover.rs', r'util::panel_focus\(window, cx, &base, claim\)'),
+    ('Popover', 'panel-focus'): ('popover.rs', r'util::panel_focus\(window, cx, &self\.id, claim\)'),
     # A menu takes the focus when it opens; the one-shot is spent on the same
     # handle the panel tracks, or the arrows land on a handle no element owns.
     ('Dropdown', 'panel-focus'): (
@@ -981,8 +985,10 @@ EVIDENCE = {
     ),
     # Select's Shift range halves, on option indices instead of keys: the same
     # range helper with its raw `all` collapse and replace-old-range semantics,
-    # the anchor held in keyed state beside the cursor (`select-{}-range`) so
-    # it survives closing and reopening the popover, the extension gate that
+    # the anchor held in keyed state beside the cursor
+    # (`use_keyed_state(element_id::scoped(&self.id, "range"))`, named off the
+    # instance id) so it survives closing and reopening the popover, the
+    # extension gate that
     # extends from plain Shift on the arrows and pages but only from
     # Control+Shift Home/End off macOS and reuses the registration map, the
     # mode-independent registration gate that leaves an unregistered chord
@@ -992,9 +998,9 @@ EVIDENCE = {
     ('Select', 'shift-range'): (
         'select.rs',
         r'(?s)\A(?=.*fn extend_selection_range\()(?=.*if range\.is_all \{)'
-        r'(?=.*range\.anchor\.unwrap_or\(target\))'
-        r'(?=.*range\.current\.unwrap_or\(target\))'
-        r'(?=.*select-\{\}-range)'
+        r'(?=.*range\.anchor\.as_ref\(\)\.unwrap_or\(target\))'
+        r'(?=.*range\.current\.as_ref\(\)\.unwrap_or\(target\))'
+        r'(?=.*use_keyed_state\(element_id::scoped\(&self\.id, "range"\), cx)'
         r'(?=.*let extends_selection = multiple\s*\n\s*&& modifiers\.shift)'
         r'(?=.*fn home_end_registered\(modifiers: gpui::Modifiers, macos: bool\) -> bool \{)'
         r'(?=.*if macos \{\s*\n\s*!modifiers\.control && !modifiers\.platform\s*\n\s*\} else \{\s*\n\s*!modifiers\.alt && !modifiers\.platform\s*\n\s*\})'
@@ -1007,7 +1013,7 @@ EVIDENCE = {
         r'(?=.*range\.current = Some\(next\);)'
         r'(?=.*range\.is_all = false;)'
         r'(?=.*let cursor_click = cursor_rows\.clone\(\);)'
-        r'(?=.*cursor_click\.update\(cx, \|v, cx\| \{\s*\n\s*\*v = Some\(i\);)'
+        r'(?=.*cursor_click\.update\(cx, \|v, cx\| \{\s*\n\s*\*v = Some\(picked_key\.clone\(\)\);)'
         r'(?=.*ev\.modifiers\(\)\.shift)',
     ),
     # Select's select-all is the one member that must stay silent: pinned
@@ -1023,7 +1029,7 @@ EVIDENCE = {
         'select.rs',
         r'(?s)key == "a"\s*\n\s*&& modifiers\.secondary\(\)'
         r'(?=(?:(?!&& multiple).)*&& multiple\s*\n\s*\{)'
-        r'(?=.*stops\.iter\(\)\.copied\(\)\.collect\(\))'
+        r'(?=.*stops\.iter\(\)\.map\(\|i\| row_keys\[\*i\]\.clone\(\)\)\.collect\(\))'
         r'(?:(?!on_select_all).){0,2500}?is_all: true'
         r'(?:(?!on_select_all).)*?cx\.stop_propagation\(\)',
     ),
@@ -1151,7 +1157,7 @@ WONT_DO = {
 
 def accessibility_sections():
     """`{page: prose}` for every `## Accessibility` section in the bundle."""
-    text = io.open(BUNDLE, encoding='utf-8', errors='replace').read()
+    text = read_path(BUNDLE, errors='replace')
     out, page = {}, None
     for m in re.finditer(r'^(#|##) (.+?)[ \t]*$', text, re.M):
         if m.group(1) == '#':
@@ -1226,7 +1232,7 @@ def main():
     missing, unmapped = [], []
     by_reason = {}
 
-    input_source = io.open(SRC + 'input.rs', encoding='utf-8').read()
+    input_source = read_path(SRC + 'input.rs')
     for key, token in (
         (('TextField', 'text-keys'), 'window.handle_input('),
         (('Form', 'server-errors-suppress'), 'edit_state.update(cx, |s, _| s.clear_routed_errors());'),
@@ -1246,7 +1252,7 @@ def main():
                 print('AUDIT READER ERROR: %s accepts %s' % (key, label))
                 return 1
 
-    table_source = io.open(SRC + 'table.rs', encoding='utf-8', errors='replace').read()
+    table_source = read_path(SRC + 'table.rs', errors='replace')
     for label, token, replacement in (
         ('outside-click exit', '.on_mouse_down_out(', 'REMOVED_RESIZE_EVIDENCE'),
         (
@@ -1385,8 +1391,8 @@ def main():
             module, evidence = EVIDENCE[key]
             if module not in sources:
                 path = SRC + module
-                sources[module] = (io.open(path, encoding='utf-8', errors='replace').read()
-                                   if os.path.exists(path) else '')
+                sources[module] = (read_path(path, errors='replace')
+                                   if module_exists(path) else '')
             if evidence_matches(key, evidence, sources[module]):
                 implemented += 1
             else:
@@ -1398,8 +1404,8 @@ def main():
         module, evidence = EVIDENCE[key]
         if module not in sources:
             path = SRC + module
-            sources[module] = (io.open(path, encoding='utf-8', errors='replace').read()
-                               if os.path.exists(path) else '')
+            sources[module] = (read_path(path, errors='replace')
+                               if module_exists(path) else '')
         if evidence_matches(key, evidence, sources[module]):
             implemented += 1
         else:
@@ -1424,8 +1430,8 @@ def main():
             module, evidence = EVIDENCE[key]
             if module not in sources:
                 path = SRC + module
-                sources[module] = (io.open(path, encoding='utf-8', errors='replace').read()
-                                   if os.path.exists(path) else '')
+                sources[module] = (read_path(path, errors='replace')
+                                   if module_exists(path) else '')
             if evidence_matches(key, evidence, sources[module]):
                 implemented += 1
             else:

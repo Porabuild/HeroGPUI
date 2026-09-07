@@ -19,6 +19,7 @@ import glob
 sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from component_source import list_modules, read_module, read_path
 from bundle import css_cache as _css_cache, resolve as _resolve_bundle
 
 # The pinned v3.2.4 bundle. See .shots/bundle.py: reading upstream live would
@@ -118,9 +119,9 @@ WONT_ANIMATE = {
 
 
 def source():
-    text = []
-    for path in glob.glob(SRC + '*.rs') + glob.glob(THEME + '*.rs'):
-        text.append(io.open(path, encoding='utf-8').read())
+    text = [read_module(name, SRC.rstrip('/')) for name in list_modules(SRC.rstrip('/'))]
+    for path in glob.glob(THEME + '*.rs'):
+        text.append(read_path(path))
     return '\n'.join(text)
 
 
@@ -158,7 +159,7 @@ def declared_motions(css):
 
 def check_motions():
     """Each `Motion` constant against the CSS it transcribes."""
-    src = io.open('crates/herogpui-components/src/anim.rs', encoding='utf-8').read()
+    src = read_path('crates/herogpui-components/src/anim.rs')
     ours = {}
     # `cargo fix`/rustfmt may split a constant across lines, so match the
     # fields rather than the one-line form -- this regex silently found nothing
@@ -176,7 +177,7 @@ def check_motions():
             rows.append(('?', comp, name, 'no stylesheet', ''))
             bad += 1
             continue
-        blocks = declared_motions(io.open(path, encoding='utf-8', errors='replace').read())
+        blocks = declared_motions(read_path(path, errors='replace'))
         if index >= len(blocks) or name not in ours:
             rows.append(('?', comp, name, 'not found', ''))
             bad += 1
@@ -205,8 +206,8 @@ def check_switch_motion():
     if not os.path.exists(css_path):
         print('switch motion: no stylesheet')
         return 1
-    css = io.open(css_path, encoding='utf-8', errors='replace').read()
-    src = io.open(src_path, encoding='utf-8').read()
+    css = read_path(css_path, errors='replace')
+    src = read_path(src_path)
     control = re.search(
         r'\.switch__control\s*\{(.*?)(?=\n/\* Switch content)', css, re.S
     )
@@ -316,8 +317,8 @@ def check_color_area_motion():
     if not os.path.exists(css_path):
         print('color area motion: no stylesheet')
         return 1
-    css = io.open(css_path, encoding='utf-8', errors='replace').read()
-    src = io.open(src_path, encoding='utf-8').read()
+    css = read_path(css_path, errors='replace')
+    src = read_path(src_path)
     thumb = re.search(r'\.color-area__thumb\s*\{(.*)\n\}', css, re.S)
     body = thumb.group(1) if thumb else ''
     want_width = re.search(r'width\s+(\d+)ms\s+var\(--ease-([\w-]+)\)', body)
@@ -381,7 +382,7 @@ def check_select_motion():
     if not os.path.exists(src_path):
         print('select motion: no source')
         return 1
-    src = io.open(src_path, encoding='utf-8').read()
+    src = read_path(src_path)
     rows = [
         (
             'crate::anim::entering_zoom(' in src
@@ -411,7 +412,7 @@ def check_autocomplete_motion():
     if not os.path.exists(src_path):
         print('autocomplete motion: no source')
         return 1
-    src = io.open(src_path, encoding='utf-8').read()
+    src = read_path(src_path)
     rows = [
         (
             'crate::anim::entering_zoom(' in src
@@ -442,8 +443,8 @@ def check_tabs_motion():
     if not os.path.exists(css_path):
         print('tabs motion: no stylesheet')
         return 1
-    css = io.open(css_path, encoding='utf-8', errors='replace').read()
-    src = io.open(src_path, encoding='utf-8').read()
+    css = read_path(css_path, errors='replace')
+    src = read_path(src_path)
     separator = re.search(
         r'/\* Tab separator \*/\s*\.tabs__separator\s*\{(.*?)(?=\n/\* Tab panel)',
         css,
@@ -518,8 +519,10 @@ def check_tabs_motion():
     listener_free = (
         'frame.render(indicator)' in src
         and '.render(separator)' in src
-        and 'tabs-indicator-slide-' in src
-        and 'tabs-separator-fade-' in src
+        # Both animated children carry a generation-keyed id derived from the
+        # Tabs' own id, so a second Tabs on the page animates independently.
+        and 'element_id::indexed(&self.id, "slide", self.generation)' in src
+        and 'element_id::indexed(&self.id, "fade", self.generation)' in src
     )
     reversal = (
         'current.from = current.rect.get();' in src
@@ -564,9 +567,9 @@ def check_button_motion():
     if not os.path.exists(css_path):
         print('button motion: no stylesheet')
         return 1
-    css = io.open(css_path, encoding='utf-8', errors='replace').read()
-    src = io.open(src_path, encoding='utf-8').read()
-    anim = io.open(anim_path, encoding='utf-8').read()
+    css = read_path(css_path, errors='replace')
+    src = read_path(src_path)
+    anim = read_path(anim_path)
 
     def scale_in(pattern):
         block = re.search(pattern, css, re.S)
@@ -619,9 +622,9 @@ def check_number_field_motion():
     if not os.path.exists(css_path):
         print('number field motion: no stylesheet')
         return 1
-    css = io.open(css_path, encoding='utf-8', errors='replace').read()
-    src = io.open(src_path, encoding='utf-8').read()
-    anim = io.open(anim_path, encoding='utf-8').read()
+    css = read_path(css_path, errors='replace')
+    src = read_path(src_path)
+    anim = read_path(anim_path)
 
     block = re.search(
         r'\.number-field__increment-button,\s*\n\.number-field__decrement-button\s*\{(.*?)\n\}',
@@ -659,10 +662,10 @@ def check_toggle_button_motion():
     if not os.path.exists(css_path) or not os.path.exists(group_css_path):
         print('toggle button motion: no stylesheet')
         return 1
-    css = io.open(css_path, encoding='utf-8', errors='replace').read()
-    group_css = io.open(group_css_path, encoding='utf-8', errors='replace').read()
-    src = io.open(src_path, encoding='utf-8').read()
-    anim = io.open(anim_path, encoding='utf-8').read()
+    css = read_path(css_path, errors='replace')
+    group_css = read_path(group_css_path, errors='replace')
+    src = read_path(src_path)
+    anim = read_path(anim_path)
 
     def scale_for(selector, end):
         block = re.search(re.escape(selector) + r'\s*\{(.*?)(?=' + end + r')', css, re.S)
@@ -723,9 +726,9 @@ def check_pagination_motion():
     if not os.path.exists(css_path):
         print('pagination motion: no stylesheet')
         return 1
-    css = io.open(css_path, encoding='utf-8', errors='replace').read()
-    src = io.open(src_path, encoding='utf-8').read()
-    anim = io.open(anim_path, encoding='utf-8').read()
+    css = read_path(css_path, errors='replace')
+    src = read_path(src_path)
+    anim = read_path(anim_path)
 
     def scale_in(pattern):
         block = re.search(pattern, css, re.S)
@@ -776,7 +779,7 @@ def check_drawer_motion():
     if not os.path.exists(css_path):
         print('drawer motion: no stylesheet')
         return 1
-    css = io.open(css_path, encoding='utf-8', errors='replace').read()
+    css = read_path(css_path, errors='replace')
     anim = io.open(os.path.join(SRC, 'anim.rs'), encoding='utf-8').read()
     drawer = io.open(os.path.join(SRC, 'drawer.rs'), encoding='utf-8').read()
     util = io.open(os.path.join(SRC, 'util.rs'), encoding='utf-8').read()
@@ -838,17 +841,22 @@ def check_progress_circle_motion():
     if not os.path.exists(css_path):
         print('progress circle motion: no stylesheet')
         return 1
-    css = io.open(css_path, encoding='utf-8', errors='replace').read()
-    anim = io.open(os.path.join(SRC, 'anim.rs'), encoding='utf-8').read()
-    progress = io.open(os.path.join(SRC, 'progress.rs'), encoding='utf-8').read()
+    css = read_path(css_path, errors='replace')
+    anim = read_path(os.path.join(SRC, 'anim.rs'))
+    progress = read_path(os.path.join(SRC, 'progress.rs'))
 
     want = re.search(r'animation:\s*progress-circle-spin\s+(\d+)s\s+linear\s+infinite', css)
     got = re.search(r'pub const PROGRESS_CIRCLE_SPIN_MS:\s*u64\s*=\s*(\d+)', anim)
     want_ms = int(want.group(1)) * 1000 if want else None
     got_ms = int(got.group(1)) if got else None
+    # The animation id is a structured ElementId (`spin` under the circle's
+    # id) so two circles in one window do not share a timeline. The first
+    # argument is therefore `spin_id`, not the v3 keyframe name as a string.
     wired = bool(re.search(
-        r'with_animation\(\s*"progress-circle-spin"[\s\S]{0,300}?'
-        r'PROGRESS_CIRCLE_SPIN_MS[\s\S]{0,120}?\.repeat\(\)',
+        r'element_id::scoped\(id, "spin"\)[\s\S]{0,400}?'
+        r'with_animation\(\s*spin_id,[\s\S]{0,200}?'
+        r'PROGRESS_CIRCLE_SPIN_MS[\s\S]{0,40}?\.repeat\(\)'
+        r'[\s\S]{0,160}?progress_circle_spin_turn',
         progress,
     ))
     reduced = (
@@ -880,7 +888,7 @@ def check_progress_bar_motion():
     if not os.path.exists(css_path):
         print('progress bar motion: no stylesheet')
         return 1
-    css = io.open(css_path, encoding='utf-8', errors='replace').read()
+    css = read_path(css_path, errors='replace')
     anim = io.open(os.path.join(SRC, 'anim.rs'), encoding='utf-8').read()
     progress = io.open(os.path.join(SRC, 'progress.rs'), encoding='utf-8').read()
 
@@ -1023,9 +1031,9 @@ def corpus():
     only in the component stylesheets, so checking presence against the bundle
     reported them as stale when they are exactly what the modal declares.
     """
-    text = [io.open(BUNDLE, encoding='utf-8', errors='replace').read()]
+    text = [read_path(BUNDLE, errors='replace')]
     for path in glob.glob(os.path.join(CACHE, '*.css')):
-        text.append(io.open(path, encoding='utf-8', errors='replace').read())
+        text.append(read_path(path, errors='replace'))
     return '\n'.join(text)
 
 

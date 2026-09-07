@@ -27,6 +27,9 @@ import sys
 
 sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from component_source import list_modules, read_module, read_path
+
 CACHE = os.path.join(os.environ.get('TEMP', '/tmp'), 'heroui-css')
 SRC = 'crates/herogpui-components/src/'
 THEME = 'crates/herogpui-theme/src/'
@@ -58,11 +61,13 @@ def our_source():
     in no comment. Both count; what is in neither is what nobody has read.
     """
     text = []
-    for root in (SRC, THEME, CORE):
+    src_dir = SRC.rstrip('/')
+    for name in list_modules(src_dir):
+        text.append(read_module(name, src_dir, errors='replace'))
+    for root in (THEME, CORE):
         for name in sorted(os.listdir(root)):
             if name.endswith('.rs'):
-                text.append(io.open(root + name, encoding='utf-8',
-                                    errors='replace').read())
+                text.append(read_path(root + name, errors='replace'))
     here = os.path.dirname(os.path.abspath(__file__))
     for audit in ('design_audit.py', 'state_audit.py', 'anim_audit.py',
                   'token_audit.py'):

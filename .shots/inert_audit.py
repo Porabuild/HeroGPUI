@@ -36,12 +36,14 @@ import os
 import re
 import sys
 
+from component_source import list_modules, read_module, read_path
 from design_audit import mask_comments, mask_literals
+from gallery_pages import page_sources
 
 sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 
 SRC = 'crates/herogpui-components/src/'
-PAGES = ('gallery/src/pages/components.rs', 'gallery/src/pages/docs.rs')
+PAGES = page_sources()
 
 # The calls that put a piece of state in the window's keyed store. Each one needs
 # a key derived from the component's own id, or every instance shares it.
@@ -77,10 +79,8 @@ ALLOW = {
 def controlled_builders():
     """`{struct: {builder fn}}` for the props a component expects to be driven."""
     out = {}
-    for name in sorted(os.listdir(SRC)):
-        if not name.endswith('.rs'):
-            continue
-        src = io.open(SRC + name, encoding='utf-8', errors='replace').read()
+    for name in list_modules(SRC.rstrip('/')):
+        src = read_module(name, SRC.rstrip('/'), errors='replace')
         # Which struct's render calls `controlled`, and on which fields. Reading
         # this per file instead let `CheckboxGroup`'s `value` count as
         # `Checkbox`'s -- and `Checkbox::value` is the *form* value, which is
@@ -158,10 +158,8 @@ def shared_keys():
         + quote + r'([^' + quote + r']*)' + quote
     )
     out = []
-    for name in sorted(os.listdir(SRC)):
-        if not name.endswith('.rs'):
-            continue
-        src = io.open(SRC + name, encoding='utf-8', errors='replace').read()
+    for name in list_modules(SRC.rstrip('/')):
+        src = read_module(name, SRC.rstrip('/'), errors='replace')
         for m in pattern.finditer(src):
             out.append('%-20s line %-6d %-16s %s%s%s'
                        % (name, src[:m.start()].count('\n') + 1, m.group(1),
@@ -176,7 +174,7 @@ def main():
     frozen, allowed = [], 0
     checked = 0
     for path in PAGES:
-        src = io.open(path, encoding='utf-8', errors='replace').read()
+        src = read_path(path, errors='replace')
         for struct, eid, line, chunk in instances(src):
             if struct not in builders:
                 continue

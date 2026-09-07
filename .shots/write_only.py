@@ -22,6 +22,9 @@ an explicit ignore is exactly how a write-only field would hide.
 import io
 import re
 import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from component_source import list_modules, read_module, read_path
 import glob
 
 sys.stdout.reconfigure(encoding='utf-8', errors='replace')
@@ -30,9 +33,8 @@ SRC = 'crates/herogpui-components/src/'
 findings = []
 seen = {}
 
-for path in sorted(glob.glob(SRC + '*.rs')):
-    name = path.replace('\\', '/').split('/')[-1]
-    src = io.open(path, encoding='utf-8').read()
+for name in list_modules(SRC.rstrip('/')):
+    src = read_module(name, SRC.rstrip('/'))
 
     # Component structs only: those that derive IntoElement are the builders
     # whose fields are the public API surface.

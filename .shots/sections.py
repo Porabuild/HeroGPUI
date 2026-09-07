@@ -13,7 +13,9 @@ import sys
 
 sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 
-PAGES = ('gallery/src/pages/components.rs', 'gallery/src/pages/docs.rs')
+from gallery_pages import page_sources
+
+PAGES = page_sources()
 
 
 def page_sections():

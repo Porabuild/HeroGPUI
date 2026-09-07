@@ -16,6 +16,7 @@ import os
 # Download once:
 #   curl -sL -o heroui-full.txt https://heroui.com/react/llms-full.txt
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from component_source import list_modules, read_module, read_path
 from bundle import resolve as _resolve_bundle
 
 # The pinned v3.2.4 bundle. See .shots/bundle.py: reading upstream live would
@@ -124,8 +125,8 @@ ALIAS = {
     'Calendar.onChange': 'on_change_all',
     # Select documents the same scalar/array union. The plural builders prove
     # that multiple selection is controlled, seeded and reported as a set.
-    'Select.value': 'selected_indices',
-    'Select.defaultValue': 'default_selected_indices',
+    'Select.value': 'selected_keys',
+    'Select.defaultValue': 'default_selected_keys',
     'Select.onChange': 'on_selection_change_all',
     # Autocomplete's onChange is Key | Key[] | null. The slice callback
     # represents all three shapes, including ClearButton's empty selection;
@@ -467,9 +468,6 @@ WONT_PORT = {
     # "automatically set to 'search'" -- a search field has one input type.
     'SearchField.type': 'single-valued',
     'ScrollShadow.variant': 'single-valued',
-    # gpui draws no native scrollbar in a scroll container, so there is none to
-    # hide.
-    'ScrollShadow.hideScrollBar': 'no-native-scrollbar',
     # An accessible name with no accessibility layer to expose it to.
     'ColorSwatch.colorName': 'no-a11y-attrs',
     # Taken as a constructor argument rather than a builder, because these
@@ -709,7 +707,7 @@ FILES = {
     'Typography': 'typography.rs', 'ScrollShadow': 'scroll_shadow.rs',
 }
 
-bundle = io.open(BUNDLE, encoding='utf-8').read()
+bundle = read_path(BUNDLE)
 
 # Our builder methods, per file.
 # Builders are attributed per `impl <Struct>` block, not per file. Several
@@ -720,9 +718,8 @@ methods = {}
 impl_methods = {}
 # Props each struct's constructor takes positionally.
 constructor_args = {}
-for path in glob.glob(SRC + '*.rs'):
-    name = path.replace('\\', '/').split('/')[-1]
-    src = io.open(path, encoding='utf-8').read()
+for name in list_modules(SRC.rstrip('/')):
+    src = read_module(name, SRC.rstrip('/'))
     methods[name] = set(re.findall(r'pub fn ([a-z_0-9]+)\s*\(', src))
     # Inherent impls only: `impl Foo {`, never `impl Trait for Foo {`.
     for block in re.split(r'^impl\b', src, flags=re.M)[1:]:

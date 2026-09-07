@@ -396,6 +396,8 @@ EXTRA_OK = {
     'paragraph': 'constructor',
     'kind': 'constructor',
     'id': 'gpui-element-id',
+    # The one slot that replaces v3 `className` on every component.
+    'sx': 'no-classname',
     'w': 'no-classname',
     'h': 'no-classname',
     'max_h': 'no-classname',
@@ -505,6 +507,7 @@ EXTRA_OK_SCOPED = {
     'RangeCalendar.locale': 'no-i18n-provider',
     'DatePicker.locale': 'no-i18n-provider',
     'DateRangePicker.locale': 'no-i18n-provider',
+    'DateField.locale': 'no-i18n-provider',
     # React Aria 3.51.0's `useSelectableCollection` takes `escapeKeyBehavior`
     # to choose whether an unmodified Escape clears the selection. HeroUI
     # inherits it on every selectable collection and re-documents it on none,

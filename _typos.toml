@@ -1,0 +1,11 @@
+# Exceptions for the `typos` CI gate. Every entry is a word typos would
+# "correct" that is right as written in this repo — say why when adding one.
+
+[default.extend-words]
+# `combo_box.rs`'s caret-stability tests (e.g.
+# `combo_box_caret_stays_at_the_end_when_the_list_opens` in
+# crates/herogpui-components/tests/pickers_deep.rs) simulate typing a partial
+# prefix of the fixture item "Typst" to prove the list filters and the caret
+# survives. typos reads the standalone "typ" as a truncated "type"; here it is
+# deliberately incomplete input, not a spelling error.
+typ = "typ"

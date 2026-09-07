@@ -49,6 +49,7 @@ sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 
 CSS = os.path.join(os.environ.get('TEMP', '/tmp'), 'heroui-css')
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from component_source import list_modules, read_module, read_path
 from bundle import css_cache as _css_cache
 
 if not _css_cache():
@@ -208,7 +209,7 @@ def documented_parts():
             # `Radio` and `Tag` are documented on their group's page and drawn by
             # it; `LLMs.txt` is the docs bundle's own heading.
             continue
-        src = io.open(SRC + module, encoding='utf-8', errors='replace').read()
+        src = read_path(SRC + module, errors='replace')
         for part in sorted(parts[comp]):
             name = '%s.%s' % (comp, part)
             reason = WONT_RENDER.get((comp, part))
@@ -252,7 +253,7 @@ def main():
                 unmapped += 1
                 rows.append(('!', sheet, slot, 'no SLOT entry -- map it'))
                 continue
-            src = io.open(SRC + module, encoding='utf-8', errors='replace').read()
+            src = read_path(SRC + module, errors='replace')
             if re.search(pattern, src):
                 met += 1
                 if '--all' in sys.argv:

@@ -17,6 +17,5 @@ web/**/*.css text eol=lf
 web/public/gallery/*.js -text
 web/public/gallery/*.wasm binary
 web/public/gallery/index.html text eol=lf
-web/wasm-migration/*.patch -text
 # PowerShell is happier with CRLF on Windows.
 *.ps1 text eol=crlf

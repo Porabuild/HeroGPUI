@@ -1,8 +1,8 @@
 name: rust-env
 description: >-
-  Shared Linux setup for the Rust gate jobs: the system libraries GPUI links
-  against, which optimization level the workspace crates build at, and the
-  dependency cache that job builds against.
+  Shared setup for the Rust gate jobs: the Linux system libraries GPUI links
+  against (Linux runners only), which optimization level the workspace crates
+  build at, and the dependency cache that job builds against.
 
 inputs:
   profile:
@@ -20,6 +20,13 @@ runs:
   using: composite
   steps:
     - name: Install Linux build dependencies
+      # Linux-only, and skipped rather than faked on the other hosts: these
+      # are the system libraries the gpui Linux platform crates link against.
+      # macOS needs nothing beyond the runner's SDK (Metal arrives through
+      # objc2 bindings), and Windows links through the windows crate's import
+      # libraries with the rust-lld pin in .cargo/config.toml — so the macOS
+      # and Windows matrix legs of the test jobs install nothing here.
+      if: runner.os == 'Linux'
       shell: bash
       run: |
         sudo apt-get update

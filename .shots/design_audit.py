@@ -38,6 +38,7 @@ COMPONENTS = ('https://raw.githubusercontent.com/heroui-inc/heroui/v3.2.4'
 # The same stylesheets are vendored (47KB) so the audit needs no network and
 # every run measures the same v3.2.4 tag. `--fetch` still refreshes upstream.
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from component_source import list_modules, read_module, read_path
 from bundle import css_cache as unpack
 
 # v3's own scales, from themes/shared/theme.css and themes/default/variables.css.
@@ -107,7 +108,7 @@ def helper_px(name):
     `radius_lg` to `radius_3xl` -- so this follows the source rather than
     restating the mapping here and going stale.
     """
-    src = io.open(SRC + 'util.rs', encoding='utf-8').read()
+    src = read_path(SRC + 'util.rs')
     body = re.search(
         r'pub fn ' + re.escape(name) + r'\(cx: &App\) -> Pixels \{(.*?)\n\}',
         src, re.S)
@@ -122,20 +123,20 @@ def helper_px(name):
 
 
 def pagination_summary_text(_body):
-    src = mask_comments(strip_cfg_test(io.open(SRC + 'pagination.rs', encoding='utf-8').read()))
+    src = mask_comments(strip_cfg_test(read_path(SRC + 'pagination.rs')))
     body = re.search(r'\.children\(self\.summary\.map\(\|text\| \{([\s\S]*?)\n            \}\)\)', src)
     if not body or not re.search(r'\.text_size\(cell_text\)', body.group(1)):
         return None
     if not re.search(r'let cell_text = self\.size\.text_size\(\);', src):
         return None
-    core = mask_comments(strip_cfg_test(io.open(CORE, encoding='utf-8').read()))
+    core = mask_comments(strip_cfg_test(read_path(CORE)))
     block = re.search(r'pub fn text_size\(self\)[\s\S]*?match self \{([\s\S]*?)\n        \}', core)
     value = re.search(r'Size::Md => gpui::px\(([\d.]+)\)', block.group(1)) if block else None
     return float(value.group(1)) if value else None
 
 
 def accordion_body_metric(property):
-    source = mask_comments(strip_cfg_test(io.open(SRC + 'accordion.rs', encoding='utf-8').read()))
+    source = mask_comments(strip_cfg_test(read_path(SRC + 'accordion.rs')))
     for opening in re.finditer(r'gpui::div\(\)', mask_literals(source)):
         value = None
         owns_body = False
@@ -169,7 +170,7 @@ def press_scale(name):
     0.95 here and going stale when a scale is retuned. The percentage matches
     `measure`'s scale unit, where the half-pixel tolerance is one point.
     """
-    src = io.open(SRC + 'anim.rs', encoding='utf-8').read()
+    src = read_path(SRC + 'anim.rs')
     m = re.search(r'pub const ' + re.escape(name) + r': f32 = ([\d.]+);', src)
     return float(m.group(1)) * 100.0 if m else None
 
@@ -189,7 +190,7 @@ def SIZE_XL(name):
     Read out of the enum rather than restated, since that is the mapping under
     test: a shared 16/20/24/32/40 scale matched neither of v3's two sheets.
     """
-    src = io.open(CORE, encoding='utf-8').read()
+    src = read_path(CORE)
     body = re.search(r'pub fn swatch_px\(self\) -> gpui::Pixels \{([\s\S]*?)\n    \}', src)
     if not body:
         return None
@@ -206,7 +207,7 @@ def swatch_picker_default(field):
     pair, so the `__item` readers below resolve the mapping instead of
     restating 32/2/16 here; a default that moves takes the readers with it.
     """
-    src = io.open(SRC + 'color_picker.rs', encoding='utf-8').read()
+    src = read_path(SRC + 'color_picker.rs')
     m = re.search(r'impl ColorSwatchPicker \{[\s\S]{0,600}?'
                   + re.escape(field) + r': \w+::(\w+),', src)
     return m.group(1) if m else None
@@ -221,7 +222,7 @@ def swatch_picker_border(_group):
     """The item border: v3 pins `border-2` on `.color-swatch-picker__item`,
     and the port maps the width per size. Read the arm the default size picks,
     merging arms (`Sm | Md`) included."""
-    src = io.open(SRC + 'color_picker.rs', encoding='utf-8').read()
+    src = read_path(SRC + 'color_picker.rs')
     block = re.search(r'let border_width = match self\.size \{([\s\S]*?)\n        \};', src)
     size = swatch_picker_default('size')
     if not block or not size:
@@ -237,7 +238,7 @@ def swatch_picker_radius(_group):
     """The item radius: v3 pins `rounded-2xl` (16) on `.color-swatch-picker__item`,
     and the port maps the radius per shape and then per size. Walk both matches
     from the constructor's default pair."""
-    src = io.open(SRC + 'color_picker.rs', encoding='utf-8').read()
+    src = read_path(SRC + 'color_picker.rs')
     block = re.search(r'let item_radius = match self\.shape \{([\s\S]*?)\n        \};', src)
     shape = swatch_picker_default('shape')
     size = swatch_picker_default('size')
@@ -1013,9 +1014,9 @@ CHECKS = [
     ('modal', '.modal__heading', 'text', 'Modal heading text-base', SRC + 'modal.rs',
      r'let header = if self\.title[\s\S]*?\.text_size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('modal', '.modal__body', 'text', 'Modal body text-sm', SRC + 'modal.rs',
-     r'\.id\("modal-body"\)[\s\S]*?\.text_size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+     r'\.id\(element_id::scoped\(&self\.id, "body"\)\)[\s\S]*?\.text_size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('modal', '.modal__body', 'leading', 'Modal body leading-[1.43]', SRC + 'modal.rs',
-     r'\.id\("modal-body"\)[\s\S]{0,400}?\.line_height\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+     r'\.id\(element_id::scoped\(&self\.id, "body"\)\)[\s\S]{0,400}?\.line_height\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('modal', '.modal__footer', 'gap', 'Modal footer gap-2', SRC + 'modal.rs',
      r'v3\'s sheet[\s\S]*?\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('alert-dialog', '.alert-dialog__dialog', 'p', 'AlertDialog dialog p-6',
@@ -1974,7 +1975,7 @@ def width_vars():
             path = os.path.join(CACHE, name)
             if not os.path.exists(path):
                 continue
-            text = io.open(path, encoding='utf-8', errors='replace').read()
+            text = read_path(path, errors='replace')
             for m in re.finditer(r'(--[\w-]*width[\w-]*):\s*([^;]+);', text):
                 _WIDTH_VARS.setdefault(m.group(1), m.group(2).strip())
     return _WIDTH_VARS
@@ -2602,10 +2603,9 @@ def range_calendar_grid_width(path):
     """Read the default panel width through its cell divisor and row count."""
     try:
         source = mask_literals(mask_comments(strip_cfg_test(
-            io.open(path, encoding='utf-8').read())))
+            read_path(path))))
         calendar = mask_literals(mask_comments(strip_cfg_test(
-            io.open(os.path.join(os.path.dirname(path), 'calendar.rs'),
-                    encoding='utf-8').read())))
+            read_path(os.path.join(os.path.dirname(path), 'calendar.rs')))))
     except OSError:
         return None
     if not re.search(r'let column_width = if [^;]*?}\s*else\s*{\s*'
@@ -2637,7 +2637,7 @@ def our_value(path, pattern, transform):
     if pattern == 'slider_axis_inset_vertical':
         return slider_axis_inset(path, True)
     try:
-        src = io.open(path, encoding='utf-8').read()
+        src = read_path(path)
     except OSError:
         return None
     if pattern.startswith('field_wrapper_gap:'):
@@ -2667,7 +2667,7 @@ def rust_blocks_after(source, marker):
 def contextual_our_value(path, selector):
     """Read a Dropdown override from its owning conditional block."""
     try:
-        source = io.open(path, encoding='utf-8').read()
+        source = read_path(path)
     except OSError:
         return None
     if selector.endswith('[data-slot="dropdown-menu"]'):
@@ -2744,7 +2744,7 @@ def slider_axis_inset_from(source, vertical):
 def slider_axis_inset(path, vertical):
     """File adapter: read a Slider orientation's content-box inset."""
     try:
-        source = io.open(path, encoding='utf-8').read()
+        source = read_path(path)
     except OSError:
         return None
     return slider_axis_inset_from(source, vertical)
@@ -2830,7 +2830,7 @@ def indicator_padding_from(source):
 def alert_indicator_padding(path):
     """File adapter: read the indicator padding out of alert.rs."""
     try:
-        source = io.open(path, encoding='utf-8').read()
+        source = read_path(path)
     except OSError:
         return None
     return indicator_padding_from(source)
@@ -2861,7 +2861,7 @@ _AVATAR_FONT_ASSIGN = re.compile(
 def tag_leading(path, size):
     """Read the size metric only while the production tag builder applies it."""
     try:
-        source = mask_literals(strip_cfg_test(io.open(path, encoding='utf-8').read()))
+        source = mask_literals(strip_cfg_test(read_path(path)))
     except OSError:
         return None
     renders = list(rust_blocks_after(source, 'impl RenderOnce for TagGroup'))
@@ -2895,7 +2895,7 @@ def avatar_fallback_text_from(source, large):
 def avatar_fallback_text(path, large):
     """File adapter: read Avatar fallback text size out of avatar.rs."""
     try:
-        source = io.open(path, encoding='utf-8').read()
+        source = read_path(path)
     except OSError:
         return None
     return avatar_fallback_text_from(source, large)
@@ -3041,7 +3041,7 @@ def check_fills():
         css_path = os.path.join(CACHE, comp + '.css')
         body = None
         if os.path.exists(css_path):
-            css = io.open(css_path, encoding='utf-8', errors='replace').read()
+            css = read_path(css_path, errors='replace')
             chain = NESTED_SELECTOR_CHAINS.get((comp, selector))
             body = nested_rule_chain(css, chain) if chain else rule_body(css, selector)
         if body is None or token not in body:
@@ -3049,7 +3049,7 @@ def check_fills():
             stale += 1
             continue
         try:
-            src = io.open(path, encoding='utf-8').read()
+            src = read_path(path)
         except OSError:
             src = ''
         if expr in src:
@@ -3071,7 +3071,7 @@ def check_fills():
 def check_toggle_button_style_contract():
     """Non-numeric ToggleButton CSS tokens that metric checks cannot cover."""
     path = SRC + 'toggle_button.rs'
-    src = io.open(path, encoding='utf-8', errors='replace').read()
+    src = read_path(path, errors='replace')
     parts = src.split('impl RenderOnce for ToggleButton {', 1)
     render = parts[1].split('// ToggleButtonGroup', 1)[0] if len(parts) == 2 else ''
     checks = [
@@ -3110,8 +3110,8 @@ def check_pagination_style_contract():
     if not os.path.exists(css_path):
         print('pagination styling: no stylesheet')
         return 1
-    css = io.open(css_path, encoding='utf-8', errors='replace').read()
-    src = io.open(src_path, encoding='utf-8', errors='replace').read()
+    css = read_path(css_path, errors='replace')
+    src = read_path(src_path, errors='replace')
 
     base_link = rule_body(css, '.pagination__link') or ''
     sm = re.search(r'\.pagination--sm\s*\{(.*?)(?=\n\.pagination--md)', css, re.S)
@@ -3184,8 +3184,8 @@ def check_tabs_style_contract():
     if not os.path.exists(css_path):
         print('tabs styling: no stylesheet')
         return 1
-    css = io.open(css_path, encoding='utf-8', errors='replace').read()
-    src = io.open(src_path, encoding='utf-8', errors='replace').read()
+    css = read_path(css_path, errors='replace')
+    src = read_path(src_path, errors='replace')
     tab = re.search(r'/\* Individual tab \*/\s*\.tabs__tab\s*\{(.*?)(?=\n/\* Tab separator)',
                     css, re.S)
     arrows = re.search(
@@ -3218,7 +3218,7 @@ def check_tabs_style_contract():
 def check_toolbar_style_contract():
     """Non-numeric Toolbar attached chrome that metric checks cannot cover."""
     path = SRC + 'toolbar.rs'
-    src = io.open(path, encoding='utf-8', errors='replace').read()
+    src = read_path(path, errors='replace')
     parts = src.split('if self.is_attached {', 1)
     attached = parts[1].split('el = el.track_focus', 1)[0] if len(parts) == 2 else ''
     checks = [
@@ -3252,8 +3252,8 @@ def check_card_style_contract():
     if not os.path.exists(css_path):
         print('card styling: no stylesheet')
         return 1
-    css = io.open(css_path, encoding='utf-8', errors='replace').read()
-    src = io.open(src_path, encoding='utf-8', errors='replace').read()
+    css = read_path(css_path, errors='replace')
+    src = read_path(src_path, errors='replace')
     root = rule_body(css, '.card') or ''
     transparent = rule_body(css, '.card--transparent') or ''
     render = src.split('impl RenderOnce for Card {', 1)
@@ -3293,8 +3293,8 @@ def check_surface_style_contract():
     if not os.path.exists(css_path):
         print('surface styling: no stylesheet')
         return 1
-    css = io.open(css_path, encoding='utf-8', errors='replace').read()
-    src = io.open(src_path, encoding='utf-8', errors='replace').read()
+    css = read_path(css_path, errors='replace')
+    src = read_path(src_path, errors='replace')
     root = rule_body(css, '.surface') or ''
     transparent = rule_body(css, '.surface--transparent') or ''
     constructor = src.split('impl Surface {', 1)
@@ -3339,12 +3339,12 @@ def check_kbd_typography_style_contract():
     """
     kbd_css = rule_body(io.open(os.path.join(CACHE, 'kbd.css'), encoding='utf-8',
                                 errors='replace').read(), '.kbd') or ''
-    kbd_src = io.open(SRC + 'kbd.rs', encoding='utf-8', errors='replace').read()
+    kbd_src = read_path(SRC + 'kbd.rs', errors='replace')
     kbd_render = kbd_src.split('impl RenderOnce for Kbd {', 1)
     kbd_render = kbd_render[1] if len(kbd_render) == 2 else ''
     typo_css = io.open(os.path.join(CACHE, 'typography.css'), encoding='utf-8',
                        errors='replace').read()
-    typo_src = io.open(SRC + 'typography.rs', encoding='utf-8', errors='replace').read()
+    typo_src = read_path(SRC + 'typography.rs', errors='replace')
     checks = [
         ('kbd base has no border', 'border' not in kbd_css
          and '.border(' not in kbd_render and '.border_' not in kbd_render),
@@ -3385,7 +3385,7 @@ def check_color_picker_style_contract():
     """ColorPicker's asymmetric padding must survive its zoom refinement."""
     css = io.open(os.path.join(CACHE, 'color-picker.css'),
                   encoding='utf-8', errors='replace').read()
-    src = io.open(SRC + 'color_picker.rs', encoding='utf-8').read()
+    src = read_path(SRC + 'color_picker.rs')
     checks = [
         ('base asymmetric padding', 'px-2 pt-2 pb-3' in css and
          '.px(px(8.))' in src and '.pt(px(8.))' in src and '.pb(px(12.))' in src),
@@ -3746,7 +3746,7 @@ def main():
         css_path = os.path.join(CACHE, comp + '.css')
         want = None
         if os.path.exists(css_path):
-            css = io.open(css_path, encoding='utf-8', errors='replace').read()
+            css = read_path(css_path, errors='replace')
             chain = NESTED_SELECTOR_CHAINS.get((comp, selector))
             if chain:
                 body = nested_rule_chain(css, chain)

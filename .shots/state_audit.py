@@ -39,6 +39,7 @@ sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 
 CSS = os.path.join(os.environ.get('TEMP', '/tmp'), 'heroui-css')
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from component_source import list_modules, module_exists, read_module, read_path
 from bundle import resolve as _resolve_bundle
 
 # The pinned v3.2.4 bundle. See .shots/bundle.py: reading upstream live would
@@ -319,7 +320,7 @@ PROSE_MODULE = {
 def prose_states():
     """`{page: [normalised state, ...]}` from each page's Interactive States."""
     # No silent zero: an unreadable bundle is a broken audit, not a clean one.
-    text = io.open(BUNDLE, encoding='utf-8', errors='replace').read()
+    text = read_path(BUNDLE, errors='replace')
     out, page = {}, None
     for m in re.finditer(r'^(#|###) (.+?)[ \t]*$', text, re.M):
         if m.group(1) == '#':
@@ -343,7 +344,7 @@ def module_for(page):
 
 def statuses(path):
     """The `status-*` utilities a stylesheet applies."""
-    text = io.open(path, encoding='utf-8', errors='replace').read()
+    text = read_path(path, errors='replace')
     return sorted(set(re.findall(r'status-[a-z-]+', text)))
 
 
@@ -368,8 +369,8 @@ def self_test():
 
     def module_source(module):
         path = SRC + module
-        return (io.open(path, encoding='utf-8', errors='replace').read()
-                if os.path.exists(path) else '')
+        return (read_path(path, errors='replace')
+                if module_exists(path) else '')
 
     def mapped_source(page, state, elsewhere):
         module = elsewhere.get((page, state)) or module_for(page)
@@ -448,8 +449,8 @@ def main():
             module = ELSEWHERE.get(key, MODULE[sheet])
             if module not in sources:
                 path = SRC + module
-                sources[module] = (io.open(path, encoding='utf-8', errors='replace').read()
-                                   if os.path.exists(path) else '')
+                sources[module] = (read_path(path, errors='replace')
+                                   if module_exists(path) else '')
             code = sources[module]
             claimed += 1
             if key in WONT_DO:
@@ -475,18 +476,17 @@ def main():
     for page, states in sorted(prose_states().items()):
         module = module_for(page)
         path = SRC + module
-        if not os.path.exists(path):
+        if not module_exists(path):
             missing.append('%-22s %-22s (no module named %s)' % (page, '-', module))
             continue
         if module not in sources:
-            sources[module] = io.open(path, encoding='utf-8', errors='replace').read()
+            sources[module] = read_path(path, errors='replace')
         for state in states:
             prose_claimed += 1
             elsewhere = PROSE_ELSEWHERE.get((page, state))
             if elsewhere:
                 if elsewhere not in sources:
-                    sources[elsewhere] = io.open(SRC + elsewhere, encoding='utf-8',
-                                                 errors='replace').read()
+                    sources[elsewhere] = read_path(SRC + elsewhere, errors='replace')
                 code = sources[elsewhere]
             else:
                 code = sources[module]

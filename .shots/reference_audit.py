@@ -9,6 +9,9 @@ import io
 import os
 import re
 import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from component_source import list_modules, module_exists, read_module, read_path
 
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -478,14 +481,14 @@ const WIDGET_PARTS: &[PartDoc] = &[PartDoc {
 def main():
     if "--self-test" in sys.argv[1:]:
         return self_test()
-    metadata = io.open(METADATA, encoding="utf-8").read()
-    pages = io.open(PAGES, encoding="utf-8").read()
+    metadata = read_path(METADATA)
+    pages = read_path(PAGES)
     errors = []
     routes = route_imports(pages)
     component_pages = sum(bool(imports) for imports in routes.values())
 
     registered = re.findall(
-        r"(?:pub\(crate\)|pub)\s+const\s+([A-Z][A-Z0-9_]*)\s*:\s*ReferenceMetadata\s*=\s*ReferenceMetadata\s*\{(.*?)\n\};",
+        r"(?:pub(?:\((?:crate|super)\))?)\s+const\s+([A-Z][A-Z0-9_]*)\s*:\s*ReferenceMetadata\s*=\s*ReferenceMetadata\s*\{(.*?)\n\};",
         metadata,
         re.S,
     )
@@ -513,10 +516,10 @@ def main():
             errors.append(f"{page}: missing source_module")
             continue
         source_path = os.path.join(SOURCE_ROOT, f"{module}.rs")
-        if not os.path.isfile(source_path):
+        if not module_exists(source_path):
             errors.append(f"{page}: source module does not exist: {module}.rs")
             continue
-        source = io.open(source_path, encoding="utf-8").read()
+        source = read_path(source_path)
         methods = owner_methods(source)
 
         refs = {}
