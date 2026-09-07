@@ -556,27 +556,44 @@ impl RenderOnce for RadioGroup {
             let circle_el = if row_disabled || self.is_read_only {
                 circle_el
             } else {
+                // The pressed fill rides inside the press refinement, which
+                // owns the scale; a chained `.active` would replace it.
                 let pressed_fill = sem.hover();
-                let circle_el = crate::anim::pressed(
-                    circle_el,
-                    crate::anim::PressBox {
-                        height: circle,
-                        padding_x: None,
-                        width: Some(circle),
-                        min_width: None,
-                        text_size: text,
-                        line_height: text,
-                        gap: px(0.),
-                        radius: crate::util::key_radius(cx),
-                        shrink_x: true,
-                        scale: crate::anim::PRESSED_SCALE_DEEP,
-                    },
-                    cx,
-                );
                 if is_selected {
-                    circle_el.active(move |s| s.bg(pressed_fill))
+                    crate::anim::pressed_with_background(
+                        circle_el,
+                        crate::anim::PressBox {
+                            height: circle,
+                            padding_x: None,
+                            width: Some(circle),
+                            min_width: None,
+                            text_size: text,
+                            line_height: text,
+                            gap: px(0.),
+                            radius: crate::util::key_radius(cx),
+                            shrink_x: true,
+                            scale: crate::anim::PRESSED_SCALE_DEEP,
+                        },
+                        pressed_fill,
+                        cx,
+                    )
                 } else {
-                    circle_el
+                    crate::anim::pressed(
+                        circle_el,
+                        crate::anim::PressBox {
+                            height: circle,
+                            padding_x: None,
+                            width: Some(circle),
+                            min_width: None,
+                            text_size: text,
+                            line_height: text,
+                            gap: px(0.),
+                            radius: crate::util::key_radius(cx),
+                            shrink_x: true,
+                            scale: crate::anim::PRESSED_SCALE_DEEP,
+                        },
+                        cx,
+                    )
                 }
             };
 

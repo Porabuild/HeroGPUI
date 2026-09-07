@@ -11409,13 +11409,28 @@ index a9a7079..e87df46 100644
  }
  
 diff --git a/crates/herogpui-components/src/anim.rs b/crates/herogpui-components/src/anim.rs
-index 03f0c94..65fe293 100644
+index 03f0c94..eab3d0b 100644
 --- a/crates/herogpui-components/src/anim.rs
 +++ b/crates/herogpui-components/src/anim.rs
-@@ -280,23 +280,10 @@ pub struct PressBox {
+@@ -9,10 +9,12 @@
+ //! reaching for `with_animation` directly, so the reduced-motion check and the
+ //! duration/easing live in exactly one place.
+ 
++use std::cell::RefCell;
++use std::collections::HashMap;
+ use std::time::Duration;
+ 
+ use gpui::{
+-    AnimationExt, AnyElement, App, ElementId, InteractiveElement, IntoElement, ParentElement,
++    px, AnimationExt, AnyElement, App, ElementId, InteractiveElement, IntoElement, ParentElement,
+     StatefulInteractiveElement, StyleRefinement, Styled,
+ };
+ use herogpui_theme::ActiveTheme;
+@@ -279,24 +281,12 @@ pub struct PressBox {
+ 
  /// Applies v3's `[data-pressed]` press.
  ///
- /// gpui 0.2.2 has no transform for a div — only `paint_svg` takes a
+-/// gpui 0.2.2 has no transform for a div — only `paint_svg` takes a
 -/// transformation matrix — so `scale(0.97)` is reproduced by scaling everything
 -/// the control is made of: its height, padding, gap, corner radius **and type
 -/// size**, with margins absorbing what the box gives up so the outer footprint
@@ -11433,14 +11448,53 @@ index 03f0c94..65fe293 100644
 -/// style swap with no timeline to animate along, so the scale lands instantly
 -/// and springs back instantly. Everything about the geometry matches; only the
 -/// quarter-second ramp is missing.
-+/// transformation matrix — so `scale(0.97)` is reproduced by shrinking the
-+/// painted height and corner radius. Vertical margin absorbs the height the
-+/// box gives up. Width, padding, type and gap stay at rest so a content-sized
-+/// control cannot pull its neighbours sideways.
++/// v3 presses with `transform: scale(s)` about the centre, and gpui 0.2.2 has
++/// no paint transform — so the pressed element becomes the painted *skin*
++/// inside a stable slot root: the slot keeps the resting footprint, and the
++/// skin downscales about the centre through fractional absolute insets. The
++/// scale therefore never reflows the slot's neighbours, and the skin's own
++/// content (label, padding) is carried along by its box.
  ///
  /// Returns `el` untouched under reduced motion.
  pub fn pressed(el: gpui::Stateful<gpui::Div>, b: PressBox, cx: &App) -> gpui::Stateful<gpui::Div> {
-@@ -320,7 +307,7 @@ fn pressed_with_optional_background(
+@@ -314,51 +304,113 @@ pub fn pressed_with_background(
+     pressed_with_optional_background(el, b, Some(background), cx)
+ }
+ 
++/// Resting slot widths, recorded by [`press_slot_recorder`] while a
++/// content-sized skin hugs its slot at rest and held while it is pressed.
++#[derive(Default)]
++struct PressSlotSizes(RefCell<HashMap<ElementId, f32>>);
++
++impl gpui::Global for PressSlotSizes {}
++
++fn press_slot_width(cx: &App, id: &ElementId) -> Option<f32> {
++    let slots = cx.try_global::<PressSlotSizes>()?;
++    slots.0.borrow().get(id).copied()
++}
++
++/// An invisible layer over the slot that keeps its resting width fresh:
++/// recorded while the skin hugs the slot at rest, and held while it is
++/// pressed.
++fn press_slot_recorder(id: ElementId) -> AnyElement {
++    gpui::canvas(
++        |_, _, _| {},
++        move |bounds, _, _, cx| {
++            let width = f32::from(bounds.size.width);
++            let slots = cx.default_global::<PressSlotSizes>();
++            if slots.0.borrow().get(&id).copied() != Some(width) {
++                slots.0.borrow_mut().insert(id, width);
++            }
++        },
++    )
++    .absolute()
++    .inset_0()
++    .into_any_element()
++}
++
+ fn pressed_with_optional_background(
+     el: gpui::Stateful<gpui::Div>,
+     b: PressBox,
      background: Option<gpui::Hsla>,
      cx: &App,
  ) -> gpui::Stateful<gpui::Div> {
@@ -11449,19 +11503,37 @@ index 03f0c94..65fe293 100644
          return match background {
              Some(background) => el.active(move |style| style.bg(background)),
              None => el,
-@@ -332,32 +319,14 @@ fn pressed_with_optional_background(
+         };
+     }
+-    let inset = inset_for(b.height, b.scale);
+-    el.active(move |s: StyleRefinement| {
++    // A percentage size on the absolutely positioned skin resolves against
++    // the slot, so it overrides every way a caller might have sized the skin
++    // (an explicit `h`, `w_full`, `min_h`) and scales tall content rows by
++    // their real height, not the control minimum. The fractional `left`/`top`
++    // are exactly `(1 - s) / 2` of the slot's axis: the gap a scale of `s`
++    // leaves on each side, which centres the skin.
++    let inset = gpui::DefiniteLength::Fraction((1.0 - b.scale) / 2.0);
++    let scaled = gpui::DefiniteLength::Fraction(b.scale);
++    let pressed_min_height = scaled_by(b.height, b.scale);
++    let pressed_radius = scaled_by(b.radius, b.scale);
++
++    // `active` state only exists for elements with a hitbox, and a hitbox is
++    // only inserted for elements that track focus, set a cursor, or listen to
++    // the mouse. Skins whose caller keeps every handler on the slot (the
++    // calendar cells) would press invisibly; arm a no-op listener so the
++    // press registers. `on_mouse_down` appends, so a caller's own listener
++    // is untouched.
++    let mut el = el.on_mouse_down(gpui::MouseButton::Left, |_, _, _| {});
++    let mut el = el.active(move |s: StyleRefinement| {
+         let s = match background {
              Some(background) => s.bg(background),
              None => s,
          };
 -        let s = s
 -            .h(shrink(b.height, inset + inset))
-+        // Only the painted box squashes, and only on the block axis. Width,
-+        // padding, type and gap stay put so a content-sized control cannot
-+        // pull its neighbours sideways. Vertical margin absorbs the height
-+        // the box gives up, which is what keeps a row's other controls still.
-+        s.h(shrink(b.height, inset + inset))
-             .mt(inset)
-             .mb(inset)
+-            .mt(inset)
+-            .mb(inset)
 -            .text_size(scaled_by(b.text_size, b.scale))
 -            .line_height(scaled_by(b.line_height, b.scale))
 -            .gap(scaled_by(b.gap, b.scale))
@@ -11480,15 +11552,54 @@ index 03f0c94..65fe293 100644
 -                    Some(w) => s.min_w(shrink(w, inset + inset)),
 -                    None => s,
 -                }
--            }
++        s.absolute()
++            .left(inset)
++            .top(inset)
++            .w(scaled)
++            .h(scaled)
++            .min_h(pressed_min_height)
++            .rounded(pressed_radius)
++            .to_owned()
++    });
++
++    // The slot keeps the resting footprint: fixed where the caller gave us a
++    // width or asked for full width, and otherwise the skin's resting width
++    // recorded while it hugged the slot at rest. Callers must add every
++    // visual child to the skin *before* pressing — children added after land
++    // on the slot and fight the skin for its width.
++    let Some(id) = el.interactivity().element_id.clone() else {
++        // No identity to anchor the slot's resting width on; skip the scale
++        // rather than risk a reflow.
++        return el;
++    };
++    let mut slot = gpui::div()
++        .id(ElementId::Name(format!("{id:?}-press-slot").into()))
++        .relative()
++        .flex_shrink_0()
++        .flex()
++        .items_center()
++        .justify_center()
++        // A minimum, not a fixed height: a tall content row grows the slot
++        // past the control minimum instead of being clipped to it.
++        .min_h(b.height);
++    slot = match b.width {
++        Some(width) => slot.w(width),
++        None if !b.shrink_x => slot.w_full(),
++        None => {
++            if let Some(width) = press_slot_width(cx, &id) {
++                slot = slot.w(px(width));
+             }
 -            // Full width: leave the horizontal axis alone.
 -            (None, false) => s,
--        }
-+            .rounded(scaled_by(b.radius, b.scale))
-     })
++            slot.child(press_slot_recorder(id))
+         }
+-    })
++    };
++    slot.child(el)
  }
  
-@@ -437,7 +406,7 @@ pub fn entering_zoom<E>(
+ /// `[data-exiting]` duration. Every overlay in v3 leaves in `duration-100`.
+@@ -437,7 +489,7 @@ pub fn entering_zoom<E>(
  where
      E: IntoElement + Styled + 'static,
  {
@@ -11497,7 +11608,7 @@ index 03f0c94..65fe293 100644
          return el.into_any_element();
      }
  
-@@ -498,7 +467,7 @@ pub fn exiting<E>(el: E, id: impl Into<ElementId>, b: ZoomBox, m: Motion, cx: &A
+@@ -498,7 +550,7 @@ pub fn exiting<E>(el: E, id: impl Into<ElementId>, b: ZoomBox, m: Motion, cx: &A
  where
      E: IntoElement + Styled + 'static,
  {
@@ -11506,7 +11617,7 @@ index 03f0c94..65fe293 100644
          return el.into_any_element();
      }
  
-@@ -585,7 +554,7 @@ pub fn hover_fade(
+@@ -585,7 +637,7 @@ pub fn hover_fade(
  ) -> gpui::Stateful<gpui::Div> {
      let (idle, hovered) = colors;
      let id = id.into();
@@ -11515,7 +11626,7 @@ index 03f0c94..65fe293 100644
          return el.bg(idle).hover(move |s: StyleRefinement| s.bg(hovered));
      }
  
-@@ -671,7 +640,7 @@ pub fn caret_blink<E>(el: E, id: impl Into<ElementId>, cx: &App) -> AnyElement
+@@ -671,7 +723,7 @@ pub fn caret_blink<E>(el: E, id: impl Into<ElementId>, cx: &App) -> AnyElement
  where
      E: IntoElement + Styled + 'static,
  {
@@ -11524,7 +11635,7 @@ index 03f0c94..65fe293 100644
          return el.into_any_element();
      }
  
-@@ -702,7 +671,7 @@ pub fn entering<E>(el: E, id: impl Into<ElementId>, m: Motion, cx: &App) -> AnyE
+@@ -702,7 +754,7 @@ pub fn entering<E>(el: E, id: impl Into<ElementId>, m: Motion, cx: &App) -> AnyE
  where
      E: IntoElement + Styled + 'static,
  {
@@ -11533,7 +11644,7 @@ index 03f0c94..65fe293 100644
          return el.into_any_element();
      }
  
-@@ -730,7 +699,7 @@ pub fn entering_from<E>(
+@@ -730,7 +782,7 @@ pub fn entering_from<E>(
  where
      E: IntoElement + Styled + 'static,
  {
@@ -11542,7 +11653,7 @@ index 03f0c94..65fe293 100644
          return el.into_any_element();
      }
  
-@@ -765,7 +734,7 @@ pub fn exiting_to<E>(
+@@ -765,7 +817,7 @@ pub fn exiting_to<E>(
  where
      E: IntoElement + Styled + 'static,
  {
@@ -12623,7 +12734,7 @@ index da3c0c9..f91eb67 100644
          );
      }
 diff --git a/crates/herogpui-components/src/button.rs b/crates/herogpui-components/src/button.rs
-index 7a8f328..96febab 100644
+index 7a8f328..8133e19 100644
 --- a/crates/herogpui-components/src/button.rs
 +++ b/crates/herogpui-components/src/button.rs
 @@ -333,6 +333,40 @@ fn apply_variant(
@@ -12701,7 +12812,40 @@ index 7a8f328..96febab 100644
          };
  
          if self.full_width {
-@@ -605,14 +643,14 @@ impl RenderOnce for Button {
+@@ -545,20 +583,6 @@ impl RenderOnce for Button {
+             );
+         }
+ 
+-        // `.button:focus-visible` is `status-focused`: a 2px ring, offset from
+-        // the button by another in the background colour. A disabled button is
+-        // not a tab stop, which is what `pointer-events-none` amounts to here.
+-        if focusable {
+-            el = util::ring_if_focused(
+-                el.track_focus(&focus_handle),
+-                &focus_handle,
+-                true,
+-                Vec::new(),
+-                window,
+-                cx,
+-            );
+-        }
+-
+         if self.is_disabled || self.is_pending {
+             el = el.opacity(disabled_opacity);
+         }
+@@ -586,11 +610,6 @@ impl RenderOnce for Button {
+         } else if let Some(label) = self.label {
+             el = el.child(label.to_string());
+         }
+-        if interactive {
+-            if let Some(slot) = &interaction {
+-                el = util::track_interaction(el, slot);
+-            }
+-        }
+         el = el.children(self.children);
+ 
+         // v3's `[data-pressed]` scale. Applied last so the press geometry sits
+@@ -605,14 +624,14 @@ impl RenderOnce for Button {
                  el,
                  crate::anim::PressBox {
                      height: self.size.control_height(),
@@ -12720,8 +12864,50 @@ index 7a8f328..96febab 100644
                      radius: util::control_radius(cx),
                      shrink_x: !self.full_width,
                      scale: press_scale,
+@@ -632,8 +651,39 @@ impl RenderOnce for Button {
+             }
+         }
+ 
+-        // `fade` was consumed where the fill was added; the button is the
+-        // plain styled div either way.
++        // The interaction tracking (hover, mouse/keyboard press bits the
++        // `content` closure reads) belongs on the press slot: key events
++        // dispatch along the focus path, which runs through the slot — the
++        // skin is its child.
++        if interactive {
++            if let Some(slot) = &interaction {
++                el = util::track_interaction(el, slot);
++            }
++        }
++
++        // `.button:focus-visible` is `status-focused`: a 2px ring, offset from
++        // the button by another in the background colour. A disabled button is
++        // not a tab stop, which is what `pointer-events-none` amounts to here.
++        // The focus tracking lands on the press slot (the element `pressed`
++        // returns) so keyboard activation and pointer activation answer on the
++        // same element, and the ring draws around the resting footprint. The
++        // pending/disabled dimming covers the label, which lives above the
++        // skin.
++        if focusable {
++            el = util::ring_if_focused(
++                el.track_focus(&focus_handle),
++                &focus_handle,
++                true,
++                Vec::new(),
++                window,
++                cx,
++            );
++        }
++
++        if self.is_disabled || self.is_pending {
++            el = el.opacity(disabled_opacity);
++        }
++
+         el.into_any_element()
+     }
+ }
 diff --git a/crates/herogpui-components/src/calendar.rs b/crates/herogpui-components/src/calendar.rs
-index 87d98a7..f73112b 100644
+index 87d98a7..14cb02c 100644
 --- a/crates/herogpui-components/src/calendar.rs
 +++ b/crates/herogpui-components/src/calendar.rs
 @@ -5,6 +5,8 @@ use gpui::{
@@ -12950,7 +13136,13 @@ index 87d98a7..f73112b 100644
          let focusable = !disabled;
          let eligible = focusable && !unavailable;
          let selectable = eligible && !self.is_read_only;
-@@ -635,12 +780,14 @@ impl Calendar {
+@@ -632,15 +777,32 @@ impl Calendar {
+         // Uniform circular hit area centred in the slot. The debug selector
+         // lets the headless tests read the cell's laid-out bounds.
+         let indicator_key = format!("{key}-indicator");
++        // The day's own content joins the skin before the press wrap:
++        // children added after `pressed` land on the slot and fight the
++        // skin for width.
          let mut circle = gpui::div()
              .id(gpui::ElementId::Name(key.clone().into()))
              .debug_selector(move || key)
@@ -12963,11 +13155,23 @@ index 87d98a7..f73112b 100644
 -            .text_size(px(14.));
 +            .text_size(px(14.))
 +            .line_height(px(20.))
-+            .font_weight(gpui::FontWeight::MEDIUM);
++            .font_weight(gpui::FontWeight::MEDIUM)
++            .child(match &self.cell {
++                Some(render) => render(CalendarCellState {
++                    date,
++                    formatted_date: self.day_label(date).into(),
++                    is_selected: is_sel,
++                    is_unavailable: unavailable,
++                    is_outside_month: outside_month,
++                    is_today,
++                    is_disabled: disabled,
++                }),
++                None => self.day_label(date).into_any_element(),
++            });
  
          let marker = if self.is_invalid {
              colors.danger.color
-@@ -651,28 +798,25 @@ impl Calendar {
+@@ -651,28 +813,25 @@ impl Calendar {
          // `.calendar__cell[data-pressed]` fills with `bg-default` and scales
          // to 0.95 -- every cell, today included.
          let press_box = crate::anim::PressBox {
@@ -13004,7 +13208,7 @@ index 87d98a7..f73112b 100644
              if selectable {
                  // `.calendar__cell[data-pressed][data-selected]` fills
                  // `bg-accent-hover`, the one pressed recolour the pinned CSS
-@@ -738,6 +882,7 @@ impl Calendar {
+@@ -738,6 +897,7 @@ impl Calendar {
              let on_change = self.on_change.clone();
              let on_change_all = self.on_change_all.clone();
              let on_focus = self.on_focus_change.clone();
@@ -13012,7 +13216,7 @@ index 87d98a7..f73112b 100644
              circle = circle.on_click(move |_, window, cx| {
                  cursor.update(cx, |focused, cx| {
                      *focused = Some(date);
-@@ -751,6 +896,7 @@ impl Calendar {
+@@ -751,6 +911,7 @@ impl Calendar {
                      // `toggle` also records that the user took over
                      // navigation, so the alignment pass stops moving the range.
                      s.toggle(date, mode);
@@ -13020,7 +13224,7 @@ index 87d98a7..f73112b 100644
                      cx.notify();
                      s.selected_dates.clone()
                  });
-@@ -768,7 +914,7 @@ impl Calendar {
+@@ -768,23 +929,12 @@ impl Calendar {
          let marked = self.cell_indicator.as_ref().is_some_and(|f| f(date));
          gpui::div()
              .flex_1()
@@ -13029,24 +13233,24 @@ index 87d98a7..f73112b 100644
              .relative()
              .flex()
              .items_center()
-@@ -776,14 +922,14 @@ impl Calendar {
-             .child(match &self.cell {
-                 Some(render) => circle.child(render(CalendarCellState {
-                     date,
+             .justify_center()
+-            .child(match &self.cell {
+-                Some(render) => circle.child(render(CalendarCellState {
+-                    date,
 -                    formatted_date: date.day.to_string().into(),
-+                    formatted_date: self.day_label(date).into(),
-                     is_selected: is_sel,
-                     is_unavailable: unavailable,
-                     is_outside_month: outside_month,
-                     is_today,
-                     is_disabled: disabled,
-                 })),
+-                    is_selected: is_sel,
+-                    is_unavailable: unavailable,
+-                    is_outside_month: outside_month,
+-                    is_today,
+-                    is_disabled: disabled,
+-                })),
 -                None => circle.child(date.day.to_string()),
-+                None => circle.child(self.day_label(date)),
-             })
+-            })
++            .child(circle)
              .when(marked, |cell| {
                  cell.child(
-@@ -813,37 +959,95 @@ impl Calendar {
+                     gpui::div()
+@@ -813,37 +963,95 @@ impl Calendar {
      /// `.calendar__grid-header` — the seven `.calendar__header-cell` columns.
      fn weekday_header(&self, cx: &App) -> gpui::Div {
          let muted = cx.colors().muted;
@@ -13156,7 +13360,7 @@ index 87d98a7..f73112b 100644
                          true,
                          frame,
                          format!("{}-{y}-{m}-outside-{py}-{pm}-d{day}", frame.base),
-@@ -859,17 +1063,17 @@ impl Calendar {
+@@ -859,17 +1067,17 @@ impl Calendar {
                          // render prop a real `CalendarDate`, and the closure is
                          // the only identity a caller has.
                          let nd = day_num - dim;
@@ -13179,7 +13383,7 @@ index 87d98a7..f73112b 100644
                              false,
                              frame,
                              format!("{}-{y}-{m}-d{day_num}", frame.base),
-@@ -899,13 +1103,30 @@ impl Calendar {
+@@ -899,13 +1107,30 @@ impl Calendar {
          let active_year = view.active_year;
          let base = view.base;
          // `.calendar-year-picker__year-grid` is `gap-1 p-1`.
@@ -13212,7 +13416,7 @@ index 87d98a7..f73112b 100644
                      .when(!self.is_disabled && is_active, |cell| {
                          cell.track_focus(year_focus)
                      })
-@@ -918,13 +1139,12 @@ impl Calendar {
+@@ -918,13 +1143,12 @@ impl Calendar {
                      .items_center()
                      .justify_center()
                      .text_size(px(14.))
@@ -13229,7 +13433,7 @@ index 87d98a7..f73112b 100644
                  } else if !self.is_disabled {
                      // `.calendar-year-picker__year-cell:hover` fills
                      // `bg-default text-default-foreground`.
-@@ -942,10 +1162,12 @@ impl Calendar {
+@@ -942,10 +1166,12 @@ impl Calendar {
                      let on_focus = self.on_focus_change.clone();
                      let own = year_picker_own.clone();
                      let back_to_trigger = heading_focus.clone();
@@ -13244,7 +13448,7 @@ index 87d98a7..f73112b 100644
                              s.set_anchor(next);
                              cx.notify();
                              next
-@@ -964,7 +1186,7 @@ impl Calendar {
+@@ -964,7 +1190,7 @@ impl Calendar {
                          if let Some(cb) = &on_open {
                              cb(false, window, cx);
                          }
@@ -13253,7 +13457,7 @@ index 87d98a7..f73112b 100644
                      });
                  }
  
-@@ -980,9 +1202,23 @@ impl Calendar {
+@@ -980,9 +1206,23 @@ impl Calendar {
                  }
                  row = row.child(cell.child(year.to_string()));
              }
@@ -13278,7 +13482,7 @@ index 87d98a7..f73112b 100644
      }
  }
  
-@@ -1116,7 +1352,8 @@ impl RenderOnce for Calendar {
+@@ -1116,7 +1356,8 @@ impl RenderOnce for Calendar {
          // `selectionAlignment` frames the range around the selection, but only
          // until the user drives navigation themselves.
          let anchor = match (navigated, selected) {
@@ -13288,7 +13492,7 @@ index 87d98a7..f73112b 100644
                  self.duration,
                  self.selection_alignment,
                  first_day,
-@@ -1126,8 +1363,9 @@ impl RenderOnce for Calendar {
+@@ -1126,8 +1367,9 @@ impl RenderOnce for Calendar {
          };
          let anchor = focused_value.map_or(anchor, |focused| {
              let (visible_start, visible_end) =
@@ -13300,7 +13504,7 @@ index 87d98a7..f73112b 100644
                  self.duration,
                  first_day,
                  anchor,
-@@ -1136,26 +1374,49 @@ impl RenderOnce for Calendar {
+@@ -1136,26 +1378,49 @@ impl RenderOnce for Calendar {
                  focused,
              )
          });
@@ -13355,7 +13559,7 @@ index 87d98a7..f73112b 100644
          // `focusedValue` wins; without it the keyboard's own cursor does, and it
          // starts from the selection or today.
          // Taking the focus puts the ring on the date v3 would have focused --
-@@ -1166,6 +1427,11 @@ impl RenderOnce for Calendar {
+@@ -1166,6 +1431,11 @@ impl RenderOnce for Calendar {
              .or(selected)
              .or_else(|| Some(Date::today()))
              .filter(|_| grid_focus.is_focused(window));
@@ -13367,7 +13571,7 @@ index 87d98a7..f73112b 100644
          let frame = Frame {
              selected,
              selected_dates: &selected_dates,
-@@ -1173,9 +1439,12 @@ impl RenderOnce for Calendar {
+@@ -1173,9 +1443,12 @@ impl RenderOnce for Calendar {
              cursor: &cursor,
              base: &base,
              focused: ring_at,
@@ -13381,7 +13585,7 @@ index 87d98a7..f73112b 100644
          let linear = calendar_view::linear_cells(self.duration, first_day, anchor);
          let columns = months.len().max(1);
          let mut heading_focuses = Vec::with_capacity(columns);
-@@ -1192,10 +1461,17 @@ impl RenderOnce for Calendar {
+@@ -1192,10 +1465,17 @@ impl RenderOnce for Calendar {
          let colors = cx.colors();
          let layout = cx.layout();
  
@@ -13402,17 +13606,52 @@ index 87d98a7..f73112b 100644
          // React Stately checks only the day immediately outside the visible
          // range against minValue/maxValue. Unavailable dates do not block
          // paging, and readOnly prevents selection without preventing paging.
-@@ -1256,7 +1532,8 @@ impl RenderOnce for Calendar {
+@@ -1232,6 +1512,8 @@ impl RenderOnce for Calendar {
+                 scale: crate::anim::PRESSED_SCALE_DEEP,
+             };
+             let selector = key.clone();
++            // The icon joins the skin before the press wrap: children added
++            // after `pressed` land on the slot and fight the skin for width.
+             let button = gpui::div()
+                 .id(gpui::ElementId::Name(key.into()))
+                 .debug_selector(move || selector)
+@@ -1242,6 +1524,15 @@ impl RenderOnce for Calendar {
+                 // `.calendar__nav-button` is `size-6 rounded-2xl`.
+                 .size(px(24.))
+                 .rounded(crate::util::soft_radius(cx))
++                .child(
++                    gpui::svg()
++                        // `.calendar__nav-button-icon` is `size-4`.
++                        .size(px(16.))
++                        .path(icon_path)
++                        // `.calendar__nav-button` is `text-accent-soft-foreground`,
++                        // at rest and hovered alike.
++                        .text_color(colors.accent.soft_foreground(colors.foreground)),
++                )
+                 .when(!disabled, |b| {
+                     crate::anim::pressed(
+                         b.cursor_pointer()
+@@ -1256,16 +1547,9 @@ impl RenderOnce for Calendar {
                          cx,
                      )
                  })
 -                .when(disabled, |b| b.opacity(layout.disabled_opacity));
+-            crate::util::ring_if_focused(button, focus, true, Vec::new(), window, cx).child(
+-                gpui::svg()
+-                        // `.calendar__nav-button-icon` is `size-4`.
+-                        .size(px(16.))
+-                        .path(icon_path)
+-                        // `.calendar__nav-button` is `text-accent-soft-foreground`,
+-                        // at rest and hovered alike.
+-                        .text_color(colors.accent.soft_foreground(colors.foreground)),
+-            )
 +                .when(disabled, |b| b.opacity(layout.disabled_opacity))
 +                .when(year_picker_open, |b| b.invisible());
-             crate::util::ring_if_focused(button, focus, true, Vec::new(), window, cx).child(
-                 gpui::svg()
-                         // `.calendar__nav-button-icon` is `size-4`.
-@@ -1277,7 +1554,8 @@ impl RenderOnce for Calendar {
++            crate::util::ring_if_focused(button, focus, true, Vec::new(), window, cx)
+         };
+ 
+         // A heading is a plain label only when the picker is controlled without
+@@ -1277,7 +1561,8 @@ impl RenderOnce for Calendar {
           -> gpui::AnyElement {
              let label = gpui::div()
                  .text_size(px(14.))
@@ -13422,7 +13661,7 @@ index 87d98a7..f73112b 100644
                  .child(text);
              match &self.on_year_picker_open_change {
                  // No handler and no state of our own: a plain label.
-@@ -1381,16 +1659,9 @@ impl RenderOnce for Calendar {
+@@ -1381,16 +1666,9 @@ impl RenderOnce for Calendar {
              }
          };
  
@@ -13439,7 +13678,7 @@ index 87d98a7..f73112b 100644
              .text_color(colors.surface.foreground)
              // readOnly blocks selection, not focus or navigation.
              .when(!self.is_disabled && !year_picker_open, |el| {
-@@ -1415,6 +1686,7 @@ impl RenderOnce for Calendar {
+@@ -1415,6 +1693,7 @@ impl RenderOnce for Calendar {
              let on_change = self.on_change.clone();
              let on_change_all = self.on_change_all.clone();
              let on_focus = self.on_focus_change.clone();
@@ -13447,7 +13686,7 @@ index 87d98a7..f73112b 100644
              let duration = self.duration;
              let page_behavior = self.page_behavior;
              root = root.on_key_down(move |event, window, cx| {
-@@ -1430,11 +1702,13 @@ impl RenderOnce for Calendar {
+@@ -1430,11 +1709,13 @@ impl RenderOnce for Calendar {
                  let key = event.keystroke.key.as_str();
                  let shift = event.keystroke.modifiers.shift;
                  if matches!(key, "enter" | "space") {
@@ -13462,7 +13701,7 @@ index 87d98a7..f73112b 100644
                          cx.notify();
                          s.selected_dates.clone()
                      });
-@@ -1451,14 +1725,24 @@ impl RenderOnce for Calendar {
+@@ -1451,14 +1732,24 @@ impl RenderOnce for Calendar {
                      "right" => add_days(&at, 1),
                      "up" => add_days(&at, -7),
                      "down" => add_days(&at, 7),
@@ -13495,7 +13734,7 @@ index 87d98a7..f73112b 100644
                      _ => return,
                  };
                  if controlled_focus.is_none() {
-@@ -1473,7 +1757,8 @@ impl RenderOnce for Calendar {
+@@ -1473,7 +1764,8 @@ impl RenderOnce for Calendar {
                          if matches!(key, "pageup" | "pagedown") {
                              let dir = if key == "pageup" { -1 } else { 1 };
                              let next_anchor = match duration {
@@ -13505,7 +13744,7 @@ index 87d98a7..f73112b 100644
                                      duration,
                                      page_behavior,
                                      anchor,
-@@ -1481,7 +1766,8 @@ impl RenderOnce for Calendar {
+@@ -1481,7 +1773,8 @@ impl RenderOnce for Calendar {
                                      shift,
                                  ),
                                  _ if days_from_civil(&next) < days_from_civil(&visible_start) => {
@@ -13515,7 +13754,7 @@ index 87d98a7..f73112b 100644
                                          duration,
                                          SelectionAlignment::End,
                                          first_day,
-@@ -1489,7 +1775,8 @@ impl RenderOnce for Calendar {
+@@ -1489,7 +1782,8 @@ impl RenderOnce for Calendar {
                                      )
                                  }
                                  _ if days_from_civil(&next) > days_from_civil(&visible_end) => {
@@ -13525,7 +13764,7 @@ index 87d98a7..f73112b 100644
                                          duration,
                                          SelectionAlignment::Start,
                                          first_day,
-@@ -1503,7 +1790,8 @@ impl RenderOnce for Calendar {
+@@ -1503,7 +1797,8 @@ impl RenderOnce for Calendar {
                                  cx.notify();
                              }
                          } else {
@@ -13535,7 +13774,7 @@ index 87d98a7..f73112b 100644
                                  duration,
                                  first_day,
                                  anchor,
-@@ -1531,7 +1819,8 @@ impl RenderOnce for Calendar {
+@@ -1531,7 +1826,8 @@ impl RenderOnce for Calendar {
              let own = year_picker_own.clone();
              let on_open = self.on_year_picker_open_change.clone();
              let on_focus = self.on_focus_change.clone();
@@ -13545,7 +13784,7 @@ index 87d98a7..f73112b 100644
              let back_to_trigger = active_heading_focus.clone();
              root = root.on_key_down(move |event, window, cx| {
                  if !focus.is_focused(window) {
-@@ -1548,7 +1837,7 @@ impl RenderOnce for Calendar {
+@@ -1548,7 +1844,7 @@ impl RenderOnce for Calendar {
                      if let Some(cb) = &on_open {
                          cb(false, window, cx);
                      }
@@ -13554,7 +13793,7 @@ index 87d98a7..f73112b 100644
                      cx.stop_propagation();
                      return;
                  }
-@@ -1577,11 +1866,7 @@ impl RenderOnce for Calendar {
+@@ -1577,11 +1873,7 @@ impl RenderOnce for Calendar {
                      }
                      if let Some(cb) = &on_focus {
                          cb(
@@ -13567,7 +13806,7 @@ index 87d98a7..f73112b 100644
                              window,
                              cx,
                          );
-@@ -1591,53 +1876,22 @@ impl RenderOnce for Calendar {
+@@ -1591,53 +1883,22 @@ impl RenderOnce for Calendar {
              });
          }
  
@@ -13630,7 +13869,7 @@ index 87d98a7..f73112b 100644
                          .flex()
                          .items_center()
                          .justify_between()
-@@ -1656,11 +1910,7 @@ impl RenderOnce for Calendar {
+@@ -1656,11 +1917,7 @@ impl RenderOnce for Calendar {
                              spacer()
                          })
                          .child(heading(
@@ -13643,7 +13882,7 @@ index 87d98a7..f73112b 100644
                              format!("{base}-heading{i}"),
                              &heading_focuses[i],
                              i,
-@@ -1677,20 +1927,15 @@ impl RenderOnce for Calendar {
+@@ -1677,20 +1934,15 @@ impl RenderOnce for Calendar {
                          } else {
                              spacer()
                          }),
@@ -13667,7 +13906,7 @@ index 87d98a7..f73112b 100644
              root = root.w(CALENDAR_WIDTH);
              root = root.child(
                  gpui::div()
-@@ -1699,6 +1944,7 @@ impl RenderOnce for Calendar {
+@@ -1699,6 +1951,7 @@ impl RenderOnce for Calendar {
                      .justify_between()
                      // `.calendar__header` is `px-0.5`.
                      .px(px(2.))
@@ -13675,7 +13914,7 @@ index 87d98a7..f73112b 100644
                      .child(nav_btn(
                          icons::CHEVRON_LEFT,
                          nav_target(-1),
-@@ -1720,46 +1966,204 @@ impl RenderOnce for Calendar {
+@@ -1720,46 +1973,204 @@ impl RenderOnce for Calendar {
                          next_disabled,
                      )),
              );
@@ -13723,8 +13962,8 @@ index 87d98a7..f73112b 100644
              }
 -            root = root.child(grid);
 +            body = body.child(grid);
-+        }
-+
+         }
+ 
 +        let mut viewport = gpui::div()
 +            .relative()
 +            .child(body.when(year_picker_open, |body| body.invisible()));
@@ -13743,9 +13982,9 @@ index 87d98a7..f73112b 100644
 +                window,
 +                cx,
 +            ));
-         }
++        }
 +        root = root.child(viewport);
- 
++
          if self.is_disabled {
              root = root.opacity(layout.disabled_opacity);
          }
@@ -17395,7 +17634,7 @@ index eda7685..f702378 100644
  }
  
 diff --git a/crates/herogpui-components/src/dropdown.rs b/crates/herogpui-components/src/dropdown.rs
-index d8df485..e12b27e 100644
+index d8df485..92dd4fb 100644
 --- a/crates/herogpui-components/src/dropdown.rs
 +++ b/crates/herogpui-components/src/dropdown.rs
 @@ -150,6 +150,12 @@ pub struct Menu {
@@ -17608,7 +17847,31 @@ index d8df485..e12b27e 100644
                          .text_color(text_color);
                      if let Some(recorded_item_bounds) = item_bounds[i].clone() {
                          row = row.child(
-@@ -880,7 +920,7 @@ impl RenderOnce for Menu {
+@@ -856,31 +896,10 @@ impl RenderOnce for Menu {
+                         // `.menu-item:hover` fills with `bg-default`, the full
+                         // token, not the soft wash.
+                         row = row.hover(move |s| s.bg(colors.default.color));
+-                        // `.menu-item[data-pressed]` is `scale(0.98)`.
+-                        row = crate::anim::pressed(
+-                            row,
+-                            crate::anim::PressBox {
+-                                height: px(36.),
+-                                padding_x: Some(if dropdown_composition {
+-                                    px(10.)
+-                                } else {
+-                                    px(8.)
+-                                }),
+-                                width: None,
+-                                min_width: None,
+-                                text_size: px(14.),
+-                                line_height: px(20.),
+-                                gap: px(12.),
+-                                radius: crate::util::soft_radius(cx),
+-                                shrink_x: true,
+-                                scale: crate::anim::PRESSED_SCALE_SUBTLE,
+-                            },
+-                            cx,
+-                        );
                          let pointer_cursor = cursor.clone();
                          let pointer_focus = focus_handle.clone();
                          row = row.on_mouse_down(gpui::MouseButton::Left, move |_, window, cx| {
@@ -17617,7 +17880,7 @@ index d8df485..e12b27e 100644
                              pointer_cursor.update(cx, |value, cx| {
                                  *value = Some(i);
                                  cx.notify();
-@@ -892,7 +932,7 @@ impl RenderOnce for Menu {
+@@ -892,7 +911,7 @@ impl RenderOnce for Menu {
                              if crate::util::focus_visible(cx) || *hover_cursor.read(cx) == Some(i) {
                                  return;
                              }
@@ -17626,7 +17889,7 @@ index d8df485..e12b27e 100644
                              hover_cursor.update(cx, |value, cx| {
                                  *value = Some(i);
                                  cx.notify();
-@@ -975,54 +1015,69 @@ impl RenderOnce for Menu {
+@@ -975,54 +994,69 @@ impl RenderOnce for Menu {
                      // `children` on `Dropdown.Item` is a render function in
                      // v3, handed the row's state.
                      row = row.child(
@@ -17738,7 +18001,7 @@ index d8df485..e12b27e 100644
                      );
                      // The slot's hover and press handlers keep the press the
                      // closure reads current. Disabled rows expose idle state.
-@@ -1033,9 +1088,8 @@ impl RenderOnce for Menu {
+@@ -1033,9 +1067,8 @@ impl RenderOnce for Menu {
                      }
                      if let Some(sc) = shortcut {
                          row = row.child(
@@ -17750,7 +18013,41 @@ index d8df485..e12b27e 100644
                                  .child(sc.to_string()),
                          );
                      }
-@@ -1201,31 +1255,68 @@ impl RenderOnce for Menu {
+@@ -1053,6 +1086,33 @@ impl RenderOnce for Menu {
+                         }
+                     }
+ 
++                    // `.menu-item[data-pressed]` is `scale(0.98)`. The press
++                    // wrap comes after every visual child: children added
++                    // after `pressed` land on the slot and fight the skin for
++                    // width. The row is `w-full`, so its slot is too.
++                    if !is_item_disabled {
++                        row = crate::anim::pressed(
++                            row,
++                            crate::anim::PressBox {
++                                height: px(36.),
++                                padding_x: Some(if dropdown_composition {
++                                    px(10.)
++                                } else {
++                                    px(8.)
++                                }),
++                                width: None,
++                                min_width: None,
++                                text_size: px(14.),
++                                line_height: px(20.),
++                                gap: px(12.),
++                                radius: crate::util::soft_radius(cx),
++                                shrink_x: false,
++                                scale: crate::anim::PRESSED_SCALE_SUBTLE,
++                            },
++                            cx,
++                        );
++                    }
++
+                     if !is_item_disabled && !has_submenu {
+                         let on_action = self.on_action.clone();
+                         let on_selection_change = self.on_selection_change.clone();
+@@ -1201,31 +1261,68 @@ impl RenderOnce for Menu {
              }
          }
  
@@ -17833,7 +18130,7 @@ index d8df485..e12b27e 100644
                  .focus_first(submenu_focus.clone());
              sub.item_content = self.item_content.clone();
              sub.indicator_content = self.indicator_content.clone();
-@@ -1241,7 +1332,7 @@ impl RenderOnce for Menu {
+@@ -1241,7 +1338,7 @@ impl RenderOnce for Menu {
                      cx.notify();
                  });
                  close_focus_state.update(cx, |value, _| *value = false);
@@ -17842,7 +18139,7 @@ index d8df485..e12b27e 100644
              });
              if let Some(cb) = self.on_action.clone() {
                  sub = sub.on_action(move |key, window, cx| cb(key, window, cx));
-@@ -1249,9 +1340,30 @@ impl RenderOnce for Menu {
+@@ -1249,9 +1346,30 @@ impl RenderOnce for Menu {
              if let Some(cb) = dismiss.clone() {
                  sub = sub.on_dismiss(move |refocus, window, cx| cb(refocus, window, cx));
              }
@@ -17874,7 +18171,7 @@ index d8df485..e12b27e 100644
          // Escape bubbles from the focused descendant to this root surface.
          let surface = if self.deferred {
              match dismiss {
-@@ -1272,28 +1384,10 @@ impl RenderOnce for Menu {
+@@ -1272,28 +1390,10 @@ impl RenderOnce for Menu {
              surface
          };
  
@@ -17905,7 +18202,7 @@ index d8df485..e12b27e 100644
          }
      }
  }
-@@ -1685,7 +1779,15 @@ impl RenderOnce for Dropdown {
+@@ -1685,7 +1785,15 @@ impl RenderOnce for Dropdown {
  
          // A flex column with `items_start` keeps the trigger at its natural
          // width; a plain block root would stretch it (gpui divs are
@@ -17922,7 +18219,7 @@ index d8df485..e12b27e 100644
          let mut root = gpui::div()
              .relative()
              .flex()
-@@ -1693,7 +1795,7 @@ impl RenderOnce for Dropdown {
+@@ -1693,7 +1801,7 @@ impl RenderOnce for Dropdown {
              // `.dropdown` is `flex flex-col gap-1`.
              .gap(px(4.))
              .items_start()
@@ -17931,7 +18228,7 @@ index d8df485..e12b27e 100644
  
          // v3 keeps a closing menu on screen for its `[data-exiting]` run.
          if phase != crate::util::OverlayPhase::Closed {
-@@ -1748,12 +1850,26 @@ impl RenderOnce for Dropdown {
+@@ -1748,12 +1856,26 @@ impl RenderOnce for Dropdown {
                      // would activate the trigger on key up and reopen the menu
                      // -- the keyboard path asks for no refocus for that reason.
                      if refocus {
@@ -20404,7 +20701,7 @@ index 70e84e5..a358b8e 100644
      }
  }
 diff --git a/crates/herogpui-components/src/number_field.rs b/crates/herogpui-components/src/number_field.rs
-index e24642f..8d1534a 100644
+index e24642f..14864f6 100644
 --- a/crates/herogpui-components/src/number_field.rs
 +++ b/crates/herogpui-components/src/number_field.rs
 @@ -653,7 +653,8 @@ impl RenderOnce for NumberField {
@@ -20417,7 +20714,17 @@ index e24642f..8d1534a 100644
          group = crate::util::apply_field_chrome(
              group,
              self.variant,
-@@ -968,7 +969,7 @@ fn stepper_btn(
+@@ -946,6 +947,9 @@ fn stepper_btn(
+         .flex_shrink_0()
+         .w(btn_px)
+         .h(h);
++    // The icon joins the skin before the press wrap: children added after
++    // `pressed` land on the slot and fight the skin for width.
++    b = b.text_color(colors.field.foreground).child(icon);
+     if !is_disabled {
+         let release = press.clone();
+         b = b.child(
+@@ -968,7 +972,7 @@ fn stepper_btn(
          b = b.cursor_pointer().on_mouse_down(
              gpui::MouseButton::Left,
              move |_: &MouseDownEvent, window, cx| {
@@ -20426,7 +20733,7 @@ index e24642f..8d1534a 100644
                  let generation = press.update(cx, |press, _| {
                      press.active = true;
                      press.generation = press.generation.wrapping_add(1);
-@@ -1045,7 +1046,7 @@ fn stepper_btn(
+@@ -1045,7 +1049,7 @@ fn stepper_btn(
                  width: Some(btn_px),
                  min_width: None,
                  text_size: crate::util::FIELD_TEXT,
@@ -20435,8 +20742,17 @@ index e24642f..8d1534a 100644
                  gap: px(0.),
                  radius: px(0.),
                  scale: crate::anim::PRESSED_SCALE,
+@@ -1055,7 +1059,7 @@ fn stepper_btn(
+             cx,
+         );
+     }
+-    b.text_color(colors.field.foreground).child(icon)
++    b
+ }
+ 
+ #[derive(Default)]
 diff --git a/crates/herogpui-components/src/pagination.rs b/crates/herogpui-components/src/pagination.rs
-index 380beb7..2abd28d 100644
+index 380beb7..c118d94 100644
 --- a/crates/herogpui-components/src/pagination.rs
 +++ b/crates/herogpui-components/src/pagination.rs
 @@ -114,13 +114,23 @@ impl RenderOnce for Pagination {
@@ -20503,20 +20819,18 @@ index 380beb7..2abd28d 100644
                      padding_x: nav_padding,
                      press_scale,
                      radius: crate::util::control_radius(cx),
-@@ -228,7 +244,11 @@ impl RenderOnce for Pagination {
+@@ -227,10 +243,6 @@ impl RenderOnce for Pagination {
+                     let link_disabled = self.is_disabled || self.disabled_keys.contains(&n);
                      let mut btn = gpui::div()
                          .id(gpui::ElementId::Name(format!("{base}-page-{n}").into()))
-                         .when_some(
+-                        .when_some(
 -                            page_focus.get(n).filter(|_| !link_disabled),
-+                            page_focus
-+                                .iter()
-+                                .find(|(p, _)| *p == n)
-+                                .map(|(_, handle)| handle)
-+                                .filter(|_| !link_disabled),
-                             |b, handle| b.track_focus(handle),
-                         )
+-                            |b, handle| b.track_focus(handle),
+-                        )
                          .flex()
-@@ -239,6 +259,7 @@ impl RenderOnce for Pagination {
+                         .items_center()
+                         .justify_center()
+@@ -239,6 +251,7 @@ impl RenderOnce for Pagination {
                          .min_w(cell)
                          .h(cell)
                          .text_size(cell_text)
@@ -20524,7 +20838,36 @@ index 380beb7..2abd28d 100644
                          .rounded(crate::util::control_radius(cx))
                          .when(!link_disabled, |b| b.cursor_pointer());
  
-@@ -265,7 +286,7 @@ impl RenderOnce for Pagination {
+@@ -251,13 +264,25 @@ impl RenderOnce for Pagination {
+                         // The resting ghost link is transparent and borderless.
+                         btn = btn.text_color(colors.foreground);
+                     }
++                    // The label joins the skin before the press wrap:
++                    // children added after `pressed` land on the slot and
++                    // fight the skin for width. `link` is v3's render prop on
++                    // `Pagination.Link`: it receives `isActive`, so a caller
++                    // can style the current page without re-deriving which
++                    // one it is.
++                    btn = match &self.link {
++                        Some(render) => btn.child(render(n, active)),
++                        None => btn.child(n.to_string()),
++                    };
+                     if !link_disabled {
+                         let hover_bg = colors.default.hover();
++                        // `.pagination__link[data-pressed]` applies to every
++                        // enabled link, including the active page: the
++                        // default-hover fill rides inside the press
++                        // refinement, which owns the scale.
+                         let pressed_bg = colors.default.hover();
+                         btn = btn.hover(move |s| s.bg(hover_bg));
+-                        // `.pagination__link[data-pressed]` applies to every
+-                        // enabled link, including the active page.
+-                        btn = crate::anim::pressed(
++                        btn = crate::anim::pressed_with_background(
+                             btn,
+                             crate::anim::PressBox {
+                                 height: cell,
+@@ -265,15 +290,15 @@ impl RenderOnce for Pagination {
                                  width: None,
                                  min_width: Some(cell),
                                  text_size: cell_text,
@@ -20533,7 +20876,31 @@ index 380beb7..2abd28d 100644
                                  gap: px(0.),
                                  radius: crate::util::control_radius(cx),
                                  shrink_x: true,
-@@ -294,7 +315,10 @@ impl RenderOnce for Pagination {
+                                 scale: press_scale,
+                             },
++                            pressed_bg,
+                             cx,
+-                        )
+-                        .active(move |s| s.bg(pressed_bg));
++                        );
+                     }
+                     // `aria-current` identifies the active page without
+                     // disabling its React Aria Button. Every enabled numeric
+@@ -288,21 +313,26 @@ impl RenderOnce for Pagination {
+                     if link_disabled {
+                         btn = btn.opacity(layout.disabled_opacity);
+                     }
+-                    // `link` is v3's render prop on `Pagination.Link`: it
+-                    // receives `isActive`, so a caller can style the current
+-                    // page without re-deriving which one it is.
++                    // The focus tracking lands on the press slot (the element
++                    // `pressed` returns) so keyboard activation and pointer
++                    // activation answer on the same element.
++                    if !link_disabled {
++                        if let Some((_, handle)) = page_focus.iter().find(|(p, _)| *p == n) {
++                            btn = btn.track_focus(handle);
++                        }
++                    }
                      // `.pagination__item:focus-visible` is `status-focused`.
                      let btn = crate::util::with_focus_ring(
                          btn,
@@ -20545,7 +20912,16 @@ index 380beb7..2abd28d 100644
                          true,
                          Vec::new(),
                          cx,
-@@ -314,6 +338,7 @@ impl RenderOnce for Pagination {
+                     );
+-                    row = row.child(match &self.link {
+-                        Some(render) => btn.child(render(n, active)),
+-                        None => btn.child(n.to_string()),
+-                    });
++                    row = row.child(btn);
+                 }
+                 PageRef::Ellipsis => {
+                     row = row.child(
+@@ -314,6 +344,7 @@ impl RenderOnce for Pagination {
                              // text-sm` cell as a page link.
                              .size(cell)
                              .text_size(cell_text)
@@ -20553,7 +20929,7 @@ index 380beb7..2abd28d 100644
                              .text_color(colors.muted)
                              .child("…"),
                      );
-@@ -336,6 +361,8 @@ impl RenderOnce for Pagination {
+@@ -336,6 +367,8 @@ impl RenderOnce for Pagination {
                      hover_bg: colors.default.hover(),
                      disabled_opacity: layout.disabled_opacity,
                      cell,
@@ -20562,7 +20938,7 @@ index 380beb7..2abd28d 100644
                      padding_x: nav_padding,
                      press_scale,
                      radius: crate::util::control_radius(cx),
-@@ -370,7 +397,8 @@ impl RenderOnce for Pagination {
+@@ -370,7 +403,8 @@ impl RenderOnce for Pagination {
                      .items_center()
                      // `.pagination__summary` is `gap-2 text-sm text-muted`.
                      .gap(px(8.))
@@ -20572,7 +20948,7 @@ index 380beb7..2abd28d 100644
                      .text_color(colors.muted)
                      .child(text.to_string())
              }))
-@@ -384,6 +412,8 @@ struct NavStyle {
+@@ -384,6 +418,8 @@ struct NavStyle {
      hover_bg: gpui::Hsla,
      disabled_opacity: f32,
      cell: gpui::Pixels,
@@ -20581,7 +20957,7 @@ index 380beb7..2abd28d 100644
      padding_x: gpui::Pixels,
      press_scale: f32,
      /// `.pagination__link` is `rounded-3xl`; `--nav` restates only the width.
-@@ -405,6 +435,8 @@ fn nav_button(
+@@ -405,16 +441,14 @@ fn nav_button(
          hover_bg,
          disabled_opacity,
          cell,
@@ -20590,7 +20966,17 @@ index 380beb7..2abd28d 100644
          padding_x,
          press_scale,
          radius,
-@@ -422,6 +454,8 @@ fn nav_button(
+     } = style;
+     let mut btn = gpui::div()
+         .id(gpui::ElementId::Name(id.into()))
+-        // A disabled control must leave the tab order — `track_focus` is what
+-        // puts it in, so gate it (v3 gives a disabled arrow `pointer-events-none`
+-        // and nothing for Tab to land on).
+-        .when(enabled, |b| b.track_focus(focus))
+         .when_some(ring, |b, shadows| b.shadow(shadows))
+         .flex()
+         .items_center()
+@@ -422,10 +456,15 @@ fn nav_button(
          // `.pagination__link--nav` is `w-auto gap-1.5 px-2.5`: the height of a
          // page cell, but as wide as its content needs.
          .h(cell)
@@ -20599,7 +20985,15 @@ index 380beb7..2abd28d 100644
          .gap(px(6.))
          .px(padding_x)
          .rounded(radius)
-@@ -435,8 +469,8 @@ fn nav_button(
+-        .text_color(foreground);
++        .text_color(foreground)
++        // The icon joins the skin before the press wrap: children added
++        // after `pressed` land on the slot and fight the skin for width.
++        .child(icon);
+     if enabled {
+         btn = btn.cursor_pointer().hover(move |s| s.bg(hover_bg));
+         btn = crate::anim::pressed_with_background(
+@@ -435,8 +474,8 @@ fn nav_button(
                  padding_x: Some(padding_x),
                  width: None,
                  min_width: None,
@@ -20610,7 +21004,24 @@ index 380beb7..2abd28d 100644
                  gap: px(6.),
                  radius,
                  shrink_x: true,
-@@ -482,3 +516,47 @@ fn visible_pages(page: usize, total: usize) -> Vec<PageRef> {
+@@ -448,7 +487,15 @@ fn nav_button(
+     } else {
+         btn = btn.opacity(disabled_opacity);
+     }
+-    btn.child(icon)
++    // A disabled control must leave the tab order — `track_focus` is what
++    // puts it in, so gate it (v3 gives a disabled arrow `pointer-events-none`
++    // and nothing for Tab to land on). The tracking lands on the press slot
++    // (the element `pressed` returns) so keyboard activation and pointer
++    // activation answer on the same element.
++    if enabled {
++        btn = btn.track_focus(focus);
++    }
++    btn
+ }
+ 
+ enum PageRef {
+@@ -482,3 +529,47 @@ fn visible_pages(page: usize, total: usize) -> Vec<PageRef> {
      out.push(PageRef::Num(total));
      out
  }
@@ -21038,7 +21449,7 @@ index d15cabe..ba280b8 100644
          let paint_rotation = rotation.clone();
  
 diff --git a/crates/herogpui-components/src/radio_group.rs b/crates/herogpui-components/src/radio_group.rs
-index ebaa04a..5172cd6 100644
+index ebaa04a..ed59adb 100644
 --- a/crates/herogpui-components/src/radio_group.rs
 +++ b/crates/herogpui-components/src/radio_group.rs
 @@ -378,8 +378,11 @@ impl RenderOnce for RadioGroup {
@@ -21118,7 +21529,67 @@ index ebaa04a..5172cd6 100644
                  ))
                  .flex()
                  .items_center()
-@@ -575,9 +581,7 @@ impl RenderOnce for RadioGroup {
+@@ -550,34 +556,49 @@ impl RenderOnce for RadioGroup {
+             let circle_el = if row_disabled || self.is_read_only {
+                 circle_el
+             } else {
++                // The pressed fill rides inside the press refinement, which
++                // owns the scale; a chained `.active` would replace it.
+                 let pressed_fill = sem.hover();
+-                let circle_el = crate::anim::pressed(
+-                    circle_el,
+-                    crate::anim::PressBox {
+-                        height: circle,
+-                        padding_x: None,
+-                        width: Some(circle),
+-                        min_width: None,
+-                        text_size: text,
+-                        line_height: text,
+-                        gap: px(0.),
+-                        radius: crate::util::key_radius(cx),
+-                        shrink_x: true,
+-                        scale: crate::anim::PRESSED_SCALE_DEEP,
+-                    },
+-                    cx,
+-                );
+                 if is_selected {
+-                    circle_el.active(move |s| s.bg(pressed_fill))
++                    crate::anim::pressed_with_background(
++                        circle_el,
++                        crate::anim::PressBox {
++                            height: circle,
++                            padding_x: None,
++                            width: Some(circle),
++                            min_width: None,
++                            text_size: text,
++                            line_height: text,
++                            gap: px(0.),
++                            radius: crate::util::key_radius(cx),
++                            shrink_x: true,
++                            scale: crate::anim::PRESSED_SCALE_DEEP,
++                        },
++                        pressed_fill,
++                        cx,
++                    )
+                 } else {
+-                    circle_el
++                    crate::anim::pressed(
++                        circle_el,
++                        crate::anim::PressBox {
++                            height: circle,
++                            padding_x: None,
++                            width: Some(circle),
++                            min_width: None,
++                            text_size: text,
++                            line_height: text,
++                            gap: px(0.),
++                            radius: crate::util::key_radius(cx),
++                            shrink_x: true,
++                            scale: crate::anim::PRESSED_SCALE_DEEP,
++                        },
++                        cx,
++                    )
+                 }
              };
  
              let mut row = gpui::div()
@@ -21129,7 +21600,7 @@ index ebaa04a..5172cd6 100644
                  .when(!row_disabled && i == cursor_index, |r| {
                      r.track_focus(&group_focus)
                  })
-@@ -585,6 +589,7 @@ impl RenderOnce for RadioGroup {
+@@ -585,6 +606,7 @@ impl RenderOnce for RadioGroup {
                  .items_center()
                  .gap(gap)
                  .text_size(text)
@@ -21137,7 +21608,7 @@ index ebaa04a..5172cd6 100644
                  .font_weight(gpui::FontWeight::MEDIUM)
                  .text_color(colors.foreground)
                  .when(!row_disabled && !self.is_read_only, |r| r.cursor_pointer())
-@@ -592,7 +597,7 @@ impl RenderOnce for RadioGroup {
+@@ -592,7 +614,7 @@ impl RenderOnce for RadioGroup {
                  .child(circle_el)
                  .child(match &self.option_content {
                      Some(render) => render(&label, option_state),
@@ -21146,7 +21617,7 @@ index ebaa04a..5172cd6 100644
                  });
              if !row_disabled && !self.is_read_only {
                  if let Some(slot) = interaction.get(i) {
-@@ -650,7 +655,7 @@ impl RenderOnce for RadioGroup {
+@@ -650,7 +672,7 @@ impl RenderOnce for RadioGroup {
                  let click_focus = group_focus.clone();
                  let click_form_state = self.form_state.clone();
                  row = row.on_click(move |_, window, cx| {
@@ -21155,7 +21626,7 @@ index ebaa04a..5172cd6 100644
                      click_cursor.update(cx, |v, cx| {
                          *v = i;
                          cx.notify();
-@@ -732,3 +737,47 @@ impl RenderOnce for RadioGroup {
+@@ -732,3 +754,47 @@ impl RenderOnce for RadioGroup {
  fn element_id_name(id: &gpui::ElementId) -> String {
      format!("{id:?}").trim_matches('"').to_owned()
  }
@@ -21204,7 +21675,7 @@ index ebaa04a..5172cd6 100644
 +    }
 +}
 diff --git a/crates/herogpui-components/src/range_calendar.rs b/crates/herogpui-components/src/range_calendar.rs
-index 59f7766..bff492d 100644
+index 59f7766..f073ae7 100644
 --- a/crates/herogpui-components/src/range_calendar.rs
 +++ b/crates/herogpui-components/src/range_calendar.rs
 @@ -13,7 +13,7 @@ use gpui::{
@@ -22002,17 +22473,44 @@ index 59f7766..bff492d 100644
          let state_for_nav = self.state.clone();
          let nav_btn = |icon: &'static str,
                         target: Date,
-@@ -1211,7 +1429,8 @@ impl RenderOnce for RangeCalendar {
+@@ -1199,6 +1417,17 @@ impl RenderOnce for RangeCalendar {
+                 // `rounded-2xl`.
+                 .size(px(24.))
+                 .rounded(util::small_radius(cx))
++                // The icon joins the skin before the press wrap: children
++                // added after `pressed` land on the slot and fight the skin
++                // for width.
++                .child(
++                    gpui::svg()
++                        // `.range-calendar__nav-button-icon` is `size-4`, painted
++                        // `text-accent-soft-foreground` like its button.
++                        .size(px(16.))
++                        .path(icon)
++                        .text_color(colors.accent.soft_foreground(colors.foreground)),
++                )
+                 .when(!disabled, |b| {
+                     let pressed = b
+                         .cursor_pointer()
+@@ -1211,15 +1440,9 @@ impl RenderOnce for RangeCalendar {
                          });
                      crate::anim::pressed(pressed, press_box, cx)
                  })
 -                .when(disabled, |b| b.opacity(layout.disabled_opacity));
+-            util::ring_if_focused(button, focus, true, Vec::new(), window, cx).child(
+-                gpui::svg()
+-                    // `.range-calendar__nav-button-icon` is `size-4`, painted
+-                    // `text-accent-soft-foreground` like its button.
+-                    .size(px(16.))
+-                    .path(icon)
+-                    .text_color(colors.accent.soft_foreground(colors.foreground)),
+-            )
 +                .when(disabled, |b| b.opacity(layout.disabled_opacity))
 +                .when(year_picker_open, |b| b.invisible());
-             util::ring_if_focused(button, focus, true, Vec::new(), window, cx).child(
-                 gpui::svg()
-                     // `.range-calendar__nav-button-icon` is `size-4`, painted
-@@ -1231,7 +1450,8 @@ impl RenderOnce for RangeCalendar {
++            util::ring_if_focused(button, focus, true, Vec::new(), window, cx)
+         };
+ 
+         // A heading is a plain label only when the picker is controlled without
+@@ -1231,7 +1454,8 @@ impl RenderOnce for RangeCalendar {
           -> gpui::AnyElement {
              let label = div()
                  .text_size(px(14.))
@@ -22022,7 +22520,7 @@ index 59f7766..bff492d 100644
                  .child(text);
              match &self.on_year_picker_open_change {
                  // No handler and no state of our own: a plain label.
-@@ -1338,7 +1558,6 @@ impl RenderOnce for RangeCalendar {
+@@ -1338,7 +1562,6 @@ impl RenderOnce for RangeCalendar {
          let mut root = div()
              .flex()
              .flex_col()
@@ -22030,7 +22528,7 @@ index 59f7766..bff492d 100644
              .text_color(colors.surface.foreground)
              // readOnly blocks selection, not focus or navigation.
              .when(!self.is_disabled && !year_picker_open, |el| {
-@@ -1363,10 +1582,11 @@ impl RenderOnce for RangeCalendar {
+@@ -1363,10 +1586,11 @@ impl RenderOnce for RangeCalendar {
              let state = self.state.clone();
              let on_change = self.on_change.clone();
              let on_focus = self.on_focus_change.clone();
@@ -22043,7 +22541,7 @@ index 59f7766..bff492d 100644
              let duration = self.duration;
              let page_behavior = self.page_behavior;
              root = root.on_key_down(move |event, window, cx| {
-@@ -1405,7 +1625,8 @@ impl RenderOnce for RangeCalendar {
+@@ -1405,7 +1629,8 @@ impl RenderOnce for RangeCalendar {
                      return;
                  }
                  if matches!(key, "enter" | "space") {
@@ -22053,7 +22551,7 @@ index 59f7766..bff492d 100644
                          return;
                      }
                      let (next, previous) = state.update(cx, |s, cx| {
-@@ -1416,13 +1637,12 @@ impl RenderOnce for RangeCalendar {
+@@ -1416,13 +1641,12 @@ impl RenderOnce for RangeCalendar {
                              at,
                              &constraints,
                              range_date_unavailable.as_ref(),
@@ -22068,7 +22566,7 @@ index 59f7766..bff492d 100644
                              cx.notify();
                          }
                          (next, previous)
-@@ -1452,7 +1672,8 @@ impl RenderOnce for RangeCalendar {
+@@ -1452,7 +1676,8 @@ impl RenderOnce for RangeCalendar {
                                  cx.notify();
                              });
                              state.update(cx, |s, cx| {
@@ -22078,7 +22576,7 @@ index 59f7766..bff492d 100644
                                      duration,
                                      first_day,
                                      anchor,
-@@ -1477,16 +1698,27 @@ impl RenderOnce for RangeCalendar {
+@@ -1477,16 +1702,27 @@ impl RenderOnce for RangeCalendar {
                      "right" => add_days(&at, 1),
                      "up" => add_days(&at, -7),
                      "down" => add_days(&at, 7),
@@ -22114,7 +22612,7 @@ index 59f7766..bff492d 100644
                  if controlled_focus.is_none() {
                      held.update(cx, |v, cx| {
                          *v = Some(next);
-@@ -1500,7 +1732,8 @@ impl RenderOnce for RangeCalendar {
+@@ -1500,7 +1736,8 @@ impl RenderOnce for RangeCalendar {
                          if matches!(key, "pageup" | "pagedown") {
                              let dir = if key == "pageup" { -1 } else { 1 };
                              let next_anchor = match duration {
@@ -22124,7 +22622,7 @@ index 59f7766..bff492d 100644
                                      duration,
                                      page_behavior,
                                      anchor,
-@@ -1508,7 +1741,8 @@ impl RenderOnce for RangeCalendar {
+@@ -1508,7 +1745,8 @@ impl RenderOnce for RangeCalendar {
                                      shift,
                                  ),
                                  _ if days_from_civil(&next) < days_from_civil(&visible_start) => {
@@ -22134,7 +22632,7 @@ index 59f7766..bff492d 100644
                                          duration,
                                          SelectionAlignment::End,
                                          first_day,
-@@ -1516,7 +1750,8 @@ impl RenderOnce for RangeCalendar {
+@@ -1516,7 +1754,8 @@ impl RenderOnce for RangeCalendar {
                                      )
                                  }
                                  _ if days_from_civil(&next) > days_from_civil(&visible_end) => {
@@ -22144,7 +22642,7 @@ index 59f7766..bff492d 100644
                                          duration,
                                          SelectionAlignment::Start,
                                          first_day,
-@@ -1530,7 +1765,8 @@ impl RenderOnce for RangeCalendar {
+@@ -1530,7 +1769,8 @@ impl RenderOnce for RangeCalendar {
                                  cx.notify();
                              }
                          } else {
@@ -22154,7 +22652,7 @@ index 59f7766..bff492d 100644
                                  duration,
                                  first_day,
                                  anchor,
-@@ -1558,7 +1794,8 @@ impl RenderOnce for RangeCalendar {
+@@ -1558,7 +1798,8 @@ impl RenderOnce for RangeCalendar {
              let own = year_picker_own.clone();
              let on_open = self.on_year_picker_open_change.clone();
              let on_focus = self.on_focus_change.clone();
@@ -22164,7 +22662,7 @@ index 59f7766..bff492d 100644
              let back_to_trigger = active_heading_focus.clone();
              root = root.on_key_down(move |event, window, cx| {
                  if !focus.is_focused(window) {
-@@ -1575,7 +1812,7 @@ impl RenderOnce for RangeCalendar {
+@@ -1575,7 +1816,7 @@ impl RenderOnce for RangeCalendar {
                      if let Some(cb) = &on_open {
                          cb(false, window, cx);
                      }
@@ -22173,7 +22671,7 @@ index 59f7766..bff492d 100644
                      cx.stop_propagation();
                      return;
                  }
-@@ -1604,11 +1841,7 @@ impl RenderOnce for RangeCalendar {
+@@ -1604,11 +1845,7 @@ impl RenderOnce for RangeCalendar {
                      }
                      if let Some(cb) = &on_focus {
                          cb(
@@ -22186,7 +22684,7 @@ index 59f7766..bff492d 100644
                              window,
                              cx,
                          );
-@@ -1618,53 +1851,22 @@ impl RenderOnce for RangeCalendar {
+@@ -1618,53 +1855,22 @@ impl RenderOnce for RangeCalendar {
              });
          }
  
@@ -22249,7 +22747,7 @@ index 59f7766..bff492d 100644
                          .flex()
                          .flex_row()
                          .items_center()
-@@ -1685,11 +1887,7 @@ impl RenderOnce for RangeCalendar {
+@@ -1685,11 +1891,7 @@ impl RenderOnce for RangeCalendar {
                              spacer()
                          })
                          .child(heading(
@@ -22262,7 +22760,7 @@ index 59f7766..bff492d 100644
                              format!("{base}-heading{i}"),
                              &heading_focuses[i],
                              i,
-@@ -1706,19 +1904,15 @@ impl RenderOnce for RangeCalendar {
+@@ -1706,19 +1908,15 @@ impl RenderOnce for RangeCalendar {
                          } else {
                              spacer()
                          }),
@@ -22285,7 +22783,7 @@ index 59f7766..bff492d 100644
              root = root.w(crate::calendar::CALENDAR_WIDTH);
              root = root.child(
                  div()
-@@ -1729,6 +1923,7 @@ impl RenderOnce for RangeCalendar {
+@@ -1729,6 +1927,7 @@ impl RenderOnce for RangeCalendar {
                      .w_full()
                      // `.range-calendar__header` is `px-0.5`.
                      .px(px(2.))
@@ -22293,7 +22791,7 @@ index 59f7766..bff492d 100644
                      .child(nav_btn(
                          icons::CHEVRON_LEFT,
                          nav_target(-1),
-@@ -1750,49 +1945,111 @@ impl RenderOnce for RangeCalendar {
+@@ -1750,49 +1949,111 @@ impl RenderOnce for RangeCalendar {
                          next_disabled,
                      )),
              );
@@ -22438,7 +22936,7 @@ index 59f7766..bff492d 100644
      }
  }
  
-@@ -1935,3 +2192,27 @@ mod hover_tokens {
+@@ -1935,3 +2196,27 @@ mod hover_tokens {
          }
      }
  }
@@ -26173,10 +26671,183 @@ index 565eba5..903bf84 100644
              source.contains("let hover_bg = colors.default.color;"),
              "the toast close button must hover `bg-default` \
 diff --git a/crates/herogpui-components/src/toggle_button.rs b/crates/herogpui-components/src/toggle_button.rs
-index 8576915..c257430 100644
+index 8576915..52b1ee1 100644
 --- a/crates/herogpui-components/src/toggle_button.rs
 +++ b/crates/herogpui-components/src/toggle_button.rs
-@@ -613,7 +613,7 @@ impl RenderOnce for ToggleButtonGroup {
+@@ -256,11 +256,32 @@ impl RenderOnce for ToggleButton {
+                 cx,
+             )
+         });
+-        let sem = cx.colors().accent;
+-        let colors = cx.colors();
+-        let layout = cx.layout();
++        let colors = cx.colors().clone();
++        let sem = colors.accent;
++        let disabled_opacity = cx.layout().disabled_opacity;
++        let radius = crate::util::control_radius(cx);
+         let is_grouped = self.group_edge.is_some();
+ 
++        let fade = (!self.is_disabled).then(|| {
++            let idle = if is_selected {
++                sem.soft()
++            } else {
++                match self.variant {
++                    ToggleVariant::Default => colors.default.color,
++                    ToggleVariant::Ghost => gpui::transparent_black(),
++                }
++            };
++            let hover = if is_selected {
++                colors.accent.soft_hover()
++            } else {
++                match self.variant {
++                    ToggleVariant::Default => colors.default.hover(),
++                    ToggleVariant::Ghost => colors.default.color,
++                }
++            };
++            (idle, hover)
++        });
++
+         let mut el = div()
+             .id(self.id.clone())
+             .flex()
+@@ -271,14 +292,26 @@ impl RenderOnce for ToggleButton {
+             .flex_shrink_0()
+             .font_weight(gpui::FontWeight::MEDIUM)
+             .when(is_selected, |e| {
+-                e.bg(sem.soft())
+-                    .text_color(sem.soft_foreground(colors.foreground))
++                let e = if fade.is_none() { e.bg(sem.soft()) } else { e };
++                e.text_color(sem.soft_foreground(colors.foreground))
+             })
+             .when(!is_selected, |e| match self.variant {
+-                ToggleVariant::Default => e.bg(colors.default.color).text_color(colors.foreground),
+-                ToggleVariant::Ghost => e
+-                    .bg(gpui::transparent_black())
+-                    .text_color(colors.default.foreground),
++                ToggleVariant::Default => {
++                    let e = if fade.is_none() {
++                        e.bg(colors.default.color)
++                    } else {
++                        e
++                    };
++                    e.text_color(colors.foreground)
++                }
++                ToggleVariant::Ghost => {
++                    let e = if fade.is_none() {
++                        e.bg(gpui::transparent_black())
++                    } else {
++                        e
++                    };
++                    e.text_color(colors.default.foreground)
++                }
+             });
+ 
+         // sizing — kept in locals so the press geometry below scales exactly
+@@ -295,7 +328,6 @@ impl RenderOnce for ToggleButton {
+             Size::Sm | Size::Md => (px(14.), px(20.)),
+             Size::Lg => (px(16.), px(24.)),
+         };
+-        let radius = crate::util::control_radius(cx);
+         el = el.h(height).text_size(text).line_height(line);
+         el = if self.is_icon_only {
+             el.w(height)
+@@ -305,9 +337,51 @@ impl RenderOnce for ToggleButton {
+ 
+         el = crate::button::group_radius_any(el, self.group_edge, radius);
+ 
++        if let Some(colors) = fade {
++            let edge = self.group_edge;
++            el = crate::anim::hover_fade(
++                el,
++                ElementId::Name(format!("{:?}-fade", self.id).into()),
++                colors,
++                interaction.as_ref(),
++                move |fill| crate::button::group_radius_any(fill, edge, radius),
++                window,
++                cx,
++            );
++        }
++
+         if self.is_disabled {
+-            el = el.opacity(layout.disabled_opacity);
+-        } else {
++            el = el.opacity(disabled_opacity);
++        }
++
++        if let Some(render) = self.content.clone() {
++            let (is_hovered, is_pressed) = interaction
++                .as_ref()
++                .map(|slot| *slot.read(cx))
++                .unwrap_or_default();
++            let focused = focus_handle.is_focused(window);
++            el = el.child(render(crate::util::InteractiveState {
++                is_hovered,
++                is_pressed,
++                is_focused: focused,
++                is_focus_visible: focused && crate::util::focus_visible(cx),
++                is_selected,
++                is_disabled: self.is_disabled,
++                is_pending: false,
++                is_indeterminate: false,
++            }));
++        } else if let Some(label) = self.label {
++            el = el.child(label.to_string());
++        }
++        // The interaction tracking belongs on the press slot, like Button:
++        // key events dispatch along the focus path, which runs through the
++        // slot the focus handle below tracks.
++        el = el.children(self.children);
++
++        // The press wrap (or the disabled dimming, which must cover the label
++        // above the skin too) comes after every visual child: children added
++        // after `pressed` land on the slot and fight the skin for width.
++        if !self.is_disabled {
+             let hover_bg = if is_selected {
+                 colors.accent.soft_hover()
+             } else {
+@@ -316,7 +390,10 @@ impl RenderOnce for ToggleButton {
+                     ToggleVariant::Ghost => colors.default.color,
+                 }
+             };
+-            el = el.cursor_pointer().hover(move |s| s.bg(hover_bg));
++            el = el.cursor_pointer();
++            if fade.is_none() {
++                el = el.hover(move |s| s.bg(hover_bg));
++            }
+             // v3 documents ToggleButton's pressed state as including the same
+             // size-specific scale. Group members suppress it so the attached
+             // control never opens gaps between buttons while pressed.
+@@ -343,29 +420,9 @@ impl RenderOnce for ToggleButton {
+             }
+         }
+ 
+-        if let Some(render) = self.content.clone() {
+-            let (is_hovered, is_pressed) = interaction
+-                .as_ref()
+-                .map(|slot| *slot.read(cx))
+-                .unwrap_or_default();
+-            let focused = focus_handle.is_focused(window);
+-            el = el.child(render(crate::util::InteractiveState {
+-                is_hovered,
+-                is_pressed,
+-                is_focused: focused,
+-                is_focus_visible: focused && crate::util::focus_visible(cx),
+-                is_selected,
+-                is_disabled: self.is_disabled,
+-                is_pending: false,
+-                is_indeterminate: false,
+-            }));
+-        } else if let Some(label) = self.label {
+-            el = el.child(label.to_string());
+-        }
+         if let Some(slot) = &interaction {
+             el = crate::util::track_interaction(el, slot);
+         }
+-        el = el.children(self.children);
+ 
+         if !self.is_disabled
+             && (self.on_press.is_some() || self.on_change.is_some() || own.is_some())
+@@ -613,7 +670,7 @@ impl RenderOnce for ToggleButtonGroup {
                      if let Some(restored) = members.iter().position(|(key, _)| key == last) {
                          effective = restored;
                          if restored != current {
@@ -26185,7 +26856,7 @@ index 8576915..c257430 100644
                          }
                      }
                  }
-@@ -679,7 +679,7 @@ impl RenderOnce for ToggleButtonGroup {
+@@ -679,7 +736,7 @@ impl RenderOnce for ToggleButtonGroup {
                      index.checked_sub(1)
                  };
                  if let Some(next) = next {
@@ -26194,7 +26865,7 @@ index 8576915..c257430 100644
                  }
                  return;
              }
-@@ -707,7 +707,7 @@ impl RenderOnce for ToggleButtonGroup {
+@@ -707,7 +764,7 @@ impl RenderOnce for ToggleButtonGroup {
                  key_focuses.last()
              };
              if let Some(edge) = edge {

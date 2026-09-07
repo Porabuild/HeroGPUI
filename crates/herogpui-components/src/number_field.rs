@@ -947,6 +947,9 @@ fn stepper_btn(
         .flex_shrink_0()
         .w(btn_px)
         .h(h);
+    // The icon joins the skin before the press wrap: children added after
+    // `pressed` land on the slot and fight the skin for width.
+    b = b.text_color(colors.field.foreground).child(icon);
     if !is_disabled {
         let release = press.clone();
         b = b.child(
@@ -1056,7 +1059,7 @@ fn stepper_btn(
             cx,
         );
     }
-    b.text_color(colors.field.foreground).child(icon)
+    b
 }
 
 #[derive(Default)]

@@ -896,27 +896,6 @@ impl RenderOnce for Menu {
                         // `.menu-item:hover` fills with `bg-default`, the full
                         // token, not the soft wash.
                         row = row.hover(move |s| s.bg(colors.default.color));
-                        // `.menu-item[data-pressed]` is `scale(0.98)`.
-                        row = crate::anim::pressed(
-                            row,
-                            crate::anim::PressBox {
-                                height: px(36.),
-                                padding_x: Some(if dropdown_composition {
-                                    px(10.)
-                                } else {
-                                    px(8.)
-                                }),
-                                width: None,
-                                min_width: None,
-                                text_size: px(14.),
-                                line_height: px(20.),
-                                gap: px(12.),
-                                radius: crate::util::soft_radius(cx),
-                                shrink_x: true,
-                                scale: crate::anim::PRESSED_SCALE_SUBTLE,
-                            },
-                            cx,
-                        );
                         let pointer_cursor = cursor.clone();
                         let pointer_focus = focus_handle.clone();
                         row = row.on_mouse_down(gpui::MouseButton::Left, move |_, window, cx| {
@@ -1105,6 +1084,33 @@ impl RenderOnce for Menu {
                         if let Some(content) = indicator {
                             row = row.child(content);
                         }
+                    }
+
+                    // `.menu-item[data-pressed]` is `scale(0.98)`. The press
+                    // wrap comes after every visual child: children added
+                    // after `pressed` land on the slot and fight the skin for
+                    // width. The row is `w-full`, so its slot is too.
+                    if !is_item_disabled {
+                        row = crate::anim::pressed(
+                            row,
+                            crate::anim::PressBox {
+                                height: px(36.),
+                                padding_x: Some(if dropdown_composition {
+                                    px(10.)
+                                } else {
+                                    px(8.)
+                                }),
+                                width: None,
+                                min_width: None,
+                                text_size: px(14.),
+                                line_height: px(20.),
+                                gap: px(12.),
+                                radius: crate::util::soft_radius(cx),
+                                shrink_x: false,
+                                scale: crate::anim::PRESSED_SCALE_SUBTLE,
+                            },
+                            cx,
+                        );
                     }
 
                     if !is_item_disabled && !has_submenu {

@@ -9,10 +9,12 @@
 //! reaching for `with_animation` directly, so the reduced-motion check and the
 //! duration/easing live in exactly one place.
 
+use std::cell::RefCell;
+use std::collections::HashMap;
 use std::time::Duration;
 
 use gpui::{
-    AnimationExt, AnyElement, App, ElementId, InteractiveElement, IntoElement, ParentElement,
+    px, AnimationExt, AnyElement, App, ElementId, InteractiveElement, IntoElement, ParentElement,
     StatefulInteractiveElement, StyleRefinement, Styled,
 };
 use herogpui_theme::ActiveTheme;
@@ -279,11 +281,12 @@ pub struct PressBox {
 
 /// Applies v3's `[data-pressed]` press.
 ///
-/// gpui 0.2.2 has no transform for a div — only `paint_svg` takes a
-/// transformation matrix — so `scale(0.97)` is reproduced by shrinking the
-/// painted height and corner radius. Vertical margin absorbs the height the
-/// box gives up. Width, padding, type and gap stay at rest so a content-sized
-/// control cannot pull its neighbours sideways.
+/// v3 presses with `transform: scale(s)` about the centre, and gpui 0.2.2 has
+/// no paint transform — so the pressed element becomes the painted *skin*
+/// inside a stable slot root: the slot keeps the resting footprint, and the
+/// skin downscales about the centre through fractional absolute insets. The
+/// scale therefore never reflows the slot's neighbours, and the skin's own
+/// content (label, padding) is carried along by its box.
 ///
 /// Returns `el` untouched under reduced motion.
 pub fn pressed(el: gpui::Stateful<gpui::Div>, b: PressBox, cx: &App) -> gpui::Stateful<gpui::Div> {
@@ -301,6 +304,37 @@ pub fn pressed_with_background(
     pressed_with_optional_background(el, b, Some(background), cx)
 }
 
+/// Resting slot widths, recorded by [`press_slot_recorder`] while a
+/// content-sized skin hugs its slot at rest and held while it is pressed.
+#[derive(Default)]
+struct PressSlotSizes(RefCell<HashMap<ElementId, f32>>);
+
+impl gpui::Global for PressSlotSizes {}
+
+fn press_slot_width(cx: &App, id: &ElementId) -> Option<f32> {
+    let slots = cx.try_global::<PressSlotSizes>()?;
+    slots.0.borrow().get(id).copied()
+}
+
+/// An invisible layer over the slot that keeps its resting width fresh:
+/// recorded while the skin hugs the slot at rest, and held while it is
+/// pressed.
+fn press_slot_recorder(id: ElementId) -> AnyElement {
+    gpui::canvas(
+        |_, _, _| {},
+        move |bounds, _, _, cx| {
+            let width = f32::from(bounds.size.width);
+            let slots = cx.default_global::<PressSlotSizes>();
+            if slots.0.borrow().get(&id).copied() != Some(width) {
+                slots.0.borrow_mut().insert(id, width);
+            }
+        },
+    )
+    .absolute()
+    .inset_0()
+    .into_any_element()
+}
+
 fn pressed_with_optional_background(
     el: gpui::Stateful<gpui::Div>,
     b: PressBox,
@@ -313,21 +347,70 @@ fn pressed_with_optional_background(
             None => el,
         };
     }
-    let inset = inset_for(b.height, b.scale);
-    el.active(move |s: StyleRefinement| {
+    // A percentage size on the absolutely positioned skin resolves against
+    // the slot, so it overrides every way a caller might have sized the skin
+    // (an explicit `h`, `w_full`, `min_h`) and scales tall content rows by
+    // their real height, not the control minimum. The fractional `left`/`top`
+    // are exactly `(1 - s) / 2` of the slot's axis: the gap a scale of `s`
+    // leaves on each side, which centres the skin.
+    let inset = gpui::DefiniteLength::Fraction((1.0 - b.scale) / 2.0);
+    let scaled = gpui::DefiniteLength::Fraction(b.scale);
+    let pressed_min_height = scaled_by(b.height, b.scale);
+    let pressed_radius = scaled_by(b.radius, b.scale);
+
+    // `active` state only exists for elements with a hitbox, and a hitbox is
+    // only inserted for elements that track focus, set a cursor, or listen to
+    // the mouse. Skins whose caller keeps every handler on the slot (the
+    // calendar cells) would press invisibly; arm a no-op listener so the
+    // press registers. `on_mouse_down` appends, so a caller's own listener
+    // is untouched.
+    let mut el = el.on_mouse_down(gpui::MouseButton::Left, |_, _, _| {});
+    let mut el = el.active(move |s: StyleRefinement| {
         let s = match background {
             Some(background) => s.bg(background),
             None => s,
         };
-        // Only the painted box squashes, and only on the block axis. Width,
-        // padding, type and gap stay put so a content-sized control cannot
-        // pull its neighbours sideways. Vertical margin absorbs the height
-        // the box gives up, which is what keeps a row's other controls still.
-        s.h(shrink(b.height, inset + inset))
-            .mt(inset)
-            .mb(inset)
-            .rounded(scaled_by(b.radius, b.scale))
-    })
+        s.absolute()
+            .left(inset)
+            .top(inset)
+            .w(scaled)
+            .h(scaled)
+            .min_h(pressed_min_height)
+            .rounded(pressed_radius)
+            .to_owned()
+    });
+
+    // The slot keeps the resting footprint: fixed where the caller gave us a
+    // width or asked for full width, and otherwise the skin's resting width
+    // recorded while it hugged the slot at rest. Callers must add every
+    // visual child to the skin *before* pressing — children added after land
+    // on the slot and fight the skin for its width.
+    let Some(id) = el.interactivity().element_id.clone() else {
+        // No identity to anchor the slot's resting width on; skip the scale
+        // rather than risk a reflow.
+        return el;
+    };
+    let mut slot = gpui::div()
+        .id(ElementId::Name(format!("{id:?}-press-slot").into()))
+        .relative()
+        .flex_shrink_0()
+        .flex()
+        .items_center()
+        .justify_center()
+        // A minimum, not a fixed height: a tall content row grows the slot
+        // past the control minimum instead of being clipped to it.
+        .min_h(b.height);
+    slot = match b.width {
+        Some(width) => slot.w(width),
+        None if !b.shrink_x => slot.w_full(),
+        None => {
+            if let Some(width) = press_slot_width(cx, &id) {
+                slot = slot.w(px(width));
+            }
+            slot.child(press_slot_recorder(id))
+        }
+    };
+    slot.child(el)
 }
 
 /// `[data-exiting]` duration. Every overlay in v3 leaves in `duration-100`.

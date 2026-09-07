@@ -243,14 +243,6 @@ impl RenderOnce for Pagination {
                     let link_disabled = self.is_disabled || self.disabled_keys.contains(&n);
                     let mut btn = gpui::div()
                         .id(gpui::ElementId::Name(format!("{base}-page-{n}").into()))
-                        .when_some(
-                            page_focus
-                                .iter()
-                                .find(|(p, _)| *p == n)
-                                .map(|(_, handle)| handle)
-                                .filter(|_| !link_disabled),
-                            |b, handle| b.track_focus(handle),
-                        )
                         .flex()
                         .items_center()
                         .justify_center()
@@ -272,13 +264,25 @@ impl RenderOnce for Pagination {
                         // The resting ghost link is transparent and borderless.
                         btn = btn.text_color(colors.foreground);
                     }
+                    // The label joins the skin before the press wrap:
+                    // children added after `pressed` land on the slot and
+                    // fight the skin for width. `link` is v3's render prop on
+                    // `Pagination.Link`: it receives `isActive`, so a caller
+                    // can style the current page without re-deriving which
+                    // one it is.
+                    btn = match &self.link {
+                        Some(render) => btn.child(render(n, active)),
+                        None => btn.child(n.to_string()),
+                    };
                     if !link_disabled {
                         let hover_bg = colors.default.hover();
+                        // `.pagination__link[data-pressed]` applies to every
+                        // enabled link, including the active page: the
+                        // default-hover fill rides inside the press
+                        // refinement, which owns the scale.
                         let pressed_bg = colors.default.hover();
                         btn = btn.hover(move |s| s.bg(hover_bg));
-                        // `.pagination__link[data-pressed]` applies to every
-                        // enabled link, including the active page.
-                        btn = crate::anim::pressed(
+                        btn = crate::anim::pressed_with_background(
                             btn,
                             crate::anim::PressBox {
                                 height: cell,
@@ -292,9 +296,9 @@ impl RenderOnce for Pagination {
                                 shrink_x: true,
                                 scale: press_scale,
                             },
+                            pressed_bg,
                             cx,
-                        )
-                        .active(move |s| s.bg(pressed_bg));
+                        );
                     }
                     // `aria-current` identifies the active page without
                     // disabling its React Aria Button. Every enabled numeric
@@ -309,9 +313,14 @@ impl RenderOnce for Pagination {
                     if link_disabled {
                         btn = btn.opacity(layout.disabled_opacity);
                     }
-                    // `link` is v3's render prop on `Pagination.Link`: it
-                    // receives `isActive`, so a caller can style the current
-                    // page without re-deriving which one it is.
+                    // The focus tracking lands on the press slot (the element
+                    // `pressed` returns) so keyboard activation and pointer
+                    // activation answer on the same element.
+                    if !link_disabled {
+                        if let Some((_, handle)) = page_focus.iter().find(|(p, _)| *p == n) {
+                            btn = btn.track_focus(handle);
+                        }
+                    }
                     // `.pagination__item:focus-visible` is `status-focused`.
                     let btn = crate::util::with_focus_ring(
                         btn,
@@ -323,10 +332,7 @@ impl RenderOnce for Pagination {
                         Vec::new(),
                         cx,
                     );
-                    row = row.child(match &self.link {
-                        Some(render) => btn.child(render(n, active)),
-                        None => btn.child(n.to_string()),
-                    });
+                    row = row.child(btn);
                 }
                 PageRef::Ellipsis => {
                     row = row.child(
@@ -443,10 +449,6 @@ fn nav_button(
     } = style;
     let mut btn = gpui::div()
         .id(gpui::ElementId::Name(id.into()))
-        // A disabled control must leave the tab order — `track_focus` is what
-        // puts it in, so gate it (v3 gives a disabled arrow `pointer-events-none`
-        // and nothing for Tab to land on).
-        .when(enabled, |b| b.track_focus(focus))
         .when_some(ring, |b, shadows| b.shadow(shadows))
         .flex()
         .items_center()
@@ -459,7 +461,10 @@ fn nav_button(
         .gap(px(6.))
         .px(padding_x)
         .rounded(radius)
-        .text_color(foreground);
+        .text_color(foreground)
+        // The icon joins the skin before the press wrap: children added
+        // after `pressed` land on the slot and fight the skin for width.
+        .child(icon);
     if enabled {
         btn = btn.cursor_pointer().hover(move |s| s.bg(hover_bg));
         btn = crate::anim::pressed_with_background(
@@ -482,7 +487,15 @@ fn nav_button(
     } else {
         btn = btn.opacity(disabled_opacity);
     }
-    btn.child(icon)
+    // A disabled control must leave the tab order — `track_focus` is what
+    // puts it in, so gate it (v3 gives a disabled arrow `pointer-events-none`
+    // and nothing for Tab to land on). The tracking lands on the press slot
+    // (the element `pressed` returns) so keyboard activation and pointer
+    // activation answer on the same element.
+    if enabled {
+        btn = btn.track_focus(focus);
+    }
+    btn
 }
 
 enum PageRef {

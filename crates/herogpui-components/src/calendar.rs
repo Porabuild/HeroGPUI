@@ -777,6 +777,9 @@ impl Calendar {
         // Uniform circular hit area centred in the slot. The debug selector
         // lets the headless tests read the cell's laid-out bounds.
         let indicator_key = format!("{key}-indicator");
+        // The day's own content joins the skin before the press wrap:
+        // children added after `pressed` land on the slot and fight the
+        // skin for width.
         let mut circle = gpui::div()
             .id(gpui::ElementId::Name(key.clone().into()))
             .debug_selector(move || key)
@@ -787,7 +790,19 @@ impl Calendar {
             .justify_center()
             .text_size(px(14.))
             .line_height(px(20.))
-            .font_weight(gpui::FontWeight::MEDIUM);
+            .font_weight(gpui::FontWeight::MEDIUM)
+            .child(match &self.cell {
+                Some(render) => render(CalendarCellState {
+                    date,
+                    formatted_date: self.day_label(date).into(),
+                    is_selected: is_sel,
+                    is_unavailable: unavailable,
+                    is_outside_month: outside_month,
+                    is_today,
+                    is_disabled: disabled,
+                }),
+                None => self.day_label(date).into_any_element(),
+            });
 
         let marker = if self.is_invalid {
             colors.danger.color
@@ -919,18 +934,7 @@ impl Calendar {
             .flex()
             .items_center()
             .justify_center()
-            .child(match &self.cell {
-                Some(render) => circle.child(render(CalendarCellState {
-                    date,
-                    formatted_date: self.day_label(date).into(),
-                    is_selected: is_sel,
-                    is_unavailable: unavailable,
-                    is_outside_month: outside_month,
-                    is_today,
-                    is_disabled: disabled,
-                })),
-                None => circle.child(self.day_label(date)),
-            })
+            .child(circle)
             .when(marked, |cell| {
                 cell.child(
                     gpui::div()
@@ -1508,6 +1512,8 @@ impl RenderOnce for Calendar {
                 scale: crate::anim::PRESSED_SCALE_DEEP,
             };
             let selector = key.clone();
+            // The icon joins the skin before the press wrap: children added
+            // after `pressed` land on the slot and fight the skin for width.
             let button = gpui::div()
                 .id(gpui::ElementId::Name(key.into()))
                 .debug_selector(move || selector)
@@ -1518,6 +1524,15 @@ impl RenderOnce for Calendar {
                 // `.calendar__nav-button` is `size-6 rounded-2xl`.
                 .size(px(24.))
                 .rounded(crate::util::soft_radius(cx))
+                .child(
+                    gpui::svg()
+                        // `.calendar__nav-button-icon` is `size-4`.
+                        .size(px(16.))
+                        .path(icon_path)
+                        // `.calendar__nav-button` is `text-accent-soft-foreground`,
+                        // at rest and hovered alike.
+                        .text_color(colors.accent.soft_foreground(colors.foreground)),
+                )
                 .when(!disabled, |b| {
                     crate::anim::pressed(
                         b.cursor_pointer()
@@ -1534,15 +1549,7 @@ impl RenderOnce for Calendar {
                 })
                 .when(disabled, |b| b.opacity(layout.disabled_opacity))
                 .when(year_picker_open, |b| b.invisible());
-            crate::util::ring_if_focused(button, focus, true, Vec::new(), window, cx).child(
-                gpui::svg()
-                        // `.calendar__nav-button-icon` is `size-4`.
-                        .size(px(16.))
-                        .path(icon_path)
-                        // `.calendar__nav-button` is `text-accent-soft-foreground`,
-                        // at rest and hovered alike.
-                        .text_color(colors.accent.soft_foreground(colors.foreground)),
-            )
+            crate::util::ring_if_focused(button, focus, true, Vec::new(), window, cx)
         };
 
         // A heading is a plain label only when the picker is controlled without

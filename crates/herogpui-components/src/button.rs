@@ -583,20 +583,6 @@ impl RenderOnce for Button {
             );
         }
 
-        // `.button:focus-visible` is `status-focused`: a 2px ring, offset from
-        // the button by another in the background colour. A disabled button is
-        // not a tab stop, which is what `pointer-events-none` amounts to here.
-        if focusable {
-            el = util::ring_if_focused(
-                el.track_focus(&focus_handle),
-                &focus_handle,
-                true,
-                Vec::new(),
-                window,
-                cx,
-            );
-        }
-
         if self.is_disabled || self.is_pending {
             el = el.opacity(disabled_opacity);
         }
@@ -623,11 +609,6 @@ impl RenderOnce for Button {
             }));
         } else if let Some(label) = self.label {
             el = el.child(label.to_string());
-        }
-        if interactive {
-            if let Some(slot) = &interaction {
-                el = util::track_interaction(el, slot);
-            }
         }
         el = el.children(self.children);
 
@@ -668,6 +649,39 @@ impl RenderOnce for Button {
                 // second half on.
                 el = el.on_click(move |ev: &ClickEvent, window, cx| on_press(ev, window, cx));
             }
+        }
+
+        // The interaction tracking (hover, mouse/keyboard press bits the
+        // `content` closure reads) belongs on the press slot: key events
+        // dispatch along the focus path, which runs through the slot — the
+        // skin is its child.
+        if interactive {
+            if let Some(slot) = &interaction {
+                el = util::track_interaction(el, slot);
+            }
+        }
+
+        // `.button:focus-visible` is `status-focused`: a 2px ring, offset from
+        // the button by another in the background colour. A disabled button is
+        // not a tab stop, which is what `pointer-events-none` amounts to here.
+        // The focus tracking lands on the press slot (the element `pressed`
+        // returns) so keyboard activation and pointer activation answer on the
+        // same element, and the ring draws around the resting footprint. The
+        // pending/disabled dimming covers the label, which lives above the
+        // skin.
+        if focusable {
+            el = util::ring_if_focused(
+                el.track_focus(&focus_handle),
+                &focus_handle,
+                true,
+                Vec::new(),
+                window,
+                cx,
+            );
+        }
+
+        if self.is_disabled || self.is_pending {
+            el = el.opacity(disabled_opacity);
         }
 
         el.into_any_element()

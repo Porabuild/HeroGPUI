@@ -352,7 +352,36 @@ impl RenderOnce for ToggleButton {
 
         if self.is_disabled {
             el = el.opacity(disabled_opacity);
-        } else {
+        }
+
+        if let Some(render) = self.content.clone() {
+            let (is_hovered, is_pressed) = interaction
+                .as_ref()
+                .map(|slot| *slot.read(cx))
+                .unwrap_or_default();
+            let focused = focus_handle.is_focused(window);
+            el = el.child(render(crate::util::InteractiveState {
+                is_hovered,
+                is_pressed,
+                is_focused: focused,
+                is_focus_visible: focused && crate::util::focus_visible(cx),
+                is_selected,
+                is_disabled: self.is_disabled,
+                is_pending: false,
+                is_indeterminate: false,
+            }));
+        } else if let Some(label) = self.label {
+            el = el.child(label.to_string());
+        }
+        // The interaction tracking belongs on the press slot, like Button:
+        // key events dispatch along the focus path, which runs through the
+        // slot the focus handle below tracks.
+        el = el.children(self.children);
+
+        // The press wrap (or the disabled dimming, which must cover the label
+        // above the skin too) comes after every visual child: children added
+        // after `pressed` land on the slot and fight the skin for width.
+        if !self.is_disabled {
             let hover_bg = if is_selected {
                 colors.accent.soft_hover()
             } else {
@@ -391,29 +420,9 @@ impl RenderOnce for ToggleButton {
             }
         }
 
-        if let Some(render) = self.content.clone() {
-            let (is_hovered, is_pressed) = interaction
-                .as_ref()
-                .map(|slot| *slot.read(cx))
-                .unwrap_or_default();
-            let focused = focus_handle.is_focused(window);
-            el = el.child(render(crate::util::InteractiveState {
-                is_hovered,
-                is_pressed,
-                is_focused: focused,
-                is_focus_visible: focused && crate::util::focus_visible(cx),
-                is_selected,
-                is_disabled: self.is_disabled,
-                is_pending: false,
-                is_indeterminate: false,
-            }));
-        } else if let Some(label) = self.label {
-            el = el.child(label.to_string());
-        }
         if let Some(slot) = &interaction {
             el = crate::util::track_interaction(el, slot);
         }
-        el = el.children(self.children);
 
         if !self.is_disabled
             && (self.on_press.is_some() || self.on_change.is_some() || own.is_some())

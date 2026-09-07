@@ -1417,6 +1417,17 @@ impl RenderOnce for RangeCalendar {
                 // `rounded-2xl`.
                 .size(px(24.))
                 .rounded(util::small_radius(cx))
+                // The icon joins the skin before the press wrap: children
+                // added after `pressed` land on the slot and fight the skin
+                // for width.
+                .child(
+                    gpui::svg()
+                        // `.range-calendar__nav-button-icon` is `size-4`, painted
+                        // `text-accent-soft-foreground` like its button.
+                        .size(px(16.))
+                        .path(icon)
+                        .text_color(colors.accent.soft_foreground(colors.foreground)),
+                )
                 .when(!disabled, |b| {
                     let pressed = b
                         .cursor_pointer()
@@ -1431,14 +1442,7 @@ impl RenderOnce for RangeCalendar {
                 })
                 .when(disabled, |b| b.opacity(layout.disabled_opacity))
                 .when(year_picker_open, |b| b.invisible());
-            util::ring_if_focused(button, focus, true, Vec::new(), window, cx).child(
-                gpui::svg()
-                    // `.range-calendar__nav-button-icon` is `size-4`, painted
-                    // `text-accent-soft-foreground` like its button.
-                    .size(px(16.))
-                    .path(icon)
-                    .text_color(colors.accent.soft_foreground(colors.foreground)),
-            )
+            util::ring_if_focused(button, focus, true, Vec::new(), window, cx)
         };
 
         // A heading is a plain label only when the picker is controlled without
