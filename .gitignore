@@ -32,7 +32,12 @@ venv/
 .agents/
 .claude/
 .poracode/
+.qwen/
 skills-lock.json
+
+# One-shot scratch at the repo root (split scripts, notes). Anchored so a
+# source directory named `tmp` elsewhere is not hidden.
+/tmp
 
 # Editors.
 .vscode/
