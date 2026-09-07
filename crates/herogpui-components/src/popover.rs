@@ -5,14 +5,17 @@ use gpui::{
     InspectorElementId, IntoElement, LayoutId, ParentElement, Pixels, Position, RenderOnce,
     SharedString, Size, StatefulInteractiveElement, Style, Styled, Window,
 };
+use herogpui_core::element_id;
 use herogpui_theme::ActiveTheme;
+
+use crate::a11y::{self, A11y as _};
 
 /// `placement` on `Popover.Content`.
 ///
 /// Shares the one placement vocabulary with the pickers and dropdown.
 pub use herogpui_core::Placement as PopoverPlacement;
 
-type OnOpenChange = std::sync::Arc<dyn Fn(bool, &mut Window, &mut App) + 'static>;
+type OnOpenChange = std::sync::Arc<dyn Fn(&bool, &mut Window, &mut App) + 'static>;
 
 #[derive(Clone, Copy)]
 enum PopoverSide {
@@ -728,6 +731,8 @@ pub struct Popover {
     should_flip: bool,
     on_open_change: Option<OnOpenChange>,
     children: Vec<AnyElement>,
+    /// The `sx` slot, refined over the root style at the end of render.
+    sx: Option<Box<gpui::StyleRefinement>>,
 }
 
 impl Popover {
@@ -744,6 +749,7 @@ impl Popover {
             show_close_button: false,
             on_open_change: None,
             children: Vec::new(),
+            sx: None,
         }
     }
 
@@ -799,8 +805,18 @@ impl Popover {
     }
 
     /// Toggle handler wired to the trigger click.
-    pub fn on_open_change(mut self, f: impl Fn(bool, &mut Window, &mut App) + 'static) -> Self {
+    pub fn on_open_change(mut self, f: impl Fn(&bool, &mut Window, &mut App) + 'static) -> Self {
         self.on_open_change = Some(std::sync::Arc::new(f));
+        self
+    }
+
+    /// The one slot for caller-owned low-level styling: GPUI's styling methods
+    /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
+    /// applied to the popover's root element — the wrapper the trigger and the
+    /// floating panel sit in — after every value the placement and the active
+    /// theme chose, so they win.
+    pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
+        self.sx = Some(crate::util::capture_sx(style));
         self
     }
 }
@@ -817,13 +833,13 @@ impl RenderOnce for Popover {
         let (is_open, open_own) = crate::util::controlled(
             window,
             cx,
-            gpui::ElementId::Name(format!("{:?}-open", self.id).into()),
+            element_id::scoped(&self.id, "open"),
             self.is_open,
             self.default_open,
         );
         // v3 keeps a closing panel on screen for its `[data-exiting]` run.
         // `overlay_phase` takes `cx` mutably too, so it goes here.
-        let phase_key = gpui::ElementId::Name(format!("{:?}-popover-phase", self.id).into());
+        let phase_key = element_id::scoped(&self.id, "popover-phase");
         let (phase, dismissal_token) =
             crate::util::overlay_scope(window, cx, phase_key, is_open, true);
         let exiting = phase == crate::util::OverlayPhase::Exiting;
@@ -837,23 +853,20 @@ impl RenderOnce for Popover {
         // deliberately not a tab stop: the popover adds no stop of its own.
         // Both `use_keyed_state` calls take `cx` mutably, so they precede the
         // theme tokens.
-        let base = format!("{:?}", self.id);
         let anchor_bounds = std::rc::Rc::new(std::cell::Cell::new(None::<Bounds<Pixels>>));
         let resolved = std::rc::Rc::new(std::cell::Cell::new(None::<PopoverResolved>));
         let root_focus = window
-            .use_keyed_state(
-                gpui::ElementId::Name(format!("{base}-root-focus").into()),
-                cx,
-                |_, cx| cx.focus_handle(),
-            )
+            .use_keyed_state(element_id::scoped(&self.id, "root-focus"), cx, |_, cx| {
+                cx.focus_handle()
+            })
             .read(cx)
             .clone();
         // A v3 popover is a dialog focus scope. It claims focus on every open
         // transition, contains Tab inside the panel, and restores the handle
         // that opened it when it closes.
         let claim = is_open;
-        let trigger_focus = crate::util::panel_restore_focus(window, cx, &base);
-        let panel_focus = crate::util::panel_focus(window, cx, &base, claim);
+        let trigger_focus = crate::util::panel_restore_focus(window, cx, &self.id);
+        let panel_focus = crate::util::panel_focus(window, cx, &self.id, claim);
         // The panel's outside-press capture runs on mouse-down, before the
         // trigger's click listener runs on mouse-up. Keep this latch for one
         // dispatch so an open trigger is owned by its own toggle, not by both
@@ -863,9 +876,7 @@ impl RenderOnce for Popover {
         let layout = cx.layout();
 
         let mut trigger_wrap = gpui::div()
-            .id(gpui::ElementId::Name(
-                format!("{:?}-trigger", self.id).into(),
-            ))
+            .id(element_id::scoped(&self.id, "trigger"))
             .flex()
             .track_focus(&trigger_focus)
             .cursor_pointer();
@@ -883,7 +894,7 @@ impl RenderOnce for Popover {
                     });
                 }
                 if let Some(cb) = &on_open_change {
-                    cb(!open, window, cx);
+                    cb(&!open, window, cx);
                 }
             });
             trigger_wrap = trigger_wrap
@@ -925,7 +936,7 @@ impl RenderOnce for Popover {
             .child(trigger);
 
         if phase == crate::util::OverlayPhase::Closed {
-            return root;
+            return crate::util::apply_sx(root, &self.sx);
         }
 
         let close = crate::util::shared({
@@ -939,7 +950,7 @@ impl RenderOnce for Popover {
                     });
                 }
                 if let Some(cb) = &cb {
-                    cb(false, window, cx);
+                    cb(&false, window, cx);
                 }
                 crate::util::DismissResult::Handled
             }
@@ -962,16 +973,27 @@ impl RenderOnce for Popover {
         if self.show_close_button {
             let close_button = close.clone();
             header_row = header_row.child(
-                crate::close_button::CloseButton::new(gpui::ElementId::Name(
-                    format!("{base}-close").into(),
-                ))
-                .on_press(move |_, window, cx| {
-                    close_button(window, cx);
-                }),
+                crate::close_button::CloseButton::new(element_id::scoped(&self.id, "close"))
+                    .on_press(move |_, window, cx| {
+                        close_button(window, cx);
+                    }),
             );
         }
 
         let mut panel = gpui::div()
+            // `popover/popover.js` composes RAC `Popover` around a `Dialog`,
+            // and `react-aria/dist/private/dialog/useDialog.js` is what gives
+            // that dialog `role="dialog"` — the RAC `Popover` wrapper itself
+            // reports nothing. `useDialog` names it from the composed
+            // `Heading` through `aria-labelledby`, which this port inlines as
+            // the title text; a popover with no title warns upstream ("A
+            // dialog must have a title for accessibility") and is unnamed here
+            // for the same reason.
+            .id(element_id::scoped(&self.id, "dialog"))
+            .a11y_named(
+                a11y::Role::Dialog,
+                &a11y::Name::maybe(self.title.clone()),
+            )
             .w(px(260.))
             .flex()
             .flex_col()
@@ -1065,6 +1087,7 @@ impl RenderOnce for Popover {
         )
         .child(panel);
         root = root.child(positioner);
+        root = crate::util::apply_sx(root, &self.sx);
         root
     }
 }

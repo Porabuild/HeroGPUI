@@ -6,8 +6,10 @@ use gpui::{
     prelude::*, px, App, Entity, IntoElement, MouseDownEvent, MouseUpEvent, RenderOnce,
     SharedString, Styled, Window,
 };
-use herogpui_core::{FieldVariant, NumberFormat};
+use herogpui_core::{element_id, FieldVariant, NumberFormat};
 use herogpui_theme::ActiveTheme;
+
+use crate::a11y::A11y as _;
 
 use crate::{icons, input::InputState};
 
@@ -240,7 +242,7 @@ fn format_number(v: f64) -> String {
     }
 }
 
-type OnChange = Arc<dyn Fn(f64, &mut Window, &mut App) + 'static>;
+type OnChange = Arc<dyn Fn(&f64, &mut Window, &mut App) + 'static>;
 
 /// Values HeroUI supplies to a NumberField root render function.
 #[derive(Clone, Copy, Debug)]
@@ -283,6 +285,9 @@ pub struct NumberField {
     name: Option<SharedString>,
     /// `defaultValue` — seeds the state on the first render only.
     default_value: Option<f64>,
+    /// `value` — the controlled spelling; seeds the state on the first render
+    /// only, ahead of `default_value`. See [`NumberField::value`].
+    value: Option<f64>,
     /// `validationBehavior` — written into the inner field's state on render.
     validation_behavior: Option<crate::form::ValidationBehavior>,
     /// `validate` — run by the component, not the caller.
@@ -297,6 +302,8 @@ pub struct NumberField {
     /// `autoFocus` — take focus on the first render.
     auto_focus: bool,
     on_change: Option<OnChange>,
+    /// The `sx` slot, refined over the root style at the end of render.
+    sx: Option<Box<gpui::StyleRefinement>>,
 }
 
 impl NumberField {
@@ -336,6 +343,18 @@ impl NumberField {
         self
     }
 
+    /// `value` — v3's controlled-value spelling, as a pure builder.
+    ///
+    /// Like [`NumberField::default_value`] this seeds the state on the first
+    /// render only, and it wins when both are given; calling `.value(..)`
+    /// twice keeps the last call, like every other builder here. A later
+    /// value is an imperative update rather than a builder:
+    /// `state.update(cx, |s, cx| s.set_value(v, cx))`.
+    pub fn value(mut self, value: f64) -> Self {
+        self.value = Some(value);
+        self
+    }
+
     /// `validationBehavior` — see [`crate::input::Input::validation_behavior`].
     pub fn validation_behavior(mut self, behavior: crate::form::ValidationBehavior) -> Self {
         self.validation_behavior = Some(behavior);
@@ -344,8 +363,19 @@ impl NumberField {
 
     /// `formatOptions` — how the value is written out.
     ///
-    /// ```ignore
+    /// ```
+    /// # use gpui::{prelude::*, Window};
+    /// # use herogpui_components::{NumberField, NumberFormat, NumberState};
+    /// # struct Demo;
+    /// # impl Render for Demo {
+    /// #     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    /// #         let state = cx.new(|cx| NumberState::new(cx, 42.));
     /// NumberField::new(state).format_options(NumberFormat::currency("USD"))
+    /// #     }
+    /// # }
+    /// # let mut tcx = gpui::TestAppContext::single();
+    /// # tcx.update(herogpui_theme::ThemeProvider::init);
+    /// # let _ = tcx.add_window_view(|_, _| Demo);
     /// ```
     pub fn format_options(mut self, format: NumberFormat) -> Self {
         self.format = Some(format);
@@ -359,6 +389,16 @@ impl NumberField {
 
     pub fn full_width(mut self, v: bool) -> Self {
         self.full_width = v;
+        self
+    }
+
+    /// The one slot for caller-owned low-level styling: GPUI's styling methods
+    /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
+    /// applied to the field's root element — the column holding the label, the
+    /// group and the message — after every value the variant and the active
+    /// theme chose, so they win. The group's own chrome stays with the variant.
+    pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
+        self.sx = Some(crate::util::capture_sx(style));
         self
     }
 
@@ -416,10 +456,14 @@ impl NumberField {
         self
     }
 
-    pub fn new(state: Entity<NumberState>) -> Self {
+    /// Builds the field over `state`, which may be borrowed —
+    /// `NumberField::new(&handle)` — so a caller keeping its own handle clones
+    /// nothing at the call site; an owned `Entity<NumberState>` still works,
+    /// and the cheap handle clone happens once inside either way.
+    pub fn new(state: impl std::borrow::Borrow<Entity<NumberState>>) -> Self {
         Self {
             content: None,
-            state,
+            state: state.borrow().clone(),
             description: None,
             label: None,
             hide_steppers: false,
@@ -435,6 +479,7 @@ impl NumberField {
             format: None,
             name: None,
             default_value: None,
+            value: None,
             validation_behavior: None,
             validate: None,
             validation_errors: Vec::new(),
@@ -444,6 +489,7 @@ impl NumberField {
             is_wheel_disabled: false,
             auto_focus: false,
             on_change: None,
+            sx: None,
         }
     }
 
@@ -488,7 +534,7 @@ impl NumberField {
         self
     }
 
-    pub fn on_change(mut self, f: impl Fn(f64, &mut Window, &mut App) + 'static) -> Self {
+    pub fn on_change(mut self, f: impl Fn(&f64, &mut Window, &mut App) + 'static) -> Self {
         self.on_change = Some(Arc::new(f));
         self
     }
@@ -510,15 +556,21 @@ impl RenderOnce for NumberField {
             }
         }
 
-        // `defaultValue` seeds the state once, before anything reads it.
-        if let Some(value) = self.default_value {
+        // Every keyed slot hangs off the state entity: a `NumberField` takes
+        // no id of its own, and the entity is the identity it does have.
+        let base_id =
+            gpui::ElementId::named_usize("number", self.state.entity_id().as_u64() as usize);
+
+        // `value` / `defaultValue` seed the state once, before anything reads
+        // it. `value` is v3's controlled spelling, so it outranks the
+        // uncontrolled seed; the state owns the number afterwards, and
+        // `NumberState::set_value` is the imperative update.
+        if let Some(value) = self.value.or(self.default_value) {
             let state = self.state.clone();
             crate::util::seed_once(
                 window,
                 cx,
-                gpui::ElementId::Name(
-                    format!("number-default-{}", self.state.entity_id().as_u64()).into(),
-                ),
+                element_id::scoped(&base_id, "default"),
                 move |cx| {
                     state.update(cx, |s, cx| {
                         s.set_value(value, cx);
@@ -573,9 +625,7 @@ impl RenderOnce for NumberField {
             crate::util::focus_once(
                 window,
                 cx,
-                gpui::ElementId::Name(
-                    format!("number-autofocus-{}", self.state.entity_id().as_u64()).into(),
-                ),
+                element_id::scoped(&base_id, "autofocus"),
                 &focus_handle,
             );
         }
@@ -622,6 +672,7 @@ impl RenderOnce for NumberField {
             .is_required(self.is_required)
             .auto_focus(self.auto_focus)
             .is_invalid(validity.is_invalid)
+            .when_some(self.label.clone(), |f, label| f.a11y_label(label))
             .on_change(move |_text: &str, w, cx| {
                 // The Input already wrote its own text; re-parse here.
                 let before = text_state.read(cx).value();
@@ -632,7 +683,7 @@ impl RenderOnce for NumberField {
                 });
                 if before.to_bits() != after.to_bits() {
                     if let Some(cb) = &on_text_change {
-                        cb(after, w, cx);
+                        cb(&after, w, cx);
                     }
                 }
             });
@@ -648,7 +699,15 @@ impl RenderOnce for NumberField {
         // InputGroup's addon-padding behavior.
         field = field.in_group(false, false);
 
+        // `useNumberField` returns `groupProps` with `role: 'group'`; the
+        // spin button role its `useSpinButton` produces is deleted again
+        // (`role: null`) before it reaches the input, so nothing here is a
+        // spin button.
+        let a11y_name =
+            crate::a11y::Name::field(self.label.as_ref(), self.description.as_ref(), &validity);
         let mut group = gpui::div()
+            .id(element_id::scoped(&base_id, "group"))
+            .a11y_named(crate::a11y::Role::Group, &a11y_name)
             .flex()
             .items_center()
             .h(h)
@@ -720,6 +779,7 @@ impl RenderOnce for NumberField {
                         increment_icon,
                         1.0,
                         self.is_disabled || self.is_read_only,
+                        &a11y_name,
                         window,
                         cx,
                     ))
@@ -735,6 +795,7 @@ impl RenderOnce for NumberField {
                         decrement_icon,
                         -1.0,
                         self.is_disabled || self.is_read_only,
+                        &a11y_name,
                         window,
                         cx,
                     )),
@@ -754,6 +815,7 @@ impl RenderOnce for NumberField {
                         decrement_icon,
                         -1.0,
                         self.is_disabled || self.is_read_only,
+                        &a11y_name,
                         window,
                         cx,
                     )
@@ -774,6 +836,7 @@ impl RenderOnce for NumberField {
                         increment_icon,
                         1.0,
                         self.is_disabled || self.is_read_only,
+                        &a11y_name,
                         window,
                         cx,
                     )
@@ -809,7 +872,7 @@ impl RenderOnce for NumberField {
                                 cx,
                             );
                             if let Some(cb) = &key_change {
-                                cb(key_state.read(cx).value(), window, cx);
+                                cb(&key_state.read(cx).value(), window, cx);
                             }
                         }
                         return;
@@ -827,7 +890,7 @@ impl RenderOnce for NumberField {
                                 cx,
                             );
                             if let Some(cb) = &key_change {
-                                cb(key_state.read(cx).value(), window, cx);
+                                cb(&key_state.read(cx).value(), window, cx);
                             }
                         }
                         return;
@@ -906,6 +969,7 @@ impl RenderOnce for NumberField {
         } else if let Some(description) = self.description.clone() {
             el = el.child(crate::field::Description::new(description));
         }
+        el = crate::util::apply_sx(el, &self.sx);
         el.into_any_element()
     }
 }
@@ -925,6 +989,7 @@ fn stepper_btn(
     icon: gpui::AnyElement,
     dir: f64,
     is_disabled: bool,
+    field_name: &crate::a11y::Name,
     window: &mut Window,
     cx: &mut App,
 ) -> gpui::Stateful<gpui::Div> {
@@ -932,15 +997,23 @@ fn stepper_btn(
     let on_change = on_change.clone();
     let edit_validation_errors = validation_errors;
     let edit_validate = validate.clone();
-    let id = gpui::ElementId::Name(format!("num-{}-{dir}", state.entity_id().as_u64()).into());
-    let press = window.use_keyed_state(
-        gpui::ElementId::Name(format!("num-{}-{dir}-press", state.entity_id().as_u64()).into()),
-        cx,
-        |_, _| StepperPress::default(),
+    // `dir` is the +1/-1 step, so the part is named rather than formatted:
+    // `-1` would otherwise put a second hyphen in the middle of the key.
+    let id = element_id::scoped(
+        &gpui::ElementId::named_usize("num", state.entity_id().as_u64() as usize),
+        if dir >= 0.0 { "increment" } else { "decrement" },
     );
+    let press = window.use_keyed_state(element_id::scoped(&id, "press"), cx, |_, _| {
+        StepperPress::default()
+    });
     let focus_handle = state.read(cx).input.read(cx).focus_handle.clone();
+    // `useNumberField` names each stepper "Increase {label}" / "Decrease
+    // {label}", spelling the field's name into the button's own `aria-label`
+    // rather than pointing at the label element.
+    let stepper_name = field_name.prefixed(if dir >= 0.0 { "Increase" } else { "Decrease" });
     let mut b = gpui::div()
         .id(id)
+        .a11y_named(crate::a11y::Role::Button, &stepper_name)
         .flex()
         .items_center()
         .justify_center()
@@ -1140,7 +1213,7 @@ fn report_bump(
     let Some(next) = next else { return false };
     suppress_routed_server_errors(state, is_invalid, validation_errors, validate, cx);
     if let Some(callback) = on_change {
-        callback(next, window, cx);
+        callback(&next, window, cx);
     }
     true
 }

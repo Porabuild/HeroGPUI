@@ -13,7 +13,10 @@ use gpui::{
     div, prelude::*, px, App, ClickEvent, ElementId, Hsla, InteractiveElement, IntoElement,
     RenderOnce, SharedString, StyleRefinement, Styled, UnderlineStyle, Window,
 };
+use herogpui_core::element_id;
 use herogpui_theme::ActiveTheme;
+
+use crate::a11y::{self, A11y as _};
 
 /// A press handler. `Arc` rather than `Box` because it is bound twice: the
 /// pointer's `on_click` and the keyboard's Enter/Space both run it.
@@ -74,6 +77,8 @@ pub struct Link {
     /// handed the interactive state v3 passes its render functions.
     render: Option<Render>,
     on_press: Option<OnPress>,
+    /// The `sx` slot, refined over the root style at the end of render.
+    sx: Option<Box<StyleRefinement>>,
 }
 
 impl Link {
@@ -88,6 +93,7 @@ impl Link {
             icon_first: false,
             render: None,
             on_press: None,
+            sx: None,
         }
     }
 
@@ -153,6 +159,15 @@ impl Link {
         self.on_press = Some(std::sync::Arc::new(handler));
         self
     }
+
+    /// The one slot for caller-owned low-level styling: GPUI's styling methods
+    /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
+    /// applied to the link's root element after every value the states and the
+    /// active theme chose, so they win.
+    pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
+        self.sx = Some(crate::util::capture_sx(style));
+        self
+    }
 }
 
 impl RenderOnce for Link {
@@ -164,11 +179,8 @@ impl RenderOnce for Link {
         // `pointer-events-none` with nothing to move to amounts to here.
         let interactive = !self.is_disabled;
         // `focus_once` takes `cx` mutably, so it runs before the tokens.
-        let focus = crate::util::tab_stop_handle(
-            ElementId::Name(format!("{:?}-link-focus", self.id).into()),
-            window,
-            cx,
-        );
+        let focus =
+            crate::util::tab_stop_handle(element_id::scoped(&self.id, "link-focus"), window, cx);
         // `autoFocus` needs a focus target, and a link is only one while it is
         // interactive: a disabled link is skipped by Tab, so it must not grab
         // the focus on its first frame either.
@@ -176,7 +188,7 @@ impl RenderOnce for Link {
             crate::util::focus_once(
                 window,
                 cx,
-                ElementId::Name(format!("{:?}-link-autofocus", self.id).into()),
+                element_id::scoped(&self.id, "link-autofocus"),
                 &focus,
             );
         }
@@ -193,7 +205,7 @@ impl RenderOnce for Link {
         // nothing observes the states, so nothing tracks them.
         let interaction = if self.render.is_some() {
             Some(crate::util::interaction(
-                ElementId::Name(format!("{:?}-link-interaction", self.id).into()),
+                element_id::scoped(&self.id, "link-interaction"),
                 window,
                 cx,
             ))
@@ -206,8 +218,13 @@ impl RenderOnce for Link {
             }
         }
 
+        // RAC's `Link` renders a native `<a>`, whose role is `link`;
+        // `useLink` only adds the explicit role when the element is not an
+        // anchor. The rendered text carries no element id and so contributes
+        // no name, which is why the label is restated on the node.
         let mut el = div()
             .id(self.id.clone())
+            .a11y_named(a11y::Role::Link, &a11y::Name::maybe(self.label.clone()))
             .flex()
             .items_center()
             .w_auto()
@@ -277,7 +294,7 @@ impl RenderOnce for Link {
                 if let Some(icon) = self.icon.take() {
                     el = el.child(icon_slot(
                         icon,
-                        ElementId::Name(format!("{:?}-link-icon", self.id).into()),
+                        element_id::scoped(&self.id, "link-icon"),
                         icon_focus_visible,
                         link_color,
                     ));
@@ -290,7 +307,7 @@ impl RenderOnce for Link {
                 if let Some(icon) = self.icon.take() {
                     el = el.child(icon_slot(
                         icon,
-                        ElementId::Name(format!("{:?}-link-icon", self.id).into()),
+                        element_id::scoped(&self.id, "link-icon"),
                         icon_focus_visible,
                         link_color,
                     ));
@@ -314,6 +331,7 @@ impl RenderOnce for Link {
             });
         }
 
+        el = crate::util::apply_sx(el, &self.sx);
         el
     }
 }

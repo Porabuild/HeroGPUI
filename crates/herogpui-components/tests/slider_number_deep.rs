@@ -605,3 +605,33 @@ fn number_field_stepper_repeat_stops_when_unmounted(cx: &mut TestAppContext) {
         "unmounting the stepper must cancel its detached repeat task"
     );
 }
+
+#[gpui::test]
+fn number_field_value_builder_seeds_once_and_outranks_default_value(cx: &mut TestAppContext) {
+    let state = cx.new(|cx| NumberState::new(cx, 0.));
+    let state_for_view = state.clone();
+    // The borrowed handle is the point: a caller keeping its own handle clones
+    // nothing at the call site, and the chain needs no `&mut App`.
+    let cx = open_host(cx, move || {
+        NumberField::new(&state_for_view)
+            .default_value(1.)
+            .value(9.)
+            .into_any_element()
+    });
+    let seeded = cx.update(|_, cx| state.read(cx).value());
+    assert_eq!(
+        seeded, 9.,
+        "value must seed NumberState at first render and outrank defaultValue"
+    );
+
+    // The builder runs again on every refresh carrying the same `value`; the
+    // seed must not rewrite the state a step has moved.
+    press(cx, "tab");
+    press(cx, "up");
+    flush_frame(cx);
+    let stepped = cx.update(|_, cx| state.read(cx).value());
+    assert_eq!(
+        stepped, 10.,
+        "a re-render must not re-apply the value seed over the stepped state"
+    );
+}

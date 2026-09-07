@@ -6,9 +6,10 @@ use gpui::{
     prelude::*, px, AnyElement, App, IntoElement, ParentElement, RenderOnce,
     StatefulInteractiveElement, Styled, Window,
 };
-use herogpui_core::Color;
+use herogpui_core::{element_id, Color};
 use herogpui_theme::ActiveTheme;
 
+use crate::a11y::{self, A11y as _};
 use crate::icons;
 
 /// Field state handed to Checkbox's children and indicator render functions.
@@ -57,11 +58,20 @@ pub struct Checkbox {
     /// does it with `className="rounded-full"` on `Checkbox.Control`.
     is_round: bool,
     description: Option<gpui::SharedString>,
+    /// The plain text of the label, when the caller had one.
+    ///
+    /// `label` takes an arbitrary element, and a gpui text child carries no
+    /// element id, so it contributes no accessibility node and no accessible
+    /// name. A [`CheckboxGroup`] composes its option labels into elements but
+    /// still knows the string, and passes it here so the box is named.
+    label_text: Option<gpui::SharedString>,
     error_message: Option<gpui::SharedString>,
     children: Vec<AnyElement>,
-    on_change: Option<std::sync::Arc<dyn Fn(bool, &mut Window, &mut App) + 'static>>,
+    on_change: Option<std::sync::Arc<dyn Fn(&bool, &mut Window, &mut App) + 'static>>,
     form_state: Rc<RefCell<crate::form::LiveFormFieldState>>,
     form_focus_target: Option<Rc<RefCell<crate::form::LiveFormFieldState>>>,
+    /// The `sx` slot, refined over the root style at the end of render.
+    sx: Option<Box<gpui::StyleRefinement>>,
 }
 
 impl Checkbox {
@@ -122,6 +132,15 @@ impl Checkbox {
         self
     }
 
+    /// The one slot for caller-owned low-level styling: GPUI's styling methods
+    /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
+    /// applied to the checkbox's root element after every value the variant and
+    /// the active theme chose, so they win.
+    pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
+        self.sx = Some(crate::util::capture_sx(style));
+        self
+    }
+
     pub fn is_read_only(mut self, v: bool) -> Self {
         self.is_read_only = v;
         self
@@ -147,6 +166,7 @@ impl Checkbox {
             content: None,
             is_round: false,
             description: None,
+            label_text: None,
             error_message: None,
             children: Vec::new(),
             on_change: None,
@@ -158,6 +178,7 @@ impl Checkbox {
                 restore: None,
             })),
             form_focus_target: None,
+            sx: None,
         }
     }
 
@@ -189,9 +210,21 @@ impl Checkbox {
     /// its ancestor, so the control hands the pair over instead. Borrows, so the
     /// control is still yours to place:
     ///
-    /// ```ignore
+    /// ```
+    /// # use gpui::{prelude::*, Window};
+    /// # use herogpui_components::{Checkbox, Form};
+    /// # struct Demo;
+    /// # impl Render for Demo {
+    /// #     fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
+    /// #         let form = Form::new();
+    /// #         let control = Checkbox::new("terms").name("terms");
     /// let field = control.form_field();
     /// form.field(field.unwrap()).child(control)
+    /// #     }
+    /// # }
+    /// # let mut tcx = gpui::TestAppContext::single();
+    /// # tcx.update(herogpui_theme::ThemeProvider::init);
+    /// # let _ = tcx.add_window_view(|_, _| Demo);
     /// ```
     pub fn form_field(&self) -> Option<crate::form::FormField> {
         let name = self.name.clone()?;
@@ -257,13 +290,20 @@ impl Checkbox {
         self
     }
 
+    /// The label's plain text, for the accessibility node. See the
+    /// `label_text` field for why an element-typed label is not enough.
+    fn a11y_label(mut self, text: impl Into<gpui::SharedString>) -> Self {
+        self.label_text = Some(text.into());
+        self
+    }
+
     /// `FieldError` — fallback validation text below and aligned with the label.
     pub fn error_message(mut self, text: impl Into<gpui::SharedString>) -> Self {
         self.error_message = Some(text.into());
         self
     }
 
-    pub fn on_change(mut self, f: impl Fn(bool, &mut Window, &mut App) + 'static) -> Self {
+    pub fn on_change(mut self, f: impl Fn(&bool, &mut Window, &mut App) + 'static) -> Self {
         self.on_change = Some(std::sync::Arc::new(f));
         self
     }
@@ -286,7 +326,7 @@ impl RenderOnce for Checkbox {
         let (checked, own) = crate::util::controlled(
             window,
             cx,
-            gpui::ElementId::Name(format!("{:?}-checked", self.id).into()),
+            element_id::scoped(&self.id, "checked"),
             self.checked,
             self.default_checked,
         );
@@ -314,7 +354,7 @@ impl RenderOnce for Checkbox {
                         });
                     }
                     if let Some(on_change) = &reset_change {
-                        on_change(default_checked, window, cx);
+                        on_change(&default_checked, window, cx);
                     }
                 }) as std::sync::Arc<dyn Fn(&mut Window, &mut App)>
             });
@@ -340,11 +380,8 @@ impl RenderOnce for Checkbox {
         // v3 focuses the checkbox and rings `.checkbox__control`, so the two sit
         // on different elements: the row takes the focus, the box shows it.
         // `use_keyed_state` takes `cx` mutably, so it precedes the theme.
-        let focus_handle = crate::util::tab_stop_handle(
-            gpui::ElementId::Name(format!("{:?}-focus", self.id).into()),
-            window,
-            cx,
-        );
+        let focus_handle =
+            crate::util::tab_stop_handle(element_id::scoped(&self.id, "focus"), window, cx);
         self.form_state.borrow_mut().focus = Some(focus_handle.clone());
         if let Some(target) = &self.form_focus_target {
             target.borrow_mut().focus = Some(focus_handle.clone());
@@ -375,9 +412,7 @@ impl RenderOnce for Checkbox {
         // rule styles this box. The id derives from the row's, the same way the
         // checked and focus slots derive theirs, so nothing collides.
         let mut boxel = gpui::div()
-            .id(gpui::ElementId::Name(
-                format!("{:?}-control", self.id).into(),
-            ))
+            .id(element_id::scoped(&self.id, "control"))
             .flex()
             .items_center()
             .justify_center()
@@ -464,8 +499,18 @@ impl RenderOnce for Checkbox {
         let children = self
             .content
             .map_or(self.children, |render| vec![render(checkbox_state)]);
+        // `useCheckbox` renders a native `<input type="checkbox">`, whose role
+        // is `checkbox`, and sets the DOM `indeterminate` property — which is
+        // what makes a checkbox report `aria-checked="mixed"`.
+        let name = a11y::Name::field(
+            self.label_text.as_ref(),
+            self.description.as_ref(),
+            &validity,
+        );
         let row = gpui::div()
             .id(self.id.clone())
+            .a11y_named(a11y::Role::CheckBox, &name)
+            .a11y_checked(checked, self.is_indeterminate)
             .when(!self.is_disabled, |el| el.track_focus(&focus_handle))
             .flex()
             .items_center()
@@ -511,7 +556,7 @@ impl RenderOnce for Checkbox {
                     });
                 }
                 if let Some(cb) = &on_change {
-                    cb(!checked, window, cx);
+                    cb(&!checked, window, cx);
                 }
             })
             .into_any_element()
@@ -542,6 +587,7 @@ impl RenderOnce for Checkbox {
                     .child(crate::field::Description::new(description)),
             );
         }
+        root = crate::util::apply_sx(root, &self.sx);
         root.into_any_element()
     }
 }
@@ -611,6 +657,8 @@ pub struct CheckboxGroup {
     is_required: bool,
     on_change: Option<OnGroupChange>,
     form_state: Rc<RefCell<crate::form::LiveFormFieldState>>,
+    /// The `sx` slot, refined over the root style at the end of render.
+    sx: Option<Box<gpui::StyleRefinement>>,
 }
 
 impl CheckboxGroup {
@@ -638,6 +686,7 @@ impl CheckboxGroup {
                 focus: None,
                 restore: None,
             })),
+            sx: None,
         }
     }
 
@@ -653,9 +702,22 @@ impl CheckboxGroup {
     /// its ancestor, so the control hands the pair over instead. Borrows, so the
     /// control is still yours to place:
     ///
-    /// ```ignore
+    /// ```
+    /// # use gpui::{prelude::*, Window};
+    /// # use herogpui_components::{CheckboxGroup, CheckboxOption, Form};
+    /// # struct Demo;
+    /// # impl Render for Demo {
+    /// #     fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
+    /// #         let form = Form::new();
+    /// #         let control = CheckboxGroup::new("langs", vec![CheckboxOption::new("rust", "Rust")])
+    /// #             .name("langs");
     /// let field = control.form_field();
     /// form.field(field.unwrap()).child(control)
+    /// #     }
+    /// # }
+    /// # let mut tcx = gpui::TestAppContext::single();
+    /// # tcx.update(herogpui_theme::ThemeProvider::init);
+    /// # let _ = tcx.add_window_view(|_, _| Demo);
     /// ```
     pub fn form_field(&self) -> Option<crate::form::FormField> {
         let name = self.name.clone()?;
@@ -721,6 +783,15 @@ impl CheckboxGroup {
         self
     }
 
+    /// The one slot for caller-owned low-level styling: GPUI's styling methods
+    /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
+    /// applied to the group's root element after every value the variant and the
+    /// active theme chose, so they win.
+    pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
+        self.sx = Some(crate::util::capture_sx(style));
+        self
+    }
+
     pub fn is_disabled(mut self, v: bool) -> Self {
         self.is_disabled = v;
         self
@@ -759,7 +830,7 @@ impl RenderOnce for CheckboxGroup {
         let (value, own) = crate::util::controlled(
             window,
             cx,
-            gpui::ElementId::Name(format!("{:?}-value", self.id).into()),
+            element_id::scoped(&self.id, "value"),
             self.value.clone(),
             self.default_value.clone(),
         );
@@ -820,7 +891,19 @@ impl RenderOnce for CheckboxGroup {
             .iter()
             .position(|option| !self.is_disabled && !option.is_disabled);
 
-        let mut root = gpui::div().flex().flex_col().gap(px(16.));
+        // `useCheckboxGroup` is `role="group"`, named and described through
+        // `useField` from the group's own label, description and messages.
+        let group_name = a11y::Name::field(
+            self.label.as_ref(),
+            self.description.as_ref(),
+            &crate::validation::resolve(self.is_invalid, &[], None, self.error_message.clone()),
+        );
+        let mut root = gpui::div()
+            .id(self.id.clone())
+            .a11y_named(a11y::Role::Group, &group_name)
+            .flex()
+            .flex_col()
+            .gap(px(16.));
 
         if let Some(label) = &self.label {
             root = root.child(
@@ -863,32 +946,31 @@ impl RenderOnce for CheckboxGroup {
             let selection = value.clone();
             let on_change = self.on_change.clone();
             let own = own.clone();
-            let mut checkbox = Checkbox::new(gpui::ElementId::Name(
-                format!("{:?}-opt-{index}", self.id).into(),
-            ))
-            .is_selected(checked)
-            .is_disabled(disabled)
-            .is_read_only(self.is_read_only)
-            .is_invalid(is_invalid)
-            .variant(self.variant)
-            .label(label_el)
-            .on_change(move |_next, window, cx| {
-                let mut set = selection.clone();
-                if !set.remove(&key) {
-                    set.insert(key.clone());
-                }
-                // Uncontrolled: keep the new set, or ticking a box would
-                // do nothing.
-                if let Some(held) = &own {
-                    held.update(cx, |v, cx| {
-                        *v = set.clone();
-                        cx.notify();
-                    });
-                }
-                if let Some(cb) = &on_change {
-                    cb(&set, window, cx);
-                }
-            });
+            let mut checkbox = Checkbox::new(element_id::indexed(&self.id, "opt", index))
+                .is_selected(checked)
+                .is_disabled(disabled)
+                .is_read_only(self.is_read_only)
+                .is_invalid(is_invalid)
+                .variant(self.variant)
+                .label(label_el)
+                .a11y_label(option.label.clone())
+                .on_change(move |_next, window, cx| {
+                    let mut set = selection.clone();
+                    if !set.remove(&key) {
+                        set.insert(key.clone());
+                    }
+                    // Uncontrolled: keep the new set, or ticking a box would
+                    // do nothing.
+                    if let Some(held) = &own {
+                        held.update(cx, |v, cx| {
+                            *v = set.clone();
+                            cx.notify();
+                        });
+                    }
+                    if let Some(cb) = &on_change {
+                        cb(&set, window, cx);
+                    }
+                });
             if first_enabled == Some(index) {
                 checkbox = checkbox.form_focus_target(self.form_state.clone());
             }
@@ -905,6 +987,7 @@ impl RenderOnce for CheckboxGroup {
             root = root.child(crate::field::Description::new(description));
         }
 
+        root = crate::util::apply_sx(root, &self.sx);
         root
     }
 }

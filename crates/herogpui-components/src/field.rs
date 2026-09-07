@@ -13,9 +13,11 @@
 //! (`text_fields::fieldset_disabled_disables_its_children` proves it).
 
 use gpui::{
-    div, px, AnyElement, App, InteractiveElement, IntoElement, ParentElement, Pixels, RenderOnce,
-    SharedString, StatefulInteractiveElement, Styled, Window,
+    div, px, AnyElement, App, ElementId, InteractiveElement, IntoElement, ParentElement, Pixels,
+    RenderOnce, SharedString, StatefulInteractiveElement, Styled, Window,
 };
+
+use crate::a11y::{self, A11y as _};
 use herogpui_theme::ActiveTheme;
 
 /// HeroUI Label — `slot="label"`.
@@ -30,7 +32,7 @@ pub struct Label {
     is_disabled: bool,
     is_invalid: bool,
     /// `htmlFor` — the field this label names.
-    label_for: Option<(gpui::ElementId, gpui::FocusHandle)>,
+    label_for: Option<(ElementId, gpui::FocusHandle)>,
 }
 
 impl Label {
@@ -50,7 +52,7 @@ impl Label {
     /// which is what makes the association do the one thing it does visibly:
     /// clicking the label focuses the field. Pass a distinct `id` per label so
     /// the click target has one.
-    pub fn label_for(mut self, id: impl Into<gpui::ElementId>, handle: gpui::FocusHandle) -> Self {
+    pub fn label_for(mut self, id: impl Into<ElementId>, handle: gpui::FocusHandle) -> Self {
         self.label_for = Some((id.into(), handle));
         self
     }
@@ -216,6 +218,7 @@ impl RenderOnce for FieldError {
 pub struct Fieldset {
     gap: Pixels,
     children: Vec<AnyElement>,
+    id: Option<ElementId>,
 }
 
 impl Fieldset {
@@ -223,7 +226,15 @@ impl Fieldset {
         Self {
             gap: px(24.),
             children: Vec::new(),
+            id: None,
         }
+    }
+
+    /// Names this fieldset so it can report `role="group"`. Unnamed fieldsets
+    /// produce no AccessKit node.
+    pub fn id(mut self, id: impl Into<ElementId>) -> Self {
+        self.id = Some(id.into());
+        self
     }
 
     pub fn gap(mut self, gap: impl Into<Pixels>) -> Self {
@@ -246,7 +257,7 @@ impl ParentElement for Fieldset {
 
 impl RenderOnce for Fieldset {
     fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
-        div()
+        let el = div()
             .flex()
             .flex_col()
             .gap(self.gap)
@@ -256,7 +267,11 @@ impl RenderOnce for Fieldset {
             .flex_grow(1.)
             .flex_basis(px(0.))
             .text_color(cx.colors().foreground)
-            .children(self.children)
+            .children(self.children);
+        match self.id {
+            Some(id) => el.id(id).a11y(a11y::Role::Group).into_any_element(),
+            None => el.into_any_element(),
+        }
     }
 }
 

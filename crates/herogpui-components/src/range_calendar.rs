@@ -10,22 +10,28 @@ use gpui::{
     div, prelude::*, px, App, ElementId, Entity, InteractiveElement, IntoElement, RenderOnce,
     Styled, Window,
 };
+use herogpui_core::element_id;
 use herogpui_theme::ActiveTheme;
 
 use crate::{
-    calendar::{add_days, days_from_civil, Date},
+    a11y::{self, A11y as _},
+    calendar::{add_days, days_from_civil, month_year_heading, Date},
     calendar_view::{self, PageBehavior, SelectionAlignment, VisibleDuration},
     date_constraints::{DateConstraints, Weekday},
     date_picker::DateRangeState,
     icons, util,
 };
 
-type OnRangeChange = Arc<dyn Fn(Date, Date, &mut Window, &mut App) + 'static>;
+type OnRangeChange = Arc<dyn Fn(&Date, &Date, &mut Window, &mut App) + 'static>;
 type RangeDateUnavailable = Arc<dyn Fn(Date, Option<Date>) -> bool + 'static>;
 
 /// HeroUI RangeCalendar.
 #[derive(IntoElement)]
 pub struct RangeCalendar {
+    /// `value` — v3's controlled range, stored for the first render only.
+    /// Each end is its own `Option` so a half-open controlled range keeps its
+    /// null end, exactly as the builder spelled it.
+    value: Option<(Option<Date>, Option<Date>)>,
     /// `defaultValue` — seeds the state on the first render only.
     default_value: Option<(Date, Date)>,
     id: ElementId,
@@ -54,8 +60,8 @@ pub struct RangeCalendar {
     visible_years: Option<usize>,
     /// `RangeCalendar.YearPickerTriggerHeading.offset.months`.
     year_heading_offset_months: i32,
-    on_year_picker_open_change: Option<Arc<dyn Fn(bool, &mut Window, &mut App) + 'static>>,
-    on_focus_change: Option<Arc<dyn Fn(Date, &mut Window, &mut App) + 'static>>,
+    on_year_picker_open_change: Option<Arc<dyn Fn(&bool, &mut Window, &mut App) + 'static>>,
+    on_focus_change: Option<Arc<dyn Fn(&Date, &mut Window, &mut App) + 'static>>,
     /// `allowsNonContiguousRanges` — lets a range span unavailable dates.
     allows_non_contiguous_ranges: bool,
     /// `RangeCalendar.CellIndicator` — the dot under a marked day, the same part
@@ -63,8 +69,10 @@ pub struct RangeCalendar {
     cell_indicator: Option<Box<dyn Fn(Date) -> bool + 'static>>,
     /// `RangeCalendar.Cell`'s render props: the closure replaces the day label
     /// and is handed the state v3 passes it, the two range ends included.
-    cell: Option<Box<dyn Fn(RangeCalendarCellState) -> gpui::AnyElement + 'static>>,
+    cell: Option<Box<dyn Fn(&RangeCalendarCellState) -> gpui::AnyElement + 'static>>,
     on_change: Option<OnRangeChange>,
+    /// The `sx` slot, refined over the root style at the end of render.
+    sx: Option<Box<gpui::StyleRefinement>>,
 }
 
 /// What `RangeCalendar.Cell`'s render function is handed -- v3's render props
@@ -119,25 +127,30 @@ impl RangeCalendar {
     /// `onFocusChange` — fires when a different date takes focus.
     pub fn on_focus_change(
         mut self,
-        handler: impl Fn(Date, &mut Window, &mut App) + 'static,
+        handler: impl Fn(&Date, &mut Window, &mut App) + 'static,
     ) -> Self {
         self.on_focus_change = Some(Arc::new(handler));
         self
     }
 
-    /// `value` — writes the range through to the bound state.
-    pub fn value(self, start: Option<Date>, end: Option<Date>, cx: &mut App) -> Self {
-        self.state.update(cx, |s, _| {
-            s.start = start;
-            s.end = end;
-        });
+    /// `value` — v3's controlled-range spelling, as a pure builder.
+    ///
+    /// The bound [`DateRangeState`] owns the range once the grid renders, so
+    /// this seeds the state on the first render only, winning over
+    /// [`RangeCalendar::default_value`] the way v3's controlled prop outranks
+    /// the uncontrolled seed; calling `.value(..)` twice keeps the last call,
+    /// like every other builder here. A later range is an imperative update
+    /// rather than a builder: write the caller-owned state entity.
+    pub fn value(mut self, start: Option<Date>, end: Option<Date>) -> Self {
+        self.value = Some((start, end));
         self
     }
 
     pub fn new(state: Entity<DateRangeState>) -> Self {
         Self {
+            value: None,
             default_value: None,
-            id: ElementId::Name(format!("range-cal-{}", state.entity_id().as_u64()).into()),
+            id: ElementId::named_usize("range-cal", state.entity_id().as_u64() as usize),
             state,
             constraints: DateConstraints::new().with_hero_calendar_bounds(),
             range_date_unavailable: None,
@@ -160,6 +173,7 @@ impl RangeCalendar {
             cell_indicator: None,
             cell: None,
             on_change: None,
+            sx: None,
         }
     }
 
@@ -226,7 +240,7 @@ impl RangeCalendar {
     /// or closing the year grid.
     pub fn on_year_picker_open_change(
         mut self,
-        f: impl Fn(bool, &mut Window, &mut App) + 'static,
+        f: impl Fn(&bool, &mut Window, &mut App) + 'static,
     ) -> Self {
         self.on_year_picker_open_change = Some(Arc::new(f));
         self
@@ -259,7 +273,7 @@ impl RangeCalendar {
     /// to draw the cell, so the closure is handed the same state.
     pub fn cell(
         mut self,
-        render: impl Fn(RangeCalendarCellState) -> gpui::AnyElement + 'static,
+        render: impl Fn(&RangeCalendarCellState) -> gpui::AnyElement + 'static,
     ) -> Self {
         self.cell = Some(Box::new(render));
         self
@@ -324,9 +338,18 @@ impl RangeCalendar {
     /// Stately's `useRangeCalendarState`.
     pub fn on_change(
         mut self,
-        handler: impl Fn(Date, Date, &mut Window, &mut App) + 'static,
+        handler: impl Fn(&Date, &Date, &mut Window, &mut App) + 'static,
     ) -> Self {
         self.on_change = Some(Arc::new(handler));
+        self
+    }
+
+    /// The one slot for caller-owned low-level styling: GPUI's styling methods
+    /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
+    /// applied to the range calendar's root element after every value the
+    /// component and the active theme chose, so they win.
+    pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
+        self.sx = Some(util::capture_sx(style));
         self
     }
 }
@@ -635,7 +658,7 @@ impl RangeCalendar {
             .line_height(px(20.))
             .font_weight(gpui::FontWeight::MEDIUM)
             .child(match &self.cell {
-                Some(render) => render(RangeCalendarCellState {
+                Some(render) => render(&RangeCalendarCellState {
                     date,
                     formatted_date: self.day_label(date).into(),
                     is_selected,
@@ -759,7 +782,7 @@ impl RangeCalendar {
                     hover_preview.update(cx, |preview, _| *preview = true);
                     if focus_changed {
                         if let Some(cb) = &hover_focus {
-                            cb(date, window, cx);
+                            cb(&date, window, cx);
                         }
                     }
                 }
@@ -776,7 +799,7 @@ impl RangeCalendar {
             let anchor = frame.anchor;
             cell = cell.on_click(move |_, window, cx| {
                 if let Some(cb) = &on_focus {
-                    cb(date, window, cx);
+                    cb(&date, window, cx);
                 }
                 let (next, previous) = state.update(cx, |s, cx| {
                     let previous = s.start.zip(s.end);
@@ -806,10 +829,22 @@ impl RangeCalendar {
                     }
                 });
                 if let (Some(cb), Some((start, Some(end)))) = (&on_change, next) {
-                    cb(start, end, window, cx);
+                    cb(&start, &end, window, cx);
                 }
             });
         }
+
+        cell = cell
+            .a11y_named(
+                a11y::Role::Button,
+                &a11y::Name::labelled(format!(
+                    "{} {} {}",
+                    date.day,
+                    month_year_heading(date.year, date.month),
+                    if is_selected { "selected" } else { "" }
+                )),
+            )
+            .a11y_selected(is_selected);
 
         let mut track = track.child(cell);
 
@@ -880,7 +915,7 @@ impl RangeCalendar {
             return String::new();
         };
         crate::calendar::date_heading_for_locale(system.locale(), date)
-            .unwrap_or_else(|| crate::calendar::month_year_heading(date.year, date.month))
+            .unwrap_or_else(|| month_year_heading(date.year, date.month))
     }
 
     /// The number a cell prints: the day of the month in the *view* calendar.
@@ -915,7 +950,12 @@ impl RangeCalendar {
 
         // The pinned cells carry `my-[2px]` margins, so two rows sit 4px
         // apart vertically while the seven 36px columns touch horizontally.
-        let mut grid = div().flex().flex_col().gap(px(4.)).py(px(2.));
+        let mut grid = div()
+            .id(element_id::scoped(&self.id, format!("grid-{y}-{m}")))
+            .flex()
+            .flex_col()
+            .gap(px(4.))
+            .py(px(2.));
         for row_index in 0..rows {
             let mut row = div().flex().flex_row();
             for column in 0..7 {
@@ -967,7 +1007,7 @@ impl RangeCalendar {
             }
             grid = grid.child(row);
         }
-        grid.into_any_element()
+        grid.a11y(a11y::Role::Grid).into_any_element()
     }
 
     /// The year grid shown while the year picker is open.
@@ -987,9 +1027,11 @@ impl RangeCalendar {
             colors.accent
         };
         let active_year = view.active_year;
-        let base = view.base;
+        // The debug selectors keep the component id's Debug form, which is what
+        // the headless tests read; the element ids above stay structured.
+        let base = format!("{:?}", view.base);
         let mut grid = div()
-            .id(ElementId::Name(format!("{base}-year-viewport").into()))
+            .id(element_id::scoped(view.base, "year-viewport"))
             .debug_selector({
                 let key = format!("{base}-year-viewport");
                 move || key
@@ -1005,7 +1047,7 @@ impl RangeCalendar {
             for &year in chunk {
                 let is_active = year == active_year;
                 let mut cell = div()
-                    .id(ElementId::Name(format!("{base}-y{year}").into()))
+                    .id(element_id::scoped(view.base, format!("y{year}")))
                     .debug_selector({
                         let key = format!("{base}-y{year}");
                         move || key
@@ -1053,7 +1095,7 @@ impl RangeCalendar {
                         });
                         if year != active_year {
                             if let Some(cb) = &on_focus {
-                                cb(next, window, cx);
+                                cb(&next, window, cx);
                             }
                         }
                         if let Some(held) = &own {
@@ -1063,7 +1105,7 @@ impl RangeCalendar {
                             });
                         }
                         if let Some(cb) = &on_open {
-                            cb(false, window, cx);
+                            cb(&false, window, cx);
                         }
                         window.focus(&back_to_trigger, cx);
                     });
@@ -1071,11 +1113,15 @@ impl RangeCalendar {
                 if is_active {
                     cell = util::ring_if_focused(cell, year_focus, false, Vec::new(), window, cx);
                 }
+                cell = cell
+                    .a11y_named(a11y::Role::Button, &a11y::Name::labelled(year.to_string()))
+                    .a11y_selected(is_active);
                 row = row.child(cell.child(year.to_string()));
             }
             row = row.children((chunk.len()..3).map(|_| div().flex_1().px(px(10.))));
             grid = grid.child(row);
         }
+        grid = grid.a11y(a11y::Role::Grid);
         div()
             .absolute()
             .inset_0()
@@ -1095,14 +1141,40 @@ impl RangeCalendar {
 
 impl RenderOnce for RangeCalendar {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
-        // `defaultValue` seeds the state once, before anything reads it.
-        if let Some(value) = self.default_value {
+        // `value` / `defaultValue` seed the state once, before anything reads
+        // it. `value` is v3's controlled spelling, so it outranks the
+        // uncontrolled seed; the state owns the range afterwards, and a write
+        // to the caller-owned entity is the imperative update.
+        if let Some((start, end)) = self.value {
             let state = self.state.clone();
             util::seed_once(
                 window,
                 cx,
-                ElementId::Name(
-                    format!("rangecalendar-default-{}", self.state.entity_id().as_u64()).into(),
+                ElementId::named_usize(
+                    "rangecalendar-default",
+                    self.state.entity_id().as_u64() as usize,
+                ),
+                move |cx| {
+                    state.update(cx, |s, cx| {
+                        s.start = start;
+                        s.end = end;
+                        if let Some(start) = start {
+                            s.view_year = start.year;
+                            s.view_month = start.month;
+                            s.view_day = start.day;
+                        }
+                        cx.notify();
+                    });
+                },
+            );
+        } else if let Some(value) = self.default_value {
+            let state = self.state.clone();
+            util::seed_once(
+                window,
+                cx,
+                ElementId::named_usize(
+                    "rangecalendar-default",
+                    self.state.entity_id().as_u64() as usize,
                 ),
                 move |cx| {
                     state.update(cx, |s, cx| {
@@ -1125,67 +1197,52 @@ impl RenderOnce for RangeCalendar {
         let (year_picker_open, year_picker_own) = util::controlled(
             window,
             cx,
-            ElementId::Name(format!("{base}-yearpicker").into()),
+            element_id::scoped(&self.id, "yearpicker"),
             self.year_picker_open,
             self.default_year_picker_open,
         );
 
         // The grid is one tab stop with a cursor inside it, as the Calendar's is.
         // `use_keyed_state` takes `cx` mutably, so both precede the theme.
-        let grid_focus =
-            util::tab_stop_handle(ElementId::Name(format!("{base}-focus").into()), window, cx);
-        let prev_focus = util::tab_stop_handle(
-            ElementId::Name(format!("{base}-prev-focus").into()),
-            window,
-            cx,
-        );
-        let next_focus = util::tab_stop_handle(
-            ElementId::Name(format!("{base}-next-focus").into()),
-            window,
-            cx,
-        );
-        let year_focus = util::tab_stop_handle(
-            ElementId::Name(format!("{base}-year-focus").into()),
-            window,
-            cx,
-        );
+        let grid_focus = util::tab_stop_handle(element_id::scoped(&self.id, "focus"), window, cx);
+        let prev_focus =
+            util::tab_stop_handle(element_id::scoped(&self.id, "prev-focus"), window, cx);
+        let next_focus =
+            util::tab_stop_handle(element_id::scoped(&self.id, "next-focus"), window, cx);
+        let year_focus =
+            util::tab_stop_handle(element_id::scoped(&self.id, "year-focus"), window, cx);
         // Inside a picker the grid takes the focus as the panel opens, so the
         // arrows work without hunting for it with Tab.
         if self.autofocus_grid && !self.is_disabled && !year_picker_open {
             util::focus_once(
                 window,
                 cx,
-                ElementId::Name(format!("{base}-autofocus").into()),
+                element_id::scoped(&self.id, "autofocus"),
                 &grid_focus,
             );
         }
-        let cursor = window.use_keyed_state(
-            ElementId::Name(format!("{base}-cursor").into()),
-            cx,
-            |_, _| None::<Date>,
-        );
-        let focus_preview = window.use_keyed_state(
-            ElementId::Name(format!("{base}-focus-preview").into()),
-            cx,
-            |_, _| false,
-        );
+        let cursor = window.use_keyed_state(element_id::scoped(&self.id, "cursor"), cx, |_, _| {
+            None::<Date>
+        });
+        let focus_preview =
+            window.use_keyed_state(element_id::scoped(&self.id, "focus-preview"), cx, |_, _| {
+                false
+            });
         let selection_before_anchor = window.use_keyed_state(
-            ElementId::Name(format!("{base}-selection-before-anchor").into()),
+            element_id::scoped(&self.id, "selection-before-anchor"),
             cx,
             |_, _| None::<(Date, Date)>,
         );
-        let year_cursor = window.use_keyed_state(
-            ElementId::Name(format!("{base}-year-cursor").into()),
-            cx,
-            |_, _| None::<i32>,
-        );
-        let year_was_open = window.use_keyed_state(
-            ElementId::Name(format!("{base}-year-was-open").into()),
-            cx,
-            |_, _| false,
-        );
+        let year_cursor =
+            window.use_keyed_state(element_id::scoped(&self.id, "year-cursor"), cx, |_, _| {
+                None::<i32>
+            });
+        let year_was_open =
+            window.use_keyed_state(element_id::scoped(&self.id, "year-was-open"), cx, |_, _| {
+                false
+            });
         let year_trigger_index = window.use_keyed_state(
-            ElementId::Name(format!("{base}-year-trigger-index").into()),
+            element_id::scoped(&self.id, "year-trigger-index"),
             cx,
             |_, _| 0usize,
         );
@@ -1298,11 +1355,10 @@ impl RenderOnce for RangeCalendar {
             .unwrap_or(initial_year)
             .max(first_year)
             .min(last_year);
-        let year_scroll_state = window.use_keyed_state(
-            ElementId::Name(format!("{base}-year-scroll").into()),
-            cx,
-            |_, _| std::rc::Rc::new(calendar_view::YearGridScroll::default()),
-        );
+        let year_scroll_state =
+            window.use_keyed_state(element_id::scoped(&self.id, "year-scroll"), cx, |_, _| {
+                std::rc::Rc::new(calendar_view::YearGridScroll::default())
+            });
         let year_scroll = year_scroll_state.read(cx).clone();
         let reveal_year_row =
             years
@@ -1350,7 +1406,7 @@ impl RenderOnce for RangeCalendar {
         let mut heading_focuses = Vec::with_capacity(columns);
         for index in 0..columns {
             heading_focuses.push(util::tab_stop_handle(
-                ElementId::Name(format!("{base}-heading-{index}-focus").into()),
+                element_id::scoped(&element_id::indexed(&self.id, "heading", index), "focus"),
                 window,
                 cx,
             ));
@@ -1390,6 +1446,11 @@ impl RenderOnce for RangeCalendar {
             // `.range-calendar__nav-button:hover` fills with `bg-default`.
             let hover_bg = colors.default.color;
             let debug_key = key.clone();
+            let nav_name = if key.contains("-prev") {
+                "Previous"
+            } else {
+                "Next"
+            };
             // `.range-calendar__nav-button:active` scales the box to 0.95.
             let press_box = crate::anim::PressBox {
                 height: px(24.),
@@ -1443,6 +1504,7 @@ impl RenderOnce for RangeCalendar {
                 .when(disabled, |b| b.opacity(layout.disabled_opacity))
                 .when(year_picker_open, |b| b.invisible());
             util::ring_if_focused(button, focus, true, Vec::new(), window, cx)
+                .a11y_named(a11y::Role::Button, &a11y::Name::labelled(nav_name))
         };
 
         // A heading is a plain label only when the picker is controlled without
@@ -1452,6 +1514,7 @@ impl RenderOnce for RangeCalendar {
                        focus: &gpui::FocusHandle,
                        index: usize|
          -> gpui::AnyElement {
+            let heading_name = text.clone();
             let label = div()
                 .text_size(px(14.))
                 .line_height(px(20.))
@@ -1493,6 +1556,8 @@ impl RenderOnce for RangeCalendar {
                             trigger.opacity(layout.disabled_opacity)
                         });
                     util::ring_if_focused(trigger, focus, true, Vec::new(), window, cx)
+                        .a11y_named(a11y::Role::Button, &a11y::Name::labelled(heading_name))
+                        .a11y_expanded(open)
                         .child(label)
                         .child(
                             gpui::svg()
@@ -1536,13 +1601,15 @@ impl RenderOnce for RangeCalendar {
                                             cx.notify();
                                         });
                                     }
-                                    cb(!open, window, cx);
+                                    cb(&!open, window, cx);
                                 })
                         })
                         .when(self.is_disabled, |trigger| {
                             trigger.opacity(layout.disabled_opacity)
                         });
                     util::ring_if_focused(trigger, focus, true, Vec::new(), window, cx)
+                        .a11y_named(a11y::Role::Button, &a11y::Name::labelled(heading_name))
+                        .a11y_expanded(open)
                         .child(label)
                         .child(
                             gpui::svg()
@@ -1560,6 +1627,7 @@ impl RenderOnce for RangeCalendar {
         };
 
         let mut root = div()
+            .id(self.id.clone())
             .flex()
             .flex_col()
             .text_color(colors.surface.foreground)
@@ -1652,7 +1720,7 @@ impl RenderOnce for RangeCalendar {
                         (next, previous)
                     });
                     if let (Some(cb), Some((start, Some(end)))) = (&on_change, next) {
-                        cb(start, end, window, cx);
+                        cb(&start, &end, window, cx);
                     }
                     if let Some((_, end)) = next {
                         focus_preview.update(cx, |preview, _| *preview = end.is_none());
@@ -1692,7 +1760,7 @@ impl RenderOnce for RangeCalendar {
                             });
                         }
                         if let Some(cb) = &on_focus {
-                            cb(next_focus, window, cx);
+                            cb(&next_focus, window, cx);
                         }
                     }
                     return;
@@ -1786,7 +1854,7 @@ impl RenderOnce for RangeCalendar {
                     });
                 }
                 if let Some(cb) = &on_focus {
-                    cb(next, window, cx);
+                    cb(&next, window, cx);
                 }
             });
         }
@@ -1814,7 +1882,7 @@ impl RenderOnce for RangeCalendar {
                         });
                     }
                     if let Some(cb) = &on_open {
-                        cb(false, window, cx);
+                        cb(&false, window, cx);
                     }
                     window.focus(&back_to_trigger, cx);
                     cx.stop_propagation();
@@ -1845,7 +1913,7 @@ impl RenderOnce for RangeCalendar {
                     }
                     if let Some(cb) = &on_focus {
                         cb(
-                            system.add_years(anchor, next - system.from_gregorian(anchor).0),
+                            &system.add_years(anchor, next - system.from_gregorian(anchor).0),
                             window,
                             cx,
                         );
@@ -1950,7 +2018,12 @@ impl RenderOnce for RangeCalendar {
                     )),
             );
             body = body.child(self.weekday_header(cx));
-            let mut grid = div().flex().flex_col().gap(px(4.)).py(px(2.));
+            let mut grid = div()
+                .id(element_id::scoped(&self.id, "grid"))
+                .flex()
+                .flex_col()
+                .gap(px(4.))
+                .py(px(2.));
             for row in calendar_view::week_aligned_rows(visible_start, visible_end, first_day) {
                 let mut line = div().flex().flex_row();
                 for (column, date) in row.into_iter().enumerate() {
@@ -1968,7 +2041,7 @@ impl RenderOnce for RangeCalendar {
                 }
                 grid = grid.child(line);
             }
-            body = body.child(grid);
+            body = body.child(grid.a11y(a11y::Role::Grid));
         }
 
         let mut viewport = div()
@@ -1979,7 +2052,7 @@ impl RenderOnce for RangeCalendar {
                 calendar_view::YearGridView {
                     years: &years,
                     active_year,
-                    base: &base,
+                    base: &self.id,
                     scroll: &year_scroll,
                     reveal_row: reveal_year_row,
                 },
@@ -1995,6 +2068,14 @@ impl RenderOnce for RangeCalendar {
         if self.is_disabled {
             root = root.opacity(layout.disabled_opacity);
         }
+
+        root = util::apply_sx(root, &self.sx);
+        let app_name = if let Some(&(year, month)) = months.first() {
+            self.month_heading_text(year, month)
+        } else {
+            String::new()
+        };
+        root = root.a11y_named(a11y::Role::Application, &a11y::Name::labelled(app_name));
 
         if columns > 1 {
             let heading = heading_focuses
@@ -2046,7 +2127,7 @@ impl RenderOnce for RangeCalendar {
                 });
             calendar_view::scrolling_months(
                 root.flex_shrink_0().mx_auto().into_any_element(),
-                &base,
+                &self.id,
                 reveal,
                 window,
                 cx,

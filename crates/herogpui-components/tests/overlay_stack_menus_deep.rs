@@ -32,7 +32,7 @@ fn dropdown_escape_closes_before_parent_popover(cx: &mut TestAppContext) {
             .on_open_change({
                 let changes = changes.clone();
                 move |open, window, _| {
-                    *popover_open.borrow_mut() = open;
+                    *popover_open.borrow_mut() = *open;
                     changes.borrow_mut().push(format!("popover:{open}"));
                     window.refresh();
                 }
@@ -47,7 +47,7 @@ fn dropdown_escape_closes_before_parent_popover(cx: &mut TestAppContext) {
                 .id("menu-stack-dropdown")
                 .on_open_change({
                     move |open, window, _| {
-                        *dropdown_open.borrow_mut() = open;
+                        *dropdown_open.borrow_mut() = *open;
                         changes.borrow_mut().push(format!("dropdown:{open}"));
                         window.refresh();
                     }
@@ -95,7 +95,7 @@ fn later_sibling_dropdown_handles_escape_first(cx: &mut TestAppContext) {
                 .on_open_change({
                     let changes = changes.clone();
                     move |open, window, _| {
-                        *first_open.borrow_mut() = open;
+                        *first_open.borrow_mut() = *open;
                         changes.borrow_mut().push(format!("first:{open}"));
                         window.refresh();
                     }
@@ -111,7 +111,7 @@ fn later_sibling_dropdown_handles_escape_first(cx: &mut TestAppContext) {
                 .id("sibling-menu-second")
                 .on_open_change({
                     move |open, window, _| {
-                        *second_open.borrow_mut() = open;
+                        *second_open.borrow_mut() = *open;
                         changes.borrow_mut().push(format!("second:{open}"));
                         window.refresh();
                     }
@@ -143,7 +143,7 @@ fn tooltip_does_not_close_parent_when_it_is_closed(cx: &mut TestAppContext) {
             .is_open(popover_is_open)
             .on_open_change({
                 move |open, window, _| {
-                    *popover_open.borrow_mut() = open;
+                    *popover_open.borrow_mut() = *open;
                     changes.borrow_mut().push(format!("popover:{open}"));
                     window.refresh();
                 }

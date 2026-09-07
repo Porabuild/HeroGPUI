@@ -57,11 +57,15 @@ pub struct Gallery {
 
     // -- demo state ---------------------------------------------------------
     pub button_clicks: u32,
+    pub button_upload_pending: bool,
     pub switch_a: bool,
     pub switch_b: bool,
     pub cb_basic: bool,
     pub cb_color: bool,
+    pub cb_select_all_selected: bool,
+    pub cb_select_all_indeterminate: bool,
     pub radio_sel: Option<usize>,
+    pub radio_plan: SharedString,
     pub slider_value: f32,
     pub slider_range: Vec<f32>,
     pub tab_underline: SharedString,
@@ -70,6 +74,10 @@ pub struct Gallery {
     pub modal_open: bool,
     pub dropdown_open: bool,
     pub dropdown_selected: Option<SharedString>,
+    pub dropdown_last_basic: SharedString,
+    pub dropdown_doc_marks: Vec<SharedString>,
+    pub lb_pair_selection: HashSet<SharedString>,
+    pub select_lang_controlled: Option<SharedString>,
     pub pagination_page: usize,
     pub alert_visible: bool,
     pub input_submitted: String,
@@ -79,8 +87,8 @@ pub struct Gallery {
     pub input_bio: Entity<h::InputState>,
 
     // -- parity batch state --------------------------------------------------
-    pub select_lang: Option<usize>,
-    pub select_multi: Vec<usize>,
+    pub select_lang: Option<SharedString>,
+    pub select_multi: Vec<SharedString>,
     pub select_open: bool,
     pub ac_entity: Entity<h::InputState>,
     pub drawer_open: bool,
@@ -300,7 +308,7 @@ impl Gallery {
         let bio = cx.new(|cx| {
             h::InputState::with_value(
                 cx,
-                "Ported HeroUI v3 to GPUI.
+                "Built with HeroGPUI.
 Enter inserts a newline here, and a long paragraph wraps inside the field instead of running off the edge.",
             )
         });
@@ -343,11 +351,15 @@ Enter inserts a newline here, and a long paragraph wraps inside the field instea
         Self {
             page: Page::Introduction,
             button_clicks: 0,
+            button_upload_pending: false,
             switch_a: true,
             switch_b: false,
             cb_basic: true,
             cb_color: false,
+            cb_select_all_selected: false,
+            cb_select_all_indeterminate: true,
             radio_sel: Some(0),
+            radio_plan: SharedString::from("Pro"),
             slider_value: 40.0,
             slider_range: vec![20.0, 70.0],
             tab_underline: "home".into(),
@@ -356,6 +368,14 @@ Enter inserts a newline here, and a long paragraph wraps inside the field instea
             modal_open: std::env::var("HEROGPUI_OPEN_OVERLAYS").is_ok(),
             dropdown_open: std::env::var("HEROGPUI_OPEN_OVERLAYS").is_ok(),
             dropdown_selected: None,
+            dropdown_last_basic: SharedString::from("none yet"),
+            dropdown_doc_marks: vec![SharedString::from("bold")],
+            lb_pair_selection: {
+                let mut keys = std::collections::HashSet::new();
+                keys.insert(SharedString::from("opt-1"));
+                keys
+            },
+            select_lang_controlled: None,
             pagination_page: 1,
             alert_visible: true,
             input_submitted: String::new(),
@@ -363,7 +383,7 @@ Enter inserts a newline here, and a long paragraph wraps inside the field instea
             input_email: email,
             input_bio: bio,
             select_lang: None,
-            select_multi: vec![0],
+            select_multi: vec![SharedString::from("Rust")],
             select_open: std::env::var("HEROGPUI_OPEN_OVERLAYS").is_ok(),
             ac_entity: ac,
             drawer_open: std::env::var("HEROGPUI_OPEN_OVERLAYS").is_ok(),
@@ -488,7 +508,7 @@ impl Render for Gallery {
 
         let github_link = h::Link::new("gh-link")
             .label("GitHub")
-            .href("https://github.com/heroui-inc/heroui");
+            .href("https://github.com/Porabuild/HeroGPUI");
 
         let navbar_top = gpui::div()
             .flex()

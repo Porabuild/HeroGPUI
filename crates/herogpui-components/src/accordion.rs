@@ -6,8 +6,10 @@ use gpui::{
     prelude::*, px, AnyElement, App, IntoElement, RenderOnce, SharedString,
     StatefulInteractiveElement, Styled, Window,
 };
+use herogpui_core::element_id;
 use herogpui_theme::ActiveTheme;
 
+use crate::a11y::{self, A11y as _};
 use crate::icons;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -19,7 +21,7 @@ pub struct AccordionItemState {
 pub type AccordionIndicatorContent =
     std::sync::Arc<dyn Fn(AccordionItemState, &mut Window, &mut App) -> AnyElement + 'static>;
 pub type AccordionItemExpandedChange =
-    std::sync::Arc<dyn Fn(bool, &mut Window, &mut App) + 'static>;
+    std::sync::Arc<dyn Fn(&bool, &mut Window, &mut App) + 'static>;
 
 /// One accordion entry.
 pub struct AccordionItem {
@@ -77,7 +79,7 @@ impl AccordionItem {
 
     pub fn on_expanded_change(
         mut self,
-        handler: impl Fn(bool, &mut Window, &mut App) + 'static,
+        handler: impl Fn(&bool, &mut Window, &mut App) + 'static,
     ) -> Self {
         self.on_expanded_change = Some(std::sync::Arc::new(handler));
         self
@@ -125,6 +127,8 @@ pub struct Accordion {
     variant: AccordionVariant,
     hide_separator: bool,
     on_toggle: Option<OnToggle>,
+    /// The `sx` slot, refined over the root style at the end of render.
+    sx: Option<Box<gpui::StyleRefinement>>,
 }
 
 impl Accordion {
@@ -161,6 +165,7 @@ impl Accordion {
             variant: AccordionVariant::Default,
             hide_separator: false,
             on_toggle: None,
+            sx: None,
         }
     }
 
@@ -222,6 +227,15 @@ impl Accordion {
         self
     }
 
+    /// The one slot for caller-owned low-level styling: GPUI's styling methods
+    /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
+    /// applied to the accordion's root element after every value the variant
+    /// and the active theme chose, so they win.
+    pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
+        self.sx = Some(crate::util::capture_sx(style));
+        self
+    }
+
     /// Fires with the toggled key; the parent flips membership in its set.
     pub fn on_toggle(mut self, f: impl Fn(&SharedString, &mut Window, &mut App) + 'static) -> Self {
         self.on_toggle = Some(std::sync::Arc::new(f));
@@ -240,7 +254,7 @@ impl RenderOnce for Accordion {
         // items.
         let id = self.id.clone().unwrap_or_else(|| {
             let keys: Vec<&str> = self.items.iter().map(|i| i.key.as_ref()).collect();
-            gpui::ElementId::Name(format!("acc-{}-expanded", keys.join("-")).into())
+            gpui::ElementId::Name(keys.join("-").into())
         });
         // One tab stop per trigger. `use_keyed_state` takes `cx` mutably, so the
         // handles come before anything borrows the theme.
@@ -249,7 +263,7 @@ impl RenderOnce for Accordion {
             .iter()
             .map(|item| {
                 crate::util::tab_stop_handle(
-                    gpui::ElementId::Name(format!("acc-{:?}-{}-focus", id, item.key).into()),
+                    element_id::scoped(&element_id::scoped(&id, item.key.clone()), "focus"),
                     window,
                     cx,
                 )
@@ -304,12 +318,21 @@ impl RenderOnce for Accordion {
             // `.accordion__trigger:focus-visible` is `status-focused`.
             let header_focus = trigger_focus.get(i);
             let mut header = gpui::div()
-                .id(gpui::ElementId::Name(
-                    format!("acc-{:?}-{}", id, item.key).into(),
-                ))
+                .id(element_id::scoped(&id, item.key.clone()))
                 .when_some(header_focus.filter(|_| !item_disabled), |h, handle| {
                     h.track_focus(handle)
                 })
+                // `accordion/accordion.js` renders the trigger as an RAC
+                // `Button slot="trigger"` inside a `Disclosure`, and
+                // `react-aria/dist/private/disclosure/useDisclosure.js` is what
+                // puts `aria-expanded` on it. The row is this component's own
+                // element, so unlike `Disclosure`'s caller-supplied trigger it
+                // can carry both halves.
+                .a11y_named(
+                    a11y::Role::Button,
+                    &a11y::Name::labelled(item.title.clone()).described(item.subtitle.clone()),
+                )
+                .a11y_expanded(is_open)
                 .flex()
                 .items_center()
                 .justify_between()
@@ -409,7 +432,7 @@ impl RenderOnce for Accordion {
                             cb(&next, window, cx);
                         }
                         if let Some(cb) = &on_item_expanded {
-                            cb(!is_open, window, cx);
+                            cb(&!is_open, window, cx);
                         }
                     });
                 }
@@ -431,6 +454,21 @@ impl RenderOnce for Accordion {
             if is_open {
                 section = section.child(
                     gpui::div()
+                        // `AccordionPanel` is an RAC `DisclosurePanel`, whose
+                        // role is `group` and whose accessible name is the
+                        // trigger it hangs off (`Disclosure.mjs`:
+                        // `role: role = 'group'`; `useDisclosure.js`:
+                        // `'aria-labelledby': triggerId`). gpui has no id
+                        // graph, so the trigger's text is inlined as the
+                        // panel's name.
+                        .id(element_id::scoped(
+                            &element_id::scoped(&id, item.key.clone()),
+                            "panel",
+                        ))
+                        .a11y_named(
+                            a11y::Role::Group,
+                            &a11y::Name::labelled(item.title.clone()),
+                        )
                         .px(px(16.))
                         .pb(px(16.))
                         .pt(px(0.))
@@ -463,6 +501,7 @@ impl RenderOnce for Accordion {
             container = container.child(section);
         }
 
+        container = crate::util::apply_sx(container, &self.sx);
         container
     }
 }

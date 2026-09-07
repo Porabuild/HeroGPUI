@@ -3,8 +3,10 @@
 use std::{cell::RefCell, rc::Rc};
 
 use gpui::{prelude::*, px, App, IntoElement, RenderOnce, SharedString, Styled, Window};
-use herogpui_core::{Color, FieldVariant, Orientation};
+use herogpui_core::{element_id, Color, FieldVariant, Orientation};
 use herogpui_theme::ActiveTheme;
+
+use crate::a11y::{self, A11y as _};
 
 /// One radio's visible label, submitted value, and local disabled state.
 #[derive(Clone)]
@@ -120,6 +122,8 @@ pub struct RadioGroup {
     is_required: bool,
     is_read_only: bool,
     on_change: Option<std::sync::Arc<dyn Fn(&SharedString, &mut Window, &mut App) + 'static>>,
+    /// The `sx` slot, refined over the root style at the end of render.
+    sx: Option<Box<gpui::StyleRefinement>>,
 }
 
 impl RadioGroup {
@@ -202,6 +206,7 @@ impl RadioGroup {
             is_required: false,
             is_read_only: false,
             on_change: None,
+            sx: None,
         }
     }
 
@@ -236,9 +241,21 @@ impl RadioGroup {
     /// its ancestor, so the control hands the pair over instead. Borrows, so the
     /// control is still yours to place:
     ///
-    /// ```ignore
+    /// ```
+    /// # use gpui::{prelude::*, Window};
+    /// # use herogpui_components::{Form, RadioGroup, RadioOption};
+    /// # struct Demo;
+    /// # impl Render for Demo {
+    /// #     fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
+    /// #         let form = Form::new();
+    /// #         let control = RadioGroup::new("plan", vec![RadioOption::new("Pro")]).name("plan");
     /// let field = control.form_field();
     /// form.field(field.unwrap()).child(control)
+    /// #     }
+    /// # }
+    /// # let mut tcx = gpui::TestAppContext::single();
+    /// # tcx.update(herogpui_theme::ThemeProvider::init);
+    /// # let _ = tcx.add_window_view(|_, _| Demo);
     /// ```
     pub fn form_field(&self) -> Option<crate::form::FormField> {
         let name = self.name.clone()?;
@@ -319,6 +336,15 @@ impl RadioGroup {
         self.on_change = Some(std::sync::Arc::new(f));
         self
     }
+
+    /// The one slot for caller-owned low-level styling: GPUI's styling methods
+    /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
+    /// applied to the radio group's root element after every value the
+    /// orientation and the active theme chose, so they win.
+    pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
+        self.sx = Some(crate::util::capture_sx(style));
+        self
+    }
 }
 
 impl RenderOnce for RadioGroup {
@@ -327,7 +353,7 @@ impl RenderOnce for RadioGroup {
         let (selected, own) = crate::util::controlled(
             window,
             cx,
-            gpui::ElementId::Name(format!("{:?}-value", self.id).into()),
+            element_id::scoped(&self.id, "value"),
             self.is_controlled.then_some(self.selected),
             self.default_value,
         );
@@ -378,14 +404,11 @@ impl RenderOnce for RadioGroup {
         // done by flipping a handle's `tab_stop`, since that is fixed where the
         // handle is made. `use_keyed_state` takes `cx` mutably, so it precedes
         // the theme.
-        // Every per-option id is prefixed with this one rendering of the group
-        // id; formatting `{id:?}` per option per frame was O(n) allocations.
-        let id_prefix = element_id_name(&self.id);
-        let group_focus = crate::util::tab_stop_handle(
-            gpui::ElementId::Name(format!("{id_prefix}-focus").into()),
-            window,
-            cx,
-        );
+        // Every per-option id hangs off the group id as structure, so a
+        // per-option key costs an `Arc` clone rather than a fresh `String`.
+        let id_prefix = self.id.clone();
+        let group_focus =
+            crate::util::tab_stop_handle(element_id::scoped(&id_prefix, "focus"), window, cx);
         self.form_state.borrow_mut().focus = Some(group_focus.clone());
 
         // A radio group is *one* tab stop: Tab moves past the whole group and
@@ -418,11 +441,10 @@ impl RenderOnce for RadioGroup {
         // setter rejects the value change. Keep that roving cursor separately
         // from `selected`, keyed by the component id so two groups cannot
         // share it.
-        let cursor = window.use_keyed_state(
-            gpui::ElementId::Name(format!("{id_prefix}-cursor").into()),
-            cx,
-            move |_, _| initial_focus_index,
-        );
+        let cursor =
+            window.use_keyed_state(element_id::scoped(&id_prefix, "cursor"), cx, move |_, _| {
+                initial_focus_index
+            });
         let held_cursor = *cursor.read(cx);
         let cursor_index = if group_focus.is_focused(window) && stops.contains(&held_cursor) {
             held_cursor
@@ -435,7 +457,7 @@ impl RenderOnce for RadioGroup {
         let interaction: Vec<crate::util::Interaction> = (0..self.options.len())
             .map(|i| {
                 crate::util::interaction(
-                    gpui::ElementId::Name(format!("{id_prefix}-opt-{i}-interaction").into()),
+                    element_id::scoped(&element_id::indexed(&id_prefix, "opt", i), "interaction"),
                     window,
                     cx,
                 )
@@ -508,8 +530,9 @@ impl RenderOnce for RadioGroup {
             // selected it fills with `bg-accent` and the indicator shrinks to a
             // 6px `bg-accent-foreground` dot (`scale: 0.4286` of 16px).
             let mut circle_el = gpui::div()
-                .id(gpui::ElementId::Name(
-                    format!("{id_prefix}-opt-{i}-control").into(),
+                .id(element_id::scoped(
+                    &element_id::indexed(&id_prefix, "opt", i),
+                    "control",
                 ))
                 .flex()
                 .items_center()
@@ -597,8 +620,17 @@ impl RenderOnce for RadioGroup {
                 }
             };
 
+            // Each option is a native `<input type="radio">` upstream, so its
+            // role is `radio` and `aria-checked` follows the selection.
+            let option_name = a11y::Name::field(
+                Some(&label),
+                description.as_ref(),
+                &crate::validation::resolve(option_invalid, &[], None, error_message.clone()),
+            );
             let mut row = gpui::div()
-                .id(gpui::ElementId::Name(format!("{id_prefix}-opt-{i}").into()))
+                .id(element_id::indexed(&id_prefix, "opt", i))
+                .a11y_named(a11y::Role::RadioButton, &option_name)
+                .a11y_checked(is_selected, false)
                 .when(!row_disabled && i == cursor_index, |r| {
                     r.track_focus(&group_focus)
                 })
@@ -725,7 +757,21 @@ impl RenderOnce for RadioGroup {
         // description and error are its siblings. v3 marks `isRequired` on the
         // Label rather than adding a line of its own, which is what
         // `field::Label` draws.
-        let mut root = gpui::div().flex().flex_col().gap(px(4.));
+        // `useRadioGroup` is `role="radiogroup"` with `aria-orientation`
+        // always present (it defaults to `vertical`), named and described
+        // through `useField`.
+        let group_name = a11y::Name::field(
+            self.label.as_ref(),
+            self.description.as_ref(),
+            &crate::validation::resolve(is_invalid, &[], None, self.error_message.clone()),
+        );
+        let mut root = gpui::div()
+            .id(self.id.clone())
+            .a11y_named(a11y::Role::RadioGroup, &group_name)
+            .a11y_orientation(self.orientation)
+            .flex()
+            .flex_col()
+            .gap(px(4.));
         if let Some(label) = &self.label {
             root = root.child(
                 crate::field::Label::new(label.clone())
@@ -747,12 +793,9 @@ impl RenderOnce for RadioGroup {
                 root = root.child(crate::field::ErrorMessage::new(message.clone()));
             }
         }
+        root = crate::util::apply_sx(root, &self.sx);
         root
     }
-}
-
-fn element_id_name(id: &gpui::ElementId) -> String {
-    format!("{id:?}").trim_matches('"').to_owned()
 }
 
 #[cfg(test)]

@@ -20,6 +20,8 @@ pub struct Skeleton {
     /// `animationType`. `None` defers to `--skeleton-animation`.
     animation_type: Option<SkeletonAnimation>,
     children: Vec<AnyElement>,
+    /// The `sx` slot, refined over the root style at the end of render.
+    sx: Option<Box<gpui::StyleRefinement>>,
 }
 
 impl Skeleton {
@@ -30,6 +32,7 @@ impl Skeleton {
             h: Some(px(24.)),
             animation_type: None,
             children: Vec::new(),
+            sx: None,
         }
     }
 
@@ -51,6 +54,15 @@ impl Skeleton {
 
     pub fn animation_type(mut self, animation: SkeletonAnimation) -> Self {
         self.animation_type = Some(animation);
+        self
+    }
+
+    /// The one slot for caller-owned low-level styling: GPUI's styling methods
+    /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
+    /// applied to the skeleton's root element after every value the component
+    /// and the active theme chose, so they win.
+    pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
+        self.sx = Some(crate::util::capture_sx(style));
         self
     }
 }
@@ -94,8 +106,12 @@ impl RenderOnce for Skeleton {
             });
 
         match animation {
-            SkeletonAnimation::None => base.into_any_element(),
-            SkeletonAnimation::Pulse => base
+            SkeletonAnimation::None => crate::util::apply_sx(base, &self.sx).into_any_element(),
+            // `with_animation` hands back an `AnimationElement`, which has no
+            // style of its own to refine, so the slot lands on the box the
+            // animation wraps: the pulse keeps driving opacity, everything
+            // else the caller set holds.
+            SkeletonAnimation::Pulse => crate::util::apply_sx(base, &self.sx)
                 .with_animation(
                     self.id,
                     Animation::new(Duration::from_millis(1600)).repeat(),
@@ -125,7 +141,7 @@ impl RenderOnce for Skeleton {
                         Animation::new(Duration::from_millis(1400)).repeat(),
                         |el, delta| el.left(gpui::relative(delta)),
                     );
-                base.child(band).into_any_element()
+                crate::util::apply_sx(base.child(band), &self.sx).into_any_element()
             }
         }
     }

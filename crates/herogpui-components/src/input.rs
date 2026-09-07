@@ -7,8 +7,10 @@ use gpui::{
     prelude::*, px, App, Entity, FocusHandle, Focusable, IntoElement, KeyDownEvent, RenderOnce,
     SharedString, Styled, Window,
 };
-use herogpui_core::FieldVariant;
+use herogpui_core::{element_id, FieldVariant};
 use herogpui_theme::ActiveTheme;
+
+use crate::a11y::A11y as _;
 
 /// Editable state of a single-line text input.
 pub struct InputState {
@@ -694,6 +696,24 @@ pub enum InputType {
 }
 
 impl InputType {
+    /// The role a native `<input>` of this type reports.
+    ///
+    /// `useTextField` passes `type` straight through to the DOM input
+    /// (`inputOnlyProps = { type, pattern }`), so the role is whatever the
+    /// platform maps that input type to. AccessKit's role enum is modelled on
+    /// exactly those input types, so the mapping is one-to-one.
+    pub(crate) fn a11y_role(self) -> crate::a11y::Role {
+        match self {
+            InputType::Text => crate::a11y::Role::TextInput,
+            InputType::Password => crate::a11y::Role::PasswordInput,
+            InputType::Email => crate::a11y::Role::EmailInput,
+            InputType::Number => crate::a11y::Role::NumberInput,
+            InputType::Tel => crate::a11y::Role::PhoneNumberInput,
+            InputType::Url => crate::a11y::Role::UrlInput,
+            InputType::Search => crate::a11y::Role::SearchInput,
+        }
+    }
+
     pub const ALL: [InputType; 7] = [
         InputType::Text,
         InputType::Password,
@@ -1170,6 +1190,8 @@ pub struct Input {
     validation_behavior: Option<crate::form::ValidationBehavior>,
     state: Entity<InputState>,
     label: Option<SharedString>,
+    /// An accessible name with no visible label; see [`Input::a11y_label`].
+    a11y_label: Option<SharedString>,
     placeholder: Option<SharedString>,
     description: Option<SharedString>,
     error_message: Option<SharedString>,
@@ -1215,6 +1237,9 @@ pub struct Input {
     multiline: bool,
     /// `defaultValue` — seeds the state on the first render only.
     default_value: Option<SharedString>,
+    /// `value` — the controlled spelling; seeds the state on the first render
+    /// only, ahead of `default_value`. See [`Input::value`].
+    value: Option<SharedString>,
     is_clearable: bool,
     clear_content: Option<gpui::AnyElement>,
     /// SearchField-only: Escape clears a non-empty query.
@@ -1233,6 +1258,8 @@ pub struct Input {
         std::rc::Rc<std::cell::Cell<Option<gpui::Bounds<gpui::Pixels>>>>,
         SharedString,
     )>,
+    /// The `sx` slot, refined over the root style at the end of render.
+    sx: Option<Box<gpui::StyleRefinement>>,
 }
 
 impl Input {
@@ -1274,19 +1301,33 @@ impl Input {
         self
     }
 
-    /// `value` — writes through to the bound [`InputState`].
-    pub fn value(self, value: impl Into<String>, cx: &mut App) -> Self {
-        self.state.update(cx, |s, _| s.set_value(value));
+    /// `value` — v3's controlled-value spelling, as a pure builder.
+    ///
+    /// The bound [`InputState`] owns the text once the field renders, so this
+    /// seeds the state on the first render only, winning over
+    /// [`Input::default_value`] the way v3's controlled prop outranks the
+    /// uncontrolled seed; calling `.value(..)` twice keeps the last call, like
+    /// every other builder here. A later value is an imperative update rather
+    /// than a builder: `state.update(cx, |s, _| s.set_value(..))`.
+    pub fn value(mut self, value: impl Into<SharedString>) -> Self {
+        self.value = Some(value.into());
         self
     }
 
-    pub fn new(state: Entity<InputState>) -> Self {
+    /// Builds the field over `state`.
+    ///
+    /// The handle may be borrowed — `Input::new(&handle)` — so a caller that
+    /// keeps its own handle clones nothing at the call site; an owned
+    /// `Entity<InputState>` still works, and the cheap handle clone happens
+    /// once inside either way.
+    pub fn new(state: impl std::borrow::Borrow<Entity<InputState>>) -> Self {
         Self {
             content: None,
             field_content: None,
             validation_behavior: None,
-            state,
+            state: state.borrow().clone(),
             label: None,
+            a11y_label: None,
             placeholder: None,
             description: None,
             error_message: None,
@@ -1313,6 +1354,7 @@ impl Input {
             auto_focus: false,
             name: None,
             default_value: None,
+            value: None,
             multiline: false,
             is_clearable: false,
             clear_content: None,
@@ -1321,6 +1363,7 @@ impl Input {
             on_change: None,
             on_submit: None,
             field_anchor: None,
+            sx: None,
         }
     }
 
@@ -1399,6 +1442,19 @@ impl Input {
 
     pub fn label(mut self, l: impl Into<SharedString>) -> Self {
         self.label = Some(l.into());
+        self
+    }
+
+    /// The accessible name for a field whose visible label belongs to a
+    /// composite owner.
+    ///
+    /// `NumberField` renders `field::Label` itself, as v3 composes it as a
+    /// sibling of `NumberField.Group`, so handing the inner `Input` the label
+    /// through [`Self::label`] would draw it twice. Upstream still passes
+    /// `label` down to `useFormattedTextField`, which is where the input's
+    /// accessible name comes from, so this carries the name without the box.
+    pub(crate) fn a11y_label(mut self, l: impl Into<SharedString>) -> Self {
+        self.a11y_label = Some(l.into());
         self
     }
 
@@ -1575,6 +1631,17 @@ impl Input {
         self.on_submit = Some(std::sync::Arc::new(f));
         self
     }
+
+    /// The one slot for caller-owned low-level styling: GPUI's styling methods
+    /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
+    /// applied to the input's root element after every value the variant and
+    /// the active theme chose, so they win. The root is the label-to-error
+    /// column a standalone field returns; inside an `InputGroup` it is the
+    /// field row itself, which is all the group leaves the field.
+    pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
+        self.sx = Some(crate::util::capture_sx(style));
+        self
+    }
 }
 
 impl Input {
@@ -1585,10 +1652,25 @@ impl Input {
     pub(crate) fn state_focus(&self, cx: &App) -> FocusHandle {
         self.state.read(cx).focus_handle.clone()
     }
+
+    /// The captured [`Input::sx`] refinement, handed through by wrappers that
+    /// hold their `sx` apart from the field — [`SearchField`] builds its
+    /// `Input` at render time, so its slot travels as the refinement itself.
+    pub(crate) fn sx_refinement(mut self, sx: Option<Box<gpui::StyleRefinement>>) -> Self {
+        self.sx = sx;
+        self
+    }
 }
 
 impl RenderOnce for Input {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        // One structured id per rendered field, and every part of the field
+        // hangs off it. The state entity is what makes it unique, and
+        // `named_usize` keeps it as structure, so a part's name can never
+        // fold into the base the way a formatted `"input-{n}-part"` string
+        // can.
+        let base_id =
+            gpui::ElementId::named_usize("input", self.state.entity_id().as_u64() as usize);
         // `validationBehavior` travels with the name, on the state.
         if let Some(behavior) = self.validation_behavior {
             let state = self.state.clone();
@@ -1598,15 +1680,17 @@ impl RenderOnce for Input {
         }
         // `focus_once` takes `cx` mutably, so it has to run before the theme
         // tokens are borrowed.
-        // `defaultValue` seeds the state once, before anything reads it.
-        if let Some(text) = self.default_value.clone() {
+        // `value` / `defaultValue` seed the state once, before anything reads
+        // it. `value` is v3's controlled spelling, so it outranks the
+        // uncontrolled seed; the state owns the text afterwards, and
+        // `InputState::set_value` is the imperative update.
+        let seed = self.value.clone().or(self.default_value.clone());
+        if let Some(text) = seed {
             let state = self.state.clone();
             crate::util::seed_once(
                 window,
                 cx,
-                gpui::ElementId::Name(
-                    format!("input-default-{}", self.state.entity_id().as_u64()).into(),
-                ),
+                element_id::scoped(&base_id, "default"),
                 move |cx| {
                     state.update(cx, |s, cx| {
                         s.set_value(text.to_string());
@@ -1668,9 +1752,7 @@ impl RenderOnce for Input {
             crate::util::focus_once(
                 window,
                 cx,
-                gpui::ElementId::Name(
-                    format!("input-autofocus-{}", self.state.entity_id().as_u64()).into(),
-                ),
+                element_id::scoped(&base_id, "autofocus"),
                 &focus_handle,
             );
         }
@@ -1678,21 +1760,15 @@ impl RenderOnce for Input {
         // the only element that is told its own bounds, and a click has to be
         // measured against something. `use_keyed_state` takes `cx` mutably, so
         // it precedes the theme.
-        let text_origin = window.use_keyed_state(
-            gpui::ElementId::Name(
-                format!("input-text-origin-{}", self.state.entity_id().as_u64()).into(),
-            ),
-            cx,
-            |_, _| None::<gpui::Pixels>,
-        );
+        let text_origin =
+            window.use_keyed_state(element_id::scoped(&base_id, "text-origin"), cx, |_, _| {
+                None::<gpui::Pixels>
+            });
         // The same trick for a wrapped body, one entry per paragraph.
-        let paragraph_bounds = window.use_keyed_state(
-            gpui::ElementId::Name(
-                format!("input-paragraphs-{}", self.state.entity_id().as_u64()).into(),
-            ),
-            cx,
-            |_, _| Vec::<gpui::Bounds<gpui::Pixels>>::new(),
-        );
+        let paragraph_bounds =
+            window.use_keyed_state(element_id::scoped(&base_id, "paragraphs"), cx, |_, _| {
+                Vec::<gpui::Bounds<gpui::Pixels>>::new()
+            });
         // The font the field draws with, captured here: at event time the text
         // style stack is empty and the shaping would use the wrong face.
         let text_font = window.text_style().font();
@@ -1744,10 +1820,25 @@ impl RenderOnce for Input {
         // that floor. Without this the field ignored `rows`, so every
         // TextArea came out one line tall inside a taller wrapper.
         let multiline_h = self.min_h.unwrap_or(px(38.));
+        // The field box is the `<input>` (or `<textarea>`) upstream renders:
+        // its role follows `type`, except that a multi-line field is a
+        // `<textarea>`, whose role is the multiline one. The name and the
+        // description come from the field anatomy, joined the way
+        // `useField` joins the description and error ids.
+        let a11y_role = if multiline {
+            crate::a11y::Role::MultilineTextInput
+        } else {
+            self.input_type.a11y_role()
+        };
+        let a11y_name = crate::a11y::Name::field(
+            self.label.as_ref().or(self.a11y_label.as_ref()),
+            self.description.as_ref(),
+            &validity,
+        );
         let mut field = gpui::div()
-            .id(gpui::ElementId::Name(
-                format!("input-{}", self.state.entity_id().as_u64()).into(),
-            ))
+            .id(base_id.clone())
+            .a11y_named(a11y_role, &a11y_name)
+            .a11y_text(&value_now, self.placeholder.as_ref())
             .flex()
             // Multi-line: the text starts at the top, the box grows downward
             // with the content, and the width is fixed so lines can wrap.
@@ -1949,8 +2040,7 @@ impl RenderOnce for Input {
         if self.multiline && !(is_empty && !focused && self.placeholder.is_some()) {
             // One wrapping paragraph per newline, with the caret and any
             // selection placed inside the line they fall in.
-            let caret_id =
-                gpui::ElementId::Name(format!("caret-{}", self.state.entity_id().as_u64()).into());
+            let caret_id = element_id::scoped(&base_id, "caret");
             row = row.child(multiline_body(
                 MultilineBody {
                     paragraphs: paragraph_bounds.clone(),
@@ -2011,9 +2101,7 @@ impl RenderOnce for Input {
                                 .h(text * 1.3)
                                 .bg(accent.color)
                                 .flex_shrink_0(),
-                            gpui::ElementId::Name(
-                                format!("caret-{}", self.state.entity_id().as_u64()).into(),
-                            ),
+                            element_id::scoped(&base_id, "caret"),
                             cx,
                         ))
                     })
@@ -2136,9 +2224,7 @@ impl RenderOnce for Input {
             let input_focus_after_clear = focus_handle.clone();
             let input_focus_handle = focus_handle;
             let mut clear = gpui::div()
-                .id(gpui::ElementId::Name(
-                    clear_selector.clone().into(),
-                ))
+                .id(element_id::scoped(&base_id, "clear"))
                 .debug_selector(move || clear_selector)
                 .flex()
                 .items_center()
@@ -2449,6 +2535,16 @@ impl RenderOnce for Input {
             }
         });
 
+        // The `sx` slot refines whatever root this render returns. Inside a
+        // group the field row *is* the whole component (the wrapper below is
+        // skipped), so it lands there; standalone it lands on the
+        // label-to-error column at the tail, and the row keeps its own paint.
+        let field = if self.in_group.is_some() {
+            crate::util::apply_sx(field, &self.sx)
+        } else {
+            field
+        };
+
         // The anchor is the 36px field row itself — not the
         // label-to-error wrapper below — the way RAC's `triggerRef` reads
         // `groupRef.current || inputRef.current`. Wrapping here keeps the
@@ -2520,6 +2616,7 @@ impl RenderOnce for Input {
             );
         }
 
+        el = crate::util::apply_sx(el, &self.sx);
         el.into_any_element()
     }
 }
@@ -2558,7 +2655,9 @@ pub struct TextField {
 }
 
 impl TextField {
-    pub fn new(state: Entity<InputState>) -> Self {
+    /// Builds the labelled field over `state`, borrowed or owned — see
+    /// [`Input::new`].
+    pub fn new(state: impl std::borrow::Borrow<Entity<InputState>>) -> Self {
         Self {
             inner: Input::new(state),
         }
@@ -2621,6 +2720,12 @@ impl TextField {
     /// `defaultValue` — see [`Input::default_value`].
     pub fn default_value(mut self, text: impl Into<SharedString>) -> Self {
         self.inner = self.inner.default_value(text);
+        self
+    }
+
+    /// `value` — see [`Input::value`].
+    pub fn value(mut self, text: impl Into<SharedString>) -> Self {
+        self.inner = self.inner.value(text);
         self
     }
 
@@ -2689,6 +2794,16 @@ impl TextField {
         self.inner = self.inner.on_submit(handler);
         self
     }
+
+    /// The one slot for caller-owned low-level styling: GPUI's styling methods
+    /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
+    /// applied to the field's root element after every value the variant and
+    /// the active theme chose, so they win. The wrapper renders no element of
+    /// its own, so the slot rides the inner [`Input`] and lands on that root.
+    pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
+        self.inner = self.inner.sx(style);
+        self
+    }
 }
 
 impl RenderOnce for TextField {
@@ -2734,6 +2849,8 @@ pub struct SearchField {
     name: Option<SharedString>,
     /// `defaultValue` — forwarded to the inner `Input`.
     default_value: Option<SharedString>,
+    /// `value` — forwarded to the inner `Input`.
+    value: Option<SharedString>,
     /// `validationBehavior` — forwarded to the inner `Input`.
     validation_behavior: Option<crate::form::ValidationBehavior>,
     label: Option<SharedString>,
@@ -2761,6 +2878,8 @@ pub struct SearchField {
     /// Trailing content inside the field, before the clear button. v3 composes
     /// it (a `Kbd` with the shortcut, in its "With Keyboard Shortcut" example).
     end_content: Option<gpui::AnyElement>,
+    /// The `sx` slot, refined over the root style at the end of render.
+    sx: Option<Box<gpui::StyleRefinement>>,
 }
 
 impl SearchField {
@@ -2774,12 +2893,15 @@ impl SearchField {
         self
     }
 
-    pub fn new(state: Entity<InputState>) -> Self {
+    /// Builds the search field over `state`, borrowed or owned — see
+    /// [`Input::new`].
+    pub fn new(state: impl std::borrow::Borrow<Entity<InputState>>) -> Self {
         Self {
             content: None,
-            state,
+            state: state.borrow().clone(),
             name: None,
             default_value: None,
+            value: None,
             validation_behavior: None,
             label: None,
             placeholder: "Search".into(),
@@ -2799,6 +2921,7 @@ impl SearchField {
             search_icon: None,
             clear_icon: None,
             end_content: None,
+            sx: None,
         }
     }
 
@@ -2851,6 +2974,12 @@ impl SearchField {
     /// `defaultValue` — see [`Input::default_value`].
     pub fn default_value(mut self, text: impl Into<SharedString>) -> Self {
         self.default_value = Some(text.into());
+        self
+    }
+
+    /// `value` — see [`Input::value`].
+    pub fn value(mut self, text: impl Into<SharedString>) -> Self {
+        self.value = Some(text.into());
         self
     }
 
@@ -2922,13 +3051,27 @@ impl SearchField {
         self.on_clear = Some(std::sync::Arc::new(handler));
         self
     }
+
+    /// The one slot for caller-owned low-level styling: GPUI's styling methods
+    /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
+    /// applied to the search field's root element after every value the
+    /// variant and the active theme chose, so they win. Held here and handed
+    /// to the [`Input`] this field builds at render time, whose render
+    /// applies it.
+    pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
+        self.sx = Some(crate::util::capture_sx(style));
+        self
+    }
 }
 
 impl RenderOnce for SearchField {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let colors = cx.colors();
         let validate = self.validate.clone();
+        // `useSearchField` defaults `type` to `'search'`, so the rendered
+        // input is `<input type="search">` and its role is the search one.
         let mut input = Input::new(self.state)
+            .input_type(InputType::Search)
             .when_some(self.content, |i, render| {
                 i.field_content(move |state| {
                     let is_empty = state.value.is_empty();
@@ -2947,6 +3090,7 @@ impl RenderOnce for SearchField {
             })
             .placeholder(self.placeholder)
             .when_some(self.name, |i, n| i.name(n))
+            .when_some(self.value, |i, v| i.value(v))
             .when_some(self.default_value, |i, v| i.default_value(v))
             .when_some(self.validation_behavior, |i, b| i.validation_behavior(b))
             .variant(self.variant)
@@ -2996,6 +3140,10 @@ impl RenderOnce for SearchField {
         if let Some(on_submit) = self.on_submit {
             input = input.on_submit(move |text, window, cx| on_submit(text, window, cx));
         }
+
+        // The `sx` slot rides the inner field, whose render applies it to the
+        // root it returns — the same place a plain `Input`'s slot lands.
+        input = input.sx_refinement(self.sx);
 
         input.render(window, cx)
     }

@@ -3,6 +3,7 @@
 //! [HeroGPUI]: https://github.com/Porabuild/HeroGPUI
 
 mod color;
+pub mod element_id;
 mod enums;
 mod format;
 

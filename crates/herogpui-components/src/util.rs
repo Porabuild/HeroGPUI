@@ -1,7 +1,7 @@
 //! Shared render helpers for HeroGPUI components.
 
-use gpui::{App, BorrowAppContext, Div, Hsla, ParentElement, Pixels, Styled};
-use herogpui_core::{FieldVariant, Prominence};
+use gpui::{App, BorrowAppContext, Div, Hsla, ParentElement, Pixels, Refineable, Styled};
+use herogpui_core::{element_id, FieldVariant, Prominence};
 use herogpui_theme::ActiveTheme;
 
 // Browser hosts register the bundled mono family before opening a window.
@@ -332,37 +332,6 @@ fn dismiss_captured_escape(window: &mut gpui::Window, cx: &mut App) -> bool {
 /// which would make every press inside the panel count as outside. Escape is a
 /// key event, so it needs the focus to be inside the panel -- pair it with
 /// [`panel_focus`] where nothing else there is focused.
-pub fn dismissable<E: gpui::InteractiveElement>(
-    el: E,
-    close: impl Fn(&mut gpui::Window, &mut App) + 'static,
-) -> E {
-    let close = shared(close);
-    let on_escape = close.clone();
-    let el = dismiss_on_escape(el, move |window, cx| on_escape(window, cx));
-    dismiss_on_press_outside(el, move |window, cx| close(window, cx))
-}
-
-/// The Escape half of [`dismissable`], for a surface whose panel must *not*
-/// hold the focus.
-///
-/// A key event goes to the focused element and bubbles to its ancestors, so a
-/// panel that claims the focus silences the keyboard of everything inside it --
-/// focusing a date picker's panel would have taken the arrows away from the
-/// calendar grid. Attaching this to the component root instead lets the key
-/// bubble up from whatever inside it does have the focus.
-pub fn dismiss_on_escape<E: gpui::InteractiveElement>(
-    el: E,
-    close: impl Fn(&mut gpui::Window, &mut App) + 'static,
-) -> E {
-    // Legacy helper: callers not yet migrated to `overlay_scope` retain their
-    // old unconditional dismissal semantics, without render-local inference.
-    el.on_key_down(move |event: &gpui::KeyDownEvent, window, cx| {
-        if event.keystroke.key == "escape" {
-            close(window, cx);
-        }
-    })
-}
-
 pub fn dismiss_on_escape_with_token<E: gpui::InteractiveElement>(
     el: E,
     token: OverlayToken,
@@ -378,21 +347,10 @@ pub fn dismiss_on_escape_with_token<E: gpui::InteractiveElement>(
     })
 }
 
-/// The outside-press half of [`dismissable`], for a surface whose Escape is
+/// The outside-press half of overlay dismissal, for a surface whose Escape is
 /// already part of a keyboard it owns -- a select and a combo box read Escape in
 /// the same handler that reads the arrows, and binding it twice would close
 /// twice.
-pub fn dismiss_on_press_outside<E: gpui::InteractiveElement>(
-    el: E,
-    close: impl Fn(&mut gpui::Window, &mut App) + 'static,
-) -> E {
-    // Legacy helper: callers not yet migrated to `overlay_scope` retain their
-    // old unconditional dismissal semantics, without render-local inference.
-    el.on_mouse_down_out(move |_, window, cx| {
-        close(window, cx);
-    })
-}
-
 pub fn dismiss_on_press_outside_with_token<E: gpui::InteractiveElement>(
     el: E,
     token: OverlayToken,
@@ -443,11 +401,11 @@ struct PanelFocusState {
 pub fn panel_restore_focus(
     window: &mut gpui::Window,
     cx: &mut App,
-    base: &str,
+    base: &gpui::ElementId,
 ) -> gpui::FocusHandle {
     window
         .use_keyed_state(
-            gpui::ElementId::Name(format!("{base}-panel-restore-focus").into()),
+            element_id::scoped(base, "panel-restore-focus"),
             cx,
             |_, cx| cx.focus_handle(),
         )
@@ -458,20 +416,17 @@ pub fn panel_restore_focus(
 pub fn panel_focus(
     window: &mut gpui::Window,
     cx: &mut App,
-    base: &str,
+    base: &gpui::ElementId,
     open: bool,
 ) -> gpui::FocusHandle {
-    let held = window.use_keyed_state(
-        gpui::ElementId::Name(format!("{base}-panel-focus").into()),
-        cx,
-        |_, cx| cx.focus_handle(),
-    );
+    let held = window.use_keyed_state(element_id::scoped(base, "panel-focus"), cx, |_, cx| {
+        cx.focus_handle()
+    });
     let handle = held.read(cx).clone();
-    let state = window.use_keyed_state(
-        gpui::ElementId::Name(format!("{base}-panel-focus-state").into()),
-        cx,
-        |_, _| PanelFocusState::default(),
-    );
+    let state =
+        window.use_keyed_state(element_id::scoped(base, "panel-focus-state"), cx, |_, _| {
+            PanelFocusState::default()
+        });
     let current = state.read(cx).clone();
 
     if open && !current.was_open {
@@ -539,7 +494,7 @@ impl FocusLeave {
 pub fn close_on_blur(
     window: &mut gpui::Window,
     cx: &mut App,
-    base: &str,
+    base: &gpui::ElementId,
     open: bool,
     close: impl Fn(&mut gpui::Window, &mut App) + 'static,
 ) -> gpui::FocusHandle {
@@ -550,12 +505,12 @@ pub fn close_on_blur(
 pub fn on_focus_leave(
     window: &mut gpui::Window,
     cx: &mut App,
-    base: &str,
+    base: &gpui::ElementId,
     active: bool,
     leave: impl Fn(&mut gpui::Window, &mut App) + 'static,
 ) -> FocusLeave {
     let held_scope = window.use_keyed_state(
-        gpui::ElementId::Name(format!("{base}-close-on-blur-scope").into()),
+        element_id::scoped(base, "close-on-blur-scope"),
         cx,
         |_, cx| cx.focus_handle().tab_stop(false),
     );
@@ -563,12 +518,12 @@ pub fn on_focus_leave(
     // Storing the subscription is arming; dropping it is disarming. The
     // `Option` slot flips either way without subscribing twice.
     let subscription = window.use_keyed_state(
-        gpui::ElementId::Name(format!("{base}-close-on-blur-subscription").into()),
+        element_id::scoped(base, "close-on-blur-subscription"),
         cx,
         |_, _| None::<gpui::Subscription>,
     );
     let state = window.use_keyed_state(
-        gpui::ElementId::Name(format!("{base}-close-on-blur-state").into()),
+        element_id::scoped(base, "close-on-blur-state"),
         cx,
         |_, _| CloseOnBlurState::default(),
     );
@@ -1496,6 +1451,71 @@ pub fn ring_if_focused<T: Styled>(
 ) -> T {
     let focused = handle.is_focused(window) && focus_visible(cx);
     with_focus_ring(el, focused, offset, base, cx)
+}
+
+// The `sx` slot: this port's answer to React's `sx`. One slot per component
+// where the caller restyles the component's root element with GPUI's own
+// styling methods. The closure styles a scratch `Div`; only the refinement it
+// leaves behind is kept, and each component merges it over its root style at
+// the very end of render, so an override wins over every token-driven value
+// the component set.
+
+/// Captures the styling a caller's `sx` closure leaves on a scratch `Div`.
+///
+/// Children, listeners and ids the closure adds to the scratch are dropped on
+/// purpose: the slot restyles the component's own root, it does not substitute
+/// a new one.
+pub fn capture_sx(style: impl FnOnce(Div) -> Div) -> Box<gpui::StyleRefinement> {
+    Box::new(style(gpui::div()).style().clone())
+}
+
+/// Merges a captured `sx` refinement over a root element's own style.
+///
+/// Call this after every value the component derived from its variant and the
+/// active theme: `refine` replaces exactly the fields the closure set and
+/// leaves the rest of the component's styling alone.
+pub fn apply_sx<T: Styled>(el: T, sx: &Option<Box<gpui::StyleRefinement>>) -> T {
+    let Some(sx) = sx else { return el };
+    let mut el = el;
+    el.style().refine(sx);
+    el
+}
+
+/// The solid colour an `sx` override painted as the root background, if any.
+///
+/// Components that draw state-driven fills of their own — Button's hover fade
+/// is one — read this so the override holds across states, not only at rest.
+pub fn sx_background(sx: &Option<Box<gpui::StyleRefinement>>) -> Option<Hsla> {
+    match sx.as_ref()?.background {
+        Some(gpui::Fill::Color(background)) => background.as_solid(),
+        _ => None,
+    }
+}
+
+/// The definite pixel size an `sx` override set on the root, axis by axis.
+///
+/// Fractions and rems resolve against the parent and the rem size, which a
+/// component's own geometry cannot know; those stay with the plain refine in
+/// [`apply_sx`].
+pub fn sx_pixel_size(sx: &Option<Box<gpui::StyleRefinement>>) -> gpui::Size<Option<Pixels>> {
+    fn definite(length: gpui::Length) -> Option<Pixels> {
+        match length {
+            gpui::Length::Definite(gpui::DefiniteLength::Absolute(
+                gpui::AbsoluteLength::Pixels(pixels),
+            )) => Some(pixels),
+            _ => None,
+        }
+    }
+    let Some(sx) = sx else {
+        return gpui::Size {
+            width: None,
+            height: None,
+        };
+    };
+    gpui::Size {
+        width: sx.size.width.and_then(definite),
+        height: sx.size.height.and_then(definite),
+    }
 }
 
 #[cfg(test)]

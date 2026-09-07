@@ -12,7 +12,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use gpui::{point, prelude::*, px, KeyUpEvent, Keystroke, Modifiers, TestAppContext};
-use herogpui_components::{Checkbox, Select, Switch};
+use herogpui_components::{Checkbox, PickerItem, Select, Switch};
 
 use harness::{open_host, Events};
 
@@ -88,12 +88,19 @@ fn select_click_selects_and_closes(cx: &mut TestAppContext) {
     let cx = open_host(cx, move || {
         let selection = events.clone();
         let opening = events.clone();
-        Select::new("sel", vec!["Rust".into(), "Go".into()])
-            .on_selection_change(move |index, _, _| {
-                selection.borrow_mut().push(format!("select:{index:?}"));
-            })
-            .on_open_change(move |open, _, _| opening.borrow_mut().push(format!("open:{open}")))
-            .into_any_element()
+        Select::new(
+            "sel",
+            vec![PickerItem::new("rust", "Rust"), PickerItem::new("go", "Go")],
+        )
+        .on_selection_change(move |key, _, _| {
+            let key = key
+                .as_ref()
+                .map(ToString::to_string)
+                .unwrap_or_else(|| "none".to_owned());
+            selection.borrow_mut().push(format!("select:{key}"));
+        })
+        .on_open_change(move |open, _, _| opening.borrow_mut().push(format!("open:{open}")))
+        .into_any_element()
     });
 
     // The trigger is a full-width row of `util::FIELD_HEIGHT` (36px) starting
@@ -109,19 +116,19 @@ fn select_click_selects_and_closes(cx: &mut TestAppContext) {
     cx.simulate_click(point(px(60.), px(66.)), Modifiers::none());
     assert_eq!(
         recorded.borrow().as_slice(),
-        ["open:true", "open:false", "select:Some(0)"],
-        "clicking the first row must report the close and select index 0"
+        ["open:true", "open:false", "select:rust"],
+        "clicking the first row must report the close and select its key"
     );
 
     // Closed proof by behaviour: the same spot is bare page below the trigger
     // now, so the press must reach nothing. Were the popover still open, the
-    // row would record a second `select:Some(0)` here. The callback proves it
+    // row would record a second `select:rust` here. The callback proves it
     // too since the row reports its own dismissal, but the probe is what shows
     // the panel has actually left the tree.
     cx.simulate_click(point(px(60.), px(66.)), Modifiers::none());
     assert_eq!(
         recorded.borrow().as_slice(),
-        ["open:true", "open:false", "select:Some(0)"],
+        ["open:true", "open:false", "select:rust"],
         "the popover must be closed after choosing an option"
     );
 }

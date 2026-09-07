@@ -11,7 +11,10 @@ use gpui::{
     px, AnyElement, App, ElementId, InteractiveElement, IntoElement, ParentElement, RenderOnce,
     SharedString, Styled, Window,
 };
+use herogpui_core::element_id;
 use herogpui_theme::ActiveTheme;
+
+use crate::a11y::{self, A11y as _};
 
 /// The values HeroUI passes to a Disclosure children render function.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -32,14 +35,16 @@ pub struct Disclosure {
     is_disabled: bool,
     children: Vec<AnyElement>,
     content: Option<DisclosureContent>,
-    on_toggle: Option<std::sync::Arc<dyn Fn(bool, &mut Window, &mut App) + 'static>>,
+    on_toggle: Option<std::sync::Arc<dyn Fn(&bool, &mut Window, &mut App) + 'static>>,
+    /// The `sx` slot, refined over the root style at the end of render.
+    sx: Option<Box<gpui::StyleRefinement>>,
 }
 
 impl Disclosure {
     /// `onExpandedChange` — reports the expansion the press moves to.
     pub fn on_expanded_change(
         mut self,
-        handler: impl Fn(bool, &mut Window, &mut App) + 'static,
+        handler: impl Fn(&bool, &mut Window, &mut App) + 'static,
     ) -> Self {
         self.on_toggle = Some(std::sync::Arc::new(handler));
         self
@@ -55,6 +60,7 @@ impl Disclosure {
             children: Vec::new(),
             content: None,
             on_toggle: None,
+            sx: None,
         }
     }
 
@@ -83,6 +89,15 @@ impl Disclosure {
         self.content = Some(std::sync::Arc::new(render));
         self
     }
+
+    /// The one slot for caller-owned low-level styling: GPUI's styling methods
+    /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
+    /// applied to the disclosure's root element after every value the trigger
+    /// variant and the active theme chose, so they win.
+    pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
+        self.sx = Some(crate::util::capture_sx(style));
+        self
+    }
 }
 
 impl ParentElement for Disclosure {
@@ -102,7 +117,7 @@ impl RenderOnce for Disclosure {
         let (expanded, expanded_own) = crate::util::controlled(
             window,
             cx,
-            ElementId::Name(format!("{:?}-expanded", self.id).into()),
+            element_id::scoped(&self.id, "expanded"),
             self.is_expanded,
             self.default_expanded,
         );
@@ -116,9 +131,7 @@ impl RenderOnce for Disclosure {
         };
         // `.disclosure__trigger` is `inline-block` with the focus ring on it;
         // v3 passes a Button, which is what this builds.
-        let trigger = crate::button::Button::new(ElementId::Name(
-            format!("{:?}-trigger", self.id).into(),
-        ))
+        let trigger = crate::button::Button::new(element_id::scoped(&self.id, "trigger"))
         .variant(if expanded {
             herogpui_core::Variant::Secondary
         } else {
@@ -148,12 +161,12 @@ impl RenderOnce for Disclosure {
                 });
             }
             if let Some(f) = &cb {
-                f(!expanded, w, cx);
+                f(&!expanded, w, cx);
             }
         });
 
         let mut el = gpui::div()
-            .id(self.id)
+            .id(self.id.clone())
             .relative()
             .flex()
             .flex_col()
@@ -165,6 +178,17 @@ impl RenderOnce for Disclosure {
             el = el.child(
                 crate::anim::entering(
                     gpui::div()
+                        // `DisclosureBody` is an RAC `DisclosurePanel`
+                        // (`disclosure/disclosure.js`), whose role is `group`
+                        // and whose accessible name is the trigger
+                        // (`Disclosure.mjs`: `role: role = 'group'`;
+                        // `useDisclosure.js`: `'aria-labelledby': triggerId`).
+                        // The trigger's own `aria-expanded` cannot be stated
+                        // here: it is the caller-visible `Button` below, and
+                        // gpui has no way to inject a prop into an element
+                        // another builder owns. See `crate::a11y`.
+                        .id(element_id::scoped(&self.id, "panel"))
+                        .a11y_named(a11y::Role::Group, &a11y::Name::labelled(self.title.clone()))
                         // `.disclosure__body` is `p-2`.
                         .p(px(8.))
                         .flex()
@@ -179,7 +203,7 @@ impl RenderOnce for Disclosure {
             );
         }
         let _ = window;
-        el.into_any_element()
+        crate::util::apply_sx(el, &self.sx).into_any_element()
     }
 }
 
@@ -194,6 +218,8 @@ pub struct DisclosureGroup {
     is_disabled: bool,
     on_expanded_change:
         Option<std::sync::Arc<dyn Fn(&HashSet<SharedString>, &mut Window, &mut App) + 'static>>,
+    /// The `sx` slot, refined over the root style at the end of render.
+    sx: Option<Box<gpui::StyleRefinement>>,
 }
 
 impl DisclosureGroup {
@@ -206,6 +232,7 @@ impl DisclosureGroup {
             allows_multiple_expanded: false,
             is_disabled: false,
             on_expanded_change: None,
+            sx: None,
         }
     }
 
@@ -258,6 +285,15 @@ impl DisclosureGroup {
         self.on_expanded_change = Some(std::sync::Arc::new(f));
         self
     }
+
+    /// The one slot for caller-owned low-level styling: GPUI's styling methods
+    /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
+    /// applied to the group's root element after every value the expansion
+    /// state and the active theme chose, so they win.
+    pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
+        self.sx = Some(crate::util::capture_sx(style));
+        self
+    }
 }
 
 impl RenderOnce for DisclosureGroup {
@@ -265,7 +301,7 @@ impl RenderOnce for DisclosureGroup {
         let (mut expanded, expanded_own) = crate::util::controlled(
             window,
             cx,
-            ElementId::Name(format!("{:?}-expanded", self.id).into()),
+            element_id::scoped(&self.id, "expanded"),
             self.expanded,
             self.default_expanded,
         );
@@ -320,6 +356,6 @@ impl RenderOnce for DisclosureGroup {
             }
             el = el.child(disclosure);
         }
-        el.into_any_element()
+        crate::util::apply_sx(el, &self.sx).into_any_element()
     }
 }

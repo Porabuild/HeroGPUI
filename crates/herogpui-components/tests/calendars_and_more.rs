@@ -44,7 +44,7 @@ mod harness;
 
 use std::{
     cell::{Cell, RefCell},
-    collections::{BTreeSet, HashSet},
+    collections::HashSet,
     process::Command,
     rc::Rc,
 };
@@ -61,9 +61,19 @@ use herogpui_components::{
         aligned_anchor, anchor_following_focus, linear_cells, week_start, SelectionAlignment,
     },
     Button, Calendar, CalendarState, ColorPicker, DateConstraints, DateRangeState, Disclosure,
-    DisclosureGroup, Input, InputState, PageBehavior, PickerColor, RangeCalendar, Select,
-    SelectionMode, Toolbar, VisibleDuration, Weekday,
+    DisclosureGroup, Input, InputState, PageBehavior, PickerColor, PickerItem, RangeCalendar,
+    Select, SelectionMode, Toolbar, VisibleDuration, Weekday,
 };
+
+/// Select options whose labels are unique, so the key can be the label itself.
+/// Tests that need duplicate labels or a key distinct from the label build
+/// explicit `PickerItem`s instead.
+fn keyed(labels: &[&str]) -> Vec<PickerItem> {
+    labels
+        .iter()
+        .map(|l| PickerItem::new(l.to_string(), l.to_string()))
+        .collect()
+}
 
 /// Column *c*'s centre in a bare Calendar: seven cells across `CALENDAR_WIDTH`
 /// with no horizontal gaps.
@@ -303,7 +313,7 @@ fn range_calendar_indian_locale_end_alignment_keeps_selection_visible(cx: &mut T
     });
     // Magha 1 must remain in the second grid; the first grid is Pausha.
     let key = format!(
-        r#"Name("range-cal-{}")-1947-10-day-1"#,
+        r#"NamedInteger("range-cal", {})-1947-10-day-1"#,
         state.entity_id().as_u64()
     );
     let bounds = cx.debug_bounds(Box::leak(key.into_boxed_str())).unwrap();
@@ -1043,7 +1053,7 @@ fn color_picker_trigger_opens_and_area_reports(cx: &mut TestAppContext) {
             .default_value(PickerColor::hsb(210.0, 0.5, 0.6))
             .is_open(is_open)
             .on_open_change(move |v, window, _| {
-                *open.borrow_mut() = v;
+                *open.borrow_mut() = *v;
                 opens.borrow_mut().push(format!("open:{v}"));
                 window.refresh();
             })
@@ -1139,7 +1149,7 @@ fn pointer_open_color_picker_closes_when_focus_moves_elsewhere(cx: &mut TestAppC
                 ColorPicker::new("cp-blur", PickerColor::hsb(210.0, 0.5, 0.6))
                     .is_open(is_open)
                     .on_open_change(move |value, window, _| {
-                        *open.borrow_mut() = value;
+                        *open.borrow_mut() = *value;
                         opens.borrow_mut().push(format!("open:{value}"));
                         window.refresh();
                     }),
@@ -1164,7 +1174,7 @@ fn pointer_open_color_picker_closes_when_focus_moves_elsewhere(cx: &mut TestAppC
 
 /// `selectionMode="multiple"` keeps the popover open between picks, and each
 /// pick is reported as the caller's selection plus the clicked row (`select.rs`
-/// hands its `selected_indices` back and stores nothing of its own, so the
+/// hands its `selected_keys` back and stores nothing of its own, so the
 /// caller owns the growing set). This test replays that ownership the way a
 /// gallery page would — through an `Rc` the render closure reads and a
 /// `window.refresh()` in the callback — and the outside-press dismissal still
@@ -1175,35 +1185,32 @@ fn select_multiple_accumulates_and_keeps_the_panel_open(cx: &mut TestAppContext)
     let picked = picks.clone();
     let opens = events();
     let opened = opens.clone();
-    let selection = Rc::new(RefCell::new(BTreeSet::<usize>::new()));
+    let selection = Rc::new(RefCell::new(Vec::<SharedString>::new()));
 
     let cx = open_host(cx, move || {
         let picks = picks.clone();
         let opens = opens.clone();
         let selection = selection.clone();
-        let selection_now = selection.borrow().iter().copied().collect::<Vec<_>>();
-        Select::new(
-            "sel-multi",
-            vec!["Alpha".into(), "Beta".into(), "Gamma".into()],
-        )
-        .selection_mode(SelectionMode::Multiple)
-        .selected_indices(selection_now)
-        .on_open_change(move |open, _, _| {
-            opens.borrow_mut().push(format!("open:{open}"));
-        })
-        .on_selection_change_all(move |keys, window, _| {
-            *selection.borrow_mut() = keys.iter().copied().collect();
-            // The port reports the merged set without storing it, so the next
-            // report accumulates only if the caller renders it back in.
-            window.refresh();
-            let joined = keys
-                .iter()
-                .map(ToString::to_string)
-                .collect::<Vec<_>>()
-                .join(",");
-            picks.borrow_mut().push(joined);
-        })
-        .into_any_element()
+        let selection_now = selection.borrow().clone();
+        Select::new("sel-multi", keyed(&["Alpha", "Beta", "Gamma"]))
+            .selection_mode(SelectionMode::Multiple)
+            .selected_keys(selection_now)
+            .on_open_change(move |open, _, _| {
+                opens.borrow_mut().push(format!("open:{open}"));
+            })
+            .on_selection_change_all(move |keys, window, _| {
+                *selection.borrow_mut() = keys.to_vec();
+                // The port reports the merged set without storing it, so the next
+                // report accumulates only if the caller renders it back in.
+                window.refresh();
+                let joined = keys
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join(",");
+                picks.borrow_mut().push(joined);
+            })
+            .into_any_element()
     });
 
     click(cx, 60., 18.);
@@ -1211,12 +1218,12 @@ fn select_multiple_accumulates_and_keeps_the_panel_open(cx: &mut TestAppContext)
 
     // Row *i* centres at y = 66 + 36i inside the popover.
     click(cx, 60., 66.);
-    assert_eq!(picked.borrow().as_slice(), ["0"]);
+    assert_eq!(picked.borrow().as_slice(), ["Alpha"]);
 
     click(cx, 60., 138.);
     assert_eq!(
         picked.borrow().as_slice(),
-        ["0", "0,2"],
+        ["Alpha", "Alpha,Gamma"],
         "the second report must still contain the first pick"
     );
     assert_eq!(
@@ -1228,7 +1235,7 @@ fn select_multiple_accumulates_and_keeps_the_panel_open(cx: &mut TestAppContext)
     click(cx, 60., 102.);
     assert_eq!(
         picked.borrow().as_slice(),
-        ["0", "0,2", "0,1,2"],
+        ["Alpha", "Alpha,Gamma", "Alpha,Beta,Gamma"],
         "the third pick must join the accumulated set"
     );
     assert_eq!(
@@ -1257,36 +1264,33 @@ fn select_uncontrolled_multiple_default_accumulates_and_toggles(cx: &mut TestApp
     let recorded = picks.clone();
     let cx = open_host(cx, move || {
         let picks = picks.clone();
-        Select::new(
-            "sel-multi-default",
-            vec!["Alpha".into(), "Beta".into(), "Gamma".into()],
-        )
-        .selection_mode(SelectionMode::Multiple)
-        .default_selected_indices([0, 2])
-        .default_open(true)
-        .on_selection_change_all(move |keys, _, _| {
-            picks.borrow_mut().push(
-                keys.iter()
-                    .map(ToString::to_string)
-                    .collect::<Vec<_>>()
-                    .join(","),
-            );
-        })
-        .into_any_element()
+        Select::new("sel-multi-default", keyed(&["Alpha", "Beta", "Gamma"]))
+            .selection_mode(SelectionMode::Multiple)
+            .default_selected_keys(["Alpha".into(), "Gamma".into()])
+            .default_open(true)
+            .on_selection_change_all(move |keys, _, _| {
+                picks.borrow_mut().push(
+                    keys.iter()
+                        .map(ToString::to_string)
+                        .collect::<Vec<_>>()
+                        .join(","),
+                );
+            })
+            .into_any_element()
     });
 
     // Row *i* centres at y = 66 + 36i inside the already-open popover.
     click(cx, 60., 102.);
     assert_eq!(
         recorded.borrow().as_slice(),
-        ["0,1,2"],
+        ["Alpha,Beta,Gamma"],
         "the first pick must extend the uncontrolled default array"
     );
 
     click(cx, 60., 66.);
     assert_eq!(
         recorded.borrow().as_slice(),
-        ["0,1,2", "1,2"],
+        ["Alpha,Beta,Gamma", "Beta,Gamma"],
         "a later pick must toggle against the Select-owned current set"
     );
 }
@@ -1297,28 +1301,25 @@ fn select_uncontrolled_multiple_keyboard_toggles_and_stays_open(cx: &mut TestApp
     let recorded = picks.clone();
     let cx = open_host(cx, move || {
         let picks = picks.clone();
-        Select::new(
-            "sel-multi-default-keys",
-            vec!["Alpha".into(), "Beta".into(), "Gamma".into()],
-        )
-        .selection_mode(SelectionMode::Multiple)
-        .default_selected_indices([0])
-        .on_selection_change_all(move |keys, _, _| {
-            picks.borrow_mut().push(
-                keys.iter()
-                    .map(ToString::to_string)
-                    .collect::<Vec<_>>()
-                    .join(","),
-            );
-        })
-        .into_any_element()
+        Select::new("sel-multi-default-keys", keyed(&["Alpha", "Beta", "Gamma"]))
+            .selection_mode(SelectionMode::Multiple)
+            .default_selected_keys(["Alpha".into()])
+            .on_selection_change_all(move |keys, _, _| {
+                picks.borrow_mut().push(
+                    keys.iter()
+                        .map(ToString::to_string)
+                        .collect::<Vec<_>>()
+                        .join(","),
+                );
+            })
+            .into_any_element()
     });
 
     press(cx, "tab");
     press(cx, "down down down enter");
     assert_eq!(
         recorded.borrow().as_slice(),
-        ["0,1"],
+        ["Alpha,Beta"],
         "Enter must toggle the highlighted row against the uncontrolled default"
     );
 
@@ -1327,7 +1328,7 @@ fn select_uncontrolled_multiple_keyboard_toggles_and_stays_open(cx: &mut TestApp
     click(cx, 60., 138.);
     assert_eq!(
         recorded.borrow().as_slice(),
-        ["0,1", "0,1,2"],
+        ["Alpha,Beta", "Alpha,Beta,Gamma"],
         "keyboard activation must not close a multiple Select"
     );
 }
@@ -1340,10 +1341,10 @@ fn select_controlled_multiple_waits_for_owner_acceptance(cx: &mut TestAppContext
         let picks = picks.clone();
         Select::new(
             "sel-multi-controlled-reject",
-            vec!["Alpha".into(), "Beta".into(), "Gamma".into()],
+            keyed(&["Alpha", "Beta", "Gamma"]),
         )
         .selection_mode(SelectionMode::Multiple)
-        .selected_indices([0])
+        .selected_keys(["Alpha".into()])
         .default_open(true)
         .on_selection_change_all(move |keys, _, _| {
             picks.borrow_mut().push(
@@ -1360,7 +1361,7 @@ fn select_controlled_multiple_waits_for_owner_acceptance(cx: &mut TestAppContext
     click(cx, 60., 138.);
     assert_eq!(
         recorded.borrow().as_slice(),
-        ["0,1", "0,2"],
+        ["Alpha,Beta", "Alpha,Gamma"],
         "controlled proposals must keep starting from the owner-supplied set"
     );
 }
@@ -1391,28 +1392,22 @@ fn select_typeahead_moves_the_highlight(cx: &mut TestAppContext) {
             .flex_col()
             .gap(px(600.))
             .child(
-                Select::new(
-                    "sel-ta-closed",
-                    vec!["Alpha".into(), "Astra".into(), "Go".into(), "Zig".into()],
-                )
-                .on_change(move |i, _, _| {
-                    changes.borrow_mut().push(format!("{i:?}"));
-                })
-                .on_open_change(move |open, _, _| {
-                    closed_opens.borrow_mut().push(format!("open:{open}"));
-                }),
+                Select::new("sel-ta-closed", keyed(&["Alpha", "Astra", "Go", "Zig"]))
+                    .on_change(move |key, _, _| {
+                        changes.borrow_mut().push(format!("{key:?}"));
+                    })
+                    .on_open_change(move |open, _, _| {
+                        closed_opens.borrow_mut().push(format!("open:{open}"));
+                    }),
             )
             .child(
-                Select::new(
-                    "sel-ta-open",
-                    vec!["Alpha".into(), "Rust".into(), "Go".into(), "Zig".into()],
-                )
-                .on_selection_change(move |i, _, _| {
-                    open_pick_changes.borrow_mut().push(format!("{i:?}"));
-                })
-                .on_open_change(move |open, _, _| {
-                    open_opens.borrow_mut().push(format!("open:{open}"));
-                }),
+                Select::new("sel-ta-open", keyed(&["Alpha", "Rust", "Go", "Zig"]))
+                    .on_selection_change(move |key, _, _| {
+                        open_pick_changes.borrow_mut().push(format!("{key:?}"));
+                    })
+                    .on_open_change(move |open, _, _| {
+                        open_opens.borrow_mut().push(format!("open:{open}"));
+                    }),
             )
             .into_any_element()
     });
@@ -1426,7 +1421,7 @@ fn select_typeahead_moves_the_highlight(cx: &mut TestAppContext) {
     press(cx, "a");
     assert_eq!(
         picked.borrow().as_slice(),
-        ["Some(0)"],
+        ["Some(\"Alpha\")"],
         "a letter on the closed select must pick the matching option"
     );
     assert!(
@@ -1436,7 +1431,7 @@ fn select_typeahead_moves_the_highlight(cx: &mut TestAppContext) {
     press(cx, "a");
     assert_eq!(
         picked.borrow().as_slice(),
-        ["Some(0)", "Some(1)"],
+        ["Some(\"Alpha\")", "Some(\"Astra\")"],
         "repeating the letter must walk to the next row with that initial"
     );
 
@@ -1450,7 +1445,7 @@ fn select_typeahead_moves_the_highlight(cx: &mut TestAppContext) {
     press(cx, "enter");
     assert_eq!(
         picked.borrow().as_slice(),
-        ["Some(0)", "Some(1)", "Some(1)"],
+        ["Some(\"Alpha\")", "Some(\"Astra\")", "Some(\"Rust\")"],
         "Enter must activate the row the typeahead highlighted"
     );
     assert_eq!(
@@ -1487,21 +1482,15 @@ fn select_row_pick_reports_the_close_once(cx: &mut TestAppContext) {
         let is_open = *open.borrow();
         Select::new(
             "sel-sections",
-            vec![
-                "Apple".into(),
-                "Banana".into(),
-                "Cherry".into(),
-                "Durian".into(),
-                "Fig".into(),
-            ],
+            keyed(&["Apple", "Banana", "Cherry", "Durian", "Fig"]),
         )
-        .section_before(3, "Tropical")
+        .section_before("Durian", "Tropical")
         .is_open(is_open)
-        .on_selection_change(move |i, _, _| {
-            picks.borrow_mut().push(format!("{i:?}"));
+        .on_selection_change(move |key, _, _| {
+            picks.borrow_mut().push(format!("{key:?}"));
         })
         .on_open_change(move |v, window, _| {
-            *open.borrow_mut() = v;
+            *open.borrow_mut() = *v;
             opens.borrow_mut().push(format!("open:{v}"));
             window.refresh();
         })
@@ -1530,7 +1519,7 @@ fn select_row_pick_reports_the_close_once(cx: &mut TestAppContext) {
     click(cx, 60., 195.);
     assert_eq!(
         picked.borrow().as_slice(),
-        ["Some(3)"],
+        ["Some(\"Durian\")"],
         "the option a section announces must still be clickable"
     );
     assert_eq!(
@@ -1548,7 +1537,7 @@ fn select_row_pick_reports_the_close_once(cx: &mut TestAppContext) {
     click(cx, 60., 66.);
     assert_eq!(
         picked.borrow().as_slice(),
-        ["Some(3)"],
+        ["Some(\"Durian\")"],
         "after the pick the popover must be gone, so the old row answers nothing"
     );
     assert_eq!(
@@ -1568,7 +1557,7 @@ fn select_row_pick_reports_the_close_once(cx: &mut TestAppContext) {
     press(cx, "enter");
     assert_eq!(
         picked.borrow().as_slice(),
-        ["Some(3)", "Some(3)"],
+        ["Some(\"Durian\")", "Some(\"Durian\")"],
         "the arrows must skip the section heading, stopping on its option"
     );
     assert_eq!(
@@ -1590,7 +1579,7 @@ fn select_multiple_picks_report_no_close(cx: &mut TestAppContext) {
     let opens = events();
     let opened = opens.clone();
     let open = Rc::new(RefCell::new(false));
-    let selection = Rc::new(RefCell::new(BTreeSet::<usize>::new()));
+    let selection = Rc::new(RefCell::new(Vec::<SharedString>::new()));
     let open_for_view = open.clone();
     let selection_for_view = selection;
 
@@ -1602,30 +1591,27 @@ fn select_multiple_picks_report_no_close(cx: &mut TestAppContext) {
         // Pre-extracted so no `Ref` borrow survives into the builder chain,
         // which moves `open` into the `on_open_change` closure.
         let is_open = *open.borrow();
-        let selection_now = selection.borrow().iter().copied().collect::<Vec<_>>();
-        Select::new(
-            "sel-multi-close",
-            vec!["Alpha".into(), "Beta".into(), "Gamma".into()],
-        )
-        .selection_mode(SelectionMode::Multiple)
-        .is_open(is_open)
-        .selected_indices(selection_now)
-        .on_open_change(move |v, window, _| {
-            *open.borrow_mut() = v;
-            opens.borrow_mut().push(format!("open:{v}"));
-            window.refresh();
-        })
-        .on_selection_change_all(move |keys, window, _| {
-            *selection.borrow_mut() = keys.iter().copied().collect();
-            window.refresh();
-            let joined = keys
-                .iter()
-                .map(ToString::to_string)
-                .collect::<Vec<_>>()
-                .join(",");
-            picks.borrow_mut().push(joined);
-        })
-        .into_any_element()
+        let selection_now = selection.borrow().clone();
+        Select::new("sel-multi-close", keyed(&["Alpha", "Beta", "Gamma"]))
+            .selection_mode(SelectionMode::Multiple)
+            .is_open(is_open)
+            .selected_keys(selection_now)
+            .on_open_change(move |v, window, _| {
+                *open.borrow_mut() = *v;
+                opens.borrow_mut().push(format!("open:{v}"));
+                window.refresh();
+            })
+            .on_selection_change_all(move |keys, window, _| {
+                *selection.borrow_mut() = keys.to_vec();
+                window.refresh();
+                let joined = keys
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join(",");
+                picks.borrow_mut().push(joined);
+            })
+            .into_any_element()
     });
 
     click(cx, 60., 18.);
@@ -1633,7 +1619,7 @@ fn select_multiple_picks_report_no_close(cx: &mut TestAppContext) {
 
     // Row *i* centres at y = 66 + 36i inside the popover.
     click(cx, 60., 66.);
-    assert_eq!(picked.borrow().as_slice(), ["0"]);
+    assert_eq!(picked.borrow().as_slice(), ["Alpha"]);
     assert_eq!(
         opened.borrow().as_slice(),
         ["open:true"],
@@ -1645,7 +1631,7 @@ fn select_multiple_picks_report_no_close(cx: &mut TestAppContext) {
     click(cx, 60., 138.);
     assert_eq!(
         picked.borrow().as_slice(),
-        ["0", "0,2"],
+        ["Alpha", "Alpha,Gamma"],
         "the second pick must join the accumulated set"
     );
     assert_eq!(
@@ -1676,17 +1662,14 @@ fn select_page_keys_ignore_a_closed_trigger(cx: &mut TestAppContext) {
     let cx = open_host(cx, move || {
         let picks = picks.clone();
         let opens = opens.clone();
-        Select::new(
-            "sel-page-closed",
-            vec!["Alpha".into(), "Beta".into(), "Gamma".into()],
-        )
-        .on_selection_change(move |i, _, _| {
-            picks.borrow_mut().push(format!("{i:?}"));
-        })
-        .on_open_change(move |open, _, _| {
-            opens.borrow_mut().push(format!("open:{open}"));
-        })
-        .into_any_element()
+        Select::new("sel-page-closed", keyed(&["Alpha", "Beta", "Gamma"]))
+            .on_selection_change(move |key, _, _| {
+                picks.borrow_mut().push(format!("{key:?}"));
+            })
+            .on_open_change(move |open, _, _| {
+                opens.borrow_mut().push(format!("open:{open}"));
+            })
+            .into_any_element()
     });
 
     // Open, then close with Escape: the trigger keeps the focus. On a
@@ -1724,7 +1707,7 @@ fn select_page_keys_ignore_a_closed_trigger(cx: &mut TestAppContext) {
     press(cx, "enter");
     assert_eq!(
         picked.borrow().as_slice(),
-        ["Some(0)"],
+        ["Some(\"Alpha\")"],
         "the page keys must have left the closed select answering as before"
     );
 }
@@ -1745,30 +1728,20 @@ fn select_page_keys_reach_enabled_ends_on_a_short_panel(cx: &mut TestAppContext)
 
     let cx = open_host(cx, move || {
         let picks = picks.clone();
-        Select::new(
-            "sel-page-short",
-            vec![
-                "0".into(),
-                "1".into(),
-                "2".into(),
-                "3".into(),
-                "4".into(),
-                "5".into(),
-            ],
-        )
-        .disabled_keys([0, 5])
-        .on_selection_change(move |i, _, _| {
-            picks.borrow_mut().push(format!("{i:?}"));
-        })
-        .into_any_element()
+        Select::new("sel-page-short", keyed(&["0", "1", "2", "3", "4", "5"]))
+            .disabled_keys(["0".into(), "5".into()])
+            .on_selection_change(move |key, _, _| {
+                picks.borrow_mut().push(format!("{key:?}"));
+            })
+            .into_any_element()
     });
 
     // Six 36px rows (216px) fit the capped panel. Mouse-open with no
     // selection: the cursor is null, so both page keys must be inert. Down
     // from a null cursor enters the first enabled row (1); had either page
     // key created a cursor, Down would hold on that end or step off it --
-    // Some(2) from PageUp's first stop, Some(4) from PageDown's last -- and
-    // the pick would betray the unconditional cursor creation.
+    // Some("2") from PageUp's first stop, Some("4") from PageDown's last --
+    // and the pick would betray the unconditional cursor creation.
     click(cx, 60., 18.);
     press(cx, "pagedown");
     press(cx, "pageup");
@@ -1776,7 +1749,7 @@ fn select_page_keys_reach_enabled_ends_on_a_short_panel(cx: &mut TestAppContext)
     press(cx, "enter");
     assert_eq!(
         picked.borrow().as_slice(),
-        ["Some(1)"],
+        ["Some(\"1\")"],
         "page keys on a mouse-opened, cursor-less list must be inert: \
          Down must still enter the first enabled row"
     );
@@ -1790,7 +1763,7 @@ fn select_page_keys_reach_enabled_ends_on_a_short_panel(cx: &mut TestAppContext)
     press(cx, "enter");
     assert_eq!(
         picked.borrow().as_slice(),
-        ["Some(1)", "Some(4)"],
+        ["Some(\"1\")", "Some(\"4\")"],
         "PageDown with a cursor must reach the last enabled row"
     );
 
@@ -1802,7 +1775,7 @@ fn select_page_keys_reach_enabled_ends_on_a_short_panel(cx: &mut TestAppContext)
     press(cx, "enter");
     assert_eq!(
         picked.borrow().as_slice(),
-        ["Some(1)", "Some(4)", "Some(1)"],
+        ["Some(\"1\")", "Some(\"4\")", "Some(\"1\")"],
         "PageUp with a cursor must reach the first enabled row"
     );
 }
@@ -1817,14 +1790,19 @@ fn select_page_keys_reach_enabled_ends_on_a_short_panel(cx: &mut TestAppContext)
 fn select_page_keys_reach_enabled_ends_on_a_virtual_list(cx: &mut TestAppContext) {
     let picks = events();
     let picked = picks.clone();
-    let options: Vec<SharedString> = (0..30).map(|i| format!("Option {i:02}").into()).collect();
+    let options: Vec<PickerItem> = (0..30)
+        .map(|i| {
+            let label = format!("Option {i:02}");
+            PickerItem::new(label.clone(), label)
+        })
+        .collect();
 
     let cx = open_host(cx, move || {
         let picks = picks.clone();
         Select::new("sel-page-virtual", options.clone())
             .row_height(px(36.))
-            .on_selection_change(move |i, _, _| {
-                picks.borrow_mut().push(format!("{i:?}"));
+            .on_selection_change(move |key, _, _| {
+                picks.borrow_mut().push(format!("{key:?}"));
             })
             .into_any_element()
     });
@@ -1839,7 +1817,7 @@ fn select_page_keys_reach_enabled_ends_on_a_virtual_list(cx: &mut TestAppContext
     press(cx, "enter");
     assert_eq!(
         picked.borrow().as_slice(),
-        ["Some(0)"],
+        ["Some(\"Option 00\")"],
         "page keys on a mouse-opened, cursor-less virtual list must be inert: \
          Down must still enter the first row"
     );
@@ -1853,7 +1831,7 @@ fn select_page_keys_reach_enabled_ends_on_a_virtual_list(cx: &mut TestAppContext
     press(cx, "enter");
     assert_eq!(
         picked.borrow().as_slice(),
-        ["Some(0)", "Some(29)"],
+        ["Some(\"Option 00\")", "Some(\"Option 29\")"],
         "PageDown with a cursor must reach the last enabled row of the virtual list"
     );
 
@@ -1864,7 +1842,11 @@ fn select_page_keys_reach_enabled_ends_on_a_virtual_list(cx: &mut TestAppContext
     press(cx, "enter");
     assert_eq!(
         picked.borrow().as_slice(),
-        ["Some(0)", "Some(29)", "Some(0)"],
+        [
+            "Some(\"Option 00\")",
+            "Some(\"Option 29\")",
+            "Some(\"Option 00\")"
+        ],
         "PageUp with a cursor must return to the first enabled row of the virtual list"
     );
 }
@@ -1879,14 +1861,19 @@ fn select_page_keys_reach_enabled_ends_on_a_virtual_list(cx: &mut TestAppContext
 fn select_page_keys_reach_enabled_ends_on_a_scrolled_list(cx: &mut TestAppContext) {
     let picks = events();
     let picked = picks.clone();
-    let options: Vec<SharedString> = (0..20).map(|i| format!("Option {i:02}").into()).collect();
+    let options: Vec<PickerItem> = (0..20)
+        .map(|i| {
+            let label = format!("Option {i:02}");
+            PickerItem::new(label.clone(), label)
+        })
+        .collect();
 
     let cx = open_host(cx, move || {
         let picks = picks.clone();
         Select::new("sel-page-plain", options.clone())
-            .disabled_keys([0, 19])
-            .on_selection_change(move |i, _, _| {
-                picks.borrow_mut().push(format!("{i:?}"));
+            .disabled_keys(["Option 00".into(), "Option 19".into()])
+            .on_selection_change(move |key, _, _| {
+                picks.borrow_mut().push(format!("{key:?}"));
             })
             .into_any_element()
     });
@@ -1902,7 +1889,7 @@ fn select_page_keys_reach_enabled_ends_on_a_scrolled_list(cx: &mut TestAppContex
     press(cx, "enter");
     assert_eq!(
         picked.borrow().as_slice(),
-        ["Some(1)"],
+        ["Some(\"Option 01\")"],
         "page keys on a mouse-opened, cursor-less scrolled list must be inert: \
          Down must still enter the first enabled row"
     );
@@ -1916,7 +1903,7 @@ fn select_page_keys_reach_enabled_ends_on_a_scrolled_list(cx: &mut TestAppContex
     press(cx, "enter");
     assert_eq!(
         picked.borrow().as_slice(),
-        ["Some(1)", "Some(18)"],
+        ["Some(\"Option 01\")", "Some(\"Option 18\")"],
         "PageDown on a scrolled list must reach the last enabled row"
     );
 
@@ -1927,7 +1914,11 @@ fn select_page_keys_reach_enabled_ends_on_a_scrolled_list(cx: &mut TestAppContex
     press(cx, "enter");
     assert_eq!(
         picked.borrow().as_slice(),
-        ["Some(1)", "Some(18)", "Some(1)"],
+        [
+            "Some(\"Option 01\")",
+            "Some(\"Option 18\")",
+            "Some(\"Option 01\")"
+        ],
         "PageUp on a scrolled list must reach the first enabled row"
     );
 }
@@ -1955,12 +1946,7 @@ fn select_shift_arrows_extend_and_reverse_shrink(cx: &mut TestAppContext) {
         let picks = picks.clone();
         Select::new(
             "sel-range-arrows",
-            vec![
-                "Alpha".into(),
-                "Beta".into(),
-                "Gamma".into(),
-                "Delta".into(),
-            ],
+            keyed(&["Alpha", "Beta", "Gamma", "Delta"]),
         )
         .selection_mode(SelectionMode::Multiple)
         .default_open(true)
@@ -1978,35 +1964,47 @@ fn select_shift_arrows_extend_and_reverse_shrink(cx: &mut TestAppContext) {
     press(cx, "tab down enter");
     assert_eq!(
         picked.borrow().as_slice(),
-        ["0"],
+        ["Alpha"],
         "the Enter toggle must seat the anchor on the added key"
     );
 
     press(cx, "shift-down shift-down");
     assert_eq!(
         picked.borrow().as_slice(),
-        ["0", "0,1", "0,1,2"],
+        ["Alpha", "Alpha,Beta", "Alpha,Beta,Gamma"],
         "Shift+Down must extend the anchor's range forward"
     );
 
     press(cx, "shift-up");
     assert_eq!(
         picked.borrow().as_slice(),
-        ["0", "0,1", "0,1,2", "0,1"],
+        ["Alpha", "Alpha,Beta", "Alpha,Beta,Gamma", "Alpha,Beta"],
         "a reverse Shift+Up must shrink the old anchor..cursor range"
     );
 
     press(cx, "shift-up");
     assert_eq!(
         picked.borrow().as_slice(),
-        ["0", "0,1", "0,1,2", "0,1", "0"],
+        [
+            "Alpha",
+            "Alpha,Beta",
+            "Alpha,Beta,Gamma",
+            "Alpha,Beta",
+            "Alpha"
+        ],
         "the shrink must replace the range, not toggle keys off"
     );
 
     press(cx, "shift-up");
     assert_eq!(
         picked.borrow().as_slice(),
-        ["0", "0,1", "0,1,2", "0,1", "0"],
+        [
+            "Alpha",
+            "Alpha,Beta",
+            "Alpha,Beta,Gamma",
+            "Alpha,Beta",
+            "Alpha"
+        ],
         "the held Shift+Up at the boundary must run no extension and report \
          nothing: the pinned arrow delegate returns null there"
     );
@@ -2025,16 +2023,10 @@ fn select_shift_click_extends_and_disabled_keys_stay_out(cx: &mut TestAppContext
         let picks = picks.clone();
         Select::new(
             "sel-shift-click",
-            vec![
-                "Alpha".into(),
-                "Beta".into(),
-                "Held".into(),
-                "Delta".into(),
-                "Echo".into(),
-            ],
+            keyed(&["Alpha", "Beta", "Held", "Delta", "Echo"]),
         )
         .selection_mode(SelectionMode::Multiple)
-        .disabled_keys([2])
+        .disabled_keys(["Held".into()])
         .default_open(true)
         .on_selection_change_all(move |keys, _, _| {
             picks.borrow_mut().push(
@@ -2054,28 +2046,28 @@ fn select_shift_click_extends_and_disabled_keys_stay_out(cx: &mut TestAppContext
     click(cx, 60., 66.);
     assert_eq!(
         picked.borrow().as_slice(),
-        ["0"],
+        ["Alpha"],
         "the plain click must seat the anchor on the added key"
     );
 
     cx.simulate_click(point(px(60.), px(210.)), shift);
     assert_eq!(
         picked.borrow().as_slice(),
-        ["0", "0,1,3,4"],
+        ["Alpha", "Alpha,Beta,Delta,Echo"],
         "Shift+Click must extend across the disabled row without selecting it"
     );
 
     cx.simulate_click(point(px(60.), px(102.)), shift);
     assert_eq!(
         picked.borrow().as_slice(),
-        ["0", "0,1,3,4", "0,1"],
+        ["Alpha", "Alpha,Beta,Delta,Echo", "Alpha,Beta"],
         "a reverse Shift+Click must shrink the old anchor..cursor range"
     );
 
     click(cx, 60., 66.);
     assert_eq!(
         picked.borrow().as_slice(),
-        ["0", "0,1,3,4", "0,1", "1"],
+        ["Alpha", "Alpha,Beta,Delta,Echo", "Alpha,Beta", "Beta"],
         "an ordinary click must toggle against the current set, not extend"
     );
 }
@@ -2095,16 +2087,10 @@ fn select_shift_home_end_follow_the_registered_chords(cx: &mut TestAppContext) {
         let picks = picks.clone();
         Select::new(
             "sel-shift-home-end",
-            vec![
-                "Alpha".into(),
-                "Beta".into(),
-                "Gamma".into(),
-                "Delta".into(),
-                "Held".into(),
-            ],
+            keyed(&["Alpha", "Beta", "Gamma", "Delta", "Held"]),
         )
         .selection_mode(SelectionMode::Multiple)
-        .disabled_keys([4])
+        .disabled_keys(["Held".into()])
         .default_open(true)
         .on_selection_change_all(move |keys, _, _| {
             picks.borrow_mut().push(
@@ -2118,19 +2104,19 @@ fn select_shift_home_end_follow_the_registered_chords(cx: &mut TestAppContext) {
     });
 
     press(cx, "tab down enter");
-    assert_eq!(picked.borrow().as_slice(), ["0"]);
+    assert_eq!(picked.borrow().as_slice(), ["Alpha"]);
 
     press(cx, "ctrl-shift-end");
     if cfg!(target_os = "macos") {
         assert_eq!(
             picked.borrow().as_slice(),
-            ["0"],
+            ["Alpha"],
             "macOS must leave Control-bearing Home/End entirely inert"
         );
     } else {
         assert_eq!(
             picked.borrow().as_slice(),
-            ["0", "0,1,2,3"],
+            ["Alpha", "Alpha,Beta,Gamma,Delta"],
             "Control+Shift+End must extend the range to the last enabled option"
         );
     }
@@ -2139,9 +2125,9 @@ fn select_shift_home_end_follow_the_registered_chords(cx: &mut TestAppContext) {
     assert_eq!(
         picked.borrow().as_slice(),
         if cfg!(target_os = "macos") {
-            &["0"][..]
+            &["Alpha"][..]
         } else {
-            &["0", "0,1,2,3"][..]
+            &["Alpha", "Alpha,Beta,Gamma,Delta"][..]
         },
         "plain Shift+Home must only move the cursor, on every platform"
     );
@@ -2151,15 +2137,15 @@ fn select_shift_home_end_follow_the_registered_chords(cx: &mut TestAppContext) {
         press(cx, "alt-shift-end");
         assert_eq!(
             picked.borrow().as_slice(),
-            ["0"],
+            ["Alpha"],
             "Alt+Shift+End must walk the cursor without extending"
         );
-        // The Enter target betrays where the cursor was left: on 3, and the
-        // selection still only holds 0, so the toggle adds it.
+        // The Enter target betrays where the cursor was left: on Delta, and
+        // the selection still only holds Alpha, so the toggle adds it.
         press(cx, "enter");
         assert_eq!(
             picked.borrow().as_slice(),
-            ["0", "0,3"],
+            ["Alpha", "Alpha,Delta"],
             "Alt+Shift+End must have walked the cursor without extending and \
              the inert Control chord must never have selected the range"
         );
@@ -2169,14 +2155,15 @@ fn select_shift_home_end_follow_the_registered_chords(cx: &mut TestAppContext) {
         press(cx, "alt-shift-end");
         assert_eq!(
             picked.borrow().as_slice(),
-            ["0", "0,1,2,3"],
+            ["Alpha", "Alpha,Beta,Gamma,Delta"],
             "an unregistered Alt-bearing chord must leave Home and End inert"
         );
-        // The cursor stayed on 0 through the inert chord, so Enter toggles 0.
+        // The cursor stayed on Alpha through the inert chord, so Enter
+        // toggles it.
         press(cx, "enter");
         assert_eq!(
             picked.borrow().as_slice(),
-            ["0", "0,1,2,3", "1,2,3"],
+            ["Alpha", "Alpha,Beta,Gamma,Delta", "Beta,Gamma,Delta"],
             "the inert chord must have left the cursor where Shift+Home put it"
         );
     }
@@ -2198,12 +2185,7 @@ fn select_registered_shift_home_end_reports_when_the_end_is_already_held(cx: &mu
         let picks = picks.clone();
         Select::new(
             "sel-shift-end-held",
-            vec![
-                "Alpha".into(),
-                "Beta".into(),
-                "Gamma".into(),
-                "Delta".into(),
-            ],
+            keyed(&["Alpha", "Beta", "Gamma", "Delta"]),
         )
         .selection_mode(SelectionMode::Multiple)
         .default_open(true)
@@ -2221,7 +2203,7 @@ fn select_registered_shift_home_end_reports_when_the_end_is_already_held(cx: &mu
     press(cx, "tab down down down down enter");
     assert_eq!(
         picked.borrow().as_slice(),
-        ["3"],
+        ["Delta"],
         "the walk must end with the cursor holding the last option"
     );
 
@@ -2229,21 +2211,21 @@ fn select_registered_shift_home_end_reports_when_the_end_is_already_held(cx: &mu
     if cfg!(target_os = "macos") {
         assert_eq!(
             picked.borrow().as_slice(),
-            ["3"],
+            ["Delta"],
             "macOS registers no extending Home/End chord: the Control-bearing \
              chord is entirely inert and must not report"
         );
         press(cx, "up enter");
         assert_eq!(
             picked.borrow().as_slice(),
-            ["3", "2,3"],
+            ["Delta", "Gamma,Delta"],
             "the inert chord must have left the cursor holding the end: Up \
-             stepped to 2 and Enter toggled it beside 3"
+             stepped to Gamma and Enter toggled it beside Delta"
         );
     } else {
         assert_eq!(
             picked.borrow().as_slice(),
-            ["3", "3"],
+            ["Delta", "Delta"],
             "the pinned End handler resolves the end the cursor already \
              holds, so the registered extending chord must report the \
              unchanged set"
@@ -2251,7 +2233,7 @@ fn select_registered_shift_home_end_reports_when_the_end_is_already_held(cx: &mu
         press(cx, "ctrl-shift-end");
         assert_eq!(
             picked.borrow().as_slice(),
-            ["3", "3", "3"],
+            ["Delta", "Delta", "Delta"],
             "the repeated same-key extension must report again"
         );
     }
@@ -2273,15 +2255,10 @@ fn select_mod_a_selects_every_enabled_key_without_a_toggle_or_callback(cx: &mut 
         let picks = picks.clone();
         Select::new(
             "sel-select-all",
-            vec![
-                "Alpha".into(),
-                "Held".into(),
-                "Gamma".into(),
-                "Delta".into(),
-            ],
+            keyed(&["Alpha", "Held", "Gamma", "Delta"]),
         )
         .selection_mode(SelectionMode::Multiple)
-        .disabled_keys([1])
+        .disabled_keys(["Held".into()])
         .default_open(true)
         .on_selection_change_all(move |keys, _, _| {
             picks.borrow_mut().push(
@@ -2310,8 +2287,8 @@ fn select_mod_a_selects_every_enabled_key_without_a_toggle_or_callback(cx: &mut 
     click(cx, 60., 66.);
     assert_eq!(
         picked.borrow().as_slice(),
-        ["2,3"],
-        "toggling row 0 must expose the enabled-only set the silent \
+        ["Gamma,Delta"],
+        "toggling the first row must expose the enabled-only set the silent \
          select-all installed"
     );
 }
@@ -2328,10 +2305,10 @@ fn select_mod_a_leaves_a_controlled_selection_to_its_owner(cx: &mut TestAppConte
         let picks = picks.clone();
         Select::new(
             "sel-select-all-controlled",
-            vec!["Alpha".into(), "Beta".into(), "Gamma".into()],
+            keyed(&["Alpha", "Beta", "Gamma"]),
         )
         .selection_mode(SelectionMode::Multiple)
-        .selected_indices([0])
+        .selected_keys(["Alpha".into()])
         .default_open(true)
         .on_selection_change_all(move |keys, _, _| {
             picks.borrow_mut().push(
@@ -2371,25 +2348,22 @@ fn select_escape_closes_on_the_first_press_and_keeps_the_selection(cx: &mut Test
     let cx = open_host(cx, move || {
         let picks = picks.clone();
         let opens = opens.clone();
-        Select::new(
-            "sel-escape-keeps",
-            vec!["Alpha".into(), "Beta".into(), "Gamma".into()],
-        )
-        .selection_mode(SelectionMode::Multiple)
-        .default_selected_indices([0, 2])
-        .default_open(true)
-        .on_open_change(move |open, _, _| {
-            opens.borrow_mut().push(format!("open:{open}"));
-        })
-        .on_selection_change_all(move |keys, _, _| {
-            picks.borrow_mut().push(
-                keys.iter()
-                    .map(ToString::to_string)
-                    .collect::<Vec<_>>()
-                    .join(","),
-            );
-        })
-        .into_any_element()
+        Select::new("sel-escape-keeps", keyed(&["Alpha", "Beta", "Gamma"]))
+            .selection_mode(SelectionMode::Multiple)
+            .default_selected_keys(["Alpha".into(), "Gamma".into()])
+            .default_open(true)
+            .on_open_change(move |open, _, _| {
+                opens.borrow_mut().push(format!("open:{open}"));
+            })
+            .on_selection_change_all(move |keys, _, _| {
+                picks.borrow_mut().push(
+                    keys.iter()
+                        .map(ToString::to_string)
+                        .collect::<Vec<_>>()
+                        .join(","),
+                );
+            })
+            .into_any_element()
     });
 
     press(cx, "tab");
@@ -2421,8 +2395,8 @@ fn select_escape_closes_on_the_first_press_and_keeps_the_selection(cx: &mut Test
     click(cx, 60., 66.);
     assert_eq!(
         picked.borrow().as_slice(),
-        ["2"],
-        "toggling row 0 off must leave row 2 selected, proving the Escape \
+        ["Gamma"],
+        "toggling Alpha off must leave Gamma selected, proving the Escape \
          preserved the pre-close selection"
     );
 }
@@ -2444,12 +2418,7 @@ fn select_multiple_anchor_persists_across_close_and_reopen(cx: &mut TestAppConte
         let opens = opens.clone();
         Select::new(
             "sel-anchor-persists",
-            vec![
-                "Alpha".into(),
-                "Beta".into(),
-                "Gamma".into(),
-                "Delta".into(),
-            ],
+            keyed(&["Alpha", "Beta", "Gamma", "Delta"]),
         )
         .selection_mode(SelectionMode::Multiple)
         .default_open(true)
@@ -2467,13 +2436,13 @@ fn select_multiple_anchor_persists_across_close_and_reopen(cx: &mut TestAppConte
         .into_any_element()
     });
 
-    // Seat the anchor on 2, then deselect it: the anchor stays behind with an
-    // empty selection, exactly where closing finds it.
+    // Seat the anchor on Gamma, then deselect it: the anchor stays behind
+    // with an empty selection, exactly where closing finds it.
     press(cx, "tab down enter down down enter enter");
     assert_eq!(
         picked.borrow().as_slice(),
-        ["0", "0,2", "0"],
-        "the probe must end with the anchor seated on deselected row 2"
+        ["Alpha", "Alpha,Gamma", "Alpha"],
+        "the probe must end with the anchor seated on deselected Gamma"
     );
 
     click(cx, 600., 300.);
@@ -2487,10 +2456,10 @@ fn select_multiple_anchor_persists_across_close_and_reopen(cx: &mut TestAppConte
     press(cx, "shift-up");
     assert_eq!(
         picked.borrow().as_slice(),
-        ["0", "0,2", "0", "0,1,2"],
-        "the reopened extension must reach from the pre-close anchor at 2; \
-         a fresh anchor on the moved-to 1 would leave the surviving 0 out \
-         and report only 0,1"
+        ["Alpha", "Alpha,Gamma", "Alpha", "Alpha,Beta,Gamma"],
+        "the reopened extension must reach from the pre-close anchor at \
+         Gamma; a fresh anchor on the moved-to Beta would leave the \
+         surviving Alpha out and report only Alpha,Beta"
     );
 }
 
@@ -2512,26 +2481,23 @@ fn select_multiple_typeahead_is_inert_on_the_closed_trigger_alone(cx: &mut TestA
         let single = single.clone();
         let all = all.clone();
         let opens = opens.clone();
-        Select::new(
-            "sel-multi-typeahead",
-            vec!["Alpha".into(), "Beta".into(), "Gamma".into()],
-        )
-        .selection_mode(SelectionMode::Multiple)
-        .on_selection_change(move |i, _, _| {
-            single.borrow_mut().push(format!("{i:?}"));
-        })
-        .on_open_change(move |open, _, _| {
-            opens.borrow_mut().push(format!("open:{open}"));
-        })
-        .on_selection_change_all(move |keys, _, _| {
-            all.borrow_mut().push(
-                keys.iter()
-                    .map(ToString::to_string)
-                    .collect::<Vec<_>>()
-                    .join(","),
-            );
-        })
-        .into_any_element()
+        Select::new("sel-multi-typeahead", keyed(&["Alpha", "Beta", "Gamma"]))
+            .selection_mode(SelectionMode::Multiple)
+            .on_selection_change(move |key, _, _| {
+                single.borrow_mut().push(format!("{key:?}"));
+            })
+            .on_open_change(move |open, _, _| {
+                opens.borrow_mut().push(format!("open:{open}"));
+            })
+            .on_selection_change_all(move |keys, _, _| {
+                all.borrow_mut().push(
+                    keys.iter()
+                        .map(ToString::to_string)
+                        .collect::<Vec<_>>()
+                        .join(","),
+                );
+            })
+            .into_any_element()
     });
 
     press(cx, "tab g");
@@ -2554,7 +2520,7 @@ fn select_multiple_typeahead_is_inert_on_the_closed_trigger_alone(cx: &mut TestA
     assert_eq!(opened.borrow().as_slice(), ["open:true"]);
     assert_eq!(
         reported.borrow().as_slice(),
-        ["2"],
+        ["Gamma"],
         "the open list's typeahead must move the cursor to the exact match \
          (Gamma), and Enter must toggle it"
     );
@@ -2578,12 +2544,7 @@ fn select_held_shift_arrow_stays_silent_at_the_boundary(cx: &mut TestAppContext)
         let picks = picks.clone();
         Select::new(
             "sel-shift-boundary",
-            vec![
-                "Alpha".into(),
-                "Beta".into(),
-                "Gamma".into(),
-                "Delta".into(),
-            ],
+            keyed(&["Alpha", "Beta", "Gamma", "Delta"]),
         )
         .selection_mode(SelectionMode::Multiple)
         .default_open(true)
@@ -2599,12 +2560,12 @@ fn select_held_shift_arrow_stays_silent_at_the_boundary(cx: &mut TestAppContext)
     });
 
     press(cx, "tab down enter");
-    assert_eq!(picked.borrow().as_slice(), ["0"]);
+    assert_eq!(picked.borrow().as_slice(), ["Alpha"]);
 
     press(cx, "shift-up");
     assert_eq!(
         picked.borrow().as_slice(),
-        ["0"],
+        ["Alpha"],
         "the held Shift+Up at the top boundary must run no extension and \
          report nothing beyond the Enter pick"
     );
@@ -2612,14 +2573,24 @@ fn select_held_shift_arrow_stays_silent_at_the_boundary(cx: &mut TestAppContext)
     press(cx, "shift-down shift-down shift-down");
     assert_eq!(
         picked.borrow().as_slice(),
-        ["0", "0,1", "0,1,2", "0,1,2,3"],
+        [
+            "Alpha",
+            "Alpha,Beta",
+            "Alpha,Beta,Gamma",
+            "Alpha,Beta,Gamma,Delta"
+        ],
         "the walk to the last option must report every extension"
     );
 
     press(cx, "shift-down");
     assert_eq!(
         picked.borrow().as_slice(),
-        ["0", "0,1", "0,1,2", "0,1,2,3"],
+        [
+            "Alpha",
+            "Alpha,Beta",
+            "Alpha,Beta,Gamma",
+            "Alpha,Beta,Gamma,Delta"
+        ],
         "the held Shift+Down at the bottom boundary must run no extension \
          and report nothing"
     );
@@ -2627,7 +2598,13 @@ fn select_held_shift_arrow_stays_silent_at_the_boundary(cx: &mut TestAppContext)
     press(cx, "shift-up");
     assert_eq!(
         picked.borrow().as_slice(),
-        ["0", "0,1", "0,1,2", "0,1,2,3", "0,1,2"],
+        [
+            "Alpha",
+            "Alpha,Beta",
+            "Alpha,Beta,Gamma",
+            "Alpha,Beta,Gamma,Delta",
+            "Alpha,Beta,Gamma"
+        ],
         "a Shift+Arrow off the boundary must still shrink the anchored \
          range, so the silence above is the boundary admission and not a \
          dead handler"
@@ -2646,13 +2623,7 @@ fn select_pointer_press_seats_the_cursor_for_shift_navigation(cx: &mut TestAppCo
         let picks = picks.clone();
         Select::new(
             "sel-pointer-cursor",
-            vec![
-                "Alpha".into(),
-                "Beta".into(),
-                "Gamma".into(),
-                "Delta".into(),
-                "Echo".into(),
-            ],
+            keyed(&["Alpha", "Beta", "Gamma", "Delta", "Echo"]),
         )
         .selection_mode(SelectionMode::Multiple)
         .default_open(true)
@@ -2667,21 +2638,21 @@ fn select_pointer_press_seats_the_cursor_for_shift_navigation(cx: &mut TestAppCo
         .into_any_element()
     });
 
-    // Row *i* centres at y = 66 + 36i inside the popover: this is row 3.
+    // Row *i* centres at y = 66 + 36i inside the popover: this is Delta.
     click(cx, 60., 174.);
     assert_eq!(
         picked.borrow().as_slice(),
-        ["3"],
-        "the click must add row 3 and seat the anchor on it"
+        ["Delta"],
+        "the click must add Delta and seat the anchor on it"
     );
 
     press(cx, "shift-down");
     assert_eq!(
         picked.borrow().as_slice(),
-        ["3", "3,4"],
+        ["Delta", "Delta,Echo"],
         "the following Shift+Down must extend the adjacent anchored range \
-         3..4 from the seated cursor; a focus-theft or a null-cursor resolve \
-         would have reported nothing or 0,1,2,3"
+         Delta..Echo from the seated cursor; a focus-theft or a null-cursor \
+         resolve would have reported nothing or the whole list"
     );
 }
 
@@ -2697,12 +2668,7 @@ fn select_shift_home_end_from_a_null_cursor_stay_inert(cx: &mut TestAppContext) 
         let picks = picks.clone();
         Select::new(
             "sel-shift-ends-null-cursor",
-            vec![
-                "Alpha".into(),
-                "Beta".into(),
-                "Gamma".into(),
-                "Delta".into(),
-            ],
+            keyed(&["Alpha", "Beta", "Gamma", "Delta"]),
         )
         .selection_mode(SelectionMode::Multiple)
         .default_open(true)
@@ -2729,10 +2695,10 @@ fn select_shift_home_end_from_a_null_cursor_stay_inert(cx: &mut TestAppContext) 
     press(cx, "down enter");
     assert_eq!(
         picked.borrow().as_slice(),
-        ["0"],
-        "the probe must land on row 0: the inert chords never seated a \
+        ["Alpha"],
+        "the probe must land on Alpha: the inert chords never seated a \
          cursor, so Down started from the top; a seated Home/End would have \
-         left the cursor on an end and reported 1 or 3 here"
+         left the cursor on an end and reported Beta or Delta here"
     );
 }
 
@@ -2749,16 +2715,11 @@ fn select_single_unregistered_home_end_chords_are_inert(cx: &mut TestAppContext)
         let picks = picks.clone();
         Select::new(
             "sel-single-unregistered",
-            vec![
-                "Alpha".into(),
-                "Beta".into(),
-                "Gamma".into(),
-                "Delta".into(),
-            ],
+            keyed(&["Alpha", "Beta", "Gamma", "Delta"]),
         )
         .default_open(true)
-        .on_selection_change(move |i, _, _| {
-            picks.borrow_mut().push(format!("{i:?}"));
+        .on_selection_change(move |key, _, _| {
+            picks.borrow_mut().push(format!("{key:?}"));
         })
         .into_any_element()
     });
@@ -2779,8 +2740,8 @@ fn select_single_unregistered_home_end_chords_are_inert(cx: &mut TestAppContext)
     press(cx, "enter");
     assert_eq!(
         picked.borrow().as_slice(),
-        ["Some(0)"],
-        "Enter must select row 0, proving the unregistered chord never \
+        ["Some(\"Alpha\")"],
+        "Enter must select Alpha, proving the unregistered chord never \
          moved the cursor off the arrows' row"
     );
 }
@@ -2797,7 +2758,7 @@ fn select_mod_a_then_shift_navigation_collapses_to_the_target(cx: &mut TestAppCo
         let picks = picks.clone();
         Select::new(
             "sel-select-all-collapse",
-            vec!["Alpha".into(), "Beta".into(), "Gamma".into()],
+            keyed(&["Alpha", "Beta", "Gamma"]),
         )
         .selection_mode(SelectionMode::Multiple)
         .default_open(true)
@@ -2822,9 +2783,9 @@ fn select_mod_a_then_shift_navigation_collapses_to_the_target(cx: &mut TestAppCo
     press(cx, "down shift-down");
     assert_eq!(
         picked.borrow().as_slice(),
-        ["1"],
+        ["Beta"],
         "the Shift+Down after the select-all must collapse the selection to \
-         its target (row 1) and report the collapse"
+         its target (Beta) and report the collapse"
     );
 }
 
@@ -2862,7 +2823,7 @@ fn disclosure_toggles_and_group_reports(cx: &mut TestAppContext) {
                 Disclosure::new("calendars-single-disclosure", "General")
                     .is_expanded(is_expanded)
                     .on_expanded_change(move |next, window, _| {
-                        *single_open.borrow_mut() = next;
+                        *single_open.borrow_mut() = *next;
                         toggles.borrow_mut().push(next.to_string());
                         window.refresh();
                     })
@@ -3399,5 +3360,187 @@ fn toolbar_held_arrow_repeats_stop_at_ends(cx: &mut TestAppContext) {
         outside.borrow().as_slice(),
         ["outside"],
         "Tab must still leave the toolbar in one press after held repeats"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// `value` — the pure builder seed on the calendar family
+// ---------------------------------------------------------------------------
+
+#[gpui::test]
+fn calendar_value_builder_seeds_the_bound_state_at_first_render(cx: &mut TestAppContext) {
+    let state = cx.new(|cx| CalendarState::new(cx));
+    let state_for_view = state.clone();
+    // The builder chain needs no `&mut App`: the selection travels on the
+    // struct and lands in the state when the grid first renders.
+    let cx = open_host(cx, move || {
+        Calendar::new(state_for_view.clone())
+            .value(Some(Date::new(2026, 1, 15)))
+            .into_any_element()
+    });
+    let selected = cx.update(|_, cx| state.read(cx).selected);
+    assert_eq!(
+        selected,
+        Some(Date::new(2026, 1, 15)),
+        "value must seed the bound CalendarState when the grid first renders"
+    );
+}
+
+#[gpui::test]
+fn calendar_value_builder_keeps_the_last_call_and_outranks_default_value(cx: &mut TestAppContext) {
+    let state = cx.new(|cx| CalendarState::new(cx));
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        Calendar::new(state_for_view.clone())
+            .default_value(Date::new(2026, 2, 2))
+            .value(Some(Date::new(2026, 3, 3)))
+            .value(Some(Date::new(2026, 1, 15)))
+            .into_any_element()
+    });
+    let selected = cx.update(|_, cx| state.read(cx).selected);
+    assert_eq!(
+        selected,
+        Some(Date::new(2026, 1, 15)),
+        "a pure builder keeps the last call, and the controlled spelling outranks defaultValue"
+    );
+}
+
+#[gpui::test]
+fn calendar_value_builder_seeds_once_and_never_clobbers_edits(cx: &mut TestAppContext) {
+    let changes = events();
+    let recorded = changes.clone();
+    let state = cx.new(|cx| CalendarState::new(cx));
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        let changes = changes.clone();
+        Calendar::new(state_for_view.clone())
+            .value(Some(Date::new(2026, 1, 15)))
+            .on_change(move |date, _, _| {
+                changes
+                    .borrow_mut()
+                    .push(date.map_or_else(|| "none".to_owned(), |d| d.format_iso()));
+            })
+            .into_any_element()
+    });
+    assert_eq!(
+        cx.update(|_, cx| state.read(cx).selected),
+        Some(Date::new(2026, 1, 15))
+    );
+
+    // The builder runs again on every refresh carrying the same `value`; the
+    // seed must not rewrite the selection the user drove. The ring starts on
+    // the seeded selection, so Right then Enter picks the next day.
+    press(cx, "tab");
+    press(cx, "right");
+    press(cx, "enter");
+    let picked = cx.update(|_, cx| state.read(cx).selected);
+    assert_eq!(picked, Some(Date::new(2026, 1, 16)));
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["2026-01-16"],
+        "the pick reports exactly once, from the keystroke"
+    );
+    cx.update(|window, _| window.refresh());
+    assert_eq!(
+        cx.update(|_, cx| state.read(cx).selected),
+        Some(Date::new(2026, 1, 16)),
+        "a re-render must not re-apply the value seed over the user's pick"
+    );
+}
+
+#[gpui::test]
+fn range_calendar_value_builder_seeds_the_bound_state_at_first_render(cx: &mut TestAppContext) {
+    let state = cx.new(|cx| DateRangeState::new(cx));
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        RangeCalendar::new(state_for_view.clone())
+            .value(Some(Date::new(2026, 1, 10)), Some(Date::new(2026, 1, 20)))
+            .into_any_element()
+    });
+    let (start, end) = cx.update(|_, cx| {
+        let st = state.read(cx);
+        (st.start, st.end)
+    });
+    assert_eq!(
+        (start, end),
+        (Some(Date::new(2026, 1, 10)), Some(Date::new(2026, 1, 20))),
+        "value must seed the bound DateRangeState when the grid first renders"
+    );
+}
+
+#[gpui::test]
+fn range_calendar_value_builder_keeps_the_last_call_and_outranks_default_value(
+    cx: &mut TestAppContext,
+) {
+    let state = cx.new(|cx| DateRangeState::new(cx));
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        RangeCalendar::new(state_for_view.clone())
+            .default_value((Date::new(2026, 2, 2), Date::new(2026, 2, 8)))
+            .value(Some(Date::new(2026, 3, 1)), Some(Date::new(2026, 3, 5)))
+            .value(Some(Date::new(2026, 1, 10)), Some(Date::new(2026, 1, 20)))
+            .into_any_element()
+    });
+    let (start, end) = cx.update(|_, cx| {
+        let st = state.read(cx);
+        (st.start, st.end)
+    });
+    assert_eq!(
+        (start, end),
+        (Some(Date::new(2026, 1, 10)), Some(Date::new(2026, 1, 20))),
+        "a pure builder keeps the last call, and the controlled spelling outranks defaultValue"
+    );
+}
+
+#[gpui::test]
+fn range_calendar_value_builder_seeds_once_and_never_clobbers_edits(cx: &mut TestAppContext) {
+    let changes = events();
+    let recorded = changes.clone();
+    let state = cx.new(|cx| DateRangeState::new(cx));
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        let changes = changes.clone();
+        RangeCalendar::new(state_for_view.clone())
+            .value(Some(Date::new(2026, 1, 10)), Some(Date::new(2026, 1, 20)))
+            .on_change(move |start, end, _, _| {
+                changes
+                    .borrow_mut()
+                    .push(format!("{}->{}", start.format_iso(), end.format_iso()));
+            })
+            .into_any_element()
+    });
+    let (start, end) = cx.update(|_, cx| {
+        let st = state.read(cx);
+        (st.start, st.end)
+    });
+    assert_eq!(
+        (start, end),
+        (Some(Date::new(2026, 1, 10)), Some(Date::new(2026, 1, 20)))
+    );
+
+    // The builder runs again on every refresh carrying the same `value`; the
+    // seed must not restore the range the user replaced. The keyboard cursor
+    // starts on the seeded start, and Enter over a complete range re-anchors
+    // it — an incomplete pick whose end is null, which v3 holds locally.
+    press(cx, "tab");
+    press(cx, "enter");
+    let (start, end) = cx.update(|_, cx| {
+        let st = state.read(cx);
+        (st.start, st.end)
+    });
+    assert_eq!(
+        (start, end),
+        (Some(Date::new(2026, 1, 10)), None),
+        "Enter must re-anchor the range instead of reporting the seed again"
+    );
+    assert!(
+        recorded.borrow().is_empty(),
+        "the incomplete re-anchor defers onChange, exactly as a first pick does"
+    );
+    cx.update(|window, _| window.refresh());
+    assert_eq!(
+        cx.update(|_, cx| state.read(cx).end),
+        None,
+        "a re-render must not re-apply the value seed over the user's pick"
     );
 }

@@ -37,7 +37,7 @@ fn nested_date_picker_escape_closes_only_the_picker_then_parent(cx: &mut TestApp
             .id("date-parent")
             .is_open(parent_open.get())
             .on_open_change(move |open, window, _| {
-                parent_for_callback.set(open);
+                parent_for_callback.set(*open);
                 parent_changes.borrow_mut().push(format!("parent:{open}"));
                 window.refresh();
             })
@@ -45,7 +45,7 @@ fn nested_date_picker_escape_closes_only_the_picker_then_parent(cx: &mut TestApp
                 DatePicker::new(date_state.clone())
                     .is_open(date_open.get())
                     .on_open_change(move |open, window, _| {
-                        date_for_callback.set(open);
+                        date_for_callback.set(*open);
                         date_changes.borrow_mut().push(format!("date:{open}"));
                         window.refresh();
                     }),
@@ -76,7 +76,7 @@ fn content_only_date_picker_does_not_register_an_invisible_overlay(cx: &mut Test
             .id("content-date-parent")
             .is_open(parent_open_for_view.get())
             .on_open_change(move |open, window, _| {
-                parent_for_callback.set(open);
+                parent_for_callback.set(*open);
                 changes.borrow_mut().push(format!("parent:{open}"));
                 window.refresh();
             })
@@ -108,7 +108,7 @@ fn content_only_date_range_picker_does_not_register_an_invisible_overlay(cx: &mu
             .id("content-range-parent")
             .is_open(parent_open_for_view.get())
             .on_open_change(move |open, window, _| {
-                parent_for_callback.set(open);
+                parent_for_callback.set(*open);
                 changes.borrow_mut().push(format!("parent:{open}"));
                 window.refresh();
             })
@@ -149,7 +149,7 @@ fn nested_date_range_picker_outside_press_closes_only_the_picker_then_parent(
             .id("range-parent")
             .is_open(parent_open.get())
             .on_open_change(move |open, window, _| {
-                parent_for_callback.set(open);
+                parent_for_callback.set(*open);
                 parent_changes.borrow_mut().push(format!("parent:{open}"));
                 window.refresh();
             })
@@ -157,7 +157,7 @@ fn nested_date_range_picker_outside_press_closes_only_the_picker_then_parent(
                 DateRangePicker::new(range_state.clone())
                     .is_open(range_open.get())
                     .on_open_change(move |open, window, _| {
-                        range_for_callback.set(open);
+                        range_for_callback.set(*open);
                         range_changes.borrow_mut().push(format!("range:{open}"));
                         window.refresh();
                     }),
@@ -186,7 +186,7 @@ fn date_picker_trigger_outside_guard_does_not_report_duplicate_close(cx: &mut Te
         DatePicker::new(state.clone())
             .is_open(open_for_view.get())
             .on_open_change(move |value, window, _| {
-                open_for_callback.set(value);
+                open_for_callback.set(*value);
                 changes.borrow_mut().push(value.to_string());
                 window.refresh();
             })
@@ -212,7 +212,7 @@ fn date_range_picker_escape_restores_the_actual_start_field_once(cx: &mut TestAp
         DateRangePicker::new(state.clone())
             .is_open(open_for_view.get())
             .on_open_change(move |value, window, _| {
-                open_for_callback.set(value);
+                open_for_callback.set(*value);
                 changes.borrow_mut().push(value.to_string());
                 window.refresh();
             })

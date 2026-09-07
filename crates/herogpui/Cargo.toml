@@ -10,11 +10,51 @@ repository.workspace = true
 keywords.workspace = true
 categories.workspace = true
 
+# The facade's whole purpose: a consumer writes one `herogpui` dependency
+# (git, until crates.io) and gets GPUI too. `gpui` and `gpui_platform` are
+# therefore unconditional -- gating
+# them would put the consumer back to naming a second dependency for the one
+# thing every GPUI application must do, open a platform.
+[features]
+default = ["components"]
+
+# HeroUI v3's components -- `herogpui::components`, and the crate root glob.
+# Pulls the token layer, and through it the shared vocabulary, because a
+# component reads `cx.colors()`. This is what `init` initializes.
+components = ["theme", "dep:herogpui-components"]
+# The token layer alone -- `herogpui::theme`. Enough to build an application's
+# own widgets on HeroUI's OKLCH tokens without any of HeroGPUI's components.
+theme = ["core", "dep:herogpui-theme"]
+# The shared v3 vocabularies and colour math alone -- `herogpui::core`. No GPUI
+# state, so it also compiles into non-rendering code (a settings crate, a test).
+core = ["dep:herogpui-core"]
+# GPUI's test harness and its headless native platform, forwarded so a
+# consumer's own `#[gpui::test]` needs no second dependency either.
+test-support = ["gpui/test-support", "gpui_platform/test-support"]
+# Frame-event instrumentation stays opt-in for performance builds.
+profiler = ["gpui/profiler"]
+# Sparse theme documents (`ThemeDocument`) applied through `ThemeBuilder`.
+# Off by default so a consumer that never serializes a theme does not grow
+# a JSON stack.
+serde = ["theme", "herogpui-theme/serde"]
+
 [dependencies]
 gpui.workspace = true
-herogpui-core.workspace = true
-herogpui-theme.workspace = true
-herogpui-components.workspace = true
+gpui_platform.workspace = true
+herogpui-core = { workspace = true, optional = true }
+herogpui-theme = { workspace = true, optional = true }
+herogpui-components = { workspace = true, optional = true }
 
 [lints]
 workspace = true
+
+# docs.rs builds every crate with only its default features unless told
+# otherwise; `all-features` keeps this crate's docs.rs page in step with
+# herogpui-components' (which does gate items behind a feature) rather than
+# leaving that one crate the only one documented completely. `--cfg docsrs`
+# matches the flag CI's own rustdoc job now sets (see
+# .github/workflows/ci.yml), so a `#[cfg(docsrs)]` doc-only annotation
+# behaves identically in both places.
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]

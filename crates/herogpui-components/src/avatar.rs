@@ -7,7 +7,7 @@ use gpui::{
     px, App, ElementId, ImageCacheError, ImageSource, ImgResourceLoader, IntoElement,
     ParentElement, RenderImage, RenderOnce, Resource, SharedString, Styled, Window,
 };
-use herogpui_core::Color;
+use herogpui_core::{element_id, Color};
 use herogpui_theme::ActiveTheme;
 
 /// `Avatar.Image.onError` — v3's `(event) => void`, with no event payload to
@@ -91,6 +91,8 @@ pub struct Avatar {
     large: bool,
     color: Color,
     variant: AvatarVariant,
+    /// The `sx` slot, refined over the root style at the end of render.
+    sx: Option<Box<gpui::StyleRefinement>>,
 }
 
 impl Avatar {
@@ -113,6 +115,7 @@ impl Avatar {
             large: false,
             color: Color::Default,
             variant: AvatarVariant::Default,
+            sx: None,
         }
     }
 
@@ -198,6 +201,15 @@ impl Avatar {
 
     pub fn color(mut self, c: Color) -> Self {
         self.color = c;
+        self
+    }
+
+    /// The one slot for caller-owned low-level styling: GPUI's styling methods
+    /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
+    /// applied to the avatar's root element after every value the variant, the
+    /// color and the active theme chose, so they win.
+    pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
+        self.sx = Some(crate::util::capture_sx(style));
         self
     }
 
@@ -331,7 +343,7 @@ impl RenderOnce for Avatar {
         // Keep the image lifecycle slot alive even when the source is absent:
         // image latches must reset when an image is removed and later re-added
         // with the same source, while the mounted fallback timer survives.
-        let key = ElementId::Name(format!("{:?}-image", self.id).into());
+        let key = element_id::scoped(&self.id, "image");
         let state = window.use_keyed_state(key, cx, |_, _| AvatarImageState::default());
         let source = self.source;
         let identity = source
@@ -387,7 +399,7 @@ impl RenderOnce for Avatar {
         }
         let fallback_visible = self.fallback_delay_ms.is_none() || snapshot.delay_elapsed;
 
-        match source {
+        let el = match source {
             None => {
                 if fallback_visible {
                     el.child(fallback)
@@ -478,7 +490,8 @@ impl RenderOnce for Avatar {
                     }
                 }
             }
-        }
+        };
+        crate::util::apply_sx(el, &self.sx)
     }
 }
 

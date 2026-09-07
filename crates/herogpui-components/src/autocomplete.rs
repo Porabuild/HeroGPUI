@@ -41,10 +41,11 @@ use gpui::{
     prelude::*, px, App, Entity, IntoElement, RenderOnce, SharedString, StatefulInteractiveElement,
     Styled, Window,
 };
-use herogpui_core::{FieldVariant, Placement, SelectionMode};
+use herogpui_core::{element_id, FieldVariant, Placement, SelectionMode};
 use herogpui_theme::ActiveTheme;
 
 use crate::{
+    a11y::{self, A11y as _},
     icons,
     input::{InputState, SearchField},
     matches::{empty_matches, MatchesCache},
@@ -188,7 +189,7 @@ pub struct Autocomplete {
     is_open: Option<bool>,
     default_open: bool,
     placement: Placement,
-    on_open_change: Option<std::sync::Arc<dyn Fn(bool, &mut Window, &mut App) + 'static>>,
+    on_open_change: Option<std::sync::Arc<dyn Fn(&bool, &mut Window, &mut App) + 'static>>,
     on_selection_change: Option<OnSelectionChange>,
     /// `filter` — decides whether an item matches the query. Defaults to a
     /// case-insensitive substring test.
@@ -197,6 +198,8 @@ pub struct Autocomplete {
     on_input_change: Option<std::sync::Arc<dyn Fn(&str, &mut Window, &mut App) + 'static>>,
     on_clear: Option<std::sync::Arc<dyn Fn(&mut Window, &mut App) + 'static>>,
     form_state: AutocompleteFormState,
+    /// The `sx` slot, refined over the root style at the end of render.
+    sx: Option<Box<gpui::StyleRefinement>>,
 }
 
 impl Autocomplete {
@@ -265,7 +268,7 @@ impl Autocomplete {
     /// `onOpenChange`
     pub fn on_open_change(
         mut self,
-        handler: impl Fn(bool, &mut Window, &mut App) + 'static,
+        handler: impl Fn(&bool, &mut Window, &mut App) + 'static,
     ) -> Self {
         self.on_open_change = Some(std::sync::Arc::new(handler));
         self
@@ -355,6 +358,7 @@ impl Autocomplete {
             on_open_change: None,
             on_selection_change: None,
             form_state,
+            sx: None,
         }
     }
 
@@ -372,9 +376,23 @@ impl Autocomplete {
     /// the search-field entity, the way DateField keys its form state. A
     /// disabled control stays registered and is omitted from FormData.
     ///
-    /// ```ignore
+    /// ```
+    /// # use gpui::{prelude::*, Window};
+    /// # use herogpui_components::{Autocomplete, Form, InputState, PickerItem};
+    /// # struct Demo;
+    /// # impl Render for Demo {
+    /// #     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    /// #         let form = Form::new();
+    /// #         let state = cx.new(|cx| InputState::new(cx));
+    /// #         let control = Autocomplete::new(state, vec![PickerItem::new("rust", "Rust")])
+    /// #             .name("lang");
     /// let field = control.form_field();
     /// form.field(field.unwrap()).child(control)
+    /// #     }
+    /// # }
+    /// # let mut tcx = gpui::TestAppContext::single();
+    /// # tcx.update(herogpui_theme::ThemeProvider::init);
+    /// # let _ = tcx.add_window_view(|_, _| Demo);
     /// ```
     pub fn form_field(&self) -> Option<crate::form::FormField> {
         let name = self.name.clone()?;
@@ -431,6 +449,16 @@ impl Autocomplete {
 
     pub fn full_width(mut self, v: bool) -> Self {
         self.full_width = v;
+        self
+    }
+
+    /// The one slot for caller-owned low-level styling: GPUI's styling methods
+    /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
+    /// applied to the autocomplete's root element after every value the
+    /// variant and the active theme chose, so they win. The trigger paints its
+    /// own chrome, so this reaches the box that chrome sits in, not the chrome.
+    pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
+        self.sx = Some(util::capture_sx(style));
         self
     }
 
@@ -531,16 +559,16 @@ impl Autocomplete {
     }
 }
 
-fn el_name(s: String) -> gpui::ElementId {
-    gpui::ElementId::Name(s.into())
-}
-
 impl RenderOnce for Autocomplete {
     fn render(mut self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         // One shared collection for the frame: the `'static` panel and event
         // closures clone the `Rc`, never the rows.
         let items: Rc<[PickerItem]> = self.items.into();
         let base = format!("autocomplete-{}", self.state.entity_id().as_u64());
+        // The same identity as `base`, kept as structure for the ids that key
+        // state rather than name a debug selector.
+        let base_id =
+            gpui::ElementId::named_usize("autocomplete", self.state.entity_id().as_u64() as usize);
         // `Autocomplete.Filter.inputValue` is controlled state. Keep the bound
         // search field on the owner's value while still reporting proposed
         // edits through `onInputChange`.
@@ -563,7 +591,7 @@ impl RenderOnce for Autocomplete {
         let (selection, selection_own) = util::controlled(
             window,
             cx,
-            el_name(format!("{base}-selection")),
+            element_id::scoped(&base_id, "selection"),
             self.is_controlled.then(|| self.selected_keys.clone()),
             normalize_selection(self.default_value.clone().unwrap_or_default(), multiple),
         );
@@ -575,13 +603,18 @@ impl RenderOnce for Autocomplete {
         let (is_open, open_own) = util::controlled(
             window,
             cx,
-            el_name(format!("{base}-open")),
+            element_id::scoped(&base_id, "open"),
             self.is_open,
             self.default_open,
         );
         let open = is_open && !self.is_disabled;
-        let (overlay_phase, dismissal_token) =
-            util::overlay_scope(window, cx, el_name(format!("{base}-overlay")), open, true);
+        let (overlay_phase, dismissal_token) = util::overlay_scope(
+            window,
+            cx,
+            element_id::scoped(&base_id, "overlay"),
+            open,
+            true,
+        );
         let overlay_active = overlay_phase != util::OverlayPhase::Closed;
         let overlay_exiting = overlay_phase == util::OverlayPhase::Exiting;
 
@@ -589,7 +622,7 @@ impl RenderOnce for Autocomplete {
         // Unlike Escape, blur leaves focus on its destination.
         let blur_close_own = open_own.clone();
         let blur_open_change = self.on_open_change.clone();
-        let blur_scope = util::close_on_blur(window, cx, &base, open, move |window, cx| {
+        let blur_scope = util::close_on_blur(window, cx, &base_id, open, move |window, cx| {
             if let Some(held) = &blur_close_own {
                 held.update(cx, |v, cx| {
                     *v = false;
@@ -597,7 +630,7 @@ impl RenderOnce for Autocomplete {
                 });
             }
             if let Some(cb) = &blur_open_change {
-                cb(false, window, cx);
+                cb(&false, window, cx);
             }
         });
 
@@ -607,7 +640,7 @@ impl RenderOnce for Autocomplete {
             None
         } else {
             Some(util::tab_stop_handle(
-                el_name(format!("{base}-focus")),
+                element_id::scoped(&base_id, "focus"),
                 window,
                 cx,
             ))
@@ -615,7 +648,7 @@ impl RenderOnce for Autocomplete {
         // Which row the keyboard is on, held as the item's *key* so the cursor
         // stays on the same item when the query filters or the caller reorders
         // the collection.
-        let cursor = window.use_keyed_state(el_name(format!("{base}-cursor")), cx, |_, _| {
+        let cursor = window.use_keyed_state(element_id::scoped(&base_id, "cursor"), cx, |_, _| {
             None::<SharedString>
         });
         // React Aria keeps the focused row in view, and v3's list is
@@ -623,11 +656,11 @@ impl RenderOnce for Autocomplete {
         // scrolling div the other. `use_keyed_state` takes `cx` mutably, so both
         // precede the theme tokens.
         let list_scroll =
-            window.use_keyed_state(el_name(format!("{base}-list-scroll")), cx, |_, _| {
+            window.use_keyed_state(element_id::scoped(&base_id, "list-scroll"), cx, |_, _| {
                 gpui::UniformListScrollHandle::new()
             });
         let panel_scroll =
-            window.use_keyed_state(el_name(format!("{base}-panel-scroll")), cx, |_, _| {
+            window.use_keyed_state(element_id::scoped(&base_id, "panel-scroll"), cx, |_, _| {
                 gpui::ScrollHandle::new()
             });
         let list_scroll_now = list_scroll.read(cx).clone();
@@ -636,16 +669,18 @@ impl RenderOnce for Autocomplete {
         // the query field takes the focus as the popover opens -- once per
         // opening, or it would take the focus back on every frame.
         let autofocused =
-            window.use_keyed_state(el_name(format!("{base}-autofocus")), cx, |_, _| false);
+            window.use_keyed_state(element_id::scoped(&base_id, "autofocus"), cx, |_, _| false);
         // SearchField's text callback and the bubbling key event cooperate to
         // classify the pending edit; see the block after `matches` below.
-        let query_edit = window.use_keyed_state(
-            el_name(format!("{base}-query-edit")),
+        let query_edit =
+            window.use_keyed_state(element_id::scoped(&base_id, "query-edit"), cx, |_, _| {
+                None::<bool>
+            });
+        let plain_edit_key = window.use_keyed_state(
+            element_id::scoped(&base_id, "plain-edit-key"),
             cx,
-            |_, _| None::<bool>,
+            |_, _| false,
         );
-        let plain_edit_key =
-            window.use_keyed_state(el_name(format!("{base}-plain-edit-key")), cx, |_, _| false);
         // The pinned trigger hover carries
         // `:not(:has(.autocomplete__clear-button:hover))`: while the pointer is
         // on the clear button inside the trigger, the trigger's own hover fill
@@ -656,7 +691,7 @@ impl RenderOnce for Autocomplete {
         // the moved position, before the next paint) and the trigger's
         // refinement reads it. The same slot carries the press, for the pinned
         // `:active, &[data-pressed] { transform: scale(0.93) }`.
-        let clear_slot = util::interaction(el_name(format!("{base}-clear-ix")), window, cx);
+        let clear_slot = util::interaction(element_id::scoped(&base_id, "clear-ix"), window, cx);
         // The slot is read before the theme tokens for the same reason the
         // other keyed states are: the normalization below takes `cx` mutably.
         // `.autocomplete__clear-button` stays mounted for as long as it is
@@ -707,7 +742,7 @@ impl RenderOnce for Autocomplete {
         // cache key — its results are never cached and it only runs while the
         // matches are consumed.
         let matches_cache =
-            window.use_keyed_state(el_name(format!("{base}-matches")), cx, |_, _| {
+            window.use_keyed_state(element_id::scoped(&base_id, "matches"), cx, |_, _| {
                 MatchesCache::default()
             });
         let consume_matches = overlay_active || query_edit.read(cx).is_some();
@@ -832,7 +867,7 @@ impl RenderOnce for Autocomplete {
         // rounded-field border bg-field px-3 py-2 text-sm shadow-field`, plus
         // `pe-7` because the indicator sits inside it.
         let mut field = gpui::div()
-            .id(el_name(format!("{base}-trigger")))
+            .id(element_id::scoped(&base_id, "trigger"))
             // Headless probe: the decision that gates the hover refinement
             // above, so a test can drive real hover coordinates and read the
             // rendered state without painted-color access.
@@ -944,6 +979,25 @@ impl RenderOnce for Autocomplete {
                 .into_any_element(),
             None => default_children,
         };
+        // `@heroui/react/dist/components/autocomplete/autocomplete.js` builds
+        // this trigger from RAC `Select` + `Button` — v3's Autocomplete is a
+        // Select whose popover holds a search field, not a ComboBox — so
+        // `react-aria/.../select/useSelect.mjs` decides its contract through
+        // `useMenuTrigger({type: 'listbox'})`: a native `<button>` with
+        // `'aria-haspopup': 'listbox'`, `'aria-expanded': isOpen`,
+        // `'aria-controls'`, named by its label and the drawn value. Only the
+        // role, the name and `aria-expanded` have gpui builders.
+        //
+        // Stated here rather than at the head of the chain because
+        // `selected_text` is what names it, and that is not known until the
+        // value slot is resolved.
+        field = field
+            .a11y_named(
+                a11y::Role::Button,
+                &a11y::Name::maybe(self.label.clone())
+                    .described(Some(SharedString::from(selected_text.clone()))),
+            )
+            .a11y_expanded(open);
         field = field.child(value_slot);
 
         // `.autocomplete__clear-button` — mounted whenever the trigger is:
@@ -962,7 +1016,13 @@ impl RenderOnce for Autocomplete {
         // the role-hover mix -- not the lighter soft-hover wash.
         let hover_bg = colors.default.hover();
         let mut clear = gpui::div()
-            .id(el_name(format!("{base}-clear")))
+            .id(element_id::scoped(&base_id, "clear"))
+            // `autocomplete.js` hard-codes `"aria-label": "Clear selection"`
+            // on this RAC `Button`, beside an `aria-hidden` that only hides
+            // it while the selection is empty — and gpui has no
+            // `aria-hidden`, so the port leaves the empty button in the tree
+            // where upstream removes it from it.
+            .a11y_named(a11y::Role::Button, &a11y::Name::labelled("Clear selection"))
             // `.autocomplete__clear-button` is `h-6 w-6`
             // and then `size-5`, so 20px, `rounded-xl` and `p-1`
             // -- with the pinned `size-3.5` (14px) glyph inside.
@@ -1090,7 +1150,7 @@ impl RenderOnce for Autocomplete {
                         });
                     }
                     if let Some(cb) = &cb {
-                        cb(!was_open, window, cx);
+                        cb(&!was_open, window, cx);
                     }
                 });
         }
@@ -1210,7 +1270,7 @@ impl RenderOnce for Autocomplete {
                             });
                         }
                         if let Some(cb) = &key_open_change {
-                            cb(true, window, cx);
+                            cb(&true, window, cx);
                         }
                     }
                     return;
@@ -1367,7 +1427,7 @@ impl RenderOnce for Autocomplete {
                                 });
                             }
                             if let Some(cb) = &key_open_change {
-                                cb(false, window, cx);
+                                cb(&false, window, cx);
                             }
                             // The focus is *not* moved back to the trigger here.
                             // gpui activates a focused element on Enter, so
@@ -1393,7 +1453,7 @@ impl RenderOnce for Autocomplete {
                     });
                 }
                 if let Some(cb) = &escape_cb {
-                    cb(false, window, cx);
+                    cb(&false, window, cx);
                 }
                 if let Some(handle) = &escape_focus {
                     window.focus(handle, cx);
@@ -1461,7 +1521,7 @@ impl RenderOnce for Autocomplete {
                         });
                     }
                     if let Some(cb) = &dismiss_cb {
-                        cb(false, window, cx);
+                        cb(&false, window, cx);
                     }
                     util::DismissResult::Handled
                 },
@@ -1507,6 +1567,9 @@ impl RenderOnce for Autocomplete {
             // `self` or the theme -- and one row builder for both paths is what
             // keeps a virtual list drawing the same row as a short one.
             let matches_len = matches.len();
+            // `useOption` adds `aria-posinset`/`aria-setsize` only
+            // `if (isVirtualized)`; `row_height` is what windows this list.
+            let row_virtualized = self.row_height.is_some();
             let rows = matches.clone();
             let sections = self.sections.clone();
             let row_disabled_keys = self.disabled_keys.clone();
@@ -1521,6 +1584,7 @@ impl RenderOnce for Autocomplete {
             let row_open_change = self.on_open_change.clone();
             let row_trigger_focus = focus_handle;
             let base_row = format!("{base}-list");
+            let base_row_id = element_id::scoped(&base_id, "list");
             let row_muted = colors.muted;
             let row_fg = colors.foreground;
             let row_hover_bg = colors.default.color;
@@ -1534,6 +1598,7 @@ impl RenderOnce for Autocomplete {
             empty_fg.a *= 0.6;
             let row_of = move |index: usize, fixed_h: Option<gpui::Pixels>, cx: &mut App| {
                 let base = base_row.as_str();
+                let base_id = &base_row_id;
                 let item = &rows[index];
                 // A section header rides above the row it introduces, so the two
                 // are one element -- a virtual row is one slot tall.
@@ -1569,7 +1634,25 @@ impl RenderOnce for Autocomplete {
                 let row_selected = row_selected_keys.contains(item.key());
                 let row_selector = format!("{base}-{}", item.key());
                 let mut row = gpui::div()
-                    .id(el_name(row_selector.clone()))
+                    .id(element_id::scoped(
+                        &element_id::scoped(base_id, "opt"),
+                        item.key().clone(),
+                    ))
+                    // `useOption.mjs`: `role: 'option'` plus `'aria-selected'`
+                    // whenever the list selects at all. The search field keeps
+                    // the real focus while a cursor walks the rows, which is
+                    // upstream's virtual focus; gpui states that relation on
+                    // the descendant, so the row can carry it even though this
+                    // component does not own the field.
+                    .a11y_named(
+                        a11y::Role::ListBoxOption,
+                        &a11y::Name::labelled(item.label().clone()),
+                    )
+                    .a11y_selected(row_selected)
+                    .when(cursor_at == Some(index), |row| row.a11y_active_descendant())
+                    .when(row_virtualized, |row| {
+                        row.a11y_set_position(index, matches_len)
+                    })
                     .debug_selector(move || row_selector)
                     .flex()
                     .items_center()
@@ -1661,7 +1744,7 @@ impl RenderOnce for Autocomplete {
                                 });
                             }
                             if let Some(cb) = &open_cb {
-                                cb(false, window, cx);
+                                cb(&false, window, cx);
                             }
                             if let Some(handle) = &trigger_focus {
                                 window.focus(handle, cx);
@@ -1691,29 +1774,54 @@ impl RenderOnce for Autocomplete {
                 // capped panel.
                 Some(row_height) => {
                     let rows_selector = format!("{base}-rows");
+                    // The virtual half of the same `[data-slot="list-box"]`
+                    // the branch below draws. `gpui::uniform_list` returns a
+                    // `UniformList`, which is not a
+                    // `StatefulInteractiveElement` and so cannot carry a role
+                    // however many ids it has; the role goes on a wrapper that
+                    // adds no box of its own — `flex flex-col min-h-0` around
+                    // a `w-full` child lays out exactly as the child did.
                     panel = panel.child(
-                        gpui::uniform_list(
-                            el_name(rows_selector.clone()),
-                            matches_len,
-                            move |range, _window, cx| {
-                                range
-                                    .map(|i| row_of(i, Some(row_height), cx))
-                                    .collect::<Vec<_>>()
-                            },
-                        )
-                        .track_scroll(&list_scroll_now)
-                        .with_sizing_behavior(gpui::ListSizingBehavior::Infer)
-                        .w_full()
-                        .max_h(px(320.))
-                        .min_h_0()
-                        .p(px(6.))
-                        .debug_selector(move || rows_selector),
+                        gpui::div()
+                            .id(element_id::scoped(&base_id, "list"))
+                            .a11y(a11y::Role::ListBox)
+                            .a11y_orientation(herogpui_core::Orientation::Vertical)
+                            .flex()
+                            .flex_col()
+                            .w_full()
+                            .min_h_0()
+                            .child(
+                                gpui::uniform_list(
+                                    element_id::scoped(&base_id, "rows"),
+                                    matches_len,
+                                    move |range, _window, cx| {
+                                        range
+                                            .map(|i| row_of(i, Some(row_height), cx))
+                                            .collect::<Vec<_>>()
+                                    },
+                                )
+                                .track_scroll(&list_scroll_now)
+                                .with_sizing_behavior(gpui::ListSizingBehavior::Infer)
+                                .w_full()
+                                .max_h(px(320.))
+                                .min_h_0()
+                                .p(px(6.))
+                                .debug_selector(move || rows_selector),
+                            ),
                     );
                 }
                 None => {
                     let list_selector = format!("{base}-list-scroll");
                     let mut list = gpui::div()
-                        .id(el_name(list_selector.clone()))
+                        .id(element_id::scoped(&base_id, "list"))
+                        // `[data-slot="list-box"]` is RAC's `ListBox`, i.e.
+                        // `useListBox.mjs`'s literal `role: 'listbox'` with
+                        // `'aria-orientation'` defaulting to vertical. The
+                        // search field above it is outside the list upstream
+                        // too, which is why the role is here and not on the
+                        // popover panel.
+                        .a11y(a11y::Role::ListBox)
+                        .a11y_orientation(herogpui_core::Orientation::Vertical)
                         .debug_selector(move || list_selector)
                         .flex()
                         .flex_col()
@@ -1748,7 +1856,7 @@ impl RenderOnce for Autocomplete {
             let panel = if overlay_phase == util::OverlayPhase::Exiting {
                 crate::anim::exiting(
                     panel,
-                    el_name(format!("{base}-panel-out")),
+                    element_id::scoped(&base_id, "panel-out"),
                     zoom,
                     crate::anim::Motion::FLUID_OUT,
                     cx,
@@ -1756,7 +1864,7 @@ impl RenderOnce for Autocomplete {
             } else {
                 crate::anim::entering_zoom(
                     panel,
-                    el_name(format!("{base}-panel")),
+                    element_id::scoped(&base_id, "panel"),
                     zoom,
                     crate::anim::Motion::FLUID_IN,
                     cx,
@@ -1774,7 +1882,7 @@ impl RenderOnce for Autocomplete {
             )));
         }
 
-        root
+        util::apply_sx(root, &self.sx)
     }
 }
 

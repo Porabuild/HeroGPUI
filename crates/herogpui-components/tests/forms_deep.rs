@@ -2391,7 +2391,11 @@ fn form_enter_blocked_submission_defers_focus_so_the_release_cannot_activate(
         let opens = opens.clone();
         let select = Select::new(
             "fe-defer-select",
-            vec!["Typst".into(), "Rust".into(), "Go".into()],
+            vec![
+                PickerItem::new("typst", "Typst"),
+                PickerItem::new("rust", "Rust"),
+                PickerItem::new("go", "Go"),
+            ],
         )
         .name("tool")
         .is_required(true)
@@ -3624,8 +3628,12 @@ fn fieldset_actions_reset_drives_the_forms_reset(cx: &mut TestAppContext) {
 // Select
 // ---------------------------------------------------------------------------
 
-fn select_cities() -> Vec<SharedString> {
-    vec!["Alpha".into(), "Beta".into(), "Gamma".into()]
+fn select_cities() -> Vec<PickerItem> {
+    vec![
+        PickerItem::new("Alpha", "Alpha"),
+        PickerItem::new("Beta", "Beta"),
+        PickerItem::new("Gamma", "Gamma"),
+    ]
 }
 
 fn submit_select(data: &FormData, name: &str) -> String {
@@ -3654,7 +3662,7 @@ fn select_form_field_reads_changed_uncontrolled_value(cx: &mut TestAppContext) {
         let submitted = for_view.clone();
         let select = Select::new("live-select-form", select_cities())
             .name("city")
-            .default_value(Some(0));
+            .default_value(Some("Alpha".into()));
         let form = Form::new()
             .field(select.form_field().expect("named select field"))
             .on_submit(move |data: &FormData, _, _| {
@@ -3691,7 +3699,7 @@ fn disabled_select_is_not_a_successful_form_control(cx: &mut TestAppContext) {
     cx.update(|cx| {
         let select = Select::new("disabled-select-snapshot", select_cities())
             .name("city")
-            .default_value(Some(0))
+            .default_value(Some("Alpha".into()))
             .is_required(true)
             .is_disabled(true);
         let form = Form::new().field(select.form_field().expect("named select field"));
@@ -3710,7 +3718,7 @@ fn disabled_select_is_not_a_successful_form_control(cx: &mut TestAppContext) {
         let invalids = invalids_for_view.clone();
         let select = Select::new("disabled-select-form", select_cities())
             .name("city")
-            .default_value(Some(0))
+            .default_value(Some("Alpha".into()))
             .is_required(true)
             .is_disabled(true);
         let form = Form::new()
@@ -3747,7 +3755,7 @@ fn disabled_select_becomes_successful_after_rerender(cx: &mut TestAppContext) {
         let submitted = submitted_for_view.clone();
         let select = Select::new("enabled-select-form", select_cities())
             .name("city")
-            .default_value(Some(0))
+            .default_value(Some("Alpha".into()))
             .is_disabled(disabled_for_view.get());
         let form = Form::new()
             .field(select.form_field().expect("named select field"))
@@ -3785,7 +3793,7 @@ fn select_reset_restores_the_uncontrolled_default(cx: &mut TestAppContext) {
         let submitted = submitted_for_view.clone();
         let select = Select::new("reset-select-form", select_cities())
             .name("city")
-            .default_value(Some(0));
+            .default_value(Some("Alpha".into()));
         let form = Form::new()
             .field(select.form_field().expect("named select field"))
             .on_submit(move |data: &FormData, _, _| {
@@ -3824,7 +3832,7 @@ fn select_reset_restores_the_uncontrolled_default(cx: &mut TestAppContext) {
 
 #[gpui::test]
 fn controlled_select_form_reads_parent_value_only_after_acceptance(cx: &mut TestAppContext) {
-    let selected = std::rc::Rc::new(std::cell::RefCell::new(Some(0usize)));
+    let selected = std::rc::Rc::new(std::cell::RefCell::new(Some(SharedString::from("Alpha"))));
     let accept = std::rc::Rc::new(std::cell::Cell::new(false));
     let submitted = events();
     let changes = events();
@@ -3837,14 +3845,14 @@ fn controlled_select_form_reads_parent_value_only_after_acceptance(cx: &mut Test
         let changes = changes_for_view.clone();
         let selected = selected_for_view.clone();
         let accept = accept_for_view.clone();
-        let current = *selected.borrow();
+        let current = selected.borrow().clone();
         let select = Select::new("controlled-select-form", select_cities())
             .name("city")
             .value(current)
             .on_change(move |next, _, _| {
                 changes.borrow_mut().push(format!("{next:?}"));
                 if accept.get() {
-                    *selected.borrow_mut() = next;
+                    *selected.borrow_mut() = next.clone();
                 }
             });
         let form = Form::new()
@@ -3866,7 +3874,7 @@ fn controlled_select_form_reads_parent_value_only_after_acceptance(cx: &mut Test
     click(cx, 60., 102.);
     let_select_exit_finish(cx);
     click(cx, 60., 70.);
-    assert_eq!(changes.borrow().as_slice(), ["Some(1)"]);
+    assert_eq!(changes.borrow().as_slice(), ["Some(\"Beta\")"]);
     assert_eq!(
         submitted.borrow().as_slice(),
         ["Alpha"],
@@ -3878,7 +3886,10 @@ fn controlled_select_form_reads_parent_value_only_after_acceptance(cx: &mut Test
     click(cx, 60., 102.);
     let_select_exit_finish(cx);
     click(cx, 60., 70.);
-    assert_eq!(changes.borrow().as_slice(), ["Some(1)", "Some(1)"]);
+    assert_eq!(
+        changes.borrow().as_slice(),
+        ["Some(\"Beta\")", "Some(\"Beta\")"]
+    );
     assert_eq!(
         submitted.borrow().as_slice(),
         ["Alpha", "Beta"],
@@ -3888,19 +3899,19 @@ fn controlled_select_form_reads_parent_value_only_after_acceptance(cx: &mut Test
 
 #[gpui::test]
 fn controlled_select_reset_reports_the_default_to_its_owner(cx: &mut TestAppContext) {
-    let selected = std::rc::Rc::new(std::cell::RefCell::new(Some(1usize)));
+    let selected = std::rc::Rc::new(std::cell::RefCell::new(Some(SharedString::from("Beta"))));
     let changes = events();
     let recorded = changes.clone();
     let cx = open_host(cx, move || {
         let select = Select::new("controlled-reset-select", select_cities())
             .name("city")
-            .value(*selected.borrow())
-            .default_value(Some(0))
+            .value(selected.borrow().clone())
+            .default_value(Some("Alpha".into()))
             .on_change({
                 let selected = selected.clone();
                 let changes = changes.clone();
                 move |next, _, _| {
-                    *selected.borrow_mut() = next;
+                    *selected.borrow_mut() = next.clone();
                     changes.borrow_mut().push(format!("change:{next:?}"));
                 }
             });
@@ -3934,7 +3945,7 @@ fn controlled_select_reset_reports_the_default_to_its_owner(cx: &mut TestAppCont
     click(cx, 60., 70.);
     assert_eq!(
         recorded.borrow().as_slice(),
-        ["change:Some(0)", "submit:Alpha"],
+        ["change:Some(\"Alpha\")", "submit:Alpha"],
         "controlled reset must report defaultValue so the owner can update"
     );
 }
@@ -3949,7 +3960,7 @@ fn invalid_select_blocks_form_and_receives_focus(cx: &mut TestAppContext) {
         let opens = events.clone();
         let select = Select::new("invalid-select-form", select_cities())
             .name("city")
-            .default_value(Some(0))
+            .default_value(Some("Alpha".into()))
             .is_invalid(true)
             .on_open_change(move |open, _, _| {
                 opens.borrow_mut().push(format!("open:{open}"));
@@ -4022,7 +4033,7 @@ fn required_empty_select_blocks_form_and_receives_focus(cx: &mut TestAppContext)
 
 #[gpui::test]
 fn multiple_select_form_data_tracks_live_selected_values(cx: &mut TestAppContext) {
-    let selected = std::rc::Rc::new(std::cell::RefCell::new(vec![0usize]));
+    let selected = std::rc::Rc::new(std::cell::RefCell::new(vec![SharedString::from("Alpha")]));
     let submitted = events();
     let selected_for_view = selected;
     let submitted_for_view = submitted.clone();
@@ -4033,7 +4044,7 @@ fn multiple_select_form_data_tracks_live_selected_values(cx: &mut TestAppContext
         let select = Select::new("multiple-select-form", select_cities())
             .name("cities")
             .selection_mode(SelectionMode::Multiple)
-            .selected_indices(current)
+            .selected_keys(current)
             .on_selection_change_all(move |next, _, _| {
                 *selected.borrow_mut() = next.to_vec();
             });
@@ -4083,7 +4094,7 @@ fn uncontrolled_multiple_select_form_resets_to_its_default_values(cx: &mut TestA
         let select = Select::new("default-multiple-select-form", select_cities())
             .name("cities")
             .selection_mode(SelectionMode::Multiple)
-            .default_selected_indices([0, 2]);
+            .default_selected_keys(["Alpha".into(), "Gamma".into()]);
         let form = Form::new()
             .field(select.form_field().expect("named select field"))
             .on_submit(move |data: &FormData, _, _| {
@@ -4140,7 +4151,7 @@ fn controlled_multiple_select_form_waits_for_owner_acceptance(cx: &mut TestAppCo
         let select = Select::new("rejected-multiple-select-form", select_cities())
             .name("cities")
             .selection_mode(SelectionMode::Multiple)
-            .selected_indices([0])
+            .selected_keys(["Alpha".into()])
             .on_selection_change_all(move |next, _, _| {
                 selection_changes.borrow_mut().push(format!(
                     "change:{}",
@@ -4174,7 +4185,7 @@ fn controlled_multiple_select_form_waits_for_owner_acceptance(cx: &mut TestAppCo
     click(cx, 60., 70.);
     assert_eq!(
         submitted.borrow().as_slice(),
-        ["change:0,1", "submit:Alpha"],
+        ["change:Alpha,Beta", "submit:Alpha"],
         "a controlled proposal must not reach FormData until its owner accepts it"
     );
 }
@@ -4188,7 +4199,7 @@ fn disabled_multiple_select_is_omitted_from_submission(cx: &mut TestAppContext) 
         let select = Select::new("disabled-multiple-select", select_cities())
             .name("cities")
             .selection_mode(SelectionMode::Multiple)
-            .selected_indices([0, 1])
+            .selected_keys(["Alpha".into(), "Beta".into()])
             .is_disabled(true);
         let form = Form::new()
             .field(select.form_field().expect("named select field"))
@@ -4211,7 +4222,7 @@ fn disabled_multiple_select_is_omitted_from_submission(cx: &mut TestAppContext) 
 
 #[gpui::test]
 fn controlled_multiple_select_reset_reports_the_default_to_its_owner(cx: &mut TestAppContext) {
-    let selected = std::rc::Rc::new(std::cell::RefCell::new(vec![0usize]));
+    let selected = std::rc::Rc::new(std::cell::RefCell::new(vec![SharedString::from("Alpha")]));
     let changes = events();
     let recorded = changes.clone();
     let cx = open_host(cx, move || {
@@ -4219,7 +4230,7 @@ fn controlled_multiple_select_reset_reports_the_default_to_its_owner(cx: &mut Te
         let select = Select::new("controlled-reset-multiple-select", select_cities())
             .name("cities")
             .selection_mode(SelectionMode::Multiple)
-            .selected_indices(current)
+            .selected_keys(current)
             .on_selection_change_all({
                 let selected = selected.clone();
                 let changes = changes.clone();
@@ -4273,7 +4284,7 @@ fn controlled_multiple_select_reset_reports_the_default_to_its_owner(cx: &mut Te
 
     assert_eq!(
         recorded.borrow().as_slice(),
-        ["0,1", "0", "submit:Alpha"],
+        ["Alpha,Beta", "Alpha", "submit:Alpha"],
         "controlled multiple reset must report the first-render selection so the owner can update"
     );
 }

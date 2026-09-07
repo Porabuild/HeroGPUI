@@ -37,6 +37,8 @@ pub struct Surface {
     padding: Pixels,
     gap: Pixels,
     children: Vec<AnyElement>,
+    /// The `sx` slot, refined over the root style at the end of render.
+    sx: Option<Box<gpui::StyleRefinement>>,
 }
 
 impl Surface {
@@ -46,11 +48,21 @@ impl Surface {
             padding: px(0.),
             gap: px(0.),
             children: Vec::new(),
+            sx: None,
         }
     }
 
     pub fn variant(mut self, variant: SurfaceVariant) -> Self {
         self.variant = variant;
+        self
+    }
+
+    /// The one slot for caller-owned low-level styling: GPUI's styling methods
+    /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
+    /// applied to the surface's root element after every value the variant and
+    /// the active theme chose, so they win.
+    pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
+        self.sx = Some(crate::util::capture_sx(style));
         self
     }
 
@@ -107,6 +119,7 @@ impl RenderOnce for Surface {
                 .text_color(colors.surface_tertiary_foreground()),
         };
 
-        el.children(self.children)
+        let el = el.children(self.children);
+        crate::util::apply_sx(el, &self.sx)
     }
 }

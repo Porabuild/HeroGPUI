@@ -13,10 +13,13 @@ use gpui::{
     div, prelude::*, px, App, ElementId, InteractiveElement, IntoElement, RenderOnce, SharedString,
     Styled, Window,
 };
-use herogpui_core::SelectionMode;
+use herogpui_core::{element_id, SelectionMode};
 use herogpui_theme::ActiveTheme;
 
-use crate::{icons, util, EscapeKeyBehavior};
+use crate::{
+    a11y::{self, A11y as _},
+    icons, util, EscapeKeyBehavior,
+};
 
 /// Visual variant of a list item.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -234,6 +237,8 @@ pub struct ListBox {
         Option<Arc<dyn Fn(&SharedString, util::InteractiveState) -> gpui::AnyElement + 'static>>,
     on_selection_change: Option<OnSelectionChange>,
     on_action: Option<OnAction>,
+    /// The `sx` slot, refined over the root style at the end of render.
+    sx: Option<Box<gpui::StyleRefinement>>,
 }
 
 impl ListBox {
@@ -265,6 +270,7 @@ impl ListBox {
             item_content: None,
             on_selection_change: None,
             on_action: None,
+            sx: None,
         }
     }
 
@@ -411,26 +417,35 @@ impl ListBox {
         self.on_action = Some(Arc::new(handler));
         self
     }
+
+    /// The one slot for caller-owned low-level styling: GPUI's styling methods
+    /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
+    /// applied to the list box's root element after every value the layout
+    /// and the active theme chose, so they win.
+    pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
+        self.sx = Some(util::capture_sx(style));
+        self
+    }
 }
 
 impl RenderOnce for ListBox {
     fn render(mut self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         // Which row the keyboard is on, and the handle that receives the keys.
         // `use_keyed_state` takes `cx` mutably, so both precede the tokens.
-        let base = format!("{:?}", self.id);
-        let focus_handle = window.use_keyed_state(
-            ElementId::Name(format!("{base}-focus").into()),
-            cx,
-            |_, cx| cx.focus_handle().tab_stop(true),
-        );
+        let base_id = self.id.clone();
+        // The `debug_selector` spelling `collections.rs` queries on; a label,
+        // not an id.
+        let base = format!("{base_id:?}");
+        let focus_handle =
+            window.use_keyed_state(element_id::scoped(&base_id, "focus"), cx, |_, cx| {
+                cx.focus_handle().tab_stop(true)
+            });
         let focus_handle = focus_handle.read(cx).clone();
-        let cursor = window.use_keyed_state(
-            ElementId::Name(format!("{base}-cursor").into()),
-            cx,
-            |_, _| None::<usize>,
-        );
+        let cursor = window.use_keyed_state(element_id::scoped(&base_id, "cursor"), cx, |_, _| {
+            None::<usize>
+        });
         let selection_range = window.use_keyed_state(
-            ElementId::Name(format!("{base}-selection-range").into()),
+            element_id::scoped(&base_id, "selection-range"),
             cx,
             |_, _| ListBoxSelectionRange::default(),
         );
@@ -438,23 +453,21 @@ impl RenderOnce for ListBox {
         let (selected_keys, selection_own) = util::controlled(
             window,
             cx,
-            ElementId::Name(format!("{base}-selected").into()),
+            element_id::scoped(&base_id, "selected"),
             self.is_controlled.then(|| self.selected_keys.clone()),
             self.default_selected_keys.clone(),
         );
         self.selected_keys = selected_keys;
         // React Aria keeps the focused row in view. Two handles, because the
         // virtual list owns its own scrolling and a plain one does not.
-        let list_scroll = window.use_keyed_state(
-            ElementId::Name(format!("{base}-list-scroll").into()),
-            cx,
-            |_, _| gpui::UniformListScrollHandle::new(),
-        );
-        let box_scroll = window.use_keyed_state(
-            ElementId::Name(format!("{base}-box-scroll").into()),
-            cx,
-            |_, _| gpui::ScrollHandle::new(),
-        );
+        let list_scroll =
+            window.use_keyed_state(element_id::scoped(&base_id, "list-scroll"), cx, |_, _| {
+                gpui::UniformListScrollHandle::new()
+            });
+        let box_scroll =
+            window.use_keyed_state(element_id::scoped(&base_id, "box-scroll"), cx, |_, _| {
+                gpui::ScrollHandle::new()
+            });
         // `gpui::list`'s state is intrusive -- the caller holds it -- so a
         // variable-height list keeps one here, seeded with the item count and
         // the estimate it overdraws by.
@@ -462,48 +475,46 @@ impl RenderOnce for ListBox {
             let count = self.items.len();
             let overdraw = self.estimated_row_height.unwrap_or(px(36.)) * 3.;
             window.use_keyed_state(
-                ElementId::Name(format!("{base}-list-state").into()),
+                element_id::scoped(&base_id, "list-state"),
                 cx,
                 move |_, _| gpui::ListState::new(count, gpui::ListAlignment::Top, overdraw),
             )
         };
-        let variable_row_heights =
-            if self.row_height.is_none() && self.estimated_row_height.is_some() {
-                let identities: Vec<String> = self
-                    .items
-                    .iter()
-                    .enumerate()
-                    .map(|(index, item)| match item {
-                        ListBoxItem::Option { key, .. } => format!("option:{key}"),
-                        ListBoxItem::Section(label) => format!("section:{label}"),
-                        ListBoxItem::Separator => format!("separator:{index}"),
-                    })
-                    .collect();
-                let count = identities.len();
-                let heights = window.use_keyed_state(
-                    ElementId::Name(format!("{base}-row-heights").into()),
-                    cx,
-                    |_, _| (Vec::<String>::new(), Vec::<Option<gpui::Pixels>>::new()),
-                );
-                if heights.read(cx).0 != identities {
-                    heights.update(cx, |stored, _| {
-                        *stored = (identities, vec![None; count]);
-                    });
-                }
-                Some(heights)
-            } else {
-                None
-            };
+        let variable_row_heights = if self.row_height.is_none()
+            && self.estimated_row_height.is_some()
+        {
+            let identities: Vec<String> = self
+                .items
+                .iter()
+                .enumerate()
+                .map(|(index, item)| match item {
+                    ListBoxItem::Option { key, .. } => format!("option:{key}"),
+                    ListBoxItem::Section(label) => format!("section:{label}"),
+                    ListBoxItem::Separator => format!("separator:{index}"),
+                })
+                .collect();
+            let count = identities.len();
+            let heights =
+                window.use_keyed_state(element_id::scoped(&base_id, "row-heights"), cx, |_, _| {
+                    (Vec::<String>::new(), Vec::<Option<gpui::Pixels>>::new())
+                });
+            if heights.read(cx).0 != identities {
+                heights.update(cx, |stored, _| {
+                    *stored = (identities, vec![None; count]);
+                });
+            }
+            Some(heights)
+        } else {
+            None
+        };
         let list_scroll_now = list_scroll.read(cx).clone();
         let box_scroll_now = box_scroll.read(cx).clone();
         let list_state_now = list_state.read(cx).clone();
         // The letters typed so far. A search that reset every frame could only
         // ever match one letter.
-        let typed = window.use_keyed_state(
-            ElementId::Name(format!("{base}-typed").into()),
-            cx,
-            |_, _| crate::list_nav::Typeahead::default(),
-        );
+        let typed = window.use_keyed_state(element_id::scoped(&base_id, "typed"), cx, |_, _| {
+            crate::list_nav::Typeahead::default()
+        });
         // One hover/press slot per row, for an `item_content` closure. The
         // slots exist only when the closure is set: `track_interaction`'s
         // handlers cost a frame of state, and the closure is the only reader
@@ -513,8 +524,9 @@ impl RenderOnce for ListBox {
                 (0..self.items.len())
                     .map(|index| {
                         util::interaction(
-                            ElementId::Name(
-                                format!("{:?}-item-{index}-interaction", self.id).into(),
+                            element_id::scoped(
+                                &element_id::indexed(&self.id, "item", index),
+                                "interaction",
                             ),
                             window,
                             cx,
@@ -534,6 +546,13 @@ impl RenderOnce for ListBox {
         // second panel inside every picker.
         let mut list = div()
             .id(self.id.clone())
+            // `react-aria/dist/private/listbox/useListBox.mjs` is one literal
+            // `role: 'listbox'` with `'aria-orientation': orientation`, which
+            // defaults to vertical and is the only axis this port's list
+            // lays out on. `aria-multiselectable` is the recorded omission in
+            // `crate::a11y`: gpui has no builder for it.
+            .a11y(a11y::Role::ListBox)
+            .a11y_orientation(herogpui_core::Orientation::Vertical)
             .relative()
             .w_full()
             .flex()
@@ -1046,6 +1065,10 @@ impl RenderOnce for ListBox {
             });
         }
 
+        // The virtual paths below move `self` into their row builders, so the
+        // slot comes out first: it refines whichever path returns.
+        let sx = self.sx.take();
+
         // With `rowHeight` set the list is virtual: only the rows the viewport
         // shows are built, which is what makes a thousand of them affordable.
         // `uniform_list` measures row 0 and multiplies, so the row builder is
@@ -1067,8 +1090,8 @@ impl RenderOnce for ListBox {
             let row_range = selection_range.clone();
             let measured_heights =
                 variable_row_heights.expect("estimated row height creates a measurement store");
-            return list
-                .child(
+            return util::apply_sx(
+                list.child(
                     gpui::list(state, move |index, _window, cx| {
                         let row = rows.row(
                             index,
@@ -1107,8 +1130,10 @@ impl RenderOnce for ListBox {
                     })
                     .h(height)
                     .w_full(),
-                )
-                .into_any_element();
+                ),
+                &sx,
+            )
+            .into_any_element();
         }
 
         if let Some(row_height) = self.row_height {
@@ -1126,10 +1151,10 @@ impl RenderOnce for ListBox {
             // padding instead of the rows' full natural height; `min_h_0`
             // lets that fixed height shrink as a flex item with a bounded
             // parent, handing the viewport its real height for paging.
-            return list
-                .child(
+            return util::apply_sx(
+                list.child(
                     gpui::uniform_list(
-                        ElementId::Name(format!("{base}-rows").into()),
+                        element_id::scoped(&base_id, "rows"),
                         count,
                         move |range, _window, cx| {
                             range
@@ -1154,8 +1179,10 @@ impl RenderOnce for ListBox {
                     .min_h_0()
                     .w_full()
                     .debug_selector(move || rows_selector),
-                )
-                .into_any_element();
+                ),
+                &sx,
+            )
+            .into_any_element();
         }
 
         let mut items = Vec::with_capacity(self.items.len());
@@ -1171,7 +1198,7 @@ impl RenderOnce for ListBox {
                 cx,
             ));
         }
-        list.children(items).into_any_element()
+        util::apply_sx(list.children(items), &sx).into_any_element()
     }
 }
 
@@ -1251,10 +1278,40 @@ impl ListBox {
                 };
                 let hover_bg = colors.default.color;
 
+                // `useOption.mjs` is `role: 'option'` with
+                // `'aria-selected': selectionMode !== 'none' ? isSelected :
+                // undefined`, and it adds `aria-posinset`/`aria-setsize`
+                // only `if (isVirtualized)` — counted over the *options*
+                // (`getItemCount`), which skips the sections and separators
+                // that carry no node. The port's virtual paths are the same
+                // situation: only a window of rows is built, so the position
+                // cannot be counted from the tree.
+                let virtualized = self.row_height.is_some() || self.estimated_row_height.is_some();
+                let option_count = self
+                    .items
+                    .iter()
+                    .filter(|item| matches!(item, ListBoxItem::Option { .. }))
+                    .count();
+                let option_index = self.items[..index]
+                    .iter()
+                    .filter(|item| matches!(item, ListBoxItem::Option { .. }))
+                    .count();
+                let row_name = a11y::Name::labelled(label.clone()).described(description.clone());
                 let mut row = div()
-                    .id(ElementId::Name(
-                        format!("{:?}-item-{index}", self.id).into(),
-                    ))
+                    .id(element_id::indexed(&self.id, "item", index))
+                    .a11y_named(a11y::Role::ListBoxOption, &row_name)
+                    .when(self.selection_mode != SelectionMode::None, |row| {
+                        row.a11y_selected(selected)
+                    })
+                    .when(virtualized, |row| {
+                        row.a11y_set_position(option_index, option_count)
+                    })
+                    // The list holds one focus handle and moves a cursor
+                    // through the rows, which is `shouldUseVirtualFocus` in
+                    // upstream's terms. gpui states that relation on the
+                    // descendant rather than on the container, so the row the
+                    // cursor is on says so itself.
+                    .when(cursor_at == Some(index), |row| row.a11y_active_descendant())
                     .flex()
                     .flex_row()
                     .items_center()

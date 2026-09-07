@@ -4,7 +4,7 @@ use std::sync::OnceLock;
 use gpui::{prelude::*, px, AnyElement, App};
 use herogpui_theme::ActiveTheme;
 
-#[path = "reference_metadata.rs"]
+#[path = "reference_metadata/mod.rs"]
 mod reference_metadata;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -2233,7 +2233,24 @@ mod tests {
                 && entry.status == reference_metadata::ImplementationStatus::Partial
         }));
 
-        let source = include_str!("reference_metadata.rs");
+        let source = concat!(
+            include_str!("reference_metadata/mod.rs"),
+            include_str!("reference_metadata/buttons.rs"),
+            include_str!("reference_metadata/collections.rs"),
+            include_str!("reference_metadata/colors.rs"),
+            include_str!("reference_metadata/controls.rs"),
+            include_str!("reference_metadata/data_display.rs"),
+            include_str!("reference_metadata/date_and_time.rs"),
+            include_str!("reference_metadata/feedback.rs"),
+            include_str!("reference_metadata/forms.rs"),
+            include_str!("reference_metadata/layout.rs"),
+            include_str!("reference_metadata/media.rs"),
+            include_str!("reference_metadata/navigation.rs"),
+            include_str!("reference_metadata/overlays.rs"),
+            include_str!("reference_metadata/pickers.rs"),
+            include_str!("reference_metadata/typography.rs"),
+            include_str!("reference_metadata/utilities.rs"),
+        );
         assert!(!source.contains("CloseButton .active opacity 0.7"));
         assert!(!source.contains("close button dims on press"));
     }

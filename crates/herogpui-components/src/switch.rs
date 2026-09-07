@@ -10,8 +10,10 @@ use gpui::{
     prelude::*, px, Animation, AnimationExt, AnyElement, App, IntoElement, ParentElement,
     RenderOnce, StatefulInteractiveElement, Styled, Window,
 };
-use herogpui_core::{Color, Size};
+use herogpui_core::{element_id, Color, Size};
 use herogpui_theme::ActiveTheme;
+
+use crate::a11y::{self, A11y as _};
 
 /// State handed to Switch's children render function.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -46,6 +48,7 @@ struct ThumbMotion {
 }
 
 struct ThumbMotionFrame {
+    base: gpui::ElementId,
     generation: usize,
     from: f32,
     to: f32,
@@ -60,12 +63,13 @@ impl ThumbMotionFrame {
             return thumb.ml(travel * self.to).into_any_element();
         }
 
+        let slide = element_id::indexed(&self.base, "thumb-slide", self.generation);
         let position = self.position;
         let from = self.from;
         let to = self.to;
         thumb
             .with_animation(
-                gpui::ElementId::Name(format!("switch-thumb-slide-{}", self.generation).into()),
+                slide,
                 Animation::new(Duration::from_millis(THUMB_TRANSITION_MS))
                     .with_easing(|t| crate::anim::Curve::OutFluid.at(t)),
                 move |thumb, delta| {
@@ -87,6 +91,7 @@ struct TrackMotion {
 }
 
 struct TrackMotionFrame {
+    base: gpui::ElementId,
     generation: usize,
     from: gpui::Hsla,
     to: gpui::Hsla,
@@ -101,11 +106,12 @@ impl TrackMotionFrame {
             return fill.bg(self.to).into_any_element();
         }
 
+        let background = element_id::indexed(&self.base, "track-background", self.generation);
         let color = self.color;
         let from = self.from;
         let to = self.to;
         fill.with_animation(
-            gpui::ElementId::Name(format!("switch-track-background-{}", self.generation).into()),
+            background,
             Animation::new(Duration::from_millis(TRACK_TRANSITION_MS))
                 .with_easing(|t| crate::anim::Curve::Smooth.at(t)),
             move |fill, delta| {
@@ -124,16 +130,14 @@ fn thumb_motion(
     window: &mut Window,
     cx: &mut App,
 ) -> ThumbMotionFrame {
-    let state = window.use_keyed_state(
-        gpui::ElementId::Name(format!("{id:?}-thumb-motion").into()),
-        cx,
-        |_, _| ThumbMotion {
+    let state = window.use_keyed_state(element_id::scoped(id, "thumb-motion"), cx, |_, _| {
+        ThumbMotion {
             selected,
             generation: 0,
             from: if selected { 1.0 } else { 0.0 },
             position: Rc::new(Cell::new(if selected { 1.0 } else { 0.0 })),
-        },
-    );
+        }
+    });
     let mut current = state.read(cx).clone();
     let to = if selected { 1.0 } else { 0.0 };
     if current.selected != selected {
@@ -148,6 +152,7 @@ fn thumb_motion(
         state.update(cx, |stored, _| *stored = current.clone());
     }
     ThumbMotionFrame {
+        base: id.clone(),
         generation: current.generation,
         from: current.from,
         to,
@@ -164,16 +169,14 @@ fn track_motion(
     window: &mut Window,
     cx: &mut App,
 ) -> TrackMotionFrame {
-    let state = window.use_keyed_state(
-        gpui::ElementId::Name(format!("{id:?}-track-motion").into()),
-        cx,
-        |_, _| TrackMotion {
+    let state = window.use_keyed_state(element_id::scoped(id, "track-motion"), cx, |_, _| {
+        TrackMotion {
             target,
             generation: 0,
             from: target,
             color: Rc::new(Cell::new(target)),
-        },
-    );
+        }
+    });
     let mut current = state.read(cx).clone();
     if current.target != target {
         current.target = target;
@@ -189,6 +192,7 @@ fn track_motion(
     }
     let animate = !reduce_motion && current.generation != 0 && current.color.get() != target;
     TrackMotionFrame {
+        base: id.clone(),
         generation: current.generation,
         from: current.from,
         to: target,
@@ -238,14 +242,16 @@ pub struct Switch {
     label_first: bool,
     /// `Arc` rather than `Box`: the handler is bound twice, once for the
     /// pointer and once for Enter and Space.
-    on_change: Option<std::sync::Arc<dyn Fn(bool, &mut Window, &mut App) + 'static>>,
+    on_change: Option<std::sync::Arc<dyn Fn(&bool, &mut Window, &mut App) + 'static>>,
     form_state: Rc<RefCell<crate::form::LiveFormFieldState>>,
+    /// The `sx` slot, refined over the root style at the end of render.
+    sx: Option<Box<gpui::StyleRefinement>>,
 }
 
 impl Switch {
     /// `onPress` — the v3 name for [`Switch::on_change`], which already
     /// reports the next state.
-    pub fn on_press(self, handler: impl Fn(bool, &mut Window, &mut App) + 'static) -> Self {
+    pub fn on_press(self, handler: impl Fn(&bool, &mut Window, &mut App) + 'static) -> Self {
         self.on_change(handler)
     }
 
@@ -312,6 +318,7 @@ impl Switch {
                 focus: None,
                 restore: None,
             })),
+            sx: None,
         }
     }
 
@@ -343,9 +350,21 @@ impl Switch {
     /// its ancestor, so the control hands the pair over instead. Borrows, so the
     /// control is still yours to place:
     ///
-    /// ```ignore
+    /// ```
+    /// # use gpui::{prelude::*, Window};
+    /// # use herogpui_components::{Form, Switch};
+    /// # struct Demo;
+    /// # impl Render for Demo {
+    /// #     fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
+    /// #         let form = Form::new();
+    /// #         let control = Switch::new("wifi").name("wifi");
     /// let field = control.form_field();
     /// form.field(field.unwrap()).child(control)
+    /// #     }
+    /// # }
+    /// # let mut tcx = gpui::TestAppContext::single();
+    /// # tcx.update(herogpui_theme::ThemeProvider::init);
+    /// # let _ = tcx.add_window_view(|_, _| Demo);
     /// ```
     pub fn form_field(&self) -> Option<crate::form::FormField> {
         let name = self.name.clone()?;
@@ -394,6 +413,15 @@ impl Switch {
         self
     }
 
+    /// The one slot for caller-owned low-level styling: GPUI's styling methods
+    /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
+    /// applied to the switch's root element after every value the size, the
+    /// state and the active theme chose, so they win.
+    pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
+        self.sx = Some(crate::util::capture_sx(style));
+        self
+    }
+
     pub fn is_disabled(mut self, v: bool) -> Self {
         self.is_disabled = v;
         self
@@ -436,7 +464,7 @@ impl Switch {
         self
     }
 
-    pub fn on_change(mut self, f: impl Fn(bool, &mut Window, &mut App) + 'static) -> Self {
+    pub fn on_change(mut self, f: impl Fn(&bool, &mut Window, &mut App) + 'static) -> Self {
         self.on_change = Some(std::sync::Arc::new(f));
         self
     }
@@ -448,7 +476,7 @@ impl RenderOnce for Switch {
         let (checked, own) = crate::util::controlled(
             window,
             cx,
-            gpui::ElementId::Name(format!("{:?}-checked", self.id).into()),
+            element_id::scoped(&self.id, "checked"),
             self.checked,
             self.default_checked,
         );
@@ -475,26 +503,20 @@ impl RenderOnce for Switch {
                         });
                     }
                     if let Some(on_change) = &reset_change {
-                        on_change(default_checked, window, cx);
+                        on_change(&default_checked, window, cx);
                     }
                 }) as std::sync::Arc<dyn Fn(&mut Window, &mut App)>
             });
 
         // The keyboard's focus target. `use_keyed_state` takes `cx` mutably, so
         // it precedes every borrow of the theme.
-        let focus_handle = crate::util::tab_stop_handle(
-            gpui::ElementId::Name(format!("{:?}-focus", self.id).into()),
-            window,
-            cx,
-        );
+        let focus_handle =
+            crate::util::tab_stop_handle(element_id::scoped(&self.id, "focus"), window, cx);
         self.form_state.borrow_mut().focus = Some(focus_handle.clone());
         // The track's background transition and an optional `content` closure
         // read the same one-frame-late hover/press state.
-        let interaction = crate::util::interaction(
-            gpui::ElementId::Name(format!("{:?}-interaction", self.id).into()),
-            window,
-            cx,
-        );
+        let interaction =
+            crate::util::interaction(element_id::scoped(&self.id, "interaction"), window, cx);
         let thumb_motion = thumb_motion(&self.id, checked, window, cx);
 
         // v3 order: the controlled flag, then server errors, then `validate`.
@@ -566,8 +588,13 @@ impl RenderOnce for Switch {
         let track_motion_frame = track_motion(&self.id, track_target, window, cx);
         let layout = cx.layout();
 
+        // `useSwitch` is `useToggle` with `role: 'switch'` forced onto the
+        // native checkbox input, so the track is the control's node.
+        let name = a11y::Name::field(None, self.description.as_ref(), &validity);
         let mut track = gpui::div()
             .id(self.id.clone())
+            .a11y_named(a11y::Role::Switch, &name)
+            .a11y_checked(checked, false)
             .when(!self.is_disabled, |el| el.track_focus(&focus_handle))
             .relative()
             .w(w)
@@ -659,7 +686,7 @@ impl RenderOnce for Switch {
                     });
                 }
                 if let Some(cb) = &on_change {
-                    cb(!checked, window, cx);
+                    cb(&!checked, window, cx);
                 }
             });
         }
@@ -723,7 +750,7 @@ impl RenderOnce for Switch {
         // Description and FieldError are direct siblings of Switch.Content.
         // Both use the size-specific track width plus the 12px content gap.
         let indent = w + px(12.);
-        gpui::div()
+        let root = gpui::div()
             .flex()
             .flex_col()
             .gap(px(4.))
@@ -744,8 +771,8 @@ impl RenderOnce for Switch {
                         .pl(indent)
                         .child(crate::field::ErrorMessage::new(message)),
                 )
-            })
-            .into_any_element()
+            });
+        crate::util::apply_sx(root, &self.sx).into_any_element()
     }
 }
 
@@ -759,6 +786,8 @@ impl RenderOnce for Switch {
 pub struct SwitchGroup {
     orientation: herogpui_core::Orientation,
     items: Vec<AnyElement>,
+    /// The `sx` slot, refined over the root style at the end of render.
+    sx: Option<Box<gpui::StyleRefinement>>,
 }
 
 impl SwitchGroup {
@@ -767,11 +796,21 @@ impl SwitchGroup {
             // v3 documents `vertical` as the default.
             orientation: herogpui_core::Orientation::Vertical,
             items: Vec::new(),
+            sx: None,
         }
     }
 
     pub fn orientation(mut self, orientation: herogpui_core::Orientation) -> Self {
         self.orientation = orientation;
+        self
+    }
+
+    /// The one slot for caller-owned low-level styling: GPUI's styling methods
+    /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
+    /// applied to the group's root element after every value the orientation
+    /// chose, so it wins.
+    pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
+        self.sx = Some(crate::util::capture_sx(style));
         self
     }
 
@@ -796,7 +835,7 @@ impl ParentElement for SwitchGroup {
 impl RenderOnce for SwitchGroup {
     fn render(self, _window: &mut Window, _cx: &mut App) -> impl IntoElement {
         let vertical = self.orientation == herogpui_core::Orientation::Vertical;
-        gpui::div().flex().flex_col().gap(px(24.)).child(
+        let root = gpui::div().flex().flex_col().gap(px(24.)).child(
             gpui::div()
                 .flex()
                 .map(|el| {
@@ -808,6 +847,7 @@ impl RenderOnce for SwitchGroup {
                 })
                 .gap(px(16.))
                 .children(self.items),
-        )
+        );
+        crate::util::apply_sx(root, &self.sx)
     }
 }

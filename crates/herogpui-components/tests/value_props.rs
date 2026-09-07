@@ -43,10 +43,11 @@
 mod harness;
 
 use std::cell::RefCell;
-use std::collections::BTreeSet;
 use std::rc::Rc;
 
-use gpui::{point, prelude::*, px, Modifiers, MouseButton, TestAppContext, VisualTestContext};
+use gpui::{
+    point, prelude::*, px, Modifiers, MouseButton, SharedString, TestAppContext, VisualTestContext,
+};
 use herogpui_components::{
     util, Autocomplete, CalendarState, CloseButton, ColorChannel, ColorField,
     ColorFieldRenderState, ColorSlider, ComboBox, Date, DateField, DateFieldRenderState,
@@ -104,7 +105,11 @@ fn select_value_content_hands_placeholder_then_pick(cx: &mut TestAppContext) {
         let record = record.clone();
         Select::new(
             "sel-vc",
-            vec!["Alpha".into(), "Beta".into(), "Gamma".into()],
+            vec![
+                PickerItem::new("alpha", "Alpha"),
+                PickerItem::new("beta", "Beta"),
+                PickerItem::new("gamma", "Gamma"),
+            ],
         )
         .value_content(move |v: util::SelectionValue<'_>| {
             let items = v
@@ -152,19 +157,23 @@ fn select_value_content_hands_placeholder_then_pick(cx: &mut TestAppContext) {
 }
 
 /// Pinned React Aria derives `Select.Value.isPlaceholder` from resolved
-/// selected collection nodes. A stale index that resolves to no option must
+/// selected collection nodes. A key that resolves to no option must
 /// therefore report the placeholder with empty item and index slices.
 #[gpui::test]
-fn select_value_content_out_of_range_seed_reports_placeholder(cx: &mut TestAppContext) {
+fn select_value_content_unresolved_key_seed_reports_placeholder(cx: &mut TestAppContext) {
     let seen: Rc<RefCell<Vec<String>>> = Rc::new(RefCell::new(Vec::new()));
     let record = seen.clone();
     let _cx = open_host(cx, move || {
         let record = record.clone();
         Select::new(
             "sel-vc-stale",
-            vec!["Alpha".into(), "Beta".into(), "Gamma".into()],
+            vec![
+                PickerItem::new("alpha", "Alpha"),
+                PickerItem::new("beta", "Beta"),
+                PickerItem::new("gamma", "Gamma"),
+            ],
         )
-        .value(Some(5))
+        .value(Some("missing".into()))
         .value_content(move |v: util::SelectionValue<'_>| {
             let items = v
                 .selected_items
@@ -190,24 +199,28 @@ fn select_value_content_out_of_range_seed_reports_placeholder(cx: &mut TestAppCo
     assert_eq!(
         last_string(&seen),
         "true|||",
-        "an unresolved selected index must not masquerade as a chosen option"
+        "an unresolved selected key must not masquerade as a chosen option"
     );
 }
 
-/// Resolved multiple selections likewise omit stale indices while retaining
-/// every collection node that still exists.
+/// Resolved multiple selections likewise omit unresolvable keys while
+/// retaining every collection node that still exists.
 #[gpui::test]
-fn select_value_content_filters_out_of_range_multiple_indices(cx: &mut TestAppContext) {
+fn select_value_content_filters_unresolved_multiple_keys(cx: &mut TestAppContext) {
     let seen: Rc<RefCell<Vec<String>>> = Rc::new(RefCell::new(Vec::new()));
     let record = seen.clone();
     let _cx = open_host(cx, move || {
         let record = record.clone();
         Select::new(
             "sel-vc-stale-multiple",
-            vec!["Alpha".into(), "Beta".into(), "Gamma".into()],
+            vec![
+                PickerItem::new("alpha", "Alpha"),
+                PickerItem::new("beta", "Beta"),
+                PickerItem::new("gamma", "Gamma"),
+            ],
         )
         .selection_mode(SelectionMode::Multiple)
-        .selected_indices([0, 5])
+        .selected_keys(["alpha".into(), "missing".into()])
         .value_content(move |v: util::SelectionValue<'_>| {
             let items = v
                 .selected_items
@@ -233,33 +246,37 @@ fn select_value_content_filters_out_of_range_multiple_indices(cx: &mut TestAppCo
     assert_eq!(
         last_string(&seen),
         "false|Alpha|0|Alpha",
-        "multiple value slots must expose only indices that resolve to options"
+        "multiple value slots must expose only keys that resolve to options"
     );
 }
 
 /// `selectionMode="multiple"` is the case `Select.Value` exists for: the
 /// closure receives every selected item that the built-in value would draw.
 /// Each pick accumulates through the caller's own set (the port reports
-/// `selected_indices` back and stores nothing), and the closure observes every
-/// item with its text and index.
+/// `selected_keys` back and stores nothing), and the closure observes every
+/// item with its text, index and key.
 #[gpui::test]
 fn select_value_content_multiple_lists_every_item(cx: &mut TestAppContext) {
     let seen: Rc<RefCell<Vec<String>>> = Rc::new(RefCell::new(Vec::new()));
     let record = seen.clone();
-    let selection = Rc::new(RefCell::new(BTreeSet::<usize>::new()));
+    let selection = Rc::new(RefCell::new(Vec::<SharedString>::new()));
 
     let cx = open_host(cx, move || {
         let record = record.clone();
         let selection = selection.clone();
-        let now = selection.borrow().iter().copied().collect::<Vec<_>>();
+        let now = selection.borrow().clone();
         Select::new(
             "sel-vc-multi",
-            vec!["Alpha".into(), "Beta".into(), "Gamma".into()],
+            vec![
+                PickerItem::new("alpha", "Alpha"),
+                PickerItem::new("beta", "Beta"),
+                PickerItem::new("gamma", "Gamma"),
+            ],
         )
         .selection_mode(SelectionMode::Multiple)
-        .selected_indices(now)
+        .selected_keys(now)
         .on_selection_change_all(move |keys, window, _| {
-            *selection.borrow_mut() = keys.iter().copied().collect();
+            *selection.borrow_mut() = keys.to_vec();
             // The port hands the merged set back rather than storing it, so
             // the caller must render it back in for the next frame to differ.
             window.refresh();

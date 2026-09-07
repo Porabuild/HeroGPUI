@@ -2,6 +2,7 @@
 //! library. One module per `@heroui/*` package.
 #![allow(clippy::type_complexity)]
 
+pub mod a11y;
 pub mod accordion;
 pub mod alert;
 pub mod alert_dialog;
@@ -51,6 +52,7 @@ pub mod progress;
 pub mod radio_group;
 pub mod range_calendar;
 pub mod scroll_shadow;
+pub mod scrollbar;
 pub mod select;
 pub mod selection;
 pub mod separator;
@@ -127,6 +129,7 @@ pub use progress::*;
 pub use radio_group::*;
 pub use range_calendar::*;
 pub use scroll_shadow::*;
+pub use scrollbar::*;
 pub use select::*;
 pub use selection::*;
 pub use separator::*;

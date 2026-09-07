@@ -88,7 +88,7 @@ fn link_render_prop_receives_active_page_and_keeps_it_pressable(cx: &mut TestApp
                 gpui::div().child(page.to_string()).into_any_element()
             })
             .on_change(move |next, window, _| {
-                page.set(next);
+                page.set(*next);
                 recorded.borrow_mut().push(next.to_string());
                 window.refresh();
             })

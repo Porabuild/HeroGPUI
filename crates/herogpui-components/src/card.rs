@@ -42,6 +42,8 @@ pub struct Card {
     variant: CardVariant,
     width: Option<gpui::Pixels>,
     children: Vec<AnyElement>,
+    /// The `sx` slot, refined over the root style at the end of render.
+    sx: Option<Box<gpui::StyleRefinement>>,
 }
 
 impl Card {
@@ -50,6 +52,7 @@ impl Card {
             variant: CardVariant::Default,
             width: None,
             children: Vec::new(),
+            sx: None,
         }
     }
 
@@ -61,6 +64,15 @@ impl Card {
     /// Fixed card width.
     pub fn w(mut self, v: impl Into<gpui::Pixels>) -> Self {
         self.width = Some(v.into());
+        self
+    }
+
+    /// The one slot for caller-owned low-level styling: GPUI's styling methods
+    /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
+    /// applied to the card's root element after every value the variant and
+    /// the active theme chose, so they win.
+    pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
+        self.sx = Some(crate::util::capture_sx(style));
         self
     }
 }
@@ -110,6 +122,7 @@ impl RenderOnce for Card {
             el = el.shadow(layout.surface_shadow.clone());
         }
 
+        el = crate::util::apply_sx(el, &self.sx);
         el
     }
 }
@@ -118,13 +131,25 @@ impl RenderOnce for Card {
 #[derive(IntoElement)]
 pub struct CardHeader {
     children: Vec<AnyElement>,
+    /// The `sx` slot, refined over the root style at the end of render.
+    sx: Option<Box<gpui::StyleRefinement>>,
 }
 
 impl CardHeader {
     pub fn new() -> Self {
         Self {
             children: Vec::new(),
+            sx: None,
         }
+    }
+
+    /// The one slot for caller-owned low-level styling: GPUI's styling methods
+    /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
+    /// applied to the header's root element after every value the card and the
+    /// active theme chose, so they win.
+    pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
+        self.sx = Some(crate::util::capture_sx(style));
+        self
     }
 }
 
@@ -145,7 +170,8 @@ impl RenderOnce for CardHeader {
         // `.card__header` is `flex flex-col` and nothing else: the title's
         // text style belongs to `CardTitle` and the description's to
         // `CardDescription`.
-        gpui::div().flex().flex_col().children(self.children)
+        let el = gpui::div().flex().flex_col().children(self.children);
+        crate::util::apply_sx(el, &self.sx)
     }
 }
 
@@ -153,13 +179,25 @@ impl RenderOnce for CardHeader {
 #[derive(IntoElement)]
 pub struct CardTitle {
     children: Vec<AnyElement>,
+    /// The `sx` slot, refined over the root style at the end of render.
+    sx: Option<Box<gpui::StyleRefinement>>,
 }
 
 impl CardTitle {
     pub fn new() -> Self {
         Self {
             children: Vec::new(),
+            sx: None,
         }
+    }
+
+    /// The one slot for caller-owned low-level styling: GPUI's styling methods
+    /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
+    /// applied to the title's root element after every value the card and the
+    /// active theme chose, so they win.
+    pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
+        self.sx = Some(crate::util::capture_sx(style));
+        self
     }
 }
 
@@ -179,12 +217,13 @@ impl RenderOnce for CardTitle {
     fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
         // `.card__title` is `text-sm leading-6 font-medium text-foreground`.
         let colors = cx.colors();
-        gpui::div()
+        let el = gpui::div()
             .text_size(px(14.))
             .line_height(px(24.))
             .font_weight(gpui::FontWeight::MEDIUM)
             .text_color(colors.foreground)
-            .children(self.children)
+            .children(self.children);
+        crate::util::apply_sx(el, &self.sx)
     }
 }
 
@@ -192,13 +231,25 @@ impl RenderOnce for CardTitle {
 #[derive(IntoElement)]
 pub struct CardDescription {
     children: Vec<AnyElement>,
+    /// The `sx` slot, refined over the root style at the end of render.
+    sx: Option<Box<gpui::StyleRefinement>>,
 }
 
 impl CardDescription {
     pub fn new() -> Self {
         Self {
             children: Vec::new(),
+            sx: None,
         }
+    }
+
+    /// The one slot for caller-owned low-level styling: GPUI's styling methods
+    /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
+    /// applied to the description's root element after every value the card and
+    /// the active theme chose, so they win.
+    pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
+        self.sx = Some(crate::util::capture_sx(style));
+        self
     }
 }
 
@@ -218,11 +269,12 @@ impl RenderOnce for CardDescription {
     fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
         // `.card__description` is `text-sm leading-5 text-muted`.
         let colors = cx.colors();
-        gpui::div()
+        let el = gpui::div()
             .text_size(px(14.))
             .line_height(px(20.))
             .text_color(colors.muted)
-            .children(self.children)
+            .children(self.children);
+        crate::util::apply_sx(el, &self.sx)
     }
 }
 
@@ -230,13 +282,25 @@ impl RenderOnce for CardDescription {
 #[derive(IntoElement)]
 pub struct CardContent {
     children: Vec<AnyElement>,
+    /// The `sx` slot, refined over the root style at the end of render.
+    sx: Option<Box<gpui::StyleRefinement>>,
 }
 
 impl CardContent {
     pub fn new() -> Self {
         Self {
             children: Vec::new(),
+            sx: None,
         }
+    }
+
+    /// The one slot for caller-owned low-level styling: GPUI's styling methods
+    /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
+    /// applied to the content's root element after every value the card and the
+    /// active theme chose, so they win.
+    pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
+        self.sx = Some(crate::util::capture_sx(style));
+        self
     }
 }
 
@@ -258,11 +322,12 @@ impl RenderOnce for CardContent {
         // `flex-1` is dropped: the pinned-geometry test in `tests/card_deep.rs`
         // measures the card as an auto-height column hugging its parts, which
         // flex-1 regresses.
-        gpui::div()
+        let el = gpui::div()
             .flex()
             .flex_col()
             .gap(px(4.))
-            .children(self.children)
+            .children(self.children);
+        crate::util::apply_sx(el, &self.sx)
     }
 }
 
@@ -270,13 +335,25 @@ impl RenderOnce for CardContent {
 #[derive(IntoElement)]
 pub struct CardFooter {
     children: Vec<AnyElement>,
+    /// The `sx` slot, refined over the root style at the end of render.
+    sx: Option<Box<gpui::StyleRefinement>>,
 }
 
 impl CardFooter {
     pub fn new() -> Self {
         Self {
             children: Vec::new(),
+            sx: None,
         }
+    }
+
+    /// The one slot for caller-owned low-level styling: GPUI's styling methods
+    /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
+    /// applied to the footer's root element after every value the card and the
+    /// active theme chose, so they win.
+    pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
+        self.sx = Some(crate::util::capture_sx(style));
+        self
     }
 }
 
@@ -297,6 +374,7 @@ impl RenderOnce for CardFooter {
         // `.card__footer` is `flex flex-row items-center` -- no padding, gap,
         // or text size of its own; the card's gap separates the parts and the
         // caller composes the row's contents.
-        gpui::div().flex().items_center().children(self.children)
+        let el = gpui::div().flex().items_center().children(self.children);
+        crate::util::apply_sx(el, &self.sx)
     }
 }

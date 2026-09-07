@@ -10,6 +10,15 @@ repository.workspace = true
 keywords.workspace = true
 categories.workspace = true
 
+# The gallery shell -- pages, demo state, asset source -- is a library so the
+# browser entry crate (`crates/herogpui-web`) reuses it instead of
+# reimplementing it. Each entry point owns only its own platform: `main.rs`
+# reads `HEROGPUI_*` from the environment and opens a native window; the web
+# crate reads a URL query string and runs in a canvas.
+[lib]
+name = "herogpui_gallery"
+path = "src/lib.rs"
+
 [[bin]]
 name = "herogpui-gallery"
 path = "src/main.rs"

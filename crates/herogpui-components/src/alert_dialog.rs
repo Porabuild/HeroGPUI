@@ -11,10 +11,11 @@ use gpui::{
     div, prelude::*, px, AnyElement, App, ClickEvent, IntoElement, ParentElement, RenderOnce,
     SharedString, Styled, Window,
 };
-use herogpui_core::{Backdrop, Color, Size, Variant};
+use herogpui_core::{element_id, Backdrop, Color, Size, Variant};
 use herogpui_theme::ActiveTheme;
 
 use crate::{
+    a11y::{self, A11y as _},
     button::Button,
     icons,
     modal::{ModalPlacement, OnOpenChange},
@@ -84,6 +85,9 @@ type OnAction = Arc<dyn Fn(&ClickEvent, &mut Window, &mut App) + 'static>;
 /// an [`AlertDialog`] — the part draws nothing.
 pub struct AlertDialogCloseTrigger {
     on_dismiss: Option<OnAction>,
+    /// The id of the dialog this trigger was pulled out of; see
+    /// [`crate::modal::CloseTriggerPart::wire`].
+    owner: Option<gpui::ElementId>,
     /// This trigger's index within its dialog; see
     /// [`crate::modal::CloseTriggerPart::wire`].
     slot: usize,
@@ -94,13 +98,14 @@ impl AlertDialogCloseTrigger {
     pub fn new() -> Self {
         Self {
             on_dismiss: None,
+            owner: None,
             slot: 0,
             children: Vec::new(),
         }
     }
 }
 
-crate::modal::close_trigger_part!(AlertDialogCloseTrigger, "alert-dialog-close");
+crate::modal::close_trigger_part!(AlertDialogCloseTrigger, "close-trigger");
 
 /// `.alert-dialog__icon--{status}`: the disc's background, the glyph colour
 /// and the glyph. `--default` uses the plain `bg-default text-foreground`
@@ -163,6 +168,8 @@ pub struct AlertDialog {
     children: Vec<AnyElement>,
     on_confirm: Option<OnAction>,
     on_cancel: Option<OnAction>,
+    /// The `sx` slot, refined over the root style at the end of render.
+    sx: Option<Box<gpui::StyleRefinement>>,
 }
 
 impl AlertDialog {
@@ -199,6 +206,7 @@ impl AlertDialog {
             children: Vec::new(),
             on_confirm: None,
             on_cancel: None,
+            sx: None,
         }
     }
 
@@ -246,13 +254,22 @@ impl AlertDialog {
     }
 
     /// `onOpenChange` — fires with `false` when the dialog is dismissed.
-    pub fn on_open_change(mut self, f: impl Fn(bool, &mut Window, &mut App) + 'static) -> Self {
+    pub fn on_open_change(mut self, f: impl Fn(&bool, &mut Window, &mut App) + 'static) -> Self {
         self.on_open_change = Some(Arc::new(f));
         self
     }
 
     pub fn backdrop(mut self, backdrop: Backdrop) -> Self {
         self.backdrop = backdrop;
+        self
+    }
+
+    /// The one slot for caller-owned low-level styling: GPUI's styling methods
+    /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
+    /// applied to the dialog's root element after every value the size, the
+    /// placement and the active theme chose, so they win.
+    pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
+        self.sx = Some(util::capture_sx(style));
         self
     }
 
@@ -352,7 +369,7 @@ impl RenderOnce for AlertDialog {
         let close_action: Option<OnAction> =
             self.on_open_change.clone().map(|open_change| -> OnAction {
                 util::shared(move |_ev: &ClickEvent, window: &mut Window, cx: &mut App| {
-                    open_change(false, window, cx);
+                    open_change(&false, window, cx);
                 })
             });
 
@@ -364,12 +381,14 @@ impl RenderOnce for AlertDialog {
         let mut close_triggers = crate::modal::take_close_triggers::<AlertDialogCloseTrigger>(
             &mut self.children,
             close_action.clone(),
+            &self.id,
             0,
         );
         close_triggers.extend(
             crate::modal::take_close_triggers::<AlertDialogCloseTrigger>(
                 &mut self.footer,
                 close_action.clone(),
+                &self.id,
                 close_triggers.len(),
             ),
         );
@@ -387,6 +406,18 @@ impl RenderOnce for AlertDialog {
         // the body and the footer comes from v3's `+` rules (mt-2, mt-5), so
         // each part carries its own top margin instead.
         let mut panel = div()
+            // `alert-dialog/alert-dialog.js` is the one dialog in v3 that
+            // names its own role: it passes `role: "alertdialog"` to the RAC
+            // `Dialog`, and `react-aria/.../dialog/useDialog.js` passes that
+            // through. That role is also what makes the body the dialog's
+            // description upstream — `useDialog` points `aria-describedby` at
+            // the content id only `when role === 'alertdialog'` — so the
+            // description text joins the name here rather than being a node.
+            .id(element_id::scoped(&self.id, "dialog"))
+            .a11y_named(
+                a11y::Role::AlertDialog,
+                &a11y::Name::labelled(self.title.clone()).described(self.description.clone()),
+            )
             .relative()
             .flex()
             .flex_col()
@@ -463,7 +494,7 @@ impl RenderOnce for AlertDialog {
         let has_description = self.description.is_some();
         if has_description || !self.children.is_empty() {
             let mut body = div()
-                .id("alert-dialog-body")
+                .id(element_id::scoped(&self.id, "body"))
                 .mt(px(8.))
                 .mx(px(-3.))
                 .p(px(3.))
@@ -524,7 +555,7 @@ impl RenderOnce for AlertDialog {
                 (open_change, action) => Some(util::shared(
                     move |ev: &ClickEvent, window: &mut Window, cx: &mut App| {
                         if let Some(f) = &open_change {
-                            f(false, window, cx);
+                            f(&false, window, cx);
                         }
                         if let Some(f) = &action {
                             f(ev, window, cx);
@@ -537,7 +568,7 @@ impl RenderOnce for AlertDialog {
                 (open_change, action) => Some(util::shared(
                     move |ev: &ClickEvent, window: &mut Window, cx: &mut App| {
                         if let Some(f) = &open_change {
-                            f(false, window, cx);
+                            f(&false, window, cx);
                         }
                         if let Some(f) = &action {
                             f(ev, window, cx);
@@ -618,7 +649,7 @@ impl RenderOnce for AlertDialog {
         // `on_mouse_down_out` owns backdrop dismissal, and a second listener
         // here would only double-report.
         let backdrop = div()
-            .id("alert-dialog-backdrop")
+            .id(element_id::scoped(&self.id, "backdrop"))
             .absolute()
             .inset_0()
             .bg(backdrop_bg);
@@ -643,7 +674,7 @@ impl RenderOnce for AlertDialog {
         // `Tab` cycles the dialog's own controls; see `util::trap_tab`.
         let mut overlay = util::trap_tab(
             div()
-                .id("alert-dialog-root")
+                .id(element_id::scoped(&self.id, "root"))
                 .absolute()
                 .inset_0()
                 .flex()
@@ -700,6 +731,7 @@ impl RenderOnce for AlertDialog {
                     util::DismissResult::Handled
                 });
         }
+        overlay = util::apply_sx(overlay, &self.sx);
         util::window_overlay(overlay, window).into_any_element()
     }
 }

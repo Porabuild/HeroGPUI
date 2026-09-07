@@ -1,0 +1,203 @@
+# Vendored fork of the published `gpui-pre-web` 0.3.3 crate.
+#
+# The `src/` tree here is the published 0.3.3 sources verbatim, except for two
+# changes in `src/events.rs` -- both marked `HeroGPUI fork:` at the site, both
+# recorded in `[package.metadata.herogpui-vendor]` below, and both written up
+# for upstream in `docs/upstream/gpui-web-scroll-and-ime.md`. This manifest
+# additionally drops `multithreaded` from `default` (see `[features]`), which
+# is a build-configuration choice rather than a source change. Nothing else
+# differs; a reviewer can confirm that with
+#
+#   diff -r crates/gpui_web/src \
+#     ~/.cargo/registry/src/index.crates.io-*/gpui-pre-web-0.3.3/src
+#
+# `gpui_platform` pulls this crate in automatically on wasm32 (its
+# `[target.'cfg(target_family = "wasm")'.dependencies.gpui_web]` table), which
+# is the only edge into it -- no workspace crate names `gpui_web`, and adding
+# such an edge would buy nothing, because feature sets are unioned and
+# `gpui_platform` already enables the default ones. The `default` list in this
+# manifest is therefore the only place the `multithreaded` feature can be
+# switched. The fork itself is delivered by `[patch.crates-io]` in the
+# workspace root. That patch key matters: keying the patch by a git URL, as an
+# earlier Zed-git-rev layout did, matches nothing in a registry dependency
+# graph and silently applies no override at all.
+#
+# The `version` above must stay exactly the version upstream `gpui-pre-platform`
+# asks for (`gpui-pre-web = "=0.3.3"`). A mismatch makes `[patch.crates-io]`
+# stop applying with no error at all: cargo resolves the registry crate, the
+# fork's two hunks disappear from the build, and nothing reports it. Check with
+# `cargo tree -i gpui-pre-web --target wasm32-unknown-unknown`, which must
+# print this path.
+#
+# Unlike the 1.18.1 crate this replaced, 0.3.3 bundles no fonts -- its
+# `WebPlatform` starts with an empty font database and the application is
+# expected to call `App::text_system().add_fonts(..)`. `crates/herogpui-web`
+# already does exactly that, so the vendored `assets/fonts` tree that the old
+# fork carried is gone rather than re-added.
+#
+# This manifest carries its own `[workspace]` table (as the published crate
+# does), which makes it a workspace root of its own rather than a member of
+# HeroGPUI's. That is deliberate: it keeps upstream's lint configuration --
+# which the workspace's own `[workspace.lints]` would contradict, starting with
+# `unsafe_code = "deny"` -- and keeps this un-owned code out of
+# `cargo fmt --all` and `.shots/lint.ps1`. A member would have to be reformatted
+# to our rules, and every reformatted line is a line a reviewer must diff by
+# hand instead of by `diff -r`.
+[package]
+name = "gpui-pre-web"
+version = "0.3.3"
+publish = false
+edition = "2024"
+license = "Apache-2.0"
+autoexamples = false
+description = "HeroGPUI's fork of gpui_web 0.3.3: shift+wheel horizontal scroll and an IME mirror resync after paste"
+repository = "https://github.com/zed-industries/zed"
+
+[package.metadata.cargo-shear]
+ignored = ["scheduler"]
+
+# Upstream's provenance stamp, kept verbatim so the snapshot this fork is
+# based on stays nameable.
+[package.metadata.gpui-pre]
+zed-crate = "gpui_web"
+zed-version = "0.1.0"
+zed-rev = "5b055fa789a8b8d38ac951a6e0cde272f66b4495"
+
+# The complete record of how this differs from the published crate. The first
+# two entries are in `src/events.rs`; together they add 9 lines of code and
+# remove 5 (the rest of each hunk is comment). The third is the `default`
+# feature list above and touches no source. An incomplete record here is what
+# makes a vendored fork unreviewable, so this list is the thing to update first
+# when the fork changes.
+[package.metadata.herogpui-vendor]
+upstream = "https://crates.io/crates/gpui-pre-web"
+version = "0.3.3"
+changes = [
+    "Map shift+wheel to horizontal scroll when the event carries no deltaX, so a mouse can scroll a horizontally scrollable region in the browser (`register_wheel`).",
+    "Refresh the IME mirror after both the synchronous text paste and the async image/mixed paste, so the hidden textarea does not keep pre-paste text and corrupt the next composition diff (`register_paste`).",
+    "Drop `multithreaded` from the `default` feature list, so optional `wasm_thread` and its `#![feature]` attribute leave the wasm32 graph and the pinned stable toolchain can build this target. Not a source change; see the comment above `[features]`.",
+]
+
+# The third and last deviation from upstream, and the only one outside
+# `src/events.rs`: upstream ships `default = ["multithreaded"]`.
+#
+# `multithreaded` pulls in optional `wasm_thread`, whose `lib.rs` opens with a
+# `#![feature]` attribute, so it forces every wasm32 build of this workspace --
+# including the `wasm-release` artifact and CI's `wasm` job -- onto a nightly
+# toolchain with `error[E0554]` from a dependency we do not own. Nothing was
+# using it: `crates/herogpui-web` starts the app with
+# `gpui_platform::single_threaded_web()`, and the multi-threaded platform needs
+# web workers over shared wasm memory, which a browser only grants in a
+# cross-origin-isolated context -- something plain GitHub Pages, which serves
+# the gallery, sends no COOP/COEP headers for.
+#
+# This is the only place the feature can be switched. `gpui_platform` declares
+# the wasm32 edge into this crate with default features on, and cargo unions
+# feature sets, so `default-features = false` on an edge of ours would change
+# nothing.
+#
+# Measured with the feature off: `wasm_thread` leaves the wasm32 graph and the
+# lockfile, the pinned stable toolchain builds `-p herogpui-web` at
+# `--profile wasm-release`, and the resulting artifact boots, renders, presses,
+# focuses, takes keyboard input and resolves a `background_executor().timer()`
+# in a browser -- indistinguishably from the nightly/`multithreaded` build,
+# which is 23 KB larger. Turn `multithreaded` back on (and go back to nightly)
+# only together with a cross-origin-isolated deployment that can actually use
+# it.
+[features]
+default = []
+multithreaded = ["dep:wasm_thread", "scheduler/wasm-threads"]
+
+[lib]
+name = "gpui_web"
+path = "src/gpui_web.rs"
+
+[target.'cfg(target_family = "wasm")'.dependencies]
+gpui = { package = "gpui-pre", version = "=0.3.3", default-features = false }
+scheduler = { package = "gpui-pre-scheduler", version = "=0.3.3" }
+parking_lot = { version = "0.12.1", features = ["nightly"] }
+gpui_wgpu = { package = "gpui-pre-wgpu", version = "=0.3.3" }
+http_client = { package = "gpui-pre-http-client", version = "=0.3.3" }
+anyhow = { version = "1.0.86" }
+futures = { version = "0.3.32" }
+log = { version = "0.4.16", features = ["kv_unstable_serde", "serde"] }
+uuid = { version = "1.1.2", features = ["v4", "v5", "v7", "serde"] }
+wasm-bindgen = { version = "0.2.120" }
+wasm-bindgen-futures = { version = "0.4" }
+web-time = { version = "1.1.0" }
+console_error_panic_hook = { version = "0.1.7" }
+js-sys = { version = "0.3" }
+raw-window-handle = { version = "0.6" }
+wasm_thread = { version = "0.3", features = ["es_modules"], optional = true }
+web-sys = { version = "0.3", features = [
+    "console",
+    "Blob",
+    "Clipboard",
+    "ClipboardEvent",
+    "ClipboardItem",
+    "CompositionEvent",
+    "CssStyleDeclaration",
+    "DataTransfer",
+    "DataTransferItem",
+    "DataTransferItemList",
+    "Document",
+    "DomRect",
+    "DragEvent",
+    "Element",
+    "EventTarget",
+    "File",
+    "HtmlCanvasElement",
+    "HtmlElement",
+    "HtmlTextAreaElement",
+    "IdleDeadline",
+    "IdleRequestOptions",
+    "InputEvent",
+    "KeyboardEvent",
+    "Location",
+    "MediaQueryList",
+    "MediaQueryListEvent",
+    "MouseEvent",
+    "Navigator",
+    "PointerEvent",
+    "ReadableStream",
+    "ReadableStreamDefaultReader",
+    "ReadableStreamReadResult",
+    "ResizeObserver",
+    "ResizeObserverBoxOptions",
+    "ResizeObserverEntry",
+    "ResizeObserverSize",
+    "ResizeObserverOptions",
+    "Screen",
+    "Storage",
+    "VisualViewport",
+    "Headers",
+    "Request",
+    "RequestCredentials",
+    "RequestInit",
+    "RequestRedirect",
+    "Response",
+    "WheelEvent",
+    "Window",
+] }
+
+[lints.rust.unexpected_cfgs]
+level = "allow"
+
+[lints.clippy]
+dbg_macro = "deny"
+todo = "deny"
+declare_interior_mutable_const = "deny"
+redundant_clone = "deny"
+disallowed_methods = "deny"
+type_complexity = "allow"
+let_underscore_future = "allow"
+single_range_in_vec_init = "allow"
+too_many_arguments = "allow"
+large_enum_variant = "allow"
+nonminimal_bool = "allow"
+
+[lints.clippy.style]
+level = "allow"
+priority = -1
+
+[workspace]

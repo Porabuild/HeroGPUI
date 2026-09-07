@@ -12,14 +12,18 @@ use gpui::{
     prelude::*, px, AnyElement, App, ClickEvent, InteractiveElement, IntoElement, ParentElement,
     Pixels, RenderOnce, SharedString, Styled, Window,
 };
-use herogpui_core::SelectionMode;
+use herogpui_core::{element_id, SelectionMode};
 use herogpui_theme::ActiveTheme;
 
-use crate::{checkbox::Checkbox, icons};
+use crate::{
+    a11y::{self, A11y as _},
+    checkbox::Checkbox,
+    icons,
+};
 
-type OnRowClick = std::sync::Arc<dyn Fn(usize, &ClickEvent, &mut Window, &mut App) + 'static>;
+type OnRowClick = std::sync::Arc<dyn Fn(&usize, &ClickEvent, &mut Window, &mut App) + 'static>;
 type OnSelectionChange = std::sync::Arc<dyn Fn(&[SharedString], &mut Window, &mut App) + 'static>;
-type OnSortChange = std::sync::Arc<dyn Fn(SortDescriptor, &mut Window, &mut App) + 'static>;
+type OnSortChange = std::sync::Arc<dyn Fn(&SortDescriptor, &mut Window, &mut App) + 'static>;
 type OnLoadMore = std::sync::Arc<dyn Fn(&mut Window, &mut App) + 'static>;
 type OnResize = std::sync::Arc<dyn Fn(&[(SharedString, Pixels)], &mut Window, &mut App) + 'static>;
 type VirtualRowKey = std::sync::Arc<dyn Fn(usize) -> SharedString + 'static>;
@@ -563,6 +567,8 @@ pub struct Table {
     on_resize_start: Option<OnResize>,
     on_resize: Option<OnResize>,
     on_resize_end: Option<OnResize>,
+    /// The `sx` slot, refined over the root style at the end of render.
+    sx: Option<Box<gpui::StyleRefinement>>,
 }
 
 impl Table {
@@ -602,6 +608,7 @@ impl Table {
             on_resize_start: None,
             on_resize: None,
             on_resize_end: None,
+            sx: None,
         }
     }
 
@@ -843,7 +850,7 @@ impl Table {
     /// the caller sorts its data and rebuilds.
     pub fn on_sort_change(
         mut self,
-        f: impl Fn(SortDescriptor, &mut Window, &mut App) + 'static,
+        f: impl Fn(&SortDescriptor, &mut Window, &mut App) + 'static,
     ) -> Self {
         self.on_sort_change = Some(std::sync::Arc::new(f));
         self
@@ -921,9 +928,18 @@ impl Table {
 
     pub fn on_row_click(
         mut self,
-        f: impl Fn(usize, &ClickEvent, &mut Window, &mut App) + 'static,
+        f: impl Fn(&usize, &ClickEvent, &mut Window, &mut App) + 'static,
     ) -> Self {
         self.on_row_click = Some(std::sync::Arc::new(f));
+        self
+    }
+
+    /// The one slot for caller-owned low-level styling: GPUI's styling methods
+    /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
+    /// applied to the table's root element after every value the variant and
+    /// the active theme chose, so they win.
+    pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
+        self.sx = Some(crate::util::capture_sx(style));
         self
     }
 
@@ -1047,62 +1063,57 @@ fn clear_controlled_resize_proposal(
 
 impl RenderOnce for Table {
     fn render(mut self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        // The caller's id, as the root every part of this table hangs off.
+        let base_id: gpui::ElementId = self.id.clone().into();
         // Column widths a resize handle has moved, and the drag in progress.
         // `use_keyed_state` takes `cx` mutably, so both precede the tokens.
-        let resized = window.use_keyed_state(
-            gpui::ElementId::Name(format!("{}-resized", self.id).into()),
-            cx,
-            |_, _| Vec::<Option<Pixels>>::new(),
-        );
+        let resized =
+            window.use_keyed_state(element_id::scoped(&base_id, "resized"), cx, |_, _| {
+                Vec::<Option<Pixels>>::new()
+            });
         let resized_now = resized.read(cx).clone();
         let measured_widths = window.use_keyed_state(
-            gpui::ElementId::Name(format!("{}-measured-widths", self.id).into()),
+            element_id::scoped(&base_id, "measured-widths"),
             cx,
             |_, _| Vec::<Option<Pixels>>::new(),
         );
         let measured_widths_now = measured_widths.read(cx).clone();
-        let dragging = window.use_keyed_state(
-            gpui::ElementId::Name(format!("{}-resizing", self.id).into()),
-            cx,
-            |_, _| None::<(usize, f32, f32)>,
-        );
+        let dragging =
+            window.use_keyed_state(element_id::scoped(&base_id, "resizing"), cx, |_, _| {
+                None::<(usize, f32, f32)>
+            });
         let drag_now = *dragging.read(cx);
         let keyboard_resizing = window.use_keyed_state(
-            gpui::ElementId::Name(format!("{}-keyboard-resizing", self.id).into()),
+            element_id::scoped(&base_id, "keyboard-resizing"),
             cx,
             |_, _| None::<usize>,
         );
         let keyboard_resize_now = *keyboard_resizing.read(cx);
         let load_more_state = window.use_keyed_state(
-            gpui::ElementId::Name(format!("{}-load-more-state", self.id).into()),
+            element_id::scoped(&base_id, "load-more-state"),
             cx,
             |_, _| (false, None::<LoadMoreCollection>),
         );
         // The body is one tab stop with a cursor inside it, the way a list is.
-        let table_focus = crate::util::tab_stop_handle(
-            gpui::ElementId::Name(format!("{}-focus", self.id).into()),
-            window,
-            cx,
-        );
-        let row_cursor = window.use_keyed_state(
-            gpui::ElementId::Name(format!("{}-cursor", self.id).into()),
-            cx,
-            |_, _| None::<SharedString>,
-        );
+        let table_focus =
+            crate::util::tab_stop_handle(element_id::scoped(&base_id, "focus"), window, cx);
+        let row_cursor =
+            window.use_keyed_state(element_id::scoped(&base_id, "cursor"), cx, |_, _| {
+                None::<SharedString>
+            });
         let selection_range = window.use_keyed_state(
-            gpui::ElementId::Name(format!("{}-selection-range", self.id).into()),
+            element_id::scoped(&base_id, "selection-range"),
             cx,
             |_, _| TableSelectionRange::default(),
         );
-        let typeahead = window.use_keyed_state(
-            gpui::ElementId::Name(format!("{}-typeahead", self.id).into()),
-            cx,
-            |_, _| TableTypeahead::default(),
-        );
+        let typeahead =
+            window.use_keyed_state(element_id::scoped(&base_id, "typeahead"), cx, |_, _| {
+                TableTypeahead::default()
+            });
         let (selected_keys, selection_own) = crate::util::controlled(
             window,
             cx,
-            gpui::ElementId::Name(format!("{}-selected", self.id).into()),
+            element_id::scoped(&base_id, "selected"),
             self.is_selection_controlled
                 .then(|| self.selected_keys.clone()),
             Vec::new(),
@@ -1114,7 +1125,7 @@ impl RenderOnce for Table {
             .as_ref()
             .map(|(count, identity, key_for_row, _)| {
                 let cache = window.use_keyed_state(
-                    gpui::ElementId::Name(format!("{}-virtual-projection", self.id).into()),
+                    element_id::scoped(&base_id, "virtual-projection"),
                     cx,
                     |_, _| None::<std::sync::Arc<VirtualProjection>>,
                 );
@@ -1235,7 +1246,10 @@ impl RenderOnce for Table {
             (Some((_, identity, _, _)), Some(_), Some(keys)) if self.row_height.is_none() => {
                 let count = keys.len();
                 let state = window.use_keyed_state(
-                    gpui::ElementId::Name(format!("{}-row-heights-{identity}", self.id).into()),
+                    element_id::scoped(
+                        &element_id::scoped(&base_id, "row-heights"),
+                        identity.clone(),
+                    ),
                     cx,
                     |_, _| (Vec::<SharedString>::new(), Vec::<Option<Pixels>>::new()),
                 );
@@ -1250,7 +1264,7 @@ impl RenderOnce for Table {
             _ => None,
         };
         let virtual_scroll = window.use_keyed_state(
-            gpui::ElementId::Name(format!("{}-virtual-scroll", self.id).into()),
+            element_id::scoped(&base_id, "virtual-scroll"),
             cx,
             |_, _| gpui::UniformListScrollHandle::new(),
         );
@@ -1267,7 +1281,10 @@ impl RenderOnce for Table {
                 let overdraw = self.max_h.unwrap_or(px(400.)).max(estimate * 3.);
                 let state = window
                     .use_keyed_state(
-                        gpui::ElementId::Name(format!("{}-list-state-{identity}", self.id).into()),
+                        element_id::scoped(
+                            &element_id::scoped(&base_id, "list-state"),
+                            identity.clone(),
+                        ),
                         cx,
                         move |_, _| gpui::ListState::new(count, gpui::ListAlignment::Top, overdraw),
                     )
@@ -1300,7 +1317,7 @@ impl RenderOnce for Table {
             .iter()
             .enumerate()
             .map(|(i, column)| {
-                let id = gpui::ElementId::Name(format!("{}-sort-{i}-focus", self.id).into());
+                let id = element_id::scoped(&element_id::indexed(&base_id, "sort", i), "focus");
                 if column.allows_sorting && sortable {
                     crate::util::tab_stop_handle(id, window, cx)
                 } else {
@@ -1323,7 +1340,7 @@ impl RenderOnce for Table {
             .map(|(i, column)| {
                 column.allows_resizing.then(|| {
                     crate::util::tab_stop_handle(
-                        gpui::ElementId::Name(format!("{}-resize-{i}-focus", self.id).into()),
+                        element_id::scoped(&element_id::indexed(&base_id, "resize", i), "focus"),
                         window,
                         cx,
                     )
@@ -1473,6 +1490,20 @@ impl RenderOnce for Table {
         // with a bounded parent: without it the content-based minimum keeps
         // the max-content height and a virtual body never sees its real
         // viewport.
+        // `aria-colcount` counts the collection's columns, and the selection
+        // column is one of them upstream. `aria-rowcount` is only knowable
+        // when the port virtualizes, which is exactly when upstream sets it.
+        let grid_column_count = self.columns.len() + usize::from(selectable);
+        // `useTable`'s `state.treeColumn != null` means the collection was
+        // built as a tree, not merely that a column index was named:
+        // `Table::tree_column` only picks which column carries the chevron,
+        // and it defaults to `0` on every flat table. A tree here is a
+        // collection with nested rows, virtual or not.
+        let is_tree = self.virtual_tree_metadata.is_some()
+            || self.rows.iter().any(|row| !row.children.is_empty());
+        let virtual_row_total = virtual_projection
+            .as_ref()
+            .map(|_| virtual_visible_count.max(0));
         let mut table = gpui::div()
             .flex()
             .flex_col()
@@ -1481,12 +1512,48 @@ impl RenderOnce for Table {
             .text_size(px(14.))
             .line_height(px(20.))
             .when_some(self.gap, |el, g| el.gap(g))
-            .when_some(self.padding, |el, p| el.p(p));
+            .when_some(self.padding, |el, p| el.p(p))
+            // The accessibility contract goes on the *end* of this chain:
+            // `.shots/design_audit.py` reads `.table__content`'s text size
+            // through a 240-character window opening at `let mut table =
+            // gpui::div(`, and it reports the rule unreadable when anything
+            // is spliced in ahead of `.text_size(..)`.
+            //
+            // `react-aria/dist/private/table/useTable.mjs` starts from
+            // `.../grid/useGrid.mjs`'s `role: 'grid'` and overrides it to
+            // `'treegrid'` only `if (state.treeColumn != null)`. RAC's
+            // `Table.mjs` adds no role of its own.
+            //
+            // `aria-rowcount` / `aria-colcount` are set only
+            // `if (isVirtualized)` — the DOM then holds a window onto a
+            // longer collection and the counts cannot be read off the tree —
+            // and `useTable` then makes the row count
+            // `state.collection.size + state.collection.headerRows.length`,
+            // which is why the one header row is added to it. The
+            // `aria-multiselectable` that `useGrid` sets beside them has no
+            // gpui builder (see `crate::a11y`).
+            .id(element_id::scoped(&base_id, "grid"))
+            .a11y(if is_tree {
+                a11y::Role::TreeGrid
+            } else {
+                a11y::Role::Grid
+            })
+            .when_some(virtual_row_total, |el, rows| {
+                el.a11y_grid_size(rows + 1, grid_column_count)
+            });
 
         // ---- header ------------------------------------------------------
         // `.table__header`, whose cells are `.table__column`s and whose
         // sortable ones wrap in `.table__sortable-column-header`.
         let mut header = gpui::div()
+            .id(element_id::scoped(&base_id, "header"))
+            // `useTableHeaderRow.mjs` is a bare `role: 'row'`. Upstream wraps
+            // it in a `<TableHeader>` whose `useTableRowGroup` gives it
+            // `role: 'rowgroup'`; this port draws the single header row
+            // directly into the table, so there is no second element for that
+            // node to sit on. The body below *is* a container of rows, and it
+            // carries the rowgroup.
+            .a11y(a11y::Role::Row)
             .flex()
             .border_b_1()
             .border_color(colors.separator.alpha(0.5))
@@ -1496,6 +1563,13 @@ impl RenderOnce for Table {
             // The select-all box only makes sense for a multiple selection; a
             // single-selection table keeps the column for alignment.
             let mut cell = gpui::div()
+                .id(element_id::scoped(&base_id, "select-all-cell"))
+                // The selection column is a real column of the collection
+                // upstream, so its header is a `role: 'columnheader'` like any
+                // other (`useTableColumnHeader.mjs`), holding the select-all
+                // checkbox `useTableSelectAllCheckbox` names.
+                .a11y(a11y::Role::ColumnHeader)
+                .a11y_column_index(0)
                 .flex()
                 .items_center()
                 .justify_center()
@@ -1510,11 +1584,9 @@ impl RenderOnce for Table {
                     .clone();
                 let (all_selected, indeterminate) =
                     select_all_flags(all.as_slice(), &self.selected_keys);
-                let mut box_el = Checkbox::new(gpui::ElementId::Name(
-                    format!("{}-select-all", self.id).into(),
-                ))
-                .is_selected(all_selected)
-                .is_indeterminate(indeterminate);
+                let mut box_el = Checkbox::new(element_id::scoped(&base_id, "select-all"))
+                    .is_selected(all_selected)
+                    .is_indeterminate(indeterminate);
                 let cb = self.on_selection_change.clone();
                 if cb.is_some() || selection_own.is_some() {
                     let selection_own = selection_own.clone();
@@ -1606,12 +1678,28 @@ impl RenderOnce for Table {
                         SortDescriptor::next(self.sort_descriptor.as_ref(), column.label.clone());
                     // `.table__column[data-allows-sorting]:hover` recolours the
                     // header text to `--foreground`; it paints no background.
+                    // A group name is a plain string, not an `ElementId`, so it
+                    // cannot carry structure -- but it still has to start from
+                    // this table's own id, or two tables share the group.
                     let sort_group: SharedString =
-                        format!("table-sort-hover-{}", column.label).into();
+                        format!("{}-sort-hover-{}", self.id, column.label).into();
                     let header_cell = gpui::div()
-                        .id(gpui::ElementId::Name(
-                            format!("table-sort-{}", column.label).into(),
+                        .id(element_id::scoped(
+                            &element_id::scoped(&base_id, "sort"),
+                            column.label.clone(),
                         ))
+                        // `useTableColumnHeader.mjs` is `role: 'columnheader'`
+                        // with `'aria-colindex'` from the grid cell props
+                        // underneath it and `'aria-sort'` on a sortable
+                        // column. The sort direction has no gpui builder —
+                        // upstream itself drops it on Android Talkback and
+                        // duplicates it into `aria-describedby` instead — so
+                        // it is a recorded omission in `crate::a11y`.
+                        .a11y_named(
+                            a11y::Role::ColumnHeader,
+                            &a11y::Name::labelled(column.label.clone()),
+                        )
+                        .a11y_column_index(column_index + usize::from(selectable))
                         .group(sort_group.clone())
                         .flex_1()
                         .flex()
@@ -1619,7 +1707,7 @@ impl RenderOnce for Table {
                         // The focus is what makes Enter and Space sort: gpui
                         // fires a *focused* element's click listeners for them.
                         .track_focus(&header_focus[column_index])
-                        .on_click(move |_, window, cx| cb(next.clone(), window, cx))
+                        .on_click(move |_, window, cx| cb(&next.clone(), window, cx))
                         .child(cell.group_hover(sort_group, |s| s.text_color(colors.foreground)));
                     // `.table__column` rings *inside* itself: the next column
                     // is flush against this one, and a ring drawn outside bled
@@ -1634,9 +1722,15 @@ impl RenderOnce for Table {
                 // Not sortable, so nothing to press -- but still focusable, so
                 // PageUp has a header to land on, and it rings when it does.
                 _ => cell
-                    .id(gpui::ElementId::Name(
-                        format!("table-header-{column_index}").into(),
-                    ))
+                    .id(element_id::indexed(&base_id, "header", column_index))
+                    // The same `role: 'columnheader'`; a column that does not
+                    // sort simply has no `aria-sort` upstream either
+                    // (`ariaSort` stays `undefined` unless `allowsSorting`).
+                    .a11y_named(
+                        a11y::Role::ColumnHeader,
+                        &a11y::Name::labelled(column.label.clone()),
+                    )
+                    .a11y_column_index(column_index + usize::from(selectable))
                     .track_focus(&header_focus[column_index])
                     .relative()
                     .when(header_focused[column_index], |c| {
@@ -1666,7 +1760,9 @@ impl RenderOnce for Table {
                     .as_ref()
                     .expect("resizable columns have a focus handle")
                     .clone();
-                let resizer_group: SharedString = format!("table-resizer-{column_index}").into();
+                // As with the sort hover group: a string, but this table's own.
+                let resizer_group: SharedString =
+                    format!("{}-resizer-{column_index}", self.id).into();
                 let accent_color = colors.accent.color;
                 let focus_color = colors.focus;
                 let is_resizing = drag_now.is_some_and(|(index, _, _)| index == column_index)
@@ -1713,9 +1809,7 @@ impl RenderOnce for Table {
                     .child(cell)
                     .child(
                         gpui::div()
-                            .id(gpui::ElementId::Name(
-                                format!("table-resize-{column_index}").into(),
-                            ))
+                            .id(element_id::indexed(&base_id, "resize", column_index))
                             .track_focus(
                                 resize_focus[column_index]
                                     .as_ref()
@@ -1933,7 +2027,14 @@ impl RenderOnce for Table {
 
         // `.table__body` rounds to `min(32px, --radius-2xl)` and its cells are
         // `bg-surface`: the white block inside the tray.
-        let mut body = gpui::div().flex().flex_col().w_full();
+        // `useTableRowGroup.mjs` (through `.../grid/useGridRowGroup.mjs`) is a
+        // single `role: 'rowgroup'` — the `<tbody>` around the data rows.
+        let mut body = gpui::div()
+            .id(element_id::scoped(&base_id, "body"))
+            .a11y(a11y::Role::RowGroup)
+            .flex()
+            .flex_col()
+            .w_full();
         if !secondary {
             body = body
                 .bg(colors.surface.background)
@@ -2156,7 +2257,7 @@ impl RenderOnce for Table {
         // the same row as a short one.
         let table_id = self.id.clone();
         let ctx = std::rc::Rc::new(RowCtx {
-            id: self.id.clone(),
+            id: base_id.clone(),
             widths: self
                 .columns
                 .iter()
@@ -2188,6 +2289,8 @@ impl RenderOnce for Table {
             cursor_own: row_cursor.clone(),
             cursor: cursor_at,
             secondary,
+            virtualized: virtual_projection.is_some(),
+            is_tree,
         });
 
         // v3 gives a table a roving row focus: the arrows walk it, Home and End
@@ -2722,7 +2825,7 @@ impl RenderOnce for Table {
                             ) {
                                 RowIntent::Action => {
                                     if let Some(cb) = &on_row_click {
-                                        cb(index, &ClickEvent::default(), window, cx);
+                                        cb(&index, &ClickEvent::default(), window, cx);
                                     }
                                 }
                                 RowIntent::Selection => {
@@ -2834,7 +2937,7 @@ impl RenderOnce for Table {
             let rows_selector = format!("{table_id}-virtual-rows");
             body = body.child(
                 gpui::uniform_list(
-                    gpui::ElementId::Name(format!("{table_id}-virtual-rows").into()),
+                    element_id::scoped(&base_id, "virtual-rows"),
                     row_count,
                     move |range, _window, cx| {
                         range
@@ -3011,9 +3114,7 @@ impl RenderOnce for Table {
 
             if self.is_pending {
                 let sentinel = gpui::div()
-                .id(gpui::ElementId::Name(
-                    format!("{}-load-more", self.id).into(),
-                ))
+                .id(element_id::scoped(&base_id, "load-more"))
                 .flex()
                 .items_center()
                 .justify_center()
@@ -3026,10 +3127,8 @@ impl RenderOnce for Table {
                 .text_size(px(13.))
                 .text_color(muted)
                     .child(
-                        crate::spinner::Spinner::new(gpui::ElementId::Name(
-                            format!("{}-load-spinner", self.id).into(),
-                        ))
-                        .size(herogpui_core::Size::Sm),
+                        crate::spinner::Spinner::new(element_id::scoped(&base_id, "load-spinner"))
+                            .size(herogpui_core::Size::Sm),
                     )
                     .child("Loading\u{2026}");
                 table = table.child(sentinel);
@@ -3060,11 +3159,9 @@ impl RenderOnce for Table {
         // width. `min_h_0` is what permits that shrink: the scroller only
         // scrolls horizontally, so its visible y-overflow would otherwise keep
         // the content-based minimum and never yield.
-        wrapper.child(
+        let el = wrapper.child(
             gpui::div()
-                .id(gpui::ElementId::Name(
-                    format!("{}-scroll-x", self.id).into(),
-                ))
+                .id(element_id::scoped(&base_id, "scroll-x"))
                 .flex()
                 .flex_col()
                 .items_start()
@@ -3073,7 +3170,8 @@ impl RenderOnce for Table {
                 .overflow_x_scroll()
                 .restrict_scroll_to_axis()
                 .child(table),
-        )
+        );
+        crate::util::apply_sx(el, &self.sx)
     }
 }
 
@@ -3081,7 +3179,8 @@ impl RenderOnce for Table {
 /// draw it from the same code.
 struct RowCtx {
     /// The table's id, so one table's row ids cannot collide with another's.
-    id: SharedString,
+    /// Every row part is scoped off it.
+    id: gpui::ElementId,
     /// `(defaultWidth or the resize, minWidth, maxWidth)` per column.
     widths: Vec<(Option<Pixels>, Option<Pixels>, Option<Pixels>)>,
     row_header_columns: Vec<bool>,
@@ -3105,6 +3204,12 @@ struct RowCtx {
     /// The `.table-root--secondary` flat layout, whose row hover is a
     /// different token from the primary's.
     secondary: bool,
+    /// Whether the collection is windowed, which is the guard upstream puts
+    /// `aria-rowindex` behind (`.../grid/useGridRow.mjs`).
+    virtualized: bool,
+    /// Whether the collection is a tree, which is what makes
+    /// `useTableRow.mjs` add `aria-level` and `aria-expanded` to a row.
+    is_tree: bool,
 }
 
 impl RowCtx {
@@ -3136,7 +3241,29 @@ impl RowCtx {
         let row_header_columns = &self.row_header_columns;
 
         let mut row = gpui::div()
-            .id(gpui::ElementId::Name(format!("{}-row-{i}", self.id).into()))
+            .id(element_id::indexed(&self.id, "row", i))
+            // `useTableRow.mjs` delegates to `.../grid/useGridRow.mjs`:
+            // `role: 'row'` with `'aria-selected': selectionMode !== 'none' ?
+            // isSelected : undefined`, and `aria-rowindex` only
+            // `if (isVirtualized)`. On a tree table it then adds
+            // `'aria-expanded': hasChildRows ? ... : undefined` and
+            // `'aria-level': treeNode.level + 1`.
+            //
+            // The `aria-posinset`/`aria-setsize` half of that tree block is
+            // *not* stated, and not because gpui lacks the builders: upstream
+            // counts a row's siblings out of the tree collection, and what
+            // reaches this function is the flattened list of *visible* rows
+            // plus this row's own depth. The sibling count at that depth is
+            // not derivable from it, and a guess is worse than silence.
+            .a11y(a11y::Role::Row)
+            .when(self.selection_mode != SelectionMode::None, |row| {
+                row.a11y_selected(is_selected)
+            })
+            .when(self.virtualized, |row| row.a11y_row_index(i))
+            .when(self.is_tree, |row| row.a11y_level(depth))
+            .when(self.is_tree && has_children, |row| {
+                row.a11y_expanded(self.expanded.iter().any(|k| k == tree_key))
+            })
             .flex()
             // A virtual row is laid out on its own, so it takes the width it is
             // *given*: without `w_full` the columns bunch at the left edge. That
@@ -3150,9 +3277,12 @@ impl RowCtx {
 
         if self.selectable {
             let mut cell = gpui::div()
-                .id(gpui::ElementId::Name(
-                    format!("{}-select-cell-{i}", self.id).into(),
-                ))
+                .id(element_id::indexed(&self.id, "select-cell", i))
+                // The selection column's body cell. `useTableCell.mjs` gives
+                // every data cell `.../grid/useGridCell.mjs`'s
+                // `role: 'gridcell'` and `'aria-colindex': colIndex + 1`.
+                .a11y(a11y::Role::GridCell)
+                .a11y_column_index(0)
                 .flex()
                 .items_center()
                 .justify_center()
@@ -3161,11 +3291,9 @@ impl RowCtx {
                 .on_mouse_down(gpui::MouseButton::Left, |_, _, cx| {
                     cx.stop_propagation();
                 });
-            let mut box_el = Checkbox::new(gpui::ElementId::Name(
-                format!("{}-select-{i}", self.id).into(),
-            ))
-            .is_selected(is_selected)
-            .is_disabled(is_disabled);
+            let mut box_el = Checkbox::new(element_id::indexed(&self.id, "select", i))
+                .is_selected(is_selected)
+                .is_disabled(is_disabled);
             let cb = self.on_selection_change.clone();
             if !is_disabled && (cb.is_some() || self.selection_own.is_some()) {
                 let current = self.selected_keys.clone();
@@ -3227,7 +3355,33 @@ impl RowCtx {
                 .py(px(12.))
                 .when(row_header_columns.get(c).copied().unwrap_or(false), |e| {
                     e.font_weight(gpui::FontWeight::MEDIUM)
-                });
+                })
+                // At the end of the chain, and after `flex_cell` — that
+                // helper takes a `gpui::Div`, which an `.id(..)` would have
+                // turned into a `Stateful<Div>` — and clear of the
+                // `.table__cell` padding window `.shots/design_audit.py`
+                // opens on the comment above.
+                //
+                // `useTableCell.mjs` is `.../grid/useGridCell.mjs`'s
+                // `role: 'gridcell'`, swapped for `'rowheader'` when the
+                // cell's column key is in `rowHeaderColumnKeys` — the port's
+                // `TableColumn::is_row_header`. The cell's contents are an
+                // arbitrary `AnyElement` here, so unlike a row (which
+                // upstream names from `node.textValue`) it carries no name of
+                // its own; whatever the caller composed inside reports itself.
+                .id(element_id::indexed(
+                    &element_id::indexed(&self.id, "row", i),
+                    "cell",
+                    c,
+                ))
+                .a11y(
+                    if row_header_columns.get(c).copied().unwrap_or(false) {
+                        a11y::Role::RowHeader
+                    } else {
+                        a11y::Role::GridCell
+                    },
+                )
+                .a11y_column_index(c + usize::from(self.selectable));
             // The tree column carries the indent and the chevron; a row with
             // no children still indents, so siblings line up.
             if c == tree_column {
@@ -3236,8 +3390,9 @@ impl RowCtx {
                 }
                 if has_children {
                     let mut chevron = gpui::div()
-                        .id(gpui::ElementId::Name(
-                            format!("{}-expand-{toggle_key}", self.id).into(),
+                        .id(element_id::scoped(
+                            &element_id::scoped(&self.id, "expand"),
+                            toggle_key.clone(),
                         ))
                         .flex()
                         .items_center()
@@ -3363,7 +3518,7 @@ impl RowCtx {
                     ) {
                         RowIntent::Action => {
                             if let Some(cb) = &row_action {
-                                cb(i, ev, w, cx);
+                                cb(&i, ev, w, cx);
                             }
                         }
                         RowIntent::Selection => {

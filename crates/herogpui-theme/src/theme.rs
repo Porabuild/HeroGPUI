@@ -3,16 +3,35 @@
 //! Mirrors how v3 themes are authored: override a handful of base CSS variables
 //! and let every hover / soft / surface-level value derive from them.
 
-use gpui::{Hsla, Pixels, SharedString};
+use gpui::{Hsla, Pixels, SharedString, WindowAppearance};
 
 use crate::layout::LayoutTheme;
 use crate::semantic::{SurfaceColor, ThemeColors};
 
 /// Visual appearance of a theme (`color-scheme`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "lowercase"))]
 pub enum Appearance {
     Light,
     Dark,
+}
+
+/// Collapses the OS appearance onto the two `color-scheme` values v3 has.
+///
+/// The vibrant variants are macOS `NSAppearanceNameVibrant{Light,Dark}`: they
+/// are still light and dark, and forgetting them is the classic bug here
+/// because they only appear on a vibrancy-enabled window, never in a test.
+/// The match is deliberately exhaustive rather than `_ => Light`, so a future
+/// GPUI variant fails the build instead of silently painting light tokens over
+/// a dark desktop.
+impl From<WindowAppearance> for Appearance {
+    fn from(appearance: WindowAppearance) -> Self {
+        match appearance {
+            WindowAppearance::Light | WindowAppearance::VibrantLight => Self::Light,
+            WindowAppearance::Dark | WindowAppearance::VibrantDark => Self::Dark,
+        }
+    }
 }
 
 /// A complete HeroUI v3 theme: semantic colors plus layout tokens.
@@ -47,6 +66,10 @@ impl Theme {
 
     /// Starts a custom theme extending `base` — the equivalent of overriding
     /// CSS variables under a `[data-theme]` selector.
+    ///
+    /// A JSON document of the same sparse overrides lives behind this crate's
+    /// `serde` feature (`ThemeDocument`): it applies through this builder so
+    /// derived hover / soft mixes stay live.
     pub fn builder(id: impl Into<SharedString>, base: Theme) -> ThemeBuilder {
         ThemeBuilder { theme: base }.id(id)
     }

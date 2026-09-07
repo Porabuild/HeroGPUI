@@ -309,11 +309,6 @@ pub enum SelectionMode {
     Multiple,
 }
 
-/// A unique element id helper — most components require one for interactivity.
-pub fn auto_id(seed: &str) -> gpui::ElementId {
-    gpui::ElementId::Name(seed.to_owned().into())
-}
-
 /// `placement` — where a floating panel sits relative to its trigger.
 ///
 /// v3 spells both physical (`"bottom left"`) and logical (`"bottom start"`)

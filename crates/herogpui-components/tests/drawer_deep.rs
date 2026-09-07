@@ -64,7 +64,7 @@ fn close_callbacks(drawer: Drawer, open: Rc<Cell<bool>>, recorded: Events) -> Dr
             move |_, _, _| recorded.borrow_mut().push("close".into())
         })
         .on_open_change(move |value, window, _| {
-            open.set(value);
+            open.set(*value);
             recorded.borrow_mut().push(format!("open:{value}"));
             window.refresh();
         })

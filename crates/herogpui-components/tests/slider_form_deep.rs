@@ -187,7 +187,7 @@ fn controlled_slider_reset_reports_the_initial_value_once(cx: &mut TestAppContex
             .value(value)
             .name("volume")
             .on_change(move |value, _, _| {
-                *current.borrow_mut() = value;
+                *current.borrow_mut() = *value;
                 changes.borrow_mut().push(format!("{value}"));
             });
         let form = Form::new().field(slider.form_field().expect("named slider field"));

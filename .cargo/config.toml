@@ -3,3 +3,18 @@ linker = "rust-lld"
 
 [target.aarch64-pc-windows-msvc]
 linker = "rust-lld"
+
+# Deliberately empty, not absent. The web platform was first built with
+# `-C target-feature=+atomics,+bulk-memory,+mutable-globals` and `-Z build-std`
+# so GPUI's background executors could run on web workers over a shared wasm
+# memory. That was abandoned: shared memory needs COOP/COEP response headers,
+# which plain GitHub Pages hosting does not send, so `crates/herogpui-web`
+# calls `gpui_platform::single_threaded_web()` instead and needs no atomics.
+#
+# Stating the empty list here is what keeps it from creeping back. A
+# `RUSTFLAGS` environment variable *replaces* a config file's rustflags rather
+# than appending to them, so CI must not set `RUSTFLAGS` for this target
+# either: doing so would silently diverge from this table instead of adding to
+# it. See the `wasm` job in .github/workflows/ci.yml.
+[target.wasm32-unknown-unknown]
+rustflags = []

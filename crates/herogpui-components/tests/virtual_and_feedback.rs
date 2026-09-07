@@ -620,7 +620,7 @@ fn virtual_table_rows_click_and_sort(cx: &mut TestAppContext) {
                     "desc"
                 };
                 sorts.borrow_mut().push(format!("{}:{dir}", d.column));
-                *held.borrow_mut() = Some(d);
+                *held.borrow_mut() = Some(d.clone());
             })
             .into_any_element()
     });
@@ -1510,7 +1510,7 @@ fn scroll_shadow_reports_visibility_as_it_scrolls(cx: &mut TestAppContext) {
             .max_h(px(160.))
             .visibility(ScrollShadowVisibility::Auto)
             .on_visibility_change(move |v, _, _| {
-                recorded.borrow_mut().push(shadow_label(v).to_owned());
+                recorded.borrow_mut().push(shadow_label(*v).to_owned());
             })
             .children((0..10).map(|_| {
                 gpui::div()
@@ -1592,7 +1592,7 @@ fn scroll_shadow_hides_when_content_fits(cx: &mut TestAppContext) {
             .max_h(px(160.))
             .visibility(ScrollShadowVisibility::Auto)
             .on_visibility_change(move |v, _, _| {
-                recorded.borrow_mut().push(shadow_label(v).to_owned());
+                recorded.borrow_mut().push(shadow_label(*v).to_owned());
             })
             .children((0..2).map(|_| gpui::div().h(px(40.)).w_full().into_any_element()))
             .into_any_element()
@@ -1627,7 +1627,7 @@ fn scroll_shadow_silent_when_content_fits(cx: &mut TestAppContext) {
             .max_h(px(160.))
             .visibility(ScrollShadowVisibility::Auto)
             .on_visibility_change(move |v, _, _| {
-                recorded.borrow_mut().push(shadow_label(v).to_owned());
+                recorded.borrow_mut().push(shadow_label(*v).to_owned());
             })
             .children((0..2).map(|_| gpui::div().h(px(40.)).w_full().into_any_element()))
             .into_any_element()
@@ -1666,7 +1666,7 @@ fn scroll_shadow_reports_first_edge_after_content_grows(cx: &mut TestAppContext)
             .max_h(px(160.))
             .visibility(ScrollShadowVisibility::Auto)
             .on_visibility_change(move |v, _, _| {
-                recorded.borrow_mut().push(shadow_label(v).to_owned());
+                recorded.borrow_mut().push(shadow_label(*v).to_owned());
             })
             .children((0..2).map(|_| {
                 gpui::div()

@@ -4,12 +4,15 @@ use gpui::{
     prelude::*, px, App, InteractiveElement, IntoElement, RenderOnce, StatefulInteractiveElement,
     Styled, Window,
 };
-use herogpui_core::Size;
+use herogpui_core::{element_id, Size};
 use herogpui_theme::ActiveTheme;
 
-use crate::icons;
+use crate::{
+    a11y::{self, A11y as _},
+    icons,
+};
 
-type OnChange = std::sync::Arc<dyn Fn(usize, &mut Window, &mut App) + 'static>;
+type OnChange = std::sync::Arc<dyn Fn(&usize, &mut Window, &mut App) + 'static>;
 
 type Link = std::sync::Arc<dyn Fn(usize, bool) -> gpui::AnyElement + 'static>;
 
@@ -33,11 +36,23 @@ pub struct Pagination {
     disabled_keys: std::collections::HashSet<usize>,
     size: Size,
     on_change: Option<OnChange>,
+    /// The `sx` slot, refined over the root style at the end of render.
+    sx: Option<Box<gpui::StyleRefinement>>,
 }
 
 impl Pagination {
     pub fn size(mut self, size: Size) -> Self {
         self.size = size;
+        self
+    }
+
+    /// The one slot for caller-owned low-level styling: GPUI's styling methods
+    /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
+    /// applied to the bar's root element after every value the size and the
+    /// active theme chose, so they win. The page cells and nav buttons keep
+    /// their own ladder geometry.
+    pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
+        self.sx = Some(crate::util::capture_sx(style));
         self
     }
 
@@ -54,6 +69,7 @@ impl Pagination {
             disabled_keys: std::collections::HashSet::new(),
             size: Size::Md,
             on_change: None,
+            sx: None,
         }
     }
 
@@ -102,7 +118,7 @@ impl Pagination {
         self
     }
 
-    pub fn on_change(mut self, f: impl Fn(usize, &mut Window, &mut App) + 'static) -> Self {
+    pub fn on_change(mut self, f: impl Fn(&usize, &mut Window, &mut App) + 'static) -> Self {
         self.on_change = Some(std::sync::Arc::new(f));
         self
     }
@@ -113,7 +129,8 @@ impl RenderOnce for Pagination {
         // Every interactive item is a tab stop with a ring. The handles come
         // first: `use_keyed_state` takes `cx` mutably and the theme is borrowed
         // for the rest of the render.
-        let base_id = format!("{:?}", self.id);
+        let base_id = self.id.clone();
+        let root_id = self.id.clone();
         let pages = visible_pages(self.page, self.total);
         // Only the page cells that are actually rendered need a tab stop.
         // Minting a keyed handle for every page in `0..=total` on every frame
@@ -125,7 +142,7 @@ impl RenderOnce for Pagination {
                 PageRef::Num(n) => Some((
                     *n,
                     crate::util::tab_stop_handle(
-                        gpui::ElementId::Name(format!("{base_id}-page-{n}-focus").into()),
+                        element_id::scoped(&element_id::indexed(&base_id, "page", *n), "focus"),
                         window,
                         cx,
                     ),
@@ -133,16 +150,10 @@ impl RenderOnce for Pagination {
                 PageRef::Ellipsis => None,
             })
             .collect();
-        let prev_focus = crate::util::tab_stop_handle(
-            gpui::ElementId::Name(format!("{base_id}-prev-focus").into()),
-            window,
-            cx,
-        );
-        let next_focus = crate::util::tab_stop_handle(
-            gpui::ElementId::Name(format!("{base_id}-next-focus").into()),
-            window,
-            cx,
-        );
+        let prev_focus =
+            crate::util::tab_stop_handle(element_id::scoped(&base_id, "prev-focus"), window, cx);
+        let next_focus =
+            crate::util::tab_stop_handle(element_id::scoped(&base_id, "next-focus"), window, cx);
         let ring_visible = crate::util::focus_visible(cx);
 
         let colors = cx.colors();
@@ -200,7 +211,7 @@ impl RenderOnce for Pagination {
         let prev_enabled = self.page > 1 && !self.is_disabled && !self.disabled_keys.contains(&0);
         row = row.child(
             nav_button(
-                format!("{base}-prev"),
+                element_id::scoped(&base, "prev"),
                 previous_icon,
                 prev_enabled,
                 NavStyle {
@@ -224,7 +235,7 @@ impl RenderOnce for Pagination {
                     let cb: Option<OnChange> = self.on_change.clone();
                     move |_, w, cx| {
                         if let Some(cb) = &cb {
-                            cb(self.page - 1, w, cx);
+                            cb(&(self.page - 1), w, cx);
                         }
                     }
                 })
@@ -242,7 +253,15 @@ impl RenderOnce for Pagination {
                     // and React Aria's press never fires for it).
                     let link_disabled = self.is_disabled || self.disabled_keys.contains(&n);
                     let mut btn = gpui::div()
-                        .id(gpui::ElementId::Name(format!("{base}-page-{n}").into()))
+                        .id(element_id::indexed(&base, "page", n))
+                        // `@heroui/react/dist/components/pagination/
+                        // pagination.js`'s `PaginationLink` is an RAC
+                        // `Button` — a native `<button>` — carrying
+                        // `"aria-current": isActive ? "page" : undefined`.
+                        // The `aria-current` half has no gpui builder and is
+                        // a recorded omission; the number is restated as the
+                        // name because a gpui text child contributes none.
+                        .a11y_named(a11y::Role::Button, &a11y::Name::labelled(n.to_string()))
                         .flex()
                         .items_center()
                         .justify_center()
@@ -305,7 +324,7 @@ impl RenderOnce for Pagination {
                     // link forwards the same press callback, active or not.
                     if !link_disabled {
                         if let Some(cb) = self_on_change.clone() {
-                            btn = btn.on_click(move |_, w, cx| cb(n, w, cx));
+                            btn = btn.on_click(move |_, w, cx| cb(&n, w, cx));
                         }
                     }
                     // `.pagination__link:disabled` is `status-disabled` —
@@ -359,7 +378,7 @@ impl RenderOnce for Pagination {
             && !self.disabled_keys.contains(&(self.total + 1));
         row = row.child(
             nav_button(
-                format!("{base}-next"),
+                element_id::scoped(&base, "next"),
                 next_icon,
                 next_enabled,
                 NavStyle {
@@ -383,7 +402,7 @@ impl RenderOnce for Pagination {
                     let cb: Option<OnChange> = self.on_change.clone();
                     move |_, w, cx| {
                         if let Some(cb) = &cb {
-                            cb(self.page + 1, w, cx);
+                            cb(&(self.page + 1), w, cx);
                         }
                     }
                 })
@@ -392,7 +411,7 @@ impl RenderOnce for Pagination {
 
         // `.pagination` is the root: `flex w-full items-center justify-between
         // gap-4` around the summary and the content.
-        gpui::div()
+        let el = gpui::div()
             .flex()
             .items_center()
             .justify_between()
@@ -408,7 +427,22 @@ impl RenderOnce for Pagination {
                     .text_color(colors.muted)
                     .child(text.to_string())
             }))
-            .child(row)
+            .child(row);
+        // Stated after the layout chain: `.shots/design_audit.py` reads this
+        // component's metrics out of the builder chains with character
+        // windows.
+        //
+        // `pagination.js`'s root is a plain `dom.nav` with `role:
+        // "navigation"` and `"aria-label": "pagination"` hard-coded — not an
+        // RAC component at all, so the label is a literal rather than a
+        // localized string. Its `<ul>`/`<li>` layer has no counterpart
+        // element here: this port draws the page cells straight into the
+        // row, and a `list` node whose children are buttons rather than
+        // list items would describe a structure that is not there.
+        let el = el
+            .id(root_id)
+            .a11y_named(a11y::Role::Navigation, &a11y::Name::labelled("pagination"));
+        crate::util::apply_sx(el, &self.sx)
     }
 }
 
@@ -427,7 +461,7 @@ struct NavStyle {
 }
 
 fn nav_button(
-    id: String,
+    id: gpui::ElementId,
     icon: gpui::AnyElement,
     enabled: bool,
     style: NavStyle,
@@ -448,7 +482,14 @@ fn nav_button(
         radius,
     } = style;
     let mut btn = gpui::div()
-        .id(gpui::ElementId::Name(id.into()))
+        .id(id)
+        // `PaginationPrevious` / `PaginationNext` are RAC `Button`s too. They
+        // carry no name upstream: the only child v3's own example composes
+        // into them is `PaginationPreviousIcon`, which is
+        // `"aria-hidden": "true"`. The port draws the same icon and names
+        // them no better, because inventing "Previous page" would be text
+        // v3.2.4 does not have.
+        .a11y(a11y::Role::Button)
         .when_some(ring, |b, shadows| b.shadow(shadows))
         .flex()
         .items_center()

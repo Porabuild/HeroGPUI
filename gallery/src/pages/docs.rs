@@ -5,11 +5,11 @@ use herogpui_core::Color;
 use herogpui_theme::ActiveTheme;
 
 use crate::app::Gallery;
-use crate::pages::{code_block, doc_page, example_frame, para};
+use crate::pages::{code_block, doc_page, nav_sections, para, Page};
 
-const INSTALL_MAIN_RS: &str = r#"use gpui::{prelude::*, px, size, App,
-    Bounds, Render, Window, WindowBounds, WindowOptions};
-use herogpui::prelude::*;
+const INSTALL_MAIN_RS: &str = r#"// Cargo.toml: herogpui = { git = "https://github.com/Porabuild/HeroGPUI" }
+// `herogpui` re-exports GPUI itself, so this glob is GPUI too.
+use herogpui::*;
 
 const FONT_FAMILY: &str = if cfg!(target_arch = "wasm32") {
     "Inter Variable"
@@ -24,9 +24,9 @@ const FONT_FAMILY: &str = if cfg!(target_arch = "wasm32") {
 struct HelloWorld;
 
 impl Render for HelloWorld {
-    fn render(&mut self, window: &mut Window, cx: &mut gpui::Context<'_, Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<'_, Self>) -> impl IntoElement {
         let colors = cx.colors();
-        app_focus_root(gpui::div().size_full().bg(colors.background)
+        app_focus_root(div().size_full().bg(colors.background)
             .text_color(colors.foreground)
             .font_family(FONT_FAMILY)
             .flex().items_center().justify_center()
@@ -39,8 +39,8 @@ impl Render for HelloWorld {
 }
 
 fn main() {
-    gpui_platform::application().with_assets(HeroGpuiAssets).run(|cx: &mut App| {
-        ThemeProvider::init(cx); // registers light + dark
+    application().with_assets(HeroGpuiAssets).run(|cx: &mut App| {
+        herogpui::init(cx); // registers light + dark
         let bounds = Bounds::centered(None, size(px(800.), px(600.)), cx);
         cx.open_window(WindowOptions {
             window_bounds: Some(WindowBounds::Windowed(bounds)),
@@ -58,6 +58,30 @@ const DARK_MODE_SWITCH: &str = r#"herogpui::theme::use_theme("dark", cx);
 // or
 herogpui::theme::set_theme(my_custom_dark_theme, cx);"#;
 
+/// Component pages in the nav registry — the doc and release shell pages are
+/// the rest. Derived so the introduction cannot drift from the registry.
+fn component_page_count() -> usize {
+    nav_sections()
+        .iter()
+        .flat_map(|s| s.items.iter())
+        .filter(|p| {
+            !matches!(
+                p,
+                Page::AllComponents
+                    | Page::Releases
+                    | Page::ReleaseCurrent
+                    | Page::Introduction
+                    | Page::Installation
+                    | Page::Theming
+                    | Page::DarkMode
+                    | Page::Customization
+                    | Page::Styling
+                    | Page::DesignPrinciples
+            )
+        })
+        .count()
+}
+
 impl Gallery {
     pub fn page_introduction(&mut self, cx: &mut Context<'_, Self>) -> gpui::AnyElement {
         let colors = cx.colors();
@@ -65,9 +89,9 @@ impl Gallery {
         doc_page(
             "Introduction",
             "HeroGPUI is a beautiful, fast and modern cross-platform UI library for Rust. \
-             It is a faithful port of the HeroUI (formerly NextUI) design system to GPUI — \
-             Zed's GPU-accelerated UI framework — matching its component API, theming tokens \
-             and capabilities.",
+             Components are native builders for GPUI — Zed's GPU-accelerated UI framework — \
+             sharing one design language, theming tokens and capabilities across \
+             Windows, macOS and Linux.",
             "",
             vec![
                 (
@@ -76,7 +100,7 @@ impl Gallery {
                         .flex()
                         .flex_col()
                         .gap(px(8.))
-                        .child(para("Beautiful — every component follows the HeroUI design language: soft radii, semantic colors and subtle shadows.", cx))
+                        .child(para("Beautiful — every component follows one design language: soft radii, semantic colors and subtle shadows.", cx))
                         .child(para("Fast — components are plain data rendered through GPUI's immediate-mode pipeline on the GPU; no DOM, no layout thrash.", cx))
                         .child(para("Modern — a builder API that feels like React props: Button::new(\"save\").variant(Variant::Primary).on_press(...)", cx))
                         .child(para("Cross-platform — one codebase for Windows, macOS and Linux.", cx))
@@ -85,8 +109,12 @@ impl Gallery {
                 (
                     "Highlights",
                     gpui::div().flex().flex_col().gap(px(10.)).children(vec![
-                        feature_row("71 v3 components", "Every component documented at heroui.com/docs/react/components — all themed.", cx),
-                        feature_row("v3 OKLCH tokens", "Semantic roles (default/accent/success/warning/danger) with derived hover and soft variants, light & dark.", cx),
+                        feature_row(
+                            &format!("{} components", component_page_count()),
+                            "Every component themed, documented and runnable in this gallery.",
+                            cx,
+                        ),
+                        feature_row("OKLCH semantic tokens", "Semantic roles (default/accent/success/warning/danger) with derived hover and soft variants, light & dark.", cx),
                         feature_row("Gallery & docs", "This app doubles as living documentation with runnable examples.", cx),
                     ]).into_any_element(),
                 ),
@@ -98,8 +126,8 @@ impl Gallery {
     pub fn page_installation(&mut self, cx: &mut Context<'_, Self>) -> gpui::AnyElement {
         doc_page(
             "Installation",
-            "Add HeroGPUI from this checkout with its pinned Zed GPUI dependency, then register its embedded assets and theme provider.",
-            "cargo add herogpui --path ../HeroGPUI/crates/herogpui",
+            "Add one dependency. HeroGPUI re-exports GPUI, so `herogpui` is the whole install; then register its embedded assets and initialize the theme provider.",
+            r#"herogpui = { git = "https://github.com/Porabuild/HeroGPUI" }"#,
             vec![
                 ("Setup GPUI", code_block(INSTALL_MAIN_RS, cx)),
                 (
@@ -160,7 +188,7 @@ impl Gallery {
         doc_page(
             "Theming",
             "Every color in HeroGPUI is a semantic token resolved from the active Theme global. Base values are \
-             transcribed verbatim from HeroUI v3 in oklch(); hover and soft variants are derived with the same \
+             defined in oklch(); hover and soft variants are derived with \
              color-mix(in oklab) weights.",
             "use herogpui::theme::{ThemeProvider, ActiveTheme};",
             vec![
@@ -183,14 +211,11 @@ impl Gallery {
             vec![
                 (
                     "Try it",
-                    example_frame(
-                        gpui::div()
-                            .text_size(px(14.5))
-                            .line_height(px(22.))
-                            .child("Use the sun / moon button in the top bar of this gallery to toggle the active appearance live.")
-                            .into_any_element(),
-                        cx,
-                    ),
+                    gpui::div()
+                        .text_size(px(14.5))
+                        .line_height(px(22.))
+                        .child("Use the sun / moon button in the top bar of this gallery to toggle the active appearance live.")
+                        .into_any_element(),
                 ),
                 (
                     "Programmatic switch",
@@ -233,12 +258,12 @@ impl Gallery {
 
         doc_page(
             "Customization",
-            "Build custom themes exactly like HeroUI's createTheme: start from a base appearance and override \
+            "Build custom themes with Theme::builder: start from a base appearance and override \
              semantic scales, single shades or layout tokens. Register the result with the provider.",
             "",
             vec![
                 ("Custom theme builder", code_block(CUSTOM_THEME_SNIPPET, cx)),
-                ("Preview: a violet theme", example_frame(chips.into_any_element(), cx)),
+                ("Preview: a violet theme", chips.into_any_element()),
             ],
             cx,
         )
@@ -292,7 +317,7 @@ pub(super) fn doc_code_blocks() -> Vec<(&'static str, &'static str)> {
         ("Installation/main.rs", INSTALL_MAIN_RS),
         (
             "Installation/import",
-            "cargo add herogpui --path ../HeroGPUI/crates/herogpui",
+            r#"herogpui = { git = "https://github.com/Porabuild/HeroGPUI" }"#,
         ),
         (
             "Theming/import",

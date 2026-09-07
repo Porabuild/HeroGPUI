@@ -7,8 +7,10 @@ use gpui::{
     div, prelude::*, px, AnyElement, App, ClickEvent, ElementId, IntoElement, ParentElement,
     RenderOnce, SharedString, Styled, Window,
 };
-use herogpui_core::{Orientation as SelectionOrientation, SelectionMode, Size};
+use herogpui_core::{element_id, Orientation as SelectionOrientation, SelectionMode, Size};
 use herogpui_theme::ActiveTheme;
+
+use crate::a11y::{self, A11y as _};
 
 // ---------------------------------------------------------------------------
 // ToggleButton
@@ -52,6 +54,10 @@ pub struct ToggleButton {
     /// Supplied by a toggle group so it can navigate its typed children
     /// without falling through to the window-wide tab order.
     group_focus_handle: Option<gpui::FocusHandle>,
+    /// Set by [`ToggleButtonGroup`] when it selects one member at a time.
+    /// `useToggleButtonGroupItem` swaps the member's role from `button` to
+    /// `radio` and its `aria-pressed` for `aria-checked` in exactly that case.
+    group_single_selection: bool,
     /// Set by [`ToggleButtonGroup`]: which end of the group this member is,
     /// and whether the group stacks. `.toggle-button-group .toggle-button` is
     /// `rounded-none` with the outer radius on the first and last member.
@@ -64,7 +70,9 @@ pub struct ToggleButton {
     on_press: Option<std::sync::Arc<dyn Fn(&ClickEvent, &mut Window, &mut App) + 'static>>,
     /// `Arc` rather than `Box`: the handler is bound twice, once for the
     /// pointer and once for Enter and Space.
-    on_change: Option<std::sync::Arc<dyn Fn(bool, &mut Window, &mut App) + 'static>>,
+    on_change: Option<std::sync::Arc<dyn Fn(&bool, &mut Window, &mut App) + 'static>>,
+    /// The `sx` slot, refined over the root style at the end of render.
+    sx: Option<Box<gpui::StyleRefinement>>,
 }
 
 impl ToggleButton {
@@ -95,12 +103,14 @@ impl ToggleButton {
             default_selected: false,
             is_icon_only: false,
             group_focus_handle: None,
+            group_single_selection: false,
             group_edge: None,
             is_disabled: false,
             disabled_explicit: false,
             children: Vec::new(),
             on_press: None,
             on_change: None,
+            sx: None,
         }
     }
 
@@ -129,6 +139,15 @@ impl ToggleButton {
     pub fn size(mut self, s: Size) -> Self {
         self.size = s;
         self.size_explicit = true;
+        self
+    }
+
+    /// The one slot for caller-owned low-level styling: GPUI's styling methods
+    /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
+    /// applied to the button's root element after every value the variant, the
+    /// size and the active theme chose, so they win.
+    pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
+        self.sx = Some(crate::util::capture_sx(style));
         self
     }
 
@@ -176,6 +195,13 @@ impl ToggleButton {
         self
     }
 
+    /// `useToggleButtonGroupItem` reads the group's selection mode, so the
+    /// member has to be told which one it is in.
+    fn group_selection_mode(mut self, mode: SelectionMode) -> Self {
+        self.group_single_selection = mode == SelectionMode::Single;
+        self
+    }
+
     fn group_on_press(
         mut self,
         handler: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
@@ -212,7 +238,7 @@ impl ToggleButton {
     /// `onChange` — reports the selection the press moves to.
     ///
     /// Fires alongside [`ToggleButton::on_press`]; use whichever shape suits.
-    pub fn on_change(mut self, f: impl Fn(bool, &mut Window, &mut App) + 'static) -> Self {
+    pub fn on_change(mut self, f: impl Fn(&bool, &mut Window, &mut App) + 'static) -> Self {
         self.on_change = Some(std::sync::Arc::new(f));
         self
     }
@@ -235,26 +261,18 @@ impl RenderOnce for ToggleButton {
         let (is_selected, own) = crate::util::controlled(
             window,
             cx,
-            ElementId::Name(format!("{:?}-selected", self.id).into()),
+            element_id::scoped(&self.id, "selected"),
             self.is_selected,
             self.default_selected,
         );
 
         // `.toggle-button:focus-visible` is `status-focused`.
         let focus_handle = self.group_focus_handle.clone().unwrap_or_else(|| {
-            crate::util::tab_stop_handle(
-                ElementId::Name(format!("{:?}-focus", self.id).into()),
-                window,
-                cx,
-            )
+            crate::util::tab_stop_handle(element_id::scoped(&self.id, "focus"), window, cx)
         });
         // Where the hover and press a `content` closure is handed come from.
         let interaction = self.content.as_ref().map(|_| {
-            crate::util::interaction(
-                ElementId::Name(format!("{:?}-interaction", self.id).into()),
-                window,
-                cx,
-            )
+            crate::util::interaction(element_id::scoped(&self.id, "interaction"), window, cx)
         });
         let colors = cx.colors().clone();
         let sem = colors.accent;
@@ -282,8 +300,22 @@ impl RenderOnce for ToggleButton {
             (idle, hover)
         });
 
+        // `useToggleButton` is `useButton` plus `aria-pressed`. Inside a
+        // single-selection group, `useToggleButtonGroupItem` overwrites both:
+        // `role = 'radio'`, `aria-checked`, and `delete aria-pressed`.
+        let single = self.group_single_selection;
+        let name = a11y::Name::maybe(self.label.clone());
         let mut el = div()
             .id(self.id.clone())
+            .map(|e| {
+                if single {
+                    e.a11y_named(a11y::Role::RadioButton, &name)
+                        .a11y_checked(is_selected, false)
+                } else {
+                    e.a11y_named(a11y::Role::Button, &name)
+                        .a11y_pressed(is_selected)
+                }
+            })
             .flex()
             .items_center()
             .justify_center()
@@ -341,7 +373,7 @@ impl RenderOnce for ToggleButton {
             let edge = self.group_edge;
             el = crate::anim::hover_fade(
                 el,
-                ElementId::Name(format!("{:?}-fade", self.id).into()),
+                element_id::scoped(&self.id, "fade"),
                 colors,
                 interaction.as_ref(),
                 move |fill| crate::button::group_radius_any(fill, edge, radius),
@@ -440,7 +472,7 @@ impl RenderOnce for ToggleButton {
                     });
                 }
                 if let Some(cb) = &on_change {
-                    cb(next, w, cx);
+                    cb(&next, w, cx);
                 }
                 if let Some(cb) = &on_press {
                     cb(ev, w, cx);
@@ -449,16 +481,17 @@ impl RenderOnce for ToggleButton {
         }
 
         if self.is_disabled {
-            return el;
+            return crate::util::apply_sx(el, &self.sx);
         }
-        crate::util::ring_if_focused(
+        let el = crate::util::ring_if_focused(
             el.track_focus(&focus_handle),
             &focus_handle,
             !is_grouped,
             Vec::new(),
             window,
             cx,
-        )
+        );
+        crate::util::apply_sx(el, &self.sx)
     }
 }
 
@@ -485,6 +518,8 @@ pub struct ToggleButtonGroup {
     full_width: bool,
     children: Vec<ToggleButton>,
     on_change: Option<std::sync::Arc<dyn Fn(&[SharedString], &mut Window, &mut App) + 'static>>,
+    /// The `sx` slot, refined over the root style at the end of render.
+    sx: Option<Box<gpui::StyleRefinement>>,
 }
 
 impl ToggleButtonGroup {
@@ -524,6 +559,7 @@ impl ToggleButtonGroup {
             full_width: false,
             children: Vec::new(),
             on_change: None,
+            sx: None,
         }
     }
 
@@ -557,6 +593,16 @@ impl ToggleButtonGroup {
 
     pub fn full_width(mut self, v: bool) -> Self {
         self.full_width = v;
+        self
+    }
+
+    /// The one slot for caller-owned low-level styling: GPUI's styling methods
+    /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
+    /// applied to the group's root element after every value the orientation and
+    /// the active theme chose, so they win. It restyles the row the members sit
+    /// in; each member keeps its own `sx` slot.
+    pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
+        self.sx = Some(crate::util::capture_sx(style));
         self
     }
 
@@ -597,7 +643,7 @@ impl RenderOnce for ToggleButtonGroup {
         let (selected, selection_own) = crate::util::controlled(
             window,
             cx,
-            ElementId::Name(format!("{:?}-selected", self.id).into()),
+            element_id::scoped(&self.id, "selected"),
             self.is_controlled.then_some(self.selected),
             self.default_selected,
         );
@@ -605,8 +651,23 @@ impl RenderOnce for ToggleButtonGroup {
         // gap-0`; `--detached` is `gap-1` and restores each member's full
         // radius.
         let gap = if self.is_detached { px(4.) } else { px(0.) };
+        // `useToggleButtonGroup` starts from `useToolbar` — whose role is
+        // `toolbar` and which always reports `aria-orientation` — and replaces
+        // the role with `radiogroup` when the group selects one member.
+        let orientation = if self.is_vertical {
+            SelectionOrientation::Vertical
+        } else {
+            SelectionOrientation::Horizontal
+        };
+        let group_role = if self.selection_mode == SelectionMode::Single {
+            a11y::Role::RadioGroup
+        } else {
+            a11y::Role::Toolbar
+        };
         let mut row = div()
             .id(self.id.clone())
+            .a11y(group_role)
+            .a11y_orientation(orientation)
             .flex()
             .items_center()
             .justify_center()
@@ -634,6 +695,7 @@ impl RenderOnce for ToggleButtonGroup {
             .map(|button| {
                 button
                     .group_managed()
+                    .group_selection_mode(mode)
                     .group_disabled(self.is_disabled)
                     .group_size(self.size)
             })
@@ -645,8 +707,12 @@ impl RenderOnce for ToggleButtonGroup {
                 (
                     button.selection_key(),
                     crate::util::tab_stop_handle(
-                        ElementId::Name(
-                            format!("{:?}-member-{:?}-focus", self.id, button.id).into(),
+                        element_id::scoped(
+                            &element_id::scoped(
+                                &element_id::scoped(&self.id, "member"),
+                                format!("{:?}", button.id),
+                            ),
+                            "focus",
                         ),
                         window,
                         cx,
@@ -654,11 +720,10 @@ impl RenderOnce for ToggleButtonGroup {
                 )
             })
             .collect::<Vec<_>>();
-        let focus_state = window.use_keyed_state(
-            ElementId::Name(format!("{:?}-focus-state", self.id).into()),
-            cx,
-            |_, _| ToggleGroupFocusState::default(),
-        );
+        let focus_state =
+            window.use_keyed_state(element_id::scoped(&self.id, "focus-state"), cx, |_, _| {
+                ToggleGroupFocusState::default()
+            });
         let current = members
             .iter()
             .position(|(_, handle)| handle.is_focused(window));
@@ -845,6 +910,7 @@ impl RenderOnce for ToggleButtonGroup {
             row = row.child(slot);
         }
 
+        row = crate::util::apply_sx(row, &self.sx);
         row
     }
 }

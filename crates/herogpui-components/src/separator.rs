@@ -4,8 +4,8 @@
 //! prominence so the line stays visible as the container gets more prominent.
 
 use gpui::{
-    div, AnyElement, App, InteractiveElement, IntoElement, ParentElement, Pixels, RenderOnce,
-    Styled, Window,
+    div, AnyElement, App, ElementId, InteractiveElement, IntoElement, ParentElement, Pixels,
+    RenderOnce, Styled, Window,
 };
 use herogpui_core::Orientation;
 use herogpui_theme::ActiveTheme;
@@ -52,6 +52,9 @@ pub struct Separator {
     /// v3 composes content *inside* a separator (`<Separator>OR</Separator>`),
     /// which turns it into `.separator__container`: a line, the content, a line.
     content: Vec<AnyElement>,
+    id: Option<ElementId>,
+    /// The `sx` slot, refined over the root style at the end of render.
+    sx: Option<Box<gpui::StyleRefinement>>,
 }
 
 impl Separator {
@@ -63,7 +66,18 @@ impl Separator {
             inset_x: gpui::px(0.),
             in_toolbar: false,
             content: Vec::new(),
+            id: None,
+            sx: None,
         }
+    }
+
+    /// Names this instance. AccessKit 0.24 has no `Role::Separator`, so a
+    /// named separator still produces no accessibility node — the id is here
+    /// so a later AccessKit bump can claim the role without a public-API
+    /// change.
+    pub fn id(mut self, id: impl Into<ElementId>) -> Self {
+        self.id = Some(id.into());
+        self
     }
 
     /// Applies `.toolbar`'s descendant rules for a separator inside a bar:
@@ -90,6 +104,15 @@ impl Separator {
 
     pub fn variant(mut self, variant: SeparatorVariant) -> Self {
         self.variant = variant;
+        self
+    }
+
+    /// The one slot for caller-owned low-level styling: GPUI's styling methods
+    /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
+    /// applied to the separator's root element after every value the variant
+    /// and the active theme chose, so they win.
+    pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
+        self.sx = Some(crate::util::capture_sx(style));
         self
     }
 
@@ -158,7 +181,7 @@ impl RenderOnce for Separator {
             } else {
                 el.h_full().flex_col().justify_center()
             };
-            return el
+            let el = el
                 .child(line())
                 .child(
                     // `.separator__content` is a centred, non-wrapping run of
@@ -173,8 +196,8 @@ impl RenderOnce for Separator {
                         .text_color(colors.muted)
                         .children(self.content),
                 )
-                .child(line())
-                .into_any_element();
+                .child(line());
+            return finish_separator(crate::util::apply_sx(el, &self.sx), self.id);
         }
 
         if self.in_toolbar {
@@ -199,7 +222,7 @@ impl RenderOnce for Separator {
                 .rounded(radius)
                 .bg(color)
                 .debug_selector(|| "toolbar-separator-mark".to_owned());
-            return match self.orientation {
+            let slot = match self.orientation {
                 Orientation::Horizontal => slot.w_full().h(weight).child(
                     mark.left(gpui::relative(0.25))
                         .w(gpui::relative(0.5))
@@ -210,8 +233,8 @@ impl RenderOnce for Separator {
                         .h(gpui::relative(0.5))
                         .w(weight),
                 ),
-            }
-            .into_any_element();
+            };
+            return finish_separator(crate::util::apply_sx(slot, &self.sx), self.id);
         }
 
         let el = div()
@@ -221,10 +244,17 @@ impl RenderOnce for Separator {
             .rounded(radius)
             .bg(color);
 
-        match self.orientation {
+        let el = match self.orientation {
             Orientation::Horizontal => el.w_full().h(weight),
             Orientation::Vertical => el.h_full().min_h(gpui::px(8.)).w(weight),
-        }
-        .into_any_element()
+        };
+        finish_separator(crate::util::apply_sx(el, &self.sx), self.id)
+    }
+}
+
+fn finish_separator(el: gpui::Div, id: Option<ElementId>) -> AnyElement {
+    match id {
+        Some(id) => el.id(id).into_any_element(),
+        None => el.into_any_element(),
     }
 }

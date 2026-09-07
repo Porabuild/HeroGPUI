@@ -14,10 +14,13 @@ use gpui::{
     div, prelude::*, px, App, ElementId, Entity, InteractiveElement, IntoElement, RenderOnce,
     SharedString, Styled, Window,
 };
-use herogpui_core::FieldVariant;
+use herogpui_core::{element_id, FieldVariant};
 use herogpui_theme::ActiveTheme;
 
-use crate::{icons, util};
+use crate::{
+    a11y::{self, A11y as _},
+    icons, util,
+};
 
 /// Whether a [`TimeField`] shows a 12- or 24-hour clock (`hourCycle`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -461,6 +464,22 @@ impl TimeSegment {
         }
     }
 
+    /// The accessible name `react-aria/dist/private/datepicker/useDateSegment.js`
+    /// gives this segment: `displayNames.of(segment.type)`, the localized
+    /// display name of the `Intl.DateTimeFormat` part. `pub(crate)` because a
+    /// `DateField` below `day` granularity draws the very same segments.
+    ///
+    /// `Meridiem` is upstream's `dayPeriod` part, whose display name in
+    /// `en-US` is "AM/PM".
+    pub(crate) fn a11y_label(self) -> &'static str {
+        match self {
+            TimeSegment::Hour => "hour",
+            TimeSegment::Minute => "minute",
+            TimeSegment::Second => "second",
+            TimeSegment::Meridiem => "AM/PM",
+        }
+    }
+
     /// `time` with this segment set to `value`, clamped to its range.
     pub(crate) fn with_value(
         self,
@@ -654,7 +673,7 @@ impl TimeState {
 
 type Segment = Arc<dyn Fn(TimeSegment, SharedString) -> gpui::AnyElement + 'static>;
 
-type OnTimeChange = Arc<dyn Fn(Option<Time>, &mut Window, &mut App) + 'static>;
+type OnTimeChange = Arc<dyn Fn(&Option<Time>, &mut Window, &mut App) + 'static>;
 
 type TimeFieldFormState = Rc<RefCell<crate::form::LiveFormFieldState>>;
 
@@ -749,7 +768,7 @@ fn install_time_field_restore(
         }
         if controlled {
             if let Some(callback) = &on_change {
-                callback(default, window, cx);
+                callback(&default, window, cx);
             }
         }
     }) as Arc<dyn Fn(&mut Window, &mut App)>);
@@ -823,14 +842,20 @@ pub struct TimeField {
     /// `placeholderValue` — seeds the steppers when the field is empty.
     placeholder_value: Option<Time>,
     on_change: Option<OnTimeChange>,
+    /// The `sx` slot, refined over the root style at the end of render.
+    sx: Option<Box<gpui::StyleRefinement>>,
 }
 
 impl TimeField {
-    /// `value` — writes through to the bound [`TimeState`].
-    pub fn value(mut self, time: Option<Time>, cx: &mut App) -> Self {
-        self.state.update(cx, |state, _| {
-            state.sync_controlled(time);
-        });
+    /// `value` — v3's controlled plain-time spelling, as a pure builder.
+    ///
+    /// The stored prop is what `render` syncs into the bound [`TimeState`] —
+    /// every frame, but only when it actually changes, so an unchanged prop
+    /// never erases a segment the user is still editing. `None` is v3's
+    /// `null`: an explicitly controlled empty field that outranks
+    /// [`TimeField::default_value`]. Calling `.value(..)` twice keeps the
+    /// last call, like every other builder here.
+    pub fn value(mut self, time: Option<Time>) -> Self {
         self.controlled_value = Some(time);
         self
     }
@@ -865,6 +890,7 @@ impl TimeField {
             max_value: None,
             placeholder_value: None,
             on_change: None,
+            sx: None,
         }
     }
 
@@ -1019,6 +1045,17 @@ impl TimeField {
         self
     }
 
+    /// The one slot for caller-owned low-level styling: GPUI's styling methods
+    /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
+    /// applied to the field's root element after every value the variant and
+    /// the active theme chose, so they win. The root is the `.date-field`
+    /// column, so an override reaches the box the segments' chrome sits in,
+    /// not that chrome.
+    pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
+        self.sx = Some(util::capture_sx(style));
+        self
+    }
+
     pub fn is_disabled(mut self, v: bool) -> Self {
         self.is_disabled = v;
         self
@@ -1078,7 +1115,7 @@ impl TimeField {
 
     pub fn on_change(
         mut self,
-        handler: impl Fn(Option<Time>, &mut Window, &mut App) + 'static,
+        handler: impl Fn(&Option<Time>, &mut Window, &mut App) + 'static,
     ) -> Self {
         self.on_change = Some(Arc::new(handler));
         self
@@ -1087,6 +1124,12 @@ impl TimeField {
 
 impl RenderOnce for TimeField {
     fn render(mut self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        // Every keyed slot and every segment hangs off the state entity: a
+        // `TimeField` takes no id of its own, and the entity is the identity it
+        // does have.
+        let entity_id = self.state.entity_id().as_u64();
+        let base_id = ElementId::named_usize("timefield", entity_id as usize);
+
         // `defaultValue` seeds the state once, before anything reads it.
         if self.controlled_value.is_none() {
             if let Some(value) = self.default_value {
@@ -1094,9 +1137,7 @@ impl RenderOnce for TimeField {
                 util::seed_once(
                     window,
                     cx,
-                    ElementId::Name(
-                        format!("timefield-default-{}", self.state.entity_id().as_u64()).into(),
-                    ),
+                    element_id::scoped(&base_id, "default"),
                     move |cx| {
                         state.update(cx, |s, cx| {
                             s.set_uncontrolled_value(Some(value));
@@ -1116,7 +1157,6 @@ impl RenderOnce for TimeField {
             });
         }
 
-        let entity_id = self.state.entity_id().as_u64();
         if let Some(form_state) = registered_time_field_form_state(entity_id) {
             sync_time_field_form(
                 &form_state,
@@ -1146,17 +1186,15 @@ impl RenderOnce for TimeField {
             util::focus_once(
                 window,
                 cx,
-                ElementId::Name(format!("timefield-{entity_id}-autofocus").into()),
+                element_id::scoped(&base_id, "autofocus"),
                 &focus_handle,
             );
         }
         // Digits typed into the focused segment but not yet complete, so `1` in
         // the hour segment can still become `12`.
-        let typing = window.use_keyed_state(
-            ElementId::Name(format!("timefield-{entity_id}-typing").into()),
-            cx,
-            |_, _| String::new(),
-        );
+        let typing = window.use_keyed_state(element_id::scoped(&base_id, "typing"), cx, |_, _| {
+            String::new()
+        });
 
         let regional_time = regional_time_pattern(self.granularity, self.hour_cycle);
         self.state.update(cx, |state, _| {
@@ -1254,7 +1292,13 @@ impl RenderOnce for TimeField {
         // `.date-input-group__input-container` is `flex flex-1 items-center` with
         // its own horizontal scroll, so a long value stays reachable without
         // widening the field.
+        // `useTimeField` is `useDateField`, i.e. `role: 'group'` on the box.
         let mut group = div()
+            .id(base_id.clone())
+            .a11y_named(
+                a11y::Role::Group,
+                &a11y::Name::field(self.label.as_ref(), self.description.as_ref(), &validity),
+            )
             .flex()
             .flex_row()
             .items_center()
@@ -1305,7 +1349,7 @@ impl RenderOnce for TimeField {
                         });
                         if complete {
                             if let Some(cb) = &on_change {
-                                cb(Some(time), window, cx);
+                                cb(&Some(time), window, cx);
                             }
                         }
                     };
@@ -1338,7 +1382,7 @@ impl RenderOnce for TimeField {
                             });
                             if emptied {
                                 if let Some(cb) = &on_change {
-                                    cb(None, window, cx);
+                                    cb(&None, window, cx);
                                 }
                             }
                         }
@@ -1424,9 +1468,7 @@ impl RenderOnce for TimeField {
             }
 
             let mut seg = div()
-                .id(ElementId::Name(
-                    format!("time-{entity_id}-seg-{index}").into(),
-                ))
+                .id(element_id::indexed(&base_id, "seg", index))
                 // `.date-input-group__segment` is `rounded-md px-0.5`.
                 .px(px(2.))
                 .py(px(1.))
@@ -1454,6 +1496,14 @@ impl RenderOnce for TimeField {
                 });
             }
 
+            let seg_text = segment_text(segment);
+            seg = seg
+                .a11y_named(
+                    a11y::Role::TextInput,
+                    &a11y::Name::labelled(segment.a11y_label()),
+                )
+                .a11y_text(&seg_text, None);
+
             group = group.child(seg);
         }
         if let Some(literal) = regional_time
@@ -1479,9 +1529,10 @@ impl RenderOnce for TimeField {
                 let on_change = self.on_change.clone();
                 let visible_segments = visible_segments.clone();
                 let hover_bg = colors.default.color;
+                let stepper_name = if key == "up" { "Increase" } else { "Decrease" };
                 steppers = steppers.child(
                     div()
-                        .id(ElementId::Name(format!("time-{entity_id}-{key}").into()))
+                        .id(element_id::scoped(&base_id, key))
                         .flex()
                         .items_center()
                         .justify_center()
@@ -1497,6 +1548,7 @@ impl RenderOnce for TimeField {
                                 .path(icon)
                                 .text_color(colors.muted),
                         )
+                        .a11y_named(a11y::Role::Button, &a11y::Name::labelled(stepper_name))
                         .on_click(move |_, window, cx| {
                             let (next, complete) = state.update(cx, |s, cx| {
                                 let base = s.display_value.unwrap_or(seed);
@@ -1509,7 +1561,7 @@ impl RenderOnce for TimeField {
                             });
                             if complete {
                                 if let Some(cb) = &on_change {
-                                    cb(Some(next), window, cx);
+                                    cb(&Some(next), window, cx);
                                 }
                             }
                         }),
@@ -1554,6 +1606,7 @@ impl RenderOnce for TimeField {
             root = root.child(crate::field::Description::new(description));
         }
 
+        root = util::apply_sx(root, &self.sx);
         root.into_any_element()
     }
 }

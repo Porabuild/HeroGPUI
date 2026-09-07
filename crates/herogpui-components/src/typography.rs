@@ -142,6 +142,8 @@ pub struct Typography {
     truncate: bool,
     text: Option<SharedString>,
     children: Vec<AnyElement>,
+    /// The `sx` slot, refined over the root style at the end of render.
+    sx: Option<Box<gpui::StyleRefinement>>,
 }
 
 impl Typography {
@@ -154,6 +156,7 @@ impl Typography {
             truncate: false,
             text: Some(text.into()),
             children: Vec::new(),
+            sx: None,
         }
     }
 
@@ -199,6 +202,15 @@ impl Typography {
 
     pub fn truncate(mut self, v: bool) -> Self {
         self.truncate = v;
+        self
+    }
+
+    /// The one slot for caller-owned low-level styling: GPUI's styling methods
+    /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
+    /// applied to the typography's root element after every value the kind, the
+    /// color and the active theme chose, so they win.
+    pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
+        self.sx = Some(crate::util::capture_sx(style));
         self
     }
 }
@@ -249,7 +261,9 @@ impl RenderOnce for Typography {
         if let Some(text) = self.text {
             el = el.child(text.to_string());
         }
-        el.children(self.children)
+        el = el.children(self.children);
+        el = crate::util::apply_sx(el, &self.sx);
+        el
     }
 }
 
@@ -262,13 +276,25 @@ impl RenderOnce for Typography {
 #[derive(IntoElement)]
 pub struct Prose {
     children: Vec<AnyElement>,
+    /// The `sx` slot, refined over the root style at the end of render.
+    sx: Option<Box<gpui::StyleRefinement>>,
 }
 
 impl Prose {
     pub fn new() -> Self {
         Self {
             children: Vec::new(),
+            sx: None,
         }
+    }
+
+    /// The one slot for caller-owned low-level styling: GPUI's styling methods
+    /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
+    /// applied to the prose block's root element after every value the active
+    /// theme chose, so they win.
+    pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
+        self.sx = Some(crate::util::capture_sx(style));
+        self
     }
 }
 
@@ -286,8 +312,9 @@ impl ParentElement for Prose {
 
 impl RenderOnce for Prose {
     fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
-        div()
+        let el = div()
             .text_color(cx.colors().foreground)
-            .children(self.children)
+            .children(self.children);
+        crate::util::apply_sx(el, &self.sx)
     }
 }

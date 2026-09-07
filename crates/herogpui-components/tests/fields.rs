@@ -277,7 +277,7 @@ fn checkbox_controlled_content_rerenders_after_owner_accepts_change(cx: &mut Tes
         Checkbox::new("cb-controlled-content-state")
             .is_selected(selected_value)
             .on_change(move |next, window, _| {
-                *selected.borrow_mut() = next;
+                *selected.borrow_mut() = *next;
                 window.refresh();
             })
             .content(move |state| {

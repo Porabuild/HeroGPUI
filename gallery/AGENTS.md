@@ -7,7 +7,7 @@ the app, driving input, or capturing images. Read
 [parity and audits](../docs/agents/parity.md) when changing examples or checked-in
 reference metadata.
 
-- Component demos live in `src/pages/components.rs`; shared documentation
+- Component demos live in `src/pages/components/` (one file per v3 category); shared documentation
   rendering and route/category registration live in `src/pages/mod.rs`.
 - Keep each documentation example in title, optional description, then live
   component order. Explanatory gallery prose belongs outside the bordered

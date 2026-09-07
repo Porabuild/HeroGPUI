@@ -77,7 +77,7 @@ fn release_card(show_version: bool, cx: &Context<'_, Gallery>) -> AnyElement {
                 .line_height(px(23.))
                 .text_color(colors.muted)
                 .child(
-                    "The current development line delivers the HeroUI v3 component system as native GPUI builders, with theme parity and live documentation.",
+                    "The current development line delivers the full HeroGPUI component system as native GPUI builders, with shared theming tokens and live documentation.",
                 ),
         )
         .child(

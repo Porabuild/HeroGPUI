@@ -11,12 +11,13 @@ use std::collections::{HashMap, HashSet};
 use std::time::Duration;
 
 use gpui::{
-    prelude::*, px, App, Entity, Global, IntoElement, RenderOnce, SharedString, Styled,
+    prelude::*, px, App, ElementId, Entity, Global, IntoElement, RenderOnce, SharedString, Styled,
     Subscription, Window,
 };
-use herogpui_core::Color;
+use herogpui_core::{element_id, Color};
 use herogpui_theme::ActiveTheme;
 
+use crate::a11y::{self, A11y as _};
 use crate::icons;
 
 /// `maxVisibleToasts` default from `Toast.Provider`.
@@ -518,6 +519,9 @@ pub struct ToastViewport {
     width: gpui::Pixels,
     inset: gpui::Pixels,
     scale_factor: f32,
+    id: Option<ElementId>,
+    /// The `sx` slot, refined over the root style at the end of render.
+    sx: Option<Box<gpui::StyleRefinement>>,
 }
 
 impl ToastViewport {
@@ -529,7 +533,17 @@ impl ToastViewport {
             scale_factor: 0.05,
             width: px(460.),
             inset: px(16.),
+            id: None,
+            sx: None,
         }
+    }
+
+    /// Names this region so it can report `role="region"`. Unnamed viewports
+    /// produce no AccessKit node — two viewports sharing a constant id would
+    /// fold their landmarks into one.
+    pub fn id(mut self, id: impl Into<ElementId>) -> Self {
+        self.id = Some(id.into());
+        self
     }
 
     pub fn placement(mut self, placement: ToastPlacement) -> Self {
@@ -566,6 +580,17 @@ impl ToastViewport {
     /// Distance from the window edge.
     pub fn inset(mut self, inset: impl Into<gpui::Pixels>) -> Self {
         self.inset = inset.into();
+        self
+    }
+
+    /// The one slot for caller-owned low-level styling: GPUI's styling methods
+    /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
+    /// applied to the region's root element after every value the placement and
+    /// the active theme chose, so they win. The region is absolutely
+    /// positioned, so an override that sets its own position wins over the
+    /// placement's insets.
+    pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
+        self.sx = Some(crate::util::capture_sx(style));
         self
     }
 }
@@ -614,12 +639,28 @@ impl RenderOnce for ToastViewport {
             toasts.reverse();
         }
         let last = toasts.len().saturating_sub(1);
-        region.children(
+        let n = toasts.len();
+        let region = region.children(
             toasts
                 .into_iter()
                 .enumerate()
                 .map(move |(i, t)| toast_card(t, width, if top { i } else { last - i }, scale)),
-        )
+        );
+        let region = crate::util::apply_sx(region, &self.sx);
+        match self.id {
+            Some(id) => {
+                let name = if n == 1 {
+                    SharedString::from("1 notification.")
+                } else {
+                    SharedString::from(format!("{n} notifications."))
+                };
+                region
+                    .id(id)
+                    .a11y_named(a11y::Role::Region, &a11y::Name::labelled(name))
+                    .into_any_element()
+            }
+            None => region.into_any_element(),
+        }
     }
 }
 
@@ -654,9 +695,11 @@ impl RenderOnce for ToastCardEl {
         // real keyboard tab stop. The handle has to be created before the
         // theme tokens are read: `use_keyed_state` takes `cx` mutably and
         // `colors` borrows it.
+        // Every part of a toast card hangs off the toast's own numeric id.
+        let base_id = ElementId::named_usize("toast", self.t.id as usize);
         let close_focus = if self.t.closable && self.frontmost {
             Some(crate::util::tab_stop_handle(
-                gpui::ElementId::Name(format!("toast-close-{}-focus", self.t.id).into()),
+                element_id::scoped(&element_id::scoped(&base_id, "close"), "focus"),
                 window,
                 cx,
             ))
@@ -679,6 +722,20 @@ impl RenderOnce for ToastCardEl {
         };
 
         let mut card = gpui::div()
+            // `toast/toast.js` renders RAC's `UNSTABLE_Toast`, whose props come
+            // from `react-aria/dist/private/toast/useToast.js`: the card is
+            // `role="alertdialog"` with `aria-modal="false"`, named by its
+            // title and described by its description. The `aria-modal` half
+            // and the inner `role="alert"` content node are recorded omissions
+            // in `crate::a11y` — the first has no gpui builder and no AccessKit
+            // field, the second exists only to make a live announcement gpui
+            // cannot make.
+            .id(base_id.clone())
+            .a11y_named(
+                a11y::Role::AlertDialog,
+                &a11y::Name::labelled(self.t.title.clone())
+                    .described(self.t.description.clone()),
+            )
             .w(self.width)
             .flex()
             .items_start()
@@ -699,11 +756,9 @@ impl RenderOnce for ToastCardEl {
         if self.t.is_loading {
             card = card.child(
                 gpui::div().flex().flex_shrink_0().p(px(4.)).child(
-                    crate::spinner::Spinner::new(gpui::ElementId::Name(
-                        format!("toast-spinner-{}", self.t.id).into(),
-                    ))
-                    .size(herogpui_core::Size::Sm)
-                    .current_color(indicator_color),
+                    crate::spinner::Spinner::new(element_id::scoped(&base_id, "spinner"))
+                        .size(herogpui_core::Size::Sm)
+                        .current_color(indicator_color),
                 ),
             );
         } else if let Some(icon) = self.t.indicator.clone().or_else(|| {
@@ -759,13 +814,11 @@ impl RenderOnce for ToastCardEl {
         // `.toast__action` — the button v3 configures with `actionProps`.
         if let Some((label, on_press)) = self.t.action.clone() {
             let id = self.t.id;
-            let mut action = crate::button::Button::new(gpui::ElementId::Name(
-                format!("toast-action-{id}").into(),
-            ))
-            .label(label)
-            .variant(herogpui_core::Variant::Secondary)
-            .size(herogpui_core::Size::Sm)
-            .is_disabled(!self.frontmost);
+            let mut action = crate::button::Button::new(element_id::scoped(&base_id, "action"))
+                .label(label)
+                .variant(herogpui_core::Variant::Secondary)
+                .size(herogpui_core::Size::Sm)
+                .is_disabled(!self.frontmost);
             if self.frontmost {
                 action = action.on_press(move |_, _, cx| {
                     on_press(cx);
@@ -779,7 +832,7 @@ impl RenderOnce for ToastCardEl {
         if self.t.closable {
             let id = self.t.id;
             let mut close_btn = gpui::div()
-                .id(gpui::ElementId::Name(format!("toast-close-{id}").into()))
+                .id(element_id::scoped(&base_id, "close"))
                 .flex()
                 .items_center()
                 .justify_center()
@@ -830,7 +883,7 @@ impl RenderOnce for ToastCardEl {
 
         crate::anim::entering_zoom(
             card,
-            gpui::ElementId::Name(format!("toast-anim-{}", self.t.id).into()),
+            element_id::scoped(&base_id, "anim"),
             crate::anim::ZoomBox::panel(px(10.), crate::util::container_radius(cx))
                 .padding_x(px(16.))
                 .sized(self.width),

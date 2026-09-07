@@ -313,6 +313,112 @@ fn text_area_max_length_rejects_a_newline_without_change(cx: &mut TestAppContext
     assert_eq!(value, "ab");
 }
 
+#[gpui::test]
+fn text_area_value_builder_seeds_the_bound_state(cx: &mut TestAppContext) {
+    let state = cx.new(|cx| InputState::new(cx));
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        TextArea::new(&state_for_view)
+            .value("seeded")
+            .into_any_element()
+    });
+    let seeded = cx.update(|_, cx| state.read(cx).value().to_owned());
+    assert_eq!(
+        seeded, "seeded",
+        "TextArea::value must forward to the inner field's seed, without &mut App"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// `value` — the pure builder seed
+// ---------------------------------------------------------------------------
+
+#[gpui::test]
+fn input_value_builder_seeds_the_bound_state_at_first_render(cx: &mut TestAppContext) {
+    let state = cx.new(|cx| InputState::new(cx));
+    let state_for_view = state.clone();
+    // The borrowed handle is the point: a caller keeping its own handle clones
+    // nothing at the call site, and the builder chain needs no `&mut App`.
+    let cx = open_host(cx, move || {
+        Input::new(&state_for_view)
+            .value("Ada Lovelace")
+            .into_any_element()
+    });
+    let seeded = cx.update(|_, cx| state.read(cx).value().to_owned());
+    assert_eq!(
+        seeded, "Ada Lovelace",
+        "value must seed the bound InputState when the field first renders"
+    );
+}
+
+#[gpui::test]
+fn input_value_builder_keeps_the_last_call_and_outranks_default_value(cx: &mut TestAppContext) {
+    let state = cx.new(|cx| InputState::new(cx));
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        Input::new(&state_for_view)
+            .default_value("uncontrolled")
+            .value("first")
+            .value("controlled")
+            .into_any_element()
+    });
+    let seeded = cx.update(|_, cx| state.read(cx).value().to_owned());
+    assert_eq!(
+        seeded, "controlled",
+        "a pure builder keeps the last call, and the controlled spelling outranks defaultValue"
+    );
+}
+
+#[gpui::test]
+fn input_value_builder_seeds_once_and_never_clobbers_edits(cx: &mut TestAppContext) {
+    let changes = events();
+    let recorded = changes.clone();
+    let state = cx.new(|cx| InputState::new(cx));
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        let changes = changes.clone();
+        Input::new(&state_for_view)
+            .value("seed")
+            .on_change(move |text, _, _| changes.borrow_mut().push(text.to_owned()))
+            .into_any_element()
+    });
+    let seeded = cx.update(|_, cx| state.read(cx).value().to_owned());
+    assert_eq!(seeded, "seed");
+
+    // The builder runs again on every refresh carrying the same `value`; the
+    // seed must not rewrite the state the user has been editing. Tab seats the
+    // caret where the seed left it — at the end — so the keystroke appends.
+    press(cx, "tab");
+    cx.simulate_input("!");
+    flush_frame(cx);
+    let typed = cx.update(|_, cx| state.read(cx).value().to_owned());
+    assert_eq!(
+        typed, "seed!",
+        "a re-render must not re-apply the value seed over the user's edit"
+    );
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["seed!"],
+        "the seeded-then-edited value reports exactly once, from the keystroke"
+    );
+}
+
+#[gpui::test]
+fn text_field_value_builder_seeds_the_bound_state(cx: &mut TestAppContext) {
+    let state = cx.new(|cx| InputState::new(cx));
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        TextField::new(&state_for_view)
+            .value("labelled seed")
+            .into_any_element()
+    });
+    let seeded = cx.update(|_, cx| state.read(cx).value().to_owned());
+    assert_eq!(
+        seeded, "labelled seed",
+        "TextField::value must forward to the inner Input's seed"
+    );
+}
+
 // ---------------------------------------------------------------------------
 // SearchField
 // ---------------------------------------------------------------------------
@@ -716,6 +822,78 @@ fn input_otp_fills_and_advances(cx: &mut TestAppContext) {
     assert_eq!(
         code, "12",
         "the OtpState must hold the remaining digits only"
+    );
+}
+
+#[gpui::test]
+fn input_otp_value_builder_seeds_the_bound_state_at_first_render(cx: &mut TestAppContext) {
+    let state = cx.new(|cx| OtpState::with_length(cx, 4));
+    let state_for_view = state.clone();
+    // The builder chain needs no `&mut App`: the code travels on the struct
+    // and lands in the state when the field first renders.
+    let cx = open_host(cx, move || {
+        InputOTP::new(state_for_view.clone())
+            .value("12")
+            .into_any_element()
+    });
+    let seeded = cx.update(|_, cx| state.read(cx).code());
+    assert_eq!(
+        seeded, "12",
+        "value must seed the bound OtpState when the field first renders"
+    );
+}
+
+#[gpui::test]
+fn input_otp_value_builder_keeps_the_last_call(cx: &mut TestAppContext) {
+    // InputOTP has no `defaultValue` to outrank; the builder contract that
+    // remains is the last call winning.
+    let state = cx.new(|cx| OtpState::with_length(cx, 4));
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        InputOTP::new(state_for_view.clone())
+            .value("1")
+            .value("23")
+            .into_any_element()
+    });
+    let seeded = cx.update(|_, cx| state.read(cx).code());
+    assert_eq!(
+        seeded, "23",
+        "a pure builder keeps the last call, without &mut App"
+    );
+}
+
+#[gpui::test]
+fn input_otp_value_builder_seeds_once_and_never_clobbers_edits(cx: &mut TestAppContext) {
+    let changes = events();
+    let recorded = changes.clone();
+    let state = cx.new(|cx| OtpState::with_length(cx, 4));
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        let changes = changes.clone();
+        InputOTP::new(state_for_view.clone())
+            .value("12")
+            .on_change(move |code, _, _| changes.borrow_mut().push(code.to_owned()))
+            .into_any_element()
+    });
+    let seeded = cx.update(|_, cx| state.read(cx).code());
+    assert_eq!(seeded, "12");
+
+    // The builder runs again on every refresh carrying the same `value`; the
+    // seed must not rewrite the code the user has been editing. Seeding left
+    // the cursor after "12" — slot 2 spans x 92..130, so its centre (111, 20)
+    // seats the next digit there.
+    click(cx, 111., 20.);
+    press(cx, "9");
+    flush_frame(cx);
+    let typed = cx.update(|_, cx| state.read(cx).code());
+    assert_eq!(
+        typed, "129",
+        "a re-render must not re-apply the value seed over the user's edit"
+    );
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["129"],
+        "the seeded-then-edited code reports exactly once, from the keystroke"
     );
 }
 

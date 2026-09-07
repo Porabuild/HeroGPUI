@@ -6,24 +6,41 @@
 
 use gpui::prelude::FluentBuilder;
 use gpui::{
-    div, px, AnyElement, App, InteractiveElement, IntoElement, MouseButton, ParentElement,
-    RenderOnce, SharedString, Styled, Window,
+    div, px, AnyElement, App, ElementId, InteractiveElement, IntoElement, MouseButton,
+    ParentElement, RenderOnce, SharedString, Styled, Window,
 };
 use herogpui_core::FieldVariant;
 use herogpui_theme::ActiveTheme;
 
-use crate::util;
+use crate::{
+    a11y::{self, A11y as _},
+    util,
+};
 
 /// A static, non-interactive segment of an [`InputGroup`] — the `$` before an
 /// amount, or a `.com` suffix.
 #[derive(IntoElement)]
 pub struct InputAddon {
     text: SharedString,
+    /// The `sx` slot, refined over the root style at the end of render.
+    sx: Option<Box<gpui::StyleRefinement>>,
 }
 
 impl InputAddon {
     pub fn new(text: impl Into<SharedString>) -> Self {
-        Self { text: text.into() }
+        Self {
+            text: text.into(),
+            sx: None,
+        }
+    }
+
+    /// The one slot for caller-owned low-level styling: GPUI's styling methods
+    /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
+    /// applied to the addon's root element after every value the active theme
+    /// chose, so they win.
+    pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
+        self.sx = Some(util::capture_sx(style));
+        self
     }
 }
 
@@ -31,13 +48,14 @@ impl RenderOnce for InputAddon {
     fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
         // `.input-group__prefix` / `__suffix`: `px-3`, transparent, and drawn in
         // `--field-placeholder`.
-        div()
+        let el = div()
             .flex()
             .items_center()
             .flex_shrink_0()
             .px(px(12.))
             .text_color(cx.colors().field.placeholder)
-            .child(self.text.to_string())
+            .child(self.text.to_string());
+        util::apply_sx(el, &self.sx)
     }
 }
 
@@ -66,6 +84,9 @@ pub struct InputGroup {
     /// `querySelector("input")` exception to root-click focusing.
     is_textarea: bool,
     children: Vec<AnyElement>,
+    id: Option<ElementId>,
+    /// The `sx` slot, refined over the root style at the end of render.
+    sx: Option<Box<gpui::StyleRefinement>>,
 }
 
 impl InputGroup {
@@ -84,7 +105,16 @@ impl InputGroup {
             input: None,
             is_textarea: false,
             children: Vec::new(),
+            id: None,
+            sx: None,
         }
+    }
+
+    /// Names this group so it can report `role="group"`. Unnamed groups
+    /// produce no AccessKit node.
+    pub fn id(mut self, id: impl Into<ElementId>) -> Self {
+        self.id = Some(id.into());
+        self
     }
 
     pub fn variant(mut self, variant: FieldVariant) -> Self {
@@ -157,6 +187,17 @@ impl InputGroup {
     pub fn text_area(mut self, text_area: crate::textarea::TextArea) -> Self {
         self.input = Some(text_area.into_group_input());
         self.is_textarea = true;
+        self
+    }
+
+    /// The one slot for caller-owned low-level styling: GPUI's styling methods
+    /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
+    /// applied to the group's root element — the column holding the label,
+    /// the group box and the message — after every value the variant and the
+    /// active theme chose, so they win. The group box's own chrome stays with
+    /// the variant.
+    pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
+        self.sx = Some(util::capture_sx(style));
         self
     }
 }
@@ -355,7 +396,11 @@ impl RenderOnce for InputGroup {
             root = root.child(crate::field::Description::new(description));
         }
 
-        root
+        root = util::apply_sx(root, &self.sx);
+        match self.id {
+            Some(id) => root.id(id).a11y(a11y::Role::Group).into_any_element(),
+            None => root.into_any_element(),
+        }
     }
 }
 

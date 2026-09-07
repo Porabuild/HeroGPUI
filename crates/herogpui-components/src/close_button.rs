@@ -8,8 +8,10 @@ use gpui::{
     div, prelude::*, px, AnyElement, App, ClickEvent, ElementId, InteractiveElement, IntoElement,
     ParentElement, RenderOnce, Styled, Window,
 };
+use herogpui_core::element_id;
 use herogpui_theme::ActiveTheme;
 
+use crate::a11y::{self, A11y as _};
 use crate::icons;
 
 /// Visual variant of a close button. React exposes a single `default` variant.
@@ -35,6 +37,8 @@ pub struct CloseButton {
     content: Option<std::sync::Arc<dyn Fn(crate::util::InteractiveState) -> AnyElement + 'static>>,
 
     on_press: Option<OnPress>,
+    /// The `sx` slot, refined over the root style at the end of render.
+    sx: Option<Box<gpui::StyleRefinement>>,
 }
 
 impl CloseButton {
@@ -45,7 +49,17 @@ impl CloseButton {
             icon: None,
             content: None,
             on_press: None,
+            sx: None,
         }
+    }
+
+    /// The one slot for caller-owned low-level styling: GPUI's styling methods
+    /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
+    /// applied to the close button's root element after every value the active
+    /// theme chose, so they win.
+    pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
+        self.sx = Some(crate::util::capture_sx(style));
+        self
     }
 
     pub fn is_disabled(mut self, v: bool) -> Self {
@@ -83,17 +97,10 @@ impl RenderOnce for CloseButton {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         // `.close-button:focus-visible` is `status-focused`. The handle has to be
         // read before the theme tokens: `use_keyed_state` takes `cx` mutably.
-        let focus_handle = crate::util::tab_stop_handle(
-            ElementId::Name(format!("{:?}-focus", self.id).into()),
-            window,
-            cx,
-        );
+        let focus_handle =
+            crate::util::tab_stop_handle(element_id::scoped(&self.id, "focus"), window, cx);
         let interaction = self.content.as_ref().map(|_| {
-            crate::util::interaction(
-                ElementId::Name(format!("{:?}-interaction", self.id).into()),
-                window,
-                cx,
-            )
+            crate::util::interaction(element_id::scoped(&self.id, "interaction"), window, cx)
         });
         if self.is_disabled {
             if let Some(slot) = &interaction {
@@ -114,6 +121,9 @@ impl RenderOnce for CloseButton {
 
         let mut el = div()
             .id(self.id.clone())
+            // `close-button.js` hard-codes `aria-label="Close"` on the RAC
+            // `Button`, because the default child is an icon with no text.
+            .a11y_named(a11y::Role::Button, &a11y::Name::labelled("Close"))
             .debug_selector({
                 let id = self.id.clone();
                 move || format!("{id:?}")
@@ -131,7 +141,7 @@ impl RenderOnce for CloseButton {
         if let Some(fade_colors) = fade {
             el = crate::anim::hover_fade(
                 el,
-                ElementId::Name(format!("{:?}-fade", self.id).into()),
+                element_id::scoped(&self.id, "fade"),
                 fade_colors,
                 interaction.as_ref(),
                 move |fill| fill.rounded(radius),
@@ -218,13 +228,14 @@ impl RenderOnce for CloseButton {
         }
 
         if self.is_disabled {
-            return div()
+            let root = div()
                 .size(box_size)
                 .flex()
                 .flex_shrink_0()
                 .items_center()
                 .justify_center()
                 .child(el);
+            return crate::util::apply_sx(root, &self.sx);
         }
         let el = crate::util::ring_if_focused(
             el.track_focus(&focus_handle),
@@ -234,12 +245,13 @@ impl RenderOnce for CloseButton {
             window,
             cx,
         );
-        div()
+        let root = div()
             .size(box_size)
             .flex()
             .flex_shrink_0()
             .items_center()
             .justify_center()
-            .child(el)
+            .child(el);
+        crate::util::apply_sx(root, &self.sx)
     }
 }

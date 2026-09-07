@@ -9,8 +9,14 @@ mod layout;
 mod provider;
 mod semantic;
 mod theme;
+#[cfg(feature = "serde")]
+mod theme_document;
 
 pub use layout::*;
 pub use provider::*;
 pub use semantic::*;
 pub use theme::*;
+#[cfg(feature = "serde")]
+pub use theme_document::{
+    ColorPair, RoleOverride, Roles, SurfaceLevels, ThemeDocument, ThemeDocumentError,
+};

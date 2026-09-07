@@ -4,8 +4,10 @@ use gpui::{
     prelude::*, px, App, Entity, FocusHandle, Focusable, IntoElement, KeyDownEvent, RenderOnce,
     SharedString, Styled, Window,
 };
-use herogpui_core::FieldVariant;
+use herogpui_core::{element_id, FieldVariant};
 use herogpui_theme::ActiveTheme;
+
+use crate::a11y::A11y as _;
 
 /// Editable state for an OTP field: one char per cell.
 /// Which characters an OTP cell accepts (`pattern`).
@@ -256,13 +258,23 @@ pub struct InputOTP {
     is_disabled: bool,
     separator: bool,
     on_complete: Option<OnComplete>,
+    /// `value` — the controlled code, stored for the first render only.
+    value: Option<String>,
+    /// The `sx` slot, refined over the root style at the end of render.
+    sx: Option<Box<gpui::StyleRefinement>>,
 }
 
 impl InputOTP {
-    /// `value` — writes the code through to the bound [`OtpState`], one char
-    /// per cell.
-    pub fn value(self, code: &str, cx: &mut App) -> Self {
-        self.state.update(cx, |s, _| s.set_code(code));
+    /// `value` — v3's controlled-code spelling, as a pure builder.
+    ///
+    /// The bound [`OtpState`] owns the code once the field renders, so this
+    /// seeds the state on the first render only — one char per cell — winning
+    /// over nothing else here (InputOTP has no `defaultValue`); calling
+    /// `.value(..)` twice keeps the last call, like every other builder here.
+    /// A later code is an imperative update rather than a builder:
+    /// `state.update(cx, |s, _| s.set_code(..))`.
+    pub fn value(mut self, code: impl Into<String>) -> Self {
+        self.value = Some(code.into());
         self
     }
 
@@ -284,6 +296,8 @@ impl InputOTP {
             is_disabled: false,
             separator: false,
             on_complete: None,
+            value: None,
+            sx: None,
         }
     }
 
@@ -311,9 +325,22 @@ impl InputOTP {
     /// its ancestor, so the control hands the pair over instead. Borrows, so the
     /// control is still yours to place:
     ///
-    /// ```ignore
+    /// ```
+    /// # use gpui::{prelude::*, Window};
+    /// # use herogpui_components::{Form, InputOTP, OtpState};
+    /// # struct Demo;
+    /// # impl Render for Demo {
+    /// #     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    /// #         let form = Form::new();
+    /// #         let state = cx.new(|cx| OtpState::with_length(cx, 4));
+    /// #         let control = InputOTP::new(state).name("code");
     /// let field = control.form_field();
     /// form.field(field.unwrap()).child(control)
+    /// #     }
+    /// # }
+    /// # let mut tcx = gpui::TestAppContext::single();
+    /// # tcx.update(herogpui_theme::ThemeProvider::init);
+    /// # let _ = tcx.add_window_view(|_, _| Demo);
     /// ```
     pub fn form_field(&self) -> Option<crate::form::FormField> {
         let name = self.name.clone()?;
@@ -416,6 +443,16 @@ impl InputOTP {
         self.on_complete = Some(std::sync::Arc::new(f));
         self
     }
+
+    /// The one slot for caller-owned low-level styling: GPUI's styling methods
+    /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
+    /// applied to the field's root element after every value the variant and
+    /// the active theme chose, so they win. The root is the row of cells —
+    /// or the column that also holds the error message, when one shows.
+    pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
+        self.sx = Some(crate::util::capture_sx(style));
+        self
+    }
 }
 
 impl RenderOnce for InputOTP {
@@ -428,15 +465,31 @@ impl RenderOnce for InputOTP {
         // The mount-time autofocus decision runs before the tokens. A disabled
         // field consumes the one-shot without focusing, just like a disabled
         // native input whose `autofocus` attribute does not rerun if enabled.
+        // Every part of the field hangs off the state entity: an `InputOTP`
+        // takes no id of its own, and the entity is the identity it does have.
+        let base_id = gpui::ElementId::named_usize("otp", self.state.entity_id().as_u64() as usize);
+        // `value` seeds the code once, before anything reads it. The state
+        // owns the cells afterwards, and `OtpState::set_code` is the
+        // imperative update. `seed_once` takes `cx` mutably, so it runs
+        // before the theme tokens, like `focus_once` below.
+        if let Some(code) = self.value.clone() {
+            let state = self.state.clone();
+            crate::util::seed_once(
+                window,
+                cx,
+                element_id::scoped(&base_id, "default"),
+                move |cx| {
+                    state.update(cx, |s, cx| {
+                        s.set_code(&code);
+                        cx.notify();
+                    });
+                },
+            );
+        }
         let focused_handle = self.state.read(cx).focus_handle.clone();
         if self.auto_focus {
-            let done = window.use_keyed_state(
-                gpui::ElementId::Name(
-                    format!("otp-autofocus-{}", self.state.entity_id().as_u64()).into(),
-                ),
-                cx,
-                |_, _| false,
-            );
+            let done =
+                window.use_keyed_state(element_id::scoped(&base_id, "autofocus"), cx, |_, _| false);
             if !*done.read(cx) {
                 if !self.is_disabled {
                     window.focus(&focused_handle, cx);
@@ -450,11 +503,10 @@ impl RenderOnce for InputOTP {
         // click has to be measured against something. `use_keyed_state` takes
         // `cx` mutably, so it runs before the theme tokens — the same reason
         // `focus_once` above runs before them.
-        let row_origin = window.use_keyed_state(
-            gpui::ElementId::Name(format!("otp-origin-{}", self.state.entity_id().as_u64()).into()),
-            cx,
-            |_, _| None::<gpui::Pixels>,
-        );
+        let row_origin =
+            window.use_keyed_state(element_id::scoped(&base_id, "origin"), cx, |_, _| {
+                None::<gpui::Pixels>
+            });
 
         // `.input-otp__slot` is `h-10 w-9.5` with `text-sm`, and the row and
         // group are both `gap-2`.
@@ -489,10 +541,16 @@ impl RenderOnce for InputOTP {
         let colors = cx.colors();
         let layout = cx.layout();
 
+        // v3's `InputOTP` wraps the `input-otp` package, which renders one
+        // real `<input>` behind the slots — `aria-placeholder`,
+        // `autocomplete="one-time-code"`, no role of its own, so a text box.
+        // The slots themselves are presentational divs and stay out of the
+        // tree. The row here is that input.
+        let name = crate::a11y::Name::field(None, None, &validity);
         let mut row = gpui::div()
-            .id(gpui::ElementId::Name(
-                format!("otp-{}", self.state.entity_id().as_u64()).into(),
-            ))
+            .id(base_id.clone())
+            .a11y_named(crate::a11y::Role::TextInput, &name)
+            .a11y_text(&code_now, self.placeholder.as_ref())
             .flex()
             .items_center()
             .gap(slot_gap)
@@ -654,9 +712,7 @@ impl RenderOnce for InputOTP {
                         .h(px(16.))
                         .rounded(crate::util::hairline_radius(cx))
                         .bg(colors.field.placeholder),
-                    gpui::ElementId::Name(
-                        format!("otp-caret-{}-{i}", self.state.entity_id().as_u64()).into(),
-                    ),
+                    element_id::indexed(&base_id, "caret", i),
                     cx,
                 ));
             } else if let Some(placeholder) = &self.placeholder {
@@ -844,14 +900,16 @@ impl RenderOnce for InputOTP {
         // message, space-joined in upstream order (React Aria's `FieldError`
         // default), not just the first.
         match validity.messages.is_empty() {
-            true => row.into_any_element(),
-            false => gpui::div()
-                .flex()
-                .flex_col()
-                .gap(px(6.))
-                .child(row)
-                .child(crate::field::ErrorMessage::new(validity.joined()))
-                .into_any_element(),
+            true => crate::util::apply_sx(row, &self.sx).into_any_element(),
+            false => {
+                let el = gpui::div()
+                    .flex()
+                    .flex_col()
+                    .gap(px(6.))
+                    .child(row)
+                    .child(crate::field::ErrorMessage::new(validity.joined()));
+                crate::util::apply_sx(el, &self.sx).into_any_element()
+            }
         }
     }
 }

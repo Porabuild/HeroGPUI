@@ -10,9 +10,28 @@ repository.workspace = true
 keywords.workspace = true
 categories.workspace = true
 
+[features]
+# Sparse theme documents (`ThemeDocument`) applied through [`ThemeBuilder`].
+# Off by default: most apps author a theme in Rust, and this crate's default
+# graph must not grow a JSON stack they never asked for.
+serde = ["dep:serde", "dep:serde_json"]
+
 [dependencies]
 gpui.workspace = true
 herogpui-core.workspace = true
+serde = { version = "1.0", features = ["derive"], optional = true }
+serde_json = { version = "1.0", optional = true }
 
 [lints]
 workspace = true
+
+# docs.rs builds every crate with only its default features unless told
+# otherwise; `all-features` keeps this crate's docs.rs page in step with
+# herogpui-components' (which does gate items behind a feature) rather than
+# leaving that one crate the only one documented completely. `--cfg docsrs`
+# matches the flag CI's own rustdoc job now sets (see
+# .github/workflows/ci.yml), so a `#[cfg(docsrs)]` doc-only annotation
+# behaves identically in both places.
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]

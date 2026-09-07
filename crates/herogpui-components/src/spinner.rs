@@ -10,6 +10,7 @@ use gpui::{prelude::*, px, svg, Animation, AnimationExt, App, IntoElement, Rende
 use herogpui_core::Color;
 use herogpui_theme::ActiveTheme;
 
+use crate::a11y::A11y as _;
 use crate::icons;
 
 /// Spinner diameter (`size` prop).
@@ -71,6 +72,8 @@ pub struct Spinner {
     /// utility class (`animate-[spin_1.5s_linear_infinite]`), which is its
     /// "Speed" example; there are no classes here, so it is a prop.
     duration_ms: u64,
+    /// The `sx` slot, refined over the root style at the end of render.
+    sx: Option<Box<gpui::StyleRefinement>>,
 }
 
 impl Spinner {
@@ -81,6 +84,7 @@ impl Spinner {
             color: Color::Accent,
             current_color: None,
             duration_ms: 800,
+            sx: None,
         }
     }
 
@@ -107,6 +111,15 @@ impl Spinner {
         self.current_color = Some(color);
         self
     }
+
+    /// The one slot for caller-owned low-level styling: GPUI's styling methods
+    /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
+    /// applied to the spinner's root element after every value the size, the
+    /// colour and the active theme chose, so they win.
+    pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
+        self.sx = Some(crate::util::capture_sx(style));
+        self
+    }
 }
 
 impl RenderOnce for Spinner {
@@ -121,12 +134,15 @@ impl RenderOnce for Spinner {
             .flex_shrink_0()
             .path(icons::SPINNER)
             .text_color(color);
-        if ActiveTheme::reduce_motion(cx) {
-            spinner.into_any_element()
+        let glyph = if ActiveTheme::reduce_motion(cx) {
+            crate::util::apply_sx(spinner, &self.sx).into_any_element()
         } else {
-            spinner
+            // `with_animation` hands back an `AnimationElement`, which has no
+            // style of its own to refine, so the slot lands on the svg the
+            // rotation wraps.
+            crate::util::apply_sx(spinner, &self.sx)
                 .with_animation(
-                    self.id,
+                    self.id.clone(),
                     Animation::new(Duration::from_millis(self.duration_ms)).repeat(),
                     |svg, delta| {
                         let t = if delta.is_finite() {
@@ -138,6 +154,32 @@ impl RenderOnce for Spinner {
                     },
                 )
                 .into_any_element()
-        }
+        };
+
+        // The node sits on a box *around* the glyph rather than on the glyph
+        // itself, which is upstream's own anatomy:
+        // `@heroui/react/dist/components/spinner/spinner.js` imports no
+        // `react-aria-components` primitive at all and hard-codes
+        // `role: "status"` with `"aria-label": "Loading"` on its `dom.span`
+        // root, giving the `SpinnerPrimitive` svg inside it `aria-hidden: true`.
+        // (`Spinner` is a separate v3 export from `ProgressCircle`, which goes
+        // through `useProgressBar`; the two are not the same component.)
+        //
+        // It also has to be a separate element here: the rotation is applied
+        // by `Svg::with_transformation`, an inherent method on `Svg` that a
+        // `Stateful<Svg>` no longer exposes, so an id on the glyph and the
+        // animation cannot both survive. The `aria-hidden` half needs no
+        // builder — the glyph has no id, and an element with no id and no role
+        // produces no AccessKit node at all (`gpui-pre-0.3.3`'s
+        // `window/a11y.rs`), which is the stronger form of the same thing.
+        //
+        // Stated after the layout chain, not spliced into it:
+        // `.shots/design_audit.py` reads sizes and gaps out of builder chains
+        // with character-windowed regexes.
+        let root = gpui::div().flex().flex_shrink_0().child(glyph);
+        root.id(self.id).a11y_named(
+            crate::a11y::Role::Status,
+            &crate::a11y::Name::labelled("Loading"),
+        )
     }
 }

@@ -55,6 +55,8 @@ pub struct Chip {
     color: Color,
     size: Size,
     children: Vec<AnyElement>,
+    /// The `sx` slot, refined over the root style at the end of render.
+    sx: Option<Box<gpui::StyleRefinement>>,
 }
 
 impl Chip {
@@ -64,6 +66,7 @@ impl Chip {
             color: Color::Default,
             size: Size::Md,
             children: Vec::new(),
+            sx: None,
         }
     }
 
@@ -79,6 +82,15 @@ impl Chip {
 
     pub fn size(mut self, size: Size) -> Self {
         self.size = size;
+        self
+    }
+
+    /// The one slot for caller-owned low-level styling: GPUI's styling methods
+    /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
+    /// applied to the chip's root element after every value the variant, the
+    /// color and the active theme chose, so they win.
+    pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
+        self.sx = Some(crate::util::capture_sx(style));
         self
     }
 }
@@ -102,13 +114,25 @@ impl ParentElement for Chip {
 #[derive(IntoElement)]
 pub struct ChipLabel {
     children: Vec<AnyElement>,
+    /// The `sx` slot, refined over the root style at the end of render.
+    sx: Option<Box<gpui::StyleRefinement>>,
 }
 
 impl ChipLabel {
     pub fn new() -> Self {
         Self {
             children: Vec::new(),
+            sx: None,
         }
+    }
+
+    /// The one slot for caller-owned low-level styling: GPUI's styling methods
+    /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
+    /// applied to the label's root element after every value the chip and the
+    /// active theme chose, so they win.
+    pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
+        self.sx = Some(crate::util::capture_sx(style));
+        self
     }
 }
 
@@ -190,17 +214,20 @@ impl RenderOnce for Chip {
         };
         el = el.text_color(fg);
 
-        el.children(self.children)
+        el = el.children(self.children);
+        el = crate::util::apply_sx(el, &self.sx);
+        el
     }
 }
 
 impl RenderOnce for ChipLabel {
     fn render(self, _window: &mut Window, _cx: &mut App) -> impl IntoElement {
         // `.chip__label` is `px-0.5`.
-        gpui::div()
+        let el = gpui::div()
             .debug_selector(|| "chip-label".to_owned())
             .px(px(2.))
-            .children(self.children)
+            .children(self.children);
+        crate::util::apply_sx(el, &self.sx)
     }
 }
 

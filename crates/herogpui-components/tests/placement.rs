@@ -172,7 +172,7 @@ fn drawer_right_placement_lands_on_edge_and_drags_shut(cx: &mut TestAppContext) 
             .on_open_change({
                 let open_flag = open_flag.clone();
                 move |v, window, _| {
-                    *open_flag.borrow_mut() = v;
+                    *open_flag.borrow_mut() = *v;
                     rec.borrow_mut().push(format!("open:{v}"));
                     window.refresh();
                 }
@@ -270,7 +270,7 @@ fn drawer_left_placement_lands_on_edge_and_drags_shut(cx: &mut TestAppContext) {
             .on_open_change({
                 let open_flag = open_flag.clone();
                 move |v, window, _| {
-                    *open_flag.borrow_mut() = v;
+                    *open_flag.borrow_mut() = *v;
                     rec.borrow_mut().push(format!("open:{v}"));
                     window.refresh();
                 }
@@ -368,7 +368,7 @@ fn drawer_top_placement_lands_on_edge_and_maximal_pull_dismisses(cx: &mut TestAp
             .on_open_change({
                 let open_flag = open_flag.clone();
                 move |v, window, _| {
-                    *open_flag.borrow_mut() = v;
+                    *open_flag.borrow_mut() = *v;
                     rec.borrow_mut().push(format!("open:{v}"));
                     window.refresh();
                 }
@@ -448,7 +448,7 @@ fn drawer_bottom_placement_lands_on_edge_and_drags_shut(cx: &mut TestAppContext)
             .on_open_change({
                 let open_flag = open_flag.clone();
                 move |v, window, _| {
-                    *open_flag.borrow_mut() = v;
+                    *open_flag.borrow_mut() = *v;
                     rec.borrow_mut().push(format!("open:{v}"));
                     window.refresh();
                 }
@@ -947,7 +947,7 @@ fn modal_every_size_opens_and_dismisses(cx: &mut TestAppContext) {
                 .size(size)
                 .child(gpui::div().w(px(120.)).h(px(40.)).child("body"))
                 .on_open_change(move |v, window, _| {
-                    *held.borrow_mut() = v;
+                    *held.borrow_mut() = *v;
                     recorded.borrow_mut().push(format!("open:{v}"));
                     window.refresh();
                 })
@@ -1050,7 +1050,7 @@ fn modal_long_body_scrolls_to_reach_the_deepest_control(cx: &mut TestAppContext)
                 .on_open_change({
                     let open_flag = open_flag.clone();
                     move |v, window, _| {
-                        *open_flag.borrow_mut() = v;
+                        *open_flag.borrow_mut() = *v;
                         recorded.borrow_mut().push(format!("open:{v}"));
                         window.refresh();
                     }

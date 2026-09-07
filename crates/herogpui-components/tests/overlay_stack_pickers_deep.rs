@@ -59,11 +59,17 @@ fn nested_select_escape_closes_child_then_parent_outside(cx: &mut TestAppContext
                 recorded.borrow_mut().push(format!("parent:{open}"));
             })
             .child(
-                Select::new("nested-select", vec!["Alpha".into(), "Beta".into()])
-                    .default_open(true)
-                    .on_open_change(move |open, _, _| {
-                        state.borrow_mut().push(format!("select:{open}"));
-                    }),
+                Select::new(
+                    "nested-select",
+                    vec![
+                        PickerItem::new("alpha", "Alpha"),
+                        PickerItem::new("beta", "Beta"),
+                    ],
+                )
+                .default_open(true)
+                .on_open_change(move |open, _, _| {
+                    state.borrow_mut().push(format!("select:{open}"));
+                }),
             )
             .into_any_element()
     });
@@ -176,7 +182,7 @@ fn select_trigger_latch_is_one_mouse_down_without_parent_repaint(cx: &mut TestAp
     let recorded = opens.clone();
     let cx = open_host(cx, move || {
         let opens = recorded.clone();
-        Select::new("latch-select", vec!["Alpha".into()])
+        Select::new("latch-select", vec![PickerItem::new("alpha", "Alpha")])
             .is_open(true)
             .on_open_change(move |open, _, _| opens.borrow_mut().push(format!("open:{open}")))
             .into_any_element()

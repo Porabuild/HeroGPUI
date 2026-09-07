@@ -1,0 +1,48 @@
+# The browser entry point. Everything this crate needs is wasm-only, so every
+# dependency sits under `[target.'cfg(target_family = "wasm")'.dependencies]`
+# and `src/lib.rs` is `#![cfg(target_family = "wasm")]`: a native
+# `cargo check --workspace` compiles an empty library here in well under a
+# second and pulls in nothing extra, while the crate is still a real workspace
+# member -- one `Cargo.lock`, one set of `[workspace.dependencies]` versions,
+# one place a component API change has to compile. That is what replaced the
+# separate wasm checkout and the vendored patch that mirrored it.
+#
+# No `rust-embed` here: the gallery's asset source (`gallery/src/assets.rs`)
+# and the fonts below are `include_bytes!`, which compiles the bytes in on
+# every profile and every target. `rust-embed`'s default debug behaviour reads
+# from disk at runtime, which a browser cannot do; a crate that adopts it must
+# gate `debug-embed` to wasm the way gpuikit does.
+[package]
+name = "herogpui-web"
+description = "HeroGPUI gallery compiled to WebAssembly for the browser"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+readme.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[target.'cfg(target_family = "wasm")'.dependencies]
+gpui.workspace = true
+gpui_platform.workspace = true
+herogpui-theme.workspace = true
+# The gallery's pages, demo state and asset source, shared with the native
+# binary in `gallery/src/main.rs` -- this crate supplies only what a browser
+# needs instead of an environment (see `src/lib.rs`).
+herogpui-gallery.workspace = true
+
+# Web-only glue. `gpui_platform::web_init()` (called from `run`) already
+# installs a console panic hook and a console-backed `log` logger
+# (`gpui_web::init_logging`), matching `gpui_web`'s own `hello_web` example,
+# so no separate panic-hook or logging crate is needed. `web-sys` reads the
+# page URL for the deep-link query string (see `page_from_query`).
+wasm-bindgen = "0.2.113"
+web-sys = { version = "0.3", features = ["Location", "Url", "UrlSearchParams", "Window"] }
+
+[lints]
+workspace = true

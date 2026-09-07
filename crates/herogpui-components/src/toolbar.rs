@@ -16,8 +16,10 @@ use gpui::{
     div, px, AnyElement, App, BorrowAppContext, ElementId, FocusHandle, InteractiveElement,
     IntoElement, KeyDownEvent, ParentElement, Pixels, RenderOnce, Styled, WeakFocusHandle, Window,
 };
-use herogpui_core::Orientation;
+use herogpui_core::{element_id, Orientation};
 use herogpui_theme::ActiveTheme;
+
+use crate::a11y::{self, A11y as _};
 
 /// The focus bookkeeping pinned `useToolbar` does with its `lastFocused` ref:
 /// which child held the focus while it was inside the subtree, and which child
@@ -81,6 +83,8 @@ pub struct Toolbar {
     is_attached: bool,
     gap: Option<Pixels>,
     children: Vec<AnyElement>,
+    /// The `sx` slot, refined over the root style at the end of render.
+    sx: Option<Box<gpui::StyleRefinement>>,
 }
 
 impl Toolbar {
@@ -91,6 +95,7 @@ impl Toolbar {
             is_attached: false,
             gap: None,
             children: Vec::new(),
+            sx: None,
         }
     }
 
@@ -141,6 +146,15 @@ impl Toolbar {
         );
         self
     }
+
+    /// The one slot for caller-owned low-level styling: GPUI's styling methods
+    /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
+    /// applied to the toolbar's root element after every value the orientation,
+    /// the attached surface and the active theme chose, so they win.
+    pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
+        self.sx = Some(crate::util::capture_sx(style));
+        self
+    }
 }
 
 impl Default for Toolbar {
@@ -166,18 +180,14 @@ impl RenderOnce for Toolbar {
             .clone()
             .unwrap_or_else(|| ElementId::Name("toolbar-focus".into()));
         let scope = window
-            .use_keyed_state(
-                ElementId::Name(format!("{base:?}-scope").into()),
-                cx,
-                |_, cx| cx.focus_handle(),
-            )
+            .use_keyed_state(element_id::scoped(&base, "scope"), cx, |_, cx| {
+                cx.focus_handle()
+            })
             .read(cx)
             .clone();
-        let edge = window.use_keyed_state(
-            ElementId::Name(format!("{base:?}-edge").into()),
-            cx,
-            |_, _| ToolbarFocusEdge::default(),
-        );
+        let edge = window.use_keyed_state(element_id::scoped(&base, "edge"), cx, |_, _| {
+            ToolbarFocusEdge::default()
+        });
 
         // Pinned `useToolbar` decides at mount whether it is nested, and a
         // nested toolbar renders `role="group"` with its
@@ -286,7 +296,7 @@ impl RenderOnce for Toolbar {
         // auto-repeat (`is_held`) runs the same path as a distinct press and
         // `toolbar_held_arrow_repeats_stop_at_ends` pins that.
         let vertical = self.orientation == Orientation::Vertical;
-        el.on_key_down(move |event: &KeyDownEvent, window, cx| {
+        el = el.on_key_down(move |event: &KeyDownEvent, window, cx| {
             // The event-time form of the render-time `nested` above, read
             // against the frame this key actually dispatched against: a
             // toolbar mounted one frame ago answered from a tree that did
@@ -382,7 +392,36 @@ impl RenderOnce for Toolbar {
                     return;
                 }
             }
-        })
-        .children(self.children)
+        });
+        let el = crate::util::apply_sx(el.children(self.children), &self.sx);
+
+        // Stated after the layout chain, not inside it: `.shots/design_audit.py`
+        // reads this toolbar's padding and gap out of the builder chain with
+        // character-windowed regexes, and calls spliced into the middle push
+        // the values it anchors on out of the window.
+        //
+        // `react-aria/dist/private/toolbar/useToolbar.mjs` is
+        // `role: !isInToolbar ? 'toolbar' : 'group'` with `'aria-orientation':
+        // orientation` on both — the nested case exists so two nested
+        // toolbars do not report two toolbars, and it is the same `nested`
+        // answer that already switches off this component's key handling.
+        //
+        // Only a toolbar the caller named reports a node. `Toolbar::new()`
+        // takes no id, and the constant `base` below it falls back to would
+        // fold every unnamed toolbar in the window into one AccessKit node
+        // (`herogpui_core::element_id`) — the two would already share their
+        // keyed focus scope, which is why `Toolbar::id` exists.
+        match self.id {
+            Some(id) => el
+                .id(id)
+                .a11y(if nested {
+                    a11y::Role::Group
+                } else {
+                    a11y::Role::Toolbar
+                })
+                .a11y_orientation(self.orientation)
+                .into_any_element(),
+            None => el.into_any_element(),
+        }
     }
 }

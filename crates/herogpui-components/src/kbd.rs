@@ -29,6 +29,8 @@ impl KbdVariant {
 pub struct Kbd {
     variant: KbdVariant,
     children: Vec<AnyElement>,
+    /// The `sx` slot, refined over the root style at the end of render.
+    sx: Option<Box<gpui::StyleRefinement>>,
 }
 
 impl Kbd {
@@ -36,11 +38,21 @@ impl Kbd {
         Self {
             variant: KbdVariant::Default,
             children: Vec::new(),
+            sx: None,
         }
     }
 
     pub fn variant(mut self, v: KbdVariant) -> Self {
         self.variant = v;
+        self
+    }
+
+    /// The one slot for caller-owned low-level styling: GPUI's styling methods
+    /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
+    /// applied to the key's root element after every value the variant and the
+    /// active theme chose, so they win.
+    pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
+        self.sx = Some(crate::util::capture_sx(style));
         self
     }
 }
@@ -87,6 +99,8 @@ impl RenderOnce for Kbd {
 
         // `.kbd__content` is the key text itself; `.kbd__abbr` is the `<abbr>`
         // v3 wraps it in for screen readers, which has no analogue here.
-        el.children(self.children)
+        el = el.children(self.children);
+        el = crate::util::apply_sx(el, &self.sx);
+        el
     }
 }

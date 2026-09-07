@@ -219,7 +219,7 @@ fn table_sortable_header_toggles_direction(cx: &mut TestAppContext) {
                             "desc"
                         };
                         recorded.borrow_mut().push(format!("{}:{dir}", d.column));
-                        *held_view.borrow_mut() = Some(d);
+                        *held_view.borrow_mut() = Some(d.clone());
                     })
                     .into_any_element(),
             )

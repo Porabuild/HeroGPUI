@@ -21,7 +21,7 @@ fn time_text(time: Option<Time>) -> String {
         .unwrap_or_default()
 }
 
-/// Renders a controlled TimeField so each frame can pass `.value` with `cx`.
+/// Renders a controlled TimeField so each frame can pass a fresh `.value`.
 struct ControlledTimeField {
     state: Entity<TimeState>,
     current: Rc<Cell<Option<Time>>>,
@@ -34,20 +34,20 @@ impl Render for ControlledTimeField {
     fn render(
         &mut self,
         _window: &mut gpui::Window,
-        cx: &mut Context<'_, Self>,
+        _cx: &mut Context<'_, Self>,
     ) -> impl IntoElement {
         let current = self.current.get();
         TimeField::new(self.state.clone())
             .name("time")
-            .value(current, cx)
+            .value(current)
             .default_value(self.default)
             .is_disabled(self.disabled.get())
             .on_change({
                 let current = self.current.clone();
                 let changes = self.changes.clone();
                 move |time, _, _| {
-                    current.set(time);
-                    changes.borrow_mut().push(time_text(time));
+                    current.set(*time);
+                    changes.borrow_mut().push(time_text(*time));
                 }
             })
             .into_any_element()
@@ -395,7 +395,7 @@ fn controlled_time_field_reset_reports_default_for_owner_acceptance(cx: &mut Tes
     let field = cx.update(|cx| {
         TimeField::new(state.clone())
             .name("time")
-            .value(current.get(), cx)
+            .value(current.get())
             .default_value(default)
             .form_field(cx)
             .expect("named TimeField")
@@ -451,7 +451,7 @@ fn disabled_controlled_time_field_reset_still_reports_default_to_owner(cx: &mut 
     let field = cx.update(|cx| {
         TimeField::new(state.clone())
             .name("time")
-            .value(current.get(), cx)
+            .value(current.get())
             .default_value(default)
             .is_disabled(true)
             .form_field(cx)

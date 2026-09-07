@@ -289,7 +289,7 @@ fn form_reset_reports_controlled_checkbox_default_to_owner(cx: &mut TestAppConte
                 let selected = selected.clone();
                 let changes = changes.clone();
                 move |next, _, _| {
-                    *selected.borrow_mut() = next;
+                    *selected.borrow_mut() = *next;
                     changes.borrow_mut().push(format!("change:{next}"));
                 }
             });
@@ -420,7 +420,7 @@ fn form_reset_reports_disabled_controlled_checkbox_default_to_owner(cx: &mut Tes
                 let selected = selected.clone();
                 let changes = changes.clone();
                 move |next, _, _| {
-                    *selected.borrow_mut() = next;
+                    *selected.borrow_mut() = *next;
                     changes.borrow_mut().push(format!("change:{next}"));
                 }
             });
@@ -462,7 +462,7 @@ fn form_reset_reports_read_only_controlled_checkbox_default_to_owner(cx: &mut Te
                 let selected = selected.clone();
                 let changes = changes.clone();
                 move |next, _, _| {
-                    *selected.borrow_mut() = next;
+                    *selected.borrow_mut() = *next;
                     changes.borrow_mut().push(format!("change:{next}"));
                 }
             });

@@ -6,6 +6,8 @@
 //! anchor date. Date calculations are pure; the shared year-grid render state
 //! also lives here.
 
+use herogpui_core::element_id;
+
 use crate::calendar::{add_days, bump_month, days_from_civil, days_in_month, Date};
 use crate::date_constraints::Weekday;
 
@@ -542,14 +544,14 @@ struct MonthGridScroll {
 
 pub(crate) fn scrolling_months(
     content: gpui::AnyElement,
-    base: &str,
+    base: &gpui::ElementId,
     reveal: Option<(MonthScrollFocus, gpui::Pixels, gpui::Pixels)>,
     window: &mut gpui::Window,
     cx: &mut gpui::App,
 ) -> gpui::AnyElement {
     use gpui::{prelude::*, InteractiveElement, StatefulInteractiveElement};
     let state = window.use_keyed_state(
-        gpui::ElementId::Name(format!("{base}-months-scroll-state").into()),
+        element_id::scoped(base, "months-scroll-state"),
         cx,
         |_, _| std::rc::Rc::new(MonthGridScroll::default()),
     );
@@ -577,7 +579,7 @@ pub(crate) fn scrolling_months(
                 }
             }
         })
-        .id(format!("{base}-months-scroll"))
+        .id(element_id::scoped(base, "months-scroll"))
         .w_full()
         .min_w_0()
         .overflow_x_scroll()
@@ -597,7 +599,7 @@ pub(crate) struct YearGridScroll {
 pub(crate) struct YearGridView<'a> {
     pub(crate) years: &'a [i32],
     pub(crate) active_year: i32,
-    pub(crate) base: &'a str,
+    pub(crate) base: &'a gpui::ElementId,
     pub(crate) scroll: &'a std::rc::Rc<YearGridScroll>,
     pub(crate) reveal_row: Option<usize>,
 }

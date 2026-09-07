@@ -162,7 +162,7 @@ fn modal_escape_closes(cx: &mut TestAppContext) {
             .on_open_change({
                 let open_flag = open.clone();
                 move |v, window, _| {
-                    *open_flag.borrow_mut() = v;
+                    *open_flag.borrow_mut() = *v;
                     rec.borrow_mut().push(format!("open:{v}"));
                     window.refresh();
                 }
@@ -228,7 +228,7 @@ fn modal_backdrop_press_closes_when_dismissable(cx: &mut TestAppContext) {
                     .on_press(move |_, _, _| inside.borrow_mut().push("inside".into())),
             )
             .on_open_change(move |v, window, _| {
-                *open_flag.borrow_mut() = v;
+                *open_flag.borrow_mut() = *v;
                 rec.borrow_mut().push(format!("open:{v}"));
                 window.refresh();
             })
@@ -296,7 +296,7 @@ fn modal_non_dismissible_ignores_backdrop_presses(cx: &mut TestAppContext) {
             .on_open_change({
                 let open_flag = open.clone();
                 move |v, window, _| {
-                    *open_flag.borrow_mut() = v;
+                    *open_flag.borrow_mut() = *v;
                     rec.borrow_mut().push(format!("open:{v}"));
                     window.refresh();
                 }
@@ -358,7 +358,7 @@ fn modal_default_close_trigger_reports_the_close(cx: &mut TestAppContext) {
             .on_open_change({
                 let open_flag = open_flag.clone();
                 move |v, window, _| {
-                    *open_flag.borrow_mut() = v;
+                    *open_flag.borrow_mut() = *v;
                     rec.borrow_mut().push(format!("open:{v}"));
                     window.refresh();
                 }
@@ -434,7 +434,7 @@ fn modal_custom_close_trigger_children_replace_only_the_glyph(cx: &mut TestAppCo
                 ),
             )
             .on_open_change(move |v, window, _| {
-                *open_flag.borrow_mut() = v;
+                *open_flag.borrow_mut() = *v;
                 recorded.borrow_mut().push(format!("open:{v}"));
                 window.refresh();
             })
@@ -542,7 +542,7 @@ fn modal_footer_child_close_trigger_is_pulled_into_the_slot(cx: &mut TestAppCont
             )
             .footer_child(ModalCloseTrigger::new())
             .on_open_change(move |v, window, _| {
-                *open_flag.borrow_mut() = v;
+                *open_flag.borrow_mut() = *v;
                 recorded.borrow_mut().push(format!("open:{v}"));
                 window.refresh();
             })
@@ -662,7 +662,7 @@ fn modal_omitted_close_trigger_keeps_escape_dismissal(cx: &mut TestAppContext) {
             .on_open_change({
                 let open_flag = open_flag.clone();
                 move |v, window, _| {
-                    *open_flag.borrow_mut() = v;
+                    *open_flag.borrow_mut() = *v;
                     recorded.borrow_mut().push(format!("open:{v}"));
                     window.refresh();
                 }
@@ -710,7 +710,7 @@ fn modal_non_dismissible_still_closes_from_a_composed_close_trigger(cx: &mut Tes
             .on_open_change({
                 let open_flag = open_flag.clone();
                 move |v, window, _| {
-                    *open_flag.borrow_mut() = v;
+                    *open_flag.borrow_mut() = *v;
                     recorded.borrow_mut().push(format!("open:{v}"));
                     window.refresh();
                 }
@@ -811,7 +811,7 @@ fn drawer_escape_and_drag_dismiss(cx: &mut TestAppContext) {
             .on_open_change({
                 let open_flag = open_flag.clone();
                 move |v, window, _| {
-                    *open_flag.borrow_mut() = v;
+                    *open_flag.borrow_mut() = *v;
                     rec.borrow_mut().push(format!("open:{v}"));
                     window.refresh();
                 }
@@ -878,7 +878,7 @@ fn drawer_small_pull_springs_back(cx: &mut TestAppContext) {
             .on_open_change({
                 let open_flag = open.clone();
                 move |v, window, _| {
-                    *open_flag.borrow_mut() = v;
+                    *open_flag.borrow_mut() = *v;
                     rec.borrow_mut().push(format!("open:{v}"));
                     window.refresh();
                 }
@@ -1029,7 +1029,7 @@ fn alert_dialog_default_close_trigger_closes_even_when_not_dismissible(cx: &mut 
             .is_open(is_open)
             .child(AlertDialogCloseTrigger::new())
             .on_open_change(move |v, window, _| {
-                *open_flag.borrow_mut() = v;
+                *open_flag.borrow_mut() = *v;
                 recorded.borrow_mut().push(format!("open:{v}"));
                 window.refresh();
             })
@@ -1107,7 +1107,7 @@ fn alert_dialog_omitted_close_trigger_keeps_escape_dismissal(cx: &mut TestAppCon
             .is_open(is_open)
             .is_keyboard_dismiss_disabled(false)
             .on_open_change(move |v, window, _| {
-                *open_flag.borrow_mut() = v;
+                *open_flag.borrow_mut() = *v;
                 recorded.borrow_mut().push(format!("open:{v}"));
                 window.refresh();
             })
@@ -1163,7 +1163,7 @@ fn alert_dialog_custom_close_trigger_children_replace_only_the_glyph(cx: &mut Te
                 ),
             )
             .on_open_change(move |v, window, _| {
-                *open_flag.borrow_mut() = v;
+                *open_flag.borrow_mut() = *v;
                 recorded.borrow_mut().push(format!("open:{v}"));
                 window.refresh();
             })
@@ -1364,7 +1364,7 @@ fn alert_dialog_footer_only_close_trigger_skips_the_actions_row(cx: &mut TestApp
             .is_dismissible(true)
             .footer_child(AlertDialogCloseTrigger::new())
             .on_open_change(move |v, window, _| {
-                *open_flag.borrow_mut() = v;
+                *open_flag.borrow_mut() = *v;
                 recorded.borrow_mut().push(format!("open:{v}"));
                 window.refresh();
             })
@@ -1741,7 +1741,7 @@ fn alert_dialog_long_body_scrolls_within_a_small_window(cx: &mut TestAppContext)
             .description("This action cannot be undone.")
             .child(body)
             .on_open_change(move |v, window, _| {
-                *open_flag.borrow_mut() = v;
+                *open_flag.borrow_mut() = *v;
                 recorded.borrow_mut().push(format!("open:{v}"));
                 window.refresh();
             })
@@ -1873,7 +1873,7 @@ fn popover_escape_and_outside_press_close(cx: &mut TestAppContext) {
         .on_open_change({
             let open_flag = open.clone();
             move |v, window, _| {
-                *open_flag.borrow_mut() = v;
+                *open_flag.borrow_mut() = *v;
                 rec.borrow_mut().push(format!("open:{v}"));
                 window.refresh();
             }
@@ -2156,7 +2156,7 @@ fn dialog_close_returns_the_focus_to_the_trigger(cx: &mut TestAppContext) {
                     .is_open(is_open)
                     .child(Button::new("ovl-focus-return-inside").label("Inside"))
                     .on_open_change(move |v, window, _| {
-                        *open_flag.borrow_mut() = v;
+                        *open_flag.borrow_mut() = *v;
                         window.refresh();
                     }),
             )

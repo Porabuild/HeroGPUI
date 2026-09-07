@@ -68,8 +68,8 @@ use gpui::{
     Keystroke, Modifiers, MouseButton, TestAppContext, VisualTestContext,
 };
 use herogpui_components::{
-    util, Alert, Button, ButtonGroup, Chip, ChipLabel, CloseButton, Link, SelectionMode,
-    ToggleButton, ToggleButtonGroup,
+    util, Alert, Button, ButtonGroup, Chip, ChipLabel, CloseButton, Link, Orientation,
+    SelectionMode, ToggleButton, ToggleButtonGroup,
 };
 
 use harness::{click, events, open_host, press};
@@ -459,6 +459,65 @@ fn button_group_full_width_child_true_stretches_without_group_full_width(cx: &mu
         ["two", "two", "two", "three"],
         "an explicit fullWidth=true member must stretch while its hugging \
          neighbours keep their content width"
+    );
+}
+
+/// A vertical group is `flex-col`, and v3's `items-center` would leave every
+/// member at its own content width — mixed label widths stack into a
+/// staircase instead of one joined control. The column stretches the cross
+/// axis, so every slot shares the width of the widest member and one left
+/// edge, while each member keeps its own 36px (Md) row height.
+#[gpui::test]
+fn button_group_vertical_members_share_one_column(cx: &mut TestAppContext) {
+    let cx = open_host(cx, || {
+        ButtonGroup::new()
+            .orientation(Orientation::Vertical)
+            .separators(true)
+            .button(Button::new("bgvc-top").label("Top"))
+            .button(Button::new("bgvc-wide").label("A much wider middle"))
+            .button(Button::new("bgvc-bot").label("Bot"))
+            .into_any_element()
+    });
+    flush_frame(cx);
+
+    // `debug_bounds` keys on `&'static str`; the slots are indexed, so the
+    // probe names are built at run time and leaked.
+    let slot = |cx: &mut VisualTestContext, i: usize| {
+        cx.debug_bounds(Box::leak(format!("button-group-slot-{i}").into_boxed_str()))
+            .expect("every member paints")
+    };
+    let slots: Vec<_> = (0..3).map(|i| slot(cx, i)).collect();
+    let column_width = slots[0].size.width;
+    for (i, bounds) in slots.iter().enumerate() {
+        assert_eq!(
+            bounds.size.width, column_width,
+            "member {i} must share the column width, bounds {bounds:?}"
+        );
+        assert_eq!(
+            bounds.origin.x, slots[0].origin.x,
+            "member {i} must share the column's left edge, bounds {bounds:?}"
+        );
+        assert_eq!(
+            bounds.size.height,
+            px(36.),
+            "member {i} keeps the Md control height, bounds {bounds:?}"
+        );
+    }
+    // The stretch is real: the narrow labels span past their content, up to
+    // the widest member's own content width (the probe reads the slot; the
+    // member fills it).
+    let widest = slot(cx, 1).size.width;
+    let narrow = slot(cx, 0).size.width;
+    let w_top = px(cx
+        .update(|window, _| text_width(window.text_system(), "Top", 14.0, FontWeight::MEDIUM))
+        + 32.);
+    assert!(
+        narrow > w_top,
+        "the narrow member stretches past its own content width {w_top}, got {narrow}"
+    );
+    assert_eq!(
+        narrow, widest,
+        "the column width is the widest member's, not the window's"
     );
 }
 
@@ -1457,5 +1516,77 @@ fn disabled_toggle_button_content_reports_disabled_and_stays_inert(cx: &mut Test
         *seen.borrow(),
         (false, true, true),
         "a disabled toggle must remain unfocused and selected"
+    );
+}
+
+/// v3 presses with `transform: scale(0.97)` about the centre. The port has no
+/// paint transform, so the pressed skin is inset on all four sides of a
+/// stable slot: the content box must shrink on both axes, keep its centre,
+/// and lift its bottom edge — a top-anchored shrink (bottom edge stuck on the
+/// resting line) fails here.
+#[gpui::test]
+fn button_press_collapses_toward_its_centre(cx: &mut TestAppContext) {
+    let seen: Rc<RefCell<Option<gpui::Bounds<gpui::Pixels>>>> = Rc::new(RefCell::new(None));
+    let sink = seen.clone();
+    let cx = open_host(cx, move || {
+        let sink = sink.clone();
+        Button::new("btn-centre")
+            .full_width(true)
+            .child(
+                gpui::canvas(
+                    |_, _, _| {},
+                    move |bounds, _, _, _| {
+                        *sink.borrow_mut() = Some(bounds);
+                    },
+                )
+                .size_full(),
+            )
+            .into_any_element()
+    });
+    flush_frame(cx);
+    let rest = seen.borrow().expect("the content probe painted at rest");
+    let rest_centre = point(
+        px(f32::from(rest.origin.x) + f32::from(rest.size.width) / 2.),
+        px(f32::from(rest.origin.y) + f32::from(rest.size.height) / 2.),
+    );
+    let rest_bottom = f32::from(rest.origin.y) + f32::from(rest.size.height);
+
+    cx.simulate_mouse_move(rest_centre, None, Modifiers::none());
+    flush_frame(cx);
+    cx.simulate_mouse_down(rest_centre, MouseButton::Left, Modifiers::none());
+    flush_frame(cx);
+    let pressed = seen
+        .borrow()
+        .expect("the content probe painted while pressed");
+    let pressed_centre = point(
+        px(f32::from(pressed.origin.x) + f32::from(pressed.size.width) / 2.),
+        px(f32::from(pressed.origin.y) + f32::from(pressed.size.height) / 2.),
+    );
+    let pressed_bottom = f32::from(pressed.origin.y) + f32::from(pressed.size.height);
+
+    let width_ratio = f32::from(pressed.size.width) / f32::from(rest.size.width);
+    let height_ratio = f32::from(pressed.size.height) / f32::from(rest.size.height);
+    assert!(
+        (width_ratio - 0.97).abs() < 0.01 && (height_ratio - 0.97).abs() < 0.01,
+        "both axes scale by 0.97, got width {width_ratio} height {height_ratio} (rest {rest:?}, pressed {pressed:?})"
+    );
+    assert!(
+        (f32::from(pressed_centre.x) - f32::from(rest_centre.x)).abs() < 0.25
+            && (f32::from(pressed_centre.y) - f32::from(rest_centre.y)).abs() < 0.25,
+        "the press keeps its centre, rest {rest_centre:?} pressed {pressed_centre:?}"
+    );
+    assert!(
+        rest_bottom - pressed_bottom > 0.4,
+        "the bottom edge lifts with the press, rest {rest_bottom} pressed {pressed_bottom}"
+    );
+
+    cx.simulate_mouse_up(rest_centre, MouseButton::Left, Modifiers::none());
+    flush_frame(cx);
+    let released = seen
+        .borrow()
+        .expect("the content probe painted after release");
+    assert!(
+        (f32::from(released.size.height) - f32::from(rest.size.height)).abs() < 0.01,
+        "the button springs back after release, got {released:?}"
     );
 }

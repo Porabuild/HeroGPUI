@@ -11,10 +11,13 @@ use gpui::{
     div, prelude::*, px, AnyElement, App, ElementId, InteractiveElement, IntoElement, RenderOnce,
     SharedString, Styled, Window,
 };
-use herogpui_core::{SelectionMode, Size};
+use herogpui_core::{element_id, SelectionMode, Size};
 use herogpui_theme::ActiveTheme;
 
-use crate::{icons, EscapeKeyBehavior};
+use crate::{
+    a11y::{self, A11y as _},
+    icons, EscapeKeyBehavior,
+};
 
 /// Visual variant of the tags in a group.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -200,6 +203,8 @@ pub struct TagGroup {
     empty_state: Option<SharedString>,
     on_selection_change: Option<OnSelectionChange>,
     on_remove: Option<OnRemove>,
+    /// The `sx` slot, refined over the root style at the end of render.
+    sx: Option<Box<gpui::StyleRefinement>>,
 }
 
 impl TagGroup {
@@ -223,6 +228,7 @@ impl TagGroup {
             empty_state: None,
             on_selection_change: None,
             on_remove: None,
+            sx: None,
         }
     }
 
@@ -299,6 +305,15 @@ impl TagGroup {
         self
     }
 
+    /// The one slot for caller-owned low-level styling: GPUI's styling methods
+    /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
+    /// applied to the group's root element after every value the size, the
+    /// variant and the active theme chose, so they win.
+    pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
+        self.sx = Some(crate::util::capture_sx(style));
+        self
+    }
+
     /// `TagGroup.List` renders this when there is nothing to show.
     pub fn empty_state(mut self, text: impl Into<SharedString>) -> Self {
         self.empty_state = Some(text.into());
@@ -352,27 +367,20 @@ impl RenderOnce for TagGroup {
         // the handle is held here, because a handle's `tab_stop` is fixed where
         // the handle is made. `use_keyed_state` takes `cx` mutably, so both
         // precede the theme.
-        let group_focus = crate::util::tab_stop_handle(
-            ElementId::Name(format!("{:?}-focus", self.id).into()),
-            window,
-            cx,
-        );
-        let cursor = window.use_keyed_state(
-            ElementId::Name(format!("{:?}-cursor", self.id).into()),
-            cx,
-            |_, _| 0usize,
-        );
+        let group_focus =
+            crate::util::tab_stop_handle(element_id::scoped(&self.id, "focus"), window, cx);
+        let cursor =
+            window.use_keyed_state(element_id::scoped(&self.id, "cursor"), cx, |_, _| 0usize);
         // The Shift-range anchor lives beside the cursor, keyed off the same
         // instance id so two groups never share an anchor.
-        let selection_range = window.use_keyed_state(
-            ElementId::Name(format!("{:?}-range", self.id).into()),
-            cx,
-            |_, _| TagSelectionRange::default(),
-        );
+        let selection_range =
+            window.use_keyed_state(element_id::scoped(&self.id, "range"), cx, |_, _| {
+                TagSelectionRange::default()
+            });
         let (selected_keys, selection_own) = crate::util::controlled(
             window,
             cx,
-            ElementId::Name(format!("{:?}-selected", self.id).into()),
+            element_id::scoped(&self.id, "selected"),
             self.is_controlled.then(|| self.selected_keys.clone()),
             self.default_selected_keys.clone(),
         );
@@ -410,7 +418,10 @@ impl RenderOnce for TagGroup {
             (0..self.tags.len())
                 .map(|index| {
                     crate::util::interaction(
-                        ElementId::Name(format!("{:?}-tag-{index}-interaction", self.id).into()),
+                        element_id::scoped(
+                            &element_id::indexed(&self.id, "tag", index),
+                            "interaction",
+                        ),
                         window,
                         cx,
                     )
@@ -435,8 +446,12 @@ impl RenderOnce for TagGroup {
                 .iter()
                 .map(|tag| {
                     crate::util::tab_stop_handle(
-                        ElementId::Name(
-                            format!("{:?}-tag-{:?}-remove-focus", self.id, tag.key).into(),
+                        element_id::scoped(
+                            &element_id::scoped(
+                                &element_id::scoped(&self.id, "tag"),
+                                tag.key.clone(),
+                            ),
+                            "remove-focus",
                         ),
                         window,
                         cx,
@@ -473,6 +488,14 @@ impl RenderOnce for TagGroup {
                 .unwrap_or_else(|| SharedString::from("No tags"));
             root = root.child(
                 div()
+                    .id(element_id::scoped(&self.id, "list"))
+                    // `react-aria/dist/private/tag/useTagGroup.mjs` chooses
+                    // the list's role by whether the collection is empty:
+                    // `role: state.collection.size ? 'grid' : 'group'`. This
+                    // is the empty half. Its `aria-live`/`aria-atomic`/
+                    // `aria-relevant` neighbours are recorded omissions —
+                    // gpui exposes no live-region builder at all.
+                    .a11y_named(a11y::Role::Group, &a11y::Name::maybe(self.label.clone()))
                     // `.empty-state` is `p-2 text-sm text-muted`.
                     .p(px(8.))
                     .text_size(px(14.))
@@ -480,7 +503,7 @@ impl RenderOnce for TagGroup {
                     .text_color(colors.muted)
                     .child(text.to_string()),
             );
-            return root;
+            return crate::util::apply_sx(root, &self.sx);
         }
 
         let mut list = div().relative().flex().flex_row().flex_wrap().gap(px(6.));
@@ -501,7 +524,21 @@ impl RenderOnce for TagGroup {
             };
 
             let mut chip = div()
-                .id(ElementId::Name(format!("{:?}-tag-{index}", self.id).into()))
+                .id(element_id::indexed(&self.id, "tag", index))
+                // A `Tag` is a grid-list item: `useTag.mjs` builds on
+                // `.../gridlist/useGridListItem.mjs`, which is `role: 'row'`
+                // with `'aria-label': node['aria-label'] || node.textValue`
+                // and `'aria-selected': canSelectItem ? isSelected :
+                // undefined`. The `role: 'gridcell'` node that hook also
+                // returns has no counterpart element here — this port draws
+                // the tag's contents straight into the row — and its
+                // `aria-disabled` has no gpui builder.
+                .a11y_named(a11y::Role::Row, &a11y::Name::labelled(tag.label.clone()))
+                .when(selectable, |c| c.a11y_selected(selected))
+                // One handle roves the group and a cursor picks the tag it
+                // stands on, which is upstream's virtual focus; gpui states
+                // that relation on the descendant.
+                .when(cursor_index == Some(index), |c| c.a11y_active_descendant())
                 .when(!disabled && cursor_index == Some(index), |c| {
                     c.track_focus(&group_focus)
                 })
@@ -598,9 +635,18 @@ impl RenderOnce for TagGroup {
                     |render| render(),
                 );
                 let mut close = div()
-                    .id(ElementId::Name(
-                        format!("{:?}-tag-{index}-remove", self.id).into(),
+                    .id(element_id::scoped(
+                        &element_id::indexed(&self.id, "tag", index),
+                        "remove",
                     ))
+                    // `useTag.mjs`'s `removeButtonProps` is
+                    // `'aria-label': stringFormatter.format(
+                    // 'removeButtonLabel')` — `Remove` in the pinned en-US
+                    // strings (`react-aria/dist/private/intl/tag/en-US.mjs`)
+                    // — plus an `aria-labelledby` pointing at the button and
+                    // the row together, which needs the id graph gpui does
+                    // not have. The button itself is an RAC `Button`.
+                    .a11y_named(a11y::Role::Button, &a11y::Name::labelled("Remove"))
                     .flex()
                     .items_center()
                     .justify_center()
@@ -962,7 +1008,20 @@ impl RenderOnce for TagGroup {
             list = list.child(chip);
         }
 
-        root = root.child(list);
+        // The id and the role go on at the end rather than in the chain
+        // above: `.shots/design_audit.py` reads `.tag-group__list`'s gap with
+        // a regex spelling `let mut list = div().relative().flex()...` with
+        // no room between the calls, and it correctly reported the line as
+        // unreadable when they were spliced in.
+        //
+        // This is the populated half of `useTagGroup.mjs`'s role switch
+        // (`role: state.collection.size ? 'grid' : 'group'`); the grid comes
+        // from `useGridList` underneath it, and RAC's `TagGroup.mjs` spreads
+        // those props onto the `TagList` unmodified.
+        root = root.child(
+            list.id(element_id::scoped(&self.id, "list"))
+                .a11y_named(a11y::Role::Grid, &a11y::Name::maybe(self.label.clone())),
+        );
 
         if let Some(description) = &self.description {
             root = root.child(
@@ -975,6 +1034,7 @@ impl RenderOnce for TagGroup {
             );
         }
 
+        root = crate::util::apply_sx(root, &self.sx);
         root
     }
 }

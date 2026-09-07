@@ -41,7 +41,7 @@ fn horizontal_scroll_shadow_reports_each_edge(cx: &mut TestAppContext) {
             .max_w(px(160.))
             .visibility(ScrollShadowVisibility::Auto)
             .on_visibility_change(move |visibility, _, _| {
-                recorded.borrow_mut().push(visibility);
+                recorded.borrow_mut().push(*visibility);
             })
             .children((0..10).map(|_| {
                 gpui::div()
@@ -105,7 +105,7 @@ fn horizontal_scroll_shadow_honours_offset_at_both_ends(cx: &mut TestAppContext)
             .max_w(px(160.))
             .offset(px(24.))
             .on_visibility_change(move |visibility, _, _| {
-                recorded.borrow_mut().push(visibility);
+                recorded.borrow_mut().push(*visibility);
             })
             .children((0..10).map(|_| {
                 gpui::div()
@@ -177,7 +177,7 @@ fn controlled_visibility_does_not_report_a_synthetic_change(cx: &mut TestAppCont
             .max_w(px(160.))
             .visibility(ScrollShadowVisibility::Both)
             .on_visibility_change(move |visibility, _, _| {
-                recorded.borrow_mut().push(visibility);
+                recorded.borrow_mut().push(*visibility);
             })
             .children((0..10).map(|_| {
                 gpui::div()

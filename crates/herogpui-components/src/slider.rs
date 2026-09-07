@@ -6,14 +6,16 @@ use gpui::{
     prelude::*, px, App, Bounds, IntoElement, MouseDownEvent, MouseMoveEvent, MouseUpEvent,
     RenderOnce, Styled, Window,
 };
-use herogpui_core::{Color, Orientation};
+use herogpui_core::{element_id, Color, Orientation};
 use herogpui_theme::ActiveTheme;
+
+use crate::a11y::A11y as _;
 
 type Thumb = std::sync::Arc<dyn Fn(usize, f32) -> gpui::AnyElement + 'static>;
 type Output = std::sync::Arc<dyn Fn(&[f32], &[String]) -> gpui::AnyElement + 'static>;
 type OnChangeAll = std::sync::Arc<dyn Fn(&[f32], &mut Window, &mut App) + 'static>;
 
-type OnChange = std::sync::Arc<dyn Fn(f32, &mut Window, &mut App) + 'static>;
+type OnChange = std::sync::Arc<dyn Fn(&f32, &mut Window, &mut App) + 'static>;
 
 fn format_value_labels(
     values: &[f32],
@@ -76,6 +78,8 @@ pub struct Slider {
     thumb_names: Vec<gpui::SharedString>,
     form_state: Rc<RefCell<crate::form::LiveFormFieldState>>,
     form_thumb_states: Rc<RefCell<Vec<Rc<RefCell<crate::form::LiveFormFieldState>>>>>,
+    /// The `sx` slot, refined over the root style at the end of render.
+    sx: Option<Box<gpui::StyleRefinement>>,
 }
 
 impl Slider {
@@ -119,6 +123,7 @@ impl Slider {
             thumb_names: Vec::new(),
             form_state: live_form_state(),
             form_thumb_states: Rc::new(RefCell::new(Vec::new())),
+            sx: None,
         }
     }
 
@@ -176,9 +181,21 @@ impl Slider {
     /// its ancestor, so the control hands the pair over instead. Borrows, so the
     /// control is still yours to place:
     ///
-    /// ```ignore
+    /// ```
+    /// # use gpui::{prelude::*, Window};
+    /// # use herogpui_components::{Form, Slider};
+    /// # struct Demo;
+    /// # impl Render for Demo {
+    /// #     fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
+    /// #         let form = Form::new();
+    /// #         let control = Slider::new("volume", 0.5).name("volume");
     /// let field = control.form_field();
     /// form.field(field.unwrap()).child(control)
+    /// #     }
+    /// # }
+    /// # let mut tcx = gpui::TestAppContext::single();
+    /// # tcx.update(herogpui_theme::ThemeProvider::init);
+    /// # let _ = tcx.add_window_view(|_, _| Demo);
     /// ```
     pub fn form_field(&self) -> Option<crate::form::FormField> {
         let name = self.name.clone()?;
@@ -343,14 +360,14 @@ impl Slider {
         self
     }
 
-    pub fn on_change(mut self, f: impl Fn(f32, &mut Window, &mut App) + 'static) -> Self {
+    pub fn on_change(mut self, f: impl Fn(&f32, &mut Window, &mut App) + 'static) -> Self {
         self.on_change = Some(std::sync::Arc::new(f));
         self
     }
 
     /// `onChangeEnd` — fires once when the drag finishes, for callers that only
     /// want to commit the final value.
-    pub fn on_change_end(mut self, f: impl Fn(f32, &mut Window, &mut App) + 'static) -> Self {
+    pub fn on_change_end(mut self, f: impl Fn(&f32, &mut Window, &mut App) + 'static) -> Self {
         self.on_change_end = Some(std::sync::Arc::new(f));
         self
     }
@@ -363,6 +380,15 @@ impl Slider {
         self.on_change_end_all = Some(std::sync::Arc::new(f));
         self
     }
+
+    /// The one slot for caller-owned low-level styling: GPUI's styling methods
+    /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
+    /// applied to the slider's root element after every value the orientation
+    /// and the active theme chose, so they win.
+    pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
+        self.sx = Some(crate::util::capture_sx(style));
+        self
+    }
 }
 
 impl RenderOnce for Slider {
@@ -372,7 +398,7 @@ impl RenderOnce for Slider {
         let (value, own) = crate::util::controlled(
             window,
             cx,
-            gpui::ElementId::Name(format!("{:?}-value", self.id).into()),
+            element_id::scoped(&self.id, "value"),
             match self.default_value {
                 Some(_) => None,
                 None => Some(self.value),
@@ -402,7 +428,7 @@ impl RenderOnce for Slider {
         let (range_values, range_own) = crate::util::controlled(
             window,
             cx,
-            gpui::ElementId::Name(format!("{:?}-values", self.id).into()),
+            element_id::scoped(&self.id, "values"),
             range_controlled,
             range_default,
         );
@@ -416,11 +442,10 @@ impl RenderOnce for Slider {
         } else {
             vec![value]
         };
-        let form_defaults = window.use_keyed_state(
-            gpui::ElementId::Name(format!("{:?}-form-defaults", self.id).into()),
-            cx,
-            |_, _| None::<Vec<f32>>,
-        );
+        let form_defaults =
+            window.use_keyed_state(element_id::scoped(&self.id, "form-defaults"), cx, |_, _| {
+                None::<Vec<f32>>
+            });
         if form_defaults.read(cx).is_none() {
             let initial = thumbs.clone();
             form_defaults.update(cx, |slot, cx| {
@@ -473,7 +498,7 @@ impl RenderOnce for Slider {
                         });
                     }
                     if let Some(callback) = &restore_on_change {
-                        callback(value, window, cx);
+                        callback(&value, window, cx);
                     }
                 }
                 sync_form_values(
@@ -510,11 +535,10 @@ impl RenderOnce for Slider {
         // The keyboard's own state: the handle that receives the keys and which
         // thumb they move. React Aria focuses one thumb at a time, so a range
         // slider needs to know which.
-        let focus_handle = window.use_keyed_state(
-            gpui::ElementId::Name(format!("{:?}-focus", self.id).into()),
-            cx,
-            |_, cx| cx.focus_handle().tab_stop(true),
-        );
+        let focus_handle =
+            window.use_keyed_state(element_id::scoped(&self.id, "focus"), cx, |_, cx| {
+                cx.focus_handle().tab_stop(true)
+            });
         let focus_handle = focus_handle.read(cx).clone();
         // The roving stop starts on the first *enabled* thumb, the radio
         // group's rule for its single stop: a stop resting on a disabled
@@ -523,11 +547,10 @@ impl RenderOnce for Slider {
             .iter()
             .position(|&enabled| enabled)
             .unwrap_or(0);
-        let active_thumb = window.use_keyed_state(
-            gpui::ElementId::Name(format!("{:?}-thumb", self.id).into()),
-            cx,
-            |_, _| active_init,
-        );
+        let active_thumb =
+            window.use_keyed_state(element_id::scoped(&self.id, "thumb"), cx, |_, _| {
+                active_init
+            });
         let active_at = *active_thumb.read(cx);
 
         // The drag's state hangs off the window's keyed store, keyed by this
@@ -537,19 +560,17 @@ impl RenderOnce for Slider {
         // this replaces: every `on_mouse_move` after the press read a new
         // `false` and no thumb ever moved. Keyed by the id means two sliders
         // on one page can never share a drag.
-        let bounds_slot = window.use_keyed_state(
-            gpui::ElementId::Name(format!("{:?}-bounds", self.id).into()),
-            cx,
-            |_, _| Bounds::<f32> {
+        let bounds_slot =
+            window.use_keyed_state(element_id::scoped(&self.id, "bounds"), cx, |_, _| Bounds::<
+                f32,
+            > {
                 origin: gpui::point(0., 0.),
                 size: gpui::size(0., 0.),
-            },
-        );
-        let dragging = window.use_keyed_state(
-            gpui::ElementId::Name(format!("{:?}-dragging", self.id).into()),
-            cx,
-            |_, _| DragState::default(),
-        );
+            });
+        let dragging =
+            window.use_keyed_state(element_id::scoped(&self.id, "dragging"), cx, |_, _| {
+                DragState::default()
+            });
 
         let sem = cx.role(Color::Accent);
         let default = cx.role(Color::Default);
@@ -581,14 +602,23 @@ impl RenderOnce for Slider {
         let thumb_along = px(28.);
         let range_span = self.max - self.min;
 
+        // `useSlider` names the whole control `role="group"`; only the thumb
+        // inputs are sliders. The group carries the label, the thumbs carry
+        // the value.
+        let group_name = crate::a11y::Name::maybe(self.label.clone().map(gpui::SharedString::from));
         // A horizontal slider fills its container, as v3's does; without a
         // width the label and value read-out collapse together instead of
         // sitting at opposite ends.
+        // The accessibility calls come after the layout chain deliberately:
+        // `design_audit.py` reads this wrapper's gap through a pattern
+        // anchored on `gpui::div()` followed by its layout calls.
         let mut el = gpui::div()
             .flex()
             .flex_col()
             .gap(px(4.))
-            .when(self.orientation.is_horizontal(), |e| e.w_full());
+            .when(self.orientation.is_horizontal(), |e| e.w_full())
+            .id(element_id::scoped(&self.id, "group"))
+            .a11y_named(crate::a11y::Role::Group, &group_name);
 
         // `.slider__output` is `text-sm font-medium tabular-nums` beside the
         // label; the two share the row above the track.
@@ -767,8 +797,23 @@ impl RenderOnce for Slider {
         // thumbs
         let dragging_at = dragging.read(cx).active;
         let reduce_motion = ActiveTheme::reduce_motion(cx);
+        // `useSliderThumb` puts `aria-valuetext` on every thumb, filled with
+        // `state.getThumbValueLabel(index)` — the same formatted string the
+        // output row shows.
+        let thumb_labels = format_value_labels(&thumbs, self.format.as_ref());
         for (index, f) in fractions.iter().copied().enumerate() {
+            // Each thumb is an `<input type="range">` upstream: role `slider`,
+            // with the thumb's own clamped min/max, the step and the
+            // orientation.
+            let thumb_range =
+                crate::a11y::Range::new(self.min as f64, self.max as f64, thumbs[index] as f64)
+                    .step(self.step as f64)
+                    .text(thumb_labels.get(index).cloned());
             let mut thumb_el = gpui::div()
+                .id(element_id::indexed(&self.id, "thumb", index))
+                .a11y_named(crate::a11y::Role::Slider, &group_name)
+                .a11y_range(&thumb_range)
+                .a11y_orientation(self.orientation)
                 .absolute()
                 .flex()
                 .items_center()
@@ -933,7 +978,7 @@ impl RenderOnce for Slider {
                             cb(&next_values, window, cx);
                         }
                     } else if let Some(cb) = &end_keys {
-                        cb(next_values[0], window, cx);
+                        cb(&next_values[0], window, cx);
                     }
                 });
 
@@ -1082,7 +1127,7 @@ impl RenderOnce for Slider {
                                         cb(&values, window, cx);
                                     }
                                 } else if let Some(cb) = &on_change_end {
-                                    cb(values[0], window, cx);
+                                    cb(&values[0], window, cx);
                                 }
                             }
                         });
@@ -1093,7 +1138,9 @@ impl RenderOnce for Slider {
             );
         }
 
-        el.child(track)
+        el = el.child(track);
+        el = crate::util::apply_sx(el, &self.sx);
+        el
     }
 }
 
@@ -1231,7 +1278,7 @@ fn set_thumb(
         });
     }
     if let Some(cb) = on_change {
-        cb(value, window, cx);
+        cb(&value, window, cx);
     }
     vec![value]
 }

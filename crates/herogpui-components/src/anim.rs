@@ -17,6 +17,7 @@ use gpui::{
     px, AnimationExt, AnyElement, App, ElementId, InteractiveElement, IntoElement, ParentElement,
     StatefulInteractiveElement, StyleRefinement, Styled,
 };
+use herogpui_core::element_id;
 use herogpui_theme::ActiveTheme;
 
 /// `[data-entering]` duration for the common case — most overlays are
@@ -243,16 +244,17 @@ pub fn pressed_inset(height: gpui::Pixels) -> gpui::Pixels {
 
 /// The inset that shrinks `height` by `scale`, centred.
 fn inset_for(height: gpui::Pixels, scale: f32) -> gpui::Pixels {
-    gpui::px(f32::from(height) * (1.0 - scale) / 2.0)
+    px(f32::from(height) * (1.0 - scale) / 2.0)
 }
 
+#[cfg(test)]
 fn shrink(value: gpui::Pixels, by: gpui::Pixels) -> gpui::Pixels {
-    gpui::px((f32::from(value) - f32::from(by)).max(0.0))
+    px((f32::from(value) - f32::from(by)).max(0.0))
 }
 
 /// `value` scaled by `scale`.
 fn scaled_by(value: gpui::Pixels, scale: f32) -> gpui::Pixels {
-    gpui::px(f32::from(value) * scale)
+    px(f32::from(value) * scale)
 }
 
 /// Everything a pressed control scales down.
@@ -364,7 +366,7 @@ fn pressed_with_optional_background(
     // calendar cells) would press invisibly; arm a no-op listener so the
     // press registers. `on_mouse_down` appends, so a caller's own listener
     // is untouched.
-    let mut el = el.on_mouse_down(gpui::MouseButton::Left, |_, _, _| {});
+    let el = el.on_mouse_down(gpui::MouseButton::Left, |_, _, _| {});
     let mut el = el.active(move |s: StyleRefinement| {
         let s = match background {
             Some(background) => s.bg(background),
@@ -379,7 +381,6 @@ fn pressed_with_optional_background(
             .h(gpui::Length::Auto)
             .min_h(pressed_min_height)
             .rounded(pressed_radius)
-            .to_owned()
     });
 
     // The slot keeps the resting footprint: fixed where the caller gave us a
@@ -393,7 +394,7 @@ fn pressed_with_optional_background(
         return el;
     };
     let mut slot = gpui::div()
-        .id(ElementId::Name(format!("{id:?}-press-slot").into()))
+        .id(element_id::scoped(&id, "press-slot"))
         .relative()
         .flex_shrink_0()
         .flex()
@@ -468,7 +469,7 @@ impl ZoomBox {
 }
 
 fn lerp(value: gpui::Pixels, factor: f32) -> gpui::Pixels {
-    gpui::px(f32::from(value) * factor)
+    px(f32::from(value) * factor)
 }
 
 /// v3's `[data-entering]` in full: `zoom-in-90 fade-in-0 duration-200`.
@@ -703,7 +704,7 @@ pub fn hover_fade(
     // element's own state — and its hover listeners — survive the id change.
     el.child(
         round_corners(gpui::div().absolute().inset_0()).with_animation(
-            ElementId::Name(format!("{id:?}-fade-{}", current.generation).into()),
+            element_id::indexed(&id, "fade", current.generation),
             gpui::Animation::new(Duration::from_millis(TRANSITION_MS)).with_easing(ease_out()),
             move |fill, delta| fill.bg(herogpui_core::mix_oklab(from, to, delta)),
         ),

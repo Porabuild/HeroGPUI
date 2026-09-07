@@ -69,7 +69,7 @@ impl Render for ControlledTimeHost {
             .child(
                 TimeField::new(self.state.clone())
                     .hour_cycle(HourCycle::H24)
-                    .value(self.controlled.get(), cx)
+                    .value(self.controlled.get())
                     .segment(move |segment, text| {
                         rendered.borrow_mut().push((segment, text.to_string()));
                         gpui::div().child(text).into_any_element()
@@ -513,12 +513,105 @@ fn time_field_delete_clears_only_the_active_segment_and_defers_change(cx: &mut T
 }
 
 #[gpui::test]
-fn time_field_value_builder_writes_through_before_render(cx: &mut TestAppContext) {
+fn time_field_value_builder_seeds_the_bound_state_at_first_render(cx: &mut TestAppContext) {
     let state = cx.new(|cx| TimeState::new(cx));
-    cx.update(|cx| {
-        let _field = TimeField::new(state.clone()).value(Some(Time::new(7, 45)), cx);
-        assert_eq!(state.read(cx).value, Some(Time::new(7, 45)));
+    let state_for_view = state.clone();
+    // The builder chain needs no `&mut App`: the controlled prop travels on
+    // the struct and lands in the state when the field first renders.
+    let _unrendered = TimeField::new(state.clone()).value(Some(Time::new(7, 45)));
+    assert_eq!(
+        cx.update(|cx| state.read(cx).value),
+        None,
+        "a pure builder must not touch the bound state before rendering"
+    );
+    let cx = open_host(cx, move || {
+        TimeField::new(state_for_view.clone())
+            .value(Some(Time::new(7, 45)))
+            .into_any_element()
     });
+    assert_eq!(
+        cx.update(|_, cx| state.read(cx).value),
+        Some(Time::new(7, 45)),
+        "value must sync the bound TimeState when the field first renders"
+    );
+}
+
+#[gpui::test]
+fn time_field_value_builder_keeps_the_last_call_and_outranks_default_value(
+    cx: &mut TestAppContext,
+) {
+    let state = cx.new(|cx| TimeState::new(cx));
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        TimeField::new(state_for_view.clone())
+            .default_value(Time::new(9, 30))
+            .value(Some(Time::new(8, 15)))
+            .value(Some(Time::new(7, 45)))
+            .into_any_element()
+    });
+    assert_eq!(
+        cx.update(|_, cx| state.read(cx).value),
+        Some(Time::new(7, 45)),
+        "a pure builder keeps the last call, and the controlled spelling outranks defaultValue"
+    );
+}
+
+#[gpui::test]
+fn time_field_value_builder_leaves_the_edited_display_alone_across_renders(
+    cx: &mut TestAppContext,
+) {
+    let rendered: Rc<RefCell<Vec<(TimeSegment, String)>>> = Rc::new(RefCell::new(Vec::new()));
+    let rendered_for_view = rendered.clone();
+    let changes = events();
+    let recorded = changes.clone();
+    let state = cx.new(|cx| TimeState::new(cx));
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        let rendered = rendered_for_view.clone();
+        let changes = changes.clone();
+        TimeField::new(state_for_view.clone())
+            .hour_cycle(HourCycle::H24)
+            .value(Some(Time::new(7, 45)))
+            .segment(move |segment, text| {
+                rendered.borrow_mut().push((segment, text.to_string()));
+                gpui::div().child(text).into_any_element()
+            })
+            .on_change(move |time, _, _| {
+                changes.borrow_mut().push(time.map_or_else(
+                    || "none".to_owned(),
+                    |time| format!("{:02}:{:02}", time.hour, time.minute),
+                ));
+            })
+            .into_any_element()
+    });
+    assert_eq!(
+        cx.update(|_, cx| state.read(cx).value),
+        Some(Time::new(7, 45))
+    );
+
+    // The builder closure re-runs on every refresh carrying the same `value`;
+    // the sync must not fire on it, so the segment the user cleared stays
+    // cleared instead of snapping back to the seeded time.
+    press(cx, "tab");
+    press(cx, "delete");
+    refresh(cx);
+    let latest = |segment| {
+        rendered
+            .borrow()
+            .iter()
+            .rev()
+            .find_map(|(part, text)| (*part == segment).then(|| text.clone()))
+            .unwrap()
+    };
+    assert_eq!(
+        (latest(TimeSegment::Hour), latest(TimeSegment::Minute)),
+        ("--".to_owned(), "45".to_owned()),
+        "a re-render must not re-apply the value seed over the user's segment edit"
+    );
+    assert!(
+        recorded.borrow().is_empty(),
+        "the cleared segment is an incomplete edit and defers onChange, which the re-render must not force"
+    );
 }
 
 #[gpui::test]

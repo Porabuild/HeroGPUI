@@ -23,6 +23,8 @@ pub struct Alert {
     /// Composed children — v3's "Additional content like buttons, close
     /// button, etc.", appended after the content column.
     children: Vec<AnyElement>,
+    /// The `sx` slot, refined over the root style at the end of render.
+    sx: Option<Box<gpui::StyleRefinement>>,
 }
 
 impl Alert {
@@ -39,11 +41,21 @@ impl Alert {
             description: None,
             color: Color::Default,
             children: Vec::new(),
+            sx: None,
         }
     }
 
     pub fn description(mut self, d: impl Into<SharedString>) -> Self {
         self.description = Some(d.into());
+        self
+    }
+
+    /// The one slot for caller-owned low-level styling: GPUI's styling methods
+    /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
+    /// applied to the alert's root element after every value the status and
+    /// the active theme chose, so they win.
+    pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
+        self.sx = Some(crate::util::capture_sx(style));
         self
     }
 }
@@ -158,6 +170,7 @@ impl RenderOnce for Alert {
         // Composed children go last; see the struct doc.
         alert = alert.children(self.children);
 
+        alert = crate::util::apply_sx(alert, &self.sx);
         alert
     }
 }

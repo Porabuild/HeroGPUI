@@ -2174,7 +2174,7 @@ fn range_calendar_pointer_end_hands_focus_to_keyboard(cx: &mut TestAppContext) {
         let changes = changes.clone();
         RangeCalendar::new(state.clone())
             .on_change(move |start, end, _, _| {
-                changes.borrow_mut().push((start, end));
+                changes.borrow_mut().push((*start, *end));
             })
             .into_any_element()
     });

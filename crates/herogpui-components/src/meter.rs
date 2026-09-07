@@ -28,6 +28,8 @@ pub struct Meter {
     show_value: bool,
     /// `formatOptions` — forwarded to the bar, which writes the label.
     format: Option<herogpui_core::NumberFormat>,
+    /// The `sx` slot, refined over the root style at the end of render.
+    sx: Option<Box<gpui::StyleRefinement>>,
 }
 
 impl Meter {
@@ -60,6 +62,7 @@ impl Meter {
             value_label: None,
             show_value: false,
             format: None,
+            sx: None,
         }
     }
 
@@ -95,6 +98,17 @@ impl Meter {
         self
     }
 
+    /// The one slot for caller-owned low-level styling: GPUI's styling methods
+    /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
+    /// applied to the meter's root element after every value the size and the
+    /// active theme chose, so they win. The meter draws no root of its own —
+    /// the bar it delegates to is the meter's root — so the override travels
+    /// down with it.
+    pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
+        self.sx = Some(crate::util::capture_sx(style));
+        self
+    }
+
     pub fn label(mut self, l: impl Into<SharedString>) -> Self {
         self.label = Some(l.into());
         self
@@ -109,7 +123,10 @@ impl Meter {
 
 impl RenderOnce for Meter {
     fn render(self, _window: &mut Window, _cx: &mut App) -> impl IntoElement {
+        // `useMeter` delegates every attribute to `useProgressBar` and
+        // changes only the role, so the delegation carries it.
         let mut p = ProgressBar::new(self.id)
+            .as_meter()
             .value(self.value)
             .min_value(self.min_value)
             .max_value(self.max_value)
@@ -127,6 +144,11 @@ impl RenderOnce for Meter {
         }
         if let Some(l) = self.label {
             p = p.label(l.to_string());
+        }
+        // The bar's root is this meter's root: hand the refinement down rather
+        // than box the bar in a wrapper of its own.
+        if let Some(sx) = self.sx {
+            p = p.sx_refinement(sx);
         }
         p.into_any_element()
     }

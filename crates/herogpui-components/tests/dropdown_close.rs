@@ -31,6 +31,7 @@ use gpui::{
     TestAppContext, VisualTestContext,
 };
 use herogpui_components::{Button, Dropdown, Menu, MenuItem, SelectionMode};
+use herogpui_core::element_id;
 
 use harness::{click, events, open_host, press};
 
@@ -53,17 +54,23 @@ fn let_exit_finish(cx: &mut TestAppContext) {
 /// Reads the Menu's keyed submenu slot from the two `RenderOnce` component
 /// wrappers that namespace it. The zero-size canvas runs during prepaint,
 /// where `use_keyed_state` is legal.
+///
+/// The key is derived exactly the way `Menu::render` derives it -- with
+/// `element_id::scoped`, off the `Dropdown`'s own id and the `-menu` id the
+/// Dropdown hands its Menu. Spelling it as a `format!`ed string instead would
+/// address a *different* slot (`ElementId::Name` never equals an
+/// `ElementId::NamedChild`), so this probe would read a freshly defaulted
+/// `None` and report `open:false` for every state of the real one.
 fn submenu_open_probe(dropdown_id: &'static str, seen: harness::Events) -> AnyElement {
     canvas(
         move |_, window, cx| {
-            let wrap_base = format!("{:?}", ElementId::Name(dropdown_id.into()));
-            let menu_id = ElementId::Name(format!("{wrap_base}-menu").into());
-            let menu_base = format!("{menu_id:?}");
-            let key = ElementId::Name(format!("{menu_base}-submenu").into());
+            let wrap_base: ElementId = ElementId::Name(dropdown_id.into());
+            let menu_id = element_id::scoped(&wrap_base, "menu");
+            let key = element_id::scoped(&menu_id, "submenu");
             let open = window.with_id(std::any::type_name::<Dropdown>(), |window| {
                 window.with_id(std::any::type_name::<Menu>(), |window| {
                     window
-                        .use_keyed_state(key, cx, |_, _| None::<SharedString>)
+                        .use_keyed_state(key, cx, |_, _| None::<ElementId>)
                         .read(cx)
                         .is_some()
                 })

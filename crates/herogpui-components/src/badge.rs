@@ -49,10 +49,21 @@ impl BadgeVariant {
 /// v3's `Badge.Anchor` — the positioning wrapper (`.badge-anchor`) that owns
 /// the anchored element and the [`Badge`] pointing at it:
 ///
-/// ```ignore
+/// ```
+/// # use gpui::{prelude::*, px, Window};
+/// # use herogpui_components::{Badge, BadgeAnchor, BadgeLabel};
+/// # struct Demo;
+/// # impl Render for Demo {
+/// #     fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
+/// #         let avatar = gpui::div().w(px(40.)).h(px(40.));
 /// BadgeAnchor::new()
 ///     .child(avatar)
 ///     .child(Badge::new().child(BadgeLabel::new().child("5")))
+/// #     }
+/// # }
+/// # let mut tcx = gpui::TestAppContext::single();
+/// # tcx.update(herogpui_theme::ThemeProvider::init);
+/// # let _ = tcx.add_window_view(|_, _| Demo);
 /// ```
 ///
 /// `.badge-anchor` is `relative inline-flex shrink-0`. GPUI 0.2.2 has no
@@ -62,13 +73,25 @@ impl BadgeVariant {
 #[derive(IntoElement)]
 pub struct BadgeAnchor {
     children: Vec<AnyElement>,
+    /// The `sx` slot, refined over the root style at the end of render.
+    sx: Option<Box<gpui::StyleRefinement>>,
 }
 
 impl BadgeAnchor {
     pub fn new() -> Self {
         Self {
             children: Vec::new(),
+            sx: None,
         }
+    }
+
+    /// The one slot for caller-owned low-level styling: GPUI's styling methods
+    /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
+    /// applied to the anchor's root element after every value the anchor and
+    /// the active theme chose, so they win.
+    pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
+        self.sx = Some(crate::util::capture_sx(style));
+        self
     }
 }
 
@@ -86,12 +109,13 @@ impl ParentElement for BadgeAnchor {
 
 impl RenderOnce for BadgeAnchor {
     fn render(self, _window: &mut Window, _cx: &mut App) -> impl IntoElement {
-        gpui::div()
+        let el = gpui::div()
             .relative()
             .flex()
             .flex_shrink_0()
             .debug_selector(|| "badge-anchor".to_owned())
-            .children(self.children)
+            .children(self.children);
+        crate::util::apply_sx(el, &self.sx)
     }
 }
 
@@ -107,13 +131,25 @@ impl RenderOnce for BadgeAnchor {
 #[derive(IntoElement)]
 pub struct BadgeLabel {
     children: Vec<AnyElement>,
+    /// The `sx` slot, refined over the root style at the end of render.
+    sx: Option<Box<gpui::StyleRefinement>>,
 }
 
 impl BadgeLabel {
     pub fn new() -> Self {
         Self {
             children: Vec::new(),
+            sx: None,
         }
+    }
+
+    /// The one slot for caller-owned low-level styling: GPUI's styling methods
+    /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
+    /// applied to the label's root element after every value the badge and the
+    /// active theme chose, so they win.
+    pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
+        self.sx = Some(crate::util::capture_sx(style));
+        self
     }
 }
 
@@ -131,10 +167,11 @@ impl ParentElement for BadgeLabel {
 
 impl RenderOnce for BadgeLabel {
     fn render(self, _window: &mut Window, _cx: &mut App) -> impl IntoElement {
-        gpui::div()
+        let el = gpui::div()
             .debug_selector(|| "badge-label".to_owned())
             .px(px(2.))
-            .children(self.children)
+            .children(self.children);
+        crate::util::apply_sx(el, &self.sx)
     }
 }
 
@@ -149,6 +186,8 @@ pub struct Badge {
     size: Size,
     placement: BadgePlacement,
     children: Vec<AnyElement>,
+    /// The `sx` slot, refined over the root style at the end of render.
+    sx: Option<Box<gpui::StyleRefinement>>,
 }
 
 impl Badge {
@@ -161,6 +200,7 @@ impl Badge {
             size: Size::Md,
             placement: BadgePlacement::TopRight,
             children: Vec::new(),
+            sx: None,
         }
     }
 
@@ -181,6 +221,15 @@ impl Badge {
 
     pub fn placement(mut self, p: BadgePlacement) -> Self {
         self.placement = p;
+        self
+    }
+
+    /// The one slot for caller-owned low-level styling: GPUI's styling methods
+    /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
+    /// applied to the badge's root element after every value the variant, the
+    /// color and the active theme chose, so they win.
+    pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
+        self.sx = Some(crate::util::capture_sx(style));
         self
     }
 }
@@ -304,11 +353,12 @@ impl RenderOnce for Badge {
         // v3's root renders its children in the badge itself; with no
         // children — the omitted label — the badge is a dot, a circle at the
         // badge size.
-        if self.children.is_empty() {
+        let badge = if self.children.is_empty() {
             badge.size(size_px).max_w(size_px)
         } else {
             badge.children(self.children)
-        }
+        };
+        crate::util::apply_sx(badge, &self.sx)
     }
 }
 

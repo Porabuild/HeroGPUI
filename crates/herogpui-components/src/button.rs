@@ -10,9 +10,10 @@ use gpui::{
     div, prelude::*, AnyElement, App, ClickEvent, Div, ElementId, InteractiveElement, IntoElement,
     ParentElement, RenderOnce, SharedString, Stateful, Styled, Window,
 };
-use herogpui_core::{Size, Variant};
+use herogpui_core::{element_id, Size, Variant};
 use herogpui_theme::ActiveTheme;
 
+use crate::a11y::{self, A11y as _};
 use crate::util;
 
 /// A press handler. `Arc` rather than `Box` because it is bound twice: the
@@ -64,6 +65,8 @@ pub struct Button {
     is_pending: bool,
     children: Vec<AnyElement>,
     on_press: Option<OnPress>,
+    /// The `sx` slot, refined over the root style at the end of render.
+    sx: Option<Box<gpui::StyleRefinement>>,
 }
 
 impl Button {
@@ -85,6 +88,7 @@ impl Button {
             is_pending: false,
             children: Vec::new(),
             on_press: None,
+            sx: None,
         }
     }
 
@@ -128,6 +132,17 @@ impl Button {
 
     pub fn is_icon_only(mut self, v: bool) -> Self {
         self.is_icon_only = v;
+        self
+    }
+
+    /// The one slot for caller-owned low-level styling: GPUI's styling methods
+    /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
+    /// applied to the button's root element after every value the variant and
+    /// the active theme chose, so they win. An overridden background also
+    /// replaces the hover fade's endpoints and an overridden pixel size the
+    /// press geometry, so the override holds across states.
+    pub fn sx(mut self, style: impl FnOnce(Div) -> Div) -> Self {
+        self.sx = Some(util::capture_sx(style));
         self
     }
 
@@ -487,20 +502,13 @@ impl RenderOnce for Button {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         // The handle that says whether this button holds the focus.
         // `use_keyed_state` takes `cx` mutably, so it precedes the tokens.
-        let focus_handle = util::tab_stop_handle(
-            ElementId::Name(format!("{:?}-focus", self.id).into()),
-            window,
-            cx,
-        );
+        let focus_handle = util::tab_stop_handle(element_id::scoped(&self.id, "focus"), window, cx);
         // The hover and press this button will report to a `content` closure.
         // Only tracked when one is set: the handlers cost a frame of state.
-        let interaction = self.content.as_ref().map(|_| {
-            util::interaction(
-                ElementId::Name(format!("{:?}-interaction", self.id).into()),
-                window,
-                cx,
-            )
-        });
+        let interaction = self
+            .content
+            .as_ref()
+            .map(|_| util::interaction(element_id::scoped(&self.id, "interaction"), window, cx));
         let layout = cx.layout();
         // Copied out: `hover_fade` below takes `&mut App`, and holding the
         // `layout` borrow across it would be a second borrow of `cx`.
@@ -516,14 +524,25 @@ impl RenderOnce for Button {
         }
         // v3's `transition-colors`: the fill eases rather than switching on the
         // frame the pointer arrives. The variant then leaves the background
-        // alone so the two do not fight over it.
+        // alone so the two do not fight over it. An `sx` background replaces
+        // the fade's endpoints outright: the fill the fade draws would
+        // otherwise paint the variant colour back over the override.
+        let sx_background = util::sx_background(&self.sx);
+        let sx_size = util::sx_pixel_size(&self.sx);
         let fade = interactive
             .then(|| button_hover_colors(self.variant, cx))
-            .flatten();
+            .flatten()
+            .map(|colors| sx_background.map_or(colors, |color| (color, color)));
 
         let metrics = button_metrics(self.size);
+        // RAC's `Button` renders a native `<button>`, so upstream's role is
+        // implicit and its accessible name comes from the rendered children.
+        // A gpui text child carries no id, so it contributes no node and no
+        // name (see `a11y`), which is why the label is restated here.
+        let name = a11y::Name::maybe(self.label.clone());
         let mut el = div()
             .id(self.id.clone())
+            .a11y_named(a11y::Role::Button, &name)
             .flex()
             .flex_row()
             .items_center()
@@ -574,7 +593,7 @@ impl RenderOnce for Button {
             let radius = util::control_radius(cx);
             el = crate::anim::hover_fade(
                 el,
-                ElementId::Name(format!("{:?}-fade", self.id).into()),
+                element_id::scoped(&self.id, "fade"),
                 colors,
                 interaction.as_ref(),
                 move |fill| group_radius_any(fill, edge, radius),
@@ -623,9 +642,13 @@ impl RenderOnce for Button {
             el = crate::anim::pressed(
                 el,
                 crate::anim::PressBox {
-                    height: self.size.control_height(),
+                    // An `sx` pixel size keeps the press footprint at the
+                    // overridden box instead of snapping back to the ladder.
+                    height: sx_size.height.unwrap_or_else(|| self.size.control_height()),
                     padding_x: (!self.is_icon_only).then_some(metrics.padding_x),
-                    width: self.is_icon_only.then(|| self.size.icon_control_size()),
+                    width: sx_size
+                        .width
+                        .or_else(|| self.is_icon_only.then(|| self.size.icon_control_size())),
                     // v3's `.button` is `w-fit` with no minimum, so a press has
                     // no floor to scale.
                     min_width: None,
@@ -684,6 +707,7 @@ impl RenderOnce for Button {
             el = el.opacity(disabled_opacity);
         }
 
+        el = util::apply_sx(el, &self.sx);
         el.into_any_element()
     }
 }

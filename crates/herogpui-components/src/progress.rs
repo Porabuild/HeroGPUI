@@ -3,8 +3,10 @@
 use gpui::{
     prelude::*, px, AnimationExt, App, IntoElement, RenderOnce, SharedString, Styled, Window,
 };
-use herogpui_core::{Color, Size};
+use herogpui_core::{element_id, Color, Size};
 use herogpui_theme::ActiveTheme;
+
+use crate::a11y::A11y as _;
 
 #[derive(Clone)]
 struct ProgressBarMotion {
@@ -33,6 +35,8 @@ impl ProgressBarMotion {
 }
 
 struct ProgressBarMotionFrame {
+    /// The ProgressBar's own id, so two bars animate on separate timelines.
+    id: gpui::ElementId,
     generation: usize,
     from: f32,
     to: f32,
@@ -51,7 +55,7 @@ impl ProgressBarMotionFrame {
         let from = self.from;
         let to = self.to;
         fill.with_animation(
-            gpui::ElementId::Name(format!("progress-bar-fill-width-{}", self.generation).into()),
+            element_id::indexed(&self.id, "fill-width", self.generation),
             gpui::Animation::new(std::time::Duration::from_millis(
                 crate::anim::PROGRESS_BAR_FILL_MS,
             ))
@@ -73,16 +77,14 @@ fn progress_bar_motion(
     window: &mut Window,
     cx: &mut App,
 ) -> ProgressBarMotionFrame {
-    let state = window.use_keyed_state(
-        gpui::ElementId::Name(format!("progress-bar-{id:?}-fill-motion").into()),
-        cx,
-        |_, _| ProgressBarMotion {
+    let state = window.use_keyed_state(element_id::scoped(id, "fill-motion"), cx, |_, _| {
+        ProgressBarMotion {
             target,
             generation: 0,
             from: target,
             width: std::rc::Rc::new(std::cell::Cell::new(target)),
-        },
-    );
+        }
+    });
     let mut current = state.read(cx).clone();
     if current.retarget(target, animate) {
         state.update(cx, |stored, _| *stored = current.clone());
@@ -90,6 +92,7 @@ fn progress_bar_motion(
     let should_animate =
         animate && current.generation != 0 && (current.width.get() - target).abs() > f32::EPSILON;
     ProgressBarMotionFrame {
+        id: id.clone(),
         generation: current.generation,
         from: current.from,
         to: target,
@@ -116,9 +119,26 @@ pub struct ProgressBar {
     value_content: Option<std::sync::Arc<dyn Fn(f32, &str, bool) -> gpui::AnyElement + 'static>>,
     /// `formatOptions` — how the generated value label is written.
     format: Option<herogpui_core::NumberFormat>,
+    /// The `sx` slot, refined over the root style at the end of render.
+    sx: Option<Box<gpui::StyleRefinement>>,
+    /// `useMeter` is `useProgressBar` with one thing changed — the role — and
+    /// [`crate::meter::Meter`] delegates its whole rendering here, so the role
+    /// travels with the delegation rather than being duplicated.
+    a11y_role: crate::a11y::Role,
 }
 
 impl ProgressBar {
+    /// Reports this bar as a meter rather than a progress indicator.
+    ///
+    /// Upstream's `role="meter progressbar"` is a pair: `meter` with
+    /// `progressbar` as a fallback for browsers that do not implement it.
+    /// AccessKit roles are a single enum, so the port reports the half that is
+    /// true.
+    pub(crate) fn as_meter(mut self) -> Self {
+        self.a11y_role = crate::a11y::Role::Meter;
+        self
+    }
+
     pub fn new(id: impl Into<gpui::ElementId>) -> Self {
         Self {
             id: id.into(),
@@ -133,7 +153,17 @@ impl ProgressBar {
             value_label: None,
             value_content: None,
             format: None,
+            sx: None,
+            a11y_role: crate::a11y::Role::ProgressIndicator,
         }
+    }
+
+    /// Hands a captured refinement down from a component that renders no root
+    /// of its own: [`crate::meter::Meter`] delegates its whole element tree to
+    /// this bar, so the bar's root is the meter's root.
+    pub(crate) fn sx_refinement(mut self, sx: Box<gpui::StyleRefinement>) -> Self {
+        self.sx = Some(sx);
+        self
     }
 
     pub fn value(mut self, v: f32) -> Self {
@@ -190,6 +220,15 @@ impl ProgressBar {
         self
     }
 
+    /// The one slot for caller-owned low-level styling: GPUI's styling methods
+    /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
+    /// applied to the bar's root element after every value the size and the
+    /// active theme chose, so they win.
+    pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
+        self.sx = Some(crate::util::capture_sx(style));
+        self
+    }
+
     /// Label rendered above the track (`label` + `showValueLabel`).
     pub fn label(mut self, l: impl Into<String>) -> Self {
         self.label = Some(l.into());
@@ -227,6 +266,23 @@ impl RenderOnce for ProgressBar {
             self.value
         };
         let fraction = fraction_of(self.value, self.min_value, self.max_value);
+        // `useProgressBar` formats the value label whether or not anything
+        // displays it, because `aria-valuetext` carries it either way. An
+        // indeterminate bar has neither.
+        let announced_value_text: Option<SharedString> = (!self.is_indeterminate).then(|| {
+            self.value_label.clone().unwrap_or_else(|| {
+                let format = self
+                    .format
+                    .clone()
+                    .unwrap_or_else(herogpui_core::NumberFormat::percent);
+                let n = if format.style == herogpui_core::NumberStyle::Percent {
+                    fraction as f64
+                } else {
+                    value as f64
+                };
+                SharedString::from(format.format(n))
+            })
+        });
         let fill_motion = progress_bar_motion(
             &self.id,
             if self.is_indeterminate { 0.4 } else { fraction },
@@ -235,34 +291,39 @@ impl RenderOnce for ProgressBar {
             cx,
         );
 
+        // `useProgressBar` keeps `aria-valuemin`/`aria-valuemax` in every
+        // case and drops `aria-valuenow`/`aria-valuetext` when indeterminate.
+        let range = if self.is_indeterminate {
+            crate::a11y::Range::indeterminate(self.min_value as f64, self.max_value as f64)
+        } else {
+            crate::a11y::Range::new(
+                self.min_value as f64,
+                self.max_value as f64,
+                self.value as f64,
+            )
+            .text(announced_value_text.clone())
+        };
+        // The accessibility calls come after the layout chain deliberately:
+        // `design_audit.py` reads this wrapper's gap through a pattern
+        // anchored on `gpui::div()` followed by its layout calls.
         let mut el = gpui::div()
-            .id(self.id.clone())
             .flex()
             .flex_col()
             .gap(px(4.))
-            .w_full();
+            .w_full()
+            .id(self.id.clone())
+            .a11y_named(
+                self.a11y_role,
+                &crate::a11y::Name::maybe(self.label.clone().map(SharedString::from)),
+            )
+            .a11y_range(&range);
 
         // `.progress-bar__output` / `.meter__output` is the value beside the
         // label, in the row above the track.
         if self.label.is_some() || self.show_value {
-            let value_text = if self.is_indeterminate {
-                SharedString::from("")
-            } else {
-                self.value_label.clone().unwrap_or_else(|| {
-                    let format = self
-                        .format
-                        .clone()
-                        .unwrap_or_else(herogpui_core::NumberFormat::percent);
-                    // A percent format wants the 0..1 fraction; any other
-                    // format wants the value itself.
-                    let n = if format.style == herogpui_core::NumberStyle::Percent {
-                        fraction as f64
-                    } else {
-                        value as f64
-                    };
-                    SharedString::from(format.format(n))
-                })
-            };
+            // The same text the node announces; an indeterminate bar shows
+            // nothing where the value would be.
+            let value_text = announced_value_text.clone().unwrap_or_default();
             let percentage = if self.is_indeterminate {
                 0.0
             } else {
@@ -336,7 +397,8 @@ impl RenderOnce for ProgressBar {
                 .into_any_element()
         };
 
-        el.child(track)
+        el = el.child(track);
+        crate::util::apply_sx(el, &self.sx)
     }
 }
 
@@ -403,6 +465,9 @@ pub struct ProgressCircle {
     value_content: Option<std::sync::Arc<dyn Fn(f32, &str, bool) -> gpui::AnyElement + 'static>>,
     /// `formatOptions` — how the generated value label is written.
     format: Option<herogpui_core::NumberFormat>,
+    id: Option<gpui::ElementId>,
+    /// The `sx` slot, refined over the root style at the end of render.
+    sx: Option<Box<gpui::StyleRefinement>>,
 }
 
 impl ProgressCircle {
@@ -417,7 +482,17 @@ impl ProgressCircle {
             show_value: false,
             value_content: None,
             format: None,
+            id: None,
+            sx: None,
         }
+    }
+
+    /// Names this ring so it can report `role="progressbar"`. Unnamed rings
+    /// produce no AccessKit node — a constant id would fold every instance
+    /// into one.
+    pub fn id(mut self, id: impl Into<gpui::ElementId>) -> Self {
+        self.id = Some(id.into());
+        self
     }
 
     /// `ProgressCircle.ValueLabel`'s render function — handed `percentage`
@@ -465,6 +540,15 @@ impl ProgressCircle {
             Size::Md => px(28.),
             Size::Lg => px(36.),
         };
+        self
+    }
+
+    /// The one slot for caller-owned low-level styling: GPUI's styling methods
+    /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
+    /// applied to the ring's root element after every value the size and the
+    /// active theme chose, so they win.
+    pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
+        self.sx = Some(crate::util::capture_sx(style));
         self
     }
 
@@ -572,9 +656,14 @@ impl RenderOnce for ProgressCircle {
         .absolute()
         .inset_0();
 
+        let spin_id = self
+            .id
+            .as_ref()
+            .map(|id| element_id::scoped(id, "spin"))
+            .unwrap_or_else(|| gpui::ElementId::from("progress-circle-spin"));
         let arc = if spins {
             arc.with_animation(
-                "progress-circle-spin",
+                spin_id,
                 gpui::Animation::new(std::time::Duration::from_millis(
                     crate::anim::PROGRESS_CIRCLE_SPIN_MS,
                 ))
@@ -589,7 +678,7 @@ impl RenderOnce for ProgressCircle {
             arc.into_any_element()
         };
 
-        gpui::div()
+        let el = gpui::div()
             .relative()
             .flex()
             .items_center()
@@ -640,6 +729,25 @@ impl RenderOnce for ProgressCircle {
                             .child(value_text),
                     ),
                 }
-            })
+            });
+        let el = crate::util::apply_sx(el, &self.sx);
+        match self.id {
+            Some(id) => {
+                let range = if self.is_indeterminate {
+                    crate::a11y::Range::indeterminate(self.min_value as f64, self.max_value as f64)
+                } else {
+                    crate::a11y::Range::new(
+                        self.min_value as f64,
+                        self.max_value as f64,
+                        self.value as f64,
+                    )
+                };
+                el.id(id)
+                    .a11y(crate::a11y::Role::ProgressIndicator)
+                    .a11y_range(&range)
+                    .into_any_element()
+            }
+            None => el.into_any_element(),
+        }
     }
 }

@@ -344,13 +344,13 @@ impl Page {
             Page::ReleaseCurrent => {
                 "The current workspace release, with its component, documentation and verification highlights."
             }
-            Page::Introduction => "Beautiful, fast and modern cross-platform UI library for Rust GPUI. A faithful port of HeroUI v3.",
+            Page::Introduction => "Beautiful, fast and modern cross-platform UI library for Rust GPUI.",
             Page::Installation => "Get HeroGPUI running in your GPUI application in minutes.",
             Page::Theming => "The OKLCH semantic token system shared by every component.",
             Page::DarkMode => "Switch between the light and dark appearance at runtime.",
             Page::Customization => "Build custom themes by overriding a handful of base tokens.",
-            Page::Styling => "Where a v3 `className` goes when there are no classes: props, tokens and slots.",
-            Page::DesignPrinciples => "The ten principles v3 is built on, and how each one lands in a gpui port.",
+            Page::Styling => "Typed props, theme tokens, slots and render closures — there are no CSS classes.",
+            Page::DesignPrinciples => "The ten principles behind every HeroGPUI component.",
             Page::Button => "A pressable button with variants and states.",
             Page::ButtonGroup => "Group related buttons with a shared variant and merged edges.",
             Page::CloseButton => "A button for dismissing dialogs, modals and inline content.",
@@ -919,7 +919,7 @@ fn allows_jsx_open_context(code: &str, start: usize) -> bool {
 }
 
 /// Standard docs page layout: title, description, optional import snippet and
-/// a list of (heading, live-example) sections.
+/// a list of (heading, prose) sections, each framed by [`prose_frame`].
 pub fn doc_page(
     title: &str,
     description: &str,
@@ -944,7 +944,7 @@ pub fn doc_page(
         el = el
             .mt(px(4.))
             .child(section_heading(heading))
-            .child(example_frame(body, cx));
+            .child(prose_frame(body, cx));
     }
 
     el.into_any_element()
@@ -1037,14 +1037,25 @@ pub(crate) fn stage_dot_grid(dot: gpui::Hsla) -> impl IntoElement {
             let step = 16.;
             let dot_size = px(2.5);
             let center = bounds.center();
-            let reach_x = (f32::from(bounds.size.width) / step).ceil() as i32 / 2 + 1;
-            let reach_y = (f32::from(bounds.size.height) / step).ceil() as i32 / 2 + 1;
+            // Ring ranges generous enough to cover any offset, then each spot
+            // is kept only if its whole dot fits inside the canvas: `paint_quad`
+            // is not clipped to this element, so an overshooting ring would
+            // leak dots past the stage border.
+            let reach_x = (f32::from(bounds.size.width) / (2. * step)).ceil() as i32;
+            let reach_y = (f32::from(bounds.size.height) / (2. * step)).ceil() as i32;
+            let fit_x = f32::from(bounds.size.width) / 2. - f32::from(dot_size) / 2.;
+            let fit_y = f32::from(bounds.size.height) / 2. - f32::from(dot_size) / 2.;
             for column in -reach_x..=reach_x {
+                let offset_x = px(column as f32 * step);
+                if offset_x.abs() > px(fit_x) {
+                    continue;
+                }
                 for row in -reach_y..=reach_y {
-                    let spot = gpui::Point::new(
-                        center.x + px(column as f32 * step),
-                        center.y + px(row as f32 * step),
-                    );
+                    let offset_y = px(row as f32 * step);
+                    if offset_y.abs() > px(fit_y) {
+                        continue;
+                    }
+                    let spot = gpui::Point::new(center.x + offset_x, center.y + offset_y);
                     window.paint_quad(
                         gpui::fill(
                             gpui::Bounds::centered_at(spot, gpui::size(dot_size, dot_size)),
@@ -1060,8 +1071,11 @@ pub(crate) fn stage_dot_grid(dot: gpui::Hsla) -> impl IntoElement {
     .inset_0()
 }
 
-/// Bordered live-demo container like HeroUI's "Usage" preview cards.
-pub fn example_frame(content: gpui::AnyElement, cx: &App) -> gpui::AnyElement {
+/// Quiet container for doc-page prose sections -- paragraphs, code blocks and
+/// swatch grids rather than live demos, so it keeps the card chrome of the
+/// component stages but drops their dot grid: the dotted stage belongs to the
+/// live previews that [`example_frame_with_code`] frames.
+pub fn prose_frame(content: gpui::AnyElement, cx: &App) -> gpui::AnyElement {
     let colors = cx.colors();
     gpui::div()
         .relative()
@@ -1073,10 +1087,6 @@ pub fn example_frame(content: gpui::AnyElement, cx: &App) -> gpui::AnyElement {
         .shadow(cx.layout().surface_shadow.clone())
         .flex()
         .flex_col()
-        .items_center()
-        .justify_center()
-        .gap(px(16.))
-        .child(stage_dot_grid(colors.muted.alpha(0.22)))
         .child(content)
         .into_any_element()
 }
@@ -1339,7 +1349,24 @@ mod tests {
         ));
         blocks.push((
             "component_doc_page sections".to_owned(),
-            include_str!("components.rs").to_owned(),
+            concat!(
+                include_str!("components/buttons.rs"),
+                include_str!("components/collections.rs"),
+                include_str!("components/colors.rs"),
+                include_str!("components/controls.rs"),
+                include_str!("components/data_display.rs"),
+                include_str!("components/date_and_time.rs"),
+                include_str!("components/feedback.rs"),
+                include_str!("components/forms.rs"),
+                include_str!("components/layout.rs"),
+                include_str!("components/media.rs"),
+                include_str!("components/navigation.rs"),
+                include_str!("components/overlays.rs"),
+                include_str!("components/pickers.rs"),
+                include_str!("components/typography.rs"),
+                include_str!("components/utilities.rs"),
+            )
+            .to_owned(),
         ));
         blocks.extend(
             nav_sections()

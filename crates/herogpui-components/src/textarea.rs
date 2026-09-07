@@ -14,6 +14,8 @@ pub struct TextArea {
     inner: Input,
     /// `cols`, as a pixel width. `None` leaves the field's natural width.
     min_w: Option<gpui::Pixels>,
+    /// The `sx` slot, refined over the root style at the end of render.
+    sx: Option<Box<gpui::StyleRefinement>>,
 }
 
 /// `rows` as a height: one 20px line each, over `.textarea`'s `py-2`.
@@ -22,9 +24,11 @@ fn rows_height(rows: u32) -> gpui::Pixels {
 }
 
 impl TextArea {
-    /// `value` — writes through to the bound [`InputState`].
-    pub fn value(self, value: impl Into<String>, cx: &mut App) -> Self {
-        self.inner.state().update(cx, |s, _| s.set_value(value));
+    /// `value` — v3's controlled-value spelling, forwarded to the inner field;
+    /// see [`crate::input::Input::value`]. A later value is an imperative
+    /// update: `state.update(cx, |s, _| s.set_value(..))`.
+    pub fn value(mut self, value: impl Into<SharedString>) -> Self {
+        self.inner = self.inner.value(value);
         self
     }
 
@@ -85,6 +89,16 @@ impl TextArea {
         self
     }
 
+    /// The one slot for caller-owned low-level styling: GPUI's styling methods
+    /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
+    /// applied to the wrapper around the field after every value the variant
+    /// and the active theme chose, so they win. The field paints its own
+    /// chrome, so this reaches the box that chrome sits in, not the chrome.
+    pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
+        self.sx = Some(crate::util::capture_sx(style));
+        self
+    }
+
     pub fn is_disabled(mut self, v: bool) -> Self {
         self.inner = self.inner.is_disabled(v);
         self
@@ -130,11 +144,14 @@ impl TextArea {
         self
     }
 
-    pub fn new(state: Entity<InputState>) -> Self {
+    /// Builds the multi-line field over `state`, borrowed or owned — see
+    /// [`crate::input::Input::new`].
+    pub fn new(state: impl std::borrow::Borrow<Entity<InputState>>) -> Self {
         Self {
             // v3 documents `rows` as defaulting to 3.
             inner: Input::new(state).multiline(true).min_h(rows_height(3)),
             min_w: None,
+            sx: None,
         }
     }
 
@@ -172,11 +189,12 @@ impl RenderOnce for TextArea {
         // its own chrome (`util::apply_field_chrome`) -- the wrapper used to
         // repaint a `default.soft()` background at a hardcoded 10px radius,
         // neither of which is a v3 value.
-        gpui::div()
+        let el = gpui::div()
             .flex()
             .flex_col()
             .items_start()
             .when_some(self.min_w, |e, w| e.min_w(w))
-            .child(self.inner)
+            .child(self.inner);
+        crate::util::apply_sx(el, &self.sx)
     }
 }

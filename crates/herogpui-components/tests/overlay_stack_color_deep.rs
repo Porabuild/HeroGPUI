@@ -238,7 +238,7 @@ fn nested_color_picker_escape_closes_only_the_picker_then_parent(cx: &mut TestAp
                     let outer_open = outer_open.clone();
                     let changes = changes.clone();
                     move |value, window, _| {
-                        outer_open.set(value);
+                        outer_open.set(*value);
                         changes.borrow_mut().push(format!("outer:{value}"));
                         window.refresh();
                     }
@@ -249,7 +249,7 @@ fn nested_color_picker_escape_closes_only_the_picker_then_parent(cx: &mut TestAp
                         .on_open_change({
                             let picker_open = picker_open.clone();
                             move |value, window, _| {
-                                picker_open.set(value);
+                                picker_open.set(*value);
                                 changes.borrow_mut().push(format!("picker:{value}"));
                                 window.refresh();
                             }
@@ -297,7 +297,7 @@ fn nested_color_picker_outside_press_closes_only_the_picker_then_parent(cx: &mut
                     let outer_open = outer_open.clone();
                     let changes = changes.clone();
                     move |value, window, _| {
-                        outer_open.set(value);
+                        outer_open.set(*value);
                         changes.borrow_mut().push(format!("outer:{value}"));
                         window.refresh();
                     }
@@ -308,7 +308,7 @@ fn nested_color_picker_outside_press_closes_only_the_picker_then_parent(cx: &mut
                         .on_open_change({
                             let picker_open = picker_open.clone();
                             move |value, window, _| {
-                                picker_open.set(value);
+                                picker_open.set(*value);
                                 changes.borrow_mut().push(format!("picker:{value}"));
                                 window.refresh();
                             }
@@ -349,7 +349,7 @@ fn color_picker_escape_reports_one_close_and_restores_trigger_activation(cx: &mu
                 .on_open_change({
                     let picker_open = picker_open.clone();
                     move |value, window, _| {
-                        picker_open.set(value);
+                        picker_open.set(*value);
                         changes.borrow_mut().push(format!("picker:{value}"));
                         window.refresh();
                     }
@@ -392,7 +392,7 @@ fn clicking_an_open_color_picker_trigger_reports_one_close(cx: &mut TestAppConte
                     let picker_open = picker_open.clone();
                     let changes = changes.clone();
                     move |value, window, _| {
-                        picker_open.set(value);
+                        picker_open.set(*value);
                         changes.borrow_mut().push(format!("picker:{value}"));
                         window.refresh();
                     }
@@ -427,7 +427,7 @@ fn canceled_color_picker_trigger_press_does_not_block_a_later_outside_close(
                     let picker_open = picker_open.clone();
                     let changes = changes.clone();
                     move |value, window, _| {
-                        picker_open.set(value);
+                        picker_open.set(*value);
                         changes.borrow_mut().push(format!("picker:{value}"));
                         window.refresh();
                     }
@@ -466,7 +466,7 @@ fn controlled_color_picker_without_callback_blocks_parent_outside_dismissal(
                     let outer_open = outer_open.clone();
                     let changes = changes.clone();
                     move |value, window, _| {
-                        outer_open.set(value);
+                        outer_open.set(*value);
                         changes.borrow_mut().push(format!("outer:{value}"));
                         window.refresh();
                     }

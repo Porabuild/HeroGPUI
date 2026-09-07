@@ -4,9 +4,13 @@ use gpui::{
     prelude::*, px, App, ClickEvent, FontWeight, InteractiveElement, IntoElement, RenderOnce,
     SharedString, Styled, Window,
 };
+use herogpui_core::element_id;
 use herogpui_theme::ActiveTheme;
 
-use crate::icons;
+use crate::{
+    a11y::{self, A11y as _},
+    icons,
+};
 
 /// BreadcrumbSeparator style (`separator`).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -39,7 +43,7 @@ impl Crumb {
 }
 
 type OnNavigate =
-    std::sync::Arc<dyn Fn(usize, &Crumb, &ClickEvent, &mut Window, &mut App) + 'static>;
+    std::sync::Arc<dyn Fn(&usize, &Crumb, &ClickEvent, &mut Window, &mut App) + 'static>;
 
 /// v3's `separator?: ReactNode`: custom content rebuilt for every non-last
 /// crumb, painted inside the 12px `breadcrumbs__separator` slot.
@@ -57,6 +61,8 @@ pub struct Breadcrumbs {
     separator_render: Option<SeparatorRender>,
     is_disabled: bool,
     on_navigate: Option<OnNavigate>,
+    /// The `sx` slot, refined over the root style at the end of render.
+    sx: Option<Box<gpui::StyleRefinement>>,
 }
 
 impl Breadcrumbs {
@@ -73,6 +79,7 @@ impl Breadcrumbs {
             separator_render: None,
             is_disabled: false,
             on_navigate: None,
+            sx: None,
         }
     }
 
@@ -98,9 +105,18 @@ impl Breadcrumbs {
     /// Called with the index and crumb when a segment is clicked.
     pub fn on_navigate(
         mut self,
-        f: impl Fn(usize, &Crumb, &ClickEvent, &mut Window, &mut App) + 'static,
+        f: impl Fn(&usize, &Crumb, &ClickEvent, &mut Window, &mut App) + 'static,
     ) -> Self {
         self.on_navigate = Some(std::sync::Arc::new(f));
+        self
+    }
+
+    /// The one slot for caller-owned low-level styling: GPUI's styling methods
+    /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
+    /// applied to the breadcrumbs' root element after every value the active
+    /// theme chose, so they win.
+    pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
+        self.sx = Some(crate::util::capture_sx(style));
         self
     }
 }
@@ -111,17 +127,21 @@ impl RenderOnce for Breadcrumbs {
         // `cx` mutably), and they must be keyed by this instance: bare
         // `crumb-{i}` literals made a second Breadcrumbs re-use the first
         // one's tab stops.
-        let base = match self.id {
-            Some(id) => format!("{id:?}"),
-            None => format!(
-                "bc-{}",
+        let base_id = match &self.id {
+            Some(id) => id.clone(),
+            None => gpui::ElementId::Name(
                 self.items
                     .iter()
                     .map(|c| c.label.as_ref())
                     .collect::<Vec<_>>()
                     .join("-")
+                    .into(),
             ),
         };
+        // The `debug_selector` spelling the deep tests query on. It is the
+        // id's `Debug` form, not an id: `debug_selector` is a label, and
+        // keeping it verbatim keeps those queries readable.
+        let base = format!("{base_id:?}");
         let colors = cx.colors();
         let text_size = px(14.);
         let muted = colors.muted;
@@ -147,6 +167,15 @@ impl RenderOnce for Breadcrumbs {
                 let is_last = i == item_count - 1;
                 let row_base = base.clone();
                 let row = gpui::div()
+                    .id(element_id::indexed(&base_id, "item", i))
+                    // Each item is an RAC `Breadcrumb`, which
+                    // `react-aria-components/dist/private/Breadcrumbs.mjs`
+                    // renders as a `<li>` — role `listitem` — holding a
+                    // `<Link>` (`@heroui/react/.../breadcrumbs/breadcrumbs.js`
+                    // composes exactly that) and, when it is not the current
+                    // page, the separator. Its `aria-current="page"` half is
+                    // a recorded omission: gpui has no builder for it.
+                    .a11y(a11y::Role::ListItem)
                     .flex()
                     .flex_shrink_0()
                     .items_center()
@@ -164,7 +193,7 @@ impl RenderOnce for Breadcrumbs {
                 // crumb leaves the tab order like any other disabled control.
                 let focus = (!is_last && !disabled).then(|| {
                     crate::util::tab_stop_handle(
-                        gpui::ElementId::Name(format!("{base}-crumb-{i}-focus").into()),
+                        element_id::scoped(&element_id::indexed(&base_id, "crumb", i), "focus"),
                         window,
                         cx,
                     )
@@ -180,7 +209,15 @@ impl RenderOnce for Breadcrumbs {
                 let navigable = is_link && (on_navigate.is_some() || crumb.href.is_some());
 
                 let mut label_el = gpui::div()
-                    .id(gpui::ElementId::Name(format!("{base}-crumb-{i}").into()))
+                    .id(element_id::indexed(&base_id, "crumb", i))
+                    // Every item — the current page included — holds a
+                    // `<Link>` upstream, and RAC hands it
+                    // `isDisabled: isDisabled || isCurrent` rather than
+                    // dropping it, so the last crumb is a disabled link and
+                    // not a bare span. `react-aria/.../link/useLink.js` adds
+                    // the explicit role only for a non-anchor element; the
+                    // node is a link either way.
+                    .a11y_named(a11y::Role::Link, &a11y::Name::labelled(crumb.label.clone()))
                     .when_some(focus.as_ref(), |el, handle| el.track_focus(handle))
                     .text_size(text_size)
                     // `.breadcrumbs__link` is `text-sm leading-5 font-medium`:
@@ -208,7 +245,7 @@ impl RenderOnce for Breadcrumbs {
                     let href = crumb2.href.clone();
                     label_el = label_el.on_click(move |ev, w, cx| {
                         if let Some(on_nav) = &on_nav {
-                            on_nav(idx, &crumb2, ev, w, cx);
+                            on_nav(&idx, &crumb2, ev, w, cx);
                         }
                         if let Some(href) = &href {
                             cx.open_url(href);
@@ -234,9 +271,7 @@ impl RenderOnce for Breadcrumbs {
                             // `.breadcrumbs__separator` is `size-3 text-muted`.
                             let sep_base = base.clone();
                             gpui::div()
-                                .id(gpui::ElementId::Name(
-                                    format!("{base}-separator-{i}").into(),
-                                ))
+                                .id(element_id::indexed(&base_id, "separator", i))
                                 .debug_selector(move || format!("{sep_base}-separator-{i}"))
                                 .flex()
                                 .items_center()
@@ -259,9 +294,7 @@ impl RenderOnce for Breadcrumbs {
                                 _ => "-",
                             };
                             gpui::div()
-                                .id(gpui::ElementId::Name(
-                                    format!("{base}-separator-{i}").into(),
-                                ))
+                                .id(element_id::indexed(&base_id, "separator", i))
                                 .flex()
                                 .items_center()
                                 .justify_center()
@@ -278,6 +311,21 @@ impl RenderOnce for Breadcrumbs {
             .collect();
 
         // `.breadcrumbs` is `flex items-center`: one line, no wrap.
-        gpui::div().flex().items_center().children(crumbs)
+        let el = gpui::div().flex().items_center().children(crumbs);
+        // Stated after the layout chain so the wrapper stays readable to the
+        // character-windowed regexes in `.shots/design_audit.py`.
+        //
+        // RAC's `Breadcrumbs` puts `useBreadcrumbs`' `navProps` on an `<ol>`,
+        // not on a `<nav>` (`Breadcrumbs.mjs`: `...dom.ol, {...mergeProps(
+        // DOMProps, navProps)}`), so the node is a list carrying the hook's
+        // `'aria-label': ariaLabel || strings.format('breadcrumbs')` — the
+        // pinned en-US string is `Breadcrumbs`
+        // (`react-aria/dist/private/intl/breadcrumbs/en-US.mjs`). The port has
+        // no locale plumbing, so the pinned en-US string is inlined, as the
+        // toast region's would be.
+        let el = el
+            .id(base_id)
+            .a11y_named(a11y::Role::List, &a11y::Name::labelled("Breadcrumbs"));
+        crate::util::apply_sx(el, &self.sx)
     }
 }

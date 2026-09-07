@@ -2967,7 +2967,7 @@ fn select_full_width_fills_its_host_and_keeps_the_trigger_clickable(cx: &mut Tes
                 let cx = open_host(cx, move || {
                     let opened = opened.clone();
                     let measured = measured.clone();
-                    let mut select = Select::new("full-width", vec!["Alpha".into()])
+                    let mut select = Select::new("full-width", keyed(&["Alpha"]))
                         .full_width(full_width)
                         .on_open_change(move |open, _, _| {
                             opened.borrow_mut().push(open.to_string());
@@ -3010,18 +3010,15 @@ fn select_value_render_props_flip_placeholder_with_a_pick(cx: &mut TestAppContex
     let cx = open_host(cx, move || {
         let flags = flags.clone();
         let changes = changes.clone();
-        Select::new(
-            "sel-ph",
-            vec!["Alpha".into(), "Beta".into(), "Gamma".into()],
-        )
-        .value_content(move |value| {
-            flags
-                .borrow_mut()
-                .push((value.is_placeholder, value.selected_text.to_owned()));
-            value.default_children
-        })
-        .on_change(move |i, _, _| changes.borrow_mut().push(format!("{i:?}")))
-        .into_any_element()
+        Select::new("sel-ph", keyed(&["Alpha", "Beta", "Gamma"]))
+            .value_content(move |value| {
+                flags
+                    .borrow_mut()
+                    .push((value.is_placeholder, value.selected_text.to_owned()));
+                value.default_children
+            })
+            .on_change(move |key, _, _| changes.borrow_mut().push(format!("{key:?}")))
+            .into_any_element()
     });
 
     // The first render shows the placeholder state.
@@ -3034,7 +3031,7 @@ fn select_value_render_props_flip_placeholder_with_a_pick(cx: &mut TestAppContex
     // Pick row 2 (Gamma), centre y = 66 + 2*36 = 138.
     click(cx, 60., 18.);
     click(cx, 60., 138.);
-    assert_eq!(picked.borrow().as_slice(), ["Some(2)"]);
+    assert_eq!(picked.borrow().as_slice(), ["Some(\"Gamma\")"]);
     assert_eq!(
         seen_flags.borrow().last(),
         Some(&(false, "Gamma".to_owned())),
@@ -3068,21 +3065,13 @@ fn select_disabled_rows_are_unclickable_and_not_a_stop(cx: &mut TestAppContext) 
     let cx = open_host(cx, move || {
         let changes = changes.clone();
         let opens = opens.clone();
-        Select::new(
-            "sel-dis",
-            vec![
-                "Alpha".into(),
-                "Beta".into(),
-                "Gamma".into(),
-                "Delta".into(),
-            ],
-        )
-        .disabled_keys([1])
-        .on_change(move |i, _, _| changes.borrow_mut().push(format!("{i:?}")))
-        .on_open_change(move |open, _, _| {
-            opens.borrow_mut().push(format!("open:{open}"));
-        })
-        .into_any_element()
+        Select::new("sel-dis", keyed(&["Alpha", "Beta", "Gamma", "Delta"]))
+            .disabled_keys(["Beta".into()])
+            .on_change(move |key, _, _| changes.borrow_mut().push(format!("{key:?}")))
+            .on_open_change(move |open, _, _| {
+                opens.borrow_mut().push(format!("open:{open}"));
+            })
+            .into_any_element()
     });
 
     click(cx, 60., 18.);
@@ -3100,7 +3089,7 @@ fn select_disabled_rows_are_unclickable_and_not_a_stop(cx: &mut TestAppContext) 
     press(cx, "enter");
     assert_eq!(
         recorded.borrow().as_slice(),
-        ["Some(2)"],
+        ["Some(\"Gamma\")"],
         "the arrows must skip the disabled option"
     );
     assert_eq!(opened.borrow().as_slice(), ["open:true", "open:false"]);
@@ -3120,7 +3109,7 @@ fn select_disabled_rows_are_unclickable_and_not_a_stop(cx: &mut TestAppContext) 
     click(cx, 60., 102.);
     assert_eq!(
         recorded.borrow().as_slice(),
-        ["Some(2)"],
+        ["Some(\"Gamma\")"],
         "a disabled option must not answer the pointer"
     );
     assert_eq!(
@@ -3144,7 +3133,7 @@ fn select_keyboard_pick_does_not_reopen_when_owner_closes_on_change(cx: &mut Tes
             let trigger_open = view_open.clone();
             let changes = view_changes.clone();
             let opens = view_opens.clone();
-            Select::new("sel-owner-close", vec!["Alpha".into(), "Beta".into()])
+            Select::new("sel-owner-close", keyed(&["Alpha", "Beta"]))
                 .is_open(view_open.get())
                 .on_change(move |value, window, _| {
                     changes.borrow_mut().push(format!("{value:?}"));
@@ -3153,7 +3142,7 @@ fn select_keyboard_pick_does_not_reopen_when_owner_closes_on_change(cx: &mut Tes
                 })
                 .on_open_change(move |value, window, _| {
                     opens.borrow_mut().push(format!("{value}"));
-                    trigger_open.set(value);
+                    trigger_open.set(*value);
                     window.refresh();
                 })
                 .into_any_element()
@@ -3193,7 +3182,7 @@ fn select_keyboard_pick_does_not_reopen_when_owner_closes_on_change(cx: &mut Tes
         cx.simulate_event(gpui::KeyUpEvent {
             keystroke: gpui::Keystroke::parse(key).unwrap(),
         });
-        assert_eq!(changes.borrow().as_slice(), ["Some(0)"], "{key}");
+        assert_eq!(changes.borrow().as_slice(), ["Some(\"Alpha\")"], "{key}");
         assert!(
             !open.get(),
             "{key} must not reopen the owner's closed popup"
@@ -3203,7 +3192,7 @@ fn select_keyboard_pick_does_not_reopen_when_owner_closes_on_change(cx: &mut Tes
         click(cx, 60., 102.);
         assert_eq!(
             changes.borrow().as_slice(),
-            ["Some(0)"],
+            ["Some(\"Alpha\")"],
             "{key} must leave the former Beta option inert"
         );
     }
@@ -3229,9 +3218,9 @@ fn select_fully_disabled_collection_answers_nothing(cx: &mut TestAppContext) {
     let cx = open_host(cx, move || {
         let changes = changes.clone();
         let opens = opens.clone();
-        Select::new("sel-all-off", vec!["Alpha".into(), "Beta".into()])
-            .disabled_keys([0, 1])
-            .on_change(move |i, _, _| changes.borrow_mut().push(format!("{i:?}")))
+        Select::new("sel-all-off", keyed(&["Alpha", "Beta"]))
+            .disabled_keys(["Alpha".into(), "Beta".into()])
+            .on_change(move |key, _, _| changes.borrow_mut().push(format!("{key:?}")))
             .on_open_change(move |open, _, _| {
                 opens.borrow_mut().push(format!("open:{open}"));
             })
@@ -3279,12 +3268,9 @@ fn select_no_wrap_holds_at_both_ends(cx: &mut TestAppContext) {
 
     let cx = open_host(cx, move || {
         let changes = changes.clone();
-        Select::new(
-            "sel-wrap-off",
-            vec!["Alpha".into(), "Beta".into(), "Gamma".into()],
-        )
-        .on_change(move |i, _, _| changes.borrow_mut().push(format!("{i:?}")))
-        .into_any_element()
+        Select::new("sel-wrap-off", keyed(&["Alpha", "Beta", "Gamma"]))
+            .on_change(move |key, _, _| changes.borrow_mut().push(format!("{key:?}")))
+            .into_any_element()
     });
 
     // The first Down after opening starts the walk; 0 -> 1 -> 2 -> 2 (clamp).
@@ -3293,7 +3279,7 @@ fn select_no_wrap_holds_at_both_ends(cx: &mut TestAppContext) {
     press(cx, "enter");
     assert_eq!(
         recorded.borrow().as_slice(),
-        ["Some(2)"],
+        ["Some(\"Gamma\")"],
         "down past the end must hold on the last option without wrap"
     );
 
@@ -3303,7 +3289,7 @@ fn select_no_wrap_holds_at_both_ends(cx: &mut TestAppContext) {
     press(cx, "enter");
     assert_eq!(
         recorded.borrow().as_slice(),
-        ["Some(2)", "Some(0)"],
+        ["Some(\"Gamma\")", "Some(\"Alpha\")"],
         "up past the start must hold on the first option without wrap"
     );
 }
@@ -3317,13 +3303,10 @@ fn select_wrap_joins_both_ends(cx: &mut TestAppContext) {
 
     let cx = open_host(cx, move || {
         let changes = changes.clone();
-        Select::new(
-            "sel-wrap-on",
-            vec!["Alpha".into(), "Beta".into(), "Gamma".into()],
-        )
-        .should_focus_wrap(true)
-        .on_change(move |i, _, _| changes.borrow_mut().push(format!("{i:?}")))
-        .into_any_element()
+        Select::new("sel-wrap-on", keyed(&["Alpha", "Beta", "Gamma"]))
+            .should_focus_wrap(true)
+            .on_change(move |key, _, _| changes.borrow_mut().push(format!("{key:?}")))
+            .into_any_element()
     });
 
     // Fourth Down wraps 2 -> 0.
@@ -3332,7 +3315,7 @@ fn select_wrap_joins_both_ends(cx: &mut TestAppContext) {
     press(cx, "enter");
     assert_eq!(
         recorded.borrow().as_slice(),
-        ["Some(0)"],
+        ["Some(\"Alpha\")"],
         "down past the end must wrap to the first option"
     );
 
@@ -3342,7 +3325,7 @@ fn select_wrap_joins_both_ends(cx: &mut TestAppContext) {
     press(cx, "enter");
     assert_eq!(
         recorded.borrow().as_slice(),
-        ["Some(0)", "Some(2)"],
+        ["Some(\"Alpha\")", "Some(\"Gamma\")"],
         "up past the start must wrap to the last option"
     );
 }
@@ -3371,8 +3354,8 @@ fn select_tab_to_the_next_control_closes_and_keeps_the_focus_moving(cx: &mut Tes
             .child(
                 // Two options put Alpha's row centre at y 66 and Beta's at
                 // y 102, both clear of the Input the gap parks below (y 196+).
-                Select::new("sel-blur-out", vec!["Alpha".into(), "Beta".into()])
-                    .on_change(move |i, _, _| changes.borrow_mut().push(format!("{i:?}")))
+                Select::new("sel-blur-out", keyed(&["Alpha", "Beta"]))
+                    .on_change(move |key, _, _| changes.borrow_mut().push(format!("{key:?}")))
                     .on_open_change(move |open, _, _| {
                         opened_open.borrow_mut().push(format!("open:{open}"));
                     }),
@@ -3460,7 +3443,7 @@ fn drawer_close_button_reports_on_close_and_open_change(cx: &mut TestAppContext)
             .on_open_change({
                 let open_flag = open_flag.clone();
                 move |v, window, _| {
-                    *open_flag.borrow_mut() = v;
+                    *open_flag.borrow_mut() = *v;
                     opens.borrow_mut().push(format!("open:{v}"));
                     window.refresh();
                 }
@@ -3528,7 +3511,7 @@ fn drawer_keyboard_dismiss_disabled_silences_escape_but_not_the_button(cx: &mut 
             .on_open_change({
                 let open_flag = open_flag.clone();
                 move |v, window, _| {
-                    *open_flag.borrow_mut() = v;
+                    *open_flag.borrow_mut() = *v;
                     opens.borrow_mut().push(format!("open:{v}"));
                     window.refresh();
                 }
@@ -3573,7 +3556,7 @@ fn drawer_omitted_close_trigger_keeps_escape_dismissal(cx: &mut TestAppContext) 
             .on_open_change({
                 let open_flag = open_flag.clone();
                 move |v, window, _| {
-                    *open_flag.borrow_mut() = v;
+                    *open_flag.borrow_mut() = *v;
                     opens.borrow_mut().push(format!("open:{v}"));
                     window.refresh();
                 }
@@ -3730,7 +3713,7 @@ fn drawer_footer_child_close_trigger_is_pulled_into_the_slot(cx: &mut TestAppCon
             .on_open_change({
                 let open_flag = open_flag.clone();
                 move |v, window, _| {
-                    *open_flag.borrow_mut() = v;
+                    *open_flag.borrow_mut() = *v;
                     opened.borrow_mut().push(format!("open:{v}"));
                     window.refresh();
                 }
@@ -3777,7 +3760,7 @@ fn drawer_not_dismissible_still_closes_from_a_composed_close_trigger(cx: &mut Te
             .on_open_change({
                 let open_flag = open_flag.clone();
                 move |v, window, _| {
-                    *open_flag.borrow_mut() = v;
+                    *open_flag.borrow_mut() = *v;
                     opened.borrow_mut().push(format!("open:{v}"));
                     window.refresh();
                 }
@@ -3836,7 +3819,7 @@ fn drawer_not_dismissible_ignores_outside_press_and_drag(cx: &mut TestAppContext
             .on_open_change({
                 let open_flag = open_flag.clone();
                 move |v, window, _| {
-                    *open_flag.borrow_mut() = v;
+                    *open_flag.borrow_mut() = *v;
                     opens.borrow_mut().push(format!("open:{v}"));
                     window.refresh();
                 }
@@ -3933,9 +3916,9 @@ fn picker_text_metrics_keep_sections_and_options_in_place(cx: &mut TestAppContex
             let cx = open_host(cx, move || {
                 let changes = changes.clone();
                 let control = match kind {
-                    0 => Select::new("leading-select", vec!["Alpha".into()])
+                    0 => Select::new("leading-select", keyed(&["Alpha"]))
                         .default_open(true)
-                        .section_before(0, "First\nSecond")
+                        .section_before("Alpha", "First\nSecond")
                         .on_change(move |_, _, _| changes.borrow_mut().push("picked".into()))
                         .into_any_element(),
                     1 => Autocomplete::new(state.clone(), keyed(&["Alpha"]))
@@ -4012,9 +3995,12 @@ fn picker_text_metrics_keep_sections_and_options_in_place(cx: &mut TestAppContex
 
 /// Twelve plain rows: natural panel height (~444px) fits neither below a
 /// bottom trigger nor, in a 480px window, above it uncapped.
-fn viewport_options(n: usize) -> Vec<gpui::SharedString> {
+fn viewport_options(n: usize) -> Vec<PickerItem> {
     (0..n)
-        .map(|i| gpui::SharedString::from(format!("Option {i:02}")))
+        .map(|i| {
+            let label = format!("Option {i:02}");
+            PickerItem::new(label.clone(), label)
+        })
         .collect()
 }
 
@@ -4091,7 +4077,7 @@ fn select_panel_flips_above_and_keeps_every_row_reachable(cx: &mut TestAppContex
             408.,
             Select::new("sel-vp", viewport_options(12))
                 .full_width(true)
-                .on_change(move |i, _, _| recorded.borrow_mut().push(format!("{i:?}")))
+                .on_change(move |key, _, _| recorded.borrow_mut().push(format!("{key:?}")))
                 .on_open_change(move |open, _, _| opens.borrow_mut().push(format!("{open}"))),
             page_scroll,
         )
@@ -4203,7 +4189,7 @@ fn select_panel_flips_above_and_keeps_every_row_reachable(cx: &mut TestAppContex
         .debug_bounds(last_selector)
         .expect("rows must be laid out");
     click(cx, f32::from(last.center().x), f32::from(last.center().y));
-    assert_eq!(recorded.borrow().as_slice(), ["Some(11)"]);
+    assert_eq!(recorded.borrow().as_slice(), ["Some(\"Option 11\")"]);
     assert_eq!(opens.borrow().as_slice(), ["true", "false"]);
 }
 
@@ -4225,7 +4211,7 @@ fn select_virtual_panel_flips_caps_and_tracks_resize(cx: &mut TestAppContext) {
             Select::new("sel-vv", viewport_options(200))
                 .full_width(true)
                 .row_height(px(36.))
-                .on_change(move |i, _, _| recorded.borrow_mut().push(format!("{i:?}")))
+                .on_change(move |key, _, _| recorded.borrow_mut().push(format!("{key:?}")))
                 .on_open_change(move |open, _, _| opens.borrow_mut().push(format!("{open}"))),
             page_scroll,
         )
@@ -4316,7 +4302,7 @@ fn select_virtual_panel_flips_caps_and_tracks_resize(cx: &mut TestAppContext) {
         "the page must not scroll under the open virtual popup"
     );
     click(cx, f32::from(last.center().x), f32::from(last.center().y));
-    assert_eq!(recorded.borrow().as_slice(), ["Some(199)"]);
+    assert_eq!(recorded.borrow().as_slice(), ["Some(\"Option 199\")"]);
     assert_eq!(opens.borrow().as_slice(), ["true", "false"]);
 
     // Reopen for the keyboard path: End still reaches the last virtual row
@@ -4338,7 +4324,10 @@ fn select_virtual_panel_flips_caps_and_tracks_resize(cx: &mut TestAppContext) {
         "End must scroll the last virtual row into view: row={last:?} panel={panel:?}"
     );
     press(cx, "enter");
-    assert_eq!(recorded.borrow().as_slice(), ["Some(199)", "Some(199)"]);
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["Some(\"Option 199\")", "Some(\"Option 199\")"]
+    );
     assert_eq!(
         opens.borrow().as_slice(),
         ["true", "false", "true", "false"]
@@ -4361,7 +4350,7 @@ fn select_panel_anchors_to_the_trigger_and_dismisses_with_escape(cx: &mut TestAp
                 .full_width(true)
                 .label("Language")
                 .description("Pick one")
-                .on_change(move |i, _, _| recorded.borrow_mut().push(format!("{i:?}")))
+                .on_change(move |key, _, _| recorded.borrow_mut().push(format!("{key:?}")))
                 .on_open_change(move |open, _, _| opens.borrow_mut().push(format!("{open}"))),
         )
     });

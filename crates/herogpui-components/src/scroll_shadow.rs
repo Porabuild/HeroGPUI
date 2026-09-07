@@ -8,7 +8,7 @@ use gpui::{
     canvas, div, prelude::*, px, AnyElement, App, ElementId, IntoElement, ParentElement, Pixels,
     RenderOnce, ScrollHandle, Styled, Window,
 };
-use herogpui_core::Orientation;
+use herogpui_core::{element_id, Orientation};
 use herogpui_theme::ActiveTheme;
 
 /// The shadow effect style. v3 ships one.
@@ -77,11 +77,14 @@ pub struct ScrollShadow {
     /// `onVisibilityChange` — reports the edges that are shaded, whenever that
     /// changes.
     on_visibility_change:
-        Option<std::sync::Arc<dyn Fn(ScrollShadowVisibility, &mut Window, &mut App) + 'static>>,
+        Option<std::sync::Arc<dyn Fn(&ScrollShadowVisibility, &mut Window, &mut App) + 'static>>,
     max_h: Option<Pixels>,
     max_w: Option<Pixels>,
     gap: Pixels,
     children: Vec<AnyElement>,
+    hide_scroll_bar: bool,
+    /// The `sx` slot, refined over the root style at the end of render.
+    sx: Option<Box<gpui::StyleRefinement>>,
 }
 
 impl ScrollShadow {
@@ -98,7 +101,16 @@ impl ScrollShadow {
             max_w: None,
             gap: px(8.),
             children: Vec::new(),
+            hide_scroll_bar: false,
+            sx: None,
         }
+    }
+
+    /// `hideScrollBar` — omit the painted overlay thumb. GPUI has no native
+    /// scrollbar on a overflow div; this is the port of v3's CSS hide.
+    pub fn hide_scroll_bar(mut self, v: bool) -> Self {
+        self.hide_scroll_bar = v;
+        self
     }
 
     pub fn orientation(mut self, orientation: Orientation) -> Self {
@@ -127,7 +139,7 @@ impl ScrollShadow {
     /// resolved visibility (never `Auto`: the resolved value is what changed).
     pub fn on_visibility_change(
         mut self,
-        handler: impl Fn(ScrollShadowVisibility, &mut Window, &mut App) + 'static,
+        handler: impl Fn(&ScrollShadowVisibility, &mut Window, &mut App) + 'static,
     ) -> Self {
         self.on_visibility_change = Some(std::sync::Arc::new(handler));
         self
@@ -153,6 +165,15 @@ impl ScrollShadow {
         self.gap = gap.into();
         self
     }
+
+    /// The one slot for caller-owned low-level styling: GPUI's styling methods
+    /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
+    /// applied to the scroll shadow's root element after every value the
+    /// orientation, the size and the active theme chose, so they win.
+    pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
+        self.sx = Some(crate::util::capture_sx(style));
+        self
+    }
 }
 
 impl ParentElement for ScrollShadow {
@@ -166,15 +187,13 @@ impl RenderOnce for ScrollShadow {
         // Where the content sits, as of the last frame: `use_keyed_state` takes
         // `cx` mutably, so both slots precede the theme borrow.
         let scroll = window
-            .use_keyed_state(
-                ElementId::Name(format!("{:?}-scroll", self.id).into()),
-                cx,
-                |_, _| ScrollHandle::new(),
-            )
+            .use_keyed_state(element_id::scoped(&self.id, "scroll"), cx, |_, _| {
+                ScrollHandle::new()
+            })
             .read(cx)
             .clone();
         let reported = window.use_keyed_state(
-            ElementId::Name(format!("{:?}-shadow-visibility", self.id).into()),
+            element_id::scoped(&self.id, "shadow-visibility"),
             cx,
             |_, _| ScrollShadowVisibility::None,
         );
@@ -204,8 +223,20 @@ impl RenderOnce for ScrollShadow {
 
         scroller = scroller.children(self.children);
 
+        let bar = (!self.hide_scroll_bar).then(|| {
+            crate::scrollbar::Scrollbar::new(
+                element_id::scoped(&self.id, "scrollbar"),
+                scroll.clone(),
+            )
+            .orientation(self.orientation)
+        });
+
         if !self.is_enabled || self.visibility == ScrollShadowVisibility::None {
-            return div().child(scroller).into_any_element();
+            let mut root = div().relative().child(scroller);
+            if let Some(bar) = bar {
+                root = root.child(bar);
+            }
+            return crate::util::apply_sx(root, &self.sx).into_any_element();
         }
 
         // `Auto`: the leading fade once the content has been scrolled away from
@@ -278,7 +309,7 @@ impl RenderOnce for ScrollShadow {
             }
         };
 
-        div()
+        let root = div()
             .relative()
             .child(scroller)
             .when(resolved.shows_start(self.orientation), |el| {
@@ -287,6 +318,7 @@ impl RenderOnce for ScrollShadow {
             .when(resolved.shows_end(self.orientation), |el| {
                 el.child(fade(false))
             })
+            .when_some(bar, |el, bar| el.child(bar))
             .when(reports_visibility, |el| {
                 // The offset is written during prepaint, so what changed is
                 // known here and reported from here.
@@ -300,7 +332,7 @@ impl RenderOnce for ScrollShadow {
                                     cx.notify();
                                 });
                                 if let Some(f) = &handler {
-                                    f(resolved, window, cx);
+                                    f(&resolved, window, cx);
                                 }
                             }
                         },
@@ -309,7 +341,7 @@ impl RenderOnce for ScrollShadow {
                     .absolute()
                     .size(px(0.)),
                 )
-            })
-            .into_any_element()
+            });
+        crate::util::apply_sx(root, &self.sx).into_any_element()
     }
 }

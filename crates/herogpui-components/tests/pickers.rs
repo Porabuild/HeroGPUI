@@ -1919,7 +1919,7 @@ impl Render for SelectedKeyOwner {
                 PickerItem::new("beta", "Beta"),
             ],
         )
-        .selected_key(key, cx)
+        .selected_key(key)
         .on_selection_change(move |item, _, _| picks.borrow_mut().push(item.to_string()));
         if let Some(text) = self.default_input.clone() {
             combo = combo.default_input_value(text);
@@ -1928,7 +1928,7 @@ impl Render for SelectedKeyOwner {
     }
 }
 
-/// `selected_key(key, cx)` writes the key's label into the input when the
+/// `selected_key(key)` writes the key's label into the input when the
 /// owner's key changes, never on the owner's other re-renders — so typing
 /// survives a rerender — and the empty string clears. The pick callback still
 /// reports the key of whatever row the user takes.
@@ -2051,5 +2051,80 @@ fn combo_box_default_input_value_wins_over_the_null_selected_key(cx: &mut TestAp
         cx.update(|_, cx| state_for_assert.read(cx).value().to_owned()),
         "custom",
         "the null key must not clear the seeded default input on first render"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// `value` — the pure builder seed on ComboBox
+// ---------------------------------------------------------------------------
+
+#[gpui::test]
+fn combo_box_value_builder_seeds_the_bound_state_at_first_render(cx: &mut TestAppContext) {
+    let state = search_state(cx);
+    let state_for_view = state.clone();
+    // The builder chain needs no `&mut App`: the text travels on the struct
+    // and lands in the state when the field first renders.
+    let cx = open_host(cx, move || {
+        ComboBox::new(state_for_view.clone(), keyed(&["Alpha", "Beta"]))
+            .value("Al")
+            .into_any_element()
+    });
+    let seeded = cx.update(|_, cx| state.read(cx).value().to_owned());
+    assert_eq!(
+        seeded, "Al",
+        "value must seed the bound InputState when the ComboBox first renders"
+    );
+}
+
+#[gpui::test]
+fn combo_box_value_builder_keeps_the_last_call_and_outranks_default_input_value(
+    cx: &mut TestAppContext,
+) {
+    let state = search_state(cx);
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        ComboBox::new(state_for_view.clone(), keyed(&["Alpha", "Beta"]))
+            .default_input_value("Beta")
+            .value("first")
+            .value("second")
+            .into_any_element()
+    });
+    let seeded = cx.update(|_, cx| state.read(cx).value().to_owned());
+    assert_eq!(
+        seeded, "second",
+        "a pure builder keeps the last call, and the controlled spelling outranks defaultInputValue"
+    );
+}
+
+#[gpui::test]
+fn combo_box_value_builder_seeds_once_and_never_clobbers_edits(cx: &mut TestAppContext) {
+    let changes = events();
+    let recorded = changes.clone();
+    let state = search_state(cx);
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        let changes = changes.clone();
+        ComboBox::new(state_for_view.clone(), keyed(&["Alpha", "Beta"]))
+            .value("al")
+            .on_input_change(move |text, _, _| changes.borrow_mut().push(text.to_owned()))
+            .into_any_element()
+    });
+    let seeded = cx.update(|_, cx| state.read(cx).value().to_owned());
+    assert_eq!(seeded, "al");
+
+    // The builder runs again on every refresh carrying the same `value`; the
+    // seed must not rewrite the text the user has been typing.
+    click(cx, 60., 18.);
+    cx.simulate_input("p");
+    cx.update(|window, _| window.refresh());
+    let typed = cx.update(|_, cx| state.read(cx).value().to_owned());
+    assert_eq!(
+        typed, "alp",
+        "a re-render must not re-apply the value seed over the user's typing"
+    );
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["alp"],
+        "the seeded-then-edited text reports exactly once, from the keystroke"
     );
 }

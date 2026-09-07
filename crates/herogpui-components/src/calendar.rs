@@ -7,8 +7,10 @@ use gpui::{
 };
 use std::sync::OnceLock;
 
+use herogpui_core::element_id;
 use herogpui_theme::ActiveTheme;
 
+use crate::a11y::{self, A11y as _};
 use crate::calendar_view::{self, PageBehavior, SelectionAlignment, VisibleDuration};
 use crate::date_constraints::{DateConstraints, Weekday};
 
@@ -383,7 +385,7 @@ impl CalendarState {
     }
 }
 
-type OnChange = std::sync::Arc<dyn Fn(Option<Date>, &mut Window, &mut App) + 'static>;
+type OnChange = std::sync::Arc<dyn Fn(&Option<Date>, &mut Window, &mut App) + 'static>;
 type OnChangeAll = std::sync::Arc<dyn Fn(&[Date], &mut Window, &mut App) + 'static>;
 
 /// What `Calendar.Cell`'s render function is handed.
@@ -411,6 +413,14 @@ pub struct CalendarCellState {
 /// HeroUI Calendar, with controlled selection through the entity.
 #[derive(IntoElement)]
 pub struct Calendar {
+    /// `value` — v3's controlled selection, stored for the first render only.
+    /// The outer `Option` distinguishes an unset builder from `value(null)`,
+    /// the explicitly controlled empty selection.
+    value: Option<Option<Date>>,
+    /// `value` for `selectionMode="multiple"` — stored for the first render
+    /// only. `Some` distinguishes an unset builder from the explicitly
+    /// controlled empty selection.
+    values: Option<Vec<Date>>,
     /// `defaultValue` — seeds the state on the first render only.
     default_value: Option<Date>,
     /// `defaultValue` for `selectionMode="multiple"`.
@@ -431,7 +441,7 @@ pub struct Calendar {
     cell_indicator: Option<Box<dyn Fn(Date) -> bool + 'static>>,
     /// `Calendar.Cell`'s render props: the closure replaces the day label and is
     /// handed the state v3 passes it.
-    cell: Option<Box<dyn Fn(CalendarCellState) -> gpui::AnyElement + 'static>>,
+    cell: Option<Box<dyn Fn(&CalendarCellState) -> gpui::AnyElement + 'static>>,
     /// `Calendar.NavButton` children — the paging glyphs, previous then next.
     nav_icons: Option<(&'static str, &'static str)>,
     is_invalid: bool,
@@ -450,10 +460,12 @@ pub struct Calendar {
     /// `Calendar.YearPickerTriggerHeading.offset.months`.
     year_heading_offset_months: i32,
     on_year_picker_open_change:
-        Option<std::sync::Arc<dyn Fn(bool, &mut Window, &mut App) + 'static>>,
-    on_focus_change: Option<std::sync::Arc<dyn Fn(Date, &mut Window, &mut App) + 'static>>,
+        Option<std::sync::Arc<dyn Fn(&bool, &mut Window, &mut App) + 'static>>,
+    on_focus_change: Option<std::sync::Arc<dyn Fn(&Date, &mut Window, &mut App) + 'static>>,
     on_change: Option<OnChange>,
     on_change_all: Option<OnChangeAll>,
+    /// The `sx` slot, refined over the root style at the end of render.
+    sx: Option<Box<gpui::StyleRefinement>>,
 }
 
 impl Calendar {
@@ -487,35 +499,49 @@ impl Calendar {
     /// `onFocusChange` — fires when a different date takes focus.
     pub fn on_focus_change(
         mut self,
-        handler: impl Fn(Date, &mut Window, &mut App) + 'static,
+        handler: impl Fn(&Date, &mut Window, &mut App) + 'static,
     ) -> Self {
         self.on_focus_change = Some(std::sync::Arc::new(handler));
         self
     }
 
-    /// `value` — writes the selection through to the bound state.
-    pub fn value(self, date: Option<Date>, cx: &mut App) -> Self {
-        self.state.update(cx, |s, _| {
-            s.selected = date;
-            s.selected_dates = date.into_iter().collect();
-        });
+    /// `value` — v3's controlled-selection spelling, as a pure builder.
+    ///
+    /// The bound [`CalendarState`] owns the selection once the grid renders,
+    /// so this seeds the state on the first render only, winning over
+    /// [`Calendar::default_value`] the way v3's controlled prop outranks the
+    /// uncontrolled seed; calling `.value(..)` twice keeps the last call, like
+    /// every other builder here. `None` is v3's `null` — an explicitly
+    /// controlled empty selection, which still outranks `default_value`. A
+    /// later value is an imperative update rather than a builder: write the
+    /// caller-owned state entity.
+    pub fn value(mut self, date: Option<Date>) -> Self {
+        self.value = Some(date);
         self
     }
 
-    /// `value` for `selectionMode="multiple"`.
-    pub fn values(self, dates: impl IntoIterator<Item = Date>, cx: &mut App) -> Self {
-        self.state.update(cx, |s, _| {
-            s.selected_dates = dates.into_iter().collect();
-            s.selected = s.selected_dates.last().copied();
-        });
+    /// `value` for `selectionMode="multiple"`, as a pure builder.
+    ///
+    /// The bound [`CalendarState`] owns the selection once the grid renders,
+    /// so this seeds the state on the first render only, winning over
+    /// [`Calendar::default_values`] the way v3's controlled prop outranks the
+    /// uncontrolled seed; calling `.values(..)` twice keeps the last call,
+    /// like every other builder here. An empty iterator is the explicitly
+    /// controlled empty selection, which still outranks `default_values`. A
+    /// later value is an imperative update rather than a builder: write the
+    /// caller-owned state entity.
+    pub fn values(mut self, dates: impl IntoIterator<Item = Date>) -> Self {
+        self.values = Some(dates.into_iter().collect());
         self
     }
 
     pub fn new(state: Entity<CalendarState>) -> Self {
         Self {
+            value: None,
+            values: None,
             default_value: None,
             default_values: None,
-            id: gpui::ElementId::Name(format!("cal-{}", state.entity_id().as_u64()).into()),
+            id: gpui::ElementId::named_usize("cal", state.entity_id().as_u64() as usize),
             state,
             constraints: DateConstraints::new().with_hero_calendar_bounds(),
             is_disabled: false,
@@ -539,6 +565,7 @@ impl Calendar {
             on_focus_change: None,
             on_change: None,
             on_change_all: None,
+            sx: None,
         }
     }
 
@@ -601,7 +628,7 @@ impl Calendar {
     /// unavailable.
     pub fn cell(
         mut self,
-        render: impl Fn(CalendarCellState) -> gpui::AnyElement + 'static,
+        render: impl Fn(&CalendarCellState) -> gpui::AnyElement + 'static,
     ) -> Self {
         self.cell = Some(Box::new(render));
         self
@@ -707,13 +734,13 @@ impl Calendar {
     /// or closing the year grid.
     pub fn on_year_picker_open_change(
         mut self,
-        f: impl Fn(bool, &mut Window, &mut App) + 'static,
+        f: impl Fn(&bool, &mut Window, &mut App) + 'static,
     ) -> Self {
         self.on_year_picker_open_change = Some(std::sync::Arc::new(f));
         self
     }
 
-    pub fn on_change(mut self, f: impl Fn(Option<Date>, &mut Window, &mut App) + 'static) -> Self {
+    pub fn on_change(mut self, f: impl Fn(&Option<Date>, &mut Window, &mut App) + 'static) -> Self {
         self.on_change = Some(std::sync::Arc::new(f));
         self
     }
@@ -721,6 +748,15 @@ impl Calendar {
     /// `onChange` for `selectionMode="multiple"`.
     pub fn on_change_all(mut self, f: impl Fn(&[Date], &mut Window, &mut App) + 'static) -> Self {
         self.on_change_all = Some(std::sync::Arc::new(f));
+        self
+    }
+
+    /// The one slot for caller-owned low-level styling: GPUI's styling methods
+    /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
+    /// applied to the calendar's root element after every value the component
+    /// and the active theme chose, so they win.
+    pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
+        self.sx = Some(crate::util::capture_sx(style));
         self
     }
 }
@@ -792,7 +828,7 @@ impl Calendar {
             .line_height(px(20.))
             .font_weight(gpui::FontWeight::MEDIUM)
             .child(match &self.cell {
-                Some(render) => render(CalendarCellState {
+                Some(render) => render(&CalendarCellState {
                     date,
                     formatted_date: self.day_label(date).into(),
                     is_selected: is_sel,
@@ -888,7 +924,23 @@ impl Calendar {
             Vec::new(),
             cx,
         );
-        let mut circle = circle;
+        // `useCalendarCell` puts `role: 'gridcell'` on the `<td>` and
+        // `role: 'button'` on the inner date; this port draws one circle,
+        // which is the pressable half, so that is the node. The gridcell
+        // wrapper has no id and would produce no node even if it claimed one.
+        // Named after the layout chain: `.shots/design_audit.py` reads sizes
+        // out of builder chains with character-windowed regexes.
+        let mut circle = circle
+            .a11y_named(
+                a11y::Role::Button,
+                &a11y::Name::labelled(format!(
+                    "{} {} {}",
+                    date.day,
+                    month_year_heading(date.year, date.month),
+                    if is_sel { "selected" } else { "" }
+                )),
+            )
+            .a11y_selected(is_sel);
 
         if selectable {
             let cursor = frame.cursor.clone();
@@ -904,7 +956,7 @@ impl Calendar {
                     cx.notify();
                 });
                 if let Some(cb) = &on_focus {
-                    cb(date, window, cx);
+                    cb(&date, window, cx);
                 }
                 let mode = selection_mode;
                 let selected_dates = st.update(cx, |s, cx| {
@@ -916,7 +968,7 @@ impl Calendar {
                     s.selected_dates.clone()
                 });
                 if let Some(cb) = &on_change {
-                    cb(Some(date), window, cx);
+                    cb(&Some(date), window, cx);
                 }
                 if let Some(cb) = &on_change_all {
                     cb(&selected_dates, window, cx);
@@ -1042,7 +1094,13 @@ impl Calendar {
 
         // `.calendar__grid` holds the header and `.calendar__grid-body`, whose
         // children are `.calendar__grid-row`s of cells.
-        let mut grid = gpui::div().flex().flex_col();
+        // `useCalendarGrid` is `role: 'grid'`. The header row is
+        // `aria-hidden` upstream (`headerProps`), so the weekday labels stay
+        // off the tree; each cell already names the date.
+        let mut grid = gpui::div()
+            .id(element_id::scoped(&self.id, format!("grid-{y}-{m}")))
+            .flex()
+            .flex_col();
         for r in 0..rows {
             let mut line = gpui::div().flex();
             for c in 0..7 {
@@ -1089,7 +1147,7 @@ impl Calendar {
             }
             grid = grid.child(line);
         }
-        grid.into_any_element()
+        grid.a11y(a11y::Role::Grid).into_any_element()
     }
 
     /// The year grid shown while the year picker is open.
@@ -1105,12 +1163,12 @@ impl Calendar {
         let colors = cx.colors();
         let accent = colors.accent;
         let active_year = view.active_year;
-        let base = view.base;
+        // The debug selectors keep the component id's Debug form, which is what
+        // the headless tests read; the element ids above stay structured.
+        let base = format!("{:?}", view.base);
         // `.calendar-year-picker__year-grid` is `gap-1 p-1`.
         let mut grid = gpui::div()
-            .id(gpui::ElementId::Name(
-                format!("{base}-year-viewport").into(),
-            ))
+            .id(element_id::scoped(view.base, "year-viewport"))
             .debug_selector({
                 let key = format!("{base}-year-viewport");
                 move || key
@@ -1126,7 +1184,7 @@ impl Calendar {
             for &year in chunk {
                 let is_active = year == active_year;
                 let mut cell = gpui::div()
-                    .id(gpui::ElementId::Name(format!("{base}-y{year}").into()))
+                    .id(element_id::scoped(view.base, format!("y{year}")))
                     .debug_selector({
                         let key = format!("{base}-y{year}");
                         move || key
@@ -1178,7 +1236,7 @@ impl Calendar {
                         });
                         if year != active_year {
                             if let Some(cb) = &on_focus {
-                                cb(next, window, cx);
+                                cb(&next, window, cx);
                             }
                         }
                         if let Some(held) = &own {
@@ -1188,7 +1246,7 @@ impl Calendar {
                             });
                         }
                         if let Some(cb) = &on_open {
-                            cb(false, window, cx);
+                            cb(&false, window, cx);
                         }
                         window.focus(&back_to_trigger, cx);
                     });
@@ -1204,11 +1262,15 @@ impl Calendar {
                         cx,
                     );
                 }
+                cell = cell
+                    .a11y_named(a11y::Role::Button, &a11y::Name::labelled(year.to_string()))
+                    .a11y_selected(is_active);
                 row = row.child(cell.child(year.to_string()));
             }
             row = row.children((chunk.len()..3).map(|_| gpui::div().flex_1().px(px(10.))));
             grid = grid.child(row);
         }
+        grid = grid.a11y(a11y::Role::Grid);
         gpui::div()
             .absolute()
             .inset_0()
@@ -1228,14 +1290,62 @@ impl Calendar {
 
 impl RenderOnce for Calendar {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
-        // `defaultValue` seeds the state once, before anything reads it.
-        if let Some(values) = self.default_values.clone() {
+        // `value` / `defaultValue` seed the state once, before anything reads
+        // it. `value` is v3's controlled spelling, so it outranks both
+        // uncontrolled seeds; the state owns the selection afterwards, and a
+        // write to the caller-owned entity is the imperative update.
+        if let Some(date) = self.value {
             let state = self.state.clone();
             crate::util::seed_once(
                 window,
                 cx,
-                gpui::ElementId::Name(
-                    format!("calendar-default-{}", self.state.entity_id().as_u64()).into(),
+                gpui::ElementId::named_usize(
+                    "calendar-default",
+                    self.state.entity_id().as_u64() as usize,
+                ),
+                move |cx| {
+                    state.update(cx, |s, cx| {
+                        s.selected = date;
+                        s.selected_dates = date.into_iter().collect();
+                        if let Some(date) = date {
+                            s.view_year = date.year;
+                            s.view_month = date.month;
+                            s.view_day = date.day;
+                        }
+                        cx.notify();
+                    });
+                },
+            );
+        } else if let Some(values) = self.values.clone() {
+            let state = self.state.clone();
+            crate::util::seed_once(
+                window,
+                cx,
+                gpui::ElementId::named_usize(
+                    "calendar-default",
+                    self.state.entity_id().as_u64() as usize,
+                ),
+                move |cx| {
+                    state.update(cx, |s, cx| {
+                        s.selected = values.last().copied();
+                        s.selected_dates = values;
+                        if let Some(value) = s.selected {
+                            s.view_year = value.year;
+                            s.view_month = value.month;
+                            s.view_day = value.day;
+                        }
+                        cx.notify();
+                    });
+                },
+            );
+        } else if let Some(values) = self.default_values.clone() {
+            let state = self.state.clone();
+            crate::util::seed_once(
+                window,
+                cx,
+                gpui::ElementId::named_usize(
+                    "calendar-default",
+                    self.state.entity_id().as_u64() as usize,
                 ),
                 move |cx| {
                     state.update(cx, |s, cx| {
@@ -1255,8 +1365,9 @@ impl RenderOnce for Calendar {
             crate::util::seed_once(
                 window,
                 cx,
-                gpui::ElementId::Name(
-                    format!("calendar-default-{}", self.state.entity_id().as_u64()).into(),
+                gpui::ElementId::named_usize(
+                    "calendar-default",
+                    self.state.entity_id().as_u64() as usize,
                 ),
                 move |cx| {
                     state.update(cx, |s, cx| {
@@ -1279,7 +1390,7 @@ impl RenderOnce for Calendar {
         let (year_picker_open, year_picker_own) = crate::util::controlled(
             window,
             cx,
-            gpui::ElementId::Name(format!("{base}-yearpicker").into()),
+            element_id::scoped(&self.id, "yearpicker"),
             self.year_picker_open,
             self.default_year_picker_open,
         );
@@ -1287,53 +1398,37 @@ impl RenderOnce for Calendar {
         // The grid is one tab stop with a cursor inside it, the way a list is:
         // v3 gives the calendar a roving focus and rings the date it is on.
         // `use_keyed_state` takes `cx` mutably, so both precede the theme.
-        let grid_focus = crate::util::tab_stop_handle(
-            gpui::ElementId::Name(format!("{base}-focus").into()),
-            window,
-            cx,
-        );
-        let prev_focus = crate::util::tab_stop_handle(
-            gpui::ElementId::Name(format!("{base}-prev-focus").into()),
-            window,
-            cx,
-        );
-        let next_focus = crate::util::tab_stop_handle(
-            gpui::ElementId::Name(format!("{base}-next-focus").into()),
-            window,
-            cx,
-        );
-        let year_focus = crate::util::tab_stop_handle(
-            gpui::ElementId::Name(format!("{base}-year-focus").into()),
-            window,
-            cx,
-        );
+        let grid_focus =
+            crate::util::tab_stop_handle(element_id::scoped(&self.id, "focus"), window, cx);
+        let prev_focus =
+            crate::util::tab_stop_handle(element_id::scoped(&self.id, "prev-focus"), window, cx);
+        let next_focus =
+            crate::util::tab_stop_handle(element_id::scoped(&self.id, "next-focus"), window, cx);
+        let year_focus =
+            crate::util::tab_stop_handle(element_id::scoped(&self.id, "year-focus"), window, cx);
         // Inside a picker the grid takes the focus as the panel opens, so the
         // arrows work without hunting for it with Tab.
         if self.autofocus_grid && !self.is_disabled && !year_picker_open {
             crate::util::focus_once(
                 window,
                 cx,
-                gpui::ElementId::Name(format!("{base}-autofocus").into()),
+                element_id::scoped(&self.id, "autofocus"),
                 &grid_focus,
             );
         }
-        let cursor = window.use_keyed_state(
-            gpui::ElementId::Name(format!("{base}-cursor").into()),
-            cx,
-            |_, _| None::<Date>,
-        );
-        let year_cursor = window.use_keyed_state(
-            gpui::ElementId::Name(format!("{base}-year-cursor").into()),
-            cx,
-            |_, _| None::<i32>,
-        );
-        let year_was_open = window.use_keyed_state(
-            gpui::ElementId::Name(format!("{base}-year-was-open").into()),
-            cx,
-            |_, _| false,
-        );
+        let cursor = window.use_keyed_state(element_id::scoped(&self.id, "cursor"), cx, |_, _| {
+            None::<Date>
+        });
+        let year_cursor =
+            window.use_keyed_state(element_id::scoped(&self.id, "year-cursor"), cx, |_, _| {
+                None::<i32>
+            });
+        let year_was_open =
+            window.use_keyed_state(element_id::scoped(&self.id, "year-was-open"), cx, |_, _| {
+                false
+            });
         let year_trigger_index = window.use_keyed_state(
-            gpui::ElementId::Name(format!("{base}-year-trigger-index").into()),
+            element_id::scoped(&self.id, "year-trigger-index"),
             cx,
             |_, _| 0usize,
         );
@@ -1403,11 +1498,10 @@ impl RenderOnce for Calendar {
             .unwrap_or(initial_year)
             .max(first_year)
             .min(last_year);
-        let year_scroll_state = window.use_keyed_state(
-            gpui::ElementId::Name(format!("{base}-year-scroll").into()),
-            cx,
-            |_, _| std::rc::Rc::new(calendar_view::YearGridScroll::default()),
-        );
+        let year_scroll_state =
+            window.use_keyed_state(element_id::scoped(&self.id, "year-scroll"), cx, |_, _| {
+                std::rc::Rc::new(calendar_view::YearGridScroll::default())
+            });
         let year_scroll = year_scroll_state.read(cx).clone();
         let reveal_year_row =
             years
@@ -1454,7 +1548,7 @@ impl RenderOnce for Calendar {
         let mut heading_focuses = Vec::with_capacity(columns);
         for index in 0..columns {
             heading_focuses.push(crate::util::tab_stop_handle(
-                gpui::ElementId::Name(format!("{base}-heading-{index}-focus").into()),
+                element_id::scoped(&element_id::indexed(&self.id, "heading", index), "focus"),
                 window,
                 cx,
             ));
@@ -1512,6 +1606,13 @@ impl RenderOnce for Calendar {
                 scale: crate::anim::PRESSED_SCALE_DEEP,
             };
             let selector = key.clone();
+            // `useCalendarBase` names these `previous` / `next` from the
+            // pinned en-US strings.
+            let nav_name = if key.contains("-prev") {
+                "Previous"
+            } else {
+                "Next"
+            };
             // The icon joins the skin before the press wrap: children added
             // after `pressed` land on the slot and fight the skin for width.
             let button = gpui::div()
@@ -1550,6 +1651,7 @@ impl RenderOnce for Calendar {
                 .when(disabled, |b| b.opacity(layout.disabled_opacity))
                 .when(year_picker_open, |b| b.invisible());
             crate::util::ring_if_focused(button, focus, true, Vec::new(), window, cx)
+                .a11y_named(a11y::Role::Button, &a11y::Name::labelled(nav_name))
         };
 
         // A heading is a plain label only when the picker is controlled without
@@ -1559,6 +1661,7 @@ impl RenderOnce for Calendar {
                        focus: &gpui::FocusHandle,
                        index: usize|
          -> gpui::AnyElement {
+            let heading_name = text.clone();
             let label = gpui::div()
                 .text_size(px(14.))
                 .line_height(px(20.))
@@ -1600,6 +1703,8 @@ impl RenderOnce for Calendar {
                             trigger.opacity(layout.disabled_opacity)
                         });
                     crate::util::ring_if_focused(trigger, focus, true, Vec::new(), window, cx)
+                        .a11y_named(a11y::Role::Button, &a11y::Name::labelled(heading_name))
+                        .a11y_expanded(open)
                         .child(label)
                         .child(
                             gpui::svg()
@@ -1643,13 +1748,15 @@ impl RenderOnce for Calendar {
                                             cx.notify();
                                         });
                                     }
-                                    cb(!open, window, cx);
+                                    cb(&!open, window, cx);
                                 })
                         })
                         .when(self.is_disabled, |trigger| {
                             trigger.opacity(layout.disabled_opacity)
                         });
                     crate::util::ring_if_focused(trigger, focus, true, Vec::new(), window, cx)
+                        .a11y_named(a11y::Role::Button, &a11y::Name::labelled(heading_name))
+                        .a11y_expanded(open)
                         .child(label)
                         .child(
                             gpui::svg()
@@ -1667,6 +1774,7 @@ impl RenderOnce for Calendar {
         };
 
         let mut root = gpui::div()
+            .id(self.id.clone())
             .flex()
             .flex_col()
             .text_color(colors.surface.foreground)
@@ -1720,7 +1828,7 @@ impl RenderOnce for Calendar {
                         s.selected_dates.clone()
                     });
                     if let Some(cb) = &on_change {
-                        cb(Some(at), window, cx);
+                        cb(&Some(at), window, cx);
                     }
                     if let Some(cb) = &on_change_all {
                         cb(&selected_dates, window, cx);
@@ -1814,7 +1922,7 @@ impl RenderOnce for Calendar {
                     });
                 }
                 if let Some(cb) = &on_focus {
-                    cb(next, window, cx);
+                    cb(&next, window, cx);
                 }
             });
         }
@@ -1842,7 +1950,7 @@ impl RenderOnce for Calendar {
                         });
                     }
                     if let Some(cb) = &on_open {
-                        cb(false, window, cx);
+                        cb(&false, window, cx);
                     }
                     window.focus(&back_to_trigger, cx);
                     cx.stop_propagation();
@@ -1873,7 +1981,7 @@ impl RenderOnce for Calendar {
                     }
                     if let Some(cb) = &on_focus {
                         cb(
-                            system.add_years(anchor, next - system.from_gregorian(anchor).0),
+                            &system.add_years(anchor, next - system.from_gregorian(anchor).0),
                             window,
                             cx,
                         );
@@ -1974,7 +2082,10 @@ impl RenderOnce for Calendar {
                     )),
             );
             body = body.child(self.weekday_header(cx));
-            let mut grid = gpui::div().flex().flex_col();
+            let mut grid = gpui::div()
+                .id(element_id::scoped(&self.id, "grid"))
+                .flex()
+                .flex_col();
             for row in calendar_view::week_aligned_rows(visible_start, visible_end, first_day) {
                 let mut line = gpui::div().flex();
                 for date in row {
@@ -1991,7 +2102,7 @@ impl RenderOnce for Calendar {
                 }
                 grid = grid.child(line);
             }
-            body = body.child(grid);
+            body = body.child(grid.a11y(a11y::Role::Grid));
         }
 
         let mut viewport = gpui::div()
@@ -2002,7 +2113,7 @@ impl RenderOnce for Calendar {
                 calendar_view::YearGridView {
                     years: &years,
                     active_year,
-                    base: &base,
+                    base: &self.id,
                     scroll: &year_scroll,
                     reveal_row: reveal_year_row,
                 },
@@ -2018,6 +2129,16 @@ impl RenderOnce for Calendar {
         if self.is_disabled {
             root = root.opacity(layout.disabled_opacity);
         }
+
+        root = crate::util::apply_sx(root, &self.sx);
+        // `useCalendarBase` is `role: 'application'`, named by the visible
+        // range description. Stated after the layout chain.
+        let app_name = if let Some(&(year, month)) = months.first() {
+            self.month_heading_text(year, month)
+        } else {
+            calendar_view::range_heading(&linear)
+        };
+        root = root.a11y_named(a11y::Role::Application, &a11y::Name::labelled(app_name));
 
         if columns > 1 {
             let heading = heading_focuses
@@ -2067,7 +2188,7 @@ impl RenderOnce for Calendar {
                 });
             calendar_view::scrolling_months(
                 root.flex_shrink_0().mx_auto().into_any_element(),
-                &base,
+                &self.id,
                 reveal,
                 window,
                 cx,

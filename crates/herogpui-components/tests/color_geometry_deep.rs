@@ -1194,7 +1194,7 @@ fn controlled_color_slider_form_waits_for_owner_acceptance(cx: &mut TestAppConte
             .show_label(false)
             .name("hue")
             .on_change(move |color, _, _| {
-                *current.borrow_mut() = color;
+                *current.borrow_mut() = *color;
             });
         let form = Form::new()
             .field(slider.form_field().expect("named slider field"))
@@ -1335,7 +1335,7 @@ fn controlled_color_slider_reset_reports_the_initial_value_once(cx: &mut TestApp
             .show_label(false)
             .name("hue")
             .on_change(move |color, _, _| {
-                *current.borrow_mut() = color;
+                *current.borrow_mut() = *color;
                 changes.borrow_mut().push(format!("{:.0}", color.hue));
             });
         let form = Form::new().field(slider.form_field().expect("named slider field"));
@@ -1436,7 +1436,7 @@ fn controlled_color_field_form_waits_for_owner_acceptance(cx: &mut TestAppContex
             .name("hue")
             .on_change(move |color, _, _| {
                 if let Some(color) = color {
-                    *current.borrow_mut() = color;
+                    *current.borrow_mut() = *color;
                 }
             });
         let form = Form::new()
@@ -1592,7 +1592,7 @@ fn controlled_color_field_reset_reports_the_initial_value_once(cx: &mut TestAppC
             .name("hue")
             .on_change(move |color, _, _| {
                 if let Some(color) = color {
-                    *current.borrow_mut() = color;
+                    *current.borrow_mut() = *color;
                     changes.borrow_mut().push(format!("{:.0}", color.hue));
                 }
             });

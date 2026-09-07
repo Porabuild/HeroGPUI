@@ -346,7 +346,7 @@ fn table_sortable_header_answers_enter_space_then_click(cx: &mut TestAppContext)
                             "desc"
                         };
                         recorded.borrow_mut().push(format!("{}:{dir}", d.column));
-                        *held_view.borrow_mut() = Some(d);
+                        *held_view.borrow_mut() = Some(d.clone());
                     })
                     .into_any_element(),
             )

@@ -712,7 +712,7 @@ fn date_picker_trigger_toggles_controlled_open_state(cx: &mut TestAppContext) {
             .on_open_change({
                 let open_for_view = open_for_view.clone();
                 move |open, _, _| {
-                    open_for_view.set(open);
+                    open_for_view.set(*open);
                     opens.borrow_mut().push(open.to_string());
                 }
             })
@@ -1368,5 +1368,297 @@ fn date_range_picker_end_only_field_resets_after_invalid_text_and_repaint(cx: &m
             (state.start, state.end)
         }),
         (Some(default.0), Some(default.1))
+    );
+}
+
+// ---------------------------------------------------------------------------
+// `value` — the pure builder seed on the date picker family
+// ---------------------------------------------------------------------------
+
+#[gpui::test]
+fn date_picker_value_builder_seeds_the_bound_state_at_first_render(cx: &mut TestAppContext) {
+    let state = cx.new(|cx| CalendarState::new(cx));
+    let state_for_view = state.clone();
+    // The builder chain needs no `&mut App`: the date travels on the struct
+    // and lands in the state when the picker first renders.
+    let cx = open_host(cx, move || {
+        DatePicker::new(state_for_view.clone())
+            .value(Some(Date::new(2026, 1, 15)))
+            .into_any_element()
+    });
+    let selected = cx.update(|_, cx| state.read(cx).selected);
+    assert_eq!(
+        selected,
+        Some(Date::new(2026, 1, 15)),
+        "value must seed the bound CalendarState when the picker first renders"
+    );
+}
+
+#[gpui::test]
+fn date_picker_value_builder_keeps_the_last_call_and_outranks_default_value(
+    cx: &mut TestAppContext,
+) {
+    let state = cx.new(|cx| CalendarState::new(cx));
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        DatePicker::new(state_for_view.clone())
+            .default_value(Date::new(2026, 2, 2))
+            .value(Some(Date::new(2026, 3, 3)))
+            .value(Some(Date::new(2026, 1, 15)))
+            .into_any_element()
+    });
+    let selected = cx.update(|_, cx| state.read(cx).selected);
+    assert_eq!(
+        selected,
+        Some(Date::new(2026, 1, 15)),
+        "a pure builder keeps the last call, and the controlled spelling outranks defaultValue"
+    );
+}
+
+#[gpui::test]
+fn date_picker_value_builder_seeds_once_and_never_clobbers_edits(cx: &mut TestAppContext) {
+    let changes = events();
+    let recorded = changes.clone();
+    let state = cx.new(|cx| CalendarState::new(cx));
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        let changes = changes.clone();
+        DatePicker::new(state_for_view.clone())
+            .value(Some(Date::new(2026, 1, 15)))
+            .on_change(move |date, _, _| {
+                changes
+                    .borrow_mut()
+                    .push(date.map_or_else(|| "none".to_owned(), |d| d.format_iso()));
+            })
+            .into_any_element()
+    });
+    assert_eq!(
+        cx.update(|_, cx| state.read(cx).selected),
+        Some(Date::new(2026, 1, 15))
+    );
+
+    // The builder runs again on every refresh carrying the same `value`; the
+    // seed must not rewrite a date the owner wrote into their own entity.
+    cx.update(|_, cx| {
+        state.update(cx, |s, cx| {
+            s.selected = Some(Date::new(2026, 2, 3));
+            s.selected_dates = vec![Date::new(2026, 2, 3)];
+            cx.notify();
+        })
+    });
+    refresh(cx);
+    assert_eq!(
+        cx.update(|_, cx| state.read(cx).selected),
+        Some(Date::new(2026, 2, 3)),
+        "a re-render must not re-apply the value seed over the entity's date"
+    );
+    assert!(
+        recorded.borrow().is_empty(),
+        "the seed and its non-re-application report nothing through onChange"
+    );
+}
+
+#[gpui::test]
+fn date_range_picker_value_builder_seeds_the_bound_state_at_first_render(cx: &mut TestAppContext) {
+    let state = cx.new(|cx| DateRangeState::new(cx));
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        DateRangePicker::new(state_for_view.clone())
+            .value(Some(Date::new(2026, 1, 10)), Some(Date::new(2026, 1, 20)))
+            .into_any_element()
+    });
+    let (start, end) = cx.update(|_, cx| {
+        let st = state.read(cx);
+        (st.start, st.end)
+    });
+    assert_eq!(
+        (start, end),
+        (Some(Date::new(2026, 1, 10)), Some(Date::new(2026, 1, 20))),
+        "value must seed the bound DateRangeState when the picker first renders"
+    );
+}
+
+#[gpui::test]
+fn date_range_picker_value_builder_keeps_the_last_call_and_outranks_default_value(
+    cx: &mut TestAppContext,
+) {
+    let state = cx.new(|cx| DateRangeState::new(cx));
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        DateRangePicker::new(state_for_view.clone())
+            .default_value((Date::new(2026, 2, 2), Date::new(2026, 2, 8)))
+            .value(Some(Date::new(2026, 3, 1)), Some(Date::new(2026, 3, 5)))
+            .value(Some(Date::new(2026, 1, 10)), Some(Date::new(2026, 1, 20)))
+            .into_any_element()
+    });
+    let (start, end) = cx.update(|_, cx| {
+        let st = state.read(cx);
+        (st.start, st.end)
+    });
+    assert_eq!(
+        (start, end),
+        (Some(Date::new(2026, 1, 10)), Some(Date::new(2026, 1, 20))),
+        "a pure builder keeps the last call, and the controlled spelling outranks defaultValue"
+    );
+}
+
+#[gpui::test]
+fn date_range_picker_value_builder_seeds_once_and_never_clobbers_edits(cx: &mut TestAppContext) {
+    let changes = events();
+    let recorded = changes.clone();
+    let state = cx.new(|cx| DateRangeState::new(cx));
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        let changes = changes.clone();
+        let range = state_for_view.clone();
+        DateRangePicker::new(state_for_view.clone())
+            .value(Some(Date::new(2026, 1, 10)), Some(Date::new(2026, 1, 20)))
+            .on_change(move |_, cx| {
+                let (start, end) = {
+                    let st = range.read(cx);
+                    (st.start, st.end)
+                };
+                changes.borrow_mut().push(format!(
+                    "{}->{}",
+                    start.map_or_else(|| "-".into(), |d| d.format_iso()),
+                    end.map_or_else(|| "-".into(), |d| d.format_iso())
+                ));
+            })
+            .into_any_element()
+    });
+    let (start, end) = cx.update(|_, cx| {
+        let st = state.read(cx);
+        (st.start, st.end)
+    });
+    assert_eq!(
+        (start, end),
+        (Some(Date::new(2026, 1, 10)), Some(Date::new(2026, 1, 20)))
+    );
+
+    // The builder runs again on every refresh carrying the same `value`; the
+    // seed must not restore a range the owner replaced in their own entity.
+    cx.update(|_, cx| {
+        state.update(cx, |st, cx| {
+            st.start = Some(Date::new(2026, 2, 3));
+            st.end = Some(Date::new(2026, 2, 9));
+            cx.notify();
+        })
+    });
+    refresh(cx);
+    let (start, end) = cx.update(|_, cx| {
+        let st = state.read(cx);
+        (st.start, st.end)
+    });
+    assert_eq!(
+        (start, end),
+        (Some(Date::new(2026, 2, 3)), Some(Date::new(2026, 2, 9))),
+        "a re-render must not re-apply the value seed over the entity's range"
+    );
+    assert!(
+        recorded.borrow().is_empty(),
+        "the seed and its non-re-application report nothing through onChange"
+    );
+}
+
+#[gpui::test]
+fn date_field_value_builder_seeds_the_bound_state_at_first_render(cx: &mut TestAppContext) {
+    let state = cx.new(|cx| InputState::new(cx));
+    let state_for_view = state.clone();
+    // The builder chain needs no `&mut App`: the date travels on the struct
+    // and lands in the text state as ISO when the field first renders.
+    let cx = open_host(cx, move || {
+        DateField::new(state_for_view.clone())
+            .value(Some(Date::new(2026, 1, 15)))
+            .into_any_element()
+    });
+    let seeded = cx.update(|_, cx| state.read(cx).value().to_owned());
+    assert_eq!(
+        seeded, "2026-01-15",
+        "value must seed the bound InputState's ISO text at first render"
+    );
+}
+
+#[gpui::test]
+fn date_field_value_builder_keeps_the_last_call_and_outranks_default_value(
+    cx: &mut TestAppContext,
+) {
+    let state = cx.new(|cx| InputState::new(cx));
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        DateField::new(state_for_view.clone())
+            .default_value(Date::new(2026, 2, 2))
+            .value(Some(Date::new(2026, 3, 3)))
+            .value(Some(Date::new(2026, 1, 15)))
+            .into_any_element()
+    });
+    let seeded = cx.update(|_, cx| state.read(cx).value().to_owned());
+    assert_eq!(
+        seeded, "2026-01-15",
+        "a pure builder keeps the last call, and the controlled spelling outranks defaultValue"
+    );
+}
+
+#[gpui::test]
+fn date_field_value_builder_seeds_once_and_never_clobbers_edits(cx: &mut TestAppContext) {
+    let rendered: Rc<RefCell<Vec<(FieldSegment, String)>>> = Rc::new(RefCell::new(Vec::new()));
+    let rendered_for_view = rendered.clone();
+    let changes = events();
+    let recorded = changes.clone();
+    let state = cx.new(|cx| InputState::new(cx));
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        let rendered = rendered_for_view.clone();
+        let changes = changes.clone();
+        DateField::new(state_for_view.clone())
+            .value(Some(Date::new(2026, 1, 15)))
+            .segment(move |segment, text| {
+                rendered.borrow_mut().push((segment, text.to_string()));
+                gpui::div().child(text).into_any_element()
+            })
+            .on_change(move |date, _, _| {
+                changes
+                    .borrow_mut()
+                    .push(date.map_or_else(|| "none".to_owned(), |d| d.format_iso()));
+            })
+            .into_any_element()
+    });
+    assert_eq!(
+        cx.update(|_, cx| state.read(cx).value().to_owned()),
+        "2026-01-15"
+    );
+
+    // The builder runs again on every refresh carrying the same `value`; the
+    // seed must not restore the segment the user cleared. Deleting the first
+    // regional segment is an incomplete display edit, so nothing commits.
+    press(cx, "tab");
+    press(cx, "delete");
+    refresh(cx);
+    let cleared = system_date_order()[0];
+    let latest = |segment| {
+        rendered
+            .borrow()
+            .iter()
+            .rev()
+            .find_map(|(part, text)| (*part == segment).then(|| text.clone()))
+            .unwrap()
+    };
+    let (month, day, year) = (
+        latest(FieldSegment::Date(DateSegment::Month)),
+        latest(FieldSegment::Date(DateSegment::Day)),
+        latest(FieldSegment::Date(DateSegment::Year)),
+    );
+    let still_cleared = match cleared {
+        DateSegment::Month => month == "mm",
+        DateSegment::Day => day == "dd",
+        DateSegment::Year => year == "yyyy",
+    };
+    assert!(
+        still_cleared,
+        "a re-render must not re-apply the value seed over the user's segment edit \
+         (cleared {cleared:?}: {month}/{day}/{year})"
+    );
+    assert!(
+        recorded.borrow().is_empty(),
+        "the incomplete segment edit defers onChange, which the re-render must not force"
     );
 }

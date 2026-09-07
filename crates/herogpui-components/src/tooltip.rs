@@ -11,9 +11,13 @@ use gpui::{
     prelude::*, px, AnyElement, App, ElementId, IntoElement, ParentElement, Pixels, RenderOnce,
     SharedString, StatefulInteractiveElement, Styled, Window,
 };
+use herogpui_core::element_id;
 use herogpui_theme::ActiveTheme;
 
-use crate::{anim, icons, util};
+use crate::{
+    a11y::{self, A11y as _},
+    anim, icons, util,
+};
 
 /// Where the tip sits relative to its trigger.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -236,6 +240,8 @@ pub struct Tooltip {
     close_delay: Option<u64>,
     trigger: TooltipTrigger,
     children: Vec<AnyElement>,
+    /// The `sx` slot, refined over the root style at the end of render.
+    sx: Option<Box<gpui::StyleRefinement>>,
 }
 
 impl Tooltip {
@@ -252,6 +258,7 @@ impl Tooltip {
             close_delay: None,
             trigger: TooltipTrigger::default(),
             children: Vec::new(),
+            sx: None,
         }
     }
 
@@ -317,6 +324,16 @@ impl Tooltip {
         self.close_delay = Some(ms);
         self
     }
+
+    /// The one slot for caller-owned low-level styling: GPUI's styling methods
+    /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
+    /// applied to the tooltip's root element — the wrapper the trigger and the
+    /// floating tip sit in — after every value the placement and the active
+    /// theme chose, so they win.
+    pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
+        self.sx = Some(util::capture_sx(style));
+        self
+    }
 }
 
 impl ParentElement for Tooltip {
@@ -329,16 +346,14 @@ impl RenderOnce for Tooltip {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         if self.is_disabled {
             // A disabled tooltip renders its trigger and nothing else.
-            return gpui::div()
-                .flex()
-                .children(self.children)
+            return util::apply_sx(gpui::div().flex().children(self.children), &self.sx)
                 .into_any_element();
         }
 
         let key = self
             .id
             .clone()
-            .unwrap_or_else(|| ElementId::Name(format!("tooltip-{}", self.content).into()));
+            .unwrap_or_else(|| ElementId::Name(self.content.clone()));
         // The state entity has to be created before the theme tokens are read;
         // `use_keyed_state` takes `cx` mutably and would conflict with them.
         let state = window.use_keyed_state(key.clone(), cx, |_, _| TooltipHover::new());
@@ -353,11 +368,10 @@ impl RenderOnce for Tooltip {
         // React Aria explicitly removes the Trigger wrapper's tab index: the
         // caller's trigger is the stop, and this handle only reports whether a
         // descendant currently owns focus.
-        let wrap_focus = window.use_keyed_state(
-            ElementId::Name(format!("{key:?}-wrap-focus").into()),
-            cx,
-            |_, cx| cx.focus_handle(),
-        );
+        let wrap_focus =
+            window.use_keyed_state(element_id::scoped(&key, "wrap-focus"), cx, |_, cx| {
+                cx.focus_handle()
+            });
         let wrap_handle = wrap_focus.read(cx).clone();
         let focus_held = wrap_handle.contains_focused(window, cx);
         // Escape's dismissal is per focus *session*: once the focus leaves the
@@ -510,7 +524,7 @@ impl RenderOnce for Tooltip {
         let (phase, overlay_token) = util::overlay_scope(
             window,
             cx,
-            ElementId::Name(format!("{key:?}-tip-phase").into()),
+            element_id::scoped(&key, "tip-phase"),
             open,
             true,
         );
@@ -563,6 +577,14 @@ impl RenderOnce for Tooltip {
             };
 
             let mut tip = gpui::div()
+                // `tooltip/tooltip.js` renders the RAC `Tooltip`, and
+                // `react-aria/dist/private/tooltip/useTooltip.js` is a single
+                // `role: 'tooltip'`. Upstream leaves the tip unnamed and
+                // points the *trigger*'s `aria-describedby` at it; with no id
+                // graph the port names the tip with its own content instead,
+                // which is the text that describedby would have resolved to.
+                .id(element_id::scoped(&key, "tip"))
+                .a11y_named(a11y::Role::Tooltip, &a11y::Name::labelled(content.clone()))
                 .absolute()
                 // `.tooltip` is `p-2` all round, not a wider-than-tall pill.
                 .p(px(8.))
@@ -634,7 +656,7 @@ impl RenderOnce for Tooltip {
             } else if phase == util::OverlayPhase::Exiting {
                 anim::exiting(
                     tip,
-                    ElementId::Name(format!("{key:?}-tip-out").into()),
+                    element_id::scoped(&key, "tip-out"),
                     zoom,
                     anim::Motion::LIST_OUT,
                     cx,
@@ -644,7 +666,7 @@ impl RenderOnce for Tooltip {
                 // same zoom as a popover, not a slide.
                 anim::entering_zoom(
                     tip,
-                    ElementId::Name(format!("{key:?}-tip").into()),
+                    element_id::scoped(&key, "tip"),
                     zoom,
                     anim::Motion::POPOVER_IN,
                     cx,
@@ -653,6 +675,6 @@ impl RenderOnce for Tooltip {
             wrapper = wrapper.child(util::floating(animated));
         }
 
-        wrapper.into_any_element()
+        util::apply_sx(wrapper, &self.sx).into_any_element()
     }
 }

@@ -39,10 +39,11 @@ use gpui::{
     div, prelude::*, px, App, Entity, InteractiveElement, IntoElement, RenderOnce, SharedString,
     Styled, Window,
 };
-use herogpui_core::{FieldVariant, Placement, SelectionMode};
+use herogpui_core::{element_id, FieldVariant, Placement, SelectionMode};
 use herogpui_theme::ActiveTheme;
 
 use crate::{
+    a11y::{self, A11y as _},
     icons,
     input::{Input, InputState},
     matches::{empty_matches, MatchesCache},
@@ -81,7 +82,7 @@ pub enum ComboBoxFormValue {
 }
 
 type OnSelectionChange = Arc<dyn Fn(&SharedString, &mut Window, &mut App) + 'static>;
-type OnOpenChange = Arc<dyn Fn(bool, &mut Window, &mut App) + 'static>;
+type OnOpenChange = Arc<dyn Fn(&bool, &mut Window, &mut App) + 'static>;
 type ComboBoxFormState = Rc<RefCell<crate::form::LiveFormFieldState>>;
 
 thread_local! {
@@ -265,11 +266,16 @@ pub struct ComboBox {
     default_value: Option<Vec<SharedString>>,
     /// `defaultInputValue` — seeds the text state on the first render only.
     default_input_value: Option<SharedString>,
+    /// `value` — the v3 alias of the controlled input text, stored for the
+    /// first render only and winning over `defaultInputValue`.
+    value: Option<SharedString>,
     on_selection_change_all: Option<Arc<dyn Fn(&[SharedString], &mut Window, &mut App) + 'static>>,
     on_input_change: Option<Arc<dyn Fn(&str, &mut Window, &mut App) + 'static>>,
     on_selection_change: Option<OnSelectionChange>,
     on_open_change: Option<OnOpenChange>,
     form_state: ComboBoxFormState,
+    /// The `sx` slot, refined over the root style at the end of render.
+    sx: Option<Box<gpui::StyleRefinement>>,
 }
 
 impl ComboBox {
@@ -328,7 +334,7 @@ impl ComboBox {
     /// owner that passes the same key every render never clobbers the text
     /// being typed — pinned react-stately resets the input value when the
     /// selected key changes and leaves the input alone otherwise.
-    pub fn selected_key(mut self, key: impl Into<String>, _cx: &mut App) -> Self {
+    pub fn selected_key(mut self, key: impl Into<String>) -> Self {
         let key = SharedString::from(key.into());
         self.selected_keys = if key.is_empty() {
             Vec::new()
@@ -340,9 +346,10 @@ impl ComboBox {
         self
     }
 
-    /// `value` — the v3 alias of [`ComboBox::input_value`].
-    pub fn value(self, value: impl Into<String>, cx: &mut App) -> Self {
-        self.input_value(value, cx)
+    /// `value` — the v3 alias of [`ComboBox::input_value`], the controlled
+    /// input text, as a pure builder.
+    pub fn value(self, value: impl Into<String>) -> Self {
+        self.input_value(value)
     }
 
     /// `disabledKeys` — keys of the items that render but cannot be chosen.
@@ -460,9 +467,17 @@ impl ComboBox {
         self
     }
 
-    /// `inputValue` — writes the typed text through to the bound state.
-    pub fn input_value(self, value: impl Into<String>, cx: &mut App) -> Self {
-        self.state.update(cx, |s, _| s.set_value(value));
+    /// `inputValue` — the controlled input text, as a pure builder.
+    ///
+    /// The bound [`crate::InputState`] owns the text once the field renders,
+    /// so this seeds the state on the first render only, winning over
+    /// [`ComboBox::default_input_value`] the way v3's controlled prop outranks
+    /// the uncontrolled seed; calling `.input_value(..)` twice keeps the last
+    /// call, like every other builder here. [`ComboBox::value`] is v3's alias
+    /// and writes the same slot. A later value is an imperative update rather
+    /// than a builder: `state.update(cx, |s, _| s.set_value(..))`.
+    pub fn input_value(mut self, value: impl Into<String>) -> Self {
+        self.value = Some(SharedString::from(value.into()));
         self
     }
 
@@ -524,11 +539,13 @@ impl ComboBox {
             value_content: None,
             default_value: None,
             default_input_value: None,
+            value: None,
             on_selection_change_all: None,
             on_input_change: None,
             on_selection_change: None,
             on_open_change: None,
             form_state,
+            sx: None,
         }
     }
 
@@ -609,6 +626,16 @@ impl ComboBox {
         self
     }
 
+    /// The one slot for caller-owned low-level styling: GPUI's styling methods
+    /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
+    /// applied to the combo box's root element after every value the variant
+    /// and the active theme chose, so they win. The field paints its own
+    /// chrome, so this reaches the box that chrome sits in, not the chrome.
+    pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
+        self.sx = Some(util::capture_sx(style));
+        self
+    }
+
     pub fn is_disabled(mut self, v: bool) -> Self {
         self.is_disabled = v;
         self
@@ -639,7 +666,7 @@ impl ComboBox {
 
     pub fn on_open_change(
         mut self,
-        handler: impl Fn(bool, &mut Window, &mut App) + 'static,
+        handler: impl Fn(&bool, &mut Window, &mut App) + 'static,
     ) -> Self {
         self.on_open_change = Some(Arc::new(handler));
         self
@@ -648,19 +675,27 @@ impl ComboBox {
 
 impl RenderOnce for ComboBox {
     fn render(mut self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        // One structured base id for the whole frame: every part below hangs
+        // off it, so a hyphenated part name can never fold into a sibling's
+        // key. Its `Display` is `combobox-<entity id>`, the spelling the parts
+        // used to build with `format!`.
+        let entity_id = self.state.entity_id().as_u64();
+        let base_id = gpui::ElementId::named_usize("combobox", entity_id as usize);
         // One shared collection for the frame: the `'static` panel and event
         // closures clone the `Rc`, never the rows.
         let items: Rc<[PickerItem]> = self.items.into();
 
-        // `defaultInputValue` seeds the text once, before anything reads it.
-        if let Some(text) = self.default_input_value.clone() {
+        // `value` / `defaultInputValue` seed the text once, before anything
+        // reads it. `value` is v3's controlled spelling, so it outranks the
+        // uncontrolled seed; the state owns the text afterwards, and
+        // `InputState::set_value` is the imperative update.
+        let seed = self.value.clone().or(self.default_input_value.clone());
+        if let Some(text) = seed {
             let state = self.state.clone();
             util::seed_once(
                 window,
                 cx,
-                gpui::ElementId::Name(
-                    format!("combobox-{}-default-text", self.state.entity_id().as_u64()).into(),
-                ),
+                element_id::scoped(&base_id, "default-text"),
                 move |cx| {
                     state.update(cx, |s, cx| {
                         s.set_value(text.to_string());
@@ -682,9 +717,7 @@ impl RenderOnce for ComboBox {
         let (selection, selection_own) = util::controlled(
             window,
             cx,
-            gpui::ElementId::Name(
-                format!("combobox-{}-selection", self.state.entity_id().as_u64()).into(),
-            ),
+            element_id::scoped(&base_id, "selection"),
             self.is_controlled.then(|| self.selected_keys.clone()),
             default_selection.clone(),
         );
@@ -694,18 +727,14 @@ impl RenderOnce for ComboBox {
         let (open_state, open_own) = util::controlled(
             window,
             cx,
-            gpui::ElementId::Name(
-                format!("combobox-{}-open", self.state.entity_id().as_u64()).into(),
-            ),
+            element_id::scoped(&base_id, "open"),
             self.is_open,
             self.default_open,
         );
         let (overlay_phase, dismissal_token) = util::overlay_scope(
             window,
             cx,
-            gpui::ElementId::Name(
-                format!("combobox-{}-overlay", self.state.entity_id().as_u64()).into(),
-            ),
+            element_id::scoped(&base_id, "overlay"),
             open_state,
             false,
         );
@@ -715,7 +744,6 @@ impl RenderOnce for ComboBox {
         let colors = cx.colors().clone();
         let layout = cx.layout().clone();
         let container_radius = util::container_radius(cx);
-        let entity_id = self.state.entity_id().as_u64();
         let close_open = util::shared({
             let own = open_own.clone();
             let callback = self.on_open_change.clone();
@@ -731,7 +759,7 @@ impl RenderOnce for ComboBox {
                     });
                 }
                 if let Some(callback) = &callback {
-                    callback(false, window, cx);
+                    callback(&false, window, cx);
                 }
             }
         });
@@ -762,19 +790,19 @@ impl RenderOnce for ComboBox {
         // clobber the text being typed. The empty string is v3's `null` and
         // clears the input; a key with no item resolves to no label.
         if self.selected_key_sync {
-            let applied_key = window.use_keyed_state(
-                gpui::ElementId::Name(format!("combobox-{entity_id}-applied-key").into()),
-                cx,
-                |_, _| None::<SharedString>,
-            );
+            let applied_key =
+                window.use_keyed_state(element_id::scoped(&base_id, "applied-key"), cx, |_, _| {
+                    None::<SharedString>
+                });
             let owned_key = self.selected_keys.first().cloned().unwrap_or_default();
             let first_apply = applied_key.read(cx).is_none();
             if applied_key.read(cx).clone() != Some(owned_key.clone()) {
                 // Pinned `getDefaultInputValue` derives the text from the
                 // selected key only when no `defaultInputValue` was given, so
-                // the first application must leave the seeded default text in
-                // place; later key changes still move their labels in.
-                if !(first_apply && self.default_input_value.is_some()) {
+                // the first application must leave the seeded text in place —
+                // `value` seeds the same slot and is owed the same leave-alone;
+                // later key changes still move their labels in.
+                if !(first_apply && (self.default_input_value.is_some() || self.value.is_some())) {
                     let label = label_of_key(&items, &owned_key)
                         .cloned()
                         .unwrap_or_default();
@@ -833,15 +861,14 @@ impl RenderOnce for ComboBox {
             });
 
         let show_all_items = window.use_keyed_state(
-            gpui::ElementId::Name(format!("combobox-{entity_id}-show-all-items").into()),
+            element_id::scoped(&base_id, "show-all-items"),
             cx,
             |_, _| false,
         );
-        let last_query = window.use_keyed_state(
-            gpui::ElementId::Name(format!("combobox-{entity_id}-last-query").into()),
-            cx,
-            |_, _| raw_query.clone(),
-        );
+        let last_query =
+            window.use_keyed_state(element_id::scoped(&base_id, "last-query"), cx, |_, _| {
+                raw_query.clone()
+            });
         if *last_query.read(cx) != raw_query {
             last_query.update(cx, |value, _| value.clone_from(&raw_query));
             show_all_items.update(cx, |value, _| *value = false);
@@ -852,11 +879,9 @@ impl RenderOnce for ComboBox {
         // Which suggestion the keyboard is on. Input edits clear it, matching
         // React Stately's focused-key reset before the filtered list changes.
         // Created ahead of the matches: the idle gate below reads it.
-        let cursor = window.use_keyed_state(
-            gpui::ElementId::Name(format!("combobox-{entity_id}-cursor").into()),
-            cx,
-            |_, _| None::<ComboCursor>,
-        );
+        let cursor = window.use_keyed_state(element_id::scoped(&base_id, "cursor"), cx, |_, _| {
+            None::<ComboCursor>
+        });
 
         // Closed and idle frames draw no rows, so they skip the match work
         // entirely; a consuming filtered frame shares one cached list until
@@ -868,11 +893,10 @@ impl RenderOnce for ComboBox {
         // empty query, and its configuration cannot join a cache key — its
         // results are never cached and it only runs while the matches are
         // consumed.
-        let matches_cache = window.use_keyed_state(
-            gpui::ElementId::Name(format!("combobox-{entity_id}-matches").into()),
-            cx,
-            |_, _| MatchesCache::default(),
-        );
+        let matches_cache =
+            window.use_keyed_state(element_id::scoped(&base_id, "matches"), cx, |_, _| {
+                MatchesCache::default()
+            });
         let consume_matches = overlay_active
             || cursor.read(cx).is_some()
             || (self.allows_custom_value && !raw_query.is_empty());
@@ -920,7 +944,7 @@ impl RenderOnce for ComboBox {
         let focus_open =
             if self.menu_trigger == MenuTrigger::Focus && !self.is_disabled && !self.is_read_only {
                 Some(window.use_keyed_state(
-                    gpui::ElementId::Name(format!("combobox-{entity_id}-focus-open").into()),
+                    element_id::scoped(&base_id, "focus-open"),
                     cx,
                     |_, _| FocusOpen {
                         can_open: true,
@@ -955,7 +979,7 @@ impl RenderOnce for ComboBox {
                         });
                     }
                     if let Some(cb) = &self.on_open_change {
-                        cb(true, window, cx);
+                        cb(&true, window, cx);
                     }
                     held.can_open = false;
                     now_open = true;
@@ -984,9 +1008,16 @@ impl RenderOnce for ComboBox {
         // goes on the glyph as well as the trigger that wraps it.
         let trigger_hover_fg = colors.field.foreground;
         let mut trigger = div()
-            .id(gpui::ElementId::Name(
-                format!("combobox-{entity_id}-trigger").into(),
-            ))
+            .id(element_id::scoped(&base_id, "trigger"))
+            // `combo-box/combo-box.js` composes an RAC `Button` here, whose
+            // props come from `useComboBox`'s `buttonProps` — i.e.
+            // `useMenuTrigger({type: 'listbox'})`, so
+            // `.../overlays/useOverlayTrigger.mjs` gives it
+            // `'aria-haspopup': 'listbox'`, `'aria-expanded': isOpen` and
+            // `'aria-controls'`. Only the expansion flag ports; the other two
+            // are recorded omissions in `crate::a11y`.
+            .a11y(a11y::Role::Button)
+            .a11y_expanded(is_open)
             .flex()
             .items_center()
             .justify_center()
@@ -1036,7 +1067,7 @@ impl RenderOnce for ComboBox {
                             });
                         }
                         if let Some(cb) = &on_open_change {
-                            cb(true, window, cx);
+                            cb(&true, window, cx);
                         }
                     });
             }
@@ -1122,7 +1153,7 @@ impl RenderOnce for ComboBox {
                     });
                 }
                 if let Some(cb) = &open_change_cb {
-                    cb(true, window, cx);
+                    cb(&true, window, cx);
                 }
             } else if is_open && !can_show {
                 close_on_empty(window, cx);
@@ -1169,16 +1200,14 @@ impl RenderOnce for ComboBox {
             .and_then(|focused| cursor_position(&matches, focused));
         // React Aria keeps the focused row in view; the panel scrolls and the
         // virtual list scrolls itself. `use_keyed_state` takes `cx` mutably.
-        let list_scroll = window.use_keyed_state(
-            gpui::ElementId::Name(format!("combobox-{entity_id}-list-scroll").into()),
-            cx,
-            |_, _| gpui::UniformListScrollHandle::new(),
-        );
-        let panel_scroll = window.use_keyed_state(
-            gpui::ElementId::Name(format!("combobox-{entity_id}-panel-scroll").into()),
-            cx,
-            |_, _| gpui::ScrollHandle::new(),
-        );
+        let list_scroll =
+            window.use_keyed_state(element_id::scoped(&base_id, "list-scroll"), cx, |_, _| {
+                gpui::UniformListScrollHandle::new()
+            });
+        let panel_scroll =
+            window.use_keyed_state(element_id::scoped(&base_id, "panel-scroll"), cx, |_, _| {
+                gpui::ScrollHandle::new()
+            });
         let list_scroll_now = list_scroll.read(cx).clone();
         let panel_scroll_now = panel_scroll.read(cx).clone();
 
@@ -1240,7 +1269,7 @@ impl RenderOnce for ComboBox {
         let blur_scope = util::on_focus_leave(
             window,
             cx,
-            &format!("combobox-{entity_id}"),
+            &base_id,
             !self.is_disabled,
             move |window, cx| {
                 blur_commit(window, cx);
@@ -1263,9 +1292,17 @@ impl RenderOnce for ComboBox {
         let field_selector = format!("combobox-field-{entity_id}");
         input = input.field_anchor(anchor_bounds.clone(), field_selector);
         let input_group = div()
-            .id(gpui::ElementId::Name(
-                format!("combobox-{entity_id}-field").into(),
-            ))
+            .id(element_id::scoped(&base_id, "field"))
+            // `combo-box/combo-box.js`'s `ComboBox.InputGroup` renders RAC
+            // `Group`, and `react-aria-components/dist/private/Group.mjs` is
+            // `role: props.role ?? 'group'`.
+            //
+            // The `role="combobox"` that `useComboBox` puts on the *input*
+            // does not appear anywhere in this port: the field is a
+            // `crate::input::Input`, whose role is decided inside its own
+            // render from its `InputType` and which has no override prop.
+            // See the picker note in `crate::a11y`.
+            .a11y(a11y::Role::Group)
             .relative()
             .capture_any_mouse_down(move |_, _, cx| {
                 inside_pressed_for_group.set(true);
@@ -1548,7 +1585,7 @@ impl RenderOnce for ComboBox {
                         if !was_open {
                             show_all_items.update(cx, |v, _| *v = true);
                             if let Some(cb) = &on_open_change {
-                                cb(true, window, cx);
+                                cb(&true, window, cx);
                             }
                         }
                     }
@@ -1665,9 +1702,13 @@ impl RenderOnce for ComboBox {
         if show_list {
             let panel_selector = format!("combobox-panel-{entity_id}");
             let panel = div()
-                .id(gpui::ElementId::Name(
-                    format!("combobox-{entity_id}-panel").into(),
-                ))
+                .id(element_id::scoped(&base_id, "panel"))
+                // `useComboBox` hands `listBoxProps` to the popover's RAC
+                // `ListBox`, which is `useListBox`'s literal `role: 'listbox'`
+                // with `'aria-orientation'` defaulting to vertical. The rows
+                // are this panel's children, so the panel is that list.
+                .a11y(a11y::Role::ListBox)
+                .a11y_orientation(herogpui_core::Orientation::Vertical)
                 .debug_selector(move || panel_selector)
                 .w_full()
                 .flex()
@@ -1764,6 +1805,13 @@ impl RenderOnce for ComboBox {
             let row_focus = colors.focus;
             let row_accent = colors.accent.color;
             let row_disabled_opacity = layout.disabled_opacity;
+            // The rows' shared parent id, owned by the `'static` row builder:
+            // each row adds its item key as its own segment below it.
+            let row_base = element_id::scoped(&base_id, "item");
+            // `useOption` adds `aria-posinset`/`aria-setsize` only
+            // `if (isVirtualized)`; `row_height` is what windows this list.
+            let row_virtualized = self.row_height.is_some();
+            let row_count = rows.len();
             let row_of = move |index: usize, fixed_h: Option<gpui::Pixels>, cx: &mut App| {
                 let item = &rows[index];
                 // A section header rides above the row it introduces, so the two
@@ -1799,7 +1847,22 @@ impl RenderOnce for ComboBox {
                 let hover_bg = row_hover_bg;
                 let row_selector = format!("combobox-{entity_id}-item-{}", item.key());
                 let mut row = div()
-                        .id(gpui::ElementId::Name(row_selector.clone().into()))
+                        .id(element_id::scoped(&row_base, item.key().clone()))
+                        // `useOption.mjs`: `role: 'option'` plus
+                        // `'aria-selected'` whenever the list selects at all.
+                        // The highlighted row is what `useComboBox` points its
+                        // input's `aria-activedescendant` at; gpui states that
+                        // relation on the descendant, so the row can say it
+                        // even though this component does not own the input.
+                        .a11y_named(
+                            a11y::Role::ListBoxOption,
+                            &a11y::Name::labelled(item.label().clone()),
+                        )
+                        .a11y_selected(row_selected_keys.contains(item.key()))
+                        .when(cursor_at == Some(index), |row| row.a11y_active_descendant())
+                        .when(row_virtualized, |row| {
+                            row.a11y_set_position(index, row_count)
+                        })
                         .debug_selector(move || row_selector)
                         // `.list-box-item`: `min-h-9 rounded-2xl px-2 py-1.5 gap-3`.
                         .min_h(util::FIELD_HEIGHT)
@@ -1942,7 +2005,7 @@ impl RenderOnce for ComboBox {
                 Some(row_height) => {
                     panel = panel.child(
                         gpui::uniform_list(
-                            gpui::ElementId::Name(format!("combobox-{entity_id}-rows").into()),
+                            element_id::scoped(&base_id, "rows"),
                             matches_len,
                             move |range, _window, cx| {
                                 range
@@ -1964,7 +2027,7 @@ impl RenderOnce for ComboBox {
 
             let panel = crate::anim::entering_zoom(
                 panel,
-                gpui::ElementId::Name(format!("combobox-{entity_id}-anim").into()),
+                element_id::scoped(&base_id, "anim"),
                 crate::anim::ZoomBox::panel(px(4.), container_radius).padding_x(px(4.)),
                 crate::anim::Motion::LIST_IN,
                 cx,
@@ -1982,6 +2045,7 @@ impl RenderOnce for ComboBox {
         // The popover hangs off the field it belongs to, so the field — not
         // the panel — is the root's first child; the deferred panel still
         // paints over the value row below it.
+        root = util::apply_sx(root, &self.sx);
         root.when_some(value_content, |root, value| root.child(value))
             .track_focus(&blur_focus)
     }

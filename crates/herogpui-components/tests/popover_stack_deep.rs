@@ -283,7 +283,7 @@ fn controlled_popover_contains_tab_and_close_activates_with_enter(cx: &mut TestA
                     .on_open_change({
                         let open = open.clone();
                         move |value, window, _| {
-                            *open.borrow_mut() = value;
+                            *open.borrow_mut() = *value;
                             open_actions.borrow_mut().push(format!("open:{value}"));
                             window.refresh();
                         }
@@ -354,7 +354,7 @@ fn popover_close_activates_with_space(cx: &mut TestAppContext) {
             .on_open_change({
                 let open = open.clone();
                 move |value, window, _| {
-                    *open.borrow_mut() = value;
+                    *open.borrow_mut() = *value;
                     changes.borrow_mut().push(format!("open:{value}"));
                     window.refresh();
                 }
@@ -391,7 +391,7 @@ fn clicking_an_open_popover_trigger_reports_one_close(cx: &mut TestAppContext) {
             .on_open_change({
                 let open = open.clone();
                 move |value, window, _| {
-                    *open.borrow_mut() = value;
+                    *open.borrow_mut() = *value;
                     changes.borrow_mut().push(format!("open:{value}"));
                     window.refresh();
                 }
@@ -423,7 +423,7 @@ fn canceled_popover_trigger_press_does_not_block_a_later_outside_close(cx: &mut 
             .on_open_change({
                 let open = open.clone();
                 move |value, window, _| {
-                    *open.borrow_mut() = value;
+                    *open.borrow_mut() = *value;
                     changes.borrow_mut().push(format!("open:{value}"));
                     window.refresh();
                 }
@@ -469,7 +469,7 @@ fn outside_press_dismisses_without_activating_the_outside_control(cx: &mut TestA
                     .on_open_change({
                         let open = open.clone();
                         move |value, window, _| {
-                            *open.borrow_mut() = value;
+                            *open.borrow_mut() = *value;
                             open_actions.borrow_mut().push(format!("open:{value}"));
                             window.refresh();
                         }
@@ -509,7 +509,7 @@ fn nested_popover_escape_closes_only_the_topmost_overlay(cx: &mut TestAppContext
             .on_open_change({
                 let outer_open = outer_open.clone();
                 move |value, window, _| {
-                    *outer_open.borrow_mut() = value;
+                    *outer_open.borrow_mut() = *value;
                     outer_changes.borrow_mut().push(format!("outer:{value}"));
                     window.refresh();
                 }
@@ -521,7 +521,7 @@ fn nested_popover_escape_closes_only_the_topmost_overlay(cx: &mut TestAppContext
                     .on_open_change({
                         let popover_open = popover_open.clone();
                         move |value, window, _| {
-                            *popover_open.borrow_mut() = value;
+                            *popover_open.borrow_mut() = *value;
                             popover_changes
                                 .borrow_mut()
                                 .push(format!("popover:{value}"));
@@ -579,7 +579,7 @@ fn nested_popover_outside_press_closes_only_the_topmost_overlay(cx: &mut TestApp
             .on_open_change({
                 let outer_open = outer_open.clone();
                 move |value, window, _| {
-                    *outer_open.borrow_mut() = value;
+                    *outer_open.borrow_mut() = *value;
                     outer_changes.borrow_mut().push(format!("outer:{value}"));
                     window.refresh();
                 }
@@ -591,7 +591,7 @@ fn nested_popover_outside_press_closes_only_the_topmost_overlay(cx: &mut TestApp
                     .on_open_change({
                         let popover_open = popover_open.clone();
                         move |value, window, _| {
-                            *popover_open.borrow_mut() = value;
+                            *popover_open.borrow_mut() = *value;
                             popover_changes
                                 .borrow_mut()
                                 .push(format!("popover:{value}"));
@@ -640,7 +640,7 @@ fn closed_tooltip_does_not_swallow_parent_popover_escape(cx: &mut TestAppContext
             .on_open_change({
                 let popover_open = popover_open.clone();
                 move |value, window, _| {
-                    *popover_open.borrow_mut() = value;
+                    *popover_open.borrow_mut() = *value;
                     popover_changes
                         .borrow_mut()
                         .push(format!("popover:{value}"));
@@ -686,7 +686,7 @@ fn open_tooltip_inside_popover_answers_escape_before_its_parent(cx: &mut TestApp
             .on_open_change({
                 let popover_open = popover_open.clone();
                 move |value, window, _| {
-                    *popover_open.borrow_mut() = value;
+                    *popover_open.borrow_mut() = *value;
                     popover_changes
                         .borrow_mut()
                         .push(format!("popover:{value}"));

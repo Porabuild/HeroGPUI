@@ -30,7 +30,7 @@ fn window_dialogs_escape_clipped_ancestors_and_later_siblings(cx: &mut TestAppCo
                 .flex_shrink_0()
                 .on_click(move |_, _, _| content_hits.borrow_mut().push("content".into()))
                 .child("Dialog content");
-            let on_open_change = move |open: bool, _: &mut gpui::Window, _: &mut gpui::App| {
+            let on_open_change = move |open: &bool, _: &mut gpui::Window, _: &mut gpui::App| {
                 close_hits.borrow_mut().push(format!("open:{open}"));
             };
             let dialog = match kind {
@@ -124,7 +124,7 @@ fn nested_modals_escape_only_the_topmost_then_reaches_parent(cx: &mut TestAppCon
                 .is_open(*outer_open.borrow())
                 .is_keyboard_dismiss_disabled(false)
                 .on_open_change(move |open, window, _| {
-                    *outer_open_change.borrow_mut() = open;
+                    *outer_open_change.borrow_mut() = *open;
                     outer_changes.borrow_mut().push(format!("outer:{open}"));
                     window.refresh();
                 })
@@ -134,7 +134,7 @@ fn nested_modals_escape_only_the_topmost_then_reaches_parent(cx: &mut TestAppCon
                         .is_open(*inner_open.borrow())
                         .is_keyboard_dismiss_disabled(false)
                         .on_open_change(move |open, window, _| {
-                            *inner_open_change.borrow_mut() = open;
+                            *inner_open_change.borrow_mut() = *open;
                             inner_changes.borrow_mut().push(format!("inner:{open}"));
                             window.refresh();
                         }),
@@ -170,7 +170,7 @@ fn nested_modal_and_drawer_outside_press_closes_only_topmost_once(cx: &mut TestA
                 .id("dialog-outside-outer")
                 .is_open(*outer_open.borrow())
                 .on_open_change(move |open, window, _| {
-                    *outer_open_change.borrow_mut() = open;
+                    *outer_open_change.borrow_mut() = *open;
                     outer_changes.borrow_mut().push(format!("outer:{open}"));
                     window.refresh();
                 })
@@ -179,7 +179,7 @@ fn nested_modal_and_drawer_outside_press_closes_only_topmost_once(cx: &mut TestA
                         .id("dialog-outside-drawer")
                         .is_open(*drawer_open.borrow())
                         .on_open_change(move |open, window, _| {
-                            *drawer_open_change.borrow_mut() = open;
+                            *drawer_open_change.borrow_mut() = *open;
                             drawer_changes.borrow_mut().push(format!("drawer:{open}"));
                             window.refresh();
                         }),
@@ -215,7 +215,7 @@ fn alert_dialog_escape_is_topmost_and_does_not_double_report(cx: &mut TestAppCon
                 .is_open(*modal_open.borrow())
                 .is_keyboard_dismiss_disabled(false)
                 .on_open_change(move |open, window, _| {
-                    *modal_open_change.borrow_mut() = open;
+                    *modal_open_change.borrow_mut() = *open;
                     modal_changes.borrow_mut().push(format!("modal:{open}"));
                     window.refresh();
                 })
@@ -226,7 +226,7 @@ fn alert_dialog_escape_is_topmost_and_does_not_double_report(cx: &mut TestAppCon
                         .is_dismissible(true)
                         .is_keyboard_dismiss_disabled(false)
                         .on_open_change(move |open, window, _| {
-                            *alert_open_change.borrow_mut() = open;
+                            *alert_open_change.borrow_mut() = *open;
                             alert_changes.borrow_mut().push(format!("alert:{open}"));
                             window.refresh();
                         }),

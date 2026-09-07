@@ -33,3 +33,12 @@ gpui = { workspace = true, features = ["test-support"] }
 
 [lints]
 workspace = true
+
+# docs.rs builds every crate with only its default features unless told
+# otherwise, so a docs.rs page for herogpui-components would omit
+# `gallery-source`-gated items entirely. `--cfg docsrs` matches the flag CI's
+# own rustdoc job now sets (see .github/workflows/ci.yml), so a `#[cfg(docsrs)]`
+# doc-only annotation behaves identically in both places.
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]

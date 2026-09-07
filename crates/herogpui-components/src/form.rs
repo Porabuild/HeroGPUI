@@ -1223,7 +1223,7 @@ impl RenderOnce for Form {
         // Enter, so a form without one never arms the latch).
         let latch = fields.iter().find_map(|f| f.state_id).map(|id| {
             window.use_keyed_state(
-                gpui::ElementId::Name(format!("form-enter-latch-{}", id.as_u64()).into()),
+                gpui::ElementId::named_usize("form-enter-latch", id.as_u64() as usize),
                 cx,
                 |_, _| false,
             )

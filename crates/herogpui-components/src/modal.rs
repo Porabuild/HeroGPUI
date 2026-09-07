@@ -7,8 +7,10 @@ use gpui::{
     prelude::*, px, AnyElement, App, ClickEvent, IntoElement, ParentElement, RenderOnce,
     SharedString, Styled, Window,
 };
-use herogpui_core::Backdrop;
+use herogpui_core::{element_id, Backdrop};
 use herogpui_theme::ActiveTheme;
+
+use crate::a11y::{self, A11y as _};
 
 /// Modal width preset (`size`) — `xs | sm | md | lg | cover | full`.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -84,7 +86,7 @@ pub enum ModalScroll {
 pub type OnClose = std::sync::Arc<dyn Fn(&ClickEvent, &mut Window, &mut App) + 'static>;
 
 /// `onOpenChange` — every overlay reports dismissal through this shape.
-pub type OnOpenChange = std::sync::Arc<dyn Fn(bool, &mut Window, &mut App) + 'static>;
+pub type OnOpenChange = std::sync::Arc<dyn Fn(&bool, &mut Window, &mut App) + 'static>;
 
 /// HeroUI Modal (controlled).
 #[derive(IntoElement)]
@@ -105,13 +107,17 @@ pub struct Modal {
     body: Vec<AnyElement>,
     footer: Vec<AnyElement>,
     on_close: Option<OnClose>,
+    /// The `sx` slot, refined over the root style at the end of render.
+    sx: Option<Box<gpui::StyleRefinement>>,
 }
 
-/// `"<dialog id>-<part>"`, the key one dialog's piece of state lives under.
+/// The key one dialog's piece of state lives under: `id`'s named child `part`.
 ///
-/// Shared by the three dialogs so they cannot spell it differently.
-pub(crate) fn dialog_key(id: &gpui::ElementId, part: &str) -> gpui::ElementId {
-    gpui::ElementId::Name(format!("{id:?}-{part}").into())
+/// Shared by the three dialogs so they cannot spell it differently. A thin
+/// wrapper over [`element_id::scoped`] kept for that single spelling; see the
+/// `element_id` module for why the part is structure rather than a `format!`.
+pub(crate) fn dialog_key(id: &gpui::ElementId, part: &'static str) -> gpui::ElementId {
+    element_id::scoped(id, part)
 }
 
 /// Claims the focus for an open dialog, remembering what held it before.
@@ -164,12 +170,15 @@ pub(crate) fn release_dialog_focus(id: &gpui::ElementId, window: &mut Window, cx
 /// The one contract every dialog's close-trigger part implements so the
 /// composing dialog can hand it the dismissal path through an `AnyElement`.
 ///
-/// `slot` is the trigger's index within its dialog, handed out during
-/// extraction: the built-in `CloseButton` keys its tab-stop state under that
-/// id, and two triggers wired with one constant id would share the same keyed
-/// state and the same focus handle.
+/// `owner` is the dialog's own id and `slot` the trigger's index within that
+/// dialog, both handed out during extraction: the built-in `CloseButton` keys
+/// its tab-stop state under the id built from the pair, and the two parts are
+/// both needed. Without `slot`, two triggers in one dialog share a focus
+/// handle; without `owner`, the first trigger of every dialog on screen shares
+/// one — the anonymous wrappers around the triggers push nothing onto gpui's
+/// element-id path, so the id it mints is the whole path.
 pub(crate) trait CloseTriggerPart: 'static {
-    fn wire(&mut self, on_dismiss: Option<OnClose>, slot: usize);
+    fn wire(&mut self, on_dismiss: Option<OnClose>, owner: gpui::ElementId, slot: usize);
 }
 
 /// Pulls the composed close-trigger parts out of one of a dialog's child
@@ -185,12 +194,13 @@ pub(crate) trait CloseTriggerPart: 'static {
 pub(crate) fn take_close_triggers<T: CloseTriggerPart>(
     children: &mut Vec<AnyElement>,
     on_dismiss: Option<OnClose>,
+    owner: &gpui::ElementId,
     first_slot: usize,
 ) -> Vec<AnyElement> {
     let mut taken = Vec::new();
     children.retain_mut(|child| {
         if let Some(part) = child.downcast_mut::<T>() {
-            part.wire(on_dismiss.clone(), first_slot + taken.len());
+            part.wire(on_dismiss.clone(), owner.clone(), first_slot + taken.len());
             taken.push(std::mem::replace(child, gpui::div().into_any_element()));
             false
         } else {
@@ -205,13 +215,15 @@ pub(crate) fn take_close_triggers<T: CloseTriggerPart>(
 /// children standing in for the button's glyph — so this macro spells the
 /// impls all three share. Each dialog keeps its own public part struct and
 /// inherent `impl` (with `new`) because [`take_close_triggers`] downcast-matches
-/// the distinct types. The struct carries a `slot: usize` field, and the
-/// button's id is `$button_id` suffixed with it: the anonymous wrappers around
-/// the triggers push nothing onto gpui's element-id path, so two triggers
-/// wired with one constant id would key their CloseButton and tab-stop state
-/// at the same path and share one focus handle.
+/// the distinct types. The struct carries `owner: Option<gpui::ElementId>`
+/// and `slot: usize` fields, wired during extraction, and the button's id is
+/// the owning dialog's id with `$button_part` and the slot hung off it: the
+/// anonymous wrappers around the triggers push nothing onto gpui's
+/// element-id path, so an id that is not derived from both would key the
+/// CloseButton's tab-stop state at a path another trigger also owns and share
+/// one focus handle with it.
 macro_rules! close_trigger_part {
-    ($part:ident, $button_id:expr) => {
+    ($part:ident, $button_part:expr) => {
         impl Default for $part {
             fn default() -> Self {
                 Self::new()
@@ -225,8 +237,14 @@ macro_rules! close_trigger_part {
         }
 
         impl crate::modal::CloseTriggerPart for $part {
-            fn wire(&mut self, on_dismiss: Option<crate::modal::OnClose>, slot: usize) {
+            fn wire(
+                &mut self,
+                on_dismiss: Option<crate::modal::OnClose>,
+                owner: gpui::ElementId,
+                slot: usize,
+            ) {
                 self.on_dismiss = on_dismiss;
+                self.owner = Some(owner);
                 self.slot = slot;
             }
         }
@@ -255,11 +273,11 @@ macro_rules! close_trigger_part {
                 // only replace its glyph, and the press still runs the
                 // dialog's close action. With no dismissal callback to wire
                 // the part draws nothing at all.
-                let mut inner = match self.on_dismiss.take() {
-                    Some(on_dismiss) => {
-                        let button = crate::close_button::CloseButton::new(gpui::ElementId::Name(
-                            format!("{}-{}", $button_id, self.slot).into(),
-                        ))
+                let mut inner = match (self.on_dismiss.take(), self.owner.take()) {
+                    (Some(on_dismiss), Some(owner)) => {
+                        let button = crate::close_button::CloseButton::new(
+                            herogpui_core::element_id::indexed(&owner, $button_part, self.slot),
+                        )
                         .on_press(move |ev, window, cx| on_dismiss(ev, window, cx));
                         if children.is_empty() {
                             button.into_any_element()
@@ -269,7 +287,7 @@ macro_rules! close_trigger_part {
                                 .into_any_element()
                         }
                     }
-                    None => gpui::div().into_any_element(),
+                    _ => gpui::div().into_any_element(),
                 };
                 let layout = inner.request_layout(window, cx);
                 (layout, inner)
@@ -326,6 +344,9 @@ pub(crate) use close_trigger_part;
 /// or composed outside a [`Modal`] — the part draws nothing.
 pub struct ModalCloseTrigger {
     on_dismiss: Option<OnClose>,
+    /// The id of the dialog this trigger was pulled out of; see
+    /// [`CloseTriggerPart::wire`].
+    owner: Option<gpui::ElementId>,
     /// This trigger's index within its dialog; see [`CloseTriggerPart::wire`].
     slot: usize,
     children: Vec<AnyElement>,
@@ -335,13 +356,14 @@ impl ModalCloseTrigger {
     pub fn new() -> Self {
         Self {
             on_dismiss: None,
+            owner: None,
             slot: 0,
             children: Vec::new(),
         }
     }
 }
 
-crate::close_trigger_part!(ModalCloseTrigger, "modal-close");
+crate::close_trigger_part!(ModalCloseTrigger, "close-trigger");
 
 impl Modal {
     /// The element id this dialog's state is keyed by.
@@ -371,6 +393,7 @@ impl Modal {
             body: Vec::new(),
             footer: Vec::new(),
             on_close: None,
+            sx: None,
         }
     }
 
@@ -419,6 +442,16 @@ impl Modal {
         self
     }
 
+    /// The one slot for caller-owned low-level styling: GPUI's styling methods
+    /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
+    /// applied to the modal's root element — the full-window overlay the panel
+    /// and the backdrop sit in — after every value the size, the placement and
+    /// the active theme chose, so they win.
+    pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
+        self.sx = Some(crate::util::capture_sx(style));
+        self
+    }
+
     /// `scroll` — `Inside` keeps the dialog fixed and scrolls its body;
     /// `Outside` lets the dialog grow and scrolls the container.
     pub fn scroll(mut self, scroll: ModalScroll) -> Self {
@@ -428,7 +461,7 @@ impl Modal {
 
     /// `onOpenChange` — fires with `false` on every dismissal path, alongside
     /// [`Modal::on_close`].
-    pub fn on_open_change(mut self, f: impl Fn(bool, &mut Window, &mut App) + 'static) -> Self {
+    pub fn on_open_change(mut self, f: impl Fn(&bool, &mut Window, &mut App) + 'static) -> Self {
         self.on_open_change = Some(std::sync::Arc::new(f));
         self
     }
@@ -505,7 +538,7 @@ impl RenderOnce for Modal {
                         f(ev, window, cx);
                     }
                     if let Some(f) = &open_change {
-                        f(false, window, cx);
+                        f(&false, window, cx);
                     }
                 },
             )),
@@ -525,10 +558,11 @@ impl RenderOnce for Modal {
         // paths to wire the default `CloseButton` with, regardless of
         // `is_dismissible`.
         let mut close_triggers =
-            take_close_triggers::<ModalCloseTrigger>(&mut self.body, dismiss.clone(), 0);
+            take_close_triggers::<ModalCloseTrigger>(&mut self.body, dismiss.clone(), &self.id, 0);
         close_triggers.extend(take_close_triggers::<ModalCloseTrigger>(
             &mut self.footer,
             dismiss.clone(),
+            &self.id,
             close_triggers.len(),
         ));
 
@@ -625,7 +659,7 @@ impl RenderOnce for Modal {
             .when(has_body, |panel| {
                 panel.child(
                     gpui::div()
-                        .id("modal-body")
+                        .id(element_id::scoped(&self.id, "body"))
                         .flex()
                         .flex_col()
                         .gap(px(10.))
@@ -653,6 +687,26 @@ impl RenderOnce for Modal {
                         .children(self.body),
                 )
             });
+
+        // `modal/modal.js` renders RAC `Modal`/`ModalOverlay` around a
+        // `Dialog`, and `react-aria/.../dialog/useDialog.js` defaults that
+        // dialog to `role="dialog"`, named by the composed `Heading` through
+        // `aria-labelledby` — inlined here as the title text. Nothing marks it
+        // as modal: `useDialog` deliberately sets no `aria-modal` (a WebKit
+        // focus bug it documents inline), and `useModal` makes the rest of the
+        // page `aria-hidden` instead; this port's `util::trap_tab` is the same
+        // containment by other means, and there is no node attribute for it
+        // either way.
+        //
+        // Stated *after* the layout chain on purpose: `design_audit.py` reads
+        // `.modal__dialog`'s `p-6` with a pattern anchored on
+        // `let panel = gpui::div()` followed straight by `.relative()`, and an
+        // `.id(..).a11y_named(..)` wedged in there makes that metric
+        // unreadable. Widening another audit's reader to fit this call would
+        // be the wrong repair.
+        let panel = panel
+            .id(element_id::scoped(&self.id, "dialog"))
+            .a11y_named(a11y::Role::Dialog, &a11y::Name::maybe(self.title.clone()));
 
         // `.modal__footer` is `flex-row items-center justify-end gap-2` with no
         // border: the separator this used to draw is not in v3's sheet.
@@ -720,7 +774,7 @@ impl RenderOnce for Modal {
             gpui::div()
                 // `overflow_y_scroll` needs a stateful element, so the id is set
                 // unconditionally and only the overflow is conditional.
-                .id("modal-scroll")
+                .id(element_id::scoped(&self.id, "scroll"))
                 .track_focus(&focus_handle),
             &focus_handle,
         )
@@ -776,7 +830,7 @@ impl RenderOnce for Modal {
         // of the panel's own controls. v3 fades it in alongside the panel
         // (`.backdrop[data-entering]`).
         let scrim = gpui::div()
-            .id("modal-backdrop")
+            .id(element_id::scoped(&self.id, "backdrop"))
             .absolute()
             .inset_0()
             .bg(backdrop_bg);
@@ -822,6 +876,7 @@ impl RenderOnce for Modal {
             )
         });
 
+        overlay = crate::util::apply_sx(overlay, &self.sx);
         crate::util::window_overlay(overlay, window).into_any_element()
     }
 }

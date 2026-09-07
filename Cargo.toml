@@ -5,8 +5,14 @@ members = [
     "crates/herogpui-theme",
     "crates/herogpui-components",
     "crates/herogpui",
+    "crates/herogpui-web",
     "gallery",
 ]
+
+# The vendored `gpui_web` fork is a workspace root of its own (see its
+# manifest's header), reached only through `[patch.crates-io]` at the bottom of
+# this file. Naming it here says that omission from `members` is deliberate.
+exclude = ["crates/gpui_web"]
 
 [workspace.package]
 version = "0.1.0"
@@ -19,12 +25,44 @@ keywords = ["gpui", "gui", "components", "heroui", "desktop"]
 categories = ["gui"]
 
 [workspace.dependencies]
-gpui = { git = "https://github.com/zed-industries/zed", rev = "ee3b5558c581429633937e458fad8d109f29e9ee" }
-gpui_platform = { git = "https://github.com/zed-industries/zed", rev = "ee3b5558c581429633937e458fad8d109f29e9ee", features = ["font-kit", "wayland", "x11", "runtime_shaders"] }
+# GPUI comes from `gpui-pre`, zed-industries' own prerelease publish of the
+# GPUI sources (0.3.3 is described upstream as a "gpui-pre snapshot of
+# zed@5b055fa"). Zed does not publish `gpui` under that name from its release
+# branch, and a crate with a git dependency can never be published to
+# crates.io, so a Zed git rev would make `herogpui` structurally unpublishable.
+# `gpui-pre` is a registry publish from the same organisation, which removes
+# the reason the third-party `gpui-unofficial` republish was used before.
+#
+# `gpui_web` is deliberately absent. It reaches the graph only as
+# `gpui_platform`'s wasm32 dependency, which enables its default features; a
+# second, `default-features = false` edge from this workspace would be unioned
+# with that one and change nothing. The `multithreaded` feature is therefore
+# switched in the vendored fork's own manifest (`crates/gpui_web/Cargo.toml`),
+# which `[patch.crates-io]` at the bottom of this file substitutes for it.
+#
+# Both pins are exact (`=0.3.3`) rather than caret. `gpui-pre-platform` depends
+# on the rest of the family at an exact `=` version of its own, so a caret here
+# buys no flexibility while letting a bare `cargo update` walk the workspace to
+# a version the vendored `gpui-pre-web` fork no longer matches -- at which point
+# `[patch.crates-io]` silently stops applying. 0.3.1 and 0.3.2 must not be
+# resolved in any case: `gpui-pre-macros` leaves the inner
+# `__gpui_pre_derive_inspector_reflection` helper ungated in 0.3.1 while its
+# body calls into a `#[cfg(any(feature = "inspector", debug_assertions))]`
+# module, so every release-profile build fails with `error[E0433]`.
+gpui = { package = "gpui-pre", version = "=0.3.3" }
+gpui_platform = { package = "gpui-pre-platform", version = "=0.3.3", features = ["font-kit", "x11", "wayland", "runtime_shaders"] }
 icu_calendar = { version = "=2.2.1", default-features = false, features = ["compiled_data"] }
 icu_datetime = { version = "=2.2.0", default-features = false, features = ["compiled_data"] }
 icu_locale_core = "=2.2.0"
-jiff = "0.2"
+# "js" is required on wasm32-unknown-unknown: without it, any current-time
+# lookup (`jiff::Zoned::now()` and friends, used by Calendar, DatePicker and
+# TimeField) panics at runtime with "getting the current time in
+# wasm32-unknown-unknown is not possible with just the standard library". That
+# is a runtime panic in the browser, not a compile error, so nothing else in
+# the build catches its absence. The feature only adds `wasm-bindgen`/`js-sys`
+# as optional dependencies that jiff itself gates to wasm targets internally,
+# so it is a no-op on native.
+jiff = { version = "0.2", features = ["js"] }
 locale_config = "=0.3.0"
 web-time = "=1.1.0"
 prettyplease = "0.2.37"
@@ -33,6 +71,7 @@ herogpui-core = { version = "0.1.0", path = "crates/herogpui-core" }
 herogpui-theme = { version = "0.1.0", path = "crates/herogpui-theme" }
 herogpui-components = { version = "0.1.0", path = "crates/herogpui-components" }
 herogpui = { version = "0.1.0", path = "crates/herogpui" }
+herogpui-gallery = { version = "0.1.0", path = "gallery" }
 
 # Lint policy lives here so every crate gets the same one via
 # `lints.workspace = true`; a crate that forgets that line is the only way to
@@ -110,3 +149,15 @@ opt-level = "z"
 lto = "fat"
 codegen-units = 1
 strip = "symbols"
+
+# `gpui_platform` depends on `gpui-pre-web` only under
+# `cfg(target_family = "wasm")`, so on wasm32 the web platform arrives with no
+# help from us -- and this override is the only way to reach it.
+# It must be keyed `crates-io`: the whole graph is registry dependencies, and a
+# `[patch."https://github.com/zed-industries/zed"]` key (what the old separate
+# wasm checkout used, when GPUI came from a Zed git rev) matches no source in
+# that graph and applies *nothing*, with no error. Prove it is live with
+# `cargo tree -i --target wasm32-unknown-unknown gpui-pre-web`, which must
+# print the `crates/gpui_web` path source.
+[patch.crates-io]
+gpui-pre-web = { path = "crates/gpui_web" }

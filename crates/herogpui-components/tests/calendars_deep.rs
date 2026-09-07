@@ -131,7 +131,7 @@ fn range_picking_keeps_the_selection_aligned_view(cx: &mut TestAppContext) {
                     range_cell_selector(id, 2025, 12, day)
                 } else {
                     format!(
-                        r#"Name("range-cal-{id}")-{}"#,
+                        r#"NamedInteger("range-cal", {id})-{}"#,
                         Date::new(2025, 12, day).format_iso()
                     )
                 }
@@ -186,9 +186,9 @@ fn calendar_spacing_matches_the_pinned_rendered_grids(cx: &mut TestAppContext) {
             }
             .as_u64();
             let base = if range {
-                format!(r#"Name("range-cal-{id}")"#)
+                format!(r#"NamedInteger("range-cal", {id})"#)
             } else {
-                format!(r#"Name("cal-{id}")"#)
+                format!(r#"NamedInteger("cal", {id})"#)
             };
             let cx = open_host(cx, move || {
                 let content = if range {
@@ -284,14 +284,14 @@ fn calendar_day_text_keeps_pinned_metrics_in_every_state(cx: &mut TestAppContext
                             .default_value((Date::new(2026, 8, 10), Date::new(2026, 8, 15)))
                             .is_disabled(disabled)
                             .is_read_only(read_only)
-                            .cell(move |cell| probe(cell.formatted_date))
+                            .cell(move |cell| probe(cell.formatted_date.clone()))
                             .into_any_element()
                     } else {
                         Calendar::new(calendar.clone())
                             .default_value(Date::new(2026, 8, 10))
                             .is_disabled(disabled)
                             .is_read_only(read_only)
-                            .cell(move |cell| probe(cell.formatted_date))
+                            .cell(move |cell| probe(cell.formatted_date.clone()))
                             .into_any_element()
                     };
                     gpui::div()
@@ -355,7 +355,7 @@ fn calendar_headers_do_not_inherit_host_line_height(cx: &mut TestAppContext) {
 fn calendar_days_align_with_the_seven_weekday_columns(cx: &mut TestAppContext) {
     for duration in [VisibleDuration::Months(1), VisibleDuration::Weeks(1)] {
         let state = cx.new(|cx| CalendarState::new(cx));
-        let base = format!(r#"Name("cal-{}")"#, state.entity_id().as_u64());
+        let base = format!(r#"NamedInteger("cal", {})"#, state.entity_id().as_u64());
         let cx = open_host(cx, move || {
             Calendar::new(state.clone())
                 .default_value(Date::new(2026, 8, 3))
@@ -522,9 +522,12 @@ fn multi_month_year_picker_reveals_its_active_column(cx: &mut TestAppContext) {
             let state = cx.new(|cx| CalendarState::new(cx));
             let range_state = cx.new(|cx| DateRangeState::new(cx));
             let base = if range {
-                format!(r#"Name("range-cal-{}")"#, range_state.entity_id().as_u64())
+                format!(
+                    r#"NamedInteger("range-cal", {})"#,
+                    range_state.entity_id().as_u64()
+                )
             } else {
-                format!(r#"Name("cal-{}")"#, state.entity_id().as_u64())
+                format!(r#"NamedInteger("cal", {})"#, state.entity_id().as_u64())
             };
             let open = Rc::new(std::cell::Cell::new(false));
             let view_open = open.clone();
@@ -538,7 +541,7 @@ fn multi_month_year_picker_reveals_its_active_column(cx: &mut TestAppContext) {
                         .default_value((Date::new(2020, 8, 10), Date::new(2020, 8, 15)))
                         .focused_value(view_focused.get())
                         .on_focus_change(move |date, window, _| {
-                            focused.set(date);
+                            focused.set(*date);
                             window.refresh();
                         })
                         .min_value(Date::new(2000, 1, 1))
@@ -546,7 +549,7 @@ fn multi_month_year_picker_reveals_its_active_column(cx: &mut TestAppContext) {
                         .visible_duration(VisibleDuration::Months(2))
                         .is_year_picker_open(view_open.get())
                         .on_year_picker_open_change(move |value, window, _| {
-                            open.set(value);
+                            open.set(*value);
                             window.refresh();
                         })
                         .into_any_element()
@@ -555,7 +558,7 @@ fn multi_month_year_picker_reveals_its_active_column(cx: &mut TestAppContext) {
                         .default_value(Date::new(2020, 8, 10))
                         .focused_value(view_focused.get())
                         .on_focus_change(move |date, window, _| {
-                            focused.set(date);
+                            focused.set(*date);
                             window.refresh();
                         })
                         .min_value(Date::new(2000, 1, 1))
@@ -563,7 +566,7 @@ fn multi_month_year_picker_reveals_its_active_column(cx: &mut TestAppContext) {
                         .visible_duration(VisibleDuration::Months(2))
                         .is_year_picker_open(view_open.get())
                         .on_year_picker_open_change(move |value, window, _| {
-                            open.set(value);
+                            open.set(*value);
                             window.refresh();
                         })
                         .into_any_element()
@@ -636,7 +639,7 @@ fn day_views_keep_week_columns_and_disable_leading_dates(cx: &mut TestAppContext
                     .cell(move |cell| {
                         probe(
                             cell.date,
-                            cell.formatted_date,
+                            cell.formatted_date.clone(),
                             cell.is_disabled,
                             cell.is_outside_month,
                         )
@@ -658,7 +661,7 @@ fn day_views_keep_week_columns_and_disable_leading_dates(cx: &mut TestAppContext
                     .cell(move |cell| {
                         probe(
                             cell.date,
-                            cell.formatted_date,
+                            cell.formatted_date.clone(),
                             cell.is_disabled,
                             cell.is_outside_month,
                         )
@@ -1578,7 +1581,9 @@ fn range_calendar_controlled_focus_realigns_and_waits_for_its_owner(cx: &mut Tes
                 if cell.date == Date::new(2026, 9, 1) {
                     *focused_day_outside.borrow_mut() = Some(cell.is_outside_month);
                 }
-                gpui::div().child(cell.formatted_date).into_any_element()
+                gpui::div()
+                    .child(cell.formatted_date.clone())
+                    .into_any_element()
             })
             .on_focus_change(move |date, _, _| {
                 focuses.borrow_mut().push(date.format_iso());
@@ -1682,7 +1687,9 @@ fn calendar_controlled_focus_realigns_and_waits_for_its_owner(cx: &mut TestAppCo
                 if cell.date == Date::new(2026, 9, 1) {
                     *focused_day_outside.borrow_mut() = Some(cell.is_outside_month);
                 }
-                gpui::div().child(cell.formatted_date).into_any_element()
+                gpui::div()
+                    .child(cell.formatted_date.clone())
+                    .into_any_element()
             })
             .on_focus_change(move |date, _, _| {
                 focuses.borrow_mut().push(date.format_iso());
@@ -1802,11 +1809,11 @@ fn year_picker_reveals_the_opening_and_keyboard_year(cx: &mut TestAppContext) {
         let range_calendar = cx.new(|cx| DateRangeState::new(cx));
         let base = if range {
             format!(
-                r#"Name("range-cal-{}")"#,
+                r#"NamedInteger("range-cal", {})"#,
                 range_calendar.entity_id().as_u64()
             )
         } else {
-            format!(r#"Name("cal-{}")"#, calendar.entity_id().as_u64())
+            format!(r#"NamedInteger("cal", {})"#, calendar.entity_id().as_u64())
         };
         let lower_bound = Rc::new(std::cell::Cell::new(2000));
         let view_lower_bound = lower_bound.clone();
@@ -2780,28 +2787,28 @@ fn leak(selector: String) -> &'static str {
 }
 
 /// A cell registers its bounds under its element-id key, whose prefix is the
-/// component id's Debug form (`Name("cal-N")`).
+/// component id's Debug form (`NamedInteger("cal", N)`).
 fn cal_cell_selector(entity_id: u64, year: i32, month: u32, day: u32) -> String {
-    format!(r#"Name("cal-{entity_id}")-{year}-{month}-d{day}"#)
+    format!(r#"NamedInteger("cal", {entity_id})-{year}-{month}-d{day}"#)
 }
 
 /// The cell indicator registers its bounds under the day circle's key plus
 /// `-indicator`.
 fn cal_indicator_selector(entity_id: u64, year: i32, month: u32, day: u32) -> String {
-    format!(r#"Name("cal-{entity_id}")-{year}-{month}-d{day}-indicator"#)
+    format!(r#"NamedInteger("cal", {entity_id})-{year}-{month}-d{day}-indicator"#)
 }
 
 /// A pressed cell registers its bounds under its element-id key, whose
-/// prefix is the component id's Debug form (`Name("range-cal-N")`).
+/// prefix is the component id's Debug form (`NamedInteger("range-cal", N)`).
 fn range_cell_selector(entity_id: u64, year: i32, month: u32, day: u32) -> String {
-    format!(r#"Name("range-cal-{entity_id}")-{year}-{month}-day-{day}"#)
+    format!(r#"NamedInteger("range-cal", {entity_id})-{year}-{month}-day-{day}"#)
 }
 
 /// The outer `.range-calendar__cell` around a day registers its bounds under
 /// the inner button's key plus `-track`. It carries the range track fill,
 /// which must not scale with the pressed inner button.
 fn range_track_selector(entity_id: u64, year: i32, month: u32, day: u32) -> String {
-    format!(r#"Name("range-cal-{entity_id}")-{year}-{month}-day-{day}-track"#)
+    format!(r#"NamedInteger("range-cal", {entity_id})-{year}-{month}-day-{day}-track"#)
 }
 
 /// The centre of a probed cell, so the simulated press lands on the cell the
@@ -2858,14 +2865,30 @@ fn calendar_day_press_scales_and_still_selects(cx: &mut TestAppContext) {
     cx.refresh().unwrap();
     cx.simulate_mouse_down(centre, MouseButton::Left, Modifiers::none());
     cx.refresh().unwrap();
-    let pressed = cx
+    let pressed_bounds = cx
         .debug_bounds(selected)
-        .expect("the pressed cell kept its bounds")
-        .size;
+        .expect("the pressed cell kept its bounds");
+    let pressed = pressed_bounds.size;
     assert!(
         (f32::from(pressed.width) - 34.2).abs() < 0.5
             && (f32::from(pressed.height) - 34.2).abs() < 0.5,
         "a pressed day cell scales uniformly to 0.95 (34.2px), got {pressed:?}"
+    );
+    // The scale is about the centre: every edge moves inward by the same
+    // 0.9px, so the pressed centre coincides with the resting centre. A
+    // bottom edge that stays put (top-anchored shrink) fails here.
+    let rest_centre = centre;
+    let pressed_centre = centre_of(pressed_bounds);
+    assert!(
+        (f32::from(pressed_centre.x) - f32::from(rest_centre.x)).abs() < 0.25
+            && (f32::from(pressed_centre.y) - f32::from(rest_centre.y)).abs() < 0.25,
+        "a pressed day cell collapses toward its centre, rest {rest_centre:?} pressed {pressed_centre:?} bounds {pressed_bounds:?}"
+    );
+    let rest_bottom = f32::from(centre.y) + 18.;
+    let pressed_bottom = f32::from(pressed_bounds.origin.y) + f32::from(pressed.height);
+    assert!(
+        (rest_bottom - pressed_bottom - 0.9).abs() < 0.25,
+        "the bottom edge rises by 0.9px, rest {rest_bottom} pressed {pressed_bottom}"
     );
     cx.simulate_mouse_up(centre, MouseButton::Left, Modifiers::none());
     cx.refresh().unwrap();
@@ -2910,10 +2933,10 @@ fn calendar_day_press_scales_and_still_selects(cx: &mut TestAppContext) {
 }
 
 /// A nav button registers its bounds under its element-id key, whose prefix is
-/// the component id's Debug form (`Name("cal-N")`). The month header and the
+/// the component id's Debug form (`NamedInteger("cal", N)`). The month header and the
 /// week/day header share one `nav_btn` builder, so the same key serves both.
 fn cal_nav_selector(entity_id: u64, side: &str) -> String {
-    format!(r#"Name("cal-{entity_id}")-{side}"#)
+    format!(r#"NamedInteger("cal", {entity_id})-{side}"#)
 }
 
 /// The pinned `.calendar__nav-button:active` is a bare `transform: scale(0.95)`
@@ -3396,15 +3419,15 @@ fn range_calendar_invalid_press_scales_the_inner_button_and_keeps_the_track(
 }
 
 /// A range nav button registers its bounds under its element-id key, whose
-/// prefix is the component id's Debug form (`Name("range-cal-N")`).
+/// prefix is the component id's Debug form (`NamedInteger("range-cal", N)`).
 fn range_nav_selector(entity_id: u64, side: &str) -> String {
-    format!(r#"Name("range-cal-{entity_id}")-{side}"#)
+    format!(r#"NamedInteger("range-cal", {entity_id})-{side}"#)
 }
 
 /// The cell indicator registers its bounds under the inner button's key plus
 /// `-indicator`.
 fn range_indicator_selector(entity_id: u64, year: i32, month: u32, day: u32) -> String {
-    format!(r#"Name("range-cal-{entity_id}")-{year}-{month}-day-{day}-indicator"#)
+    format!(r#"NamedInteger("range-cal", {entity_id})-{year}-{month}-day-{day}-indicator"#)
 }
 
 /// The pinned range track runs under the caps too, and it stays continuous

@@ -1,17 +1,38 @@
 //! Select — port of `@heroui/select` with single and multiple selection.
+//!
+//! Pinned v3.2.4 / React Aria Components 1.20.0 keep a stable `Key` separate
+//! from each item's `textValue`: `value` / `defaultValue` / `selectedKeys` /
+//! `disabledKeys`, the selection callbacks and the form value address items by
+//! key, while typeahead and the visible text use the label. Items are
+//! therefore [`crate::PickerItem`]s, exactly as in
+//! [`crate::Autocomplete`] and [`crate::ComboBox`]: a label cannot serve as
+//! that key — two items may share one, and then they alias each other's
+//! selection, disabled state and row identity.
+//!
+//! The selection and the keyboard cursor are held as keys, so both follow an
+//! item across a re-render that reorders the collection. Reports and the form
+//! value walk the collection, so a selection reads in row order however it
+//! was picked — the walk `Select.Value` has always followed.
 
-use std::{cell::RefCell, collections::BTreeSet, rc::Rc};
+use std::{cell::RefCell, collections::HashSet, rc::Rc};
 
 use gpui::{
     prelude::*, px, App, IntoElement, ParentElement, RenderOnce, SharedString,
     StatefulInteractiveElement, Styled, Window,
 };
-use herogpui_core::{Color, FieldVariant, Placement, SelectionMode};
+use herogpui_core::{element_id, Color, FieldVariant, Placement, SelectionMode};
 use herogpui_theme::ActiveTheme;
 
-use crate::{icons, util};
+use crate::{
+    a11y::{self, A11y as _},
+    icons,
+    picker_item::PickerItem,
+    selection::toggle_key,
+    util,
+};
 
-type OnSelectionChange = std::sync::Arc<dyn Fn(Option<usize>, &mut Window, &mut App) + 'static>;
+type OnSelectionChange =
+    std::sync::Arc<dyn Fn(&Option<SharedString>, &mut Window, &mut App) + 'static>;
 
 // This port approximates pinned RAC's en-US `Intl.ListFormat` conjunction.
 fn format_selected_names(names: &[String]) -> String {
@@ -27,16 +48,44 @@ fn format_selected_names(names: &[String]) -> String {
     }
 }
 
+/// A selection re-ordered to collection order: every chosen key that still
+/// resolves to an item, in row order. Select reports its selection through
+/// this walk — the trigger text, the plural callback, the form value and
+/// `Select.Value` all read the collection the way this does.
+fn in_collection_order(selected: &[SharedString], keys: &[SharedString]) -> Vec<SharedString> {
+    keys.iter()
+        .filter(|key| selected.contains(*key))
+        .cloned()
+        .collect()
+}
+
+/// The chosen keys that resolve to collection items, in row order — the
+/// single key and the multiple set are disjoint channels, so filtering on
+/// both is safe. Keys the collection no longer holds resolve to nothing, the
+/// way an out-of-range index always did.
+fn resolved_keys(
+    items: &[PickerItem],
+    single: &Option<SharedString>,
+    multiple: &[SharedString],
+) -> Vec<SharedString> {
+    items
+        .iter()
+        .map(|item| item.key())
+        .filter(|key| single.as_ref() == Some(*key) || multiple.contains(*key))
+        .cloned()
+        .collect()
+}
+
 /// Pinned React Stately 3.49.0 `useMultipleSelectionState`'s anchor record,
-/// on the option indices a Select's `stops` walk: where a Shift extension
+/// on the option keys a Select's `stops` walk: where a Shift extension
 /// reaches from, how far the last one went, and whether the selection is the
 /// raw `all` a `selectAll` produced. It lives beside the cursor in keyed
 /// state, so it survives closing and reopening the popover the way the
 /// pinned hook survives a listbox remount.
 #[derive(Clone, Debug, Default)]
 struct SelectSelectionRange {
-    anchor: Option<usize>,
-    current: Option<usize>,
+    anchor: Option<SharedString>,
+    current: Option<SharedString>,
     is_all: bool,
 }
 
@@ -46,41 +95,45 @@ struct SelectSelectionRange {
 /// backwards shrinks again; a raw `all` collapses to the new key; a first
 /// extension without an anchor selects from the target itself, which is what
 /// the pinned SelectionManager does when nothing anchors it yet. Only
-/// `selectable` keys enter the range, so disabled options are skipped.
+/// `selectable` keys enter the range, so disabled options are skipped, and
+/// the result walks the collection so it reports in row order.
 fn extend_selection_range(
-    current: &BTreeSet<usize>,
-    collection: &[usize],
-    selectable: &[usize],
+    current: &[SharedString],
+    collection: &[SharedString],
+    selectable: &[SharedString],
     range: &SelectSelectionRange,
-    target: usize,
-) -> BTreeSet<usize> {
+    target: &SharedString,
+) -> Vec<SharedString> {
     if range.is_all {
-        return BTreeSet::from([target]);
+        return vec![target.clone()];
     }
-    let anchor = range.anchor.unwrap_or(target);
-    let previous = range.current.unwrap_or(target);
-    let anchor_at = collection.iter().position(|index| *index == anchor);
-    let previous_at = collection.iter().position(|index| *index == previous);
-    let target_at = collection.iter().position(|index| *index == target);
+    let anchor = range.anchor.as_ref().unwrap_or(target);
+    let previous = range.current.as_ref().unwrap_or(target);
+    let anchor_at = collection.iter().position(|key| key == anchor);
+    let previous_at = collection.iter().position(|key| key == previous);
+    let target_at = collection.iter().position(|key| key == target);
     let between = |from: Option<usize>, to: Option<usize>| {
         from.zip(to)
             .map(|(from, to)| if from <= to { from..=to } else { to..=from })
     };
-    let mut next = current.clone();
+    let mut next: Vec<SharedString> = current.to_vec();
     if let Some(previous_range) = between(anchor_at, previous_at) {
-        for index in previous_range {
-            next.remove(&collection[index]);
-        }
-    }
-    if let Some(target_range) = between(anchor_at, target_at) {
-        for index in target_range {
-            let index = collection[index];
-            if selectable.contains(&index) {
-                next.insert(index);
+        for at in previous_range {
+            let stale = &collection[at];
+            if let Some(held) = next.iter().position(|key| key == stale) {
+                next.remove(held);
             }
         }
     }
-    next
+    if let Some(target_range) = between(anchor_at, target_at) {
+        for at in target_range {
+            let key = &collection[at];
+            if selectable.contains(key) && !next.contains(key) {
+                next.push(key.clone());
+            }
+        }
+    }
+    in_collection_order(&next, collection)
 }
 
 /// Pinned React Aria 3.51.0 `useSelectableCollection` registers Home and End
@@ -119,16 +172,16 @@ pub struct Select {
     /// [`Self::form_field`].
     name: Option<SharedString>,
     id: gpui::ElementId,
-    options: Vec<SharedString>,
-    selected: Option<usize>,
-    /// Whether `value` was supplied. `Option<usize>` cannot distinguish
+    items: Vec<PickerItem>,
+    selected: Option<SharedString>,
+    /// Whether `value` was supplied. `Option<SharedString>` cannot distinguish
     /// "controlled, nothing selected" from "uncontrolled" on its own.
     is_controlled: bool,
-    default_value: Option<usize>,
+    default_value: Option<SharedString>,
     /// Backs `selectionMode="multiple"`; `selected` backs `single`.
-    selected_indices: BTreeSet<usize>,
+    selected_keys: Vec<SharedString>,
     is_multiple_controlled: bool,
-    default_selected_indices: BTreeSet<usize>,
+    default_selected_keys: Vec<SharedString>,
     selection_mode: SelectionMode,
     /// `isOpen` — `None` leaves the component holding the flag, seeded from
     /// `defaultOpen`.
@@ -145,37 +198,41 @@ pub struct Select {
     should_focus_wrap: bool,
     /// `ListLayout`'s `rowHeight`, which virtualizes the popover list.
     row_height: Option<gpui::Pixels>,
-    /// `ListBox.Section` — the heading that precedes an option, by index.
-    sections: Vec<(usize, SharedString)>,
+    /// `ListBox.Section` — the heading that precedes an option, by item key.
+    sections: Vec<(SharedString, SharedString)>,
     /// `ListBox.ItemIndicator` — draws the tick. The closure is handed whether
     /// the row is selected.
     indicator: Option<Box<dyn Fn(bool) -> gpui::AnyElement + 'static>>,
     /// `Select.Value` — draws the trigger's value. The closure is handed the
-    /// selected index, or `None` while the placeholder shows.
+    /// selected key, or `None` while the placeholder shows.
     value_content: Option<Box<dyn Fn(util::SelectionValue<'_>) -> gpui::AnyElement + 'static>>,
     is_required: bool,
-    disabled_keys: std::collections::HashSet<usize>,
+    disabled_keys: HashSet<SharedString>,
     full_width: bool,
-    on_open_change: Option<std::sync::Arc<dyn Fn(bool, &mut Window, &mut App) + 'static>>,
+    on_open_change: Option<std::sync::Arc<dyn Fn(&bool, &mut Window, &mut App) + 'static>>,
     on_selection_change: Option<OnSelectionChange>,
     on_selection_change_all:
-        Option<std::sync::Arc<dyn Fn(&[usize], &mut Window, &mut App) + 'static>>,
+        Option<std::sync::Arc<dyn Fn(&[SharedString], &mut Window, &mut App) + 'static>>,
     /// Mirrors the current selection, validity, successful state, focus and
     /// reset behavior for a live [`crate::form::FormField`].
     form_state: Rc<RefCell<crate::form::LiveFormFieldState>>,
+    /// The `sx` slot, refined over the root style at the end of render.
+    sx: Option<Box<gpui::StyleRefinement>>,
 }
 
 impl Select {
     /// `onChange` — the v3 name for [`Select::on_selection_change`].
     pub fn on_change(
         self,
-        handler: impl Fn(Option<usize>, &mut Window, &mut App) + 'static,
+        handler: impl Fn(&Option<SharedString>, &mut Window, &mut App) + 'static,
     ) -> Self {
         self.on_selection_change(handler)
     }
 
-    /// `disabledKeys` — indices that cannot be chosen.
-    pub fn disabled_keys(mut self, keys: impl IntoIterator<Item = usize>) -> Self {
+    /// `disabledKeys` — keys of the items that cannot be chosen. Disabled
+    /// state is per key, so one of two same-label items can be disabled
+    /// alone.
+    pub fn disabled_keys(mut self, keys: impl IntoIterator<Item = SharedString>) -> Self {
         self.disabled_keys = keys.into_iter().collect();
         self
     }
@@ -196,9 +253,13 @@ impl Select {
         self
     }
 
-    /// `ListBox.Section` — a heading rendered above the option at `index`.
-    pub fn section_before(mut self, index: usize, label: impl Into<SharedString>) -> Self {
-        self.sections.push((index, label.into()));
+    /// `ListBox.Section` — a heading rendered above the item with this key.
+    pub fn section_before(
+        mut self,
+        item: impl Into<SharedString>,
+        label: impl Into<SharedString>,
+    ) -> Self {
+        self.sections.push((item.into(), label.into()));
         self
     }
 
@@ -237,17 +298,28 @@ impl Select {
         self.full_width = v;
         self
     }
-    pub fn new(id: impl Into<gpui::ElementId>, options: Vec<SharedString>) -> Self {
+
+    /// The one slot for caller-owned low-level styling: GPUI's styling methods
+    /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
+    /// applied to the select's root element after every value the variant and
+    /// the active theme chose, so they win. The trigger paints its own chrome,
+    /// so this reaches the box that chrome sits in, not the chrome.
+    pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
+        self.sx = Some(util::capture_sx(style));
+        self
+    }
+
+    pub fn new(id: impl Into<gpui::ElementId>, items: Vec<PickerItem>) -> Self {
         Self {
             name: None,
             id: id.into(),
-            options,
+            items,
             selected: None,
             is_controlled: false,
             default_value: None,
-            selected_indices: BTreeSet::new(),
+            selected_keys: Vec::new(),
             is_multiple_controlled: false,
-            default_selected_indices: BTreeSet::new(),
+            default_selected_keys: Vec::new(),
             selection_mode: SelectionMode::Single,
             is_open: None,
             default_open: false,
@@ -264,12 +336,13 @@ impl Select {
             indicator: None,
             value_content: None,
             is_required: false,
-            disabled_keys: std::collections::HashSet::new(),
+            disabled_keys: HashSet::new(),
             full_width: false,
             on_open_change: None,
             on_selection_change: None,
             on_selection_change_all: None,
             form_state: live_form_state(),
+            sx: None,
         }
     }
 
@@ -285,30 +358,38 @@ impl Select {
     /// its ancestor, so the control hands the pair over instead. Borrows, so the
     /// control is still yours to place:
     ///
-    /// ```ignore
+    /// ```
+    /// # use gpui::{prelude::*, Window};
+    /// # use herogpui_components::{Form, PickerItem, Select};
+    /// # struct Demo;
+    /// # impl Render for Demo {
+    /// #     fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
+    /// #         let form = Form::new();
+    /// #         let control =
+    /// #             Select::new("city", vec![PickerItem::new("kyiv", "Kyiv")]).name("city");
     /// let field = control.form_field();
     /// form.field(field.unwrap()).child(control)
+    /// #     }
+    /// # }
+    /// # let mut tcx = gpui::TestAppContext::single();
+    /// # tcx.update(herogpui_theme::ThemeProvider::init);
+    /// # let _ = tcx.add_window_view(|_, _| Demo);
     /// ```
     pub fn form_field(&self) -> Option<crate::form::FormField> {
         let name = self.name.clone()?;
         let selected = if self.is_controlled {
-            self.selected
+            self.selected.clone()
         } else {
-            self.default_value
+            self.default_value.clone()
         };
-        let selected_indices = if self.is_multiple_controlled {
-            &self.selected_indices
+        let selected_keys = if self.is_multiple_controlled {
+            self.selected_keys.clone()
         } else {
-            &self.default_selected_indices
+            self.default_selected_keys.clone()
         };
         sync_select_form(
             &self.form_state,
-            select_form_value(
-                self.selection_mode,
-                &self.options,
-                selected,
-                selected_indices,
-            ),
+            select_form_value(&self.items, &selected, &selected_keys),
             self.is_invalid,
             !self.is_disabled,
         );
@@ -324,43 +405,44 @@ impl Select {
         self
     }
 
-    /// The chosen indices under `selectionMode="multiple"`.
-    pub fn selected_indices(mut self, indices: impl IntoIterator<Item = usize>) -> Self {
-        self.selected_indices = indices.into_iter().collect();
+    /// The chosen item keys under `selectionMode="multiple"` — `selectedKeys`,
+    /// the `ListBox` spelling of [`Select::value`]'s controlled set.
+    pub fn selected_keys(mut self, keys: impl IntoIterator<Item = SharedString>) -> Self {
+        self.selected_keys = keys.into_iter().collect();
         self.is_multiple_controlled = true;
         self
     }
 
-    /// `defaultValue` under `selectionMode="multiple"` — the uncontrolled
-    /// initial selection.
-    pub fn default_selected_indices(mut self, indices: impl IntoIterator<Item = usize>) -> Self {
-        self.default_selected_indices = indices.into_iter().collect();
+    /// `defaultSelectedKeys` under `selectionMode="multiple"` — the
+    /// uncontrolled initial selection.
+    pub fn default_selected_keys(mut self, keys: impl IntoIterator<Item = SharedString>) -> Self {
+        self.default_selected_keys = keys.into_iter().collect();
         self
     }
 
     /// Reports the whole selection, for `selectionMode="multiple"`.
     pub fn on_selection_change_all(
         mut self,
-        handler: impl Fn(&[usize], &mut Window, &mut App) + 'static,
+        handler: impl Fn(&[SharedString], &mut Window, &mut App) + 'static,
     ) -> Self {
         self.on_selection_change_all = Some(std::sync::Arc::new(handler));
         self
     }
 
-    /// `value` — the selected option, by index. Supplying it makes the select
+    /// `value` — the selected item, by key. Supplying it makes the select
     /// controlled, even with `None`.
-    pub fn value(mut self, i: Option<usize>) -> Self {
-        self.selected = i;
+    pub fn value(mut self, key: Option<SharedString>) -> Self {
+        self.selected = key;
         self.is_controlled = true;
         self
     }
 
-    /// `defaultValue` — the uncontrolled initial selection.
+    /// `defaultValue` — the uncontrolled initial selection, by key.
     ///
     /// Only consulted when `value` is not supplied; the select then owns the
     /// selection and choosing an option moves it.
-    pub fn default_value(mut self, i: Option<usize>) -> Self {
-        self.default_value = i;
+    pub fn default_value(mut self, key: Option<SharedString>) -> Self {
+        self.default_value = key;
         self
     }
 
@@ -408,14 +490,14 @@ impl Select {
         self
     }
 
-    pub fn on_open_change(mut self, f: impl Fn(bool, &mut Window, &mut App) + 'static) -> Self {
+    pub fn on_open_change(mut self, f: impl Fn(&bool, &mut Window, &mut App) + 'static) -> Self {
         self.on_open_change = Some(std::sync::Arc::new(f));
         self
     }
 
     pub fn on_selection_change(
         mut self,
-        f: impl Fn(Option<usize>, &mut Window, &mut App) + 'static,
+        f: impl Fn(&Option<SharedString>, &mut Window, &mut App) + 'static,
     ) -> Self {
         self.on_selection_change = Some(std::sync::Arc::new(f));
         self
@@ -423,16 +505,19 @@ impl Select {
 }
 
 impl Select {
-    fn value_text_single(&self, selected: Option<usize>) -> SharedString {
+    fn value_text_single(&self, selected: &Option<SharedString>) -> SharedString {
         selected
-            .and_then(|i| self.options.get(i).cloned())
-            .unwrap_or_else(|| self.placeholder.clone())
+            .as_ref()
+            .and_then(|key| self.items.iter().find(|item| item.key() == key))
+            .map_or_else(|| self.placeholder.clone(), |item| item.label().clone())
     }
 
-    fn value_text_multiple(&self, selected_indices: &BTreeSet<usize>) -> SharedString {
-        let names: Vec<String> = selected_indices
+    fn value_text_multiple(&self, selected_keys: &[SharedString]) -> SharedString {
+        let names: Vec<String> = self
+            .items
             .iter()
-            .filter_map(|i| self.options.get(*i).map(ToString::to_string))
+            .filter(|item| selected_keys.contains(item.key()))
+            .map(|item| item.label().to_string())
             .collect();
         if names.is_empty() {
             self.placeholder.clone()
@@ -448,14 +533,14 @@ impl RenderOnce for Select {
         let (is_open, open_own) = util::controlled(
             window,
             cx,
-            gpui::ElementId::Name(format!("{:?}-open", self.id).into()),
+            element_id::scoped(&self.id, "open"),
             self.is_open,
             self.default_open,
         );
         let (overlay_phase, dismissal_token) = util::overlay_scope(
             window,
             cx,
-            el_name(format!("select-{}-overlay", id_debug(&self.id))),
+            element_id::scoped(&self.id, "overlay"),
             is_open,
             true,
         );
@@ -463,47 +548,42 @@ impl RenderOnce for Select {
         let (selected, value_own) = util::controlled(
             window,
             cx,
-            gpui::ElementId::Name(format!("{:?}-value", self.id).into()),
-            self.is_controlled.then_some(self.selected),
-            self.default_value,
+            element_id::scoped(&self.id, "value"),
+            self.is_controlled.then_some(self.selected.clone()),
+            self.default_value.clone(),
         );
         let multiple = self.selection_mode == SelectionMode::Multiple;
-        let (selected_indices, indices_own) = util::controlled(
+        let (selected_keys, indices_own) = util::controlled(
             window,
             cx,
-            gpui::ElementId::Name(format!("{:?}-values", self.id).into()),
+            element_id::scoped(&self.id, "values"),
             self.is_multiple_controlled
-                .then_some(self.selected_indices.clone()),
-            self.default_selected_indices.clone(),
+                .then(|| crate::selection::normalize_selection(self.selected_keys.clone(), true)),
+            crate::selection::normalize_selection(self.default_selected_keys.clone(), true),
         );
-        let form_default_indices = if multiple {
-            let reset_indices = if self.is_multiple_controlled {
-                self.selected_indices.clone()
+        let form_default_keys = if multiple {
+            let reset_keys = if self.is_multiple_controlled {
+                self.selected_keys.clone()
             } else {
-                self.default_selected_indices.clone()
+                self.default_selected_keys.clone()
             };
             let slot = window.use_keyed_state(
-                el_name(format!("select-{}-form-default", id_debug(&self.id))),
+                element_id::scoped(&self.id, "form-default"),
                 cx,
-                move |_, _| reset_indices,
+                move |_, _| reset_keys,
             );
             slot.read(cx).clone()
         } else {
-            BTreeSet::new()
+            Vec::new()
         };
         sync_select_form(
             &self.form_state,
-            select_form_value(
-                self.selection_mode,
-                &self.options,
-                selected,
-                &selected_indices,
-            ),
+            select_form_value(&self.items, &selected, &selected_keys),
             self.is_invalid,
             !self.is_disabled,
         );
         let reset_own = value_own.clone();
-        let reset_indices_own = indices_own.clone();
+        let reset_keys_own = indices_own.clone();
         let reset_state = self.form_state.clone();
         let reset_change = self
             .is_controlled
@@ -513,103 +593,100 @@ impl RenderOnce for Select {
             .is_multiple_controlled
             .then(|| self.on_selection_change_all.clone())
             .flatten();
-        let reset_index = self.default_value;
-        let reset_options = self.options.clone();
+        let reset_key = self.default_value.clone();
+        let reset_items = self.items.clone();
         let reset_mode = self.selection_mode;
         self.form_state.borrow_mut().restore = (reset_own.is_some()
-            || (multiple && reset_indices_own.is_some())
+            || (multiple && reset_keys_own.is_some())
             || reset_change.is_some()
             || (multiple && reset_change_all.is_some()))
         .then(|| {
             util::shared(move |window: &mut Window, cx: &mut App| {
                 if reset_mode == SelectionMode::Multiple {
                     reset_state.borrow_mut().value =
-                        select_form_value(reset_mode, &reset_options, None, &form_default_indices);
-                    if let Some(held) = &reset_indices_own {
+                        select_form_value(&reset_items, &None, &form_default_keys);
+                    if let Some(held) = &reset_keys_own {
                         held.update(cx, |selected, cx| {
-                            *selected = form_default_indices.clone();
+                            *selected = form_default_keys.clone();
                             cx.notify();
                         });
                     }
                     if let Some(on_change) = &reset_change_all {
-                        let keys: Vec<usize> = form_default_indices.iter().copied().collect();
-                        on_change(&keys, window, cx);
+                        on_change(&form_default_keys, window, cx);
                     }
                 } else {
-                    reset_state.borrow_mut().value = select_form_value(
-                        reset_mode,
-                        &reset_options,
-                        reset_index,
-                        &BTreeSet::new(),
-                    );
+                    reset_state.borrow_mut().value =
+                        select_form_value(&reset_items, &reset_key, &[]);
                     if let Some(held) = &reset_own {
                         held.update(cx, |selected, cx| {
-                            *selected = reset_index;
+                            *selected = reset_key.clone();
                             cx.notify();
                         });
                     }
                     if let Some(on_change) = &reset_change {
-                        on_change(reset_index, window, cx);
+                        on_change(&reset_key, window, cx);
                     }
                 }
             }) as std::sync::Arc<dyn Fn(&mut Window, &mut App)>
         });
 
+        // The collection's keys in row order — the channel the selection,
+        // the cursor and every report address.
+        let keys: Vec<SharedString> = self.items.iter().map(|item| item.key().clone()).collect();
+
         // The trigger is what holds focus, so the open list can be walked with
         // the arrows the way v3's is.
-        let focus_handle = window.use_keyed_state(
-            el_name(format!("select-{}-focus", id_debug(&self.id))),
-            cx,
-            |_, cx| cx.focus_handle().tab_stop(true),
-        );
+        let focus_handle =
+            window.use_keyed_state(element_id::scoped(&self.id, "focus"), cx, |_, cx| {
+                cx.focus_handle().tab_stop(true)
+            });
         let focus_handle = focus_handle.read(cx).clone();
         self.form_state.borrow_mut().focus = Some(focus_handle.clone());
-        let cursor = window.use_keyed_state(
-            el_name(format!("select-{}-cursor", id_debug(&self.id))),
-            cx,
-            |_, _| None::<usize>,
-        );
-        let cursor_at = *cursor.read(cx);
+        // Which row the keyboard is on, held as the item's *key* so the cursor
+        // stays on the same item when the caller reorders the collection.
+        let cursor = window.use_keyed_state(element_id::scoped(&self.id, "cursor"), cx, |_, _| {
+            None::<SharedString>
+        });
+        let cursor_key = cursor.read(cx).clone();
+        let cursor_at = cursor_key
+            .as_ref()
+            .and_then(|key| keys.iter().position(|k| k == key));
         let keyboard_press_open = window.use_keyed_state(
-            el_name(format!("select-{}-keyboard-press", id_debug(&self.id))),
+            element_id::scoped(&self.id, "keyboard-press"),
             cx,
             |_, _| None::<bool>,
         );
         // The Shift-range anchor lives beside the cursor, keyed off the same
         // instance id, so two selects never share an anchor and a closed
         // popover leaves its anchor standing for the reopen.
-        let selection_range = window.use_keyed_state(
-            el_name(format!("select-{}-range", id_debug(&self.id))),
-            cx,
-            |_, _| SelectSelectionRange::default(),
-        );
+        let selection_range =
+            window.use_keyed_state(element_id::scoped(&self.id, "range"), cx, |_, _| {
+                SelectSelectionRange::default()
+            });
         // v3's list is `overflow-y-auto`, and React Aria keeps the focused
         // option in view. Both need a handle: the virtual list has its own kind,
         // and a plain scrolling div has the other. `use_keyed_state` takes `cx`
         // mutably, so they precede the theme.
-        let list_scroll = window.use_keyed_state(
-            el_name(format!("select-{}-list-scroll", id_debug(&self.id))),
-            cx,
-            |_, _| gpui::UniformListScrollHandle::new(),
-        );
-        let panel_scroll = window.use_keyed_state(
-            el_name(format!("select-{}-panel-scroll", id_debug(&self.id))),
-            cx,
-            |_, _| gpui::ScrollHandle::new(),
-        );
+        let list_scroll =
+            window.use_keyed_state(element_id::scoped(&self.id, "list-scroll"), cx, |_, _| {
+                gpui::UniformListScrollHandle::new()
+            });
+        let panel_scroll =
+            window.use_keyed_state(element_id::scoped(&self.id, "panel-scroll"), cx, |_, _| {
+                gpui::ScrollHandle::new()
+            });
         let list_scroll_now = list_scroll.read(cx).clone();
         let panel_scroll_now = panel_scroll.read(cx).clone();
         // The letters typed so far, which a search resetting every frame could
         // not accumulate.
-        let typeahead = window.use_keyed_state(
-            el_name(format!("select-{}-typed", id_debug(&self.id))),
-            cx,
-            |_, _| crate::list_nav::Typeahead::default(),
-        );
+        let typeahead =
+            window.use_keyed_state(element_id::scoped(&self.id, "typed"), cx, |_, _| {
+                crate::list_nav::Typeahead::default()
+            });
 
         // Pinned `usePopover` closes when focus leaves the trigger-plus-list
         // scope. Blur deliberately leaves focus on its destination.
-        let blur_base = format!("select-{}", id_debug(&self.id));
+        let blur_base = element_id::scoped(&self.id, "select");
         let blur_close_own = open_own.clone();
         let blur_open_change = self.on_open_change.clone();
         let blur_scope = util::close_on_blur(window, cx, &blur_base, is_open, move |window, cx| {
@@ -620,7 +697,7 @@ impl RenderOnce for Select {
                 });
             }
             if let Some(cb) = &blur_open_change {
-                cb(false, window, cx);
+                cb(&false, window, cx);
             }
         });
 
@@ -631,7 +708,7 @@ impl RenderOnce for Select {
         // `.select__trigger` is `min-h-9 ... text-sm`.
         let (h, text) = (util::FIELD_HEIGHT, util::FIELD_TEXT);
 
-        let trigger_id = el_name(format!("select-{}", id_debug(&self.id)));
+        let trigger_id = element_id::scoped(&self.id, "trigger");
         let trigger_selector = format!("select-trigger-{}", id_debug(&self.id));
         // Whether the pointer went down on the trigger. The panel's
         // outside-press dismissal treats the trigger as outside its own bounds,
@@ -689,24 +766,29 @@ impl RenderOnce for Select {
         // Down or Enter on a closed Select opens it, and the arrows then walk
         // the options -- the same keys React Aria binds.
         if !self.is_disabled {
-            let stops: Vec<usize> = (0..self.options.len())
-                .filter(|i| !self.disabled_keys.contains(i))
+            let stops: Vec<usize> = (0..self.items.len())
+                .filter(|i| !self.disabled_keys.contains(&keys[*i]))
                 .collect();
-            // The full index list the range is resolved against -- disabled
+            // The full key list the range is resolved against -- disabled
             // keys keep their positions so range spans stay indexable, while
             // `stops` keeps their insertions out of the range.
-            let collection: Vec<usize> = (0..self.options.len()).collect();
+            let collection: Vec<SharedString> = keys.clone();
+            let selectable: Vec<SharedString> = stops.iter().map(|i| keys[*i].clone()).collect();
             let held = cursor.clone();
             let wrap = self.should_focus_wrap;
             // Every option's text, so a typed letter can find one.
-            let labels: Vec<String> = self.options.iter().map(ToString::to_string).collect();
+            let labels: Vec<String> = self
+                .items
+                .iter()
+                .map(|item| item.label().to_string())
+                .collect();
             let typed = typeahead;
             let open_own_keys = open_own.clone();
             let value_own_keys = value_own.clone();
             let indices_own_keys = indices_own.clone();
-            let selected_indices_keys = selected_indices.clone();
+            let selected_held = selected.clone();
+            let selected_keys_held = selected_keys.clone();
             let form_state_keys = self.form_state.clone();
-            let form_options_keys = self.options.clone();
             let on_open_change = self.on_open_change.clone();
             let on_select = self.on_selection_change.clone();
             let on_select_all = self.on_selection_change_all.clone();
@@ -717,6 +799,7 @@ impl RenderOnce for Select {
             let key_panel_scroll = panel_scroll_now.clone();
             let fh = focus_handle.clone();
             let press_open = keyboard_press_open.clone();
+            let row_keys = keys.clone();
             field = field
                 .track_focus(&focus_handle)
                 .key_context("Select")
@@ -748,7 +831,7 @@ impl RenderOnce for Select {
                                 });
                             }
                             if let Some(cb) = &on_open_change {
-                                cb(true, window, cx);
+                                cb(&true, window, cx);
                             }
                             return;
                         }
@@ -772,26 +855,36 @@ impl RenderOnce for Select {
                             let query = t.push(key, now);
                             (query, t.is_repeat())
                         });
-                        let Some(found) =
-                            crate::list_nav::typeahead(&labels, &stops, selected, &query, repeat)
-                        else {
+                        let selected_at = selected_held
+                            .as_ref()
+                            .and_then(|k| row_keys.iter().position(|key| key == k));
+                        let Some(found) = crate::list_nav::typeahead(
+                            &labels,
+                            &stops,
+                            selected_at,
+                            &query,
+                            repeat,
+                        ) else {
                             return;
                         };
+                        let found = row_keys[found].clone();
                         if let Some(held) = &value_own_keys {
-                            form_state_keys.borrow_mut().value = crate::form::FormValue::Text(
-                                form_options_keys.get(found).cloned().unwrap_or_default(),
-                            );
+                            form_state_keys.borrow_mut().value =
+                                crate::form::FormValue::Keys(vec![found.clone()]);
                             held.update(cx, |v, cx| {
-                                *v = Some(found);
+                                *v = Some(found.clone());
                                 cx.notify();
                             });
                         }
                         if let Some(cb) = &on_select {
-                            cb(Some(found), window, cx);
+                            cb(&Some(found), window, cx);
                         }
                         return;
                     }
-                    let from = *held.read(cx);
+                    let from = held
+                        .read(cx)
+                        .as_ref()
+                        .and_then(|k| row_keys.iter().position(|key| key == k));
                     let modifiers = event.keystroke.modifiers;
                     // Pinned React Aria 3.51.0 `useSelectableCollection`
                     // answers `Mod+A` with `selectAll` -- multiple mode only,
@@ -812,18 +905,13 @@ impl RenderOnce for Select {
                         }
                         && multiple
                     {
-                        let all: BTreeSet<usize> = stops.iter().copied().collect();
-                        let complete = all
-                            .iter()
-                            .all(|index| selected_indices_keys.contains(index));
+                        let all: Vec<SharedString> =
+                            stops.iter().map(|i| row_keys[*i].clone()).collect();
+                        let complete = all.iter().all(|key| selected_keys_held.contains(key));
                         if !complete {
                             if let Some(held) = &indices_own_keys {
-                                form_state_keys.borrow_mut().value = select_form_value(
-                                    SelectionMode::Multiple,
-                                    &form_options_keys,
-                                    None,
-                                    &all,
-                                );
+                                form_state_keys.borrow_mut().value =
+                                    crate::form::FormValue::Keys(all.clone());
                                 held.update(cx, |selected, cx| {
                                     *selected = all.clone();
                                     cx.notify();
@@ -861,7 +949,7 @@ impl RenderOnce for Select {
                         || crate::list_nav::resolve(&stops, from, key, wrap),
                         crate::list_nav::Move::To,
                     ) {
-                        crate::list_nav::Move::To(next) => {
+                        crate::list_nav::Move::To(at) => {
                             // The pinned registrations install no Home/End
                             // handler for an unregistered chord -- Cmd- or
                             // Ctrl-bearing on macOS, Alt- or platform-bearing
@@ -881,17 +969,18 @@ impl RenderOnce for Select {
                             if matches!(key, "home" | "end") && modifiers.shift && from.is_none() {
                                 return;
                             }
+                            let next = row_keys[at].clone();
                             held.update(cx, |v, cx| {
-                                *v = Some(next);
+                                *v = Some(next.clone());
                                 cx.notify();
                             });
                             // React Aria keeps the focused option in view; the
                             // highlight walking off the bottom of the list looks
                             // like the arrows have stopped working.
                             if virtual_rows {
-                                key_list_scroll.scroll_to_item(next, gpui::ScrollStrategy::Center);
+                                key_list_scroll.scroll_to_item(at, gpui::ScrollStrategy::Center);
                             } else {
-                                key_panel_scroll.scroll_to_item(next);
+                                key_panel_scroll.scroll_to_item(at);
                             }
                             // Pinned `useSelectableCollection`: Shift extends a
                             // multiple selection over exactly the chords the
@@ -916,19 +1005,19 @@ impl RenderOnce for Select {
                                     modifiers.control,
                                     cfg!(target_os = "macos"),
                                 )
-                                && (matches!(key, "home" | "end") || Some(next) != from);
+                                && (matches!(key, "home" | "end") || Some(at) != from);
                             if extends_selection {
                                 let range = range_keys.read(cx).clone();
                                 let next_selection = extend_selection_range(
-                                    &selected_indices_keys,
+                                    &selected_keys_held,
                                     &collection,
-                                    &stops,
+                                    &selectable,
                                     &range,
-                                    next,
+                                    &next,
                                 );
                                 range_keys.update(cx, |range, _| {
                                     if range.anchor.is_none() {
-                                        range.anchor = Some(next);
+                                        range.anchor = Some(next.clone());
                                     }
                                     range.current = Some(next);
                                     range.is_all = false;
@@ -940,14 +1029,10 @@ impl RenderOnce for Select {
                                 // reports every extension it is handed -- so a
                                 // repeated registered Shift+Home/End that
                                 // resolved the end already held still reports.
-                                if next_selection != selected_indices_keys {
+                                if next_selection != selected_keys_held {
                                     if let Some(held) = &indices_own_keys {
-                                        form_state_keys.borrow_mut().value = select_form_value(
-                                            SelectionMode::Multiple,
-                                            &form_options_keys,
-                                            None,
-                                            &next_selection,
-                                        );
+                                        form_state_keys.borrow_mut().value =
+                                            crate::form::FormValue::Keys(next_selection.clone());
                                         held.update(cx, |selected, cx| {
                                             *selected = next_selection.clone();
                                             cx.notify();
@@ -955,29 +1040,28 @@ impl RenderOnce for Select {
                                     }
                                 }
                                 if let Some(cb) = &on_select_all {
-                                    let keys: Vec<usize> = next_selection.iter().copied().collect();
-                                    cb(&keys, window, cx);
+                                    cb(&next_selection, window, cx);
                                 }
                             }
                         }
                         crate::list_nav::Move::Activate => {
                             // Select on key-down; the trigger click owns closing
                             // on key-up.
-                            let Some(index) = from else { return };
+                            let Some(at) = from else { return };
+                            let key = &row_keys[at];
                             if multiple {
-                                let added = !selected_indices_keys.contains(&index);
-                                let mut next = selected_indices_keys.clone();
-                                if !next.remove(&index) {
-                                    next.insert(index);
-                                }
+                                let added = !selected_keys_held.contains(key);
+                                let mut next = selected_keys_held.clone();
+                                toggle_key(&mut next, key);
+                                let next = in_collection_order(&next, &row_keys);
                                 // Pinned `toggleSelection` re-anchors on the
                                 // add, and a deselect only ends a raw `all`
                                 // so the next Shift move extends instead of
                                 // collapsing to its target.
                                 if added {
                                     range_keys.update(cx, |range, _| {
-                                        range.anchor = Some(index);
-                                        range.current = Some(index);
+                                        range.anchor = Some(key.clone());
+                                        range.current = Some(key.clone());
                                         range.is_all = false;
                                     });
                                 } else {
@@ -988,34 +1072,28 @@ impl RenderOnce for Select {
                                     });
                                 }
                                 if let Some(held) = &indices_own_keys {
-                                    form_state_keys.borrow_mut().value = select_form_value(
-                                        SelectionMode::Multiple,
-                                        &form_options_keys,
-                                        None,
-                                        &next,
-                                    );
+                                    form_state_keys.borrow_mut().value =
+                                        crate::form::FormValue::Keys(next.clone());
                                     held.update(cx, |selected, cx| {
                                         *selected = next.clone();
                                         cx.notify();
                                     });
                                 }
                                 if let Some(cb) = &on_select_all {
-                                    let next: Vec<usize> = next.into_iter().collect();
                                     cb(&next, window, cx);
                                 }
                                 return;
                             }
                             if let Some(held) = &value_own_keys {
-                                form_state_keys.borrow_mut().value = crate::form::FormValue::Text(
-                                    form_options_keys.get(index).cloned().unwrap_or_default(),
-                                );
+                                form_state_keys.borrow_mut().value =
+                                    crate::form::FormValue::Keys(vec![key.clone()]);
                                 held.update(cx, |v, cx| {
-                                    *v = Some(index);
+                                    *v = Some(key.clone());
                                     cx.notify();
                                 });
                             }
                             if let Some(cb) = &on_select {
-                                cb(Some(index), window, cx);
+                                cb(&Some(key.clone()), window, cx);
                             }
                         }
                         crate::list_nav::Move::Ignore => {
@@ -1034,6 +1112,7 @@ impl RenderOnce for Select {
                             if let Some(found) =
                                 crate::list_nav::typeahead(&labels, &stops, from, &query, repeat)
                             {
+                                let found = row_keys[found].clone();
                                 held.update(cx, |v, cx| {
                                     *v = Some(found);
                                     cx.notify();
@@ -1045,24 +1124,22 @@ impl RenderOnce for Select {
         }
 
         let value_text = if multiple {
-            self.value_text_multiple(&selected_indices)
+            self.value_text_multiple(&selected_keys)
         } else {
-            self.value_text_single(selected)
+            self.value_text_single(&selected)
         };
-        let mut chosen: Vec<usize> = if multiple {
-            selected_indices
-                .iter()
-                .copied()
-                .filter(|index| self.options.get(*index).is_some())
-                .collect()
-        } else {
-            selected
-                .filter(|index| self.options.get(*index).is_some())
-                .into_iter()
-                .collect()
-        };
-        chosen.sort_unstable();
+        let chosen = resolved_keys(&self.items, &selected, &selected_keys);
         let has_value = !chosen.is_empty();
+        // The chosen rows' labels and positions, walked in collection order so
+        // the value slot's `selectedItems` and `selectedIndices` agree.
+        let mut chosen_items: Vec<SharedString> = Vec::with_capacity(chosen.len());
+        let mut chosen_at: Vec<usize> = Vec::with_capacity(chosen.len());
+        for (at, item) in self.items.iter().enumerate() {
+            if chosen.contains(item.key()) {
+                chosen_items.push(item.label().clone());
+                chosen_at.push(at);
+            }
+        }
 
         // What the trigger draws when the caller does not: v3's
         // `defaultChildren`, which a `Select.Value` closure can hand straight
@@ -1081,19 +1158,18 @@ impl RenderOnce for Select {
         // `Select.Value` — a caller-drawn value replaces the trigger's text.
         let value_slot = match &self.value_content {
             Some(render) => {
-                let items: Vec<SharedString> = chosen
+                let names = chosen_items
                     .iter()
-                    .filter_map(|i| self.options.get(*i).cloned())
-                    .collect();
-                let names = items.iter().map(ToString::to_string).collect::<Vec<_>>();
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>();
                 let text = format_selected_names(&names);
                 gpui::div()
                     .flex_1()
                     .min_w_0()
                     .child(render(util::SelectionValue {
-                        selected_items: &items,
-                        selected_indices: &chosen,
-                        selected_keys: None,
+                        selected_items: &chosen_items,
+                        selected_indices: &chosen_at,
+                        selected_keys: Some(&chosen),
                         selected_text: &text,
                         is_placeholder: !has_value,
                         default_children,
@@ -1102,6 +1178,22 @@ impl RenderOnce for Select {
             }
             None => default_children,
         };
+        // `react-aria/dist/private/select/useSelect.mjs` derives the trigger
+        // from `useMenuTrigger({type: 'listbox'})`, so
+        // `.../overlays/useOverlayTrigger.mjs` gives it
+        // `'aria-haspopup': 'listbox'`, `'aria-expanded': isOpen` and
+        // `'aria-controls': isOpen ? overlayId : undefined`; HeroUI renders it
+        // as an RAC `Button` (`select/select.js`), i.e. a native `<button>`.
+        // Only `aria-expanded` ports: `aria-haspopup` and `aria-controls` have
+        // no gpui builder and no id graph to point at (see `crate::a11y`).
+        // `useSelect` names the trigger `aria-labelledby: [valueId, label]`,
+        // which resolves to the field's label followed by the drawn value.
+        field = field
+            .a11y_named(
+                a11y::Role::Button,
+                &a11y::Name::maybe(self.label.clone()).described(Some(value_text.clone())),
+            )
+            .a11y_expanded(is_open);
         field = field.child(value_slot).child(
             gpui::svg()
                 .size(px(16.))
@@ -1156,7 +1248,7 @@ impl RenderOnce for Select {
                         });
                     }
                     if let Some(cb) = &on_open_change {
-                        cb(next_open, window, cx);
+                        cb(&next_open, window, cx);
                     }
                 });
         }
@@ -1210,12 +1302,12 @@ impl RenderOnce for Select {
                     });
                 }
                 if let Some(cb) = &escape_cb {
-                    cb(false, window, cx);
+                    cb(&false, window, cx);
                 }
                 util::DismissResult::Handled
             });
 
-        if overlay_active && self.options.is_empty() {
+        if overlay_active && self.items.is_empty() {
             let dismiss_own = open_own.clone();
             let dismiss_cb = self.on_open_change.clone();
             root = util::dismiss_on_press_outside_with_token(
@@ -1229,16 +1321,22 @@ impl RenderOnce for Select {
                         });
                     }
                     if let Some(cb) = &dismiss_cb {
-                        cb(false, window, cx);
+                        cb(&false, window, cx);
                     }
                     util::DismissResult::Handled
                 },
             );
         }
 
-        if overlay_active && !self.options.is_empty() {
+        if overlay_active && !self.items.is_empty() {
+            // The `debug_selector` spellings `pickers_deep.rs` queries on --
+            // labels, not ids; the ids beside them derive from `self.id`.
             let base = format!("select-list-{}", id_debug(&self.id));
-            let options_len = self.options.len();
+            let base_id = element_id::scoped(&self.id, "list");
+            // `useListBox` is named through `useField`, i.e. by the same
+            // `<Label>` the trigger points at.
+            let list_name = self.label.clone();
+            let options_len = self.items.len();
             let panel_interactive = overlay_phase == util::OverlayPhase::Open;
             let panel = gpui::div()
                 .w_full()
@@ -1256,7 +1354,15 @@ impl RenderOnce for Select {
                 .shadow(layout.overlay_shadow.clone())
                 // `.select__popover` is `overflow-y-auto`: a long list scrolls
                 // rather than being clipped. gpui needs an id for that.
-                .id(el_name(format!("{base}-scroll")))
+                .id(element_id::scoped(&base_id, "scroll"))
+                // RAC's `Select` puts a `ListBox` inside the popover, and
+                // `react-aria/dist/private/listbox/useListBox.mjs` is one
+                // literal `role: 'listbox'` with `'aria-orientation'`
+                // defaulting to vertical. The scroller *is* that list here:
+                // the rows are its children. `aria-multiselectable` has no
+                // gpui builder (see `crate::a11y`).
+                .a11y_named(a11y::Role::ListBox, &a11y::Name::maybe(list_name.clone()))
+                .a11y_orientation(herogpui_core::Orientation::Vertical)
                 .debug_selector({
                     let base = base.clone();
                     move || format!("{base}-panel")
@@ -1293,7 +1399,7 @@ impl RenderOnce for Select {
                         });
                     }
                     if let Some(cb) = &dismiss_cb {
-                        cb(false, window, cx);
+                        cb(&false, window, cx);
                     }
                     util::DismissResult::Handled
                 },
@@ -1303,6 +1409,9 @@ impl RenderOnce for Select {
             // hands back a borrow of the app, which a `'static` closure cannot
             // hold.
             let row_muted = colors.muted;
+            // `useOption` adds the set position only under virtualization;
+            // `row_height` is what turns this list into a windowed one.
+            let row_virtualized = self.row_height.is_some();
             let row_fg = colors.foreground;
             let row_focus = colors.focus;
             let row_hover_bg = colors.default.color;
@@ -1312,14 +1421,15 @@ impl RenderOnce for Select {
             // `'static` and is called again on every scroll, so it cannot
             // borrow `self` -- and one row builder for both paths is what keeps
             // a virtual list drawing the same row as a short one.
-            let options = self.options.clone();
+            let items = self.items.clone();
             let sections = self.sections.clone();
             let opt_disabled_keys = self.disabled_keys.clone();
-            // The index list the range is resolved against and the enabled
+            // The key list the range is resolved against and the enabled
             // keys that may join it, for the Shift-click extension.
-            let collection_rows: Vec<usize> = (0..options_len).collect();
-            let selectable_rows: Vec<usize> = (0..options_len)
-                .filter(|i| !self.disabled_keys.contains(i))
+            let collection_rows: Vec<SharedString> = keys.clone();
+            let selectable_rows: Vec<SharedString> = (0..options_len)
+                .filter(|i| !self.disabled_keys.contains(&keys[*i]))
+                .map(|i| keys[i].clone())
                 .collect();
             let range_rows = selection_range;
             let cursor_rows = cursor;
@@ -1332,15 +1442,18 @@ impl RenderOnce for Select {
             let open_own = open_own;
             let form_state_rows = self.form_state.clone();
             let on_close = self.on_open_change.clone();
-            let base_row = base.clone();
+            let base_row = base;
+            let base_row_id = base_id.clone();
             let row = move |i: usize, fixed_h: Option<gpui::Pixels>, cx: &mut App| {
                 let base = &base_row;
-                let opt = &options[i];
+                let base_id = &base_row_id;
+                let opt = &items[i];
+                let row_key = opt.key().clone();
                 let focus_click = focus_rows.clone();
                 let mut rows = Vec::new();
                 // `ListBox.Section`'s `Header`: `text-xs` in the muted colour,
                 // above the option it introduces.
-                if let Some((_, label)) = sections.iter().find(|(at, _)| *at == i) {
+                if let Some((_, label)) = sections.iter().find(|(at, _)| at == &row_key) {
                     rows.push(
                         gpui::div()
                             .px(px(8.))
@@ -1355,14 +1468,34 @@ impl RenderOnce for Select {
                     );
                 }
                 let is_sel = if multiple {
-                    selected_indices.contains(&i)
+                    selected_keys.contains(&row_key)
                 } else {
-                    selected == Some(i)
+                    selected.as_ref() == Some(&row_key)
                 };
-                let opt_disabled = opt_disabled_keys.contains(&i);
+                let opt_disabled = opt_disabled_keys.contains(&row_key);
                 let row_selector = format!("{base}-opt-{i}");
                 let mut item = gpui::div()
-                        .id(el_name(row_selector.clone()))
+                        .id(element_id::indexed(base_id, "opt", i))
+                        // `useOption.mjs`: `role: 'option'` with
+                        // `'aria-selected': selectionMode !== 'none' ?
+                        // isSelected : undefined`. A Select's list always
+                        // selects, so the flag is unconditional here. Its
+                        // `aria-posinset`/`aria-setsize` pair is set only
+                        // `if (isVirtualized)`, which is exactly this port's
+                        // `row_height` path.
+                        .a11y_named(
+                            a11y::Role::ListBoxOption,
+                            &a11y::Name::labelled(opt.label().clone()),
+                        )
+                        .a11y_selected(is_sel)
+                        .when(row_virtualized, |item| {
+                            item.a11y_set_position(i, options_len)
+                        })
+                        // The trigger keeps the real focus while the list is
+                        // open, and a cursor walks the rows -- upstream's
+                        // `shouldUseVirtualFocus`. gpui states that relation
+                        // on the descendant rather than on the container.
+                        .when(cursor_at == Some(i), |item| item.a11y_active_descendant())
                         .debug_selector(move || row_selector)
                         .flex()
                         .items_center()
@@ -1394,7 +1527,7 @@ impl RenderOnce for Select {
                     item = item.border_2().border_color(row_focus);
                 }
 
-                item = item.child(gpui::div().truncate().child(opt.to_string()));
+                item = item.child(gpui::div().truncate().child(opt.label().to_string()));
 
                 match &indicator {
                     Some(render) => item = item.child(render(is_sel)),
@@ -1412,22 +1545,22 @@ impl RenderOnce for Select {
                 if panel_interactive && !opt_disabled {
                     if multiple {
                         if indices_own.is_some() || on_change_all.is_some() {
-                            let current = selected_indices.clone();
+                            let current = selected_keys.clone();
                             let own = indices_own.clone();
                             let cb = on_change_all.clone();
                             let form_state_pick = form_state_rows.clone();
-                            let options = options.clone();
                             let range_click = range_rows.clone();
                             let collection_click = collection_rows.clone();
                             let selectable_click = selectable_rows.clone();
                             let cursor_click = cursor_rows.clone();
+                            let picked_key = row_key;
                             item = item.on_click(move |ev, window, cx| {
                                 // Pinned `useSelectableItem` seats the cursor
                                 // on pointer press, so a Shift+Arrow, page, or
                                 // Enter that follows starts from the clicked
                                 // row rather than from a null or stale cursor.
                                 cursor_click.update(cx, |v, cx| {
-                                    *v = Some(i);
+                                    *v = Some(picked_key.clone());
                                     cx.notify();
                                 });
                                 // gpui's own focus-on-press would park focus
@@ -1448,43 +1581,42 @@ impl RenderOnce for Select {
                                         &collection_click,
                                         &selectable_click,
                                         &range,
-                                        i,
+                                        &picked_key,
                                     );
                                     range_click.update(cx, |range, _| {
                                         if range.anchor.is_none() {
-                                            range.anchor = Some(i);
+                                            range.anchor = Some(picked_key.clone());
                                         }
-                                        range.current = Some(i);
-                                        range.is_all = false;
-                                    });
-                                } else if !next.remove(&i) {
-                                    next.insert(i);
-                                    range_click.update(cx, |range, _| {
-                                        range.anchor = Some(i);
-                                        range.current = Some(i);
+                                        range.current = Some(picked_key.clone());
                                         range.is_all = false;
                                     });
                                 } else {
-                                    range_click.update(cx, |range, _| {
-                                        if range.is_all {
-                                            *range = SelectSelectionRange::default();
-                                        }
-                                    });
+                                    let added = !next.contains(&picked_key);
+                                    toggle_key(&mut next, &picked_key);
+                                    next = in_collection_order(&next, &collection_click);
+                                    if added {
+                                        range_click.update(cx, |range, _| {
+                                            range.anchor = Some(picked_key.clone());
+                                            range.current = Some(picked_key.clone());
+                                            range.is_all = false;
+                                        });
+                                    } else {
+                                        range_click.update(cx, |range, _| {
+                                            if range.is_all {
+                                                *range = SelectSelectionRange::default();
+                                            }
+                                        });
+                                    }
                                 }
                                 if let Some(held) = &own {
-                                    form_state_pick.borrow_mut().value = select_form_value(
-                                        SelectionMode::Multiple,
-                                        &options,
-                                        None,
-                                        &next,
-                                    );
+                                    form_state_pick.borrow_mut().value =
+                                        crate::form::FormValue::Keys(next.clone());
                                     held.update(cx, |selected, cx| {
                                         *selected = next.clone();
                                         cx.notify();
                                     });
                                 }
                                 if let Some(cb) = &cb {
-                                    let next: Vec<usize> = next.into_iter().collect();
                                     cb(&next, window, cx);
                                 }
                             });
@@ -1495,15 +1627,15 @@ impl RenderOnce for Select {
                         let value_own = value_own.clone();
                         let open_own = open_own.clone();
                         let form_state_pick = form_state_rows.clone();
-                        let picked = opt.clone();
+                        let picked_key = row_key;
                         item = item.on_click(move |_, window, cx| {
                             // Uncontrolled: take the selection and close, or
                             // choosing an option would do nothing.
                             if let Some(held) = &value_own {
                                 form_state_pick.borrow_mut().value =
-                                    crate::form::FormValue::Text(picked.clone());
+                                    crate::form::FormValue::Keys(vec![picked_key.clone()]);
                                 held.update(cx, |v, cx| {
-                                    *v = Some(i);
+                                    *v = Some(picked_key.clone());
                                     cx.notify();
                                 });
                             }
@@ -1524,10 +1656,10 @@ impl RenderOnce for Select {
                             // element's click on Enter), so it never reaches
                             // this closure.
                             if let Some(cb) = &on_close {
-                                cb(false, window, cx);
+                                cb(&false, window, cx);
                             }
                             if let Some(f) = &on_select {
-                                f(Some(i), window, cx);
+                                f(&Some(picked_key.clone()), window, cx);
                             }
                         });
                     }
@@ -1555,7 +1687,7 @@ impl RenderOnce for Select {
                 Some(row_height) => {
                     panel = panel.child(
                         gpui::uniform_list(
-                            el_name(format!("{base}-rows")),
+                            element_id::scoped(&base_id, "rows"),
                             options_len,
                             move |range, _window, cx| {
                                 range
@@ -1579,7 +1711,7 @@ impl RenderOnce for Select {
             let panel = if overlay_phase == util::OverlayPhase::Exiting {
                 crate::anim::exiting(
                     panel,
-                    el_name(format!("{base}-panel-out")),
+                    element_id::scoped(&base_id, "panel-out"),
                     zoom,
                     crate::anim::Motion::LIST_OUT,
                     cx,
@@ -1587,7 +1719,7 @@ impl RenderOnce for Select {
             } else {
                 crate::anim::entering_zoom(
                     panel,
-                    el_name(format!("{base}-panel")),
+                    element_id::scoped(&base_id, "panel"),
                     zoom,
                     crate::anim::Motion::LIST_IN,
                     cx,
@@ -1604,6 +1736,7 @@ impl RenderOnce for Select {
             )));
         }
 
+        root = util::apply_sx(root, &self.sx);
         root.track_focus(&blur_scope)
     }
 }
@@ -1618,26 +1751,15 @@ fn live_form_state() -> Rc<RefCell<crate::form::LiveFormFieldState>> {
     }))
 }
 
+/// The form value both modes submit: the selection's keys, each resolved to a
+/// collection item, in row order — the channel `@heroui/autocomplete` submits
+/// the same way, and what a keyed collection's hidden input carries upstream.
 fn select_form_value(
-    mode: SelectionMode,
-    options: &[SharedString],
-    selected: Option<usize>,
-    indices: &BTreeSet<usize>,
+    items: &[PickerItem],
+    single: &Option<SharedString>,
+    multiple: &[SharedString],
 ) -> crate::form::FormValue {
-    if mode == SelectionMode::Multiple {
-        crate::form::FormValue::Keys(
-            indices
-                .iter()
-                .filter_map(|i| options.get(*i).cloned())
-                .collect(),
-        )
-    } else {
-        crate::form::FormValue::Text(
-            selected
-                .and_then(|i| options.get(i).cloned())
-                .unwrap_or_default(),
-        )
-    }
+    crate::form::FormValue::Keys(resolved_keys(items, single, multiple))
 }
 
 fn sync_select_form(
@@ -1650,10 +1772,6 @@ fn sync_select_form(
     state.value = value;
     state.is_invalid = is_invalid;
     state.is_successful = is_successful;
-}
-
-fn el_name(s: String) -> gpui::ElementId {
-    gpui::ElementId::Name(s.into())
 }
 
 fn id_debug(id: &gpui::ElementId) -> String {
@@ -1750,13 +1868,17 @@ mod tests {
     fn default_value_text_matches_pinned_select_value() {
         let select = Select::new(
             "select-default-text",
-            vec!["Alpha".into(), "Beta".into(), "Gamma".into()],
+            vec![
+                PickerItem::new("alpha", "Alpha"),
+                PickerItem::new("beta", "Beta"),
+                PickerItem::new("gamma", "Gamma"),
+            ],
         )
         .selection_mode(SelectionMode::Multiple)
-        .selected_indices([0, 1, 2]);
+        .selected_keys(["alpha", "beta", "gamma"].map(SharedString::from));
 
         assert_eq!(
-            select.value_text_multiple(&select.selected_indices),
+            select.value_text_multiple(&select.selected_keys),
             "Alpha, Beta, and Gamma"
         );
         assert_eq!(
@@ -1766,6 +1888,46 @@ mod tests {
         assert_eq!(
             Select::new("select-default-placeholder", Vec::new()).placeholder,
             "Select an item"
+        );
+    }
+
+    /// The keyed selection channel: keys, not labels, address items, so two
+    /// items may share a label without aliasing each other, the reads walk
+    /// the collection however the keys were picked or listed, and keys the
+    /// collection does not hold resolve to nothing.
+    #[test]
+    fn keys_address_items_and_reads_walk_the_collection() {
+        let keys = |names: &[&str]| -> Vec<SharedString> {
+            names.iter().copied().map(SharedString::from).collect()
+        };
+        let items = vec![
+            PickerItem::new("a", "Paris"),
+            PickerItem::new("b", "London"),
+            PickerItem::new("c", "Paris"),
+        ];
+        // Same label, distinct keys: each key resolves to its own item.
+        let select = Select::new("select-keyed", items).value(Some(SharedString::from("c")));
+        assert_eq!(
+            select.value_text_single(&select.selected),
+            "Paris",
+            "the key must resolve to its own item, never a same-label sibling"
+        );
+        // A multiple selection reports in collection order however it was
+        // listed, and an unknown key resolves to nothing.
+        assert_eq!(
+            in_collection_order(&keys(&["c", "a", "zz"]), &keys(&["a", "b", "c"])),
+            keys(&["a", "c"]),
+            "reads must walk the collection and drop unresolvable keys"
+        );
+        assert_eq!(
+            resolved_keys(&select.items, &None, &keys(&["c", "b"])),
+            keys(&["b", "c"]),
+            "the resolved set follows the collection's row order"
+        );
+        assert_eq!(
+            resolved_keys(&select.items, &Some(SharedString::from("gone")), &[]),
+            Vec::<SharedString>::new(),
+            "a key with no item resolves to no selection"
         );
     }
 

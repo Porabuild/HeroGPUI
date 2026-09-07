@@ -9,11 +9,16 @@
 //! children.
 
 use gpui::{
-    div, prelude::*, px, AnyElement, App, IntoElement, ParentElement, RenderOnce, Styled, Window,
+    div, prelude::*, px, AnyElement, App, ElementId, IntoElement, ParentElement, RenderOnce,
+    Styled, Window,
 };
 use herogpui_core::{Orientation, Size, Variant};
 
-use crate::{button::Button, util};
+use crate::{
+    a11y::{self, A11y as _},
+    button::Button,
+    util,
+};
 
 /// The variant whose foreground the separator drawn inside a member's slot
 /// takes. v3 composes `ButtonGroup.Separator` as a child of the member that
@@ -45,6 +50,9 @@ pub struct ButtonGroup {
     /// their own.
     buttons: Vec<Button>,
     children: Vec<AnyElement>,
+    id: Option<ElementId>,
+    /// The `sx` slot, refined over the root style at the end of render.
+    sx: Option<Box<gpui::StyleRefinement>>,
 }
 
 impl ButtonGroup {
@@ -70,7 +78,17 @@ impl ButtonGroup {
             full_width: false,
             buttons: Vec::new(),
             children: Vec::new(),
+            id: None,
+            sx: None,
         }
+    }
+
+    /// Names this group so it can report `role="group"`. Unnamed groups
+    /// produce no AccessKit node — a constant id would fold every instance
+    /// into one.
+    pub fn id(mut self, id: impl Into<ElementId>) -> Self {
+        self.id = Some(id.into());
+        self
     }
 
     /// The variant every member inherits unless that button sets its own.
@@ -106,6 +124,15 @@ impl ButtonGroup {
         self.separators = v;
         self
     }
+
+    /// The one slot for caller-owned low-level styling: GPUI's styling methods
+    /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
+    /// applied to the group's root element after every value the orientation
+    /// and the full-width layout chose, so they win.
+    pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
+        self.sx = Some(util::capture_sx(style));
+        self
+    }
 }
 
 impl Default for ButtonGroup {
@@ -128,11 +155,17 @@ impl RenderOnce for ButtonGroup {
         // keeps its own fill, and the outer corners come from the first and last
         // of them. This used to draw a bordered, radius-clipped box with the
         // members overlapped by -1px, which is not a shape v3 has.
-        let mut el = div().flex().items_center().justify_center();
+        // A vertical column that kept `items-center` would leave every member
+        // at its own content width, stacking mixed-width labels into a
+        // staircase instead of one joined control, so the column stretches its
+        // members' cross axis and each slot below stretches the member inside
+        // it. Members with a definite width (icon-only) keep it, exactly as
+        // they keep `w-fit` under v3's `items-center`.
+        let mut el = div().flex().justify_center();
         el = if vertical {
-            el.flex_col()
+            el.flex_col().items_stretch()
         } else {
-            el.flex_row()
+            el.flex_row().items_center()
         };
         if self.full_width {
             el = el.w_full();
@@ -185,7 +218,14 @@ impl RenderOnce for ButtonGroup {
         let mut wrapped: Vec<gpui::Div> = Vec::with_capacity(total);
         for (i, (member_full, slot_variant, child)) in members.into_iter().enumerate() {
             let mut slot = div().relative().child(child);
-            if member_full {
+            // Names the laid-out slot for behaviour tests (`debug_bounds`);
+            // a no-op outside test-support.
+            slot = slot.debug_selector(move || format!("button-group-slot-{i}"));
+            if vertical {
+                // The root's stretch gives the slot the column width; this
+                // hands it on to a member whose own width is still auto.
+                slot = slot.flex().flex_col().items_stretch();
+            } else if member_full {
                 slot = slot.flex_1();
             }
             if separators && i > 0 {
@@ -214,7 +254,12 @@ impl RenderOnce for ButtonGroup {
             }
             wrapped.push(slot);
         }
-        el.children(wrapped)
+        el = el.children(wrapped);
+        el = util::apply_sx(el, &self.sx);
+        match self.id {
+            Some(id) => el.id(id).a11y(a11y::Role::Group).into_any_element(),
+            None => el.into_any_element(),
+        }
     }
 }
 

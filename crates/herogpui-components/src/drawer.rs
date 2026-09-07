@@ -10,8 +10,9 @@ use gpui::{
 use herogpui_theme::ActiveTheme;
 use web_time::Instant;
 
-use herogpui_core::Backdrop;
+use herogpui_core::{element_id, Backdrop};
 
+use crate::a11y::{self, A11y as _};
 use crate::modal::{OnClose, OnOpenChange};
 
 /// Which edge the drawer is anchored to (`placement`).
@@ -58,6 +59,9 @@ struct DragState {
 /// draws nothing.
 pub struct DrawerCloseTrigger {
     on_dismiss: Option<OnClose>,
+    /// The id of the dialog this trigger was pulled out of; see
+    /// [`crate::modal::CloseTriggerPart::wire`].
+    owner: Option<gpui::ElementId>,
     /// This trigger's index within its dialog; see
     /// [`crate::modal::CloseTriggerPart::wire`].
     slot: usize,
@@ -68,13 +72,14 @@ impl DrawerCloseTrigger {
     pub fn new() -> Self {
         Self {
             on_dismiss: None,
+            owner: None,
             slot: 0,
             children: Vec::new(),
         }
     }
 }
 
-crate::modal::close_trigger_part!(DrawerCloseTrigger, "drawer-close");
+crate::modal::close_trigger_part!(DrawerCloseTrigger, "close-trigger");
 
 /// HeroUI Drawer (controlled).
 #[derive(IntoElement)]
@@ -91,6 +96,8 @@ pub struct Drawer {
     body: Vec<AnyElement>,
     footer: Vec<(AnyElement, bool)>,
     on_close: Option<OnClose>,
+    /// The `sx` slot, refined over the root style at the end of render.
+    sx: Option<Box<gpui::StyleRefinement>>,
 }
 
 impl Drawer {
@@ -118,6 +125,7 @@ impl Drawer {
             body: Vec::new(),
             footer: Vec::new(),
             on_close: None,
+            sx: None,
         }
     }
 
@@ -145,7 +153,7 @@ impl Drawer {
 
     /// `onOpenChange` — fires with `false` on every dismissal path, alongside
     /// [`Drawer::on_close`].
-    pub fn on_open_change(mut self, f: impl Fn(bool, &mut Window, &mut App) + 'static) -> Self {
+    pub fn on_open_change(mut self, f: impl Fn(&bool, &mut Window, &mut App) + 'static) -> Self {
         self.on_open_change = Some(std::sync::Arc::new(f));
         self
     }
@@ -171,6 +179,16 @@ impl Drawer {
 
     pub fn on_close(mut self, f: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static) -> Self {
         self.on_close = Some(std::sync::Arc::new(f));
+        self
+    }
+
+    /// The one slot for caller-owned low-level styling: GPUI's styling methods
+    /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
+    /// applied to the drawer's root element — the full-window overlay the
+    /// panel and the backdrop sit in — after every value the placement, the
+    /// backdrop and the active theme chose, so they win.
+    pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
+        self.sx = Some(crate::util::capture_sx(style));
         self
     }
 }
@@ -245,7 +263,7 @@ impl RenderOnce for Drawer {
                         f(ev, window, cx);
                     }
                     if let Some(f) = &open_change {
-                        f(false, window, cx);
+                        f(&false, window, cx);
                     }
                 },
             )),
@@ -266,11 +284,13 @@ impl RenderOnce for Drawer {
         let mut close_triggers = crate::modal::take_close_triggers::<DrawerCloseTrigger>(
             &mut self.body,
             dismiss.clone(),
+            &self.id,
             0,
         );
         close_triggers.extend(crate::modal::take_close_triggers::<DrawerCloseTrigger>(
             &mut footer_els,
             dismiss.clone(),
+            &self.id,
             close_triggers.len(),
         ));
         // The composed triggers are out of the row; the interactivity mark is
@@ -355,6 +375,12 @@ impl RenderOnce for Drawer {
         };
         let measured_bounds = panel_bounds.clone();
         let mut panel = gpui::div()
+            // `drawer/drawer.js` is the modal's anatomy on an edge: RAC
+            // `Modal`/`ModalOverlay` around a `Dialog`, so
+            // `react-aria/.../dialog/useDialog.js` gives it the same
+            // `role="dialog"` named by the composed `Heading`.
+            .id(element_id::scoped(&self.id, "dialog"))
+            .a11y_named(a11y::Role::Dialog, &a11y::Name::maybe(self.title.clone()))
             .relative()
             .flex()
             .flex_col()
@@ -678,7 +704,7 @@ impl RenderOnce for Drawer {
         // click listener would only double-report. v3 fades it in alongside
         // the panel.
         let scrim = gpui::div()
-            .id("drawer-backdrop")
+            .id(element_id::scoped(&self.id, "backdrop"))
             .absolute()
             .inset_0()
             .bg(backdrop_bg);
@@ -727,6 +753,7 @@ impl RenderOnce for Drawer {
             )
         });
 
+        overlay = crate::util::apply_sx(overlay, &self.sx);
         crate::util::window_overlay(overlay, window).into_any_element()
     }
 }

@@ -5,9 +5,10 @@ use gpui::{
     px, AnyElement, App, Bounds, ClickEvent, InteractiveElement, IntoElement, ParentElement,
     Pixels, RenderOnce, SharedString, StatefulInteractiveElement, Styled, Window,
 };
-use herogpui_core::SelectionMode;
+use herogpui_core::{element_id, SelectionMode};
 use herogpui_theme::ActiveTheme;
 
+use crate::a11y::{self, A11y as _};
 use crate::icons;
 
 /// One entry of a dropdown menu.
@@ -110,7 +111,7 @@ type ItemContent =
     std::sync::Arc<dyn Fn(&SharedString, crate::util::InteractiveState) -> AnyElement + 'static>;
 type ItemIndicatorContent =
     std::sync::Arc<dyn Fn(&SharedString, bool, bool) -> AnyElement + 'static>;
-type OnDismiss = std::rc::Rc<dyn Fn(bool, &mut Window, &mut App) + 'static>;
+type OnDismiss = std::rc::Rc<dyn Fn(&bool, &mut Window, &mut App) + 'static>;
 type PanelBounds = std::rc::Rc<std::cell::RefCell<Vec<Bounds<Pixels>>>>;
 
 #[derive(IntoElement)]
@@ -156,6 +157,8 @@ pub struct Menu {
     /// wrapper between the positioner and the menu would measure and cap
     /// while the real panel kept its natural size underneath.
     panel_debug_label: Option<&'static str>,
+    /// The `sx` slot, refined over the root style at the end of render.
+    sx: Option<Box<gpui::StyleRefinement>>,
 }
 
 impl Menu {
@@ -184,6 +187,7 @@ impl Menu {
             overlay_token: None,
             dropdown_composition: false,
             panel_debug_label: None,
+            sx: None,
         }
     }
 
@@ -195,7 +199,7 @@ impl Menu {
     /// because only `Dropdown` can supply it. The `bool` is whether to return
     /// the focus to the trigger — see the field docs for why a key pick passes
     /// `false`.
-    pub(crate) fn on_dismiss(mut self, f: impl Fn(bool, &mut Window, &mut App) + 'static) -> Self {
+    pub(crate) fn on_dismiss(mut self, f: impl Fn(&bool, &mut Window, &mut App) + 'static) -> Self {
         self.on_dismiss = Some(std::rc::Rc::new(f));
         self
     }
@@ -342,18 +346,28 @@ impl Menu {
         self.selected_key = Some(key.into());
         self
     }
+
+    /// The one slot for caller-owned low-level styling: GPUI's styling methods
+    /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
+    /// applied to the menu's root element after every value the composition
+    /// and the active theme chose, so they win. The panel inside paints its
+    /// own chrome, so this reaches the surface it floats in, not the panel.
+    pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
+        self.sx = Some(crate::util::capture_sx(style));
+        self
+    }
 }
 
 impl RenderOnce for Menu {
     fn render(mut self, window: &mut Window, cx: &mut App) -> impl IntoElement {
-        let base = format!("{:?}", self.id);
+        let base_id = self.id.clone();
         let overlay_token = if let Some(token) = self.overlay_token.clone() {
             Some(token)
         } else if self.on_dismiss.is_some() {
             let (_, token) = crate::util::overlay_scope(
                 window,
                 cx,
-                gpui::ElementId::Name(format!("{base}-overlay").into()),
+                element_id::scoped(&base_id, "overlay"),
                 true,
                 self.exiting,
             );
@@ -364,25 +378,25 @@ impl RenderOnce for Menu {
         let (selected_keys, selection_own) = crate::util::controlled(
             window,
             cx,
-            gpui::ElementId::Name(format!("{base}-selected").into()),
+            element_id::scoped(&base_id, "selected"),
             self.selection_is_controlled
                 .then(|| self.selected_keys.clone()),
             self.default_selected_keys.clone(),
         );
         self.selected_keys = selected_keys;
-        // Which submenu is open, if any. `use_keyed_state` takes `cx` mutably,
-        // so it precedes everything that borrows the theme.
-        let submenu_state = window.use_keyed_state(
-            gpui::ElementId::Name(format!("{base}-submenu").into()),
-            cx,
-            |_, _| None::<SharedString>,
-        );
+        // Which submenu is open, if any -- held as the open child's own
+        // `ElementId` (`{id}-sub-{key}`), which is also the id the child menu
+        // renders under. `use_keyed_state` takes `cx` mutably, so it precedes
+        // everything that borrows the theme.
+        let submenu_state =
+            window.use_keyed_state(element_id::scoped(&base_id, "submenu"), cx, |_, _| {
+                None::<gpui::ElementId>
+            });
         let mut submenu_open = submenu_state.read(cx).clone();
-        let submenu_focus = window.use_keyed_state(
-            gpui::ElementId::Name(format!("{base}-submenu-focus").into()),
-            cx,
-            |_, _| false,
-        );
+        let submenu_focus =
+            window.use_keyed_state(element_id::scoped(&base_id, "submenu-focus"), cx, |_, _| {
+                false
+            });
         let focus_first = self
             .focus_first
             .as_ref()
@@ -390,7 +404,7 @@ impl RenderOnce for Menu {
         let dismiss = self.on_dismiss.clone().map(|cb| {
             let submenu_state = submenu_state.clone();
             let submenu_focus = submenu_focus.clone();
-            std::rc::Rc::new(move |refocus, window: &mut Window, cx: &mut App| {
+            std::rc::Rc::new(move |refocus: &bool, window: &mut Window, cx: &mut App| {
                 submenu_state.update(cx, |value, cx| {
                     if value.is_some() {
                         *value = None;
@@ -403,32 +417,26 @@ impl RenderOnce for Menu {
         });
         // The keyboard's own state: which row it is on, the handle that receives
         // the keys, and the letters typed so far.
-        let focus_handle = window.use_keyed_state(
-            gpui::ElementId::Name(format!("{base}-focus").into()),
-            cx,
-            |_, cx| cx.focus_handle().tab_stop(true),
-        );
+        let focus_handle =
+            window.use_keyed_state(element_id::scoped(&base_id, "focus"), cx, |_, cx| {
+                cx.focus_handle().tab_stop(true)
+            });
         let focus_handle = focus_handle.read(cx).clone();
-        let cursor = window.use_keyed_state(
-            gpui::ElementId::Name(format!("{base}-cursor").into()),
-            cx,
-            |_, _| None::<usize>,
-        );
+        let cursor = window.use_keyed_state(element_id::scoped(&base_id, "cursor"), cx, |_, _| {
+            None::<usize>
+        });
         let mut cursor_at = *cursor.read(cx);
         // `.dropdown__popover` is `overflow-y-auto`, and React Aria keeps the
         // focused row in view. `use_keyed_state` takes `cx` mutably, so the
         // handle precedes the theme.
-        let menu_scroll = window.use_keyed_state(
-            gpui::ElementId::Name(format!("{base}-scroll").into()),
-            cx,
-            |_, _| gpui::ScrollHandle::new(),
-        );
+        let menu_scroll =
+            window.use_keyed_state(element_id::scoped(&base_id, "scroll"), cx, |_, _| {
+                gpui::ScrollHandle::new()
+            });
         let menu_scroll_now = menu_scroll.read(cx).clone();
-        let typed = window.use_keyed_state(
-            gpui::ElementId::Name(format!("{base}-typed").into()),
-            cx,
-            |_, _| crate::list_nav::Typeahead::default(),
-        );
+        let typed = window.use_keyed_state(element_id::scoped(&base_id, "typed"), cx, |_, _| {
+            crate::list_nav::Typeahead::default()
+        });
         // One hover/press slot per item, for an `item_content` closure. The
         // slots exist only when the closure is set: `track_interaction`'s
         // handlers cost a frame of state, and the closure is the only reader
@@ -437,7 +445,10 @@ impl RenderOnce for Menu {
             (0..self.items.len())
                 .map(|i| {
                     crate::util::interaction(
-                        gpui::ElementId::Name(format!("{base}-item-{i}-interaction").into()),
+                        element_id::scoped(
+                            &element_id::indexed(&base_id, "item", i),
+                            "interaction",
+                        ),
                         window,
                         cx,
                     )
@@ -450,7 +461,7 @@ impl RenderOnce for Menu {
         // without a click first. The one-shot re-arms while the menu plays its
         // exit, so a menu that reopens after a dismissal -- a pick or Escape
         // hands the focus back to the trigger -- is keyboard-driven again.
-        let autofocus = gpui::ElementId::Name(format!("{base}-autofocus").into());
+        let autofocus = element_id::scoped(&base_id, "autofocus");
         if self.exiting {
             let done = window.use_keyed_state(autofocus, cx, |_, _| false);
             done.update(cx, |d, _| *d = false);
@@ -542,7 +553,10 @@ impl RenderOnce for Menu {
             .map(|item| match item {
                 MenuItem::Item { key, submenu, .. } if !submenu.is_empty() => {
                     Some(window.use_keyed_state(
-                        gpui::ElementId::Name(format!("{base}-item-{key}-bounds").into()),
+                        element_id::scoped(
+                            &element_id::scoped(&element_id::scoped(&base_id, "item"), key.clone()),
+                            "bounds",
+                        ),
                         cx,
                         |_, _| None::<Bounds<Pixels>>,
                     ))
@@ -594,11 +608,19 @@ impl RenderOnce for Menu {
             // submenu popover -- the panel carries a viewport-relative bound so
             // the positioner's capped pass sizes it, and a short menu keeps its
             // natural height. A standalone menu keeps the old window share.
-            .id(gpui::ElementId::Name(format!("{base}-list").into()))
+            .id(element_id::scoped(&base_id, "list"))
             .overflow_y_scroll()
             .track_scroll(&menu_scroll_now)
             .track_focus(&focus_handle)
             .key_context("Menu");
+        // `menu/menu.js` renders the RAC `Menu`, and
+        // `react-aria/dist/private/menu/useMenu.js` is a flat `role: 'menu'` on
+        // the list element — which is this panel, the element that holds the
+        // rows and the keyboard focus. Upstream names it through
+        // `aria-labelledby` pointing at the trigger and warns when neither
+        // `aria-label` nor `aria-labelledby` is supplied; the port has no id
+        // graph and `Menu` has no label prop in v3's API, so it is unnamed.
+        panel = panel.a11y(a11y::Role::Menu);
         if dropdown_composition || !self.deferred {
             // The surface already carries the positioner's bound; the panel
             // stretches to the surface's resolved height. A percentage `max_h`
@@ -642,7 +664,7 @@ impl RenderOnce for Menu {
             let has_submenu = item_has_submenu;
             let submenu_open_for_keys = submenu_state.clone();
             let submenu_focus_for_keys = submenu_focus.clone();
-            let submenu_base_for_keys = base.clone();
+            let submenu_base_for_keys = base_id.clone();
             let on_back = self.on_back.clone();
             let local_submenu = submenu_state.clone();
             let local_submenu_focus = submenu_focus.clone();
@@ -673,8 +695,10 @@ impl RenderOnce for Menu {
                         let Some(item_key) = keys.get(i) else {
                             return;
                         };
-                        let open_key =
-                            SharedString::from(format!("{submenu_base_for_keys}-sub-{item_key}"));
+                        let open_key = element_id::scoped(
+                            &element_id::scoped(&submenu_base_for_keys, "sub"),
+                            item_key.clone(),
+                        );
                         submenu_open_for_keys.update(cx, |value, cx| {
                             *value = Some(open_key);
                             cx.notify();
@@ -728,9 +752,10 @@ impl RenderOnce for Menu {
                         // A submenu trigger opens its child; it is neither a
                         // selection nor a menu-level action in React Aria.
                         if has_submenu {
-                            let open_key = SharedString::from(format!(
-                                "{submenu_base_for_keys}-sub-{item_key}"
-                            ));
+                            let open_key = element_id::scoped(
+                                &element_id::scoped(&submenu_base_for_keys, "sub"),
+                                item_key.clone(),
+                            );
                             submenu_open_for_keys.update(cx, |value, cx| {
                                 *value = Some(open_key);
                                 cx.notify();
@@ -770,7 +795,7 @@ impl RenderOnce for Menu {
                         // on key up, which would reopen the menu.
                         if key == "enter" || mode != SelectionMode::Multiple {
                             if let Some(cb) = &dismiss {
-                                cb(false, window, cx);
+                                cb(&false, window, cx);
                             }
                         }
                     }
@@ -848,7 +873,7 @@ impl RenderOnce for Menu {
                         colors.foreground
                     };
                     let mut row = gpui::div()
-                        .id(gpui::ElementId::Name(format!("{base}-item-{i}").into()))
+                        .id(element_id::indexed(&base_id, "item", i))
                         .relative()
                         .flex()
                         // `.menu-item` is `w-full`: the row takes the menu's
@@ -882,6 +907,39 @@ impl RenderOnce for Menu {
                     // `.menu-item` is `min-h-9 py-1.5`; a described row grows
                     // past the minimum instead of clipping its second line.
                     row = row.min_h(px(36.)).py(px(6.));
+                    // `react-aria/dist/private/menu/useMenuItem.js` decides the
+                    // row's role in one place: `let role = 'menuitem'`, and
+                    // then, *only when the row is not a submenu trigger*,
+                    // `menuitemradio` in single-selection mode and
+                    // `menuitemcheckbox` in multiple. `aria-checked` follows the
+                    // same guard (`selectionMode !== 'none' && !isTrigger`), and
+                    // a submenu trigger takes `aria-expanded` instead. Its
+                    // `aria-haspopup` and `aria-controls` companions have no
+                    // gpui builder (see `crate::a11y`).
+                    let item_role = match (has_submenu, self.selection_mode) {
+                        (true, _) | (false, SelectionMode::None) => a11y::Role::MenuItem,
+                        (false, SelectionMode::Single) => a11y::Role::MenuItemRadio,
+                        (false, SelectionMode::Multiple) => a11y::Role::MenuItemCheckBox,
+                    };
+                    // `aria-describedby` joins the description node and the
+                    // keyboard-shortcut node, in that order.
+                    let described = match (&description, &shortcut) {
+                        (None, None) => None,
+                        (Some(d), None) => Some(d.clone()),
+                        (None, Some(k)) => Some(k.clone()),
+                        (Some(d), Some(k)) => Some(SharedString::from(format!("{d} {k}"))),
+                    };
+                    row = row.a11y_named(
+                        item_role,
+                        &a11y::Name::labelled(label.clone()).described(described),
+                    );
+                    if has_submenu {
+                        let open_key =
+                            element_id::scoped(&element_id::scoped(&base_id, "sub"), key.clone());
+                        row = row.a11y_expanded(submenu_open.as_ref() == Some(&open_key));
+                    } else if self.selection_mode != SelectionMode::None {
+                        row = row.a11y_checked(is_selected, false);
+                    }
                     if dropdown_composition {
                         // Dropdown's nested `[data-slot="menu-item"]` uses
                         // px-2.5, while standalone Menu remains px-2.
@@ -1154,7 +1212,7 @@ impl RenderOnce for Menu {
                             // keyboard key-up cannot safely refocus it.
                             if mode != SelectionMode::Multiple {
                                 if let Some(cb) = &dismiss {
-                                    cb(true, window, cx);
+                                    cb(&true, window, cx);
                                 }
                             }
                         });
@@ -1165,7 +1223,8 @@ impl RenderOnce for Menu {
                     // tree order, so it goes through `util::floating` like every
                     // other floating surface.
                     if has_submenu {
-                        let open_key = SharedString::from(format!("{base}-sub-{key}"));
+                        let open_key =
+                            element_id::scoped(&element_id::scoped(&base_id, "sub"), key.clone());
                         let is_sub_open = submenu_open.as_ref() == Some(&open_key);
                         let held = submenu_state.clone();
                         let hover_focus = submenu_focus.clone();
@@ -1176,9 +1235,7 @@ impl RenderOnce for Menu {
                         // `item_content` closure is set, and gpui refuses a
                         // second listener on one element.
                         let mut slot = gpui::div()
-                            .id(gpui::ElementId::Name(
-                                format!("{base}-sub-{key}-wrap").into(),
-                            ))
+                            .id(element_id::scoped(&open_key, "wrap"))
                             .relative()
                             .child(row);
                         if !is_item_disabled {
@@ -1240,7 +1297,7 @@ impl RenderOnce for Menu {
                                 if inside {
                                     crate::util::DismissResult::Declined
                                 } else {
-                                    cb(true, window, cx);
+                                    cb(&true, window, cx);
                                     crate::util::DismissResult::Handled
                                 }
                             },
@@ -1253,7 +1310,7 @@ impl RenderOnce for Menu {
                         panel,
                         token,
                         move |window, cx| {
-                            cb(true, window, cx);
+                            cb(&true, window, cx);
                             crate::util::DismissResult::Handled
                         },
                     );
@@ -1275,7 +1332,7 @@ impl RenderOnce for Menu {
         let panel = if self.exiting {
             crate::anim::exiting(
                 panel,
-                gpui::ElementId::Name(format!("{base}-panel-out").into()),
+                element_id::scoped(&base_id, "panel-out"),
                 zoom,
                 crate::anim::Motion::LIST_OUT,
                 cx,
@@ -1283,7 +1340,7 @@ impl RenderOnce for Menu {
         } else {
             crate::anim::entering_zoom(
                 panel,
-                gpui::ElementId::Name(format!("{base}-panel").into()),
+                element_id::scoped(&base_id, "panel"),
                 zoom,
                 crate::anim::Motion::POPOVER_IN,
                 cx,
@@ -1318,7 +1375,7 @@ impl RenderOnce for Menu {
                     .and_then(|bounds| bounds.read(cx).to_owned()),
             ));
             let mut sub = Menu::new(submenu_id.clone(), submenu)
-                .id(gpui::ElementId::Name(format!("{submenu_id}-menu").into()))
+                .id(element_id::scoped(&submenu_id, "menu"))
                 .panel_debug_label("dropdown-submenu")
                 .indicator(self.indicator)
                 .disabled_keys(self.disabled_keys)
@@ -1378,7 +1435,7 @@ impl RenderOnce for Menu {
                         surface,
                         token,
                         move |window, cx| {
-                            cb(true, window, cx);
+                            cb(&true, window, cx);
                             crate::util::DismissResult::Handled
                         },
                     ),
@@ -1389,6 +1446,7 @@ impl RenderOnce for Menu {
         } else {
             surface
         };
+        let surface = crate::util::apply_sx(surface, &self.sx);
 
         if self.deferred {
             crate::util::floating(surface).into_any_element()
@@ -1440,7 +1498,7 @@ pub struct Dropdown {
     /// `defaultOpen`.
     is_open: Option<bool>,
     default_open: bool,
-    on_open_change: Option<std::sync::Arc<dyn Fn(bool, &mut Window, &mut App) + 'static>>,
+    on_open_change: Option<std::sync::Arc<dyn Fn(&bool, &mut Window, &mut App) + 'static>>,
     items: Vec<MenuItem>,
     item_content: Option<ItemContent>,
     indicator_content: Option<ItemIndicatorContent>,
@@ -1454,6 +1512,8 @@ pub struct Dropdown {
     on_selection_change: Option<OnSelectionChange>,
     on_action: Option<OnSelect>,
     placement: DropdownPlacement,
+    /// The `sx` slot, refined over the root style at the end of render.
+    sx: Option<Box<gpui::StyleRefinement>>,
 }
 
 /// `placement` on `Dropdown.Popover`.
@@ -1476,7 +1536,7 @@ impl Dropdown {
     /// `onOpenChange` — reports the open state the trigger moves to.
     pub fn on_open_change(
         mut self,
-        handler: impl Fn(bool, &mut Window, &mut App) + 'static,
+        handler: impl Fn(&bool, &mut Window, &mut App) + 'static,
     ) -> Self {
         self.on_open_change = Some(std::sync::Arc::new(handler));
         self
@@ -1540,6 +1600,7 @@ impl Dropdown {
             on_selection_change: None,
             on_action: None,
             placement: DropdownPlacement::BottomStart,
+            sx: None,
         }
     }
 
@@ -1627,26 +1688,37 @@ impl Dropdown {
         self.placement = p;
         self
     }
+
+    /// The one slot for caller-owned low-level styling: GPUI's styling methods
+    /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
+    /// applied to the dropdown's root element after every value the
+    /// composition and the active theme chose, so they win. The trigger is
+    /// the caller's own element and the panel paints its own chrome, so this
+    /// reaches the wrapper they sit in.
+    pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
+        self.sx = Some(crate::util::capture_sx(style));
+        self
+    }
 }
 
 impl RenderOnce for Dropdown {
     fn render(mut self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let _ = icons::CHEVRON_DOWN;
-        let wrap_base = format!("{:?}", self.id);
+        let wrap_base_id = self.id.clone();
 
         // `isOpen` wins; without it the menu holds the flag itself, which is
         // what `defaultOpen` promises. See `Dropdown::uncontrolled`.
         let (is_open, open_own) = crate::util::controlled(
             window,
             cx,
-            gpui::ElementId::Name(format!("{wrap_base}-open").into()),
+            element_id::scoped(&wrap_base_id, "open"),
             self.is_open,
             self.default_open,
         );
         let (selected_keys, selection_own) = crate::util::controlled(
             window,
             cx,
-            gpui::ElementId::Name(format!("{wrap_base}-selected").into()),
+            element_id::scoped(&wrap_base_id, "selected"),
             self.selection_is_controlled
                 .then(|| self.selected_keys.clone()),
             self.default_selected_keys.clone(),
@@ -1656,12 +1728,12 @@ impl RenderOnce for Dropdown {
         let (phase, overlay_token) = crate::util::overlay_scope(
             window,
             cx,
-            gpui::ElementId::Name(format!("{wrap_base}-phase").into()),
+            element_id::scoped(&wrap_base_id, "phase"),
             is_open,
             true,
         );
         let focus_first = window.use_keyed_state(
-            gpui::ElementId::Name(format!("{wrap_base}-focus-first").into()),
+            element_id::scoped(&wrap_base_id, "focus-first"),
             cx,
             |_, _| false,
         );
@@ -1669,11 +1741,10 @@ impl RenderOnce for Dropdown {
         // `trigger="longPress"` needs to know whether the button is still down
         // when the timer fires, so the press is a piece of state rather than a
         // local.
-        let holding = window.use_keyed_state(
-            gpui::ElementId::Name(format!("{wrap_base}-holding").into()),
-            cx,
-            |_, _| false,
-        );
+        let holding =
+            window.use_keyed_state(element_id::scoped(&wrap_base_id, "holding"), cx, |_, _| {
+                false
+            });
 
         // Where the focus goes when the menu closes. React Aria hands it back
         // to the trigger, and the trigger element is the caller's, so the
@@ -1681,13 +1752,13 @@ impl RenderOnce for Dropdown {
         // keeps any tracked handle in the tab order, so Tab carries on from here
         // instead of starting the page over.
         let trigger_focus = window.use_keyed_state(
-            gpui::ElementId::Name(format!("{wrap_base}-trigger-focus").into()),
+            element_id::scoped(&wrap_base_id, "trigger-focus"),
             cx,
             |_, cx| cx.focus_handle(),
         );
         let trigger_handle = trigger_focus.read(cx).clone();
         let mut trigger_wrap = gpui::div()
-            .id(gpui::ElementId::Name(format!("{wrap_base}-trigger").into()))
+            .id(element_id::scoped(&wrap_base_id, "trigger"))
             .track_focus(&trigger_handle)
             .cursor_pointer();
         let dismiss_own = open_own.clone();
@@ -1713,7 +1784,7 @@ impl RenderOnce for Dropdown {
                             });
                         }
                         if let Some(cb) = &key_open_change {
-                            cb(true, window, cx);
+                            cb(&true, window, cx);
                         }
                         cx.stop_propagation();
                     });
@@ -1731,7 +1802,7 @@ impl RenderOnce for Dropdown {
                             });
                         }
                         if let Some(cb) = &on_open_change {
-                            cb(next_open, w, cx);
+                            cb(&next_open, w, cx);
                         }
                     });
                 }
@@ -1768,7 +1839,7 @@ impl RenderOnce for Dropdown {
                                                 });
                                             }
                                             if let Some(cb) = &on_open_change {
-                                                cb(true, window, cx);
+                                                cb(&true, window, cx);
                                             }
                                         })
                                         .ok();
@@ -1806,10 +1877,10 @@ impl RenderOnce for Dropdown {
         // v3 keeps a closing menu on screen for its `[data-exiting]` run.
         if phase != crate::util::OverlayPhase::Closed {
             let mut menu = Menu::new(
-                gpui::ElementId::Name(format!("{wrap_base}-menu-content").into()),
+                element_id::scoped(&wrap_base_id, "menu-content"),
                 self.items,
             )
-            .id(gpui::ElementId::Name(format!("{wrap_base}-menu").into()))
+            .id(element_id::scoped(&wrap_base_id, "menu"))
             .dropdown_composition()
             .focus_first(focus_first)
             .exiting(phase == crate::util::OverlayPhase::Exiting)
@@ -1849,13 +1920,13 @@ impl RenderOnce for Dropdown {
                         });
                     }
                     if let Some(cb) = &dismiss_cb {
-                        cb(false, window, cx);
+                        cb(&false, window, cx);
                     }
                     // The menu held the focus for its arrows; hand it back.
                     // An Enter pick runs this inside the key event, where gpui
                     // would activate the trigger on key up and reopen the menu
                     // -- the keyboard path asks for no refocus for that reason.
-                    if refocus {
+                    if *refocus {
                         window.focus(&back_to_trigger, cx);
                     }
                 });
@@ -1878,7 +1949,7 @@ impl RenderOnce for Dropdown {
             )));
         }
 
-        root
+        crate::util::apply_sx(root, &self.sx)
     }
 }
 
