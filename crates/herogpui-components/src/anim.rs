@@ -347,14 +347,14 @@ fn pressed_with_optional_background(
             None => el,
         };
     }
-    // A percentage size on the absolutely positioned skin resolves against
-    // the slot, so it overrides every way a caller might have sized the skin
-    // (an explicit `h`, `w_full`, `min_h`) and scales tall content rows by
-    // their real height, not the control minimum. The fractional `left`/`top`
-    // are exactly `(1 - s) / 2` of the slot's axis: the gap a scale of `s`
-    // leaves on each side, which centres the skin.
+    // The skin is sized by all four fractional insets — `(1 - s) / 2` of each
+    // slot axis is exactly the gap a scale of `s` leaves on that side — with
+    // explicit `Auto` extents overriding any way the caller sized the skin
+    // (an explicit `h`, `w_full`, `min_h`). Inset sizing needs no percentage
+    // resolution, which matters because the slot's height is only a minimum:
+    // a percentage height against it would not resolve and the bottom edge
+    // would stay put.
     let inset = gpui::DefiniteLength::Fraction((1.0 - b.scale) / 2.0);
-    let scaled = gpui::DefiniteLength::Fraction(b.scale);
     let pressed_min_height = scaled_by(b.height, b.scale);
     let pressed_radius = scaled_by(b.radius, b.scale);
 
@@ -372,9 +372,11 @@ fn pressed_with_optional_background(
         };
         s.absolute()
             .left(inset)
+            .right(inset)
             .top(inset)
-            .w(scaled)
-            .h(scaled)
+            .bottom(inset)
+            .w(gpui::Length::Auto)
+            .h(gpui::Length::Auto)
             .min_h(pressed_min_height)
             .rounded(pressed_radius)
             .to_owned()

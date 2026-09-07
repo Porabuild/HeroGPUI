@@ -11409,7 +11409,7 @@ index a9a7079..e87df46 100644
  }
  
 diff --git a/crates/herogpui-components/src/anim.rs b/crates/herogpui-components/src/anim.rs
-index 03f0c94..eab3d0b 100644
+index 03f0c94..dca3f28 100644
 --- a/crates/herogpui-components/src/anim.rs
 +++ b/crates/herogpui-components/src/anim.rs
 @@ -9,10 +9,12 @@
@@ -11457,7 +11457,7 @@ index 03f0c94..eab3d0b 100644
  ///
  /// Returns `el` untouched under reduced motion.
  pub fn pressed(el: gpui::Stateful<gpui::Div>, b: PressBox, cx: &App) -> gpui::Stateful<gpui::Div> {
-@@ -314,51 +304,113 @@ pub fn pressed_with_background(
+@@ -314,51 +304,115 @@ pub fn pressed_with_background(
      pressed_with_optional_background(el, b, Some(background), cx)
  }
  
@@ -11507,14 +11507,14 @@ index 03f0c94..eab3d0b 100644
      }
 -    let inset = inset_for(b.height, b.scale);
 -    el.active(move |s: StyleRefinement| {
-+    // A percentage size on the absolutely positioned skin resolves against
-+    // the slot, so it overrides every way a caller might have sized the skin
-+    // (an explicit `h`, `w_full`, `min_h`) and scales tall content rows by
-+    // their real height, not the control minimum. The fractional `left`/`top`
-+    // are exactly `(1 - s) / 2` of the slot's axis: the gap a scale of `s`
-+    // leaves on each side, which centres the skin.
++    // The skin is sized by all four fractional insets — `(1 - s) / 2` of each
++    // slot axis is exactly the gap a scale of `s` leaves on that side — with
++    // explicit `Auto` extents overriding any way the caller sized the skin
++    // (an explicit `h`, `w_full`, `min_h`). Inset sizing needs no percentage
++    // resolution, which matters because the slot's height is only a minimum:
++    // a percentage height against it would not resolve and the bottom edge
++    // would stay put.
 +    let inset = gpui::DefiniteLength::Fraction((1.0 - b.scale) / 2.0);
-+    let scaled = gpui::DefiniteLength::Fraction(b.scale);
 +    let pressed_min_height = scaled_by(b.height, b.scale);
 +    let pressed_radius = scaled_by(b.radius, b.scale);
 +
@@ -11554,9 +11554,11 @@ index 03f0c94..eab3d0b 100644
 -                }
 +        s.absolute()
 +            .left(inset)
++            .right(inset)
 +            .top(inset)
-+            .w(scaled)
-+            .h(scaled)
++            .bottom(inset)
++            .w(gpui::Length::Auto)
++            .h(gpui::Length::Auto)
 +            .min_h(pressed_min_height)
 +            .rounded(pressed_radius)
 +            .to_owned()
@@ -11599,7 +11601,7 @@ index 03f0c94..eab3d0b 100644
  }
  
  /// `[data-exiting]` duration. Every overlay in v3 leaves in `duration-100`.
-@@ -437,7 +489,7 @@ pub fn entering_zoom<E>(
+@@ -437,7 +491,7 @@ pub fn entering_zoom<E>(
  where
      E: IntoElement + Styled + 'static,
  {
@@ -11608,7 +11610,7 @@ index 03f0c94..eab3d0b 100644
          return el.into_any_element();
      }
  
-@@ -498,7 +550,7 @@ pub fn exiting<E>(el: E, id: impl Into<ElementId>, b: ZoomBox, m: Motion, cx: &A
+@@ -498,7 +552,7 @@ pub fn exiting<E>(el: E, id: impl Into<ElementId>, b: ZoomBox, m: Motion, cx: &A
  where
      E: IntoElement + Styled + 'static,
  {
@@ -11617,7 +11619,7 @@ index 03f0c94..eab3d0b 100644
          return el.into_any_element();
      }
  
-@@ -585,7 +637,7 @@ pub fn hover_fade(
+@@ -585,7 +639,7 @@ pub fn hover_fade(
  ) -> gpui::Stateful<gpui::Div> {
      let (idle, hovered) = colors;
      let id = id.into();
@@ -11626,7 +11628,7 @@ index 03f0c94..eab3d0b 100644
          return el.bg(idle).hover(move |s: StyleRefinement| s.bg(hovered));
      }
  
-@@ -671,7 +723,7 @@ pub fn caret_blink<E>(el: E, id: impl Into<ElementId>, cx: &App) -> AnyElement
+@@ -671,7 +725,7 @@ pub fn caret_blink<E>(el: E, id: impl Into<ElementId>, cx: &App) -> AnyElement
  where
      E: IntoElement + Styled + 'static,
  {
@@ -11635,7 +11637,7 @@ index 03f0c94..eab3d0b 100644
          return el.into_any_element();
      }
  
-@@ -702,7 +754,7 @@ pub fn entering<E>(el: E, id: impl Into<ElementId>, m: Motion, cx: &App) -> AnyE
+@@ -702,7 +756,7 @@ pub fn entering<E>(el: E, id: impl Into<ElementId>, m: Motion, cx: &App) -> AnyE
  where
      E: IntoElement + Styled + 'static,
  {
@@ -11644,7 +11646,7 @@ index 03f0c94..eab3d0b 100644
          return el.into_any_element();
      }
  
-@@ -730,7 +782,7 @@ pub fn entering_from<E>(
+@@ -730,7 +784,7 @@ pub fn entering_from<E>(
  where
      E: IntoElement + Styled + 'static,
  {
@@ -11653,7 +11655,7 @@ index 03f0c94..eab3d0b 100644
          return el.into_any_element();
      }
  
-@@ -765,7 +817,7 @@ pub fn exiting_to<E>(
+@@ -765,7 +819,7 @@ pub fn exiting_to<E>(
  where
      E: IntoElement + Styled + 'static,
  {
