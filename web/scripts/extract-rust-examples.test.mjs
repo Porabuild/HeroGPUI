@@ -59,9 +59,7 @@ test("wasm parity manifest pins the native source and compiled artifact", () => 
   const parity = JSON.parse(
     readFileSync(resolve(import.meta.dirname, "../src/data/wasm-parity.json"), "utf8"),
   );
-  const nativeSource = readGalleryComponentSource(
-    resolve(import.meta.dirname, "../.."),
-  );
+  const nativeSource = readGalleryComponentSource(resolve(import.meta.dirname, "../.."));
   const native = parseExampleSource(nativeSource);
   const artifact = readFileSync(
     resolve(import.meta.dirname, "../public/gallery/herogpui_web_bg.wasm"),

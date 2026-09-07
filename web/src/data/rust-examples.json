@@ -33,7 +33,7 @@
     },
     {
       "heading": "Loading State",
-      "description": "The caller owns the pending window: pressing starts an upload and the state resets itself after two seconds, the way v3's `setTimeout` clears `isLoading`.",
+      "description": "The caller owns the pending window: pressing starts an upload and the state resets itself after two seconds.",
       "imports": "use herogpui::prelude::{Button, Size, Spinner, SpinnerSize, Variant};\nuse gpui::prelude::*;\nuse gpui::px;\nuse std::time::Duration;",
       "code": "Button::new(\"button-loading-state\")\n    .is_pending(self.button_upload_pending)\n    .content(move |state| {\n        gpui::div()\n            .flex()\n            .items_center()\n            .gap(px(8.))\n            .when(state.is_pending, |content| {\n                content.child(\n                    Spinner::new(\"button-loading-state-spinner\")\n                        .size(SpinnerSize::Sm)\n                        .current_color(pending_foreground),\n                )\n            })\n            .child(if state.is_pending {\n                \"Uploading...\"\n            } else {\n                \"Upload File\"\n            })\n            .into_any_element()\n    })\n    .on_press({\n        let gallery = cx.entity().downgrade();\n        move |_, window, cx: &mut gpui::App| {\n            if let Some(gallery) = gallery.upgrade() {\n                gallery.update(cx, |gallery, cx| {\n                    gallery.button_upload_pending = true;\n                    cx.notify();\n                });\n            }\n            let gallery = gallery.clone();\n            window\n                .spawn(cx, async move |cx| {\n                    cx.background_executor()\n                        .timer(std::time::Duration::from_millis(2000))\n                        .await;\n                    cx.update(|_, cx| {\n                        if let Some(gallery) = gallery.upgrade() {\n                            gallery.update(cx, |gallery, cx| {\n                                gallery.button_upload_pending = false;\n                                cx.notify();\n                            });\n                        }\n                    })\n                    .ok();\n                })\n                .detach();\n        }\n    })"
     },
@@ -55,7 +55,7 @@
     },
     {
       "heading": "Adding custom variants",
-      "description": "v3 wraps a button in a `tailwind-variants` preset that layers its own radius and emphasis on top of the base. The port wraps the same way: a constructor owns the preset, callers keep the plain `Button` API.",
+      "description": "Fix a preset in place: a constructor layers its own radius and emphasis on top of the base, and callers keep the plain `Button` API.",
       "imports": "use herogpui::prelude::{Button, Size, Variant};\nuse gpui::prelude::*;",
       "code": "row({\n    let custom_button = |id: &'static str, label: &'static str| {\n        Button::new(id)\n            .label(label)\n            .variant(Variant::Secondary)\n            .size(Size::Lg)\n            .sx(|el| el.rounded_full())\n    };\n    vec![\n        custom_button(\"btn-custom-primary\", \"Custom Button\")\n            .into_any_element(),\n        custom_button(\"btn-custom-secondary\", \"Another Preset\")\n            .into_any_element(),\n    ]\n})"
     },
@@ -315,7 +315,7 @@
     },
     {
       "heading": "Basic Usage",
-      "description": "The plainest action menu: `on_action` receives the chosen key, and a danger item renders in the danger palette the way v3's delete row does.",
+      "description": "The plainest action menu: `on_action` receives the chosen key, and a danger item renders in the danger palette.",
       "imports": "use herogpui::prelude::{Button, Dropdown, MenuItem, Variant};\nuse gpui::prelude::*;\nuse gpui::px;",
       "code": "gpui::div()\n    .flex()\n    .flex_col()\n    .items_start()\n    .gap(px(12.))\n    .children(vec![\n        Dropdown::uncontrolled(\n            \"dd-basic-dd\",\n            Button::new(\"dropdown-basic\")\n                .label(\"Actions\")\n                .variant(Variant::Secondary),\n            vec![\n                MenuItem::new(\"new-file\", \"New file\"),\n                MenuItem::new(\"open-file\", \"Open file\"),\n                MenuItem::new(\"delete-file\", \"Delete file\").danger(),\n            ],\n        )\n        .id(\"dropdown-basic-dd\")\n        .on_action(cx.listener(|this, key: &SharedString, _, cx| {\n            this.dropdown_last_basic = key.clone();\n            cx.notify();\n        }))\n        .into_any_element(),\n        para(\n            &format!(\"Last action: {}\", self.dropdown_last_basic),\n            cx,\n        ),\n    ])"
     },
@@ -394,9 +394,9 @@
     },
     {
       "heading": "Basic Usage",
-      "description": "v3's plainest list: single selection over rows that carry a label and a description, uncontrolled.",
+      "description": "The plainest list: single selection over rows that carry a label and a description, uncontrolled.",
       "imports": "use herogpui::prelude::{ListBox, ListBoxItem, SelectionMode};\nuse gpui::prelude::*;\nuse gpui::px;",
-      "code": "gpui::div()\n    .w(px(280.))\n    .child(\n        ListBox::new(\n            \"list-box-basic\",\n            vec![\n                ListBoxItem::new(\"bob\", \"Bob\")\n                    .description(\"bob@heroui.com\"),\n                ListBoxItem::new(\"alice\", \"Alice\")\n                    .description(\"alice@heroui.com\"),\n            ],\n        )\n        .selection_mode(SelectionMode::Single),\n    )"
+      "code": "gpui::div()\n    .w(px(280.))\n    .child(\n        ListBox::new(\n            \"list-box-basic\",\n            vec![\n                ListBoxItem::new(\"bob\", \"Bob\")\n                    .description(\"bob@example.com\"),\n                ListBoxItem::new(\"alice\", \"Alice\")\n                    .description(\"alice@example.com\"),\n            ],\n        )\n        .selection_mode(SelectionMode::Single),\n    )"
     },
     {
       "heading": "Controlled Selection",
@@ -673,7 +673,7 @@
       "code": "gpui::div()\n    .flex()\n    .flex_col()\n    .items_start()\n    .gap(px(12.))\n    .children(channels\n        .iter()\n        .map(|ch| {\n            ColorSlider::new(format!(\"color-slider-{ch:?}\"), value, *ch)\n                .on_change(cx.listener(\n                    |this, c: &PickerColor, _, cx| {\n                        this.picker_color = *c;\n                        cx.notify();\n                    },\n                ))\n                // `ColorSlider.Output`'s render function is\n                // handed the colour: a swatch beside the value.\n                .output(|color, text| {\n                    gpui::div()\n                        .flex()\n                        .items_center()\n                        .gap(px(6.))\n                        .child(\n                            gpui::div()\n                                .size(px(10.))\n                                .rounded_full()\n                                .bg(color.to_hsla()),\n                        )\n                        .child(text.to_owned())\n                        .into_any_element()\n                })\n        })\n        )"
     },
     {
-      "heading": "RGB channels",
+      "heading": "RGB Channels",
       "imports": "use herogpui::prelude::{ColorChannel, ColorSlider, PickerColor};\nuse gpui::prelude::*;\nuse gpui::px;",
       "code": "gpui::div()\n    .flex()\n    .flex_col()\n    .items_start()\n    .gap(px(12.))\n    .children([\n        ColorChannel::Red,\n        ColorChannel::Green,\n        ColorChannel::Blue,\n    ]\n    .iter()\n    .map(|ch| {\n        ColorSlider::new(format!(\"color-slider-rgb-{ch:?}\"), value, *ch).on_change(\n            cx.listener(|this, c: &PickerColor, _, cx| {\n                this.picker_color = *c;\n                cx.notify();\n            }),\n        )\n    })\n    )"
     }
@@ -817,7 +817,7 @@
     },
     {
       "heading": "Range Slider",
-      "description": "v3's uncontrolled range specimen: two thumbs seeded at 100 and 500 over a 0-1000 span, stepping by 50 and formatted as US dollars.",
+      "description": "An uncontrolled range specimen: two thumbs seeded at 100 and 500 over a 0-1000 span, stepping by 50 and formatted as US dollars.",
       "imports": "use herogpui::prelude::Slider;\nuse gpui::prelude::*;\nuse gpui::px;",
       "code": "gpui::div()\n    .w(px(320.))\n    .child(Slider::new(\"slider-range-slider\", 100.)\n            .default_values([100., 500.])\n            .min_value(0.)\n            .max_value(1000.)\n            .step(50.)\n            .label(\"Price Range\")\n            .show_value(true)\n            .format_options(herogpui_core::NumberFormat::currency(\"USD\")))"
     },
@@ -835,7 +835,7 @@
     },
     {
       "heading": "Vertical Orientation",
-      "description": "The vertical specimen grows upward with its label attached, the way v3's `orientation=\"vertical\"` example does.",
+      "description": "The vertical specimen grows upward with its label attached.",
       "imports": "use herogpui::prelude::{Orientation, Slider};\nuse gpui::prelude::*;\nuse gpui::px;",
       "code": "gpui::div()\n    .w(px(320.))\n    .child(Slider::new(\"slider-vert-orientation\", 30.)\n            .default_value(30.)\n            .label(\"Volume\")\n            .show_value(true)\n            .orientation(Orientation::Vertical))"
     },
@@ -1068,7 +1068,7 @@
     },
     {
       "heading": "Empty State",
-      "description": "An empty collection renders the empty message in place of rows, the way v3's `renderEmptyState` does.",
+      "description": "An empty collection renders the empty message in place of rows.",
       "imports": "use herogpui::prelude::Table;\nuse gpui::prelude::*;",
       "code": "stretch_col(vec![\n    Table::new(vec![\"Name\".into(), \"Role\".into()])\n        .id(\"table-empty-state\")\n        .empty_state(\"No results found\")\n        .into_any_element(),\n])"
     },
@@ -1157,13 +1157,13 @@
     },
     {
       "heading": "Disabled",
-      "description": "A disabled calendar keeps the current month readable but rejects presses, arrows, and leaves the tab order, the way v3's `isDisabled` specimen does.",
+      "description": "A disabled calendar keeps the current month readable but rejects presses, arrows, and leaves the tab order.",
       "imports": "use herogpui::prelude::{Calendar, CalendarState};",
       "code": "Calendar::new(self.calendar.clone())\n    .is_disabled(true)"
     },
     {
       "heading": "Read Only",
-      "description": "A read-only calendar stays focusable and navigable but rejects mutations, the way v3's `isReadOnly` specimen does.",
+      "description": "A read-only calendar stays focusable and navigable but rejects mutations.",
       "imports": "use herogpui::prelude::{Calendar, CalendarState};",
       "code": "Calendar::new(self.calendar.clone())\n    .is_read_only(true)"
     },
@@ -1754,7 +1754,7 @@
     },
     {
       "heading": "Disabled",
-      "description": "A disabled checkbox keeps its value visible but rejects presses and leaves the tab order, the way v3's `isDisabled` specimen does.",
+      "description": "A disabled checkbox keeps its value visible but rejects presses and leaves the tab order.",
       "imports": "use herogpui::prelude::Checkbox;",
       "code": "Checkbox::new(\"checkbox-disabled-feature\")\n    .label(\"Premium Feature\")\n    .description(\"This feature is coming soon\")\n    .is_disabled(true)"
     },
@@ -1785,7 +1785,7 @@
     },
     {
       "heading": "Indeterminate",
-      "description": "A \"select all\" checkbox: it starts indeterminate, and the first change clears the dash and follows the press, exactly as v3's controlled example does.",
+      "description": "A \"select all\" checkbox: it starts indeterminate, and the first change clears the dash and follows the press.",
       "imports": "use herogpui::prelude::Checkbox;",
       "code": "Checkbox::new(\"checkbox-indeterminate-select-all\")\n    .label(\"Select all\")\n    .description(\"Shows indeterminate state (dash icon)\")\n    .is_selected(self.cb_select_all_selected)\n    .is_indeterminate(self.cb_select_all_indeterminate)\n    .on_change(cx.listener(\n        |this, selected: &bool, _, cx| {\n            this.cb_select_all_selected = *selected;\n            this.cb_select_all_indeterminate = false;\n            cx.notify();\n        },\n    ))"
     },
@@ -1830,7 +1830,7 @@
     },
     {
       "heading": "Controlled",
-      "description": "The selected set lives in the caller and is fed back through `value`; the caption reads the same state v3's caption renders.",
+      "description": "The selected set lives in the caller and is fed back through `value`; the caption prints the live set.",
       "imports": "use herogpui::prelude::{CheckboxGroup, CheckboxOption};\nuse gpui::prelude::*;\nuse gpui::px;",
       "code": "gpui::div()\n    .flex()\n    .flex_col()\n    .items_start()\n    .gap(px(12.))\n    .children(vec![\n        CheckboxGroup::new(\n            \"checkbox-group-controlled\",\n            vec![\n                CheckboxOption::new(\"coding\", \"Coding\"),\n                CheckboxOption::new(\"design\", \"Design\"),\n                CheckboxOption::new(\"writing\", \"Writing\"),\n            ],\n        )\n        .label(\"Your skills\")\n        .value(selected.iter().cloned())\n        .on_change(cx.listener(|this, keys: &HashSet<SharedString>, _, cx| {\n            this.checkbox_group = keys.clone();\n            cx.notify();\n        }))\n        .into_any_element(),\n        para(\n            &format!(\n                \"Selected: {}\",\n                {\n                    let mut names: Vec<&str> =\n                        selected.iter().map(|k| k.as_ref()).collect();\n                    names.sort();\n                    if names.is_empty() {\n                        \"None\".to_owned()\n                    } else {\n                        names.join(\", \")\n                    }\n                }\n            ),\n            cx,\n        ),\n    ])"
     },
@@ -2315,7 +2315,7 @@
     },
     {
       "heading": "Controlled",
-      "description": "The selected plan lives in the caller: the group reads `value` and the caption reads the same state, the way v3's example prints the selected plan.",
+      "description": "The selected plan lives in the caller: the group reads `value` and the caption prints the selected plan.",
       "imports": "use herogpui::prelude::{RadioGroup, RadioOption};\nuse gpui::prelude::*;\nuse gpui::px;",
       "code": "gpui::div()\n    .flex()\n    .flex_col()\n    .items_start()\n    .gap(px(12.))\n    .children(vec![\n        RadioGroup::new(\n            \"radio-group-controlled\",\n            vec![\n                RadioOption::new(\"Starter\"),\n                RadioOption::new(\"Pro\"),\n                RadioOption::new(\"Teams\"),\n            ],\n        )\n        .label(\"Subscription plan\")\n        .value(self.radio_plan.clone())\n        .on_change(cx.listener(|this, value: &SharedString, _, cx| {\n            this.radio_plan = value.clone();\n            cx.notify();\n        }))\n        .into_any_element(),\n        para(\n            &format!(\"Selected plan: {}\", self.radio_plan),\n            cx,\n        ),\n    ])"
     },
@@ -3409,7 +3409,7 @@
     },
     {
       "heading": "Basic Usage",
-      "description": "v3's plainest combo box: a labeled input over a two-item list, uncontrolled, with the trigger opening the same filtered list.",
+      "description": "The plainest combo box: a labeled input over a two-item list, uncontrolled, with the trigger opening the same filtered list.",
       "imports": "use herogpui::prelude::{ComboBox, PickerItem};",
       "code": "ComboBox::new(\n    self.demo_text(\"cb-basic\", \"\", cx),\n    vec![\n        PickerItem::new(\"cat\", \"Cat\"),\n        PickerItem::new(\"dog\", \"Dog\"),\n    ],\n)\n.label(\"Favorite Animal\")\n.placeholder(\"Search animals...\")"
     }
@@ -3505,7 +3505,7 @@
     },
     {
       "heading": "Controlled",
-      "description": "The selected key lives in the caller: the trigger reads `value` and the caption prints the same state v3's example prints.",
+      "description": "The selected key lives in the caller: the trigger reads `value` and the caption prints the same state.",
       "imports": "use herogpui::prelude::Select;\nuse gpui::prelude::*;\nuse gpui::px;",
       "code": "gpui::div()\n    .flex()\n    .flex_col()\n    .w(px(256.))\n    .gap(px(12.))\n    .children(vec![\n        Select::new(\"select-controlled\", language_items())\n            .label(\"Language (controlled)\")\n            .placeholder(\"Choose one\")\n            .value(self.select_lang_controlled.clone())\n            .on_change(cx.listener(\n                |this, key: &Option<SharedString>, _, cx| {\n                    this.select_lang_controlled = key.clone();\n                    cx.notify();\n                },\n            ))\n            .into_any_element(),\n        para(\n            &match self.select_lang_controlled.as_ref() {\n                Some(key) => format!(\n                    \"Selected: {}\",\n                    language_items()\n                        .iter()\n                        .find(|item| item.key() == key)\n                        .map(|item| item.label().to_string())\n                        .unwrap_or_default()\n                ),\n                None => \"Selected: none\".to_owned(),\n            },\n            cx,\n        ),\n    ])"
     }
@@ -3603,9 +3603,9 @@
     },
     {
       "heading": "Hide Scroll Bar",
-      "description": "gpui draws no scrollbar inside a scroll container, so this is the default rather than a prop: the shadows are the only affordance.",
+      "description": "`hideScrollBar` omits the painted overlay thumb and leaves the shadows as the only affordance; the first specimen keeps the default bar for contrast.",
       "imports": "use herogpui::prelude::ScrollShadow;\nuse gpui::prelude::*;\nuse gpui::px;",
-      "code": "ScrollShadow::new(\"scroll-shadow-no-bar\")\n    .max_h(px(140.))\n    .children(\n        (1..=12).map(|n| gpui::div().py(px(6.)).child(format!(\"Row {n}\"))),\n    )"
+      "code": "gpui::div()\n    .flex()\n    .flex_col()\n    .items_start()\n    .gap(px(12.))\n    .children(vec![\n        ScrollShadow::new(\"scroll-shadow-bar\")\n            .max_h(px(140.))\n            .children(\n                (1..=12)\n                    .map(|n| gpui::div().py(px(6.)).child(format!(\"Row {n}\"))),\n            ),\n        ScrollShadow::new(\"scroll-shadow-no-bar\")\n            .hide_scroll_bar(true)\n            .max_h(px(140.))\n            .children(\n                (1..=12)\n                    .map(|n| gpui::div().py(px(6.)).child(format!(\"Row {n}\"))),\n            ),\n    ])"
     },
     {
       "heading": "Visibility Change",

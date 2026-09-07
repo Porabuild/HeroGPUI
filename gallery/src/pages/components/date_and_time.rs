@@ -201,13 +201,13 @@ impl Gallery {
                         .into_any_element()]),
                 ),
                 (
-                    "Disabled", "A disabled calendar keeps the current month readable but rejects presses, arrows, and leaves the tab order, the way v3's `isDisabled` specimen does.",
+                    "Disabled", "A disabled calendar keeps the current month readable but rejects presses, arrows, and leaves the tab order.",
                     col(vec![h::Calendar::new(self.calendar.clone())
                         .is_disabled(true)
                         .into_any_element()]),
                 ),
                 (
-                    "Read Only", "A read-only calendar stays focusable and navigable but rejects mutations, the way v3's `isReadOnly` specimen does.",
+                    "Read Only", "A read-only calendar stays focusable and navigable but rejects mutations.",
                     col(vec![h::Calendar::new(self.calendar.clone())
                         .is_read_only(true)
                         .into_any_element()]),

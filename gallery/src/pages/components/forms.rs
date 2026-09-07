@@ -66,7 +66,7 @@ impl Gallery {
                     ]),
                 ),
                 (
-                    "Disabled", "A disabled checkbox keeps its value visible but rejects presses and leaves the tab order, the way v3's `isDisabled` specimen does.",
+                    "Disabled", "A disabled checkbox keeps its value visible but rejects presses and leaves the tab order.",
                     row(vec![h::Checkbox::new("cb-disabled-feature")
                         .label("Premium Feature")
                         .description("This feature is coming soon")
@@ -129,7 +129,7 @@ impl Gallery {
                     ]),
                 ),
                 (
-                    "Indeterminate", "A \"select all\" checkbox: it starts indeterminate, and the first change clears the dash and follows the press, exactly as v3's controlled example does.",
+                    "Indeterminate", "A \"select all\" checkbox: it starts indeterminate, and the first change clears the dash and follows the press.",
                     col(vec![
                         h::Checkbox::new("cb-indeterminate-select-all")
                             .label("Select all")
@@ -298,7 +298,7 @@ impl Gallery {
                     ]),
                 ),
                 (
-                    "Controlled", "The selected set lives in the caller and is fed back through `value`; the caption reads the same state v3's caption renders.",
+                    "Controlled", "The selected set lives in the caller and is fed back through `value`; the caption prints the live set.",
                     col(vec![
                         h::CheckboxGroup::new(
                             "cbg-controlled",
@@ -1880,7 +1880,7 @@ impl Gallery {
                         .into_any_element()]),
                 ),
                 (
-                    "Controlled", "The selected plan lives in the caller: the group reads `value` and the caption reads the same state, the way v3's example prints the selected plan.",
+                    "Controlled", "The selected plan lives in the caller: the group reads `value` and the caption prints the selected plan.",
                     col(vec![
                         h::RadioGroup::new(
                             "rg-controlled",

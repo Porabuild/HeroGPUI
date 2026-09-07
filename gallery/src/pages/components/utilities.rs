@@ -103,14 +103,29 @@ impl Gallery {
                         .into_any_element()]),
                 ),
                 (
-                    "Hide Scroll Bar", "gpui draws no scrollbar inside a scroll container, so this is the default rather than a prop: the shadows are the only affordance.",
+                    "Hide Scroll Bar", "`hideScrollBar` omits the painted overlay thumb and leaves the shadows as the only affordance; the first specimen keeps the default bar for contrast.",
                     col(vec![
-                        h::ScrollShadow::new("ss-no-bar")
-                            .max_h(px(140.))
-                            .children(
-                                (1..=12).map(|n| gpui::div().py(px(6.)).child(format!("Row {n}"))),
-                            )
-                            .into_any_element(),
+                        spec(
+                            "Default (painted thumb)",
+                            h::ScrollShadow::new("ss-bar")
+                                .max_h(px(140.))
+                                .children(
+                                    (1..=12)
+                                        .map(|n| gpui::div().py(px(6.)).child(format!("Row {n}"))),
+                                ),
+                            cx,
+                        ),
+                        spec(
+                            "hideScrollBar",
+                            h::ScrollShadow::new("ss-no-bar")
+                                .hide_scroll_bar(true)
+                                .max_h(px(140.))
+                                .children(
+                                    (1..=12)
+                                        .map(|n| gpui::div().py(px(6.)).child(format!("Row {n}"))),
+                                ),
+                            cx,
+                        ),
                     ]),
                 ),
                 (

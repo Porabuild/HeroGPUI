@@ -779,7 +779,7 @@ impl Gallery {
                     .into_any_element()]),
                 ),
                 (
-                    "Empty State", "An empty collection renders the empty message in place of rows, the way v3's `renderEmptyState` does.",
+                    "Empty State", "An empty collection renders the empty message in place of rows.",
                     stretch_col(vec![
                         h::Table::new(vec!["Name".into(), "Role".into()])
                             .id("tbl-empty-state")

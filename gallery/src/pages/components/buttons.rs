@@ -110,7 +110,7 @@ impl Gallery {
                         .into_any_element()]),
                 ),
                 (
-                    "Loading State", "The caller owns the pending window: pressing starts an upload and the state resets itself after two seconds, the way v3's `setTimeout` clears `isLoading`.",
+                    "Loading State", "The caller owns the pending window: pressing starts an upload and the state resets itself after two seconds.",
                     row(vec![h::Button::new("btn-loading-state")
                         .is_pending(self.button_upload_pending)
                         .content(move |state| {
@@ -230,7 +230,7 @@ impl Gallery {
                     ]),
                 ),
                 (
-                    "Adding custom variants", "v3 wraps a button in a `tailwind-variants` preset that layers its own radius and emphasis on top of the base. The port wraps the same way: a constructor owns the preset, callers keep the plain `Button` API.",
+                    "Adding custom variants", "Fix a preset in place: a constructor layers its own radius and emphasis on top of the base, and callers keep the plain `Button` API.",
                     row({
                         let custom_button = |id: &'static str, label: &'static str| {
                             h::Button::new(id)

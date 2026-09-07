@@ -370,7 +370,7 @@ impl Gallery {
                     ]),
                 ),
                 (
-                    "Basic Usage", "The plainest action menu: `on_action` receives the chosen key, and a danger item renders in the danger palette the way v3's delete row does.",
+                    "Basic Usage", "The plainest action menu: `on_action` receives the chosen key, and a danger item renders in the danger palette.",
                     col(vec![
                         h::Dropdown::uncontrolled(
                             "dd-basic-dd",
@@ -732,7 +732,7 @@ impl Gallery {
                         .into_any_element()]),
                 ),
                 (
-                    "Basic Usage", "v3's plainest list: single selection over rows that carry a label and a description, uncontrolled.",
+                    "Basic Usage", "The plainest list: single selection over rows that carry a label and a description, uncontrolled.",
                     col(vec![gpui::div()
                         .w(px(280.))
                         .child(
@@ -740,9 +740,9 @@ impl Gallery {
                                 "lb-basic",
                                 vec![
                                     h::ListBoxItem::new("bob", "Bob")
-                                        .description("bob@heroui.com"),
+                                        .description("bob@example.com"),
                                     h::ListBoxItem::new("alice", "Alice")
-                                        .description("alice@heroui.com"),
+                                        .description("alice@example.com"),
                                 ],
                             )
                             .selection_mode(SelectionMode::Single),

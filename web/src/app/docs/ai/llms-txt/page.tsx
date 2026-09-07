@@ -186,10 +186,10 @@ export default function LlmsTxtPage() {
         </Li>
         <Li>
           <strong>Use the pinned framework assumptions.</strong> The repository targets the
-          published <C>gpui-pre</C> GPUI version in <C>Cargo.toml</C> and <C>Cargo.lock</C>,
-          with <strong>Rust 1.98</strong>. A newer GPUI API may not be available here. Inherited
-          behavior follows React Aria 3.51.0, React Stately 3.49.0 and React Aria Components 1.20.0.
-          Check this file and the repository task guides before using an API.
+          published <C>gpui-pre</C> GPUI version in <C>Cargo.toml</C> and <C>Cargo.lock</C>, with{" "}
+          <strong>Rust 1.98</strong>. A newer GPUI API may not be available here. Inherited behavior
+          follows React Aria 3.51.0, React Stately 3.49.0 and React Aria Components 1.20.0. Check
+          this file and the repository task guides before using an API.
         </Li>
       </Ul>
       <P>

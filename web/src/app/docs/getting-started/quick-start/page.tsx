@@ -66,9 +66,9 @@ export default function QuickStartPage() {
 
       <p>
         You need a Rust toolchain that supports <strong>Rust 1.98</strong>. GPUI itself is not a
-        dependency you add: <code>herogpui</code> depends on the published{" "}
-        <code>gpui-pre</code> crates (<code>{SITE.gpuiVersion}</code>) and re-exports them,
-        so <code>use herogpui::*;</code> <em>is</em> GPUI. The unrelated crates.io <code>gpui</code>{" "}
+        dependency you add: <code>herogpui</code> depends on the published <code>gpui-pre</code>{" "}
+        crates (<code>{SITE.gpuiVersion}</code>) and re-exports them, so{" "}
+        <code>use herogpui::*;</code> <em>is</em> GPUI. The unrelated crates.io <code>gpui</code>{" "}
         0.2.2 crate will not compile against this library.
       </p>
 

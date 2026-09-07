@@ -591,7 +591,7 @@ impl Gallery {
                         .els()),
                 ),
                 (
-                    "RGB channels",
+                    "RGB Channels",
                     col([
                         h::ColorChannel::Red,
                         h::ColorChannel::Green,

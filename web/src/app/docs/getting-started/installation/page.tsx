@@ -64,8 +64,8 @@ export default function InstallationPage() {
           A Rust toolchain that supports <strong>Rust 1.98</strong>.
         </li>
         <li>
-          Nothing else: <code>herogpui</code> depends on the published <code>gpui-pre</code>{" "}
-          GPUI crates and re-exports them.
+          Nothing else: <code>herogpui</code> depends on the published <code>gpui-pre</code> GPUI
+          crates and re-exports them.
         </li>
         <li>
           Platform tooling: Xcode on macOS; Wayland/X11 dev packages on Linux; nothing extra on
@@ -75,10 +75,9 @@ export default function InstallationPage() {
 
       <h2 id="add-the-dependency">Add the dependency</h2>
       <p>
-        <code>herogpui</code> is not on crates.io yet. Depend on the git
-        repository — it is a facade over the GPUI crate family, so{" "}
-        <code>use herogpui::*;</code> <em>is</em> GPUI and <code>herogpui::application()</code>{" "}
-        opens the platform:
+        <code>herogpui</code> is not on crates.io yet. Depend on the git repository — it is a facade
+        over the GPUI crate family, so <code>use herogpui::*;</code> <em>is</em> GPUI and{" "}
+        <code>herogpui::application()</code> opens the platform:
       </p>
       <div className="mt-4">
         <CodeBlock code={CARGO_TOML} lang="toml" filename="Cargo.toml" />
@@ -88,18 +87,17 @@ export default function InstallationPage() {
         <code>Cargo.toml</code> — a second copy of GPUI is how versions drift apart. This release
         carries GPUI <code>{SITE.gpuiVersion}</code>. Zed does not publish <code>gpui</code> under
         that name, so GPUI arrives as <code>gpui-pre</code>, zed-industries&apos; own prerelease
-        publish of the same sources; the unrelated crates.io{" "}
-        <code>gpui</code> 0.2.2 crate is a different library and will not compile against this one.
+        publish of the same sources; the unrelated crates.io <code>gpui</code> 0.2.2 crate is a
+        different library and will not compile against this one.
       </p>
       <p className="mt-4">
         Each layer is a Cargo feature and a named path: <code>herogpui::components</code> (the{" "}
         <code>components</code> feature, on by default), <code>herogpui::theme</code> (
         <code>theme</code>), <code>herogpui::core</code> (<code>core</code>), and{" "}
-        <code>herogpui::platform</code>, which is always present.         <code>test-support</code> and <code>profiler</code> forward the
-        same-named GPUI features. <code>serde</code> is off by default and
-        forwards <code>herogpui-theme/serde</code> for sparse{" "}
-        <code>ThemeDocument</code> JSON. On <code>wasm32</code>,{" "}
-        <code>herogpui::web</code> is the same platform layer.
+        <code>herogpui::platform</code>, which is always present. <code>test-support</code> and{" "}
+        <code>profiler</code> forward the same-named GPUI features. <code>serde</code> is off by
+        default and forwards <code>herogpui-theme/serde</code> for sparse <code>ThemeDocument</code>{" "}
+        JSON. On <code>wasm32</code>, <code>herogpui::web</code> is the same platform layer.
       </p>
 
       <h2 id="your-first-window">Your first window</h2>

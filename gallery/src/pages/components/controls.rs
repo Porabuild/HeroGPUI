@@ -159,7 +159,7 @@ impl Gallery {
                     )]),
                 ),
                 (
-                    "Range Slider", "v3's uncontrolled range specimen: two thumbs seeded at 100 and 500 over a 0-1000 span, stepping by 50 and formatted as US dollars.",
+                    "Range Slider", "An uncontrolled range specimen: two thumbs seeded at 100 and 500 over a 0-1000 span, stepping by 50 and formatted as US dollars.",
                     col(vec![fixed_demo(
                         320.,
                         h::Slider::new("sl-range-slider", 100.)
@@ -196,7 +196,7 @@ impl Gallery {
                     )]),
                 ),
                 (
-                    "Vertical Orientation", "The vertical specimen grows upward with its label attached, the way v3's `orientation=\"vertical\"` example does.",
+                    "Vertical Orientation", "The vertical specimen grows upward with its label attached.",
                     col(vec![fixed_demo(
                         320.,
                         h::Slider::new("sl-vert-orientation", 30.)

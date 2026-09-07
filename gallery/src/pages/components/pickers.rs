@@ -762,7 +762,7 @@ impl Gallery {
                     .into_any_element()]),
                 ),
                 (
-                    "Basic Usage", "v3's plainest combo box: a labeled input over a two-item list, uncontrolled, with the trigger opening the same filtered list.",
+                    "Basic Usage", "The plainest combo box: a labeled input over a two-item list, uncontrolled, with the trigger opening the same filtered list.",
                     field_col(vec![h::ComboBox::new(
                         self.demo_text("cb-basic", "", cx),
                         vec![
@@ -1048,7 +1048,7 @@ impl Gallery {
                         .into_any_element()]),
                 ),
                 (
-                    "Controlled", "The selected key lives in the caller: the trigger reads `value` and the caption prints the same state v3's example prints.",
+                    "Controlled", "The selected key lives in the caller: the trigger reads `value` and the caption prints the same state.",
                     field_col(vec![
                         h::Select::new("sel-controlled", language_items())
                             .label("Language (controlled)")
