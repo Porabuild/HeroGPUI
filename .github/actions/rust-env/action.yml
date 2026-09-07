@@ -28,7 +28,7 @@ runs:
       run: |
         try {
           Set-MpPreference -DisableRealtimeMonitoring $true -DisableBehaviorMonitoring $true -DisableScriptScanning $true -ErrorAction SilentlyContinue
-          Add-MpPreference -ExclusionPath @("$env:USERPROFILE\.cargo", "$env:GITHUB_WORKSPACE", "D:\a") -ErrorAction SilentlyContinue
+          Add-MpPreference -ExclusionPath @("$env:USERPROFILE\.cargo", "$env:GITHUB_WORKSPACE", "D:\a", "$env:TEMP", "$env:TMP") -ErrorAction SilentlyContinue
           Add-MpPreference -ExclusionProcess @("cargo.exe", "rustc.exe", "rust-lld.exe", "tar.exe") -ErrorAction SilentlyContinue
         } catch {
           Write-Host "Warning: Could not adjust Defender preferences: $_"
@@ -81,6 +81,7 @@ runs:
     # files on Windows for all 70+ test binaries, saturating disk I/O and
     # inflating cache tarballs. In CI, setting `debug = 0` eliminates PDB
     # generation completely without affecting test assertion behavior.
+    # Codegen-units = 16 reduces object file disk thrashing on 2-vCPU runners.
     #
     # The override goes in $CARGO_HOME rather than as a `--config` flag because
     # `.shots/lint.ps1` owns its own cargo invocation. One config file reaches
@@ -96,9 +97,9 @@ runs:
           echo "::warning::$cargo_home/config.toml already defines [profile.dev]; not overriding it."
         else
           if [ "${{ inputs.profile }}" = "fast" ]; then
-            printf '\n[profile.dev]\nopt-level = 0\ndebug = 0\nstrip = "debuginfo"\n' >> "$cargo_home/config.toml"
+            printf '\n[profile.dev]\nopt-level = 0\ndebug = 0\nstrip = "debuginfo"\ncodegen-units = 16\n' >> "$cargo_home/config.toml"
           else
-            printf '\n[profile.dev]\ndebug = 0\nstrip = "debuginfo"\n' >> "$cargo_home/config.toml"
+            printf '\n[profile.dev]\ndebug = 0\nstrip = "debuginfo"\ncodegen-units = 16\n' >> "$cargo_home/config.toml"
           fi
         fi
         # Echo it. A silent no-op here surfaces as an unexplained slow gate in
@@ -107,7 +108,12 @@ runs:
 
     # One cache per job, not one shared cache. Keyed per job, each one
     # restores what it actually builds against.
+    # We set prefix-key and key with the profile to isolate fast vs real caches,
+    # and enable cache-workspace-crates so warm runs skip compiling unchanged test crates.
     - name: Rust Cache
       uses: Swatinem/rust-cache@v2
       with:
+        prefix-key: v1-rust
+        key: ${{ inputs.profile }}
         cache-all-crates: true
+        cache-workspace-crates: true
