@@ -1762,7 +1762,7 @@
       {
         "name": "Badge.Anchor",
         "slot": "badge-anchor",
-        "description": "Positioning wrapper on the `.badge-anchor` BEM class: `relative inline-flex shrink-0`, carrying the anchored element plus the badge. GPUI 0.2.2 has no inline-flex, so the wrapper hugs its content only inside a flex parent; the ported `flex_shrink_0` keeps it from compressing in an overflowing row.",
+        "description": "Positioning wrapper on the `.badge-anchor` BEM class: `relative inline-flex shrink-0`, carrying the anchored element plus the badge. gpui-pre 0.3.3 has no inline-flex, so the wrapper hugs its content only inside a flex parent; the ported `flex_shrink_0` keeps it from compressing in an overflowing row.",
         "rustOwner": "BadgeAnchor",
         "status": "partial"
       },
@@ -1778,7 +1778,7 @@
     "styling": [
       {
         "token": ".badge",
-        "description": "28px min square, 12px medium text at the 1.34 leading, 2px gap, and the unconditional 1px page-background ring. The port is a block-level flex (no inline-flex) and GPUI 0.2.2 has no background-clip, so the ring paints over the fill edge instead of clipping the fill to the padding box.",
+        "description": "28px min square, 12px medium text at the 1.34 leading, 2px gap, and the unconditional 1px page-background ring. The port is a block-level flex (no inline-flex) and gpui-pre 0.3.3 has no background-clip, so the ring paints over the fill edge instead of clipping the fill to the padding box.",
         "rust": "flex + items_center + justify_center + gap(px(2.)) + min_w(px(28.)) + min_h(px(28.)) + control_radius + text_size(px(12.)) + line_height(1.34) + FontWeight::MEDIUM + flex_shrink_0 + border_1(colors.background)",
         "status": "partial"
       },
@@ -1832,7 +1832,7 @@
       },
       {
         "token": ".badge--top-right",
-        "description": "Corner overlay overhanging a quarter of the badge's own box (4px sm, 7px md, 8px lg). GPUI 0.2.2 has no div-level transform and a percentage inset would resolve against the containing block, so the port insets the corner by -size/4 — a quarter of the min box; a badge grown past its min box overhangs less than v3's translate would, and only dot and min-box-fitting badges are exact.",
+        "description": "Corner overlay overhanging a quarter of the badge's own box (4px sm, 7px md, 8px lg). gpui-pre 0.3.3 has no div-level transform and a percentage inset would resolve against the containing block, so the port insets the corner by -size/4 — a quarter of the min box; a badge grown past its min box overhangs less than v3's translate would, and only dot and min-box-fitting badges are exact.",
         "rust": "BadgePlacement::TopRight => top(-size/4) + right(-size/4)",
         "status": "partial"
       },
@@ -1943,7 +1943,7 @@
       {
         "name": "Chip",
         "slot": "chip",
-        "description": "Root on the `.chip` BEM classes: a padded flex row around one text line — no height, no border at any variant or color — with a 2px gap and the soft radius. GPUI 0.2.2 has no inline-flex or `w-fit`, so the port is a block-level flex that hugs content only inside a flex parent.",
+        "description": "Root on the `.chip` BEM classes: a padded flex row around one text line — no height, no border at any variant or color — with a 2px gap and the soft radius. gpui-pre 0.3.3 has no inline-flex or `w-fit`, so the port is a block-level flex that hugs content only inside a flex parent.",
         "rustOwner": "Chip",
         "status": "partial"
       },
@@ -2634,13 +2634,23 @@
       },
       {
         "owner": "ColorSwatch",
+        "prop": "id",
+        "type": "string",
+        "default": "—",
+        "description": "Optional GPUI identity. A named swatch reports role=img named by the hex; an unnamed preview produces no AccessKit node.",
+        "rustOwner": "ColorSwatch",
+        "rust": "id(ElementId)",
+        "status": "implemented"
+      },
+      {
+        "owner": "ColorSwatch",
         "prop": "colorName",
         "type": "string",
         "default": "—",
-        "description": "Accessible name overriding the generated color description; GPUI 0.2.2 exposes no accessibility attribute tree.",
+        "description": "A named swatch uses the hex as its accessible name; a separate colorName override is not a builder.",
         "rustOwner": "ColorSwatch",
-        "rust": "—",
-        "status": "unavailable"
+        "rust": "id(ElementId) names the hex",
+        "status": "partial"
       },
       {
         "owner": "ColorSwatch",
@@ -2687,10 +2697,10 @@
         "prop": "aria-label",
         "type": "string",
         "default": "—",
-        "description": "GPUI 0.2.2 exposes no accessibility attribute tree.",
+        "description": "A named swatch reports role=img named by the hex. There is no separate aria-label builder.",
         "rustOwner": "ColorSwatch",
-        "rust": "—",
-        "status": "unavailable"
+        "rust": "id(ElementId)",
+        "status": "partial"
       },
       {
         "owner": "ColorSwatch",
@@ -3052,6 +3062,16 @@
       "Toast.CloseButton"
     ],
     "api": [
+      {
+        "owner": "Toast.Provider",
+        "prop": "id",
+        "type": "string",
+        "default": "—",
+        "description": "Optional GPUI identity. A named viewport reports role=region named \"{n} notifications.\"; an unnamed one produces no landmark.",
+        "rustOwner": "ToastViewport",
+        "rust": "id(ElementId)",
+        "status": "implemented"
+      },
       {
         "owner": "Toast.Provider",
         "prop": "placement",
@@ -5330,6 +5350,16 @@
     "api": [
       {
         "owner": "ButtonGroup",
+        "prop": "id",
+        "type": "string",
+        "default": "—",
+        "description": "Optional GPUI identity. A named group reports role=group; an unnamed one produces no AccessKit node.",
+        "rustOwner": "ButtonGroup",
+        "rust": "id(ElementId)",
+        "status": "implemented"
+      },
+      {
+        "owner": "ButtonGroup",
         "prop": "variant",
         "type": "'primary' | 'secondary' | 'tertiary' | 'outline' | 'ghost' | 'danger' | 'danger-soft'",
         "default": "—",
@@ -6749,7 +6779,7 @@
         "prop": "aria-label",
         "type": "string",
         "default": "'Close'",
-        "description": "Accessible label; GPUI 0.2.2 has no accessibility tree surface.",
+        "description": "Accessible label; gpui-pre 0.3.3 has no accessibility tree surface.",
         "rustOwner": "CloseButton",
         "rust": "—",
         "status": "unavailable"
@@ -8515,9 +8545,9 @@
         "prop": "value",
         "type": "string",
         "default": "—",
-        "description": "Writes the caller-provided controlled value into the owned InputState.",
+        "description": "Seeds the owned InputState with the controlled value on the first render; InputState::set_value updates it afterwards.",
         "rustOwner": "Input",
-        "rust": "value(text, cx)",
+        "rust": "value(text)",
         "status": "implemented"
       },
       {
@@ -8998,7 +9028,7 @@
         "prop": "aria-label / aria-labelledby / aria-describedby / aria-details",
         "type": "string",
         "default": "—",
-        "description": "GPUI 0.2.2 exposes no accessibility attribute tree.",
+        "description": "gpui-pre 0.3.3 exposes no accessibility attribute tree.",
         "rustOwner": "TextField",
         "rust": "—",
         "status": "unavailable"
@@ -9145,9 +9175,9 @@
         "prop": "value",
         "type": "string",
         "default": "—",
-        "description": "Writes the caller-provided controlled value into the owned InputState.",
+        "description": "Seeds the owned InputState with the controlled value on the first render; InputState::set_value updates it afterwards.",
         "rustOwner": "TextArea",
-        "rust": "value(text, cx)",
+        "rust": "value(text)",
         "status": "implemented"
       },
       {
@@ -9608,7 +9638,7 @@
         "prop": "aria-label / aria-labelledby / aria-describedby / aria-details",
         "type": "string",
         "default": "—",
-        "description": "GPUI 0.2.2 exposes no accessibility attribute tree.",
+        "description": "gpui-pre 0.3.3 exposes no accessibility attribute tree.",
         "rustOwner": "SearchField",
         "rust": "—",
         "status": "unavailable"
@@ -9887,7 +9917,7 @@
         "default": "—",
         "description": "Controlled value.",
         "rustOwner": "InputOTP",
-        "rust": "value(code, cx)",
+        "rust": "value(code)",
         "status": "implemented"
       },
       {
@@ -10331,10 +10361,10 @@
         "prop": "id",
         "type": "string",
         "default": "—",
-        "description": "The held field's state entity already names the instance; there is no DOM id attribute to set.",
+        "description": "Optional GPUI identity. A named group reports role=group; an unnamed one produces no AccessKit node.",
         "rustOwner": "InputGroup",
-        "rust": "—",
-        "status": "unavailable"
+        "rust": "id(ElementId)",
+        "status": "implemented"
       },
       {
         "owner": "InputGroup",
@@ -11282,7 +11312,7 @@
         "default": "—",
         "description": "Controlled scalar or multiple selection.",
         "rustOwner": "Calendar",
-        "rust": "value(value, cx) / values(values, cx)",
+        "rust": "value(value) / values(values, cx)",
         "status": "implemented"
       },
       {
@@ -11993,9 +12023,9 @@
         "prop": "value",
         "type": "DateValue | null",
         "default": "—",
-        "description": "Writes a controlled Gregorian date through the bound state.",
+        "description": "Seeds the bound InputState's ISO text with the controlled Gregorian date on the first render; InputState::set_value updates it afterwards.",
         "rustOwner": "DateField",
-        "rust": "value(Option<Date>, cx)",
+        "rust": "value(Option<Date>)",
         "status": "partial"
       },
       {
@@ -12483,9 +12513,9 @@
         "prop": "value",
         "type": "DateValue | null",
         "default": "—",
-        "description": "Writes the controlled date into the caller-owned CalendarState.",
+        "description": "Seeds the controlled date into the caller-owned CalendarState on the first render.",
         "rustOwner": "DatePicker",
-        "rust": "value(date, cx)",
+        "rust": "value(date)",
         "status": "implemented"
       },
       {
@@ -12875,9 +12905,9 @@
         "prop": "value",
         "type": "RangeValue<DateValue> | null",
         "default": "—",
-        "description": "Writes the controlled start and end through to the caller-owned DateRangeState.",
+        "description": "Seeds the controlled start and end into the caller-owned DateRangeState on the first render.",
         "rustOwner": "DateRangePicker",
-        "rust": "value(start, end, cx)",
+        "rust": "value(start, end)",
         "status": "implemented"
       },
       {
@@ -13537,7 +13567,7 @@
         "prop": "aria-label / aria-labelledby / aria-describedby / aria-details",
         "type": "string",
         "default": "—",
-        "description": "GPUI 0.2.2 exposes no accessibility attribute tree.",
+        "description": "gpui-pre 0.3.3 exposes no accessibility attribute tree.",
         "rustOwner": "NumberField",
         "rust": "—",
         "status": "unavailable"
@@ -13936,9 +13966,9 @@
         "prop": "value",
         "type": "TimeValue | null",
         "default": "—",
-        "description": "Controlled plain-time value; calendar date-time and zoned types are not represented.",
+        "description": "Controlled plain-time value held on the builder and synced into the state when it changes; calendar date-time and zoned types are not represented.",
         "rustOwner": "TimeField",
-        "rust": "value(Option<Time>, cx)",
+        "rust": "value(Option<Time>)",
         "status": "partial"
       },
       {
@@ -14116,7 +14146,7 @@
         "prop": "aria-label / aria-labelledby / aria-describedby / aria-details",
         "type": "string",
         "default": "—",
-        "description": "GPUI 0.2.2 exposes no accessibility attribute tree.",
+        "description": "gpui-pre 0.3.3 exposes no accessibility attribute tree.",
         "rustOwner": "TimeField",
         "rust": "—",
         "status": "unavailable"
@@ -14409,9 +14439,9 @@
         "prop": "value",
         "type": "RangeValue<DateValue> | null",
         "default": "—",
-        "description": "Controlled selected range written through the bound state entity.",
+        "description": "Controlled selected range seeded into the bound state entity on the first render.",
         "rustOwner": "RangeCalendar",
-        "rust": "value(start, end, cx)",
+        "rust": "value(start, end)",
         "status": "implemented"
       },
       {
@@ -16281,7 +16311,7 @@
         "default": "—",
         "description": "Current text in the input (controlled).",
         "rustOwner": "ComboBox",
-        "rust": "input_value(value, cx)",
+        "rust": "input_value(value)",
         "status": "implemented"
       },
       {
@@ -16351,7 +16381,7 @@
         "default": "—",
         "description": "Controlled single-selection item key, with v3's null spelled as the empty string; the port writes the key's label through the input state and hands the key to the controlled selection.",
         "rustOwner": "ComboBox",
-        "rust": "selected_key(key, cx)",
+        "rust": "selected_key(key)",
         "status": "partial"
       },
       {
@@ -18020,6 +18050,16 @@
     "api": [
       {
         "owner": "ProgressCircle",
+        "prop": "id",
+        "type": "string",
+        "default": "—",
+        "description": "Optional GPUI identity. A named ring reports role=progressbar with the same value range as ProgressBar.",
+        "rustOwner": "ProgressCircle",
+        "rust": "id(ElementId)",
+        "status": "implemented"
+      },
+      {
+        "owner": "ProgressCircle",
         "prop": "value",
         "type": "number",
         "default": "0",
@@ -18585,6 +18625,16 @@
       "Separator"
     ],
     "api": [
+      {
+        "owner": "Separator",
+        "prop": "id",
+        "type": "string",
+        "default": "—",
+        "description": "Optional GPUI identity. AccessKit 0.24 has no Role::Separator, so a named instance still produces no node.",
+        "rustOwner": "Separator",
+        "rust": "id(ElementId)",
+        "status": "partial"
+      },
       {
         "owner": "Separator",
         "prop": "orientation",
@@ -19470,7 +19520,7 @@
         "prop": "children",
         "type": "React.ReactNode",
         "default": "—",
-        "description": "The built-in 12px curve renders by default and a custom element composes through ParentElement at the resolved arrow position. Upstream stamps the single child with data-slot=popover-overlay-arrow so the .popover placement CSS rotates it too; GPUI 0.2.2 transforms only svg elements, so a custom child takes the position without the rotation.",
+        "description": "The built-in 12px curve renders by default and a custom element composes through ParentElement at the resolved arrow position. Upstream stamps the single child with data-slot=popover-overlay-arrow so the .popover placement CSS rotates it too; gpui-pre 0.3.3 transforms only svg elements, so a custom child takes the position without the rotation.",
         "rustOwner": "PopoverArrow",
         "rust": "new() + ParentElement children",
         "status": "partial"
@@ -19514,14 +19564,14 @@
       {
         "name": "Popover.Content",
         "slot": "popover",
-        "description": "Placement-aware surface with true orientation flipping and pinned motion; GPUI 0.2.2 cannot nest deferred portal draws, so the panel remains in its ancestor clipping context.",
+        "description": "Placement-aware surface with true orientation flipping and pinned motion; gpui-pre 0.3.3 cannot nest deferred portal draws, so the panel remains in its ancestor clipping context.",
         "rustOwner": "Popover",
         "status": "partial"
       },
       {
         "name": "Popover.Arrow",
         "slot": "popover-overlay-arrow",
-        "description": "Composed part drawing the built-in 12px curved arrow centred on the trigger and rotated for the resolved side, or a caller-supplied child element at the resolved position. Upstream rotates the single custom child through its data-slot placement CSS; GPUI 0.2.2's svg-only transformation cannot reproduce that for an arbitrary element.",
+        "description": "Composed part drawing the built-in 12px curved arrow centred on the trigger and rotated for the resolved side, or a caller-supplied child element at the resolved position. Upstream rotates the single custom child through its data-slot placement CSS; gpui-pre 0.3.3's svg-only transformation cannot reproduce that for an arbitrary element.",
         "rustOwner": "PopoverArrow",
         "status": "partial"
       },
@@ -19603,7 +19653,7 @@
       },
       {
         "token": ".popover [data-slot=popover-overlay-arrow]",
-        "description": "Size, built-in curve, fill and flip-aware rotation match. Upstream applies the same placement rotation to a custom child through its data-slot selector, which GPUI 0.2.2 cannot do for an arbitrary div element; the port places a custom child unrotated.",
+        "description": "Size, built-in curve, fill and flip-aware rotation match. Upstream applies the same placement rotation to a custom child through its data-slot selector, which gpui-pre 0.3.3 cannot do for an arbitrary div element; the port places a custom child unrotated.",
         "rust": "PopoverArrow svg child + PopoverSide::arrow_rotation + arrow_origin",
         "status": "partial"
       },
@@ -23602,7 +23652,7 @@
         "prop": "title",
         "type": "string",
         "default": "—",
-        "description": "Accessibility title for the key (e.g., \"Command\" for ⌘). v3 sets it on the `<abbr>` element; GPUI 0.2.2 has no accessibility tree and the part renders no element, so there is nothing to carry a title.",
+        "description": "Accessibility title for the key (e.g., \"Command\" for ⌘). v3 sets it on the `<abbr>` element; gpui-pre 0.3.3 has no accessibility tree and the part renders no element, so there is nothing to carry a title.",
         "rustOwner": "Kbd",
         "rust": "—",
         "status": "unavailable"
@@ -23612,7 +23662,7 @@
         "prop": "keyValue",
         "type": "KbdKey",
         "default": "—",
-        "description": "Named key (`\"command\"`, `\"shift\"`, …) that resolves the symbol and the accessibility title. The symbol/title map rides on the `<abbr>` element, which GPUI 0.2.2 has no accessibility tree to express, so the port takes the key symbol as ordinary children instead.",
+        "description": "Named key (`\"command\"`, `\"shift\"`, …) that resolves the symbol and the accessibility title. The symbol/title map rides on the `<abbr>` element, which gpui-pre 0.3.3 has no accessibility tree to express, so the port takes the key symbol as ordinary children instead.",
         "rustOwner": "Kbd",
         "rust": "—",
         "status": "unavailable"
@@ -23669,7 +23719,7 @@
       {
         "name": "Kbd.Abbr",
         "slot": "— (no data-slot)",
-        "description": "The `<abbr title>` v3 wraps the symbol in for screen readers, styled by the `.kbd__abbr` BEM class. GPUI 0.2.2 has no accessibility tree and no abbr element, so the port renders no such part and the key text is drawn as the root's own child.",
+        "description": "The `<abbr title>` v3 wraps the symbol in for screen readers, styled by the `.kbd__abbr` BEM class. gpui-pre 0.3.3 has no accessibility tree and no abbr element, so the port renders no such part and the key text is drawn as the root's own child.",
         "rustOwner": "Kbd",
         "status": "unavailable"
       },
@@ -23685,13 +23735,13 @@
     "styling": [
       {
         "token": ".kbd",
-        "description": "Key chip: 24px tall, 8px side padding, 14px medium muted text at the 20px text-sm leading on `bg-default` at the key radius, with 2px between multiple keys and no border or shadow. The negative word-spacing is not portable — GPUI 0.2.2 has no word-spacing — and the root is a block-level flex rather than inline-flex.",
+        "description": "Key chip: 24px tall, 8px side padding, 14px medium muted text at the 20px text-sm leading on `bg-default` at the key radius, with 2px between multiple keys and no border or shadow. The negative word-spacing is not portable — gpui-pre 0.3.3 has no word-spacing — and the root is a block-level flex rather than inline-flex.",
         "rust": "flex + items_center + justify_center + text_center + gap(px(2.)) + px(px(8.)) + h(px(24.)) + key_radius + text_size(px(14.)) + line_height(px(20.)) + FontWeight::MEDIUM + whitespace_nowrap + colors.muted",
         "status": "partial"
       },
       {
         "token": ".kbd__abbr",
-        "description": "The abbreviation element fills the key and strips its underline. Not rendered: GPUI 0.2.2 has no accessibility element to express it.",
+        "description": "The abbreviation element fills the key and strips its underline. Not rendered: gpui-pre 0.3.3 has no accessibility element to express it.",
         "rust": "—",
         "status": "unavailable"
       },
@@ -23736,7 +23786,7 @@
         "prop": "align",
         "type": "'start' | 'center' | 'end' | 'justify'",
         "default": "'start'",
-        "description": "Text alignment. GPUI 0.2.2 has no `text-justify`; justify falls back to start alignment.",
+        "description": "Text alignment. gpui-pre 0.3.3 has no `text-justify`; justify falls back to start alignment.",
         "rustOwner": "Typography",
         "rust": "align(TextAlign)",
         "status": "partial"
@@ -23846,7 +23896,7 @@
       {
         "name": "Typography",
         "slot": "typography",
-        "description": "Root primitive: v3 maps each type to its semantic element (`h1`–`h6`, `p`, `code`) through React Aria's Text, and headings tighten their tracking. GPUI 0.2.2 has no DOM semantics and no letter-spacing, so the same metrics, weight and color render on a plain div.",
+        "description": "Root primitive: v3 maps each type to its semantic element (`h1`–`h6`, `p`, `code`) through React Aria's Text, and headings tighten their tracking. gpui-pre 0.3.3 has no DOM semantics and no letter-spacing, so the same metrics, weight and color render on a plain div.",
         "rustOwner": "Typography",
         "status": "partial"
       },
@@ -23868,7 +23918,7 @@
       },
       {
         "token": ".typography--h1",
-        "description": "36px semibold at the 40px text-4xl leading. `tracking-tight` is an honest limitation: GPUI 0.2.2 has no letter-spacing.",
+        "description": "36px semibold at the 40px text-4xl leading. `tracking-tight` is an honest limitation: gpui-pre 0.3.3 has no letter-spacing.",
         "rust": "H1 => text_size(px(36.)) + line_height(px(40.)) + FontWeight::SEMIBOLD",
         "status": "partial"
       },
@@ -23946,7 +23996,7 @@
       },
       {
         "token": ".typography--align-justify",
-        "description": "Justified text: GPUI 0.2.2 has no `text-justify`, so the port falls back to start alignment.",
+        "description": "Justified text: gpui-pre 0.3.3 has no `text-justify`, so the port falls back to start alignment.",
         "rust": "TextAlign::Justify => text_left",
         "status": "partial"
       },
@@ -24511,7 +24561,7 @@
         "prop": "alt",
         "type": "string",
         "default": "—",
-        "description": "Alternative text for the image. GPUI 0.2.2 has no accessibility tree to carry it.",
+        "description": "Alternative text for the image. gpui-pre 0.3.3 has no accessibility tree to carry it.",
         "rustOwner": "Avatar",
         "rust": "—",
         "status": "unavailable"
@@ -24712,10 +24762,10 @@
         "prop": "hideScrollBar",
         "type": "boolean",
         "default": "false",
-        "description": "GPUI draws no browser-native scrollbar for this component to hide.",
+        "description": "Omits the painted overlay thumb that stands in for the browser scrollbar.",
         "rustOwner": "ScrollShadow",
-        "rust": "—",
-        "status": "unavailable"
+        "rust": "hide_scroll_bar(bool)",
+        "status": "implemented"
       },
       {
         "owner": "ScrollShadow",
@@ -24835,6 +24885,16 @@
       "Fieldset.Actions"
     ],
     "api": [
+      {
+        "owner": "Fieldset",
+        "prop": "id",
+        "type": "string",
+        "default": "—",
+        "description": "Optional GPUI identity. A named fieldset reports role=group; an unnamed one produces no AccessKit node.",
+        "rustOwner": "Fieldset",
+        "rust": "id(ElementId)",
+        "status": "implemented"
+      },
       {
         "owner": "Fieldset",
         "prop": "children",

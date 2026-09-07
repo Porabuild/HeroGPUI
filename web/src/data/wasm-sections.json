@@ -3,12 +3,16 @@
     "Usage",
     "Variants",
     "Sizes",
-    "With icons",
-    "Icon only",
-    "Pending & disabled",
-    "Full width",
+    "With Icons",
+    "Icon Only",
+    "Loading",
+    "Loading State",
+    "Full Width",
+    "Disabled State",
     "Social Buttons",
-    "Press handler"
+    "Adding custom variants",
+    "Press handler",
+    "Sx slot"
   ],
   "button-group": [
     "Usage",
@@ -19,7 +23,7 @@
     "Orientation",
     "Full Width",
     "Without Separator",
-    "Disabled"
+    "Disabled State"
   ],
   "close-button": [
     "Usage",
@@ -42,7 +46,8 @@
     "Without Separator",
     "Selection Mode",
     "Default Selected Keys",
-    "Vertical & detached"
+    "Vertical",
+    "Detached"
   ],
   "dropdown": [
     "Usage",
@@ -61,7 +66,9 @@
     "With Custom Submenu Indicator",
     "Custom Trigger",
     "Long Press Trigger",
-    "Multiple selection"
+    "Basic Usage",
+    "Controlled Selection",
+    "With Multiple Selection"
   ],
   "list-box": [
     "Usage",
@@ -74,7 +81,10 @@
     "Virtualization",
     "Custom Check Icon",
     "Single selection",
-    "Multiple selection"
+    "Multiple selection",
+    "Basic Usage",
+    "Controlled Selection",
+    "Custom Indicator"
   ],
   "tag-group": [
     "Usage",
@@ -89,7 +99,8 @@
     "With Remove Button",
     "Removable",
     "Selectable",
-    "Variants & sizes"
+    "Sizes",
+    "Variants"
   ],
   "color-area": [
     "Usage",
@@ -164,7 +175,11 @@
     "Controlled Value",
     "Custom Value Formatting",
     "Custom Output Display",
-    "Range (multi-thumb)",
+    "Range",
+    "Range Slider",
+    "Basic Usage",
+    "Disabled",
+    "Vertical Orientation",
     "Disabled Thumb",
     "Form Example",
     "Vertical",
@@ -192,7 +207,7 @@
     "With Content",
     "Variants",
     "Colors",
-    "Dot & placement"
+    "Placements"
   ],
   "chip": [
     "Usage",
@@ -215,7 +230,8 @@
     "Async Loading",
     "Pagination",
     "Custom Cells",
-    "Empty and loading"
+    "Empty State",
+    "Loading"
   ],
   "calendar": [
     "International Calendars",
@@ -232,11 +248,12 @@
     "Real-World Example",
     "Constraints",
     "First day of week",
-    "Read only & disabled",
-    "Multiple months",
-    "Week view",
-    "Day view",
-    "Year picker",
+    "Disabled",
+    "Read Only",
+    "Multiple Months",
+    "Week View",
+    "Day View",
+    "Year Picker",
     "Heading Offset"
   ],
   "date-field": [
@@ -256,6 +273,7 @@
     "Form Example"
   ],
   "date-picker": [
+    "International Calendar",
     "Disabled",
     "Controlled",
     "Validation",
@@ -266,6 +284,7 @@
     "Usage"
   ],
   "date-range-picker": [
+    "International Calendar",
     "Disabled",
     "Controlled",
     "Validation",
@@ -361,21 +380,23 @@
     "Usage",
     "Variants",
     "Full Rounded",
+    "Disabled",
     "External Label",
     "With Description",
     "Default Selected",
     "Invalid",
     "Controlled",
+    "Indeterminate",
     "Form Integration",
     "Render Props",
-    "Custom Indicator",
-    "Indeterminate & disabled"
+    "Custom Indicator"
   ],
   "checkbox-group": [
     "Usage",
     "In Surface",
     "Disabled",
     "Indeterminate",
+    "Controlled",
     "Validation",
     "Features and Add-ons Example",
     "With Custom Indicator",
@@ -457,7 +478,7 @@
   "number-field": [
     "Usage",
     "Without steppers",
-    "Format options",
+    "Format Options",
     "Variants",
     "In Surface",
     "With Description",
@@ -481,7 +502,8 @@
     "Custom Indicator",
     "Vertical",
     "Uncontrolled",
-    "Horizontal",
+    "Horizontal Orientation",
+    "Controlled",
     "Disabled"
   ],
   "search-field": [
@@ -506,7 +528,7 @@
     "In Surface",
     "Full Width",
     "Controlled",
-    "Rows"
+    "Rows and Resizing"
   ],
   "text-field": [
     "Usage",
@@ -540,7 +562,7 @@
   "surface": [
     "Usage",
     "Variants",
-    "With form components"
+    "With Form Components"
   ],
   "toolbar": [
     "Usage",
@@ -555,7 +577,7 @@
     "Sizes",
     "Colors",
     "Variants",
-    "Group",
+    "Avatar Group",
     "Custom Image Component"
   ],
   "accordion": [
@@ -611,8 +633,9 @@
     "Overflow",
     "Disabled Tab",
     "With Separator",
-    "Primary",
-    "Secondary"
+    "Secondary Variant",
+    "Secondary Variant Vertical",
+    "Primary"
   ],
   "alert-dialog": [
     "Usage",
@@ -677,7 +700,7 @@
     "With Arrow",
     "Custom Triggers",
     "Usage",
-    "Placements",
+    "Placement",
     "Delay"
   ],
   "autocomplete": [
@@ -725,7 +748,8 @@
     "Form Value",
     "Validation Behavior",
     "Custom Validation",
-    "Custom values allowed"
+    "Custom Value",
+    "Basic Usage"
   ],
   "select": [
     "Usage",
@@ -743,8 +767,9 @@
     "Custom Value",
     "Uncontrolled",
     "Variants",
-    "Full width",
-    "Multiple selection"
+    "Full Width",
+    "Multiple Select",
+    "Controlled"
   ],
   "kbd": [
     "Navigation Keys",

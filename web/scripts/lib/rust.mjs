@@ -3,7 +3,7 @@
 // Everything here tracks the same lexer state (string / char / raw string /
 // line comment / block comment) so that bracket balancing cannot be fooled by
 // quotes, commas or braces inside literals — reference_metadata.rs strings
-// contain escaped quotes and components.rs strings contain braces.
+// contain escaped quotes and gallery component strings contain braces.
 
 const IDENT_START = /[A-Za-z_]/;
 const IDENT_CHAR = /[A-Za-z0-9_]/;

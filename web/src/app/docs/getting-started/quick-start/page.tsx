@@ -14,12 +14,9 @@ const CREATE = `cargo new hello-herogpui --bin
 cd hello-herogpui`;
 
 const CARGO_TOML = `[dependencies]
-gpui = { git = "https://github.com/zed-industries/zed", rev = "${SITE.gpuiRev}" }
-gpui_platform = { git = "https://github.com/zed-industries/zed", rev = "${SITE.gpuiRev}", features = ["font-kit", "wayland", "x11", "runtime_shaders"] }
 herogpui = { git = "https://github.com/Porabuild/HeroGPUI" }`;
 
-const MAIN_RS = `use gpui::*;
-use herogpui::prelude::*;
+const MAIN_RS = `use herogpui::*;
 
 struct MyRoot;
 
@@ -41,10 +38,10 @@ impl Render for MyRoot {
 }
 
 fn main() {
-    gpui_platform::application()
+    application()
         .with_assets(HeroGpuiAssets)
         .run(|cx: &mut App| {
-            ThemeProvider::init(cx);
+            herogpui::init(cx);
             let bounds = Bounds::centered(None, size(px(480.), px(320.)), cx);
             cx.open_window(
                 WindowOptions {
@@ -68,8 +65,11 @@ export default function QuickStartPage() {
       />
 
       <p>
-        You need a Rust toolchain that supports <strong>Rust 1.98</strong>. GPUI must be the pinned
-        Zed revision below — a crates.io GPUI release will not compile against this library.
+        You need a Rust toolchain that supports <strong>Rust 1.98</strong>. GPUI itself is not a
+        dependency you add: <code>herogpui</code> depends on the published{" "}
+        <code>gpui-pre</code> crates (<code>{SITE.gpuiVersion}</code>) and re-exports them,
+        so <code>use herogpui::*;</code> <em>is</em> GPUI. The unrelated crates.io <code>gpui</code>{" "}
+        0.2.2 crate will not compile against this library.
       </p>
 
       <h2 id="create-the-app">1. Create the app</h2>
@@ -77,10 +77,11 @@ export default function QuickStartPage() {
         <CodeBlock code={CREATE} lang="bash" />
       </div>
 
-      <h2 id="add-the-crates">2. Add the crates</h2>
+      <h2 id="add-the-crates">2. Add the crate</h2>
       <p>
-        Paste this into <code>Cargo.toml</code>. If you cloned HeroGPUI next to the app, you can
-        swap the git line for <code>{`herogpui = { path = "../HeroGPUI/crates/herogpui" }`}</code>.
+        One dependency, and only one. Paste this into <code>Cargo.toml</code>. If you cloned
+        HeroGPUI next to the app, you can swap the <code>herogpui</code> line for{" "}
+        <code>{`herogpui = { path = "../HeroGPUI/crates/herogpui" }`}</code>.
       </p>
       <div className="mt-4">
         <CodeBlock code={CARGO_TOML} filename="Cargo.toml" lang="toml" />
@@ -88,7 +89,7 @@ export default function QuickStartPage() {
 
       <h2 id="open-a-window">3. Open a window</h2>
       <p>
-        Replace <code>src/main.rs</code>. <code>ThemeProvider::init</code> must run before the first
+        Replace <code>src/main.rs</code>. <code>herogpui::init</code> must run before the first
         window, and <code>app_focus_root</code> turns on Tab and focus rings.
       </p>
       <div className="mt-4">

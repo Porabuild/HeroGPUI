@@ -37,11 +37,20 @@ instead of leaving compatibility aliases, no-op builders, or speculative flags.
   `cx.role(..)`, `cx.layout()`).
 - `crates/herogpui-components` owns the component implementations and headless
   behavior tests. Components are builder structs implementing `RenderOnce`.
-- `crates/herogpui` is the umbrella re-export crate and prelude.
+- `crates/herogpui` is the facade a consumer depends on, and the only crate a
+  consumer names: it re-exports all of `gpui` at its root, `gpui_platform` as
+  `platform` (and `application`), and each HeroGPUI layer as a feature-gated
+  named module (`core`, `theme`, `components`). It also owns the crate-level
+  `init` and `prelude`, and its own copy of GPUI's `actions!` macro — the
+  upstream macro expands `gpui::Action` as an absolute path, which does not
+  resolve for a consumer that reaches GPUI only through this crate. Its
+  doctests are the only place the published installation contract is compiled,
+  so `cargo test --doc -p herogpui` is part of verifying a change to it. The
+  layering below it stays as it is; the facade is a layer on top, not a merge.
 - `gallery` is the documentation app. Page routing and categories live in
   `gallery/src/pages/mod.rs`; component demos live primarily in
-  `gallery/src/pages/components.rs`; checked-in v3.2.4 API metadata lives in
-  `gallery/src/pages/reference_metadata.rs`.
+  `gallery/src/pages/components/`; checked-in v3.2.4 API metadata lives in
+  `gallery/src/pages/reference_metadata/`.
 - `.shots` contains parity audits, headless gallery drivers, reference images,
   and the real lint gate.
 - `llms.txt` is the public API reference intended for LLM consumers.
@@ -54,9 +63,13 @@ Use the narrowest source that actually owns the contract:
 2. HeroUI v3.2.4 component code and styles for port parity.
 3. HeroUI's exact pinned dependencies for inherited interaction semantics:
    React Aria 3.51.0, React Stately 3.49.0, and React Aria Components 1.20.0.
-4. The GPUI git checkout pinned in `Cargo.lock` for framework behavior and available APIs.
-5. Other Zed revisions or GPUI projects only as precedent, never as proof that
-   the pinned revision supports an API.
+4. The `gpui-pre` 0.3.3 sources pinned in `Cargo.lock` for framework
+   behavior and available APIs. Cargo unpacks them to
+   `~/.cargo/registry/src/index.crates.io-*/gpui-pre-0.3.3/`; read that tree,
+   not a Zed git checkout, not the older `gpui-unofficial` republish, and not
+   the unrelated crates.io `gpui` 0.2.2 crate.
+5. Other Zed revisions, GPUI republish versions, or GPUI projects only as
+   precedent, never as proof that the pinned version supports an API.
 
 The live `https://heroui.com/react/llms-full.txt` bundle is an input to several
 audits, but tagged source and the checked-in reference metadata establish the

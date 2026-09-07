@@ -70,16 +70,13 @@ pipeline. Re-run it by hand when the Rust sources they read change:
 
 | Command | Reads | Produces |
 |---|---|---|
-| `node scripts/extract-reference.mjs` | `gallery/src/pages/reference_metadata.rs` | `src/data/reference.json` — per-component API/parts/states/styling tables with implementation status |
+| `node scripts/extract-reference.mjs` | `gallery/src/pages/reference_metadata/` | `src/data/reference.json` — per-component API/parts/states/styling tables with implementation status |
 | `node scripts/extract-catalog.mjs` | `gallery/src/pages/mod.rs` (`Page` enum), `.shots/`, `reference.json` | `src/data/catalog.json` — the 66 component pages grouped into the 15 categories |
-| `node scripts/extract-rust-examples.mjs` | `gallery/src/pages/components.rs` | `src/data/rust-examples.json` — the per-component Rust snippets the pages display |
+| `node scripts/extract-rust-examples.mjs` | `gallery/src/pages/components/` | `src/data/rust-examples.json` — the per-component Rust snippets the pages display |
 | `node scripts/copy-shots.mjs` | `.shots/*.png` | `public/shots/` — the GPUI screenshots |
 | `node scripts/extract-releases.mjs` | the GitHub Releases API for `Porabuild/HeroGPUI` | `src/data/releases.json` — the `/docs/releases` notes |
 | `node scripts/build-data.mjs` | — | runs the four offline extractors in dependency order with one summary |
-| `node scripts/extract-wasm-sections.mjs --source <components.rs>` | the wasm migration checkout's `gallery/src/pages/components.rs`, plus the shipped artifact hashes | `src/data/wasm-sections.json` + `src/data/wasm-parity.json` — the examples compiled into the wasm artifact, so the live selector never advertises one the artifact lacks |
-| `node scripts/lift-wasm-descriptions.mjs <components.rs>` | the wasm migration checkout's `gallery/src/pages/components.rs`, edited in place | moves legacy static prose out of the live component canvas into section descriptions (run before rebuilding the artifact) |
-| `node scripts/vendor-wasm-source.mjs` (`pnpm run wasm:vendor`) | the wasm migration checkout | `web/wasm-migration/` — the baseline commit plus the working diff the artifact was built from, so a committed binary stays reviewable |
-| `node scripts/sync-wasm-component.mjs report` / `sync <file.rs>` | the native crate and the wasm migration crate | keeps the migration's copy of each component on the native implementation |
+| `node scripts/extract-wasm-sections.mjs` (`pnpm run wasm:manifest`) | `gallery/src/pages/components/` — the same native source the desktop gallery builds from — plus the shipped artifact hash | `src/data/wasm-sections.json` + `src/data/wasm-parity.json` — the examples compiled into the wasm artifact, so the live selector never advertises one the artifact lacks, and the artifact hash used to cache-bust the embed |
 | `node scripts/sync-porabuild-brand.mjs` (`pnpm run brand:sync`) | the sibling `@porabuild/brand` package | `src/styles/porabuild/` — the vendored brand layer (never hand-edit; re-sync instead) |
 
 The releases step reads the GitHub Releases API and is run manually; set

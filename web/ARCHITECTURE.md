@@ -40,9 +40,8 @@ navigations. Page order follows `web/AGENTS.md`:
 Never substitute a checked-in screenshot for the live frame, and never embed
 the full gallery shell on a component page. When `public/gallery/herogpui_web*`
 is regenerated, also regenerate `src/data/wasm-sections.json` and
-`src/data/wasm-parity.json` from that build's migration source with
-`node scripts/extract-wasm-sections.mjs --source <components.rs>`, and refresh
-the vendored recipe with `pnpm run wasm:vendor` in the same commit.
+`src/data/wasm-parity.json` from the native gallery source
+(`gallery/src/pages/components/`) with `pnpm run wasm:manifest`.
 
 ## Verified toolchain recipe (do not re-derive)
 
@@ -162,7 +161,7 @@ as an empty compatibility field. Consumers must handle all three.
 
 ### `src/data/reference.json`
 
-Extracted from `../gallery/src/pages/reference_metadata.rs`. Keyed by component
+Extracted from `../gallery/src/pages/reference_metadata/`. Keyed by component
 slug:
 
 ```jsonc
@@ -194,7 +193,7 @@ reason, not a bug, and the site must not present it as a failure.
 
 ### `src/data/rust-examples.json`
 
-Rust snippets per component, extracted from `../gallery/src/pages/components.rs`:
+Rust snippets per component, extracted from `../gallery/src/pages/components/`:
 
 ```jsonc
 { "button": [ { "heading": "Variants", "imports": "...", "code": "row(Variant::ALL.iter()...)" } ] }
@@ -207,11 +206,10 @@ Rust snippets per component, extracted from `../gallery/src/pages/components.rs`
 The live selector's contract with the checked-in artifact. `wasm-sections.json`
 maps each catalog slug to the example headings compiled into
 `public/gallery/herogpui_web_bg.wasm`; component pages only offer those.
-`wasm-parity.json` pins the native source, the artifact and glue hashes, and
-rejects newly introduced native/WASM drift at generation time. Both are
-regenerated from the artifact's build source with
-`node scripts/extract-wasm-sections.mjs --source <components.rs>`; do not
-hand-edit them.
+`wasm-parity.json` records the artifact's hash (`artifactSha256`), used to
+cache-bust the live embed. Both are regenerated from the single native gallery
+source (`gallery/src/pages/components/`) with `pnpm run wasm:manifest`; do
+not hand-edit them.
 
 ## Attribution
 

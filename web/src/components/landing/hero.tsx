@@ -7,9 +7,7 @@ import { HeroWasmShowcase } from "@/components/landing/hero-wasm-showcase";
 import { Link } from "@heroui/react";
 
 const INSTALL_TOML = `[dependencies]
-gpui = { git = "https://github.com/zed-industries/zed", rev = "ee3b5558c581429633937e458fad8d109f29e9ee" }
-gpui_platform = { git = "https://github.com/zed-industries/zed", rev = "ee3b5558c581429633937e458fad8d109f29e9ee", features = ["font-kit", "wayland", "x11", "runtime_shaders"] }
-herogpui = { path = "../HeroGPUI/crates/herogpui" }`;
+herogpui = { git = "https://github.com/Porabuild/HeroGPUI" }`;
 
 /**
  * Above the fold: Porabuild positioning, the two CTAs, Cargo.toml snippet,

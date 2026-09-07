@@ -1,12 +1,33 @@
-// Record the component examples compiled into the checked-in wasm artifact.
-// Run this against the wasm migration worktree whenever that artifact changes.
+// Pin the checked-in web-gallery artifact to the gallery source it was built
+// from, and record which example headings the embed can render.
+//
+//   node scripts/extract-wasm-sections.mjs
+//
+// Writes `src/data/wasm-sections.json` (consumed by the component page to
+// decide which headings get a live embed) and `src/data/wasm-parity.json`
+// (whose `artifactSha256` doubles as the embed's cache-busting version).
+//
+// There is one gallery source. `crates/herogpui-web` is a workspace member
+// that links the `herogpui-gallery` library and compiles for wasm32, so the
+// browser runs the same `gallery/src/pages/components/` the native binary
+// does. This script used to compare that file against a second, separately
+// checked-out copy and report native-vs-WASM "drift"; there is no second copy
+// to drift from now, so it reads one source and the drift fields are gone.
+//
+// What it still guards is the committed binary. `web/public/gallery/` holds a
+// ~19 MB artifact that no compiler checks against the sources in this
+// repository. Hashing every example body and the artifact together means that
+// editing a gallery example without rebuilding fails `pnpm run extract:check`
+// (see the manifest tests in extract-rust-examples.test.mjs) instead of
+// shipping a page whose code block and live embed disagree.
 
 import { createHash } from "node:crypto";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { parseInvocation } from "./extract-rust-examples.mjs";
+import { galleryComponentsDir, readGallerySource } from "./lib/gallery-source.mjs";
 import { skipTrivia, slugify, stepOver } from "./lib/rust.mjs";
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
@@ -14,6 +35,8 @@ const webRoot = resolve(scriptDir, "..");
 const repoRoot = resolve(webRoot, "..");
 const sectionsOut = resolve(webRoot, "src", "data", "wasm-sections.json");
 const parityOut = resolve(webRoot, "src", "data", "wasm-parity.json");
+
+export const MANIFEST_VERSION = 2;
 
 function argument(name, fallback) {
   const index = process.argv.indexOf(name);
@@ -30,6 +53,9 @@ function descriptionHash(value) {
   return createHash("sha256").update(normalizeDescription(value)).digest("hex");
 }
 
+// Hash the example body with whitespace, comments and trailing commas removed,
+// so reformatting the gallery does not demand a 19 MB artifact rebuild while a
+// real edit to the code still does.
 function codeHash(value) {
   let normalized = "";
   let index = 0;
@@ -91,105 +117,40 @@ export function parseExampleSource(source) {
   return { pages, examples };
 }
 
-function sortedDifference(left, right) {
-  return [...left.keys()].filter((key) => !right.has(key)).sort();
-}
-
-export function introducedDrift(previous, current) {
-  const known = new Set(previous);
-  return current.filter((key) => !known.has(key));
-}
-
-export function buildParity(nativeSource, wasmSource, artifact, glue = Buffer.alloc(0)) {
-  const native = parseExampleSource(nativeSource);
-  const wasm = parseExampleSource(wasmSource);
-  const keys = [...new Set([...native.examples.keys(), ...wasm.examples.keys()])].sort();
-  const examples = {};
-  const codeDrift = [];
-  const descriptionDrift = [];
-
-  for (const key of keys) {
-    const nativeExample = native.examples.get(key);
-    const wasmExample = wasm.examples.get(key);
-    examples[key] = {
-      ...(nativeExample ? { nativeCodeSha256: nativeExample.codeSha256 } : {}),
-      ...(wasmExample && (!nativeExample || nativeExample.codeSha256 !== wasmExample.codeSha256)
-        ? { wasmCodeSha256: wasmExample.codeSha256 }
-        : {}),
-      descriptionSha256:
-        nativeExample?.descriptionSha256 ?? wasmExample?.descriptionSha256 ?? descriptionHash(""),
-    };
-    if (nativeExample && wasmExample && nativeExample.codeSha256 !== wasmExample.codeSha256) {
-      codeDrift.push(key);
-    }
-    if (
-      nativeExample &&
-      wasmExample &&
-      nativeExample.descriptionSha256 !== wasmExample.descriptionSha256
-    ) {
-      descriptionDrift.push(key);
-    }
-  }
-
+export function buildManifest(source, artifact, glue = Buffer.alloc(0)) {
+  const { pages, examples } = parseExampleSource(source);
   return {
-    sections: Object.fromEntries(wasm.pages),
+    sections: Object.fromEntries(pages),
     parity: {
-      version: 1,
+      version: MANIFEST_VERSION,
       artifactSha256: createHash("sha256").update(artifact).digest("hex"),
       glueSha256: createHash("sha256").update(glue).digest("hex"),
-      examples,
-      missing: sortedDifference(native.examples, wasm.examples),
-      extra: sortedDifference(wasm.examples, native.examples),
-      codeDrift,
-      descriptionDrift,
+      examples: Object.fromEntries(
+        [...examples.keys()].sort().map((key) => [key, examples.get(key)]),
+      ),
     },
   };
 }
 
 export function run() {
-  const wasmSourcePath = argument("--source");
-  if (!wasmSourcePath) {
-    throw new Error(
-      "usage: node scripts/extract-wasm-sections.mjs --source <components.rs> [--native-source <components.rs>] [--wasm <artifact.wasm>] [--glue <bindgen.js>] [--accept-drift]",
-    );
-  }
-  const nativeSourcePath = argument(
-    "--native-source",
-    resolve(repoRoot, "gallery", "src", "pages", "components.rs"),
-  );
+  const sourcePath = argument("--source", galleryComponentsDir(repoRoot));
   const artifactPath = argument(
     "--wasm",
     resolve(webRoot, "public", "gallery", "herogpui_web_bg.wasm"),
   );
   const gluePath = argument("--glue", resolve(webRoot, "public", "gallery", "herogpui_web.js"));
-  const { sections, parity } = buildParity(
-    readFileSync(nativeSourcePath, "utf8"),
-    readFileSync(wasmSourcePath, "utf8"),
+  const { sections, parity } = buildManifest(
+    readGallerySource(sourcePath),
     readFileSync(artifactPath),
     readFileSync(gluePath),
   );
-
-  if (parity.descriptionDrift.length) {
-    throw new Error(`wasm example descriptions drifted: ${parity.descriptionDrift.join(", ")}`);
-  }
-  if (existsSync(parityOut) && !process.argv.includes("--accept-drift")) {
-    const previous = JSON.parse(readFileSync(parityOut, "utf8"));
-    const introduced = introducedDrift(previous.codeDrift ?? [], parity.codeDrift);
-    if (introduced.length) {
-      throw new Error(
-        `new native/wasm example drift: ${introduced.join(", ")}. Sync the examples or rerun with --accept-drift only for a reviewed GPUI-version adaptation.`,
-      );
-    }
-  }
 
   writeFileSync(sectionsOut, `${JSON.stringify(sections, null, 2)}\n`);
   writeFileSync(parityOut, `${JSON.stringify(parity, null, 2)}\n`);
   console.log(
     `wasm-sections.json: ${Object.keys(sections).length} pages, ${Object.values(sections).flat().length} examples`,
   );
-  console.log(
-    `wasm-parity.json: ${parity.codeDrift.length} code drifts, ${parity.descriptionDrift.length} description drifts`,
-  );
+  console.log(`wasm-parity.json: artifact ${parity.artifactSha256.slice(0, 12)}`);
   return { sections, parity };
 }
 

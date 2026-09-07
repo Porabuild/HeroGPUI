@@ -14,8 +14,8 @@ Component pages consume checked-in data generated from the Rust gallery. When
 component API/reference metadata or examples change, regenerate both outputs
 with `pnpm run extract`. Run `pnpm run extract:check` before handoff; CI runs
 the same non-mutating check.
-Keep `gallery/src/pages/reference_metadata.rs`,
-`gallery/src/pages/components.rs`, `web/src/data/reference.json`,
+Keep `gallery/src/pages/reference_metadata/`,
+`gallery/src/pages/components/`, `web/src/data/reference.json`,
 `web/src/data/rust-examples.json`, and the public `llms.txt` description aligned;
 do not hand-edit generated JSON.
 
@@ -33,13 +33,17 @@ component page. The preview query and message bridge must select and construct
 only one requested example at a time. New gallery pages must add checked-in
 reference metadata so the website does not ship an examples-only component page.
 
-When regenerating `public/gallery/herogpui_web*`, also regenerate
-`src/data/wasm-sections.json` and `src/data/wasm-parity.json` from that build's
-`gallery/src/pages/components.rs` with
-`node scripts/extract-wasm-sections.mjs --source <components.rs>`. This keeps
-the live selector from advertising examples absent from the wasm artifact,
-pins the native source and artifact hash, requires descriptions to match, and
-rejects newly introduced native/WASM code drift. Use `--accept-drift` only for
-a reviewed GPUI-version adaptation that cannot share the native source.
-Run `node scripts/lift-wasm-descriptions.mjs <components.rs>` before the build;
-it idempotently moves legacy static prose out of the live component canvas.
+`public/gallery/herogpui_web*` is compiled from this repository's own
+workspace: `crates/herogpui-web` links the `herogpui-gallery` library and
+builds for `wasm32-unknown-unknown`, so the embed runs the same
+`gallery/src/pages/components/` the native gallery does. See the root
+`AGENTS.md` for the build command; it builds on `rust-toolchain.toml`'s pinned
+stable, with no `RUSTUP_TOOLCHAIN` override and no `RUSTFLAGS`.
+
+After rebuilding that artifact, regenerate `src/data/wasm-sections.json` and
+`src/data/wasm-parity.json` with `pnpm run wasm:manifest` in the same change.
+`wasm-sections.json` tells the component page which headings get a live embed;
+`wasm-parity.json` pins the artifact, the glue and every example body by hash,
+which is the only thing standing between a committed 19 MB binary and a page
+whose code block and embed disagree. `pnpm run extract:check` fails when they
+have parted company, so a rebuild without a regeneration does not merge.

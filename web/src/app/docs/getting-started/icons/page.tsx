@@ -9,11 +9,11 @@ export const metadata: Metadata = {
   description: "Register HeroGPUI icon assets and color them with the active theme.",
 };
 
-const REGISTER = `gpui_platform::application()
+const REGISTER = `application()
     .with_assets(HeroGpuiAssets)
     .run(|cx| { /* open windows */ });`;
 
-const FALLBACK = `gpui_platform::application()
+const FALLBACK = `application()
     .with_assets(HeroGpuiAssets::with_fallback(MyAppAssets))
     .run(|cx| { /* both icon sets resolve */ });`;
 

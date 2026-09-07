@@ -9,8 +9,12 @@ export const SITE = {
   github: "https://github.com/Porabuild/HeroGPUI",
   upstream: "https://heroui.com",
   llmsTxt: "/llms.txt",
-  /** Pinned Zed revision for gpui / gpui_platform. Keep in lockstep with Cargo.toml. */
-  gpuiRev: "ee3b5558c581429633937e458fad8d109f29e9ee",
+  /**
+   * Published GPUI version for gpui / gpui_platform. Zed does not publish
+   * `gpui` under that name, so both come from `gpui-pre`, zed-industries' own
+   * prerelease publish of the same sources. Keep in lockstep with Cargo.toml.
+   */
+  gpuiVersion: "0.3.3",
 } as const;
 
 export interface NavLink {

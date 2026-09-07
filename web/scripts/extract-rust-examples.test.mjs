@@ -11,8 +11,8 @@ import {
   parseInvocation,
   separateExampleDescription,
 } from "./extract-rust-examples.mjs";
-import { liftDescriptions } from "./lift-wasm-descriptions.mjs";
-import { buildParity, introducedDrift, parseExampleSource } from "./extract-wasm-sections.mjs";
+import { MANIFEST_VERSION, buildManifest, parseExampleSource } from "./extract-wasm-sections.mjs";
+import { readGalleryComponentSource } from "./lib/gallery-source.mjs";
 
 test("documentationParity keeps component examples and reference metadata in sync", () => {
   assert.deepEqual(documentationParity(["button", "date-field"], ["button", "date-field"]), {
@@ -48,8 +48,10 @@ test("wasm section manifest matches generated component examples", () => {
     }
   }
 
-  // Every documented example now compiles into the migration artifact. A new
-  // entry here means a page shipped documentation the browser cannot render.
+  // The gallery has one source, so every documented example is compiled into
+  // the artifact. A new entry here means the manifest was not regenerated
+  // after the gallery changed, and a page would ship documentation the
+  // browser cannot render.
   assert.deepEqual(missing.sort(), []);
 });
 
@@ -57,9 +59,8 @@ test("wasm parity manifest pins the native source and compiled artifact", () => 
   const parity = JSON.parse(
     readFileSync(resolve(import.meta.dirname, "../src/data/wasm-parity.json"), "utf8"),
   );
-  const nativeSource = readFileSync(
-    resolve(import.meta.dirname, "../../gallery/src/pages/components.rs"),
-    "utf8",
+  const nativeSource = readGalleryComponentSource(
+    resolve(import.meta.dirname, "../.."),
   );
   const native = parseExampleSource(nativeSource);
   const artifact = readFileSync(
@@ -67,36 +68,21 @@ test("wasm parity manifest pins the native source and compiled artifact", () => 
   );
   const glue = readFileSync(resolve(import.meta.dirname, "../public/gallery/herogpui_web.js"));
 
-  assert.equal(parity.version, 1);
+  assert.equal(parity.version, MANIFEST_VERSION);
   assert.equal(createHash("sha256").update(artifact).digest("hex"), parity.artifactSha256);
   assert.equal(createHash("sha256").update(glue).digest("hex"), parity.glueSha256);
   assert.deepEqual(Object.keys(parity.examples).sort(), [...native.examples.keys()].sort());
   for (const [key, example] of native.examples) {
-    assert.equal(parity.examples[key]?.nativeCodeSha256, example.codeSha256, `${key} code changed`);
+    assert.equal(parity.examples[key]?.codeSha256, example.codeSha256, `${key} code changed`);
     assert.equal(
       parity.examples[key]?.descriptionSha256,
       example.descriptionSha256,
       `${key} description changed`,
     );
   }
-  assert.deepEqual(parity.missing, []);
-  assert.deepEqual(parity.extra, []);
-  assert.deepEqual(parity.descriptionDrift, []);
-  assert.deepEqual(
-    parity.codeDrift,
-    Object.entries(parity.examples)
-      .filter(([, example]) =>
-        Boolean(
-          example.nativeCodeSha256 &&
-          example.wasmCodeSha256 &&
-          example.nativeCodeSha256 !== example.wasmCodeSha256,
-        ),
-      )
-      .map(([key]) => key),
-  );
 });
 
-test("wasm parity rejects duplicate selector headings and detects description drift", () => {
+test("the manifest rejects unparseable pages and duplicate selector headings", () => {
   assert.throws(
     () => parseExampleSource('component_doc_page!("Broken"'),
     /could not parse component page.*unbalanced macro arguments/,
@@ -109,66 +95,49 @@ test("wasm parity rejects duplicate selector headings and detects description dr
     cx,
   )`;
   assert.throws(() => parseExampleSource(duplicate), /button has duplicate example heading Usage/);
-
-  const native = duplicate
-    .replace(', ("Usage", Button::new("two"))', "")
-    .replace(
-      '("Usage", Button::new("one"))',
-      '("Usage", "Current description.", Button::new("one"))',
-    );
-  const wasm = native.replace("Current description.", "Stale description.");
-  assert.deepEqual(buildParity(native, wasm, Buffer.from("wasm")).parity.descriptionDrift, [
-    "button/Usage",
-  ]);
-  assert.deepEqual(introducedDrift(["button/Usage"], ["button/Usage", "input/Usage"]), [
-    "input/Usage",
-  ]);
-
-  const formattingOnly = native.replace('Button::new("one")', ' Button::new(  "one", ) ');
-  assert.deepEqual(buildParity(native, formattingOnly, Buffer.from("wasm")).parity.codeDrift, []);
-  const changedString = native.replace('Button::new("one")', 'Button::new("o ne")');
-  assert.deepEqual(buildParity(native, changedString, Buffer.from("wasm")).parity.codeDrift, [
-    "button/Usage",
-  ]);
 });
 
-test("liftDescriptions moves static copy outside the wasm specimen", () => {
+test("the manifest hashes example code past formatting but not past edits", () => {
   const source = `component_doc_page!(
     "Button",
     "Press an action.",
     "use herogpui::Button;",
-    vec![(
-      "Usage",
-      col(vec![
-        para("Choose an action before continuing.", cx),
-        Button::new("save").label("Save").into_any_element(),
-      ]),
-    )],
+    vec![("Usage", "Current description.", Button::new("one"))],
     cx,
   )`;
+  const baseline = buildManifest(source, Buffer.from("wasm")).parity;
+  assert.deepEqual(baseline.sections ?? undefined, undefined);
+  assert.equal(baseline.version, MANIFEST_VERSION);
 
-  const first = liftDescriptions(source);
-  assert.equal(first.lifted, 1);
-  assert.match(first.output, /"Usage",\s+"Choose an action before continuing\.",/);
-  assert.doesNotMatch(first.output, /para\(/);
-  assert.equal(liftDescriptions(first.output).lifted, 0);
-});
+  // Reformatting the gallery must not invalidate the committed artifact: a
+  // 19 MB rebuild for a moved comma is a rebuild nobody does, and a manifest
+  // people stop regenerating stops guarding anything.
+  const formattingOnly = source.replace('Button::new("one")', ' Button::new(  "one", ) ');
+  assert.equal(
+    buildManifest(formattingOnly, Buffer.from("wasm")).parity.examples["button/Usage"].codeSha256,
+    baseline.examples["button/Usage"].codeSha256,
+  );
 
-test("liftDescriptions rejects setup blocks that need explicit migration", () => {
-  const source = `component_doc_page!(
-    "Form",
-    "Submit fields.",
-    "use herogpui::Form;",
-    vec![("Server Errors", {
-      let form = Form::new();
-      col(vec![para("Server errors stay visible.", cx), form.into_any_element()])
-    })],
-    cx,
-  )`;
+  // A real edit inside a string literal must, because the browser would
+  // render the old text next to the new code block.
+  const changedString = source.replace('Button::new("one")', 'Button::new("o ne")');
+  assert.notEqual(
+    buildManifest(changedString, Buffer.from("wasm")).parity.examples["button/Usage"].codeSha256,
+    baseline.examples["button/Usage"].codeSha256,
+  );
 
-  assert.throws(
-    () => liftDescriptions(source),
-    /Form\/Server Errors has prose inside a setup block/,
+  const changedDescription = source.replace("Current description.", "New description.");
+  assert.notEqual(
+    buildManifest(changedDescription, Buffer.from("wasm")).parity.examples["button/Usage"]
+      .descriptionSha256,
+    baseline.examples["button/Usage"].descriptionSha256,
+  );
+
+  // The artifact and glue are pinned too, so swapping the binary without
+  // regenerating is caught the same way.
+  assert.notEqual(
+    buildManifest(source, Buffer.from("other wasm")).parity.artifactSha256,
+    baseline.artifactSha256,
   );
 });
 

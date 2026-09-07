@@ -27,7 +27,7 @@ impl Render for MyApp {
  */
 export function CodeAndRender() {
   return (
-    <section className="landing-code-render border-b border-separator">
+    <section className="landing-code-render relative overflow-hidden border-b border-separator">
       <div className="mx-auto w-full max-w-[1440px] px-4 py-16 sm:px-6 md:py-24">
         <SectionHeading
           eyebrow="Rust code, native output"

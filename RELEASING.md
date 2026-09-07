@@ -3,6 +3,32 @@
 HeroGPUI uses one version for four crates.io libraries, the crates.io gallery
 CLI, the native gallery binaries, and the Git tag.
 
+This flow only became real once the workspace stopped depending on a Zed GPUI
+git revision: cargo refuses to publish any crate that carries a git dependency,
+so every `cargo publish` below would have failed outright. GPUI now comes from
+the published `gpui-pre` crates named in `[workspace.dependencies]`, and
+that registry dependency is what makes the steps below executable. Reintroducing
+a git dependency anywhere in the workspace re-breaks publishing.
+
+## Why the GPUI pin is exact
+
+`[workspace.dependencies]` pins `gpui-pre` and `gpui-pre-platform` at
+`=0.3.3`, and the vendored `gpui-pre-web` fork in `crates/gpui_web` carries the
+same version. Do not relax either to a caret. `gpui-pre-platform` requires the
+rest of the family at an exact `=` version of its own, so the caret bought no
+flexibility while letting a bare `cargo update` walk the workspace onto a
+version the fork no longer matched — at which point `[patch.crates-io]` stops
+applying with no error and the fork's `events.rs` hunks silently leave the
+browser build.
+
+0.3.1 and 0.3.2 must not be resolved. `gpui-pre-macros` 0.3.1 leaves the inner
+`__gpui_pre_derive_inspector_reflection` helper ungated while its body calls
+into a `#[cfg(any(feature = "inspector", debug_assertions))]` module, so every
+`debug_assertions`-off build — `cargo build --release -p herogpui-gallery` in
+`.github/workflows/release.yml`, and the `wasm-release` artifact build in CI's
+`wasm` job — failed with `error[E0433]`. 0.3.2 fixes the gate but is superseded;
+0.3.3 is the pinned version and builds both profiles clean.
+
 ## One-time setup
 
 1. Confirm the public `Porabuild/HeroGPUI` GitHub repository is in place and

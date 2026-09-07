@@ -1,6 +1,7 @@
 "use client";
 
 import { cn } from "@heroui/react";
+import { ChevronDown } from "lucide-react";
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { publicUrl } from "@/lib/public-url";
@@ -40,7 +41,12 @@ function galleryOrigin(base: string): string {
   return ABSOLUTE_URL_RE.test(base) ? base : publicUrl(base);
 }
 
-function embedUrl(slug: string, section: string, theme: "light" | "dark"): string {
+function embedUrl(
+  slug: string,
+  section: string,
+  theme: "light" | "dark",
+  wasmVersion: string = "",
+): string {
   const base = galleryOrigin(GALLERY_BASE).replace(/\/+$/, "");
   const query = new URLSearchParams({
     preview: "component",
@@ -52,7 +58,12 @@ function embedUrl(slug: string, section: string, theme: "light" | "dark"): strin
   // /gallery/herogpui_web.js. The bare "/gallery/?story=…" form 308s to
   // "/gallery?story=…" (Next strips the trailing slash), and the module
   // then resolves relative to "/herogpui/gallery" → 404.
-  return `${base}/index.html?${query}`;
+  //
+  // The artifact hash rides along as the version: the browser caches the
+  // gallery module and WASM across visits, so a deploy that only swaps
+  // those files would otherwise leave visitors on the previous build.
+  const version = wasmVersion ? `&v=${wasmVersion.slice(0, 12)}` : "";
+  return `${base}/index.html?${query}${version}`;
 }
 
 export interface GalleryFrameProps {
@@ -69,9 +80,18 @@ export interface GalleryFrameProps {
    * card stacks the frame above the first example's code in one border).
    */
   bare?: boolean;
+  /** Artifact hash appended to the embed URL so deploys bust module cache. */
+  wasmVersion?: string;
 }
 
-export function GalleryFrame({ slug, title, section, className, bare = false }: GalleryFrameProps) {
+export function GalleryFrame({
+  slug,
+  title,
+  section,
+  className,
+  bare = false,
+  wasmVersion = "",
+}: GalleryFrameProps) {
   const [frameTheme, setFrameTheme] = useState<"light" | "dark" | null>(null);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const initialSection = useRef(section).current;
@@ -147,7 +167,7 @@ export function GalleryFrame({ slug, title, section, className, bare = false }: 
             className="absolute inset-0 h-full w-full border-0"
             onLoad={selectSection}
             ref={iframeRef}
-            src={embedUrl(slug, initialSection, frameTheme)}
+            src={embedUrl(slug, initialSection, frameTheme, wasmVersion)}
             title={`${title} ${section}, rendered live by HeroGPUI compiled to WebAssembly`}
           />
         ) : (
@@ -189,9 +209,15 @@ interface ComponentExampleBrowserProps {
   slug: string;
   title: string;
   examples: ComponentPreviewExample[];
+  wasmVersion?: string;
 }
 
-export function ComponentExampleBrowser({ slug, title, examples }: ComponentExampleBrowserProps) {
+export function ComponentExampleBrowser({
+  slug,
+  title,
+  examples,
+  wasmVersion = "",
+}: ComponentExampleBrowserProps) {
   const [selectedId, setSelectedId] = useState(examples[0]?.id ?? "");
   const selected = examples.find((example) => example.id === selectedId) ?? examples[0];
   if (!selected) return null;
@@ -205,21 +231,33 @@ export function ComponentExampleBrowser({ slug, title, examples }: ComponentExam
       {examples.length > 1 ? (
         <label className="mt-4 flex flex-col gap-2 text-sm font-medium text-foreground sm:flex-row sm:items-center sm:justify-between sm:gap-4">
           Live example
-          <select
-            className="w-full rounded-lg border border-separator bg-surface px-3 py-2 text-sm text-foreground outline-none transition-colors focus:border-accent sm:w-auto sm:min-w-48"
-            onChange={(event) => setSelectedId(event.currentTarget.value)}
-            value={selected.id}
-          >
-            {examples.map((example) => (
-              <option key={example.id} value={example.id}>
-                {example.heading}
-              </option>
-            ))}
-          </select>
+          <div className="relative w-full sm:w-auto">
+            <select
+              className="w-full cursor-pointer appearance-none rounded-lg border border-separator bg-surface py-2 pl-3 pr-9 text-sm text-foreground outline-none transition-colors hover:border-foreground/30 focus:border-accent sm:min-w-48"
+              onChange={(event) => setSelectedId(event.currentTarget.value)}
+              value={selected.id}
+            >
+              {examples.map((example) => (
+                <option key={example.id} value={example.id}>
+                  {example.heading}
+                </option>
+              ))}
+            </select>
+            <ChevronDown
+              aria-hidden="true"
+              className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-muted"
+            />
+          </div>
         </label>
       ) : null}
       <div className="mt-4 overflow-hidden rounded-xl border border-separator bg-surface">
-        <GalleryFrame bare section={selected.heading} slug={slug} title={title} />
+        <GalleryFrame
+          bare
+          section={selected.heading}
+          slug={slug}
+          title={title}
+          wasmVersion={wasmVersion}
+        />
         <div className="border-t border-separator">{selected.code}</div>
       </div>
       <p className="mt-3 flex items-center gap-2 text-xs text-muted">

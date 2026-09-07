@@ -12,8 +12,8 @@ The site is at `E:\work\HeroGPUI\web`. Next.js 16.3.3, React 19.2.8,
 | | |
 |---|---|
 | Components | 66 pages across 15 categories, covering all 71 documented components |
-| API reference | 61 pages carry reference tables, extracted from `gallery/src/pages/reference_metadata.rs` |
-| Rust examples | 643, extracted from `gallery/src/pages/components.rs` |
+| API reference | 61 pages carry reference tables, extracted from `gallery/src/pages/reference_metadata/` |
+| Rust examples | extracted from `gallery/src/pages/components/` |
 | Releases | GitHub Releases (none published), listed on `/docs/releases` |
 | Screenshots | 82 captures in `.shots/`, copied to `public/shots/` |
 
@@ -38,13 +38,16 @@ screenshots in place of the frame and do not instantiate the full gallery
 shell.
 
 The WASM gallery was restored and verified on production in commit 52d4f099
-("Align HeroGPUI parity and restore the WASM gallery"). The artifact's recipe
-is vendored in `web/wasm-migration/` (baseline commit plus working diff —
-see its README), and `src/data/wasm-sections.json` plus `wasm-parity.json`
-pin the compiled examples and artifact hashes so the selector never
-advertises an example the artifact lacks. Regenerate both manifests from the
-artifact's build source whenever the artifact changes, and refresh the
-vendored recipe in the same commit (`pnpm run wasm:vendor`).
+("Align HeroGPUI parity and restore the WASM gallery"). `crates/herogpui-web`
+is a normal member of the root workspace — there is no separate checkout of
+the repository to keep the artifact building from, and component sources
+carry no wasm-specific code. `src/data/wasm-sections.json` plus
+`wasm-parity.json` pin the compiled examples and the artifact hash so the
+selector never advertises an example the artifact lacks. Regenerate both
+manifests from the native gallery source (`gallery/src/pages/components/`)
+with `pnpm run wasm:manifest` whenever the artifact changes. A `wasm` job in
+`.github/workflows/ci.yml` also builds the artifact and runs `wasm-bindgen`
+on every PR, ahead of the final `ci` gate.
 
 The plain (non-shared-memory) wasm build needs no COOP/COEP headers
 anywhere; `next.config.ts` maps `/gallery` onto the artifact's `index.html`.

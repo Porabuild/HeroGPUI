@@ -1,7 +1,7 @@
 // Extract per-component Rust example snippets into
 // web/src/data/rust-examples.json.
 //
-// Source: gallery/src/pages/components.rs. Every component page is built by
+// Source: gallery/src/pages/components/. Every component page is built by
 // the `component_doc_page!` macro:
 //
 //   component_doc_page!("Title", <desc>, <import>, vec![("Heading", [<desc>,] expr), …], cx)
@@ -16,6 +16,7 @@ import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { parseGalleryPageImports, parseGalleryPages } from "./lib/gallery-pages.mjs";
+import { readGalleryComponentSource } from "./lib/gallery-source.mjs";
 import { parseUseStatement, splitUseStatements } from "./lib/imports.mjs";
 import {
   readIdent,
@@ -30,7 +31,6 @@ import {
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const webRoot = resolve(scriptDir, "..");
 const repoRoot = resolve(webRoot, "..");
-const SOURCE = resolve(repoRoot, "gallery", "src", "pages", "components.rs");
 const MOD_SOURCE = resolve(repoRoot, "gallery", "src", "pages", "mod.rs");
 const CATALOG = resolve(webRoot, "src", "data", "catalog.json");
 const REFERENCE = resolve(webRoot, "src", "data", "reference.json");
@@ -585,7 +585,7 @@ function replaceSizingHelpers(code) {
     }
     if (call.name === "fixed_demo" && args.length === 2) {
       // `fixed_demo(width: f32, …)` wraps its width in `px` internally
-      // (gallery/src/pages/components.rs), so the expansion must too —
+      // (gallery/src/pages/components/), so the expansion must too —
       // `Into<Length>` does not accept a bare float.
       return [
         "gpui::div()",
@@ -909,7 +909,7 @@ function addImports(canonical, code, aliases) {
 }
 
 export function run({ check = false } = {}) {
-  const src = readFileSync(SOURCE, "utf8");
+  const src = readGalleryComponentSource(repoRoot);
   const importsByPage = canonicalImports();
   const pages = new Map();
   /** @type {{ page: string, reason: string }[]} */

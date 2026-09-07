@@ -39,9 +39,9 @@ function llmsSectionKey(heading: string): string {
 // build time, so the table and the file cannot drift silently.
 const SECTION_DESCRIPTIONS: Record<string, string> = {
   Overview:
-    "The crate layout — the `herogpui` umbrella, `herogpui-theme` (`ThemeProvider`, `ActiveTheme`), `herogpui-core` (shared enums and OKLCH math), `herogpui-components`, and the gallery app — plus the unsupported legacy names: `content1..4` tokens, numbered color scales, `primary`/`secondary` as colors, the `radius` prop, and components such as `Navbar`, `Image`, `User`, `Spacer`, `Code`, and `Snippet`.",
+    "The crate layout — the `herogpui` facade (the single dependency, re-exporting GPUI itself), `herogpui-theme` (`ThemeProvider`, `ActiveTheme`), `herogpui-core` (shared enums and OKLCH math), `herogpui-components`, and the gallery app — plus the unsupported legacy names: `content1..4` tokens, numbered color scales, `primary`/`secondary` as colors, the `radius` prop, and components such as `Navbar`, `Image`, `User`, `Spacer`, `Code`, and `Snippet`.",
   Installation:
-    "The Cargo dependency lines, and a complete minimal bootstrap: `gpui_platform::application()` with `HeroGpuiAssets`, `ThemeProvider::init`, a window with `app_focus_root`, and root background/foreground from tokens with a light/dark toggle.",
+    "The one dependency line, the path/crate/feature table for the facade, and a complete minimal bootstrap: `application()` with `HeroGpuiAssets`, `herogpui::init`, a window with `app_focus_root`, and root background/foreground from tokens with a light/dark toggle. Also the two facade rules an agent has to know: emit `herogpui::actions!` rather than `gpui::actions!`, and expect HeroUI's spelling to win for the eight names GPUI shares with it.",
   Theming:
     "The OKLCH token vocabulary: base tokens (`background`, `muted`, `border`, `focus`, `link`, …), containers (`surface`, `overlay`, `segment`), roles (`accent`, `success`, `warning`, `danger` with derived `soft()`/`soft_hover()`), fields, layout tokens (the radius scale, spacing, shadows, tooltip delays), the custom theme builder, and the color-math helpers.",
   "Prop vocabularies":
@@ -185,11 +185,11 @@ export default function LlmsTxtPage() {
           <C>Image</C> are not part of the library.
         </Li>
         <Li>
-          <strong>Use the pinned framework assumptions.</strong> The repository targets the Zed GPUI
-          git revision in <C>Cargo.toml</C> and <C>Cargo.lock</C>, with <strong>Rust 1.98</strong>.
-          A newer GPUI API may not be available here. Inherited behavior follows React Aria 3.51.0,
-          React Stately 3.49.0 and React Aria Components 1.20.0. Check this file and the repository
-          task guides before using an API.
+          <strong>Use the pinned framework assumptions.</strong> The repository targets the
+          published <C>gpui-pre</C> GPUI version in <C>Cargo.toml</C> and <C>Cargo.lock</C>,
+          with <strong>Rust 1.98</strong>. A newer GPUI API may not be available here. Inherited
+          behavior follows React Aria 3.51.0, React Stately 3.49.0 and React Aria Components 1.20.0.
+          Check this file and the repository task guides before using an API.
         </Li>
       </Ul>
       <P>

@@ -49,7 +49,8 @@ function Mono({ children }: { children: string }) {
 
 /**
  * The public Rust builders for a component. Web-only rows are omitted; the
- * builder is the first column.
+ * builder is the first column and the values it accepts the second, so a
+ * reader sees the choices rather than the type name the signature repeats.
  */
 export function PropsTable({ rows, label, className }: PropsTableProps) {
   const visible = gpuiPropRows(rows);
@@ -66,7 +67,7 @@ export function PropsTable({ rows, label, className }: PropsTableProps) {
       className={className}
       columns={[
         { header: "Builder", id: "builder", isRowHeader: true },
-        { header: "Type", id: "type" },
+        { header: "Values", id: "values" },
         { header: "Default", id: "default" },
         { header: "Description", id: "description" },
       ]}
@@ -74,7 +75,7 @@ export function PropsTable({ rows, label, className }: PropsTableProps) {
       rows={visible.map((row) => ({
         cells: [
           <Mono key="builder">{row.builder}</Mono>,
-          <Mono key="type">{row.type}</Mono>,
+          <Mono key="values">{row.values}</Mono>,
           <Mono key="default">{row.default}</Mono>,
           <span className="text-sm text-muted" key="description">
             {row.description}

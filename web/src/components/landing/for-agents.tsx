@@ -25,8 +25,9 @@ const AGENT_LINKS = [
 export function ForAgents() {
   return (
     <section className="landing-for-agents">
-      <div className="mx-auto grid w-full max-w-[1440px] gap-10 px-4 py-16 sm:px-6 md:py-24 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] lg:gap-20">
+      <div className="mx-auto grid w-full max-w-[1440px] items-start gap-10 px-4 py-16 sm:px-6 md:py-24 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] lg:gap-20">
         <SectionHeading
+          align="stacked"
           eyebrow="For coding agents"
           sub="The repository includes a machine-readable API reference, repository guidance, and task guides. Give your agent the same context you use."
           title="A repository your agent can navigate"

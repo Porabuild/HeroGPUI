@@ -264,6 +264,8 @@ export function uniqueBy<T>(rows: T[], key: (row: T) => string): T[] {
 export interface GpuiPropRow {
   builder: string;
   type: string;
+  /** The values the builder accepts, in Rust spelling. */
+  values: string;
   default: string;
   description: string;
 }
@@ -278,6 +280,7 @@ export function gpuiPropRows(rows: ApiRow[]): GpuiPropRow[] {
         return {
           builder,
           type,
+          values: acceptedStyleValues(row.type, type),
           default: rustDefault(row.default, type),
           description: scrubDescription(row.description),
         };

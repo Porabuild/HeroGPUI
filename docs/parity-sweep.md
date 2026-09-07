@@ -82,7 +82,7 @@ text starts at x326/591/855 and body rows at 325/591/860, 325/590/861,
 `table_examples_give_the_w_full_table_the_frame_width` fails on the old
 wrappers.
 
-**Residual limitation, recorded in `reference_metadata.rs` under
+**Residual limitation, recorded in `reference_metadata` under
 `.table__content`.** The port is a flex column, not upstream's
 `border-separate` table, so column tracks resolve per row from
 `flex-basis:0; flex-grow:1` with `min-width:auto`. Alignment therefore holds

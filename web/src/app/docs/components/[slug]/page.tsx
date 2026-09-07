@@ -15,7 +15,13 @@ import {
   rustRequiredParts,
   scrubDescription,
 } from "@/lib/gpui-docs";
-import { getComponentReference, getRustExamples, getWasmSections, type RustExample } from "./data";
+import {
+  getComponentReference,
+  getRustExamples,
+  getWasmArtifactVersion,
+  getWasmSections,
+  type RustExample,
+} from "./data";
 import { buildExampleSections } from "./examples";
 import { PartsTable, StatesTable, StylingTable } from "./reference-tables";
 
@@ -101,6 +107,7 @@ export default async function ComponentPage({ params }: ComponentPageProps) {
           key={component.slug}
           slug={component.slug}
           title={component.title}
+          wasmVersion={getWasmArtifactVersion()}
         />
       ) : null}
 
@@ -129,10 +136,10 @@ export default async function ComponentPage({ params }: ComponentPageProps) {
         <section aria-labelledby="customization">
           <h2 id="customization">Customization</h2>
           <p className="mt-2 text-sm text-muted">
-            Typed builders that change how {component.title} looks. There is no <code>sx</code> or{" "}
-            <code>className</code>: wrap the component in a <code>div()</code> you own and style
-            that with GPUI, or use a render closure for inner content. Behaviour builders live in
-            the API reference below.
+            Typed builders that change how {component.title} looks, plus one slot for everything
+            else: every builder carries <code>sx</code>, which takes GPUI&apos;s own styling methods
+            and refines them over the component&apos;s root element after the theme&apos;s values,
+            so an override wins. Behaviour builders live in the API reference below.
           </p>
           <h3 id="styling-reference">Styling</h3>
           <div className="mt-4">
@@ -140,10 +147,14 @@ export default async function ComponentPage({ params }: ComponentPageProps) {
           </div>
           <div className="mt-4">
             <CodeBlock
-              code={`div()
-    .p(px(8.))
-    .bg(cx.colors().surface.background)
-    .child(/* ${component.title} */)`}
+              code={`// The one slot for caller-owned low-level styling: GPUI's
+// styling methods, refined over the root element last.
+.sx(|el| {
+    el.bg(gpui::rgba(0xffa500ff))             // background
+        .text_color(gpui::rgba(0x000000ff))   // text
+        .w(gpui::px(13.))                     // size
+        .h(gpui::px(12.))
+})`}
               lang="rust"
             />
           </div>

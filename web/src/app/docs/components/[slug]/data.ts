@@ -155,18 +155,25 @@ function parseReference(raw: unknown): ComponentReference | null {
   };
 }
 
+function persistDataCache(): boolean {
+  return process.env.NODE_ENV === "production";
+}
+
+function readJsonRecord(name: string): Record<string, unknown> {
+  try {
+    const file = path.join(process.cwd(), "src", "data", name);
+    const parsed: unknown = JSON.parse(readFileSync(file, "utf8"));
+    return isRecord(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
 let referenceFile: Record<string, unknown> | null = null;
 
 function referenceData(): Record<string, unknown> {
-  referenceFile ??= (() => {
-    try {
-      const file = path.join(process.cwd(), "src", "data", "reference.json");
-      const parsed: unknown = JSON.parse(readFileSync(file, "utf8"));
-      return isRecord(parsed) ? parsed : {};
-    } catch {
-      return {};
-    }
-  })();
+  if (!persistDataCache()) return readJsonRecord("reference.json");
+  referenceFile ??= readJsonRecord("reference.json");
   return referenceFile;
 }
 
@@ -174,6 +181,9 @@ const referenceCache = new Map<string, ComponentReference | null>();
 
 /** The upstream/port audit entry for one component, or null when absent. */
 export function getComponentReference(slug: string): ComponentReference | null {
+  if (!persistDataCache()) {
+    return parseReference(referenceData()[slug]);
+  }
   if (!referenceCache.has(slug)) {
     referenceCache.set(slug, parseReference(referenceData()[slug]));
   }
@@ -184,15 +194,8 @@ let examplesFile: Record<string, unknown> | null = null;
 let wasmSectionsFile: Record<string, unknown> | null = null;
 
 function exampleData(): Record<string, unknown> {
-  examplesFile ??= (() => {
-    try {
-      const file = path.join(process.cwd(), "src", "data", "rust-examples.json");
-      const parsed: unknown = JSON.parse(readFileSync(file, "utf8"));
-      return isRecord(parsed) ? parsed : {};
-    } catch {
-      return {};
-    }
-  })();
+  if (!persistDataCache()) return readJsonRecord("rust-examples.json");
+  examplesFile ??= readJsonRecord("rust-examples.json");
   return examplesFile;
 }
 
@@ -211,16 +214,29 @@ export function getRustExamples(slug: string): RustExample[] {
   );
 }
 
-/** Examples present in the separately built wasm migration artifact. */
+/** Example headings the compiled web-gallery artifact can render live. */
 export function getWasmSections(slug: string): string[] {
-  wasmSectionsFile ??= (() => {
-    try {
-      const file = path.join(process.cwd(), "src", "data", "wasm-sections.json");
-      const parsed: unknown = JSON.parse(readFileSync(file, "utf8"));
-      return isRecord(parsed) ? parsed : {};
-    } catch {
-      return {};
-    }
-  })();
+  if (!persistDataCache()) {
+    return asStringArray(readJsonRecord("wasm-sections.json")[slug]);
+  }
+  wasmSectionsFile ??= readJsonRecord("wasm-sections.json");
   return asStringArray(wasmSectionsFile[slug]);
+}
+
+let wasmArtifactVersionFile: string | undefined;
+
+/**
+ * The pinned artifact hash, used as the embed's cache-busting version: the
+ * browser caches the gallery module and WASM across visits, so a deploy that
+ * only swaps those files would otherwise leave visitors on the previous
+ * build.
+ */
+export function getWasmArtifactVersion(): string {
+  const read = () => {
+    const parsed = readJsonRecord("wasm-parity.json");
+    return typeof parsed.artifactSha256 === "string" ? parsed.artifactSha256 : "";
+  };
+  if (!persistDataCache()) return read();
+  wasmArtifactVersionFile ??= read();
+  return wasmArtifactVersionFile;
 }

@@ -4,7 +4,7 @@ import { CtaLink } from "@/components/landing/cta-link";
 
 export function FinalCta() {
   return (
-    <section className="landing-closing landing-final-cta border-t border-separator">
+    <section className="landing-closing landing-final-cta relative overflow-hidden border-t border-separator">
       <div className="mx-auto w-full max-w-[1440px] px-4 py-20 sm:px-6 md:py-28">
         <p className="pb-eyebrow justify-center text-center">
           <span aria-hidden="true" className="pb-live-dot" />

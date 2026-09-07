@@ -1,6 +1,6 @@
 // Extract HeroGPUI reference metadata into web/src/data/reference.json.
 //
-// Source: gallery/src/pages/reference_metadata.rs — uniform, checked-in Rust
+// Source: gallery/src/pages/reference_metadata/ — uniform, checked-in Rust
 // const literals (ApiDoc / PartDoc / StateDoc / StyleDoc / ReferenceMetadata).
 // The file is read with the shared character-level scanner so escaped quotes
 // and commas inside strings cannot split a field.
@@ -9,6 +9,7 @@ import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { parseGalleryPages } from "./lib/gallery-pages.mjs";
+import { readRustModulePath } from "./lib/gallery-source.mjs";
 import {
   readIdent,
   readStringLiteral,
@@ -221,7 +222,7 @@ function rowStatus(value, context) {
 }
 
 function extract() {
-  const src = readFileSync(SOURCE, "utf8");
+  const src = readRustModulePath(SOURCE);
   const consts = collectConsts(src);
 
   // Reference entries must be keyed by the slug the site uses for the page,

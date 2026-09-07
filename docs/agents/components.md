@@ -93,8 +93,11 @@ reason in the parity audit.
 - `Pixels` has a private inner field; use `f32::from(value)`.
 - The pinned GPUI has no div-level rotate/scale, `select_none`, `grow`, or
   `uppercase`. Verify alternatives against the pinned git source.
-- Use `ActiveTheme::reduce_motion(cx)` for the HeroGPUI preference; GPUI also
-  has an inherent `App::reduce_motion()` method with separate state.
+- Use `ActiveTheme::reduce_motion(cx)` for the reduced-motion preference. It
+  now reads GPUI's own `App::reduce_motion()` global — one flag, so a plain
+  `gpui::Animation` is suppressed too — but keep spelling the trait call
+  explicitly: `cx.reduce_motion()` resolves to GPUI's inherent method, and
+  the source-grep tests pin the unambiguous form.
 - `svg()` does not inherit text color. Set `.text_color(..)` explicitly.
 - A new icon needs both a constant in `components/src/icons.rs` and an asset
   registration in `gallery/src/assets.rs`.
@@ -123,6 +126,29 @@ reason in the parity audit.
   do not substitute GPUI's nearest built-in easing.
 - Paint and interaction must use the same color model, axis, range, and
   orientation. Preserve hue endpoints and degenerate black/white states.
+
+## Accessibility
+
+- A control is in the accessibility tree only when it has *both* an `.id(..)`
+  and a role. `element_id_audit.py` guards the id; `a11y_audit.py` guards the
+  role, and `crates/herogpui-components/src/a11y.rs` holds the contract.
+- Do not call gpui's own `aria_*` / `role` builders from a component. Use the
+  `a11y::A11y` extension — `a11y`, `a11y_named`, `a11y_checked`, `a11y_pressed`,
+  `a11y_range`, `a11y_orientation`, `a11y_text` — so the conditions React Aria
+  attaches to each attribute are written once. `.role(..)` is also the theme's
+  colour-role method, which is why the port spells the accessibility one `a11y`.
+- Derive the role from the pinned React Aria hook, not from what ARIA "should"
+  be. The hooks are checked in under `web/node_modules` at the versions
+  `parity.md` pins, and each row of `a11y_audit.py` names the one it came from.
+- A gpui text child carries no element id, so it contributes no accessible
+  name. A component whose visible label is text must restate it through
+  `a11y::Name`.
+- Labels, descriptions and validation messages flow through
+  `a11y::Name::field`, which performs the join `useField` performs with ids.
+  Do not re-derive them per component.
+- A component that has no caller-supplied id cannot report a role at all: a
+  constant id would fold two instances into one node. Record it as pending in
+  the audit rather than minting one.
 
 ## Virtual collections
 

@@ -195,38 +195,49 @@ slash, then resolve) so both URL forms boot. The `/gallery` rewrite in
 
 ### Rebuilding the artifact (Rust side)
 
-The artifact is compiled from a separate wasm32 checkout of this repository;
-its exact recipe is vendored in `web/wasm-migration/` (baseline commit plus
-working diff — the full procedure is that directory's README). In short, from
-the migration checkout:
+The artifact is compiled from this repository's own workspace: `crates/herogpui-web`
+is a normal member of the root `Cargo.toml` workspace, linking the same
+`gallery/src/lib.rs` gallery shell the desktop build uses. There is no second
+checkout and no adaptation table to keep in sync — component sources need no
+wasm-specific code at all. From the repository root:
 
 ```powershell
-$env:CARGO_TARGET_DIR='<scratch>'; $env:CARGO_HOME='<scratch>'
-node <this repo>\web\scripts\lift-wasm-descriptions.mjs `
-  <migration>\gallery\src\pages\components.rs
+rustup target add wasm32-unknown-unknown
 cargo build --target wasm32-unknown-unknown --profile wasm-release -p herogpui-web
-<bindgen>\wasm-bindgen.exe `
-  <target>\wasm32-unknown-unknown\wasm-release\herogpui_web.wasm `
-  --out-dir <this repo>\web\public\gallery --target web --no-typescript
-node <this repo>\web\scripts\extract-wasm-sections.mjs `
-  --source <migration>\gallery\src\pages\components.rs
+wasm-bindgen --target web --no-typescript --out-dir web\public\gallery `
+  target\wasm32-unknown-unknown\wasm-release\herogpui_web.wasm
 ```
 
-Copy `index.html` from the migration's `crates/herogpui-web/` alongside (the
-bindgen output only produces the two `herogpui_web.*` files). The
-`wasm-bindgen` CLI version must match the `wasm-bindgen` crate in `Cargo.lock`
-exactly (0.2.127 when written) — a mismatched CLI refuses the binary.
-Then refresh the vendored recipe in the same commit (`pnpm run wasm:vendor`
-from `web/`).
-The extraction command writes both `wasm-sections.json` and
-`wasm-parity.json`. It fails if descriptions diverge or a new code-drift key
-appears; `--accept-drift` is reserved for a reviewed GPUI-version adaptation.
-The description lift is idempotent and keeps explanatory copy outside the
-component canvas while retaining it in the full native-style gallery page.
+No `RUSTUP_TOOLCHAIN` override: this builds on `rust-toolchain.toml`'s pinned
+stable. It used to need nightly, because `wasm_thread` — pulled in by the GPUI
+web platform's `multithreaded` feature — opens its `lib.rs` with
+`#![feature(stdarch_wasm_atomic_wait)]`, which stable rejects with
+`error[E0554]`. That feature is now off in `crates/gpui_web/Cargo.toml`'s
+`default` list (the only place it can be switched), and nothing was using it:
+the app starts with `single_threaded_web()`, and web workers over shared wasm
+memory need a cross-origin-isolated context that GitHub Pages does not give.
+Never set a `RUSTFLAGS` environment variable for this build:
+`.cargo/config.toml`'s `[target.wasm32-unknown-unknown]` table already sets
+`rustflags = []`, and a `RUSTFLAGS` env var replaces rather than appends to it.
+
+Copy `index.html` from `crates/herogpui-web/` alongside (the bindgen output
+only produces the two `herogpui_web.*` files). The `wasm-bindgen` CLI version
+must match the `wasm-bindgen` crate in `Cargo.lock` exactly (0.2.127 when
+written) — a mismatched CLI refuses the binary.
+Then, from `web/`, regenerate the manifest with `pnpm run wasm:manifest`,
+which writes both `wasm-sections.json` (the example headings compiled into
+the artifact) and `wasm-parity.json` (the artifact hash used to cache-bust the
+live embed) from the single native gallery source
+(`gallery/src/pages/components/`) — there is only one tree now, so there is
+no native/wasm drift to reconcile.
+
+A `wasm` job in `.github/workflows/ci.yml` builds this artifact and runs
+`wasm-bindgen` on every PR, and it is in the final `ci` gate's `needs:` list,
+so a broken build fails CI rather than only surfacing at a manual rebuild.
 
 Two load-bearing details on the Rust side, both verified empirically:
 
-- **`D:\herogpui-wasm\.cargo\config.toml` pins `rustflags = []` for the wasm
+- **This repository's `.cargo/config.toml` pins `rustflags = []` for the wasm
   target — deliberately.** This mirrors `longbridge/gpui-component`'s own
   `story-web` config and produces a *plain* (non-shared-memory) wasm. The
   alternative — the shared-memory/atomics build copied from `gpui_web`'s

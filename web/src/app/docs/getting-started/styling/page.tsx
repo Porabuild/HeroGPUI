@@ -42,6 +42,12 @@ fn save_button(id: impl Into<ElementId>) -> Button {
 // Still a \`Button\`, so the caller keeps every other prop.
 save_button("save").is_pending(saving).full_width()`;
 
+const SX = `// Every component carries one sx slot: GPUI's styling methods,
+// refined over the root element after the theme's values.
+Button::new("save")
+    .label("Save")
+    .sx(|el| el.bg(gpui::rgba(0xffa500ff)).text_color(gpui::rgba(0x000000ff)))`;
+
 interface MappingRow {
   route: string;
   rust: string;
@@ -49,6 +55,12 @@ interface MappingRow {
 }
 
 const STYLE_ROUTES: MappingRow[] = [
+  {
+    route: "Override",
+    rust: ".sx(|el| el.bg(..))",
+    detail:
+      "One slot per component for caller-owned low-level styling; it refines the root element last, so it wins.",
+  },
   {
     route: "Layout",
     rust: "full_width(true)",
@@ -161,6 +173,17 @@ export default function StylingPage() {
           id: row.route.replace(/\s+/g, "-"),
         }))}
       />
+
+      <h2 id="the-sx-slot">The sx slot</h2>
+      <p>
+        Every component builder carries one <code>sx</code> slot for caller-owned low-level styling:
+        GPUI&apos;s styling methods, refined over the component&apos;s root element after every
+        value the variant and the theme chose, so an override wins. State-driven layers the
+        component draws itself — a hover fade, a press scale — read the override where they can.
+      </p>
+      <div className="mt-4">
+        <CodeBlock code={SX} lang="rust" />
+      </div>
 
       <h3 id="the-radius-helpers">The radius helpers</h3>
       <p>

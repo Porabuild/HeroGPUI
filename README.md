@@ -9,8 +9,7 @@ gallery and on the website as 66 pages because a few pages cover a component
 together with its group or slot siblings.
 
 ```rust
-use gpui::prelude::*;
-use herogpui::prelude::*;
+use herogpui::*;
 
 impl Render for MyApp {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
@@ -32,37 +31,102 @@ impl Render for MyApp {
 Prerequisites: Rust 1.98 and the platform tooling GPUI needs (Xcode on macOS;
 Wayland/X11 dev packages on Linux; nothing extra on Windows).
 
-The crates are not published on crates.io. Clone this repository and add the
-source dependency with the matching GPUI revision to `Cargo.toml`:
+`herogpui` is not on crates.io yet. Depend on the git repository:
 
 ```toml
 [dependencies]
-gpui = { git = "https://github.com/zed-industries/zed", rev = "ee3b5558c581429633937e458fad8d109f29e9ee" }
-gpui_platform = { git = "https://github.com/zed-industries/zed", rev = "ee3b5558c581429633937e458fad8d109f29e9ee", features = ["font-kit", "wayland", "x11", "runtime_shaders"] }
-herogpui = { path = "../HeroGPUI/crates/herogpui" }
+herogpui = { git = "https://github.com/Porabuild/HeroGPUI" }
 ```
 
-The same three dependencies from the command line:
+That is the whole list. A path dependency works the same way against a local checkout. `herogpui` is a facade: it depends on the matching
+`gpui-pre` and `gpui-pre-platform` crates and re-exports them, so
+`use herogpui::*;` **is** GPUI and `herogpui::application()` opens the
+platform. Do not add `gpui` or `gpui_platform` to your own `Cargo.toml` — a
+second copy of GPUI is how versions drift apart. (Zed does not publish `gpui`
+under that name, which is why GPUI arrives as `gpui-pre`, zed-industries' own
+prerelease publish of the same sources. The unrelated crates.io `gpui` 0.2.2
+crate is a different library.)
 
-```sh
-ZED=https://github.com/zed-industries/zed
-REV=ee3b5558c581429633937e458fad8d109f29e9ee
-cargo add --git $ZED --rev $REV gpui
-cargo add --git $ZED --rev $REV --features font-kit,wayland,x11,runtime_shaders gpui_platform
-cargo add herogpui --path <checkout>/crates/herogpui
-```
+Each layer is also reachable by name, and each is a Cargo feature:
 
-The matching GPUI API is available from the pinned Zed git revision, not its
-crates.io release. `gpui` and `gpui_platform` are direct dependencies, not just
-HeroGPUI's: the example above calls both. Then:
+| Path | Crate | Feature |
+| --- | --- | --- |
+| `herogpui::*` | `gpui` | always |
+| `herogpui::platform`, `herogpui::application` | `gpui_platform` | always |
+| `herogpui::core` | `herogpui-core` | `core` (via `theme`) |
+| `herogpui::theme` | `herogpui-theme` | `theme` (via `components`) |
+| `herogpui::components`, `herogpui::*` | `herogpui-components` | `components` (default) |
+| `herogpui::web` | `gpui_platform` | always, `cfg(wasm)` only |
+
+Two more features only forward to GPUI: `test-support`
+(`gpui/test-support` + `gpui_platform/test-support`, for your own
+`#[gpui::test]`) and `profiler` (`gpui/profiler`). `serde` forwards
+`herogpui-theme/serde` and is off by default: it is the sparse
+`ThemeDocument` JSON applied through `ThemeBuilder`, not a dump of a
+resolved `Theme`.
+
+Then, inside `application().run(..)`:
 
 1. Register the embedded icons with
-   `gpui_platform::application().with_assets(HeroGpuiAssets)`.
-2. Register the theme provider with `ThemeProvider::init(cx)` before opening
-   a window.
+   `herogpui::application().with_assets(HeroGpuiAssets)`, or
+   `HeroGpuiAssets::with_fallback(MyAppAssets)` when the app has assets of its
+   own.
+2. Initialize the enabled layers with `herogpui::init(cx)` before opening a
+   window. That is `ThemeProvider::init(cx)`; call
+   `ThemeProvider::init_with(theme, cx)` instead to start from a custom theme.
 3. Wrap the root element with `app_focus_root(root, window, cx)` so Tab and
    focus-visible behavior work across components.
-4. Set the background and font family on the root view.
+4. Set the background, foreground and font family on the root view from
+   tokens.
+
+The whole program, with `herogpui` as its only dependency:
+
+```rust
+use herogpui::*;
+
+actions!(demo, [Quit]);
+
+struct Hello;
+
+impl Render for Hello {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        app_focus_root(
+            div()
+                .size_full()
+                .bg(cx.colors().background)
+                .text_color(cx.colors().foreground)
+                .font_family("Helvetica")
+                .child(Button::new("save").label("Save changes")),
+            window,
+            cx,
+        )
+    }
+}
+
+fn main() {
+    application().with_assets(HeroGpuiAssets).run(|cx: &mut App| {
+        herogpui::init(cx);
+        let bounds = Bounds::centered(None, size(px(1280.), px(820.)), cx);
+        cx.open_window(
+            WindowOptions {
+                window_bounds: Some(WindowBounds::Windowed(bounds)),
+                ..Default::default()
+            },
+            |_, cx| cx.new(|_| Hello),
+        )
+        .expect("failed to open window");
+    });
+}
+```
+
+That program is a doctest in `crates/herogpui/src/lib.rs`, so
+`cargo test --doc -p herogpui` compiles it rather than this file asserting that
+it would. `actions!` is HeroGPUI's own copy of GPUI's macro: the upstream one
+expands its derive as the absolute path `gpui::Action`, which does not resolve
+when GPUI is reached only through a facade. Eight names — `ColorSpace`,
+`FontWeight`, `Menu`, `MenuItem`, `Orientation`, `Size`, `Surface` and
+`TextAlign` — exist in both GPUI and HeroUI v3; at `herogpui`'s root the
+HeroUI spelling wins, and GPUI's keep the `gpui::` path (`gpui::Size`).
 
 ## Gallery
 

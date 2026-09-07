@@ -8,7 +8,8 @@ tokens, motion, component anatomy, demos, reference metadata, or an audit.
 This repository ports HeroUI v3.2.4. Use tagged HeroUI source for component
 anatomy and styles, and the exact dependency versions HeroUI pins for inherited
 behavior: React Aria 3.51.0, React Stately 3.49.0, and React Aria Components
-1.20.0. GPUI framework claims must be valid for the Zed revision in `Cargo.lock`.
+1.20.0. GPUI framework claims must be valid for the `gpui-pre` version in
+`Cargo.lock`, read from its unpacked registry sources.
 
 Do not reintroduce v2 concepts:
 
@@ -43,6 +44,8 @@ Do not reintroduce v2 concepts:
 | `python .shots/inert_audit.py` | Gallery controlled examples are driven and keyed state is instance-scoped |
 | `python .shots/reference_audit.py` | Checked-in reference metadata resolves to real routes, owners, methods, and pinned source links |
 | `python .shots/package_audit.py` | Crate packaging and gallery CLI metadata are coherent |
+| `python .shots/a11y_audit.py` | Every component whose React Aria hook reports a role states one, with the components a later wave will reach recorded as pending |
+| `python .shots/theme_serde_audit.py` | `ThemeDocument` JSON keys match `ThemeBuilder` methods, and `serde` stays a non-default feature |
 
 No individual audit proves full parity. In particular, prop coverage does not
 prove behavior, design metrics do not prove anatomy, screenshots do not prove
@@ -128,6 +131,12 @@ exceptions belong in their specific tables (`WONT_DEMO`, `NEEDS_FEATURE`,
 
 An audit must fail loudly when it cannot locate an expected page, section,
 table, source block, owner, or symbol. Empty input is not a zero-gap result.
+
+Logical module names such as `color_picker.rs`, `date_picker.rs`, and
+`reference_metadata.rs` still key the tables after those modules became
+directories. Read them through `.shots/component_source.py` (or
+`web/scripts/lib/gallery-source.mjs`); do not `open()` the historical
+filename as a single file.
 
 When editing an audit:
 
