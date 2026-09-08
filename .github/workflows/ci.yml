@@ -4,6 +4,7 @@ on:
   pull_request:
   push:
     branches: [master]
+  workflow_dispatch:
 
 # A new push to the same PR/ref cancels the superseded run instead of queueing
 # behind it.
@@ -256,7 +257,7 @@ jobs:
   # length costs nobody a review cycle.
   optimized:
     name: Tests (Cargo.toml profile)
-    if: github.event_name == 'push'
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     # The same three hosts as `test` for the same reasons (see that job's
     # comment). Codegen is per-platform as well as per-opt-level, so the
     # -O1/-O3 suite owes each OS its own run. Push-only keeps the three heavy
