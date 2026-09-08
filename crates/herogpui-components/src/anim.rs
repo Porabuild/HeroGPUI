@@ -9,13 +9,14 @@
 //! reaching for `with_animation` directly, so the reduced-motion check and the
 //! duration/easing live in exactly one place.
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
+use std::rc::Rc;
 use std::time::Duration;
 
 use gpui::{
     px, AnimationExt, AnyElement, App, ElementId, InteractiveElement, IntoElement, ParentElement,
-    StatefulInteractiveElement, StyleRefinement, Styled,
+    StatefulInteractiveElement, StyleRefinement, Styled, Window,
 };
 use herogpui_core::element_id;
 use herogpui_theme::ActiveTheme;
@@ -83,7 +84,7 @@ fn cubic_bezier(x1: f32, y1: f32, x2: f32, y2: f32, t: f32) -> f32 {
     bez(y1, y2, u)
 }
 
-/// v3's `--ease-out` — Tailwind's default, `cubic-bezier(0, 0, 0.2, 1)`.
+/// v3's `--ease-out` — Tailwind's `ease-out`, `cubic-bezier(0, 0, 0.2, 1)`.
 pub fn ease_out() -> impl Fn(f32) -> f32 {
     |t| cubic_bezier(0.0, 0.0, 0.2, 1.0, t)
 }
@@ -94,7 +95,7 @@ pub fn ease_out() -> impl Fn(f32) -> f32 {
 /// a `const`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Curve {
-    /// `--ease-out`, Tailwind's default: `cubic-bezier(0, 0, 0.2, 1)`.
+    /// `--ease-out`, Tailwind's `ease-out`: `cubic-bezier(0, 0, 0.2, 1)`.
     Out,
     /// `--ease-smooth`, CSS `ease`: `cubic-bezier(0.25, 0.1, 0.25, 1)`.
     Smooth,
@@ -223,6 +224,103 @@ impl Motion {
 /// v3's `--ease-smooth`, which is CSS `ease`: `cubic-bezier(0.25, 0.1, 0.25, 1)`.
 pub fn ease_smooth() -> impl Fn(f32) -> f32 {
     |t| cubic_bezier(0.25, 0.1, 0.25, 1.0, t)
+}
+
+/// Tailwind's default transition timing — `cubic-bezier(0.4, 0, 0.2, 1)` — the
+/// curve a `transition-all duration-*` utility runs when the rule names no
+/// `--ease-*` token. v3's checkmark undraw rides it: selected, its rule is
+/// `stroke-dashoffset 150ms linear 15ms`; unselecting falls back to the base
+/// `transition-all duration-200`.
+pub(crate) fn tailwind_default_ease() -> impl Fn(f32) -> f32 {
+    |t| cubic_bezier(0.4, 0.0, 0.2, 1.0, t)
+}
+
+/// The keyed tween bookkeeping the checkbox's motion slots share: the last
+/// target, the generation that advanced with it, the snapshot a new animation
+/// starts from, and the live value an interrupted one resumes from.
+///
+/// `target`/`from`/`generation` live in the keyed state; `value` is an
+/// `Rc<Cell<_>>` the animation closure writes, so the snapshot a later
+/// generation takes is the frame actually on screen.
+#[derive(Clone)]
+pub(crate) struct Tween<T: Copy + PartialEq + 'static> {
+    target: T,
+    generation: usize,
+    from: T,
+    value: Rc<Cell<T>>,
+}
+
+impl<T: Copy + PartialEq + 'static> Tween<T> {
+    fn settled(value: T) -> Self {
+        Self {
+            target: value,
+            generation: 0,
+            from: value,
+            value: Rc::new(Cell::new(value)),
+        }
+    }
+
+    /// Reads this slot's keyed state for `target`, advancing the generation —
+    /// and re-snapshotting the rendered value as the new start — when the
+    /// target changed.
+    pub(crate) fn keyed(
+        id: &ElementId,
+        tag: &'static str,
+        target: T,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> Self {
+        let state = window.use_keyed_state(element_id::scoped(id, tag), cx, |_, _| {
+            Self::settled(target)
+        });
+        let mut current = state.read(cx).clone();
+        if current.target != target {
+            current.target = target;
+            current.generation = current.generation.wrapping_add(1);
+            current.from = current.value.get();
+            state.update(cx, |stored, _| *stored = current.clone());
+        }
+        current
+    }
+
+    /// Lands the value on the target under reduced motion — the state still
+    /// applies, with no animation mounted.
+    pub(crate) fn snap_if_reduced(&mut self, reduce_motion: bool) {
+        if reduce_motion && self.value.get() != self.target {
+            self.from = self.target;
+            self.value.set(self.target);
+        }
+    }
+
+    /// Whether this frame mounts an animation: a real change happened (the
+    /// generation moved), motion is allowed, and the live value is short of
+    /// the target — which also keeps a finished tween from re-mounting at
+    /// rest.
+    pub(crate) fn animates(&self, reduce_motion: bool) -> bool {
+        self.generation != 0 && !reduce_motion && self.value.get() != self.target
+    }
+
+    /// Lands exactly on the target, the state a settled tween paints.
+    pub(crate) fn settle(&self) {
+        self.value.set(self.target);
+    }
+
+    pub(crate) fn target(&self) -> T {
+        self.target
+    }
+
+    pub(crate) fn from(&self) -> T {
+        self.from
+    }
+
+    pub(crate) fn generation(&self) -> usize {
+        self.generation
+    }
+
+    /// The live value, shared with the keyed state and the animation closure.
+    pub(crate) fn value(&self) -> Rc<Cell<T>> {
+        Rc::clone(&self.value)
+    }
 }
 
 /// The scale v3 applies to a pressed control (`transform: scale(0.97)`).
@@ -635,7 +733,7 @@ pub fn hover_fade(
     colors: (gpui::Hsla, gpui::Hsla),
     interaction: Option<&crate::util::Interaction>,
     round_corners: impl Fn(gpui::Div) -> gpui::Div,
-    window: &mut gpui::Window,
+    window: &mut Window,
     cx: &mut App,
 ) -> gpui::Stateful<gpui::Div> {
     let (idle, hovered) = colors;

@@ -16,7 +16,7 @@ impl Gallery {
             crate::pages::Page::Checkbox.import_line(),
             vec![
                 (
-                    "Usage", "Label content uses 14px medium text with 20px lines, independent of surrounding line height.",
+                    "Usage", "Label content uses 14px medium text with 20px lines, independent of surrounding line height. Toggling animates: the accent fill scales and fades in while the check stroke draws, and unselecting undraws it; reduced motion snaps.",
                     col(vec![
                         h::Checkbox::new("cb-1")
                             .is_selected(basic)

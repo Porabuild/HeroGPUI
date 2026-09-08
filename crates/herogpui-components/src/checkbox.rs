@@ -1,16 +1,16 @@
 //! Checkbox — port of `@heroui/checkbox`.
 
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, rc::Rc, time::Duration};
 
 use gpui::{
-    prelude::*, px, AnyElement, App, IntoElement, ParentElement, RenderOnce,
+    prelude::*, px, AnimationExt, AnyElement, App, IntoElement, ParentElement, RenderOnce,
     StatefulInteractiveElement, Styled, Window,
 };
 use herogpui_core::{element_id, Color};
 use herogpui_theme::ActiveTheme;
 
 use crate::a11y::{self, A11y as _};
-use crate::icons;
+use crate::anim::Tween;
 
 /// Field state handed to Checkbox's children and indicator render functions.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -21,6 +21,322 @@ pub struct CheckboxState {
     pub is_read_only: bool,
     pub is_invalid: bool,
     pub is_required: bool,
+}
+
+// ---------------------------------------------------------------------------
+// Selection motion
+// ---------------------------------------------------------------------------
+//
+// The pinned v3.2.4 stylesheet animates a tick in three layers, each with its
+// own duration and curve. `.checkbox__control::before` — the accent fill —
+// runs `scale 100ms var(--ease-linear)` from `scale-70` and
+// `opacity 200ms var(--ease-linear)` from `opacity-0`, over a
+// `background-color 200ms var(--ease-out)` that the control's own background
+// shares while indeterminate. The checkmark SVG carries `strokeDasharray: 22`
+// and jumps `strokeDashoffset` from 66 (hidden) to 44 (drawn) in its JSX;
+// selected, that offset runs `150ms linear` after `15ms`, and unselecting
+// falls back to the base `transition-all duration-200`. gpui has no
+// stroke-dashoffset, but its `PathBuilder` strokes a polyline, so the mark is
+// drawn on a canvas up to the same revealed fraction.
+
+/// `opacity 200ms var(--ease-linear)` on `.checkbox__control::before`.
+const FILL_FADE_MS: u64 = 200;
+/// `scale 100ms var(--ease-linear)` on the same pseudo-element, from
+/// `scale-70`.
+const FILL_SCALE_MS: u64 = 100;
+/// `scale-70` — the fill's resting scale.
+const FILL_REST_SCALE: f32 = 0.7;
+/// `background-color 200ms var(--ease-out)` — the colour ease both animated
+/// background layers ride: the fill's hover swap and the control's own
+/// indeterminate/pressed change.
+const FILL_BG_MS: u64 = 200;
+/// Selected, the checkmark draws over `stroke-dashoffset 150ms linear` after a
+/// `15ms` delay.
+const CHECK_DRAW_MS: u64 = 150;
+const CHECK_DRAW_DELAY_MS: u64 = 15;
+/// Unselected it undraws over the base `transition-all duration-200`.
+const CHECK_UNDRAW_MS: u64 = 200;
+
+/// The pinned checkmark geometry: viewBox `0 0 17 18` and polyline
+/// `1 9 7 14 15 4` from `@heroui/react` 3.2.4's `checkbox.js`, stroked at the
+/// `stroke-[2.5px]` its stylesheet lays on the checkmark slot — the JSX
+/// itself says 2. The dash reveal needs exactly this polyline — its length
+/// stays under the 22-unit `strokeDasharray`, so the drawn state shows the
+/// whole stroke — and the checkbox therefore strokes it on a canvas rather
+/// than rendering the shared 24-unit `icons::CHECK` asset, whose tip the
+/// 22-unit dash would clip.
+const CHECK_VIEWBOX: (f32, f32) = (17., 18.);
+const CHECK_POLYLINE: [(f32, f32); 3] = [(1., 9.), (7., 14.), (15., 4.)];
+const CHECK_STROKE: f32 = 2.5;
+/// How much stroke the CSS slide uncovers: `strokeDashoffset` runs 66 → 44,
+/// so the visible dash grows by 22 units — overshooting this ~20.6-unit
+/// polyline, whose tip the drawn state clamps at.
+const CHECK_DASH_UNITS: f32 = 22.;
+
+/// Animate the painted fill itself: GPUI's overflow clip is rectangular,
+/// so rounding a transparent parent does not round its background child.
+fn fill_layer(
+    id: &gpui::ElementId,
+    opacity: Tween<f32>,
+    scale: Tween<f32>,
+    reduce_motion: bool,
+    radius: gpui::Pixels,
+    box_px: gpui::Pixels,
+    background: Tween<gpui::Hsla>,
+) -> AnyElement {
+    let (opacity_to, scale_to) = (opacity.target(), scale.target());
+    let color_to = background.target();
+    let base = gpui::div().absolute();
+    if !opacity.animates(reduce_motion)
+        && !scale.animates(reduce_motion)
+        && !background.animates(reduce_motion)
+    {
+        opacity.settle();
+        scale.settle();
+        background.settle();
+        let inset = box_px * (1.0 - scale_to) / 2.0;
+        return base
+            .left(inset)
+            .top(inset)
+            .right(inset)
+            .bottom(inset)
+            .rounded(radius * scale_to)
+            .opacity(opacity_to)
+            .bg(color_to)
+            .into_any_element();
+    }
+
+    let color_from = background.from();
+    let color = background.value();
+    let colored = base.with_animation(
+        element_id::indexed(id, "fill-color", background.generation()),
+        gpui::Animation::new(Duration::from_millis(FILL_BG_MS))
+            .with_easing(|t| crate::anim::Curve::Out.at(t)),
+        move |el, delta| {
+            let value = if delta >= 1.0 {
+                color_to
+            } else {
+                herogpui_core::mix_oklab(color_from, color_to, delta)
+            };
+            color.set(value);
+            el.bg(value)
+        },
+    );
+    let scale_from = scale.from();
+    let scale_value = scale.value();
+    let scaled = colored.with_animation(
+        element_id::indexed(id, "fill-scale", scale.generation()),
+        gpui::Animation::new(Duration::from_millis(FILL_SCALE_MS))
+            .with_easing(|t| crate::anim::Curve::Linear.at(t)),
+        move |el, delta| {
+            let value = scale_from + (scale_to - scale_from) * delta;
+            scale_value.set(value);
+            let inset = box_px * (1.0 - value) / 2.0;
+            el.map_element(|fill| {
+                fill.left(inset)
+                    .top(inset)
+                    .right(inset)
+                    .bottom(inset)
+                    .rounded(radius * value)
+            })
+        },
+    );
+    let opacity_from = opacity.from();
+    let opacity_value = opacity.value();
+    scaled
+        .with_animation(
+            element_id::indexed(id, "fill-fade", opacity.generation()),
+            gpui::Animation::new(Duration::from_millis(FILL_FADE_MS))
+                .with_easing(|t| crate::anim::Curve::Linear.at(t)),
+            move |el, delta| {
+                let value = opacity_from + (opacity_to - opacity_from) * delta;
+                opacity_value.set(value);
+                el.map_element(|colored| colored.map_element(|fill| fill.opacity(value)))
+            },
+        )
+        .into_any_element()
+}
+
+/// A background layer riding `background-color 200ms var(--ease-out)` — an
+/// OKLab ease between generations, a plain fill otherwise. Its animation id
+/// belongs to a listener-free child, keeping the control's input path stable.
+fn easing_bg_layer(
+    id: &gpui::ElementId,
+    tag: &'static str,
+    target: gpui::Hsla,
+    radius: gpui::Pixels,
+    window: &mut Window,
+    cx: &mut App,
+) -> AnyElement {
+    let reduce_motion = ActiveTheme::reduce_motion(cx);
+    let mut tween = Tween::keyed(id, tag, target, window, cx);
+    tween.snap_if_reduced(reduce_motion);
+    let base = gpui::div().absolute().inset_0().rounded(radius);
+    if !tween.animates(reduce_motion) {
+        tween.settle();
+        return base.bg(target).into_any_element();
+    }
+    let (from, to) = (tween.from(), tween.target());
+    let color = tween.value();
+    base.with_animation(
+        element_id::indexed(id, tag, tween.generation()),
+        gpui::Animation::new(Duration::from_millis(FILL_BG_MS))
+            .with_easing(|t| crate::anim::Curve::Out.at(t)),
+        move |el, delta| {
+            let next = if delta >= 1.0 {
+                to
+            } else {
+                herogpui_core::mix_oklab(from, to, delta)
+            };
+            color.set(next);
+            el.bg(next)
+        },
+    )
+    .into_any_element()
+}
+
+/// The checkmark canvas, stroked up to the current drawn fraction. The
+/// animation id changes with the generation, which restarts the reveal from
+/// the rendered fraction after an interrupted turn. Selected, the draw rides
+/// the CSS `150ms linear` after its `15ms` delay; unselecting undraws over
+/// the base `duration-200` on Tailwind's default transition curve.
+fn check_layer(
+    id: &gpui::ElementId,
+    tween: Tween<f32>,
+    reduce_motion: bool,
+    size: gpui::Pixels,
+    color: gpui::Hsla,
+) -> AnyElement {
+    let progress = tween.value();
+    let canvas = gpui::canvas(
+        |bounds, _, _| bounds,
+        move |bounds, _, window, _| paint_check_stroke(bounds, progress.get(), color, window),
+    )
+    .size(size);
+    if !tween.animates(reduce_motion) {
+        tween.settle();
+        return canvas.into_any_element();
+    }
+
+    let (from, to) = (tween.from(), tween.target());
+    let (duration, easing): (u64, Box<dyn Fn(f32) -> f32>) = if to > from {
+        let total = (CHECK_DRAW_DELAY_MS + CHECK_DRAW_MS) as f32;
+        let delay = CHECK_DRAW_DELAY_MS as f32;
+        let span = CHECK_DRAW_MS as f32;
+        (
+            CHECK_DRAW_DELAY_MS + CHECK_DRAW_MS,
+            Box::new(move |t: f32| ((t * total - delay) / span).clamp(0., 1.)),
+        )
+    } else {
+        (
+            CHECK_UNDRAW_MS,
+            Box::new(crate::anim::tailwind_default_ease()),
+        )
+    };
+    let progress = tween.value();
+    canvas
+        .with_animation(
+            element_id::indexed(id, "check-draw", tween.generation()),
+            gpui::Animation::new(Duration::from_millis(duration)).with_easing(easing),
+            move |el, delta| {
+                progress.set(from + (to - from) * delta);
+                el
+            },
+        )
+        .into_any_element()
+}
+
+/// One butt-capped stroke between two points; the discs
+/// [`paint_check_stroke`] paints over the shared ends are what make the caps
+/// and the join read round.
+fn stroke_segment(
+    a: gpui::Point<gpui::Pixels>,
+    b: gpui::Point<gpui::Pixels>,
+    width: gpui::Pixels,
+    color: gpui::Hsla,
+    window: &mut Window,
+) {
+    let mut builder = gpui::PathBuilder::stroke(width);
+    builder.move_to(a);
+    builder.line_to(b);
+    if let Ok(path) = builder.build() {
+        window.paint_path(path, color);
+    }
+}
+
+/// Strokes the leading fraction of the pinned upstream polyline — the drawing
+/// end of the CSS `stroke-dashoffset` slide, which reveals the check from its
+/// start point through the elbow to the tip.
+fn paint_check_stroke(
+    bounds: gpui::Bounds<gpui::Pixels>,
+    progress: f32,
+    color: gpui::Hsla,
+    window: &mut Window,
+) {
+    if progress <= 0.0 {
+        return;
+    }
+    let progress = progress.min(1.0);
+    let (view_w, view_h) = CHECK_VIEWBOX;
+    let scale = (f32::from(bounds.size.width) / view_w).min(f32::from(bounds.size.height) / view_h);
+    let origin = gpui::point(
+        bounds.origin.x + (bounds.size.width - px(view_w * scale)) / 2.0,
+        bounds.origin.y + (bounds.size.height - px(view_h * scale)) / 2.0,
+    );
+    let map = |point: (f32, f32)| {
+        gpui::point(
+            origin.x + px(point.0 * scale),
+            origin.y + px(point.1 * scale),
+        )
+    };
+
+    let [start, elbow, end] = CHECK_POLYLINE;
+    let first = segment_length(start, elbow);
+    let total = first + segment_length(elbow, end);
+    // The CSS slide uncovers `CHECK_DASH_UNITS` of arc length, overshooting
+    // the polyline; the drawn state simply sits at the tip.
+    let reveal = (progress * CHECK_DASH_UNITS).min(total);
+    let past_elbow = reveal > first;
+    let tip = if past_elbow {
+        lerp_point(elbow, end, (reveal - first) / segment_length(elbow, end))
+    } else {
+        lerp_point(start, elbow, reveal / first)
+    };
+
+    // `stroke-linejoin="round"` and `stroke-linecap="round"`: gpui's stroke
+    // builder miters and butt-caps with no way to change either, and a disc
+    // painted over a miter leaves the spike showing past it. The segments are
+    // therefore stroked disconnected and the elbow gets its own disc once the
+    // reveal passes it — the same completion `ProgressCircle` paints for its
+    // arc ends.
+    let stroke_w = px(CHECK_STROKE * scale);
+    stroke_segment(
+        map(start),
+        if past_elbow { map(elbow) } else { map(tip) },
+        stroke_w,
+        color,
+        window,
+    );
+    if past_elbow {
+        stroke_segment(map(elbow), map(tip), stroke_w, color, window);
+    }
+    let cap_radius = stroke_w / 2.0;
+    let caps = [
+        Some(map(start)),
+        past_elbow.then(|| map(elbow)),
+        Some(map(tip)),
+    ];
+    for center in caps.into_iter().flatten() {
+        crate::util::paint_disc(center, cap_radius, color, window);
+    }
+}
+
+fn segment_length(a: (f32, f32), b: (f32, f32)) -> f32 {
+    ((b.0 - a.0) * (b.0 - a.0) + (b.1 - a.1) * (b.1 - a.1)).sqrt()
+}
+
+fn lerp_point(a: (f32, f32), b: (f32, f32), t: f32) -> (f32, f32) {
+    (a.0 + (b.0 - a.0) * t, a.1 + (b.1 - a.1) * t)
 }
 
 /// HeroUI Checkbox.
@@ -376,7 +692,6 @@ impl RenderOnce for Checkbox {
             state.is_successful = !self.is_disabled;
         }
 
-        // `isInvalid` outranks the colour role, as it does on every field.
         // v3 focuses the checkbox and rings `.checkbox__control`, so the two sit
         // on different elements: the row takes the focus, the box shows it.
         // `use_keyed_state` takes `cx` mutably, so it precedes the theme.
@@ -386,19 +701,104 @@ impl RenderOnce for Checkbox {
         if let Some(target) = &self.form_focus_target {
             target.borrow_mut().focus = Some(focus_handle.clone());
         }
-        let sem = if validity.is_invalid {
-            cx.role(Color::Danger)
-        } else {
-            cx.role(Color::Accent)
+        // The role's colours, copied out so the keyed-state calls below can
+        // take `cx` mutably. `isInvalid` outranks the colour role, as it does
+        // on every field: the danger role is chosen here and nowhere else.
+        let (accent_color, accent_hover, accent_foreground) = {
+            let sem = if validity.is_invalid {
+                cx.role(Color::Danger)
+            } else {
+                cx.role(Color::Accent)
+            };
+            (sem.color, sem.hover(), sem.foreground)
         };
-        let colors = cx.colors();
-        let layout = cx.layout();
 
-        // `.checkbox__control` is `size-4`, `.checkbox__indicator` `size-3`,
-        // and `.checkbox__content` `text-sm`.
+        // Two marks, two targets: the CSS fill lights for any checked box —
+        // `data-selected` has no indeterminate escape — while the dash
+        // replaces the checkmark outright, so only a plain tick draws itself.
+        let fill_visible = checked;
+        let check_visible = checked && !self.is_indeterminate;
+
+        // The fill's hover colour and the indeterminate press read the same
+        // one-frame-late hover/press slot the switch track reads. A disabled
+        // box does not track the pointer, and a slot gone stale — disabled
+        // under the pointer or a held button — reads off, which is itself
+        // visible as the ease back off the hover accent. Read-only still
+        // hovers; only `is_disabled` guards.
+        let interaction =
+            crate::util::interaction(element_id::scoped(&self.id, "interaction"), window, cx);
+        let (is_hovered, is_pressed) = if self.is_disabled {
+            (false, false)
+        } else {
+            *interaction.read(cx)
+        };
+
+        // `.checkbox__control` is `size-4`, `.checkbox__indicator` `size-3`
+        // around a `size-2.5` checkmark, and `.checkbox__content` `text-sm`.
         let (box_px, icon_px, text) = (px(16.), px(12.), px(14.));
+        let control_radius = if self.is_round {
+            // `rounded-full` on the control: the fill matches it, the way the
+            // control's `overflow-hidden` clips the pseudo-element upstream.
+            box_px / 2.0
+        } else {
+            crate::util::mark_radius(cx)
+        };
 
-        let active = checked || self.is_indeterminate;
+        // Tween targets, read out before the keyed-state calls take `cx`
+        // mutably. Selected paints the accent on the `::before` fill over the
+        // control's resting background; indeterminate moves the control's own
+        // `bg-accent` — pressed, its `bg-accent-hover` — with the fill still
+        // mounted underneath.
+        let control_bg_target = if self.is_indeterminate {
+            if is_pressed {
+                accent_hover
+            } else {
+                accent_color
+            }
+        } else {
+            match self.variant {
+                herogpui_core::FieldVariant::Primary => cx.colors().field.background,
+                herogpui_core::FieldVariant::Secondary => cx.colors().default.color,
+            }
+        };
+        let fill_bg_target = if is_hovered {
+            accent_hover
+        } else {
+            accent_color
+        };
+
+        // The motion slots; every `use_keyed_state` here needs `cx` mutably.
+        let reduce_motion = ActiveTheme::reduce_motion(cx);
+        let mut fill_opacity =
+            Tween::keyed(&self.id, "fill-fade", f32::from(fill_visible), window, cx);
+        let mut fill_scale = Tween::keyed(
+            &self.id,
+            "fill-scale",
+            if fill_visible { 1.0 } else { FILL_REST_SCALE },
+            window,
+            cx,
+        );
+        let mut check_stroke = Tween::keyed(
+            &self.id,
+            "check-motion",
+            f32::from(check_visible),
+            window,
+            cx,
+        );
+        fill_opacity.snap_if_reduced(reduce_motion);
+        fill_scale.snap_if_reduced(reduce_motion);
+        check_stroke.snap_if_reduced(reduce_motion);
+        let mut fill_background = Tween::keyed(&self.id, "fill-bg", fill_bg_target, window, cx);
+        fill_background.snap_if_reduced(reduce_motion);
+        let control_background = easing_bg_layer(
+            &self.id,
+            "control-bg",
+            control_bg_target,
+            control_radius,
+            window,
+            cx,
+        );
+
         let checkbox_state = CheckboxState {
             is_selected: checked,
             is_indeterminate: self.is_indeterminate,
@@ -408,23 +808,30 @@ impl RenderOnce for Checkbox {
             is_required: self.is_required,
         };
 
-        // Stateful because `.active` needs it: v3's `/* Indeterminate + Pressed */`
-        // rule styles this box. The id derives from the row's, the same way the
-        // checked and focus slots derive theirs, so nothing collides.
+        // Stateful because the hover/press tracking arms its listeners on it:
+        // the fill's `bg-accent-hover` on hover and the control's
+        // `bg-accent-hover` while indeterminate and pressed both read the slot
+        // above. The id derives from the row's, the same way the checked and
+        // focus slots derive theirs, so nothing collides.
         let mut boxel = gpui::div()
             .id(element_id::scoped(&self.id, "control"))
             .flex()
             .items_center()
             .justify_center()
             .size(box_px)
-            .map(|b| {
-                if self.is_round {
-                    b.rounded_full()
-                } else {
-                    b.rounded(crate::util::mark_radius(cx))
-                }
-            })
-            .flex_shrink_0();
+            .rounded(control_radius)
+            // `.checkbox__control` is `overflow-hidden`, clipping both layers
+            // below to the control's corners.
+            .overflow_hidden()
+            .flex_shrink_0()
+            // The control itself keeps its resting background in every state:
+            // the accent a selected or indeterminate box paints rides the
+            // listener-free layers below, which is what makes the swap a
+            // `background-color` transition the eye can follow.
+            .bg(match self.variant {
+                herogpui_core::FieldVariant::Primary => cx.colors().field.background,
+                herogpui_core::FieldVariant::Secondary => cx.colors().default.color,
+            });
 
         // `Primary` carries the field shadow; `Secondary` is the flat variant
         // meant for use on a surface. Held as a list rather than applied,
@@ -432,40 +839,36 @@ impl RenderOnce for Checkbox {
         // replaces: a focused checkbox would otherwise lose its shadow.
         let box_shadow: Vec<gpui::BoxShadow> =
             if self.variant == herogpui_core::FieldVariant::Primary {
-                layout.field_shadow.clone()
+                cx.layout().field_shadow.clone()
             } else {
                 Vec::new()
             };
 
-        // `.checkbox__control` has no border (`--field-border-width: 0`). Unset
-        // it is `bg-field` on the primary variant and `--default` on the
-        // secondary one; selected, the `::before` overlay covers it in
-        // `bg-accent` (or `bg-danger` when invalid, which `sem` already is).
-        if active {
-            // `.checkbox__control::before` -- the fill -- goes to
-            // `bg-accent-hover` while the box is hovered.
-            let hovered = sem.hover();
-            boxel = boxel.bg(sem.color).hover(move |s| s.bg(hovered));
-            // v3's plain `/* Pressed */` block for the control is empty; only
-            // `/* Indeterminate + Pressed */` declares anything, and it is the
-            // same `bg-accent-hover`. `.active` needs a stateful element, so
-            // the box takes an id derived from the row's -- the same way the
-            // checked and focus slots already derive theirs, so nothing
-            // collides.
-            if self.is_indeterminate {
-                boxel = boxel.active(move |s| s.bg(hovered));
-            }
-        } else {
-            boxel = boxel.bg(match self.variant {
-                herogpui_core::FieldVariant::Primary => colors.field.background,
-                herogpui_core::FieldVariant::Secondary => colors.default.color,
-            });
-            // `status-invalid-field` draws a 1px danger outline over the fill,
-            // and v3 applies it only while the box is unchecked.
-            if validity.is_invalid {
-                boxel = boxel.border_1().border_color(colors.danger.color);
-            }
+        // `status-invalid-field` draws a 1px danger outline over the fill, and
+        // v3 applies it only while the box is neither selected nor
+        // indeterminate.
+        if validity.is_invalid && !fill_visible && !self.is_indeterminate {
+            boxel = boxel.border_1().border_color(cx.colors().danger.color);
         }
+
+        // The hover/press listeners feeding the slot above. A disabled box
+        // shows its state but does not react, so it does not track.
+        if !self.is_disabled {
+            boxel = crate::util::track_interaction(boxel, &interaction);
+        }
+
+        // The two animated backgrounds, then the mark: all listener-free, so
+        // the ids their animations change never touch the interactive element.
+        boxel = boxel.child(control_background);
+        boxel = boxel.child(fill_layer(
+            &self.id,
+            fill_opacity,
+            fill_scale,
+            reduce_motion,
+            control_radius,
+            box_px,
+            fill_background,
+        ));
 
         // A caller-drawn indicator replaces both marks, the way
         // `Checkbox.Indicator`'s render prop does.
@@ -477,14 +880,29 @@ impl RenderOnce for Checkbox {
                     .w(icon_px)
                     .h(px(2.))
                     .rounded_full()
-                    .bg(sem.foreground),
+                    .bg(accent_foreground),
             );
-        } else if checked {
+        } else {
+            // The checkmark: a canvas stroke of the pinned upstream polyline,
+            // revealed from its start point exactly as the CSS
+            // `stroke-dashoffset` slide reveals it. The svg asset this
+            // replaces could not animate a stroke — and draws nothing at all
+            // where no asset source is installed, as in the tests. The CSS
+            // marks the svg `size-2.5` inside the `size-3` indicator, so the
+            // canvas is 10px centred in 12px.
             boxel = boxel.child(
-                gpui::svg()
+                gpui::div()
                     .size(icon_px)
-                    .path(icons::CHECK)
-                    .text_color(sem.foreground),
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .child(check_layer(
+                        &self.id,
+                        check_stroke,
+                        reduce_motion,
+                        px(10.),
+                        accent_foreground,
+                    )),
             );
         }
 
@@ -524,7 +942,7 @@ impl RenderOnce for Checkbox {
                     .chain(children)
                     .chain(self.is_required.then(|| {
                         gpui::div()
-                            .text_color(colors.danger.color)
+                            .text_color(cx.colors().danger.color)
                             .child("*")
                             .into_any_element()
                     })),
@@ -532,7 +950,7 @@ impl RenderOnce for Checkbox {
             .text_size(text)
             .line_height(px(20.))
             .font_weight(gpui::FontWeight::MEDIUM)
-            .text_color(colors.foreground);
+            .text_color(cx.colors().foreground);
 
         let content = if !self.is_disabled
             && !self.is_read_only
@@ -570,7 +988,9 @@ impl RenderOnce for Checkbox {
             .flex_col()
             .items_start()
             .gap(px(4.))
-            .when(self.is_disabled, |r| r.opacity(layout.disabled_opacity))
+            .when(self.is_disabled, |r| {
+                r.opacity(cx.layout().disabled_opacity)
+            })
             .child(content);
         if let Some(message) = message {
             root = root.child(

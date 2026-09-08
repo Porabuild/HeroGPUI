@@ -1,7 +1,7 @@
 {
   "version": 2,
-  "artifactSha256": "f122abb56991881301a8e8eaf3b71d629bae874a7408ebf1c9787d804f5ffeb8",
-  "glueSha256": "48eed1d5d1f13d3ef4d8ff46205a22aa80967efde3a47b596787c9b21884beaa",
+  "artifactSha256": "ffff4313de5bb13f3f2ad08f4940249e1943b610d948b4aaa6ddefd6335be936",
+  "glueSha256": "f293a8296fb1eb01e576fd0a96c335e27c810aed36055a948c2052e7b411fb12",
   "examples": {
     "accordion/Controlled": {
       "codeSha256": "2816548407263e0fdeada0ff2ec1e8f9fd45a2d33b24ab2cf163539711fe6f8a",
@@ -533,7 +533,7 @@
     },
     "checkbox/Usage": {
       "codeSha256": "ed1cbcd9b95ffae321c00736da25c2bfdf08543cdc9443f029bd3793f9f8b795",
-      "descriptionSha256": "62297ebdb7e5c384174e0ceae0450f8c88ce04ce2d349c5801110d375fe0ceae"
+      "descriptionSha256": "5d550ed45f13b17f672d18eecf429a7db4086b481fea73716641c55b54800bbd"
     },
     "checkbox/Variants": {
       "codeSha256": "55e6db60bb0b3a06d6323d00dede1febdfd61cb96a40331bd01be2f59756a101",

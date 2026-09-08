@@ -238,9 +238,20 @@ PROSE_EVIDENCE = {
 }
 
 PROSE_EVIDENCE_OVERRIDE = {
+    # Modal delegates to CloseButton; prose mentioning an "active theme"
+    # must not count as evidence of a pressed style.
+    ('Modal', 'active'): r'\.active\(',
     # Switch's pressed background now feeds the animated track target from the
     # same interaction slot its render props read, rather than using `.active`.
     ('Switch', 'pressed'): r'interaction_state\.1',
+    # Checkbox presses only its indeterminate background. Require the color
+    # branch and its animated control layer, not just a stored press flag.
+    ('Checkbox', 'pressed'):
+        r'(?m)^\s*let control_bg_target = if self\.is_indeterminate \{\s*'
+        r'if is_pressed \{\s*accent_hover\s*\} else \{\s*accent_color\s*\}'
+        r'[\s\S]*?^\s*let control_background = easing_bg_layer\(\s*'
+        r'&self\.id,\s*"control-bg",\s*control_bg_target,'
+        r'[\s\S]*?^\s*boxel = boxel\.child\(control_background\);',
 }
 
 # Prose states this port does not draw, with the reason.
@@ -349,14 +360,13 @@ def statuses(path):
 
 
 def self_test():
-    """Known-positive and known-negative proof for the Modal press mapping.
+    """Known-positive and known-negative proof for component press mappings.
 
     Modal's prose scopes its Active state to the close button, and
-    `close_button.rs` draws the press through `.active`. The shared `active`
-    pattern is deliberately loose -- the bare word matches -- so a dishonest
-    remap to any module that merely mentions "active" would satisfy the
-    prose pass. The positives pin the mapping to `close_button.rs` and to
-    the concrete `.active(` call. The negative is the regression this test
+    `close_button.rs` draws the press through `.active`. Modal's override
+    requires that concrete call rather than the shared pattern's bare word
+    "active", which can also appear in comments about the theme. The positives
+    pin the mapping to `close_button.rs` and its `.active(` call. The negative is the regression this test
     is for: before the mapping existed, the prose pass read `modal.rs`,
     which matches nothing, so removing the mapping (or the close button's
     `.active`) must resurface as a loud MISSING, never a silent pass.
@@ -403,13 +413,31 @@ def self_test():
                'mapping is no longer load-bearing and this test guards '
                'nothing')
 
+    checkbox = module_source('checkbox.rs')
+    pressed = PROSE_EVIDENCE_OVERRIDE[('Checkbox', 'pressed')]
+    expect(bool(re.search(pressed, checkbox)),
+           'Checkbox pressed must reach the animated control background')
+    for old, new in [
+            ('if is_pressed {', 'if false {'),
+            ('if is_pressed {', 'if is_hovered {'),
+            ('accent_hover\n', 'accent_color\n'),
+            ('"control-bg",\n            control_bg_target,',
+             '"control-bg",\n            accent_color,'),
+            ('boxel = boxel.child(control_background);',
+             'boxel = boxel.child(fill_background);')]:
+        broken = checkbox.replace(old, new)
+        expect(broken != checkbox, 'Checkbox negative fixture did not mutate: ' + old)
+        expect(not re.search(pressed, broken),
+               'Checkbox pressed must reject broken wiring: ' + old)
+
     if failures:
         print('self-test FAIL')
         for failure in failures:
             print('- %s' % failure)
         return 1
     print('self-test PASS: Modal active resolves to close_button.rs and its '
-          '`.active` press; without the mapping modal.rs matches nothing')
+          '`.active` press; Checkbox pressed requires its indeterminate color '
+          'branch to reach the animated control background')
     return 0
 
 

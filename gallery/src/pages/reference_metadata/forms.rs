@@ -296,15 +296,17 @@ const CHECKBOX_STATES: &[StateDoc] = &[
     StateDoc {
         state: "Selected",
         selector: ".checkbox[data-selected=\"true\"]",
-        description: "Accent fill and checkmark are visible.",
-        rust: "checked + accent control",
+        description:
+            "Accent fill and checkmark are visible; the fill scales and fades in while the stroke draws, and unselecting reverses both.",
+        rust: "checked + fill_layer/check_layer",
         status: ImplementationStatus::Implemented,
     },
     StateDoc {
         state: "Indeterminate",
         selector: ".checkbox[data-indeterminate=\"true\"]",
-        description: "Accent fill and dash indicator are visible.",
-        rust: "is_indeterminate + dash",
+        description:
+            "Control background eases to the accent with a dash indicator; a selected fill remains visible.",
+        rust: "is_indeterminate + dash + easing_bg_layer",
         status: ImplementationStatus::Implemented,
     },
     StateDoc {
@@ -318,7 +320,7 @@ const CHECKBOX_STATES: &[StateDoc] = &[
         state: "Hovered",
         selector: ".checkbox:hover / [data-hovered=\"true\"]",
         description: "Active control uses the accent hover fill.",
-        rust: "boxel.hover",
+        rust: "util::track_interaction -> fill hover colour",
         status: ImplementationStatus::Partial,
     },
     StateDoc {
@@ -384,9 +386,16 @@ const CHECKBOX_STYLING: &[StyleDoc] = &[
     StyleDoc {
         class_or_token: ".checkbox__control::before",
         value: "accent scale-70 opacity-0 -> scale-100 opacity-100; 100/200ms",
-        description: "Selected background reveal.",
-        rust: "selected accent fill swaps immediately",
-        status: ImplementationStatus::Partial,
+        description: "Selected background reveal — the fill scales and fades in, eases its background toward the accent, and reverses from the rendered frame when the selection turns around mid-flight.",
+        rust: "anim::Tween snapshot slots + fill_layer/easing_bg_layer",
+        status: ImplementationStatus::Implemented,
+    },
+    StyleDoc {
+        class_or_token: "CheckIcon strokeDasharray 22, dashoffset 44 <-> 66",
+        value: "draw stroke-dashoffset 150ms linear after 15ms; undraw over the base 200ms default ease",
+        description: "The checkmark stroke draws in on selection and undraws on unselection.",
+        rust: "check_layer canvas stroke reveal",
+        status: ImplementationStatus::Implemented,
     },
     StyleDoc {
         class_or_token: ".checkbox--secondary .checkbox__control",

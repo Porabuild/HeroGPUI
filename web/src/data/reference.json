@@ -5845,15 +5845,15 @@
       {
         "state": "Selected",
         "selector": ".checkbox[data-selected=\"true\"]",
-        "description": "Accent fill and checkmark are visible.",
-        "rust": "checked + accent control",
+        "description": "Accent fill and checkmark are visible; the fill scales and fades in while the stroke draws, and unselecting reverses both.",
+        "rust": "checked + fill_layer/check_layer",
         "status": "implemented"
       },
       {
         "state": "Indeterminate",
         "selector": ".checkbox[data-indeterminate=\"true\"]",
-        "description": "Accent fill and dash indicator are visible.",
-        "rust": "is_indeterminate + dash",
+        "description": "Control background eases to the accent with a dash indicator; a selected fill remains visible.",
+        "rust": "is_indeterminate + dash + easing_bg_layer",
         "status": "implemented"
       },
       {
@@ -5867,7 +5867,7 @@
         "state": "Hovered",
         "selector": ".checkbox:hover / [data-hovered=\"true\"]",
         "description": "Active control uses the accent hover fill.",
-        "rust": "boxel.hover",
+        "rust": "util::track_interaction -> fill hover colour",
         "status": "partial"
       },
       {
@@ -5932,9 +5932,15 @@
       },
       {
         "token": ".checkbox__control::before",
-        "description": "Selected background reveal.",
-        "rust": "selected accent fill swaps immediately",
-        "status": "partial"
+        "description": "Selected background reveal — the fill scales and fades in, eases its background toward the accent, and reverses from the rendered frame when the selection turns around mid-flight.",
+        "rust": "anim::Tween snapshot slots + fill_layer/easing_bg_layer",
+        "status": "implemented"
+      },
+      {
+        "token": "CheckIcon strokeDasharray 22, dashoffset 44 <-> 66",
+        "description": "The checkmark stroke draws in on selection and undraws on unselection.",
+        "rust": "check_layer canvas stroke reveal",
+        "status": "implemented"
       },
       {
         "token": ".checkbox--secondary .checkbox__control",

@@ -627,29 +627,13 @@ impl RenderOnce for ProgressCircle {
                 // v3's SVG uses stroke-linecap="round". GPUI's public stroke
                 // builder uses butt caps, so complete the same geometry with
                 // a filled disc at each endpoint.
+                let cap_radius = stroke_w / 2.;
                 for angle in [start, start - sweep] {
                     let cap_center = gpui::point(
                         center.x + radius * angle.cos(),
                         center.y - radius * angle.sin(),
                     );
-                    let cap_radius = stroke_w / 2.;
-                    let mut cap = gpui::PathBuilder::fill();
-                    for step in 0..16 {
-                        let angle = std::f32::consts::TAU * step as f32 / 16.;
-                        let point = gpui::point(
-                            cap_center.x + cap_radius * angle.cos(),
-                            cap_center.y + cap_radius * angle.sin(),
-                        );
-                        if step == 0 {
-                            cap.move_to(point);
-                        } else {
-                            cap.line_to(point);
-                        }
-                    }
-                    cap.close();
-                    if let Ok(path) = cap.build() {
-                        window.paint_path(path, arc_color);
-                    }
+                    crate::util::paint_disc(cap_center, cap_radius, arc_color, window);
                 }
             },
         )

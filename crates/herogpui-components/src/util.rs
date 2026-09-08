@@ -161,6 +161,35 @@ pub fn apply_field_chrome<T: Styled>(
     }
 }
 
+/// Paints a filled 16-segment disc — the round cap and join completion both
+/// canvas-stroked marks need (`ProgressCircle`'s arc ends, the checkbox's
+/// live stroke ends and elbow), since gpui's public stroke builder has
+/// neither a round cap nor a round join to pick.
+pub(crate) fn paint_disc(
+    center: gpui::Point<Pixels>,
+    radius: Pixels,
+    color: Hsla,
+    window: &mut gpui::Window,
+) {
+    let mut builder = gpui::PathBuilder::fill();
+    for step in 0..16 {
+        let angle = std::f32::consts::TAU * step as f32 / 16.;
+        let point = gpui::point(
+            center.x + radius * angle.cos(),
+            center.y + radius * angle.sin(),
+        );
+        if step == 0 {
+            builder.move_to(point);
+        } else {
+            builder.line_to(point);
+        }
+    }
+    builder.close();
+    if let Ok(path) = builder.build() {
+        window.paint_path(path, color);
+    }
+}
+
 /// Lifts a floating panel above the rest of the page.
 ///
 /// gpui paints in tree order, so an `absolute` panel is still overdrawn by any
