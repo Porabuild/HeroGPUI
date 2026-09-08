@@ -144,14 +144,20 @@ pub(super) fn spec_row(children: Vec<AnyElement>) -> AnyElement {
         .into_any_element()
 }
 
+/// Stacked example components, left-aligned as one centered group.
+///
+/// The column hugs its content -- the widest child sets its width -- so the
+/// preview frame centers the whole group, and `items_start` lines every
+/// narrower child up with that widest one instead of centring each on its own
+/// axis ('Accept the terms' and 'Subscribe to updates' share a left edge).
+/// Components hug their content in a demo; full_width examples opt back in
+/// explicitly. Field examples that need a definite width use field_col /
+/// demo_field instead of stretching this helper.
 pub(super) fn col(children: Vec<AnyElement>) -> AnyElement {
     gpui::div()
         .flex()
         .flex_col()
-        // Components hug their content in a demo; full_width examples opt back
-        // in explicitly. Field examples that need a definite width use
-        // field_col / demo_field instead of stretching this helper.
-        .items_center()
+        .items_start()
         .justify_center()
         .gap(px(12.))
         .children(children)
@@ -1047,6 +1053,20 @@ mod example_quality {
         assert!(!calendar.contains("Grid: August 2026; heading:"));
         assert!(calendar.contains("\"Same month\""));
         assert!(calendar.contains("\"Heading offset\""));
+    }
+
+    #[test]
+    fn stacked_examples_left_align_within_the_centered_preview() {
+        let col = SRC
+            .split("fn col(")
+            .nth(1)
+            .and_then(|rest| rest.split("fn stretch_col(").next())
+            .expect("col helper");
+        assert!(col.contains(".items_start()"), "col left-aligns its stack");
+        assert!(
+            !col.contains(".items_center()"),
+            "col must not recentre narrower children on their own axis"
+        );
     }
 
     #[test]
