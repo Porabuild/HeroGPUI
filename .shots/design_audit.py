@@ -1232,7 +1232,12 @@ CHECKS = [
     ('checkbox', '.checkbox__control', 'size', 'Checkbox control', SRC + 'checkbox.rs',
      'let \\(box_px, icon_px, text\\) = \\(px\\((\\d+(?:\\.\\d*)?)\\)', None),
     ('checkbox', '.checkbox__control', 'radius', 'Checkbox -> util::_radius', SRC + 'checkbox.rs',
-     '\\.rounded\\(crate::util::(\\w+_radius)\\(cx\\)\\)', helper_px),
+     'checkbox_control_radius', None),
+    # v3 sizes the checkmark slot itself (`size-2.5` inside the `size-3`
+    # indicator), not the generic `& svg` (`size-full`); ours is the canvas
+    # handed to `check_layer` inside the `size(icon_px)` mark box.
+    ('checkbox', '[data-slot="checkbox-default-indicator--checkmark"]', 'size',
+     'Checkbox checkmark canvas', SRC + 'checkbox.rs', 'checkbox_checkmark_canvas', None),
     ('radio', '.radio__control', 'size', 'Radio control', SRC + 'radio_group.rs',
      'let \\(circle, dot, text, gap\\) = \\(px\\((\\d+(?:\\.\\d*)?)\\)', None),
     # Anchored on the control, since the `secondary` variant's panel also has a
@@ -2636,6 +2641,10 @@ def our_value(path, pattern, transform):
         return slider_axis_inset(path, False)
     if pattern == 'slider_axis_inset_vertical':
         return slider_axis_inset(path, True)
+    if pattern == 'checkbox_control_radius':
+        return checkbox_control_radius(path)
+    if pattern == 'checkbox_checkmark_canvas':
+        return checkbox_checkmark_canvas(path)
     try:
         src = read_path(path)
     except OSError:
@@ -2836,6 +2845,108 @@ def alert_indicator_padding(path):
     return indicator_padding_from(source)
 
 
+def checkbox_control_radius_from(source):
+    """Read the checkbox control radius from its final wiring.
+
+    The control rounds through a local binding shared by the animated
+    background layer and the `.rounded(...)` clip. All three parts must be
+    present, each on its own structural boundary:
+
+    - the `let control_radius = if self.is_round {..}` binding, whose round
+      arm halves the box and whose brace-matched plain arm is exactly a
+      `util` radius helper call, closed by the statement's `;`;
+    - the `let mut boxel = gpui::div()` builder chain, owned by its
+      `element_id::scoped(&self.id, "control")` id;
+    - a `.rounded(control_radius)` method on that same chain, so a foreign
+      `.rounded(control_radius)` elsewhere in the file cannot stand in.
+
+    The helper is resolved by reading `util`, so a retuned scale cannot go
+    stale here.
+    """
+    src = strip_cfg_test(source)
+    header = re.search(r'\blet control_radius = if self\.is_round \{', src)
+    if not header:
+        return None
+    round_end = _balanced_block_end(src, header.end() - 1)
+    if round_end is None:
+        return None
+    else_head = re.compile(r'\s*else \{').match(src, round_end)
+    if not else_head:
+        return None
+    else_end = _balanced_block_end(src, else_head.end() - 1)
+    if else_end is None:
+        return None
+    helper = re.fullmatch(r'\s*crate::util::(\w+_radius)\(cx\)\s*',
+                          src[else_head.end():else_end - 1])
+    if not helper or not re.compile(r'\s*;').match(src, else_end):
+        return None
+    declarations = list(re.finditer(r'\blet mut boxel = (?:gpui::)?div\(\)', src))
+    if len(declarations) != 1:
+        return None
+    owns_control = False
+    rounds_binding = False
+    for name, args in builder_chain_methods(src, declarations[0].end()):
+        owns_control |= name == 'id' and \
+            args.strip() == 'element_id::scoped(&self.id, "control")'
+        rounds_binding |= name == 'rounded' and args.strip() == 'control_radius'
+    if not (owns_control and rounds_binding):
+        return None
+    return helper_px(helper.group(1))
+
+
+def checkbox_control_radius(path):
+    """File adapter: read the checkbox control radius out of checkbox.rs."""
+    try:
+        source = read_path(path)
+    except OSError:
+        return None
+    return checkbox_control_radius_from(source)
+
+
+_CANVAS_CALL = re.compile(
+    r'\A\s*&self\.id,\s*check_stroke,\s*reduce_motion,\s*'
+    r'px\((\d+(?:\.\d*)?)\.\)\s*,\s*accent_foreground,?\s*\Z')
+
+
+def checkbox_checkmark_canvas_from(source):
+    """Read the checkmark canvas size from the `check_layer` call.
+
+    v3 sizes the checkmark slot (`size-2.5`) inside the `size-3` indicator,
+    so ours is the `size:` argument of `check_layer`, not `icon_px` itself.
+    The wrapper is found structurally: the one `div()` chain that carries
+    `.size(icon_px)` must hand exactly one `child` to `check_layer`, whose
+    arguments are the checkmark tween wiring ending in the canvas literal.
+    """
+    src = strip_cfg_test(source)
+    wrapper = None
+    for opening in re.finditer(r'(?<![A-Za-z0-9_])(?:gpui::)?div\(\)', src):
+        chain = list(builder_chain_methods(src, opening.end()))
+        if not any(name == 'size' and args.strip() == 'icon_px'
+                   for name, args in chain):
+            continue
+        if wrapper is not None:
+            return None
+        wrapper = chain
+    if wrapper is None:
+        return None
+    children = [args.strip() for name, args in wrapper if name == 'child']
+    if len(children) != 1 or not children[0].startswith('check_layer(') \
+            or not children[0].endswith(')'):
+        return None
+    call = _CANVAS_CALL.fullmatch(
+        children[0][len('check_layer('):-1])
+    return float(call.group(1)) if call else None
+
+
+def checkbox_checkmark_canvas(path):
+    """File adapter: read the checkmark canvas size out of checkbox.rs."""
+    try:
+        source = read_path(path)
+    except OSError:
+        return None
+    return checkbox_checkmark_canvas_from(source)
+
+
 def strip_cfg_test(source):
     """Remove balanced `#[cfg(test)]` modules without truncating production."""
     source = mask_comments(source)
@@ -2915,10 +3026,15 @@ FILLS = [
      SRC + 'radio_group.rs', 'colors.field.background'),
     ('radio-group', '.radio-group--secondary .radio__control', 'var(--default)',
      SRC + 'radio_group.rs', 'colors.default.color'),
+    # The control reads its variant fill through `cx.colors()` at two sites
+    # (the tween target and the resting `.bg(...)`); the needle is the match
+    # arm itself, so both owner and argument stay in the evidence.
     ('checkbox', '.checkbox__control', 'bg-field',
-     SRC + 'checkbox.rs', 'colors.field.background'),
+     SRC + 'checkbox.rs',
+     'herogpui_core::FieldVariant::Primary => cx.colors().field.background'),
     ('checkbox', '.checkbox--secondary .checkbox__control', 'var(--default)',
-     SRC + 'checkbox.rs', 'colors.default.color'),
+     SRC + 'checkbox.rs',
+     'herogpui_core::FieldVariant::Secondary => cx.colors().default.color'),
     ('input', '.input--secondary', 'var(--default)',
      SRC + 'util.rs', 'FieldVariant::Secondary => colors.default.color'),
     ('input', '.input', 'bg-field',
@@ -3714,6 +3830,74 @@ def self_test():
             expect(field_wrapper_gap_from(fixture, owner, binding) is None,
                    owner + ' must reject missing, nested, commented, or foreign gaps')
 
+    # The checkbox control rounds through a local binding shared by the
+    # animated background layer and the clip, so the reader must find the
+    # `is_round` branch, the plain branch's `util` helper, and the apply site
+    # on the id'd control chain, and take the helper's value from `util`.
+    def control_radius_fixture(else_arm, apply='.rounded(control_radius)',
+                               owner_id='.id(element_id::scoped(&self.id, "control"))'):
+        return ('let control_radius = if self.is_round {\n'
+                '    // `rounded-full` on the control: the fill matches it.\n'
+                '    box_px / 2.0\n'
+                '} else {\n'
+                '    ' + else_arm + '\n'
+                '};\n'
+                'let mut boxel = gpui::div()\n'
+                '    ' + owner_id + '\n'
+                '    .flex()\n'
+                '    ' + apply + ';\n')
+
+    expect(checkbox_control_radius_from(
+               control_radius_fixture('crate::util::mark_radius(cx)')) == 6.0,
+           'the checkbox control radius must follow the plain branch to its util helper')
+    expect(checkbox_control_radius_from(
+               control_radius_fixture('crate::util::key_radius(cx)'))
+           == helper_px('key_radius') == 8.0,
+           'a retuned checkbox helper must be read from util, not assumed')
+    for fixture in [
+            control_radius_fixture('px(6.)'),
+            control_radius_fixture('crate::util::mark_radius(cx)',
+                                   apply='.rounded(box_px / 2.0)'),
+            control_radius_fixture('crate::util::mark_radius(cx)',
+                                   apply='.rounded(crate::util::mark_radius(cx))'),
+            control_radius_fixture('crate::util::mark_radius(cx)',
+                                   apply='// .rounded(control_radius)'),
+            control_radius_fixture('crate::util::mark_radius(cx)', owner_id='.flex()'),
+            control_radius_fixture('crate::util::mark_radius(cx)',
+                                   apply='.rounded(box_px)')
+            + '\nfn unrelated() {\n'
+            '    let other = gpui::div().rounded(control_radius);\n'
+            '}\n']:
+        expect(checkbox_control_radius_from(fixture) is None,
+               'the checkbox control radius must reject a missing helper or '
+               'apply site, a commented-out one, a foreign chain, and an '
+               'unrelated .rounded(control_radius) after the control')
+
+    # v3 sizes the checkmark slot itself, so ours is the `size:` argument of
+    # `check_layer` inside the `.size(icon_px)` mark box, not the box itself.
+    canvas_fixture = ('gpui::div()\n'
+                      '    .size(icon_px)\n'
+                      '    .flex()\n'
+                      '    .child(check_layer(\n'
+                      '        &self.id,\n'
+                      '        check_stroke,\n'
+                      '        reduce_motion,\n'
+                      '        px(10.),\n'
+                      '        accent_foreground,\n'
+                      '    )),\n')
+    expect(checkbox_checkmark_canvas_from(canvas_fixture) == 10.0,
+           'the checkmark canvas must read the size argument of check_layer')
+    expect(checkbox_checkmark_canvas_from(canvas_fixture.replace('px(10.)', 'px(12.)')) == 12.0,
+           'a retuned checkmark canvas must be read, not assumed')
+    for fixture in [
+            canvas_fixture.replace('.size(icon_px)', '.size(box_px)'),
+            canvas_fixture.replace('px(10.)', 'icon_px'),
+            canvas_fixture.replace('px(10.)', '// px(10.)'),
+            canvas_fixture.replace('.child(check_layer(', '.child(fill_layer(')]:
+        expect(checkbox_checkmark_canvas_from(fixture) is None,
+               'the checkmark canvas must reject a foreign wrapper or layer, a '
+               'missing literal, and a commented-out one')
+
     if failures:
         for failure in failures:
             print('! self-test: ' + failure)
@@ -3724,7 +3908,10 @@ def self_test():
           'when the call is missing, commented, nested, or in another chain; '
           'Avatar fallback text reads the production let font assignment and '
           'ignores cfg(test), comments, parent, and nested matches; field wrapper '
-          'gaps follow their owning render, binding, and vertical-gap overrides')
+          'gaps follow their owning render, binding, and vertical-gap overrides; '
+          'the checkbox control radius follows the is_round/plain wiring to its '
+          'apply site and reads the helper from util, and the checkmark canvas '
+          'reads the check_layer size argument off the icon box')
     return 0
 
 

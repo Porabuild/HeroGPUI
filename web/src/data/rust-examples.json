@@ -1738,7 +1738,7 @@
   "checkbox": [
     {
       "heading": "Usage",
-      "description": "Label content uses 14px medium text with 20px lines, independent of surrounding line height.",
+      "description": "Label content uses 14px medium text with 20px lines, independent of surrounding line height. Toggling animates: the accent fill scales and fades in while the check stroke draws, and unselecting undraws it; reduced motion snaps.",
       "imports": "use herogpui::prelude::{Checkbox, FieldVariant};\nuse gpui::prelude::*;\nuse gpui::px;",
       "code": "gpui::div()\n    .flex()\n    .flex_col()\n    .items_start()\n    .gap(px(12.))\n    .children(vec![\n        Checkbox::new(\"checkbox-1\")\n            .is_selected(basic)\n            .label(gpui::div().child(\"Accept the terms\"))\n            .on_change(cx.listener(|this, v: &bool, _, cx| {\n                this.cb_basic = *v;\n                cx.notify();\n            }))\n            .into_any_element(),\n        Checkbox::new(\"checkbox-2\")\n            .is_selected(colored)\n            .variant(FieldVariant::Secondary)\n            .label(gpui::div().child(\"Subscribe to updates\"))\n            .on_change(cx.listener(|this, v: &bool, _, cx| {\n                this.cb_color = *v;\n                cx.notify();\n            }))\n            .into_any_element(),\n    ])"
     },
