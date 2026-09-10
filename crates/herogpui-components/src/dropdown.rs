@@ -1478,12 +1478,10 @@ pub enum DropdownTrigger {
     /// A press opens it, which is v3's default.
     #[default]
     Press,
-    /// A press held for `LONG_PRESS_MS` opens it.
+    /// A press held for the theme's `long_press_ms` opens it (500ms by
+    /// default, matching React Aria).
     LongPress,
 }
-
-/// How long `trigger="longPress"` waits. React Aria uses 500ms.
-const LONG_PRESS_MS: u64 = 500;
 
 /// Dropdown wrapper: trigger + floating menu panel (`Dropdown/DropdownTrigger/
 /// DropdownMenu` composition).
@@ -1818,6 +1816,7 @@ impl RenderOnce for Dropdown {
                                 let holding = holding.clone();
                                 let own = own.clone();
                                 let on_open_change = on_open_change.clone();
+                                let long_press_ms = cx.layout().long_press_ms;
                                 // Open only if the button is still down when the
                                 // timer expires; a quick click leaves it shut.
                                 // `window.spawn` rather than `cx.spawn`: the
@@ -1826,7 +1825,7 @@ impl RenderOnce for Dropdown {
                                 window
                                     .spawn(cx, async move |cx| {
                                         cx.background_executor()
-                                            .timer(std::time::Duration::from_millis(LONG_PRESS_MS))
+                                            .timer(std::time::Duration::from_millis(long_press_ms))
                                             .await;
                                         cx.update(|window, cx| {
                                             if !*holding.read(cx) {

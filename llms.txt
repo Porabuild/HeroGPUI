@@ -151,6 +151,16 @@ dark mode), `skeleton_animation`, `tooltip_delay_ms`, `tooltip_close_delay_ms`,
 `cursor_interactive` (`CursorStyle::PointingHand` — v3's `cursor: pointer`; the
 cursor every interactive control shows on hover).
 
+HeroGPUI-only layout tokens (no upstream CSS variable; each defaults to the
+literal it replaced, so a theme that ignores them renders v3's pixels):
+`tabs_hover_opacity` (0.7 — the dim an unselected Tabs item takes on hover,
+clamped to 0..=1), `tooltip_cooldown_ms` (500 — the floor between one tooltip
+closing and the next opening; a per-tooltip close delay can raise it),
+`long_press_ms` (500 — how long `DropdownTrigger::LongPress` waits) and
+`hover_fade_ms` (100 — the background fade duration; `0` resolves
+immediately). All four plus `tooltip_delay_ms` / `tooltip_close_delay_ms` are
+settable through `ThemeBuilder` and the sparse `ThemeDocument` JSON.
+
 ```rust
 div().bg(cx.colors().surface.background)
 div().bg(cx.colors().accent.soft())

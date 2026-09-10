@@ -41,6 +41,24 @@ pub struct ThemeDocument {
     /// the platform default).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cursor_interactive: Option<gpui::CursorStyle>,
+    /// The opacity a hovered `Tabs` item drops to; clamped to `0..=1`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tabs_hover_opacity: Option<f32>,
+    /// The shortest gap between one tooltip closing and the next opening.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tooltip_cooldown_ms: Option<u64>,
+    /// How long a `DropdownTrigger::LongPress` waits before it opens.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub long_press_ms: Option<u64>,
+    /// The background fade duration of `anim::hover_fade`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hover_fade_ms: Option<u64>,
+    /// `--tooltip-delay`: how long a hover waits before the tip opens.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tooltip_delay_ms: Option<u64>,
+    /// `--tooltip-close-delay`: the per-tooltip close delay default.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tooltip_close_delay_ms: Option<u64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub background: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -208,6 +226,24 @@ impl ThemeDocument {
         }
         if let Some(cursor) = self.cursor_interactive {
             builder = builder.cursor_interactive(cursor);
+        }
+        if let Some(opacity) = self.tabs_hover_opacity {
+            builder = builder.tabs_hover_opacity(opacity);
+        }
+        if let Some(ms) = self.tooltip_cooldown_ms {
+            builder = builder.tooltip_cooldown_ms(ms);
+        }
+        if let Some(ms) = self.long_press_ms {
+            builder = builder.long_press_ms(ms);
+        }
+        if let Some(ms) = self.hover_fade_ms {
+            builder = builder.hover_fade_ms(ms);
+        }
+        if let Some(ms) = self.tooltip_delay_ms {
+            builder = builder.tooltip_delay_ms(ms);
+        }
+        if let Some(ms) = self.tooltip_close_delay_ms {
+            builder = builder.tooltip_close_delay_ms(ms);
         }
         builder = apply_color(
             builder,
@@ -523,6 +559,35 @@ mod tests {
         assert_eq!(theme.id.as_ref(), "x");
         assert_eq!(theme.appearance, Appearance::Dark);
         assert!((theme.colors.link.a - 0.9).abs() < 1e-4);
+    }
+
+    #[test]
+    fn customisation_tokens_apply_from_json_through_the_builder() {
+        let theme = ThemeDocument::theme_from_json(
+            r#"{
+                "id": "x",
+                "base": "light",
+                "tabs_hover_opacity": 0.2,
+                "tooltip_cooldown_ms": 250,
+                "long_press_ms": 350,
+                "hover_fade_ms": 0,
+                "tooltip_delay_ms": 50,
+                "tooltip_close_delay_ms": 75
+            }"#,
+        )
+        .unwrap();
+        assert!((theme.layout.tabs_hover_opacity - 0.2).abs() < 1e-6);
+        assert_eq!(theme.layout.tooltip_cooldown_ms, 250);
+        assert_eq!(theme.layout.long_press_ms, 350);
+        assert_eq!(theme.layout.hover_fade_ms, 0);
+        assert_eq!(theme.layout.tooltip_delay_ms, 50);
+        assert_eq!(theme.layout.tooltip_close_delay_ms, 75);
+
+        let clamped = ThemeDocument::theme_from_json(
+            r#"{ "id": "x", "base": "light", "tabs_hover_opacity": 3.0 }"#,
+        )
+        .unwrap();
+        assert!((clamped.layout.tabs_hover_opacity - 1.0).abs() < 1e-6);
     }
 
     #[test]

@@ -646,6 +646,27 @@ EXTRA_OK_SCOPED = {
     'Checkbox.is_round': 'no-classname',
     'Link.icon': 'composition',
     'Link.icon_first': 'composition',
+    # The field styling seams this port adds on top of v3: v3 leaves the box
+    # height and horizontal padding to Tailwind (`h-9`, `px-3`) and the family
+    # to a font utility, and strips an embedded input's chrome with the
+    # ancestor group's descendant selectors. `TextArea`/`TextField` delegate:
+    # the wrapper forwards all four, TextArea forwards padding_x/is_bare/
+    # font_family (height stays content-driven by `rows`).
+    'Input.height': 'no-classname',
+    'Input.padding_x': 'no-classname',
+    'Input.font_family': 'no-classname',
+    'TextField.height': 'no-classname',
+    'TextField.padding_x': 'no-classname',
+    'TextField.font_family': 'no-classname',
+    'TextArea.padding_x': 'no-classname',
+    'TextArea.font_family': 'no-classname',
+    # A bare field is the chrome-less treatment `InputGroup.Input` already
+    # gives an embedded field, for a caller painting the box around it. gpui
+    # has no descendant selectors, so the group context must be named on the
+    # field itself.
+    'Input.is_bare': 'no-context-propagation',
+    'TextField.is_bare': 'no-context-propagation',
+    'TextArea.is_bare': 'no-context-propagation',
 }
 
 

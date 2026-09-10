@@ -738,9 +738,9 @@ pub fn hover_fade(
 ) -> gpui::Stateful<gpui::Div> {
     let (idle, hovered) = colors;
     let id = id.into();
-    if ActiveTheme::reduce_motion(cx) {
+    let Some(duration) = hover_fade_duration(cx) else {
         return el.bg(idle).hover(move |s: StyleRefinement| s.bg(hovered));
-    }
+    };
 
     let state = window.use_keyed_state(id.clone(), cx, |_, _| HoverFade::default());
     let mut current = *state.read(cx);
@@ -803,10 +803,20 @@ pub fn hover_fade(
     el.child(
         round_corners(gpui::div().absolute().inset_0()).with_animation(
             element_id::indexed(&id, "fade", current.generation),
-            gpui::Animation::new(Duration::from_millis(TRANSITION_MS)).with_easing(ease_out()),
+            gpui::Animation::new(duration).with_easing(ease_out()),
             move |fill, delta| fill.bg(herogpui_core::mix_oklab(from, to, delta)),
         ),
     )
+}
+
+/// The duration [`hover_fade`] eases over, or `None` when it must resolve
+/// immediately: reduced motion, or a theme that set `hover_fade_ms` to zero.
+fn hover_fade_duration(cx: &App) -> Option<Duration> {
+    if ActiveTheme::reduce_motion(cx) {
+        return None;
+    }
+    let ms = cx.layout().hover_fade_ms;
+    (ms > 0).then(|| Duration::from_millis(ms))
 }
 
 /// The hover flag and restart counter [`hover_fade`] keeps per element.
@@ -952,6 +962,46 @@ pub enum Edge {
 mod tests {
     use super::*;
     use gpui::px;
+    use herogpui_theme::{set_theme, Theme, ThemeProvider};
+
+    /// `hover_fade_ms` is public configuration: the stock theme keeps the
+    /// button's `100ms`, a zero resolves like reduced motion, and any other
+    /// value reaches the helper the fade reads.
+    #[gpui::test]
+    fn hover_fade_duration_follows_the_theme_and_zero_resolves_immediately(
+        cx: &mut gpui::TestAppContext,
+    ) {
+        cx.update(ThemeProvider::init);
+        cx.update(|cx| {
+            assert_eq!(
+                hover_fade_duration(cx),
+                Some(Duration::from_millis(TRANSITION_MS)),
+                "the stock theme uses the button's own 100ms"
+            );
+        });
+        cx.update(|cx| {
+            set_theme(
+                Theme::builder("instant", Theme::light())
+                    .hover_fade_ms(0)
+                    .build(),
+                cx,
+            );
+        });
+        cx.update(|cx| {
+            assert_eq!(hover_fade_duration(cx), None, "zero resolves immediately");
+        });
+        cx.update(|cx| {
+            set_theme(
+                Theme::builder("slow", Theme::light())
+                    .hover_fade_ms(250)
+                    .build(),
+                cx,
+            );
+        });
+        cx.update(|cx| {
+            assert_eq!(hover_fade_duration(cx), Some(Duration::from_millis(250)));
+        });
+    }
 
     #[test]
     fn press_inset_matches_the_scale() {

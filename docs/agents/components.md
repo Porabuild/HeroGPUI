@@ -127,6 +127,33 @@ reason in the parity audit.
 - Paint and interaction must use the same color model, axis, range, and
   orientation. Preserve hue endpoints and degenerate black/white states.
 
+## Customisation and `sx` ownership
+
+- Resolve styling per painted part and per property. The order for one resting
+  property is theme / component default → instance configuration → the matching
+  `sx` override, because `apply_sx` refines the root last. A root `sx` does not
+  propagate to descendants automatically.
+- A state fill is an endpoint, not a competing resting colour: `hover_bg` and
+  friends fade from the resolved resting background (the `sx` background when
+  one is set) to the override. Define selected, disabled, invalid and focused
+  precedence separately per part.
+- A part that paints a state fill or derives geometry from a metric reads the
+  matching extractor and treats the `sx` value as the resting value:
+  `util::sx_background`, `util::sx_padding`, `util::sx_radius`, plus
+  `util::sx_pixel_size` for explicit box sizes.
+- Extraction is pixels-only. A rem or fractional edge/corner reads `None` for
+  that edge or corner while `apply_sx` still refines the real value onto the
+  root; child geometry does not reconcile it yet. `sx_background` extracts
+  solid fills only, not gradients.
+- Do not forward one root override to every descendant. A tab-list background
+  is not a selected-tab background; a slider track is not its value fill. Name
+  a part seam when forwarding would be ambiguous.
+- `tests/sx_ownership.rs` keeps the part-scoped inventory: each entry names the
+  function that owns a painted part and the extractor it must read once wired.
+  Pending entries still check their marker exists, so removing a consumer fails
+  the test; scoping is to the enclosing function, so a sibling's extractor call
+  never satisfies another part's entry.
+
 ## Accessibility
 
 - A control is in the accessibility tree only when it has *both* an `.id(..)`

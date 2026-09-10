@@ -127,6 +127,49 @@ impl ThemeBuilder {
         self
     }
 
+    /// Sets the opacity a hovered `Tabs` item drops to. Finite values are
+    /// clamped to `0..=1`; a non-finite value keeps the default `0.7`.
+    pub fn tabs_hover_opacity(mut self, v: f32) -> Self {
+        self.theme.layout.tabs_hover_opacity = if v.is_finite() {
+            v.clamp(0.0, 1.0)
+        } else {
+            0.7
+        };
+        self
+    }
+
+    /// Sets the shortest gap between one tooltip closing and the next opening.
+    /// The per-tooltip close delay can still raise the wait via `max()`.
+    pub fn tooltip_cooldown_ms(mut self, ms: u64) -> Self {
+        self.theme.layout.tooltip_cooldown_ms = ms;
+        self
+    }
+
+    /// Sets how long a `DropdownTrigger::LongPress` waits before it opens.
+    pub fn long_press_ms(mut self, ms: u64) -> Self {
+        self.theme.layout.long_press_ms = ms;
+        self
+    }
+
+    /// Sets the background fade duration of `anim::hover_fade`. Zero resolves
+    /// immediately, like reduced motion.
+    pub fn hover_fade_ms(mut self, ms: u64) -> Self {
+        self.theme.layout.hover_fade_ms = ms;
+        self
+    }
+
+    /// `--tooltip-delay`: how long a hover waits before the tip opens.
+    pub fn tooltip_delay_ms(mut self, ms: u64) -> Self {
+        self.theme.layout.tooltip_delay_ms = ms;
+        self
+    }
+
+    /// `--tooltip-close-delay`: the per-tooltip close delay default.
+    pub fn tooltip_close_delay_ms(mut self, ms: u64) -> Self {
+        self.theme.layout.tooltip_close_delay_ms = ms;
+        self
+    }
+
     // -- base colors --------------------------------------------------------
 
     pub fn background(mut self, c: Hsla) -> Self {
@@ -290,6 +333,29 @@ mod tests {
             (theme.layout.disabled_opacity - base.layout.disabled_opacity).abs() < f32::EPSILON
         );
         assert_eq!(theme.colors.background, base.colors.background);
+    }
+
+    #[test]
+    fn customisation_tokens_flow_through_the_builder_and_clamp() {
+        let theme = Theme::builder("custom", Theme::light())
+            .tabs_hover_opacity(2.0)
+            .tooltip_cooldown_ms(250)
+            .long_press_ms(350)
+            .hover_fade_ms(0)
+            .tooltip_delay_ms(50)
+            .tooltip_close_delay_ms(75)
+            .build();
+        assert!((theme.layout.tabs_hover_opacity - 1.0).abs() < 1e-6);
+        assert_eq!(theme.layout.tooltip_cooldown_ms, 250);
+        assert_eq!(theme.layout.long_press_ms, 350);
+        assert_eq!(theme.layout.hover_fade_ms, 0);
+        assert_eq!(theme.layout.tooltip_delay_ms, 50);
+        assert_eq!(theme.layout.tooltip_close_delay_ms, 75);
+
+        let nan = Theme::builder("nan", Theme::light())
+            .tabs_hover_opacity(f32::NAN)
+            .build();
+        assert!((nan.layout.tabs_hover_opacity - 0.7).abs() < f32::EPSILON);
     }
 
     #[test]

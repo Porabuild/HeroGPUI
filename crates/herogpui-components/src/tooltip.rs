@@ -120,8 +120,6 @@ impl TooltipHover {
     }
 }
 
-const TOOLTIP_GLOBAL_COOLDOWN_MS: u64 = 500;
-
 #[derive(Default)]
 struct TooltipManager {
     entries: Vec<gpui::WeakEntity<TooltipHover>>,
@@ -188,7 +186,7 @@ fn start_tooltip_cooldown(
     let Some(generation) = generation else {
         return;
     };
-    let cooldown = TOOLTIP_GLOBAL_COOLDOWN_MS.max(close_delay);
+    let cooldown = cx.layout().tooltip_cooldown_ms.max(close_delay);
     cx.spawn(async move |cx: &mut gpui::AsyncApp| {
         cx.background_executor()
             .timer(Duration::from_millis(cooldown))

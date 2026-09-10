@@ -69,6 +69,29 @@ pub struct LayoutTheme {
     /// A theme that wants the platform arrow everywhere sets
     /// [`gpui::CursorStyle::Arrow`] once here instead of restyling components.
     pub cursor_interactive: gpui::CursorStyle,
+
+    /// The opacity a hovered `Tabs` item drops to.
+    ///
+    /// v3 hardcodes `opacity: 0.7` on an unselected `.tabs__tab:hover`; this
+    /// port names it so a theme can soften or disable the dim. Not a v3 CSS
+    /// variable, and not consumed by `Link`: its root hover draws an underline.
+    pub tabs_hover_opacity: f32,
+
+    /// The shortest time between one tooltip closing and the next opening.
+    ///
+    /// Replaces the fixed 500 ms floor; the per-tooltip close delay still
+    /// raises the wait via `max()`. React Aria uses the same 500 ms.
+    pub tooltip_cooldown_ms: u64,
+
+    /// How long a `DropdownTrigger::LongPress` waits before it opens.
+    ///
+    /// React Aria uses 500 ms.
+    pub long_press_ms: u64,
+
+    /// The background fade duration `anim::hover_fade` eases between two
+    /// colors. The default is the button's own `100ms` (`anim::TRANSITION_MS`);
+    /// zero resolves immediately, like reduced motion.
+    pub hover_fade_ms: u64,
 }
 
 impl Default for LayoutTheme {
@@ -137,6 +160,10 @@ impl LayoutTheme {
             tooltip_close_delay_ms: 500,
             overlay_hairline: None,
             cursor_interactive: gpui::CursorStyle::PointingHand,
+            tabs_hover_opacity: 0.7,
+            tooltip_cooldown_ms: 500,
+            long_press_ms: 500,
+            hover_fade_ms: 100,
         }
     }
 
@@ -215,5 +242,17 @@ mod tests {
             LayoutTheme::light().cursor_interactive,
             "light and dark share the token; only a custom theme changes it"
         );
+    }
+
+    /// Every new token starts on the literal it replaced, so a consumer that
+    /// does not set one renders the stock pixels.
+    #[test]
+    fn customisation_tokens_default_to_the_literals_they_replace() {
+        for layout in [LayoutTheme::light(), LayoutTheme::dark()] {
+            assert!((layout.tabs_hover_opacity - 0.7).abs() < f32::EPSILON);
+            assert_eq!(layout.tooltip_cooldown_ms, 500);
+            assert_eq!(layout.long_press_ms, 500);
+            assert_eq!(layout.hover_fade_ms, 100);
+        }
     }
 }

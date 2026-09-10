@@ -1567,6 +1567,162 @@ pub fn sx_pixel_size(sx: &Option<Box<gpui::StyleRefinement>>) -> gpui::Size<Opti
     }
 }
 
+/// The definite pixel padding an `sx` override set on the root, edge by edge.
+///
+/// Only pixels extract: a rem resolves against the root font size and a
+/// fraction against the parent's size, neither of which a component's own
+/// geometry can know. An unsupported edge reads `None` here while the plain
+/// [`apply_sx`] refinement still carries the real value to the root; child
+/// geometry simply cannot reconcile it yet.
+pub fn sx_padding(sx: &Option<Box<gpui::StyleRefinement>>) -> gpui::Edges<Option<Pixels>> {
+    fn definite(length: gpui::DefiniteLength) -> Option<Pixels> {
+        match length {
+            gpui::DefiniteLength::Absolute(gpui::AbsoluteLength::Pixels(pixels)) => Some(pixels),
+            _ => None,
+        }
+    }
+    let Some(sx) = sx else {
+        return gpui::Edges::all(None);
+    };
+    gpui::Edges {
+        top: sx.padding.top.and_then(definite),
+        right: sx.padding.right.and_then(definite),
+        bottom: sx.padding.bottom.and_then(definite),
+        left: sx.padding.left.and_then(definite),
+    }
+}
+
+/// The definite pixel corner radii an `sx` override set on the root.
+///
+/// `corner_radii` holds [`gpui::AbsoluteLength`]s, so the unsupported case is
+/// a rem rather than a percentage; that corner reads `None` while the others
+/// keep their values and [`apply_sx`] still refines the root.
+pub fn sx_radius(sx: &Option<Box<gpui::StyleRefinement>>) -> gpui::Corners<Option<Pixels>> {
+    fn absolute(length: gpui::AbsoluteLength) -> Option<Pixels> {
+        match length {
+            gpui::AbsoluteLength::Pixels(pixels) => Some(pixels),
+            gpui::AbsoluteLength::Rems(_) => None,
+        }
+    }
+    let Some(sx) = sx else {
+        return gpui::Corners::default();
+    };
+    gpui::Corners {
+        top_left: sx.corner_radii.top_left.and_then(absolute),
+        top_right: sx.corner_radii.top_right.and_then(absolute),
+        bottom_right: sx.corner_radii.bottom_right.and_then(absolute),
+        bottom_left: sx.corner_radii.bottom_left.and_then(absolute),
+    }
+}
+
+#[cfg(test)]
+mod sx_extraction_tests {
+    use super::*;
+    use gpui::{px, relative, rems, Div, Styled};
+
+    fn captured(style: impl FnOnce(Div) -> Div) -> Option<Box<gpui::StyleRefinement>> {
+        Some(capture_sx(style))
+    }
+
+    #[test]
+    fn no_override_extracts_nothing() {
+        assert_eq!(sx_padding(&None), gpui::Edges::all(None));
+        assert_eq!(sx_radius(&None), gpui::Corners::default());
+    }
+
+    #[test]
+    fn uniform_pixel_padding_extracts_on_every_edge() {
+        let sx = captured(|d| d.p(px(8.)));
+        assert_eq!(sx_padding(&sx), gpui::Edges::all(Some(px(8.))));
+    }
+
+    #[test]
+    fn per_edge_padding_preserves_each_edge() {
+        let sx = captured(|d| d.pt(px(1.)).pr(px(2.)).pb(px(3.)).pl(px(4.)));
+        assert_eq!(
+            sx_padding(&sx),
+            gpui::Edges {
+                top: Some(px(1.)),
+                right: Some(px(2.)),
+                bottom: Some(px(3.)),
+                left: Some(px(4.)),
+            }
+        );
+    }
+
+    #[test]
+    fn zero_padding_is_a_real_override() {
+        let sx = captured(|d| d.p(px(0.)));
+        assert_eq!(sx_padding(&sx), gpui::Edges::all(Some(px(0.))));
+    }
+
+    #[test]
+    fn rems_and_fractions_stay_unsupported_edge_by_edge() {
+        let sx = captured(|d| d.pt(px(2.)).pb(rems(1.)).pl(relative(0.5)));
+        assert_eq!(
+            sx_padding(&sx),
+            gpui::Edges {
+                top: Some(px(2.)),
+                right: None,
+                bottom: None,
+                left: None,
+            }
+        );
+        // The override itself stays on the refinement for `apply_sx`; only the
+        // extracted geometry drops it.
+        let raw = sx.as_ref().unwrap();
+        assert!(matches!(
+            raw.padding.bottom,
+            Some(gpui::DefiniteLength::Absolute(gpui::AbsoluteLength::Rems(
+                _
+            )))
+        ));
+        assert!(matches!(
+            raw.padding.left,
+            Some(gpui::DefiniteLength::Fraction(_))
+        ));
+    }
+
+    #[test]
+    fn uniform_and_per_corner_radius_extract() {
+        let sx = captured(|d| d.rounded(px(6.)));
+        assert_eq!(
+            sx_radius(&sx),
+            gpui::Corners {
+                top_left: Some(px(6.)),
+                top_right: Some(px(6.)),
+                bottom_right: Some(px(6.)),
+                bottom_left: Some(px(6.)),
+            }
+        );
+
+        let sx = captured(|d| d.rounded_tl(px(1.)).rounded_br(px(3.)));
+        assert_eq!(
+            sx_radius(&sx),
+            gpui::Corners {
+                top_left: Some(px(1.)),
+                top_right: None,
+                bottom_right: Some(px(3.)),
+                bottom_left: None,
+            }
+        );
+    }
+
+    #[test]
+    fn rem_radius_stays_unsupported_for_that_corner() {
+        let sx = captured(|d| d.rounded_tl(rems(1.)).rounded_br(px(3.)));
+        assert_eq!(
+            sx_radius(&sx),
+            gpui::Corners {
+                top_left: None,
+                top_right: None,
+                bottom_right: Some(px(3.)),
+                bottom_left: None,
+            }
+        );
+    }
+}
+
 #[cfg(test)]
 mod overlay_stack_tests {
     use super::*;

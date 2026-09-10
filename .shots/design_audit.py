@@ -3293,6 +3293,21 @@ def check_pagination_style_contract():
     return bad
 
 
+def tabs_hover_sites(src):
+    """The tab hover closures that dim through the `tabs_hover_opacity` token.
+
+    v3 hardcodes `opacity-70`; this port names it on `LayoutTheme`, so the
+    reader follows the token, not the old literal.
+    """
+    return re.findall(r'\.hover\(move \|(\w+)\| \1\.opacity\(tabs_hover_opacity\)\)', src)
+
+
+def tabs_token_default(layout_src):
+    """The `tabs_hover_opacity` default literal from `layout.rs`."""
+    match = re.search(r'tabs_hover_opacity:\s*([\d.]+)', layout_src)
+    return float(match.group(1)) if match else None
+
+
 def check_tabs_style_contract():
     """Non-numeric Tabs hover and overflow-chevron styling."""
     css_path = os.path.join(CACHE, 'tabs.css')
@@ -3314,13 +3329,17 @@ def check_tabs_style_contract():
     arrow_css = arrows.group(1) if arrows else ''
     arrow_parts = src.split('let arrow =', 1)
     arrow_src = arrow_parts[1].split('let container_radius', 1)[0] if len(arrow_parts) == 2 else ''
-    tab_hovers = re.findall(r'\.hover\(\|(\w+)\| \1\.opacity\(0\.7\)\)', src)
+    layout_src = read_path(SRC + '../../herogpui-theme/src/layout.rs', errors='replace')
+    hover_default = tabs_token_default(layout_src)
+    tab_hovers = tabs_hover_sites(src)
     checks = [
-        ('tab hover opacity', 'opacity-70' in tab_css and len(tab_hovers) >= 2),
+        ('tab hover opacity', 'opacity-70' in tab_css and len(tab_hovers) >= 2
+         and hover_default == 0.7),
         ('chevron transparent fill', bool(arrow_src) and
          'bg-transparent' in arrow_css and '.bg(' not in arrow_src),
         ('chevron hover opacity', 'opacity-70' in arrow_css and
-         '.hover(|arrow| arrow.opacity(0.7))' in arrow_src),
+         '.hover(move |arrow| arrow.opacity(tabs_hover_opacity))' in arrow_src
+         and hover_default == 0.7),
     ]
     print()
     print('tabs non-numeric styling:')
@@ -3898,6 +3917,25 @@ def self_test():
                'the checkmark canvas must reject a foreign wrapper or layer, a '
                'missing literal, and a commented-out one')
 
+    # The Tabs hover dim moved from a hardcoded 0.7 to the
+    # `tabs_hover_opacity` token, so the reader must follow the token and
+    # reject both the old literal and a different token.
+    token_src = (
+        'let tabs_hover_opacity = layout.tabs_hover_opacity;\n'
+        'tab = tab.hover(move |s| s.opacity(tabs_hover_opacity));\n'
+        'tab = tab.hover(move |tab| tab.opacity(tabs_hover_opacity));\n'
+    )
+    expect(len(tabs_hover_sites(token_src)) == 2,
+           'both token-driven tab hover closures must read the token')
+    expect(tabs_hover_sites('tab = tab.hover(|s| s.opacity(0.7));\n') == [],
+           'the old literal 0.7 closure must not satisfy the token reader')
+    expect(tabs_hover_sites('tab = tab.hover(move |s| s.opacity(other_token));\n') == [],
+           'a different opacity token must not satisfy the token reader')
+    expect(tabs_token_default('pub tabs_hover_opacity: f32,') is None,
+           'a token declaration with no default must stay unreadable')
+    expect(tabs_token_default('tabs_hover_opacity: 0.7,') == 0.7,
+           'the token default literal must be readable from layout.rs')
+
     if failures:
         for failure in failures:
             print('! self-test: ' + failure)
@@ -3911,7 +3949,9 @@ def self_test():
           'gaps follow their owning render, binding, and vertical-gap overrides; '
           'the checkbox control radius follows the is_round/plain wiring to its '
           'apply site and reads the helper from util, and the checkmark canvas '
-          'reads the check_layer size argument off the icon box')
+          'reads the check_layer size argument off the icon box; the Tabs hover '
+          'dim follows the tabs_hover_opacity token and rejects the old 0.7 '
+          'literal and a foreign token')
     return 0
 
 

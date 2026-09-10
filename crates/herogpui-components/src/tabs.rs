@@ -677,6 +677,7 @@ impl RenderOnce for Tabs {
 
         let colors = cx.colors();
         let layout = cx.layout();
+        let tabs_hover_opacity = layout.tabs_hover_opacity;
         let key_stops: Vec<usize> = self
             .items
             .iter()
@@ -866,7 +867,7 @@ impl RenderOnce for Tabs {
                     } else {
                         tab = tab.text_color(colors.muted);
                         if !disabled {
-                            tab = tab.hover(|s| s.opacity(0.7));
+                            tab = tab.hover(move |s| s.opacity(tabs_hover_opacity));
                         }
                     }
                     if !disabled {
@@ -1039,7 +1040,7 @@ impl RenderOnce for Tabs {
                         })
                     };
                     if !active && !disabled {
-                        tab = tab.hover(|tab| tab.opacity(0.7));
+                        tab = tab.hover(move |tab| tab.opacity(tabs_hover_opacity));
                     }
                     if !disabled {
                         // A tab list is one stop and the arrows move within
@@ -1198,7 +1199,7 @@ impl RenderOnce for Tabs {
                     .rounded_full()
                     .cursor(crate::util::interactive_cursor(cx))
                     .text_color(colors.foreground)
-                    .hover(|arrow| arrow.opacity(0.7))
+                    .hover(move |arrow| arrow.opacity(tabs_hover_opacity))
                     .child(
                         gpui::svg()
                             .size(px(12.))
