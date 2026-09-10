@@ -1616,6 +1616,22 @@ impl Input {
         self
     }
 
+    /// Applies a standalone [`crate::util::FieldBox`] to this field: explicit
+    /// height and padding, plus the chrome-less bare mode. Crate-internal for
+    /// the components that forward their box seam to a held `Input`.
+    pub(crate) fn with_field_box(mut self, field: crate::util::FieldBox) -> Self {
+        if let Some(height) = field.height {
+            self = self.height(height);
+        }
+        if let Some(padding_x) = field.padding_x {
+            self = self.padding_x(padding_x);
+        }
+        if field.is_bare {
+            self = self.is_bare(true);
+        }
+        self
+    }
+
     /// Drops the field's own chrome: no background, no border, no field
     /// shadow, and no focus or invalid ring.
     ///
@@ -3271,15 +3287,7 @@ impl RenderOnce for SearchField {
                     .text_color(colors.muted)
                     .into_any_element(),
             });
-        if let Some(height) = self.field.height {
-            input = input.height(height);
-        }
-        if let Some(padding_x) = self.field.padding_x {
-            input = input.padding_x(padding_x);
-        }
-        if self.field.is_bare {
-            input = input.is_bare(true);
-        }
+        input = input.with_field_box(self.field);
         if let Some(icon) = self.clear_icon {
             input = input.clear_content(icon);
         }

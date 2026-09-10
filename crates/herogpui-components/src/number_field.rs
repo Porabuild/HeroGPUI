@@ -722,11 +722,9 @@ impl RenderOnce for NumberField {
         let steppers = !self.hide_steppers;
         // NumberField.Input keeps `px-3` even beside either button. Passing
         // false on both sides removes the standalone chrome without borrowing
-        // InputGroup's addon-padding behavior. A padding override needs the
-        // standalone path instead, with the group painting the chrome.
-        // The group owns the row and its chrome; a padding override travels
-        // through Input's crate-internal grouped seam so the public
-        // `Input::padding_x` contract is untouched.
+        // InputGroup's addon-padding behavior. The group owns the row and its
+        // chrome; a padding override travels through Input's crate-internal
+        // grouped seam so the public `Input::padding_x` contract is untouched.
         field = field.in_group(false, false);
         if let Some(padding_x) = field_box.padding_x {
             field = field.group_padding_x(padding_x);

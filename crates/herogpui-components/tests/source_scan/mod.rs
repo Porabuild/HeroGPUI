@@ -20,20 +20,20 @@ pub fn component_src(relative: &str) -> String {
 }
 
 /// Asserts `source` has exactly one `apply_field_chrome(` call and that it
-/// sits inside the `if !<flag> { ... }` guard.
+/// sits inside `guard` (the complete `if ... {` line).
 ///
 /// Counting appearances alone would pass if the call moved outside the guard;
-/// scoping to the guarded block binds the call to the flag the builder reads.
-pub fn assert_chrome_call_is_gated(source: &str, flag: &str) {
+/// scoping to the guarded block binds the call to the condition the builder
+/// actually controls. Pass the full condition so compound guards work.
+pub fn assert_chrome_call_is_under(source: &str, guard: &str) {
     let calls = source.matches("apply_field_chrome(").count();
     assert_eq!(
         calls, 1,
         "the component must have exactly one chrome call site, found {calls}"
     );
-    let guard = format!("if !{flag} {{");
     let guard_at = source
-        .find(&guard)
-        .unwrap_or_else(|| panic!("the chrome call must be gated on `{guard}`"));
+        .find(guard)
+        .unwrap_or_else(|| panic!("the chrome call must be under `{guard}`"));
     let body_at = guard_at + guard.len();
     let body_len = guard_body_len(&source[body_at..]);
     assert!(

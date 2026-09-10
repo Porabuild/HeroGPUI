@@ -1411,8 +1411,12 @@ impl ListBox {
                         }
                     }
                 } else {
+                    // Headless probe: the label column starts at the row's
+                    // content edge, so tests can measure row padding.
+                    let owner = format!("{:?}", self.id);
                     row = row.child(
                         div()
+                            .debug_selector(move || format!("{owner}-item-{index}-label"))
                             .flex()
                             .flex_col()
                             .flex_1()

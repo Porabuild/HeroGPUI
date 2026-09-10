@@ -1126,15 +1126,7 @@ impl RenderOnce for ComboBox {
             .when_some(self.validation_behavior, |i, b| i.validation_behavior(b))
             .when_some(validate, |i, f| i.validate(move |v| f(v)))
             .end_content(trigger);
-        if let Some(height) = self.field.height {
-            input = input.height(height);
-        }
-        if let Some(padding_x) = self.field.padding_x {
-            input = input.padding_x(padding_x);
-        }
-        if self.field.is_bare {
-            input = input.is_bare(true);
-        }
+        input = input.with_field_box(self.field);
         // Edits open Focus and Input triggers only when there is something to
         // show, and close an already-open filtered collection when it empties.
         // Manual stays closed until its trigger opens it, then edits switch it

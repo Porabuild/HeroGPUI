@@ -138,9 +138,9 @@ impl ThemeBuilder {
         self
     }
 
-    /// Sets how long the tooltip manager stays warm after a tooltip closes,
-    /// so the next tip opens without its delay. The per-tooltip close delay
-    /// can extend the window via `max()`.
+    /// Sets the warm window after the pointer leaves a tooltip during which
+    /// the next tip opens without its delay. A per-tooltip close delay
+    /// extends the window via `max()`.
     pub fn tooltip_cooldown_ms(mut self, ms: u64) -> Self {
         self.theme.layout.tooltip_cooldown_ms = ms;
         self

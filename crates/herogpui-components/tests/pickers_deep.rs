@@ -75,7 +75,7 @@ use gpui::{
     point, prelude::*, px, ElementId, Focusable, Modifiers, MouseButton, TestAppContext,
     VisualTestContext,
 };
-use harness::{click, events, open_host, press, Events};
+use harness::{click, events, open_host, press, probe as part_probe, Events};
 use herogpui_components::{
     Autocomplete, ComboBox, Drawer, DrawerCloseTrigger, DrawerPlacement, Form, FormData, Input,
     InputState, MenuTrigger, PickerItem, Select, SelectionMode,
@@ -5771,36 +5771,20 @@ fn autocomplete_trigger_height_replaces_the_min_height(cx: &mut TestAppContext) 
 /// flag (Select, Autocomplete) or forward it to the inner Input (ComboBox).
 #[test]
 fn collection_triggers_gate_or_forward_the_bare_flag() {
-    for (file, source, flag) in [
+    for (source, guard) in [
+        (include_str!("../src/select.rs"), "if !field_box.is_bare {"),
         (
-            "select.rs",
-            include_str!("../src/select.rs"),
-            "field_box.is_bare",
-        ),
-        (
-            "autocomplete.rs",
             include_str!("../src/autocomplete.rs"),
-            "field_box.is_bare",
+            "if !field_box.is_bare {",
         ),
     ] {
-        let _ = file;
-        source_scan::assert_chrome_call_is_gated(source, flag);
+        source_scan::assert_chrome_call_is_under(source, guard);
     }
     let combo = include_str!("../src/combo_box.rs");
     assert!(
-        combo.contains("if self.field.is_bare {"),
-        "ComboBox must forward the bare flag to the inner Input"
+        combo.contains(".with_field_box(self.field)"),
+        "ComboBox must forward its box seam to the inner Input"
     );
-}
-
-/// A zero-behaviour probe rendered through a part slot, so the part's inset
-/// is measurable.
-fn value_probe(name: &'static str) -> gpui::AnyElement {
-    gpui::div()
-        .w(px(10.))
-        .h(px(10.))
-        .debug_selector(move || name.to_owned())
-        .into_any_element()
 }
 
 /// `value_content` lands inside the trigger, so a probe there measures the
@@ -5819,21 +5803,21 @@ fn collection_trigger_padding_x_moves_the_value(cx: &mut TestAppContext) {
             .gap(px(8.))
             .child(
                 Select::new("sel-trig-pad-default", keyed(&["One"]))
-                    .value_content(|_| value_probe("sel-trig-pad-default-probe")),
+                    .value_content(|_| part_probe("sel-trig-pad-default-probe")),
             )
             .child(
                 Select::new("sel-trig-pad-wide", keyed(&["One"]))
                     .padding_x(px(WIDE))
-                    .value_content(|_| value_probe("sel-trig-pad-wide-probe")),
+                    .value_content(|_| part_probe("sel-trig-pad-wide-probe")),
             )
             .child(
                 Autocomplete::new(auto_default.clone(), keyed(&["One"]))
-                    .value_content(|_| value_probe("auto-trig-pad-default-probe")),
+                    .value_content(|_| part_probe("auto-trig-pad-default-probe")),
             )
             .child(
                 Autocomplete::new(auto_wide.clone(), keyed(&["One"]))
                     .padding_x(px(WIDE))
-                    .value_content(|_| value_probe("auto-trig-pad-wide-probe")),
+                    .value_content(|_| part_probe("auto-trig-pad-wide-probe")),
             )
             .into_any_element()
     });
@@ -5876,35 +5860,35 @@ fn collection_row_padding_x_moves_the_indicator(cx: &mut TestAppContext) {
             .child(
                 Select::new("sel-row-pad-default", keyed(&["One"]))
                     .default_open(true)
-                    .indicator(|_| value_probe("sel-row-pad-default-tick")),
+                    .indicator(|_| part_probe("sel-row-pad-default-tick")),
             )
             .child(
                 Select::new("sel-row-pad-wide", keyed(&["One"]))
                     .default_open(true)
                     .row_padding_x(px(WIDE))
-                    .indicator(|_| value_probe("sel-row-pad-wide-tick")),
+                    .indicator(|_| part_probe("sel-row-pad-wide-tick")),
             )
             .child(
                 ComboBox::new(combo_default.clone(), keyed(&["One"]))
                     .default_open(true)
-                    .indicator(|_| value_probe("combo-row-pad-default-tick")),
+                    .indicator(|_| part_probe("combo-row-pad-default-tick")),
             )
             .child(
                 ComboBox::new(combo_wide.clone(), keyed(&["One"]))
                     .default_open(true)
                     .row_padding_x(px(WIDE))
-                    .indicator(|_| value_probe("combo-row-pad-wide-tick")),
+                    .indicator(|_| part_probe("combo-row-pad-wide-tick")),
             )
             .child(
                 Autocomplete::new(auto_default.clone(), keyed(&["One"]))
                     .default_open(true)
-                    .item_indicator(|_| value_probe("auto-row-pad-default-tick")),
+                    .item_indicator(|_| part_probe("auto-row-pad-default-tick")),
             )
             .child(
                 Autocomplete::new(auto_wide.clone(), keyed(&["One"]))
                     .default_open(true)
                     .row_padding_x(px(WIDE))
-                    .item_indicator(|_| value_probe("auto-row-pad-wide-tick")),
+                    .item_indicator(|_| part_probe("auto-row-pad-wide-tick")),
             )
             .into_any_element()
     });
@@ -5951,40 +5935,40 @@ fn collection_virtual_row_padding_x_moves_the_indicator(cx: &mut TestAppContext)
                 Select::new("sel-vrow-pad-default", keyed(&["One"]))
                     .default_open(true)
                     .row_height(px(40.))
-                    .indicator(|_| value_probe("sel-vrow-pad-default-tick")),
+                    .indicator(|_| part_probe("sel-vrow-pad-default-tick")),
             )
             .child(
                 Select::new("sel-vrow-pad-wide", keyed(&["One"]))
                     .default_open(true)
                     .row_height(px(40.))
                     .row_padding_x(px(WIDE))
-                    .indicator(|_| value_probe("sel-vrow-pad-wide-tick")),
+                    .indicator(|_| part_probe("sel-vrow-pad-wide-tick")),
             )
             .child(
                 ComboBox::new(combo_default.clone(), keyed(&["One"]))
                     .default_open(true)
                     .row_height(px(40.))
-                    .indicator(|_| value_probe("combo-vrow-pad-default-tick")),
+                    .indicator(|_| part_probe("combo-vrow-pad-default-tick")),
             )
             .child(
                 ComboBox::new(combo_wide.clone(), keyed(&["One"]))
                     .default_open(true)
                     .row_height(px(40.))
                     .row_padding_x(px(WIDE))
-                    .indicator(|_| value_probe("combo-vrow-pad-wide-tick")),
+                    .indicator(|_| part_probe("combo-vrow-pad-wide-tick")),
             )
             .child(
                 Autocomplete::new(auto_default.clone(), keyed(&["One"]))
                     .default_open(true)
                     .row_height(px(40.))
-                    .item_indicator(|_| value_probe("auto-vrow-pad-default-tick")),
+                    .item_indicator(|_| part_probe("auto-vrow-pad-default-tick")),
             )
             .child(
                 Autocomplete::new(auto_wide.clone(), keyed(&["One"]))
                     .default_open(true)
                     .row_height(px(40.))
                     .row_padding_x(px(WIDE))
-                    .item_indicator(|_| value_probe("auto-vrow-pad-wide-tick")),
+                    .item_indicator(|_| part_probe("auto-vrow-pad-wide-tick")),
             )
             .into_any_element()
     });
@@ -6012,5 +5996,82 @@ fn collection_virtual_row_padding_x_moves_the_indicator(cx: &mut TestAppContext)
              the delta over the owner's default, moved {moved}: \
              default={default:?} wide={wide:?}"
         );
+    }
+}
+
+/// `row_padding_y` grows plain rows on the two remaining picker owners: the
+/// 20px line plus twice the padding, with the defaults keeping the 36px floor.
+#[gpui::test]
+fn combo_box_row_padding_y_sizes_the_rows(cx: &mut TestAppContext) {
+    still();
+    const PAD: f32 = 12.;
+    let default_state = search_state(cx);
+    let padded_state = search_state(cx);
+    let default_id = default_state.entity_id().as_u64();
+    let padded_id = padded_state.entity_id().as_u64();
+    let cx = open_host(cx, move || {
+        gpui::div()
+            .size_full()
+            .child(combo_at(
+                40.,
+                ComboBox::new(default_state.clone(), keyed(&["One"])).default_open(true),
+            ))
+            .child(combo_at(
+                120.,
+                ComboBox::new(padded_state.clone(), keyed(&["One"]))
+                    .default_open(true)
+                    .row_padding_y(px(PAD)),
+            ))
+            .into_any_element()
+    });
+    settle_select(cx, 640., 900.);
+
+    let default = cx
+        .debug_bounds(combo_probe(format!("combobox-{default_id}-item-One")))
+        .expect("the default row must be laid out");
+    let padded = cx
+        .debug_bounds(combo_probe(format!("combobox-{padded_id}-item-One")))
+        .expect("the padded row must be laid out");
+    assert!(
+        near_px(default.size.height, 36.),
+        "the default row must keep the 36px floor, got {default:?}"
+    );
+    assert!(
+        near_px(padded.size.height, 44.),
+        "a 12px row padding must grow the 20px line to 44px, got {padded:?}"
+    );
+}
+
+/// `row_padding_y` grows an Autocomplete suggestion the same way; the single
+/// control avoids two open popovers competing for the focus.
+#[gpui::test]
+fn autocomplete_row_padding_y_sizes_the_suggestion(cx: &mut TestAppContext) {
+    still();
+    for (pad, expected) in [(None, 36.), (Some(12.), 44.)] {
+        let state = search_state(cx);
+        let entity_id = state.entity_id().as_u64();
+        let base = format!("autocomplete-{entity_id}");
+        let state_for_view = state;
+        let cx = open_host(cx, move || {
+            let mut auto = Autocomplete::new(state_for_view.clone(), auto_options(3))
+                .full_width(true)
+                .label("Language");
+            if let Some(pad) = pad {
+                auto = auto.row_padding_y(px(pad));
+            }
+            auto_at(100., auto)
+        });
+        settle_select(cx, 640., 900.);
+
+        let trigger = cx
+            .debug_bounds(auto_trigger(&base))
+            .expect("the trigger must be laid out");
+        click(cx, 200., f32::from(trigger.center().y));
+        settle_select(cx, 640., 900.);
+        let row = cx
+            .debug_bounds(combo_probe(format!("{base}-list-Choice 00")))
+            .expect("the suggestion must be laid out");
+        let message = format!("row padding {pad:?} must size the suggestion");
+        assert!(near_px(row.size.height, expected), "{message}, got {row:?}");
     }
 }

@@ -340,3 +340,52 @@ fn list_box_row_padding_y_sizes_the_option(cx: &mut TestAppContext) {
         "a 12px row padding must grow the 20px line to 44px, got {padded:?}"
     );
 }
+
+/// `row_padding_x` moves the label column inward by the delta over the
+/// default 8px row inset (the list's own 4px padding sits outside both).
+#[gpui::test]
+fn list_box_row_padding_x_moves_the_label(cx: &mut TestAppContext) {
+    const PAD: f32 = 24.;
+    let cx = open_host(cx, move || {
+        gpui::div()
+            .flex()
+            .flex_col()
+            .items_start()
+            .gap(px(16.))
+            .child(
+                ListBox::new(
+                    "lb-row-x-default",
+                    vec![
+                        ListBoxItem::new("a", "Alpha"),
+                        ListBoxItem::new("b", "Beta"),
+                    ],
+                )
+                .into_any_element(),
+            )
+            .child(
+                ListBox::new(
+                    "lb-row-x-pad",
+                    vec![
+                        ListBoxItem::new("a", "Alpha"),
+                        ListBoxItem::new("b", "Beta"),
+                    ],
+                )
+                .row_padding_x(px(PAD))
+                .into_any_element(),
+            )
+            .into_any_element()
+    });
+
+    let default = cx
+        .debug_bounds("Name(\"lb-row-x-default\")-item-0-label")
+        .expect("the default label must be laid out");
+    let padded = cx
+        .debug_bounds("Name(\"lb-row-x-pad\")-item-0-label")
+        .expect("the padded label must be laid out");
+    let moved = f32::from(padded.origin.x - default.origin.x);
+    assert!(
+        (moved - (PAD - 8.)).abs() < 0.5,
+        "`row_padding_x` must move the label inward by the delta over the \
+         default 8px inset, moved {moved}: default={default:?} padded={padded:?}"
+    );
+}

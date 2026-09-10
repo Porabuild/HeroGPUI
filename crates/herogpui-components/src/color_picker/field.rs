@@ -545,15 +545,7 @@ impl RenderOnce for ColorField {
                 .validation_errors(self.validation_errors.clone())
                 .auto_focus(self.auto_focus)
                 .start_content(ColorSwatch::new(self.value).size(SizeXl::Xs));
-            if let Some(h) = self.field.height {
-                input = input.height(h);
-            }
-            if let Some(p) = self.field.padding_x {
-                input = input.padding_x(p);
-            }
-            if self.field.is_bare {
-                input = input.is_bare(true);
-            }
+            input = input.with_field_box(self.field);
             if let Some(message) = validity.first() {
                 input = input.error_message(message);
             }

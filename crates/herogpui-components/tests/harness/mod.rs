@@ -45,6 +45,16 @@ pub fn still() {
     REDUCE_MOTION.set(true);
 }
 
+/// A zero-behaviour 10px probe with a debug selector, so a part's inset is
+/// measurable through `debug_bounds`.
+pub fn probe(name: &'static str) -> AnyElement {
+    gpui::div()
+        .w(px(10.))
+        .h(px(10.))
+        .debug_selector(move || name.to_owned())
+        .into_any_element()
+}
+
 /// What the component callbacks recorded, cloned into each closure.
 pub type Events = Rc<RefCell<Vec<String>>>;
 

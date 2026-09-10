@@ -44,7 +44,8 @@ pub struct ThemeDocument {
     /// The opacity a hovered `Tabs` item drops to; clamped to `0..=1`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tabs_hover_opacity: Option<f32>,
-    /// How long the tooltip manager stays warm after a tooltip closes.
+    /// The warm window after the pointer leaves a tooltip during which the
+    /// next tip opens without its delay.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tooltip_cooldown_ms: Option<u64>,
     /// How long a `DropdownTrigger::LongPress` waits before it opens.

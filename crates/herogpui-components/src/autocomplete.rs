@@ -931,27 +931,28 @@ impl RenderOnce for Autocomplete {
             .line_height(px(20.));
         if !field_box.is_bare {
             field = util::apply_field_chrome(field, self.variant, is_invalid, false, cx);
-        }
-        // `.autocomplete__trigger:focus-visible` is `status-focused` -- the
-        // offset ring, not a field's flush one, which is why the chrome above is
-        // not told about the focus.
-        if !field_box.is_bare {
+            // `.autocomplete__trigger:focus-visible` is `status-focused` -- the
+            // offset ring, not a field's flush one, which is why the chrome
+            // above is not told about the focus.
             if let Some(handle) = &focus_handle {
                 field = util::ring_if_focused(field, handle, true, Vec::new(), window, cx);
             }
         }
         if self.is_disabled {
             field = field.opacity(layout.disabled_opacity);
-        } else if !field_box.is_bare {
-            let hover_bg = match self.variant {
-                FieldVariant::Primary => colors.field.hover(),
-                // `.autocomplete--secondary` hovers
-                // `--autocomplete-trigger-bg-hover: var(--default-hover)`.
-                FieldVariant::Secondary => colors.default.hover(),
-            };
-            field = field
-                .hover(move |s| if clear_hovered { s } else { s.bg(hover_bg) })
-                .cursor(util::interactive_cursor(cx));
+        } else {
+            // The cursor is an affordance, not chrome: a bare trigger stays
+            // clickable and keeps the themed pointer.
+            field = field.cursor(util::interactive_cursor(cx));
+            if !field_box.is_bare {
+                let hover_bg = match self.variant {
+                    FieldVariant::Primary => colors.field.hover(),
+                    // `.autocomplete--secondary` hovers
+                    // `--autocomplete-trigger-bg-hover: var(--default-hover)`.
+                    FieldVariant::Secondary => colors.default.hover(),
+                };
+                field = field.hover(move |s| if clear_hovered { s } else { s.bg(hover_bg) });
+            }
         }
         if self.full_width {
             field = field.w_full();

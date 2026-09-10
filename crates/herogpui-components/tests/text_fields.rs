@@ -1947,12 +1947,12 @@ fn inset_probe(name: &'static str) -> gpui::AnyElement {
         .into_any_element()
 }
 
-/// The bounds of the wrapper a standalone `Input` is placed in. With no label,
-/// description or error the field row is the wrapper column's only child, so
-/// the wrapper's height *is* the box height.
+/// The bounds of the element carrying the `name` debug selector. With no
+/// label, description or error the field row is the wrapper column's only
+/// child, so the wrapper's height *is* the box height.
 fn box_bounds(cx: &mut VisualTestContext, name: &'static str) -> Bounds<Pixels> {
     cx.debug_bounds(name)
-        .unwrap_or_else(|| panic!("the `{name}` wrapper must paint"))
+        .unwrap_or_else(|| panic!("the `{name}` probe must paint"))
 }
 
 /// `debug_bounds` takes a `&'static str` and the InputGroup probes carry the
@@ -2113,15 +2113,9 @@ fn is_bare_keeps_the_field_focusable_and_editable(cx: &mut TestAppContext) {
 /// skip it, not a second copy of the background/border/shadow logic.
 #[gpui::test]
 fn is_bare_reuses_the_one_chrome_call_site() {
-    let source = include_str!("../src/input.rs");
-    assert_eq!(
-        source.matches("apply_field_chrome").count(),
-        1,
-        "the field must have exactly one chrome call site"
-    );
-    assert!(
-        source.contains("if self.in_group.is_none() && !self.is_bare {"),
-        "the chrome must be skipped for a bare field on that one call site"
+    source_scan::assert_chrome_call_is_under(
+        include_str!("../src/input.rs"),
+        "if self.in_group.is_none() && !self.is_bare {",
     );
 }
 
@@ -2146,8 +2140,7 @@ fn text_field_start_content_renders_inside_the_box(cx: &mut TestAppContext) {
 }
 
 /// `height`, `padding_x` and `is_bare` are forwarded by `TextField` to the
-/// same box, and a labelled field's box is still the row under the 20px label
-/// line plus the wrapper's 4px gap.
+/// same box.
 #[gpui::test]
 fn text_field_forwards_the_box_builders(cx: &mut TestAppContext) {
     const SHORT: f32 = 28.;
@@ -2579,30 +2572,25 @@ fn search_field_box_builders_reach_the_inner_field(cx: &mut TestAppContext) {
 /// `is_bare` builder flips the same flag the gate reads.
 #[test]
 fn the_field_family_gates_its_chrome_on_one_bare_flag() {
-    for (file, source, flag) in [
+    for (source, guard) in [
         (
-            "time_field.rs",
             include_str!("../src/time_field.rs"),
-            "field_box.is_bare",
+            "if !field_box.is_bare {",
         ),
         (
-            "date_picker/field.rs",
             include_str!("../src/date_picker/field.rs"),
-            "self.bare && !self.is_bare",
+            "if !self.bare && !self.is_bare {",
         ),
         (
-            "color_picker/field.rs",
             include_str!("../src/color_picker/field.rs"),
-            "field_box.is_bare",
+            "if !field_box.is_bare {",
         ),
         (
-            "number_field.rs",
             include_str!("../src/number_field.rs"),
-            "field_box.is_bare",
+            "if !field_box.is_bare {",
         ),
     ] {
-        let _ = file;
-        source_scan::assert_chrome_call_is_gated(source, flag);
+        source_scan::assert_chrome_call_is_under(source, guard);
     }
 }
 
@@ -2694,15 +2682,7 @@ fn input_group_padding_x_reaches_the_inner_field(cx: &mut TestAppContext) {
 #[test]
 fn input_group_gates_chrome_and_forwards_the_seam() {
     let source = include_str!("../src/input_group.rs");
-    assert_eq!(
-        source.matches("apply_field_chrome(").count(),
-        1,
-        "the group must have exactly one chrome call site"
-    );
-    assert!(
-        source.contains("if !field_box.is_bare {"),
-        "the group must gate that one chrome call on the bare flag"
-    );
+    source_scan::assert_chrome_call_is_under(source, "if !field_box.is_bare {");
     assert!(
         source.contains("Some(padding_x) => input.group_padding_x(padding_x),"),
         "the group must forward padding_x through the grouped seam"

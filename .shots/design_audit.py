@@ -111,27 +111,30 @@ def field_box_px_from(src, name):
     A commented-out, renamed, or foreign fallback stays unreadable instead of
     passing on an unrelated constant.
     """
-    src = mask_comments(src)
+    src = mask_comments(mask_literals(src))
+    impl = re.search(r'impl FieldBox \{(.*?)\n\}', src, re.S)
+    if not impl:
+        return None
+    body = impl.group(1)
     if 'resolved_height' in name:
-        body = re.search(
+        method = re.search(
             r'pub\(crate\) fn resolved_height\(&self\) -> Pixels \{(.*?)\n    \}',
-            src, re.S)
-        if not body:
-            return None
-        own = re.search(r'unwrap_or\((?:gpui::)?px\((\d+(?:\.\d*)?)\)\)', body.group(1))
-        if own:
-            return float(own.group(1))
-        if 'unwrap_or(FIELD_HEIGHT)' in body.group(1):
+            body, re.S)
+        expr = method.group(1).strip() if method else ''
+        if expr == 'self.height.unwrap_or(FIELD_HEIGHT)':
             height = re.search(r'FIELD_HEIGHT: Pixels = gpui::px\((\d+(?:\.\d*)?)\)', src)
             return float(height.group(1)) if height else None
-        return None
+        literal = re.fullmatch(
+            r'self\.height\.unwrap_or\((?:gpui::)?px\((\d+(?:\.\d*)?)\)\)', expr)
+        return float(literal.group(1)) if literal else None
     if 'resolved_padding_x' in name:
-        body = re.search(
+        method = re.search(
             r'pub\(crate\) fn resolved_padding_x\(&self\) -> Pixels \{(.*?)\n    \}',
-            src, re.S)
-        padding = (re.search(r'unwrap_or\((?:gpui::)?px\((\d+(?:\.\d*)?)\)\)', body.group(1))
-                   if body else None)
-        return float(padding.group(1)) if padding else None
+            body, re.S)
+        expr = method.group(1).strip() if method else ''
+        literal = re.fullmatch(
+            r'self\.padding_x\.unwrap_or\((?:gpui::)?px\((\d+(?:\.\d*)?)\)\)', expr)
+        return float(literal.group(1)) if literal else None
     return None
 
 
@@ -159,6 +162,14 @@ def helper_px(name):
     if 'field_radius' in body.group(1):
         return RADIUS['field']
     return None
+
+
+def input_grouped_padding_from(src):
+    """Input's grouped exposed-edge padding (the NumberField default too)."""
+    match = re.search(
+        r'let padding_x = self\.group_padding_x\.unwrap_or\(px\((\d+(?:\.\d*)?)\.\)\);',
+        mask_comments(mask_literals(src)))
+    return float(match.group(1)) if match else None
 
 
 def pagination_summary_text(_body):
@@ -726,10 +737,10 @@ CHECKS = [
     ('date-input-group', '.date-input-group__input', 'px', '.date-input-group__input px -> Input',
      SRC + 'input.rs',
      r'None => f\.px\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    # NumberField calls `in_group(false, false)`, so its exposed-edge padding
+    # is Input's grouped binding, not the standalone `None` arm.
     ('number-field', '.number-field__input', 'px', '.number-field__input px -> Input',
-     SRC + 'input.rs',
-     r'match self\.in_group \{\s*None => f\.px\(px\((\d+(?:\.\d*)?)\.\)\),\s*'
-     r'Some\(\(prefix, suffix\)\)', None),
+     SRC + 'input.rs', 'input_grouped_padding', None),
     ('search-field', '.search-field__search-icon', 'size', 'SearchField icon -> FIELD_ICON',
      SRC + 'input.rs',
      r'\.size\(crate::util::(FIELD_ICON)\)', lambda _: 16.0),
@@ -2692,6 +2703,8 @@ def our_value(path, pattern, transform):
         return checkbox_control_radius(path)
     if pattern == 'checkbox_checkmark_canvas':
         return checkbox_checkmark_canvas(path)
+    if pattern == 'input_grouped_padding':
+        return input_grouped_padding_from(read_path(path))
     try:
         src = read_path(path)
     except OSError:
@@ -3344,9 +3357,15 @@ def tabs_token_binding(src):
     """Whether the Tabs render binds the hover opacity from the layout token.
 
     The three hover closures alone would still pass if the binding became a
-    literal, so the reader follows the binding as well.
+    literal or was shadowed, so the reader masks comments/literals and
+    requires the layout assignment with no competing binding.
     """
-    return 'let tabs_hover_opacity = layout.tabs_hover_opacity;' in src
+    masked = mask_comments(mask_literals(src))
+    assignments = re.findall(r'let tabs_hover_opacity\s*=\s*([^;]+);', masked)
+    return bool(assignments) and all(
+        assignment.strip() == 'layout.tabs_hover_opacity'
+        for assignment in assignments
+    )
 
 
 def tabs_hover_sites(src):
@@ -3355,14 +3374,17 @@ def tabs_hover_sites(src):
     v3 hardcodes `opacity-70`; this port names it on `LayoutTheme`, so the
     reader follows the token, not the old literal.
     """
-    return re.findall(r'\.hover\(move \|(\w+)\| \1\.opacity\(tabs_hover_opacity\)\)', src)
+    return re.findall(
+        r'\.hover\(move \|(\w+)\| \1\.opacity\(tabs_hover_opacity\)\)',
+        mask_comments(mask_literals(src)))
 
 
 def tabs_token_default(layout_src):
     """The `tabs_hover_opacity` default literal from `LayoutTheme::common`."""
+    layout_src = mask_comments(mask_literals(layout_src))
     common = re.search(r'fn common\(\) -> Self \{(.*?)\n    \}', layout_src, re.S)
     body = common.group(1) if common else ''
-    match = re.search(r'tabs_hover_opacity:\s*([\d.]+)', body)
+    match = re.search(r'tabs_hover_opacity:\s*([\d.]+)\s*,', body)
     return float(match.group(1)) if match else None
 
 
@@ -3389,11 +3411,13 @@ def check_tabs_style_contract():
     arrow_src = arrow_parts[1].split('let container_radius', 1)[0] if len(arrow_parts) == 2 else ''
     layout_src = read_path(LAYOUT, errors='replace')
     hover_default = tabs_token_default(layout_src)
-    tab_hovers = tabs_hover_sites(src)
+    masked = mask_comments(mask_literals(src))
+    primary_tab_hover = 'tab.hover(move |s| s.opacity(tabs_hover_opacity))' in masked
+    secondary_tab_hover = 'tab.hover(move |tab| tab.opacity(tabs_hover_opacity))' in masked
     binding = tabs_token_binding(src)
     checks = [
-        ('tab hover opacity', 'opacity-70' in tab_css and len(tab_hovers) >= 2
-         and binding and hover_default == 0.7),
+        ('tab hover opacity', 'opacity-70' in tab_css and primary_tab_hover
+         and secondary_tab_hover and binding and hover_default == 0.7),
         ('chevron transparent fill', bool(arrow_src) and
          'bg-transparent' in arrow_css and '.bg(' not in arrow_src),
         ('chevron hover opacity', 'opacity-70' in arrow_css and binding and
@@ -3990,6 +4014,18 @@ def self_test():
            'the tab hover closures must be fed by the layout-token binding')
     expect(not tabs_token_binding(token_src.replace('layout.tabs_hover_opacity', '0.4')),
            'a literal binding must not satisfy the Tabs reader')
+    expect(not tabs_token_binding(
+        '// let tabs_hover_opacity = layout.tabs_hover_opacity;\n'
+        'let tabs_hover_opacity = 0.4;\n'),
+        'a commented binding beside a literal must not satisfy the Tabs reader')
+    expect('tab.hover(move |s| s.opacity(tabs_hover_opacity))' in token_src
+           and 'tab.hover(move |tab| tab.opacity(tabs_hover_opacity))' in token_src,
+           'both tab hover branches must be present')
+    chevron_only = token_src.replace(
+        'tab.hover(move |tab| tab.opacity(tabs_hover_opacity))',
+        'arrow.hover(move |arrow| arrow.opacity(tabs_hover_opacity))')
+    expect('tab.hover(move |tab| tab.opacity(tabs_hover_opacity))' not in chevron_only,
+           'a chevron must not stand in for the secondary tab branch')
     expect(tabs_hover_sites('tab = tab.hover(|s| s.opacity(0.7));\n') == [],
            'the old literal 0.7 closure must not satisfy the token reader')
     expect(tabs_hover_sites('tab = tab.hover(move |s| s.opacity(other_token));\n') == [],
@@ -4008,9 +4044,11 @@ def self_test():
     # a missing/commented/foreign one must stay unreadable rather than pass on
     # an unrelated constant.
     resolver = (
-        'pub(crate) fn resolved_height(&self) -> Pixels {\n'
+        'impl FieldBox {\n'
+        '    pub(crate) fn resolved_height(&self) -> Pixels {\n'
         '        self.height.unwrap_or(FIELD_HEIGHT)\n'
         '    }\n'
+        '}\n'
         'FIELD_HEIGHT: Pixels = gpui::px(36.);\n'
     )
     expect(field_box_px_from(resolver, 'resolved_height') == 36.0,
@@ -4018,16 +4056,23 @@ def self_test():
     expect(field_box_px_from(
         resolver.replace('unwrap_or(FIELD_HEIGHT)', 'unwrap_or(px(99.))'),
         'resolved_height') == 99.0,
-        'a changed resolver fallback must be read, not the constant beside it')
+        'a changed resolver literal must be followed, not masked by the constant')
+    expect(field_box_px_from(
+        resolver.replace('self.height.unwrap_or(FIELD_HEIGHT)',
+                         'self.height.unwrap_or(FIELD_HEIGHT) + px(10.)'),
+        'resolved_height') is None,
+        'an arithmetic tail on the resolver must stay unreadable')
     expect(field_box_px_from(
         resolver.replace('self.height.unwrap_or(FIELD_HEIGHT)',
                          '// self.height.unwrap_or(FIELD_HEIGHT)'),
         'resolved_height') is None,
         'a commented-out resolver fallback must stay unreadable')
     padding = (
-        'pub(crate) fn resolved_padding_x(&self) -> Pixels {\n'
+        'impl FieldBox {\n'
+        '    pub(crate) fn resolved_padding_x(&self) -> Pixels {\n'
         '        self.padding_x.unwrap_or(gpui::px(12.))\n'
         '    }\n'
+        '}\n'
     )
     expect(field_box_px_from(padding, 'resolved_padding_x') == 12.0,
            'the FieldBox padding fallback must read its own px literal')
@@ -4035,8 +4080,18 @@ def self_test():
         padding.replace('unwrap_or(gpui::px(12.))', 'unwrap_or(FIELD_HEIGHT)'),
         'resolved_padding_x') is None,
         'a padding fallback pointing at a foreign constant must stay unreadable')
+    expect(field_box_px_from(
+        padding.replace('impl FieldBox', 'impl Other'),
+        'resolved_padding_x') is None,
+        'a resolver on a foreign owner must stay unreadable')
     expect(field_box_px_from('', 'resolved_something_else') is None,
            'an unknown FieldBox resolver must stay unreadable')
+    grouped = 'let padding_x = self.group_padding_x.unwrap_or(px(12.));\n'
+    expect(input_grouped_padding_from(grouped) == 12.0,
+           'the grouped exposed-edge padding must be readable')
+    expect(input_grouped_padding_from(grouped.replace('12.', '99.')) == 99.0,
+           'a changed grouped fallback must be followed, so the metric check '
+           'sees the drift')
 
     if failures:
         for failure in failures:
@@ -4054,8 +4109,8 @@ def self_test():
           'reads the check_layer size argument off the icon box; the Tabs hover '
           'dim follows the tabs_hover_opacity token and rejects the old 0.7 '
           'literal and a foreign token; field height and padding readers follow '
-          'the FieldBox resolver bodies and reject a changed, commented-out or '
-          'foreign fallback')
+          'changed resolver literals while rejecting arithmetic tails, '
+          'commented-out bodies and foreign owners')
     return 0
 
 
