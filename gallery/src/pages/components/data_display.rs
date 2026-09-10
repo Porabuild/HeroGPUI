@@ -336,6 +336,13 @@ impl Gallery {
             vec![
                 ("Usage", "Headers use 12px text with 16px lines; cells use 14px text with 20px lines in both ordinary and virtual rows.", stretch_col(vec![build("tbl-usage").into_any_element()])),
                 (
+                    "Row Hover",
+                    "`row_hover_bg` names the fill a hovered unselected interactive row takes; a selected row keeps its selection fill.",
+                    stretch_col(vec![build("tbl-row-hover")
+                        .row_hover_bg(cx.colors().accent.soft())
+                        .into_any_element()]),
+                ),
+                (
                     "Variants",
                     stretch_col(h::TableVariant::ALL
                         .iter()

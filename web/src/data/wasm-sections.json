@@ -227,6 +227,7 @@
   ],
   "table": [
     "Usage",
+    "Row Hover",
     "Variants",
     "Custom sort indicator",
     "Selection",
@@ -596,6 +597,7 @@
   ],
   "accordion": [
     "Usage",
+    "Hover Colour",
     "Without Separator",
     "Multiple Expanded",
     "Disabled State",

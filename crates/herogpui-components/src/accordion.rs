@@ -127,6 +127,9 @@ pub struct Accordion {
     variant: AccordionVariant,
     hide_separator: bool,
     on_toggle: Option<OnToggle>,
+    /// The fill a hovered enabled, closed trigger takes, in place of the
+    /// variant's wash.
+    hover_bg: Option<gpui::Hsla>,
     /// The `sx` slot, refined over the root style at the end of render.
     sx: Option<Box<gpui::StyleRefinement>>,
 }
@@ -165,6 +168,7 @@ impl Accordion {
             variant: AccordionVariant::Default,
             hide_separator: false,
             on_toggle: None,
+            hover_bg: None,
             sx: None,
         }
     }
@@ -218,6 +222,13 @@ impl Accordion {
 
     pub fn variant(mut self, v: AccordionVariant) -> Self {
         self.variant = v;
+        self
+    }
+
+    /// The fill a hovered enabled, closed trigger takes, in place of the
+    /// variant's wash. Open rows and disabled items never hover, as before.
+    pub fn hover_bg(mut self, color: impl Into<gpui::Hsla>) -> Self {
+        self.hover_bg = Some(color.into());
         self
     }
 
@@ -348,12 +359,12 @@ impl RenderOnce for Accordion {
                 // `color-mix(in oklab, var(--foreground) 3%, transparent 90%)`,
                 // whose weights normalise to 3/93 — while `.accordion--surface`
                 // overrides that with the full `bg-default`.
-                let hover_bg = match self.variant {
+                let hover_bg = self.hover_bg.unwrap_or_else(|| match self.variant {
                     AccordionVariant::Default => {
                         herogpui_core::soft_mix(colors.foreground, 3.0 / 93.0)
                     }
                     AccordionVariant::Surface => colors.default.color,
-                };
+                });
                 header = header
                     .cursor(crate::util::interactive_cursor(cx))
                     .hover(move |s| s.bg(hover_bg));

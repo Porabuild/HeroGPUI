@@ -1,7 +1,7 @@
 {
   "version": 2,
-  "artifactSha256": "6315f44ce6eced4fc928000bf4410a5d195b1c70a091235529102dd57b1f2635",
-  "glueSha256": "b5a1fb512b233421adc6af8e85dfdc6364a4440ebb021d3d208b2c3b803f9619",
+  "artifactSha256": "facb5ba34bf455ab41b01e7138677c93cc7bd9b5617fdd4ba7b7dc2ec5e0ec1a",
+  "glueSha256": "38be75b8809a13b5c35eadf1112178be94304278cfb2b0290619ed815264fe9d",
   "examples": {
     "accordion/Controlled": {
       "codeSha256": "2816548407263e0fdeada0ff2ec1e8f9fd45a2d33b24ab2cf163539711fe6f8a",
@@ -26,6 +26,10 @@
     "accordion/Hidden separator": {
       "codeSha256": "2fde920e1b56a860117457c8b20f4986276cc16843429a97a243b8d99ac2705b",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "accordion/Hover Colour": {
+      "codeSha256": "43d2c9295081b0d20f1ea2e84684a6924729b093430aeb44c4f3f18517a155b6",
+      "descriptionSha256": "2109a7fa05c5ef0efd53f0003c9a34937e0e3c4aeeeb4de0d0ba7fcf84a583b1"
     },
     "accordion/Multiple Expanded": {
       "codeSha256": "faaf3bec9f25513be4fb70a9b9ce833b7e3d5e554a687c1af98e75b5be365389",
@@ -2322,6 +2326,10 @@
     "table/Pagination": {
       "codeSha256": "4a9d199f4c5ad5cdbb1dab026c15ed0160a7c1c88ebec9e7eca24c1cd0ee91f2",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "table/Row Hover": {
+      "codeSha256": "c1aa71cb4a4692266133d4900b536be67b76a446a72313f37c8c79bc731adcb6",
+      "descriptionSha256": "e6dfce1f92629b3b8a44117b7b7afe23a3b687f06648a222c21de1ac20f137dd"
     },
     "table/Secondary Variant": {
       "codeSha256": "d02d7aae36bc98937fda43b0ccf7cfbbc1221bf153ac4b72a829372a9c8de7eb",

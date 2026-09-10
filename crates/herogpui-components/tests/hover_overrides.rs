@@ -65,6 +65,20 @@ fn every_hover_override_reaches_its_painted_fill() {
             "let hover_bg = self.remove_hover_bg.unwrap_or(colors.default.hover());",
             "s.bg(hover_bg)",
         ),
+        (
+            "table.rs",
+            include_str!("../src/table.rs"),
+            "self.row_hover_bg = Some(color.into());",
+            "let row_hover_bg = self.row_hover_bg;",
+            "row_hover_bg.unwrap_or(if secondary {",
+        ),
+        (
+            "accordion.rs",
+            include_str!("../src/accordion.rs"),
+            "self.hover_bg = Some(color.into());",
+            "let hover_bg = self.hover_bg.unwrap_or_else(|| match self.variant {",
+            "s.bg(hover_bg)",
+        ),
     ] {
         assert!(
             source.contains(stored),

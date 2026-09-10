@@ -1055,6 +1055,12 @@
       "code": "stretch_col(vec![build(\"tbl-usage\").into_any_element()])"
     },
     {
+      "heading": "Row Hover",
+      "description": "`row_hover_bg` names the fill a hovered unselected interactive row takes; a selected row keeps its selection fill.",
+      "imports": "use herogpui::prelude::{ActiveTheme, Table};\nuse gpui::prelude::*;",
+      "code": "stretch_col(vec![build(\"tbl-row-hover\")\n    .row_hover_bg(cx.colors().accent.soft())\n    .into_any_element()])"
+    },
+    {
       "heading": "Variants",
       "imports": "use herogpui::prelude::{Table, TableVariant};",
       "code": "stretch_col(TableVariant::ALL\n    .iter()\n    .map(|v| {\n        build(match v {\n            TableVariant::Primary => \"tbl-variant-primary\",\n            TableVariant::Secondary => \"tbl-variant-secondary\",\n        })\n        .variant(*v)\n    })\n    )"
@@ -2727,6 +2733,12 @@
       "description": "Titles, subtitles and body text keep their line heights when used inside larger text containers.",
       "imports": "use herogpui::prelude::{Accordion, AccordionItem};",
       "code": "Accordion::new(items())\n    .id(\"accordion\")\n    .default_expanded(\"1\")"
+    },
+    {
+      "heading": "Hover Colour",
+      "description": "`hover_bg` names the fill a hovered, enabled, closed trigger takes; open rows do not hover.",
+      "imports": "use herogpui::prelude::{Accordion, AccordionItem, ActiveTheme};",
+      "code": "Accordion::new(items())\n    .id(\"accordion-hover\")\n    .hover_bg(cx.colors().accent.soft())"
     },
     {
       "heading": "Without Separator",

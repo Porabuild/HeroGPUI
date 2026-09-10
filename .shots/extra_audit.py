@@ -485,6 +485,8 @@ EXTRA_OK_SCOPED = {
     'ListBox.row_hover_bg': 'no-classname',
     'Menu.row_hover_bg': 'no-classname',
     'Dropdown.row_hover_bg': 'no-classname',
+    'Table.row_hover_bg': 'no-classname',
+    'Accordion.hover_bg': 'no-classname',
     # v3's stylesheet declares `.range-calendar__cell-indicator`; only the
     # Calendar's prop table names the part.
     'RangeCalendar.cell_indicator': 'composition',

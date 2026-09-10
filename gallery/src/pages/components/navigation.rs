@@ -36,6 +36,14 @@ impl Gallery {
                         .into_any_element()]),
                 ),
                 (
+                    "Hover Colour",
+                    "`hover_bg` names the fill a hovered, enabled, closed trigger takes; open rows do not hover.",
+                    col(vec![h::Accordion::new(items())
+                        .id("acc-hover")
+                        .hover_bg(cx.colors().accent.soft())
+                        .into_any_element()]),
+                ),
+                (
                     "Without Separator",
                     col(vec![h::Accordion::new(items())
                         .id("acc-nosep")

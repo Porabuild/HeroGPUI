@@ -567,6 +567,9 @@ pub struct Table {
     on_resize_start: Option<OnResize>,
     on_resize: Option<OnResize>,
     on_resize_end: Option<OnResize>,
+    /// The fill a hovered *unselected* row takes, in place of the variant's
+    /// hover wash. A selected row keeps its selection fill.
+    row_hover_bg: Option<gpui::Hsla>,
     /// The `sx` slot, refined over the root style at the end of render.
     sx: Option<Box<gpui::StyleRefinement>>,
 }
@@ -608,6 +611,7 @@ impl Table {
             on_resize_start: None,
             on_resize: None,
             on_resize_end: None,
+            row_hover_bg: None,
             sx: None,
         }
     }
@@ -806,6 +810,15 @@ impl Table {
     /// `selectionMode` — adds the selection column when not `None`.
     pub fn selection_mode(mut self, mode: SelectionMode) -> Self {
         self.selection_mode = mode;
+        self
+    }
+
+    /// The fill a hovered *unselected* interactive row takes, in place of the
+    /// variant's hover wash (`bg-surface/40` primary, `bg-default/50`
+    /// secondary). A selected row keeps its `bg-surface/10` fill; a disabled
+    /// or inert row never hovers.
+    pub fn row_hover_bg(mut self, color: impl Into<gpui::Hsla>) -> Self {
+        self.row_hover_bg = Some(color.into());
         self
     }
 
@@ -2287,6 +2300,7 @@ impl RenderOnce for Table {
             cursor_own: row_cursor.clone(),
             cursor: cursor_at,
             secondary,
+            row_hover_bg: self.row_hover_bg,
             virtualized: virtual_projection.is_some(),
             is_tree,
         });
@@ -3202,6 +3216,9 @@ struct RowCtx {
     /// The `.table-root--secondary` flat layout, whose row hover is a
     /// different token from the primary's.
     secondary: bool,
+    /// The caller's unselected-row hover fill, when one was named. Selected
+    /// rows keep their selection fill regardless.
+    row_hover_bg: Option<gpui::Hsla>,
     /// Whether the collection is windowed, which is the guard upstream puts
     /// `aria-rowindex` behind (`.../grid/useGridRow.mjs`).
     virtualized: bool,
@@ -3484,13 +3501,16 @@ impl RowCtx {
             // row keeps its `bg-surface/10` fill instead -- the pinned
             // selected rule wins the cascade over the hover's.
             let secondary = self.secondary;
+            let row_hover_bg = self.row_hover_bg;
             row = row
                 .cursor(crate::util::interactive_cursor(cx))
                 .hover(move |s| {
-                    s.bg(selected_bg.unwrap_or(if secondary {
-                        colors.default.color.alpha(0.5)
-                    } else {
-                        colors.surface.background.alpha(0.4)
+                    s.bg(selected_bg.unwrap_or_else(|| {
+                        row_hover_bg.unwrap_or(if secondary {
+                            colors.default.color.alpha(0.5)
+                        } else {
+                            colors.surface.background.alpha(0.4)
+                        })
                     }))
                 })
                 .on_mouse_down(gpui::MouseButton::Left, move |_, window, cx| {
@@ -3822,9 +3842,11 @@ mod tests {
              (pinned `.table__row[data-selected] .table__cell`)"
         );
         assert!(
-            source.contains("s.bg(selected_bg.unwrap_or(if secondary {"),
-            "the hover must give way to the selected fill -- the pinned \
-                 selected rule wins the cascade over `.table__row:hover`"
+            source.contains("s.bg(selected_bg.unwrap_or_else(|| {")
+                && source.contains("row_hover_bg.unwrap_or(if secondary {"),
+            "the hover must give way to the selected fill and otherwise honor \
+             the named row hover -- the pinned selected rule wins the cascade \
+             over `.table__row:hover`"
         );
         assert!(
             !source.contains("accent.soft()"),
