@@ -218,6 +218,8 @@ pub struct ComboBox {
     allows_custom_value: bool,
     max_items: usize,
     full_width: bool,
+    /// Optional trigger geometry/chrome overrides; defaults are the stock box.
+    field: crate::util::FieldBox,
     is_disabled: bool,
     is_invalid: bool,
     is_required: bool,
@@ -226,6 +228,10 @@ pub struct ComboBox {
     auto_focus: bool,
     /// `ListLayout`'s `rowHeight`, which virtualizes the popover list.
     row_height: Option<gpui::Pixels>,
+    /// Replaces the list rows' `px-2` horizontal padding.
+    row_padding_x: Option<gpui::Pixels>,
+    /// Replaces the list rows' `py-1.5` vertical padding.
+    row_padding_y: Option<gpui::Pixels>,
     /// `validate` — run by the component, not the caller.
     validate: Option<crate::validation::Validator<str>>,
     /// `validationBehavior` — carried on the inner field.
@@ -523,6 +529,9 @@ impl ComboBox {
             is_read_only: false,
             auto_focus: false,
             row_height: None,
+            row_padding_x: None,
+            row_padding_y: None,
+            field: crate::util::FieldBox::default(),
             validate: None,
             validation_behavior: None,
             allows_empty_collection: false,
@@ -623,6 +632,38 @@ impl ComboBox {
 
     pub fn full_width(mut self, v: bool) -> Self {
         self.full_width = v;
+        self
+    }
+
+    /// Replaces the trigger's 36px box height (forwarded to the inner field).
+    pub fn height(mut self, h: impl Into<gpui::Pixels>) -> Self {
+        self.field.height = Some(h.into());
+        self
+    }
+
+    /// Replaces the trigger's `px-3` horizontal padding (forwarded to the
+    /// inner field).
+    pub fn padding_x(mut self, p: impl Into<gpui::Pixels>) -> Self {
+        self.field.padding_x = Some(p.into());
+        self
+    }
+
+    /// Renders the trigger with no background, border, field shadow or focus
+    /// ring, for a caller painting around it. The list still opens.
+    pub fn is_bare(mut self, v: bool) -> Self {
+        self.field.is_bare = v;
+        self
+    }
+
+    /// Replaces the list rows' `px-2` horizontal padding.
+    pub fn row_padding_x(mut self, p: impl Into<gpui::Pixels>) -> Self {
+        self.row_padding_x = Some(p.into());
+        self
+    }
+
+    /// Replaces the list rows' `py-1.5` vertical padding.
+    pub fn row_padding_y(mut self, p: impl Into<gpui::Pixels>) -> Self {
+        self.row_padding_y = Some(p.into());
         self
     }
 
@@ -1085,6 +1126,15 @@ impl RenderOnce for ComboBox {
             .when_some(self.validation_behavior, |i, b| i.validation_behavior(b))
             .when_some(validate, |i, f| i.validate(move |v| f(v)))
             .end_content(trigger);
+        if let Some(height) = self.field.height {
+            input = input.height(height);
+        }
+        if let Some(padding_x) = self.field.padding_x {
+            input = input.padding_x(padding_x);
+        }
+        if self.field.is_bare {
+            input = input.is_bare(true);
+        }
         // Edits open Focus and Input triggers only when there is something to
         // show, and close an already-open filtered collection when it empties.
         // Manual stays closed until its trigger opens it, then edits switch it
@@ -1812,6 +1862,8 @@ impl RenderOnce for ComboBox {
             // `if (isVirtualized)`; `row_height` is what windows this list.
             let row_virtualized = self.row_height.is_some();
             let row_count = rows.len();
+            let row_padding_x = self.row_padding_x.unwrap_or(px(8.));
+            let row_padding_y = self.row_padding_y.unwrap_or(px(6.));
             let row_of = move |index: usize, fixed_h: Option<gpui::Pixels>, cx: &mut App| {
                 let item = &rows[index];
                 // A section header rides above the row it introduces, so the two
@@ -1866,8 +1918,8 @@ impl RenderOnce for ComboBox {
                         .debug_selector(move || row_selector)
                         // `.list-box-item`: `min-h-9 rounded-2xl px-2 py-1.5 gap-3`.
                         .min_h(util::FIELD_HEIGHT)
-                        .px(px(8.))
-                        .py(px(6.))
+                        .px(row_padding_x)
+                        .py(row_padding_y)
                         .gap(px(12.))
                         .rounded(util::soft_radius(cx))
                         .flex()

@@ -689,10 +689,10 @@ CHECKS = [
      r'\.text_size\(util::(FIELD_TEXT)\)', lambda _: 14.0),
     ('select', '.select__trigger', 'text', '.select__trigger text -> FIELD_TEXT',
      SRC + 'select.rs',
-     r'let \(h, text\) = \(util::FIELD_HEIGHT, util::(FIELD_TEXT)\)', lambda _: 14.0),
+     r'let \(h, text\) = \(field_box\.resolved_height\(\), util::(FIELD_TEXT)\)', lambda _: 14.0),
     ('select', '.select__value', 'text', '.select__value text -> FIELD_TEXT',
      SRC + 'select.rs',
-     r'let \(h, text\) = \(util::FIELD_HEIGHT, util::(FIELD_TEXT)\)', lambda _: 14.0),
+     r'let \(h, text\) = \(field_box\.resolved_height\(\), util::(FIELD_TEXT)\)', lambda _: 14.0),
     ('color-input-group', '.color-input-group', 'text', '.color-input-group text -> FIELD_TEXT',
      SRC + 'color_picker.rs',
      r'\.text_size\(util::(FIELD_TEXT)\)', lambda _: 14.0),
@@ -1269,14 +1269,17 @@ CHECKS = [
     ('radio', '.radio__content', 'gap', 'Radio row gap', SRC + 'radio_group.rs',
      'let \\(circle, dot, text, gap\\) = \\(px\\(\\d+(?:\\.\\d*)?\\), px\\(\\d+(?:\\.\\d*)?\\), px\\(\\d+(?:\\.\\d*)?\\), px\\((\\d+(?:\\.\\d*)?)\\)', None),
     ('list-box-item', '.list-box-item', 'gap', 'ListBox row gap', SRC + 'list_box.rs',
-     '\\.gap\\(px\\((\\d+(?:\\.\\d*)?)\\)\\)\\s+\\.px\\(px\\(8\\.\\)\\)', None),
+     r'\.gap\(px\((\d+(?:\.\d*)?)\.\)\)\s*'
+     r'\.px\(self\.row_padding_x\.unwrap_or\(px\(8\.\)\)\)', None),
     # A row is `min_h(row_h)` on the plain path and a fixed height on the virtual
     # one, so the two arms of that `match` sit between the height and the padding.
     ('list-box-item', '.list-box-item', 'py', 'ListBox row padding_y', SRC + 'list_box.rs',
-     r'\.min_h\(row_h\),[\s\S]{0,60}?\.py\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+     r'\.min_h\(row_h\),[\s\S]{0,220}?'
+     r'\.py\(self\.row_padding_y\.unwrap_or\(px\((\d+(?:\.\d*)?)\.\)\)\)', None),
     # Anchored on the row, since the panel around it has a radius too.
     ('list-box-item', '.list-box-item', 'radius', 'ListBox row -> util::_radius', SRC + 'list_box.rs',
-     '\\.py\\(px\\(6\\.\\)\\)\\s+\\.rounded\\(util::(\\w+_radius)\\(cx\\)\\)', helper_px),
+     r'\.py\(self\.row_padding_y\.unwrap_or\(px\(6\.\)\)\)\s*'
+     r'\.rounded\(util::(\w+_radius)\(cx\)\)', helper_px),
     ('color-swatch', '.color-swatch', 'size', 'ColorSwatch default', SRC + 'color_picker.rs',
      'size: SizeXl::(\\w+),', SIZE_XL),
     ('card', '.card', 'gap', 'Card gap', SRC + 'card.rs',
@@ -1357,7 +1360,7 @@ CHECKS = [
      'px\(38\.\), px\(40\.\), px\(14\.\), px\((\d+(?:\.\d*)?)\.\)', None),
     ('select', '.select__trigger', 'min_h', 'Select trigger height',
      SRC + 'select.rs',
-     'let \(h, text\) = \(util::(FIELD_HEIGHT)', lambda _: 36.0),
+     r'let \(h, text\) = \(field_box\.(resolved_height)\(\), util::FIELD_TEXT\)', field_box_px),
     ('select', '.select__trigger', 'radius', 'field chrome -> util::_radius',
      SRC + 'util.rs',
      'let mut el = el\.rounded\((field_radius)\(cx\)\)', helper_px),
@@ -1571,7 +1574,8 @@ CHECKS = [
      r'`\.list-box-item` is `min-h-9`\.\s*'
      r'let row_h = fixed_h\.unwrap_or\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('list-box-item', '.list-box-item', 'px', 'ListBox row px', SRC + 'list_box.rs',
-     r'\.gap\(px\(12\.\)\)\s*\.px\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+     r'\.gap\(px\(12\.\)\)\s*'
+     r'\.px\(self\.row_padding_x\.unwrap_or\(px\((\d+(?:\.\d*)?)\.\)\)\)', None),
 
     # --- the three 24/20px icon buttons: close, clear, toast-close ------------
     ('close-button', '.close-button', 'p', 'CloseButton padding', SRC + 'close_button.rs',
@@ -1815,10 +1819,11 @@ CHECKS = [
      r'text-base` ladder[\s\S]{0,400}?Size::Md => gpui::px\((\d+(?:\.\d*)?)\)', None),
 
     ('select', '.select__trigger', 'px', 'Select trigger px', SRC + 'select.rs',
-     r'\.min_h\(h\)\s*\.px\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+     r'\.min_h\(h\)[\s\S]{0,140}?\.px\((field_box\.resolved_padding_x\(\))\)', field_box_px),
     ('autocomplete', '.autocomplete__trigger', 'px', 'Autocomplete trigger px',
      SRC + 'autocomplete.rs',
-     r'\.min_h\(util::FIELD_HEIGHT\)\s*\.px\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+     r'\.min_h\(field_box\.resolved_height\(\)\)[\s\S]{0,140}?'
+     r'\.px\((field_box\.resolved_padding_x\(\))\)', field_box_px),
     ('toast', '.toast__indicator', 'p', 'Toast indicator padding', SRC + 'toast.rs',
      r'`\.toast__indicator` — `flex shrink-0 items-center justify-center p-1`'
      r'[\s\S]{0,400}?\.p\(px\((\d+(?:\.\d*)?)\.\)\)', None),

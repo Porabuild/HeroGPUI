@@ -139,12 +139,18 @@ pub struct Autocomplete {
     max_items: usize,
     /// `ListLayout`'s `rowHeight`, which virtualizes the popover list.
     row_height: Option<gpui::Pixels>,
+    /// Replaces the list rows' `px-2.5` horizontal padding.
+    row_padding_x: Option<gpui::Pixels>,
+    /// Replaces the list rows' `py-1.5` vertical padding.
+    row_padding_y: Option<gpui::Pixels>,
     label: Option<SharedString>,
     placeholder: Option<SharedString>,
     description: Option<SharedString>,
     error_message: Option<SharedString>,
     variant: FieldVariant,
     full_width: bool,
+    /// Optional trigger geometry/chrome overrides; defaults are the stock box.
+    field: crate::util::FieldBox,
     is_disabled: bool,
     is_read_only: bool,
     is_invalid: bool,
@@ -326,6 +332,9 @@ impl Autocomplete {
             items,
             max_items: 100,
             row_height: None,
+            row_padding_x: None,
+            row_padding_y: None,
+            field: crate::util::FieldBox::default(),
             label: None,
             placeholder: None,
             description: None,
@@ -449,6 +458,39 @@ impl Autocomplete {
 
     pub fn full_width(mut self, v: bool) -> Self {
         self.full_width = v;
+        self
+    }
+
+    /// Replaces the trigger's 36px minimum box height.
+    pub fn height(mut self, h: impl Into<gpui::Pixels>) -> Self {
+        self.field.height = Some(h.into());
+        self
+    }
+
+    /// Replaces the trigger's `px-3` horizontal padding. The trailing 28px
+    /// keeps its room for the indicator.
+    pub fn padding_x(mut self, p: impl Into<gpui::Pixels>) -> Self {
+        self.field.padding_x = Some(p.into());
+        self
+    }
+
+    /// Renders the trigger with no background, border, field shadow, ring,
+    /// focus fill or hover fill, for a caller painting around it. The list
+    /// still opens and selects.
+    pub fn is_bare(mut self, v: bool) -> Self {
+        self.field.is_bare = v;
+        self
+    }
+
+    /// Replaces the list rows' `px-2.5` horizontal padding.
+    pub fn row_padding_x(mut self, p: impl Into<gpui::Pixels>) -> Self {
+        self.row_padding_x = Some(p.into());
+        self
+    }
+
+    /// Replaces the list rows' `py-1.5` vertical padding.
+    pub fn row_padding_y(mut self, p: impl Into<gpui::Pixels>) -> Self {
+        self.row_padding_y = Some(p.into());
         self
     }
 
@@ -863,6 +905,7 @@ impl RenderOnce for Autocomplete {
         // before the panel's `on_mouse_down_out` in the same dispatch, so the
         // dismissal can see it and leave the close to the trigger's click.
         let trigger_pressed = Rc::new(Cell::new(false));
+        let field_box = self.field;
         // `.autocomplete__trigger` is `relative isolate inline-flex min-h-9
         // rounded-field border bg-field px-3 py-2 text-sm shadow-field`, plus
         // `pe-7` because the indicator sits inside it.
@@ -879,21 +922,26 @@ impl RenderOnce for Autocomplete {
             .flex()
             .items_center()
             .gap(px(8.))
-            .min_h(util::FIELD_HEIGHT)
-            .px(px(12.))
+            .min_h(field_box.resolved_height())
+            .when_some(field_box.height, |el, h| el.h(h))
+            .px(field_box.resolved_padding_x())
             .pr(px(28.))
             .text_size(util::FIELD_TEXT)
             .line_height(px(20.));
-        field = util::apply_field_chrome(field, self.variant, is_invalid, false, cx);
+        if !field_box.is_bare {
+            field = util::apply_field_chrome(field, self.variant, is_invalid, false, cx);
+        }
         // `.autocomplete__trigger:focus-visible` is `status-focused` -- the
         // offset ring, not a field's flush one, which is why the chrome above is
         // not told about the focus.
-        if let Some(handle) = &focus_handle {
-            field = util::ring_if_focused(field, handle, true, Vec::new(), window, cx);
+        if !field_box.is_bare {
+            if let Some(handle) = &focus_handle {
+                field = util::ring_if_focused(field, handle, true, Vec::new(), window, cx);
+            }
         }
         if self.is_disabled {
             field = field.opacity(layout.disabled_opacity);
-        } else {
+        } else if !field_box.is_bare {
             let hover_bg = match self.variant {
                 FieldVariant::Primary => colors.field.hover(),
                 // `.autocomplete--secondary` hovers
@@ -1596,6 +1644,8 @@ impl RenderOnce for Autocomplete {
             // builder below takes `cx` mutably, which ends the theme borrow.
             let mut empty_fg = colors.overlay.foreground;
             empty_fg.a *= 0.6;
+            let row_padding_x = self.row_padding_x.unwrap_or(px(10.));
+            let row_padding_y = self.row_padding_y.unwrap_or(px(6.));
             let row_of = move |index: usize, fixed_h: Option<gpui::Pixels>, cx: &mut App| {
                 let base = base_row.as_str();
                 let base_id = &base_row_id;
@@ -1663,8 +1713,8 @@ impl RenderOnce for Autocomplete {
                     // Autocomplete's popover restates the padding as `px-2.5`.
                     .min_h(util::FIELD_HEIGHT)
                     .rounded(util::soft_radius(cx))
-                    .px(px(10.))
-                    .py(px(6.))
+                    .px(row_padding_x)
+                    .py(row_padding_y)
                     .gap(px(12.))
                     .text_size(util::FIELD_TEXT)
                     .line_height(px(20.))

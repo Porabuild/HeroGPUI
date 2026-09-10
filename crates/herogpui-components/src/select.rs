@@ -198,6 +198,10 @@ pub struct Select {
     should_focus_wrap: bool,
     /// `ListLayout`'s `rowHeight`, which virtualizes the popover list.
     row_height: Option<gpui::Pixels>,
+    /// Replaces the list rows' `px-2.5` horizontal padding.
+    row_padding_x: Option<gpui::Pixels>,
+    /// Replaces the list rows' `py-1.5` vertical padding.
+    row_padding_y: Option<gpui::Pixels>,
     /// `ListBox.Section` — the heading that precedes an option, by item key.
     sections: Vec<(SharedString, SharedString)>,
     /// `ListBox.ItemIndicator` — draws the tick. The closure is handed whether
@@ -213,6 +217,8 @@ pub struct Select {
     on_selection_change: Option<OnSelectionChange>,
     on_selection_change_all:
         Option<std::sync::Arc<dyn Fn(&[SharedString], &mut Window, &mut App) + 'static>>,
+    /// Optional trigger geometry/chrome overrides; defaults are the stock box.
+    field: crate::util::FieldBox,
     /// Mirrors the current selection, validity, successful state, focus and
     /// reset behavior for a live [`crate::form::FormField`].
     form_state: Rc<RefCell<crate::form::LiveFormFieldState>>,
@@ -299,6 +305,38 @@ impl Select {
         self
     }
 
+    /// Replaces the trigger's 36px minimum box height.
+    pub fn height(mut self, h: impl Into<gpui::Pixels>) -> Self {
+        self.field.height = Some(h.into());
+        self
+    }
+
+    /// Replaces the trigger's `px-3` horizontal padding.
+    pub fn padding_x(mut self, p: impl Into<gpui::Pixels>) -> Self {
+        self.field.padding_x = Some(p.into());
+        self
+    }
+
+    /// Renders the trigger with no background, border, field shadow, ring,
+    /// focus fill or hover fill, for a caller painting around it. The list
+    /// still opens and selects.
+    pub fn is_bare(mut self, v: bool) -> Self {
+        self.field.is_bare = v;
+        self
+    }
+
+    /// Replaces the list rows' `px-2.5` horizontal padding.
+    pub fn row_padding_x(mut self, p: impl Into<gpui::Pixels>) -> Self {
+        self.row_padding_x = Some(p.into());
+        self
+    }
+
+    /// Replaces the list rows' `py-1.5` vertical padding.
+    pub fn row_padding_y(mut self, p: impl Into<gpui::Pixels>) -> Self {
+        self.row_padding_y = Some(p.into());
+        self
+    }
+
     /// The one slot for caller-owned low-level styling: GPUI's styling methods
     /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
     /// applied to the select's root element after every value the variant and
@@ -332,6 +370,9 @@ impl Select {
             is_invalid: false,
             should_focus_wrap: false,
             row_height: None,
+            row_padding_x: None,
+            row_padding_y: None,
+            field: crate::util::FieldBox::default(),
             sections: Vec::new(),
             indicator: None,
             value_content: None,
@@ -706,7 +747,8 @@ impl RenderOnce for Select {
         let layout = cx.layout();
 
         // `.select__trigger` is `min-h-9 ... text-sm`.
-        let (h, text) = (util::FIELD_HEIGHT, util::FIELD_TEXT);
+        let field_box = self.field;
+        let (h, text) = (field_box.resolved_height(), util::FIELD_TEXT);
 
         let trigger_id = element_id::scoped(&self.id, "trigger");
         let trigger_selector = format!("select-trigger-{}", id_debug(&self.id));
@@ -727,7 +769,8 @@ impl RenderOnce for Select {
             .justify_between()
             .gap(px(8.))
             .min_h(h)
-            .px(px(12.))
+            .when_some(field_box.height, |el, h| el.h(h))
+            .px(field_box.resolved_padding_x())
             .text_size(text)
             .line_height(px(20.))
             .cursor(util::interactive_cursor(cx));
@@ -736,27 +779,31 @@ impl RenderOnce for Select {
         // `.select__trigger:focus-visible` is `status-focused` -- the offset
         // ring, not a field's flush one, which is why the chrome is not told
         // about the focus here.
-        field = util::apply_field_chrome(field, self.variant, self.is_invalid, false, cx);
-        if !self.is_disabled {
+        if !field_box.is_bare {
+            field = util::apply_field_chrome(field, self.variant, self.is_invalid, false, cx);
+        }
+        if !field_box.is_bare && !self.is_disabled {
             field = util::ring_if_focused(field, &focus_handle, true, Vec::new(), window, cx);
         }
 
-        if self.is_invalid || (focus_handle.is_focused(window) && util::focus_visible(cx)) {
+        if !field_box.is_bare
+            && (self.is_invalid || (focus_handle.is_focused(window) && util::focus_visible(cx)))
+        {
             field = field.bg(match self.variant {
                 FieldVariant::Primary => colors.field.focus(),
                 FieldVariant::Secondary => colors.default.color,
             });
         }
 
-        if !self.is_disabled {
+        if self.is_disabled {
+            field = field.opacity(layout.disabled_opacity);
+        } else if !field_box.is_bare {
             let hover_bg = match self.variant {
                 FieldVariant::Primary => colors.field.hover(),
                 // `.select--secondary` hovers `--select-trigger-bg-hover: var(--default-hover)`.
                 FieldVariant::Secondary => colors.default.hover(),
             };
             field = field.hover(move |s| s.bg(hover_bg));
-        } else {
-            field = field.opacity(layout.disabled_opacity);
         }
 
         if self.full_width {
@@ -1444,6 +1491,8 @@ impl RenderOnce for Select {
             let on_close = self.on_open_change.clone();
             let base_row = base;
             let base_row_id = base_id.clone();
+            let row_padding_x = self.row_padding_x.unwrap_or(px(10.));
+            let row_padding_y = self.row_padding_y.unwrap_or(px(6.));
             let row = move |i: usize, fixed_h: Option<gpui::Pixels>, cx: &mut App| {
                 let base = &base_row;
                 let base_id = &base_row_id;
@@ -1510,8 +1559,8 @@ impl RenderOnce for Select {
                             None => item.min_h(util::FIELD_HEIGHT),
                         })
                         .rounded(util::soft_radius(cx))
-                        .px(px(10.))
-                        .py(px(6.))
+                        .px(row_padding_x)
+                        .py(row_padding_y)
                         .gap(px(12.))
                         .text_size(util::FIELD_TEXT)
                         .line_height(px(20.));

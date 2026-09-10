@@ -5641,3 +5641,160 @@ fn select_without_row_height_keeps_the_thirty_six_pixel_option_floor(cx: &mut Te
         "a plain option must keep the field-height floor, got {first:?}"
     );
 }
+
+// ---------------------------------------------------------------------------
+// Collection trigger box geometry and row padding
+// ---------------------------------------------------------------------------
+
+/// `Select::height` replaces the trigger's 36px `min-h-9` box.
+#[gpui::test]
+fn select_trigger_height_replaces_the_min_height(cx: &mut TestAppContext) {
+    still();
+    const SHORT: f32 = 28.;
+    let cx = open_host(cx, move || {
+        gpui::div()
+            .flex()
+            .flex_col()
+            .items_start()
+            .child(
+                gpui::div()
+                    .debug_selector(|| "sel-h-default".to_owned())
+                    .child(Select::new("sel-h-default", keyed(&["One", "Two"]))),
+            )
+            .child(
+                gpui::div()
+                    .debug_selector(|| "sel-h-short".to_owned())
+                    .child(Select::new("sel-h-short", keyed(&["One", "Two"])).height(px(SHORT))),
+            )
+            .into_any_element()
+    });
+    flush_frame(cx);
+
+    let default = cx
+        .debug_bounds("select-trigger-Name(\"sel-h-default\")")
+        .expect("the default trigger must be laid out");
+    let short = cx
+        .debug_bounds("select-trigger-Name(\"sel-h-short\")")
+        .expect("the short trigger must be laid out");
+    assert!(
+        near_px(
+            default.size.height,
+            f32::from(herogpui_components::util::FIELD_HEIGHT)
+        ),
+        "an untouched trigger must keep the 36px floor, got {default:?}"
+    );
+    assert!(
+        near_px(short.size.height, SHORT),
+        "`height` must replace the trigger's floor, got {short:?}"
+    );
+}
+
+/// `Select::row_padding_y` replaces the rows' `py-1.5`: with the 20px line,
+/// a 12px vertical padding makes rows 44px instead of the 36px floor.
+#[gpui::test]
+fn select_row_padding_y_sizes_the_option_box(cx: &mut TestAppContext) {
+    still();
+    let cx = open_host(cx, move || {
+        Select::new("sel-pad", keyed(&["One", "Two"]))
+            .row_padding_y(px(12.))
+            .into_any_element()
+    });
+    click(cx, 60., 18.);
+    flush_frame(cx);
+
+    let first = cx
+        .debug_bounds("select-list-Name(\"sel-pad\")-opt-0")
+        .expect("the first option must be laid out");
+    assert!(
+        near_px(first.size.height, 44.),
+        "a 12px row padding must grow the 20px line to 44px, got {first:?}"
+    );
+}
+
+/// `ComboBox::height` reaches the inner Input, which is the trigger box.
+#[gpui::test]
+fn combo_box_height_reaches_the_inner_field(cx: &mut TestAppContext) {
+    still();
+    const SHORT: f32 = 28.;
+    let state = search_state(cx);
+    let entity_id = state.entity_id().as_u64();
+    let state_for_view = state;
+    let cx = open_host(cx, move || {
+        combo_at(
+            40.,
+            ComboBox::new(state_for_view.clone(), combo_options(3)).height(px(SHORT)),
+        )
+    });
+    flush_frame(cx);
+
+    let field = cx
+        .debug_bounds(combo_probe(format!("combobox-field-{entity_id}")))
+        .expect("the field must be laid out");
+    assert!(
+        near_px(field.size.height, SHORT),
+        "`height` must reach the inner field, got {field:?}"
+    );
+}
+
+/// `Autocomplete::height` replaces the trigger's 36px `min-h-9` box; the
+/// label-to-description wrapper above and below it does not move.
+#[gpui::test]
+fn autocomplete_trigger_height_replaces_the_min_height(cx: &mut TestAppContext) {
+    still();
+    const SHORT: f32 = 28.;
+    let state = search_state(cx);
+    let entity_id = state.entity_id().as_u64();
+    let base = format!("autocomplete-{entity_id}");
+    let state_for_view = state;
+    let cx = open_host(cx, move || {
+        auto_at(
+            100.,
+            Autocomplete::new(state_for_view.clone(), auto_options(3))
+                .height(px(SHORT))
+                .label("Language")
+                .description("Pick one"),
+        )
+    });
+    settle_select(cx, 640., 900.);
+
+    let trigger = cx
+        .debug_bounds(auto_trigger(&base))
+        .expect("the trigger must be laid out");
+    assert!(
+        near_px(trigger.size.height, SHORT),
+        "`height` must replace the trigger's floor, got {trigger:?}"
+    );
+}
+
+/// The collection triggers either gate their one chrome call site on the bare
+/// flag (Select, Autocomplete) or forward it to the inner Input (ComboBox).
+#[test]
+fn collection_triggers_gate_or_forward_the_bare_flag() {
+    for (file, source, flag) in [
+        (
+            "select.rs",
+            include_str!("../src/select.rs"),
+            "field_box.is_bare",
+        ),
+        (
+            "autocomplete.rs",
+            include_str!("../src/autocomplete.rs"),
+            "field_box.is_bare",
+        ),
+    ] {
+        assert_eq!(
+            source.matches("apply_field_chrome(").count(),
+            1,
+            "{file} must have exactly one chrome call site"
+        );
+        assert!(
+            source.contains(&format!("if !{flag} {{")),
+            "{file} must gate that one chrome call on `{flag}`"
+        );
+    }
+    let combo = include_str!("../src/combo_box.rs");
+    assert!(
+        combo.contains("if self.field.is_bare {"),
+        "ComboBox must forward the bare flag to the inner Input"
+    );
+}

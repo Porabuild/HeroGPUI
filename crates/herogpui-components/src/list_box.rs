@@ -219,6 +219,10 @@ pub struct ListBox {
     /// `ListLayout`'s `rowHeight`. Setting it virtualizes the list: a fixed row
     /// height is what lets the geometry be computed instead of laid out.
     row_height: Option<gpui::Pixels>,
+    /// Replaces the option rows' `px-2` horizontal padding.
+    row_padding_x: Option<gpui::Pixels>,
+    /// Replaces the option rows' `py-1.5` vertical padding.
+    row_padding_y: Option<gpui::Pixels>,
     /// `ListLayout`'s `estimatedRowHeight` — the estimate that virtualizes a
     /// list whose rows are *not* all one height.
     estimated_row_height: Option<gpui::Pixels>,
@@ -260,6 +264,8 @@ impl ListBox {
             variant: ListBoxItemVariant::Default,
             should_focus_wrap: false,
             row_height: None,
+            row_padding_x: None,
+            row_padding_y: None,
             estimated_row_height: None,
             heading_height: None,
             // `.list-box` is `p-1` with `mt-1` between children.
@@ -374,6 +380,19 @@ impl ListBox {
     /// `ListLayout`'s `padding`, overriding the stylesheet's `p-1`.
     pub fn padding(mut self, padding: impl Into<gpui::Pixels>) -> Self {
         self.padding = padding.into();
+        self
+    }
+
+    /// Replaces the option rows' `px-2` horizontal padding. Section headings
+    /// keep their own inset.
+    pub fn row_padding_x(mut self, p: impl Into<gpui::Pixels>) -> Self {
+        self.row_padding_x = Some(p.into());
+        self
+    }
+
+    /// Replaces the option rows' `py-1.5` vertical padding.
+    pub fn row_padding_y(mut self, p: impl Into<gpui::Pixels>) -> Self {
+        self.row_padding_y = Some(p.into());
         self
     }
 
@@ -1316,14 +1335,14 @@ impl ListBox {
                     .flex_row()
                     .items_center()
                     .gap(px(12.))
-                    .px(px(8.))
+                    .px(self.row_padding_x.unwrap_or(px(8.)))
                     // A virtual row is laid out on its own, so it takes the width
                     // it is given rather than inheriting a stretch.
                     .map(|el| match fixed_h {
                         Some(h) => el.h(h).w_full(),
                         None => el.min_h(row_h),
                     })
-                    .py(px(6.))
+                    .py(self.row_padding_y.unwrap_or(px(6.)))
                     .rounded(util::soft_radius(cx))
                     .text_size(text_size)
                     .line_height(px(20.))

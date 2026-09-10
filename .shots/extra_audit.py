@@ -685,6 +685,25 @@ EXTRA_OK_SCOPED = {
     'SearchField.height': 'no-classname',
     'SearchField.padding_x': 'no-classname',
     'SearchField.is_bare': 'no-context-propagation',
+    # The collection triggers and rows share the same seam: v3 leaves the box
+    # height, padding and row inset to Tailwind.
+    'Select.height': 'no-classname',
+    'Select.padding_x': 'no-classname',
+    'Select.is_bare': 'no-context-propagation',
+    'Select.row_padding_x': 'no-classname',
+    'Select.row_padding_y': 'no-classname',
+    'ComboBox.height': 'no-classname',
+    'ComboBox.padding_x': 'no-classname',
+    'ComboBox.is_bare': 'no-context-propagation',
+    'ComboBox.row_padding_x': 'no-classname',
+    'ComboBox.row_padding_y': 'no-classname',
+    'Autocomplete.height': 'no-classname',
+    'Autocomplete.padding_x': 'no-classname',
+    'Autocomplete.is_bare': 'no-context-propagation',
+    'Autocomplete.row_padding_x': 'no-classname',
+    'Autocomplete.row_padding_y': 'no-classname',
+    'ListBox.row_padding_x': 'no-classname',
+    'ListBox.row_padding_y': 'no-classname',
 }
 
 
