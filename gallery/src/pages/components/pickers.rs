@@ -15,7 +15,7 @@ impl Gallery {
         component_doc_page!(
             "Autocomplete",
             crate::pages::Page::Autocomplete.description(),
-            crate::pages::Page::Autocomplete.import_line(),
+            crate::pages::            Page::Autocomplete.import_line(),
             vec![
                 (
                     "Usage", "Values and options use 14px text with 20px lines. Section headers use 12px text with 16px lines and keep their own spacing. The popup anchors to the trigger with an 8px gap, flips when the preferred side cannot fit and the opposite side has more room, keeps the search visible, and scrolls the list within the available height up to 320px; virtual paging follows the visible list height.",
@@ -25,6 +25,22 @@ impl Gallery {
                     )
                     .label("Language")
                     .placeholder("Select a language")
+                    .into_any_element()]),
+                ),
+                (
+                    "Box Customisation",
+                    "`height`, `padding_x` and `is_bare` size the trigger; `row_padding_x` / `row_padding_y` size the suggestion rows.",
+                    field_col(vec![h::Autocomplete::new(
+                        self.demo_text("ac-custom-box", "", cx),
+                        language_items(),
+                    )
+                    .label("Compact")
+                    .placeholder("Pick one")
+                    .height(px(28.))
+                    .padding_x(px(4.))
+                    .is_bare(true)
+                    .row_padding_x(px(16.))
+                    .row_padding_y(px(2.))
                     .into_any_element()]),
                 ),
                 (
@@ -326,7 +342,7 @@ impl Gallery {
         component_doc_page!(
             "Combo Box",
             crate::pages::Page::ComboBox.description(),
-            crate::pages::Page::ComboBox.import_line(),
+            crate::pages::            Page::ComboBox.import_line(),
             vec![
                 (
                     "Usage", "Values and options use 14px text with 20px lines. Section headers use 12px text with 16px lines and keep their own spacing. The popup flips near window edges and scrolls to keep options reachable in short windows.",
@@ -345,6 +361,22 @@ impl Gallery {
                         this.combo_open = false;
                         cx.notify();
                     }))
+                    .into_any_element()]),
+                ),
+                (
+                    "Box Customisation",
+                    "The trigger forwards `height`, `padding_x` and `is_bare` to its input, and `row_padding_x` / `row_padding_y` size the rows.",
+                    field_col(vec![h::ComboBox::new(
+                        self.demo_text("cb-custom-box", "", cx),
+                        language_items(),
+                    )
+                    .label("Compact")
+                    .placeholder("Pick one")
+                    .height(px(28.))
+                    .padding_x(px(4.))
+                    .is_bare(true)
+                    .row_padding_x(px(16.))
+                    .row_padding_y(px(2.))
                     .into_any_element()]),
                 ),
                 (
@@ -786,7 +818,7 @@ impl Gallery {
         component_doc_page!(
             "Select",
             crate::pages::Page::Select.description(),
-            crate::pages::Page::Select.import_line(),
+            crate::pages::            Page::Select.import_line(),
             vec![
                 (
                     "Usage", "Use the arrow keys and Enter or Space to select a language. Selection closes the list and keeps focus on the trigger. Values and options use 14px text with 20px lines. Section headers use 12px text with 16px lines and keep their own spacing. The popup flips near window edges and scrolls to keep options reachable in short windows.",
@@ -804,6 +836,20 @@ impl Gallery {
                             this.select_open = false;
                             cx.notify();
                         }))
+                        .into_any_element()]),
+                ),
+                (
+                    "Box Customisation",
+                    "`height`, `padding_x` and `is_bare` size the trigger; `row_padding_x` / `row_padding_y` size its option rows. This 28px bare trigger opens over 16px-padded rows.",
+                    field_col(vec![h::Select::new("sel-custom-box", language_items())
+                        .label("Compact")
+                        .placeholder("Choose one")
+                        .height(px(28.))
+                        .padding_x(px(4.))
+                        .is_bare(true)
+                        .row_padding_x(px(16.))
+                        .row_padding_y(px(2.))
+                        .default_open(true)
                         .into_any_element()]),
                 ),
                 (

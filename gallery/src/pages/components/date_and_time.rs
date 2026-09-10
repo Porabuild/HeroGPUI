@@ -308,6 +308,16 @@ impl Gallery {
                     ]),
                 ),
                 (
+                    "Box Customisation",
+                    "`height`, `padding_x` and `is_bare` resize the box in one call. A 28px bare box with an 8px inset.",
+                    field_col(vec![h::DateField::new(self.demo_text("df-custom-box", "", cx))
+                        .label("Compact")
+                        .height(px(28.))
+                        .padding_x(px(8.))
+                        .is_bare(true)
+                        .into_any_element()]),
+                ),
+                (
                     "Granularity", "`granularity` sets the smallest unit the field shows. Below `day` it grows the time segments -- the same ones a `TimeField` has, so the arrows step them and digits type into them -- and the bound state holds an ISO date-and-time.",
                     col(vec![
                         spec_row(
@@ -1067,6 +1077,16 @@ impl Gallery {
             crate::pages::Page::TimeField.description(),
             crate::pages::Page::TimeField.import_line(),
             vec![
+                (
+                    "Box Customisation",
+                    "The same box seam as the other fields: `height`, `padding_x` and `is_bare`.",
+                    field_col(vec![h::TimeField::new(self.demo_time("tmf-custom-box", cx))
+                        .label("Compact")
+                        .height(px(28.))
+                        .padding_x(px(8.))
+                        .is_bare(true)
+                        .into_any_element()]),
+                ),
                 (
                     "24-hour",
                     field_col(vec![h::TimeField::new(self.time.clone())

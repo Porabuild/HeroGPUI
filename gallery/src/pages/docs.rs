@@ -279,6 +279,10 @@ let violet = Theme::builder("violet", Theme::light())
     .role("success", oklch(0.73, 0.19, 150.0), snow())
     .radius(px(6.))                     // field_radius follows at 1.5x
     .cursor_interactive(CursorStyle::Arrow) // hover cursor for every control
+    .tabs_hover_opacity(0.85)           // the unselected-tab hover dim
+    .tooltip_cooldown_ms(800)           // how long tips keep opening instantly
+    .long_press_ms(400)                 // long-press trigger wait
+    .hover_fade_ms(150)                 // background fade duration
     .build();
 
 herogpui::theme::set_theme(violet, cx);"#;

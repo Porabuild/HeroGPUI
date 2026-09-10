@@ -974,6 +974,21 @@ impl Gallery {
             crate::pages::Page::InputGroup.import_line(),
             vec![
                 (
+                    "Box Customisation",
+                    "`padding_x` overrides the held field's exposed edges only -- a side with an addon keeps the addon's inset -- `height` resizes the single-line group, and `is_bare` drops the group's chrome.",
+                    field_col(vec![h::InputGroup::new()
+                        .label("Compact")
+                        .height(px(28.))
+                        .padding_x(px(8.))
+                        .is_bare(true)
+                        .prefix(h::InputAddon::new("$"))
+                        .input(
+                            h::Input::new(self.demo_text("ig-custom-box", "", cx))
+                                .placeholder("0.00"),
+                        )
+                        .into_any_element()]),
+                ),
+                (
                     "Usage",
                     "Prefix and suffix text uses 14px text with 20px lines alongside the input.",
                     field_col(vec![h::InputGroup::new()
@@ -1517,6 +1532,18 @@ impl Gallery {
             crate::pages::Page::NumberField.import_line(),
             vec![
                 (
+                    "Box Customisation",
+                    "`height` resizes the group and the inner field together; `padding_x` moves the input's inset without touching the steppers; `is_bare` drops the group's paint.",
+                    field_col(vec![h::NumberField::new(
+                        self.demo_number("nf-custom-box", 5., 0., 20., 1., cx),
+                    )
+                    .label("Compact")
+                    .height(px(28.))
+                    .padding_x(px(8.))
+                    .is_bare(true)
+                    .into_any_element()]),
+                ),
+                (
                     "Usage",
                     field_col(vec![h::NumberField::new(self.demo_number(
                         "nf-usage",
@@ -1964,6 +1991,17 @@ impl Gallery {
             crate::pages::Page::SearchField.description(),
             crate::pages::Page::SearchField.import_line(),
             vec![
+                (
+                    "Box Customisation",
+                    "`height`, `padding_x` and `is_bare` reach the inner field; a 28px bare search box.",
+                    field_col(vec![h::SearchField::new(self.demo_text("sf-custom-box", "", cx))
+                        .label("Compact")
+                        .placeholder("Search...")
+                        .height(px(28.))
+                        .padding_x(px(8.))
+                        .is_bare(true)
+                        .into_any_element()]),
+                ),
                 (
                     "Usage",
                     col(vec![

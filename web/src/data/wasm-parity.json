@@ -1,7 +1,7 @@
 {
   "version": 2,
-  "artifactSha256": "0ff32ce1faba577ff6eefe89c0767b46f3d35fe58298620d87150ab5ce96c011",
-  "glueSha256": "1ec3dae6e7b1df33785c2a315ab807aeca4469ec9d8ad519729855409de9f5a6",
+  "artifactSha256": "7130b547f2210feff9ea3c803b272d3d347f13b66327963b51d2999c9ac7347d",
+  "glueSha256": "db0d05acb2d6ede77a267476fc4fec7e598e60d881b443826ee4f4cc30f172aa",
   "examples": {
     "accordion/Controlled": {
       "codeSha256": "2816548407263e0fdeada0ff2ec1e8f9fd45a2d33b24ab2cf163539711fe6f8a",
@@ -110,6 +110,10 @@
     "autocomplete/Asynchronous Filtering": {
       "codeSha256": "e7154a2e4882536ea5af91bb5082bad0bd1ac93c964535cb52a25a7c03384007",
       "descriptionSha256": "664e5aa239ed00212e651feb908e6950f23c8a8a1254c329a690d9465b2ec5e8"
+    },
+    "autocomplete/Box Customisation": {
+      "codeSha256": "fcf94d700f113c466d9af72a9bd6b6ff8267cd21511e3e7dde25284776294193",
+      "descriptionSha256": "d04e06c3a2509cc57c65e5c5d49b24dea1ab646a70dc3916250c5b55fc5f8771"
     },
     "autocomplete/Controlled": {
       "codeSha256": "40ae8baca847c21935b1197afa6f7feeecd06ac3a1560ebe2359e1bab262aa01",
@@ -619,6 +623,10 @@
       "codeSha256": "52efd0a25fe6736ab2b4bd535417a193cfc484cf1f261c100b0dc8e21265c826",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
+    "color-field/Box Customisation": {
+      "codeSha256": "128b6731ea8a365e4a1069f7d5abe7c9a6b2acb1539705244345fc07babd4321",
+      "descriptionSha256": "3f59219851c4c4397f1177eed6252ce2406cc65530d1462eafbad1be7c1d2373"
+    },
     "color-field/Channel Editing": {
       "codeSha256": "da4af92a51f24802f7b89c3faf1b9af3af305c1060d834dc65297dd4b2ee44c3",
       "descriptionSha256": "57474e1e7f848d99974e9d4363b4f6625b98c12e54747745bfcd027f535344de"
@@ -819,6 +827,10 @@
       "codeSha256": "662e28f3ed396d0048f215100f9b3c338115d45e9ea97f03a8e35a8af6b499be",
       "descriptionSha256": "33bce5c264d50c244c2f69442887c5d0d4ffc40b6691eeebc9b880b2288b4f74"
     },
+    "combo-box/Box Customisation": {
+      "codeSha256": "2f4b7ca9445b3a3e9b3adb6afbe8837e5de3e8ed3310d4380a4e7dfefaabb56c",
+      "descriptionSha256": "86f8d5ffc77ac396d34ba972f32c080ae3504b3b26412f67b5cb47d11febd7ee"
+    },
     "combo-box/Controlled": {
       "codeSha256": "b55537a7fbaed7b231c58d8961a3ae7295747263e6ed7ee1322ea07b1e8c9b5c",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
@@ -910,6 +922,10 @@
     "combo-box/With Sections": {
       "codeSha256": "c6f5b2039d78b3be91aca8781ad834fa68a794b3b58208d7ae7553826c7dbd8d",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "date-field/Box Customisation": {
+      "codeSha256": "bf91e4f4d68f9814189363b1acc621ae3910182133893c01e6130baef75734b3",
+      "descriptionSha256": "a1f3b9ce2a0e39da7e753c4ee4ec28a76f2c2d94193076bd32063ee86ca69403"
     },
     "date-field/Controlled": {
       "codeSha256": "5301e4e5b40c5c3341932210e37f998a817d2a958b0e5000f0289116dabf6701",
@@ -1194,6 +1210,10 @@
     "input-group/Badge Suffix": {
       "codeSha256": "894327727510f914d981b45e1bfe3cd8c302d1569543193e5d62fd344fe42bb8",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "input-group/Box Customisation": {
+      "codeSha256": "cb90770ef75f2a4c55f7288ec755b39029ae609a7b55b00cd7f3302f31f8a893",
+      "descriptionSha256": "3de69bf9bc01b90a6206bd68a5ce77df5cbff83decb906f3475b07dbd0ff1453"
     },
     "input-group/Copy Button Suffix": {
       "codeSha256": "c9c3ac150f5eec4b19c1d1a1b36cdee43b3a3b6ac673eb6fd3bbd4822f744948",
@@ -1491,6 +1511,10 @@
       "codeSha256": "677f694fe54a292112da3a18a39c7715b946703ccf4e9f5629edc09c5fc3d419",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
+    "list-box/Row Padding": {
+      "codeSha256": "138d2aa82edaa9f589f30b56df6ad32c8768c893165da25ff648f8a0d3a5ff9a",
+      "descriptionSha256": "70342b245c29c8436b8a4cb9028b71f16d1b8ba5bf25536faf7eb387af8feab0"
+    },
     "list-box/Single selection": {
       "codeSha256": "f94a5934b522c4d17b9722e6b093095056a975b32d3d6a7323642bd82c85e2d3",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
@@ -1578,6 +1602,10 @@
     "modal/With Form": {
       "codeSha256": "1b4f033e01b1eaaba580042d1d05a90a3f78dd18d28845df3f8c053d8174fe85",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "number-field/Box Customisation": {
+      "codeSha256": "48ed2ed22c658cc5f67e1b91e68bc9ff1eaa652038e3208e09918ba844bec6d6",
+      "descriptionSha256": "38d18eebdefdd110544cd8b55ce5626eda87b57466493f8a9e9f2ff029d684a0"
     },
     "number-field/Controlled": {
       "codeSha256": "48d84a4127f8d98334a96a5e4633c4d6836eb6bf2e03207dd65b38b4b2689fb4",
@@ -1919,6 +1947,10 @@
       "codeSha256": "df3c10d4684af307173032c1dab1f9c0c8236de439906b97ad5cfe9dee6412d2",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
+    "search-field/Box Customisation": {
+      "codeSha256": "56a9ec0ea8c8ae9c05e1005dfb8ebdb1d3a69848b7db303a1e78ecba56623d54",
+      "descriptionSha256": "4648a31c4544ef39adf046f64837f2200cd90af497fffa681366da6e803a7f6c"
+    },
     "search-field/Controlled": {
       "codeSha256": "689a13d6cc9f234c0458317347ee2eddceaa8245518eb6679024480abb29dbb9",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
@@ -1978,6 +2010,10 @@
     "select/Asynchronous Loading": {
       "codeSha256": "d5db59b4a8a0c5ab309140d6153679aa32831540a4a7a3211794614de4557b99",
       "descriptionSha256": "d9d9ad0a9e44738e63a5f0ecd066a3a831473d8b74be3d230120b8c732f392e7"
+    },
+    "select/Box Customisation": {
+      "codeSha256": "cbcee4071beee95e56c798ce513cb85b095ed30b2b22b7885d19191dc90fda55",
+      "descriptionSha256": "4bb4282cf3fab46cd41cb2baa6a6593fa110a2243eba4351dbbdfb0f94d2a0c8"
     },
     "select/Controlled": {
       "codeSha256": "a437beaf2a3cb67ccba4188953a7a510fa79b63830bfcd0066e1c39018ed264b",
@@ -2470,6 +2506,10 @@
     "time-field/24-hour": {
       "codeSha256": "6ee7d2fe22c462b8f03a0dfd0232f094a36a8b78b3e957c7e88afacc71bd2d2b",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "time-field/Box Customisation": {
+      "codeSha256": "ac3f6aa52f0eb0b4e20eb67a4dae179d7c833ca9537e4978222757a610772e65",
+      "descriptionSha256": "c8277af0795276fb4baa964a166b9376c88d943ccb12aa4c54fd47f2fec5c461"
     },
     "time-field/Controlled": {
       "codeSha256": "d766b20e78b2ef6043541fb707eede4e1e0e77d3b11ea551caa76c43179cbb35",

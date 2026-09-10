@@ -123,6 +123,17 @@ impl Gallery {
             crate::pages::Page::ColorField.import_line(),
             vec![
                 (
+                    "Box Customisation",
+                    "`height`, `padding_x` and `is_bare` cover both paths: the editable field here, and the static display box. The bare specimen is the editable path.",
+                    field_col(vec![h::ColorField::new("cf-custom-box", value)
+                        .state(self.demo_text("cf-custom-box", "#0085F5", cx))
+                        .label("Compact editable")
+                        .height(px(28.))
+                        .padding_x(px(8.))
+                        .is_bare(true)
+                        .into_any_element()]),
+                ),
+                (
                     "Usage",
                     field_col(vec![h::ColorField::new("cf-usage", value)
                         .state(self.demo_text("cf-usage", "#0085F5", cx))
