@@ -3166,7 +3166,7 @@
       "heading": "Usage",
       "description": "Panel text and headings use a 20px line height independently of surrounding text.",
       "imports": "use herogpui::prelude::{Button, Popover, PopoverArrow, PopoverPlacement, Variant};\nuse gpui::prelude::*;\nuse gpui::px;",
-      "code": "overlay_min_h(usage_slot, is_open, 160.)\n    .child(\n        Popover::new(\n            gpui::div()\n                .pr(px(96.))\n                .child(\n                    Button::new(\"popover-trigger\")\n                        .label(\"Open popover\")\n                        .variant(Variant::Secondary),\n                ),\n        )\n        .is_open(is_open)\n        .title(\"Quick note\")\n        .placement(PopoverPlacement::Bottom)\n        .child(gpui::div().child(\"Popovers are anchored to their trigger.\"))\n        .on_open_change(cx.listener(|this, open: &bool, _, cx| {\n            set_popover_open(\n                &mut this.popover_open,\n                &mut this.demo_flags,\n                \"po-usage\",\n                *open,\n            );\n            cx.notify();\n        })),\n    )"
+      "code": "overlay_min_h(usage_slot, is_open, 160.)\n    .child(\n        Popover::new(\n            gpui::div()\n                .pr(px(96.))\n                .child(\n                    Button::new(\"popover-trigger\")\n                        .label(\"Open popover\")\n                        .variant(Variant::Secondary),\n                ),\n        )\n        .is_open(is_open)\n        .title(\"Quick note\")\n        .placement(PopoverPlacement::Bottom)\n        .padding(px(18.))\n        .child(gpui::div().child(\"Popovers are anchored to their trigger.\"))\n        .on_open_change(cx.listener(|this, open: &bool, _, cx| {\n            set_popover_open(\n                &mut this.popover_open,\n                &mut this.demo_flags,\n                \"po-usage\",\n                *open,\n            );\n            cx.notify();\n        })),\n    )"
     },
     {
       "heading": "With Arrow",
@@ -3200,8 +3200,8 @@
   "toast": [
     {
       "heading": "Usage",
-      "imports": "use herogpui::prelude::{ActiveTheme, Button, Toast, ToastViewport, Variant};\nuse gpui::prelude::*;\nuse std::time::Duration;",
-      "code": "Button::new(\"toast-usage\")\n    .label(\"Show a toast\")\n    .variant(Variant::Secondary)\n    .on_press(|_, _, cx| {\n        Toast::new(\"Saved\")\n            .description(\"Your changes are live.\")\n            .closable(true)\n            .close_hover_bg(cx.colors().accent.soft())\n            .push(Some(std::time::Duration::from_secs(4)), cx);\n    })"
+      "imports": "use herogpui::prelude::{ActiveTheme, Button, Toast, ToastViewport, Variant};\nuse gpui::prelude::*;\nuse gpui::px;\nuse std::time::Duration;",
+      "code": "Button::new(\"toast-usage\")\n    .label(\"Show a toast\")\n    .variant(Variant::Secondary)\n    .on_press(|_, _, cx| {\n        Toast::new(\"Saved\")\n            .description(\"Your changes are live.\")\n            .closable(true)\n            .close_hover_bg(cx.colors().accent.soft())\n            .padding(px(18.))\n            .push(Some(std::time::Duration::from_secs(4)), cx);\n    })"
     },
     {
       "heading": "Variants",

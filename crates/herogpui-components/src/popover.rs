@@ -731,6 +731,9 @@ pub struct Popover {
     should_flip: bool,
     on_open_change: Option<OnOpenChange>,
     children: Vec<AnyElement>,
+    /// When set, both panel axes use this padding; unset keeps the stock
+    /// asymmetric 12px vertical / 14px horizontal insets.
+    padding: Option<Pixels>,
     /// The `sx` slot, refined over the root style at the end of render.
     sx: Option<Box<gpui::StyleRefinement>>,
 }
@@ -749,6 +752,7 @@ impl Popover {
             show_close_button: false,
             on_open_change: None,
             children: Vec::new(),
+            padding: None,
             sx: None,
         }
     }
@@ -785,6 +789,13 @@ impl Popover {
     /// `shouldFlip` — lets the panel reposition to stay inside the window.
     pub fn should_flip(mut self, v: bool) -> Self {
         self.should_flip = v;
+        self
+    }
+
+    /// Sets both panel padding axes, feeding the resting panel and its entry
+    /// animation the same value. Unset keeps the stock 12px/14px insets.
+    pub fn padding(mut self, padding: impl Into<Pixels>) -> Self {
+        self.padding = Some(padding.into());
         self
     }
 
@@ -1056,8 +1067,10 @@ impl RenderOnce for Popover {
             });
 
         // v3 fades the panel in on `[data-entering]`.
-        let zoom = crate::anim::ZoomBox::panel(px(12.), crate::util::container_radius(cx))
-            .padding_x(px(14.))
+        let panel_padding_y = self.padding.unwrap_or(px(12.));
+        let panel_padding_x = self.padding.unwrap_or(px(14.));
+        let zoom = crate::anim::ZoomBox::panel(panel_padding_y, crate::util::container_radius(cx))
+            .padding_x(panel_padding_x)
             .sized(px(260.));
         let panel = if exiting {
             crate::anim::exiting(

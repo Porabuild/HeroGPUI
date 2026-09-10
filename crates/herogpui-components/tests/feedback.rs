@@ -589,6 +589,7 @@ fn toast_reused_id_gets_a_fresh_close_lifecycle(cx: &mut TestAppContext) {
                     count.fetch_add(1, Ordering::Relaxed);
                 })),
                 close_hover_bg: None,
+                padding: None,
             });
             cx.notify();
         });
@@ -648,6 +649,7 @@ fn toast_store_add_keeps_generated_keys_unique(cx: &mut TestAppContext) {
                 action: None,
                 on_close: None,
                 close_hover_bg: None,
+                padding: None,
             },
             cx,
         )

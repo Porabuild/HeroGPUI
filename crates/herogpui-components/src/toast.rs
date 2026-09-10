@@ -87,6 +87,8 @@ pub struct ToastData {
     pub on_close: Option<ToastHandler>,
     /// The fill the close button takes on hover, in place of `--default`.
     pub close_hover_bg: Option<gpui::Hsla>,
+    /// Both card padding axes; unset keeps the stock 10px/16px insets.
+    pub padding: Option<gpui::Pixels>,
 }
 
 /// Entity holding the active toasts — v3's `ToastQueue`.
@@ -281,6 +283,8 @@ pub struct Toast {
     timeout: Option<Duration>,
     /// Set by [`Toast::close_hover_bg`]: the close button's hover fill.
     close_hover_bg: Option<gpui::Hsla>,
+    /// Set by [`Toast::padding`].
+    padding: Option<gpui::Pixels>,
 }
 
 impl Toast {
@@ -297,6 +301,7 @@ impl Toast {
             on_close: None,
             timeout: Some(DEFAULT_TOAST_TIMEOUT),
             close_hover_bg: None,
+            padding: None,
         }
     }
 
@@ -380,6 +385,12 @@ impl Toast {
         self
     }
 
+    /// Sets both card padding axes; unset keeps the stock 10px/16px insets.
+    pub fn padding(mut self, padding: impl Into<gpui::Pixels>) -> Self {
+        self.padding = Some(padding.into());
+        self
+    }
+
     /// Pushes the toast and starts its clock unless the timeout is zero.
     ///
     /// `duration` overrides [`Self::timeout`], which is how the caller that
@@ -404,6 +415,7 @@ impl Toast {
                 action: self.action.clone(),
                 on_close: self.on_close.clone(),
                 close_hover_bg: self.close_hover_bg,
+                padding: self.padding,
             });
             let generation = if timeout.is_zero() {
                 None
@@ -893,11 +905,13 @@ impl RenderOnce for ToastCardEl {
             );
         }
 
+        let panel_padding_y = self.t.padding.unwrap_or(px(10.));
+        let panel_padding_x = self.t.padding.unwrap_or(px(16.));
         crate::anim::entering_zoom(
             card,
             element_id::scoped(&base_id, "anim"),
-            crate::anim::ZoomBox::panel(px(10.), crate::util::container_radius(cx))
-                .padding_x(px(16.))
+            crate::anim::ZoomBox::panel(panel_padding_y, crate::util::container_radius(cx))
+                .padding_x(panel_padding_x)
                 .sized(self.width),
             crate::anim::Motion::LIST_IN,
             cx,
