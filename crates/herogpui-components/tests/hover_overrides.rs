@@ -79,6 +79,41 @@ fn every_hover_override_reaches_its_painted_fill() {
             "let hover_bg = self.hover_bg.unwrap_or_else(|| match self.variant {",
             "s.bg(hover_bg)",
         ),
+        (
+            "time_field.rs",
+            include_str!("../src/time_field.rs"),
+            "self.stepper_hover_bg = Some(color.into());",
+            "let hover_bg = self.stepper_hover_bg.unwrap_or(colors.default.color);",
+            "s.bg(hover_bg)",
+        ),
+        (
+            "input_otp.rs",
+            include_str!("../src/input_otp.rs"),
+            "self.slot_hover_bg = Some(color.into());",
+            "let hover_bg = self.slot_hover_bg.unwrap_or(colors.default.hover());",
+            "s.bg(hover_bg)",
+        ),
+        (
+            "input.rs",
+            include_str!("../src/input.rs"),
+            "self.clear_hover_bg = Some(color.into());",
+            "let clear_hover_bg = self.clear_hover_bg.unwrap_or(colors.default.hover());",
+            "s.bg(clear_hover_bg)",
+        ),
+        (
+            "date_picker/range.rs",
+            include_str!("../src/date_picker/range.rs"),
+            "self.trigger_hover_bg = Some(color.into());",
+            "let hover_bg = self.trigger_hover_bg.unwrap_or(colors.field.hover());",
+            "s.bg(hover_bg)",
+        ),
+        (
+            "toast.rs",
+            include_str!("../src/toast.rs"),
+            "self.close_hover_bg = Some(color.into());",
+            "let hover_bg = self.t.close_hover_bg.unwrap_or(colors.default.color);",
+            "s.bg(hover_bg)",
+        ),
     ] {
         assert!(
             source.contains(stored),

@@ -826,6 +826,8 @@ pub struct TimeField {
     variant: FieldVariant,
     /// Optional box geometry/chrome overrides; defaults are the stock box.
     field: util::FieldBox,
+    /// The fill a hovered stepper arrow takes, in place of `--default`.
+    stepper_hover_bg: Option<gpui::Hsla>,
     hour_cycle: HourCycle,
     /// `granularity` — the smallest unit shown.
     granularity: TimeGranularity,
@@ -894,6 +896,7 @@ impl TimeField {
             on_change: None,
             sx: None,
             field: util::FieldBox::default(),
+            stepper_hover_bg: None,
         }
     }
 
@@ -1025,6 +1028,12 @@ impl TimeField {
     /// for a caller painting around it. The field stays editable and focusable.
     pub fn is_bare(mut self, v: bool) -> Self {
         self.field.is_bare = v;
+        self
+    }
+
+    /// The fill a hovered stepper arrow takes, in place of `--default`.
+    pub fn stepper_hover_bg(mut self, color: impl Into<gpui::Hsla>) -> Self {
+        self.stepper_hover_bg = Some(color.into());
         self
     }
 
@@ -1556,7 +1565,7 @@ impl RenderOnce for TimeField {
                 let state = self.state.clone();
                 let on_change = self.on_change.clone();
                 let visible_segments = visible_segments.clone();
-                let hover_bg = colors.default.color;
+                let hover_bg = self.stepper_hover_bg.unwrap_or(colors.default.color);
                 let stepper_name = if key == "up" { "Increase" } else { "Decrease" };
                 steppers = steppers.child(
                     div()

@@ -260,6 +260,8 @@ pub struct InputOTP {
     on_complete: Option<OnComplete>,
     /// `value` — the controlled code, stored for the first render only.
     value: Option<String>,
+    /// The fill a hovered slot takes, in place of `--default-hover`.
+    slot_hover_bg: Option<gpui::Hsla>,
     /// The `sx` slot, refined over the root style at the end of render.
     sx: Option<Box<gpui::StyleRefinement>>,
 }
@@ -275,6 +277,12 @@ impl InputOTP {
     /// `state.update(cx, |s, _| s.set_code(..))`.
     pub fn value(mut self, code: impl Into<String>) -> Self {
         self.value = Some(code.into());
+        self
+    }
+
+    /// The fill a hovered slot takes, in place of `--default-hover`.
+    pub fn slot_hover_bg(mut self, color: impl Into<gpui::Hsla>) -> Self {
+        self.slot_hover_bg = Some(color.into());
         self
     }
 
@@ -297,6 +305,7 @@ impl InputOTP {
             separator: false,
             on_complete: None,
             value: None,
+            slot_hover_bg: None,
             sx: None,
         }
     }
@@ -667,7 +676,7 @@ impl RenderOnce for InputOTP {
             cell = cell.bg(slot_bg).text_color(colors.foreground);
             // `--input-otp-slot-bg-hover` is `--default-hover`.
             if !self.is_disabled {
-                let hover_bg = colors.default.hover();
+                let hover_bg = self.slot_hover_bg.unwrap_or(colors.default.hover());
                 cell = cell.hover(move |s| s.bg(hover_bg));
             }
             if self.variant == FieldVariant::Primary && !layout.field_shadow.is_empty() {

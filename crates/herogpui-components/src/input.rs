@@ -1259,6 +1259,9 @@ pub struct Input {
     value: Option<SharedString>,
     is_clearable: bool,
     clear_content: Option<gpui::AnyElement>,
+    /// The fill the clear button takes on hover, in place of
+    /// `--default-hover`.
+    clear_hover_bg: Option<gpui::Hsla>,
     /// SearchField-only: Escape clears a non-empty query.
     clear_on_escape: bool,
     /// SearchField-only: the clear affordance and Escape report this action.
@@ -1380,6 +1383,7 @@ impl Input {
             multiline: false,
             is_clearable: false,
             clear_content: None,
+            clear_hover_bg: None,
             clear_on_escape: false,
             on_clear: None,
             on_change: None,
@@ -1694,6 +1698,13 @@ impl Input {
     }
 
     /// Shows a clear button when there is a value.
+    /// The fill the clear button takes on hover, in place of
+    /// `--default-hover`.
+    pub fn clear_hover_bg(mut self, color: impl Into<gpui::Hsla>) -> Self {
+        self.clear_hover_bg = Some(color.into());
+        self
+    }
+
     pub fn is_clearable(mut self, v: bool) -> Self {
         self.is_clearable = v;
         self
@@ -2341,7 +2352,7 @@ impl RenderOnce for Input {
             // `.search-field__clear-button` *is* a `CloseButton`, and
             // `.close-button:hover` fills `bg-default-hover` -- not a
             // hand-mixed wash.
-            let clear_hover_bg = colors.default.hover();
+            let clear_hover_bg = self.clear_hover_bg.unwrap_or(colors.default.hover());
             let clear_box = px(20.);
             let clear_radius = crate::util::small_radius(cx);
             let clear_selector = format!("input-clear-{}", self.state.entity_id().as_u64());
@@ -3812,7 +3823,9 @@ mod hover_tokens {
             .expect("the implementation section is always present");
         assert!(
             source.contains(".hover(move |s| s.bg(clear_hover_bg))")
-                && source.contains("let clear_hover_bg = colors.default.hover();"),
+                && source.contains(
+                    "let clear_hover_bg = self.clear_hover_bg.unwrap_or(colors.default.hover());"
+                ),
             "the clear button must hover `bg-default-hover` \
              (pinned `.close-button:hover`)"
         );

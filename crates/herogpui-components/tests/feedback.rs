@@ -588,6 +588,7 @@ fn toast_reused_id_gets_a_fresh_close_lifecycle(cx: &mut TestAppContext) {
                 on_close: Some(std::sync::Arc::new(move |_| {
                     count.fetch_add(1, Ordering::Relaxed);
                 })),
+                close_hover_bg: None,
             });
             cx.notify();
         });
@@ -646,6 +647,7 @@ fn toast_store_add_keeps_generated_keys_unique(cx: &mut TestAppContext) {
                 is_loading: false,
                 action: None,
                 on_close: None,
+                close_hover_bg: None,
             },
             cx,
         )

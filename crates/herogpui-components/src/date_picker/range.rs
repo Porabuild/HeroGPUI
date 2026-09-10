@@ -132,6 +132,8 @@ pub struct DateRangePicker {
     label: Option<SharedString>,
     trigger_indicator: Option<gpui::AnyElement>,
     range_separator: Option<gpui::AnyElement>,
+    /// The fill the trigger takes on hover, in place of `--field-hover`.
+    trigger_hover_bg: Option<gpui::Hsla>,
     is_disabled: bool,
     is_read_only: bool,
     is_required: bool,
@@ -254,6 +256,7 @@ impl DateRangePicker {
             label: None,
             trigger_indicator: None,
             range_separator: None,
+            trigger_hover_bg: None,
             is_disabled: false,
             is_read_only: false,
             is_required: false,
@@ -371,6 +374,12 @@ impl DateRangePicker {
 
     pub fn is_disabled(mut self, v: bool) -> Self {
         self.is_disabled = v;
+        self
+    }
+
+    /// The fill the trigger takes on hover, in place of `--field-hover`.
+    pub fn trigger_hover_bg(mut self, color: impl Into<gpui::Hsla>) -> Self {
+        self.trigger_hover_bg = Some(color.into());
         self
     }
 
@@ -949,7 +958,7 @@ impl RenderOnce for DateRangePicker {
         );
 
         if !self.is_disabled && !self.is_read_only {
-            let hover_bg = colors.field.hover();
+            let hover_bg = self.trigger_hover_bg.unwrap_or(colors.field.hover());
             if !is_open {
                 field = field.hover(move |s| s.bg(hover_bg));
             }

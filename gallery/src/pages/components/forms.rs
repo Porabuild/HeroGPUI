@@ -947,6 +947,7 @@ impl Gallery {
                             .label("Clearable")
                             .placeholder("Ada Lovelace")
                             .is_clearable(true)
+                            .clear_hover_bg(cx.colors().accent.soft())
                             .into_any_element(),
                     ]),
                 ),
@@ -1354,6 +1355,7 @@ impl Gallery {
                         muted_para("We've sent a code to a****@gmail.com", cx),
                         h::InputOTP::new(self.otp.clone())
                             .separator()
+                            .slot_hover_bg(cx.colors().accent.soft())
                             .on_complete(cx.listener(|this, code: &str, _, cx| {
                                 this.otp_done = code.to_owned();
                                 cx.notify();

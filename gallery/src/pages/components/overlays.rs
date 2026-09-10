@@ -1597,6 +1597,7 @@ impl Gallery {
                             h::Toast::new("Saved")
                                 .description("Your changes are live.")
                                 .closable(true)
+                                .close_hover_bg(cx.colors().accent.soft())
                                 .push(Some(std::time::Duration::from_secs(4)), cx);
                         })
                         .into_any_element()]),

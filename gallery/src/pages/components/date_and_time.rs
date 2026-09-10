@@ -675,6 +675,7 @@ impl Gallery {
                     )
                     .label("Stay")
                     .locale("en-US-u-ca-indian")
+                    .trigger_hover_bg(cx.colors().accent.soft())
                     .into_any_element()]),
                 ),
                 (
@@ -1131,6 +1132,7 @@ impl Gallery {
                         .height(px(28.))
                         .padding_x(px(8.))
                         .is_bare(true)
+                        .stepper_hover_bg(cx.colors().accent.soft())
                         .into_any_element()]),
                 ),
                 (

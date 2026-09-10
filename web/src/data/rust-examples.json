@@ -1384,8 +1384,8 @@
     {
       "heading": "International Calendar",
       "description": "Both fields and the popover grid share the locale override. Segment order follows that locale; selected values stay Gregorian ISO dates.",
-      "imports": "use herogpui::prelude::{DateRangePicker, DateRangeState};",
-      "code": "DateRangePicker::new(\n    self.demo_range(\"drp-indian\", cx),\n)\n.label(\"Stay\")\n.locale(\"en-US-u-ca-indian\")"
+      "imports": "use herogpui::prelude::{ActiveTheme, DateRangePicker, DateRangeState};",
+      "code": "DateRangePicker::new(\n    self.demo_range(\"drp-indian\", cx),\n)\n.label(\"Stay\")\n.locale(\"en-US-u-ca-indian\")\n.trigger_hover_bg(cx.colors().accent.soft())"
     },
     {
       "heading": "Disabled",
@@ -1568,8 +1568,8 @@
     {
       "heading": "Box Customisation",
       "description": "The same box seam as the other fields: `height`, `padding_x` and `is_bare`.",
-      "imports": "use herogpui::prelude::{TimeField, TimeState};\nuse gpui::px;",
-      "code": "TimeField::new(self.demo_time(\"tmf-custom-box\", cx))\n    .label(\"Compact\")\n    .height(px(28.))\n    .padding_x(px(8.))\n    .is_bare(true)"
+      "imports": "use herogpui::prelude::{ActiveTheme, TimeField, TimeState};\nuse gpui::px;",
+      "code": "TimeField::new(self.demo_time(\"tmf-custom-box\", cx))\n    .label(\"Compact\")\n    .height(px(28.))\n    .padding_x(px(8.))\n    .is_bare(true)\n    .stepper_hover_bg(cx.colors().accent.soft())"
     },
     {
       "heading": "With Icons",
@@ -2063,8 +2063,8 @@
     {
       "heading": "States",
       "description": "Labels use 14px text with 20px lines; descriptions and errors use 12px text with 16px lines, independent of surrounding leading.",
-      "imports": "use herogpui::prelude::{Input, InputState};\nuse gpui::prelude::*;\nuse gpui::px;",
-      "code": "gpui::div()\n    .flex()\n    .flex_col()\n    .w(px(256.))\n    .gap(px(12.))\n    .children(vec![\n        Input::new(self.demo_text(\"in-required\", \"\", cx))\n            .label(\"Required\")\n            .placeholder(\"Enter a value\")\n            .is_required(true)\n            .into_any_element(),\n        Input::new(self.demo_text(\"in-invalid\", \"\", cx))\n            .label(\"Invalid\")\n            .placeholder(\"Taken name\")\n            .error_message(\"That name is taken.\")\n            .into_any_element(),\n        Input::new(self.demo_text(\"in-disabled\", \"\", cx))\n            .label(\"Disabled\")\n            .placeholder(\"Unavailable\")\n            .is_disabled(true)\n            .into_any_element(),\n        Input::new(self.demo_text(\"in-clearable\", \"Ada\", cx))\n            .label(\"Clearable\")\n            .placeholder(\"Ada Lovelace\")\n            .is_clearable(true)\n            .into_any_element(),\n    ])"
+      "imports": "use herogpui::prelude::{ActiveTheme, Input, InputState};\nuse gpui::prelude::*;\nuse gpui::px;",
+      "code": "gpui::div()\n    .flex()\n    .flex_col()\n    .w(px(256.))\n    .gap(px(12.))\n    .children(vec![\n        Input::new(self.demo_text(\"in-required\", \"\", cx))\n            .label(\"Required\")\n            .placeholder(\"Enter a value\")\n            .is_required(true)\n            .into_any_element(),\n        Input::new(self.demo_text(\"in-invalid\", \"\", cx))\n            .label(\"Invalid\")\n            .placeholder(\"Taken name\")\n            .error_message(\"That name is taken.\")\n            .into_any_element(),\n        Input::new(self.demo_text(\"in-disabled\", \"\", cx))\n            .label(\"Disabled\")\n            .placeholder(\"Unavailable\")\n            .is_disabled(true)\n            .into_any_element(),\n        Input::new(self.demo_text(\"in-clearable\", \"Ada\", cx))\n            .label(\"Clearable\")\n            .placeholder(\"Ada Lovelace\")\n            .is_clearable(true)\n            .clear_hover_bg(cx.colors().accent.soft())\n            .into_any_element(),\n    ])"
     },
     {
       "heading": "Compact Box",
@@ -2206,8 +2206,8 @@
     {
       "heading": "Usage",
       "description": "Custom slot content inherits 14px/20px text; the built-in digits use 18px/24px text.",
-      "imports": "use herogpui::prelude::{InputOTP, Label, Link, OtpState};\nuse gpui::prelude::*;\nuse gpui::px;",
-      "code": "gpui::div()\n    .flex()\n    .flex_col()\n    .items_start()\n    .gap(px(12.))\n    .children(vec![\n        Label::new(\"Verify account\").into_any_element(),\n        muted_para(\"We've sent a code to a****@gmail.com\", cx),\n        InputOTP::new(self.otp.clone())\n            .separator()\n            .on_complete(cx.listener(|this, code: &str, _, cx| {\n                this.otp_done = code.to_owned();\n                cx.notify();\n            }))\n            .into_any_element(),\n        gpui::div()\n            .flex()\n            .items_center()\n            .gap(px(5.))\n            .child(muted_para(\n                &if done.is_empty() {\n                    \"Didn't receive a code?\".to_owned()\n                } else {\n                    format!(\"Complete: {done}\")\n                },\n                cx,\n            ))\n            .child(Link::new(\"input-otp-resend\").label(\"Resend\").href(\"#\"))\n            .into_any_element(),\n    ])"
+      "imports": "use herogpui::prelude::{ActiveTheme, InputOTP, Label, Link, OtpState};\nuse gpui::prelude::*;\nuse gpui::px;",
+      "code": "gpui::div()\n    .flex()\n    .flex_col()\n    .items_start()\n    .gap(px(12.))\n    .children(vec![\n        Label::new(\"Verify account\").into_any_element(),\n        muted_para(\"We've sent a code to a****@gmail.com\", cx),\n        InputOTP::new(self.otp.clone())\n            .separator()\n            .slot_hover_bg(cx.colors().accent.soft())\n            .on_complete(cx.listener(|this, code: &str, _, cx| {\n                this.otp_done = code.to_owned();\n                cx.notify();\n            }))\n            .into_any_element(),\n        gpui::div()\n            .flex()\n            .items_center()\n            .gap(px(5.))\n            .child(muted_para(\n                &if done.is_empty() {\n                    \"Didn't receive a code?\".to_owned()\n                } else {\n                    format!(\"Complete: {done}\")\n                },\n                cx,\n            ))\n            .child(Link::new(\"input-otp-resend\").label(\"Resend\").href(\"#\"))\n            .into_any_element(),\n    ])"
     },
     {
       "heading": "Variants",
@@ -3200,8 +3200,8 @@
   "toast": [
     {
       "heading": "Usage",
-      "imports": "use herogpui::prelude::{Button, Toast, ToastViewport, Variant};\nuse gpui::prelude::*;\nuse std::time::Duration;",
-      "code": "Button::new(\"toast-usage\")\n    .label(\"Show a toast\")\n    .variant(Variant::Secondary)\n    .on_press(|_, _, cx| {\n        Toast::new(\"Saved\")\n            .description(\"Your changes are live.\")\n            .closable(true)\n            .push(Some(std::time::Duration::from_secs(4)), cx);\n    })"
+      "imports": "use herogpui::prelude::{ActiveTheme, Button, Toast, ToastViewport, Variant};\nuse gpui::prelude::*;\nuse std::time::Duration;",
+      "code": "Button::new(\"toast-usage\")\n    .label(\"Show a toast\")\n    .variant(Variant::Secondary)\n    .on_press(|_, _, cx| {\n        Toast::new(\"Saved\")\n            .description(\"Your changes are live.\")\n            .closable(true)\n            .close_hover_bg(cx.colors().accent.soft())\n            .push(Some(std::time::Duration::from_secs(4)), cx);\n    })"
     },
     {
       "heading": "Variants",

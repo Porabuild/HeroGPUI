@@ -85,6 +85,8 @@ pub struct ToastData {
     pub action: Option<(SharedString, ToastHandler)>,
     /// `onClose` — run when the toast goes away, however it goes.
     pub on_close: Option<ToastHandler>,
+    /// The fill the close button takes on hover, in place of `--default`.
+    pub close_hover_bg: Option<gpui::Hsla>,
 }
 
 /// Entity holding the active toasts — v3's `ToastQueue`.
@@ -277,6 +279,8 @@ pub struct Toast {
     action: Option<(SharedString, ToastHandler)>,
     on_close: Option<ToastHandler>,
     timeout: Option<Duration>,
+    /// Set by [`Toast::close_hover_bg`]: the close button's hover fill.
+    close_hover_bg: Option<gpui::Hsla>,
 }
 
 impl Toast {
@@ -292,6 +296,7 @@ impl Toast {
             action: None,
             on_close: None,
             timeout: Some(DEFAULT_TOAST_TIMEOUT),
+            close_hover_bg: None,
         }
     }
 
@@ -369,6 +374,12 @@ impl Toast {
         self
     }
 
+    /// The fill the close button takes on hover, in place of `--default`.
+    pub fn close_hover_bg(mut self, color: impl Into<gpui::Hsla>) -> Self {
+        self.close_hover_bg = Some(color.into());
+        self
+    }
+
     /// Pushes the toast and starts its clock unless the timeout is zero.
     ///
     /// `duration` overrides [`Self::timeout`], which is how the caller that
@@ -392,6 +403,7 @@ impl Toast {
                 is_loading: self.is_loading,
                 action: self.action.clone(),
                 on_close: self.on_close.clone(),
+                close_hover_bg: self.close_hover_bg,
             });
             let generation = if timeout.is_zero() {
                 None
@@ -849,7 +861,7 @@ impl RenderOnce for ToastCardEl {
                 // `.toast__close-button:hover` fills with `bg-default` --
                 // the full token, overriding the composed CloseButton's own
                 // `--default-hover` refinement.
-                let hover_bg = colors.default.color;
+                let hover_bg = self.t.close_hover_bg.unwrap_or(colors.default.color);
                 close_btn = close_btn.hover(move |s| s.bg(hover_bg));
                 close_btn = close_btn.on_click(move |_, _, cx| dismiss_toast(id, cx));
                 // A keyboard tab stop that rings on focus-visible — gpui builds
@@ -1026,9 +1038,11 @@ mod tests {
         // forbidden accessor.
         let source = implementation_source();
         assert!(
-            source.contains("let hover_bg = colors.default.color;"),
-            "the toast close button must hover `bg-default` \
-             (pinned `.toast__close-button:hover`)"
+            source.contains(
+                "let hover_bg = self.t.close_hover_bg.unwrap_or(colors.default.color);"
+            ),
+            "the toast close button must default to `bg-default` and honor \
+             the named override (pinned `.toast__close-button:hover`)"
         );
         assert!(
             !source.contains("soft_hover()"),
