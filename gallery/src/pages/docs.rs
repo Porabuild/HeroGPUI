@@ -270,7 +270,7 @@ impl Gallery {
     }
 }
 
-const CUSTOM_THEME_SNIPPET: &str = r#"use gpui::px;
+const CUSTOM_THEME_SNIPPET: &str = r#"use gpui::{px, CursorStyle};
 use herogpui::core::oklch;
 use herogpui::theme::{snow, Theme};
 
@@ -278,6 +278,7 @@ let violet = Theme::builder("violet", Theme::light())
     .accent(oklch(0.55, 0.23, 295.0))   // hover / soft / focus all derive
     .role("success", oklch(0.73, 0.19, 150.0), snow())
     .radius(px(6.))                     // field_radius follows at 1.5x
+    .cursor_interactive(CursorStyle::Arrow) // hover cursor for every control
     .build();
 
 herogpui::theme::set_theme(violet, cx);"#;

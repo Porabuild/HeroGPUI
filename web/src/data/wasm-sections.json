@@ -12,7 +12,8 @@
     "Social Buttons",
     "Adding custom variants",
     "Press handler",
-    "Sx slot"
+    "Sx slot",
+    "Custom hover fill"
   ],
   "button-group": [
     "Usage",
@@ -179,6 +180,7 @@
     "Range Slider",
     "Basic Usage",
     "Disabled",
+    "Sizes",
     "Vertical Orientation",
     "Disabled Thumb",
     "Form Example",
@@ -434,7 +436,8 @@
     "Full Width",
     "Input Types",
     "Controlled",
-    "States"
+    "States",
+    "Compact Box"
   ],
   "input-group": [
     "Usage",
@@ -630,6 +633,7 @@
   "tabs": [
     "Usage",
     "Vertical",
+    "Full Width",
     "Overflow",
     "Disabled Tab",
     "With Separator",

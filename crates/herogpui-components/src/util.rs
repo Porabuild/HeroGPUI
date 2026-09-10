@@ -27,6 +27,26 @@ pub const FIELD_ICON: Pixels = gpui::px(16.);
 // they span the whole scale. `design_audit.py` diffs these against the real
 // stylesheets, so the mapping here is checked rather than asserted.
 
+/// Applies the theme's interactive cursor (`--cursor-interactive`) to `el`.
+///
+/// The token replacement for GPUI's `cursor_pointer()`: v3 puts
+/// `cursor: pointer` on every clickable control, and a theme overrides all of
+/// them at once through [`LayoutTheme::cursor_interactive`].
+///
+/// Sites that need the value inside a closure GPUI does not hand a `cx` — a
+/// `when` or `hover` body — read [`interactive_cursor`] first and call
+/// `Styled::cursor` with the copy.
+///
+/// [`LayoutTheme::cursor_interactive`]: herogpui_theme::LayoutTheme::cursor_interactive
+pub fn cursor_interactive<T: Styled>(el: T, cx: &App) -> T {
+    el.cursor(interactive_cursor(cx))
+}
+
+/// The theme's interactive cursor, for a site that must capture it by value.
+pub fn interactive_cursor(cx: &App) -> gpui::CursorStyle {
+    cx.layout().cursor_interactive
+}
+
 /// `rounded-3xl` — buttons, toggle buttons and avatars.
 pub fn control_radius(cx: &App) -> Pixels {
     let layout = cx.layout();

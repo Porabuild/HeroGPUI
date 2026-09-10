@@ -896,7 +896,9 @@ impl Calendar {
             if selectable {
                 let hover_bg = accent.soft_hover();
                 let pressed_bg = colors.default.color;
-                circle = circle.cursor_pointer().hover(move |s| s.bg(hover_bg));
+                circle = circle
+                    .cursor(crate::util::interactive_cursor(cx))
+                    .hover(move |s| s.bg(hover_bg));
                 // A chained `.active` would overwrite the pressed refinement
                 // and drop the 0.95 scale; the background must merge with the
                 // press geometry in one refinement.
@@ -909,7 +911,9 @@ impl Calendar {
                 // the full token -- same as the pressed fill.
                 let hover_bg = colors.default.color;
                 let pressed_bg = colors.default.color;
-                circle = circle.cursor_pointer().hover(move |s| s.bg(hover_bg));
+                circle = circle
+                    .cursor(crate::util::interactive_cursor(cx))
+                    .hover(move |s| s.bg(hover_bg));
                 circle = crate::anim::pressed_with_background(circle, press_box, pressed_bg, cx);
             }
         }
@@ -1214,7 +1218,7 @@ impl Calendar {
                     let hover_fg = colors.default.foreground;
                     cell = cell
                         .text_color(colors.foreground)
-                        .cursor_pointer()
+                        .cursor(crate::util::interactive_cursor(cx))
                         .hover(move |s| s.bg(hover_bg).text_color(hover_fg));
                 }
 
@@ -1636,7 +1640,7 @@ impl RenderOnce for Calendar {
                 )
                 .when(!disabled, |b| {
                     crate::anim::pressed(
-                        b.cursor_pointer()
+                        b.cursor(crate::util::interactive_cursor(cx))
                             .hover(move |s| s.bg(hover_bg))
                             .on_click(move |_, _, cx| {
                                 state.update(cx, |s, cx| {
@@ -1688,7 +1692,7 @@ impl RenderOnce for Calendar {
                         .rounded(crate::util::key_radius(cx))
                         .when(!self.is_disabled, |trigger| {
                             trigger
-                                .cursor_pointer()
+                                .cursor(crate::util::interactive_cursor(cx))
                                 .on_click(move |_, _, cx| {
                                     opener.update(cx, |value, _| *value = index);
                                     if let Some(held) = &own {
@@ -1737,7 +1741,7 @@ impl RenderOnce for Calendar {
                         .rounded(crate::util::key_radius(cx))
                         .when(!self.is_disabled, |trigger| {
                             trigger
-                                .cursor_pointer()
+                                .cursor(crate::util::interactive_cursor(cx))
                                 .on_click(move |_, window, cx| {
                                     opener.update(cx, |value, _| *value = index);
                                     // Uncontrolled: flip our own copy too, or

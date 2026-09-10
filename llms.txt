@@ -147,7 +147,9 @@ the same `color-mix(in oklab, …)` weights the stylesheet uses.
 **Layout:** `radius` (8px) with `radius_xs()`…`radius_4xl()` and `capped(r)` for v3's `min(32px, ..)` ceiling, `field_radius`,
 `border_width`, `field_border_width`, `disabled_opacity`, `ring_offset_width`,
 `spacing`, `surface_shadow` / `overlay_shadow` / `field_shadow` (all empty in
-dark mode), `skeleton_animation`, `tooltip_delay_ms`, `tooltip_close_delay_ms`.
+dark mode), `skeleton_animation`, `tooltip_delay_ms`, `tooltip_close_delay_ms`,
+`cursor_interactive` (`CursorStyle::PointingHand` — v3's `cursor: pointer`; the
+cursor every interactive control shows on hover).
 
 ```rust
 div().bg(cx.colors().surface.background)
@@ -166,6 +168,7 @@ let brand = Theme::builder("brand", Theme::dark())
     .accent(oklch(0.55, 0.23, 295.0))
     .role("success", oklch(0.73, 0.19, 150.0), snow())
     .radius(px(6.))          // field_radius follows at 1.5x
+    .cursor_interactive(gpui::CursorStyle::Arrow) // every control's hover cursor
     .build();
 herogpui::theme::set_theme(brand, cx);
 ```
@@ -401,7 +404,9 @@ Button::new("save")
 
 State-driven layers a component draws itself — Button's hover fade, the
 press-scale geometry — read the override's background and pixel size, so the
-override holds across states too.
+override holds across states too. Where that means a state stops moving —
+an `sx` background freezes Button's hover fade on the override — the component
+names the escape hatch (`Button::hover_bg`).
 
 Controlled state lives in your entity (`InputState`, `CalendarState`,
 `TimeState`, `NumberState`, `OtpState`, `DateRangeState`):
@@ -431,6 +436,7 @@ ProgressBar, ProgressCircle, Spinner and Typography; elsewhere `variant` (or
 
 ### Buttons
 - **Button** — `variant(Variant)`, `size`, `full_width`, `is_icon_only`, `is_disabled`, `is_pending`, ordered children (the icons and label text are children in order, matching v3 — there are no start/end content slots), `on_press`
+  - `hover_bg(Hsla)` names the fill the hover fade eases *to*. v3 has no such prop — on the web it is `className="hover:bg-…"` — and it exists because an `sx` background alone pins both of the fade's endpoints (a fade back to the variant colour would paint over the override), leaving a custom surface with no hover. With it the fade runs from the resting background (the `sx` one when set, the variant's otherwise) to the named colour, on the same timing; the press state is the usual opacity step either way.
 - **ButtonGroup** — `id()`, `variant`, `size`, `orientation`, `button(Button)` (members inherit), `is_disabled`, `full_width`. A named group reports `role="group"`.
 - **CloseButton** — `is_disabled`, `icon(el)`, `content(|state| el)`, `on_press` (v3's `variant` has one value, so there is nothing to select and no builder for it)
 - **ToggleButton / ToggleButtonGroup** — `is_selected`, `variant(ToggleVariant::{Default,Ghost})`, `size`, `selection_mode`, `is_detached`, `orientation`, `full_width`, `ToggleSeparator`. Both apply v3's `scale(0.97)` press.
@@ -468,7 +474,7 @@ ColorSlider labels/output, ColorPicker triggers, and ColorField display text use
 - **ColorSwatchPicker** — `value`, `size`, `shape`, `layout(SwatchLayout::{Grid,Stack})`, `on_change`
 
 ### Controls
-- **Slider** — `Slider::new(id, value).value().default_value().min_value().max_value().step().orientation().label().show_value().format_options().on_change(&f32).on_change_end(&f32)`. The multi-thumb form is `values(Vec<f32>)` + `on_change_all(&[f32])`; dragging moves whichever thumb is nearest, and `thumb(|index, value|)` is v3's `Slider.Thumb` render prop. Labels and outputs use 14px text with a fixed 20px line height.
+- **Slider** — `Slider::new(id, value).value().default_value().min_value().max_value().step().orientation().size(SliderSize).label().show_value().format_options().on_change(&f32).on_change_end(&f32)`. The multi-thumb form is `values(Vec<f32>)` + `on_change_all(&[f32])`; dragging moves whichever thumb is nearest, and `thumb(|index, value|)` is v3's `Slider.Thumb` render prop. `size(SliderSize)` is additive, not a v3 prop: `Md` (the default) is v3's geometry — a 20px rail, a 28x20-around-24x16 two-layer thumb and a 12px axis inset — while `Sm` is a 6px pill rail with an 8px inset and a single 12px round knob in the foreground colour. Labels and outputs use 14px text with a fixed 20px line height.
 - **Switch** — `is_selected`, `size`, `is_disabled`, `is_read_only`, `is_invalid`, `is_required`, `label(el)`, `on_change(&bool)` / `on_press`. v3's `value` is the form-submission value, not the state, so there is no builder for it. Content uses 14px text with 20px lines; the built-in label uses 16px text with 24px lines.
 
 ### Data Display
@@ -544,8 +550,12 @@ week_start, month_headings, linear_cells, range_heading, year_page}`.
   - `input_type(InputType::{Text,Password,Email,Number,Tel,Url,Search})` — `Password` masks, `Number` filters keystrokes
   - `max_length` (enforced while typing), `min_length`, `min`, `max`, `step`, `pattern(fn)`
   - `validity(&str) -> InputValidity` — a pure query; feed the result back through `is_invalid` / `error_message`
-- **TextField** — the labelled wrapper around `Input`
-- **TextArea** — genuinely multi-line: one wrapping paragraph per newline, Enter inserts a newline, and the caret sits in the line it belongs to. Platform composition and paste use the shared Input handler; Enter confirms active composition before inserting a newline. Label/helper/error typography follows the shared Input wrapper (14px/20px labels; 12px/16px helper and error text). gpui wraps text by default (`WhiteSpace::Normal`); it is the single-line field that opts out with `whitespace_nowrap`. `rows`, `variant`, `full_width`, `max_length`, `min_length`, the validation flags, `on_change`
+  - `height(px)` — replaces the 36px box height. Only the row height changes: the text keeps its 14px size and 20px line and stays centred. The multi-line surface (`TextArea`) ignores it — its height is content-driven with a `rows` floor.
+  - `padding_x(px)` — replaces the box's 12px (`px-3`) horizontal padding. Inside an `InputGroup` the group owns the padding, so it is ignored there.
+  - `is_bare(bool)` — renders the box with no background, border, field shadow or focus/invalid ring: the same chrome-less treatment `InputGroup.Input` already gets, for a field the caller paints around. Focus, editing and the invalid state itself are unchanged.
+  - `font_family(name)` — the family the value, placeholder and caret measurement use (a monospace token field). The field's own text layout captures the font during `render`, before any element's text style is pushed, so the family is threaded into that captured font as well as set on the box.
+- **TextField** — the labelled wrapper around `Input`; forwards `start_content`, `height`, `padding_x`, `is_bare` and `font_family`
+- **TextArea** — genuinely multi-line: one wrapping paragraph per newline, Enter inserts a newline, and the caret sits in the line it belongs to. Platform composition and paste use the shared Input handler; Enter confirms active composition before inserting a newline. Label/helper/error typography follows the shared Input wrapper (14px/20px labels; 12px/16px helper and error text). gpui wraps text by default (`WhiteSpace::Normal`); it is the single-line field that opts out with `whitespace_nowrap`. `rows`, `variant`, `full_width`, `max_length`, `min_length`, the validation flags, `on_change`, plus `padding_x`, `is_bare` and `font_family` forwarded to the inner field (`height` is not: the box grows with its content from the `rows` floor)
 - **SearchField** — Input with a magnifier and clear action; labels use 14px/20px and helper/error text uses 12px/16px via the shared Input wrapper. `on_clear`, `is_required`, `is_read_only`, `is_invalid`
 - **NumberField** — `format_options(NumberFormat)`, `NumberState {value,min,max,step,input}`, `hide_steppers`, `on_change(&f64)`
   - Group text and text slots use 14px text with a 20px line height, independent of parent leading.
@@ -572,7 +582,7 @@ week_start, month_headings, linear_cells, range_heading, year_page}`.
 - **Disclosure / DisclosureGroup** — `Disclosure::new(id,title).is_expanded().on_expanded_change(&bool).content(|state: DisclosureRenderState| ..)`, `DisclosureGroup::new(id).item(key,title,content).expanded_keys().on_expanded_change()`
 - **Link** — `Link::new(id).label().href().icon(el).icon_first(bool).auto_focus().is_disabled().on_press()` plus `render(|state| el)` — v3's render function receives the link's interactive state (`isHovered`/`isPressed`/`isFocused`/`isFocusVisible`/`isDisabled`); the root keeps the `href`, `onPress`, focus and disabled wiring, and GPUI has no DOM props to spread. `.link` is `font-medium text-link no-underline decoration-[1.5px]` — the stylesheet is the contract, not the docs' `font-semibold` Global CSS snippet — and hover/press only recolour the decoration (`muted/50` → `muted`), never the text. Opening goes through the OS handler, so v3's `target` / `rel` / `download` have no meaning and are not offered.
 - **Pagination** — `Pagination::new(id, page, total).size().on_change(&usize)`; summary, link and navigation text use size-specific 12/16, 14/20 and 16/24 font/line-height pairs independently of host leading.
-- **Tabs** — `Tabs::new(id, items, selected_key).variant(TabsVariant::{Primary,Secondary}).orientation().selected_key().default_selected_key().on_selection_change()`, `TabItem::new(key,label).content(el)`; both tab variants use 14px labels with a 20px line height independently of host leading.
+- **Tabs** — `Tabs::new(id, items, selected_key).variant(TabsVariant::{Primary,Secondary}).orientation().full_width(bool).selected_key().default_selected_key().on_selection_change()`, `TabItem::new(key,label).content(el)`; `full_width(true)` is v3's `<Tabs.List className="w-full">` with `<Tabs.Trigger className="flex-1">` — the horizontal list fills its parent and the tabs take equal shares of it instead of hugging their labels (ignored when vertical, where tabs already stretch); both tab variants use 14px labels with a 20px line height independently of host leading.
   - Wheel input scrolls the tab list only along its configured orientation.
 
 ### Overlays
@@ -602,7 +612,7 @@ Modal, Drawer, and AlertDialog cover the window even inside clipped or positione
 - **Autocomplete** — `Autocomplete::new(state, items).placement(Placement).max_items().on_selection_change()` — filters while focused. Items are `PickerItem::new(key, label)`: v3 keeps a stable `Key` separate from the visible `textValue`, so `value` / `defaultValue` / `disabledKeys`, the selection callbacks and the form value address items by key, while filtering and the trigger's visible text use labels — duplicate labels never alias each other's selection or row. Value, option and empty-result text uses 14px/20px metrics; section headers use 12px/16px medium text. The popup anchors to the measured trigger with an 8px gap, flipping to the side with more room when the preferred side cannot fit and keeping a 12px cross-axis viewport inset with the scroller capped to the available height; the search stays visible while the inner list scrolls and shrinks to the available height within the upstream 320px max, and virtual paging follows the visible list height.
   - `filter(fn(item_label, input) -> bool)` replaces the default case-insensitive substring match and owns the whole decision, including what an empty query means; `input_value` / `on_input_change` for a controlled query; `on_clear` is only the after-clear callback — the clear affordance is always mounted with the trigger, invisible and inert while the selection is empty or the field is disabled, and still working when read-only.
 - **ComboBox** — `ComboBox::new(state, items).is_open().placement(Placement).menu_trigger(MenuTrigger::{Input,Manual,Focus}).allows_custom_value().max_items().on_selection_change().on_open_change()` — items are keyed `PickerItem::new(key, label)`s: the selection, `disabledKeys`, the callbacks and the form value address items by key, while filtering and the input text use labels. `selected_keys(keys)` is the controlled ordered selection; `selected_key(key)` the single-key spelling (the empty string is v3's `null`). A committed custom value keeps the typed text and reports a null selected key — as an empty `on_selection_change_all` slice, and only when a selection actually existed; `form_value(ComboBoxFormValue::{Key,Text})` chooses what a named field submits (key by default — an empty selection still submits one empty value — and text under `allowsCustomValue`). Value, option and empty-result text uses 14px/20px metrics; section headers use 12px/16px medium text. When the preferred side cannot fit the popup, it flips to the side with more room, keeping a 12px cross-axis viewport inset with the scroller capped to the available height; plain and virtual lists use the available height with an 8px field gap, and wheel input stays in the list.
-- **Select** — `Select::new(id, options).selected(..)/.value(..).is_open().placement(Placement).variant().full_width().disabled_keys().is_invalid().is_required().on_selection_change()/.on_change().on_open_change()`; `selection_mode(SelectionMode::Multiple)` with `selected_indices()` + `on_selection_change_all()`. Enter and Space commit the highlighted option in single mode; if the selection callback closes the controlled popup, key release keeps it closed and leaves focus on the trigger. Value and option text uses 14px/20px metrics; section headers use 12px/16px medium text. `full_width(true)` expands both the root and trigger to the available container width. When the preferred side cannot fit the popup, it flips to the side with more room, keeping a 12px cross-axis viewport inset with the scroller capped to the available height; plain and virtual lists use the available height with an 8px trigger gap.
+- **Select** — `Select::new(id, options).selected(..)/.value(..).is_open().placement(Placement).variant().full_width().disabled_keys().is_invalid().is_required().on_selection_change()/.on_change().on_open_change()`; `selection_mode(SelectionMode::Multiple)` with `selected_indices()` + `on_selection_change_all()`. `row_height(px)` is `ListLayout`'s `rowHeight` and what virtualizes the popup list through `uniform_list`: every option is exactly that tall, including the option box inside the row (it does not keep the 36px `.list-box-item` floor a plain list has). Enter and Space commit the highlighted option in single mode; if the selection callback closes the controlled popup, key release keeps it closed and leaves focus on the trigger. Value and option text uses 14px/20px metrics; section headers use 12px/16px medium text. `full_width(true)` expands both the root and trigger to the available container width. When the preferred side cannot fit the popup, it flips to the side with more room, keeping a 12px cross-axis viewport inset with the scroller capped to the available height; plain and virtual lists use the available height with an 8px trigger gap.
 
 ### Typography
 The browser gallery bundles distinct Inter faces for Normal, Medium, Semibold and Bold weights.

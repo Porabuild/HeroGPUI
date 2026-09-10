@@ -1332,7 +1332,9 @@ impl ListBox {
                 if disabled {
                     row = row.opacity(cx.layout().disabled_opacity);
                 } else {
-                    row = row.cursor_pointer().hover(move |s| s.bg(hover_bg));
+                    row = row
+                        .cursor(util::interactive_cursor(cx))
+                        .hover(move |s| s.bg(hover_bg));
                 }
 
                 // `.list-box-item` takes `status-focused` on the row the keyboard

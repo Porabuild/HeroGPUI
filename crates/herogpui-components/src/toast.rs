@@ -845,7 +845,7 @@ impl RenderOnce for ToastCardEl {
                 .bg(colors.overlay.background)
                 .rounded(crate::util::small_radius(cx));
             if self.frontmost {
-                close_btn = close_btn.cursor_pointer();
+                close_btn = crate::util::cursor_interactive(close_btn, cx);
                 // `.toast__close-button:hover` fills with `bg-default` --
                 // the full token, overriding the composed CloseButton's own
                 // `--default-hover` refinement.

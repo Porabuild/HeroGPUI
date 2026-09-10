@@ -69,6 +69,12 @@
       "description": "Every builder carries one `sx` slot for caller-owned low-level styling: the closure styles the component's root with GPUI's own methods and is applied after every variant and theme value, so it wins.",
       "imports": "use herogpui::prelude::{Button, Size, Variant};\nuse gpui::prelude::*;\nuse gpui::px;",
       "code": "row(vec![\n    Button::new(\"button-sx-sized\")\n        .label(\"200x56\")\n        // The slot owns the footprint: an enlargement, not\n        // a shrink, so the label's own content size never\n        // overflows the overridden box.\n        .sx(|el| el.w(px(200.)).h(px(56.)))\n        .into_any_element(),\n    Button::new(\"button-sx-tinted\")\n        .label(\"Orange\")\n        .sx(|el| {\n            el.bg(gpui::rgba(0xffa500ff))\n                .text_color(gpui::rgba(0x000000ff))\n        })\n        .into_any_element(),\n])"
+    },
+    {
+      "heading": "Custom hover fill",
+      "description": "An `sx` background alone holds through hover, because the fade would otherwise ease the variant colour back over the override. `hover_bg` names the other end instead, so a caller-owned surface keeps the `transition-colors` fade.",
+      "imports": "use herogpui::prelude::{Button, Size, Variant};\nuse gpui::prelude::*;",
+      "code": "row(vec![\n    Button::new(\"button-hover-bg-sx\")\n        .label(\"Tinted hover\")\n        .sx(|el| {\n            el.bg(gpui::rgba(0xffa500ff))\n                .text_color(gpui::rgba(0x000000ff))\n        })\n        .hover_bg(gpui::rgba(0xcc7000ff))\n        .into_any_element(),\n    Button::new(\"button-hover-bg-variant\")\n        .label(\"Variant resting fill\")\n        .variant(Variant::Secondary)\n        // No `sx`: the fade still rests on the variant's\n        // own colour and only the hover end is replaced.\n        .hover_bg(gpui::rgba(0x7828c8ff))\n        .into_any_element(),\n])"
     }
   ],
   "button-group": [
@@ -832,6 +838,12 @@
       "description": "A disabled slider keeps its value readable but answers no drag, wheel, or keys.",
       "imports": "use herogpui::prelude::Slider;\nuse gpui::prelude::*;\nuse gpui::px;",
       "code": "gpui::div()\n    .w(px(320.))\n    .child(Slider::new(\"slider-disabled\", 30.)\n            .default_value(30.)\n            .label(\"Volume\")\n            .show_value(true)\n            .is_disabled(true))"
+    },
+    {
+      "heading": "Sizes",
+      "description": "`size` is HeroGPUI's additive scale: `Md` is v3's 20px rail with its two-layer thumb, and `Sm` is a 6px pill with a single 12px knob.",
+      "imports": "use herogpui::prelude::{Slider, SliderSize};\nuse gpui::prelude::*;\nuse gpui::px;",
+      "code": "gpui::div()\n    .flex()\n    .flex_col()\n    .items_start()\n    .gap(px(12.))\n    .children(vec![\n        gpui::div()\n            .w(px(320.))\n            .child(Slider::new(\"slider-size-md\", 40.)\n                        .default_value(40.)\n                        .label(\"Md\")\n                        .show_value(true)),\n        gpui::div()\n            .w(px(320.))\n            .child(Slider::new(\"slider-size-sm\", 40.)\n                        .default_value(40.)\n                        .size(SliderSize::Sm)\n                        .label(\"Sm\")\n                        .show_value(true)),\n    ])"
     },
     {
       "heading": "Vertical Orientation",
@@ -1999,6 +2011,12 @@
       "description": "Labels use 14px text with 20px lines; descriptions and errors use 12px text with 16px lines, independent of surrounding leading.",
       "imports": "use herogpui::prelude::{Input, InputState};\nuse gpui::prelude::*;\nuse gpui::px;",
       "code": "gpui::div()\n    .flex()\n    .flex_col()\n    .w(px(256.))\n    .gap(px(12.))\n    .children(vec![\n        Input::new(self.demo_text(\"in-required\", \"\", cx))\n            .label(\"Required\")\n            .placeholder(\"Enter a value\")\n            .is_required(true)\n            .into_any_element(),\n        Input::new(self.demo_text(\"in-invalid\", \"\", cx))\n            .label(\"Invalid\")\n            .placeholder(\"Taken name\")\n            .error_message(\"That name is taken.\")\n            .into_any_element(),\n        Input::new(self.demo_text(\"in-disabled\", \"\", cx))\n            .label(\"Disabled\")\n            .placeholder(\"Unavailable\")\n            .is_disabled(true)\n            .into_any_element(),\n        Input::new(self.demo_text(\"in-clearable\", \"Ada\", cx))\n            .label(\"Clearable\")\n            .placeholder(\"Ada Lovelace\")\n            .is_clearable(true)\n            .into_any_element(),\n    ])"
+    },
+    {
+      "heading": "Compact Box",
+      "description": "`height`, `padding_x` and `is_bare` are the box knobs: a 28px chromeless field with a leading icon, for a toolbar or a table cell the caller paints itself. Only the row height changes -- the text keeps its 14px size and 20px line.",
+      "imports": "use herogpui::prelude::{ActiveTheme, Input, InputState, TextField, icons};\nuse gpui::prelude::*;\nuse gpui::px;",
+      "code": "TextField::new(self.demo_text(\"in-compact\", \"\", cx))\n    .placeholder(\"Filter rows\")\n    .height(px(28.))\n    .padding_x(px(8.))\n    .is_bare(true)\n    .start_content(gpui::svg()\n                       .size(px(16.))\n                       .path(icons::SEARCH)\n                       .text_color(cx.colors().foreground))"
     }
   ],
   "input-group": [
@@ -2850,6 +2868,12 @@
       "heading": "Vertical",
       "imports": "use herogpui::prelude::{Orientation, TabItem, Tabs};\nuse gpui::prelude::*;",
       "code": "Tabs::new(\n    \"tabs-vertical\",\n    vec![\n        TabItem::new(\"account\", \"Account\")\n            .content(gpui::div().child(\"Name, email and password.\")),\n        TabItem::new(\"billing\", \"Billing\")\n            .content(gpui::div().child(\"Cards and invoices.\")),\n        TabItem::new(\"team\", \"Team\")\n            .content(gpui::div().child(\"Members and roles.\")),\n    ],\n    \"account\",\n)\n.orientation(Orientation::Vertical)"
+    },
+    {
+      "heading": "Full Width",
+      "description": "v3 stretches a tab list with `<Tabs.List className=\"w-full\">` and `<Tabs.Trigger className=\"flex-1\">`; `full_width(true)` is that pair.",
+      "imports": "use herogpui::prelude::{TabItem, Tabs};\nuse gpui::prelude::*;\nuse gpui::px;",
+      "code": "gpui::div()\n    .w(px(420.))\n    .child(\n        Tabs::new(\n            \"tabs-full-width\",\n            vec![\n                TabItem::new(\"all\", \"All\")\n                    .content(gpui::div().child(\"Everything.\")),\n                TabItem::new(\"unread\", \"Unread\")\n                    .content(gpui::div().child(\"Only unread.\")),\n                TabItem::new(\"archived\", \"Archived\")\n                    .content(gpui::div().child(\"Put away.\")),\n            ],\n            \"all\",\n        )\n        .full_width(true),\n    )"
     },
     {
       "heading": "Overflow",

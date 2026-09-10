@@ -1,7 +1,7 @@
 {
   "version": 2,
-  "artifactSha256": "ffff4313de5bb13f3f2ad08f4940249e1943b610d948b4aaa6ddefd6335be936",
-  "glueSha256": "f293a8296fb1eb01e576fd0a96c335e27c810aed36055a948c2052e7b411fb12",
+  "artifactSha256": "0ff32ce1faba577ff6eefe89c0767b46f3d35fe58298620d87150ab5ce96c011",
+  "glueSha256": "1ec3dae6e7b1df33785c2a315ab807aeca4469ec9d8ad519729855409de9f5a6",
   "examples": {
     "accordion/Controlled": {
       "codeSha256": "2816548407263e0fdeada0ff2ec1e8f9fd45a2d33b24ab2cf163539711fe6f8a",
@@ -290,6 +290,10 @@
     "button/Adding custom variants": {
       "codeSha256": "e31a806f4d53ba933f1df08776a2735d638518951e3f8d0d8472a2fe197e58f1",
       "descriptionSha256": "6ad7246a80be7ee1055c7f588bc7b6d22608d8de021b65935f7900e2770f6f2a"
+    },
+    "button/Custom hover fill": {
+      "codeSha256": "b23646473b7c485ce16a7281c4e7b514540621ffbf9d5920f9dcb7ca8c54a937",
+      "descriptionSha256": "48e0c5a8bbaa24723e0c8b45abc9420f879ba6419e9465dda7bddefc976228b4"
     },
     "button/Disabled State": {
       "codeSha256": "919c0e5c8b180f08fb40ca3835819c0a8a1f323a11ccda58b03d1ea7aa7d03f5",
@@ -1323,6 +1327,10 @@
       "codeSha256": "70a6d547faf697142da0ea1501dc34272bb2fdd473b4245f294c247452f9ecdc",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
+    "input/Compact Box": {
+      "codeSha256": "087a0feb2049feb15d86c197b3f941235329a50e81c08dbd8389ad5a69e80d34",
+      "descriptionSha256": "dccac61bbcb09b7701000470fd7e8058c58224d63c384671a5b982fb24e4aceb"
+    },
     "input/Controlled": {
       "codeSha256": "1798b17d8ecbd236cb3390d173eb98ddb8a13b802deb69557f7ba84bb1c52dac",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
@@ -2135,6 +2143,10 @@
       "codeSha256": "638c9b7e7560c0d41029b31017bd55d2bea827e78dbe4f6a4356377d104fb204",
       "descriptionSha256": "8adebe86a59ed191133a85b1d9c6f932ae3044844bb61c03d3372c1ec91b6723"
     },
+    "slider/Sizes": {
+      "codeSha256": "477f22977c163bff7b3dcb3157e882449c333882dfc81ae3f695733bab7555a3",
+      "descriptionSha256": "2d73dee7e26b276672b2bf6019a7d1fe14a24281cb439c2d48ac49aa8ed2230e"
+    },
     "slider/Step & disabled": {
       "codeSha256": "28145219781cab2ce4da910fef1913d57c8c7d6ae21b8365d7e45127ff1e66b8",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
@@ -2290,6 +2302,10 @@
     "tabs/Disabled Tab": {
       "codeSha256": "6727f0e23948ba3a4bb62577280554a5908a71bb08f54a2a82ac703a4a4b877a",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "tabs/Full Width": {
+      "codeSha256": "bc0ffaf0acc70a44135069a5829f2049bbc43c6a31a90a7e2b1ce6364c8882d3",
+      "descriptionSha256": "257759e00dded16c1d02f634c3bda1b57fdb905a48235ed623706d6bfdba95c9"
     },
     "tabs/Overflow": {
       "codeSha256": "e2c9db6cc444ca161efcc86eb9fb34aa66bdabb7989c1c7e200045f74c55e52c",

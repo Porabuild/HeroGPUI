@@ -1215,6 +1215,18 @@ pub struct Input {
     /// Multi-line only: the height `rows` asks for. `None` leaves v3's
     /// `min-height: 38px`.
     min_h: Option<gpui::Pixels>,
+    /// [`Input::height`] — the single-line box height. `None` keeps
+    /// `util::FIELD_HEIGHT`; the multi-line path ignores it (see the builder).
+    height: Option<gpui::Pixels>,
+    /// [`Input::padding_x`] — the standalone box's horizontal padding. `None`
+    /// keeps v3's `px-3`.
+    padding_x: Option<gpui::Pixels>,
+    /// [`Input::is_bare`] — render the standalone box with no chrome at all,
+    /// the way `InputGroup.Input` already does.
+    is_bare: bool,
+    /// [`Input::font_family`] — the family the field text is drawn and
+    /// measured with. `None` inherits the window's text style.
+    font_family: Option<SharedString>,
     /// Set by [`crate::input_group::InputGroup`]: `(has_prefix, has_suffix)`.
     /// `InputGroup.Input` has no chrome of its own -- the group paints it -- and
     /// drops the padding on whichever side touches an addon (`ps-0`/`pe-0`).
@@ -1344,6 +1356,10 @@ impl Input {
             start_content: None,
             end_content: None,
             min_h: None,
+            height: None,
+            padding_x: None,
+            is_bare: false,
+            font_family: None,
             in_group: None,
             group_dim: false,
             full_width: false,
@@ -1561,6 +1577,56 @@ impl Input {
         self
     }
 
+    /// The height of the single-line field box, replacing v3's 36px
+    /// (`util::FIELD_HEIGHT`).
+    ///
+    /// Only the row height changes: the text keeps its 14px size and 20px
+    /// line height and stays vertically centred, so a shorter box is a
+    /// tighter box rather than smaller type. The multi-line surface
+    /// (`TextArea`) ignores this — its height is content-driven with a
+    /// `rows`-derived floor, and a fixed height there would either clip the
+    /// text or fight `rows`; use `TextArea::rows` for that.
+    pub fn height(mut self, h: impl Into<gpui::Pixels>) -> Self {
+        self.height = Some(h.into());
+        self
+    }
+
+    /// The horizontal padding of the standalone field box, replacing v3's
+    /// `px-3` (12px).
+    ///
+    /// Inside an [`crate::input_group::InputGroup`] the padding is the group's
+    /// rule — the side that touches an addon carries none — so this is ignored
+    /// there.
+    pub fn padding_x(mut self, p: impl Into<gpui::Pixels>) -> Self {
+        self.padding_x = Some(p.into());
+        self
+    }
+
+    /// Drops the field's own chrome: no background, no border, no field
+    /// shadow, and no focus or invalid ring.
+    ///
+    /// This is exactly the treatment `InputGroup.Input` already gets (v3's
+    /// `.input-group__input` is `border-0 bg-transparent shadow-none`), for a
+    /// field the caller paints around — a toolbar, a table cell, an editable
+    /// label. Everything else, including focus itself and the invalid state
+    /// the error line reports, is unchanged.
+    pub fn is_bare(mut self, v: bool) -> Self {
+        self.is_bare = v;
+        self
+    }
+
+    /// The font family the field's value, placeholder and caret measurement
+    /// use — a monospace face for a code or token field.
+    ///
+    /// The field's own text layout captures the font during `render`, before
+    /// any element's text style is pushed onto the window's stack, so the
+    /// family is threaded into that captured font here as well as set on the
+    /// box for the text gpui itself shapes.
+    pub fn font_family(mut self, family: impl Into<SharedString>) -> Self {
+        self.font_family = Some(family.into());
+        self
+    }
+
     pub fn start_content(mut self, el: impl IntoElement) -> Self {
         self.start_content = Some(el.into_any_element());
         self
@@ -1771,7 +1837,16 @@ impl RenderOnce for Input {
             });
         // The font the field draws with, captured here: at event time the text
         // style stack is empty and the shaping would use the wrong face.
-        let text_font = window.text_style().font();
+        // A `font_family` refinement on the box below is pushed onto the
+        // window's text-style stack only while that element prepaints, which
+        // is after this `render` has already built the tree — verified against
+        // pinned gpui-pre 0.3.3 (`Window::text_style` folds
+        // `text_style_stack`, pushed in `with_text_style`). So the family is
+        // threaded into the captured font explicitly.
+        let mut text_font = window.text_style().font();
+        if let Some(family) = &self.font_family {
+            text_font.family = family.clone();
+        }
         let disabled_opacity = cx.layout().disabled_opacity;
         let focused = focus_handle.is_focused(window);
         if !focused && self.state.read(cx).marked.is_some() {
@@ -1805,7 +1880,11 @@ impl RenderOnce for Input {
         // 36px tall, and its siblings say so outright (`.input-group` and
         // `.search-field__group` are `min-h-9`, `.number-field__group` is `h-9`).
         // This was 40, so every field in the port stood 4px taller than v3's.
+        // `Input::height` replaces the row height and nothing else: the text
+        // keeps `FIELD_TEXT` and its 20px line, centred in whatever box the
+        // caller asked for.
         let (h, text) = (crate::util::FIELD_HEIGHT, crate::util::FIELD_TEXT);
+        let h = self.height.unwrap_or(h);
 
         let is_invalid = validity.is_invalid;
         let _border_color = if is_invalid {
@@ -1863,8 +1942,15 @@ impl RenderOnce for Input {
                     .pl(if prefix { px(0.) } else { px(12.) })
                     .pr(if suffix { px(0.) } else { px(12.) }),
             })
+            // `Input::padding_x` replaces the standalone `px-3`; a grouped
+            // field keeps the addon rules above.
+            .when_some(
+                self.padding_x.filter(|_| self.in_group.is_none()),
+                |f, padding_x| f.px(padding_x),
+            )
             .text_size(text)
             .line_height(px(20.))
+            .when_some(self.font_family.clone(), |f, family| f.font_family(family))
             .rounded(crate::util::field_radius(cx))
             .when(!self.is_disabled, |e| {
                 e.cursor(gpui::CursorStyle::IBeam)
@@ -1984,7 +2070,9 @@ impl RenderOnce for Input {
         // Inside an `InputGroup` the group is the field: v3's
         // `.input-group__input` is `rounded-none border-0 bg-transparent
         // shadow-none`.
-        if self.in_group.is_none() {
+        // `is_bare` takes the same exit: one chrome call site, skipped by
+        // either reason.
+        if self.in_group.is_none() && !self.is_bare {
             field = crate::util::apply_field_chrome(field, self.variant, is_invalid, focused, cx);
         }
 
@@ -2232,7 +2320,7 @@ impl RenderOnce for Input {
                 .size(clear_box)
                 .p(px(4.))
                 .rounded(clear_radius)
-                .cursor_pointer()
+                .cursor(crate::util::interactive_cursor(cx))
                 .text_color(colors.muted)
                 .hover(move |s| s.bg(clear_hover_bg))
                 .active({
@@ -2762,6 +2850,36 @@ impl TextField {
 
     pub fn full_width(mut self) -> Self {
         self.inner = self.inner.full_width();
+        self
+    }
+
+    /// The single-line box height — see [`Input::height`].
+    pub fn height(mut self, h: impl Into<gpui::Pixels>) -> Self {
+        self.inner = self.inner.height(h);
+        self
+    }
+
+    /// The box's horizontal padding — see [`Input::padding_x`].
+    pub fn padding_x(mut self, p: impl Into<gpui::Pixels>) -> Self {
+        self.inner = self.inner.padding_x(p);
+        self
+    }
+
+    /// Drops the field's chrome — see [`Input::is_bare`].
+    pub fn is_bare(mut self, v: bool) -> Self {
+        self.inner = self.inner.is_bare(v);
+        self
+    }
+
+    /// The field text's font family — see [`Input::font_family`].
+    pub fn font_family(mut self, family: impl Into<SharedString>) -> Self {
+        self.inner = self.inner.font_family(family);
+        self
+    }
+
+    /// Leading content inside the box — see [`Input::start_content`].
+    pub fn start_content(mut self, el: impl IntoElement) -> Self {
+        self.inner = self.inner.start_content(el);
         self
     }
 

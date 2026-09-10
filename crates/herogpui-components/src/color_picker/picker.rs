@@ -193,7 +193,7 @@ impl RenderOnce for ColorPicker {
         if self.is_disabled {
             trigger = trigger.opacity(layout.disabled_opacity);
         } else {
-            trigger = trigger.cursor_pointer();
+            trigger = util::cursor_interactive(trigger, cx);
             let pressed = trigger_pressed.clone();
             trigger = trigger.capture_any_mouse_down(move |_, _, cx| {
                 pressed.set(true);

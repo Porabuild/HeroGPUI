@@ -354,9 +354,11 @@ impl RenderOnce for Accordion {
                     }
                     AccordionVariant::Surface => colors.default.color,
                 };
-                header = header.cursor_pointer().hover(move |s| s.bg(hover_bg));
+                header = header
+                    .cursor(crate::util::interactive_cursor(cx))
+                    .hover(move |s| s.bg(hover_bg));
             } else {
-                header = header.cursor_pointer();
+                header = crate::util::cursor_interactive(header, cx);
             }
 
             let mut title_col = gpui::div().flex().flex_col();

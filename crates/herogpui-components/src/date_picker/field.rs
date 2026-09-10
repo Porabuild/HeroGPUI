@@ -1461,12 +1461,14 @@ impl RenderOnce for DateField {
 
             if navigable {
                 let held = focused_seg.clone();
-                seg = seg.cursor_pointer().on_click(move |_, _, cx| {
-                    held.update(cx, |s, cx| {
-                        *s = segment;
-                        cx.notify();
+                seg = seg
+                    .cursor(crate::util::interactive_cursor(cx))
+                    .on_click(move |_, _, cx| {
+                        held.update(cx, |s, cx| {
+                            *s = segment;
+                            cx.notify();
+                        });
                     });
-                });
             }
 
             // `useDateSegment` is `role: 'spinbutton'` then rewritten to

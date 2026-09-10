@@ -298,3 +298,98 @@ fn slider_label_and_output_keep_twenty_pixel_lines(cx: &mut TestAppContext) {
         }
     }
 }
+
+/// The track's own laid-out height: an unlabelled slider is only its rail, so
+/// the wrapper's height is the track's cross axis.
+fn track_cross_axis(cx: &mut VisualTestContext) -> gpui::Pixels {
+    cx.debug_bounds("sized-slider")
+        .expect("slider must paint")
+        .size
+        .height
+}
+
+#[gpui::test]
+fn medium_is_the_default_and_keeps_the_pinned_geometry(cx: &mut TestAppContext) {
+    for size in [None, Some(herogpui_components::SliderSize::Md)] {
+        let probe: Probe = Rc::new(RefCell::new(Vec::new()));
+        let for_view = probe.clone();
+        let cx = open_host(cx, move || {
+            let probe = for_view.clone();
+            let slider = Slider::new("geo-md", 0.).thumb(move |i, v| probe_thumb(&probe)(i, v));
+            let slider = match size {
+                Some(size) => slider.size(size),
+                None => slider,
+            };
+            gpui::div()
+                .w(px(600.))
+                .child(
+                    gpui::div()
+                        .debug_selector(|| "sized-slider".into())
+                        .child(slider),
+                )
+                .into_any_element()
+        });
+        flush_frame(cx);
+        assert_eq!(
+            track_cross_axis(cx),
+            px(20.),
+            "Md track cross axis; size={size:?}"
+        );
+        let thumb = probe.borrow().last().copied().expect("thumb bounds");
+        assert_eq!(
+            (thumb.size.width, thumb.size.height),
+            (28., 20.),
+            "Md thumb box; size={size:?}"
+        );
+        // Value 0 centers the thumb one axis inset in: 12px.
+        assert_center(&probe, (12., 10.), "Md axis inset");
+    }
+}
+
+#[gpui::test]
+fn small_shrinks_the_rail_the_inset_and_the_knob(cx: &mut TestAppContext) {
+    let probe: Probe = Rc::new(RefCell::new(Vec::new()));
+    let for_view = probe.clone();
+    let cx = open_host(cx, move || {
+        let probe = for_view.clone();
+        gpui::div()
+            .w(px(600.))
+            .child(
+                gpui::div().debug_selector(|| "sized-slider".into()).child(
+                    Slider::new("geo-sm", 0.)
+                        .size(herogpui_components::SliderSize::Sm)
+                        .thumb(move |i, v| probe_thumb(&probe)(i, v)),
+                ),
+            )
+            .into_any_element()
+    });
+    flush_frame(cx);
+    assert_eq!(track_cross_axis(cx), px(6.), "Sm track cross axis");
+    let thumb = probe.borrow().last().copied().expect("thumb bounds");
+    assert_eq!(
+        (thumb.size.width, thumb.size.height),
+        (12., 12.),
+        "Sm knob is a 12x12 square"
+    );
+    // Value 0 centers the 12px knob one 8px inset in, and the knob straddles
+    // the 6px rail: its center stays on the rail center (y = 3).
+    assert_center(&probe, (8., 3.), "Sm axis inset and cross-axis centering");
+}
+
+/// The `Sm` default thumb is one round node, not `Md`'s pill-around-a-pill.
+#[test]
+fn small_default_thumb_is_a_single_pill_layer() {
+    let source = include_str!("../src/slider.rs");
+    assert!(
+        source.contains("None => thumb_el.rounded_full().bg(colors.foreground),"),
+        "Sm's default thumb must be a single fully rounded layer in the foreground token"
+    );
+    assert!(
+        source.contains(".when(small, |t| t.rounded_full())"),
+        "Sm's track must be a pill"
+    );
+    assert!(
+        source.contains(".when(small, |f| f.rounded_full())"),
+        "Sm's fill must be a pill"
+    );
+}

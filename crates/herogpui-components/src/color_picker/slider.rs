@@ -524,7 +524,7 @@ impl RenderOnce for ColorSlider {
             let value = self.value;
             let channel = self.channel;
             let space = self.color_space;
-            track = track.cursor_pointer();
+            track = util::cursor_interactive(track, cx);
             // v3: the arrows step the channel, Home and End take it to its ends,
             // and Page Up/Down move by a tenth of the range -- React Aria's page
             // step. A colour slider with no keyboard is not the same control.

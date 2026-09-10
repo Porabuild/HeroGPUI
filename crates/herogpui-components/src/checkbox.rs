@@ -935,7 +935,7 @@ impl RenderOnce for Checkbox {
             // `.checkbox__content` is `gap-3`.
             .gap(px(12.))
             .when(!self.is_disabled && !self.is_read_only, |r| {
-                r.cursor_pointer()
+                r.cursor(crate::util::interactive_cursor(cx))
             })
             .children(
                 std::iter::once(boxel.into_any_element())

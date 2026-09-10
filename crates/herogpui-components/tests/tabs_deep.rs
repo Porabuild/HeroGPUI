@@ -17,7 +17,7 @@ use std::{cell::RefCell, rc::Rc, time::Duration};
 
 use gpui::{
     point, prelude::*, px, Font, FontFeatures, FontStyle, FontWeight, KeyDownEvent, Keystroke,
-    Modifiers, MouseButton, TestAppContext, VisualTestContext, WindowTextSystem,
+    Modifiers, MouseButton, Pixels, TestAppContext, VisualTestContext, WindowTextSystem,
 };
 use herogpui_components::{Button, KeyboardActivation, Orientation, TabItem, Tabs, TabsVariant};
 
@@ -1249,5 +1249,168 @@ fn tabs_manual_activation_waits_for_enter(cx: &mut TestAppContext) {
         recorded.borrow().as_slice(),
         ["second", "second"],
         "Space must activate the manually focused tab"
+    );
+}
+
+/// Drives the tab list through every tab and returns the box the indicator
+/// occupies for each one. The indicator is laid over the selected tab's
+/// measured bounds, so with motion suppressed it reports the tab geometry the
+/// layout produced — the only handle a headless test has on it.
+fn measure_tabs(
+    cx: &mut VisualTestContext,
+    selector: &'static str,
+    count: usize,
+) -> Vec<gpui::Bounds<Pixels>> {
+    for _ in 0..4 {
+        flush_frame(cx);
+    }
+    press(cx, "tab");
+    flush_frame(cx);
+    let mut boxes = Vec::with_capacity(count);
+    for index in 0..count {
+        if index > 0 {
+            press(cx, "right");
+            flush_frame(cx);
+            flush_frame(cx);
+        }
+        boxes.push(
+            cx.debug_bounds(selector)
+                .expect("the selected-tab indicator must be painted"),
+        );
+    }
+    boxes
+}
+
+/// `full_width` is v3's `<Tabs.List className="w-full">` with
+/// `<Tabs.Trigger className="flex-1">`: the list spans its parent and the tabs
+/// divide that width into equal shares.
+#[gpui::test]
+fn tabs_full_width_divides_the_container_equally(cx: &mut TestAppContext) {
+    harness::still();
+    let cx = open_host(cx, move || {
+        gpui::div()
+            .w(px(300.))
+            .child(
+                Tabs::new(
+                    "tb-full-width",
+                    vec![
+                        TabItem::new("first", "First"),
+                        TabItem::new("second", "Second"),
+                        TabItem::new("third", "Third"),
+                    ],
+                    "first",
+                )
+                // Secondary's underline spans the tab without the primary
+                // list's `p-1`, so the shares tile the container exactly.
+                .variant(TabsVariant::Secondary)
+                .full_width(true),
+            )
+            .into_any_element()
+    });
+
+    let boxes = measure_tabs(cx, "Name(\"tb-full-width\")-indicator", 3);
+    let widths: Vec<f32> = boxes.iter().map(|b| f32::from(b.size.width)).collect();
+    for width in &widths {
+        assert!(
+            (width - widths[0]).abs() < 1.,
+            "full-width tabs must take equal shares, got {widths:?}"
+        );
+    }
+    let span = f32::from(boxes[2].origin.x + boxes[2].size.width) - f32::from(boxes[0].origin.x);
+    assert!(
+        (span - 300.).abs() < 1.,
+        "the equal shares must tile the container width, spanning {span}"
+    );
+    let total: f32 = widths.iter().sum();
+    assert!(
+        (total - span).abs() < 1.,
+        "the shares must be contiguous: {total} of {span}"
+    );
+}
+
+/// The default is unchanged: `.tabs__list` is `w-max`, so each tab hugs its
+/// own label and the row is narrower than a wide container.
+#[gpui::test]
+fn tabs_default_width_stays_content_sized(cx: &mut TestAppContext) {
+    harness::still();
+    let cx = open_host(cx, move || {
+        gpui::div()
+            .w(px(300.))
+            .child(
+                Tabs::new(
+                    "tb-content-width",
+                    vec![
+                        TabItem::new("first", "First"),
+                        TabItem::new("second", "Second"),
+                        TabItem::new("third", "Third"),
+                    ],
+                    "first",
+                )
+                .variant(TabsVariant::Secondary),
+            )
+            .into_any_element()
+    });
+
+    let boxes = measure_tabs(cx, "Name(\"tb-content-width\")-indicator", 3);
+    let expected: Vec<f32> = ["First", "Second", "Third"]
+        .iter()
+        .map(|label| cx.update(|window, _| text_width(window.text_system(), label)) + 32.)
+        .collect();
+    for (index, measured) in boxes.iter().enumerate() {
+        assert!(
+            (f32::from(measured.size.width) - expected[index]).abs() < 1.,
+            "tab {index} must stay content-sized: {} vs {}",
+            f32::from(measured.size.width),
+            expected[index]
+        );
+    }
+    let span = f32::from(boxes[2].origin.x + boxes[2].size.width) - f32::from(boxes[0].origin.x);
+    assert!(
+        span < 299.,
+        "content-sized tabs must not span the container, spanning {span}"
+    );
+}
+
+/// Equal shares must not reintroduce the overflow the scroller exists for:
+/// labels that overflow content-sized are clipped inside their share instead of
+/// widening the row past the viewport.
+#[gpui::test]
+fn tabs_full_width_does_not_overflow_the_scroller(cx: &mut TestAppContext) {
+    harness::still();
+    let long = || {
+        vec![
+            TabItem::new("first", "Overview and history"),
+            TabItem::new("second", "Billing and invoices"),
+            TabItem::new("third", "Notifications and alerts"),
+        ]
+    };
+    let cx = open_host(cx, move || {
+        gpui::div()
+            .w(px(240.))
+            .child(
+                Tabs::new("tb-full-width-overflow", long(), "first")
+                    .variant(TabsVariant::Secondary)
+                    .full_width(true),
+            )
+            .into_any_element()
+    });
+
+    let boxes = measure_tabs(cx, "Name(\"tb-full-width-overflow\")-indicator", 3);
+    let right = f32::from(boxes[2].origin.x + boxes[2].size.width);
+    assert!(
+        (right - 240.).abs() < 1.,
+        "the stretched row must end at the viewport edge, not past it: {right}"
+    );
+    let natural: f32 = [
+        "Overview and history",
+        "Billing and invoices",
+        "Notifications and alerts",
+    ]
+    .iter()
+    .map(|label| cx.update(|window, _| text_width(window.text_system(), label)) + 32.)
+    .sum();
+    assert!(
+        natural > 240.,
+        "the fixture must be one that overflows when content-sized: {natural}"
     );
 }

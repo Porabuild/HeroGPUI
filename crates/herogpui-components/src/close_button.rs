@@ -153,7 +153,7 @@ impl RenderOnce for CloseButton {
         if self.is_disabled {
             el = el.opacity(disabled_opacity);
         } else {
-            el = el.cursor_pointer();
+            el = crate::util::cursor_interactive(el, cx);
             if fade.is_none() {
                 el = el.hover(move |s| s.bg(hover_bg));
             }

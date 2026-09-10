@@ -36,6 +36,11 @@ pub struct ThemeDocument {
     pub border_width: Option<f32>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub disabled_opacity: Option<f32>,
+    /// The hover cursor for interactive controls, by gpui's `CursorStyle`
+    /// variant name (`"PointingHand"` is v3's `cursor: pointer`, `"Arrow"`
+    /// the platform default).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cursor_interactive: Option<gpui::CursorStyle>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub background: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -200,6 +205,9 @@ impl ThemeDocument {
         }
         if let Some(opacity) = self.disabled_opacity {
             builder = builder.disabled_opacity(opacity);
+        }
+        if let Some(cursor) = self.cursor_interactive {
+            builder = builder.cursor_interactive(cursor);
         }
         builder = apply_color(
             builder,

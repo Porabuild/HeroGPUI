@@ -67,6 +67,10 @@ pub struct Button {
     on_press: Option<OnPress>,
     /// The `sx` slot, refined over the root style at the end of render.
     sx: Option<Box<gpui::StyleRefinement>>,
+    /// Set by [`Button::hover_bg`]: the fill the hover fade eases *to*, in
+    /// place of the variant's hover colour. Additive — unset, the fade behaves
+    /// exactly as it did before the builder existed.
+    hover_bg: Option<gpui::Hsla>,
 }
 
 impl Button {
@@ -89,6 +93,7 @@ impl Button {
             children: Vec::new(),
             on_press: None,
             sx: None,
+            hover_bg: None,
         }
     }
 
@@ -143,6 +148,26 @@ impl Button {
     /// press geometry, so the override holds across states.
     pub fn sx(mut self, style: impl FnOnce(Div) -> Div) -> Self {
         self.sx = Some(util::capture_sx(style));
+        self
+    }
+
+    /// The fill the hover fade eases *to*, in place of the variant's own hover
+    /// colour.
+    ///
+    /// The escape hatch for a caller-owned surface: `sx`'s background replaces
+    /// both of the fade's endpoints, because a fill that eased back to the
+    /// variant colour would paint over the override — so an `sx` background
+    /// alone is a button whose hover does not move. Naming the hover colour
+    /// restores the transition: the fade runs from the resting background (the
+    /// `sx` background when one is set, the variant's resting colour
+    /// otherwise) to `color`, over the same `transition-colors` timing every
+    /// other button uses. The press state is unaffected either way — v3's
+    /// `:active` is the opacity step [`apply_button_variant`] applies, not a
+    /// third colour.
+    ///
+    /// v3 has no such prop; on the web this is `className="hover:bg-…"`.
+    pub fn hover_bg(mut self, color: impl Into<gpui::Hsla>) -> Self {
+        self.hover_bg = Some(color.into());
         self
     }
 
@@ -245,6 +270,31 @@ pub fn button_hover_colors(variant: Variant, cx: &App) -> Option<(gpui::Hsla, gp
         Variant::Ghost => Some((gpui::transparent_black(), colors.default.color)),
         Variant::Danger => Some((colors.danger.color, colors.danger.hover())),
         Variant::DangerSoft => Some((colors.danger.soft(), colors.danger.soft_hover())),
+    }
+}
+
+/// The pair [`crate::anim::hover_fade`] eases between, resolving the variant's
+/// own pair against the two caller-owned overrides.
+///
+/// Precedence, in one place because the three cases are easy to conflate:
+///
+/// - [`Button::hover_bg`] set: the fade runs from the resting background — the
+///   `sx` background if there is one, the variant's resting colour otherwise —
+///   to the named hover colour.
+/// - only an `sx` background: both endpoints are that colour, so the fade
+///   paints the override rather than easing the variant colour back over it.
+/// - neither: the variant's own pair, untouched.
+///
+/// Pure so the precedence is table-testable without a window.
+fn fade_endpoints(
+    variant: Option<(gpui::Hsla, gpui::Hsla)>,
+    sx_background: Option<gpui::Hsla>,
+    hover_bg: Option<gpui::Hsla>,
+) -> Option<(gpui::Hsla, gpui::Hsla)> {
+    let resting = sx_background.or_else(|| variant.map(|(idle, _)| idle));
+    match (hover_bg, resting) {
+        (Some(hover), Some(resting)) => Some((resting, hover)),
+        _ => variant.map(|colors| sx_background.map_or(colors, |color| (color, color))),
     }
 }
 
@@ -524,15 +574,17 @@ impl RenderOnce for Button {
         }
         // v3's `transition-colors`: the fill eases rather than switching on the
         // frame the pointer arrives. The variant then leaves the background
-        // alone so the two do not fight over it. An `sx` background replaces
-        // the fade's endpoints outright: the fill the fade draws would
-        // otherwise paint the variant colour back over the override.
+        // alone so the two do not fight over it. `fade_endpoints` resolves
+        // which pair it eases: `hover_bg` names the hover end and the resting
+        // background (the `sx` one, else the variant's) becomes the other,
+        // while an `sx` background on its own replaces *both* endpoints —
+        // the fill the fade draws would otherwise paint the variant colour
+        // back over the override.
         let sx_background = util::sx_background(&self.sx);
         let sx_size = util::sx_pixel_size(&self.sx);
         let fade = interactive
             .then(|| button_hover_colors(self.variant, cx))
-            .flatten()
-            .map(|colors| sx_background.map_or(colors, |color| (color, color)));
+            .and_then(|variant| fade_endpoints(variant, sx_background, self.hover_bg));
 
         let metrics = button_metrics(self.size);
         // RAC's `Button` renders a native `<button>`, so upstream's role is
@@ -715,6 +767,95 @@ impl RenderOnce for Button {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Stand-ins for the variant's own pair and the two overrides. Distinct
+    /// values so every assertion below names which one it expected, rather
+    /// than comparing a colour against itself.
+    const VARIANT_IDLE: gpui::Hsla = gpui::Hsla {
+        h: 0.0,
+        s: 0.5,
+        l: 0.5,
+        a: 1.0,
+    };
+    const VARIANT_HOVER: gpui::Hsla = gpui::Hsla {
+        h: 0.1,
+        s: 0.5,
+        l: 0.5,
+        a: 1.0,
+    };
+    const SX: gpui::Hsla = gpui::Hsla {
+        h: 0.2,
+        s: 0.5,
+        l: 0.5,
+        a: 1.0,
+    };
+    const CUSTOM_HOVER: gpui::Hsla = gpui::Hsla {
+        h: 0.3,
+        s: 0.5,
+        l: 0.5,
+        a: 1.0,
+    };
+
+    /// (a) A caller-owned surface *and* a hover colour: the fade eases between
+    /// exactly those two, so the button no longer sits frozen on its override.
+    #[test]
+    fn hover_bg_eases_from_the_sx_background() {
+        let endpoints = fade_endpoints(
+            Some((VARIANT_IDLE, VARIANT_HOVER)),
+            Some(SX),
+            Some(CUSTOM_HOVER),
+        );
+
+        assert_eq!(
+            endpoints,
+            Some((SX, CUSTOM_HOVER)),
+            "the fade must rest on the sx background and ease to the named hover colour"
+        );
+        let (idle, hovered) = endpoints.unwrap();
+        assert_ne!(
+            idle, hovered,
+            "the fade must not be frozen once hover_bg is set"
+        );
+    }
+
+    /// (b) The behaviour `hover_bg` is an escape hatch from: an `sx`
+    /// background alone still pins both endpoints, so nothing repaints the
+    /// variant colour over the override.
+    #[test]
+    fn sx_background_alone_still_freezes_both_endpoints() {
+        assert_eq!(
+            fade_endpoints(Some((VARIANT_IDLE, VARIANT_HOVER)), Some(SX), None),
+            Some((SX, SX)),
+            "an sx background with no hover_bg must hold across hover"
+        );
+    }
+
+    /// (c) No `sx`: the fade keeps the variant's resting colour and only the
+    /// hover end is replaced.
+    #[test]
+    fn hover_bg_without_sx_eases_from_the_variant_resting_colour() {
+        let variant = (VARIANT_IDLE, VARIANT_HOVER);
+
+        assert_eq!(
+            fade_endpoints(Some(variant), None, Some(CUSTOM_HOVER)),
+            Some((variant.0, CUSTOM_HOVER)),
+            "the resting end must stay the variant's own colour"
+        );
+    }
+
+    /// With neither override the resolution is the identity, which is what
+    /// keeps every existing button pixel-identical.
+    #[test]
+    fn no_override_passes_the_variant_pair_through() {
+        let variant = (VARIANT_IDLE, VARIANT_HOVER);
+
+        assert_eq!(fade_endpoints(Some(variant), None, None), Some(variant));
+        assert_eq!(
+            fade_endpoints(None, None, None),
+            None,
+            "a variant with no background to ease must stay unfaded"
+        );
+    }
 
     #[test]
     fn group_defaults_preserve_explicit_child_props() {

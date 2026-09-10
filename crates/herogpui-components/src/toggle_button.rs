@@ -422,7 +422,7 @@ impl RenderOnce for ToggleButton {
                     ToggleVariant::Ghost => colors.default.color,
                 }
             };
-            el = el.cursor_pointer();
+            el = crate::util::cursor_interactive(el, cx);
             if fade.is_none() {
                 el = el.hover(move |s| s.bg(hover_bg));
             }

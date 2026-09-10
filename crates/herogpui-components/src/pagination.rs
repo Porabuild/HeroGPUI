@@ -272,7 +272,7 @@ impl RenderOnce for Pagination {
                         .text_size(cell_text)
                         .line_height(cell_leading)
                         .rounded(crate::util::control_radius(cx))
-                        .when(!link_disabled, |b| b.cursor_pointer());
+                        .when(!link_disabled, |b| b.cursor(crate::util::interactive_cursor(cx)));
 
                     if active {
                         // `[data-active=true]` is v3's tertiary-button state:
@@ -507,7 +507,9 @@ fn nav_button(
         // after `pressed` land on the slot and fight the skin for width.
         .child(icon);
     if enabled {
-        btn = btn.cursor_pointer().hover(move |s| s.bg(hover_bg));
+        btn = btn
+            .cursor(crate::util::interactive_cursor(cx))
+            .hover(move |s| s.bg(hover_bg));
         btn = crate::anim::pressed_with_background(
             btn,
             crate::anim::PressBox {

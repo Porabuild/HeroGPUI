@@ -688,6 +688,28 @@ impl Gallery {
                     .into_any_element()]),
                 ),
                 (
+                    "Full Width",
+                    "v3 stretches a tab list with `<Tabs.List className=\"w-full\">` and `<Tabs.Trigger className=\"flex-1\">`; `full_width(true)` is that pair.",
+                    col(vec![gpui::div()
+                        .w(px(420.))
+                        .child(
+                            h::Tabs::new(
+                                "tabs-full-width",
+                                vec![
+                                    h::TabItem::new("all", "All")
+                                        .content(gpui::div().child("Everything.")),
+                                    h::TabItem::new("unread", "Unread")
+                                        .content(gpui::div().child("Only unread.")),
+                                    h::TabItem::new("archived", "Archived")
+                                        .content(gpui::div().child("Put away.")),
+                                ],
+                                "all",
+                            )
+                            .full_width(true),
+                        )
+                        .into_any_element()]),
+                ),
+                (
                     "Overflow",
                     "More tabs than fit scroll along their axis. Wheel input from the other axis continues to the page.",
                     col(vec![

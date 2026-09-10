@@ -373,19 +373,21 @@ impl RenderOnce for ColorSwatchPicker {
                 let on_change = self.on_change.clone();
                 let own = own.clone();
                 let value = *swatch;
-                cell = cell.cursor_pointer().on_click(move |_, window, cx| {
-                    // Uncontrolled: take the selection, or the press would do
-                    // nothing.
-                    if let Some(held) = &own {
-                        held.update(cx, |v, cx| {
-                            *v = Some(value);
-                            cx.notify();
-                        });
-                    }
-                    if let Some(cb) = &on_change {
-                        cb(&value, window, cx);
-                    }
-                });
+                cell = cell
+                    .cursor(util::interactive_cursor(cx))
+                    .on_click(move |_, window, cx| {
+                        // Uncontrolled: take the selection, or the press would do
+                        // nothing.
+                        if let Some(held) = &own {
+                            held.update(cx, |v, cx| {
+                                *v = Some(value);
+                                cx.notify();
+                            });
+                        }
+                        if let Some(cb) = &on_change {
+                            cb(&value, window, cx);
+                        }
+                    });
             }
 
             if !item_disabled {

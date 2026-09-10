@@ -89,6 +89,28 @@ impl TextArea {
         self
     }
 
+    /// The box's horizontal padding — see [`crate::input::Input::padding_x`].
+    ///
+    /// The multi-line box keeps its own `py-2` and its `rows`-derived height,
+    /// so only the horizontal padding is a knob here.
+    pub fn padding_x(mut self, p: impl Into<gpui::Pixels>) -> Self {
+        self.inner = self.inner.padding_x(p);
+        self
+    }
+
+    /// Drops the field's chrome — see [`crate::input::Input::is_bare`].
+    pub fn is_bare(mut self, v: bool) -> Self {
+        self.inner = self.inner.is_bare(v);
+        self
+    }
+
+    /// The field text's font family — see
+    /// [`crate::input::Input::font_family`].
+    pub fn font_family(mut self, family: impl Into<SharedString>) -> Self {
+        self.inner = self.inner.font_family(family);
+        self
+    }
+
     /// The one slot for caller-owned low-level styling: GPUI's styling methods
     /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
     /// applied to the wrapper around the field after every value the variant

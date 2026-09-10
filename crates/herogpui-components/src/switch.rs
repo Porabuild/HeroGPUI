@@ -604,7 +604,9 @@ impl RenderOnce for Switch {
             .flex()
             .items_center()
             .px(thumb_inset)
-            .when(!self.is_disabled, |t| t.cursor_pointer());
+            .when(!self.is_disabled, |t| {
+                t.cursor(crate::util::interactive_cursor(cx))
+            });
         if !self.is_disabled {
             track = crate::util::track_interaction(track, &interaction);
         }

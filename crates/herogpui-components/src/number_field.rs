@@ -1042,7 +1042,7 @@ fn stepper_btn(
             .inset_0(),
         );
         let pressed_bg = colors.field.foreground.alpha(0.1);
-        b = b.cursor_pointer().on_mouse_down(
+        b = crate::util::cursor_interactive(b, cx).on_mouse_down(
             gpui::MouseButton::Left,
             move |_: &MouseDownEvent, window, cx| {
                 window.focus(&focus_handle, cx);
