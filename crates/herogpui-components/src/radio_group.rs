@@ -122,6 +122,8 @@ pub struct RadioGroup {
     is_required: bool,
     is_read_only: bool,
     on_change: Option<std::sync::Arc<dyn Fn(&SharedString, &mut Window, &mut App) + 'static>>,
+    /// Expands the root to the available width.
+    full_width: bool,
     /// The `sx` slot, refined over the root style at the end of render.
     sx: Option<Box<gpui::StyleRefinement>>,
 }
@@ -206,6 +208,7 @@ impl RadioGroup {
             is_required: false,
             is_read_only: false,
             on_change: None,
+            full_width: false,
             sx: None,
         }
     }
@@ -341,6 +344,13 @@ impl RadioGroup {
     /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
     /// applied to the radio group's root element after every value the
     /// orientation and the active theme chose, so they win.
+    /// `fullWidth` — expands the root to the available width without
+    /// redistributing the children.
+    pub fn full_width(mut self, v: bool) -> Self {
+        self.full_width = v;
+        self
+    }
+
     pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
         self.sx = Some(crate::util::capture_sx(style));
         self
@@ -774,6 +784,9 @@ impl RenderOnce for RadioGroup {
             .flex()
             .flex_col()
             .gap(px(4.));
+        if self.full_width {
+            root = root.w_full();
+        }
         if let Some(label) = &self.label {
             root = root.child(
                 crate::field::Label::new(label.clone())

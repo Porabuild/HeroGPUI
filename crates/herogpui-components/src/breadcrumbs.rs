@@ -61,6 +61,8 @@ pub struct Breadcrumbs {
     separator_render: Option<SeparatorRender>,
     is_disabled: bool,
     on_navigate: Option<OnNavigate>,
+    /// Expands the root to the available width.
+    full_width: bool,
     /// The `sx` slot, refined over the root style at the end of render.
     sx: Option<Box<gpui::StyleRefinement>>,
 }
@@ -79,6 +81,7 @@ impl Breadcrumbs {
             separator_render: None,
             is_disabled: false,
             on_navigate: None,
+            full_width: false,
             sx: None,
         }
     }
@@ -115,6 +118,13 @@ impl Breadcrumbs {
     /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
     /// applied to the breadcrumbs' root element after every value the active
     /// theme chose, so they win.
+    /// `fullWidth` — expands the root to the available width without
+    /// redistributing the children.
+    pub fn full_width(mut self, v: bool) -> Self {
+        self.full_width = v;
+        self
+    }
+
     pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
         self.sx = Some(crate::util::capture_sx(style));
         self
@@ -311,7 +321,10 @@ impl RenderOnce for Breadcrumbs {
             .collect();
 
         // `.breadcrumbs` is `flex items-center`: one line, no wrap.
-        let el = gpui::div().flex().items_center().children(crumbs);
+        let mut el = gpui::div().flex().items_center().children(crumbs);
+        if self.full_width {
+            el = el.w_full();
+        }
         // Stated after the layout chain so the wrapper stays readable to the
         // character-windowed regexes in `.shots/design_audit.py`.
         //

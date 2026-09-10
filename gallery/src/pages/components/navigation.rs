@@ -216,6 +216,7 @@ impl Gallery {
                         // through the entity directly.
                         h::Breadcrumbs::new(crumbs())
                             .id("bc-usage")
+                            .full_width(true)
                             .on_navigate({
                                 let view = cx.entity().downgrade();
                                 move |idx: &usize, crumb: &h::Crumb, _, _, cx: &mut gpui::App| {
@@ -503,6 +504,7 @@ impl Gallery {
                 (
                     "Usage",
                     col(vec![h::Pagination::new("pg-main", page, 10)
+                        .full_width(true)
                         .on_change(cx.listener(|this, p: &usize, _, cx| {
                             this.pagination_page = *p;
                             cx.notify();

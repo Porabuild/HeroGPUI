@@ -83,6 +83,8 @@ pub struct Toolbar {
     is_attached: bool,
     gap: Option<Pixels>,
     children: Vec<AnyElement>,
+    /// Expands the root to the available width.
+    full_width: bool,
     /// The `sx` slot, refined over the root style at the end of render.
     sx: Option<Box<gpui::StyleRefinement>>,
 }
@@ -95,6 +97,7 @@ impl Toolbar {
             is_attached: false,
             gap: None,
             children: Vec::new(),
+            full_width: false,
             sx: None,
         }
     }
@@ -151,6 +154,13 @@ impl Toolbar {
     /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
     /// applied to the toolbar's root element after every value the orientation,
     /// the attached surface and the active theme chose, so they win.
+    /// `fullWidth` — expands the root to the available width without
+    /// redistributing the children.
+    pub fn full_width(mut self, v: bool) -> Self {
+        self.full_width = v;
+        self
+    }
+
     pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
         self.sx = Some(crate::util::capture_sx(style));
         self
@@ -393,7 +403,9 @@ impl RenderOnce for Toolbar {
                 }
             }
         });
-        let el = crate::util::apply_sx(el.children(self.children), &self.sx);
+        let el = el.children(self.children);
+        let el = if self.full_width { el.w_full() } else { el };
+        let el = crate::util::apply_sx(el, &self.sx);
 
         // Stated after the layout chain, not inside it: `.shots/design_audit.py`
         // reads this toolbar's padding and gap out of the builder chain with

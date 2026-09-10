@@ -397,9 +397,9 @@ impl Gallery {
                 ),
                 (
                     "Horizontal",
-                    col(vec![
-                        bar("h", false, Orientation::Horizontal).into_any_element()
-                    ]),
+                    col(vec![bar("h", false, Orientation::Horizontal)
+                        .full_width(true)
+                        .into_any_element()]),
                 ),
                 (
                     "Attached",

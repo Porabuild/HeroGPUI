@@ -39,6 +39,8 @@ pub struct Pagination {
     /// The fill an enabled link or nav button takes while hovered or pressed,
     /// in place of `--default-hover`.
     hover_bg: Option<gpui::Hsla>,
+    /// Expands the root to the available width.
+    full_width: bool,
     /// The `sx` slot, refined over the root style at the end of render.
     sx: Option<Box<gpui::StyleRefinement>>,
 }
@@ -62,6 +64,13 @@ impl Pagination {
     /// applied to the bar's root element after every value the size and the
     /// active theme chose, so they win. The page cells and nav buttons keep
     /// their own ladder geometry.
+    /// `fullWidth` — expands the root to the available width without
+    /// redistributing the children.
+    pub fn full_width(mut self, v: bool) -> Self {
+        self.full_width = v;
+        self
+    }
+
     pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
         self.sx = Some(crate::util::capture_sx(style));
         self
@@ -81,6 +90,7 @@ impl Pagination {
             size: Size::Md,
             on_change: None,
             hover_bg: None,
+            full_width: false,
             sx: None,
         }
     }
@@ -452,9 +462,12 @@ impl RenderOnce for Pagination {
         // element here: this port draws the page cells straight into the
         // row, and a `list` node whose children are buttons rather than
         // list items would describe a structure that is not there.
-        let el = el
+        let mut el = el
             .id(root_id)
             .a11y_named(a11y::Role::Navigation, &a11y::Name::labelled("pagination"));
+        if self.full_width {
+            el = el.w_full();
+        }
         crate::util::apply_sx(el, &self.sx)
     }
 }

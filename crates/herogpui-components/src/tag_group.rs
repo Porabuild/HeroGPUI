@@ -209,6 +209,8 @@ pub struct TagGroup {
     empty_state: Option<SharedString>,
     on_selection_change: Option<OnSelectionChange>,
     on_remove: Option<OnRemove>,
+    /// Expands the root to the available width.
+    full_width: bool,
     /// The `sx` slot, refined over the root style at the end of render.
     sx: Option<Box<gpui::StyleRefinement>>,
 }
@@ -236,6 +238,7 @@ impl TagGroup {
             empty_state: None,
             on_selection_change: None,
             on_remove: None,
+            full_width: false,
             sx: None,
         }
     }
@@ -332,6 +335,13 @@ impl TagGroup {
     /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
     /// applied to the group's root element after every value the size, the
     /// variant and the active theme chose, so they win.
+    /// `fullWidth` — expands the root to the available width without
+    /// redistributing the children.
+    pub fn full_width(mut self, v: bool) -> Self {
+        self.full_width = v;
+        self
+    }
+
     pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
         self.sx = Some(crate::util::capture_sx(style));
         self
@@ -493,6 +503,9 @@ impl RenderOnce for TagGroup {
         // `.tag-group` is `flex flex-col gap-1`: the label, the list and the
         // description.
         let mut root = div().relative().flex().flex_col().gap(px(4.));
+        if self.full_width {
+            root = root.w_full();
+        }
 
         if let Some(label) = &self.label {
             root = root.child(

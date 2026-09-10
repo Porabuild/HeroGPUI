@@ -851,6 +851,7 @@ impl Gallery {
                 (
                     "Usage",
                     col(vec![h::TagGroup::new("tg-usage", tags())
+                        .full_width(true)
                         .label("Skills")
                         .into_any_element()]),
                 ),

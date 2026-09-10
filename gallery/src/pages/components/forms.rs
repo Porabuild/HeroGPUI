@@ -1783,6 +1783,7 @@ impl Gallery {
                 (
                     "Usage", "Option content uses 14px medium text with 20px lines, independent of surrounding line height.",
                     col(vec![h::RadioGroup::new("rg-usage", plans())
+                        .full_width(true)
                         .default_value("Free")
                         // v3's own example opens with the group's `<Label>` and
                         // `<Description>`, then a `<Description>` per `<Radio>`.
