@@ -828,6 +828,8 @@ pub struct TimeField {
     field: util::FieldBox,
     /// The fill a hovered stepper arrow takes, in place of `--default`.
     stepper_hover_bg: Option<gpui::Hsla>,
+    /// The family the segments are drawn with; unset keeps the mono token.
+    font_family: Option<SharedString>,
     hour_cycle: HourCycle,
     /// `granularity` — the smallest unit shown.
     granularity: TimeGranularity,
@@ -897,6 +899,7 @@ impl TimeField {
             sx: None,
             field: util::FieldBox::default(),
             stepper_hover_bg: None,
+            font_family: None,
         }
     }
 
@@ -1034,6 +1037,12 @@ impl TimeField {
     /// The fill a hovered stepper arrow takes, in place of `--default`.
     pub fn stepper_hover_bg(mut self, color: impl Into<gpui::Hsla>) -> Self {
         self.stepper_hover_bg = Some(color.into());
+        self
+    }
+
+    /// The family the segments are drawn with; unset keeps the mono token.
+    pub fn font_family(mut self, family: impl Into<SharedString>) -> Self {
+        self.font_family = Some(family.into());
         self
     }
 
@@ -1342,6 +1351,9 @@ impl RenderOnce for TimeField {
             .text_size(util::FIELD_TEXT)
             .line_height(px(20.))
             .font_family(util::MONO_FONT)
+            .when_some(self.font_family.clone(), |group, family| {
+                group.font_family(family)
+            })
             .text_color(colors.field.foreground);
 
         if !field_box.is_bare {

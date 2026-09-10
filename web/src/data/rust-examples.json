@@ -1260,7 +1260,7 @@
       "heading": "Box Customisation",
       "description": "`height`, `padding_x` and `is_bare` resize the box in one call. A 28px bare box with an 8px inset.",
       "imports": "use herogpui::prelude::DateField;\nuse gpui::px;",
-      "code": "DateField::new(self.demo_text(\"df-custom-box\", \"\", cx))\n    .label(\"Compact\")\n    .height(px(28.))\n    .padding_x(px(8.))\n    .is_bare(true)"
+      "code": "DateField::new(self.demo_text(\"df-custom-box\", \"\", cx))\n    .label(\"Compact\")\n    .height(px(28.))\n    .padding_x(px(8.))\n    .is_bare(true)\n    .font_family(\"monospace\")"
     },
     {
       "heading": "Granularity",
@@ -1569,7 +1569,7 @@
       "heading": "Box Customisation",
       "description": "The same box seam as the other fields: `height`, `padding_x` and `is_bare`.",
       "imports": "use herogpui::prelude::{ActiveTheme, TimeField, TimeState};\nuse gpui::px;",
-      "code": "TimeField::new(self.demo_time(\"tmf-custom-box\", cx))\n    .label(\"Compact\")\n    .height(px(28.))\n    .padding_x(px(8.))\n    .is_bare(true)\n    .stepper_hover_bg(cx.colors().accent.soft())"
+      "code": "TimeField::new(self.demo_time(\"tmf-custom-box\", cx))\n    .label(\"Compact\")\n    .height(px(28.))\n    .padding_x(px(8.))\n    .is_bare(true)\n    .stepper_hover_bg(cx.colors().accent.soft())\n    .font_family(\"monospace\")"
     },
     {
       "heading": "With Icons",

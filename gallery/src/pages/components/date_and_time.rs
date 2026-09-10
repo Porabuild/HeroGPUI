@@ -315,6 +315,7 @@ impl Gallery {
                         .height(px(28.))
                         .padding_x(px(8.))
                         .is_bare(true)
+                        .font_family("monospace")
                         .into_any_element()]),
                 ),
                 (
@@ -1133,6 +1134,7 @@ impl Gallery {
                         .padding_x(px(8.))
                         .is_bare(true)
                         .stepper_hover_bg(cx.colors().accent.soft())
+                        .font_family("monospace")
                         .into_any_element()]),
                 ),
                 (

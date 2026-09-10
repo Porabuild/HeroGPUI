@@ -455,6 +455,8 @@ pub struct DateField {
     bare: bool,
     /// Public chrome-only bare mode: keeps the box geometry, drops the paint.
     is_bare: bool,
+    /// The family the segments are drawn with; unset keeps the mono token.
+    font_family: Option<SharedString>,
     /// Explicit single-line box height; `None` is the 36px stock box.
     height: Option<gpui::Pixels>,
     /// Explicit horizontal box padding; `None` is `px-3`.
@@ -625,6 +627,12 @@ impl DateField {
         self
     }
 
+    /// The family the segments are drawn with; unset keeps the mono token.
+    pub fn font_family(mut self, family: impl Into<SharedString>) -> Self {
+        self.font_family = Some(family.into());
+        self
+    }
+
     /// `value` — v3's controlled-date spelling, as a pure builder.
     ///
     /// The bound [`crate::InputState`] owns the ISO text once the field
@@ -705,6 +713,7 @@ impl DateField {
             embedded: false,
             bare: false,
             is_bare: false,
+            font_family: None,
             height: None,
             padding_x: None,
             on_picker_open: None,
@@ -1171,6 +1180,9 @@ impl RenderOnce for DateField {
             .text_size(crate::util::FIELD_TEXT)
             .line_height(px(20.))
             .font_family(crate::util::MONO_FONT)
+            .when_some(self.font_family.clone(), |group, family| {
+                group.font_family(family)
+            })
             .text_color(colors.field.foreground)
             .when(!self.bare, |el| {
                 // `.date-input-group` is `h-9 items-center overflow-hidden`
