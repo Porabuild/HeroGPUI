@@ -196,6 +196,26 @@ impl Gallery {
                     )]),
                 ),
                 (
+                    "Sizes", "`size` is HeroGPUI's additive scale: `Md` is v3's 20px rail with its two-layer thumb, and `Sm` is a 6px pill with a single 12px knob.",
+                    col(vec![
+                        fixed_demo(
+                            320.,
+                            h::Slider::new("sl-size-md", 40.)
+                                .default_value(40.)
+                                .label("Md")
+                                .show_value(true),
+                        ),
+                        fixed_demo(
+                            320.,
+                            h::Slider::new("sl-size-sm", 40.)
+                                .default_value(40.)
+                                .size(h::SliderSize::Sm)
+                                .label("Sm")
+                                .show_value(true),
+                        ),
+                    ]),
+                ),
+                (
                     "Vertical Orientation", "The vertical specimen grows upward with its label attached.",
                     col(vec![fixed_demo(
                         320.,

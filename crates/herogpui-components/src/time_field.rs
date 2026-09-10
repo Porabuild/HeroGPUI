@@ -1488,12 +1488,14 @@ impl RenderOnce for TimeField {
 
             if navigable {
                 let state = self.state.clone();
-                seg = seg.cursor_pointer().on_click(move |_, _, cx| {
-                    state.update(cx, |s, cx| {
-                        s.focused = segment;
-                        cx.notify();
+                seg = seg
+                    .cursor(util::interactive_cursor(cx))
+                    .on_click(move |_, _, cx| {
+                        state.update(cx, |s, cx| {
+                            s.focused = segment;
+                            cx.notify();
+                        });
                     });
-                });
             }
 
             let seg_text = segment_text(segment);
@@ -1539,7 +1541,7 @@ impl RenderOnce for TimeField {
                         .w(px(18.))
                         .h(px(14.))
                         .rounded(px(4.))
-                        .cursor_pointer()
+                        .cursor(util::interactive_cursor(cx))
                         .text_color(colors.muted)
                         .hover(move |s| s.bg(hover_bg))
                         .child(

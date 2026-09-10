@@ -571,7 +571,7 @@ impl RenderOnce for ColorArea {
             let down_own = own.clone();
             let down_value = self.value;
             let (x_channel, y_channel) = (self.x_channel, self.y_channel);
-            area = area.cursor_pointer().on_mouse_down(
+            area = area.cursor(util::interactive_cursor(cx)).on_mouse_down(
                 gpui::MouseButton::Left,
                 move |event: &MouseDownEvent, window, cx| {
                     if event.modifiers.alt || event.modifiers.control || event.modifiers.platform {

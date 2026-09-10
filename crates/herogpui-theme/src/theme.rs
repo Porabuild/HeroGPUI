@@ -120,6 +120,13 @@ impl ThemeBuilder {
         self
     }
 
+    /// Sets the cursor every interactive control shows on hover. Defaults to
+    /// [`gpui::CursorStyle::PointingHand`], v3's `cursor: pointer`.
+    pub fn cursor_interactive(mut self, cursor: gpui::CursorStyle) -> Self {
+        self.theme.layout.cursor_interactive = cursor;
+        self
+    }
+
     // -- base colors --------------------------------------------------------
 
     pub fn background(mut self, c: Hsla) -> Self {
@@ -264,6 +271,26 @@ impl ThemeBuilder {
 mod tests {
     use super::*;
     use herogpui_core::{mix_oklab, oklch, with_alpha};
+
+    #[test]
+    fn the_builder_overrides_the_interactive_cursor_and_nothing_else() {
+        let base = Theme::light();
+        assert_eq!(
+            base.layout.cursor_interactive,
+            gpui::CursorStyle::PointingHand
+        );
+
+        let theme = Theme::builder("arrow", base.clone())
+            .cursor_interactive(gpui::CursorStyle::Arrow)
+            .build();
+
+        assert_eq!(theme.layout.cursor_interactive, gpui::CursorStyle::Arrow);
+        assert_eq!(theme.layout.radius, base.layout.radius);
+        assert!(
+            (theme.layout.disabled_opacity - base.layout.disabled_opacity).abs() < f32::EPSILON
+        );
+        assert_eq!(theme.colors.background, base.colors.background);
+    }
 
     #[test]
     fn overriding_foreground_recomputes_scrollbar_without_changing_other_tokens() {

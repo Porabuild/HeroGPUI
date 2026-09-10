@@ -576,7 +576,9 @@ impl RenderOnce for TagGroup {
                         TagVariant::Surface => colors.surface.hover(),
                     }
                 };
-                chip = chip.cursor_pointer().hover(move |s| s.bg(hover));
+                chip = chip
+                    .cursor(crate::util::interactive_cursor(cx))
+                    .hover(move |s| s.bg(hover));
             }
 
             if let Some(path) = &tag.icon {
@@ -662,7 +664,7 @@ impl RenderOnce for TagGroup {
                     let cursor_for_remove = cursor.clone();
                     close = close
                         .track_focus(remove_focus)
-                        .cursor_pointer()
+                        .cursor(crate::util::interactive_cursor(cx))
                         .hover(move |s| s.bg(hover_bg))
                         // React Aria's grid-list stops row key handling while
                         // a child button owns the focus, except for Tab.

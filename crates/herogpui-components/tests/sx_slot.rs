@@ -79,3 +79,37 @@ fn sx_replaces_the_ladder_height_on_a_plain_root(cx: &mut TestAppContext) {
         "the sx height should replace the ladder height, got {bounds:?}"
     );
 }
+
+#[gpui::test]
+fn sx_background_with_hover_bg_keeps_the_press_path_through_the_hover_fade(
+    cx: &mut TestAppContext,
+) {
+    let changes = events();
+    let recorded = changes.clone();
+    let cx = open_host(cx, move || {
+        let pressed = changes.clone();
+        Button::new("sx-bg-hover")
+            .label("Tinted")
+            .sx(|el| {
+                el.bg(gpui::rgba(0xffa500ff))
+                    .text_color(gpui::rgba(0x000000ff))
+            })
+            // Naming the hover fill un-freezes the fade the `sx` background
+            // pinned: its two endpoints now differ, so the animated fill is
+            // actually mounted while the pointer is over the button — and the
+            // element id, and with it the single hover listener the press path
+            // rides on, still has to survive that.
+            .hover_bg(gpui::rgba(0x804000ff))
+            .on_press(move |_, _, _| pressed.borrow_mut().push("press".into()))
+            .into_any_element()
+    });
+    cx.simulate_event(MouseMoveEvent {
+        position: point(px(36.), px(18.)),
+        pressed_button: None,
+        modifiers: Modifiers::none(),
+    });
+    cx.update(|window, _| window.refresh());
+    cx.run_until_parked();
+    click(cx, 36., 18.);
+    assert_eq!(recorded.borrow().as_slice(), ["press"]);
+}

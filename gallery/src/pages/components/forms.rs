@@ -950,6 +950,17 @@ impl Gallery {
                             .into_any_element(),
                     ]),
                 ),
+                (
+                    "Compact Box",
+                    "`height`, `padding_x` and `is_bare` are the box knobs: a 28px chromeless field with a leading icon, for a toolbar or a table cell the caller paints itself. Only the row height changes -- the text keeps its 14px size and 20px line.",
+                    field_col(vec![h::TextField::new(self.demo_text("in-compact", "", cx))
+                        .placeholder("Filter rows")
+                        .height(px(28.))
+                        .padding_x(px(8.))
+                        .is_bare(true)
+                        .start_content(icon(h::icons::SEARCH, cx))
+                        .into_any_element()]),
+                ),
             ],
             cx,
         )

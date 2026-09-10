@@ -102,7 +102,7 @@ impl RenderOnce for Label {
         match self.label_for {
             Some((id, handle)) if !self.is_disabled => el
                 .id(id)
-                .cursor_pointer()
+                .cursor(crate::util::interactive_cursor(cx))
                 .on_click(move |_: &gpui::ClickEvent, window: &mut Window, cx| {
                     window.focus(&handle, cx);
                 })

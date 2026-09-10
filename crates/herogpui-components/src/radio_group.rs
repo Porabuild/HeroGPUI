@@ -641,7 +641,9 @@ impl RenderOnce for RadioGroup {
                 .line_height(px(20.))
                 .font_weight(gpui::FontWeight::MEDIUM)
                 .text_color(colors.foreground)
-                .when(!row_disabled && !self.is_read_only, |r| r.cursor_pointer())
+                .when(!row_disabled && !self.is_read_only, |r| {
+                    r.cursor(crate::util::interactive_cursor(cx))
+                })
                 .when(row_disabled, |r| r.opacity(layout.disabled_opacity))
                 .child(circle_el)
                 .child(match &self.option_content {

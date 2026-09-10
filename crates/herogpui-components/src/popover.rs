@@ -879,7 +879,7 @@ impl RenderOnce for Popover {
             .id(element_id::scoped(&self.id, "trigger"))
             .flex()
             .track_focus(&trigger_focus)
-            .cursor_pointer();
+            .cursor(crate::util::interactive_cursor(cx));
         if self.on_open_change.is_some() || open_own.is_some() {
             let on_open_change = self.on_open_change.clone();
             let own = open_own.clone();

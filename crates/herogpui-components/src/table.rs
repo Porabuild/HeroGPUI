@@ -1701,7 +1701,7 @@ impl RenderOnce for Table {
                         .group(sort_group.clone())
                         .flex_1()
                         .flex()
-                        .cursor_pointer()
+                        .cursor(crate::util::interactive_cursor(cx))
                         // The focus is what makes Enter and Space sort: gpui
                         // fires a *focused* element's click listeners for them.
                         .track_focus(&header_focus[column_index])
@@ -3398,12 +3398,11 @@ impl RowCtx {
                         .size(px(18.))
                         .flex_shrink_0()
                         .when(!is_disabled, |chevron| {
-                            chevron.cursor_pointer().on_mouse_down(
-                                gpui::MouseButton::Left,
-                                |_, _, cx| {
+                            chevron
+                                .cursor(crate::util::interactive_cursor(cx))
+                                .on_mouse_down(gpui::MouseButton::Left, |_, _, cx| {
                                     cx.stop_propagation();
-                                },
-                            )
+                                })
                         })
                         .child(
                             gpui::svg()
@@ -3486,7 +3485,7 @@ impl RowCtx {
             // selected rule wins the cascade over the hover's.
             let secondary = self.secondary;
             row = row
-                .cursor_pointer()
+                .cursor(crate::util::interactive_cursor(cx))
                 .hover(move |s| {
                     s.bg(selected_bg.unwrap_or(if secondary {
                         colors.default.color.alpha(0.5)

@@ -33,6 +33,17 @@ fn default_output(labels: &[String]) -> String {
     labels.join(" \u{2013} ")
 }
 
+/// Slider scale. HeroUI v3.2.4 draws exactly one slider size, which is
+/// [`SliderSize::Md`] here and stays the default; `Sm` is HeroGPUI's additive
+/// compact rail — a 6px track with a single-layer 12px round knob, fully
+/// rounded on every part.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum SliderSize {
+    Sm,
+    #[default]
+    Md,
+}
+
 /// HeroUI Slider.
 #[derive(IntoElement)]
 pub struct Slider {
@@ -41,6 +52,8 @@ pub struct Slider {
     name: Option<gpui::SharedString>,
     id: gpui::ElementId,
     value: f32,
+    /// The rail/knob scale; see [`SliderSize`].
+    size: SliderSize,
     min: f32,
     max: f32,
     step: f32,
@@ -83,6 +96,12 @@ pub struct Slider {
 }
 
 impl Slider {
+    /// The rail and knob scale. `Md` is v3's geometry and the default.
+    pub fn size(mut self, size: SliderSize) -> Self {
+        self.size = size;
+        self
+    }
+
     /// `orientation` — a vertical slider runs bottom to top.
     pub fn orientation(mut self, orientation: Orientation) -> Self {
         self.orientation = orientation;
@@ -100,6 +119,7 @@ impl Slider {
             name: None,
             id: id.into(),
             value,
+            size: SliderSize::default(),
             min: 0.0,
             max: 100.0,
             step: 1.0,
@@ -600,6 +620,18 @@ impl RenderOnce for Slider {
         // 28x20 around a 24x16 centre horizontally, transposed vertically.
         let track_cross = px(20.);
         let thumb_along = px(28.);
+        // `Sm` is the additive compact rail: a 6px track with a single-layer
+        // 12x12 round knob, which is also its whole hit area.
+        let small = self.size == SliderSize::Sm;
+        let (track_cross, thumb_along) = if small {
+            (px(6.), px(12.))
+        } else {
+            (track_cross, thumb_along)
+        };
+        // The knob overhangs the 6px rail, so it centers on the cross axis by
+        // half the overhang; `Md`'s thumb matches the rail and needs none.
+        let thumb_cross = if small { px(12.) } else { track_cross };
+        let cross_overhang = (thumb_cross - track_cross) / 2.;
         let range_span = self.max - self.min;
 
         // `useSlider` names the whole control `role="group"`; only the thumb
@@ -655,6 +687,7 @@ impl RenderOnce for Slider {
             .flex()
             .items_center()
             .rounded(crate::util::small_radius(cx))
+            .when(small, |t| t.rounded_full())
             .bg(default.color);
         track = if vertical {
             track.w(track_cross).h(px(160.))
@@ -663,7 +696,7 @@ impl RenderOnce for Slider {
         };
 
         if !self.is_disabled {
-            track = track.cursor_pointer();
+            track = crate::util::cursor_interactive(track, cx);
         } else {
             track = track.opacity(layout.disabled_opacity);
         }
@@ -700,9 +733,16 @@ impl RenderOnce for Slider {
         // content box that border leaves. The end borders turn accent when
         // the fill reaches that end (`data-fill-start`/`data-fill-end`).
         let axis_inset = px(12.);
+        let axis_inset = if small { px(8.) } else { axis_inset };
         let fill_start = fill_reaches_start(thumbs.len(), fill_from, fill_to);
         let fill_end = fill_reaches_end(fill_to);
         let track_radius = crate::util::small_radius(cx);
+        // Half the 6px rail rounds `Sm`'s end caps into a pill.
+        let track_radius = if small {
+            track_cross / 2.
+        } else {
+            track_radius
+        };
         track = track
             .when(fill_start && !vertical, |t| {
                 t.child(
@@ -782,6 +822,7 @@ impl RenderOnce for Slider {
             gpui::div()
                 .absolute()
                 .bg(sem.color)
+                .when(small, |f| f.rounded_full())
                 .when(vertical, |f| {
                     f.bottom(gpui::relative(fill_from))
                         .w_full()
@@ -821,19 +862,21 @@ impl RenderOnce for Slider {
                 .when(vertical, |t| {
                     t.bottom(gpui::relative(f))
                         .mb(-thumb_along / 2.)
-                        .w(track_cross)
+                        .w(thumb_cross)
                         .h(thumb_along)
+                        .when(small, |t| t.left(-cross_overhang))
                 })
                 .when(!vertical, |t| {
                     t.left(gpui::relative(f))
                         .ml(-thumb_along / 2.)
                         .w(thumb_along)
-                        .h(track_cross)
+                        .h(thumb_cross)
+                        .when(small, |t| t.top(-cross_overhang))
                 })
                 .flex_shrink_0();
             thumb_el = match &self.thumb {
                 Some(render) => thumb_el.child(render(index, thumbs[index])),
-                None => thumb_el
+                None if !small => thumb_el
                     .rounded(crate::util::small_radius(cx))
                     .bg(sem.color)
                     .child(
@@ -858,6 +901,9 @@ impl RenderOnce for Slider {
                             .bg(sem.foreground)
                             .shadow(layout.field_shadow.clone()),
                     ),
+                // `Sm` is a single-layer round knob in the foreground token;
+                // there is no inner mark to nest.
+                None => thumb_el.rounded_full().bg(colors.foreground),
             };
             // `.slider__thumb` takes `status-focused` -- the thumb the keys
             // move, while the slider holds a keyboard focus. A disabled thumb

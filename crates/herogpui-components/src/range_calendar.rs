@@ -687,7 +687,7 @@ impl RangeCalendar {
                 .bg(accent.soft())
                 .text_color(accent.soft_foreground(colors.foreground));
             if selectable {
-                cell = cell.cursor_pointer();
+                cell = util::cursor_interactive(cell, cx);
                 if !is_selected {
                     let hover_bg = accent.soft_hover();
                     cell = cell.hover(move |s| s.bg(hover_bg));
@@ -701,7 +701,9 @@ impl RangeCalendar {
             cell = cell.rounded_full();
             if selectable {
                 let hover_bg = colors.default.color;
-                cell = cell.cursor_pointer().hover(move |s| s.bg(hover_bg));
+                cell = cell
+                    .cursor(util::interactive_cursor(cx))
+                    .hover(move |s| s.bg(hover_bg));
             }
         }
 
@@ -1074,7 +1076,7 @@ impl RangeCalendar {
                     let hover_fg = colors.default.foreground;
                     cell = cell
                         .text_color(colors.foreground)
-                        .cursor_pointer()
+                        .cursor(util::interactive_cursor(cx))
                         .hover(move |s| s.bg(hover_bg).text_color(hover_fg));
                 }
                 if !self.is_disabled {
@@ -1491,7 +1493,7 @@ impl RenderOnce for RangeCalendar {
                 )
                 .when(!disabled, |b| {
                     let pressed = b
-                        .cursor_pointer()
+                        .cursor(util::interactive_cursor(cx))
                         .hover(move |s| s.bg(hover_bg))
                         .on_click(move |_, _, cx| {
                             state.update(cx, |s, cx| {
@@ -1541,7 +1543,7 @@ impl RenderOnce for RangeCalendar {
                         .rounded(util::key_radius(cx))
                         .when(!self.is_disabled, |trigger| {
                             trigger
-                                .cursor_pointer()
+                                .cursor(util::interactive_cursor(cx))
                                 .on_click(move |_, _, cx| {
                                     opener.update(cx, |value, _| *value = index);
                                     if let Some(held) = &own {
@@ -1590,7 +1592,7 @@ impl RenderOnce for RangeCalendar {
                         .rounded(util::key_radius(cx))
                         .when(!self.is_disabled, |trigger| {
                             trigger
-                                .cursor_pointer()
+                                .cursor(util::interactive_cursor(cx))
                                 .on_click(move |_, window, cx| {
                                     opener.update(cx, |value, _| *value = index);
                                     // Uncontrolled: flip our own copy too, or

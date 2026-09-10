@@ -255,7 +255,7 @@ impl RenderOnce for Link {
             // the text colour. gpui panics on a second `hover` call, so each
             // closure owns its state's whole underline.
             el = el
-                .cursor_pointer()
+                .cursor(crate::util::interactive_cursor(cx))
                 .hover(move |mut s: StyleRefinement| {
                     s.text_style().underline = Some(underline(hover_decoration));
                     s

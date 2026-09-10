@@ -1936,3 +1936,244 @@ fn input_label_description_and_error_keep_pinned_line_heights(cx: &mut TestAppCo
         );
     }
 }
+
+// ---------------------------------------------------------------------------
+// Input box geometry: `height`, `padding_x`, `is_bare`, `start_content`
+// ---------------------------------------------------------------------------
+
+/// A zero-behaviour marker inside the field, so the text row's left edge is
+/// measurable: it is the first child of the box, so its origin is the box
+/// origin plus whatever inset the box carries.
+fn inset_probe(name: &'static str) -> gpui::AnyElement {
+    gpui::div()
+        .w(px(10.))
+        .h(px(10.))
+        .debug_selector(move || name.to_owned())
+        .into_any_element()
+}
+
+/// The bounds of the wrapper a standalone `Input` is placed in. With no label,
+/// description or error the field row is the wrapper column's only child, so
+/// the wrapper's height *is* the box height.
+fn box_bounds(cx: &mut VisualTestContext, name: &'static str) -> Bounds<Pixels> {
+    cx.debug_bounds(name)
+        .unwrap_or_else(|| panic!("the `{name}` wrapper must paint"))
+}
+
+/// The default box is v3's 36px `.input`, and `height` replaces that one
+/// value. Both boxes are measured; the assertion is that the default equals
+/// the component's own constant and that the override differs from it by the
+/// requested amount.
+#[gpui::test]
+fn input_height_replaces_the_field_height_and_defaults_to_it(cx: &mut TestAppContext) {
+    const SHORT: f32 = 28.;
+    let default_state = cx.new(|cx| InputState::new(cx));
+    let short_state = cx.new(|cx| InputState::new(cx));
+    let cx = open_host(cx, move || {
+        gpui::div()
+            .flex()
+            .flex_col()
+            .items_start()
+            .child(
+                gpui::div()
+                    .debug_selector(|| "h-default".to_owned())
+                    .child(Input::new(default_state.clone())),
+            )
+            .child(
+                gpui::div()
+                    .debug_selector(|| "h-short".to_owned())
+                    .child(Input::new(short_state.clone()).height(px(SHORT))),
+            )
+            .into_any_element()
+    });
+    flush_frame(cx);
+
+    let default_box = box_bounds(cx, "h-default");
+    let short_box = box_bounds(cx, "h-short");
+    assert!(
+        near(
+            default_box.size.height,
+            f32::from(herogpui_components::util::FIELD_HEIGHT)
+        ),
+        "an untouched field must stay `util::FIELD_HEIGHT` tall, got {default_box:?}"
+    );
+    assert!(
+        near(short_box.size.height, SHORT),
+        "`height` must replace the box height, got {short_box:?}"
+    );
+    assert!(
+        default_box.size.height - short_box.size.height
+            == herogpui_components::util::FIELD_HEIGHT - px(SHORT),
+        "the only difference between the two boxes must be the requested \
+         height delta: default={default_box:?} short={short_box:?}"
+    );
+}
+
+/// `padding_x` replaces v3's `px-3`: the field's leading content moves by the
+/// difference, and by nothing else.
+#[gpui::test]
+fn input_padding_x_moves_the_content_origin_by_the_requested_delta(cx: &mut TestAppContext) {
+    const WIDE: f32 = 24.;
+    let default_state = cx.new(|cx| InputState::new(cx));
+    let wide_state = cx.new(|cx| InputState::new(cx));
+    let cx = open_host(cx, move || {
+        gpui::div()
+            .flex()
+            .flex_col()
+            .items_start()
+            .child(Input::new(default_state.clone()).start_content(inset_probe("pad-default")))
+            .child(
+                Input::new(wide_state.clone())
+                    .padding_x(px(WIDE))
+                    .start_content(inset_probe("pad-wide")),
+            )
+            .into_any_element()
+    });
+    flush_frame(cx);
+
+    let default_probe = box_bounds(cx, "pad-default");
+    let wide_probe = box_bounds(cx, "pad-wide");
+    let delta = f32::from(wide_probe.origin.x - default_probe.origin.x);
+    assert!(
+        (delta - (WIDE - 12.)).abs() < 0.5,
+        "`padding_x` must move the content origin by the delta over the \
+         default 12px inset, moved {delta}: default={default_probe:?} \
+         wide={wide_probe:?}"
+    );
+}
+
+/// `is_bare(true)` drops the chrome the variant would paint. The measurable
+/// trace of that chrome is the invalid state's 1px border, which insets the
+/// content: a bare field carries none of it, and `is_bare(false)` keeps it.
+#[gpui::test]
+fn is_bare_drops_the_chrome_the_variant_would_paint(cx: &mut TestAppContext) {
+    let bare_state = cx.new(|cx| InputState::new(cx));
+    let chromed_state = cx.new(|cx| InputState::new(cx));
+    let cx = open_host(cx, move || {
+        gpui::div()
+            .flex()
+            .flex_col()
+            .items_start()
+            .child(
+                Input::new(bare_state.clone())
+                    .is_bare(true)
+                    .is_invalid(true)
+                    .start_content(inset_probe("bare-probe")),
+            )
+            .child(
+                Input::new(chromed_state.clone())
+                    .is_bare(false)
+                    .is_invalid(true)
+                    .start_content(inset_probe("chromed-probe")),
+            )
+            .into_any_element()
+    });
+    flush_frame(cx);
+
+    let bare = box_bounds(cx, "bare-probe");
+    let chromed = box_bounds(cx, "chromed-probe");
+    assert!(
+        chromed.origin.x > bare.origin.x,
+        "the chromed invalid field must paint the danger border that insets \
+         its content; the bare one must paint no chrome at all: \
+         bare={bare:?} chromed={chromed:?}"
+    );
+    assert!(
+        near(bare.origin.x, 12.),
+        "a bare field must keep only its own padding, got {bare:?}"
+    );
+}
+
+/// A bare field is still a field: it takes focus from a click and accepts
+/// typing, because `is_bare` reuses the same chrome-less branch
+/// `InputGroup.Input` takes rather than changing any behaviour.
+#[gpui::test]
+fn is_bare_keeps_the_field_focusable_and_editable(cx: &mut TestAppContext) {
+    let state = cx.new(|cx| InputState::new(cx));
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        Input::new(state_for_view.clone())
+            .is_bare(true)
+            .into_any_element()
+    });
+    click(cx, 40., 18.);
+    press(cx, "b a r e");
+    cx.update(|_, cx| {
+        assert_eq!(
+            state.read(cx).value(),
+            "bare",
+            "a bare field must still take focus and typing"
+        );
+    });
+}
+
+/// The single chrome call site stays single: `is_bare` is an extra reason to
+/// skip it, not a second copy of the background/border/shadow logic.
+#[gpui::test]
+fn is_bare_reuses_the_one_chrome_call_site() {
+    let source = include_str!("../src/input.rs");
+    assert_eq!(
+        source.matches("apply_field_chrome").count(),
+        1,
+        "the field must have exactly one chrome call site"
+    );
+    assert!(
+        source.contains("if self.in_group.is_none() && !self.is_bare {"),
+        "the chrome must be skipped for a bare field on that one call site"
+    );
+}
+
+/// `TextField` forwards `start_content`, so the labelled wrapper can carry a
+/// leading icon without dropping to the bare `Input`.
+#[gpui::test]
+fn text_field_start_content_renders_inside_the_box(cx: &mut TestAppContext) {
+    let state = cx.new(|cx| InputState::new(cx));
+    let cx = open_host(cx, move || {
+        TextField::new(state.clone())
+            .placeholder("Search")
+            .start_content(inset_probe("tf-start"))
+            .into_any_element()
+    });
+    flush_frame(cx);
+
+    let probe = box_bounds(cx, "tf-start");
+    assert!(
+        near(probe.origin.x, 12.) && near(probe.size.width, 10.),
+        "the leading element must render at the box's 12px inset, got {probe:?}"
+    );
+}
+
+/// `height`, `padding_x` and `is_bare` are forwarded by `TextField` to the
+/// same box, and a labelled field's box is still the row under the 20px label
+/// line plus the wrapper's 4px gap.
+#[gpui::test]
+fn text_field_forwards_the_box_builders(cx: &mut TestAppContext) {
+    const SHORT: f32 = 28.;
+    let state = cx.new(|cx| InputState::new(cx));
+    let cx = open_host(cx, move || {
+        gpui::div()
+            .debug_selector(|| "tf-box".to_owned())
+            .child(
+                TextField::new(state.clone())
+                    .height(px(SHORT))
+                    .padding_x(px(4.))
+                    .is_bare(true)
+                    .font_family("monospace")
+                    .start_content(inset_probe("tf-box-start")),
+            )
+            .into_any_element()
+    });
+    flush_frame(cx);
+
+    let wrapper = box_bounds(cx, "tf-box");
+    let probe = box_bounds(cx, "tf-box-start");
+    assert!(
+        near(wrapper.size.height, SHORT),
+        "the forwarded height must be the whole unlabelled column's height, \
+         got {wrapper:?}"
+    );
+    assert!(
+        near(probe.origin.x, 4.),
+        "the forwarded padding must inset the leading element, got {probe:?}"
+    );
+}

@@ -950,7 +950,7 @@ impl RenderOnce for Menu {
                         // text alone was this port's own idea of the state.
                         row = row.opacity(cx.layout().disabled_opacity);
                     } else {
-                        row = row.cursor_pointer();
+                        row = crate::util::cursor_interactive(row, cx);
                         // `.menu-item:hover` fills with `bg-default`, the full
                         // token, not the soft wash.
                         row = row.hover(move |s| s.bg(colors.default.color));
@@ -1760,7 +1760,7 @@ impl RenderOnce for Dropdown {
         let mut trigger_wrap = gpui::div()
             .id(element_id::scoped(&wrap_base_id, "trigger"))
             .track_focus(&trigger_handle)
-            .cursor_pointer();
+            .cursor(crate::util::interactive_cursor(cx));
         let dismiss_own = open_own.clone();
         let on_open_change = self.on_open_change.clone();
         if on_open_change.is_some() || open_own.is_some() {

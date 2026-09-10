@@ -1213,6 +1213,70 @@ fn button_content_render_prop_sees_press(cx: &mut TestAppContext) {
     );
 }
 
+/// `hover_bg` names the colour the fade eases *to*, so — unlike an `sx`
+/// background on its own, which pins both endpoints — the animated fill really
+/// is mounted and re-keyed while the pointer crosses the button. That fill is
+/// the thing the single-hover-listener fix in `anim::hover_fade` exists to
+/// protect, so this drives the same hover/press sequence as
+/// `button_content_render_prop_sees_press` with the custom hover colour set
+/// and no `sx`: the interaction slot must still see every transition.
+#[gpui::test]
+fn button_hover_bg_keeps_the_interaction_slot_reporting(cx: &mut TestAppContext) {
+    let seen = Rc::new(RefCell::new((false, false)));
+    let record = seen.clone();
+    let cx = open_host(cx, move || {
+        let record = record.clone();
+        Button::new("btn-hover-bg")
+            .full_width(true)
+            .hover_bg(gpui::rgba(0x804000ff))
+            .content(move |state: util::InteractiveState| {
+                *record.borrow_mut() = (state.is_hovered, state.is_pressed);
+                gpui::div().child("state".to_owned()).into_any_element()
+            })
+            .into_any_element()
+    });
+
+    let centre = point(px(960.), px(18.));
+
+    assert_eq!(*seen.borrow(), (false, false), "initial state must be idle");
+
+    cx.simulate_mouse_move(centre, None::<MouseButton>, Modifiers::none());
+    flush_frame(cx);
+    assert_eq!(
+        *seen.borrow(),
+        (true, false),
+        "the frame after the move must see the hover"
+    );
+
+    cx.simulate_mouse_down(centre, MouseButton::Left, Modifiers::none());
+    flush_frame(cx);
+    assert_eq!(
+        *seen.borrow(),
+        (true, true),
+        "the frame after the down must see the press"
+    );
+
+    cx.simulate_mouse_up(centre, MouseButton::Left, Modifiers::none());
+    flush_frame(cx);
+    assert_eq!(
+        *seen.borrow(),
+        (true, false),
+        "the frame after the up must see the press lifted"
+    );
+
+    cx.simulate_mouse_move(
+        point(px(4.), px(500.)),
+        None::<MouseButton>,
+        Modifiers::none(),
+    );
+    flush_frame(cx);
+    assert_eq!(
+        *seen.borrow(),
+        (false, false),
+        "the frame after leaving must see the hover lifted"
+    );
+}
+
 #[gpui::test]
 fn button_content_render_prop_sees_keyboard_press(cx: &mut TestAppContext) {
     let seen = Rc::new(RefCell::new(false));

@@ -5578,3 +5578,66 @@ fn autocomplete_filter_reads_labels_and_end_commits_the_last_match(cx: &mut Test
         "End must reach the last filtered row and Enter must commit its key"
     );
 }
+
+// ---------------------------------------------------------------------------
+// Select row_height
+// ---------------------------------------------------------------------------
+
+/// `Select::row_height` is the virtualized row box, and the option inside it
+/// must be that tall too. It carried `min_h(util::FIELD_HEIGHT)` regardless,
+/// so a row shorter than 36px was a 36px option overflowing a 28px row.
+///
+/// Measured, not asserted against itself: the two rows' own painted bounds
+/// must step by the requested height and neither may exceed it.
+#[gpui::test]
+fn select_row_height_sizes_the_option_inside_the_row(cx: &mut TestAppContext) {
+    still();
+    const ROW: f32 = 28.;
+    let cx = open_host(cx, move || {
+        Select::new("sel-rh", keyed(&["One", "Two", "Three"]))
+            .row_height(px(ROW))
+            .into_any_element()
+    });
+    click(cx, 60., 18.);
+    flush_frame(cx);
+
+    let first = cx
+        .debug_bounds("select-list-Name(\"sel-rh\")-opt-0")
+        .expect("the first option must be laid out");
+    let second = cx
+        .debug_bounds("select-list-Name(\"sel-rh\")-opt-1")
+        .expect("the second option must be laid out");
+    assert!(
+        near_px(second.origin.y - first.origin.y, ROW),
+        "the virtual rows must step by the requested row height: first={first:?} second={second:?}"
+    );
+    for (name, row) in [("first", first), ("second", second)] {
+        assert!(
+            f32::from(row.size.height) <= ROW + 0.5,
+            "the {name} option must not be taller than its {ROW}px row, got {row:?}"
+        );
+    }
+}
+
+/// The default (no `row_height`) list is unchanged: its options keep the 36px
+/// `.list-box-item` floor.
+#[gpui::test]
+fn select_without_row_height_keeps_the_thirty_six_pixel_option_floor(cx: &mut TestAppContext) {
+    still();
+    let cx = open_host(cx, move || {
+        Select::new("sel-rh-default", keyed(&["One", "Two"])).into_any_element()
+    });
+    click(cx, 60., 18.);
+    flush_frame(cx);
+
+    let first = cx
+        .debug_bounds("select-list-Name(\"sel-rh-default\")-opt-0")
+        .expect("the first option must be laid out");
+    assert!(
+        near_px(
+            first.size.height,
+            f32::from(herogpui_components::util::FIELD_HEIGHT)
+        ),
+        "a plain option must keep the field-height floor, got {first:?}"
+    );
+}

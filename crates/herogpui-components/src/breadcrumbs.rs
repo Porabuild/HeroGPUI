@@ -231,7 +231,7 @@ impl RenderOnce for Breadcrumbs {
                     // class — plain CSS `:hover`, so it applies to every
                     // enabled crumb including the inert span link.
                     .px(px(2.))
-                    .when(is_link, |el| el.cursor_pointer())
+                    .when(is_link, |el| el.cursor(crate::util::interactive_cursor(cx)))
                     .when(is_link, |el| el.hover(|s| s.underline()))
                     // `[data-current]` carries `opacity-100` so the current
                     // page never takes the disabled fade.

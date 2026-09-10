@@ -470,6 +470,10 @@ EXTRA_OK_SCOPED = {
     'ColorArea.size': 'no-classname',
     # v3 tints `Modal.Icon` with `className="bg-default text-foreground"`.
     'Modal.icon_color': 'no-classname',
+    # v3 tints a button's hover with `className="hover:bg-..."`; here an `sx`
+    # background pins both of the hover fade's endpoints, so the hover colour
+    # has to be nameable on its own.
+    'Button.hover_bg': 'no-classname',
     # v3's stylesheet declares `.range-calendar__cell-indicator`; only the
     # Calendar's prop table names the part.
     'RangeCalendar.cell_indicator': 'composition',

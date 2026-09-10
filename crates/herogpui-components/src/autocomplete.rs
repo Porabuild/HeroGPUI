@@ -902,7 +902,7 @@ impl RenderOnce for Autocomplete {
             };
             field = field
                 .hover(move |s| if clear_hovered { s } else { s.bg(hover_bg) })
-                .cursor_pointer();
+                .cursor(util::interactive_cursor(cx));
         }
         if self.full_width {
             field = field.w_full();
@@ -1034,7 +1034,7 @@ impl RenderOnce for Autocomplete {
             .items_center()
             .justify_center()
             .flex_shrink_0()
-            .when(clear_active, |el| el.cursor_pointer())
+            .when(clear_active, |el| el.cursor(util::interactive_cursor(cx)))
             .when(clear_empty, |el| el.opacity(0.))
             .debug_selector({
                 let base = base.clone();
@@ -1673,7 +1673,9 @@ impl RenderOnce for Autocomplete {
                 if item_disabled {
                     row = row.opacity(row_disabled_opacity);
                 } else if item_interactive {
-                    row = row.cursor_pointer().hover(move |s| s.bg(row_hover_bg));
+                    row = row
+                        .cursor(util::interactive_cursor(cx))
+                        .hover(move |s| s.bg(row_hover_bg));
                 }
                 if row_selected {
                     row = row.text_color(row_accent);

@@ -60,6 +60,15 @@ pub struct LayoutTheme {
     /// inset shadow, so the closest reproduction is a one-pixel border in that
     /// colour, and in light mode there is none.
     pub overlay_hairline: Option<gpui::Hsla>,
+
+    /// The cursor an interactive control shows while the pointer is over it.
+    ///
+    /// v3 gives every clickable control `cursor: pointer`, so the default is
+    /// [`gpui::CursorStyle::PointingHand`] — the variant GPUI's own
+    /// `Styled::cursor_pointer()` sets, which keeps stock rendering identical.
+    /// A theme that wants the platform arrow everywhere sets
+    /// [`gpui::CursorStyle::Arrow`] once here instead of restyling components.
+    pub cursor_interactive: gpui::CursorStyle,
 }
 
 impl Default for LayoutTheme {
@@ -127,6 +136,7 @@ impl LayoutTheme {
             tooltip_delay_ms: 1500,
             tooltip_close_delay_ms: 500,
             overlay_hairline: None,
+            cursor_interactive: gpui::CursorStyle::PointingHand,
         }
     }
 
@@ -180,5 +190,30 @@ fn shadow(x: f32, y: f32, blur: f32, alpha: f32) -> BoxShadow {
         offset: point(px(x), px(y)),
         blur_radius: px(blur),
         spread_radius: px(0.),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use gpui::{div, Styled};
+
+    /// The default must be *the same cursor GPUI's own `cursor_pointer()` sets*,
+    /// not merely a hand-shaped variant: every component now reads this token
+    /// instead of calling that method, so any divergence silently changes stock
+    /// rendering. Comparing against the method's own output keeps the invariant
+    /// true even if GPUI renames or repoints the variant.
+    #[test]
+    fn the_default_interactive_cursor_is_gpuis_own_pointer() {
+        let mut probe = div().cursor_pointer();
+        assert_eq!(
+            Some(LayoutTheme::light().cursor_interactive),
+            probe.style().mouse_cursor,
+        );
+        assert_eq!(
+            LayoutTheme::dark().cursor_interactive,
+            LayoutTheme::light().cursor_interactive,
+            "light and dark share the token; only a custom theme changes it"
+        );
     }
 }

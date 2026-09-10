@@ -609,7 +609,7 @@ impl RenderOnce for DatePicker {
                     cx.defer(move |_| pressed.set(false));
                 })
                 .track_focus(&trigger_focus)
-                .cursor_pointer()
+                .cursor(crate::util::interactive_cursor(cx))
                 .on_mouse_down(gpui::MouseButton::Left, move |_, window, cx| {
                     window.focus(&focus_on_press, cx);
                     cx.stop_propagation();

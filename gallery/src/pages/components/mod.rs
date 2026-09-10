@@ -737,7 +737,7 @@ mod example_quality {
             ("select", 18),
             ("autocomplete", 18),
             ("combo_box", 26),
-            ("slider", 15),
+            ("slider", 16),
             ("date_field", 14),
             ("alert_dialog", 12),
             ("dropdown", 19),

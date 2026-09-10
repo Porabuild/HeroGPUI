@@ -382,6 +382,7 @@ pub struct Tabs {
     default_selected_key: Option<SharedString>,
     variant: TabsVariant,
     is_disabled: bool,
+    full_width: bool,
     orientation: Orientation,
     keyboard_activation: KeyboardActivation,
     on_selection_change: Option<OnChange>,
@@ -435,6 +436,7 @@ impl Tabs {
             default_selected_key: Some(default_selected_key.into()),
             variant: TabsVariant::Primary,
             is_disabled: false,
+            full_width: false,
             orientation: Orientation::Horizontal,
             keyboard_activation: KeyboardActivation::Automatic,
             on_selection_change: None,
@@ -449,6 +451,18 @@ impl Tabs {
 
     pub fn is_disabled(mut self, v: bool) -> Self {
         self.is_disabled = v;
+        self
+    }
+
+    /// v3's `<Tabs.List className="w-full">` with `<Tabs.Trigger
+    /// className="flex-1">`: the list fills its parent and the tabs divide that
+    /// width equally instead of hugging their labels.
+    ///
+    /// Horizontal only. A vertical list already stretches its tabs across the
+    /// full width and sizes itself from the tallest content, so there is
+    /// nothing for this to change and it is ignored there.
+    pub fn full_width(mut self, v: bool) -> Self {
+        self.full_width = v;
         self
     }
 
@@ -595,6 +609,9 @@ impl RenderOnce for Tabs {
             (false, false)
         });
         let vertical = self.orientation == Orientation::Vertical;
+        // `full_width` is a horizontal contract: equal shares of the list's
+        // width. A vertical list's tabs are already `w_full`.
+        let stretch = self.full_width && !vertical;
         let secondary = self.variant == TabsVariant::Secondary;
         let geometry = window.use_keyed_state(element_id::scoped(&base, "geometry"), cx, |_, _| {
             TabsGeometry::default()
@@ -700,6 +717,11 @@ impl RenderOnce for Tabs {
             });
         if vertical {
             list = list.flex_col().items_start().gap(px(4.));
+        } else if stretch {
+            // `w_full`, not `min_w_full`: the stretched row is exactly the
+            // viewport, so the scroller keeps no horizontal range and the
+            // equal shares never turn into overflow.
+            list = list.w_full();
         } else {
             list = list.min_w_full();
         }
@@ -782,7 +804,12 @@ impl RenderOnce for Tabs {
                         .h(px(32.))
                         .px(px(16.))
                         .when(vertical, |t| t.w_full().min_w(px(80.)))
-                        .flex_shrink_0()
+                        // Stretched tabs take an equal share: `flex_1` zeroes
+                        // the flex basis and `min_w(0)` releases the label's
+                        // min-content floor, so every share is the same and
+                        // none of them widens the row.
+                        .when(stretch, |t| t.flex_1().min_w(px(0.)))
+                        .when(!stretch, |t| t.flex_shrink_0())
                         // A tab's label does not wrap: `.tabs__list` is `w-max`,
                         // so the row is as wide as its labels and the scroller
                         // is what handles the overflow.
@@ -794,7 +821,7 @@ impl RenderOnce for Tabs {
                         .text_size(px(14.))
                         .line_height(px(20.))
                         .font_weight(gpui::FontWeight::MEDIUM)
-                        .when(!disabled, |t| t.cursor_pointer())
+                        .when(!disabled, |t| t.cursor(crate::util::interactive_cursor(cx)))
                         // `status-disabled` is `--disabled-opacity`.
                         .when(disabled, |t| t.opacity(cx.layout().disabled_opacity));
                     tab = tab.child(measure_tab(item.key.clone()));
@@ -978,7 +1005,12 @@ impl RenderOnce for Tabs {
                         .h(px(32.))
                         .px(px(16.))
                         .when(vertical, |t| t.w_full().min_w(px(80.)))
-                        .flex_shrink_0()
+                        // Stretched tabs take an equal share: `flex_1` zeroes
+                        // the flex basis and `min_w(0)` releases the label's
+                        // min-content floor, so every share is the same and
+                        // none of them widens the row.
+                        .when(stretch, |t| t.flex_1().min_w(px(0.)))
+                        .when(!stretch, |t| t.flex_shrink_0())
                         // A tab's label does not wrap: `.tabs__list` is `w-max`,
                         // so the row is as wide as its labels and the scroller
                         // is what handles the overflow.
@@ -991,7 +1023,7 @@ impl RenderOnce for Tabs {
                         .font_weight(gpui::FontWeight::MEDIUM)
                         .when(!indicator_ready && vertical, |t| t.border_l_2())
                         .when(!indicator_ready && !vertical, |t| t.border_b_2())
-                        .when(!disabled, |t| t.cursor_pointer())
+                        .when(!disabled, |t| t.cursor(crate::util::interactive_cursor(cx)))
                         // `status-disabled` is `--disabled-opacity`.
                         .when(disabled, |t| t.opacity(cx.layout().disabled_opacity));
                     tab = tab.child(measure_tab(item.key.clone()));
@@ -1164,7 +1196,7 @@ impl RenderOnce for Tabs {
                     .items_center()
                     .justify_center()
                     .rounded_full()
-                    .cursor_pointer()
+                    .cursor(crate::util::interactive_cursor(cx))
                     .text_color(colors.foreground)
                     .hover(|arrow| arrow.opacity(0.7))
                     .child(

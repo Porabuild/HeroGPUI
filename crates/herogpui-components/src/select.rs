@@ -730,7 +730,7 @@ impl RenderOnce for Select {
             .px(px(12.))
             .text_size(text)
             .line_height(px(20.))
-            .cursor_pointer();
+            .cursor(util::interactive_cursor(cx));
 
         let _border_color = if is_open { sem.color } else { colors.separator };
         // `.select__trigger:focus-visible` is `status-focused` -- the offset
@@ -1501,8 +1501,14 @@ impl RenderOnce for Select {
                         .items_center()
                         .justify_between()
                         // Every menu row in v3 is a `.list-box-item`: `min-h-9
-                        // rounded-2xl px-2 py-1.5 gap-3` at `text-sm`.
-                        .min_h(util::FIELD_HEIGHT)
+                        // rounded-2xl px-2 py-1.5 gap-3` at `text-sm`. A
+                        // `row_height` list is virtualized, and its rows are
+                        // exactly that tall -- the 36px floor would otherwise
+                        // overflow any shorter row it was asked for.
+                        .map(|item| match fixed_h {
+                            Some(row_h) => item.h(row_h),
+                            None => item.min_h(util::FIELD_HEIGHT),
+                        })
                         .rounded(util::soft_radius(cx))
                         .px(px(10.))
                         .py(px(6.))
@@ -1513,7 +1519,9 @@ impl RenderOnce for Select {
                 if opt_disabled {
                     item = item.opacity(row_disabled_opacity);
                 } else if panel_interactive {
-                    item = item.cursor_pointer().hover(move |s| s.bg(row_hover_bg));
+                    item = item
+                        .cursor(util::interactive_cursor(cx))
+                        .hover(move |s| s.bg(row_hover_bg));
                 }
 
                 if is_sel {

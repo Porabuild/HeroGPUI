@@ -1036,7 +1036,7 @@ impl RenderOnce for ComboBox {
             );
         if !self.is_disabled && !self.is_read_only {
             trigger = trigger
-                .cursor_pointer()
+                .cursor(util::interactive_cursor(cx))
                 .hover(move |s| s.text_color(trigger_hover_fg));
             if on_open_change.is_some() || open_own.is_some() {
                 let own = open_own.clone();
@@ -1880,7 +1880,9 @@ impl RenderOnce for ComboBox {
                 if item_disabled {
                     row = row.opacity(row_disabled_opacity);
                 } else {
-                    row = row.cursor_pointer().hover(move |s| s.bg(hover_bg));
+                    row = row
+                        .cursor(util::interactive_cursor(cx))
+                        .hover(move |s| s.bg(hover_bg));
                 }
 
                 // `status-focused` on the row the keyboard is on.

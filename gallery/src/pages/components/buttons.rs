@@ -276,6 +276,26 @@ impl Gallery {
                             .into_any_element(),
                     ]),
                 ),
+                (
+                    "Custom hover fill", "An `sx` background alone holds through hover, because the fade would otherwise ease the variant colour back over the override. `hover_bg` names the other end instead, so a caller-owned surface keeps the `transition-colors` fade.",
+                    row(vec![
+                        h::Button::new("btn-hover-bg-sx")
+                            .label("Tinted hover")
+                            .sx(|el| {
+                                el.bg(gpui::rgba(0xffa500ff))
+                                    .text_color(gpui::rgba(0x000000ff))
+                            })
+                            .hover_bg(gpui::rgba(0xcc7000ff))
+                            .into_any_element(),
+                        h::Button::new("btn-hover-bg-variant")
+                            .label("Variant resting fill")
+                            .variant(Variant::Secondary)
+                            // No `sx`: the fade still rests on the variant's
+                            // own colour and only the hover end is replaced.
+                            .hover_bg(gpui::rgba(0x7828c8ff))
+                            .into_any_element(),
+                    ]),
+                ),
             ],
             cx,
         )
