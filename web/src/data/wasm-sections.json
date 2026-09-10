@@ -72,8 +72,8 @@
     "With Multiple Selection"
   ],
   "list-box": [
-    "Row Padding",
     "Usage",
+    "Row Padding",
     "With Disabled Items",
     "With Sections",
     "Multi Select",
@@ -114,8 +114,8 @@
     "Disabled"
   ],
   "color-field": [
-    "Box Customisation",
     "Usage",
+    "Box Customisation",
     "Variants",
     "On Surface",
     "With Description",
@@ -322,11 +322,11 @@
     "Usage"
   ],
   "time-field": [
-    "Box Customisation",
     "24-hour",
     "12-hour with seconds",
     "Forced Leading Zeros",
     "Usage",
+    "Box Customisation",
     "With Icons",
     "On Surface",
     "With Description",
@@ -444,8 +444,8 @@
     "Compact Box"
   ],
   "input-group": [
-    "Box Customisation",
     "Usage",
+    "Box Customisation",
     "Variants",
     "In Surface",
     "Loading State",
@@ -484,8 +484,8 @@
     "With Validation"
   ],
   "number-field": [
-    "Box Customisation",
     "Usage",
+    "Box Customisation",
     "Without steppers",
     "Format Options",
     "Variants",
@@ -516,8 +516,8 @@
     "Disabled"
   ],
   "search-field": [
-    "Box Customisation",
     "Usage",
+    "Box Customisation",
     "Variants",
     "In Surface",
     "With Description",

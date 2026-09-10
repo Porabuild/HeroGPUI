@@ -5930,3 +5930,87 @@ fn collection_row_padding_x_moves_the_indicator(cx: &mut TestAppContext) {
         );
     }
 }
+
+/// The virtual paths (`row_height` set) apply the same row padding; the plain
+/// fixtures above omit `row_height`, so this pins the uniform/list paths.
+#[gpui::test]
+fn collection_virtual_row_padding_x_moves_the_indicator(cx: &mut TestAppContext) {
+    still();
+    const WIDE: f32 = 24.;
+    let combo_default = search_state(cx);
+    let combo_wide = search_state(cx);
+    let auto_default = search_state(cx);
+    let auto_wide = search_state(cx);
+    let cx = open_host(cx, move || {
+        gpui::div()
+            .flex()
+            .flex_col()
+            .items_start()
+            .gap(px(8.))
+            .child(
+                Select::new("sel-vrow-pad-default", keyed(&["One"]))
+                    .default_open(true)
+                    .row_height(px(40.))
+                    .indicator(|_| value_probe("sel-vrow-pad-default-tick")),
+            )
+            .child(
+                Select::new("sel-vrow-pad-wide", keyed(&["One"]))
+                    .default_open(true)
+                    .row_height(px(40.))
+                    .row_padding_x(px(WIDE))
+                    .indicator(|_| value_probe("sel-vrow-pad-wide-tick")),
+            )
+            .child(
+                ComboBox::new(combo_default.clone(), keyed(&["One"]))
+                    .default_open(true)
+                    .row_height(px(40.))
+                    .indicator(|_| value_probe("combo-vrow-pad-default-tick")),
+            )
+            .child(
+                ComboBox::new(combo_wide.clone(), keyed(&["One"]))
+                    .default_open(true)
+                    .row_height(px(40.))
+                    .row_padding_x(px(WIDE))
+                    .indicator(|_| value_probe("combo-vrow-pad-wide-tick")),
+            )
+            .child(
+                Autocomplete::new(auto_default.clone(), keyed(&["One"]))
+                    .default_open(true)
+                    .row_height(px(40.))
+                    .item_indicator(|_| value_probe("auto-vrow-pad-default-tick")),
+            )
+            .child(
+                Autocomplete::new(auto_wide.clone(), keyed(&["One"]))
+                    .default_open(true)
+                    .row_height(px(40.))
+                    .row_padding_x(px(WIDE))
+                    .item_indicator(|_| value_probe("auto-vrow-pad-wide-tick")),
+            )
+            .into_any_element()
+    });
+    settle_select(cx, 640., 900.);
+
+    for (default, wide, default_px) in [
+        ("sel-vrow-pad-default-tick", "sel-vrow-pad-wide-tick", 10.),
+        (
+            "combo-vrow-pad-default-tick",
+            "combo-vrow-pad-wide-tick",
+            8.,
+        ),
+        ("auto-vrow-pad-default-tick", "auto-vrow-pad-wide-tick", 10.),
+    ] {
+        let default = cx
+            .debug_bounds(default)
+            .expect("the default virtual row indicator must paint");
+        let wide = cx
+            .debug_bounds(wide)
+            .expect("the wide virtual row indicator must paint");
+        let moved = f32::from(default.origin.x - wide.origin.x);
+        assert!(
+            (moved - (WIDE - default_px)).abs() < 0.5,
+            "`row_padding_x` must move the virtual row indicator inward by \
+             the delta over the owner's default, moved {moved}: \
+             default={default:?} wide={wide:?}"
+        );
+    }
+}

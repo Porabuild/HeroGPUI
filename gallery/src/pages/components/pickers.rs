@@ -15,7 +15,7 @@ impl Gallery {
         component_doc_page!(
             "Autocomplete",
             crate::pages::Page::Autocomplete.description(),
-            crate::pages::            Page::Autocomplete.import_line(),
+            crate::pages::Page::Autocomplete.import_line(),
             vec![
                 (
                     "Usage", "Values and options use 14px text with 20px lines. Section headers use 12px text with 16px lines and keep their own spacing. The popup anchors to the trigger with an 8px gap, flips when the preferred side cannot fit and the opposite side has more room, keeps the search visible, and scrolls the list within the available height up to 320px; virtual paging follows the visible list height.",
@@ -342,7 +342,7 @@ impl Gallery {
         component_doc_page!(
             "Combo Box",
             crate::pages::Page::ComboBox.description(),
-            crate::pages::            Page::ComboBox.import_line(),
+            crate::pages::Page::ComboBox.import_line(),
             vec![
                 (
                     "Usage", "Values and options use 14px text with 20px lines. Section headers use 12px text with 16px lines and keep their own spacing. The popup flips near window edges and scrolls to keep options reachable in short windows.",
@@ -818,7 +818,7 @@ impl Gallery {
         component_doc_page!(
             "Select",
             crate::pages::Page::Select.description(),
-            crate::pages::            Page::Select.import_line(),
+            crate::pages::Page::Select.import_line(),
             vec![
                 (
                     "Usage", "Use the arrow keys and Enter or Space to select a language. Selection closes the list and keeps focus on the trigger. Values and options use 14px text with 20px lines. Section headers use 12px text with 16px lines and keep their own spacing. The popup flips near window edges and scrolls to keep options reachable in short windows.",

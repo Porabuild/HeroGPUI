@@ -490,8 +490,23 @@ impl Gallery {
         component_doc_page!(
             "List Box",
             crate::pages::Page::ListBox.description(),
-            crate::pages::            Page::ListBox.import_line(),
+            crate::pages::Page::ListBox.import_line(),
             vec![
+                (
+                    "Usage", "Labels use 14px text with 20px lines; descriptions and section headers use 12px text with 16px lines.",
+                    col(vec![gpui::div()
+                        .w(px(220.))
+                        .child(h::ListBox::new(
+                            "lb-usage",
+                            vec![
+                                h::ListBoxItem::new("inbox", "Inbox"),
+                                h::ListBoxItem::new("sent", "Sent"),
+                                h::ListBoxItem::new("drafts", "Drafts"),
+                            ],
+                        )
+                        .selection_mode(SelectionMode::Single))
+                        .into_any_element()]),
+                ),
                 (
                     "Row Padding",
                     "`row_padding_x` / `row_padding_y` resize the option rows; section headings keep their own inset.",
@@ -508,21 +523,6 @@ impl Gallery {
                             .row_padding_x(px(16.))
                             .row_padding_y(px(2.)),
                         )
-                        .into_any_element()]),
-                ),
-                (
-                    "Usage", "Labels use 14px text with 20px lines; descriptions and section headers use 12px text with 16px lines.",
-                    col(vec![gpui::div()
-                        .w(px(220.))
-                        .child(h::ListBox::new(
-                            "lb-usage",
-                            vec![
-                                h::ListBoxItem::new("inbox", "Inbox"),
-                                h::ListBoxItem::new("sent", "Sent"),
-                                h::ListBoxItem::new("drafts", "Drafts"),
-                            ],
-                        )
-                        .selection_mode(SelectionMode::Single))
                         .into_any_element()]),
                 ),
                 (

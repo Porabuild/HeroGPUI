@@ -1078,16 +1078,6 @@ impl Gallery {
             crate::pages::Page::TimeField.import_line(),
             vec![
                 (
-                    "Box Customisation",
-                    "The same box seam as the other fields: `height`, `padding_x` and `is_bare`.",
-                    field_col(vec![h::TimeField::new(self.demo_time("tmf-custom-box", cx))
-                        .label("Compact")
-                        .height(px(28.))
-                        .padding_x(px(8.))
-                        .is_bare(true)
-                        .into_any_element()]),
-                ),
-                (
                     "24-hour",
                     field_col(vec![h::TimeField::new(self.time.clone())
                         .label("Start time")
@@ -1132,6 +1122,16 @@ impl Gallery {
                             .label("Time")
                             .into_any_element(),
                     ]),
+                ),
+                (
+                    "Box Customisation",
+                    "The same box seam as the other fields: `height`, `padding_x` and `is_bare`.",
+                    field_col(vec![h::TimeField::new(self.demo_time("tmf-custom-box", cx))
+                        .label("Compact")
+                        .height(px(28.))
+                        .padding_x(px(8.))
+                        .is_bare(true)
+                        .into_any_element()]),
                 ),
                 (
                     "With Icons",

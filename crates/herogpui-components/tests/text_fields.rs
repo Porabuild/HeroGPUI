@@ -2765,8 +2765,10 @@ fn number_field_short_height_keeps_vertical_steppers_reachable(cx: &mut TestAppC
     flush_frame(cx);
 
     // The vertical column occupies the right 24px: increment on top,
-    // decrement below; at a 28px group each button is 14px tall.
-    click(cx, 208., 21.);
+    // decrement below; at a 28px group each button is 14px tall. y=16 is
+    // inside the corrected decrement (14..28) but still inside the original
+    // 18px increment, so the click discriminates the fix.
+    click(cx, 208., 16.);
     cx.update(|_, cx| {
         assert!(
             (state.read(cx).value() - 4.).abs() < f64::EPSILON,

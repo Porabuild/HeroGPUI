@@ -339,16 +339,16 @@
   ],
   "list-box": [
     {
-      "heading": "Row Padding",
-      "description": "`row_padding_x` / `row_padding_y` resize the option rows; section headings keep their own inset.",
-      "imports": "use herogpui::prelude::{ListBox, ListBoxItem};\nuse gpui::prelude::*;\nuse gpui::px;",
-      "code": "gpui::div()\n    .w(px(220.))\n    .child(\n        ListBox::new(\n            \"list-box-row-padding\",\n            vec![\n                ListBoxItem::new(\"a\", \"Alpha\"),\n                ListBoxItem::new(\"b\", \"Beta\"),\n            ],\n        )\n        .row_padding_x(px(16.))\n        .row_padding_y(px(2.)),\n    )"
-    },
-    {
       "heading": "Usage",
       "description": "Labels use 14px text with 20px lines; descriptions and section headers use 12px text with 16px lines.",
       "imports": "use herogpui::prelude::{ListBox, ListBoxItem, SelectionMode};\nuse gpui::prelude::*;\nuse gpui::px;",
       "code": "gpui::div()\n    .w(px(220.))\n    .child(ListBox::new(\n        \"list-box\",\n        vec![\n            ListBoxItem::new(\"inbox\", \"Inbox\"),\n            ListBoxItem::new(\"sent\", \"Sent\"),\n            ListBoxItem::new(\"drafts\", \"Drafts\"),\n        ],\n    )\n    .selection_mode(SelectionMode::Single))"
+    },
+    {
+      "heading": "Row Padding",
+      "description": "`row_padding_x` / `row_padding_y` resize the option rows; section headings keep their own inset.",
+      "imports": "use herogpui::prelude::{ListBox, ListBoxItem};\nuse gpui::prelude::*;\nuse gpui::px;",
+      "code": "gpui::div()\n    .w(px(220.))\n    .child(\n        ListBox::new(\n            \"list-box-row-padding\",\n            vec![\n                ListBoxItem::new(\"a\", \"Alpha\"),\n                ListBoxItem::new(\"b\", \"Beta\"),\n            ],\n        )\n        .row_padding_x(px(16.))\n        .row_padding_y(px(2.)),\n    )"
     },
     {
       "heading": "With Disabled Items",
@@ -537,15 +537,15 @@
   ],
   "color-field": [
     {
+      "heading": "Usage",
+      "imports": "use herogpui::prelude::ColorField;",
+      "code": "ColorField::new(\"color-field\", value)\n    .state(self.demo_text(\"cf-usage\", \"#0085F5\", cx))\n    // v3's Usage is uncontrolled: `defaultValue=\"#0085F5\"`.\n    .default_value(value)\n    .label(\"Color\")"
+    },
+    {
       "heading": "Box Customisation",
       "description": "`height`, `padding_x` and `is_bare` cover both paths: the editable field here, and the static display box. The bare specimen is the editable path.",
       "imports": "use herogpui::prelude::ColorField;\nuse gpui::px;",
       "code": "ColorField::new(\"color-field-custom-box\", value)\n    .state(self.demo_text(\"cf-custom-box\", \"#0085F5\", cx))\n    .label(\"Compact editable\")\n    .height(px(28.))\n    .padding_x(px(8.))\n    .is_bare(true)"
-    },
-    {
-      "heading": "Usage",
-      "imports": "use herogpui::prelude::ColorField;",
-      "code": "ColorField::new(\"color-field\", value)\n    .state(self.demo_text(\"cf-usage\", \"#0085F5\", cx))\n    // v3's Usage is uncontrolled: `defaultValue=\"#0085F5\"`.\n    .default_value(value)\n    .label(\"Color\")"
     },
     {
       "heading": "Variants",
@@ -1514,12 +1514,6 @@
   ],
   "time-field": [
     {
-      "heading": "Box Customisation",
-      "description": "The same box seam as the other fields: `height`, `padding_x` and `is_bare`.",
-      "imports": "use herogpui::prelude::{TimeField, TimeState};\nuse gpui::px;",
-      "code": "TimeField::new(self.demo_time(\"tmf-custom-box\", cx))\n    .label(\"Compact\")\n    .height(px(28.))\n    .padding_x(px(8.))\n    .is_bare(true)"
-    },
-    {
       "heading": "24-hour",
       "imports": "use herogpui::prelude::{HourCycle, Time, TimeField, TimeState};",
       "code": "TimeField::new(self.time.clone())\n    .label(\"Start time\")\n    .hour_cycle(HourCycle::H24)\n    .description(\"Click a segment, then use the steppers.\")\n    .on_change(\n        cx.listener(|_, _t: &Option<Time>, _, cx| cx.notify()),\n    )"
@@ -1540,6 +1534,12 @@
       "description": "Uses your system regional segment order, separators, padding, day-period names, and 12- or 24-hour cycle.",
       "imports": "use herogpui::prelude::{TimeField, TimeState};",
       "code": "TimeField::new(self.demo_time(\"tmf-usage\", cx))\n    .label(\"Time\")"
+    },
+    {
+      "heading": "Box Customisation",
+      "description": "The same box seam as the other fields: `height`, `padding_x` and `is_bare`.",
+      "imports": "use herogpui::prelude::{TimeField, TimeState};\nuse gpui::px;",
+      "code": "TimeField::new(self.demo_time(\"tmf-custom-box\", cx))\n    .label(\"Compact\")\n    .height(px(28.))\n    .padding_x(px(8.))\n    .is_bare(true)"
     },
     {
       "heading": "With Icons",
@@ -2045,16 +2045,16 @@
   ],
   "input-group": [
     {
-      "heading": "Box Customisation",
-      "description": "`padding_x` overrides the held field's exposed edges only -- a side with an addon keeps the addon's inset -- `height` resizes the single-line group, and `is_bare` drops the group's chrome.",
-      "imports": "use herogpui::prelude::{Input, InputAddon, InputGroup};\nuse gpui::px;",
-      "code": "InputGroup::new()\n    .label(\"Compact\")\n    .height(px(28.))\n    .padding_x(px(8.))\n    .is_bare(true)\n    .prefix(InputAddon::new(\"$\"))\n    .input(\n        Input::new(self.demo_text(\"ig-custom-box\", \"\", cx))\n            .placeholder(\"0.00\"),\n    )"
-    },
-    {
       "heading": "Usage",
       "description": "Prefix and suffix text uses 14px text with 20px lines alongside the input.",
       "imports": "use herogpui::prelude::{Input, InputAddon, InputGroup};",
       "code": "InputGroup::new()\n    .label(\"Website\")\n    .prefix(InputAddon::new(\"https://\"))\n    .input(\n        Input::new(self.demo_text(\"ig-usage\", \"\", cx))\n            // v3's group example seeds the input with\n            // `defaultValue`; `value` is the controlled\n            // spelling of the same thing.\n            .default_value(\"example.com\")\n            .placeholder(\"example.com\"),\n    )"
+    },
+    {
+      "heading": "Box Customisation",
+      "description": "`padding_x` overrides the held field's exposed edges only -- a side with an addon keeps the addon's inset -- `height` resizes the single-line group, and `is_bare` drops the group's chrome.",
+      "imports": "use herogpui::prelude::{Input, InputAddon, InputGroup};\nuse gpui::px;",
+      "code": "InputGroup::new()\n    .label(\"Compact\")\n    .height(px(28.))\n    .padding_x(px(8.))\n    .is_bare(true)\n    .prefix(InputAddon::new(\"$\"))\n    .input(\n        Input::new(self.demo_text(\"ig-custom-box\", \"\", cx))\n            .placeholder(\"0.00\"),\n    )"
     },
     {
       "heading": "Variants",
@@ -2233,15 +2233,15 @@
   ],
   "number-field": [
     {
+      "heading": "Usage",
+      "imports": "use herogpui::prelude::{NumberField, NumberState};",
+      "code": "NumberField::new(self.demo_number(\n    \"nf-usage\",\n    1024.,\n    0.,\n    4096.,\n    1.,\n    cx,\n))\n// v3's basic example seeds the field with `defaultValue`.\n.default_value(1024.)\n.min_value(0.)\n.name(\"width\")\n.full_width(true)\n.label(\"Width\")"
+    },
+    {
       "heading": "Box Customisation",
       "description": "`height` resizes the group and the inner field together; `padding_x` moves the input's inset without touching the steppers; `is_bare` drops the group's paint.",
       "imports": "use herogpui::prelude::{NumberField, NumberState};\nuse gpui::px;",
       "code": "NumberField::new(\n    self.demo_number(\"nf-custom-box\", 5., 0., 20., 1., cx),\n)\n.label(\"Compact\")\n.height(px(28.))\n.padding_x(px(8.))\n.is_bare(true)"
-    },
-    {
-      "heading": "Usage",
-      "imports": "use herogpui::prelude::{NumberField, NumberState};",
-      "code": "NumberField::new(self.demo_number(\n    \"nf-usage\",\n    1024.,\n    0.,\n    4096.,\n    1.,\n    cx,\n))\n// v3's basic example seeds the field with `defaultValue`.\n.default_value(1024.)\n.min_value(0.)\n.name(\"width\")\n.full_width(true)\n.label(\"Width\")"
     },
     {
       "heading": "Without steppers",
@@ -2381,15 +2381,15 @@
   ],
   "search-field": [
     {
+      "heading": "Usage",
+      "imports": "use herogpui::prelude::SearchField;\nuse gpui::prelude::*;\nuse gpui::px;",
+      "code": "gpui::div()\n    .flex()\n    .flex_col()\n    .items_start()\n    .gap(px(12.))\n    .children(vec![\n        gpui::div()\n            .w(px(256.))\n            .flex()\n            .flex_col()\n            .child(SearchField::new(self.search_state.clone())\n                        .label(\"Search docs\")\n                        .placeholder(\"Search components\")\n                        .on_change(cx.listener(|this, text: &str, _, cx| {\n                            this.search_query = text.to_owned();\n                            cx.notify();\n                        }))),\n        para(\n            &if query.is_empty() {\n                \"Type to search\".to_owned()\n            } else {\n                format!(\"Query: {query}\")\n            },\n            cx,\n        ),\n    ])"
+    },
+    {
       "heading": "Box Customisation",
       "description": "`height`, `padding_x` and `is_bare` reach the inner field; a 28px bare search box.",
       "imports": "use herogpui::prelude::SearchField;\nuse gpui::px;",
       "code": "SearchField::new(self.demo_text(\"sf-custom-box\", \"\", cx))\n    .label(\"Compact\")\n    .placeholder(\"Search...\")\n    .height(px(28.))\n    .padding_x(px(8.))\n    .is_bare(true)"
-    },
-    {
-      "heading": "Usage",
-      "imports": "use herogpui::prelude::SearchField;\nuse gpui::prelude::*;\nuse gpui::px;",
-      "code": "gpui::div()\n    .flex()\n    .flex_col()\n    .items_start()\n    .gap(px(12.))\n    .children(vec![\n        gpui::div()\n            .w(px(256.))\n            .flex()\n            .flex_col()\n            .child(SearchField::new(self.search_state.clone())\n                        .label(\"Search docs\")\n                        .placeholder(\"Search components\")\n                        .on_change(cx.listener(|this, text: &str, _, cx| {\n                            this.search_query = text.to_owned();\n                            cx.notify();\n                        }))),\n        para(\n            &if query.is_empty() {\n                \"Type to search\".to_owned()\n            } else {\n                format!(\"Query: {query}\")\n            },\n            cx,\n        ),\n    ])"
     },
     {
       "heading": "Variants",
