@@ -1649,6 +1649,7 @@ mod sx_extraction_tests {
     }
 
     #[test]
+    #[allow(clippy::float_cmp)] // the fallback is the exact literal, not near it
     fn field_box_defaults_are_the_stock_field_metrics() {
         let field = FieldBox::default();
         assert_eq!(field.resolved_height(), FIELD_HEIGHT);

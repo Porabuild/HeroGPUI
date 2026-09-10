@@ -825,7 +825,7 @@ pub struct TimeField {
     suffix: Option<gpui::AnyElement>,
     variant: FieldVariant,
     /// Optional box geometry/chrome overrides; defaults are the stock box.
-    field: crate::util::FieldBox,
+    field: util::FieldBox,
     hour_cycle: HourCycle,
     /// `granularity` — the smallest unit shown.
     granularity: TimeGranularity,
@@ -893,7 +893,7 @@ impl TimeField {
             placeholder_value: None,
             on_change: None,
             sx: None,
-            field: crate::util::FieldBox::default(),
+            field: util::FieldBox::default(),
         }
     }
 

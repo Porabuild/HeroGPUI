@@ -150,7 +150,7 @@ pub struct Autocomplete {
     variant: FieldVariant,
     full_width: bool,
     /// Optional trigger geometry/chrome overrides; defaults are the stock box.
-    field: crate::util::FieldBox,
+    field: util::FieldBox,
     is_disabled: bool,
     is_read_only: bool,
     is_invalid: bool,
@@ -334,7 +334,7 @@ impl Autocomplete {
             row_height: None,
             row_padding_x: None,
             row_padding_y: None,
-            field: crate::util::FieldBox::default(),
+            field: util::FieldBox::default(),
             label: None,
             placeholder: None,
             description: None,

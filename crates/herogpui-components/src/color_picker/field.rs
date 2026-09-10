@@ -70,7 +70,7 @@ pub struct ColorField {
     is_read_only: bool,
     is_required: bool,
     /// Optional box geometry/chrome overrides; defaults are the stock box.
-    field: crate::util::FieldBox,
+    field: util::FieldBox,
     form_state: Rc<RefCell<crate::form::LiveFormFieldState>>,
 }
 
@@ -127,7 +127,7 @@ impl ColorField {
             is_invalid: false,
             is_read_only: false,
             is_required: false,
-            field: crate::util::FieldBox::default(),
+            field: util::FieldBox::default(),
             form_state: live_color_form_state(
                 crate::form::FormValue::Text(SharedString::default()),
             ),
@@ -301,13 +301,13 @@ impl ColorField {
 
     /// Replaces the 36px box height. The editable path forwards it to the
     /// inner Input; the static display box changes its own height.
-    pub fn height(mut self, h: impl Into<gpui::Pixels>) -> Self {
+    pub fn height(mut self, h: impl Into<Pixels>) -> Self {
         self.field.height = Some(h.into());
         self
     }
 
     /// Replaces the box's `px-3` horizontal padding.
-    pub fn padding_x(mut self, p: impl Into<gpui::Pixels>) -> Self {
+    pub fn padding_x(mut self, p: impl Into<Pixels>) -> Self {
         self.field.padding_x = Some(p.into());
         self
     }

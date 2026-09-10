@@ -65,7 +65,7 @@ pub struct InputGroup {
     variant: FieldVariant,
     full_width: bool,
     /// Optional group geometry/chrome overrides; defaults are the stock box.
-    field: crate::util::FieldBox,
+    field: util::FieldBox,
     is_disabled: bool,
     is_invalid: bool,
     is_required: bool,
@@ -96,7 +96,7 @@ impl InputGroup {
         Self {
             variant: FieldVariant::Primary,
             full_width: false,
-            field: crate::util::FieldBox::default(),
+            field: util::FieldBox::default(),
             is_disabled: false,
             is_invalid: false,
             is_required: false,
@@ -482,7 +482,7 @@ mod tests {
             .next()
             .expect("the implementation section is always present");
         assert!(
-            source.contains("if !focus_within && !is_disabled {"),
+            source.contains("if !field_box.is_bare && !focus_within && !is_disabled {"),
             "the hover refinement must be gated off while the group is \
              disabled, not only while the focus is inside"
         );

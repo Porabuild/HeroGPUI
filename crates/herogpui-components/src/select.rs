@@ -218,7 +218,7 @@ pub struct Select {
     on_selection_change_all:
         Option<std::sync::Arc<dyn Fn(&[SharedString], &mut Window, &mut App) + 'static>>,
     /// Optional trigger geometry/chrome overrides; defaults are the stock box.
-    field: crate::util::FieldBox,
+    field: util::FieldBox,
     /// Mirrors the current selection, validity, successful state, focus and
     /// reset behavior for a live [`crate::form::FormField`].
     form_state: Rc<RefCell<crate::form::LiveFormFieldState>>,
@@ -372,7 +372,7 @@ impl Select {
             row_height: None,
             row_padding_x: None,
             row_padding_y: None,
-            field: crate::util::FieldBox::default(),
+            field: util::FieldBox::default(),
             sections: Vec::new(),
             indicator: None,
             value_content: None,

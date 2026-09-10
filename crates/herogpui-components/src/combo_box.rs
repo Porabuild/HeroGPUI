@@ -219,7 +219,7 @@ pub struct ComboBox {
     max_items: usize,
     full_width: bool,
     /// Optional trigger geometry/chrome overrides; defaults are the stock box.
-    field: crate::util::FieldBox,
+    field: util::FieldBox,
     is_disabled: bool,
     is_invalid: bool,
     is_required: bool,
@@ -531,7 +531,7 @@ impl ComboBox {
             row_height: None,
             row_padding_x: None,
             row_padding_y: None,
-            field: crate::util::FieldBox::default(),
+            field: util::FieldBox::default(),
             validate: None,
             validation_behavior: None,
             allows_empty_collection: false,
