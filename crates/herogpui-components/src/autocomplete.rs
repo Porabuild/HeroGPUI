@@ -143,6 +143,8 @@ pub struct Autocomplete {
     row_padding_x: Option<gpui::Pixels>,
     /// Replaces the list rows' `py-1.5` vertical padding.
     row_padding_y: Option<gpui::Pixels>,
+    /// The fill a hovered row takes, in place of `--default`.
+    row_hover_bg: Option<gpui::Hsla>,
     label: Option<SharedString>,
     placeholder: Option<SharedString>,
     description: Option<SharedString>,
@@ -334,6 +336,7 @@ impl Autocomplete {
             row_height: None,
             row_padding_x: None,
             row_padding_y: None,
+            row_hover_bg: None,
             field: util::FieldBox::default(),
             label: None,
             placeholder: None,
@@ -492,6 +495,12 @@ impl Autocomplete {
     /// Replaces the list rows' `py-1.5` vertical padding.
     pub fn row_padding_y(mut self, p: impl Into<gpui::Pixels>) -> Self {
         self.row_padding_y = Some(p.into());
+        self
+    }
+
+    /// The fill a hovered row takes, in place of `--default`.
+    pub fn row_hover_bg(mut self, color: impl Into<gpui::Hsla>) -> Self {
+        self.row_hover_bg = Some(color.into());
         self
     }
 
@@ -1637,7 +1646,7 @@ impl RenderOnce for Autocomplete {
             let base_row_id = element_id::scoped(&base_id, "list");
             let row_muted = colors.muted;
             let row_fg = colors.foreground;
-            let row_hover_bg = colors.default.color;
+            let row_hover_bg = self.row_hover_bg.unwrap_or(colors.default.color);
             let row_focus = colors.focus;
             let row_accent = colors.accent.color;
             let row_disabled_opacity = layout.disabled_opacity;
@@ -1959,7 +1968,8 @@ mod hover_tokens {
              (pinned `--autocomplete-trigger-bg-hover: var(--default-hover)`)"
         );
         assert!(
-            source.contains("let row_hover_bg = colors.default.color;"),
+            source
+                .contains("let row_hover_bg = self.row_hover_bg.unwrap_or(colors.default.color);"),
             "the popup rows must hover the full `bg-default` \
              (pinned `.list-box-item:hover`)"
         );

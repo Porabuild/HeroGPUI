@@ -142,6 +142,8 @@ pub struct Menu {
     indicator: IndicatorKind,
     on_selection_change: Option<OnSelectionChange>,
     on_action: Option<OnSelect>,
+    /// The fill a hovered menu row takes, in place of `--default`.
+    row_hover_bg: Option<gpui::Hsla>,
     /// Set by `Dropdown`: the menu panel is where Escape and an outside press
     /// land, and the open state belongs to the wrapper. The `bool` says
     /// whether the trigger should take the focus back: Escape, an outside
@@ -183,6 +185,7 @@ impl Menu {
             indicator: IndicatorKind::default(),
             on_selection_change: None,
             on_action: None,
+            row_hover_bg: None,
             on_dismiss: None,
             overlay_token: None,
             dropdown_composition: false,
@@ -284,6 +287,12 @@ impl Menu {
     /// `type` on `Dropdown.ItemIndicator` — a check mark or a dot.
     pub fn indicator(mut self, kind: IndicatorKind) -> Self {
         self.indicator = kind;
+        self
+    }
+
+    /// The fill a hovered menu row takes, in place of `--default`.
+    pub fn row_hover_bg(mut self, color: impl Into<gpui::Hsla>) -> Self {
+        self.row_hover_bg = Some(color.into());
         self
     }
 
@@ -579,6 +588,7 @@ impl RenderOnce for Menu {
         // old panel locations.
 
         let colors = cx.colors();
+        let row_hover_bg = self.row_hover_bg.unwrap_or(colors.default.color);
         let dropdown_composition = self.dropdown_composition;
 
         let panel = gpui::div()
@@ -953,7 +963,7 @@ impl RenderOnce for Menu {
                         row = crate::util::cursor_interactive(row, cx);
                         // `.menu-item:hover` fills with `bg-default`, the full
                         // token, not the soft wash.
-                        row = row.hover(move |s| s.bg(colors.default.color));
+                        row = row.hover(move |s| s.bg(row_hover_bg));
                         let pointer_cursor = cursor.clone();
                         let pointer_focus = focus_handle.clone();
                         row = row.on_mouse_down(gpui::MouseButton::Left, move |_, window, cx| {
@@ -1509,6 +1519,8 @@ pub struct Dropdown {
     indicator: IndicatorKind,
     on_selection_change: Option<OnSelectionChange>,
     on_action: Option<OnSelect>,
+    /// The fill a hovered menu row takes, in place of `--default`.
+    row_hover_bg: Option<gpui::Hsla>,
     placement: DropdownPlacement,
     /// The `sx` slot, refined over the root style at the end of render.
     sx: Option<Box<gpui::StyleRefinement>>,
@@ -1597,6 +1609,7 @@ impl Dropdown {
             indicator: IndicatorKind::default(),
             on_selection_change: None,
             on_action: None,
+            row_hover_bg: None,
             placement: DropdownPlacement::BottomStart,
             sx: None,
         }
@@ -1605,6 +1618,13 @@ impl Dropdown {
     /// `type` on `Dropdown.ItemIndicator`.
     pub fn indicator(mut self, kind: IndicatorKind) -> Self {
         self.indicator = kind;
+        self
+    }
+
+    /// The fill a hovered menu row takes, in place of `--default`. v3 tints
+    /// the row with a class; this names the colour.
+    pub fn row_hover_bg(mut self, color: impl Into<gpui::Hsla>) -> Self {
+        self.row_hover_bg = Some(color.into());
         self
     }
 
@@ -1890,6 +1910,9 @@ impl RenderOnce for Dropdown {
             .indicator(self.indicator);
             menu.item_content = self.item_content.clone();
             menu.indicator_content = self.indicator_content.clone();
+            if let Some(row_hover_bg) = self.row_hover_bg {
+                menu = menu.row_hover_bg(row_hover_bg);
+            }
             menu = menu.overlay_token(overlay_token);
             if let Some(on_action) = self.on_action.clone() {
                 menu = menu.on_action(move |k, w, cx| on_action(k, w, cx));
@@ -1965,9 +1988,14 @@ mod hover_tokens {
             .next()
             .expect("the implementation section is always present");
         assert!(
-            source.contains("row = row.hover(move |s| s.bg(colors.default.color));"),
-            "menu rows must hover the full `bg-default` \
-             (pinned `.menu-item:hover`)"
+            source
+                .contains("let row_hover_bg = self.row_hover_bg.unwrap_or(colors.default.color);"),
+            "menu rows must default to the full `bg-default` and honor the \
+             named override (pinned `.menu-item:hover`)"
+        );
+        assert!(
+            source.contains("row = row.hover(move |s| s.bg(row_hover_bg));"),
+            "the row hover must consume the resolved fill"
         );
         assert!(
             !source.contains("colors.default.soft()"),

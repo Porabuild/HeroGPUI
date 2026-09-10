@@ -54,6 +54,7 @@
   ],
   "dropdown": [
     "Usage",
+    "Row Hover",
     "With Icons",
     "With Descriptions",
     "With Disabled Items",
@@ -92,6 +93,7 @@
   ],
   "tag-group": [
     "Usage",
+    "Hover Colour",
     "Disabled",
     "Selection Modes",
     "Controlled",
@@ -628,6 +630,7 @@
   ],
   "pagination": [
     "Usage",
+    "Hover Colour",
     "Sizes",
     "Disabled",
     "Disabled Links",

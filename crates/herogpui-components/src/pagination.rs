@@ -36,6 +36,9 @@ pub struct Pagination {
     disabled_keys: std::collections::HashSet<usize>,
     size: Size,
     on_change: Option<OnChange>,
+    /// The fill an enabled link or nav button takes while hovered or pressed,
+    /// in place of `--default-hover`.
+    hover_bg: Option<gpui::Hsla>,
     /// The `sx` slot, refined over the root style at the end of render.
     sx: Option<Box<gpui::StyleRefinement>>,
 }
@@ -43,6 +46,14 @@ pub struct Pagination {
 impl Pagination {
     pub fn size(mut self, size: Size) -> Self {
         self.size = size;
+        self
+    }
+
+    /// The fill an enabled link or nav button takes while hovered or pressed,
+    /// in place of `--default-hover`. Pressed stays coupled to hover, matching
+    /// upstream's shared variable; the per-size press scale is unchanged.
+    pub fn hover_bg(mut self, color: impl Into<gpui::Hsla>) -> Self {
+        self.hover_bg = Some(color.into());
         self
     }
 
@@ -69,6 +80,7 @@ impl Pagination {
             disabled_keys: std::collections::HashSet::new(),
             size: Size::Md,
             on_change: None,
+            hover_bg: None,
             sx: None,
         }
     }
@@ -157,6 +169,7 @@ impl RenderOnce for Pagination {
         let ring_visible = crate::util::focus_visible(cx);
 
         let colors = cx.colors();
+        let control_hover_bg = self.hover_bg.unwrap_or(colors.default.hover());
         let layout = cx.layout();
         let base = base_id;
 
@@ -216,7 +229,7 @@ impl RenderOnce for Pagination {
                 prev_enabled,
                 NavStyle {
                     foreground: colors.foreground,
-                    hover_bg: colors.default.hover(),
+                    hover_bg: control_hover_bg,
                     disabled_opacity: layout.disabled_opacity,
                     cell,
                     text_size: cell_text,
@@ -294,12 +307,12 @@ impl RenderOnce for Pagination {
                         None => btn.child(n.to_string()),
                     };
                     if !link_disabled {
-                        let hover_bg = colors.default.hover();
+                        let hover_bg = control_hover_bg;
                         // `.pagination__link[data-pressed]` applies to every
                         // enabled link, including the active page: the
                         // default-hover fill rides inside the press
                         // refinement, which owns the scale.
-                        let pressed_bg = colors.default.hover();
+                        let pressed_bg = control_hover_bg;
                         btn = btn.hover(move |s| s.bg(hover_bg));
                         btn = crate::anim::pressed_with_background(
                             btn,
@@ -383,7 +396,7 @@ impl RenderOnce for Pagination {
                 next_enabled,
                 NavStyle {
                     foreground: colors.foreground,
-                    hover_bg: colors.default.hover(),
+                    hover_bg: control_hover_bg,
                     disabled_opacity: layout.disabled_opacity,
                     cell,
                     text_size: cell_text,

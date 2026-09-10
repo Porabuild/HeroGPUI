@@ -60,6 +60,20 @@ impl Gallery {
                     ]),
                 ),
                 (
+                    "Row Hover",
+                    "`row_hover_bg` names the fill a hovered menu row takes, in place of `--default`.",
+                    col(vec![h::Dropdown::new(
+                        "dd-hover-trigger",
+                        h::Button::new("dd-hover")
+                            .label("Actions")
+                            .variant(Variant::Secondary),
+                        plain(),
+                        false,
+                    )
+                    .row_hover_bg(cx.colors().accent.soft())
+                    .into_any_element()]),
+                ),
+                (
                     "With Icons",
                     col(vec![h::Dropdown::uncontrolled(
                         "dd-icons-dd",
@@ -521,7 +535,8 @@ impl Gallery {
                                 ],
                             )
                             .row_padding_x(px(16.))
-                            .row_padding_y(px(2.)),
+                            .row_padding_y(px(2.))
+                            .row_hover_bg(cx.colors().accent.soft()),
                         )
                         .into_any_element()]),
                 ),
@@ -837,6 +852,22 @@ impl Gallery {
                     "Usage",
                     col(vec![h::TagGroup::new("tg-usage", tags())
                         .label("Skills")
+                        .into_any_element()]),
+                ),
+                (
+                    "Hover Colour",
+                    "`hover_bg` names a hovered tag's fill and `remove_hover_bg` the remove button's.",
+                    col(vec![h::TagGroup::new("tg-hover-bg", tags())
+                        .label("Skills")
+                        .hover_bg(cx.colors().accent.soft())
+                        .remove_hover_bg(cx.colors().accent.soft_hover())
+                        .on_remove(cx.listener(
+                            |this, keys: &HashSet<SharedString>, _, cx| {
+                                this.tags.retain(|key| !keys.contains(key));
+                                this.tag_selection.retain(|key| !keys.contains(key));
+                                cx.notify();
+                            },
+                        ))
                         .into_any_element()]),
                 ),
                 (

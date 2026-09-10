@@ -502,6 +502,17 @@ impl Gallery {
                         .into_any_element()]),
                 ),
                 (
+                    "Hover Colour",
+                    "`hover_bg` names the fill enabled links and nav buttons take while hovered or pressed; the per-size press scale is unchanged.",
+                    col(vec![h::Pagination::new("pg-hover-bg", page, 6)
+                        .hover_bg(cx.colors().accent.soft_hover())
+                        .on_change(cx.listener(|this, p: &usize, _, cx| {
+                            this.pagination_page = *p;
+                            cx.notify();
+                        }))
+                        .into_any_element()]),
+                ),
+                (
                     "Sizes",
                     "Summary and link typography scale together and keep their line height in larger text containers.",
                     col(Size::ALL

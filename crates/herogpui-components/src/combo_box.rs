@@ -232,6 +232,8 @@ pub struct ComboBox {
     row_padding_x: Option<gpui::Pixels>,
     /// Replaces the list rows' `py-1.5` vertical padding.
     row_padding_y: Option<gpui::Pixels>,
+    /// The fill a hovered row takes, in place of `--default`.
+    row_hover_bg: Option<gpui::Hsla>,
     /// `validate` — run by the component, not the caller.
     validate: Option<crate::validation::Validator<str>>,
     /// `validationBehavior` — carried on the inner field.
@@ -531,6 +533,7 @@ impl ComboBox {
             row_height: None,
             row_padding_x: None,
             row_padding_y: None,
+            row_hover_bg: None,
             field: util::FieldBox::default(),
             validate: None,
             validation_behavior: None,
@@ -664,6 +667,12 @@ impl ComboBox {
     /// Replaces the list rows' `py-1.5` vertical padding.
     pub fn row_padding_y(mut self, p: impl Into<gpui::Pixels>) -> Self {
         self.row_padding_y = Some(p.into());
+        self
+    }
+
+    /// The fill a hovered row takes, in place of `--default`.
+    pub fn row_hover_bg(mut self, color: impl Into<gpui::Hsla>) -> Self {
+        self.row_hover_bg = Some(color.into());
         self
     }
 
@@ -1843,7 +1852,7 @@ impl RenderOnce for ComboBox {
             let row_open_state = open_state;
             let row_close_open = close_open.clone();
             let row_muted = colors.muted;
-            let row_hover_bg = colors.default.color;
+            let row_hover_bg = self.row_hover_bg.unwrap_or(colors.default.color);
             let row_focus = colors.focus;
             let row_accent = colors.accent.color;
             let row_disabled_opacity = layout.disabled_opacity;

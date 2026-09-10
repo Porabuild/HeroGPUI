@@ -223,6 +223,8 @@ pub struct ListBox {
     row_padding_x: Option<gpui::Pixels>,
     /// Replaces the option rows' `py-1.5` vertical padding.
     row_padding_y: Option<gpui::Pixels>,
+    /// The fill a hovered option row takes, in place of `--default`.
+    row_hover_bg: Option<gpui::Hsla>,
     /// `ListLayout`'s `estimatedRowHeight` — the estimate that virtualizes a
     /// list whose rows are *not* all one height.
     estimated_row_height: Option<gpui::Pixels>,
@@ -266,6 +268,7 @@ impl ListBox {
             row_height: None,
             row_padding_x: None,
             row_padding_y: None,
+            row_hover_bg: None,
             estimated_row_height: None,
             heading_height: None,
             // `.list-box` is `p-1` with `mt-1` between children.
@@ -393,6 +396,12 @@ impl ListBox {
     /// Replaces the option rows' `py-1.5` vertical padding.
     pub fn row_padding_y(mut self, p: impl Into<gpui::Pixels>) -> Self {
         self.row_padding_y = Some(p.into());
+        self
+    }
+
+    /// The fill a hovered option row takes, in place of `--default`.
+    pub fn row_hover_bg(mut self, color: impl Into<gpui::Hsla>) -> Self {
+        self.row_hover_bg = Some(color.into());
         self
     }
 
@@ -1295,7 +1304,7 @@ impl ListBox {
                     ListBoxItemVariant::Default => colors.foreground,
                     ListBoxItemVariant::Danger => colors.danger.color,
                 };
-                let hover_bg = colors.default.color;
+                let hover_bg = self.row_hover_bg.unwrap_or(colors.default.color);
 
                 // `useOption.mjs` is `role: 'option'` with
                 // `'aria-selected': selectionMode !== 'none' ? isSelected :

@@ -476,6 +476,15 @@ EXTRA_OK_SCOPED = {
     'Button.hover_bg': 'no-classname',
     'CloseButton.hover_bg': 'no-classname',
     'ToggleButton.hover_bg': 'no-classname',
+    'Pagination.hover_bg': 'no-classname',
+    'TagGroup.hover_bg': 'no-classname',
+    'TagGroup.remove_hover_bg': 'no-classname',
+    'Select.row_hover_bg': 'no-classname',
+    'ComboBox.row_hover_bg': 'no-classname',
+    'Autocomplete.row_hover_bg': 'no-classname',
+    'ListBox.row_hover_bg': 'no-classname',
+    'Menu.row_hover_bg': 'no-classname',
+    'Dropdown.row_hover_bg': 'no-classname',
     # v3's stylesheet declares `.range-calendar__cell-indicator`; only the
     # Calendar's prop table names the part.
     'RangeCalendar.cell_indicator': 'composition',

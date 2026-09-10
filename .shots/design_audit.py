@@ -3339,7 +3339,10 @@ def check_pagination_style_contract():
     checks.extend([
         ('no link border', '.border_1()' not in src),
         ('active default fill', '.bg(colors.default.color)' in src),
-        ('default hover', 'let hover_bg = colors.default.hover();' in src),
+        ('default hover',
+         'let control_hover_bg = self.hover_bg.unwrap_or(colors.default.hover());' in src),
+        ('hover feeds pressed',
+         'let pressed_bg = control_hover_bg;' in src),
     ])
 
     print()

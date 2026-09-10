@@ -252,6 +252,12 @@
       "code": "gpui::div()\n    .flex()\n    .flex_col()\n    .items_start()\n    .gap(px(12.))\n    .children(vec![\n        Dropdown::new(\n            \"dropdown-trigger-dd\",\n            Button::new(\"dropdown-trigger\")\n                .label(\"Actions\")\n                .variant(Variant::Secondary),\n            items,\n            is_open,\n        )\n        .id(\"dropdown-trigger-dd\")\n        .on_open_change(cx.listener(|this, open: &bool, _, cx| {\n            this.dropdown_open = *open;\n            cx.notify();\n        }))\n        .on_action(cx.listener(|this, key: &SharedString, _, cx| {\n            this.dropdown_selected = Some(key.clone());\n            this.dropdown_open = false;\n            cx.notify();\n        }))\n        .into_any_element(),\n        para(&format!(\"Last action: {selected}\"), cx),\n    ])"
     },
     {
+      "heading": "Row Hover",
+      "description": "`row_hover_bg` names the fill a hovered menu row takes, in place of `--default`.",
+      "imports": "use herogpui::prelude::{ActiveTheme, Button, Dropdown, MenuItem, Variant};",
+      "code": "Dropdown::new(\n    \"dropdown-hover-trigger\",\n    Button::new(\"dropdown-hover\")\n        .label(\"Actions\")\n        .variant(Variant::Secondary),\n    plain(),\n    false,\n)\n.row_hover_bg(cx.colors().accent.soft())"
+    },
+    {
       "heading": "With Icons",
       "imports": "use herogpui::prelude::{Button, Dropdown, MenuItem, Variant, icons};",
       "code": "Dropdown::uncontrolled(\n    \"dd-icons-dd\",\n    Button::new(\"dropdown-icons\")\n        .label(\"File\")\n        .variant(Variant::Secondary),\n    vec![\n        MenuItem::new(\"new\", \"New file\").icon(icons::PLUS),\n        MenuItem::new(\"copy\", \"Copy\").icon(icons::COPY),\n        MenuItem::new(\"delete\", \"Delete\")\n            .icon(icons::CLOSE)\n            .danger(),\n    ],\n)\n.id(\"dropdown-icons-dd\")"
@@ -359,8 +365,8 @@
     {
       "heading": "Row Padding",
       "description": "`row_padding_x` / `row_padding_y` resize the option rows; section headings keep their own inset.",
-      "imports": "use herogpui::prelude::{ListBox, ListBoxItem};\nuse gpui::prelude::*;\nuse gpui::px;",
-      "code": "gpui::div()\n    .w(px(220.))\n    .child(\n        ListBox::new(\n            \"list-box-row-padding\",\n            vec![\n                ListBoxItem::new(\"a\", \"Alpha\"),\n                ListBoxItem::new(\"b\", \"Beta\"),\n            ],\n        )\n        .row_padding_x(px(16.))\n        .row_padding_y(px(2.)),\n    )"
+      "imports": "use herogpui::prelude::{ActiveTheme, ListBox, ListBoxItem};\nuse gpui::prelude::*;\nuse gpui::px;",
+      "code": "gpui::div()\n    .w(px(220.))\n    .child(\n        ListBox::new(\n            \"list-box-row-padding\",\n            vec![\n                ListBoxItem::new(\"a\", \"Alpha\"),\n                ListBoxItem::new(\"b\", \"Beta\"),\n            ],\n        )\n        .row_padding_x(px(16.))\n        .row_padding_y(px(2.))\n        .row_hover_bg(cx.colors().accent.soft()),\n    )"
     },
     {
       "heading": "With Disabled Items",
@@ -440,6 +446,12 @@
       "heading": "Usage",
       "imports": "use herogpui::prelude::{Tag, TagGroup};",
       "code": "TagGroup::new(\"tag-group\", tags())\n    .label(\"Skills\")"
+    },
+    {
+      "heading": "Hover Colour",
+      "description": "`hover_bg` names a hovered tag's fill and `remove_hover_bg` the remove button's.",
+      "imports": "use herogpui::prelude::{ActiveTheme, Tag, TagGroup};",
+      "code": "TagGroup::new(\"tag-group-hover-bg\", tags())\n    .label(\"Skills\")\n    .hover_bg(cx.colors().accent.soft())\n    .remove_hover_bg(cx.colors().accent.soft_hover())\n    .on_remove(cx.listener(\n        |this, keys: &HashSet<SharedString>, _, cx| {\n            this.tags.retain(|key| !keys.contains(key));\n            this.tag_selection.retain(|key| !keys.contains(key));\n            cx.notify();\n        },\n    ))"
     },
     {
       "heading": "Disabled",
@@ -2858,6 +2870,12 @@
       "code": "Pagination::new(\"pagination-main\", page, 10)\n    .on_change(cx.listener(|this, p: &usize, _, cx| {\n        this.pagination_page = *p;\n        cx.notify();\n    }))"
     },
     {
+      "heading": "Hover Colour",
+      "description": "`hover_bg` names the fill enabled links and nav buttons take while hovered or pressed; the per-size press scale is unchanged.",
+      "imports": "use herogpui::prelude::{ActiveTheme, Pagination};",
+      "code": "Pagination::new(\"pagination-hover-bg\", page, 6)\n    .hover_bg(cx.colors().accent.soft_hover())\n    .on_change(cx.listener(|this, p: &usize, _, cx| {\n        this.pagination_page = *p;\n        cx.notify();\n    }))"
+    },
+    {
       "heading": "Sizes",
       "description": "Summary and link typography scale together and keep their line height in larger text containers.",
       "imports": "use herogpui::prelude::{Pagination, Size};\nuse gpui::prelude::*;\nuse gpui::px;",
@@ -3268,8 +3286,8 @@
     {
       "heading": "Box Customisation",
       "description": "`height`, `padding_x` and `is_bare` size the trigger; `row_padding_x` / `row_padding_y` size the suggestion rows.",
-      "imports": "use herogpui::prelude::Autocomplete;\nuse gpui::px;",
-      "code": "Autocomplete::new(\n    self.demo_text(\"ac-custom-box\", \"\", cx),\n    language_items(),\n)\n.label(\"Compact\")\n.placeholder(\"Pick one\")\n.height(px(28.))\n.padding_x(px(4.))\n.is_bare(true)\n.row_padding_x(px(16.))\n.row_padding_y(px(2.))"
+      "imports": "use herogpui::prelude::{ActiveTheme, Autocomplete};\nuse gpui::px;",
+      "code": "Autocomplete::new(\n    self.demo_text(\"ac-custom-box\", \"\", cx),\n    language_items(),\n)\n.label(\"Compact\")\n.placeholder(\"Pick one\")\n.height(px(28.))\n.padding_x(px(4.))\n.is_bare(true)\n.row_padding_x(px(16.))\n.row_padding_y(px(2.))\n.row_hover_bg(cx.colors().accent.soft())"
     },
     {
       "heading": "Virtualization",
@@ -3370,8 +3388,8 @@
     {
       "heading": "Box Customisation",
       "description": "The trigger forwards `height`, `padding_x` and `is_bare` to its input, and `row_padding_x` / `row_padding_y` size the rows.",
-      "imports": "use herogpui::prelude::ComboBox;\nuse gpui::px;",
-      "code": "ComboBox::new(\n    self.demo_text(\"cb-custom-box\", \"\", cx),\n    language_items(),\n)\n.label(\"Compact\")\n.placeholder(\"Pick one\")\n.height(px(28.))\n.padding_x(px(4.))\n.is_bare(true)\n.row_padding_x(px(16.))\n.row_padding_y(px(2.))"
+      "imports": "use herogpui::prelude::{ActiveTheme, ComboBox};\nuse gpui::px;",
+      "code": "ComboBox::new(\n    self.demo_text(\"cb-custom-box\", \"\", cx),\n    language_items(),\n)\n.label(\"Compact\")\n.placeholder(\"Pick one\")\n.height(px(28.))\n.padding_x(px(4.))\n.is_bare(true)\n.row_padding_x(px(16.))\n.row_padding_y(px(2.))\n.row_hover_bg(cx.colors().accent.soft())"
     },
     {
       "heading": "Virtualization",
@@ -3514,8 +3532,8 @@
     {
       "heading": "Box Customisation",
       "description": "`height`, `padding_x` and `is_bare` size the trigger; `row_padding_x` / `row_padding_y` size its option rows. This 28px bare trigger opens over 16px-padded rows.",
-      "imports": "use herogpui::prelude::Select;\nuse gpui::px;",
-      "code": "Select::new(\"select-custom-box\", language_items())\n    .label(\"Compact\")\n    .placeholder(\"Choose one\")\n    .height(px(28.))\n    .padding_x(px(4.))\n    .is_bare(true)\n    .row_padding_x(px(16.))\n    .row_padding_y(px(2.))\n    .default_open(true)"
+      "imports": "use herogpui::prelude::{ActiveTheme, Select};\nuse gpui::px;",
+      "code": "Select::new(\"select-custom-box\", language_items())\n    .label(\"Compact\")\n    .placeholder(\"Choose one\")\n    .height(px(28.))\n    .padding_x(px(4.))\n    .is_bare(true)\n    .row_padding_x(px(16.))\n    .row_padding_y(px(2.))\n    .row_hover_bg(cx.colors().accent.soft())\n    .default_open(true)"
     },
     {
       "heading": "Virtualization",

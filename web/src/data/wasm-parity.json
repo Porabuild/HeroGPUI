@@ -1,7 +1,7 @@
 {
   "version": 2,
-  "artifactSha256": "bbd9a0fea95e8580f78a46d2be58c7fba323afbd54d2ddaf724121e3933bca5f",
-  "glueSha256": "ce897102af7b1f803bb7bfdb2cd74c7d1fedf260abb22bb8e7bb9605966f9dbf",
+  "artifactSha256": "6315f44ce6eced4fc928000bf4410a5d195b1c70a091235529102dd57b1f2635",
+  "glueSha256": "b5a1fb512b233421adc6af8e85dfdc6364a4440ebb021d3d208b2c3b803f9619",
   "examples": {
     "accordion/Controlled": {
       "codeSha256": "2816548407263e0fdeada0ff2ec1e8f9fd45a2d33b24ab2cf163539711fe6f8a",
@@ -112,7 +112,7 @@
       "descriptionSha256": "664e5aa239ed00212e651feb908e6950f23c8a8a1254c329a690d9465b2ec5e8"
     },
     "autocomplete/Box Customisation": {
-      "codeSha256": "fcf94d700f113c466d9af72a9bd6b6ff8267cd21511e3e7dde25284776294193",
+      "codeSha256": "42e00b92c8d5be8bbcfd57f25c7bf22d37a56703503c3f8f45966aaa70ae3031",
       "descriptionSha256": "d04e06c3a2509cc57c65e5c5d49b24dea1ab646a70dc3916250c5b55fc5f8771"
     },
     "autocomplete/Controlled": {
@@ -832,7 +832,7 @@
       "descriptionSha256": "33bce5c264d50c244c2f69442887c5d0d4ffc40b6691eeebc9b880b2288b4f74"
     },
     "combo-box/Box Customisation": {
-      "codeSha256": "2f4b7ca9445b3a3e9b3adb6afbe8837e5de3e8ed3310d4380a4e7dfefaabb56c",
+      "codeSha256": "bb1cb8b094a9ddc0d9e17a8170bfe920e897018e77a0442c4c758a99c982caea",
       "descriptionSha256": "86f8d5ffc77ac396d34ba972f32c080ae3504b3b26412f67b5cb47d11febd7ee"
     },
     "combo-box/Controlled": {
@@ -1142,6 +1142,10 @@
     "dropdown/Render Props": {
       "codeSha256": "3d87b061564be64ad5b4b91a88180e1e22805e85ff8b5f61d7b10ec2aea1050a",
       "descriptionSha256": "d5c2ab16d20aeb9912fa390966d352733990f68c63e171dfb8e5345196d33839"
+    },
+    "dropdown/Row Hover": {
+      "codeSha256": "75a816b2a2b5ece480237638881854ea5fbb2b646e749afde14ad62a852b9373",
+      "descriptionSha256": "9d97d5c9a86ca4dfe3577d2e5b6b86b265004b35fb0d06cc5de2cc9772c895fe"
     },
     "dropdown/Single With Custom Indicator": {
       "codeSha256": "15d612810e9cda1815fe140148bad19cebf7d466a7ca167e3f4d79991673800c",
@@ -1516,7 +1520,7 @@
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "list-box/Row Padding": {
-      "codeSha256": "138d2aa82edaa9f589f30b56df6ad32c8768c893165da25ff648f8a0d3a5ff9a",
+      "codeSha256": "cb8c68ccdfd0fe47c746ef4640ef4729755937d5fc0e23288bbd02373710f55a",
       "descriptionSha256": "70342b245c29c8436b8a4cb9028b71f16d1b8ba5bf25536faf7eb387af8feab0"
     },
     "list-box/Single selection": {
@@ -1690,6 +1694,10 @@
     "pagination/Disabled Links": {
       "codeSha256": "eb36bbc18e568cbce3b59c8664204c3d9df8adf456d41607bec74fdadcc16295",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "pagination/Hover Colour": {
+      "codeSha256": "0bafd6d5f20c6da1ac9bd8d734a82a0b87f7bfebe662b409b517ce39f2a4a251",
+      "descriptionSha256": "46eb3d5d7c78dc3ed9f75aac8babc22f5315664059abc17be4d1a2dda440b9cc"
     },
     "pagination/Render Props": {
       "codeSha256": "3b8e49e77a5839262877154da4426bd621677a75e960875910f71c3585c25e9d",
@@ -2016,7 +2024,7 @@
       "descriptionSha256": "d9d9ad0a9e44738e63a5f0ecd066a3a831473d8b74be3d230120b8c732f392e7"
     },
     "select/Box Customisation": {
-      "codeSha256": "cbcee4071beee95e56c798ce513cb85b095ed30b2b22b7885d19191dc90fda55",
+      "codeSha256": "6541116f72f3a48e8ac3ca9941e2dec7cfa1a636be0ada6cab388315098a393d",
       "descriptionSha256": "4bb4282cf3fab46cd41cb2baa6a6593fa110a2243eba4351dbbdfb0f94d2a0c8"
     },
     "select/Controlled": {
@@ -2390,6 +2398,10 @@
     "tag-group/Escape Key Behavior": {
       "codeSha256": "45a1f70cea66f395e2f6dd01a8690479f3ae691fe167e7183e72f37a19b5aff6",
       "descriptionSha256": "fc0c581090a608e82e34f9fde01391d40f2e7e139c64bfab05f8d93518b25b15"
+    },
+    "tag-group/Hover Colour": {
+      "codeSha256": "45f3c8f516c7e9d253f046905178fbeca026fb7626c83d3393c538b84c918213",
+      "descriptionSha256": "c8bf56ce1c73ca7cf61b16602c0f7649c1eb0b66a6ee657b8e7d12ca9b8e0598"
     },
     "tag-group/Removable": {
       "codeSha256": "c280996d539e6a49c5633f7a8e55f5cd7c84c6c2450bccc52a6eb8802383b73f",

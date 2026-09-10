@@ -202,6 +202,8 @@ pub struct Select {
     row_padding_x: Option<gpui::Pixels>,
     /// Replaces the list rows' `py-1.5` vertical padding.
     row_padding_y: Option<gpui::Pixels>,
+    /// The fill a hovered option row takes, in place of `--default`.
+    row_hover_bg: Option<gpui::Hsla>,
     /// `ListBox.Section` — the heading that precedes an option, by item key.
     sections: Vec<(SharedString, SharedString)>,
     /// `ListBox.ItemIndicator` — draws the tick. The closure is handed whether
@@ -338,6 +340,13 @@ impl Select {
         self
     }
 
+    /// The fill a hovered option row takes, in place of `--default`. v3 tints
+    /// the row with a class; this names the colour.
+    pub fn row_hover_bg(mut self, color: impl Into<gpui::Hsla>) -> Self {
+        self.row_hover_bg = Some(color.into());
+        self
+    }
+
     /// The one slot for caller-owned low-level styling: GPUI's styling methods
     /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
     /// applied to the select's root element after every value the variant and
@@ -373,6 +382,7 @@ impl Select {
             row_height: None,
             row_padding_x: None,
             row_padding_y: None,
+            row_hover_bg: None,
             field: util::FieldBox::default(),
             sections: Vec::new(),
             indicator: None,
@@ -1462,7 +1472,7 @@ impl RenderOnce for Select {
             let row_virtualized = self.row_height.is_some();
             let row_fg = colors.foreground;
             let row_focus = colors.focus;
-            let row_hover_bg = colors.default.color;
+            let row_hover_bg = self.row_hover_bg.unwrap_or(colors.default.color);
             let row_accent = sem.color;
             let row_disabled_opacity = layout.disabled_opacity;
             // Everything a row reads, owned: `uniform_list`'s callback is
@@ -2008,7 +2018,8 @@ mod tests {
              (pinned `--select-trigger-bg-hover: var(--default-hover)`)"
         );
         assert!(
-            source.contains("let row_hover_bg = colors.default.color;"),
+            source
+                .contains("let row_hover_bg = self.row_hover_bg.unwrap_or(colors.default.color);"),
             "the popup rows must hover the full `bg-default` \
              (pinned `.list-box-item:hover`)"
         );

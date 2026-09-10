@@ -41,6 +41,7 @@ impl Gallery {
                     .is_bare(true)
                     .row_padding_x(px(16.))
                     .row_padding_y(px(2.))
+                    .row_hover_bg(cx.colors().accent.soft())
                     .into_any_element()]),
                 ),
                 (
@@ -377,6 +378,7 @@ impl Gallery {
                     .is_bare(true)
                     .row_padding_x(px(16.))
                     .row_padding_y(px(2.))
+                    .row_hover_bg(cx.colors().accent.soft())
                     .into_any_element()]),
                 ),
                 (
@@ -849,6 +851,7 @@ impl Gallery {
                         .is_bare(true)
                         .row_padding_x(px(16.))
                         .row_padding_y(px(2.))
+                        .row_hover_bg(cx.colors().accent.soft())
                         .default_open(true)
                         .into_any_element()]),
                 ),

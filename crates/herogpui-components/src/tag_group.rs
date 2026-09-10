@@ -196,6 +196,12 @@ pub struct TagGroup {
     is_disabled: bool,
     size: Size,
     variant: TagVariant,
+    /// The fill a hovered selectable tag takes, in place of the variant's
+    /// hover colour.
+    hover_bg: Option<gpui::Hsla>,
+    /// The fill a hovered remove button takes, in place of
+    /// `--default-hover`.
+    remove_hover_bg: Option<gpui::Hsla>,
     /// `Tag`'s `children`-as-a-function: handed the interactive state and drawn
     /// in place of the label.
     tag_content: Option<Arc<dyn Fn(&Tag, crate::util::InteractiveState) -> AnyElement + 'static>>,
@@ -225,6 +231,8 @@ impl TagGroup {
             is_disabled: false,
             size: Size::Md,
             variant: TagVariant::Default,
+            hover_bg: None,
+            remove_hover_bg: None,
             empty_state: None,
             on_selection_change: None,
             on_remove: None,
@@ -302,6 +310,21 @@ impl TagGroup {
 
     pub fn variant(mut self, variant: TagVariant) -> Self {
         self.variant = variant;
+        self
+    }
+
+    /// The fill a hovered selectable tag takes, in place of the variant's
+    /// hover colour. Resting colours (including a selected tag's soft accent)
+    /// are unchanged.
+    pub fn hover_bg(mut self, color: impl Into<gpui::Hsla>) -> Self {
+        self.hover_bg = Some(color.into());
+        self
+    }
+
+    /// The fill a hovered remove button takes, in place of
+    /// `--default-hover`.
+    pub fn remove_hover_bg(mut self, color: impl Into<gpui::Hsla>) -> Self {
+        self.remove_hover_bg = Some(color.into());
         self
     }
 
@@ -568,14 +591,16 @@ impl RenderOnce for TagGroup {
             if disabled {
                 chip = chip.opacity(layout.disabled_opacity);
             } else if selectable {
-                let hover = if selected {
-                    colors.accent.soft_hover()
-                } else {
-                    match self.variant {
-                        TagVariant::Default => colors.default.hover(),
-                        TagVariant::Surface => colors.surface.hover(),
+                let hover = self.hover_bg.unwrap_or_else(|| {
+                    if selected {
+                        colors.accent.soft_hover()
+                    } else {
+                        match self.variant {
+                            TagVariant::Default => colors.default.hover(),
+                            TagVariant::Surface => colors.surface.hover(),
+                        }
                     }
-                };
+                });
                 chip = chip
                     .cursor(crate::util::interactive_cursor(cx))
                     .hover(move |s| s.bg(hover));
@@ -658,7 +683,7 @@ impl RenderOnce for TagGroup {
                     .flex_shrink_0()
                     .child(remove_content);
                 if !disabled {
-                    let hover_bg = colors.default.hover();
+                    let hover_bg = self.remove_hover_bg.unwrap_or(colors.default.hover());
                     let remove_focus = &remove_focus_handles[index];
                     let focus_for_remove = group_focus.clone();
                     let cursor_for_remove = cursor.clone();
