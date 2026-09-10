@@ -373,6 +373,8 @@ pub struct Checkbox {
     /// A round control instead of `rounded-md`. v3's "Full Rounded" example
     /// does it with `className="rounded-full"` on `Checkbox.Control`.
     is_round: bool,
+    /// The control fill while hovered, in place of `--accent-hover`.
+    hover_bg: Option<gpui::Hsla>,
     description: Option<gpui::SharedString>,
     /// The plain text of the label, when the caller had one.
     ///
@@ -443,6 +445,13 @@ impl Checkbox {
     }
 
     /// `variant` — `Secondary` drops the shadow for use on a surface.
+    /// The control fill while hovered, in place of `--accent-hover`. The
+    /// scale/fade Tween and the pressed target are unchanged.
+    pub fn hover_bg(mut self, color: impl Into<gpui::Hsla>) -> Self {
+        self.hover_bg = Some(color.into());
+        self
+    }
+
     pub fn variant(mut self, variant: herogpui_core::FieldVariant) -> Self {
         self.variant = variant;
         self
@@ -481,6 +490,7 @@ impl Checkbox {
             indicator: None,
             content: None,
             is_round: false,
+            hover_bg: None,
             description: None,
             label_text: None,
             error_message: None,
@@ -761,11 +771,8 @@ impl RenderOnce for Checkbox {
                 herogpui_core::FieldVariant::Secondary => cx.colors().default.color,
             }
         };
-        let fill_bg_target = if is_hovered {
-            accent_hover
-        } else {
-            accent_color
-        };
+        let fill_hover = self.hover_bg.unwrap_or(accent_hover);
+        let fill_bg_target = if is_hovered { fill_hover } else { accent_color };
 
         // The motion slots; every `use_keyed_state` here needs `cx` mutably.
         let reduce_motion = ActiveTheme::reduce_motion(cx);

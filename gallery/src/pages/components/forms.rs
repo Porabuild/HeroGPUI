@@ -20,6 +20,7 @@ impl Gallery {
                     col(vec![
                         h::Checkbox::new("cb-1")
                             .is_selected(basic)
+                            .hover_bg(cx.colors().accent.soft_hover())
                             .label(gpui::div().child("Accept the terms"))
                             .on_change(cx.listener(|this, v: &bool, _, cx| {
                                 this.cb_basic = *v;

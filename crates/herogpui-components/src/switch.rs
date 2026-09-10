@@ -244,6 +244,9 @@ pub struct Switch {
     /// pointer and once for Enter and Space.
     on_change: Option<std::sync::Arc<dyn Fn(&bool, &mut Window, &mut App) + 'static>>,
     form_state: Rc<RefCell<crate::form::LiveFormFieldState>>,
+    /// The track's hover/press fill, in place of the checked / unchecked
+    /// hover token. The Tween motion is unchanged.
+    hover_bg: Option<gpui::Hsla>,
     /// The `sx` slot, refined over the root style at the end of render.
     sx: Option<Box<gpui::StyleRefinement>>,
 }
@@ -311,6 +314,7 @@ impl Switch {
             thumb_on: None,
             label_first: false,
             on_change: None,
+            hover_bg: None,
             form_state: Rc::new(RefCell::new(crate::form::LiveFormFieldState {
                 value: crate::form::FormValue::Flag(false),
                 is_invalid: false,
@@ -405,6 +409,13 @@ impl Switch {
     /// state and toggles itself.
     pub fn default_selected(mut self, v: bool) -> Self {
         self.default_checked = v;
+        self
+    }
+
+    /// The track's fill while hovered or pressed, in place of the checked /
+    /// unchecked hover token. The Tween motion is unchanged.
+    pub fn hover_bg(mut self, color: impl Into<gpui::Hsla>) -> Self {
+        self.hover_bg = Some(color.into());
         self
     }
 
@@ -575,7 +586,9 @@ impl RenderOnce for Switch {
         // `default` is the v3 unchecked track. A soft (alpha) mix vanishes on
         // a white overlay, so the track uses the solid role colour.
         let track_bg = if checked { accent_color } else { default_color };
-        let hover_bg = if checked { accent_hover } else { default_hover };
+        let hover_bg = self
+            .hover_bg
+            .unwrap_or(if checked { accent_hover } else { default_hover });
         let interaction_state = *interaction.read(cx);
         let track_target = if !self.is_disabled
             && !self.is_read_only

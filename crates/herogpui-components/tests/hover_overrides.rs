@@ -114,6 +114,20 @@ fn every_hover_override_reaches_its_painted_fill() {
             "let hover_bg = self.t.close_hover_bg.unwrap_or(colors.default.color);",
             "s.bg(hover_bg)",
         ),
+        (
+            "switch.rs",
+            include_str!("../src/switch.rs"),
+            "self.hover_bg = Some(color.into());",
+            "unwrap_or(if checked { accent_hover } else { default_hover });",
+            "let track_motion_frame = track_motion(&self.id, track_target, window, cx);",
+        ),
+        (
+            "checkbox.rs",
+            include_str!("../src/checkbox.rs"),
+            "self.hover_bg = Some(color.into());",
+            "let fill_hover = self.hover_bg.unwrap_or(accent_hover);",
+            "let fill_bg_target = if is_hovered { fill_hover } else { accent_color };",
+        ),
     ] {
         assert!(
             source.contains(stored),

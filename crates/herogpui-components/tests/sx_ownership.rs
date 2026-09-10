@@ -144,7 +144,7 @@ const INVENTORY: &[Part] = &[
     Part::pending(
         "dropdown.rs",
         "row hover fill",
-        "row = row.hover(move |s| s.bg(colors.default.color));",
+        "row = row.hover(move |s| s.bg(row_hover_bg));",
         "util::sx_background",
     ),
     Part::pending(

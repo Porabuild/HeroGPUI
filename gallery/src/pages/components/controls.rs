@@ -343,6 +343,7 @@ impl Gallery {
                     col(vec![
                         h::Switch::new("sw-a")
                             .is_selected(a)
+                            .hover_bg(cx.colors().accent.soft_hover())
                             .label(gpui::div().child("Enable notifications"))
                             .on_change(cx.listener(|this, v: &bool, _, cx| {
                                 this.switch_a = *v;
