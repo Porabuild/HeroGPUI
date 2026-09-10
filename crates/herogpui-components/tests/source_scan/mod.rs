@@ -8,7 +8,7 @@
 
 #![allow(dead_code)]
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 /// Reads one file from the component crate's `src/` tree.
 pub fn component_src(relative: &str) -> String {
@@ -19,19 +19,44 @@ pub fn component_src(relative: &str) -> String {
         .unwrap_or_else(|err| panic!("{} must be readable: {err}", path.display()))
 }
 
-/// Every `.rs` file under a directory, recursively.
-pub fn rust_sources(dir: &Path) -> Vec<PathBuf> {
-    let mut out = Vec::new();
-    let entries = std::fs::read_dir(dir).expect("source tree must be readable");
-    for entry in entries {
-        let path = entry.expect("directory entry must be readable").path();
-        if path.is_dir() {
-            out.extend(rust_sources(&path));
-        } else if path.extension().is_some_and(|e| e == "rs") {
-            out.push(path);
+/// Asserts `source` has exactly one `apply_field_chrome(` call and that it
+/// sits inside the `if !<flag> { ... }` guard.
+///
+/// Counting appearances alone would pass if the call moved outside the guard;
+/// scoping to the guarded block binds the call to the flag the builder reads.
+pub fn assert_chrome_call_is_gated(source: &str, flag: &str) {
+    let calls = source.matches("apply_field_chrome(").count();
+    assert_eq!(
+        calls, 1,
+        "the component must have exactly one chrome call site, found {calls}"
+    );
+    let guard = format!("if !{flag} {{");
+    let guard_at = source
+        .find(&guard)
+        .unwrap_or_else(|| panic!("the chrome call must be gated on `{guard}`"));
+    let body_at = guard_at + guard.len();
+    let body_len = guard_body_len(&source[body_at..]);
+    assert!(
+        source[body_at..body_at + body_len].contains("apply_field_chrome("),
+        "the only chrome call must sit inside the `{guard}` guard"
+    );
+}
+
+fn guard_body_len(after_open: &str) -> usize {
+    let mut depth = 1usize;
+    for (index, ch) in after_open.char_indices() {
+        match ch {
+            '{' => depth += 1,
+            '}' => {
+                depth -= 1;
+                if depth == 0 {
+                    return index;
+                }
+            }
+            _ => {}
         }
     }
-    out
+    panic!("the guard block must close");
 }
 
 /// The top-level function containing the first occurrence of `marker`.

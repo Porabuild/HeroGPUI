@@ -461,7 +461,8 @@ impl Autocomplete {
         self
     }
 
-    /// Replaces the trigger's 36px minimum box height.
+    /// Fixes the trigger box at `h`. Unset keeps the 36px `min-h-9`; content
+    /// taller than an explicit height overflows the box.
     pub fn height(mut self, h: impl Into<gpui::Pixels>) -> Self {
         self.field.height = Some(h.into());
         self

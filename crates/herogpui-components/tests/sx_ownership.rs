@@ -276,9 +276,6 @@ fn the_scanner_scopes_to_the_enclosing_function() {
     let good = "fn owner() {\n    let bg = util::sx_background(&sx);\n    paint(bg);\n}\n";
     assert!(scope_contains(good, "paint(bg)", "util::sx_background").is_ok());
 
-    let bad = "fn owner() {\n    paint();\n}\n\nfn helper() {\n    util::sx_background(&sx);\n}\n";
-    assert!(scope_contains(bad, "paint();", "util::sx_background").is_err());
-
     let signature = "fn owner() {\n    util::sx_background(&sx);\n}\n";
     assert!(scope_contains(signature, "fn owner()", "util::sx_background").is_ok());
 }

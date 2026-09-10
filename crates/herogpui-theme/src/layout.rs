@@ -77,10 +77,11 @@ pub struct LayoutTheme {
     /// variable, and not consumed by `Link`: its root hover draws an underline.
     pub tabs_hover_opacity: f32,
 
-    /// The shortest time between one tooltip closing and the next opening.
+    /// How long the tooltip manager stays warm after a tooltip closes.
     ///
-    /// Replaces the fixed 500 ms floor; the per-tooltip close delay still
-    /// raises the wait via `max()`. React Aria uses the same 500 ms.
+    /// While warm, the next tooltip opens without its delay; the per-tooltip
+    /// close delay extends the window via `max()`. React Aria uses the same
+    /// 500 ms.
     pub tooltip_cooldown_ms: u64,
 
     /// How long a `DropdownTrigger::LongPress` waits before it opens.

@@ -289,3 +289,54 @@ fn tag_group_delete_last_tag_leaves_the_tab_order(cx: &mut TestAppContext) {
         "an empty TagGroup must yield Tab to the following control"
     );
 }
+
+/// `row_padding_y` grows the plain option row: 20px line + 2 x padding, with
+/// the default 6px keeping the 36px `.list-box-item` floor.
+#[gpui::test]
+fn list_box_row_padding_y_sizes_the_option(cx: &mut TestAppContext) {
+    const PAD: f32 = 12.;
+    let cx = open_host(cx, move || {
+        gpui::div()
+            .flex()
+            .flex_col()
+            .items_start()
+            .gap(px(16.))
+            .child(
+                ListBox::new(
+                    "lb-row-default",
+                    vec![
+                        ListBoxItem::new("a", "Alpha"),
+                        ListBoxItem::new("b", "Beta"),
+                    ],
+                )
+                .into_any_element(),
+            )
+            .child(
+                ListBox::new(
+                    "lb-row-pad",
+                    vec![
+                        ListBoxItem::new("a", "Alpha"),
+                        ListBoxItem::new("b", "Beta"),
+                    ],
+                )
+                .row_padding_y(px(PAD))
+                .into_any_element(),
+            )
+            .into_any_element()
+    });
+
+    let default = cx
+        .debug_bounds("Name(\"lb-row-default\")-item-0")
+        .expect("the default row must be laid out");
+    let padded = cx
+        .debug_bounds("Name(\"lb-row-pad\")-item-0")
+        .expect("the padded row must be laid out");
+    assert!(
+        (f32::from(default.size.height) - 36.).abs() < 0.5,
+        "the default row must keep the 36px floor, got {default:?}"
+    );
+    assert!(
+        (f32::from(padded.size.height) - 44.).abs() < 0.5,
+        "a 12px row padding must grow the 20px line to 44px, got {padded:?}"
+    );
+}

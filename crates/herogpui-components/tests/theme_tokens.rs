@@ -69,6 +69,14 @@ const CONSUMERS: &[Consumer] = &[
 
 #[test]
 fn every_named_consumer_reads_its_token_and_drops_the_literal() {
+    // The three Tabs closures must be fed by the layout-token binding: a
+    // literal assigned to `tabs_hover_opacity` would satisfy every marker.
+    let tabs = component_src("tabs.rs");
+    assert!(
+        tabs.contains("let tabs_hover_opacity = layout.tabs_hover_opacity;"),
+        "the Tabs hover closures must take their opacity from the layout token"
+    );
+
     let mut failures = Vec::new();
     for consumer in CONSUMERS {
         let source = component_src(consumer.file);

@@ -255,7 +255,7 @@ impl RenderOnce for InputGroup {
         let (is_disabled, is_textarea) = (self.is_disabled, self.is_textarea);
         let field_box = self.field;
         // A textarea group grows with its content and ignores the height
-        // override; every other group is the one 36px row.
+        // override; every other group defaults to the 36px row.
         let explicit_height = if is_textarea { None } else { field_box.height };
         // The held field's state entity names this instance's probes; two
         // groups sharing one state would share the probes and the field both.
@@ -400,7 +400,7 @@ impl RenderOnce for InputGroup {
                 None => input,
             };
             let input = match field_box.padding_x {
-                Some(padding_x) => input.padding_x(padding_x),
+                Some(padding_x) => input.group_padding_x(padding_x),
                 None => input,
             };
             group = group.child(input.is_bare(field_box.is_bare));

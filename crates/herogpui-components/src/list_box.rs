@@ -1318,6 +1318,12 @@ impl ListBox {
                 let row_name = a11y::Name::labelled(label.clone()).described(description.clone());
                 let mut row = div()
                     .id(element_id::indexed(&self.id, "item", index))
+                    // Headless probe: the option row itself, so tests can
+                    // measure the row padding on the plain and virtual paths.
+                    .debug_selector({
+                        let owner = format!("{:?}", self.id);
+                        move || format!("{owner}-item-{index}")
+                    })
                     .a11y_named(a11y::Role::ListBoxOption, &row_name)
                     .when(self.selection_mode != SelectionMode::None, |row| {
                         row.a11y_selected(selected)

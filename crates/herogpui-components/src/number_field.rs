@@ -724,10 +724,13 @@ impl RenderOnce for NumberField {
         // false on both sides removes the standalone chrome without borrowing
         // InputGroup's addon-padding behavior. A padding override needs the
         // standalone path instead, with the group painting the chrome.
-        field = match field_box.padding_x {
-            Some(padding_x) => field.is_bare(true).padding_x(padding_x),
-            None => field.in_group(false, false),
-        };
+        // The group owns the row and its chrome; a padding override travels
+        // through Input's crate-internal grouped seam so the public
+        // `Input::padding_x` contract is untouched.
+        field = field.in_group(false, false);
+        if let Some(padding_x) = field_box.padding_x {
+            field = field.group_padding_x(padding_x);
+        }
         if let Some(height) = field_box.height {
             field = field.height(height);
         }
@@ -794,6 +797,12 @@ impl RenderOnce for NumberField {
                 .into_any_element()
         });
         let field = gpui::div().flex_1().min_w_0().child(field);
+        // A vertical stepper column stacks two half-height buttons; an
+        // explicit group height shrinks them so both stay reachable inside
+        // the overflow-hidden box.
+        let vertical_stepper_h = field_box
+            .height
+            .map_or(px(18.), |height| px(f32::from(height) / 2.0));
         if !steppers {
             group = group.child(field);
         } else if self.vertical_steppers {
@@ -813,7 +822,7 @@ impl RenderOnce for NumberField {
                         self.validation_errors.clone(),
                         self.validate.clone(),
                         &colors,
-                        px(18.),
+                        vertical_stepper_h,
                         px(24.),
                         increment_icon,
                         1.0,
@@ -829,7 +838,7 @@ impl RenderOnce for NumberField {
                         self.validation_errors.clone(),
                         self.validate.clone(),
                         &colors,
-                        px(18.),
+                        vertical_stepper_h,
                         px(24.),
                         decrement_icon,
                         -1.0,

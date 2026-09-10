@@ -1219,8 +1219,13 @@ pub struct Input {
     /// `util::FIELD_HEIGHT`; the multi-line path ignores it (see the builder).
     height: Option<gpui::Pixels>,
     /// [`Input::padding_x`] — the standalone box's horizontal padding. `None`
-    /// keeps v3's `px-3`.
+    /// keeps v3's `px-3`. Ignored inside a group, whose addon rules own the
+    /// sides.
     padding_x: Option<gpui::Pixels>,
+    /// The group owner's padding override (`InputGroup::padding_x`,
+    /// `NumberField::padding_x`). Crate-internal: it is not the public
+    /// `Input::padding_x`, whose grouped behavior stays as documented.
+    group_padding_x: Option<gpui::Pixels>,
     /// [`Input::is_bare`] — render the standalone box with no chrome at all,
     /// the way `InputGroup.Input` already does.
     is_bare: bool,
@@ -1358,6 +1363,7 @@ impl Input {
             min_h: None,
             height: None,
             padding_x: None,
+            group_padding_x: None,
             is_bare: false,
             font_family: None,
             in_group: None,
@@ -1599,6 +1605,14 @@ impl Input {
     /// there.
     pub fn padding_x(mut self, p: impl Into<gpui::Pixels>) -> Self {
         self.padding_x = Some(p.into());
+        self
+    }
+
+    /// The group owner's padding override, applied to every side without an
+    /// addon. Crate-internal: [`Self::padding_x`] is the public, standalone
+    /// spelling, and it remains ignored inside a group.
+    pub(crate) fn group_padding_x(mut self, padding_x: impl Into<gpui::Pixels>) -> Self {
+        self.group_padding_x = Some(padding_x.into());
         self
     }
 
@@ -1936,7 +1950,10 @@ impl RenderOnce for Input {
             // `.input-group__input` keeps `px-3` except on a side that touches
             // an addon, which carries the padding instead.
             .map(|f| {
-                let padding_x = self.padding_x.unwrap_or(px(12.));
+                // Only the group owner's override reaches a grouped field;
+                // the public `Input::padding_x` keeps its documented
+                // grouped-ignored behavior, and unset means `px-3`.
+                let padding_x = self.group_padding_x.unwrap_or(px(12.));
                 match self.in_group {
                     None => f.px(px(12.)),
                     Some((prefix, suffix)) => f
@@ -1946,7 +1963,7 @@ impl RenderOnce for Input {
                 }
             })
             // `Input::padding_x` replaces the standalone `px-3`; a grouped
-            // field applies it above on every side without an addon.
+            // field keeps the addon rules above.
             .when_some(
                 self.padding_x.filter(|_| self.in_group.is_none()),
                 |f, padding_x| f.px(padding_x),

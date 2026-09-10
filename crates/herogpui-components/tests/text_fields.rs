@@ -46,6 +46,7 @@
 //! relies on.
 
 mod harness;
+mod source_scan;
 
 use gpui::{
     point, prelude::*, px, Bounds, Focusable, Modifiers, MouseButton, Pixels, TestAppContext,
@@ -1431,14 +1432,11 @@ fn input_group_full_width_stretches_the_outer_wrapper(cx: &mut TestAppContext) {
     // `debug_bounds` takes a `&'static str` and the probe keys carry the
     // input's entity id, so the formatted keys are leaked for the test's
     // lifetime.
-    let key = |entity: u64, suffix: &str| -> &'static str {
-        Box::leak(format!("input-group-{entity}-{suffix}").into_boxed_str())
-    };
     let full = cx
-        .debug_bounds(key(entity, "group"))
+        .debug_bounds(input_group_probe(entity, "group"))
         .expect("the full-width group box must be measurable");
     let plain_bounds = cx
-        .debug_bounds(key(plain_entity, "group"))
+        .debug_bounds(input_group_probe(plain_entity, "group"))
         .expect("the plain group box must be measurable");
     assert_eq!(
         f32::from(full.size.width),
@@ -1483,11 +1481,8 @@ fn input_group_textarea_auto_height_and_top_aligned_addons(cx: &mut TestAppConte
     });
     flush_frame(cx);
 
-    let key = |suffix: &str| -> &'static str {
-        Box::leak(format!("input-group-{entity}-{suffix}").into_boxed_str())
-    };
     let group = cx
-        .debug_bounds(key("group"))
+        .debug_bounds(input_group_probe(entity, "group"))
         .expect("the textarea group box must be measurable");
     assert_eq!(
         f32::from(group.size.height),
@@ -1497,7 +1492,7 @@ fn input_group_textarea_auto_height_and_top_aligned_addons(cx: &mut TestAppConte
         f32::from(group.size.height)
     );
     let prefix = cx
-        .debug_bounds(key("prefix"))
+        .debug_bounds(input_group_probe(entity, "prefix"))
         .expect("the textarea group's addon slot must be measurable");
     assert_eq!(
         f32::from(prefix.origin.y),
@@ -1513,7 +1508,7 @@ fn input_group_textarea_auto_height_and_top_aligned_addons(cx: &mut TestAppConte
         f32::from(prefix.size.height)
     );
     let suffix = cx
-        .debug_bounds(key("suffix"))
+        .debug_bounds(input_group_probe(entity, "suffix"))
         .expect("the textarea group's suffix slot must be measurable");
     assert_eq!(
         f32::from(suffix.origin.y),
@@ -1960,6 +1955,13 @@ fn box_bounds(cx: &mut VisualTestContext, name: &'static str) -> Bounds<Pixels> 
         .unwrap_or_else(|| panic!("the `{name}` wrapper must paint"))
 }
 
+/// `debug_bounds` takes a `&'static str` and the InputGroup probes carry the
+/// input's entity id, so the formatted keys are leaked for the test's
+/// lifetime.
+fn input_group_probe(entity: u64, suffix: &str) -> &'static str {
+    Box::leak(format!("input-group-{entity}-{suffix}").into_boxed_str())
+}
+
 /// The default box is v3's 36px `.input`, and `height` replaces that one
 /// value. Both boxes are measured; the assertion is that the default equals
 /// the component's own constant and that the override differs from it by the
@@ -2180,7 +2182,7 @@ fn text_field_forwards_the_box_builders(cx: &mut TestAppContext) {
 
 // ---------------------------------------------------------------------------
 // Field-family box geometry: TimeField, DateField, NumberField, ColorField,
-// SearchField share the `util::FieldBox` seam
+// SearchField use the shared field-box seam
 // ---------------------------------------------------------------------------
 
 /// `TimeField` answers the same box builders as `Input`: the default is the
@@ -2599,15 +2601,8 @@ fn the_field_family_gates_its_chrome_on_one_bare_flag() {
             "field_box.is_bare",
         ),
     ] {
-        assert_eq!(
-            source.matches("apply_field_chrome(").count(),
-            1,
-            "{file} must have exactly one chrome call site"
-        );
-        assert!(
-            source.contains(&format!("if !{flag} {{")),
-            "{file} must gate that one chrome call on `{flag}`"
-        );
+        let _ = file;
+        source_scan::assert_chrome_call_is_gated(source, flag);
     }
 }
 
@@ -2636,14 +2631,11 @@ fn input_group_height_replaces_the_group_and_inner_field(cx: &mut TestAppContext
     });
     flush_frame(cx);
 
-    let key = |entity: u64, suffix: &str| -> &'static str {
-        Box::leak(format!("input-group-{entity}-{suffix}").into_boxed_str())
-    };
     let default = cx
-        .debug_bounds(key(default_entity, "group"))
+        .debug_bounds(input_group_probe(default_entity, "group"))
         .expect("the default group must be laid out");
     let short = cx
-        .debug_bounds(key(short_entity, "group"))
+        .debug_bounds(input_group_probe(short_entity, "group"))
         .expect("the short group must be laid out");
     assert!(
         near(
@@ -2683,14 +2675,11 @@ fn input_group_padding_x_reaches_the_inner_field(cx: &mut TestAppContext) {
     });
     flush_frame(cx);
 
-    let key = |entity: u64, suffix: &str| -> &'static str {
-        Box::leak(format!("input-group-{entity}-{suffix}").into_boxed_str())
-    };
     let default = cx
-        .debug_bounds(key(default_entity, "group"))
+        .debug_bounds(input_group_probe(default_entity, "group"))
         .expect("the default group must be laid out");
     let wide = cx
-        .debug_bounds(key(wide_entity, "group"))
+        .debug_bounds(input_group_probe(wide_entity, "group"))
         .expect("the wide group must be laid out");
     let delta = f32::from(wide.size.width) - f32::from(default.size.width);
     assert!(
@@ -2715,11 +2704,197 @@ fn input_group_gates_chrome_and_forwards_the_seam() {
         "the group must gate that one chrome call on the bare flag"
     );
     assert!(
-        source.contains("Some(padding_x) => input.padding_x(padding_x),"),
-        "the group must forward padding_x to the held field"
+        source.contains("Some(padding_x) => input.group_padding_x(padding_x),"),
+        "the group must forward padding_x through the grouped seam"
     );
     assert!(
         source.contains("Some(height) => input.height(height),"),
         "the group must forward the explicit height to the held field"
+    );
+}
+
+/// `padding_x` must not switch NumberField's inner field to the standalone
+/// `Input` wrapper: that wrapper caps at 320px, which would leave the rest of
+/// a wide group inert. A click far past 320px must still focus and type.
+#[gpui::test]
+fn number_field_padding_override_keeps_the_wide_editable_area(cx: &mut TestAppContext) {
+    let state = cx.new(|cx| NumberState::new(cx, 0.));
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        gpui::div()
+            .w(px(600.))
+            .child(
+                NumberField::new(state_for_view.clone())
+                    .full_width(true)
+                    .hide_steppers(true)
+                    .padding_x(px(12.)),
+            )
+            .into_any_element()
+    });
+    flush_frame(cx);
+
+    click(cx, 520., 18.);
+    press(cx, "5");
+    cx.update(|_, cx| {
+        assert!(
+            (state.read(cx).value() - 5.).abs() < f64::EPSILON,
+            "a click past the standalone Input's 320px cap must still focus \
+             and type, got {}",
+            state.read(cx).value()
+        );
+    });
+}
+
+/// An explicit group height shrinks the vertical stepper column's two buttons
+/// so both stay inside the overflow-hidden box.
+#[gpui::test]
+fn number_field_short_height_keeps_vertical_steppers_reachable(cx: &mut TestAppContext) {
+    const SHORT: f32 = 28.;
+    let state = cx.new(|cx| NumberState::new(cx, 5.));
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        gpui::div()
+            .w(px(220.))
+            .child(
+                NumberField::new(state_for_view.clone())
+                    .vertical_steppers(true)
+                    .height(px(SHORT)),
+            )
+            .into_any_element()
+    });
+    flush_frame(cx);
+
+    // The vertical column occupies the right 24px: increment on top,
+    // decrement below; at a 28px group each button is 14px tall.
+    click(cx, 208., 21.);
+    cx.update(|_, cx| {
+        assert!(
+            (state.read(cx).value() - 4.).abs() < f64::EPSILON,
+            "the lower stepper must stay reachable at an explicit height, got {}",
+            state.read(cx).value()
+        );
+    });
+}
+
+/// The group's padding override moves the field's exposed edge; a side that
+/// touches an addon keeps the addon's own inset. The public
+/// `Input::padding_x` remains ignored inside a group, as documented.
+#[gpui::test]
+fn input_group_padding_override_respects_addon_sides(cx: &mut TestAppContext) {
+    const WIDE: f32 = 24.;
+    let plain = cx.new(|cx| InputState::new(cx));
+    let plain_wide = cx.new(|cx| InputState::new(cx));
+    let prefixed = cx.new(|cx| InputState::new(cx));
+    let prefixed_wide = cx.new(|cx| InputState::new(cx));
+    let direct = cx.new(|cx| InputState::new(cx));
+    let cx = open_host(cx, move || {
+        gpui::div()
+            .flex()
+            .flex_col()
+            .items_start()
+            .gap(px(16.))
+            .child(
+                InputGroup::new()
+                    .padding_x(px(4.))
+                    .input(Input::new(plain.clone()).start_content(inset_probe("ig-pad-4"))),
+            )
+            .child(
+                InputGroup::new()
+                    .padding_x(px(WIDE))
+                    .input(Input::new(plain_wide.clone()).start_content(inset_probe("ig-pad-24"))),
+            )
+            .child(
+                InputGroup::new()
+                    .padding_x(px(4.))
+                    .prefix(InputAddon::new("$"))
+                    .input(Input::new(prefixed.clone()).start_content(inset_probe("ig-prefix-4"))),
+            )
+            .child(
+                InputGroup::new()
+                    .padding_x(px(WIDE))
+                    .prefix(InputAddon::new("$"))
+                    .input(
+                        Input::new(prefixed_wide.clone())
+                            .start_content(inset_probe("ig-prefix-24")),
+                    ),
+            )
+            .child(
+                InputGroup::new().input(
+                    Input::new(direct.clone())
+                        .padding_x(px(30.))
+                        .start_content(inset_probe("ig-direct")),
+                ),
+            )
+            .into_any_element()
+    });
+    flush_frame(cx);
+
+    let pad4 = box_bounds(cx, "ig-pad-4");
+    let pad24 = box_bounds(cx, "ig-pad-24");
+    assert!(
+        near(pad4.origin.x, 4.),
+        "the group override must set the exposed edge, got {pad4:?}"
+    );
+    assert!(
+        near(pad24.origin.x, WIDE),
+        "the wide group override must set the exposed edge, got {pad24:?}"
+    );
+
+    let prefix4 = box_bounds(cx, "ig-prefix-4");
+    let prefix24 = box_bounds(cx, "ig-prefix-24");
+    assert!(
+        near(prefix4.origin.x, f32::from(prefix24.origin.x)),
+        "a side with an addon keeps the addon's inset regardless of the \
+         group override: 4={prefix4:?} 24={prefix24:?}"
+    );
+
+    let direct = box_bounds(cx, "ig-direct");
+    assert!(
+        near(direct.origin.x, 12.),
+        "Input::padding_x must stay ignored inside a group, got {direct:?}"
+    );
+}
+
+/// The static ColorField's `is_bare` drops the invalid border that insets the
+/// trailing suffix.
+#[gpui::test]
+fn color_field_static_bare_drops_the_invalid_border(cx: &mut TestAppContext) {
+    let cx = open_host(cx, move || {
+        gpui::div()
+            .flex()
+            .flex_col()
+            .items_start()
+            .gap(px(16.))
+            .child(
+                ColorField::new("cf-bare-static", PickerColor::hsb(180., 1., 1.))
+                    .is_bare(true)
+                    .is_invalid(true)
+                    .suffix(inset_probe("cf-bare-suffix")),
+            )
+            .child(
+                ColorField::new("cf-chromed-static", PickerColor::hsb(180., 1., 1.))
+                    .is_invalid(true)
+                    .suffix(inset_probe("cf-chromed-suffix")),
+            )
+            .child(
+                ColorField::new("cf-valid-static", PickerColor::hsb(180., 1., 1.))
+                    .suffix(inset_probe("cf-valid-suffix")),
+            )
+            .into_any_element()
+    });
+    flush_frame(cx);
+
+    let bare_invalid = box_bounds(cx, "cf-bare-suffix");
+    let chromed_invalid = box_bounds(cx, "cf-chromed-suffix");
+    let valid = box_bounds(cx, "cf-valid-suffix");
+    assert!(
+        near(bare_invalid.origin.x, f32::from(valid.origin.x)),
+        "a bare static ColorField must paint no border even when invalid: \
+         bare={bare_invalid:?} valid={valid:?}"
+    );
+    assert!(
+        chromed_invalid.origin.x < valid.origin.x,
+        "the chromed invalid field must paint the danger border that insets \
+         its suffix: chromed={chromed_invalid:?} valid={valid:?}"
     );
 }

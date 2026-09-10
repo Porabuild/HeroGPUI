@@ -65,6 +65,7 @@
 //! tree outright when closed.
 
 mod harness;
+mod source_scan;
 
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
@@ -5782,19 +5783,150 @@ fn collection_triggers_gate_or_forward_the_bare_flag() {
             "field_box.is_bare",
         ),
     ] {
-        assert_eq!(
-            source.matches("apply_field_chrome(").count(),
-            1,
-            "{file} must have exactly one chrome call site"
-        );
-        assert!(
-            source.contains(&format!("if !{flag} {{")),
-            "{file} must gate that one chrome call on `{flag}`"
-        );
+        let _ = file;
+        source_scan::assert_chrome_call_is_gated(source, flag);
     }
     let combo = include_str!("../src/combo_box.rs");
     assert!(
         combo.contains("if self.field.is_bare {"),
         "ComboBox must forward the bare flag to the inner Input"
     );
+}
+
+/// A zero-behaviour probe rendered through a part slot, so the part's inset
+/// is measurable.
+fn value_probe(name: &'static str) -> gpui::AnyElement {
+    gpui::div()
+        .w(px(10.))
+        .h(px(10.))
+        .debug_selector(move || name.to_owned())
+        .into_any_element()
+}
+
+/// `value_content` lands inside the trigger, so a probe there measures the
+/// trigger's leading padding: `padding_x` must move it by the requested delta.
+#[gpui::test]
+fn collection_trigger_padding_x_moves_the_value(cx: &mut TestAppContext) {
+    still();
+    const WIDE: f32 = 24.;
+    let auto_default = search_state(cx);
+    let auto_wide = search_state(cx);
+    let cx = open_host(cx, move || {
+        gpui::div()
+            .flex()
+            .flex_col()
+            .items_start()
+            .gap(px(8.))
+            .child(
+                Select::new("sel-trig-pad-default", keyed(&["One"]))
+                    .value_content(|_| value_probe("sel-trig-pad-default-probe")),
+            )
+            .child(
+                Select::new("sel-trig-pad-wide", keyed(&["One"]))
+                    .padding_x(px(WIDE))
+                    .value_content(|_| value_probe("sel-trig-pad-wide-probe")),
+            )
+            .child(
+                Autocomplete::new(auto_default.clone(), keyed(&["One"]))
+                    .value_content(|_| value_probe("auto-trig-pad-default-probe")),
+            )
+            .child(
+                Autocomplete::new(auto_wide.clone(), keyed(&["One"]))
+                    .padding_x(px(WIDE))
+                    .value_content(|_| value_probe("auto-trig-pad-wide-probe")),
+            )
+            .into_any_element()
+    });
+    flush_frame(cx);
+
+    for (default, wide) in [
+        ("sel-trig-pad-default-probe", "sel-trig-pad-wide-probe"),
+        ("auto-trig-pad-default-probe", "auto-trig-pad-wide-probe"),
+    ] {
+        let default = cx
+            .debug_bounds(default)
+            .expect("the default value must paint");
+        let wide = cx.debug_bounds(wide).expect("the wide value must paint");
+        let delta = f32::from(wide.origin.x - default.origin.x);
+        assert!(
+            (delta - (WIDE - 12.)).abs() < 0.5,
+            "`padding_x` must move the value by the delta over the default \
+             12px inset, moved {delta}: default={default:?} wide={wide:?}"
+        );
+    }
+}
+
+/// Row `padding_x` moves the trailing indicator inward on both the plain and
+/// virtual paths; the defaults stay 10px (Select/Autocomplete) and 8px
+/// (ComboBox).
+#[gpui::test]
+fn collection_row_padding_x_moves_the_indicator(cx: &mut TestAppContext) {
+    still();
+    const WIDE: f32 = 24.;
+    let combo_default = search_state(cx);
+    let combo_wide = search_state(cx);
+    let auto_default = search_state(cx);
+    let auto_wide = search_state(cx);
+    let cx = open_host(cx, move || {
+        gpui::div()
+            .flex()
+            .flex_col()
+            .items_start()
+            .gap(px(8.))
+            .child(
+                Select::new("sel-row-pad-default", keyed(&["One"]))
+                    .default_open(true)
+                    .indicator(|_| value_probe("sel-row-pad-default-tick")),
+            )
+            .child(
+                Select::new("sel-row-pad-wide", keyed(&["One"]))
+                    .default_open(true)
+                    .row_padding_x(px(WIDE))
+                    .indicator(|_| value_probe("sel-row-pad-wide-tick")),
+            )
+            .child(
+                ComboBox::new(combo_default.clone(), keyed(&["One"]))
+                    .default_open(true)
+                    .indicator(|_| value_probe("combo-row-pad-default-tick")),
+            )
+            .child(
+                ComboBox::new(combo_wide.clone(), keyed(&["One"]))
+                    .default_open(true)
+                    .row_padding_x(px(WIDE))
+                    .indicator(|_| value_probe("combo-row-pad-wide-tick")),
+            )
+            .child(
+                Autocomplete::new(auto_default.clone(), keyed(&["One"]))
+                    .default_open(true)
+                    .item_indicator(|_| value_probe("auto-row-pad-default-tick")),
+            )
+            .child(
+                Autocomplete::new(auto_wide.clone(), keyed(&["One"]))
+                    .default_open(true)
+                    .row_padding_x(px(WIDE))
+                    .item_indicator(|_| value_probe("auto-row-pad-wide-tick")),
+            )
+            .into_any_element()
+    });
+    settle_select(cx, 640., 900.);
+
+    for (default, wide, default_px) in [
+        ("sel-row-pad-default-tick", "sel-row-pad-wide-tick", 10.),
+        ("combo-row-pad-default-tick", "combo-row-pad-wide-tick", 8.),
+        ("auto-row-pad-default-tick", "auto-row-pad-wide-tick", 10.),
+    ] {
+        let default = cx
+            .debug_bounds(default)
+            .expect("the default row indicator must paint");
+        let wide = cx
+            .debug_bounds(wide)
+            .expect("the wide row indicator must paint");
+        let moved = f32::from(default.origin.x - wide.origin.x);
+        assert!(
+            (moved - (WIDE - default_px)).abs() < 0.5,
+            "`row_padding_x` must move the indicator inward by the delta over \
+             the owner's default, moved {moved}: default={default:?} \
+             wide={wide:?}"
+        );
+    }
 }

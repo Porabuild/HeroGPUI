@@ -962,7 +962,7 @@ pub enum Edge {
 mod tests {
     use super::*;
     use gpui::px;
-    use herogpui_theme::{set_theme, Theme, ThemeProvider};
+    use herogpui_theme::{set_reduce_motion, set_theme, Theme, ThemeProvider};
 
     /// `hover_fade_ms` is public configuration: the stock theme keeps the
     /// button's `100ms`, a zero resolves like reduced motion, and any other
@@ -1001,6 +1001,15 @@ mod tests {
         cx.update(|cx| {
             assert_eq!(hover_fade_duration(cx), Some(Duration::from_millis(250)));
         });
+        cx.update(|cx| set_reduce_motion(true, cx));
+        cx.update(|cx| {
+            assert_eq!(
+                hover_fade_duration(cx),
+                None,
+                "reduced motion resolves immediately even with a non-zero token"
+            );
+        });
+        cx.update(|cx| set_reduce_motion(false, cx));
     }
 
     #[test]

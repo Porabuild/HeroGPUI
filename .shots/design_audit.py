@@ -101,25 +101,43 @@ CORE = 'crates/herogpui-core/src/enums.rs'
 LAYOUT = 'crates/herogpui-theme/src/layout.rs'
 SRC = 'crates/herogpui-components/src/'
 
-def field_box_px(name):
-    """The stock value a `util::FieldBox::resolved_*` call falls back to.
+def field_box_px_from(src, name):
+    """The stock value a `util::FieldBox::resolved_*` resolver falls back to.
 
-    The field family resolves height and padding through `FieldBox`, so the
-    reader follows that fallback instead of restating 36/12 here: the height
-    body must name `FIELD_HEIGHT` (read from `util.rs`), and the padding body
-    carries its own pixel literal.
+    The reader follows the resolver body in `util.rs`, not just the constants
+    beside it: a height fallback must be the `FIELD_HEIGHT` constant (whose
+    literal is then read) or its own `px(..)` literal, and the padding
+    fallback must be the `unwrap_or(px(..))` inside `resolved_padding_x`.
+    A commented-out, renamed, or foreign fallback stays unreadable instead of
+    passing on an unrelated constant.
     """
-    src = read_path(SRC + 'util.rs')
+    src = mask_comments(src)
     if 'resolved_height' in name:
-        height = re.search(r'FIELD_HEIGHT: Pixels = gpui::px\((\d+(?:\.\d*)?)\)', src)
-        return float(height.group(1)) if height else None
+        body = re.search(
+            r'pub\(crate\) fn resolved_height\(&self\) -> Pixels \{(.*?)\n    \}',
+            src, re.S)
+        if not body:
+            return None
+        own = re.search(r'unwrap_or\((?:gpui::)?px\((\d+(?:\.\d*)?)\)\)', body.group(1))
+        if own:
+            return float(own.group(1))
+        if 'unwrap_or(FIELD_HEIGHT)' in body.group(1):
+            height = re.search(r'FIELD_HEIGHT: Pixels = gpui::px\((\d+(?:\.\d*)?)\)', src)
+            return float(height.group(1)) if height else None
+        return None
     if 'resolved_padding_x' in name:
         body = re.search(
             r'pub\(crate\) fn resolved_padding_x\(&self\) -> Pixels \{(.*?)\n    \}',
             src, re.S)
-        padding = re.search(r'px\((\d+(?:\.\d*)?)\.\)', body.group(1)) if body else None
+        padding = (re.search(r'unwrap_or\((?:gpui::)?px\((\d+(?:\.\d*)?)\)\)', body.group(1))
+                   if body else None)
         return float(padding.group(1)) if padding else None
     return None
+
+
+def field_box_px(name):
+    """`field_box_px_from` against the repository's `util.rs`."""
+    return field_box_px_from(read_path(SRC + 'util.rs'), name)
 
 
 def helper_px(name):
@@ -709,9 +727,9 @@ CHECKS = [
      SRC + 'input.rs',
      r'None => f\.px\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('number-field', '.number-field__input', 'px', '.number-field__input px -> Input',
-     SRC + 'number_field.rs',
-     r'keeps `px-3`[\s\S]{0,480}?None => field\.in_group\(false, false\)',
-     lambda _: 12.0),
+     SRC + 'input.rs',
+     r'match self\.in_group \{\s*None => f\.px\(px\((\d+(?:\.\d*)?)\.\)\),\s*'
+     r'Some\(\(prefix, suffix\)\)', None),
     ('search-field', '.search-field__search-icon', 'size', 'SearchField icon -> FIELD_ICON',
      SRC + 'input.rs',
      r'\.size\(crate::util::(FIELD_ICON)\)', lambda _: 16.0),
@@ -1274,7 +1292,7 @@ CHECKS = [
     # A row is `min_h(row_h)` on the plain path and a fixed height on the virtual
     # one, so the two arms of that `match` sit between the height and the padding.
     ('list-box-item', '.list-box-item', 'py', 'ListBox row padding_y', SRC + 'list_box.rs',
-     r'\.min_h\(row_h\),[\s\S]{0,220}?'
+     r'None => el\.min_h\(row_h\),\s*\}\)\s*'
      r'\.py\(self\.row_padding_y\.unwrap_or\(px\((\d+(?:\.\d*)?)\.\)\)\)', None),
     # Anchored on the row, since the panel around it has a radius too.
     ('list-box-item', '.list-box-item', 'radius', 'ListBox row -> util::_radius', SRC + 'list_box.rs',
@@ -1635,8 +1653,8 @@ CHECKS = [
      r'let \(h, text\) = \(crate::util::FIELD_HEIGHT, crate::util::(FIELD_TEXT)\)',
      lambda _: 14.0),
     ('input', '.input', 'px', 'Input padding_x', SRC + 'input.rs',
-     r'`\.input-group__input` keeps `px-3`[\s\S]{0,500}?None => f\.px\(px\((\d+(?:\.\d*)?)\.\)\)',
-     None),
+     r'match self\.in_group \{\s*None => f\.px\(px\((\d+(?:\.\d*)?)\.\)\),\s*'
+     r'Some\(\(prefix, suffix\)\)', None),
     ('input-group', '.input-group__suffix', 'px', 'InputGroup addon px', SRC + 'input_group.rs',
      r'`__suffix`: `px-3`[\s\S]{0,200}?\.px\(px\((\d+(?:\.\d*)?)\.\)\)', None),
 
@@ -1819,10 +1837,12 @@ CHECKS = [
      r'text-base` ladder[\s\S]{0,400}?Size::Md => gpui::px\((\d+(?:\.\d*)?)\)', None),
 
     ('select', '.select__trigger', 'px', 'Select trigger px', SRC + 'select.rs',
-     r'\.min_h\(h\)[\s\S]{0,140}?\.px\((field_box\.resolved_padding_x\(\))\)', field_box_px),
+     r'\.min_h\(h\)\s*\.when_some\(field_box\.height, \|el, h\| el\.h\(h\)\)\s*'
+     r'\.px\((field_box\.resolved_padding_x\(\))\)', field_box_px),
     ('autocomplete', '.autocomplete__trigger', 'px', 'Autocomplete trigger px',
      SRC + 'autocomplete.rs',
-     r'\.min_h\(field_box\.resolved_height\(\)\)[\s\S]{0,140}?'
+     r'\.min_h\(field_box\.resolved_height\(\)\)\s*'
+     r'\.when_some\(field_box\.height, \|el, h\| el\.h\(h\)\)\s*'
      r'\.px\((field_box\.resolved_padding_x\(\))\)', field_box_px),
     ('toast', '.toast__indicator', 'p', 'Toast indicator padding', SRC + 'toast.rs',
      r'`\.toast__indicator` — `flex shrink-0 items-center justify-center p-1`'
@@ -3320,6 +3340,15 @@ def check_pagination_style_contract():
     return bad
 
 
+def tabs_token_binding(src):
+    """Whether the Tabs render binds the hover opacity from the layout token.
+
+    The three hover closures alone would still pass if the binding became a
+    literal, so the reader follows the binding as well.
+    """
+    return 'let tabs_hover_opacity = layout.tabs_hover_opacity;' in src
+
+
 def tabs_hover_sites(src):
     """The tab hover closures that dim through the `tabs_hover_opacity` token.
 
@@ -3330,8 +3359,10 @@ def tabs_hover_sites(src):
 
 
 def tabs_token_default(layout_src):
-    """The `tabs_hover_opacity` default literal from `layout.rs`."""
-    match = re.search(r'tabs_hover_opacity:\s*([\d.]+)', layout_src)
+    """The `tabs_hover_opacity` default literal from `LayoutTheme::common`."""
+    common = re.search(r'fn common\(\) -> Self \{(.*?)\n    \}', layout_src, re.S)
+    body = common.group(1) if common else ''
+    match = re.search(r'tabs_hover_opacity:\s*([\d.]+)', body)
     return float(match.group(1)) if match else None
 
 
@@ -3356,15 +3387,16 @@ def check_tabs_style_contract():
     arrow_css = arrows.group(1) if arrows else ''
     arrow_parts = src.split('let arrow =', 1)
     arrow_src = arrow_parts[1].split('let container_radius', 1)[0] if len(arrow_parts) == 2 else ''
-    layout_src = read_path(SRC + '../../herogpui-theme/src/layout.rs', errors='replace')
+    layout_src = read_path(LAYOUT, errors='replace')
     hover_default = tabs_token_default(layout_src)
     tab_hovers = tabs_hover_sites(src)
+    binding = tabs_token_binding(src)
     checks = [
         ('tab hover opacity', 'opacity-70' in tab_css and len(tab_hovers) >= 2
-         and hover_default == 0.7),
+         and binding and hover_default == 0.7),
         ('chevron transparent fill', bool(arrow_src) and
          'bg-transparent' in arrow_css and '.bg(' not in arrow_src),
-        ('chevron hover opacity', 'opacity-70' in arrow_css and
+        ('chevron hover opacity', 'opacity-70' in arrow_css and binding and
          '.hover(move |arrow| arrow.opacity(tabs_hover_opacity))' in arrow_src
          and hover_default == 0.7),
     ]
@@ -3954,22 +3986,56 @@ def self_test():
     )
     expect(len(tabs_hover_sites(token_src)) == 2,
            'both token-driven tab hover closures must read the token')
+    expect(tabs_token_binding(token_src),
+           'the tab hover closures must be fed by the layout-token binding')
+    expect(not tabs_token_binding(token_src.replace('layout.tabs_hover_opacity', '0.4')),
+           'a literal binding must not satisfy the Tabs reader')
     expect(tabs_hover_sites('tab = tab.hover(|s| s.opacity(0.7));\n') == [],
            'the old literal 0.7 closure must not satisfy the token reader')
     expect(tabs_hover_sites('tab = tab.hover(move |s| s.opacity(other_token));\n') == [],
            'a different opacity token must not satisfy the token reader')
     expect(tabs_token_default('pub tabs_hover_opacity: f32,') is None,
            'a token declaration with no default must stay unreadable')
-    expect(tabs_token_default('tabs_hover_opacity: 0.7,') == 0.7,
-           'the token default literal must be readable from layout.rs')
+    expect(tabs_token_default(
+        'fn common() -> Self {\n        tabs_hover_opacity: 0.7,\n    }') == 0.7,
+        'the token default literal must be readable from the common defaults')
+    expect(tabs_token_default(
+        'fn common() -> Self {\n        tabs_hover_opacity: other,\n    }') is None,
+        'a non-numeric token default must stay unreadable')
 
     # The field family resolves height/padding through `FieldBox`, so the
-    # reader follows the fallback and must reject an unknown resolver.
-    expect(field_box_px('field_box.resolved_height()') == 36.0,
-           'the FieldBox height fallback must read util::FIELD_HEIGHT')
-    expect(field_box_px('resolved_padding_x') == 12.0,
+    # reader follows the resolver body: a changed fallback must be read, and
+    # a missing/commented/foreign one must stay unreadable rather than pass on
+    # an unrelated constant.
+    resolver = (
+        'pub(crate) fn resolved_height(&self) -> Pixels {\n'
+        '        self.height.unwrap_or(FIELD_HEIGHT)\n'
+        '    }\n'
+        'FIELD_HEIGHT: Pixels = gpui::px(36.);\n'
+    )
+    expect(field_box_px_from(resolver, 'resolved_height') == 36.0,
+           'the FieldBox height fallback must follow FIELD_HEIGHT')
+    expect(field_box_px_from(
+        resolver.replace('unwrap_or(FIELD_HEIGHT)', 'unwrap_or(px(99.))'),
+        'resolved_height') == 99.0,
+        'a changed resolver fallback must be read, not the constant beside it')
+    expect(field_box_px_from(
+        resolver.replace('self.height.unwrap_or(FIELD_HEIGHT)',
+                         '// self.height.unwrap_or(FIELD_HEIGHT)'),
+        'resolved_height') is None,
+        'a commented-out resolver fallback must stay unreadable')
+    padding = (
+        'pub(crate) fn resolved_padding_x(&self) -> Pixels {\n'
+        '        self.padding_x.unwrap_or(gpui::px(12.))\n'
+        '    }\n'
+    )
+    expect(field_box_px_from(padding, 'resolved_padding_x') == 12.0,
            'the FieldBox padding fallback must read its own px literal')
-    expect(field_box_px('resolved_something_else') is None,
+    expect(field_box_px_from(
+        padding.replace('unwrap_or(gpui::px(12.))', 'unwrap_or(FIELD_HEIGHT)'),
+        'resolved_padding_x') is None,
+        'a padding fallback pointing at a foreign constant must stay unreadable')
+    expect(field_box_px_from('', 'resolved_something_else') is None,
            'an unknown FieldBox resolver must stay unreadable')
 
     if failures:
@@ -3988,7 +4054,8 @@ def self_test():
           'reads the check_layer size argument off the icon box; the Tabs hover '
           'dim follows the tabs_hover_opacity token and rejects the old 0.7 '
           'literal and a foreign token; field height and padding readers follow '
-          'the FieldBox fallbacks and reject an unknown resolver')
+          'the FieldBox resolver bodies and reject a changed, commented-out or '
+          'foreign fallback')
     return 0
 
 

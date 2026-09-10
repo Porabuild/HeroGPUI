@@ -26,8 +26,9 @@ pub const FIELD_ICON: Pixels = gpui::px(16.);
 /// Optional box geometry and chrome overrides shared by the field family.
 ///
 /// `Input` keeps its own copies — its grouped padding rules predate this
-/// struct — but every other field stores one of these and resolves the values
-/// in render. All defaults reproduce the stock field box exactly.
+/// struct — and `DateField` keeps its embedded bare flags; the rest of the
+/// family stores one of these and resolves the values in render. All defaults
+/// reproduce the stock field box exactly.
 #[derive(Clone, Copy, Debug, Default)]
 pub(crate) struct FieldBox {
     pub(crate) height: Option<Pixels>,

@@ -44,7 +44,7 @@ pub struct ThemeDocument {
     /// The opacity a hovered `Tabs` item drops to; clamped to `0..=1`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tabs_hover_opacity: Option<f32>,
-    /// The shortest gap between one tooltip closing and the next opening.
+    /// How long the tooltip manager stays warm after a tooltip closes.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tooltip_cooldown_ms: Option<u64>,
     /// How long a `DropdownTrigger::LongPress` waits before it opens.
@@ -563,8 +563,7 @@ mod tests {
 
     #[test]
     fn customisation_tokens_apply_from_json_through_the_builder() {
-        let theme = ThemeDocument::theme_from_json(
-            r#"{
+        let json = r#"{
                 "id": "x",
                 "base": "light",
                 "tabs_hover_opacity": 0.2,
@@ -573,15 +572,25 @@ mod tests {
                 "hover_fade_ms": 0,
                 "tooltip_delay_ms": 50,
                 "tooltip_close_delay_ms": 75
-            }"#,
-        )
-        .unwrap();
+            }"#;
+        let theme = ThemeDocument::theme_from_json(json).unwrap();
         assert!((theme.layout.tabs_hover_opacity - 0.2).abs() < 1e-6);
         assert_eq!(theme.layout.tooltip_cooldown_ms, 250);
         assert_eq!(theme.layout.long_press_ms, 350);
         assert_eq!(theme.layout.hover_fade_ms, 0);
         assert_eq!(theme.layout.tooltip_delay_ms, 50);
         assert_eq!(theme.layout.tooltip_close_delay_ms, 75);
+
+        // Round-trip the sparse document: serializing must not drop a token
+        // and re-parsing must apply the same values.
+        let round_tripped = ThemeDocument::from_json(json).unwrap().to_json().unwrap();
+        let again = ThemeDocument::theme_from_json(&round_tripped).unwrap();
+        assert!((again.layout.tabs_hover_opacity - 0.2).abs() < 1e-6);
+        assert_eq!(again.layout.tooltip_cooldown_ms, 250);
+        assert_eq!(again.layout.long_press_ms, 350);
+        assert_eq!(again.layout.hover_fade_ms, 0);
+        assert_eq!(again.layout.tooltip_delay_ms, 50);
+        assert_eq!(again.layout.tooltip_close_delay_ms, 75);
 
         let clamped = ThemeDocument::theme_from_json(
             r#"{ "id": "x", "base": "light", "tabs_hover_opacity": 3.0 }"#,

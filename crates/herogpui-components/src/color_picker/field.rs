@@ -751,7 +751,7 @@ impl RenderOnce for ColorField {
             });
         }
 
-        if validity.is_invalid {
+        if validity.is_invalid && !field_box.is_bare {
             field = field.border_1().border_color(colors.danger.color);
         }
         // A read-only field is legible but not interactive, so it reads the
