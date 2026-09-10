@@ -477,7 +477,7 @@ ColorSlider labels/output, ColorPicker triggers, and ColorField display text use
 - **ColorField** — `ColorField::new(id, value)`; `channel(ColorChannel)`, `color_space(ColorSpace)`, `label`, `description`, `variant`, `full_width`, the validity flags
   - `full_width(true)` expands both the outer wrapper and control to the available parent width.
   - `state(Entity<InputState>)` makes it **editable**; without one it is a read-only display of `value`. `placeholder`, and `on_change(&Option<PickerColor>)` reporting `None` when the text is not a colour, exactly as v3 types it. With a `channel` the text is that channel's number rather than a hex value.
-- **ColorPicker** — `label`, `is_open`, `show_alpha`, `on_change`, `on_open_change`
+- **ColorPicker** — `label`, `is_open`, `show_alpha`, `font_family(name)`, `on_change`, `on_open_change`
   - When the preferred side cannot fit the popup, it flips to the side with more room, keeping a 12px cross-axis viewport inset and an 8px trigger gap, and its scroller caps to the available height so taller control stacks scroll vertically; Tab moves through area/hue/alpha and reveals each focused control.
 - **ColorSlider** — `ColorSlider::new(id, value, channel).color_space(ColorSpace).orientation().length().show_label().on_change().on_change_end()`
   - `color_space` is not cosmetic: HSL and HSB saturation are different quantities for the same colour, so a saturation slider reads and writes through `PickerColor::{channel_in, with_channel_in}`. Every other channel is space-independent.
@@ -630,7 +630,7 @@ Modal, Drawer, and AlertDialog cover the window even inside clipped or positione
 ### Typography
 The browser gallery bundles distinct Inter faces for Normal, Medium, Semibold and Bold weights.
 - **Kbd** — `Kbd::new().variant(KbdVariant::{Default,Light}).child("Ctrl")`
-- **Typography** — `Typography::new(text).kind(TypographyType::{H1..H6,Body,BodySm,BodyXs,Code}).align().color(TextColor::{Default,Muted}).weight(FontWeight).truncate()`; helpers `heading(level, t)`, `paragraph(ParagraphSize, t)`, `code(t)`; `Prose::new()` for rich text
+- **Typography** — `Typography::new(text).kind(TypographyType::{H1..H6,Body,BodySm,BodyXs,Code}).align().color(TextColor::{Default,Muted}).weight(FontWeight).font_family(name).truncate()`; helpers `heading(level, t)`, `paragraph(ParagraphSize, t)`, `code(t)`; `Prose::new()` for rich text
 
 ### Utilities
 - **ScrollShadow** — `ScrollShadow::new(id).orientation().size(px).offset(px).visibility(ScrollShadowVisibility).is_enabled(bool).hide_scroll_bar(bool).max_h()/.max_w()`, `horizontal()` shorthand. v3's `variant` has one value. A painted overlay thumb uses `--scrollbar` unless `hide_scroll_bar` is set.

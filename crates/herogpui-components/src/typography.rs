@@ -140,6 +140,9 @@ pub struct Typography {
     color: TextColor,
     weight: Option<FontWeight>,
     truncate: bool,
+    /// The family every kind is drawn with; unset keeps the kind's own
+    /// family (mono for `Code`, inherited otherwise).
+    font_family: Option<SharedString>,
     text: Option<SharedString>,
     children: Vec<AnyElement>,
     /// The `sx` slot, refined over the root style at the end of render.
@@ -154,6 +157,7 @@ impl Typography {
             color: TextColor::default(),
             weight: None,
             truncate: false,
+            font_family: None,
             text: Some(text.into()),
             children: Vec::new(),
             sx: None,
@@ -209,6 +213,13 @@ impl Typography {
     /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
     /// applied to the typography's root element after every value the kind, the
     /// color and the active theme chose, so they win.
+    /// The family the text is drawn with; unset keeps the kind's own family
+    /// (mono for `Code`, inherited otherwise).
+    pub fn font_family(mut self, family: impl Into<SharedString>) -> Self {
+        self.font_family = Some(family.into());
+        self
+    }
+
     pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
         self.sx = Some(crate::util::capture_sx(style));
         self
@@ -245,6 +256,9 @@ impl RenderOnce for Typography {
                 .rounded(crate::util::mark_radius(cx))
                 .px(px(6.))
                 .py(px(2.));
+        }
+        if let Some(family) = self.font_family.clone() {
+            el = el.font_family(family);
         }
 
         // gpui has no `text-justify`; justify falls back to start alignment.

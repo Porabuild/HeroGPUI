@@ -150,7 +150,9 @@ impl Gallery {
                                         ),
                                 )
                                 .child(
-                                    h::Typography::new("Build better interfaces").kind(*kind),
+                                    h::Typography::new("Build better interfaces")
+                                        .kind(*kind)
+                                        .font_family("monospace"),
                                 )
                         })
                         .els()),

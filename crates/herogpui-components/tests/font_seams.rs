@@ -23,4 +23,13 @@ fn time_and_date_fields_keep_mono_and_accept_a_family_override() {
             "{file}: the mono default must stay for callers that set no family"
         );
     }
+
+    let picker = include_str!("../src/color_picker/picker.rs");
+    assert!(picker.contains("self.font_family = Some(family.into());"));
+    assert!(picker.contains(".unwrap_or_else(|| util::MONO_FONT.into())"));
+
+    let typography = include_str!("../src/typography.rs");
+    assert!(typography.contains("self.font_family = Some(family.into());"));
+    assert!(typography.contains("if let Some(family) = self.font_family.clone() {"));
+    assert!(typography.contains(".font_family(MONO_FONT)"));
 }

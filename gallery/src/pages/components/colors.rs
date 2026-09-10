@@ -375,6 +375,7 @@ impl Gallery {
                         // v3's Usage is uncontrolled; "Controlled" is separate.
                         .default_value(value)
                         .label("Accent")
+                        .font_family("monospace")
                         .show_alpha(true)
                         .on_change(cx.listener(|this, c: &h::PickerColor, _, cx| {
                             this.picker_color = *c;

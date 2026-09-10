@@ -20,6 +20,8 @@ pub struct ColorPicker {
     is_disabled: bool,
     on_change: Option<OnColorChange>,
     on_open_change: Option<Arc<dyn Fn(&bool, &mut Window, &mut App) + 'static>>,
+    /// The family the hex readout is drawn with; unset keeps the mono token.
+    font_family: Option<SharedString>,
 }
 
 impl ColorPicker {
@@ -35,7 +37,14 @@ impl ColorPicker {
             is_disabled: false,
             on_change: None,
             on_open_change: None,
+            font_family: None,
         }
+    }
+
+    /// The family the hex readout is drawn with; unset keeps the mono token.
+    pub fn font_family(mut self, family: impl Into<SharedString>) -> Self {
+        self.font_family = Some(family.into());
+        self
     }
 
     /// `defaultValue` — the uncontrolled initial colour.
@@ -395,7 +404,11 @@ impl RenderOnce for ColorPicker {
             div()
                 .flex_shrink_0()
                 .text_size(px(12.))
-                .font_family(util::MONO_FONT)
+                .font_family(
+                    self.font_family
+                        .clone()
+                        .unwrap_or_else(|| util::MONO_FONT.into()),
+                )
                 .text_color(colors.muted)
                 .child(self.value.to_hex()),
         );
