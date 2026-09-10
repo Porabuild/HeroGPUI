@@ -30,11 +30,13 @@
     "Usage",
     "Interactive",
     "With Custom Icon",
+    "Hover Colour",
     "Render Function",
     "Disabled"
   ],
   "toggle-button": [
     "Usage",
+    "Hover Colour",
     "Sizes",
     "Icon Only",
     "Disabled",

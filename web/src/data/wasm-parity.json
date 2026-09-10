@@ -1,7 +1,7 @@
 {
   "version": 2,
-  "artifactSha256": "2cb62fcc309e5b3604685df7cd8aae3cbd5b7441ae7faf53dd672bef98461f7a",
-  "glueSha256": "db0d05acb2d6ede77a267476fc4fec7e598e60d881b443826ee4f4cc30f172aa",
+  "artifactSha256": "bbd9a0fea95e8580f78a46d2be58c7fba323afbd54d2ddaf724121e3933bca5f",
+  "glueSha256": "ce897102af7b1f803bb7bfdb2cd74c7d1fedf260abb22bb8e7bb9605966f9dbf",
   "examples": {
     "accordion/Controlled": {
       "codeSha256": "2816548407263e0fdeada0ff2ec1e8f9fd45a2d33b24ab2cf163539711fe6f8a",
@@ -578,6 +578,10 @@
     "close-button/Disabled": {
       "codeSha256": "dd7fcfbec82d19ea719066bfd236d6f83c0629f86dd27dc94ca4d9942f715bac",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "close-button/Hover Colour": {
+      "codeSha256": "39c9959fb963d388c3c5bbcad57386bc685a594d1d10861a8380ad20f6099e04",
+      "descriptionSha256": "4d48deff24d5f5cce0d1f0f25c6ca986374c5546c0aac13f1ac0a6548ee0e7db"
     },
     "close-button/Interactive": {
       "codeSha256": "a768617b69a265a461eacf0d7c2416cc4b7277d687d51670ded1879229e69b04",
@@ -2622,6 +2626,10 @@
     "toggle-button/Full Width": {
       "codeSha256": "f6765d706d8fa50a6dcf2a15c61f3fc7e42b4cd6feb53eeb4d1b36c59f7f8129",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "toggle-button/Hover Colour": {
+      "codeSha256": "7a64d0b39e0af1b3cc2c373fe73352c8bd763783178345d828a488a319327437",
+      "descriptionSha256": "9d4911922f8ec4cc1f6038303173311914ff40a78552ea569ab052783221cd7f"
     },
     "toggle-button/Icon Only": {
       "codeSha256": "5f32206a29f2b6715f3887a1f030ff33b1edad43a7d55bf8c8eabd57036c2c1b",

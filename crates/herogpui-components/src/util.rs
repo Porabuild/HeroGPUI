@@ -1592,6 +1592,31 @@ pub fn sx_pixel_size(sx: &Option<Box<gpui::StyleRefinement>>) -> gpui::Size<Opti
     }
 }
 
+/// The pair [`crate::anim::hover_fade`] eases between, resolving a component's
+/// resting pair against the two caller-owned overrides.
+///
+/// Precedence, in one place because the three cases are easy to conflate:
+///
+/// - `hover_bg` set: the fade runs from the resting background — the `sx`
+///   background if there is one, the component's resting colour otherwise —
+///   to the named hover colour.
+/// - only an `sx` background: both endpoints are that colour, so the fade
+///   paints the override rather than easing the component colour back over it.
+/// - neither: the component's own pair, untouched.
+///
+/// Pure so the precedence is table-testable without a window.
+pub(crate) fn fade_endpoints(
+    variant: Option<(Hsla, Hsla)>,
+    sx_background: Option<Hsla>,
+    hover_bg: Option<Hsla>,
+) -> Option<(Hsla, Hsla)> {
+    let resting = sx_background.or_else(|| variant.map(|(idle, _)| idle));
+    match (hover_bg, resting) {
+        (Some(hover), Some(resting)) => Some((resting, hover)),
+        _ => variant.map(|colors| sx_background.map_or(colors, |color| (color, color))),
+    }
+}
+
 /// The definite pixel padding an `sx` override set on the root, edge by edge.
 ///
 /// Only pixels extract: a rem resolves against the root font size and a

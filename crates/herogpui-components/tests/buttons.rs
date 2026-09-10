@@ -1654,3 +1654,23 @@ fn button_press_collapses_toward_its_centre(cx: &mut TestAppContext) {
         "the button springs back after release, got {released:?}"
     );
 }
+
+/// `ToggleButton::hover_bg` follows the Button contract: the fade rests on the
+/// `sx` background (or the variant's resting colour) and eases to the named
+/// hover colour through the shared resolver.
+#[test]
+fn toggle_button_reads_the_hover_override_and_the_sx_background() {
+    let source = include_str!("../src/toggle_button.rs");
+    assert!(
+        source.contains("crate::util::sx_background(&self.sx)"),
+        "the resting endpoint must come from the sx background"
+    );
+    assert!(
+        source.contains("crate::util::fade_endpoints(Some(pair), sx_background, self.hover_bg)"),
+        "the toggle must resolve its fade through the shared resolver"
+    );
+    assert!(
+        source.contains("self.hover_bg = Some(color.into());"),
+        "the hover_bg builder must store the override"
+    );
+}

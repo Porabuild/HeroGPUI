@@ -308,3 +308,24 @@ fn default_glyph_fills_the_padded_content_box(cx: &mut TestAppContext) {
     );
     let _ = SVG_MARGIN;
 }
+
+/// `hover_bg` and the `sx` background feed the shared endpoint resolver: the
+/// fade rests on the sx background (or `--default`) and eases to the named
+/// hover colour. Resolver cases live with `util::fade_endpoints`; this pins
+/// that the close button reads both inputs.
+#[test]
+fn close_button_reads_the_hover_override_and_the_sx_background() {
+    let source = include_str!("../src/close_button.rs");
+    assert!(
+        source.contains("crate::util::sx_background(&self.sx)"),
+        "the resting endpoint must come from the sx background"
+    );
+    assert!(
+        source.contains("crate::util::fade_endpoints("),
+        "the close button must resolve its fade through the shared resolver"
+    );
+    assert!(
+        source.contains("self.hover_bg = Some(color.into());"),
+        "the hover_bg builder must store the override"
+    );
+}

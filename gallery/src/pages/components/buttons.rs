@@ -455,6 +455,7 @@ impl Gallery {
 
     pub fn page_close_button(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         let presses = self.close_button_presses;
+        let accent = cx.colors().accent.color;
         component_doc_page!(
             "Close Button",
             crate::pages::Page::CloseButton.description(),
@@ -483,6 +484,13 @@ impl Gallery {
                         h::CloseButton::new("cb-icon-1").icon(icon(h::icons::CLOSE_CIRCLE, cx)),
                         cx,
                     ),]),
+                ),
+                (
+                    "Hover Colour",
+                    "`hover_bg` names the hover fill; it eases from the resting `--default` (or the `sx` background when one is set), the same contract as `Button`.",
+                    row(vec![h::CloseButton::new("cb-hover-bg")
+                        .hover_bg(accent)
+                        .into_any_element()]),
                 ),
                 (
                     "Render Function", "Hover, focus, or press the button to drive the custom icon from its live render state.",
@@ -525,6 +533,7 @@ impl Gallery {
         let liked = self.toggle_like;
         let single = self.toggle_single.clone();
         let multiple = self.toggle_multiple.clone();
+        let accent = cx.colors().accent.color;
         component_doc_page!(
             "Toggle Button",
             crate::pages::Page::ToggleButton.description(),
@@ -534,6 +543,14 @@ impl Gallery {
                     "Usage",
                     row(vec![h::ToggleButton::new("tb-usage")
                         .label("Bold")
+                        .into_any_element()]),
+                ),
+                (
+                    "Hover Colour",
+                    "`hover_bg` follows the Button resting-endpoint contract: the fade runs from the resting background to the named hover fill.",
+                    row(vec![h::ToggleButton::new("tb-hover-bg")
+                        .label("Hover")
+                        .hover_bg(accent)
                         .into_any_element()]),
                 ),
                 (

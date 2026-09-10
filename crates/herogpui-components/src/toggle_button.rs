@@ -65,6 +65,8 @@ pub struct ToggleButton {
     is_disabled: bool,
     disabled_explicit: bool,
     children: Vec<AnyElement>,
+    /// Set by [`ToggleButton::hover_bg`]: the fill the hover fade eases *to*.
+    hover_bg: Option<gpui::Hsla>,
     /// `Arc` for the same reason as `on_change`: the pointer and the keyboard
     /// each hold it.
     on_press: Option<std::sync::Arc<dyn Fn(&ClickEvent, &mut Window, &mut App) + 'static>>,
@@ -111,6 +113,7 @@ impl ToggleButton {
             on_press: None,
             on_change: None,
             sx: None,
+            hover_bg: None,
         }
     }
 
@@ -139,6 +142,15 @@ impl ToggleButton {
     pub fn size(mut self, s: Size) -> Self {
         self.size = s;
         self.size_explicit = true;
+        self
+    }
+
+    /// The fill the hover fade eases to, in place of the variant's hover
+    /// colour. The fade runs from the resting background — the `sx` background
+    /// when one is set, the variant's resting colour otherwise — so this is the
+    /// Button contract, on a toggle. v3 has no such prop.
+    pub fn hover_bg(mut self, color: impl Into<gpui::Hsla>) -> Self {
+        self.hover_bg = Some(color.into());
         self
     }
 
@@ -280,25 +292,28 @@ impl RenderOnce for ToggleButton {
         let radius = crate::util::control_radius(cx);
         let is_grouped = self.group_edge.is_some();
 
-        let fade = (!self.is_disabled).then(|| {
-            let idle = if is_selected {
-                sem.soft()
-            } else {
-                match self.variant {
-                    ToggleVariant::Default => colors.default.color,
-                    ToggleVariant::Ghost => gpui::transparent_black(),
-                }
-            };
-            let hover = if is_selected {
-                colors.accent.soft_hover()
-            } else {
-                match self.variant {
-                    ToggleVariant::Default => colors.default.hover(),
-                    ToggleVariant::Ghost => colors.default.color,
-                }
-            };
-            (idle, hover)
-        });
+        let sx_background = crate::util::sx_background(&self.sx);
+        let fade = (!self.is_disabled)
+            .then(|| {
+                let idle = if is_selected {
+                    sem.soft()
+                } else {
+                    match self.variant {
+                        ToggleVariant::Default => colors.default.color,
+                        ToggleVariant::Ghost => gpui::transparent_black(),
+                    }
+                };
+                let hover = if is_selected {
+                    colors.accent.soft_hover()
+                } else {
+                    match self.variant {
+                        ToggleVariant::Default => colors.default.hover(),
+                        ToggleVariant::Ghost => colors.default.color,
+                    }
+                };
+                (idle, hover)
+            })
+            .and_then(|pair| crate::util::fade_endpoints(Some(pair), sx_background, self.hover_bg));
 
         // `useToggleButton` is `useButton` plus `aria-pressed`. Inside a
         // single-selection group, `useToggleButtonGroupItem` overwrites both:

@@ -141,6 +141,12 @@
       "code": "CloseButton::new(\"close-button-icon-1\").icon(icon(icons::CLOSE_CIRCLE, cx))"
     },
     {
+      "heading": "Hover Colour",
+      "description": "`hover_bg` names the hover fill; it eases from the resting `--default` (or the `sx` background when one is set), the same contract as `Button`.",
+      "imports": "use herogpui::prelude::CloseButton;",
+      "code": "CloseButton::new(\"close-button-hover-bg\")\n    .hover_bg(accent)"
+    },
+    {
       "heading": "Render Function",
       "description": "Hover, focus, or press the button to drive the custom icon from its live render state.",
       "imports": "use herogpui::prelude::{ActiveTheme, CloseButton, icons};\nuse gpui::prelude::*;\nuse gpui::px;",
@@ -157,6 +163,12 @@
       "heading": "Usage",
       "imports": "use herogpui::prelude::{ToggleButton, ToggleButtonGroup};",
       "code": "ToggleButton::new(\"toggle-button\")\n    .label(\"Bold\")"
+    },
+    {
+      "heading": "Hover Colour",
+      "description": "`hover_bg` follows the Button resting-endpoint contract: the fade runs from the resting background to the named hover fill.",
+      "imports": "use herogpui::prelude::{ToggleButton, ToggleButtonGroup};",
+      "code": "ToggleButton::new(\"toggle-button-hover-bg\")\n    .label(\"Hover\")\n    .hover_bg(accent)"
     },
     {
       "heading": "Sizes",

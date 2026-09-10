@@ -39,6 +39,9 @@ pub struct CloseButton {
     on_press: Option<OnPress>,
     /// The `sx` slot, refined over the root style at the end of render.
     sx: Option<Box<gpui::StyleRefinement>>,
+    /// Set by [`CloseButton::hover_bg`]: the fill the hover fade eases *to*.
+    /// Additive — unset, the fade behaves exactly as it did before.
+    hover_bg: Option<gpui::Hsla>,
 }
 
 impl CloseButton {
@@ -50,6 +53,7 @@ impl CloseButton {
             content: None,
             on_press: None,
             sx: None,
+            hover_bg: None,
         }
     }
 
@@ -59,6 +63,17 @@ impl CloseButton {
     /// theme chose, so they win.
     pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
         self.sx = Some(crate::util::capture_sx(style));
+        self
+    }
+
+    /// The fill the hover fade eases to, in place of `--default-hover`.
+    ///
+    /// The fade runs from the resting background — the `sx` background when one
+    /// is set, the close button's own `--default` otherwise — to `color`, over
+    /// the same `transition-colors` timing the stock button uses. v3 has no
+    /// such prop; on the web this is `className="hover:bg-…"`.
+    pub fn hover_bg(mut self, color: impl Into<gpui::Hsla>) -> Self {
+        self.hover_bg = Some(color.into());
         self
     }
 
@@ -115,9 +130,14 @@ impl RenderOnce for CloseButton {
         let disabled_opacity = cx.layout().disabled_opacity;
         // `.close-button` is `h-6 p-1` with a `size-4` glyph.
         let (box_size, icon_size) = (px(24.), px(16.));
-        let hover_bg = colors.default.hover();
-        let idle_bg = colors.default.color;
-        let fade = (!self.is_disabled).then_some((idle_bg, hover_bg));
+        // The `sx` slot refines the root, so its background is the resting
+        // value the fade must hold; an explicit `hover_bg` eases from it.
+        let sx_background = crate::util::sx_background(&self.sx);
+        let idle_bg = sx_background.unwrap_or(colors.default.color);
+        let hover_end = self.hover_bg.unwrap_or(colors.default.hover());
+        let fade = (!self.is_disabled)
+            .then_some((colors.default.color, colors.default.hover()))
+            .and_then(|pair| crate::util::fade_endpoints(Some(pair), sx_background, self.hover_bg));
 
         let mut el = div()
             .id(self.id.clone())
@@ -155,7 +175,7 @@ impl RenderOnce for CloseButton {
         } else {
             el = crate::util::cursor_interactive(el, cx);
             if fade.is_none() {
-                el = el.hover(move |s| s.bg(hover_bg));
+                el = el.hover(move |s| s.bg(hover_end));
             }
             // `.close-button--default:active, &[data-pressed="true"]` is
             // `transform: scale(0.93)`. gpui 0.2.2 has no div-level scale, so

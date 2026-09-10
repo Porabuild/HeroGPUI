@@ -273,31 +273,6 @@ pub fn button_hover_colors(variant: Variant, cx: &App) -> Option<(gpui::Hsla, gp
     }
 }
 
-/// The pair [`crate::anim::hover_fade`] eases between, resolving the variant's
-/// own pair against the two caller-owned overrides.
-///
-/// Precedence, in one place because the three cases are easy to conflate:
-///
-/// - [`Button::hover_bg`] set: the fade runs from the resting background — the
-///   `sx` background if there is one, the variant's resting colour otherwise —
-///   to the named hover colour.
-/// - only an `sx` background: both endpoints are that colour, so the fade
-///   paints the override rather than easing the variant colour back over it.
-/// - neither: the variant's own pair, untouched.
-///
-/// Pure so the precedence is table-testable without a window.
-fn fade_endpoints(
-    variant: Option<(gpui::Hsla, gpui::Hsla)>,
-    sx_background: Option<gpui::Hsla>,
-    hover_bg: Option<gpui::Hsla>,
-) -> Option<(gpui::Hsla, gpui::Hsla)> {
-    let resting = sx_background.or_else(|| variant.map(|(idle, _)| idle));
-    match (hover_bg, resting) {
-        (Some(hover), Some(resting)) => Some((resting, hover)),
-        _ => variant.map(|colors| sx_background.map_or(colors, |color| (color, color))),
-    }
-}
-
 /// [`apply_button_variant`], with `hover_bg` off when the caller is going to
 /// animate the background itself.
 fn apply_variant(
@@ -584,7 +559,7 @@ impl RenderOnce for Button {
         let sx_size = util::sx_pixel_size(&self.sx);
         let fade = interactive
             .then(|| button_hover_colors(self.variant, cx))
-            .and_then(|variant| fade_endpoints(variant, sx_background, self.hover_bg));
+            .and_then(|variant| util::fade_endpoints(variant, sx_background, self.hover_bg));
 
         let metrics = button_metrics(self.size);
         // RAC's `Button` renders a native `<button>`, so upstream's role is
@@ -800,7 +775,7 @@ mod tests {
     /// exactly those two, so the button no longer sits frozen on its override.
     #[test]
     fn hover_bg_eases_from_the_sx_background() {
-        let endpoints = fade_endpoints(
+        let endpoints = util::fade_endpoints(
             Some((VARIANT_IDLE, VARIANT_HOVER)),
             Some(SX),
             Some(CUSTOM_HOVER),
@@ -824,7 +799,7 @@ mod tests {
     #[test]
     fn sx_background_alone_still_freezes_both_endpoints() {
         assert_eq!(
-            fade_endpoints(Some((VARIANT_IDLE, VARIANT_HOVER)), Some(SX), None),
+            util::fade_endpoints(Some((VARIANT_IDLE, VARIANT_HOVER)), Some(SX), None),
             Some((SX, SX)),
             "an sx background with no hover_bg must hold across hover"
         );
@@ -837,7 +812,7 @@ mod tests {
         let variant = (VARIANT_IDLE, VARIANT_HOVER);
 
         assert_eq!(
-            fade_endpoints(Some(variant), None, Some(CUSTOM_HOVER)),
+            util::fade_endpoints(Some(variant), None, Some(CUSTOM_HOVER)),
             Some((variant.0, CUSTOM_HOVER)),
             "the resting end must stay the variant's own colour"
         );
@@ -849,9 +824,12 @@ mod tests {
     fn no_override_passes_the_variant_pair_through() {
         let variant = (VARIANT_IDLE, VARIANT_HOVER);
 
-        assert_eq!(fade_endpoints(Some(variant), None, None), Some(variant));
         assert_eq!(
-            fade_endpoints(None, None, None),
+            util::fade_endpoints(Some(variant), None, None),
+            Some(variant)
+        );
+        assert_eq!(
+            util::fade_endpoints(None, None, None),
             None,
             "a variant with no background to ease must stay unfaded"
         );
