@@ -2610,3 +2610,116 @@ fn the_field_family_gates_its_chrome_on_one_bare_flag() {
         );
     }
 }
+
+/// `InputGroup.height` is the group's box and reaches the held Input so the
+/// inner 36px field cannot defeat the smaller group.
+#[gpui::test]
+fn input_group_height_replaces_the_group_and_inner_field(cx: &mut TestAppContext) {
+    const SHORT: f32 = 28.;
+    let default_state = cx.new(|cx| InputState::new(cx));
+    let short_state = cx.new(|cx| InputState::new(cx));
+    let default_entity = default_state.entity_id().as_u64();
+    let short_entity = short_state.entity_id().as_u64();
+    let cx = open_host(cx, move || {
+        gpui::div()
+            .flex()
+            .flex_col()
+            .items_start()
+            .gap(px(16.))
+            .child(InputGroup::new().input(Input::new(default_state.clone())))
+            .child(
+                InputGroup::new()
+                    .height(px(SHORT))
+                    .input(Input::new(short_state.clone())),
+            )
+            .into_any_element()
+    });
+    flush_frame(cx);
+
+    let key = |entity: u64, suffix: &str| -> &'static str {
+        Box::leak(format!("input-group-{entity}-{suffix}").into_boxed_str())
+    };
+    let default = cx
+        .debug_bounds(key(default_entity, "group"))
+        .expect("the default group must be laid out");
+    let short = cx
+        .debug_bounds(key(short_entity, "group"))
+        .expect("the short group must be laid out");
+    assert!(
+        near(
+            default.size.height,
+            f32::from(herogpui_components::util::FIELD_HEIGHT)
+        ),
+        "an untouched group must keep the 36px floor, got {default:?}"
+    );
+    assert!(
+        near(short.size.height, SHORT),
+        "`height` must replace the group's floor, got {short:?}"
+    );
+}
+
+/// `InputGroup.padding_x` replaces the inner field's `px-3` on the sides with
+/// no addon: an addon-less group grows by exactly twice the delta.
+#[gpui::test]
+fn input_group_padding_x_reaches_the_inner_field(cx: &mut TestAppContext) {
+    const WIDE: f32 = 24.;
+    let default_state = cx.new(|cx| InputState::new(cx));
+    let wide_state = cx.new(|cx| InputState::new(cx));
+    let default_entity = default_state.entity_id().as_u64();
+    let wide_entity = wide_state.entity_id().as_u64();
+    let cx = open_host(cx, move || {
+        gpui::div()
+            .flex()
+            .flex_col()
+            .items_start()
+            .gap(px(16.))
+            .child(InputGroup::new().input(Input::new(default_state.clone())))
+            .child(
+                InputGroup::new()
+                    .padding_x(px(WIDE))
+                    .input(Input::new(wide_state.clone())),
+            )
+            .into_any_element()
+    });
+    flush_frame(cx);
+
+    let key = |entity: u64, suffix: &str| -> &'static str {
+        Box::leak(format!("input-group-{entity}-{suffix}").into_boxed_str())
+    };
+    let default = cx
+        .debug_bounds(key(default_entity, "group"))
+        .expect("the default group must be laid out");
+    let wide = cx
+        .debug_bounds(key(wide_entity, "group"))
+        .expect("the wide group must be laid out");
+    let delta = f32::from(wide.size.width) - f32::from(default.size.width);
+    assert!(
+        (delta - (WIDE - 12.) * 2.).abs() < 0.5,
+        "`padding_x` must inset both exposed sides by the delta over px-3, \
+         moved {delta}: default={default:?} wide={wide:?}"
+    );
+}
+
+/// The group gates its one chrome call site on the bare flag and forwards the
+/// seam to the held field.
+#[test]
+fn input_group_gates_chrome_and_forwards_the_seam() {
+    let source = include_str!("../src/input_group.rs");
+    assert_eq!(
+        source.matches("apply_field_chrome(").count(),
+        1,
+        "the group must have exactly one chrome call site"
+    );
+    assert!(
+        source.contains("if !field_box.is_bare {"),
+        "the group must gate that one chrome call on the bare flag"
+    );
+    assert!(
+        source.contains("Some(padding_x) => input.padding_x(padding_x),"),
+        "the group must forward padding_x to the held field"
+    );
+    assert!(
+        source.contains("Some(height) => input.height(height),"),
+        "the group must forward the explicit height to the held field"
+    );
+}

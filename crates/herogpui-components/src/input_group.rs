@@ -64,6 +64,8 @@ impl RenderOnce for InputAddon {
 pub struct InputGroup {
     variant: FieldVariant,
     full_width: bool,
+    /// Optional group geometry/chrome overrides; defaults are the stock box.
+    field: crate::util::FieldBox,
     is_disabled: bool,
     is_invalid: bool,
     is_required: bool,
@@ -94,6 +96,7 @@ impl InputGroup {
         Self {
             variant: FieldVariant::Primary,
             full_width: false,
+            field: crate::util::FieldBox::default(),
             is_disabled: false,
             is_invalid: false,
             is_required: false,
@@ -124,6 +127,28 @@ impl InputGroup {
 
     pub fn full_width(mut self, v: bool) -> Self {
         self.full_width = v;
+        self
+    }
+
+    /// Replaces the group's 36px minimum height and propagates the explicit
+    /// height to the held single-line field; a textarea group stays
+    /// content-sized.
+    pub fn height(mut self, h: impl Into<gpui::Pixels>) -> Self {
+        self.field.height = Some(h.into());
+        self
+    }
+
+    /// Replaces the held field's `px-3` inset on every side without an addon;
+    /// a side with a prefix or suffix keeps that addon's own padding.
+    pub fn padding_x(mut self, p: impl Into<gpui::Pixels>) -> Self {
+        self.field.padding_x = Some(p.into());
+        self
+    }
+
+    /// Renders the group with no background, border, field shadow, focus ring
+    /// or hover fill, for a caller painting around it.
+    pub fn is_bare(mut self, v: bool) -> Self {
+        self.field.is_bare = v;
         self
     }
 
@@ -228,6 +253,10 @@ impl RenderOnce for InputGroup {
         let layout = cx.layout();
         let is_invalid = self.is_invalid || self.error_message.is_some();
         let (is_disabled, is_textarea) = (self.is_disabled, self.is_textarea);
+        let field_box = self.field;
+        // A textarea group grows with its content and ignores the height
+        // override; every other group is the one 36px row.
+        let explicit_height = if is_textarea { None } else { field_box.height };
         // The held field's state entity names this instance's probes; two
         // groups sharing one state would share the probes and the field both.
         let entity = self
@@ -251,7 +280,8 @@ impl RenderOnce for InputGroup {
                     g.items_center()
                 }
             })
-            .min_h(util::FIELD_HEIGHT)
+            .min_h(explicit_height.unwrap_or(util::FIELD_HEIGHT))
+            .when_some(explicit_height, |g, h| g.h(h))
             .text_size(util::FIELD_TEXT)
             .line_height(px(20.))
             .text_color(colors.field.foreground);
@@ -261,7 +291,9 @@ impl RenderOnce for InputGroup {
 
         // v3 rings the *group* on `focus-within`, so the state comes from the
         // field inside it.
-        group = util::apply_field_chrome(group, self.variant, is_invalid, focus_within, cx);
+        if !field_box.is_bare {
+            group = util::apply_field_chrome(group, self.variant, is_invalid, focus_within, cx);
+        }
         if self.full_width {
             group = group.w_full();
         }
@@ -282,7 +314,7 @@ impl RenderOnce for InputGroup {
         // change repaints through a re-render, so the suppressed hover never
         // paints over the focused chrome. v3's `status-disabled` is
         // `pointer-events: none` first, so a disabled group hovers never.
-        if !focus_within && !is_disabled {
+        if !field_box.is_bare && !focus_within && !is_disabled {
             let hover_bg = match self.variant {
                 FieldVariant::Primary => colors.field.hover(),
                 FieldVariant::Secondary => colors.default.hover(),
@@ -362,7 +394,16 @@ impl RenderOnce for InputGroup {
             } else {
                 input
             };
-            group = group.child(input.in_group(has_prefix, has_suffix));
+            let input = input.in_group(has_prefix, has_suffix);
+            let input = match explicit_height {
+                Some(height) => input.height(height),
+                None => input,
+            };
+            let input = match field_box.padding_x {
+                Some(padding_x) => input.padding_x(padding_x),
+                None => input,
+            };
+            group = group.child(input.is_bare(field_box.is_bare));
         }
         if let Some(suffix) = self.suffix {
             group = group.child(addon_slot(suffix, "suffix"));

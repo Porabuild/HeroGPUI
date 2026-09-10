@@ -1935,15 +1935,18 @@ impl RenderOnce for Input {
             .gap(px(8.))
             // `.input-group__input` keeps `px-3` except on a side that touches
             // an addon, which carries the padding instead.
-            .map(|f| match self.in_group {
-                None => f.px(px(12.)),
-                Some((prefix, suffix)) => f
-                    .flex_1()
-                    .pl(if prefix { px(0.) } else { px(12.) })
-                    .pr(if suffix { px(0.) } else { px(12.) }),
+            .map(|f| {
+                let padding_x = self.padding_x.unwrap_or(px(12.));
+                match self.in_group {
+                    None => f.px(px(12.)),
+                    Some((prefix, suffix)) => f
+                        .flex_1()
+                        .pl(if prefix { px(0.) } else { padding_x })
+                        .pr(if suffix { px(0.) } else { padding_x }),
+                }
             })
             // `Input::padding_x` replaces the standalone `px-3`; a grouped
-            // field keeps the addon rules above.
+            // field applies it above on every side without an addon.
             .when_some(
                 self.padding_x.filter(|_| self.in_group.is_none()),
                 |f, padding_x| f.px(padding_x),

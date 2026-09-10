@@ -704,6 +704,9 @@ EXTRA_OK_SCOPED = {
     'Autocomplete.row_padding_y': 'no-classname',
     'ListBox.row_padding_x': 'no-classname',
     'ListBox.row_padding_y': 'no-classname',
+    'InputGroup.height': 'no-classname',
+    'InputGroup.padding_x': 'no-classname',
+    'InputGroup.is_bare': 'no-context-propagation',
 }
 
 
