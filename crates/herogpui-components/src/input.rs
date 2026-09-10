@@ -2976,6 +2976,8 @@ pub struct SearchField {
     description: Option<SharedString>,
     variant: FieldVariant,
     full_width: bool,
+    /// Optional box geometry/chrome overrides forwarded to the inner `Input`.
+    field: crate::util::FieldBox,
     is_disabled: bool,
     is_read_only: bool,
     is_required: bool,
@@ -3026,6 +3028,7 @@ impl SearchField {
             description: None,
             variant: FieldVariant::Primary,
             full_width: false,
+            field: crate::util::FieldBox::default(),
             is_disabled: false,
             is_read_only: false,
             is_required: false,
@@ -3065,6 +3068,25 @@ impl SearchField {
 
     pub fn full_width(mut self) -> Self {
         self.full_width = true;
+        self
+    }
+
+    /// Replaces the 36px box height of the inner field.
+    pub fn height(mut self, h: impl Into<gpui::Pixels>) -> Self {
+        self.field.height = Some(h.into());
+        self
+    }
+
+    /// Replaces the box's `px-3` horizontal padding.
+    pub fn padding_x(mut self, p: impl Into<gpui::Pixels>) -> Self {
+        self.field.padding_x = Some(p.into());
+        self
+    }
+
+    /// Renders the box with no background, border, field shadow or focus ring,
+    /// for a caller painting around it.
+    pub fn is_bare(mut self, v: bool) -> Self {
+        self.field.is_bare = v;
         self
     }
 
@@ -3229,6 +3251,15 @@ impl RenderOnce for SearchField {
                     .text_color(colors.muted)
                     .into_any_element(),
             });
+        if let Some(height) = self.field.height {
+            input = input.height(height);
+        }
+        if let Some(padding_x) = self.field.padding_x {
+            input = input.padding_x(padding_x);
+        }
+        if self.field.is_bare {
+            input = input.is_bare(true);
+        }
         if let Some(icon) = self.clear_icon {
             input = input.clear_content(icon);
         }

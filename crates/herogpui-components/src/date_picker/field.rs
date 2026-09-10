@@ -453,6 +453,12 @@ pub struct DateField {
     on_change: Option<OnChange>,
     embedded: bool,
     bare: bool,
+    /// Public chrome-only bare mode: keeps the box geometry, drops the paint.
+    is_bare: bool,
+    /// Explicit single-line box height; `None` is the 36px stock box.
+    height: Option<gpui::Pixels>,
+    /// Explicit horizontal box padding; `None` is `px-3`.
+    padding_x: Option<gpui::Pixels>,
     on_picker_open: Option<std::sync::Arc<dyn Fn(&mut Window, &mut App) + 'static>>,
     report_invalid_changes: bool,
     /// The locale whose date order, separators and padding the segments use.
@@ -598,6 +604,27 @@ impl DateField {
         self
     }
 
+    /// Replaces the 36px box height. Only the single-line box changes: the
+    /// segments keep their 14px type and 20px line and stay centred.
+    pub fn height(mut self, h: impl Into<gpui::Pixels>) -> Self {
+        self.height = Some(h.into());
+        self
+    }
+
+    /// Replaces the box's `px-3` horizontal padding.
+    pub fn padding_x(mut self, p: impl Into<gpui::Pixels>) -> Self {
+        self.padding_x = Some(p.into());
+        self
+    }
+
+    /// Renders the box with no background, border, field shadow or focus ring,
+    /// for a caller painting around it. The field keeps its box geometry and
+    /// stays editable and focusable.
+    pub fn is_bare(mut self, v: bool) -> Self {
+        self.is_bare = v;
+        self
+    }
+
     /// `value` — v3's controlled-date spelling, as a pure builder.
     ///
     /// The bound [`crate::InputState`] owns the ISO text once the field
@@ -677,6 +704,9 @@ impl DateField {
             on_change: None,
             embedded: false,
             bare: false,
+            is_bare: false,
+            height: None,
+            padding_x: None,
             on_picker_open: None,
             report_invalid_changes: false,
             locale: None,
@@ -1145,8 +1175,8 @@ impl RenderOnce for DateField {
             .when(!self.bare, |el| {
                 // `.date-input-group` is `h-9 items-center overflow-hidden`
                 // with the segments inside it.
-                el.px(px(12.))
-                    .h(crate::util::FIELD_HEIGHT)
+                el.px(self.padding_x.unwrap_or(px(12.)))
+                    .h(self.height.unwrap_or(crate::util::FIELD_HEIGHT))
                     .overflow_hidden()
                     .rounded(crate::util::field_radius(cx))
             })
@@ -1389,7 +1419,7 @@ impl RenderOnce for DateField {
                 });
         }
 
-        if !self.bare {
+        if !self.bare && !self.is_bare {
             group = crate::util::apply_field_chrome(
                 group,
                 self.variant,

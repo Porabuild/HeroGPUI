@@ -667,6 +667,24 @@ EXTRA_OK_SCOPED = {
     'Input.is_bare': 'no-context-propagation',
     'TextField.is_bare': 'no-context-propagation',
     'TextArea.is_bare': 'no-context-propagation',
+    # The rest of the field family shares the same box seam: v3 sizes the box
+    # with Tailwind and the family has no className, so each owner names the
+    # height, padding and bare override on itself.
+    'TimeField.height': 'no-classname',
+    'TimeField.padding_x': 'no-classname',
+    'TimeField.is_bare': 'no-context-propagation',
+    'DateField.height': 'no-classname',
+    'DateField.padding_x': 'no-classname',
+    'DateField.is_bare': 'no-context-propagation',
+    'NumberField.height': 'no-classname',
+    'NumberField.padding_x': 'no-classname',
+    'NumberField.is_bare': 'no-context-propagation',
+    'ColorField.height': 'no-classname',
+    'ColorField.padding_x': 'no-classname',
+    'ColorField.is_bare': 'no-context-propagation',
+    'SearchField.height': 'no-classname',
+    'SearchField.padding_x': 'no-classname',
+    'SearchField.is_bare': 'no-context-propagation',
 }
 
 

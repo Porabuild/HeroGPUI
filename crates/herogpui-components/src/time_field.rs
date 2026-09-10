@@ -824,6 +824,8 @@ pub struct TimeField {
     /// (`.date-input-group__suffix`: `shrink-0 me-3` in the placeholder colour).
     suffix: Option<gpui::AnyElement>,
     variant: FieldVariant,
+    /// Optional box geometry/chrome overrides; defaults are the stock box.
+    field: crate::util::FieldBox,
     hour_cycle: HourCycle,
     /// `granularity` — the smallest unit shown.
     granularity: TimeGranularity,
@@ -891,6 +893,7 @@ impl TimeField {
             placeholder_value: None,
             on_change: None,
             sx: None,
+            field: crate::util::FieldBox::default(),
         }
     }
 
@@ -1002,6 +1005,26 @@ impl TimeField {
 
     pub fn variant(mut self, variant: FieldVariant) -> Self {
         self.variant = variant;
+        self
+    }
+
+    /// Replaces the 36px box height. Only the single-line box changes: the
+    /// segments keep their 14px type and 20px line and stay centred.
+    pub fn height(mut self, h: impl Into<gpui::Pixels>) -> Self {
+        self.field.height = Some(h.into());
+        self
+    }
+
+    /// Replaces the box's `px-3` horizontal padding.
+    pub fn padding_x(mut self, p: impl Into<gpui::Pixels>) -> Self {
+        self.field.padding_x = Some(p.into());
+        self
+    }
+
+    /// Renders the box with no background, border, field shadow or focus ring,
+    /// for a caller painting around it. The field stays editable and focusable.
+    pub fn is_bare(mut self, v: bool) -> Self {
+        self.field.is_bare = v;
         self
     }
 
@@ -1293,6 +1316,7 @@ impl RenderOnce for TimeField {
         // its own horizontal scroll, so a long value stays reachable without
         // widening the field.
         // `useTimeField` is `useDateField`, i.e. `role: 'group'` on the box.
+        let field_box = self.field;
         let mut group = div()
             .id(base_id.clone())
             .a11y_named(
@@ -1303,21 +1327,23 @@ impl RenderOnce for TimeField {
             .flex_row()
             .items_center()
             .gap(px(2.))
-            .px(px(12.))
-            .h(util::FIELD_HEIGHT)
+            .px(field_box.resolved_padding_x())
+            .h(field_box.resolved_height())
             .rounded(util::field_radius(cx))
             .text_size(util::FIELD_TEXT)
             .line_height(px(20.))
             .font_family(util::MONO_FONT)
             .text_color(colors.field.foreground);
 
-        group = util::apply_field_chrome(
-            group,
-            self.variant,
-            is_invalid,
-            focus_handle.is_focused(window),
-            cx,
-        );
+        if !field_box.is_bare {
+            group = util::apply_field_chrome(
+                group,
+                self.variant,
+                is_invalid,
+                focus_handle.is_focused(window),
+                cx,
+            );
+        }
 
         // v3 drives a time field from the keyboard: the arrows step the focused
         // segment and walk between segments, and digits type into it.

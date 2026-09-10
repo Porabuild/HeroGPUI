@@ -23,6 +23,30 @@ pub const FIELD_TEXT: Pixels = gpui::px(14.);
 /// Glyph size for an icon inside a form field.
 pub const FIELD_ICON: Pixels = gpui::px(16.);
 
+/// Optional box geometry and chrome overrides shared by the field family.
+///
+/// `Input` keeps its own copies — its grouped padding rules predate this
+/// struct — but every other field stores one of these and resolves the values
+/// in render. All defaults reproduce the stock field box exactly.
+#[derive(Clone, Copy, Debug, Default)]
+pub(crate) struct FieldBox {
+    pub(crate) height: Option<Pixels>,
+    pub(crate) padding_x: Option<Pixels>,
+    pub(crate) is_bare: bool,
+}
+
+impl FieldBox {
+    /// The explicit single-line height, or the stock [`FIELD_HEIGHT`].
+    pub(crate) fn resolved_height(&self) -> Pixels {
+        self.height.unwrap_or(FIELD_HEIGHT)
+    }
+
+    /// The explicit horizontal padding, or v3's `px-3`.
+    pub(crate) fn resolved_padding_x(&self) -> Pixels {
+        self.padding_x.unwrap_or(gpui::px(12.))
+    }
+}
+
 // v3 does not have one "control" radius: each component names its own step, and
 // they span the whole scale. `design_audit.py` diffs these against the real
 // stylesheets, so the mapping here is checked rather than asserted.
@@ -1622,6 +1646,13 @@ mod sx_extraction_tests {
 
     fn captured(style: impl FnOnce(Div) -> Div) -> Option<Box<gpui::StyleRefinement>> {
         Some(capture_sx(style))
+    }
+
+    #[test]
+    fn field_box_defaults_are_the_stock_field_metrics() {
+        let field = FieldBox::default();
+        assert_eq!(field.resolved_height(), FIELD_HEIGHT);
+        assert_eq!(f32::from(field.resolved_padding_x()), 12.);
     }
 
     #[test]

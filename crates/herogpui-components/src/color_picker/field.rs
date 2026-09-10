@@ -69,6 +69,8 @@ pub struct ColorField {
     is_invalid: bool,
     is_read_only: bool,
     is_required: bool,
+    /// Optional box geometry/chrome overrides; defaults are the stock box.
+    field: crate::util::FieldBox,
     form_state: Rc<RefCell<crate::form::LiveFormFieldState>>,
 }
 
@@ -125,6 +127,7 @@ impl ColorField {
             is_invalid: false,
             is_read_only: false,
             is_required: false,
+            field: crate::util::FieldBox::default(),
             form_state: live_color_form_state(
                 crate::form::FormValue::Text(SharedString::default()),
             ),
@@ -293,6 +296,26 @@ impl ColorField {
 
     pub fn is_invalid(mut self, v: bool) -> Self {
         self.is_invalid = v;
+        self
+    }
+
+    /// Replaces the 36px box height. The editable path forwards it to the
+    /// inner Input; the static display box changes its own height.
+    pub fn height(mut self, h: impl Into<gpui::Pixels>) -> Self {
+        self.field.height = Some(h.into());
+        self
+    }
+
+    /// Replaces the box's `px-3` horizontal padding.
+    pub fn padding_x(mut self, p: impl Into<gpui::Pixels>) -> Self {
+        self.field.padding_x = Some(p.into());
+        self
+    }
+
+    /// Renders the box with no background, border, field shadow or focus ring,
+    /// for a caller painting around it. The field stays editable and focusable.
+    pub fn is_bare(mut self, v: bool) -> Self {
+        self.field.is_bare = v;
         self
     }
 }
@@ -522,6 +545,15 @@ impl RenderOnce for ColorField {
                 .validation_errors(self.validation_errors.clone())
                 .auto_focus(self.auto_focus)
                 .start_content(ColorSwatch::new(self.value).size(SizeXl::Xs));
+            if let Some(h) = self.field.height {
+                input = input.height(h);
+            }
+            if let Some(p) = self.field.padding_x {
+                input = input.padding_x(p);
+            }
+            if self.field.is_bare {
+                input = input.is_bare(true);
+            }
             if let Some(message) = validity.first() {
                 input = input.error_message(message);
             }
@@ -649,14 +681,15 @@ impl RenderOnce for ColorField {
             return field.into_any_element();
         }
 
+        let field_box = self.field;
         let mut field = div()
             .id(self.id.clone())
             .flex()
             .flex_row()
             .items_center()
             .gap(px(8.))
-            .px(px(12.))
-            .h(util::FIELD_HEIGHT)
+            .px(field_box.resolved_padding_x())
+            .h(field_box.resolved_height())
             .rounded(util::field_radius(cx))
             .text_size(util::FIELD_TEXT)
             .line_height(px(20.))
@@ -675,15 +708,17 @@ impl RenderOnce for ColorField {
                     .child(el)
             }));
 
-        field = util::apply_field_chrome(
-            field,
-            self.variant,
-            self.is_invalid,
-            self.state
-                .as_ref()
-                .is_some_and(|s| s.read(cx).focus_handle.is_focused(window)),
-            cx,
-        );
+        if !field_box.is_bare {
+            field = util::apply_field_chrome(
+                field,
+                self.variant,
+                self.is_invalid,
+                self.state
+                    .as_ref()
+                    .is_some_and(|s| s.read(cx).focus_handle.is_focused(window)),
+                cx,
+            );
+        }
 
         // v3's ColorField steps its channel on scroll; `isWheelDisabled` turns
         // that off. There is no sensible increment for a hex value, so only a

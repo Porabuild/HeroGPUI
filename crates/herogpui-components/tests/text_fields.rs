@@ -2177,3 +2177,436 @@ fn text_field_forwards_the_box_builders(cx: &mut TestAppContext) {
         "the forwarded padding must inset the leading element, got {probe:?}"
     );
 }
+
+// ---------------------------------------------------------------------------
+// Field-family box geometry: TimeField, DateField, NumberField, ColorField,
+// SearchField share the `util::FieldBox` seam
+// ---------------------------------------------------------------------------
+
+/// `TimeField` answers the same box builders as `Input`: the default is the
+/// pinned 36px/12px box, `height` and `padding_x` move exactly those values,
+/// and `is_bare` drops the invalid border that insets the leading prefix.
+#[gpui::test]
+fn time_field_box_builders_match_the_input_contract(cx: &mut TestAppContext) {
+    const SHORT: f32 = 28.;
+    const WIDE: f32 = 24.;
+    let default_state = cx.new(|cx| TimeState::new(cx));
+    let short_state = cx.new(|cx| TimeState::new(cx));
+    let wide_state = cx.new(|cx| TimeState::new(cx));
+    let bare_state = cx.new(|cx| TimeState::new(cx));
+    let chromed_state = cx.new(|cx| TimeState::new(cx));
+    let cx = open_host(cx, move || {
+        gpui::div()
+            .flex()
+            .flex_col()
+            .items_start()
+            .child(
+                gpui::div()
+                    .debug_selector(|| "tf-default".to_owned())
+                    .child(
+                        TimeField::new(default_state.clone()).prefix(inset_probe("tf-pad-default")),
+                    ),
+            )
+            .child(
+                gpui::div()
+                    .debug_selector(|| "tf-short".to_owned())
+                    .child(TimeField::new(short_state.clone()).height(px(SHORT))),
+            )
+            .child(
+                TimeField::new(wide_state.clone())
+                    .padding_x(px(WIDE))
+                    .prefix(inset_probe("tf-pad-wide")),
+            )
+            .child(
+                TimeField::new(bare_state.clone())
+                    .is_bare(true)
+                    .is_invalid(true)
+                    .prefix(inset_probe("tf-bare")),
+            )
+            .child(
+                TimeField::new(chromed_state.clone())
+                    .is_invalid(true)
+                    .prefix(inset_probe("tf-chromed")),
+            )
+            .into_any_element()
+    });
+    flush_frame(cx);
+
+    let default_box = box_bounds(cx, "tf-default");
+    let short_box = box_bounds(cx, "tf-short");
+    assert!(
+        near(
+            default_box.size.height,
+            f32::from(herogpui_components::util::FIELD_HEIGHT)
+        ),
+        "an untouched TimeField must stay `util::FIELD_HEIGHT` tall, got {default_box:?}"
+    );
+    assert!(
+        near(short_box.size.height, SHORT),
+        "`height` must replace the box height, got {short_box:?}"
+    );
+
+    let pad_default = box_bounds(cx, "tf-pad-default");
+    let pad_wide = box_bounds(cx, "tf-pad-wide");
+    let delta = f32::from(pad_wide.origin.x - pad_default.origin.x);
+    assert!(
+        (delta - (WIDE - 12.)).abs() < 0.5,
+        "`padding_x` must move the prefix by the delta over the default 12px \
+         inset, moved {delta}: default={pad_default:?} wide={pad_wide:?}"
+    );
+
+    let bare = box_bounds(cx, "tf-bare");
+    let chromed = box_bounds(cx, "tf-chromed");
+    assert!(
+        chromed.origin.x > bare.origin.x,
+        "the chromed invalid field must paint the danger border that insets \
+         its prefix; the bare one must paint no chrome: bare={bare:?} \
+         chromed={chromed:?}"
+    );
+    assert!(
+        near(bare.origin.x, 12.),
+        "a bare TimeField must keep only its own padding, got {bare:?}"
+    );
+}
+
+/// `DateField` resolves the same shared box seam as `TimeField`.
+#[gpui::test]
+fn date_field_box_builders_match_the_input_contract(cx: &mut TestAppContext) {
+    const SHORT: f32 = 28.;
+    const WIDE: f32 = 24.;
+    let default_state = cx.new(|cx| InputState::new(cx));
+    let short_state = cx.new(|cx| InputState::new(cx));
+    let wide_state = cx.new(|cx| InputState::new(cx));
+    let bare_state = cx.new(|cx| InputState::new(cx));
+    let chromed_state = cx.new(|cx| InputState::new(cx));
+    let cx = open_host(cx, move || {
+        gpui::div()
+            .flex()
+            .flex_col()
+            .items_start()
+            .child(
+                gpui::div()
+                    .debug_selector(|| "df-default".to_owned())
+                    .child(
+                        DateField::new(default_state.clone()).prefix(inset_probe("df-box-default")),
+                    ),
+            )
+            .child(
+                gpui::div().debug_selector(|| "df-short".to_owned()).child(
+                    DateField::new(short_state.clone())
+                        .height(px(SHORT))
+                        .prefix(inset_probe("df-box-short")),
+                ),
+            )
+            .child(
+                DateField::new(wide_state.clone())
+                    .padding_x(px(WIDE))
+                    .prefix(inset_probe("df-pad-wide")),
+            )
+            .child(
+                DateField::new(bare_state.clone())
+                    .is_bare(true)
+                    .is_invalid(true)
+                    .prefix(inset_probe("df-bare")),
+            )
+            .child(
+                DateField::new(chromed_state.clone())
+                    .is_invalid(true)
+                    .prefix(inset_probe("df-chromed")),
+            )
+            .into_any_element()
+    });
+    flush_frame(cx);
+
+    // DateField always renders a 16px format-hint description under the box
+    // (4px gap), so the box is measured through its vertically centred
+    // prefix: a 10px probe sits at (box - 10) / 2 from the wrapper top.
+    let default_probe = box_bounds(cx, "df-box-default");
+    let short_probe = box_bounds(cx, "df-box-short");
+    let default_offset = f32::from(default_probe.origin.y - box_bounds(cx, "df-default").origin.y);
+    let short_offset = f32::from(short_probe.origin.y - box_bounds(cx, "df-short").origin.y);
+    assert!(
+        near(
+            px(default_offset),
+            (f32::from(herogpui_components::util::FIELD_HEIGHT) - 10.) / 2.
+        ),
+        "an untouched DateField must stay `util::FIELD_HEIGHT` tall, got {default_probe:?}"
+    );
+    assert!(
+        near(px(short_offset), (SHORT - 10.) / 2.),
+        "`height` must replace the box height, got {short_probe:?}"
+    );
+
+    let pad_default = box_bounds(cx, "df-box-default");
+    let pad_wide = box_bounds(cx, "df-pad-wide");
+    let delta = f32::from(pad_wide.origin.x - pad_default.origin.x);
+    assert!(
+        (delta - (WIDE - 12.)).abs() < 0.5,
+        "`padding_x` must move the prefix by the delta over the default 12px \
+         inset, moved {delta}: default={pad_default:?} wide={pad_wide:?}"
+    );
+
+    let bare = box_bounds(cx, "df-bare");
+    let chromed = box_bounds(cx, "df-chromed");
+    assert!(
+        chromed.origin.x > bare.origin.x,
+        "the chromed invalid field must paint the danger border that insets \
+         its prefix; the bare one must paint no chrome: bare={bare:?} \
+         chromed={chromed:?}"
+    );
+    assert!(
+        near(bare.origin.x, 12.),
+        "a bare DateField must keep only its own padding, got {bare:?}"
+    );
+}
+
+/// `NumberField.height` replaces the group's 36px box and follows through to
+/// the inner input so the smaller group is not defeated by the input's own
+/// box.
+#[gpui::test]
+fn number_field_height_replaces_the_group_and_inner_field(cx: &mut TestAppContext) {
+    const SHORT: f32 = 28.;
+    let default_state = cx.new(|cx| NumberState::new(cx, 0.));
+    let short_state = cx.new(|cx| NumberState::new(cx, 0.));
+    let cx = open_host(cx, move || {
+        gpui::div()
+            .flex()
+            .flex_col()
+            .items_start()
+            .child(
+                gpui::div()
+                    .debug_selector(|| "nf-default".to_owned())
+                    .child(NumberField::new(default_state.clone())),
+            )
+            .child(
+                gpui::div()
+                    .debug_selector(|| "nf-short".to_owned())
+                    .child(NumberField::new(short_state.clone()).height(px(SHORT))),
+            )
+            .into_any_element()
+    });
+    flush_frame(cx);
+
+    let default_box = box_bounds(cx, "nf-default");
+    let short_box = box_bounds(cx, "nf-short");
+    assert!(
+        near(
+            default_box.size.height,
+            f32::from(herogpui_components::util::FIELD_HEIGHT)
+        ),
+        "an untouched NumberField must stay `util::FIELD_HEIGHT` tall, got {default_box:?}"
+    );
+    assert!(
+        near(short_box.size.height, SHORT),
+        "`height` must replace the group height, got {short_box:?}"
+    );
+    assert!(
+        default_box.size.height - short_box.size.height
+            == herogpui_components::util::FIELD_HEIGHT - px(SHORT),
+        "the only difference between the two groups must be the requested \
+         height delta: default={default_box:?} short={short_box:?}"
+    );
+}
+
+/// `ColorField` answers the same seam in both render paths: the static box
+/// (its suffix inset moves with `padding_x`) and the editable field (which
+/// forwards the builders to its inner `Input`).
+#[gpui::test]
+fn color_field_box_builders_cover_both_render_paths(cx: &mut TestAppContext) {
+    const SHORT: f32 = 28.;
+    const WIDE: f32 = 24.;
+    let state = cx.new(|cx| InputState::new(cx));
+    let default_state = cx.new(|cx| InputState::new(cx));
+    let short_state = cx.new(|cx| InputState::new(cx));
+    let cx = open_host(cx, move || {
+        gpui::div()
+            .flex()
+            .flex_col()
+            .items_start()
+            .child(
+                gpui::div().debug_selector(|| "cf-static".to_owned()).child(
+                    ColorField::new("cf-static", PickerColor::hsb(180., 1., 1.))
+                        .suffix(inset_probe("cf-suffix-default")),
+                ),
+            )
+            .child(
+                ColorField::new("cf-static-wide", PickerColor::hsb(180., 1., 1.))
+                    .padding_x(px(WIDE))
+                    .suffix(inset_probe("cf-suffix-wide")),
+            )
+            .child(
+                gpui::div()
+                    .debug_selector(|| "cf-edit-default".to_owned())
+                    .child(
+                        ColorField::new("cf-edit", PickerColor::hsb(180., 1., 1.))
+                            .state(default_state.clone()),
+                    ),
+            )
+            .child(
+                gpui::div()
+                    .debug_selector(|| "cf-edit-short".to_owned())
+                    .child(
+                        ColorField::new("cf-edit-short", PickerColor::hsb(180., 1., 1.))
+                            .state(short_state.clone())
+                            .height(px(SHORT)),
+                    ),
+            )
+            .child(
+                ColorField::new("cf-edit-h", PickerColor::hsb(180., 1., 1.))
+                    .is_bare(true)
+                    .state(state.clone()),
+            )
+            .into_any_element()
+    });
+    flush_frame(cx);
+
+    let static_box = box_bounds(cx, "cf-static");
+    assert!(
+        near(
+            static_box.size.height,
+            f32::from(herogpui_components::util::FIELD_HEIGHT)
+        ),
+        "an untouched static ColorField must stay `util::FIELD_HEIGHT` tall, \
+         got {static_box:?}"
+    );
+
+    let suffix_default = box_bounds(cx, "cf-suffix-default");
+    let suffix_wide = box_bounds(cx, "cf-suffix-wide");
+    let delta = f32::from(
+        (suffix_default.origin.x + suffix_default.size.width)
+            - (suffix_wide.origin.x + suffix_wide.size.width),
+    );
+    assert!(
+        (delta - (WIDE - 12.)).abs() < 0.5,
+        "`padding_x` must move the trailing suffix inward by the delta over \
+         the default 12px inset, moved {delta}: default={suffix_default:?} \
+         wide={suffix_wide:?}"
+    );
+
+    let edit_default = box_bounds(cx, "cf-edit-default");
+    let edit_short = box_bounds(cx, "cf-edit-short");
+    assert!(
+        near(
+            edit_default.size.height,
+            f32::from(herogpui_components::util::FIELD_HEIGHT)
+        ),
+        "the editable ColorField must inherit the stock Input height, got \
+         {edit_default:?}"
+    );
+    assert!(
+        near(edit_short.size.height, SHORT),
+        "the editable ColorField must forward `height` to the inner Input, \
+         got {edit_short:?}"
+    );
+}
+
+/// `SearchField.height` and `padding_x` reach the inner field; the trailing
+/// content moves inward by the padding delta.
+#[gpui::test]
+fn search_field_box_builders_reach_the_inner_field(cx: &mut TestAppContext) {
+    const SHORT: f32 = 28.;
+    const WIDE: f32 = 24.;
+    let default_state = cx.new(|cx| InputState::new(cx));
+    let short_state = cx.new(|cx| InputState::new(cx));
+    let wide_state = cx.new(|cx| InputState::new(cx));
+    let cx = open_host(cx, move || {
+        gpui::div()
+            .flex()
+            .flex_col()
+            .items_start()
+            .child(
+                gpui::div()
+                    .w(px(320.))
+                    .debug_selector(|| "sf-default".to_owned())
+                    .child(
+                        SearchField::new(default_state.clone())
+                            .full_width()
+                            .end_content(inset_probe("sf-end-default")),
+                    ),
+            )
+            .child(
+                gpui::div()
+                    .w(px(320.))
+                    .debug_selector(|| "sf-short".to_owned())
+                    .child(
+                        SearchField::new(short_state.clone())
+                            .full_width()
+                            .height(px(SHORT)),
+                    ),
+            )
+            .child(
+                gpui::div().w(px(320.)).child(
+                    SearchField::new(wide_state.clone())
+                        .full_width()
+                        .padding_x(px(WIDE))
+                        .end_content(inset_probe("sf-end-wide")),
+                ),
+            )
+            .into_any_element()
+    });
+    flush_frame(cx);
+
+    let default_box = box_bounds(cx, "sf-default");
+    let short_box = box_bounds(cx, "sf-short");
+    assert!(
+        near(
+            default_box.size.height,
+            f32::from(herogpui_components::util::FIELD_HEIGHT)
+        ),
+        "an untouched SearchField must stay `util::FIELD_HEIGHT` tall, got {default_box:?}"
+    );
+    assert!(
+        near(short_box.size.height, SHORT),
+        "`height` must reach the inner field, got {short_box:?}"
+    );
+
+    let end_default = box_bounds(cx, "sf-end-default");
+    let end_wide = box_bounds(cx, "sf-end-wide");
+    let delta = f32::from(
+        (end_default.origin.x + end_default.size.width) - (end_wide.origin.x + end_wide.size.width),
+    );
+    assert!(
+        (delta - (WIDE - 12.)).abs() < 0.5,
+        "`padding_x` must move the trailing content inward by the delta over \
+         the default 12px inset, moved {delta}: default={end_default:?} \
+         wide={end_wide:?}"
+    );
+}
+
+/// The bare gate is wired at each owner's one chrome call site, and the
+/// `is_bare` builder flips the same flag the gate reads.
+#[test]
+fn the_field_family_gates_its_chrome_on_one_bare_flag() {
+    for (file, source, flag) in [
+        (
+            "time_field.rs",
+            include_str!("../src/time_field.rs"),
+            "field_box.is_bare",
+        ),
+        (
+            "date_picker/field.rs",
+            include_str!("../src/date_picker/field.rs"),
+            "self.bare && !self.is_bare",
+        ),
+        (
+            "color_picker/field.rs",
+            include_str!("../src/color_picker/field.rs"),
+            "field_box.is_bare",
+        ),
+        (
+            "number_field.rs",
+            include_str!("../src/number_field.rs"),
+            "field_box.is_bare",
+        ),
+    ] {
+        assert_eq!(
+            source.matches("apply_field_chrome(").count(),
+            1,
+            "{file} must have exactly one chrome call site"
+        );
+        assert!(
+            source.contains(&format!("if !{flag} {{")),
+            "{file} must gate that one chrome call on `{flag}`"
+        );
+    }
+}

@@ -101,6 +101,27 @@ CORE = 'crates/herogpui-core/src/enums.rs'
 LAYOUT = 'crates/herogpui-theme/src/layout.rs'
 SRC = 'crates/herogpui-components/src/'
 
+def field_box_px(name):
+    """The stock value a `util::FieldBox::resolved_*` call falls back to.
+
+    The field family resolves height and padding through `FieldBox`, so the
+    reader follows that fallback instead of restating 36/12 here: the height
+    body must name `FIELD_HEIGHT` (read from `util.rs`), and the padding body
+    carries its own pixel literal.
+    """
+    src = read_path(SRC + 'util.rs')
+    if 'resolved_height' in name:
+        height = re.search(r'FIELD_HEIGHT: Pixels = gpui::px\((\d+(?:\.\d*)?)\)', src)
+        return float(height.group(1)) if height else None
+    if 'resolved_padding_x' in name:
+        body = re.search(
+            r'pub\(crate\) fn resolved_padding_x\(&self\) -> Pixels \{(.*?)\n    \}',
+            src, re.S)
+        padding = re.search(r'px\((\d+(?:\.\d*)?)\.\)', body.group(1)) if body else None
+        return float(padding.group(1)) if padding else None
+    return None
+
+
 def helper_px(name):
     """Resolve one of `util`'s radius helpers to pixels, by reading it.
 
@@ -644,7 +665,7 @@ CHECKS = [
      r'let \(h, text\) = \(crate::util::(FIELD_HEIGHT)', lambda _: 36.0),
     ('color-input-group', '.color-input-group', 'h', 'color-input-group height',
      SRC + 'color_picker.rs',
-     r'\.h\(util::(FIELD_HEIGHT)\)', lambda _: 36.0),
+     r'\.h\((field_box\.resolved_height\(\))\)', field_box_px),
     ('autocomplete', '.autocomplete__trigger', 'radius', 'autocomplete radius -> field_radius',
      SRC + 'util.rs',
      r'pub fn (field_radius)', helper_px),
@@ -689,7 +710,7 @@ CHECKS = [
      r'None => f\.px\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('number-field', '.number-field__input', 'px', '.number-field__input px -> Input',
      SRC + 'number_field.rs',
-     r'keeps `px-3`[\s\S]{0,220}?field = field\.in_group\((false), false\)',
+     r'keeps `px-3`[\s\S]{0,480}?None => field\.in_group\(false, false\)',
      lambda _: 12.0),
     ('search-field', '.search-field__search-icon', 'size', 'SearchField icon -> FIELD_ICON',
      SRC + 'input.rs',
@@ -700,12 +721,13 @@ CHECKS = [
      r'(?=.*\.start_content\(match self\.search_icon)', None),
     ('color-input-group', '.color-input-group__prefix', 'ms',
      'ColorField prefix inset -> group px', SRC + 'color_picker.rs',
-     r'let mut field = div\(\)(?:(?!;)[\s\S])*?\.px\(px\((\d+(?:\.\d*)?)\.\)\)'
-     r'(?:(?!field = util::apply_field_chrome)[\s\S])*?\.child\(ColorSwatch::new', None),
+     r'let mut field = div\(\)(?:(?!;)[\s\S])*?\.px\((field_box\.resolved_padding_x\(\))\)'
+     r'(?:(?!field = util::apply_field_chrome)[\s\S])*?\.child\(ColorSwatch::new',
+     field_box_px),
     ('date-input-group', '.date-input-group__prefix', 'ms',
      'DateField prefix inset -> group px', SRC + 'date_picker.rs',
      r'\.when\(!self\.bare, \|el\| \{(?:(?!\.when\(self\.bare)[\s\S])*?'
-     r'el\.px\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+     r'el\.px\(self\.padding_x\.unwrap_or\(px\((\d+(?:\.\d*)?)\.\)\)\)', None),
     # --- Avatar, Alert, Accordion, the swatches ---------------------------
     ('avatar', '.avatar--sm', 'radius', 'Avatar Sm -> util::_radius', SRC + 'avatar.rs',
      r'if self\.small [\s\S]{0,40}?crate::util::(\w+_radius)', helper_px),
@@ -918,7 +940,7 @@ CHECKS = [
     # Every v3 field is one height (`h-9`) and one radius (`rounded-field`); the
     # number field's steppers are `w-10` slots inside that box.
     ('number-field', '.number-field__group', 'h', 'NumberField group height',
-     SRC + 'number_field.rs', r'let h = crate::util::(FIELD_HEIGHT)', lambda _: 36.0),
+     SRC + 'number_field.rs', r'let h = field_box\.(resolved_height)\(\);', field_box_px),
     ('number-field', '.number-field__decrement-button', 'w', 'NumberField stepper width',
      SRC + 'number_field.rs', r'let btn_px = px\((\d+(?:\.\d*)?)\.\)', None),
     ('number-field', '.number-field__group', 'text', 'NumberField group text',
@@ -3936,6 +3958,15 @@ def self_test():
     expect(tabs_token_default('tabs_hover_opacity: 0.7,') == 0.7,
            'the token default literal must be readable from layout.rs')
 
+    # The field family resolves height/padding through `FieldBox`, so the
+    # reader follows the fallback and must reject an unknown resolver.
+    expect(field_box_px('field_box.resolved_height()') == 36.0,
+           'the FieldBox height fallback must read util::FIELD_HEIGHT')
+    expect(field_box_px('resolved_padding_x') == 12.0,
+           'the FieldBox padding fallback must read its own px literal')
+    expect(field_box_px('resolved_something_else') is None,
+           'an unknown FieldBox resolver must stay unreadable')
+
     if failures:
         for failure in failures:
             print('! self-test: ' + failure)
@@ -3951,7 +3982,8 @@ def self_test():
           'apply site and reads the helper from util, and the checkmark canvas '
           'reads the check_layer size argument off the icon box; the Tabs hover '
           'dim follows the tabs_hover_opacity token and rejects the old 0.7 '
-          'literal and a foreign token')
+          'literal and a foreign token; field height and padding readers follow '
+          'the FieldBox fallbacks and reject an unknown resolver')
     return 0
 
 

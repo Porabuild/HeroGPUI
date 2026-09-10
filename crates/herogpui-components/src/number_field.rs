@@ -276,6 +276,8 @@ pub struct NumberField {
     is_disabled: bool,
     variant: FieldVariant,
     full_width: bool,
+    /// Optional box geometry/chrome overrides; defaults are the stock group.
+    field: crate::util::FieldBox,
     min_value: Option<f64>,
     max_value: Option<f64>,
     step: Option<f64>,
@@ -392,6 +394,28 @@ impl NumberField {
         self
     }
 
+    /// Replaces the 36px group height. The inner field follows so its own box
+    /// cannot defeat a smaller group.
+    pub fn height(mut self, h: impl Into<gpui::Pixels>) -> Self {
+        self.field.height = Some(h.into());
+        self
+    }
+
+    /// Replaces the input's `px-3` horizontal padding. The steppers keep their
+    /// own 40px slots at the ends of the group.
+    pub fn padding_x(mut self, p: impl Into<gpui::Pixels>) -> Self {
+        self.field.padding_x = Some(p.into());
+        self
+    }
+
+    /// Renders the group with no background, border, field shadow, focus ring
+    /// or hover fill, for a caller painting around it. The field stays
+    /// editable and focusable.
+    pub fn is_bare(mut self, v: bool) -> Self {
+        self.field.is_bare = v;
+        self
+    }
+
     /// The one slot for caller-owned low-level styling: GPUI's styling methods
     /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
     /// applied to the field's root element — the column holding the label, the
@@ -490,6 +514,7 @@ impl NumberField {
             auto_focus: false,
             on_change: None,
             sx: None,
+            field: crate::util::FieldBox::default(),
         }
     }
 
@@ -653,9 +678,10 @@ impl RenderOnce for NumberField {
 
         let colors = cx.colors().clone();
         let layout = cx.layout().clone();
+        let field_box = self.field;
 
         // `.number-field__group` is `h-9`, the one height every v3 field has.
-        let h = crate::util::FIELD_HEIGHT;
+        let h = field_box.resolved_height();
         // `.number-field__increment-button` is `h-full w-10`: a 40px square-ish
         // slot at the end of the group, not the 26px one this used to draw.
         let btn_px = px(40.);
@@ -696,8 +722,15 @@ impl RenderOnce for NumberField {
         let steppers = !self.hide_steppers;
         // NumberField.Input keeps `px-3` even beside either button. Passing
         // false on both sides removes the standalone chrome without borrowing
-        // InputGroup's addon-padding behavior.
-        field = field.in_group(false, false);
+        // InputGroup's addon-padding behavior. A padding override needs the
+        // standalone path instead, with the group painting the chrome.
+        field = match field_box.padding_x {
+            Some(padding_x) => field.is_bare(true).padding_x(padding_x),
+            None => field.in_group(false, false),
+        };
+        if let Some(height) = field_box.height {
+            field = field.height(height);
+        }
 
         // `useNumberField` returns `groupProps` with `role: 'group'`; the
         // spin button role its `useSpinButton` produces is deleted again
@@ -714,19 +747,25 @@ impl RenderOnce for NumberField {
             .overflow_hidden()
             .text_size(crate::util::FIELD_TEXT)
             .line_height(px(20.));
-        group = crate::util::apply_field_chrome(
-            group,
-            self.variant,
-            validity.is_invalid,
-            focus_handle.is_focused(window),
-            cx,
-        );
+        if !field_box.is_bare {
+            group = crate::util::apply_field_chrome(
+                group,
+                self.variant,
+                validity.is_invalid,
+                focus_handle.is_focused(window),
+                cx,
+            );
+        }
         if self.full_width {
             group = group.w_full();
         } else {
             group = group.w(px(220.));
         }
-        if !self.is_disabled && !validity.is_invalid && !focus_handle.is_focused(window) {
+        if !field_box.is_bare
+            && !self.is_disabled
+            && !validity.is_invalid
+            && !focus_handle.is_focused(window)
+        {
             let hover_bg = match self.variant {
                 FieldVariant::Primary => colors.field.hover(),
                 // `.number-field--secondary` hovers
