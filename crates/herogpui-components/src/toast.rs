@@ -1038,9 +1038,8 @@ mod tests {
         // forbidden accessor.
         let source = implementation_source();
         assert!(
-            source.contains(
-                "let hover_bg = self.t.close_hover_bg.unwrap_or(colors.default.color);"
-            ),
+            source
+                .contains("let hover_bg = self.t.close_hover_bg.unwrap_or(colors.default.color);"),
             "the toast close button must default to `bg-default` and honor \
              the named override (pinned `.toast__close-button:hover`)"
         );
