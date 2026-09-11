@@ -508,6 +508,9 @@ EXTRA_OK_SCOPED = {
     'Select.row_font_family': 'no-classname',
     'ComboBox.row_font_family': 'no-classname',
     'Autocomplete.row_font_family': 'no-classname',
+    'Badge.text_size': 'no-classname',
+    'Chip.text_size': 'no-classname',
+    'Breadcrumbs.text_size': 'no-classname',
     # v3's stylesheet declares `.range-calendar__cell-indicator`; only the
     # Calendar's prop table names the part.
     'RangeCalendar.cell_indicator': 'composition',

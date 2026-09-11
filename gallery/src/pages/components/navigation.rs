@@ -217,6 +217,7 @@ impl Gallery {
                         h::Breadcrumbs::new(crumbs())
                             .id("bc-usage")
                             .full_width(true)
+                            .text_size(px(16.))
                             .on_navigate({
                                 let view = cx.entity().downgrade();
                                 move |idx: &usize, crumb: &h::Crumb, _, _, cx: &mut gpui::App| {

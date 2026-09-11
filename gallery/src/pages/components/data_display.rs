@@ -24,6 +24,7 @@ impl Gallery {
                                 h::Badge::new()
                                     .color(Color::Danger)
                                     .size(Size::Sm)
+                                    .text_size(px(14.))
                                     .child(h::BadgeLabel::new().child("5")),
                             )
                             .into_any_element(),

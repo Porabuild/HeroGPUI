@@ -1119,7 +1119,7 @@ CHECKS = [
      r'\.justify_end\(\)\s*\n\s*\.gap\(px\((\d+(?:\.\d*)?)\.\)\)\s*\n\s*//', None),
     ('breadcrumbs', '.breadcrumbs__link', 'text', 'Breadcrumbs link text-sm',
      SRC + 'breadcrumbs.rs',
-     r'let text_size = px\((\d+(?:\.\d*)?)\.\)', None),
+     r'let text_size = self\.text_size\.unwrap_or\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('breadcrumbs', '.breadcrumbs__item', 'gap', 'Breadcrumbs item gap-0.5',
      SRC + 'breadcrumbs.rs',
      r'\.justify_center\(\)\s*\n\s*\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
@@ -4149,6 +4149,14 @@ def self_test():
            'the compact arm must not satisfy the pinned default reader')
     expect(checkbox_md_metrics('') is None,
            'a missing metrics arm must stay unreadable')
+    breadcrumbs = 'let text_size = self.text_size.unwrap_or(px(14.));\n'
+    expect(re.search(
+        r'let text_size = self\.text_size\.unwrap_or\(px\((\d+(?:\.\d*)?)\.\)\)',
+        breadcrumbs).group(1) == '14',
+        'the breadcrumb link size must be readable through the override')
+    expect(re.search(
+        r'let text_size = px\(', breadcrumbs) is None,
+        'the old breadcrumb literal must not satisfy the reader')
     grouped = 'let padding_x = self.group_padding_x.unwrap_or(px(12.));\n'
     expect(input_grouped_padding_from(grouped) == 12.0,
            'the grouped exposed-edge padding must be readable')

@@ -1,8 +1,8 @@
 //! Breadcrumbs — port of `@heroui/breadcrumbs`.
 
 use gpui::{
-    prelude::*, px, App, ClickEvent, FontWeight, InteractiveElement, IntoElement, RenderOnce,
-    SharedString, Styled, Window,
+    prelude::*, px, App, ClickEvent, FontWeight, InteractiveElement, IntoElement, Pixels,
+    RenderOnce, SharedString, Styled, Window,
 };
 use herogpui_core::element_id;
 use herogpui_theme::ActiveTheme;
@@ -63,6 +63,8 @@ pub struct Breadcrumbs {
     on_navigate: Option<OnNavigate>,
     /// Expands the root to the available width.
     full_width: bool,
+    /// The crumb label's font size; unset keeps the 14px/20px pair.
+    text_size: Option<Pixels>,
     /// The `sx` slot, refined over the root style at the end of render.
     sx: Option<Box<gpui::StyleRefinement>>,
 }
@@ -82,6 +84,7 @@ impl Breadcrumbs {
             is_disabled: false,
             on_navigate: None,
             full_width: false,
+            text_size: None,
             sx: None,
         }
     }
@@ -125,6 +128,12 @@ impl Breadcrumbs {
         self
     }
 
+    /// The crumb label's font size; unset keeps the 14px/20px pair.
+    pub fn text_size(mut self, size: impl Into<Pixels>) -> Self {
+        self.text_size = Some(size.into());
+        self
+    }
+
     pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
         self.sx = Some(crate::util::capture_sx(style));
         self
@@ -153,7 +162,7 @@ impl RenderOnce for Breadcrumbs {
         // keeping it verbatim keeps those queries readable.
         let base = format!("{base_id:?}");
         let colors = cx.colors();
-        let text_size = px(14.);
+        let text_size = self.text_size.unwrap_or(px(14.));
         let muted = colors.muted;
         let disabled = self.is_disabled;
         let disabled_opacity = cx.layout().disabled_opacity;
@@ -233,7 +242,7 @@ impl RenderOnce for Breadcrumbs {
                     // `.breadcrumbs__link` is `text-sm leading-5 font-medium`:
                     // leading-5 is a fixed 20px line box, not a ratio of the
                     // text size, and the weight is medium for every link.
-                    .line_height(px(20.))
+                    .line_height(crate::util::leading_for(text_size).unwrap_or(px(20.)))
                     .font_weight(FontWeight::MEDIUM)
                     .text_color(if is_last { current_color } else { muted })
                     // `px-0.5` pads the link itself. Hover underline comes from

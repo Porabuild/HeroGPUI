@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "artifactSha256": "2b6093a438a6db2d2ddc31ca13d9e7c328a4f46ddb8ea1069f07cf9166f80568",
+  "artifactSha256": "05adffa864a7ffdcb02df9f99d7cb4fabf56cdfab04bde4d1babd4033748d2b7",
   "glueSha256": "d64729575be5fa4737c1db40c4b0a0acee6a3685f84c655c2ad7601ebc6c26d1",
   "examples": {
     "accordion/Controlled": {
@@ -228,7 +228,7 @@
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "badge/Usage": {
-      "codeSha256": "5e54c03b189300a84e1fc1c2034d20ae967d3b97a8537c0f7f44cdba3cc2b229",
+      "codeSha256": "b8e01b36f3b2fa2a01123ea241c2f589e4e5f9b03587c9ed2bc86d4c2152dec7",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "badge/Variants": {
@@ -256,7 +256,7 @@
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "breadcrumbs/Usage": {
-      "codeSha256": "205ac3915d2b28c3be4ce44bac0b7e276745fc9559f056ac80280a4f3ad928d6",
+      "codeSha256": "71b5c34f79fc655bd5ae6e36ff6f4e13e4e04d750b5667b888cdc96fd11ae413",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "button-group/Disabled State": {
@@ -2168,7 +2168,7 @@
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "slider/Custom Output Display": {
-      "codeSha256": "a648fa170c0ac146f25a9be359bc306007dd8bf0f4b411ab0ba99e9227be8fd3",
+      "codeSha256": "9fe0ad2941b613acd7b37644bbf0130e4785650ec6441a846bd909df209a0ea1",
       "descriptionSha256": "ee627c42f7d6c9116a9007042b386346f44c7ee8b0f127d35ffc6df579936442"
     },
     "slider/Custom Value Formatting": {

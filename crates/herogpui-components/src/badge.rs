@@ -1,8 +1,8 @@
 //! Badge — port of `@heroui/badge`.
 
 use gpui::{
-    prelude::*, px, AnyElement, App, DefiniteLength, Hsla, IntoElement, ParentElement, RenderOnce,
-    Styled, Window,
+    prelude::*, px, AnyElement, App, DefiniteLength, Hsla, IntoElement, ParentElement, Pixels,
+    RenderOnce, Styled, Window,
 };
 use herogpui_core::{Color, Size};
 use herogpui_theme::{ActiveTheme, ThemeColors};
@@ -187,6 +187,9 @@ pub struct Badge {
     placement: BadgePlacement,
     children: Vec<AnyElement>,
     /// The `sx` slot, refined over the root style at the end of render.
+    /// The label's font size; unset keeps the size-step's font. The
+    /// fractional leading scales with it.
+    text_size: Option<Pixels>,
     sx: Option<Box<gpui::StyleRefinement>>,
 }
 
@@ -200,6 +203,7 @@ impl Badge {
             size: Size::Md,
             placement: BadgePlacement::TopRight,
             children: Vec::new(),
+            text_size: None,
             sx: None,
         }
     }
@@ -228,6 +232,13 @@ impl Badge {
     /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
     /// applied to the badge's root element after every value the variant, the
     /// color and the active theme chose, so they win.
+    /// The label's font size; unset keeps the size-step's font. The
+    /// fractional leading scales with the font.
+    pub fn text_size(mut self, size: impl Into<Pixels>) -> Self {
+        self.text_size = Some(size.into());
+        self
+    }
+
     pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
         self.sx = Some(crate::util::capture_sx(style));
         self
@@ -297,6 +308,7 @@ impl RenderOnce for Badge {
                 DefiniteLength::Fraction(1.43),
             ),
         };
+        let font = self.text_size.unwrap_or(font);
 
         // Each placement class sits at its corner with `top/right/bottom/left:
         // 0` and then translates itself `±25%` of its own box outward — an

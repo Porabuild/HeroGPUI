@@ -1,8 +1,8 @@
 //! Chip — port of `@heroui/chip`.
 
 use gpui::{
-    px, AnyElement, App, Hsla, InteractiveElement, IntoElement, ParentElement, RenderOnce, Styled,
-    Window,
+    px, AnyElement, App, Hsla, InteractiveElement, IntoElement, ParentElement, Pixels, RenderOnce,
+    Styled, Window,
 };
 use herogpui_core::{Color, Size};
 use herogpui_theme::{ActiveTheme, ThemeColors};
@@ -56,6 +56,8 @@ pub struct Chip {
     size: Size,
     children: Vec<AnyElement>,
     /// The `sx` slot, refined over the root style at the end of render.
+    /// The label's font size; unset keeps the size-step's pair.
+    text_size: Option<Pixels>,
     sx: Option<Box<gpui::StyleRefinement>>,
 }
 
@@ -66,6 +68,7 @@ impl Chip {
             color: Color::Default,
             size: Size::Md,
             children: Vec::new(),
+            text_size: None,
             sx: None,
         }
     }
@@ -89,6 +92,14 @@ impl Chip {
     /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
     /// applied to the chip's root element after every value the variant, the
     /// color and the active theme chose, so they win.
+    /// The label's font size; unset keeps the size-step's pair. A 12/14/16
+    /// size follows v3's pairing (16/20/24); other sizes keep the 20px
+    /// leading.
+    pub fn text_size(mut self, size: impl Into<Pixels>) -> Self {
+        self.text_size = Some(size.into());
+        self
+    }
+
     pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
         self.sx = Some(crate::util::capture_sx(style));
         self
@@ -191,6 +202,11 @@ impl RenderOnce for Chip {
             Size::Md => (px(8.), px(2.), px(12.), px(20.)),
             Size::Lg => (px(12.), px(4.), px(14.), px(20.)),
         };
+        let text = self.text_size.unwrap_or(text);
+        let leading = self
+            .text_size
+            .and_then(crate::util::leading_for)
+            .unwrap_or(leading);
 
         let mut el = gpui::div()
             .flex()
