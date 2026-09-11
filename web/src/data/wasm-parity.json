@@ -1,7 +1,7 @@
 {
   "version": 2,
-  "artifactSha256": "00d892a138ae80d66d54bbd0c924d70875f4a65c26287a2b6790f2c352198726",
-  "glueSha256": "1fa7830e69921b7578ed6c98b3a535080ac75f35707199185197b3cb9e7df965",
+  "artifactSha256": "a9cde5098f2e70cd5ddd36b166a77a0a44b3d3d5c863bf0e3c8f410445836bb4",
+  "glueSha256": "d64729575be5fa4737c1db40c4b0a0acee6a3685f84c655c2ad7601ebc6c26d1",
   "examples": {
     "accordion/Controlled": {
       "codeSha256": "2816548407263e0fdeada0ff2ec1e8f9fd45a2d33b24ab2cf163539711fe6f8a",
@@ -1830,6 +1830,10 @@
     "radio-group/In Surface": {
       "codeSha256": "e680371d7ec61de1dfb55b1882b8cb42849872b0562a688b04b492ca1cb19047",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "radio-group/Sizes": {
+      "codeSha256": "5d1c9a7f3b6993a0aa33ac4df148cbfa4c791e96e4c92b882a2a4f29ee84a1c6",
+      "descriptionSha256": "ac81592960be3d7c6fb268013698d27a8af49c2aa8acd6e4d89dedf12880ce87"
     },
     "radio-group/Uncontrolled": {
       "codeSha256": "63d43c561eea2d19b1c427bf704ad9e470f7fb34180606e64dc13144c30c0e55",

@@ -1812,6 +1812,20 @@ impl Gallery {
                         .into_any_element()]),
                 ),
                 (
+                    "Sizes",
+                    "`size` is additive, not a v3 prop: `Md` is the pinned 16px control; `Sm` is a 14px control with a 5px dot, 12px label text and a 10px row gap.",
+                    col(vec![
+                        h::RadioGroup::new("rg-sz-sm", plans())
+                            .size(h::RadioSize::Sm)
+                            .default_value("Free")
+                            .into_any_element(),
+                        h::RadioGroup::new("rg-sz-md", plans())
+                            .size(h::RadioSize::Md)
+                            .default_value("Free")
+                            .into_any_element(),
+                    ]),
+                ),
+                (
                     "Variants",
                     col(vec![
                         h::RadioGroup::new("rg-v-primary", plans())

@@ -164,6 +164,15 @@ def helper_px(name):
     return None
 
 
+def radio_md_metrics(src):
+    """The `Md` `(control, dot, text, gap)` from `RadioSize::metrics`."""
+    match = re.search(
+        r'Self::Md => \(px\((\d+(?:\.\d*)?)\.\), px\((\d+(?:\.\d*)?)\.\), '
+        r'px\((\d+(?:\.\d*)?)\.\), px\((\d+(?:\.\d*)?)\.\)\)',
+        mask_comments(mask_literals(src)))
+    return tuple(float(group) for group in match.groups()) if match else None
+
+
 def checkbox_md_metrics(src):
     """The `Md` `(control, indicator, text)` pair from `CheckboxSize::metrics`.
 
@@ -1301,13 +1310,13 @@ CHECKS = [
     ('checkbox', '[data-slot="checkbox-default-indicator--checkmark"]', 'size',
      'Checkbox checkmark canvas', SRC + 'checkbox.rs', 'checkbox_checkmark_canvas', None),
     ('radio', '.radio__control', 'size', 'Radio control', SRC + 'radio_group.rs',
-     'let \\(circle, dot, text, gap\\) = \\(px\\((\\d+(?:\\.\\d*)?)\\)', None),
+     'radio_md_control', None),
     # Anchored on the control, since the `secondary` variant's panel also has a
     # radius and comes first in the file.
     ('radio', '.radio__control', 'radius', 'Radio -> util::_radius', SRC + 'radio_group.rs',
      '\\.size\\(circle\\)\\s+\\.rounded\\(crate::util::(\\w+_radius)\\(cx\\)\\)', helper_px),
     ('radio', '.radio__content', 'gap', 'Radio row gap', SRC + 'radio_group.rs',
-     'let \\(circle, dot, text, gap\\) = \\(px\\(\\d+(?:\\.\\d*)?\\), px\\(\\d+(?:\\.\\d*)?\\), px\\(\\d+(?:\\.\\d*)?\\), px\\((\\d+(?:\\.\\d*)?)\\)', None),
+     'radio_md_gap', None),
     ('list-box-item', '.list-box-item', 'gap', 'ListBox row gap', SRC + 'list_box.rs',
      r'\.gap\(px\((\d+(?:\.\d*)?)\.\)\)\s*'
      r'\.px\(self\.row_padding_x\.unwrap_or\(px\(8\.\)\)\)', None),
@@ -1713,8 +1722,7 @@ CHECKS = [
      r'Size::Md => \(px\(40\.\), px\(20\.\), px\(22\.\), px\(16\.\), px\(12\.\), '
      r'px\((\d+(?:\.\d*)?)\.\)', None),
     ('radio', '.radio__content', 'text', 'Radio content text', SRC + 'radio_group.rs',
-     r'let \(circle, dot, text, gap\) = \(px\(16\.\), px\(6\.\), px\((\d+(?:\.\d*)?)\.\)',
-     None),
+     'radio_md_text', None),
     ('list-box-item', '.list-box-item__indicator', 'size', 'ListBox check size',
      SRC + 'list_box.rs',
      r'`\.list-box-item__indicator` is `size-4`\.\s*\.size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
@@ -2718,6 +2726,10 @@ def our_value(path, pattern, transform):
     if pattern.startswith('checkbox_md_'):
         index = {'control': 0, 'indicator': 1, 'text': 2}[pattern.removeprefix('checkbox_md_')]
         metrics = checkbox_md_metrics(read_path(path))
+        return metrics[index] if metrics else None
+    if pattern.startswith('radio_md_'):
+        index = {'control': 0, 'indicator': 1, 'text': 2, 'gap': 3}[pattern.removeprefix('radio_md_')]
+        metrics = radio_md_metrics(read_path(path))
         return metrics[index] if metrics else None
     try:
         src = read_path(path)
@@ -4103,6 +4115,13 @@ def self_test():
         'a resolver on a foreign owner must stay unreadable')
     expect(field_box_px_from('', 'resolved_something_else') is None,
            'an unknown FieldBox resolver must stay unreadable')
+    expect(radio_md_metrics('Self::Md => (px(16.), px(6.), px(14.), px(12.)),')
+           == (16.0, 6.0, 14.0, 12.0),
+           'the radio Md metrics must be readable')
+    expect(radio_md_metrics('Self::Sm => (px(14.), px(5.), px(12.), px(10.)),') is None,
+           'the compact radio arm must not satisfy the pinned default reader')
+    expect(radio_md_metrics('') is None,
+           'a missing radio metrics arm must stay unreadable')
     expect(checkbox_md_metrics('Self::Md => (px(16.), px(12.), px(14.)),')
            == (16.0, 12.0, 14.0),
            'the checkbox Md metrics must be readable')

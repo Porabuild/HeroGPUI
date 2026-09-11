@@ -83,6 +83,37 @@ pub struct RadioOptionState {
     pub is_required: bool,
 }
 
+/// HeroGPUI-only compact size for a [`RadioGroup`].
+///
+/// v3.2.4 removed the field `size` prop, so this is additive: `Md` is
+/// byte-identical to the pinned default and `Sm` is HeroGPUI's own 14px step.
+/// Not a v3 prop.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum RadioSize {
+    Sm,
+    #[default]
+    Md,
+}
+
+impl RadioSize {
+    pub const ALL: [RadioSize; 2] = [Self::Sm, Self::Md];
+
+    /// `(control, dot, label text, row gap)` for this step.
+    fn metrics(self) -> (gpui::Pixels, gpui::Pixels, gpui::Pixels, gpui::Pixels) {
+        match self {
+            Self::Sm => (px(14.), px(5.), px(12.), px(10.)),
+            Self::Md => (px(16.), px(6.), px(14.), px(12.)),
+        }
+    }
+
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Sm => "Small",
+            Self::Md => "Medium",
+        }
+    }
+}
+
 /// HeroUI RadioGroup.
 #[derive(IntoElement)]
 pub struct RadioGroup {
@@ -122,6 +153,8 @@ pub struct RadioGroup {
     is_required: bool,
     is_read_only: bool,
     on_change: Option<std::sync::Arc<dyn Fn(&SharedString, &mut Window, &mut App) + 'static>>,
+    /// The compact step; `Md` is the pinned default.
+    size: RadioSize,
     /// Expands the root to the available width.
     full_width: bool,
     /// The `sx` slot, refined over the root style at the end of render.
@@ -208,6 +241,7 @@ impl RadioGroup {
             is_required: false,
             is_read_only: false,
             on_change: None,
+            size: RadioSize::default(),
             full_width: false,
             sx: None,
         }
@@ -344,6 +378,14 @@ impl RadioGroup {
     /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
     /// applied to the radio group's root element after every value the
     /// orientation and the active theme chose, so they win.
+    /// Sets the compact step. `Md` is the default and byte-identical to the
+    /// pinned control; `Sm` is a 14px control with a 5px dot, 12px label text
+    /// (16px leading) and a 10px row gap. Not a v3 prop.
+    pub fn size(mut self, size: RadioSize) -> Self {
+        self.size = size;
+        self
+    }
+
     /// `fullWidth` — expands the root to the available width without
     /// redistributing the children.
     pub fn full_width(mut self, v: bool) -> Self {
@@ -482,7 +524,7 @@ impl RenderOnce for RadioGroup {
         // The selected dot is the indicator scaled to `0.4286` of the 16px
         // control, which v3's own comment rounds to 6px. (8px is its *pressed*
         // size, `scale: 0.5714`.)
-        let (circle, dot, text, gap) = (px(16.), px(6.), px(14.), px(12.));
+        let (circle, dot, text, gap) = self.size.metrics();
 
         // `.radio-group` spaces its options with `mt-4` when vertical and
         // `gap-4` when horizontal — 16px either way.
@@ -648,7 +690,7 @@ impl RenderOnce for RadioGroup {
                 .items_center()
                 .gap(gap)
                 .text_size(text)
-                .line_height(px(20.))
+                .line_height(crate::util::leading_for(text).unwrap_or(px(20.)))
                 .font_weight(gpui::FontWeight::MEDIUM)
                 .text_color(colors.foreground)
                 .when(!row_disabled && !self.is_read_only, |r| {
@@ -853,6 +895,22 @@ mod tests {
         assert!(
             std::sync::Arc::ptr_eq(&walk, &stops) && std::sync::Arc::ptr_eq(&list, &values),
             "Arc clones of the walk and value lists must share pointer identity"
+        );
+    }
+}
+
+#[cfg(test)]
+mod radio_size_tests {
+    use super::*;
+
+    #[test]
+    fn md_is_the_pinned_geometry_and_sm_scales_together() {
+        assert_eq!(RadioSize::default(), RadioSize::Md);
+        assert_eq!(RadioSize::Md.metrics(), (px(16.), px(6.), px(14.), px(12.)));
+        assert_eq!(RadioSize::Sm.metrics(), (px(14.), px(5.), px(12.), px(10.)));
+        assert_eq!(
+            crate::util::leading_for(RadioSize::Sm.metrics().2),
+            Some(px(16.))
         );
     }
 }

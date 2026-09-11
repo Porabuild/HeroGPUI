@@ -2363,6 +2363,12 @@
       "code": "RadioGroup::new(\"radio-group\", plans())\n    .full_width(true)\n    .default_value(\"Free\")\n    // v3's own example opens with the group's `<Label>` and\n    // `<Description>`, then a `<Description>` per `<Radio>`.\n    .label(\"Plan selection\")\n    .description(\"Choose the plan that suits you best\")\n    .descriptions([\n        Some(\"Includes 100 messages per month\"),\n        Some(\"Includes 200 messages per month\"),\n        None,\n    ])"
     },
     {
+      "heading": "Sizes",
+      "description": "`size` is additive, not a v3 prop: `Md` is the pinned 16px control; `Sm` is a 14px control with a 5px dot, 12px label text and a 10px row gap.",
+      "imports": "use herogpui::prelude::{RadioGroup, RadioSize};\nuse gpui::prelude::*;\nuse gpui::px;",
+      "code": "gpui::div()\n    .flex()\n    .flex_col()\n    .items_start()\n    .gap(px(12.))\n    .children(vec![\n        RadioGroup::new(\"radio-group-sz-sm\", plans())\n            .size(RadioSize::Sm)\n            .default_value(\"Free\")\n            .into_any_element(),\n        RadioGroup::new(\"radio-group-sz-md\", plans())\n            .size(RadioSize::Md)\n            .default_value(\"Free\")\n            .into_any_element(),\n    ])"
+    },
+    {
       "heading": "Variants",
       "imports": "use herogpui::prelude::{FieldVariant, RadioGroup};\nuse gpui::prelude::*;\nuse gpui::px;",
       "code": "gpui::div()\n    .flex()\n    .flex_col()\n    .items_start()\n    .gap(px(12.))\n    .children(vec![\n        RadioGroup::new(\"radio-group-primary\", plans())\n            .default_value(\"Free\")\n            .into_any_element(),\n        RadioGroup::new(\"radio-group-secondary\", plans())\n            .default_value(\"Pro\")\n            .variant(FieldVariant::Secondary)\n            .into_any_element(),\n    ])"
