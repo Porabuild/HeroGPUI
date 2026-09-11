@@ -263,7 +263,9 @@ def check_switch_motion():
         re.search(
             r'track\s*=\s*track\s*\.child\(\s*track_motion_frame\.render\(\s*'
             r'gpui::div\(\)\s*'
-            r'\.absolute\(\)\s*\.inset_0\(\)\s*\.rounded\(track_r\)\s*\)\s*\)',
+            r'\.absolute\(\)\s*\.inset_0\(\)\s*\.rounded\(track_r\)\s*'
+            r'\.map\(\|fill\|\s*crate::util::round_sx_corners\(fill,\s*&sx_corners\)\)'
+            r'\s*,\s*\)\s*,\s*\)',
             src,
             re.S,
         )

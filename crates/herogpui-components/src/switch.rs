@@ -585,6 +585,7 @@ impl RenderOnce for Switch {
 
         // `default` is the v3 unchecked track. A soft (alpha) mix vanishes on
         // a white overlay, so the track uses the solid role colour.
+        let sx_corners = crate::util::sx_radius(&self.sx);
         let track_bg = if checked { accent_color } else { default_color };
         let hover_bg = self
             .hover_bg
@@ -613,6 +614,7 @@ impl RenderOnce for Switch {
             .w(w)
             .h(h)
             .rounded(track_r)
+            .map(|track| crate::util::round_sx_corners(track, &sx_corners))
             .bg(track_bg)
             .flex()
             .items_center()
@@ -627,8 +629,15 @@ impl RenderOnce for Switch {
         // in the field error below, not as a danger ring on the track, so the
         // ring this used to draw was an invention.
 
-        track = track
-            .child(track_motion_frame.render(gpui::div().absolute().inset_0().rounded(track_r)));
+        track = track.child(
+            track_motion_frame.render(
+                gpui::div()
+                    .absolute()
+                    .inset_0()
+                    .rounded(track_r)
+                    .map(|fill| crate::util::round_sx_corners(fill, &sx_corners)),
+            ),
+        );
 
         // Thumb sits at the end when checked, start when unchecked. v3 moves it
         // by margin rather than transform; `ThumbMotionFrame` animates that
@@ -637,6 +646,7 @@ impl RenderOnce for Switch {
             .w(thumb_w)
             .h(thumb_h)
             .rounded(thumb_r)
+            .map(|thumb| crate::util::round_sx_corners(thumb, &sx_corners))
             .flex_shrink_0()
             // `.switch__thumb > *` is a centred, full-size box.
             .flex()

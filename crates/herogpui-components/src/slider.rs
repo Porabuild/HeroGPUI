@@ -681,6 +681,7 @@ impl RenderOnce for Slider {
         // A vertical slider swaps the axis: the rail runs top to bottom and
         // the fill grows upward from the zero end.
         let vertical = !self.orientation.is_horizontal();
+        let sx_corners = crate::util::sx_radius(&self.sx);
         let mut track = gpui::div()
             .id(self.id.clone())
             .relative()
@@ -694,6 +695,7 @@ impl RenderOnce for Slider {
         } else {
             track.w_full().h(track_cross)
         };
+        track = crate::util::round_sx_corners(track, &sx_corners);
 
         if !self.is_disabled {
             track = crate::util::cursor_interactive(track, cx);
@@ -832,7 +834,8 @@ impl RenderOnce for Slider {
                     f.left(gpui::relative(fill_from))
                         .h_full()
                         .w(gpui::relative(fill_span))
-                }),
+                })
+                .map(|f| crate::util::round_sx_corners(f, &sx_corners)),
         );
 
         // thumbs
@@ -905,6 +908,7 @@ impl RenderOnce for Slider {
                 // there is no inner mark to nest.
                 None => thumb_el.rounded_full().bg(colors.foreground),
             };
+            thumb_el = crate::util::round_sx_corners(thumb_el, &sx_corners);
             // `.slider__thumb` takes `status-focused` -- the thumb the keys
             // move, while the slider holds a keyboard focus. A disabled thumb
             // never takes it: the roving stop skips disabled thumbs, and this

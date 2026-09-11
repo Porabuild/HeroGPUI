@@ -210,7 +210,9 @@ rows, colour area), `small_radius` (xl, 12 — close button, tag, link, tooltip)
 `field_radius` (12 — every form field) and `container_radius` (`min(32px, 3xl)` —
 cards, the table and every floating panel; Surface carries none, upstream
 `.surface` declares no radius). `.shots/design_audit.py` diffs these
-against the real stylesheets.
+against the real stylesheets. An `sx` corner refines a painted part
+(slider track/fill/thumb, switch track/thumb) per corner, winning over
+the part's own radius only where the override names it.
 
 **Control heights** are v3's desktop values, 32 / 36 / 40 for sm / md / lg. Its
 sheet is mobile-first (`.button` is `h-10 md:h-9`), and a desktop app is past

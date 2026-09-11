@@ -1617,6 +1617,28 @@ pub(crate) fn fade_endpoints(
     }
 }
 
+/// Refines `el`'s corners with the explicit `sx` corners, leaving each corner
+/// with the component's own radius when the override did not name it.
+///
+/// Child painted parts (a slider's track/fill/knob, a switch's track/thumb)
+/// call this after their own radius so an `sx` corner wins per corner.
+pub(crate) fn round_sx_corners<T: Styled>(el: T, corners: &gpui::Corners<Option<Pixels>>) -> T {
+    let mut el = el;
+    if let Some(pixels) = corners.top_left {
+        el = el.rounded_tl(pixels);
+    }
+    if let Some(pixels) = corners.top_right {
+        el = el.rounded_tr(pixels);
+    }
+    if let Some(pixels) = corners.bottom_right {
+        el = el.rounded_br(pixels);
+    }
+    if let Some(pixels) = corners.bottom_left {
+        el = el.rounded_bl(pixels);
+    }
+    el
+}
+
 /// The definite pixel padding an `sx` override set on the root, edge by edge.
 ///
 /// Only pixels extract: a rem resolves against the root font size and a
@@ -1763,6 +1785,34 @@ mod sx_extraction_tests {
                 bottom_right: Some(px(3.)),
                 bottom_left: None,
             }
+        );
+    }
+
+    #[test]
+    fn explicit_sx_corners_refine_each_corner_individually() {
+        let sx = captured(|d| d.rounded_tl(px(2.)).rounded_br(px(6.)));
+        let corners = sx_radius(&sx);
+        let mut el = round_sx_corners(gpui::div().rounded(px(4.)), &corners);
+        let radii = el.style().corner_radii.clone();
+        assert_eq!(
+            radii.top_left,
+            Some(gpui::AbsoluteLength::Pixels(px(2.))),
+            "the explicit top-left corner must win"
+        );
+        assert_eq!(
+            radii.bottom_right,
+            Some(gpui::AbsoluteLength::Pixels(px(6.))),
+            "the explicit bottom-right corner must win"
+        );
+        assert_eq!(
+            radii.top_right,
+            Some(gpui::AbsoluteLength::Pixels(px(4.))),
+            "an unnamed corner keeps the component's own radius"
+        );
+        assert_eq!(
+            radii.bottom_left,
+            Some(gpui::AbsoluteLength::Pixels(px(4.))),
+            "an unnamed corner keeps the component's own radius"
         );
     }
 

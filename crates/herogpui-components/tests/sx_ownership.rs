@@ -84,7 +84,7 @@ const INVENTORY: &[Part] = &[
     Part::pending(
         "switch.rs",
         "track hover fill",
-        ".child(track_motion_frame.render(",
+        "track_motion_frame.render(",
         "util::sx_background",
     ),
     Part::pending(
