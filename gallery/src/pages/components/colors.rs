@@ -129,6 +129,7 @@ impl Gallery {
                         // v3's Usage is uncontrolled: `defaultValue="#0085F5"`.
                         .default_value(value)
                         .label("Color")
+                        .radius(px(4.))
                         .into_any_element()]),
                 ),
                 (

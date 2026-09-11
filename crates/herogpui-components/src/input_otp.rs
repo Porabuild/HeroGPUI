@@ -1,8 +1,8 @@
 //! InputOTP — port of `@heroui/input-otp`.
 
 use gpui::{
-    prelude::*, px, App, Entity, FocusHandle, Focusable, IntoElement, KeyDownEvent, RenderOnce,
-    SharedString, Styled, Window,
+    prelude::*, px, App, Entity, FocusHandle, Focusable, IntoElement, KeyDownEvent, Pixels,
+    RenderOnce, SharedString, Styled, Window,
 };
 use herogpui_core::{element_id, FieldVariant};
 use herogpui_theme::ActiveTheme;
@@ -262,6 +262,9 @@ pub struct InputOTP {
     value: Option<String>,
     /// The fill a hovered slot takes, in place of `--default-hover`.
     slot_hover_bg: Option<gpui::Hsla>,
+    /// The corner radius of each slot, in place of the owning `field_radius`
+    /// helper.
+    radius: Option<Pixels>,
     /// The `sx` slot, refined over the root style at the end of render.
     sx: Option<Box<gpui::StyleRefinement>>,
 }
@@ -286,6 +289,14 @@ impl InputOTP {
         self
     }
 
+    /// The corner radius of every slot, in place of the owning `field_radius`
+    /// helper. Not a v3 prop; the removed v2 `radius` prop is prohibited and
+    /// this is a per-component repository extension.
+    pub fn radius(mut self, radius: impl Into<Pixels>) -> Self {
+        self.radius = Some(radius.into());
+        self
+    }
+
     pub fn new(state: Entity<OtpState>) -> Self {
         Self {
             slot: None,
@@ -306,6 +317,7 @@ impl InputOTP {
             on_complete: None,
             value: None,
             slot_hover_bg: None,
+            radius: None,
             sx: None,
         }
     }
@@ -514,7 +526,7 @@ impl RenderOnce for InputOTP {
         // `focus_once` above runs before them.
         let row_origin =
             window.use_keyed_state(element_id::scoped(&base_id, "origin"), cx, |_, _| {
-                None::<gpui::Pixels>
+                None::<Pixels>
             });
 
         // `.input-otp__slot` is `h-10 w-9.5` with `text-sm`, and the row and
@@ -528,6 +540,9 @@ impl RenderOnce for InputOTP {
         };
         let _length = cells_snapshot.len();
         let disabled = self.is_disabled;
+        // Every slot in the row below paints the same corner, so it resolves
+        // once here.
+        let radius = self.radius.unwrap_or_else(|| crate::util::field_radius(cx));
 
         // v3 order: the controlled flag, then server errors, then `validate`.
         // The server slot carries the messages the `Form`'s
@@ -659,7 +674,7 @@ impl RenderOnce for InputOTP {
                 })
                 .w(cell_w)
                 .h(cell_h)
-                .rounded(crate::util::field_radius(cx))
+                .rounded(radius)
                 .text_size(text)
                 .line_height(px(20.))
                 .font_weight(gpui::FontWeight::SEMIBOLD);

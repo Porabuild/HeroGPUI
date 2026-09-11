@@ -7,7 +7,7 @@
 use gpui::prelude::FluentBuilder;
 use gpui::{
     div, px, AnyElement, App, ElementId, InteractiveElement, IntoElement, MouseButton,
-    ParentElement, RenderOnce, SharedString, Styled, Window,
+    ParentElement, Pixels, RenderOnce, SharedString, Styled, Window,
 };
 use herogpui_core::FieldVariant;
 use herogpui_theme::ActiveTheme;
@@ -69,6 +69,9 @@ pub struct InputGroup {
     /// The family the held field is drawn and measured with; unset keeps the
     /// field's own setting.
     font_family: Option<SharedString>,
+    /// The corner radius, forwarded onto the held field and set back over the
+    /// group box's own chrome.
+    radius: Option<Pixels>,
     is_disabled: bool,
     is_invalid: bool,
     is_required: bool,
@@ -101,6 +104,7 @@ impl InputGroup {
             full_width: false,
             field: util::FieldBox::default(),
             font_family: None,
+            radius: None,
             is_disabled: false,
             is_invalid: false,
             is_required: false,
@@ -137,14 +141,14 @@ impl InputGroup {
     /// Replaces the group's 36px minimum height and propagates the explicit
     /// height to the held single-line field; a textarea group stays
     /// content-sized.
-    pub fn height(mut self, h: impl Into<gpui::Pixels>) -> Self {
+    pub fn height(mut self, h: impl Into<Pixels>) -> Self {
         self.field.height = Some(h.into());
         self
     }
 
     /// Replaces the held field's `px-3` inset on every side without an addon;
     /// a side with a prefix or suffix keeps that addon's own padding.
-    pub fn padding_x(mut self, p: impl Into<gpui::Pixels>) -> Self {
+    pub fn padding_x(mut self, p: impl Into<Pixels>) -> Self {
         self.field.padding_x = Some(p.into());
         self
     }
@@ -160,6 +164,19 @@ impl InputGroup {
     /// field's own setting.
     pub fn font_family(mut self, family: impl Into<SharedString>) -> Self {
         self.font_family = Some(family.into());
+        self
+    }
+
+    /// The corner radius of the group box and of the held field, in place of
+    /// the owning `field_radius` helper. Not a v3 prop; the removed v2
+    /// `radius` prop is prohibited and this is a per-component repository
+    /// extension.
+    ///
+    /// The shared field chrome paints the helper's radius over the group box,
+    /// so the resolved value is set back over it; the held field carries the
+    /// same value, the way [`InputGroup::font_family`] forwards the family.
+    pub fn radius(mut self, radius: impl Into<Pixels>) -> Self {
+        self.radius = Some(radius.into());
         self
     }
 
@@ -265,6 +282,9 @@ impl RenderOnce for InputGroup {
         let is_invalid = self.is_invalid || self.error_message.is_some();
         let (is_disabled, is_textarea) = (self.is_disabled, self.is_textarea);
         let field_box = self.field;
+        // The group box's own radius, resolved once: the shared field chrome
+        // below paints the helper's, so an override has to go back over it.
+        let radius = self.radius.unwrap_or_else(|| util::field_radius(cx));
         // A textarea group grows with its content and ignores the height
         // override; every other group defaults to the 36px row.
         let explicit_height = if is_textarea { None } else { field_box.height };
@@ -303,7 +323,12 @@ impl RenderOnce for InputGroup {
         // v3 rings the *group* on `focus-within`, so the state comes from the
         // field inside it.
         if !field_box.is_bare {
-            group = util::apply_field_chrome(group, self.variant, is_invalid, focus_within, cx);
+            group = util::apply_field_chrome(group, self.variant, is_invalid, focus_within, cx)
+                // The chrome paints the helper's radius last, so the resolved
+                // one goes back over it and an override survives the shared
+                // helper. The held field carries the same value, so the group
+                // box and the box it holds keep one corner.
+                .rounded(radius);
         }
         if self.full_width {
             group = group.w_full();
@@ -416,6 +441,10 @@ impl RenderOnce for InputGroup {
             };
             let input = match self.font_family.clone() {
                 Some(family) => input.font_family(family),
+                None => input,
+            };
+            let input = match self.radius {
+                Some(radius) => input.radius(radius),
                 None => input,
             };
             group = group.child(input.is_bare(field_box.is_bare));

@@ -530,6 +530,21 @@ EXTRA_OK_SCOPED = {
     # Forwarded onto the ProgressBar the component delegates its track to, the
     # way Meter forwards `sx`.
     'Meter.radius': 'repository-radius-extension',
+    # Field-family boxes: the ones painted by the shared `apply_field_chrome`
+    # set the resolved radius back over it, and InputOTP's slots carry it.
+    'Input.radius': 'repository-radius-extension',
+    'InputOTP.radius': 'repository-radius-extension',
+    'TimeField.radius': 'repository-radius-extension',
+    'DateField.radius': 'repository-radius-extension',
+    'ColorField.radius': 'repository-radius-extension',
+    # The group box and the field it holds take the same resolved value, the
+    # way InputGroup forwards `font_family`.
+    'InputGroup.radius': 'repository-radius-extension',
+    # The detached popover panel's radius; each trigger keeps the shared field
+    # chrome's own radius.
+    'Select.radius': 'repository-radius-extension',
+    'ComboBox.radius': 'repository-radius-extension',
+    'Autocomplete.radius': 'repository-radius-extension',
     # v3's stylesheet declares `.range-calendar__cell-indicator`; only the
     # Calendar's prop table names the part.
     'RangeCalendar.cell_indicator': 'composition',

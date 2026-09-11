@@ -1186,8 +1186,11 @@ CHECKS = [
      r'Control height[\s\S]*?Size::Md => gpui::px\((\d+(?:\.\d*)?)\)', None),
 
     # --- Fields -----------------------------------------------------------
+    # The field box resolves its own radius once, because the shared chrome
+    # below paints the helper's and the override has to go back over it.
     ('input', '.input', 'radius', 'util::field_radius', SRC + 'input.rs',
-     r'\.rounded\(crate::util::(field_radius)\(cx\)\)', helper_px),
+     r'let radius = self\s*\.radius\s*\.unwrap_or_else\(\|\| crate::util::(\w+_radius)\(cx\)\);',
+     helper_px),
     ('input', '.input', 'text', 'util::FIELD_TEXT', SRC + 'util.rs',
      r'pub const FIELD_TEXT: Pixels = gpui::px\((\d+(?:\.\d*)?)\)', None),
     ('date-input-group', '.date-input-group', 'h', 'util::FIELD_HEIGHT',
@@ -4202,6 +4205,16 @@ def self_test():
         '.rounded(crate::util::hairline_radius(cx))'
     ) is None,
         'the skeleton radius reader must reject the un-overridden helper literal')
+    expect(re.search(
+        r'let radius = self\s*\.radius\s*\.unwrap_or_else\(\|\| crate::util::(\w+_radius)\(cx\)\);',
+        'let radius = self.radius.unwrap_or_else(|| crate::util::field_radius(cx));'
+    ).group(1) == 'field_radius',
+        'the input radius reader must follow the override to its helper')
+    expect(re.search(
+        r'let radius = self\s*\.radius\s*\.unwrap_or_else\(\|\| crate::util::(\w+_radius)\(cx\)\);',
+        '.rounded(crate::util::field_radius(cx))'
+    ) is None,
+        'the input radius reader must reject the un-overridden helper literal')
     breadcrumbs = 'let text_size = self.text_size.unwrap_or(px(14.));\n'
     expect(re.search(
         r'let text_size = self\.text_size\.unwrap_or\(px\((\d+(?:\.\d*)?)\.\)\)',

@@ -457,10 +457,12 @@ pub struct DateField {
     is_bare: bool,
     /// The family the segments are drawn with; unset keeps the mono token.
     font_family: Option<SharedString>,
+    /// The corner radius, in place of the owning `field_radius` helper.
+    radius: Option<Pixels>,
     /// Explicit single-line box height; `None` is the 36px stock box.
-    height: Option<gpui::Pixels>,
+    height: Option<Pixels>,
     /// Explicit horizontal box padding; `None` is `px-3`.
-    padding_x: Option<gpui::Pixels>,
+    padding_x: Option<Pixels>,
     on_picker_open: Option<std::sync::Arc<dyn Fn(&mut Window, &mut App) + 'static>>,
     report_invalid_changes: bool,
     /// The locale whose date order, separators and padding the segments use.
@@ -608,13 +610,13 @@ impl DateField {
 
     /// Replaces the 36px box height. Only the single-line box changes: the
     /// segments keep their 14px type and 20px line and stay centred.
-    pub fn height(mut self, h: impl Into<gpui::Pixels>) -> Self {
+    pub fn height(mut self, h: impl Into<Pixels>) -> Self {
         self.height = Some(h.into());
         self
     }
 
     /// Replaces the box's `px-3` horizontal padding.
-    pub fn padding_x(mut self, p: impl Into<gpui::Pixels>) -> Self {
+    pub fn padding_x(mut self, p: impl Into<Pixels>) -> Self {
         self.padding_x = Some(p.into());
         self
     }
@@ -630,6 +632,18 @@ impl DateField {
     /// The family the segments are drawn with; unset keeps the mono token.
     pub fn font_family(mut self, family: impl Into<SharedString>) -> Self {
         self.font_family = Some(family.into());
+        self
+    }
+
+    /// The corner radius, in place of the owning `field_radius` helper. Not a
+    /// v3 prop; the removed v2 `radius` prop is prohibited and this is a
+    /// per-component repository extension.
+    ///
+    /// The shared field chrome paints the helper's radius over this box, so
+    /// the resolved value is set back over it; a bare field, which paints no
+    /// chrome, keeps it from the chain below.
+    pub fn radius(mut self, radius: impl Into<Pixels>) -> Self {
+        self.radius = Some(radius.into());
         self
     }
 
@@ -714,6 +728,7 @@ impl DateField {
             bare: false,
             is_bare: false,
             font_family: None,
+            radius: None,
             height: None,
             padding_x: None,
             on_picker_open: None,
@@ -1164,6 +1179,9 @@ impl RenderOnce for DateField {
         // first arrow press lands on a sensible date instead of jumping a step
         // from nothing.
         let seed = self.placeholder_value.unwrap_or_else(Date::today);
+        // The field box's own radius, resolved once: the shared field chrome
+        // below paints the helper's, so an override has to go back over it.
+        let radius = self.radius.unwrap_or_else(|| crate::util::field_radius(cx));
         // `useDateField` is `role: 'group'` on the field box. The hidden
         // native input is `role: 'presentation'` and has no counterpart
         // element here.
@@ -1190,7 +1208,7 @@ impl RenderOnce for DateField {
                 el.px(self.padding_x.unwrap_or(px(12.)))
                     .h(self.height.unwrap_or(crate::util::FIELD_HEIGHT))
                     .overflow_hidden()
-                    .rounded(crate::util::field_radius(cx))
+                    .rounded(radius)
             })
             .when(self.bare, |el| el.flex_1().min_w_0());
 
@@ -1438,7 +1456,10 @@ impl RenderOnce for DateField {
                 is_invalid,
                 focus_handle.is_focused(window),
                 cx,
-            );
+            )
+            // The chrome paints the helper's radius last, so the resolved one
+            // goes back over it and an override survives the shared helper.
+            .rounded(radius);
         }
         if self.full_width {
             group = group.w_full();

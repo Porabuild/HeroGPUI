@@ -71,6 +71,8 @@ pub struct ColorField {
     is_required: bool,
     /// Optional box geometry/chrome overrides; defaults are the stock box.
     field: util::FieldBox,
+    /// The corner radius, in place of the owning `field_radius` helper.
+    radius: Option<Pixels>,
     form_state: Rc<RefCell<crate::form::LiveFormFieldState>>,
 }
 
@@ -128,6 +130,7 @@ impl ColorField {
             is_read_only: false,
             is_required: false,
             field: util::FieldBox::default(),
+            radius: None,
             form_state: live_color_form_state(
                 crate::form::FormValue::Text(SharedString::default()),
             ),
@@ -316,6 +319,20 @@ impl ColorField {
     /// for a caller painting around it. The field stays editable and focusable.
     pub fn is_bare(mut self, v: bool) -> Self {
         self.field.is_bare = v;
+        self
+    }
+
+    /// The corner radius, in place of the owning `field_radius` helper. Not a
+    /// v3 prop; the removed v2 `radius` prop is prohibited and this is a
+    /// per-component repository extension.
+    ///
+    /// The shared field chrome paints the helper's radius over this box, so
+    /// the resolved value is set back over it; a bare box, which paints no
+    /// chrome, keeps it from the chain below. Both paths follow it: the
+    /// editable box is the inner field's own, so the override rides along
+    /// with the field box, the way its `height` and `padding_x` do.
+    pub fn radius(mut self, radius: impl Into<Pixels>) -> Self {
+        self.radius = Some(radius.into());
         self
     }
 }
@@ -546,6 +563,13 @@ impl RenderOnce for ColorField {
                 .auto_focus(self.auto_focus)
                 .start_content(ColorSwatch::new(self.value).size(SizeXl::Xs));
             input = input.with_field_box(self.field);
+            // The editable box is the inner field's own, so the radius rides
+            // along with the field box, the way its `height` and `padding_x`
+            // do; the static box below paints its own.
+            input = match self.radius {
+                Some(radius) => input.radius(radius),
+                None => input,
+            };
             if let Some(message) = validity.first() {
                 input = input.error_message(message);
             }
@@ -674,6 +698,9 @@ impl RenderOnce for ColorField {
         }
 
         let field_box = self.field;
+        // The box's own radius, resolved once: the shared field chrome below
+        // paints the helper's, so an override has to go back over it.
+        let radius = self.radius.unwrap_or_else(|| util::field_radius(cx));
         let mut field = div()
             .id(self.id.clone())
             .flex()
@@ -682,7 +709,7 @@ impl RenderOnce for ColorField {
             .gap(px(8.))
             .px(field_box.resolved_padding_x())
             .h(field_box.resolved_height())
-            .rounded(util::field_radius(cx))
+            .rounded(radius)
             .text_size(util::FIELD_TEXT)
             .line_height(px(20.))
             .text_color(colors.field.foreground)
@@ -709,7 +736,10 @@ impl RenderOnce for ColorField {
                     .as_ref()
                     .is_some_and(|s| s.read(cx).focus_handle.is_focused(window)),
                 cx,
-            );
+            )
+            // The chrome paints the helper's radius last, so the resolved one
+            // goes back over it and an override survives the shared helper.
+            .rounded(radius);
         }
 
         // v3's ColorField steps its channel on scroll; `isWheelDisabled` turns

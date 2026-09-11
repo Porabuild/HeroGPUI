@@ -17,7 +17,7 @@
 use std::{cell::RefCell, collections::HashSet, rc::Rc};
 
 use gpui::{
-    prelude::*, px, App, IntoElement, ParentElement, RenderOnce, SharedString,
+    prelude::*, px, App, IntoElement, ParentElement, Pixels, RenderOnce, SharedString,
     StatefulInteractiveElement, Styled, Window,
 };
 use herogpui_core::{element_id, Color, FieldVariant, Placement, SelectionMode};
@@ -197,16 +197,19 @@ pub struct Select {
     /// `shouldFocusWrap` — whether the arrow keys wrap at the ends of the list.
     should_focus_wrap: bool,
     /// `ListLayout`'s `rowHeight`, which virtualizes the popover list.
-    row_height: Option<gpui::Pixels>,
+    row_height: Option<Pixels>,
     /// Replaces the list rows' `px-2.5` horizontal padding.
-    row_padding_x: Option<gpui::Pixels>,
+    row_padding_x: Option<Pixels>,
     /// Replaces the list rows' `py-1.5` vertical padding.
-    row_padding_y: Option<gpui::Pixels>,
+    row_padding_y: Option<Pixels>,
     /// The fill a hovered option row takes, in place of `--default`.
     row_hover_bg: Option<gpui::Hsla>,
     /// The family the option rows are drawn with; unset keeps the inherited
     /// family. A detached popover does not inherit the trigger's font.
     row_font_family: Option<SharedString>,
+    /// The corner radius of the detached panel, in place of the owning
+    /// `container_radius` helper.
+    radius: Option<Pixels>,
     /// `ListBox.Section` — the heading that precedes an option, by item key.
     sections: Vec<(SharedString, SharedString)>,
     /// `ListBox.ItemIndicator` — draws the tick. The closure is handed whether
@@ -254,7 +257,7 @@ impl Select {
     /// v3 wraps the list in `<Virtualizer layout={ListLayout}>` inside
     /// `Select.Popover`; gpui's `uniform_list` builds only the rows in view, and
     /// it can do that because every row is this tall.
-    pub fn row_height(mut self, h: impl Into<gpui::Pixels>) -> Self {
+    pub fn row_height(mut self, h: impl Into<Pixels>) -> Self {
         self.row_height = Some(h.into());
         self
     }
@@ -312,13 +315,13 @@ impl Select {
 
     /// Fixes the trigger box at `h`. Unset keeps the 36px `min-h-9`; content
     /// taller than an explicit height overflows the box.
-    pub fn height(mut self, h: impl Into<gpui::Pixels>) -> Self {
+    pub fn height(mut self, h: impl Into<Pixels>) -> Self {
         self.field.height = Some(h.into());
         self
     }
 
     /// Replaces the trigger's `px-3` horizontal padding.
-    pub fn padding_x(mut self, p: impl Into<gpui::Pixels>) -> Self {
+    pub fn padding_x(mut self, p: impl Into<Pixels>) -> Self {
         self.field.padding_x = Some(p.into());
         self
     }
@@ -332,13 +335,13 @@ impl Select {
     }
 
     /// Replaces the list rows' `px-2.5` horizontal padding.
-    pub fn row_padding_x(mut self, p: impl Into<gpui::Pixels>) -> Self {
+    pub fn row_padding_x(mut self, p: impl Into<Pixels>) -> Self {
         self.row_padding_x = Some(p.into());
         self
     }
 
     /// Replaces the list rows' `py-1.5` vertical padding.
-    pub fn row_padding_y(mut self, p: impl Into<gpui::Pixels>) -> Self {
+    pub fn row_padding_y(mut self, p: impl Into<Pixels>) -> Self {
         self.row_padding_y = Some(p.into());
         self
     }
@@ -354,6 +357,19 @@ impl Select {
     /// family. A detached popover does not inherit the trigger's font.
     pub fn row_font_family(mut self, family: impl Into<SharedString>) -> Self {
         self.row_font_family = Some(family.into());
+        self
+    }
+
+    /// The corner radius of the detached panel, in place of the owning
+    /// `container_radius` helper. The panel's entry zoom interpolates the same
+    /// value, so both follow the override. Not a v3 prop; the removed v2
+    /// `radius` prop is prohibited and this is a per-component repository
+    /// extension.
+    ///
+    /// The trigger is a field box of its own, painted by the shared field
+    /// chrome — `--field-radius`, not this value.
+    pub fn radius(mut self, radius: impl Into<Pixels>) -> Self {
+        self.radius = Some(radius.into());
         self
     }
 
@@ -394,6 +410,7 @@ impl Select {
             row_padding_y: None,
             row_hover_bg: None,
             row_font_family: None,
+            radius: None,
             field: util::FieldBox::default(),
             sections: Vec::new(),
             indicator: None,
@@ -1407,13 +1424,16 @@ impl RenderOnce for Select {
             let list_name = self.label.clone();
             let options_len = self.items.len();
             let panel_interactive = overlay_phase == util::OverlayPhase::Open;
+            // The entry zoom interpolates the panel's own radius, so one
+            // binding feeds both the painted shape and the animation.
+            let radius = self.radius.unwrap_or_else(|| util::container_radius(cx));
             let panel = gpui::div()
                 .w_full()
                 .flex()
                 .flex_col()
                 .p(px(6.))
                 .bg(colors.overlay.background)
-                .rounded(util::container_radius(cx))
+                .rounded(radius)
                 // v3 gives a floating panel no border: `.popover` and friends are
                 // `bg-overlay shadow-overlay` and a radius, and dark mode's
                 // inset hairline is what separates the panel from the page.
@@ -1516,7 +1536,7 @@ impl RenderOnce for Select {
             let row_padding_x = self.row_padding_x.unwrap_or(px(10.));
             let row_font_family = self.row_font_family.clone();
             let row_padding_y = self.row_padding_y.unwrap_or(px(6.));
-            let row = move |i: usize, fixed_h: Option<gpui::Pixels>, cx: &mut App| {
+            let row = move |i: usize, fixed_h: Option<Pixels>, cx: &mut App| {
                 let base = &base_row;
                 let base_id = &base_row_id;
                 let opt = &items[i];
@@ -1790,7 +1810,7 @@ impl RenderOnce for Select {
                 }
             }
 
-            let zoom = crate::anim::ZoomBox::panel(px(6.), util::container_radius(cx));
+            let zoom = crate::anim::ZoomBox::panel(px(6.), radius);
             let panel = if overlay_phase == util::OverlayPhase::Exiting {
                 crate::anim::exiting(
                     panel,

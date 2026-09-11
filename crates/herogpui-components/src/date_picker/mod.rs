@@ -5,7 +5,7 @@
 //! `isDateUnavailable` / `firstDayOfWeek`.
 
 use gpui::{
-    prelude::*, px, App, Entity, Focusable, IntoElement, RenderOnce, SharedString,
+    prelude::*, px, App, Entity, Focusable, IntoElement, Pixels, RenderOnce, SharedString,
     StatefulInteractiveElement, Styled, Window,
 };
 use herogpui_core::element_id;

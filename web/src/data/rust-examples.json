@@ -562,8 +562,8 @@
   "color-field": [
     {
       "heading": "Usage",
-      "imports": "use herogpui::prelude::ColorField;",
-      "code": "ColorField::new(\"color-field\", value)\n    .state(self.demo_text(\"cf-usage\", \"#0085F5\", cx))\n    // v3's Usage is uncontrolled: `defaultValue=\"#0085F5\"`.\n    .default_value(value)\n    .label(\"Color\")"
+      "imports": "use herogpui::prelude::ColorField;\nuse gpui::px;",
+      "code": "ColorField::new(\"color-field\", value)\n    .state(self.demo_text(\"cf-usage\", \"#0085F5\", cx))\n    // v3's Usage is uncontrolled: `defaultValue=\"#0085F5\"`.\n    .default_value(value)\n    .label(\"Color\")\n    .radius(px(4.))"
     },
     {
       "heading": "Box Customisation",
@@ -1254,7 +1254,7 @@
     {
       "heading": "Usage",
       "imports": "use herogpui::prelude::{Date, DateField};\nuse gpui::prelude::*;\nuse gpui::px;",
-      "code": "gpui::div()\n    .flex()\n    .flex_col()\n    .w(px(256.))\n    .gap(px(12.))\n    .children(vec![\n        DateField::new(self.date_input.clone())\n            // v3's Usage seeds the field with `defaultValue`.\n            .default_value(Date::new(2025, 12, 25))\n            .label(\"Start date\")\n            .on_change(cx.listener(\n                |this, d: &Option<Date>, _, cx| {\n                    this.date_iso = *d;\n                    cx.notify();\n                },\n            ))\n            .into_any_element(),\n        para(\n            &match iso {\n                Some(d) => format!(\"Parsed: {}\", d.format_iso()),\n                None => {\n                    \"Type digits, or step a segment with the arrow keys\".to_owned()\n                }\n            },\n            cx,\n        ),\n    ])"
+      "code": "gpui::div()\n    .flex()\n    .flex_col()\n    .w(px(256.))\n    .gap(px(12.))\n    .children(vec![\n        DateField::new(self.date_input.clone())\n            // v3's Usage seeds the field with `defaultValue`.\n            .default_value(Date::new(2025, 12, 25))\n            .label(\"Start date\")\n            .radius(px(4.))\n            .on_change(cx.listener(\n                |this, d: &Option<Date>, _, cx| {\n                    this.date_iso = *d;\n                    cx.notify();\n                },\n            ))\n            .into_any_element(),\n        para(\n            &match iso {\n                Some(d) => format!(\"Parsed: {}\", d.format_iso()),\n                None => {\n                    \"Type digits, or step a segment with the arrow keys\".to_owned()\n                }\n            },\n            cx,\n        ),\n    ])"
     },
     {
       "heading": "Box Customisation",
@@ -1562,8 +1562,8 @@
     {
       "heading": "Usage",
       "description": "Uses your system regional segment order, separators, padding, day-period names, and 12- or 24-hour cycle.",
-      "imports": "use herogpui::prelude::{TimeField, TimeState};",
-      "code": "TimeField::new(self.demo_time(\"tmf-usage\", cx))\n    .label(\"Time\")"
+      "imports": "use herogpui::prelude::{TimeField, TimeState};\nuse gpui::px;",
+      "code": "TimeField::new(self.demo_time(\"tmf-usage\", cx))\n    .label(\"Time\")\n    .radius(px(4.))"
     },
     {
       "heading": "Box Customisation",
@@ -2043,8 +2043,8 @@
     {
       "heading": "Usage",
       "description": "Text adornments inherit the field's 14px text and 20px line height. Platform text replacement, composition updates, and paste use the same editable state as keyboard input.",
-      "imports": "use herogpui::prelude::{Input, InputState};",
-      "code": "Input::new(self.demo_text(\"in-usage\", \"\", cx))\n    .label(\"Name\")\n    .placeholder(\"Enter your name\")"
+      "imports": "use herogpui::prelude::{Input, InputState};\nuse gpui::px;",
+      "code": "Input::new(self.demo_text(\"in-usage\", \"\", cx))\n    .label(\"Name\")\n    .placeholder(\"Enter your name\")\n    .radius(px(4.))"
     },
     {
       "heading": "In Surface",
@@ -2083,8 +2083,8 @@
     {
       "heading": "Usage",
       "description": "Prefix and suffix text uses 14px text with 20px lines alongside the input.",
-      "imports": "use herogpui::prelude::{Input, InputAddon, InputGroup};",
-      "code": "InputGroup::new()\n    .label(\"Website\")\n    .prefix(InputAddon::new(\"https://\"))\n    .input(\n        Input::new(self.demo_text(\"ig-usage\", \"\", cx))\n            // v3's group example seeds the input with\n            // `defaultValue`; `value` is the controlled\n            // spelling of the same thing.\n            .default_value(\"example.com\")\n            .placeholder(\"example.com\"),\n    )"
+      "imports": "use herogpui::prelude::{Input, InputAddon, InputGroup};\nuse gpui::px;",
+      "code": "InputGroup::new()\n    .label(\"Website\")\n    .prefix(InputAddon::new(\"https://\"))\n    .radius(px(4.))\n    .input(\n        Input::new(self.demo_text(\"ig-usage\", \"\", cx))\n            // v3's group example seeds the input with\n            // `defaultValue`; `value` is the controlled\n            // spelling of the same thing.\n            .default_value(\"example.com\")\n            .placeholder(\"example.com\"),\n    )"
     },
     {
       "heading": "Box Customisation",
@@ -2213,7 +2213,7 @@
       "heading": "Usage",
       "description": "Custom slot content inherits 14px/20px text; the built-in digits use 18px/24px text.",
       "imports": "use herogpui::prelude::{ActiveTheme, InputOTP, Label, Link, OtpState};\nuse gpui::prelude::*;\nuse gpui::px;",
-      "code": "gpui::div()\n    .flex()\n    .flex_col()\n    .items_start()\n    .gap(px(12.))\n    .children(vec![\n        Label::new(\"Verify account\").into_any_element(),\n        muted_para(\"We've sent a code to a****@gmail.com\", cx),\n        InputOTP::new(self.otp.clone())\n            .separator()\n            .slot_hover_bg(cx.colors().accent.soft())\n            .on_complete(cx.listener(|this, code: &str, _, cx| {\n                this.otp_done = code.to_owned();\n                cx.notify();\n            }))\n            .into_any_element(),\n        gpui::div()\n            .flex()\n            .items_center()\n            .gap(px(5.))\n            .child(muted_para(\n                &if done.is_empty() {\n                    \"Didn't receive a code?\".to_owned()\n                } else {\n                    format!(\"Complete: {done}\")\n                },\n                cx,\n            ))\n            .child(Link::new(\"input-otp-resend\").label(\"Resend\").href(\"#\"))\n            .into_any_element(),\n    ])"
+      "code": "gpui::div()\n    .flex()\n    .flex_col()\n    .items_start()\n    .gap(px(12.))\n    .children(vec![\n        Label::new(\"Verify account\").into_any_element(),\n        muted_para(\"We've sent a code to a****@gmail.com\", cx),\n        InputOTP::new(self.otp.clone())\n            .separator()\n            .slot_hover_bg(cx.colors().accent.soft())\n            .radius(px(4.))\n            .on_complete(cx.listener(|this, code: &str, _, cx| {\n                this.otp_done = code.to_owned();\n                cx.notify();\n            }))\n            .into_any_element(),\n        gpui::div()\n            .flex()\n            .items_center()\n            .gap(px(5.))\n            .child(muted_para(\n                &if done.is_empty() {\n                    \"Didn't receive a code?\".to_owned()\n                } else {\n                    format!(\"Complete: {done}\")\n                },\n                cx,\n            ))\n            .child(Link::new(\"input-otp-resend\").label(\"Resend\").href(\"#\"))\n            .into_any_element(),\n    ])"
     },
     {
       "heading": "Variants",
@@ -3310,8 +3310,8 @@
     {
       "heading": "Usage",
       "description": "Values and options use 14px text with 20px lines. Section headers use 12px text with 16px lines and keep their own spacing. The popup anchors to the trigger with an 8px gap, flips when the preferred side cannot fit and the opposite side has more room, keeps the search visible, and scrolls the list within the available height up to 320px; virtual paging follows the visible list height.",
-      "imports": "use herogpui::prelude::Autocomplete;",
-      "code": "Autocomplete::new(\n    self.ac_entity.clone(),\n    language_items(),\n)\n.label(\"Language\")\n.placeholder(\"Select a language\")"
+      "imports": "use herogpui::prelude::Autocomplete;\nuse gpui::px;",
+      "code": "Autocomplete::new(\n    self.ac_entity.clone(),\n    language_items(),\n)\n.label(\"Language\")\n.placeholder(\"Select a language\")\n// `radius` is the detached panel's corner; the trigger\n// keeps the field chrome's own.\n.radius(px(8.))"
     },
     {
       "heading": "Box Customisation",
@@ -3412,8 +3412,8 @@
     {
       "heading": "Usage",
       "description": "Values and options use 14px text with 20px lines. Section headers use 12px text with 16px lines and keep their own spacing. The popup flips near window edges and scrolls to keep options reachable in short windows.",
-      "imports": "use herogpui::prelude::ComboBox;",
-      "code": "ComboBox::new(\n    self.combo_state.clone(),\n    language_items(),\n)\n.label(\"Language\")\n.placeholder(\"Pick or type\")\n.is_open(is_open)\n.on_open_change(cx.listener(|this, open: &bool, _, cx| {\n    this.combo_open = *open;\n    cx.notify();\n}))\n.on_selection_change(cx.listener(|this, _key: &SharedString, _, cx| {\n    this.combo_open = false;\n    cx.notify();\n}))"
+      "imports": "use herogpui::prelude::ComboBox;\nuse gpui::px;",
+      "code": "ComboBox::new(\n    self.combo_state.clone(),\n    language_items(),\n)\n.label(\"Language\")\n.placeholder(\"Pick or type\")\n.is_open(is_open)\n// `radius` is the detached panel's corner; the trigger is\n// the inner input's box and keeps the field chrome's own.\n.radius(px(8.))\n.on_open_change(cx.listener(|this, open: &bool, _, cx| {\n    this.combo_open = *open;\n    cx.notify();\n}))\n.on_selection_change(cx.listener(|this, _key: &SharedString, _, cx| {\n    this.combo_open = false;\n    cx.notify();\n}))"
     },
     {
       "heading": "Box Customisation",
@@ -3556,8 +3556,8 @@
     {
       "heading": "Usage",
       "description": "Use the arrow keys and Enter or Space to select a language. Selection closes the list and keeps focus on the trigger. Values and options use 14px text with 20px lines. Section headers use 12px text with 16px lines and keep their own spacing. The popup flips near window edges and scrolls to keep options reachable in short windows.",
-      "imports": "use herogpui::prelude::Select;",
-      "code": "Select::new(\"select-main\", language_items())\n    .label(\"Language\")\n    .placeholder(\"Choose one\")\n    .value(selected.clone())\n    .is_open(is_open)\n    .on_open_change(cx.listener(|this, open: &bool, _, cx| {\n        this.select_open = *open;\n        cx.notify();\n    }))\n    .on_change(cx.listener(|this, key: &Option<SharedString>, _, cx| {\n        this.select_lang = key.clone();\n        this.select_open = false;\n        cx.notify();\n    }))"
+      "imports": "use herogpui::prelude::Select;\nuse gpui::px;",
+      "code": "Select::new(\"select-main\", language_items())\n    .label(\"Language\")\n    .placeholder(\"Choose one\")\n    .value(selected.clone())\n    .is_open(is_open)\n    // `radius` is the detached panel's corner; the trigger\n    // keeps the field chrome's own.\n    .radius(px(8.))\n    .on_open_change(cx.listener(|this, open: &bool, _, cx| {\n        this.select_open = *open;\n        cx.notify();\n    }))\n    .on_change(cx.listener(|this, key: &Option<SharedString>, _, cx| {\n        this.select_lang = key.clone();\n        this.select_open = false;\n        cx.notify();\n    }))"
     },
     {
       "heading": "Box Customisation",

@@ -36,8 +36,8 @@ use std::{
 };
 
 use gpui::{
-    div, prelude::*, px, App, Entity, InteractiveElement, IntoElement, RenderOnce, SharedString,
-    Styled, Window,
+    div, prelude::*, px, App, Entity, InteractiveElement, IntoElement, Pixels, RenderOnce,
+    SharedString, Styled, Window,
 };
 use herogpui_core::{element_id, FieldVariant, Placement, SelectionMode};
 use herogpui_theme::ActiveTheme;
@@ -227,17 +227,20 @@ pub struct ComboBox {
     /// `autoFocus` — take focus on the first render.
     auto_focus: bool,
     /// `ListLayout`'s `rowHeight`, which virtualizes the popover list.
-    row_height: Option<gpui::Pixels>,
+    row_height: Option<Pixels>,
     /// Replaces the list rows' `px-2` horizontal padding.
-    row_padding_x: Option<gpui::Pixels>,
+    row_padding_x: Option<Pixels>,
     /// Replaces the list rows' `py-1.5` vertical padding.
-    row_padding_y: Option<gpui::Pixels>,
+    row_padding_y: Option<Pixels>,
     /// The fill a hovered row takes, in place of `--default`.
     row_hover_bg: Option<gpui::Hsla>,
     /// The family the option rows are drawn with; unset keeps the
     /// inherited family. A detached popover does not inherit the trigger's
     /// font.
     row_font_family: Option<SharedString>,
+    /// The corner radius of the detached panel, in place of the owning
+    /// `container_radius` helper.
+    radius: Option<Pixels>,
     /// `validate` — run by the component, not the caller.
     validate: Option<crate::validation::Validator<str>>,
     /// `validationBehavior` — carried on the inner field.
@@ -378,7 +381,7 @@ impl ComboBox {
     /// v3 wraps the list in `<Virtualizer layout={ListLayout}>` inside the
     /// popover; gpui's `uniform_list` builds only the rows in view, and it can do
     /// that because every row is this tall.
-    pub fn row_height(mut self, h: impl Into<gpui::Pixels>) -> Self {
+    pub fn row_height(mut self, h: impl Into<Pixels>) -> Self {
         self.row_height = Some(h.into());
         self
     }
@@ -539,6 +542,7 @@ impl ComboBox {
             row_padding_y: None,
             row_hover_bg: None,
             row_font_family: None,
+            radius: None,
             field: util::FieldBox::default(),
             validate: None,
             validation_behavior: None,
@@ -644,14 +648,14 @@ impl ComboBox {
     }
 
     /// Replaces the trigger's 36px box height (forwarded to the inner field).
-    pub fn height(mut self, h: impl Into<gpui::Pixels>) -> Self {
+    pub fn height(mut self, h: impl Into<Pixels>) -> Self {
         self.field.height = Some(h.into());
         self
     }
 
     /// Replaces the trigger's `px-3` horizontal padding (forwarded to the
     /// inner field).
-    pub fn padding_x(mut self, p: impl Into<gpui::Pixels>) -> Self {
+    pub fn padding_x(mut self, p: impl Into<Pixels>) -> Self {
         self.field.padding_x = Some(p.into());
         self
     }
@@ -664,13 +668,13 @@ impl ComboBox {
     }
 
     /// Replaces the list rows' `px-2` horizontal padding.
-    pub fn row_padding_x(mut self, p: impl Into<gpui::Pixels>) -> Self {
+    pub fn row_padding_x(mut self, p: impl Into<Pixels>) -> Self {
         self.row_padding_x = Some(p.into());
         self
     }
 
     /// Replaces the list rows' `py-1.5` vertical padding.
-    pub fn row_padding_y(mut self, p: impl Into<gpui::Pixels>) -> Self {
+    pub fn row_padding_y(mut self, p: impl Into<Pixels>) -> Self {
         self.row_padding_y = Some(p.into());
         self
     }
@@ -685,6 +689,19 @@ impl ComboBox {
     /// family. A detached popover does not inherit the trigger's font.
     pub fn row_font_family(mut self, family: impl Into<SharedString>) -> Self {
         self.row_font_family = Some(family.into());
+        self
+    }
+
+    /// The corner radius of the detached panel, in place of the owning
+    /// `container_radius` helper. The panel's entry zoom interpolates the same
+    /// value, so both follow the override. Not a v3 prop; the removed v2
+    /// `radius` prop is prohibited and this is a per-component repository
+    /// extension.
+    ///
+    /// The trigger is an inner [`crate::Input`] whose box the shared field
+    /// chrome paints — `--field-radius`, not this value.
+    pub fn radius(mut self, radius: impl Into<Pixels>) -> Self {
+        self.radius = Some(radius.into());
         self
     }
 
@@ -805,7 +822,10 @@ impl RenderOnce for ComboBox {
         // Owned copies: `input.render` below needs `cx` mutably.
         let colors = cx.colors().clone();
         let layout = cx.layout().clone();
-        let container_radius = util::container_radius(cx);
+        // One binding feeds every panel surface below: the painted panel and
+        // the entry zoom that animates it. The trigger's own box is the held
+        // field's, and the shared field chrome paints that one.
+        let container_radius = self.radius.unwrap_or_else(|| util::container_radius(cx));
         let close_open = util::shared({
             let own = open_own.clone();
             let callback = self.on_open_change.clone();
@@ -1350,7 +1370,7 @@ impl RenderOnce for ComboBox {
         // must not push the popover down. `scrollable_field_popover` below
         // reads these bounds to flip and cap the panel; the measure element
         // inside `Input` only records them.
-        let anchor_bounds: Rc<Cell<Option<gpui::Bounds<gpui::Pixels>>>> = Rc::new(Cell::new(None));
+        let anchor_bounds: Rc<Cell<Option<gpui::Bounds<Pixels>>>> = Rc::new(Cell::new(None));
         let inside_pressed_for_group = inside_pressed.clone();
         let field_selector = format!("combobox-field-{entity_id}");
         input = input.field_anchor(anchor_bounds.clone(), field_selector);
@@ -1878,7 +1898,7 @@ impl RenderOnce for ComboBox {
             let row_padding_x = self.row_padding_x.unwrap_or(px(8.));
             let row_font_family = self.row_font_family.clone();
             let row_padding_y = self.row_padding_y.unwrap_or(px(6.));
-            let row_of = move |index: usize, fixed_h: Option<gpui::Pixels>, cx: &mut App| {
+            let row_of = move |index: usize, fixed_h: Option<Pixels>, cx: &mut App| {
                 let item = &rows[index];
                 // A section header rides above the row it introduces, so the two
                 // are one element -- a virtual row is one slot tall.

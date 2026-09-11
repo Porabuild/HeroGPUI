@@ -11,8 +11,8 @@ use std::{
 };
 
 use gpui::{
-    div, prelude::*, px, App, ElementId, Entity, InteractiveElement, IntoElement, RenderOnce,
-    SharedString, Styled, Window,
+    div, prelude::*, px, App, ElementId, Entity, InteractiveElement, IntoElement, Pixels,
+    RenderOnce, SharedString, Styled, Window,
 };
 use herogpui_core::{element_id, FieldVariant};
 use herogpui_theme::ActiveTheme;
@@ -830,6 +830,8 @@ pub struct TimeField {
     stepper_hover_bg: Option<gpui::Hsla>,
     /// The family the segments are drawn with; unset keeps the mono token.
     font_family: Option<SharedString>,
+    /// The corner radius, in place of the owning `field_radius` helper.
+    radius: Option<Pixels>,
     hour_cycle: HourCycle,
     /// `granularity` — the smallest unit shown.
     granularity: TimeGranularity,
@@ -900,6 +902,7 @@ impl TimeField {
             field: util::FieldBox::default(),
             stepper_hover_bg: None,
             font_family: None,
+            radius: None,
         }
     }
 
@@ -1016,13 +1019,13 @@ impl TimeField {
 
     /// Replaces the 36px box height. Only the single-line box changes: the
     /// segments keep their 14px type and 20px line and stay centred.
-    pub fn height(mut self, h: impl Into<gpui::Pixels>) -> Self {
+    pub fn height(mut self, h: impl Into<Pixels>) -> Self {
         self.field.height = Some(h.into());
         self
     }
 
     /// Replaces the box's `px-3` horizontal padding.
-    pub fn padding_x(mut self, p: impl Into<gpui::Pixels>) -> Self {
+    pub fn padding_x(mut self, p: impl Into<Pixels>) -> Self {
         self.field.padding_x = Some(p.into());
         self
     }
@@ -1043,6 +1046,18 @@ impl TimeField {
     /// The family the segments are drawn with; unset keeps the mono token.
     pub fn font_family(mut self, family: impl Into<SharedString>) -> Self {
         self.font_family = Some(family.into());
+        self
+    }
+
+    /// The corner radius, in place of the owning `field_radius` helper. Not a
+    /// v3 prop; the removed v2 `radius` prop is prohibited and this is a
+    /// per-component repository extension.
+    ///
+    /// The shared field chrome paints the helper's radius over this box, so
+    /// the resolved value is set back over it; a bare field, which paints no
+    /// chrome, keeps it from the chain below.
+    pub fn radius(mut self, radius: impl Into<Pixels>) -> Self {
+        self.radius = Some(radius.into());
         self
     }
 
@@ -1335,6 +1350,9 @@ impl RenderOnce for TimeField {
         // widening the field.
         // `useTimeField` is `useDateField`, i.e. `role: 'group'` on the box.
         let field_box = self.field;
+        // The field box's own radius, resolved once: the shared field chrome
+        // below paints the helper's, so an override has to go back over it.
+        let radius = self.radius.unwrap_or_else(|| util::field_radius(cx));
         let mut group = div()
             .id(base_id.clone())
             .a11y_named(
@@ -1347,7 +1365,7 @@ impl RenderOnce for TimeField {
             .gap(px(2.))
             .px(field_box.resolved_padding_x())
             .h(field_box.resolved_height())
-            .rounded(util::field_radius(cx))
+            .rounded(radius)
             .text_size(util::FIELD_TEXT)
             .line_height(px(20.))
             .font_family(util::MONO_FONT)
@@ -1363,7 +1381,10 @@ impl RenderOnce for TimeField {
                 is_invalid,
                 focus_handle.is_focused(window),
                 cx,
-            );
+            )
+            // The chrome paints the helper's radius last, so the resolved one
+            // goes back over it and an override survives the shared helper.
+            .rounded(radius);
         }
 
         // v3 drives a time field from the keyboard: the arrows step the focused

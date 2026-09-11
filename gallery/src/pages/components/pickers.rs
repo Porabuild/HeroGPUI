@@ -25,6 +25,9 @@ impl Gallery {
                     )
                     .label("Language")
                     .placeholder("Select a language")
+                    // `radius` is the detached panel's corner; the trigger
+                    // keeps the field chrome's own.
+                    .radius(px(8.))
                     .into_any_element()]),
                 ),
                 (
@@ -355,6 +358,9 @@ impl Gallery {
                     .label("Language")
                     .placeholder("Pick or type")
                     .is_open(is_open)
+                    // `radius` is the detached panel's corner; the trigger is
+                    // the inner input's box and keeps the field chrome's own.
+                    .radius(px(8.))
                     .on_open_change(cx.listener(|this, open: &bool, _, cx| {
                         this.combo_open = *open;
                         cx.notify();
@@ -831,6 +837,9 @@ impl Gallery {
                         .placeholder("Choose one")
                         .value(selected.clone())
                         .is_open(is_open)
+                        // `radius` is the detached panel's corner; the trigger
+                        // keeps the field chrome's own.
+                        .radius(px(8.))
                         .on_open_change(cx.listener(|this, open: &bool, _, cx| {
                             this.select_open = *open;
                             cx.notify();

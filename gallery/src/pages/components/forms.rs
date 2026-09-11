@@ -869,6 +869,7 @@ impl Gallery {
                     field_col(vec![h::Input::new(self.demo_text("in-usage", "", cx))
                         .label("Name")
                         .placeholder("Enter your name")
+                        .radius(px(4.))
                         .into_any_element()]),
                 ),
                 (
@@ -995,6 +996,7 @@ impl Gallery {
                     field_col(vec![h::InputGroup::new()
                         .label("Website")
                         .prefix(h::InputAddon::new("https://"))
+                        .radius(px(4.))
                         .input(
                             h::Input::new(self.demo_text("ig-usage", "", cx))
                                 // v3's group example seeds the input with
@@ -1372,6 +1374,7 @@ impl Gallery {
                         h::InputOTP::new(self.otp.clone())
                             .separator()
                             .slot_hover_bg(cx.colors().accent.soft())
+                            .radius(px(4.))
                             .on_complete(cx.listener(|this, code: &str, _, cx| {
                                 this.otp_done = code.to_owned();
                                 cx.notify();

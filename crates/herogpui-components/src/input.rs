@@ -4,8 +4,8 @@
 //! styled element bound to it (controlled like HeroUI's controlled inputs).
 
 use gpui::{
-    prelude::*, px, App, Entity, FocusHandle, Focusable, IntoElement, KeyDownEvent, RenderOnce,
-    SharedString, Styled, Window,
+    prelude::*, px, App, Entity, FocusHandle, Focusable, IntoElement, KeyDownEvent, Pixels,
+    RenderOnce, SharedString, Styled, Window,
 };
 use herogpui_core::{element_id, FieldVariant};
 use herogpui_theme::ActiveTheme;
@@ -504,9 +504,9 @@ fn displayed_value(state: &InputState, masks: bool) -> String {
 /// `closest_index_for_x` answers in *bytes*, which the state counts in chars.
 fn char_at_x(
     value: &str,
-    x: gpui::Pixels,
+    x: Pixels,
     font: &gpui::Font,
-    font_size: gpui::Pixels,
+    font_size: Pixels,
     window: &mut Window,
 ) -> usize {
     if value.is_empty() {
@@ -540,11 +540,11 @@ fn char_at_x(
 /// paragraph has been laid out yet, which is any frame before the first paint.
 fn char_at_point(
     value: &str,
-    point: gpui::Point<gpui::Pixels>,
-    paragraphs: &[gpui::Bounds<gpui::Pixels>],
+    point: gpui::Point<Pixels>,
+    paragraphs: &[gpui::Bounds<Pixels>],
     font: &gpui::Font,
-    font_size: gpui::Pixels,
-    line_height: gpui::Pixels,
+    font_size: Pixels,
+    line_height: Pixels,
     window: &mut Window,
 ) -> Option<usize> {
     let lines: Vec<&str> = value.split('\n').collect();
@@ -773,9 +773,9 @@ struct PlatformTextInput {
     input_type: InputType,
     max_length: Option<usize>,
     multiline: bool,
-    bounds: gpui::Bounds<gpui::Pixels>,
+    bounds: gpui::Bounds<Pixels>,
     font: gpui::Font,
-    paragraphs: Entity<Vec<gpui::Bounds<gpui::Pixels>>>,
+    paragraphs: Entity<Vec<gpui::Bounds<Pixels>>>,
 }
 
 impl PlatformTextInput {
@@ -946,11 +946,7 @@ impl gpui::InputHandler for PlatformTextInput {
         true
     }
 
-    fn element_bounds(
-        &mut self,
-        _: &mut Window,
-        _: &mut App,
-    ) -> Option<gpui::Bounds<gpui::Pixels>> {
+    fn element_bounds(&mut self, _: &mut Window, _: &mut App) -> Option<gpui::Bounds<Pixels>> {
         Some(self.bounds)
     }
 
@@ -959,7 +955,7 @@ impl gpui::InputHandler for PlatformTextInput {
         range: std::ops::Range<usize>,
         window: &mut Window,
         cx: &mut App,
-    ) -> Option<gpui::Bounds<gpui::Pixels>> {
+    ) -> Option<gpui::Bounds<Pixels>> {
         let state = self.state.read(cx);
         let start = utf16_to_char(&state.value, range.start);
         let end = utf16_to_char(&state.value, range.end);
@@ -1024,7 +1020,7 @@ impl gpui::InputHandler for PlatformTextInput {
 
     fn character_index_for_point(
         &mut self,
-        point: gpui::Point<gpui::Pixels>,
+        point: gpui::Point<Pixels>,
         window: &mut Window,
         cx: &mut App,
     ) -> Option<usize> {
@@ -1063,11 +1059,11 @@ struct MultilineBody<'a> {
     selection: Option<(usize, usize)>,
     focused: bool,
     /// The caret's element id, height and colour.
-    caret: (gpui::ElementId, gpui::Pixels, gpui::Hsla),
+    caret: (gpui::ElementId, Pixels, gpui::Hsla),
     selection_bg: gpui::Hsla,
     /// Where each paragraph was painted, filled in during layout so a click can
     /// be measured against the text it actually landed on.
-    paragraphs: Entity<Vec<gpui::Bounds<gpui::Pixels>>>,
+    paragraphs: Entity<Vec<gpui::Bounds<Pixels>>>,
 }
 
 /// One paragraph per newline, each wrapping, with the caret and selection
@@ -1103,7 +1099,7 @@ fn multiline_body(b: MultilineBody<'_>, cx: &App) -> gpui::AnyElement {
             gpui::canvas(
                 {
                     let sink = b.paragraphs.clone();
-                    move |bounds: gpui::Bounds<gpui::Pixels>, _window, cx| {
+                    move |bounds: gpui::Bounds<Pixels>, _window, cx| {
                         sink.update(cx, |slots, _| {
                             if slots.len() <= i {
                                 slots.resize(i + 1, gpui::Bounds::default());
@@ -1214,24 +1210,26 @@ pub struct Input {
     /// Stretch beyond the 320px default demo width.
     /// Multi-line only: the height `rows` asks for. `None` leaves v3's
     /// `min-height: 38px`.
-    min_h: Option<gpui::Pixels>,
+    min_h: Option<Pixels>,
     /// [`Input::height`] — the single-line box height. `None` keeps
     /// `util::FIELD_HEIGHT`; the multi-line path ignores it (see the builder).
-    height: Option<gpui::Pixels>,
+    height: Option<Pixels>,
     /// [`Input::padding_x`] — the standalone box's horizontal padding. `None`
     /// keeps v3's `px-3`. Ignored inside a group, whose addon rules own the
     /// sides.
-    padding_x: Option<gpui::Pixels>,
+    padding_x: Option<Pixels>,
     /// The group owner's padding override (`InputGroup::padding_x`,
     /// `NumberField::padding_x`). Crate-internal: it is not the public
     /// `Input::padding_x`, whose grouped behavior stays as documented.
-    group_padding_x: Option<gpui::Pixels>,
+    group_padding_x: Option<Pixels>,
     /// [`Input::is_bare`] — render the standalone box with no chrome at all,
     /// the way `InputGroup.Input` already does.
     is_bare: bool,
     /// [`Input::font_family`] — the family the field text is drawn and
     /// measured with. `None` inherits the window's text style.
     font_family: Option<SharedString>,
+    /// The corner radius, in place of the owning `field_radius` helper.
+    radius: Option<Pixels>,
     /// Set by [`crate::input_group::InputGroup`]: `(has_prefix, has_suffix)`.
     /// `InputGroup.Input` has no chrome of its own -- the group paints it -- and
     /// drops the padding on whichever side touches an addon (`ps-0`/`pe-0`).
@@ -1275,7 +1273,7 @@ pub struct Input {
     /// `dist/private/ComboBox.js`: "Position popover relative to group if
     /// available, otherwise input").
     field_anchor: Option<(
-        std::rc::Rc<std::cell::Cell<Option<gpui::Bounds<gpui::Pixels>>>>,
+        std::rc::Rc<std::cell::Cell<Option<gpui::Bounds<Pixels>>>>,
         SharedString,
     )>,
     /// The `sx` slot, refined over the root style at the end of render.
@@ -1369,6 +1367,7 @@ impl Input {
             group_padding_x: None,
             is_bare: false,
             font_family: None,
+            radius: None,
             in_group: None,
             group_dim: false,
             full_width: false,
@@ -1413,7 +1412,7 @@ impl Input {
     }
 
     /// Multi-line only: the height `TextArea::rows` asks for.
-    pub(crate) fn min_h(mut self, h: gpui::Pixels) -> Self {
+    pub(crate) fn min_h(mut self, h: Pixels) -> Self {
         self.min_h = Some(h);
         self
     }
@@ -1438,7 +1437,7 @@ impl Input {
     /// inputRef.current`.
     pub(crate) fn field_anchor(
         mut self,
-        anchor: std::rc::Rc<std::cell::Cell<Option<gpui::Bounds<gpui::Pixels>>>>,
+        anchor: std::rc::Rc<std::cell::Cell<Option<gpui::Bounds<Pixels>>>>,
         selector: impl Into<SharedString>,
     ) -> Self {
         self.field_anchor = Some((anchor, selector.into()));
@@ -1596,7 +1595,7 @@ impl Input {
     /// (`TextArea`) ignores this — its height is content-driven with a
     /// `rows`-derived floor, and a fixed height there would either clip the
     /// text or fight `rows`; use `TextArea::rows` for that.
-    pub fn height(mut self, h: impl Into<gpui::Pixels>) -> Self {
+    pub fn height(mut self, h: impl Into<Pixels>) -> Self {
         self.height = Some(h.into());
         self
     }
@@ -1607,7 +1606,7 @@ impl Input {
     /// Inside an [`crate::input_group::InputGroup`] the padding is the group's
     /// rule — the side that touches an addon carries none — so this is ignored
     /// there.
-    pub fn padding_x(mut self, p: impl Into<gpui::Pixels>) -> Self {
+    pub fn padding_x(mut self, p: impl Into<Pixels>) -> Self {
         self.padding_x = Some(p.into());
         self
     }
@@ -1615,7 +1614,7 @@ impl Input {
     /// The group owner's padding override, applied to every side without an
     /// addon. Crate-internal: [`Self::padding_x`] is the public, standalone
     /// spelling, and it remains ignored inside a group.
-    pub(crate) fn group_padding_x(mut self, padding_x: impl Into<gpui::Pixels>) -> Self {
+    pub(crate) fn group_padding_x(mut self, padding_x: impl Into<Pixels>) -> Self {
         self.group_padding_x = Some(padding_x.into());
         self
     }
@@ -1658,6 +1657,18 @@ impl Input {
     /// box for the text gpui itself shapes.
     pub fn font_family(mut self, family: impl Into<SharedString>) -> Self {
         self.font_family = Some(family.into());
+        self
+    }
+
+    /// The corner radius, in place of the owning `field_radius` helper. Not a
+    /// v3 prop; the removed v2 `radius` prop is prohibited and this is a
+    /// per-component repository extension.
+    ///
+    /// The shared field chrome paints the helper's radius over this box, so
+    /// the resolved value is set back over it; a bare or grouped field, which
+    /// paints no chrome, keeps it from the chain below.
+    pub fn radius(mut self, radius: impl Into<Pixels>) -> Self {
+        self.radius = Some(radius.into());
         self
     }
 
@@ -1869,12 +1880,12 @@ impl RenderOnce for Input {
         // it precedes the theme.
         let text_origin =
             window.use_keyed_state(element_id::scoped(&base_id, "text-origin"), cx, |_, _| {
-                None::<gpui::Pixels>
+                None::<Pixels>
             });
         // The same trick for a wrapped body, one entry per paragraph.
         let paragraph_bounds =
             window.use_keyed_state(element_id::scoped(&base_id, "paragraphs"), cx, |_, _| {
-                Vec::<gpui::Bounds<gpui::Pixels>>::new()
+                Vec::<gpui::Bounds<Pixels>>::new()
             });
         // The font the field draws with, captured here: at event time the text
         // style stack is empty and the shaping would use the wrong face.
@@ -1955,6 +1966,9 @@ impl RenderOnce for Input {
             self.description.as_ref(),
             &validity,
         );
+        // The field box's own radius, resolved once: the shared field chrome
+        // below paints the helper's, so an override has to go back over it.
+        let radius = self.radius.unwrap_or_else(|| crate::util::field_radius(cx));
         let mut field = gpui::div()
             .id(base_id.clone())
             .a11y_named(a11y_role, &a11y_name)
@@ -1998,7 +2012,7 @@ impl RenderOnce for Input {
             .text_size(text)
             .line_height(px(20.))
             .when_some(self.font_family.clone(), |f, family| f.font_family(family))
-            .rounded(crate::util::field_radius(cx))
+            .rounded(radius)
             .when(!self.is_disabled, |e| {
                 e.cursor(gpui::CursorStyle::IBeam)
                     .track_focus(&focus_handle)
@@ -2120,7 +2134,11 @@ impl RenderOnce for Input {
         // `is_bare` takes the same exit: one chrome call site, skipped by
         // either reason.
         if self.in_group.is_none() && !self.is_bare {
-            field = crate::util::apply_field_chrome(field, self.variant, is_invalid, focused, cx);
+            field = crate::util::apply_field_chrome(field, self.variant, is_invalid, focused, cx)
+                // The chrome paints the helper's radius last, so the resolved
+                // one goes back over it and an override survives the shared
+                // helper.
+                .rounded(radius);
         }
 
         // -- text content -----------------------------------------------------
@@ -2901,13 +2919,13 @@ impl TextField {
     }
 
     /// The single-line box height — see [`Input::height`].
-    pub fn height(mut self, h: impl Into<gpui::Pixels>) -> Self {
+    pub fn height(mut self, h: impl Into<Pixels>) -> Self {
         self.inner = self.inner.height(h);
         self
     }
 
     /// The box's horizontal padding — see [`Input::padding_x`].
-    pub fn padding_x(mut self, p: impl Into<gpui::Pixels>) -> Self {
+    pub fn padding_x(mut self, p: impl Into<Pixels>) -> Self {
         self.inner = self.inner.padding_x(p);
         self
     }
@@ -3119,13 +3137,13 @@ impl SearchField {
     }
 
     /// Replaces the 36px box height of the inner field.
-    pub fn height(mut self, h: impl Into<gpui::Pixels>) -> Self {
+    pub fn height(mut self, h: impl Into<Pixels>) -> Self {
         self.field.height = Some(h.into());
         self
     }
 
     /// Replaces the box's `px-3` horizontal padding.
-    pub fn padding_x(mut self, p: impl Into<gpui::Pixels>) -> Self {
+    pub fn padding_x(mut self, p: impl Into<Pixels>) -> Self {
         self.field.padding_x = Some(p.into());
         self
     }

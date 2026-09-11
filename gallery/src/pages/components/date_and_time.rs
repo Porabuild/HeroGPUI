@@ -292,6 +292,7 @@ impl Gallery {
                             // v3's Usage seeds the field with `defaultValue`.
                             .default_value(h::Date::new(2025, 12, 25))
                             .label("Start date")
+                            .radius(px(4.))
                             .on_change(cx.listener(
                                 |this, d: &Option<h::Date>, _, cx| {
                                     this.date_iso = *d;
@@ -1128,6 +1129,7 @@ impl Gallery {
                     field_col(vec![
                         h::TimeField::new(self.demo_time("tmf-usage", cx))
                             .label("Time")
+                            .radius(px(4.))
                             .into_any_element(),
                     ]),
                 ),
