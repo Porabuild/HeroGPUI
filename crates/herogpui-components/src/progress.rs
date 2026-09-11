@@ -1,7 +1,8 @@
 //! ProgressBar / ProgressCircle — port of `@heroui/progress`.
 
 use gpui::{
-    prelude::*, px, AnimationExt, App, IntoElement, RenderOnce, SharedString, Styled, Window,
+    prelude::*, px, AnimationExt, App, IntoElement, Pixels, RenderOnce, SharedString, Styled,
+    Window,
 };
 use herogpui_core::{element_id, Color, Size};
 use herogpui_theme::ActiveTheme;
@@ -121,6 +122,9 @@ pub struct ProgressBar {
     format: Option<herogpui_core::NumberFormat>,
     /// The `sx` slot, refined over the root style at the end of render.
     sx: Option<Box<gpui::StyleRefinement>>,
+    /// The corner radius, in place of the size-step's radius. The track and
+    /// every fill segment paint it.
+    radius: Option<Pixels>,
     /// `useMeter` is `useProgressBar` with one thing changed — the role — and
     /// [`crate::meter::Meter`] delegates its whole rendering here, so the role
     /// travels with the delegation rather than being duplicated.
@@ -154,6 +158,7 @@ impl ProgressBar {
             value_content: None,
             format: None,
             sx: None,
+            radius: None,
             a11y_role: crate::a11y::Role::ProgressIndicator,
         }
     }
@@ -220,6 +225,15 @@ impl ProgressBar {
         self
     }
 
+    /// The corner radius, in place of the size-step's radius. Both the track
+    /// and the fill segments that run inside it follow the override. Not a v3
+    /// prop; the removed v2 `radius` prop is prohibited and this is a
+    /// per-component repository extension.
+    pub fn radius(mut self, radius: impl Into<Pixels>) -> Self {
+        self.radius = Some(radius.into());
+        self
+    }
+
     /// The one slot for caller-owned low-level styling: GPUI's styling methods
     /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
     /// applied to the bar's root element after every value the size and the
@@ -256,6 +270,9 @@ impl RenderOnce for ProgressBar {
             Size::Md => (px(8.), crate::util::hairline_radius(cx)),
             Size::Lg => (px(12.), crate::util::mark_radius(cx)),
         };
+        // The size step stays the fallback; an instance radius replaces it for
+        // the track and every fill segment below.
+        let radius = self.radius.unwrap_or(radius);
         // Clamp once at entry so the fill, percentage and every formatted
         // label use the same value, matching React Aria's clamp-before-format
         // behavior. Guarded because
@@ -457,7 +474,7 @@ pub struct ProgressCircle {
     min_value: f32,
     max_value: f32,
     color: Color,
-    size_px: gpui::Pixels,
+    size_px: Pixels,
     is_indeterminate: bool,
     show_value: bool,
     /// `ProgressCircle.ValueLabel`'s render props: `percentage`, `valueText`,

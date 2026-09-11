@@ -1266,7 +1266,8 @@ CHECKS = [
     ('typography', '.typography--code', 'radius', 'Typography code -> util::_radius', SRC + 'typography.rs',
      r'\.rounded\(crate::util::(mark_radius)\(cx\)\)', helper_px),
     ('skeleton', '.skeleton', 'radius', 'Skeleton -> util::_radius', SRC + 'skeleton.rs',
-     r'\.rounded\(crate::util::(\w+_radius)\(cx\)\)', helper_px),
+     r'\.rounded\(\s*self\.radius\s*\.unwrap_or_else\(\|\| crate::util::(\w+_radius)\(cx\)\)',
+     helper_px),
     # Anchor the menu metrics to the row's own construction chain. A fixed
     # window was outrun when the row gained a bounds-recording canvas.
     ('menu-item', '.menu-item', 'radius', 'Menu row -> util::_radius', SRC + 'dropdown.rs',
@@ -1300,7 +1301,8 @@ CHECKS = [
     ('alert', '.alert', 'py', 'Alert padding_y', SRC + 'alert.rs',
      '\\.py\\(px\\((\\d+(?:\\.\\d*)?)\\)\\)', None),
     ('alert', '.alert', 'radius', 'Alert -> util::_radius', SRC + 'alert.rs',
-     '\\.rounded\\(crate::util::(\\w+_radius)\\(cx\\)\\)', helper_px),
+     r'let radius = self\s*\.radius\s*\.unwrap_or_else\(\|\| crate::util::(\w+_radius)\(cx\)\);',
+     helper_px),
     ('link', '.link', 'radius', 'Link -> util::_radius', SRC + 'link.rs',
      '\\.rounded\\(crate::util::(\\w+_radius)\\(cx\\)\\)', helper_px),
     ('badge', '.badge', 'min_w', 'Badge min width Md', SRC + 'badge.rs',
@@ -4175,6 +4177,31 @@ def self_test():
         'let radius = crate::util::control_radius(cx);'
     ) is None,
         'the toggle button radius reader must reject the un-overridden helper literal')
+    expect(re.search(
+        r'let radius = self\s*\.radius\s*\.unwrap_or_else\(\|\| crate::util::(\w+_radius)\(cx\)\);',
+        'let radius = self\n'
+        '            .radius\n'
+        '            .unwrap_or_else(|| crate::util::container_radius(cx));'
+    ).group(1) == 'container_radius',
+        'the alert radius reader must follow the override to its helper')
+    expect(re.search(
+        r'let radius = self\s*\.radius\s*\.unwrap_or_else\(\|\| crate::util::(\w+_radius)\(cx\)\);',
+        '.rounded(crate::util::control_radius(cx))'
+    ) is None,
+        'the alert radius reader must reject the un-overridden helper literal')
+    expect(re.search(
+        r'\.rounded\(\s*self\.radius\s*\.unwrap_or_else\(\|\| crate::util::(\w+_radius)\(cx\)\)',
+        '.rounded(\n'
+        '                self.radius\n'
+        '                    .unwrap_or_else(|| crate::util::hairline_radius(cx)),\n'
+        '            )'
+    ).group(1) == 'hairline_radius',
+        'the skeleton radius reader must follow the override to its helper')
+    expect(re.search(
+        r'\.rounded\(\s*self\.radius\s*\.unwrap_or_else\(\|\| crate::util::(\w+_radius)\(cx\)\)',
+        '.rounded(crate::util::hairline_radius(cx))'
+    ) is None,
+        'the skeleton radius reader must reject the un-overridden helper literal')
     breadcrumbs = 'let text_size = self.text_size.unwrap_or(px(14.));\n'
     expect(re.search(
         r'let text_size = self\.text_size\.unwrap_or\(px\((\d+(?:\.\d*)?)\.\)\)',

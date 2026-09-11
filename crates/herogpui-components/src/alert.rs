@@ -1,8 +1,8 @@
 //! Alert — port of `@heroui/alert`.
 
 use gpui::{
-    px, AnyElement, App, InteractiveElement, IntoElement, ParentElement, RenderOnce, SharedString,
-    Styled, Window,
+    px, AnyElement, App, InteractiveElement, IntoElement, ParentElement, Pixels, RenderOnce,
+    SharedString, Styled, Window,
 };
 use herogpui_core::Color;
 use herogpui_theme::ActiveTheme;
@@ -25,6 +25,8 @@ pub struct Alert {
     children: Vec<AnyElement>,
     /// The `sx` slot, refined over the root style at the end of render.
     sx: Option<Box<gpui::StyleRefinement>>,
+    /// The corner radius, in place of the owning `control_radius` helper.
+    radius: Option<Pixels>,
 }
 
 impl Alert {
@@ -42,11 +44,20 @@ impl Alert {
             color: Color::Default,
             children: Vec::new(),
             sx: None,
+            radius: None,
         }
     }
 
     pub fn description(mut self, d: impl Into<SharedString>) -> Self {
         self.description = Some(d.into());
+        self
+    }
+
+    /// The corner radius, in place of the owning `control_radius` helper. Not a
+    /// v3 prop; the removed v2 `radius` prop is prohibited and this is a
+    /// per-component repository extension.
+    pub fn radius(mut self, radius: impl Into<Pixels>) -> Self {
+        self.radius = Some(radius.into());
         self
     }
 
@@ -96,6 +107,9 @@ impl RenderOnce for Alert {
             Color::Danger => icons::CIRCLE_EXCLAMATION,
         };
 
+        let radius = self
+            .radius
+            .unwrap_or_else(|| crate::util::control_radius(cx));
         let mut alert = gpui::div()
             .flex()
             .items_start()
@@ -104,7 +118,7 @@ impl RenderOnce for Alert {
             .w_full()
             .px(px(16.))
             .py(px(12.))
-            .rounded(crate::util::control_radius(cx))
+            .rounded(radius)
             .bg(bg)
             .text_color(fg)
             .debug_selector(|| "alert-root".to_owned());

@@ -144,6 +144,9 @@ pub struct Menu {
     on_action: Option<OnSelect>,
     /// The fill a hovered menu row takes, in place of `--default`.
     row_hover_bg: Option<gpui::Hsla>,
+    /// The panel's corner radius, in place of the owning `container_radius`
+    /// helper. [`Dropdown`] forwards its own override here.
+    radius: Option<Pixels>,
     /// Set by `Dropdown`: the menu panel is where Escape and an outside press
     /// land, and the open state belongs to the wrapper. The `bool` says
     /// whether the trigger should take the focus back: Escape, an outside
@@ -186,6 +189,7 @@ impl Menu {
             on_selection_change: None,
             on_action: None,
             row_hover_bg: None,
+            radius: None,
             on_dismiss: None,
             overlay_token: None,
             dropdown_composition: false,
@@ -293,6 +297,19 @@ impl Menu {
     /// The fill a hovered menu row takes, in place of `--default`.
     pub fn row_hover_bg(mut self, color: impl Into<gpui::Hsla>) -> Self {
         self.row_hover_bg = Some(color.into());
+        self
+    }
+
+    /// The panel's corner radius, in place of the owning `container_radius`
+    /// helper. The panel's entry zoom interpolates the same value, so both
+    /// follow the override.
+    ///
+    /// Internal: only [`Dropdown`] reaches it, by forwarding its own
+    /// [`Dropdown::radius`], so the standalone menu keeps the helper. Not a v3
+    /// prop; the removed v2 `radius` prop is prohibited and this is a
+    /// per-component repository extension.
+    pub(crate) fn radius(mut self, radius: impl Into<Pixels>) -> Self {
+        self.radius = Some(radius.into());
         self
     }
 
@@ -590,6 +607,11 @@ impl RenderOnce for Menu {
         let colors = cx.colors();
         let row_hover_bg = self.row_hover_bg.unwrap_or(colors.default.color);
         let dropdown_composition = self.dropdown_composition;
+        // The panel's entry zoom interpolates the panel's own radius, so one
+        // binding feeds both the painted shape and the animation.
+        let radius = self
+            .radius
+            .unwrap_or_else(|| crate::util::container_radius(cx));
 
         let panel = gpui::div()
             .relative()
@@ -606,7 +628,7 @@ impl RenderOnce for Menu {
             .gap(px(2.))
             .p(px(4.))
             .bg(colors.overlay.background)
-            .rounded(crate::util::container_radius(cx))
+            .rounded(radius)
             .shadow(cx.layout().overlay_shadow.clone());
         let mut panel = panel
             // A long menu scrolls rather than being clipped, and gpui needs an
@@ -1335,10 +1357,8 @@ impl RenderOnce for Menu {
         // mid-animation only the internal padding flexes, never the origin.
         // Animating the surface instead would hang its `py` between the
         // placed box and the painted panel (one RAC gap plus ~6px).
-        let zoom = crate::anim::ZoomBox::panel(
-            if dropdown_composition { px(6.) } else { px(4.) },
-            crate::util::container_radius(cx),
-        );
+        let zoom =
+            crate::anim::ZoomBox::panel(if dropdown_composition { px(6.) } else { px(4.) }, radius);
         let panel = if self.exiting {
             crate::anim::exiting(
                 panel,
@@ -1521,6 +1541,8 @@ pub struct Dropdown {
     on_action: Option<OnSelect>,
     /// The fill a hovered menu row takes, in place of `--default`.
     row_hover_bg: Option<gpui::Hsla>,
+    /// The panel's corner radius, forwarded onto the menu that paints it.
+    radius: Option<Pixels>,
     placement: DropdownPlacement,
     /// The `sx` slot, refined over the root style at the end of render.
     sx: Option<Box<gpui::StyleRefinement>>,
@@ -1610,6 +1632,7 @@ impl Dropdown {
             on_selection_change: None,
             on_action: None,
             row_hover_bg: None,
+            radius: None,
             placement: DropdownPlacement::BottomStart,
             sx: None,
         }
@@ -1625,6 +1648,15 @@ impl Dropdown {
     /// the row with a class; this names the colour.
     pub fn row_hover_bg(mut self, color: impl Into<gpui::Hsla>) -> Self {
         self.row_hover_bg = Some(color.into());
+        self
+    }
+
+    /// The panel's corner radius, in place of the owning `container_radius`
+    /// helper. The panel's entry zoom interpolates the same value, so both
+    /// follow the override. Not a v3 prop; the removed v2 `radius` prop is
+    /// prohibited and this is a per-component repository extension.
+    pub fn radius(mut self, radius: impl Into<Pixels>) -> Self {
+        self.radius = Some(radius.into());
         self
     }
 
@@ -1912,6 +1944,9 @@ impl RenderOnce for Dropdown {
             menu.indicator_content = self.indicator_content.clone();
             if let Some(row_hover_bg) = self.row_hover_bg {
                 menu = menu.row_hover_bg(row_hover_bg);
+            }
+            if let Some(radius) = self.radius {
+                menu = menu.radius(radius);
             }
             menu = menu.overlay_token(overlay_token);
             if let Some(on_action) = self.on_action.clone() {

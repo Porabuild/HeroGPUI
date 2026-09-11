@@ -1192,6 +1192,7 @@ impl Gallery {
                             .title("Quick note")
                             .placement(h::PopoverPlacement::Bottom)
                             .padding(px(18.))
+                            .radius(px(4.))
                             .child(gpui::div().child("Popovers are anchored to their trigger."))
                             .on_open_change(cx.listener(|this, open: &bool, _, cx| {
                                 set_popover_open(
@@ -1601,6 +1602,7 @@ impl Gallery {
                                 .closable(true)
                                 .close_hover_bg(cx.colors().accent.soft())
                                 .padding(px(18.))
+                                .radius(px(4.))
                                 .push(Some(std::time::Duration::from_secs(4)), cx);
                         })
                         .into_any_element()]),

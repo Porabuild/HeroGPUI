@@ -249,7 +249,7 @@
       "heading": "Usage",
       "description": "The menu positions against the measured trigger: all eight placements flip to the side with more room when the preferred side cannot fit, keep a 12px cross-axis viewport inset, and cap the scroller to the available height with short menus keeping their natural height.",
       "imports": "use herogpui::prelude::{Button, Dropdown, MenuItem, Variant};\nuse gpui::prelude::*;\nuse gpui::px;",
-      "code": "gpui::div()\n    .flex()\n    .flex_col()\n    .items_start()\n    .gap(px(12.))\n    .children(vec![\n        Dropdown::new(\n            \"dropdown-trigger-dd\",\n            Button::new(\"dropdown-trigger\")\n                .label(\"Actions\")\n                .variant(Variant::Secondary),\n            items,\n            is_open,\n        )\n        .id(\"dropdown-trigger-dd\")\n        .on_open_change(cx.listener(|this, open: &bool, _, cx| {\n            this.dropdown_open = *open;\n            cx.notify();\n        }))\n        .on_action(cx.listener(|this, key: &SharedString, _, cx| {\n            this.dropdown_selected = Some(key.clone());\n            this.dropdown_open = false;\n            cx.notify();\n        }))\n        .into_any_element(),\n        para(&format!(\"Last action: {selected}\"), cx),\n    ])"
+      "code": "gpui::div()\n    .flex()\n    .flex_col()\n    .items_start()\n    .gap(px(12.))\n    .children(vec![\n        Dropdown::new(\n            \"dropdown-trigger-dd\",\n            Button::new(\"dropdown-trigger\")\n                .label(\"Actions\")\n                .variant(Variant::Secondary),\n            items,\n            is_open,\n        )\n        .id(\"dropdown-trigger-dd\")\n        .radius(px(4.))\n        .on_open_change(cx.listener(|this, open: &bool, _, cx| {\n            this.dropdown_open = *open;\n            cx.notify();\n        }))\n        .on_action(cx.listener(|this, key: &SharedString, _, cx| {\n            this.dropdown_selected = Some(key.clone());\n            this.dropdown_open = false;\n            cx.notify();\n        }))\n        .into_any_element(),\n        para(&format!(\"Last action: {selected}\"), cx),\n    ])"
     },
     {
       "heading": "Row Hover",
@@ -1101,8 +1101,8 @@
     },
     {
       "heading": "Secondary Variant",
-      "imports": "use herogpui::prelude::{Table, TableVariant};\nuse gpui::prelude::*;",
-      "code": "stretch_col(vec![build(\"tbl-secondary-variant\")\n    .variant(TableVariant::Secondary)\n    .into_any_element()])"
+      "imports": "use herogpui::prelude::{Table, TableVariant};\nuse gpui::prelude::*;\nuse gpui::px;",
+      "code": "stretch_col(vec![build(\"tbl-secondary-variant\")\n    .variant(TableVariant::Secondary)\n    .radius(px(8.))\n    .into_any_element()])"
     },
     {
       "heading": "Async Loading",
@@ -1626,8 +1626,8 @@
   "alert": [
     {
       "heading": "Usage",
-      "imports": "use herogpui::prelude::Alert;\nuse gpui::prelude::*;",
-      "code": "wide_col(vec![Alert::new(\"New features available\")\n    .description(ALERT_USAGE_DESCRIPTION)\n    .into_any_element()])"
+      "imports": "use herogpui::prelude::Alert;\nuse gpui::prelude::*;\nuse gpui::px;",
+      "code": "wide_col(vec![Alert::new(\"New features available\")\n    .description(ALERT_USAGE_DESCRIPTION)\n    .radius(px(8.))\n    .into_any_element()])"
     },
     {
       "heading": "Colors",
@@ -1646,7 +1646,7 @@
       "heading": "Usage",
       "description": "Labels and values use 14px text with a 20px line height, independent of the surrounding text style.",
       "imports": "use herogpui::prelude::Meter;\nuse gpui::prelude::*;\nuse gpui::px;",
-      "code": "gpui::div()\n    .w(px(256.))\n    .child(\n        Meter::new(\"meter-usage\", value)\n            .label(\"Disk usage\")\n            .show_value(true),\n    )"
+      "code": "gpui::div()\n    .w(px(256.))\n    .child(\n        Meter::new(\"meter-usage\", value)\n            .label(\"Disk usage\")\n            .radius(px(4.))\n            .show_value(true),\n    )"
     },
     {
       "heading": "Colors",
@@ -1674,7 +1674,7 @@
       "heading": "Usage",
       "description": "Labels and values use 14px text with a 20px line height, independent of the surrounding text style.",
       "imports": "use herogpui::prelude::ProgressBar;\nuse gpui::prelude::*;\nuse gpui::px;",
-      "code": "gpui::div()\n    .w(px(256.))\n    .child(\n        ProgressBar::new(\"progress-bar\")\n            .value(65.0)\n            .label(\"Uploading\")\n            .show_value_label(true),\n    )"
+      "code": "gpui::div()\n    .w(px(256.))\n    .child(\n        ProgressBar::new(\"progress-bar\")\n            .value(65.0)\n            .label(\"Uploading\")\n            .radius(px(4.))\n            .show_value_label(true),\n    )"
     },
     {
       "heading": "Colors",
@@ -1739,7 +1739,7 @@
     {
       "heading": "Usage",
       "imports": "use herogpui::prelude::Skeleton;\nuse gpui::prelude::*;\nuse gpui::px;",
-      "code": "gpui::div()\n    .w(px(250.))\n    .flex()\n    .flex_col()\n    .gap(px(20.))\n    .child(Skeleton::new().w(px(218.)).h(px(128.)))\n    .child(\n        gpui::div()\n            .flex()\n            .flex_col()\n            .gap(px(12.))\n            .child(Skeleton::new().w(px(130.)).h(px(12.)))\n            .child(Skeleton::new().w(px(174.)).h(px(12.)))\n            .child(Skeleton::new().w(px(87.)).h(px(12.))),\n    )"
+      "code": "gpui::div()\n    .w(px(250.))\n    .flex()\n    .flex_col()\n    .gap(px(20.))\n    .child(Skeleton::new().w(px(218.)).h(px(128.)).radius(px(8.)))\n    .child(\n        gpui::div()\n            .flex()\n            .flex_col()\n            .gap(px(12.))\n            .child(Skeleton::new().w(px(130.)).h(px(12.)))\n            .child(Skeleton::new().w(px(174.)).h(px(12.)))\n            .child(Skeleton::new().w(px(87.)).h(px(12.))),\n    )"
     },
     {
       "heading": "Text Content",
@@ -3184,7 +3184,7 @@
       "heading": "Usage",
       "description": "Panel text and headings use a 20px line height independently of surrounding text.",
       "imports": "use herogpui::prelude::{Button, Popover, PopoverArrow, PopoverPlacement, Variant};\nuse gpui::prelude::*;\nuse gpui::px;",
-      "code": "overlay_min_h(usage_slot, is_open, 160.)\n    .child(\n        Popover::new(\n            gpui::div()\n                .pr(px(96.))\n                .child(\n                    Button::new(\"popover-trigger\")\n                        .label(\"Open popover\")\n                        .variant(Variant::Secondary),\n                ),\n        )\n        .is_open(is_open)\n        .title(\"Quick note\")\n        .placement(PopoverPlacement::Bottom)\n        .padding(px(18.))\n        .child(gpui::div().child(\"Popovers are anchored to their trigger.\"))\n        .on_open_change(cx.listener(|this, open: &bool, _, cx| {\n            set_popover_open(\n                &mut this.popover_open,\n                &mut this.demo_flags,\n                \"po-usage\",\n                *open,\n            );\n            cx.notify();\n        })),\n    )"
+      "code": "overlay_min_h(usage_slot, is_open, 160.)\n    .child(\n        Popover::new(\n            gpui::div()\n                .pr(px(96.))\n                .child(\n                    Button::new(\"popover-trigger\")\n                        .label(\"Open popover\")\n                        .variant(Variant::Secondary),\n                ),\n        )\n        .is_open(is_open)\n        .title(\"Quick note\")\n        .placement(PopoverPlacement::Bottom)\n        .padding(px(18.))\n        .radius(px(4.))\n        .child(gpui::div().child(\"Popovers are anchored to their trigger.\"))\n        .on_open_change(cx.listener(|this, open: &bool, _, cx| {\n            set_popover_open(\n                &mut this.popover_open,\n                &mut this.demo_flags,\n                \"po-usage\",\n                *open,\n            );\n            cx.notify();\n        })),\n    )"
     },
     {
       "heading": "With Arrow",
@@ -3219,7 +3219,7 @@
     {
       "heading": "Usage",
       "imports": "use herogpui::prelude::{ActiveTheme, Button, Toast, ToastViewport, Variant};\nuse gpui::prelude::*;\nuse gpui::px;\nuse std::time::Duration;",
-      "code": "Button::new(\"toast-usage\")\n    .label(\"Show a toast\")\n    .variant(Variant::Secondary)\n    .on_press(|_, _, cx| {\n        Toast::new(\"Saved\")\n            .description(\"Your changes are live.\")\n            .closable(true)\n            .close_hover_bg(cx.colors().accent.soft())\n            .padding(px(18.))\n            .push(Some(std::time::Duration::from_secs(4)), cx);\n    })"
+      "code": "Button::new(\"toast-usage\")\n    .label(\"Show a toast\")\n    .variant(Variant::Secondary)\n    .on_press(|_, _, cx| {\n        Toast::new(\"Saved\")\n            .description(\"Your changes are live.\")\n            .closable(true)\n            .close_hover_bg(cx.colors().accent.soft())\n            .padding(px(18.))\n            .radius(px(4.))\n            .push(Some(std::time::Duration::from_secs(4)), cx);\n    })"
     },
     {
       "heading": "Variants",

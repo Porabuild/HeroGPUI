@@ -11,8 +11,8 @@ use std::collections::{HashMap, HashSet};
 use std::time::Duration;
 
 use gpui::{
-    prelude::*, px, App, ElementId, Entity, Global, IntoElement, RenderOnce, SharedString, Styled,
-    Subscription, Window,
+    prelude::*, px, App, ElementId, Entity, Global, IntoElement, Pixels, RenderOnce, SharedString,
+    Styled, Subscription, Window,
 };
 use herogpui_core::{element_id, Color};
 use herogpui_theme::ActiveTheme;
@@ -88,7 +88,10 @@ pub struct ToastData {
     /// The fill the close button takes on hover, in place of `--default`.
     pub close_hover_bg: Option<gpui::Hsla>,
     /// Both card padding axes; unset keeps the stock 10px/16px insets.
-    pub padding: Option<gpui::Pixels>,
+    pub padding: Option<Pixels>,
+    /// The card's corner radius; unset keeps `container_radius`. The card's
+    /// entry zoom interpolates the same value.
+    pub radius: Option<Pixels>,
 }
 
 /// Entity holding the active toasts — v3's `ToastQueue`.
@@ -284,7 +287,9 @@ pub struct Toast {
     /// Set by [`Toast::close_hover_bg`]: the close button's hover fill.
     close_hover_bg: Option<gpui::Hsla>,
     /// Set by [`Toast::padding`].
-    padding: Option<gpui::Pixels>,
+    padding: Option<Pixels>,
+    /// Set by [`Toast::radius`].
+    radius: Option<Pixels>,
 }
 
 impl Toast {
@@ -302,6 +307,7 @@ impl Toast {
             timeout: Some(DEFAULT_TOAST_TIMEOUT),
             close_hover_bg: None,
             padding: None,
+            radius: None,
         }
     }
 
@@ -386,8 +392,17 @@ impl Toast {
     }
 
     /// Sets both card padding axes; unset keeps the stock 10px/16px insets.
-    pub fn padding(mut self, padding: impl Into<gpui::Pixels>) -> Self {
+    pub fn padding(mut self, padding: impl Into<Pixels>) -> Self {
         self.padding = Some(padding.into());
+        self
+    }
+
+    /// The card's corner radius, in place of the owning `container_radius`
+    /// helper. The card's entry zoom interpolates the same value, so both
+    /// follow the override. Not a v3 prop; the removed v2 `radius` prop is
+    /// prohibited and this is a per-component repository extension.
+    pub fn radius(mut self, radius: impl Into<Pixels>) -> Self {
+        self.radius = Some(radius.into());
         self
     }
 
@@ -416,6 +431,7 @@ impl Toast {
                 on_close: self.on_close.clone(),
                 close_hover_bg: self.close_hover_bg,
                 padding: self.padding,
+                radius: self.radius,
             });
             let generation = if timeout.is_zero() {
                 None
@@ -538,10 +554,10 @@ pub fn pause_toasts(paused: bool, cx: &mut App) {
 #[derive(IntoElement)]
 pub struct ToastViewport {
     placement: ToastPlacement,
-    gap: gpui::Pixels,
+    gap: Pixels,
     max_visible_toasts: usize,
-    width: gpui::Pixels,
-    inset: gpui::Pixels,
+    width: Pixels,
+    inset: Pixels,
     scale_factor: f32,
     id: Option<ElementId>,
     /// The `sx` slot, refined over the root style at the end of render.
@@ -575,7 +591,7 @@ impl ToastViewport {
         self
     }
 
-    pub fn gap(mut self, gap: impl Into<gpui::Pixels>) -> Self {
+    pub fn gap(mut self, gap: impl Into<Pixels>) -> Self {
         self.gap = gap.into();
         self
     }
@@ -596,13 +612,13 @@ impl ToastViewport {
         self
     }
 
-    pub fn width(mut self, width: impl Into<gpui::Pixels>) -> Self {
+    pub fn width(mut self, width: impl Into<Pixels>) -> Self {
         self.width = width.into();
         self
     }
 
     /// Distance from the window edge.
-    pub fn inset(mut self, inset: impl Into<gpui::Pixels>) -> Self {
+    pub fn inset(mut self, inset: impl Into<Pixels>) -> Self {
         self.inset = inset.into();
         self
     }
@@ -688,12 +704,7 @@ impl RenderOnce for ToastViewport {
     }
 }
 
-fn toast_card(
-    t: ToastData,
-    width: gpui::Pixels,
-    depth: usize,
-    scale_factor: f32,
-) -> gpui::AnyElement {
+fn toast_card(t: ToastData, width: Pixels, depth: usize, scale_factor: f32) -> gpui::AnyElement {
     // Each step back shrinks the card by `scale_factor`, expressed as a
     // horizontal inset since a div cannot be scaled.
     let shrink = (1.0 - scale_factor * depth as f32).clamp(0.5, 1.0);
@@ -709,7 +720,7 @@ fn toast_card(
 #[derive(IntoElement)]
 struct ToastCardEl {
     t: ToastData,
-    width: gpui::Pixels,
+    width: Pixels,
     frontmost: bool,
 }
 
@@ -745,6 +756,12 @@ impl RenderOnce for ToastCardEl {
             }
         };
 
+        // The card's entry zoom interpolates the card's own radius, so one
+        // binding feeds both the painted shape and the animation.
+        let radius = self
+            .t
+            .radius
+            .unwrap_or_else(|| crate::util::container_radius(cx));
         let mut card = gpui::div()
             // `toast/toast.js` renders RAC's `UNSTABLE_Toast`, whose props come
             // from `react-aria/dist/private/toast/useToast.js`: the card is
@@ -766,7 +783,7 @@ impl RenderOnce for ToastCardEl {
             .gap(px(6.))
             .px(px(16.))
             .py(px(12.))
-            .rounded(crate::util::container_radius(cx))
+            .rounded(radius)
             .bg(colors.surface.background)
             .text_color(colors.overlay.foreground)
             .when(!cx.layout().overlay_shadow.is_empty(), |c| {
@@ -910,7 +927,7 @@ impl RenderOnce for ToastCardEl {
         crate::anim::entering_zoom(
             card,
             element_id::scoped(&base_id, "anim"),
-            crate::anim::ZoomBox::panel(panel_padding_y, crate::util::container_radius(cx))
+            crate::anim::ZoomBox::panel(panel_padding_y, radius)
                 .padding_x(panel_padding_x)
                 .sized(self.width),
             crate::anim::Motion::LIST_IN,

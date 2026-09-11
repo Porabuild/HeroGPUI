@@ -590,6 +590,7 @@ fn toast_reused_id_gets_a_fresh_close_lifecycle(cx: &mut TestAppContext) {
                 })),
                 close_hover_bg: None,
                 padding: None,
+                radius: None,
             });
             cx.notify();
         });
@@ -650,6 +651,7 @@ fn toast_store_add_keeps_generated_keys_unique(cx: &mut TestAppContext) {
                 on_close: None,
                 close_hover_bg: None,
                 padding: None,
+                radius: None,
             },
             cx,
         )

@@ -19,6 +19,8 @@ pub struct Skeleton {
     h: Option<Pixels>,
     /// `animationType`. `None` defers to `--skeleton-animation`.
     animation_type: Option<SkeletonAnimation>,
+    /// The corner radius, in place of the owning `hairline_radius` helper.
+    radius: Option<Pixels>,
     children: Vec<AnyElement>,
     /// The `sx` slot, refined over the root style at the end of render.
     sx: Option<Box<gpui::StyleRefinement>>,
@@ -31,6 +33,7 @@ impl Skeleton {
             w: None,
             h: Some(px(24.)),
             animation_type: None,
+            radius: None,
             children: Vec::new(),
             sx: None,
         }
@@ -54,6 +57,14 @@ impl Skeleton {
 
     pub fn animation_type(mut self, animation: SkeletonAnimation) -> Self {
         self.animation_type = Some(animation);
+        self
+    }
+
+    /// The corner radius, in place of the owning `hairline_radius` helper. Not
+    /// a v3 prop; the removed v2 `radius` prop is prohibited and this is a
+    /// per-component repository extension.
+    pub fn radius(mut self, radius: impl Into<Pixels>) -> Self {
+        self.radius = Some(radius.into());
         self
     }
 
@@ -97,7 +108,10 @@ impl RenderOnce for Skeleton {
 
         let base = div()
             .bg(base_color)
-            .rounded(crate::util::hairline_radius(cx))
+            .rounded(
+                self.radius
+                    .unwrap_or_else(|| crate::util::hairline_radius(cx)),
+            )
             .overflow_hidden()
             .when_some(self.w, |el, w| el.w(w))
             .when_some(self.h, |el, h| el.h(h))

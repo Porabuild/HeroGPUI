@@ -46,6 +46,7 @@ impl Gallery {
                             is_open,
                         )
                         .id("dd-trigger-dd")
+                        .radius(px(4.))
                         .on_open_change(cx.listener(|this, open: &bool, _, cx| {
                             this.dropdown_open = *open;
                             cx.notify();

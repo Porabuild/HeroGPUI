@@ -663,8 +663,12 @@ impl Gallery {
                 ),
                 (
                     "Secondary Variant",
+                    // The `Primary` tray paints its own radius over the shell's,
+                    // so the override is only visible on a flat `Secondary`
+                    // table, where the shell is what rounds.
                     stretch_col(vec![build("tbl-secondary-variant")
                         .variant(h::TableVariant::Secondary)
+                        .radius(px(8.))
                         .into_any_element()]),
                 ),
                 (

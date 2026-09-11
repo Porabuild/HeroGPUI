@@ -17,6 +17,7 @@ impl Gallery {
                     "Usage",
                     wide_col(vec![h::Alert::new("New features available")
                         .description(ALERT_USAGE_DESCRIPTION)
+                        .radius(px(8.))
                         .into_any_element()]),
                 ),
                 (
@@ -76,6 +77,7 @@ impl Gallery {
                         .child(
                             h::Meter::new("meter-usage", value)
                                 .label("Disk usage")
+                                .radius(px(4.))
                                 .show_value(true),
                         )
                         .into_any_element()]),
@@ -138,6 +140,7 @@ impl Gallery {
                             h::ProgressBar::new("progress-usage")
                                 .value(65.0)
                                 .label("Uploading")
+                                .radius(px(4.))
                                 .show_value_label(true),
                         )
                         .into_any_element()]),
@@ -303,7 +306,7 @@ impl Gallery {
                         .flex()
                         .flex_col()
                         .gap(px(20.))
-                        .child(h::Skeleton::new().w(px(218.)).h(px(128.)))
+                        .child(h::Skeleton::new().w(px(218.)).h(px(128.)).radius(px(8.)))
                         .child(
                             gpui::div()
                                 .flex()

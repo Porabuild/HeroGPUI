@@ -520,6 +520,16 @@ EXTRA_OK_SCOPED = {
     'Avatar.radius': 'repository-radius-extension',
     'Tooltip.radius': 'repository-radius-extension',
     'Modal.radius': 'repository-radius-extension',
+    'Alert.radius': 'repository-radius-extension',
+    'Toast.radius': 'repository-radius-extension',
+    'Popover.radius': 'repository-radius-extension',
+    'Dropdown.radius': 'repository-radius-extension',
+    'Table.radius': 'repository-radius-extension',
+    'Skeleton.radius': 'repository-radius-extension',
+    'ProgressBar.radius': 'repository-radius-extension',
+    # Forwarded onto the ProgressBar the component delegates its track to, the
+    # way Meter forwards `sx`.
+    'Meter.radius': 'repository-radius-extension',
     # v3's stylesheet declares `.range-calendar__cell-indicator`; only the
     # Calendar's prop table names the part.
     'RangeCalendar.cell_indicator': 'composition',

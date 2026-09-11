@@ -734,6 +734,9 @@ pub struct Popover {
     /// When set, both panel axes use this padding; unset keeps the stock
     /// asymmetric 12px vertical / 14px horizontal insets.
     padding: Option<Pixels>,
+    /// The panel's corner radius, in place of the owning `container_radius`
+    /// helper.
+    radius: Option<Pixels>,
     /// The `sx` slot, refined over the root style at the end of render.
     sx: Option<Box<gpui::StyleRefinement>>,
 }
@@ -753,6 +756,7 @@ impl Popover {
             on_open_change: None,
             children: Vec::new(),
             padding: None,
+            radius: None,
             sx: None,
         }
     }
@@ -796,6 +800,15 @@ impl Popover {
     /// animation the same value. Unset keeps the stock 12px/14px insets.
     pub fn padding(mut self, padding: impl Into<Pixels>) -> Self {
         self.padding = Some(padding.into());
+        self
+    }
+
+    /// The panel's corner radius, in place of the owning `container_radius`
+    /// helper. The panel's entry zoom interpolates the same value, so both
+    /// follow the override. Not a v3 prop; the removed v2 `radius` prop is
+    /// prohibited and this is a per-component repository extension.
+    pub fn radius(mut self, radius: impl Into<Pixels>) -> Self {
+        self.radius = Some(radius.into());
         self
     }
 
@@ -991,6 +1004,12 @@ impl RenderOnce for Popover {
             );
         }
 
+        // The panel's entry zoom interpolates the panel's own radius, so one
+        // binding feeds both the painted shape and the animation. Read off
+        // `self` before the children are moved into the panel.
+        let radius = self
+            .radius
+            .unwrap_or_else(|| crate::util::container_radius(cx));
         let mut panel = gpui::div()
             // `popover/popover.js` composes RAC `Popover` around a `Dialog`,
             // and `react-aria/dist/private/dialog/useDialog.js` is what gives
@@ -1016,7 +1035,7 @@ impl RenderOnce for Popover {
             // `.popover` is `text-sm`.
             .text_size(px(14.))
             .line_height(px(20.))
-            .rounded(crate::util::container_radius(cx))
+            .rounded(radius)
             // v3 gives a floating panel no border: `.popover` and friends are
             // `bg-overlay shadow-overlay` and a radius, and dark mode's
             // inset hairline is what separates the panel from the page.
@@ -1069,7 +1088,7 @@ impl RenderOnce for Popover {
         // v3 fades the panel in on `[data-entering]`.
         let panel_padding_y = self.padding.unwrap_or(px(12.));
         let panel_padding_x = self.padding.unwrap_or(px(14.));
-        let zoom = crate::anim::ZoomBox::panel(panel_padding_y, crate::util::container_radius(cx))
+        let zoom = crate::anim::ZoomBox::panel(panel_padding_y, radius)
             .padding_x(panel_padding_x)
             .sized(px(260.));
         let panel = if exiting {

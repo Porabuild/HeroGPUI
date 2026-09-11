@@ -570,6 +570,10 @@ pub struct Table {
     /// The fill a hovered *unselected* row takes, in place of the variant's
     /// hover wash. A selected row keeps its selection fill.
     row_hover_bg: Option<gpui::Hsla>,
+    /// The wrapper shell's corner radius, in place of the owning
+    /// `container_radius` helper. `Primary` paints its own tray radius over
+    /// this one, exactly as it covers the helper's value.
+    radius: Option<Pixels>,
     /// The `sx` slot, refined over the root style at the end of render.
     sx: Option<Box<gpui::StyleRefinement>>,
 }
@@ -612,6 +616,7 @@ impl Table {
             on_resize: None,
             on_resize_end: None,
             row_hover_bg: None,
+            radius: None,
             sx: None,
         }
     }
@@ -819,6 +824,17 @@ impl Table {
     /// or inert row never hovers.
     pub fn row_hover_bg(mut self, color: impl Into<gpui::Hsla>) -> Self {
         self.row_hover_bg = Some(color.into());
+        self
+    }
+
+    /// The wrapper shell's corner radius, in place of the owning
+    /// `container_radius` helper. `Primary` paints its own tray radius over
+    /// this one, exactly as it covers the helper's value, so the override
+    /// shows wherever the helper's value does. Not a v3 prop; the removed v2
+    /// `radius` prop is prohibited and this is a per-component repository
+    /// extension.
+    pub fn radius(mut self, radius: impl Into<Pixels>) -> Self {
+        self.radius = Some(radius.into());
         self
     }
 
@@ -1464,7 +1480,10 @@ impl RenderOnce for Table {
             .flex_col()
             .track_focus(&table_focus)
             .overflow_hidden()
-            .rounded(crate::util::container_radius(cx))
+            .rounded(
+                self.radius
+                    .unwrap_or_else(|| crate::util::container_radius(cx)),
+            )
             .text_color(colors.foreground);
         // A column, so the scroll container below is a vertical flex item: it
         // shrinks with a bounded parent (its `overflow_hidden` zeroes the

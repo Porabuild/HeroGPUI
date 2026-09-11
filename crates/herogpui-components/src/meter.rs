@@ -5,7 +5,7 @@
 //! share their track geometry, so this delegates the bar rendering to
 //! [`ProgressBar`].
 
-use gpui::{App, IntoElement, RenderOnce, SharedString, Window};
+use gpui::{App, IntoElement, Pixels, RenderOnce, SharedString, Window};
 use herogpui_core::{Color, Size};
 
 use crate::progress::ProgressBar;
@@ -28,6 +28,9 @@ pub struct Meter {
     show_value: bool,
     /// `formatOptions` — forwarded to the bar, which writes the label.
     format: Option<herogpui_core::NumberFormat>,
+    /// The corner radius, forwarded to the bar that paints the track and its
+    /// fill.
+    radius: Option<Pixels>,
     /// The `sx` slot, refined over the root style at the end of render.
     sx: Option<Box<gpui::StyleRefinement>>,
 }
@@ -62,6 +65,7 @@ impl Meter {
             value_label: None,
             show_value: false,
             format: None,
+            radius: None,
             sx: None,
         }
     }
@@ -85,6 +89,16 @@ impl Meter {
     /// `formatOptions` — v3 defaults to `{style: "percent"}`.
     pub fn format_options(mut self, format: herogpui_core::NumberFormat) -> Self {
         self.format = Some(format);
+        self
+    }
+
+    /// The corner radius, forwarded to the bar the meter delegates to: the bar
+    /// paints the track and its fill, so the override travels with the
+    /// delegation the same way the `sx` slot does. Not a v3 prop; the removed
+    /// v2 `radius` prop is prohibited and this is a per-component repository
+    /// extension.
+    pub fn radius(mut self, radius: impl Into<Pixels>) -> Self {
+        self.radius = Some(radius.into());
         self
     }
 
@@ -144,6 +158,11 @@ impl RenderOnce for Meter {
         }
         if let Some(l) = self.label {
             p = p.label(l.to_string());
+        }
+        // The bar owns the geometry: it paints the track and its fill, so the
+        // radius rides the delegation like the `sx` refinement below.
+        if let Some(radius) = self.radius {
+            p = p.radius(radius);
         }
         // The bar's root is this meter's root: hand the refinement down rather
         // than box the bar in a wrapper of its own.
