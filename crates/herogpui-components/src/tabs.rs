@@ -371,6 +371,39 @@ struct TabFocusState {
     enabled_keys: Vec<SharedString>,
 }
 
+/// HeroGPUI-only compact step for [`Tabs`].
+///
+/// v3.2.4 has no Tabs `size` prop (the box is `h-8 px-4 text-sm` through
+/// classes), so this is additive: `Md` is byte-identical to the pinned box and
+/// `Sm` is HeroGPUI's own 28px step. The secondary underline keeps its 2px
+/// thickness at both steps. Not a v3 prop.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum TabsSize {
+    Sm,
+    #[default]
+    Md,
+}
+
+impl TabsSize {
+    pub const ALL: [TabsSize; 2] = [Self::Sm, Self::Md];
+
+    /// `(height, horizontal padding, label text)` for this step; the label
+    /// leading follows [`crate::util::leading_for`].
+    fn metrics(self) -> (gpui::Pixels, gpui::Pixels, gpui::Pixels) {
+        match self {
+            Self::Sm => (px(28.), px(12.), px(12.)),
+            Self::Md => (px(32.), px(16.), px(14.)),
+        }
+    }
+
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Sm => "Small",
+            Self::Md => "Medium",
+        }
+    }
+}
+
 /// HeroUI Tabs (controlled).
 #[derive(IntoElement)]
 pub struct Tabs {
@@ -382,6 +415,8 @@ pub struct Tabs {
     default_selected_key: Option<SharedString>,
     variant: TabsVariant,
     is_disabled: bool,
+    /// The compact step; `Md` is the pinned default.
+    size: TabsSize,
     full_width: bool,
     orientation: Orientation,
     keyboard_activation: KeyboardActivation,
@@ -437,6 +472,7 @@ impl Tabs {
             variant: TabsVariant::Primary,
             is_disabled: false,
             full_width: false,
+            size: TabsSize::default(),
             orientation: Orientation::Horizontal,
             keyboard_activation: KeyboardActivation::Automatic,
             on_selection_change: None,
@@ -461,6 +497,14 @@ impl Tabs {
     /// Horizontal only. A vertical list already stretches its tabs across the
     /// full width and sizes itself from the tallest content, so there is
     /// nothing for this to change and it is ignored there.
+    /// Sets the compact step. `Md` is the default and byte-identical to the
+    /// pinned box; `Sm` is a 28px box with 12px padding and a 12px label
+    /// (16px leading). Not a v3 prop.
+    pub fn size(mut self, size: TabsSize) -> Self {
+        self.size = size;
+        self
+    }
+
     pub fn full_width(mut self, v: bool) -> Self {
         self.full_width = v;
         self
@@ -613,6 +657,7 @@ impl RenderOnce for Tabs {
         // width. A vertical list's tabs are already `w_full`.
         let stretch = self.full_width && !vertical;
         let secondary = self.variant == TabsVariant::Secondary;
+        let (tab_h, tab_padding_x, tab_text) = self.size.metrics();
         let geometry = window.use_keyed_state(element_id::scoped(&base, "geometry"), cx, |_, _| {
             TabsGeometry::default()
         });
@@ -804,8 +849,8 @@ impl RenderOnce for Tabs {
                         .when(!disabled && focused, |t| t.track_focus(&list_focus))
                         // `.tabs__tab` is `h-8 px-4 rounded-3xl text-sm
                         // font-medium`.
-                        .h(px(32.))
-                        .px(px(16.))
+                        .h(tab_h)
+                        .px(tab_padding_x)
                         .when(vertical, |t| t.w_full().min_w(px(80.)))
                         // Stretched tabs take an equal share: `flex_1` zeroes
                         // the flex basis and `min_w(0)` releases the label's
@@ -821,8 +866,10 @@ impl RenderOnce for Tabs {
                         .items_center()
                         .justify_center()
                         .rounded(crate::util::control_radius(cx))
-                        .text_size(px(14.))
-                        .line_height(px(20.))
+                        .text_size(tab_text)
+                        .line_height(
+                            crate::util::leading_for(tab_text).unwrap_or(px(20.)),
+                        )
                         .font_weight(gpui::FontWeight::MEDIUM)
                         .when(!disabled, |t| t.cursor(crate::util::interactive_cursor(cx)))
                         // `status-disabled` is `--disabled-opacity`.
@@ -1005,8 +1052,8 @@ impl RenderOnce for Tabs {
                         .when(!disabled && focused, |t| t.track_focus(&list_focus))
                         // The same `h-8 px-4 text-sm` box, `rounded-none`, with
                         // the indicator as a 2px bar along the bottom.
-                        .h(px(32.))
-                        .px(px(16.))
+                        .h(tab_h)
+                        .px(tab_padding_x)
                         .when(vertical, |t| t.w_full().min_w(px(80.)))
                         // Stretched tabs take an equal share: `flex_1` zeroes
                         // the flex basis and `min_w(0)` releases the label's
@@ -1021,8 +1068,10 @@ impl RenderOnce for Tabs {
                         .flex()
                         .items_center()
                         .justify_center()
-                        .text_size(px(14.))
-                        .line_height(px(20.))
+                        .text_size(tab_text)
+                        .line_height(
+                            crate::util::leading_for(tab_text).unwrap_or(px(20.)),
+                        )
                         .font_weight(gpui::FontWeight::MEDIUM)
                         .when(!indicator_ready && vertical, |t| t.border_l_2())
                         .when(!indicator_ready && !vertical, |t| t.border_b_2())
@@ -1424,5 +1473,21 @@ impl RenderOnce for Tabs {
         }
 
         crate::util::apply_sx(el, &self.sx)
+    }
+}
+
+#[cfg(test)]
+mod tabs_size_tests {
+    use super::*;
+
+    #[test]
+    fn md_is_the_pinned_geometry_and_sm_scales_together() {
+        assert_eq!(TabsSize::default(), TabsSize::Md);
+        assert_eq!(TabsSize::Md.metrics(), (px(32.), px(16.), px(14.)));
+        assert_eq!(TabsSize::Sm.metrics(), (px(28.), px(12.), px(12.)));
+        assert_eq!(
+            crate::util::leading_for(TabsSize::Sm.metrics().2),
+            Some(px(16.))
+        );
     }
 }

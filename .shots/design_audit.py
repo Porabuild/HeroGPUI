@@ -164,6 +164,15 @@ def helper_px(name):
     return None
 
 
+def tabs_md_metrics(src):
+    """The `Md` `(height, padding_x, text)` from `TabsSize::metrics`."""
+    match = re.search(
+        r'Self::Md => \(px\((\d+(?:\.\d*)?)\.\), px\((\d+(?:\.\d*)?)\.\), '
+        r'px\((\d+(?:\.\d*)?)\.\)\)',
+        mask_comments(mask_literals(src)))
+    return tuple(float(group) for group in match.groups()) if match else None
+
+
 def radio_md_metrics(src):
     """The `Md` `(control, dot, text, gap)` from `RadioSize::metrics`."""
     match = re.search(
@@ -893,11 +902,11 @@ CHECKS = [
     ('tabs', '.tabs__list', 'p', 'Tabs list padding', SRC + 'tabs.rs',
      r'list = list[\s\S]{0,40}?\.p\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('tabs', '.tabs__tab', 'h', 'Tabs tab height', SRC + 'tabs.rs',
-     r'font-medium`\.[\s\S]{0,40}?\.h\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+     'tabs_md_height', None),
     ('tabs', '.tabs__tab', 'px', 'Tabs tab px', SRC + 'tabs.rs',
-     r'font-medium`\.[\s\S]{0,40}?\.h\(px\(32\.\)\)[\s\S]{0,40}?\.px\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+     'tabs_md_px', None),
     ('tabs', '.tabs__tab', 'text', 'Tabs tab text', SRC + 'tabs.rs',
-     r'\.rounded\(crate::util::control_radius\(cx\)\)[\s\S]{0,40}?\.text_size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+     'tabs_md_text', None),
     ('tabs', '.tabs__tab', 'radius', 'Tabs tab -> util::_radius', SRC + 'tabs.rs',
      r'\.justify_center\(\)[\s\S]{0,40}?\.rounded\(crate::util::(\w+_radius)\(cx\)\)', helper_px),
     ('tabs', '.tabs__panel', 'p', 'Tabs panel padding', SRC + 'tabs.rs',
@@ -2731,6 +2740,10 @@ def our_value(path, pattern, transform):
         index = {'control': 0, 'indicator': 1, 'text': 2, 'gap': 3}[pattern.removeprefix('radio_md_')]
         metrics = radio_md_metrics(read_path(path))
         return metrics[index] if metrics else None
+    if pattern.startswith('tabs_md_'):
+        index = {'height': 0, 'px': 1, 'text': 2}[pattern.removeprefix('tabs_md_')]
+        metrics = tabs_md_metrics(read_path(path))
+        return metrics[index] if metrics else None
     try:
         src = read_path(path)
     except OSError:
@@ -4115,6 +4128,13 @@ def self_test():
         'a resolver on a foreign owner must stay unreadable')
     expect(field_box_px_from('', 'resolved_something_else') is None,
            'an unknown FieldBox resolver must stay unreadable')
+    expect(tabs_md_metrics('Self::Md => (px(32.), px(16.), px(14.)),')
+           == (32.0, 16.0, 14.0),
+           'the tabs Md metrics must be readable')
+    expect(tabs_md_metrics('Self::Sm => (px(28.), px(12.), px(12.)),') is None,
+           'the compact tabs arm must not satisfy the pinned default reader')
+    expect(tabs_md_metrics('') is None,
+           'a missing tabs metrics arm must stay unreadable')
     expect(radio_md_metrics('Self::Md => (px(16.), px(6.), px(14.), px(12.)),')
            == (16.0, 6.0, 14.0, 12.0),
            'the radio Md metrics must be readable')

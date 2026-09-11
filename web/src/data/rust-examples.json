@@ -2961,6 +2961,12 @@
       "code": "Tabs::new(\n    \"tabs-usage\",\n    vec![\n        TabItem::new(\"photos\", \"Photos\")\n            .content(gpui::div().child(\"Your photo library.\")),\n        TabItem::new(\"music\", \"Music\")\n            .content(gpui::div().child(\"Playlists and albums.\")),\n        TabItem::new(\"videos\", \"Videos\")\n            .content(gpui::div().child(\"Everything you have filmed.\")),\n    ],\n    \"photos\",\n)"
     },
     {
+      "heading": "Sizes",
+      "description": "`size` is additive, not a v3 prop: `Md` is the pinned 32px box with 16px padding and a 14px label; `Sm` is 28/12/12 with 16px leading. The secondary underline keeps its thickness.",
+      "imports": "use herogpui::prelude::{TabItem, Tabs, TabsSize};\nuse gpui::prelude::*;\nuse gpui::px;",
+      "code": "gpui::div()\n    .flex()\n    .flex_col()\n    .items_start()\n    .gap(px(12.))\n    .children(vec![\n        Tabs::new(\n            \"tabs-size-sm\",\n            vec![\n                TabItem::new(\"a\", \"Account\")\n                    .content(gpui::div().child(\"Small step.\")),\n                TabItem::new(\"b\", \"Billing\")\n                    .content(gpui::div().child(\"Small step.\")),\n            ],\n            \"a\",\n        )\n        .size(TabsSize::Sm)\n        .into_any_element(),\n        Tabs::new(\n            \"tabs-size-md\",\n            vec![\n                TabItem::new(\"a\", \"Account\")\n                    .content(gpui::div().child(\"Medium step.\")),\n                TabItem::new(\"b\", \"Billing\")\n                    .content(gpui::div().child(\"Medium step.\")),\n            ],\n            \"a\",\n        )\n        .size(TabsSize::Md)\n        .into_any_element(),\n    ])"
+    },
+    {
       "heading": "Vertical",
       "imports": "use herogpui::prelude::{Orientation, TabItem, Tabs};\nuse gpui::prelude::*;",
       "code": "Tabs::new(\n    \"tabs-vertical\",\n    vec![\n        TabItem::new(\"account\", \"Account\")\n            .content(gpui::div().child(\"Name, email and password.\")),\n        TabItem::new(\"billing\", \"Billing\")\n            .content(gpui::div().child(\"Cards and invoices.\")),\n        TabItem::new(\"team\", \"Team\")\n            .content(gpui::div().child(\"Members and roles.\")),\n    ],\n    \"account\",\n)\n.orientation(Orientation::Vertical)"

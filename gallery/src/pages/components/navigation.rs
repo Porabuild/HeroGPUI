@@ -692,6 +692,36 @@ impl Gallery {
                     .into_any_element()]),
                 ),
                 (
+                    "Sizes",
+                    "`size` is additive, not a v3 prop: `Md` is the pinned 32px box with 16px padding and a 14px label; `Sm` is 28/12/12 with 16px leading. The secondary underline keeps its thickness.",
+                    col(vec![
+                        h::Tabs::new(
+                            "tabs-size-sm",
+                            vec![
+                                h::TabItem::new("a", "Account")
+                                    .content(gpui::div().child("Small step.")),
+                                h::TabItem::new("b", "Billing")
+                                    .content(gpui::div().child("Small step.")),
+                            ],
+                            "a",
+                        )
+                        .size(h::TabsSize::Sm)
+                        .into_any_element(),
+                        h::Tabs::new(
+                            "tabs-size-md",
+                            vec![
+                                h::TabItem::new("a", "Account")
+                                    .content(gpui::div().child("Medium step.")),
+                                h::TabItem::new("b", "Billing")
+                                    .content(gpui::div().child("Medium step.")),
+                            ],
+                            "a",
+                        )
+                        .size(h::TabsSize::Md)
+                        .into_any_element(),
+                    ]),
+                ),
+                (
                     "Vertical",
                     col(vec![h::Tabs::new(
                         "tabs-vertical",
