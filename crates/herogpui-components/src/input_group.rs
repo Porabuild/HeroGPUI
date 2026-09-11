@@ -66,6 +66,9 @@ pub struct InputGroup {
     full_width: bool,
     /// Optional group geometry/chrome overrides; defaults are the stock box.
     field: util::FieldBox,
+    /// The family the held field is drawn and measured with; unset keeps the
+    /// field's own setting.
+    font_family: Option<SharedString>,
     is_disabled: bool,
     is_invalid: bool,
     is_required: bool,
@@ -97,6 +100,7 @@ impl InputGroup {
             variant: FieldVariant::Primary,
             full_width: false,
             field: util::FieldBox::default(),
+            font_family: None,
             is_disabled: false,
             is_invalid: false,
             is_required: false,
@@ -149,6 +153,13 @@ impl InputGroup {
     /// or hover fill, for a caller painting around it.
     pub fn is_bare(mut self, v: bool) -> Self {
         self.field.is_bare = v;
+        self
+    }
+
+    /// The family the held field is drawn and measured with; unset keeps the
+    /// field's own setting.
+    pub fn font_family(mut self, family: impl Into<SharedString>) -> Self {
+        self.font_family = Some(family.into());
         self
     }
 
@@ -401,6 +412,10 @@ impl RenderOnce for InputGroup {
             };
             let input = match field_box.padding_x {
                 Some(padding_x) => input.group_padding_x(padding_x),
+                None => input,
+            };
+            let input = match self.font_family.clone() {
+                Some(family) => input.font_family(family),
                 None => input,
             };
             group = group.child(input.is_bare(field_box.is_bare));

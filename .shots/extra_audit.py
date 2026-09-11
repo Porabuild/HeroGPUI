@@ -504,6 +504,10 @@ EXTRA_OK_SCOPED = {
     'DateField.font_family': 'no-classname',
     'ColorPicker.font_family': 'no-classname',
     'Typography.font_family': 'no-classname',
+    'InputGroup.font_family': 'no-classname',
+    'Select.row_font_family': 'no-classname',
+    'ComboBox.row_font_family': 'no-classname',
+    'Autocomplete.row_font_family': 'no-classname',
     # v3's stylesheet declares `.range-calendar__cell-indicator`; only the
     # Calendar's prop table names the part.
     'RangeCalendar.cell_indicator': 'composition',

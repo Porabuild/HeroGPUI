@@ -1,7 +1,7 @@
 {
   "version": 2,
-  "artifactSha256": "67585116d58749b0554a8ab6671d62ca6875a8040f8574be0f625ecf36624708",
-  "glueSha256": "4e98dd357cfbe4f8fd65a13da047e5e4258e9c341619742c72f48f1b342a81b0",
+  "artifactSha256": "ce91b4e701bac9db5fc367d818441f9c4ae218d5ebc6bb14a623dfc4fd38b7ce",
+  "glueSha256": "1fa7830e69921b7578ed6c98b3a535080ac75f35707199185197b3cb9e7df965",
   "examples": {
     "accordion/Controlled": {
       "codeSha256": "2816548407263e0fdeada0ff2ec1e8f9fd45a2d33b24ab2cf163539711fe6f8a",
@@ -116,7 +116,7 @@
       "descriptionSha256": "664e5aa239ed00212e651feb908e6950f23c8a8a1254c329a690d9465b2ec5e8"
     },
     "autocomplete/Box Customisation": {
-      "codeSha256": "42e00b92c8d5be8bbcfd57f25c7bf22d37a56703503c3f8f45966aaa70ae3031",
+      "codeSha256": "75a5b941dcc98c55ef07dbc2f1ffc0ee71c90da5daf673e1990ffe4f4fcd3c4a",
       "descriptionSha256": "d04e06c3a2509cc57c65e5c5d49b24dea1ab646a70dc3916250c5b55fc5f8771"
     },
     "autocomplete/Controlled": {
@@ -836,7 +836,7 @@
       "descriptionSha256": "33bce5c264d50c244c2f69442887c5d0d4ffc40b6691eeebc9b880b2288b4f74"
     },
     "combo-box/Box Customisation": {
-      "codeSha256": "bb1cb8b094a9ddc0d9e17a8170bfe920e897018e77a0442c4c758a99c982caea",
+      "codeSha256": "bc6684e4d44b272a13ab5ec2b8cc364ca2d243bd1b2eaccb8345bc6049865778",
       "descriptionSha256": "86f8d5ffc77ac396d34ba972f32c080ae3504b3b26412f67b5cb47d11febd7ee"
     },
     "combo-box/Controlled": {
@@ -1224,7 +1224,7 @@
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "input-group/Box Customisation": {
-      "codeSha256": "cb90770ef75f2a4c55f7288ec755b39029ae609a7b55b00cd7f3302f31f8a893",
+      "codeSha256": "18ff058b696b541c69e9668baaeeef3b327df7380f339ef1a36d4aa3b647f0b3",
       "descriptionSha256": "3de69bf9bc01b90a6206bd68a5ce77df5cbff83decb906f3475b07dbd0ff1453"
     },
     "input-group/Copy Button Suffix": {
@@ -2028,7 +2028,7 @@
       "descriptionSha256": "d9d9ad0a9e44738e63a5f0ecd066a3a831473d8b74be3d230120b8c732f392e7"
     },
     "select/Box Customisation": {
-      "codeSha256": "6541116f72f3a48e8ac3ca9941e2dec7cfa1a636be0ada6cab388315098a393d",
+      "codeSha256": "0eb01d5aebb2f6163dcc249af94b877bb52b6a0d9a0a02dbb95d64446874a1d8",
       "descriptionSha256": "4bb4282cf3fab46cd41cb2baa6a6593fa110a2243eba4351dbbdfb0f94d2a0c8"
     },
     "select/Controlled": {

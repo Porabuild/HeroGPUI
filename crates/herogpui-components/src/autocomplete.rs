@@ -145,6 +145,10 @@ pub struct Autocomplete {
     row_padding_y: Option<gpui::Pixels>,
     /// The fill a hovered row takes, in place of `--default`.
     row_hover_bg: Option<gpui::Hsla>,
+    /// The family the option rows are drawn with; unset keeps the
+    /// inherited family. A detached popover does not inherit the trigger's
+    /// font.
+    row_font_family: Option<SharedString>,
     label: Option<SharedString>,
     placeholder: Option<SharedString>,
     description: Option<SharedString>,
@@ -337,6 +341,7 @@ impl Autocomplete {
             row_padding_x: None,
             row_padding_y: None,
             row_hover_bg: None,
+            row_font_family: None,
             field: util::FieldBox::default(),
             label: None,
             placeholder: None,
@@ -501,6 +506,13 @@ impl Autocomplete {
     /// The fill a hovered row takes, in place of `--default`.
     pub fn row_hover_bg(mut self, color: impl Into<gpui::Hsla>) -> Self {
         self.row_hover_bg = Some(color.into());
+        self
+    }
+
+    /// The family the option rows are drawn with; unset keeps the inherited
+    /// family. A detached popover does not inherit the trigger's font.
+    pub fn row_font_family(mut self, family: impl Into<SharedString>) -> Self {
+        self.row_font_family = Some(family.into());
         self
     }
 
@@ -1656,6 +1668,7 @@ impl RenderOnce for Autocomplete {
             let mut empty_fg = colors.overlay.foreground;
             empty_fg.a *= 0.6;
             let row_padding_x = self.row_padding_x.unwrap_or(px(10.));
+            let row_font_family = self.row_font_family.clone();
             let row_padding_y = self.row_padding_y.unwrap_or(px(6.));
             let row_of = move |index: usize, fixed_h: Option<gpui::Pixels>, cx: &mut App| {
                 let base = base_row.as_str();
@@ -1730,6 +1743,9 @@ impl RenderOnce for Autocomplete {
                     .text_size(util::FIELD_TEXT)
                     .line_height(px(20.))
                     .child(gpui::div().truncate().child(item.label().to_string()));
+                if let Some(family) = row_font_family.clone() {
+                    row = row.font_family(family);
+                }
 
                 if item_disabled {
                     row = row.opacity(row_disabled_opacity);

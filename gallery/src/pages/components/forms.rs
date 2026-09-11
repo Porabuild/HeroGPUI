@@ -999,6 +999,7 @@ impl Gallery {
                         .height(px(28.))
                         .padding_x(px(8.))
                         .is_bare(true)
+                        .font_family("monospace")
                         .prefix(h::InputAddon::new("$"))
                         .input(
                             h::Input::new(self.demo_text("ig-custom-box", "", cx))

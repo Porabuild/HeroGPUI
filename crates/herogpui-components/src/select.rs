@@ -204,6 +204,9 @@ pub struct Select {
     row_padding_y: Option<gpui::Pixels>,
     /// The fill a hovered option row takes, in place of `--default`.
     row_hover_bg: Option<gpui::Hsla>,
+    /// The family the option rows are drawn with; unset keeps the inherited
+    /// family. A detached popover does not inherit the trigger's font.
+    row_font_family: Option<SharedString>,
     /// `ListBox.Section` — the heading that precedes an option, by item key.
     sections: Vec<(SharedString, SharedString)>,
     /// `ListBox.ItemIndicator` — draws the tick. The closure is handed whether
@@ -347,6 +350,13 @@ impl Select {
         self
     }
 
+    /// The family the option rows are drawn with; unset keeps the inherited
+    /// family. A detached popover does not inherit the trigger's font.
+    pub fn row_font_family(mut self, family: impl Into<SharedString>) -> Self {
+        self.row_font_family = Some(family.into());
+        self
+    }
+
     /// The one slot for caller-owned low-level styling: GPUI's styling methods
     /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
     /// applied to the select's root element after every value the variant and
@@ -383,6 +393,7 @@ impl Select {
             row_padding_x: None,
             row_padding_y: None,
             row_hover_bg: None,
+            row_font_family: None,
             field: util::FieldBox::default(),
             sections: Vec::new(),
             indicator: None,
@@ -1503,6 +1514,7 @@ impl RenderOnce for Select {
             let base_row = base;
             let base_row_id = base_id.clone();
             let row_padding_x = self.row_padding_x.unwrap_or(px(10.));
+            let row_font_family = self.row_font_family.clone();
             let row_padding_y = self.row_padding_y.unwrap_or(px(6.));
             let row = move |i: usize, fixed_h: Option<gpui::Pixels>, cx: &mut App| {
                 let base = &base_row;
@@ -1575,6 +1587,9 @@ impl RenderOnce for Select {
                         .gap(px(12.))
                         .text_size(util::FIELD_TEXT)
                         .line_height(px(20.));
+                if let Some(family) = row_font_family.clone() {
+                    item = item.font_family(family);
+                }
 
                 if opt_disabled {
                     item = item.opacity(row_disabled_opacity);

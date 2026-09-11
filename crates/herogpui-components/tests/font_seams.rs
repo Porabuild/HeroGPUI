@@ -32,4 +32,23 @@ fn time_and_date_fields_keep_mono_and_accept_a_family_override() {
     assert!(typography.contains("self.font_family = Some(family.into());"));
     assert!(typography.contains("if let Some(family) = self.font_family.clone() {"));
     assert!(typography.contains(".font_family(MONO_FONT)"));
+
+    let group = include_str!("../src/input_group.rs");
+    assert!(group.contains("self.font_family = Some(family.into());"));
+    assert!(group.contains("Some(family) => input.font_family(family),"));
+
+    for (file, source) in [
+        ("select.rs", include_str!("../src/select.rs")),
+        ("combo_box.rs", include_str!("../src/combo_box.rs")),
+        ("autocomplete.rs", include_str!("../src/autocomplete.rs")),
+    ] {
+        assert!(
+            source.contains("self.row_font_family = Some(family.into());"),
+            "{file}: row_font_family must store the override"
+        );
+        assert!(
+            source.contains(".font_family(family);"),
+            "{file}: the row must consume the family"
+        );
+    }
 }

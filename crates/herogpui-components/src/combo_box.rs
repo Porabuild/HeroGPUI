@@ -234,6 +234,10 @@ pub struct ComboBox {
     row_padding_y: Option<gpui::Pixels>,
     /// The fill a hovered row takes, in place of `--default`.
     row_hover_bg: Option<gpui::Hsla>,
+    /// The family the option rows are drawn with; unset keeps the
+    /// inherited family. A detached popover does not inherit the trigger's
+    /// font.
+    row_font_family: Option<SharedString>,
     /// `validate` — run by the component, not the caller.
     validate: Option<crate::validation::Validator<str>>,
     /// `validationBehavior` — carried on the inner field.
@@ -534,6 +538,7 @@ impl ComboBox {
             row_padding_x: None,
             row_padding_y: None,
             row_hover_bg: None,
+            row_font_family: None,
             field: util::FieldBox::default(),
             validate: None,
             validation_behavior: None,
@@ -673,6 +678,13 @@ impl ComboBox {
     /// The fill a hovered row takes, in place of `--default`.
     pub fn row_hover_bg(mut self, color: impl Into<gpui::Hsla>) -> Self {
         self.row_hover_bg = Some(color.into());
+        self
+    }
+
+    /// The family the option rows are drawn with; unset keeps the inherited
+    /// family. A detached popover does not inherit the trigger's font.
+    pub fn row_font_family(mut self, family: impl Into<SharedString>) -> Self {
+        self.row_font_family = Some(family.into());
         self
     }
 
@@ -1864,6 +1876,7 @@ impl RenderOnce for ComboBox {
             let row_virtualized = self.row_height.is_some();
             let row_count = rows.len();
             let row_padding_x = self.row_padding_x.unwrap_or(px(8.));
+            let row_font_family = self.row_font_family.clone();
             let row_padding_y = self.row_padding_y.unwrap_or(px(6.));
             let row_of = move |index: usize, fixed_h: Option<gpui::Pixels>, cx: &mut App| {
                 let item = &rows[index];
@@ -1929,6 +1942,9 @@ impl RenderOnce for ComboBox {
                         .text_size(util::FIELD_TEXT)
                         .line_height(px(20.))
                         .child(item.label().to_string());
+                if let Some(family) = row_font_family.clone() {
+                    row = row.font_family(family);
+                }
 
                 if item_disabled {
                     row = row.opacity(row_disabled_opacity);
