@@ -142,6 +142,34 @@ fn every_hover_override_reaches_its_painted_fill() {
             "let hover_bg = self.day_hover_bg.unwrap_or(colors.default.color);",
             "s.bg(hover_bg)",
         ),
+        (
+            "calendar.rs",
+            include_str!("../src/calendar.rs"),
+            "self.nav_hover_bg = Some(color.into());",
+            "let hover_bg = self.nav_hover_bg.unwrap_or(colors.default.color);",
+            "s.bg(hover_bg)",
+        ),
+        (
+            "calendar.rs",
+            include_str!("../src/calendar.rs"),
+            "self.year_hover_bg = Some(color.into());",
+            "let hover_bg = self.year_hover_bg.unwrap_or(colors.default.color);",
+            "s.bg(hover_bg)",
+        ),
+        (
+            "range_calendar.rs",
+            include_str!("../src/range_calendar.rs"),
+            "self.nav_hover_bg = Some(color.into());",
+            "let hover_bg = self.nav_hover_bg.unwrap_or(colors.default.color);",
+            "s.bg(hover_bg)",
+        ),
+        (
+            "range_calendar.rs",
+            include_str!("../src/range_calendar.rs"),
+            "self.year_hover_bg = Some(color.into());",
+            "let hover_bg = self.year_hover_bg.unwrap_or(colors.default.color);",
+            "s.bg(hover_bg)",
+        ),
     ] {
         assert!(
             source.contains(stored),

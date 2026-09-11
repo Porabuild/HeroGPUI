@@ -464,6 +464,10 @@ pub struct Calendar {
     on_focus_change: Option<std::sync::Arc<dyn Fn(&Date, &mut Window, &mut App) + 'static>>,
     on_change: Option<OnChange>,
     on_change_all: Option<OnChangeAll>,
+    /// The fill a hovered nav arrow takes, in place of `--default`.
+    nav_hover_bg: Option<gpui::Hsla>,
+    /// The fill a hovered year cell takes, in place of `--default`.
+    year_hover_bg: Option<gpui::Hsla>,
     /// The fill a hovered plain (unselected, non-today) day takes, in
     /// place of `--default`. Today and selected days keep their own fills.
     day_hover_bg: Option<gpui::Hsla>,
@@ -569,6 +573,8 @@ impl Calendar {
             on_change: None,
             on_change_all: None,
             day_hover_bg: None,
+            nav_hover_bg: None,
+            year_hover_bg: None,
             sx: None,
         }
     }
@@ -761,6 +767,18 @@ impl Calendar {
     /// and the active theme chose, so they win.
     /// The fill a hovered plain (unselected, non-today) day takes, in
     /// place of `--default`. Today and selected days keep their own fills.
+    /// The fill a hovered nav arrow takes, in place of `--default`.
+    pub fn nav_hover_bg(mut self, color: impl Into<gpui::Hsla>) -> Self {
+        self.nav_hover_bg = Some(color.into());
+        self
+    }
+
+    /// The fill a hovered year cell takes, in place of `--default`.
+    pub fn year_hover_bg(mut self, color: impl Into<gpui::Hsla>) -> Self {
+        self.year_hover_bg = Some(color.into());
+        self
+    }
+
     pub fn day_hover_bg(mut self, color: impl Into<gpui::Hsla>) -> Self {
         self.day_hover_bg = Some(color.into());
         self
@@ -1225,7 +1243,7 @@ impl Calendar {
                 } else if !self.is_disabled {
                     // `.calendar-year-picker__year-cell:hover` fills
                     // `bg-default text-default-foreground`.
-                    let hover_bg = colors.default.color;
+                    let hover_bg = self.year_hover_bg.unwrap_or(colors.default.color);
                     let hover_fg = colors.default.foreground;
                     cell = cell
                         .text_color(colors.foreground)
@@ -1604,7 +1622,7 @@ impl RenderOnce for Calendar {
                        disabled: bool| {
             let state = state_for_nav.clone();
             // `.calendar__nav-button:hover` fills with `bg-default`.
-            let hover_bg = colors.default.color;
+            let hover_bg = self.nav_hover_bg.unwrap_or(colors.default.color);
             // The pinned `[data-pressed]` is a bare `scale(0.95)` with no
             // background change, so the hover fill must survive as its own
             // refinement and the press stays the backgroundless helper.
