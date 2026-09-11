@@ -3,7 +3,7 @@
 use std::collections::HashSet;
 
 use gpui::{
-    prelude::*, px, AnyElement, App, IntoElement, RenderOnce, SharedString,
+    prelude::*, px, AnyElement, App, IntoElement, Pixels, RenderOnce, SharedString,
     StatefulInteractiveElement, Styled, Window,
 };
 use herogpui_core::element_id;
@@ -130,6 +130,10 @@ pub struct Accordion {
     /// The fill a hovered enabled, closed trigger takes, in place of the
     /// variant's wash.
     hover_bg: Option<gpui::Hsla>,
+    /// The `Surface` item card's corner radius, in place of the owning
+    /// `container_radius` helper. The `Default` variant paints no card, so
+    /// this is inert there.
+    radius: Option<Pixels>,
     /// The `sx` slot, refined over the root style at the end of render.
     sx: Option<Box<gpui::StyleRefinement>>,
 }
@@ -169,6 +173,7 @@ impl Accordion {
             hide_separator: false,
             on_toggle: None,
             hover_bg: None,
+            radius: None,
             sx: None,
         }
     }
@@ -235,6 +240,17 @@ impl Accordion {
     /// `hideSeparator` — drops the rules between items.
     pub fn hide_separator(mut self, v: bool) -> Self {
         self.hide_separator = v;
+        self
+    }
+
+    /// The `Surface` item card's corner radius, in place of the owning
+    /// `container_radius` helper. Only `variant(AccordionVariant::Surface)`
+    /// paints a card, so this is inert on the flush `Default` variant, and the
+    /// separators' hairline mark inside a card keeps its own radius. Not a v3
+    /// prop; the removed v2 `radius` prop is prohibited and this is a
+    /// per-component repository extension.
+    pub fn radius(mut self, radius: impl Into<Pixels>) -> Self {
+        self.radius = Some(radius.into());
         self
     }
 
@@ -309,7 +325,10 @@ impl RenderOnce for Accordion {
             AccordionVariant::Default => gpui::div(),
             AccordionVariant::Surface => gpui::div()
                 .bg(colors.surface.background)
-                .rounded(crate::util::container_radius(cx))
+                .rounded(
+                    self.radius
+                        .unwrap_or_else(|| crate::util::container_radius(cx)),
+                )
                 .overflow_hidden(),
         };
 

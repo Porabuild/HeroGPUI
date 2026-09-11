@@ -43,6 +43,9 @@ impl Gallery {
                                      This action cannot be undone.",
                                 )
                                 .is_open(is_open)
+                                // The panel's entry zoom interpolates the same
+                                // value the panel paints.
+                                .radius(px(12.))
                                 .child(h::AlertDialogCloseTrigger::new())
                                 .footer_child(
                                     h::Button::new("ad-usage-cancel")

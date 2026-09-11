@@ -167,9 +167,10 @@ impl Gallery {
                         .into_any_element()]),
                 ),
                 (
-                    "Surface",
+                    "Surface", "`radius(px)` rounds the `Surface` item card; the flush `Default` variant paints no card, so it is inert there.",
                     col(vec![h::Accordion::new(items())
                         .variant(h::AccordionVariant::Surface)
+                        .radius(px(8.))
                         .expanded_keys(open.clone())
                         .on_toggle(cx.listener(|this, key: &SharedString, _, cx| {
                             toggle_key(&mut this.accordion_open, key);
@@ -420,10 +421,12 @@ impl Gallery {
             crate::pages::Page::Link.import_line(),
             vec![
                 (
-                    "Usage",
+                    "Usage", "`radius(px)` replaces the root's default `rounded-xl`; the link paints no fill of its own, so this one carries an `sx` background to show the corner.",
                     col(vec![h::Link::new("ln-hover")
                         .label("Hover to see the underline")
                         .href("#")
+                        .radius(px(4.))
+                        .sx(|el| el.bg(gpui::rgba(0x22c55e33)))
                         .into_any_element()]),
                 ),
                 (

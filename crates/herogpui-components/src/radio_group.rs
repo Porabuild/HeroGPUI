@@ -2,7 +2,7 @@
 
 use std::{cell::RefCell, rc::Rc};
 
-use gpui::{prelude::*, px, App, IntoElement, RenderOnce, SharedString, Styled, Window};
+use gpui::{prelude::*, px, App, IntoElement, Pixels, RenderOnce, SharedString, Styled, Window};
 use herogpui_core::{element_id, Color, FieldVariant, Orientation};
 use herogpui_theme::ActiveTheme;
 
@@ -99,7 +99,7 @@ impl RadioSize {
     pub const ALL: [RadioSize; 2] = [Self::Sm, Self::Md];
 
     /// `(control, dot, label text, row gap)` for this step.
-    fn metrics(self) -> (gpui::Pixels, gpui::Pixels, gpui::Pixels, gpui::Pixels) {
+    fn metrics(self) -> (Pixels, Pixels, Pixels, Pixels) {
         match self {
             Self::Sm => (px(14.), px(5.), px(12.), px(10.)),
             Self::Md => (px(16.), px(6.), px(14.), px(12.)),
@@ -155,6 +155,10 @@ pub struct RadioGroup {
     on_change: Option<std::sync::Arc<dyn Fn(&SharedString, &mut Window, &mut App) + 'static>>,
     /// The compact step; `Md` is the pinned default.
     size: RadioSize,
+    /// The control circle's corner radius, in place of the owning `key_radius`
+    /// helper. The control's pressed box follows it; the selected dot inside
+    /// keeps its own.
+    radius: Option<Pixels>,
     /// Expands the root to the available width.
     full_width: bool,
     /// The `sx` slot, refined over the root style at the end of render.
@@ -242,6 +246,7 @@ impl RadioGroup {
             is_read_only: false,
             on_change: None,
             size: RadioSize::default(),
+            radius: None,
             full_width: false,
             sx: None,
         }
@@ -383,6 +388,17 @@ impl RadioGroup {
     /// (16px leading) and a 10px row gap. Not a v3 prop.
     pub fn size(mut self, size: RadioSize) -> Self {
         self.size = size;
+        self
+    }
+
+    /// The radio control's corner radius, in place of the owning `key_radius`
+    /// helper: the control circle takes it and its pressed box scales the same
+    /// value instead of snapping back to the helper, while the selected dot
+    /// inside is an inner part and keeps its own. Not a v3 prop; the removed
+    /// v2 `radius` prop is prohibited and this is a per-component repository
+    /// extension.
+    pub fn radius(mut self, radius: impl Into<Pixels>) -> Self {
+        self.radius = Some(radius.into());
         self
     }
 
@@ -544,6 +560,10 @@ impl RenderOnce for RadioGroup {
             && !layout.field_shadow.is_empty())
         .then(|| layout.field_shadow.clone());
 
+        // The control circle's radius, resolved once: the pressed box below
+        // scales the same value instead of snapping back to the helper.
+        let control_radius = self.radius.unwrap_or_else(|| crate::util::key_radius(cx));
+
         let option_values: std::sync::Arc<Vec<SharedString>> = std::sync::Arc::new(
             self.options
                 .iter()
@@ -590,7 +610,7 @@ impl RenderOnce for RadioGroup {
                 .items_center()
                 .justify_center()
                 .size(circle)
-                .rounded(crate::util::key_radius(cx))
+                .rounded(control_radius)
                 .flex_shrink_0()
                 .bg(if is_selected { sem.color } else { control_bg })
                 .when_some(control_shadow.clone(), |el, shadows| el.shadow(shadows));
@@ -645,7 +665,7 @@ impl RenderOnce for RadioGroup {
                             text_size: text,
                             line_height: text,
                             gap: px(0.),
-                            radius: crate::util::key_radius(cx),
+                            radius: control_radius,
                             shrink_x: true,
                             scale: crate::anim::PRESSED_SCALE_DEEP,
                         },
@@ -663,7 +683,7 @@ impl RenderOnce for RadioGroup {
                             text_size: text,
                             line_height: text,
                             gap: px(0.),
-                            radius: crate::util::key_radius(cx),
+                            radius: control_radius,
                             shrink_x: true,
                             scale: crate::anim::PRESSED_SCALE_DEEP,
                         },

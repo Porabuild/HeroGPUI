@@ -8,8 +8,8 @@ use std::collections::HashSet;
 use std::sync::Arc;
 
 use gpui::{
-    div, prelude::*, px, AnyElement, App, ElementId, InteractiveElement, IntoElement, RenderOnce,
-    SharedString, Styled, Window,
+    div, prelude::*, px, AnyElement, App, ElementId, InteractiveElement, IntoElement, Pixels,
+    RenderOnce, SharedString, Styled, Window,
 };
 use herogpui_core::{element_id, SelectionMode, Size};
 use herogpui_theme::ActiveTheme;
@@ -195,6 +195,9 @@ pub struct TagGroup {
     disabled_keys: HashSet<SharedString>,
     is_disabled: bool,
     size: Size,
+    /// The tag chip's corner radius, in place of the size step's radius. The
+    /// remove button inside stays a circle.
+    radius: Option<Pixels>,
     variant: TagVariant,
     /// The fill a hovered selectable tag takes, in place of the variant's
     /// hover colour.
@@ -232,6 +235,7 @@ impl TagGroup {
             disabled_keys: HashSet::new(),
             is_disabled: false,
             size: Size::Md,
+            radius: None,
             variant: TagVariant::Default,
             hover_bg: None,
             remove_hover_bg: None,
@@ -294,6 +298,16 @@ impl TagGroup {
 
     pub fn size(mut self, size: Size) -> Self {
         self.size = size;
+        self
+    }
+
+    /// The tag chip's corner radius, in place of the size step's radius. The
+    /// step (`rounded-xl`, `rounded-2xl` on `Lg`) stays the fallback, and the
+    /// remove button inside a chip is an inner part that stays a circle. Not a
+    /// v3 prop; the removed v2 `radius` prop is prohibited and this is a
+    /// per-component repository extension.
+    pub fn radius(mut self, radius: impl Into<Pixels>) -> Self {
+        self.radius = Some(radius.into());
         self
     }
 
@@ -376,7 +390,7 @@ impl TagGroup {
     ///
     /// v3 gives a tag no height: it is padding around one line, which is why
     /// this returns a vertical padding rather than the box it used to force.
-    fn metrics(size: Size) -> (gpui::Pixels, gpui::Pixels, gpui::Pixels, gpui::Pixels) {
+    fn metrics(size: Size) -> (Pixels, Pixels, Pixels, Pixels) {
         match size {
             Size::Sm => (px(8.), px(2.), px(12.), px(16.)),
             Size::Md => (px(8.), px(4.), px(12.), px(16.)),
@@ -384,8 +398,10 @@ impl TagGroup {
         }
     }
 
-    /// `rounded-xl` on `.tag`, `rounded-2xl` on `.tag--lg`.
-    fn radius(size: Size, cx: &App) -> gpui::Pixels {
+    /// `rounded-xl` on `.tag`, `rounded-2xl` on `.tag--lg`. Named for the step
+    /// rather than for what it returns, because [`TagGroup::radius`] is the
+    /// builder that replaces its value.
+    fn step_radius(size: Size, cx: &App) -> Pixels {
         match size {
             Size::Sm | Size::Md => crate::util::small_radius(cx),
             Size::Lg => crate::util::soft_radius(cx),
@@ -498,7 +514,11 @@ impl RenderOnce for TagGroup {
         let colors = cx.colors();
         let layout = cx.layout();
         let (pad_x, pad_y, text_size, leading) = Self::metrics(self.size);
-        let tag_radius = Self::radius(self.size, cx);
+        // The size step stays the fallback; an instance radius replaces it on
+        // the chip alone — the remove button inside stays a circle.
+        let tag_radius = self
+            .radius
+            .unwrap_or_else(|| Self::step_radius(self.size, cx));
 
         // `.tag-group` is `flex flex-col gap-1`: the label, the list and the
         // description.

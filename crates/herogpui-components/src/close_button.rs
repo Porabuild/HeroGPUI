@@ -6,7 +6,7 @@
 
 use gpui::{
     div, prelude::*, px, AnyElement, App, ClickEvent, ElementId, InteractiveElement, IntoElement,
-    ParentElement, RenderOnce, Styled, Window,
+    ParentElement, Pixels, RenderOnce, Styled, Window,
 };
 use herogpui_core::element_id;
 use herogpui_theme::ActiveTheme;
@@ -42,6 +42,9 @@ pub struct CloseButton {
     /// Set by [`CloseButton::hover_bg`]: the fill the hover fade eases *to*.
     /// Additive — unset, the fade behaves exactly as it did before.
     hover_bg: Option<gpui::Hsla>,
+    /// The corner radius, in place of the owning `small_radius` helper. The
+    /// pressed box scales it along with the box.
+    radius: Option<Pixels>,
 }
 
 impl CloseButton {
@@ -54,6 +57,7 @@ impl CloseButton {
             on_press: None,
             sx: None,
             hover_bg: None,
+            radius: None,
         }
     }
 
@@ -79,6 +83,16 @@ impl CloseButton {
 
     pub fn is_disabled(mut self, v: bool) -> Self {
         self.is_disabled = v;
+        self
+    }
+
+    /// The corner radius, in place of the owning `small_radius` helper. The
+    /// box is the button's whole shape, so the pressed box scales the same
+    /// value rather than snapping back to the helper. Not a v3 prop; the
+    /// removed v2 `radius` prop is prohibited and this is a per-component
+    /// repository extension.
+    pub fn radius(mut self, radius: impl Into<Pixels>) -> Self {
+        self.radius = Some(radius.into());
         self
     }
 
@@ -126,7 +140,9 @@ impl RenderOnce for CloseButton {
         }
 
         let colors = cx.colors().clone();
-        let radius = crate::util::small_radius(cx);
+        // The box is the button's whole shape, so the press-scale derivation
+        // below multiplies this resolved value rather than the helper's.
+        let radius = self.radius.unwrap_or_else(|| crate::util::small_radius(cx));
         let disabled_opacity = cx.layout().disabled_opacity;
         // `.close-button` is `h-6 p-1` with a `size-4` glyph.
         let (box_size, icon_size) = (px(24.), px(16.));
@@ -186,7 +202,7 @@ impl RenderOnce for CloseButton {
             const PRESS_SCALE: f32 = 0.93;
             let inset = px(f32::from(box_size) * (1.0 - PRESS_SCALE) / 2.0);
             let pressed = px(f32::from(box_size) * PRESS_SCALE);
-            let radius = px(f32::from(crate::util::small_radius(cx)) * PRESS_SCALE);
+            let pressed_radius = px(f32::from(radius) * PRESS_SCALE);
             el = el.active(move |s| {
                 s.h(pressed)
                     .w(pressed)
@@ -194,7 +210,7 @@ impl RenderOnce for CloseButton {
                     .mb(inset)
                     .ml(inset)
                     .mr(inset)
-                    .rounded(radius)
+                    .rounded(pressed_radius)
             });
         }
 

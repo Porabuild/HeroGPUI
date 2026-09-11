@@ -463,8 +463,10 @@ impl Gallery {
             crate::pages::Page::CloseButton.import_line(),
             vec![
                 (
-                    "Usage",
-                    row(vec![h::CloseButton::new("cb-usage").into_any_element()]),
+                    "Usage", "`radius(px)` replaces the box's corner and the pressed box scales the same value.",
+                    row(vec![h::CloseButton::new("cb-usage")
+                        .radius(px(4.))
+                        .into_any_element()]),
                 ),
                 (
                     "Interactive",

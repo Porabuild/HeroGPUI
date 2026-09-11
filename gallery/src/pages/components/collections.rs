@@ -850,10 +850,11 @@ impl Gallery {
             crate::pages::Page::TagGroup.import_line(),
             vec![
                 (
-                    "Usage",
+                    "Usage", "`radius(px)` replaces the chip's size-step corner; the remove button inside stays a circle.",
                     col(vec![h::TagGroup::new("tg-usage", tags())
                         .full_width(true)
                         .label("Skills")
+                        .radius(px(2.))
                         .into_any_element()]),
                 ),
                 (

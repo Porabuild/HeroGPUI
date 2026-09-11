@@ -545,6 +545,26 @@ EXTRA_OK_SCOPED = {
     'Select.radius': 'repository-radius-extension',
     'ComboBox.radius': 'repository-radius-extension',
     'Autocomplete.radius': 'repository-radius-extension',
+    # One binding feeds the dialog's panel and the zoom that interpolates it.
+    'AlertDialog.radius': 'repository-radius-extension',
+    # The `Surface` item card only; the flush `Default` variant paints no card.
+    'Accordion.radius': 'repository-radius-extension',
+    # The button's whole shape, and the pressed box scales the same value.
+    'CloseButton.radius': 'repository-radius-extension',
+    # The link root's corner; the link paints no fill of its own.
+    'Link.radius': 'repository-radius-extension',
+    # The control's corner in place of `mark_radius`; `is_round` keeps its
+    # documented circle and the animated fill layers follow the resolved value.
+    'Checkbox.radius': 'repository-radius-extension',
+    # The control circle and its pressed box; the selected dot inside keeps
+    # its own. The builder lives on the monolithic `RadioGroup`, the type that
+    # renders the control.
+    'RadioGroup.radius': 'repository-radius-extension',
+    # The inline `Code` chip only; the other kinds paint no box.
+    'Typography.radius': 'repository-radius-extension',
+    # Both size-stepped boxes keep their step as the fallback.
+    'Badge.radius': 'repository-radius-extension',
+    'TagGroup.radius': 'repository-radius-extension',
     # v3's stylesheet declares `.range-calendar__cell-indicator`; only the
     # Calendar's prop table names the part.
     'RangeCalendar.cell_indicator': 'composition',

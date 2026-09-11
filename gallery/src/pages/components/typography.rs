@@ -213,7 +213,11 @@ impl Gallery {
                             "Paragraph supports base, sm and xs sizes.",
                         )
                         .into_any_element(),
-                        h::Typography::code("cargo add herogpui").into_any_element(),
+                        // `radius(px)` rounds the `Code` chip alone; the other
+                        // kinds paint no box.
+                        h::Typography::code("cargo add herogpui")
+                            .radius(px(2.))
+                            .into_any_element(),
                     ]),
                 ),
                 (

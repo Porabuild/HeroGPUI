@@ -53,10 +53,11 @@ impl Gallery {
                     ]),
                 ),
                 (
-                    "Variants",
+                    "Variants", "`radius(px)` replaces the control's default `rounded-md`; `is_round` keeps its documented circle either way.",
                     col(vec![
                         h::Checkbox::new("cb-v-primary")
                             .default_selected(true)
+                            .radius(px(4.))
                             .label(gpui::div().child("Primary"))
                             .into_any_element(),
                         h::Checkbox::new("cb-v-secondary")
@@ -1829,10 +1830,11 @@ impl Gallery {
                     ]),
                 ),
                 (
-                    "Variants",
+                    "Variants", "`radius(px)` rounds the control circle in place of `key_radius`; the pressed box scales the same value and the selected dot keeps its own.",
                     col(vec![
                         h::RadioGroup::new("rg-v-primary", plans())
                             .default_value("Free")
+                            .radius(px(4.))
                             .into_any_element(),
                         h::RadioGroup::new("rg-v-secondary", plans())
                             .default_value("Pro")

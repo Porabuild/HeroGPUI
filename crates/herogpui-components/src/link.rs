@@ -10,7 +10,7 @@
 //! no meaning here and are not offered.
 
 use gpui::{
-    div, prelude::*, px, App, ClickEvent, ElementId, Hsla, InteractiveElement, IntoElement,
+    div, prelude::*, px, App, ClickEvent, ElementId, Hsla, InteractiveElement, IntoElement, Pixels,
     RenderOnce, SharedString, StyleRefinement, Styled, UnderlineStyle, Window,
 };
 use herogpui_core::element_id;
@@ -77,6 +77,9 @@ pub struct Link {
     /// handed the interactive state v3 passes its render functions.
     render: Option<Render>,
     on_press: Option<OnPress>,
+    /// The root box's corner radius, in place of the owning `small_radius`
+    /// helper.
+    radius: Option<Pixels>,
     /// The `sx` slot, refined over the root style at the end of render.
     sx: Option<Box<StyleRefinement>>,
 }
@@ -93,6 +96,7 @@ impl Link {
             icon_first: false,
             render: None,
             on_press: None,
+            radius: None,
             sx: None,
         }
     }
@@ -157,6 +161,16 @@ impl Link {
         handler: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
     ) -> Self {
         self.on_press = Some(std::sync::Arc::new(handler));
+        self
+    }
+
+    /// The root box's corner radius, in place of the owning `small_radius`
+    /// helper (`.link` is `rounded-xl`). The link paints no fill of its own,
+    /// so the corner shows only against a caller-supplied background or its
+    /// focus ring. Not a v3 prop; the removed v2 `radius` prop is prohibited
+    /// and this is a per-component repository extension.
+    pub fn radius(mut self, radius: impl Into<Pixels>) -> Self {
+        self.radius = Some(radius.into());
         self
     }
 
@@ -233,7 +247,10 @@ impl RenderOnce for Link {
             // contract, and the text colour never changes state.
             .text_color(link_color)
             .font_weight(gpui::FontWeight::MEDIUM)
-            .rounded(crate::util::small_radius(cx));
+            .rounded(
+                self.radius
+                    .unwrap_or_else(|| crate::util::small_radius(cx)),
+            );
         if interactive {
             el = crate::util::ring_if_focused(
                 el.track_focus(&focus),

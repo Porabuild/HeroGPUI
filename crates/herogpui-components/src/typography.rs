@@ -143,6 +143,10 @@ pub struct Typography {
     /// The family every kind is drawn with; unset keeps the kind's own
     /// family (mono for `Code`, inherited otherwise).
     font_family: Option<SharedString>,
+    /// The `Code` chip's corner radius, in place of the owning `mark_radius`
+    /// helper. `Code` is the only kind that paints a box, so the others
+    /// ignore it.
+    radius: Option<Pixels>,
     text: Option<SharedString>,
     children: Vec<AnyElement>,
     /// The `sx` slot, refined over the root style at the end of render.
@@ -158,6 +162,7 @@ impl Typography {
             weight: None,
             truncate: false,
             font_family: None,
+            radius: None,
             text: Some(text.into()),
             children: Vec::new(),
             sx: None,
@@ -220,6 +225,15 @@ impl Typography {
         self
     }
 
+    /// The `code` chip's corner radius, in place of the owning `mark_radius`
+    /// helper. `Typography::code` is the only kind that paints a box, so every
+    /// other kind ignores this. Not a v3 prop; the removed v2 `radius` prop is
+    /// prohibited and this is a per-component repository extension.
+    pub fn radius(mut self, radius: impl Into<Pixels>) -> Self {
+        self.radius = Some(radius.into());
+        self
+    }
+
     pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
         self.sx = Some(crate::util::capture_sx(style));
         self
@@ -253,7 +267,7 @@ impl RenderOnce for Typography {
             el = el
                 .font_family(MONO_FONT)
                 .bg(colors.default.color)
-                .rounded(crate::util::mark_radius(cx))
+                .rounded(self.radius.unwrap_or_else(|| crate::util::mark_radius(cx)))
                 .px(px(6.))
                 .py(px(2.));
         }

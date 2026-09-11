@@ -8,8 +8,8 @@
 use std::sync::Arc;
 
 use gpui::{
-    div, prelude::*, px, AnyElement, App, ClickEvent, IntoElement, ParentElement, RenderOnce,
-    SharedString, Styled, Window,
+    div, prelude::*, px, AnyElement, App, ClickEvent, IntoElement, ParentElement, Pixels,
+    RenderOnce, SharedString, Styled, Window,
 };
 use herogpui_core::{element_id, Backdrop, Color, Size, Variant};
 use herogpui_theme::ActiveTheme;
@@ -47,7 +47,7 @@ impl AlertDialogSize {
 
     /// `max-w-xs` … `max-w-lg` from `.alert-dialog__dialog--*`, which is
     /// Tailwind's scale: 20rem, 24rem, 28rem, 32rem. `Cover` is `w-full`.
-    fn max_width(self) -> Option<gpui::Pixels> {
+    fn max_width(self) -> Option<Pixels> {
         match self {
             AlertDialogSize::Xs => Some(px(320.)),
             AlertDialogSize::Sm => Some(px(384.)),
@@ -168,6 +168,9 @@ pub struct AlertDialog {
     children: Vec<AnyElement>,
     on_confirm: Option<OnAction>,
     on_cancel: Option<OnAction>,
+    /// The panel's corner radius, in place of the owning `container_radius`
+    /// helper. The panel's entry zoom interpolates the same value.
+    radius: Option<Pixels>,
     /// The `sx` slot, refined over the root style at the end of render.
     sx: Option<Box<gpui::StyleRefinement>>,
 }
@@ -206,6 +209,7 @@ impl AlertDialog {
             children: Vec::new(),
             on_confirm: None,
             on_cancel: None,
+            radius: None,
             sx: None,
         }
     }
@@ -261,6 +265,17 @@ impl AlertDialog {
 
     pub fn backdrop(mut self, backdrop: Backdrop) -> Self {
         self.backdrop = backdrop;
+        self
+    }
+
+    /// The panel's corner radius, in place of the owning `container_radius`
+    /// helper. The panel's entry zoom interpolates the same value, so the
+    /// animation never parts company with the painted shape; the status icon's
+    /// `rounded-3xl` tile inside is an inner part and keeps its own. Not a v3
+    /// prop; the removed v2 `radius` prop is prohibited and this is a
+    /// per-component repository extension.
+    pub fn radius(mut self, radius: impl Into<Pixels>) -> Self {
+        self.radius = Some(radius.into());
         self
     }
 
@@ -402,6 +417,10 @@ impl RenderOnce for AlertDialog {
         // The dialog's own `p-6` takes 48 of that before the body sees any.
         let body_max_h = panel_max_h - px(48.);
 
+        // The panel's corner, resolved once: the zoom below has to interpolate
+        // the same value the panel paints.
+        let radius = self.radius.unwrap_or_else(|| util::container_radius(cx));
+
         // `.alert-dialog__dialog` has no gap: the spacing between the header,
         // the body and the footer comes from v3's `+` rules (mt-2, mt-5), so
         // each part carries its own top margin instead.
@@ -435,7 +454,7 @@ impl RenderOnce for AlertDialog {
                 e.h(panel_max_h).min_h(panel_max_h)
             })
             .p(px(24.))
-            .rounded(util::container_radius(cx))
+            .rounded(radius)
             .bg(colors.overlay.background)
             // v3 gives a floating panel no border; dark mode's inset hairline is
             // what separates it from the page.
@@ -698,8 +717,7 @@ impl RenderOnce for AlertDialog {
         })
         .child(backdrop)
         .child({
-            let mut zoom =
-                crate::anim::ZoomBox::panel(px(24.), util::container_radius(cx)).padding_x(px(24.));
+            let mut zoom = crate::anim::ZoomBox::panel(px(24.), radius).padding_x(px(24.));
             // The zoom scales a known box; `Cover` has no width of its own and
             // the `ZoomBox` carries no height, so there is nothing to hand it —
             // its enter/exit zoom rides the padding, radius and fade alone.

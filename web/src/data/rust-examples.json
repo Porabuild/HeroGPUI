@@ -127,8 +127,9 @@
   "close-button": [
     {
       "heading": "Usage",
-      "imports": "use herogpui::prelude::CloseButton;",
-      "code": "CloseButton::new(\"close-button\")"
+      "description": "`radius(px)` replaces the box's corner and the pressed box scales the same value.",
+      "imports": "use herogpui::prelude::CloseButton;\nuse gpui::px;",
+      "code": "CloseButton::new(\"close-button\")\n    .radius(px(4.))"
     },
     {
       "heading": "Interactive",
@@ -444,8 +445,9 @@
   "tag-group": [
     {
       "heading": "Usage",
-      "imports": "use herogpui::prelude::{Tag, TagGroup};",
-      "code": "TagGroup::new(\"tag-group\", tags())\n    .full_width(true)\n    .label(\"Skills\")"
+      "description": "`radius(px)` replaces the chip's size-step corner; the remove button inside stays a circle.",
+      "imports": "use herogpui::prelude::{Tag, TagGroup};\nuse gpui::px;",
+      "code": "TagGroup::new(\"tag-group\", tags())\n    .full_width(true)\n    .label(\"Skills\")\n    .radius(px(2.))"
     },
     {
       "heading": "Hover Colour",
@@ -982,7 +984,7 @@
     {
       "heading": "Usage",
       "imports": "use herogpui::prelude::{Badge, BadgeAnchor, BadgeLabel, BadgePlacement, Color, Size};\nuse gpui::prelude::*;\nuse gpui::px;",
-      "code": "row(vec![\n    BadgeAnchor::new()\n        .child(avatar_box((\"badge-anchor\", 0usize), \"Jane Doe\"))\n        .child(\n            Badge::new()\n                .color(Color::Danger)\n                .size(Size::Sm)\n                .text_size(px(14.))\n                .child(BadgeLabel::new().child(\"5\")),\n        )\n        .into_any_element(),\n    BadgeAnchor::new()\n        .child(avatar_box((\"badge-anchor\", 1usize), \"Alex Brown\"))\n        .child(\n            Badge::new()\n                .color(Color::Accent)\n                .size(Size::Sm)\n                .child(BadgeLabel::new().child(\"New\")),\n        )\n        .into_any_element(),\n    BadgeAnchor::new()\n        .child(avatar_box((\"badge-anchor\", 2usize), \"Chris Davis\"))\n        .child(\n            Badge::new()\n                .color(Color::Success)\n                .size(Size::Sm)\n                .placement(BadgePlacement::BottomRight),\n        )\n        .into_any_element(),\n])"
+      "code": "row(vec![\n    BadgeAnchor::new()\n        .child(avatar_box((\"badge-anchor\", 0usize), \"Jane Doe\"))\n        .child(\n            Badge::new()\n                .color(Color::Danger)\n                .size(Size::Sm)\n                .text_size(px(14.))\n                // `radius(px)` replaces the size step's\n                // corner; the step stays the fallback.\n                .radius(px(4.))\n                .child(BadgeLabel::new().child(\"5\")),\n        )\n        .into_any_element(),\n    BadgeAnchor::new()\n        .child(avatar_box((\"badge-anchor\", 1usize), \"Alex Brown\"))\n        .child(\n            Badge::new()\n                .color(Color::Accent)\n                .size(Size::Sm)\n                .child(BadgeLabel::new().child(\"New\")),\n        )\n        .into_any_element(),\n    BadgeAnchor::new()\n        .child(avatar_box((\"badge-anchor\", 2usize), \"Chris Davis\"))\n        .child(\n            Badge::new()\n                .color(Color::Success)\n                .size(Size::Sm)\n                .placement(BadgePlacement::BottomRight),\n        )\n        .into_any_element(),\n])"
     },
     {
       "heading": "Sizes",
@@ -1816,8 +1818,9 @@
     },
     {
       "heading": "Variants",
+      "description": "`radius(px)` replaces the control's default `rounded-md`; `is_round` keeps its documented circle either way.",
       "imports": "use herogpui::prelude::{Checkbox, FieldVariant};\nuse gpui::prelude::*;\nuse gpui::px;",
-      "code": "gpui::div()\n    .flex()\n    .flex_col()\n    .items_start()\n    .gap(px(12.))\n    .children(vec![\n        Checkbox::new(\"checkbox-primary\")\n            .default_selected(true)\n            .label(gpui::div().child(\"Primary\"))\n            .into_any_element(),\n        Checkbox::new(\"checkbox-secondary\")\n            .default_selected(true)\n            .variant(FieldVariant::Secondary)\n            .label(gpui::div().child(\"Secondary\"))\n            .into_any_element(),\n    ])"
+      "code": "gpui::div()\n    .flex()\n    .flex_col()\n    .items_start()\n    .gap(px(12.))\n    .children(vec![\n        Checkbox::new(\"checkbox-primary\")\n            .default_selected(true)\n            .radius(px(4.))\n            .label(gpui::div().child(\"Primary\"))\n            .into_any_element(),\n        Checkbox::new(\"checkbox-secondary\")\n            .default_selected(true)\n            .variant(FieldVariant::Secondary)\n            .label(gpui::div().child(\"Secondary\"))\n            .into_any_element(),\n    ])"
     },
     {
       "heading": "Full Rounded",
@@ -2370,8 +2373,9 @@
     },
     {
       "heading": "Variants",
+      "description": "`radius(px)` rounds the control circle in place of `key_radius`; the pressed box scales the same value and the selected dot keeps its own.",
       "imports": "use herogpui::prelude::{FieldVariant, RadioGroup};\nuse gpui::prelude::*;\nuse gpui::px;",
-      "code": "gpui::div()\n    .flex()\n    .flex_col()\n    .items_start()\n    .gap(px(12.))\n    .children(vec![\n        RadioGroup::new(\"radio-group-primary\", plans())\n            .default_value(\"Free\")\n            .into_any_element(),\n        RadioGroup::new(\"radio-group-secondary\", plans())\n            .default_value(\"Pro\")\n            .variant(FieldVariant::Secondary)\n            .into_any_element(),\n    ])"
+      "code": "gpui::div()\n    .flex()\n    .flex_col()\n    .items_start()\n    .gap(px(12.))\n    .children(vec![\n        RadioGroup::new(\"radio-group-primary\", plans())\n            .default_value(\"Free\")\n            .radius(px(4.))\n            .into_any_element(),\n        RadioGroup::new(\"radio-group-secondary\", plans())\n            .default_value(\"Pro\")\n            .variant(FieldVariant::Secondary)\n            .into_any_element(),\n    ])"
     },
     {
       "heading": "In Surface",
@@ -2789,8 +2793,9 @@
     },
     {
       "heading": "Surface",
-      "imports": "use herogpui::prelude::{Accordion, AccordionItem, AccordionVariant};",
-      "code": "Accordion::new(items())\n    .variant(AccordionVariant::Surface)\n    .expanded_keys(open.clone())\n    .on_toggle(cx.listener(|this, key: &SharedString, _, cx| {\n        toggle_key(&mut this.accordion_open, key);\n        cx.notify();\n    }))"
+      "description": "`radius(px)` rounds the `Surface` item card; the flush `Default` variant paints no card, so it is inert there.",
+      "imports": "use herogpui::prelude::{Accordion, AccordionItem, AccordionVariant};\nuse gpui::px;",
+      "code": "Accordion::new(items())\n    .variant(AccordionVariant::Surface)\n    .radius(px(8.))\n    .expanded_keys(open.clone())\n    .on_toggle(cx.listener(|this, key: &SharedString, _, cx| {\n        toggle_key(&mut this.accordion_open, key);\n        cx.notify();\n    }))"
     },
     {
       "heading": "Hidden separator",
@@ -2861,8 +2866,9 @@
   "link": [
     {
       "heading": "Usage",
-      "imports": "use herogpui::prelude::Link;",
-      "code": "Link::new(\"link-hover\")\n    .label(\"Hover to see the underline\")\n    .href(\"#\")"
+      "description": "`radius(px)` replaces the root's default `rounded-xl`; the link paints no fill of its own, so this one carries an `sx` background to show the corner.",
+      "imports": "use herogpui::prelude::Link;\nuse gpui::prelude::*;\nuse gpui::px;",
+      "code": "Link::new(\"link-hover\")\n    .label(\"Hover to see the underline\")\n    .href(\"#\")\n    .radius(px(4.))\n    .sx(|el| el.bg(gpui::rgba(0x22c55e33)))"
     },
     {
       "heading": "Icon Placement",
@@ -3012,8 +3018,8 @@
   "alert-dialog": [
     {
       "heading": "Usage",
-      "imports": "use herogpui::prelude::{AlertDialog, AlertDialogCloseTrigger, Button, Variant};\nuse gpui::prelude::*;",
-      "code": "stretch_col(vec![{\n    overlay_min_h(\n        gpui::div()\n            .relative()\n            .flex()\n            .flex_col()\n    .items_center()\n    .w_full(),\n        is_open,\n        240.,\n    )\n    .child(\n        Button::new(\"alert-dialog-open\")\n            .label(\"Delete project\")\n            .variant(Variant::Danger)\n            .on_press(cx.listener(|this, _, _, cx| {\n                this.alert_dialog_open = true;\n                cx.notify();\n            })),\n    )\n    .child(\n        AlertDialog::new(\"Delete this project?\").id(\"alert-dialog\")\n            .description(\n                \"This removes the project and every deployment. \\\n                                     This action cannot be undone.\",\n            )\n            .is_open(is_open)\n            .child(AlertDialogCloseTrigger::new())\n            .footer_child(\n                Button::new(\"alert-dialog\")\n                    .label(\"Cancel\")\n                    .variant(Variant::Tertiary)\n                    .on_press(cx.listener(|this, _, _, cx| {\n                        this.alert_dialog_open = false;\n                        cx.notify();\n                    })),\n            )\n            .footer_child(\n                Button::new(\"alert-dialog\")\n                    .label(\"Delete\")\n                    .variant(Variant::Danger)\n                    .on_press(cx.listener(|this, _, _, cx| {\n                        this.alert_dialog_open = false;\n                        cx.notify();\n                    })),\n            )\n            .on_open_change(cx.listener(|this, v: &bool, _, cx| {\n                this.alert_dialog_open = *v;\n                cx.notify();\n            })),\n    )\n    .into_any_element()\n}])"
+      "imports": "use herogpui::prelude::{AlertDialog, AlertDialogCloseTrigger, Button, Variant};\nuse gpui::prelude::*;\nuse gpui::px;",
+      "code": "stretch_col(vec![{\n    overlay_min_h(\n        gpui::div()\n            .relative()\n            .flex()\n            .flex_col()\n    .items_center()\n    .w_full(),\n        is_open,\n        240.,\n    )\n    .child(\n        Button::new(\"alert-dialog-open\")\n            .label(\"Delete project\")\n            .variant(Variant::Danger)\n            .on_press(cx.listener(|this, _, _, cx| {\n                this.alert_dialog_open = true;\n                cx.notify();\n            })),\n    )\n    .child(\n        AlertDialog::new(\"Delete this project?\").id(\"alert-dialog\")\n            .description(\n                \"This removes the project and every deployment. \\\n                                     This action cannot be undone.\",\n            )\n            .is_open(is_open)\n            // The panel's entry zoom interpolates the same\n            // value the panel paints.\n            .radius(px(12.))\n            .child(AlertDialogCloseTrigger::new())\n            .footer_child(\n                Button::new(\"alert-dialog\")\n                    .label(\"Cancel\")\n                    .variant(Variant::Tertiary)\n                    .on_press(cx.listener(|this, _, _, cx| {\n                        this.alert_dialog_open = false;\n                        cx.notify();\n                    })),\n            )\n            .footer_child(\n                Button::new(\"alert-dialog\")\n                    .label(\"Delete\")\n                    .variant(Variant::Danger)\n                    .on_press(cx.listener(|this, _, _, cx| {\n                        this.alert_dialog_open = false;\n                        cx.notify();\n                    })),\n            )\n            .on_open_change(cx.listener(|this, v: &bool, _, cx| {\n                this.alert_dialog_open = *v;\n                cx.notify();\n            })),\n    )\n    .into_any_element()\n}])"
     },
     {
       "heading": "Sizes",
@@ -3716,7 +3722,7 @@
     {
       "heading": "Primitives",
       "imports": "use herogpui::prelude::{ParagraphSize, Typography, TypographyType};\nuse gpui::prelude::*;\nuse gpui::px;",
-      "code": "gpui::div()\n    .flex()\n    .flex_col()\n    .items_start()\n    .gap(px(12.))\n    .children(vec![\n        Typography::heading(3, \"Dashboard\").into_any_element(),\n        Typography::paragraph(\n            ParagraphSize::Base,\n            \"Paragraph supports base, sm and xs sizes.\",\n        )\n        .into_any_element(),\n        Typography::code(\"cargo add herogpui\").into_any_element(),\n    ])"
+      "code": "gpui::div()\n    .flex()\n    .flex_col()\n    .items_start()\n    .gap(px(12.))\n    .children(vec![\n        Typography::heading(3, \"Dashboard\").into_any_element(),\n        Typography::paragraph(\n            ParagraphSize::Base,\n            \"Paragraph supports base, sm and xs sizes.\",\n        )\n        .into_any_element(),\n        // `radius(px)` rounds the `Code` chip alone; the other\n        // kinds paint no box.\n        Typography::code(\"cargo add herogpui\")\n            .radius(px(2.))\n            .into_any_element(),\n    ])"
     },
     {
       "heading": "Prose",

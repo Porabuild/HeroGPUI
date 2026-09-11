@@ -346,8 +346,10 @@ CHECKS = [
     ('close-button', '.close-button', 'radius', 'CloseButton -> util::_radius',
      SRC + 'close_button.rs',
      # Anchored on the hoisted declaration, like the toggle-button row: the
-     # press-scale radius multiplies the same helper and must not satisfy this.
-     r'let radius = crate::util::(\w+_radius)', helper_px),
+     # press-scale radius multiplies the resolved value, and a bare helper
+     # read must not satisfy this.
+     r'let radius = self\s*\.radius\s*\.unwrap_or_else\(\|\| crate::util::(\w+_radius)\(cx\)\);',
+     helper_px),
     ('checkbox', '.checkbox__indicator', 'size', 'Checkbox tick size',
      SRC + 'checkbox.rs', 'checkbox_md_indicator', None),
     ('color-area', '.color-area', 'radius', 'ColorArea -> util::_radius',
@@ -1262,12 +1264,16 @@ CHECKS = [
     ('typography', '.typography--code', 'leading', 'Typography code leading', SRC + 'typography.rs',
      r'Self::Code => \(px\(\d+(?:\.\d*)?\), px\((\d+(?:\.\d*)?)\)', None),
     # The code chip's own box, anchored on the `is_mono` block that paints it.
+    # Its radius resolves through the instance override, so the padding reads
+    # the same resolved call it sits beside.
     ('typography', '.typography--code', 'px', 'Typography code px', SRC + 'typography.rs',
-     r'\.rounded\(crate::util::mark_radius\(cx\)\)\s*\.px\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+     r'\.rounded\(\s*self\.radius\s*\.unwrap_or_else\(\|\| crate::util::mark_radius\(cx\)\)\)'
+     r'\s*\.px\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('typography', '.typography--code', 'py', 'Typography code py', SRC + 'typography.rs',
      r'\.px\(px\(\d+(?:\.\d*)?\.\)\)\s*\.py\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('typography', '.typography--code', 'radius', 'Typography code -> util::_radius', SRC + 'typography.rs',
-     r'\.rounded\(crate::util::(mark_radius)\(cx\)\)', helper_px),
+     r'\.rounded\(\s*self\.radius\s*\.unwrap_or_else\(\|\| crate::util::(mark_radius)\(cx\)\)',
+     helper_px),
     ('skeleton', '.skeleton', 'radius', 'Skeleton -> util::_radius', SRC + 'skeleton.rs',
      r'\.rounded\(\s*self\.radius\s*\.unwrap_or_else\(\|\| crate::util::(\w+_radius)\(cx\)\)',
      helper_px),
@@ -1307,7 +1313,8 @@ CHECKS = [
      r'let radius = self\s*\.radius\s*\.unwrap_or_else\(\|\| crate::util::(\w+_radius)\(cx\)\);',
      helper_px),
     ('link', '.link', 'radius', 'Link -> util::_radius', SRC + 'link.rs',
-     '\\.rounded\\(crate::util::(\\w+_radius)\\(cx\\)\\)', helper_px),
+     r'\.rounded\(\s*self\.radius\s*\.unwrap_or_else\(\|\| crate::util::(\w+_radius)\(cx\)\)',
+     helper_px),
     ('badge', '.badge', 'min_w', 'Badge min width Md', SRC + 'badge.rs',
      'Size::Md => \\(\\s*px\\((\\d+(?:\\.\\d*)?)\\)', None),
     ('kbd', '.kbd', 'px', 'Kbd padding_x', SRC + 'kbd.rs',
@@ -1329,10 +1336,14 @@ CHECKS = [
      'Checkbox checkmark canvas', SRC + 'checkbox.rs', 'checkbox_checkmark_canvas', None),
     ('radio', '.radio__control', 'size', 'Radio control', SRC + 'radio_group.rs',
      'radio_md_control', None),
-    # Anchored on the control, since the `secondary` variant's panel also has a
-    # radius and comes first in the file.
+    # Anchored on the resolved binding rather than the paint alone: the
+    # control and its pressed box share it, and the selected dot's own
+    # `key_radius` must not satisfy this. The span crosses the option loop's
+    # prologue, hence the generous window.
     ('radio', '.radio__control', 'radius', 'Radio -> util::_radius', SRC + 'radio_group.rs',
-     '\\.size\\(circle\\)\\s+\\.rounded\\(crate::util::(\\w+_radius)\\(cx\\)\\)', helper_px),
+     r'let control_radius = self\s*\.radius\s*\.unwrap_or_else\(\|\| crate::util::(\w+_radius)\(cx\)\);'
+     r'[\s\S]{0,2600}?\.size\(circle\)\s+\.rounded\(control_radius\)',
+     helper_px),
     ('radio', '.radio__content', 'gap', 'Radio row gap', SRC + 'radio_group.rs',
      'radio_md_gap', None),
     ('list-box-item', '.list-box-item', 'gap', 'ListBox row gap', SRC + 'list_box.rs',
@@ -2961,8 +2972,10 @@ def checkbox_control_radius_from(source):
     present, each on its own structural boundary:
 
     - the `let control_radius = if self.is_round {..}` binding, whose round
-      arm halves the box and whose brace-matched plain arm is exactly a
-      `util` radius helper call, closed by the statement's `;`;
+      arm halves the box -- documented shape semantics, which an instance
+      radius must not replace -- and whose brace-matched plain arm resolves
+      the `util` helper *behind* the instance radius, closed by the
+      statement's `;`;
     - the `let mut boxel = gpui::div()` builder chain, owned by its
       `element_id::scoped(&self.id, "control")` id;
     - a `.rounded(control_radius)` method on that same chain, so a foreign
@@ -2978,14 +2991,20 @@ def checkbox_control_radius_from(source):
     round_end = _balanced_block_end(src, header.end() - 1)
     if round_end is None:
         return None
+    if 'box_px / 2.0' not in src[header.end():round_end - 1]:
+        return None
     else_head = re.compile(r'\s*else \{').match(src, round_end)
     if not else_head:
         return None
     else_end = _balanced_block_end(src, else_head.end() - 1)
     if else_end is None:
         return None
-    helper = re.fullmatch(r'\s*crate::util::(\w+_radius)\(cx\)\s*',
-                          src[else_head.end():else_end - 1])
+    # Comments are blanked and whitespace collapsed, so the resolved
+    # expression can wrap without the reader following it into prose.
+    plain = re.sub(r'\s+', ' ', mask_comments(src[else_head.end():else_end - 1]))
+    helper = re.fullmatch(
+        r'\s*self\.radius\s*\.unwrap_or_else\(\|\|\s*crate::util::(\w+_radius)\(cx\)\)\s*',
+        plain) or re.fullmatch(r'\s*crate::util::(\w+_radius)\(cx\)\s*', plain)
     if not helper or not re.compile(r'\s*;').match(src, else_end):
         return None
     declarations = list(re.finditer(r'\blet mut boxel = (?:gpui::)?div\(\)', src))
@@ -4007,6 +4026,22 @@ def self_test():
                control_radius_fixture('crate::util::key_radius(cx)'))
            == helper_px('key_radius') == 8.0,
            'a retuned checkbox helper must be read from util, not assumed')
+    # The plain branch resolves the helper *behind* the instance radius, and
+    # the wrapped, commented spelling rustfmt leaves must still read.
+    expect(checkbox_control_radius_from(
+               control_radius_fixture(
+                   '// An instance radius replaces the helper\'s value.\n'
+                   '    self.radius\n'
+                   '        .unwrap_or_else(|| crate::util::mark_radius(cx))')) == 6.0,
+           'the checkbox control radius must follow the override to its helper')
+    for fixture in [
+            control_radius_fixture(
+                'self.radius.unwrap_or_else(|| crate::util::mark_radius(cx))'
+            ).replace('box_px / 2.0', 'px(6.)'),
+            control_radius_fixture('self.radius.unwrap_or(box_px / 2.0)')]:
+        expect(checkbox_control_radius_from(fixture) is None,
+               'the checkbox control radius must reject an override that '
+               'displaces the documented circle and one that never resolves')
     for fixture in [
             control_radius_fixture('px(6.)'),
             control_radius_fixture('crate::util::mark_radius(cx)',
@@ -4215,6 +4250,82 @@ def self_test():
         '.rounded(crate::util::field_radius(cx))'
     ) is None,
         'the input radius reader must reject the un-overridden helper literal')
+    # The close button's press geometry multiplies the hoisted binding, so the
+    # reader has to stay anchored on it and reject a bare helper read.
+    expect(re.search(
+        r'let radius = self\s*\.radius\s*\.unwrap_or_else\(\|\| crate::util::(\w+_radius)\(cx\)\);',
+        'let radius = self.radius.unwrap_or_else(|| crate::util::small_radius(cx));'
+    ).group(1) == 'small_radius',
+        'the close-button radius reader must follow the override to its helper')
+    expect(re.search(
+        r'let radius = self\s*\.radius\s*\.unwrap_or_else\(\|\| crate::util::(\w+_radius)\(cx\)\);',
+        'let radius = crate::util::small_radius(cx);'
+    ) is None,
+        'the close-button radius reader must reject the un-overridden helper literal')
+    # The link root resolves its own corner through the override.
+    expect(re.search(
+        r'\.rounded\(\s*self\.radius\s*\.unwrap_or_else\(\|\| crate::util::(\w+_radius)\(cx\)\)',
+        '.rounded(\n'
+        '                self.radius\n'
+        '                    .unwrap_or_else(|| crate::util::small_radius(cx)),\n'
+        '            )'
+    ).group(1) == 'small_radius',
+        'the link radius reader must follow the override to its helper')
+    expect(re.search(
+        r'\.rounded\(\s*self\.radius\s*\.unwrap_or_else\(\|\| crate::util::(\w+_radius)\(cx\)\)',
+        '.rounded(crate::util::small_radius(cx))'
+    ) is None,
+        'the link radius reader must reject the un-overridden helper literal')
+    # The inline code chip's radius and its padding read the same resolved
+    # call, so both rows must reject the un-overridden helper literal.
+    code_chip = ('if self.kind.is_mono() {\n'
+                 '            el = el\n'
+                 '                .font_family(MONO_FONT)\n'
+                 '                .bg(colors.default.color)\n'
+                 '                .rounded(self.radius.unwrap_or_else(|| crate::util::mark_radius(cx)))\n'
+                 '                .px(px(6.))\n'
+                 '                .py(px(2.));\n'
+                 '        }\n')
+    expect(re.search(
+        r'\.rounded\(\s*self\.radius\s*\.unwrap_or_else\(\|\| crate::util::(mark_radius)\(cx\)\)',
+        code_chip).group(1) == 'mark_radius',
+        'the code-chip radius reader must follow the override to its helper')
+    expect(re.search(
+        r'\.rounded\(\s*self\.radius\s*\.unwrap_or_else\(\|\| crate::util::(mark_radius)\(cx\)'
+        r'\)\)\s*\.px\(px\((\d+(?:\.\d*)?)\.\)\)',
+        code_chip).group(2) == '6',
+        'the code-chip px reader must read the padding beside the resolved radius')
+    for pattern in [
+            r'\.rounded\(\s*self\.radius\s*\.unwrap_or_else\(\|\| crate::util::(mark_radius)\(cx\)\)',
+            r'\.rounded\(\s*self\.radius\s*\.unwrap_or_else\(\|\| crate::util::(mark_radius)\(cx\)'
+            r'\)\)\s*\.px\(px\((\d+(?:\.\d*)?)\.\)\)']:
+        expect(re.search(pattern, code_chip.replace('self.radius.', '.')) is None,
+               'the code-chip readers must reject the un-overridden helper literal')
+    # The radio control resolves once, and the control chain -- not the dot's
+    # own mark -- has to be the site that paints the binding.
+    radio_control = ('let control_radius = self.radius.unwrap_or_else(|| crate::util::key_radius(cx));\n'
+                     '\n'
+                     '        for (i, option) in self.options.into_iter().enumerate() {\n'
+                     '            let mut circle_el = gpui::div()\n'
+                     '                .size(circle)\n'
+                     '                .rounded(control_radius)\n')
+    expect(re.search(
+        r'let control_radius = self\s*\.radius\s*\.unwrap_or_else\(\|\| crate::util::(\w+_radius)\(cx\)\);'
+        r'[\s\S]{0,2600}?\.size\(circle\)\s+\.rounded\(control_radius\)',
+        radio_control).group(1) == 'key_radius',
+        'the radio control radius reader must follow the override to its helper')
+    expect(re.search(
+        r'let control_radius = self\s*\.radius\s*\.unwrap_or_else\(\|\| crate::util::(\w+_radius)\(cx\)\);'
+        r'[\s\S]{0,2600}?\.size\(circle\)\s+\.rounded\(control_radius\)',
+        radio_control.replace('.rounded(control_radius)',
+                              '.rounded(crate::util::key_radius(cx))')) is None,
+        'the radio control radius reader must reject the un-overridden helper literal')
+    expect(re.search(
+        r'let control_radius = self\s*\.radius\s*\.unwrap_or_else\(\|\| crate::util::(\w+_radius)\(cx\)\);'
+        r'[\s\S]{0,2600}?\.size\(circle\)\s+\.rounded\(control_radius\)',
+        radio_control.replace('self.radius.unwrap_or_else(|| crate::util::key_radius(cx));',
+                              'crate::util::key_radius(cx);')) is None,
+        'the radio control radius reader must reject a bare helper resolution')
     breadcrumbs = 'let text_size = self.text_size.unwrap_or(px(14.));\n'
     expect(re.search(
         r'let text_size = self\.text_size\.unwrap_or\(px\((\d+(?:\.\d*)?)\.\)\)',
@@ -4242,7 +4353,11 @@ def self_test():
           'ignores cfg(test), comments, parent, and nested matches; field wrapper '
           'gaps follow their owning render, binding, and vertical-gap overrides; '
           'the checkbox control radius follows the is_round/plain wiring to its '
-          'apply site and reads the helper from util, and the checkmark canvas '
+          'apply site, reads the helper from util behind the instance radius, '
+          'and rejects an override that displaces the documented circle; the '
+          'close-button, link, code-chip and radio control radius readers '
+          'follow the override to their helper and reject a bare helper read, '
+          'and the checkmark canvas '
           'reads the check_layer size argument off the icon box; the Tabs hover '
           'dim follows the tabs_hover_opacity token and rejects the old 0.7 '
           'literal and a foreign token; field height and padding readers follow '

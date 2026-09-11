@@ -3,7 +3,7 @@
 use std::{cell::RefCell, rc::Rc, time::Duration};
 
 use gpui::{
-    prelude::*, px, AnimationExt, AnyElement, App, IntoElement, ParentElement, RenderOnce,
+    prelude::*, px, AnimationExt, AnyElement, App, IntoElement, ParentElement, Pixels, RenderOnce,
     StatefulInteractiveElement, Styled, Window,
 };
 use herogpui_core::{element_id, Color};
@@ -80,8 +80,8 @@ fn fill_layer(
     opacity: Tween<f32>,
     scale: Tween<f32>,
     reduce_motion: bool,
-    radius: gpui::Pixels,
-    box_px: gpui::Pixels,
+    radius: Pixels,
+    box_px: Pixels,
     background: Tween<gpui::Hsla>,
 ) -> AnyElement {
     let (opacity_to, scale_to) = (opacity.target(), scale.target());
@@ -164,7 +164,7 @@ fn easing_bg_layer(
     id: &gpui::ElementId,
     tag: &'static str,
     target: gpui::Hsla,
-    radius: gpui::Pixels,
+    radius: Pixels,
     window: &mut Window,
     cx: &mut App,
 ) -> AnyElement {
@@ -204,7 +204,7 @@ fn check_layer(
     id: &gpui::ElementId,
     tween: Tween<f32>,
     reduce_motion: bool,
-    size: gpui::Pixels,
+    size: Pixels,
     color: gpui::Hsla,
 ) -> AnyElement {
     let progress = tween.value();
@@ -250,9 +250,9 @@ fn check_layer(
 /// [`paint_check_stroke`] paints over the shared ends are what make the caps
 /// and the join read round.
 fn stroke_segment(
-    a: gpui::Point<gpui::Pixels>,
-    b: gpui::Point<gpui::Pixels>,
-    width: gpui::Pixels,
+    a: gpui::Point<Pixels>,
+    b: gpui::Point<Pixels>,
+    width: Pixels,
     color: gpui::Hsla,
     window: &mut Window,
 ) {
@@ -268,7 +268,7 @@ fn stroke_segment(
 /// end of the CSS `stroke-dashoffset` slide, which reveals the check from its
 /// start point through the elbow to the tip.
 fn paint_check_stroke(
-    bounds: gpui::Bounds<gpui::Pixels>,
+    bounds: gpui::Bounds<Pixels>,
     progress: f32,
     color: gpui::Hsla,
     window: &mut Window,
@@ -355,7 +355,7 @@ impl CheckboxSize {
     pub const ALL: [CheckboxSize; 2] = [Self::Sm, Self::Md];
 
     /// `(control, indicator, label text)` for this step.
-    fn metrics(self) -> (gpui::Pixels, gpui::Pixels, gpui::Pixels) {
+    fn metrics(self) -> (Pixels, Pixels, Pixels) {
         match self {
             Self::Sm => (px(14.), px(10.), px(12.)),
             Self::Md => (px(16.), px(12.), px(14.)),
@@ -406,6 +406,9 @@ pub struct Checkbox {
     is_round: bool,
     /// The control fill while hovered, in place of `--accent-hover`.
     hover_bg: Option<gpui::Hsla>,
+    /// The control's corner radius, in place of the owning `mark_radius`
+    /// helper. `is_round` still forces the circle.
+    radius: Option<Pixels>,
     /// The compact step; `Md` is the pinned default.
     size: CheckboxSize,
     description: Option<gpui::SharedString>,
@@ -485,6 +488,17 @@ impl Checkbox {
         self
     }
 
+    /// The control's corner radius, in place of the owning `mark_radius`
+    /// helper. It replaces the helper's value only: `is_round` keeps its
+    /// documented circle either way, and the control's animated fill layers
+    /// follow the resolved value so they stay inside the corners. Not a v3
+    /// prop; the removed v2 `radius` prop is prohibited and this is a
+    /// per-component repository extension.
+    pub fn radius(mut self, radius: impl Into<Pixels>) -> Self {
+        self.radius = Some(radius.into());
+        self
+    }
+
     /// Sets the compact step. `Md` is the default and byte-identical to the
     /// pinned control; `Sm` is a 14px control with a 10px indicator and 12px
     /// label text (16px leading). Not a v3 prop.
@@ -532,6 +546,7 @@ impl Checkbox {
             content: None,
             is_round: false,
             hover_bg: None,
+            radius: None,
             size: CheckboxSize::default(),
             description: None,
             label_text: None,
@@ -794,7 +809,9 @@ impl RenderOnce for Checkbox {
             // control's `overflow-hidden` clips the pseudo-element upstream.
             box_px / 2.0
         } else {
-            crate::util::mark_radius(cx)
+            // An instance radius replaces the helper's value here and only
+            // here: `is_round` above keeps its documented circle either way.
+            self.radius.unwrap_or_else(|| crate::util::mark_radius(cx))
         };
 
         // Tween targets, read out before the keyed-state calls take `cx`

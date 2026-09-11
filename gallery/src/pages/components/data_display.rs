@@ -25,6 +25,9 @@ impl Gallery {
                                     .color(Color::Danger)
                                     .size(Size::Sm)
                                     .text_size(px(14.))
+                                    // `radius(px)` replaces the size step's
+                                    // corner; the step stays the fallback.
+                                    .radius(px(4.))
                                     .child(h::BadgeLabel::new().child("5")),
                             )
                             .into_any_element(),

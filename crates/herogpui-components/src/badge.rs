@@ -190,6 +190,8 @@ pub struct Badge {
     /// The label's font size; unset keeps the size-step's font. The
     /// fractional leading scales with it.
     text_size: Option<Pixels>,
+    /// The badge's corner radius, in place of the size step's radius.
+    radius: Option<Pixels>,
     sx: Option<Box<gpui::StyleRefinement>>,
 }
 
@@ -204,6 +206,7 @@ impl Badge {
             placement: BadgePlacement::TopRight,
             children: Vec::new(),
             text_size: None,
+            radius: None,
             sx: None,
         }
     }
@@ -225,6 +228,16 @@ impl Badge {
 
     pub fn placement(mut self, p: BadgePlacement) -> Self {
         self.placement = p;
+        self
+    }
+
+    /// The badge's corner radius, in place of the size step's radius. The step
+    /// (`Sm` → `small_radius`, `Md` → `control_radius`, `Lg` → `soft_radius`)
+    /// stays the fallback, so a badge with no override keeps its step. Not a
+    /// v3 prop; the removed v2 `radius` prop is prohibited and this is a
+    /// per-component repository extension.
+    pub fn radius(mut self, radius: impl Into<Pixels>) -> Self {
+        self.radius = Some(radius.into());
         self
     }
 
@@ -308,6 +321,8 @@ impl RenderOnce for Badge {
                 DefiniteLength::Fraction(1.43),
             ),
         };
+        // The size step stays the fallback; an instance radius replaces it.
+        let radius = self.radius.unwrap_or(radius);
         let font = self.text_size.unwrap_or(font);
 
         // Each placement class sits at its corner with `top/right/bottom/left:
