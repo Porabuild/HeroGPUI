@@ -1,7 +1,7 @@
 {
   "version": 2,
-  "artifactSha256": "7d5b61a1bd8849e10318a00151e07a153ccc2379d600d036a84d24a794b183a2",
-  "glueSha256": "ec0c4eda2a260a30f89cdaca9e3e70392c5eeb4a5d79564204fb463f721aca39",
+  "artifactSha256": "521168754190f2ce0080d8e51021e82d9d6aee27cd65dee9d99e8994ec7b266a",
+  "glueSha256": "4e98dd357cfbe4f8fd65a13da047e5e4258e9c341619742c72f48f1b342a81b0",
   "examples": {
     "accordion/Controlled": {
       "codeSha256": "2816548407263e0fdeada0ff2ec1e8f9fd45a2d33b24ab2cf163539711fe6f8a",
@@ -420,7 +420,7 @@
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "calendar/Usage": {
-      "codeSha256": "acbb6cc148c99fd895f8e3c004f2fa274594212df0d825e5b9ef9e342859be86",
+      "codeSha256": "4094b50969bd6f7f845a9e34a2b205d4670bf1f5b26110bd92487c7e7df5295e",
       "descriptionSha256": "7065f7724e0cfa188cd9893b9f06c85891e2c38037a8f20dd83bd88cb4dadec9"
     },
     "calendar/Week View": {
@@ -1884,7 +1884,7 @@
       "descriptionSha256": "dd01b05e2eb2ab81706f60062a0ad2b36937fd69800c6e20292243d7028737c4"
     },
     "range-calendar/International Calendars": {
-      "codeSha256": "4a7e465343b5ce894a1716153fe741264e46ebb1ab62ef5b38228befe9b7ecb3",
+      "codeSha256": "d0f9193c7cd8dc209f894c7afeb14a5991cc05bab9d4d90879d9edad7f19b6cf",
       "descriptionSha256": "1df3e00e3c282f32000df3599b1df21e3fadc3baf2ed57b3475dbd12f7d19a89"
     },
     "range-calendar/Invalid": {

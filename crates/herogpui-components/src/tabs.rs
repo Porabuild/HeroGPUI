@@ -729,6 +729,7 @@ impl RenderOnce for Tabs {
 
         // v3 keeps two indicator styles: `primary` fills a segment behind the
         // selected tab, `secondary` underlines it.
+        let sx_corners = crate::util::sx_radius(&self.sx);
         let indicator_ready = indicator_frame.is_some();
         if let Some(frame) = indicator_frame {
             // `.tabs__indicator` is the absolute `rounded-3xl bg-segment
@@ -746,6 +747,7 @@ impl RenderOnce for Tabs {
                         indicator.shadow(layout.surface_shadow.clone())
                     })
             };
+            indicator = crate::util::round_sx_corners(indicator, &sx_corners);
             list = list.child(frame.render(indicator));
         }
         let measure_tab = |key: SharedString| {

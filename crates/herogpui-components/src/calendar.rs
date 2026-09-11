@@ -464,6 +464,9 @@ pub struct Calendar {
     on_focus_change: Option<std::sync::Arc<dyn Fn(&Date, &mut Window, &mut App) + 'static>>,
     on_change: Option<OnChange>,
     on_change_all: Option<OnChangeAll>,
+    /// The fill a hovered plain (unselected, non-today) day takes, in
+    /// place of `--default`. Today and selected days keep their own fills.
+    day_hover_bg: Option<gpui::Hsla>,
     /// The `sx` slot, refined over the root style at the end of render.
     sx: Option<Box<gpui::StyleRefinement>>,
 }
@@ -565,6 +568,7 @@ impl Calendar {
             on_focus_change: None,
             on_change: None,
             on_change_all: None,
+            day_hover_bg: None,
             sx: None,
         }
     }
@@ -755,6 +759,13 @@ impl Calendar {
     /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
     /// applied to the calendar's root element after every value the component
     /// and the active theme chose, so they win.
+    /// The fill a hovered plain (unselected, non-today) day takes, in
+    /// place of `--default`. Today and selected days keep their own fills.
+    pub fn day_hover_bg(mut self, color: impl Into<gpui::Hsla>) -> Self {
+        self.day_hover_bg = Some(color.into());
+        self
+    }
+
     pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
         self.sx = Some(crate::util::capture_sx(style));
         self
@@ -909,8 +920,8 @@ impl Calendar {
             if selectable {
                 // `.calendar__cell:hover` (not selected) fills with `bg-default`,
                 // the full token -- same as the pressed fill.
-                let hover_bg = colors.default.color;
-                let pressed_bg = colors.default.color;
+                let hover_bg = self.day_hover_bg.unwrap_or(colors.default.color);
+                let pressed_bg = hover_bg;
                 circle = circle
                     .cursor(crate::util::interactive_cursor(cx))
                     .hover(move |s| s.bg(hover_bg));
@@ -2388,10 +2399,15 @@ mod tests {
             .expect("the implementation section is always present");
         assert!(
             source.contains(
-                "let hover_bg = colors.default.color;\n                let pressed_bg = colors.default.color;"
+                "let hover_bg = self.day_hover_bg.unwrap_or(colors.default.color);\n                let pressed_bg = hover_bg;"
             ),
-            "the day cell must hover the full `bg-default` \
-             (pinned `.calendar__cell:hover:not([data-selected])`)"
+            "the day cell must default to the full `bg-default` and honor \
+             the named override (pinned \
+             `.calendar__cell:hover:not([data-selected])`)"
+        );
+        assert!(
+            !source.contains("colors.default.soft()"),
+            "the day cell must not hover a soft token"
         );
     }
 

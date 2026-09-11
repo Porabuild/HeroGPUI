@@ -32,4 +32,10 @@ fn slider_and_switch_refine_their_parts_with_sx_corners() {
         3,
         "the switch track, animated fill and thumb must each refine their corners"
     );
+    let tabs = include_str!("../src/tabs.rs");
+    assert!(
+        tabs.contains("let sx_corners = crate::util::sx_radius(&self.sx);")
+            && tabs.contains("indicator = crate::util::round_sx_corners(indicator, &sx_corners);"),
+        "the Tabs indicator must refine its corners"
+    );
 }

@@ -128,6 +128,20 @@ fn every_hover_override_reaches_its_painted_fill() {
             "let fill_hover = self.hover_bg.unwrap_or(accent_hover);",
             "let fill_bg_target = if is_hovered { fill_hover } else { accent_color };",
         ),
+        (
+            "calendar.rs",
+            include_str!("../src/calendar.rs"),
+            "self.day_hover_bg = Some(color.into());",
+            "let hover_bg = self.day_hover_bg.unwrap_or(colors.default.color);",
+            "s.bg(hover_bg)",
+        ),
+        (
+            "range_calendar.rs",
+            include_str!("../src/range_calendar.rs"),
+            "self.day_hover_bg = Some(color.into());",
+            "let hover_bg = self.day_hover_bg.unwrap_or(colors.default.color);",
+            "s.bg(hover_bg)",
+        ),
     ] {
         assert!(
             source.contains(stored),

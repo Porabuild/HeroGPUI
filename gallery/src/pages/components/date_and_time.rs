@@ -35,6 +35,7 @@ impl Gallery {
                     "Day, month and year labels use 14px/20px medium text; weekday labels use 12px/16px medium text.",
                     col(vec![
                         h::Calendar::new(self.calendar.clone())
+                            .day_hover_bg(cx.colors().accent.soft())
                             .on_change(cx.listener(
                                 |this, d: &Option<h::Date>, _, cx| {
                                     this.cal_picked = *d;
@@ -853,6 +854,7 @@ impl Gallery {
                     "An Indian-calendar range aligned to the end of a two-month view. The January 21-22 Gregorian selection stays in the second displayed month.",
                     col(vec![h::RangeCalendar::new(self.demo_range("rc-indian", cx))
                         .locale("en-US-u-ca-indian")
+                        .day_hover_bg(cx.colors().accent.soft())
                         .default_value((h::Date::new(2026, 1, 21), h::Date::new(2026, 1, 22)))
                         .visible_duration(h::VisibleDuration::Months(2))
                         .selection_alignment(h::SelectionAlignment::End)

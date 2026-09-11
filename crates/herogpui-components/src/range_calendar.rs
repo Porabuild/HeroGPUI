@@ -71,6 +71,9 @@ pub struct RangeCalendar {
     /// and is handed the state v3 passes it, the two range ends included.
     cell: Option<Box<dyn Fn(&RangeCalendarCellState) -> gpui::AnyElement + 'static>>,
     on_change: Option<OnRangeChange>,
+    /// The fill a hovered plain (unselected, out-of-range) day takes, in
+    /// place of `--default`. Today, range and selected cells keep their owns.
+    day_hover_bg: Option<gpui::Hsla>,
     /// The `sx` slot, refined over the root style at the end of render.
     sx: Option<Box<gpui::StyleRefinement>>,
 }
@@ -173,6 +176,7 @@ impl RangeCalendar {
             cell_indicator: None,
             cell: None,
             on_change: None,
+            day_hover_bg: None,
             sx: None,
         }
     }
@@ -348,6 +352,14 @@ impl RangeCalendar {
     /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
     /// applied to the range calendar's root element after every value the
     /// component and the active theme chose, so they win.
+    /// The fill a hovered plain (unselected, out-of-range) day takes, in
+    /// place of `--default`. Today, range and selected cells keep their own
+    /// fills.
+    pub fn day_hover_bg(mut self, color: impl Into<gpui::Hsla>) -> Self {
+        self.day_hover_bg = Some(color.into());
+        self
+    }
+
     pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
         self.sx = Some(util::capture_sx(style));
         self
@@ -700,7 +712,7 @@ impl RangeCalendar {
         } else {
             cell = cell.rounded_full();
             if selectable {
-                let hover_bg = colors.default.color;
+                let hover_bg = self.day_hover_bg.unwrap_or(colors.default.color);
                 cell = cell
                     .cursor(util::interactive_cursor(cx))
                     .hover(move |s| s.bg(hover_bg));

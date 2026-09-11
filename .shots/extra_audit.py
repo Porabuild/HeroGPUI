@@ -494,6 +494,8 @@ EXTRA_OK_SCOPED = {
     'Toast.close_hover_bg': 'no-classname',
     'Switch.hover_bg': 'no-classname',
     'Checkbox.hover_bg': 'no-classname',
+    'Calendar.day_hover_bg': 'no-classname',
+    'RangeCalendar.day_hover_bg': 'no-classname',
     'TimeField.font_family': 'no-classname',
     'DateField.font_family': 'no-classname',
     'ColorPicker.font_family': 'no-classname',
