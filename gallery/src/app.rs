@@ -25,6 +25,8 @@ pub const FONT_FAMILY: &str = if cfg!(target_arch = "wasm32") {
 };
 
 pub const MONO_FONT: &str = if cfg!(target_arch = "wasm32") {
+    // The web shell bundles JetBrains Mono; the literal family "monospace"
+    // resolves to nothing there and panics text resolution.
     "JetBrains Mono"
 } else if cfg!(target_os = "macos") {
     "Menlo"

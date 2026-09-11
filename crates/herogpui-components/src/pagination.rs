@@ -59,11 +59,6 @@ impl Pagination {
         self
     }
 
-    /// The one slot for caller-owned low-level styling: GPUI's styling methods
-    /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
-    /// applied to the bar's root element after every value the size and the
-    /// active theme chose, so they win. The page cells and nav buttons keep
-    /// their own ladder geometry.
     /// `fullWidth` — expands the root to the available width without
     /// redistributing the children.
     pub fn full_width(mut self, v: bool) -> Self {
@@ -71,6 +66,11 @@ impl Pagination {
         self
     }
 
+    /// The one slot for caller-owned low-level styling: GPUI's styling methods
+    /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
+    /// applied to the bar's root element after every value the size and the
+    /// active theme chose, so they win. The page cells and nav buttons keep
+    /// their own ladder geometry.
     pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
         self.sx = Some(crate::util::capture_sx(style));
         self

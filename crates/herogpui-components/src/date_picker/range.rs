@@ -954,6 +954,7 @@ impl RenderOnce for DateRangePicker {
             start_focus.is_focused(window)
                 || end_focus.is_focused(window)
                 || trigger_focus.is_focused(window),
+            None,
             cx,
         );
 

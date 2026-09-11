@@ -144,6 +144,10 @@ pub fn prominence_bg(prominence: Prominence, cx: &App) -> Option<Hsla> {
 /// Applies the v3 field chrome: background, radius, border and — for
 /// `primary` only — the `--field-shadow`.
 ///
+/// The chrome paints the caller's resolved radius, so a per-component
+/// `radius` override survives it: pass `Some` with the value the override
+/// resolved to, or `None` to keep the shared `field_radius` helper.
+///
 /// Generic over [`Styled`] so a field that needed an `.id()` first (and is
 /// therefore a `Stateful<Div>`) can share it. Six components used to hand-roll
 /// this, and every one of them filled the `secondary` variant with
@@ -153,12 +157,14 @@ pub fn apply_field_chrome<T: Styled>(
     variant: FieldVariant,
     is_invalid: bool,
     is_focused: bool,
+    radius_override: Option<Pixels>,
     cx: &App,
 ) -> T {
     let colors = cx.colors();
     let layout = cx.layout();
 
-    let mut el = el.rounded(field_radius(cx)).bg(match variant {
+    let radius = radius_override.unwrap_or_else(|| field_radius(cx));
+    let mut el = el.rounded(radius).bg(match variant {
         FieldVariant::Primary => colors.field.background,
         // `.input--secondary` sets `--input-bg: var(--default)` and drops the
         // shadow. This used to use `surface_secondary`, which is a different

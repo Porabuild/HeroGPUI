@@ -323,12 +323,16 @@ impl RenderOnce for InputGroup {
         // v3 rings the *group* on `focus-within`, so the state comes from the
         // field inside it.
         if !field_box.is_bare {
-            group = util::apply_field_chrome(group, self.variant, is_invalid, focus_within, cx)
-                // The chrome paints the helper's radius last, so the resolved
-                // one goes back over it and an override survives the shared
-                // helper. The held field carries the same value, so the group
-                // box and the box it holds keep one corner.
-                .rounded(radius);
+            // The held field carries the same value, so the group box and the
+            // box it holds keep one corner.
+            group = util::apply_field_chrome(
+                group,
+                self.variant,
+                is_invalid,
+                focus_within,
+                Some(radius),
+                cx,
+            );
         }
         if self.full_width {
             group = group.w_full();

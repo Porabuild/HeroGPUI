@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "artifactSha256": "13ad1cfa91236fc0cfc2da508fe9e4658ba14f45630d832d201524e32f110079",
+  "artifactSha256": "22ebdc7b7aae0abc70faf662432724f305951620acd8673bf13b836e9fad168e",
   "glueSha256": "754f8eccd6ab0d4b0c182a3d9ab81bf08a8230fbcfbafb547230f92a12d73e74",
   "examples": {
     "accordion/Controlled": {
@@ -116,7 +116,7 @@
       "descriptionSha256": "664e5aa239ed00212e651feb908e6950f23c8a8a1254c329a690d9465b2ec5e8"
     },
     "autocomplete/Box Customisation": {
-      "codeSha256": "75a5b941dcc98c55ef07dbc2f1ffc0ee71c90da5daf673e1990ffe4f4fcd3c4a",
+      "codeSha256": "f212655887fe91c3d3d1680bd6a3c5a5cf80fbe5f17f6063cbf70a9b67ec326f",
       "descriptionSha256": "d04e06c3a2509cc57c65e5c5d49b24dea1ab646a70dc3916250c5b55fc5f8771"
     },
     "autocomplete/Controlled": {
@@ -704,7 +704,7 @@
       "descriptionSha256": "4667ceb24a728b7740f11fdb2ad99d103aef42a13b54e60ac08837cb8efe8a9d"
     },
     "color-picker/Usage": {
-      "codeSha256": "6f0bfd3a1d988a480dd2fbb23e1e0618c1ec9ecc7928b3848e458325a97bf064",
+      "codeSha256": "5692590b1daf4923b5032cddd38a7e2caf09a08963901c73c1830add23572b14",
       "descriptionSha256": "56308ac3eadcf3554bd284fd757650ff018882e2832d3478b43023af9fe0694c"
     },
     "color-picker/With Fields": {
@@ -840,7 +840,7 @@
       "descriptionSha256": "33bce5c264d50c244c2f69442887c5d0d4ffc40b6691eeebc9b880b2288b4f74"
     },
     "combo-box/Box Customisation": {
-      "codeSha256": "bc6684e4d44b272a13ab5ec2b8cc364ca2d243bd1b2eaccb8345bc6049865778",
+      "codeSha256": "2fcef7c15d44dfdf7d68454bb2db47676f0469018ba425e45a5ceef7ba30e206",
       "descriptionSha256": "86f8d5ffc77ac396d34ba972f32c080ae3504b3b26412f67b5cb47d11febd7ee"
     },
     "combo-box/Controlled": {
@@ -936,7 +936,7 @@
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "date-field/Box Customisation": {
-      "codeSha256": "dbf6acceb6ee12c38e8ed8984e9c7e71343fbe89eaba86a0b2836f8d288ecbbe",
+      "codeSha256": "26e78babf4ddddda0e3cccd17f187c56b72371030acdb715234809727618add6",
       "descriptionSha256": "a1f3b9ce2a0e39da7e753c4ee4ec28a76f2c2d94193076bd32063ee86ca69403"
     },
     "date-field/Controlled": {
@@ -1228,7 +1228,7 @@
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "input-group/Box Customisation": {
-      "codeSha256": "18ff058b696b541c69e9668baaeeef3b327df7380f339ef1a36d4aa3b647f0b3",
+      "codeSha256": "3ef1d5358c9524212d3f3fa9f00ee0748681104bf1daea8dd9f1503ffb2b2dbf",
       "descriptionSha256": "3de69bf9bc01b90a6206bd68a5ce77df5cbff83decb906f3475b07dbd0ff1453"
     },
     "input-group/Copy Button Suffix": {
@@ -1404,7 +1404,7 @@
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "kbd/Navigation Keys": {
-      "codeSha256": "d1ecc8594b564abc05af91ccd97803c90f89bf723caaaa6df8946a10a899c34e",
+      "codeSha256": "ea12a6a2b1ada7e9318a93e4150391ae7a193d7d56e8bcdcaa7fefa96a5bb0d9",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "kbd/Special Keys": {
@@ -2036,7 +2036,7 @@
       "descriptionSha256": "d9d9ad0a9e44738e63a5f0ecd066a3a831473d8b74be3d230120b8c732f392e7"
     },
     "select/Box Customisation": {
-      "codeSha256": "0eb01d5aebb2f6163dcc249af94b877bb52b6a0d9a0a02dbb95d64446874a1d8",
+      "codeSha256": "1c1a35f516b24dc7691a5a5518c60b2cab508e0d780c581dd55afd00e96ec2a5",
       "descriptionSha256": "4bb4282cf3fab46cd41cb2baa6a6593fa110a2243eba4351dbbdfb0f94d2a0c8"
     },
     "select/Controlled": {
@@ -2421,7 +2421,7 @@
     },
     "tag-group/Hover Colour": {
       "codeSha256": "45f3c8f516c7e9d253f046905178fbeca026fb7626c83d3393c538b84c918213",
-      "descriptionSha256": "c8bf56ce1c73ca7cf61b16602c0f7649c1eb0b66a6ee657b8e7d12ca9b8e0598"
+      "descriptionSha256": "ef26f4d4bae96dd5f7403f43717829c8ebf6cafc6b8e487f2e5430bf85a45b29"
     },
     "tag-group/Removable": {
       "codeSha256": "c280996d539e6a49c5633f7a8e55f5cd7c84c6c2450bccc52a6eb8802383b73f",
@@ -2441,7 +2441,7 @@
     },
     "tag-group/Usage": {
       "codeSha256": "289708341e8f3918d297dfb81b2172a9079ae9f23deb1de92c272bb9bde62e2c",
-      "descriptionSha256": "aa5512ca5aa7b3a957f12de2172c55d9c774ba124997c141fe3b68e811098fdd"
+      "descriptionSha256": "796860136d50fe1219a04cc424ecc48c2210c941583d45e05498d1da3a3f4978"
     },
     "tag-group/Variants": {
       "codeSha256": "6b2a9776dbd362d9ed6a73553b41db9d487db452abcec5af135c5d08ecf1625a",
@@ -2544,7 +2544,7 @@
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "time-field/Box Customisation": {
-      "codeSha256": "fe437928bc14bd620a71520d210dd797a7a4236e1c5d7bcdab00330c33e44e00",
+      "codeSha256": "1ed037de9c1a8cf5225992d9b6e9330112c7ddc2502fc2a4e52e50098fc5a003",
       "descriptionSha256": "c8277af0795276fb4baa964a166b9376c88d943ccb12aa4c54fd47f2fec5c461"
     },
     "time-field/Controlled": {
@@ -2764,7 +2764,7 @@
       "descriptionSha256": "80a89e074ff71ebaa6eb9e7038fb4d3bf2f134be9aebdc3899d83794bb7bc416"
     },
     "typography/Scale": {
-      "codeSha256": "8143d73a8f3452f60027ce32ac7bc3eb47bf598c288d06af1e8cb77266fd1641",
+      "codeSha256": "c44fc2bc6fb63478316e3f5c0d153e2b273bbfdfbeb816ac83de7f341bfcd38f",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "typography/Usage": {

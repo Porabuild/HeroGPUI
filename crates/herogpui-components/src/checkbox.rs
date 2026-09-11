@@ -480,7 +480,6 @@ impl Checkbox {
         self
     }
 
-    /// `variant` — `Secondary` drops the shadow for use on a surface.
     /// The control fill while hovered, in place of `--accent-hover`. The
     /// scale/fade Tween and the pressed target are unchanged.
     pub fn hover_bg(mut self, color: impl Into<gpui::Hsla>) -> Self {
@@ -507,6 +506,7 @@ impl Checkbox {
         self
     }
 
+    /// `variant` — `Secondary` drops the shadow for use on a surface.
     pub fn variant(mut self, variant: herogpui_core::FieldVariant) -> Self {
         self.variant = variant;
         self
@@ -955,8 +955,9 @@ impl RenderOnce for Checkbox {
             // `stroke-dashoffset` slide reveals it. The svg asset this
             // replaces could not animate a stroke — and draws nothing at all
             // where no asset source is installed, as in the tests. The CSS
-            // marks the svg `size-2.5` inside the `size-3` indicator, so the
-            // canvas is 10px centred in 12px.
+            // marks the svg `size-2.5` inside the `size-3` indicator, a 2px
+            // inset the canvas keeps at both size steps: 10px centred in 12px
+            // for `Md`, 8px in 10px for `Sm`.
             boxel = boxel.child(
                 gpui::div()
                     .size(icon_px)
@@ -967,7 +968,7 @@ impl RenderOnce for Checkbox {
                         &self.id,
                         check_stroke,
                         reduce_motion,
-                        px(10.),
+                        icon_px - px(2.),
                         accent_foreground,
                     )),
             );

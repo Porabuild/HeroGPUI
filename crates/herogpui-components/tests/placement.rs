@@ -524,7 +524,8 @@ fn drawer_bottom_placement_lands_on_edge_and_drags_shut(cx: &mut TestAppContext)
 // Geometry: the trigger is a fixed 1920x36 strip at y [200..236], so the
 // containing block and the trigger share one width and the arithmetic cannot
 // drift. The panel is 260 wide and, with `show_close_button(false)` and no
-// title, `py-2` (16px) over the 36px probe = 68 tall. The offset is 8px.
+// title, the resolved 12px y insets over the 36px probe = 60 tall. The
+// offset is 8px.
 //
 // For the below/above placements the panel hangs from `top_full` /
 // `bottom_full` (8px clear) and stretches left..right, with the content
@@ -535,12 +536,12 @@ fn drawer_bottom_placement_lands_on_edge_and_drags_shut(cx: &mut TestAppContext)
 //
 // | placement  | panel box              | probe centre | outside point |
 // |------------|------------------------|--------------|---------------|
-// | Bottom     | y 244..312, x 830..1090 | (866, 278)  | (700, 400)    |
-// | BottomStart| y 244..312, x 0..260    | (36, 278)   | (300, 400)    |
-// | BottomEnd  | y 244..312, x 1660..1920| (1696, 278) | (1600, 400)   |
-// | Top        | y 160..228, x 830..1090 | (866, 194)  | (700, 60)     |
-// | TopStart   | y 160..228, x 0..260    | (36, 194)   | (300, 60)     |
-// | TopEnd     | y 160..228, x 1660..1920| (1696, 194) | (1600, 60)    |
+// | Bottom     | y 244..304, x 830..1090 | (864, 274)  | (700, 400)    |
+// | BottomStart| y 244..304, x 0..260    | (34, 274)   | (300, 400)    |
+// | BottomEnd  | y 244..304, x 1660..1920| (1694, 274) | (1600, 400)   |
+// | Top        | y 160..220, x 830..1090 | (864, 190)  | (700, 60)     |
+// | TopStart   | y 160..220, x 0..260    | (34, 190)   | (300, 60)     |
+// | TopEnd     | y 160..220, x 1660..1920| (1694, 190) | (1600, 60)    |
 //
 // The Left/Right placements anchor to the containing block's edges with
 // `top(0)`: the panel hangs flush with the root's top and 8px clear of the
@@ -551,12 +552,13 @@ fn drawer_bottom_placement_lands_on_edge_and_drags_shut(cx: &mut TestAppContext)
 //
 // | placement | requested box           | snapped? | probe centre |
 // |-----------|-------------------------|----------|--------------|
-// | Left      | x -268..-8, y 0..68     | snap to edge -> x 0..260 | (36, 34) |
-// | Right     | x 1928..2188, y 0..68   | snap to edge -> x 1660..1920 | (1696, 34) |
+// | Left      | x -268..-8, y 0..60     | snap to edge -> x 0..260 | (34, 30) |
+// | Right     | x 1928..2188, y 0..60   | snap to edge -> x 1660..1920 | (1694, 30) |
 //
-// The probe centre is 16px of panel padding + 20px half-probe across and
-// 16px down; the outside point is well clear of both the panel and the
-// 1920-wide trigger strip.
+// The probe centre is one x inset (14px panel padding + the 20px half-probe)
+// across and one y inset (12px panel padding + the 18px half-probe) down;
+// the outside point is well clear of both the panel and the 1920-wide
+// trigger strip.
 
 /// The eight placements a popover supports. The panel coordinates that used to
 /// ride along here are gone on purpose: `gpui::anchored` snaps a panel back
@@ -666,10 +668,10 @@ fn popover_should_flip_moves_an_overflowing_bottom_panel_above(cx: &mut TestAppC
         .debug_bounds("popover-arrow")
         .expect("Popover.Arrow must render on the resolved side");
 
-    // Requested below, the 68px panel plus 12px Arrow would start at y=1056
+    // Requested below, the 60px panel plus 12px Arrow would start at y=1056
     // and overflow the 1080px test window. React Aria's default
     // `shouldFlip=true` changes the orientation, so the panel lands at
-    // y=912..980, its probe spans y=928..964, and the downward Arrow occupies
+    // y=920..980, its probe spans y=932..968, and the downward Arrow occupies
     // y=980..992 with the configured 8px remaining before the trigger.
     assert_eq!(
         (arrow.origin.y, arrow.bottom()),
@@ -712,8 +714,10 @@ fn popover_should_flip_false_keeps_the_requested_overflowing_side(cx: &mut TestA
     let bounds = cx
         .debug_bounds("pl-pop-no-flip-probe")
         .expect("open popover probe must render");
+    // The panel starts 8px below the trigger (y=1044) and its probe sits one
+    // 12px y inset inside it.
     assert!(
-        f32::from(bounds.origin.y) >= 1060.,
+        f32::from(bounds.origin.y) >= 1056.,
         "shouldFlip=false must preserve the requested bottom orientation; got {bounds:?}"
     );
 }
@@ -723,7 +727,7 @@ fn popover_should_flip_false_keeps_the_requested_overflowing_side(cx: &mut TestA
 ///
 /// Geometry: the trigger is 100x36 at (0,0) and `Bottom` keeps the 8px offset.
 /// With no arrow part composed the positioner reserves no arrow gap, so the
-/// 68px panel spans y=44..112 and its probe y=60..96. `popover-arrow` is the
+/// 60px panel spans y=44..104 and its probe y=56..92. `popover-arrow` is the
 /// debug selector the built-in arrow leaf carries.
 #[gpui::test]
 fn popover_without_the_arrow_part_renders_no_arrow(cx: &mut TestAppContext) {

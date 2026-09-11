@@ -214,11 +214,12 @@ fn radius_builders_override_their_helper_defaults() {
     }
 }
 
-// The five field-family boxes share `util::apply_field_chrome`, which paints
-// the helper's radius *after* the field's own chain, so an override would be
-// swallowed there. Each of them sets the resolved radius back over the chrome.
-// Select, ComboBox and Autocomplete round their detached *panel* instead, and
-// their trigger box stays the shared field chrome's, so none of them re-rounds.
+// The five field-family boxes share `util::apply_field_chrome`, which now
+// paints the caller's resolved radius, so each override-carrying field hands
+// its hoisted binding straight into the helper instead of re-rounding after
+// it. Select, ComboBox and Autocomplete round their detached *panel* instead,
+// and their trigger box stays the shared field chrome's, so none of them
+// passes an override.
 #[test]
 fn field_radii_survive_the_shared_chrome_and_detached_panels_do_not_re_round() {
     for (file, source) in [
@@ -235,14 +236,22 @@ fn field_radii_survive_the_shared_chrome_and_detached_panels_do_not_re_round() {
         ),
     ] {
         assert!(
-            source.contains("The chrome paints the helper's radius last"),
-            "{file}: the override must go back over the shared field chrome"
+            source.contains("Some(radius),"),
+            "{file}: the resolved radius must ride into the shared chrome call"
         );
         assert!(
-            source.contains(".rounded(radius);"),
-            "{file}: the override must go back over the shared field chrome"
+            !source.contains(".rounded(radius);"),
+            "{file}: the override must not be re-rounded over the shared chrome"
         );
     }
+
+    // The helper resolves the fallback itself, so a caller without an
+    // override passes only `None`.
+    assert!(
+        include_str!("../src/util.rs")
+            .contains("let radius = radius_override.unwrap_or_else(|| field_radius(cx));"),
+        "util.rs: the shared chrome must resolve the `field_radius` fallback itself"
+    );
 
     for (file, source) in [
         ("select.rs", include_str!("../src/select.rs")),
@@ -250,7 +259,7 @@ fn field_radii_survive_the_shared_chrome_and_detached_panels_do_not_re_round() {
         ("autocomplete.rs", include_str!("../src/autocomplete.rs")),
     ] {
         assert!(
-            !source.contains("The chrome paints the helper's radius last"),
+            !source.contains("Some(radius),"),
             "{file}: the detached panel's override must not reach the trigger box"
         );
     }

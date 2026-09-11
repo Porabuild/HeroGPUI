@@ -762,6 +762,13 @@ impl RenderOnce for ToastCardEl {
             .t
             .radius
             .unwrap_or_else(|| crate::util::container_radius(cx));
+        // The padding pair is read off the data here for the same reason: the
+        // resting card's chain consumes it and so does the entry zoom below.
+        // Under reduced motion `entering_zoom` returns the element untouched,
+        // so the chain is then the only consumer — the override still reaches
+        // the resting card on every motion path.
+        let panel_padding_y = self.t.padding.unwrap_or(px(10.));
+        let panel_padding_x = self.t.padding.unwrap_or(px(16.));
         let mut card = gpui::div()
             // `toast/toast.js` renders RAC's `UNSTABLE_Toast`, whose props come
             // from `react-aria/dist/private/toast/useToast.js`: the card is
@@ -781,8 +788,8 @@ impl RenderOnce for ToastCardEl {
             .flex()
             .items_start()
             .gap(px(6.))
-            .px(px(16.))
-            .py(px(12.))
+            .px(panel_padding_x)
+            .py(panel_padding_y)
             .rounded(radius)
             .bg(colors.surface.background)
             .text_color(colors.overlay.foreground)
@@ -922,8 +929,6 @@ impl RenderOnce for ToastCardEl {
             );
         }
 
-        let panel_padding_y = self.t.padding.unwrap_or(px(10.));
-        let panel_padding_x = self.t.padding.unwrap_or(px(16.));
         crate::anim::entering_zoom(
             card,
             element_id::scoped(&base_id, "anim"),

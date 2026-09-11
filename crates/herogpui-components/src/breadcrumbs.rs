@@ -117,10 +117,6 @@ impl Breadcrumbs {
         self
     }
 
-    /// The one slot for caller-owned low-level styling: GPUI's styling methods
-    /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
-    /// applied to the breadcrumbs' root element after every value the active
-    /// theme chose, so they win.
     /// `fullWidth` — expands the root to the available width without
     /// redistributing the children.
     pub fn full_width(mut self, v: bool) -> Self {
@@ -134,6 +130,10 @@ impl Breadcrumbs {
         self
     }
 
+    /// The one slot for caller-owned low-level styling: GPUI's styling methods
+    /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
+    /// applied to the breadcrumbs' root element after every value the active
+    /// theme chose, so they win.
     pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
         self.sx = Some(crate::util::capture_sx(style));
         self

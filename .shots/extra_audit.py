@@ -565,6 +565,21 @@ EXTRA_OK_SCOPED = {
     # Both size-stepped boxes keep their step as the fallback.
     'Badge.radius': 'repository-radius-extension',
     'TagGroup.radius': 'repository-radius-extension',
+    # Narrow parity exception, see docs/agents/parity.md: HeroGPUI-only
+    # additive size enums whose every step is defined in the component's own
+    # docs, whose Md is byte-identical to the pinned default, and whose Md
+    # step the design_audit Md fixtures pin.
+    'Checkbox.size': 'repository-size-extension',
+    'RadioGroup.size': 'repository-size-extension',
+    'Tabs.size': 'repository-size-extension',
+    'Slider.size': 'repository-size-extension',
+    # Roadmap phase 6, owner-scoped per principle 4: v3 has no such prop on
+    # these owners.
+    'TagGroup.full_width': 'repository-full-width-extension',
+    'Pagination.full_width': 'repository-full-width-extension',
+    'Breadcrumbs.full_width': 'repository-full-width-extension',
+    'RadioGroup.full_width': 'repository-full-width-extension',
+    'Toolbar.full_width': 'repository-full-width-extension',
     # v3's stylesheet declares `.range-calendar__cell-indicator`; only the
     # Calendar's prop table names the part.
     'RangeCalendar.cell_indicator': 'composition',

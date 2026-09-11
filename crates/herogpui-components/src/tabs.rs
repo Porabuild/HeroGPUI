@@ -37,6 +37,10 @@ const SEPARATOR_TRANSITION_MS: u64 = 150;
 /// `.tabs__indicator` transitions translate, width and height for 250ms with
 /// `--ease-out-fluid`.
 const INDICATOR_TRANSITION_MS: u64 = 250;
+/// v3's vertical-list tab floor (`.tabs__list[data-orientation="vertical"]`
+/// sizes each tab `min-w-20`): a vertical tab never narrows below 80px, so a
+/// short label still leaves the list a usable width.
+const VERTICAL_TAB_MIN_WIDTH: gpui::Pixels = px(80.);
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 struct IndicatorRect {
@@ -490,13 +494,6 @@ impl Tabs {
         self
     }
 
-    /// v3's `<Tabs.List className="w-full">` with `<Tabs.Trigger
-    /// className="flex-1">`: the list fills its parent and the tabs divide that
-    /// width equally instead of hugging their labels.
-    ///
-    /// Horizontal only. A vertical list already stretches its tabs across the
-    /// full width and sizes itself from the tallest content, so there is
-    /// nothing for this to change and it is ignored there.
     /// Sets the compact step. `Md` is the default and byte-identical to the
     /// pinned box; `Sm` is a 28px box with 12px padding and a 12px label
     /// (16px leading). Not a v3 prop.
@@ -505,6 +502,13 @@ impl Tabs {
         self
     }
 
+    /// v3's `<Tabs.List className="w-full">` with `<Tabs.Trigger
+    /// className="flex-1">`: the list fills its parent and the tabs divide that
+    /// width equally instead of hugging their labels.
+    ///
+    /// Horizontal only. A vertical list already stretches its tabs across the
+    /// full width and sizes itself from the tallest content, so there is
+    /// nothing for this to change and it is ignored there.
     pub fn full_width(mut self, v: bool) -> Self {
         self.full_width = v;
         self
@@ -851,7 +855,7 @@ impl RenderOnce for Tabs {
                         // font-medium`.
                         .h(tab_h)
                         .px(tab_padding_x)
-                        .when(vertical, |t| t.w_full().min_w(px(80.)))
+                        .when(vertical, |t| t.w_full().min_w(VERTICAL_TAB_MIN_WIDTH))
                         // Stretched tabs take an equal share: `flex_1` zeroes
                         // the flex basis and `min_w(0)` releases the label's
                         // min-content floor, so every share is the same and
@@ -1054,7 +1058,7 @@ impl RenderOnce for Tabs {
                         // the indicator as a 2px bar along the bottom.
                         .h(tab_h)
                         .px(tab_padding_x)
-                        .when(vertical, |t| t.w_full().min_w(px(80.)))
+                        .when(vertical, |t| t.w_full().min_w(VERTICAL_TAB_MIN_WIDTH))
                         // Stretched tabs take an equal share: `flex_1` zeroes
                         // the flex basis and `min_w(0)` releases the label's
                         // min-content floor, so every share is the same and

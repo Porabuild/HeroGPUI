@@ -354,13 +354,6 @@ impl RangeCalendar {
         self
     }
 
-    /// The one slot for caller-owned low-level styling: GPUI's styling methods
-    /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
-    /// applied to the range calendar's root element after every value the
-    /// component and the active theme chose, so they win.
-    /// The fill a hovered plain (unselected, out-of-range) day takes, in
-    /// place of `--default`. Today, range and selected cells keep their own
-    /// fills.
     /// The fill a hovered nav arrow takes, in place of `--default`.
     pub fn nav_hover_bg(mut self, color: impl Into<gpui::Hsla>) -> Self {
         self.nav_hover_bg = Some(color.into());
@@ -373,11 +366,18 @@ impl RangeCalendar {
         self
     }
 
+    /// The fill a hovered plain (unselected, out-of-range) day takes, in
+    /// place of `--default`. Today, range and selected cells keep their own
+    /// fills.
     pub fn day_hover_bg(mut self, color: impl Into<gpui::Hsla>) -> Self {
         self.day_hover_bg = Some(color.into());
         self
     }
 
+    /// The one slot for caller-owned low-level styling: GPUI's styling methods
+    /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
+    /// applied to the range calendar's root element after every value the
+    /// component and the active theme chose, so they win.
     pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
         self.sx = Some(util::capture_sx(style));
         self

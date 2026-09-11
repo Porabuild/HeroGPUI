@@ -58,7 +58,7 @@ use herogpui_components::{
     SearchField, TextArea, TextField, Time, TimeField, TimeState,
 };
 
-use harness::{click, events, open_host, press};
+use harness::{click, events, open_host, press, probe as inset_probe};
 
 /// One forced redraw, so `debug_bounds` sees the latest laid-out frame.
 fn flush_frame(cx: &mut VisualTestContext) {
@@ -1936,16 +1936,9 @@ fn input_label_description_and_error_keep_pinned_line_heights(cx: &mut TestAppCo
 // Input box geometry: `height`, `padding_x`, `is_bare`, `start_content`
 // ---------------------------------------------------------------------------
 
-/// A zero-behaviour marker inside the field, so the text row's left edge is
-/// measurable: it is the first child of the box, so its origin is the box
-/// origin plus whatever inset the box carries.
-fn inset_probe(name: &'static str) -> gpui::AnyElement {
-    gpui::div()
-        .w(px(10.))
-        .h(px(10.))
-        .debug_selector(move || name.to_owned())
-        .into_any_element()
-}
+// The field probes are the shared `harness::probe` (a 10px zero-behaviour
+// marker with a debug selector), imported above as `inset_probe`: a slot
+// child's origin is the box origin plus whatever inset the box carries.
 
 /// The bounds of the element carrying the `name` debug selector. With no
 /// label, description or error the field row is the wrapper column's only
