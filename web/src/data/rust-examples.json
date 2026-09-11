@@ -161,8 +161,8 @@
   "toggle-button": [
     {
       "heading": "Usage",
-      "imports": "use herogpui::prelude::{ToggleButton, ToggleButtonGroup};",
-      "code": "ToggleButton::new(\"toggle-button\")\n    .label(\"Bold\")"
+      "imports": "use herogpui::prelude::{ToggleButton, ToggleButtonGroup};\nuse gpui::px;",
+      "code": "ToggleButton::new(\"toggle-button\")\n    .radius(px(8.))\n    .label(\"Bold\")"
     },
     {
       "heading": "Hover Colour",
@@ -2704,8 +2704,8 @@
     {
       "heading": "Usage",
       "description": "Fallback text uses 14px text with 20px lines, or 16px text with 24px lines for large avatars.",
-      "imports": "use herogpui::prelude::Avatar;",
-      "code": "Avatar::new(\"avatar-avatar\")\n    .name(\"Jane Doe\")"
+      "imports": "use herogpui::prelude::Avatar;\nuse gpui::px;",
+      "code": "Avatar::new(\"avatar-avatar\")\n    .name(\"Jane Doe\")\n    .radius(px(8.))"
     },
     {
       "heading": "Fallback Content",
@@ -3131,8 +3131,8 @@
     },
     {
       "heading": "Controlled State",
-      "imports": "use herogpui::prelude::{Modal, ModalCloseTrigger, ModalSize};\nuse gpui::prelude::*;",
-      "code": "stretch_col(vec![\n    para(\n        &format!(\n            \"The flag lives with the caller: {}\",\n            if md_controlled { \"open\" } else { \"closed\" }\n        ),\n        cx,\n    ),\n    overlay_demo(\n        self.demo_overlay(\"md-controlled\"),\n        \"md-controlled\",\n        \"Open (controlled)\",\n        Modal::new()\n            .id(\"modal-controlled\")\n            .is_open(md_controlled)\n            .title(\"Controlled\")\n            .is_dismissible(true)\n            .child(ModalCloseTrigger::new())\n            .child(gpui::div().child(\"Closing reports through onOpenChange.\"))\n            .on_open_change(cx.listener(|this, v: &bool, _, cx| {\n                this.set_demo_flag(\"md-controlled\", *v);\n                cx.notify();\n            }))\n            .into_any_element(),\n        cx,\n    ),\n])"
+      "imports": "use herogpui::prelude::{Modal, ModalCloseTrigger, ModalSize};\nuse gpui::prelude::*;\nuse gpui::px;",
+      "code": "stretch_col(vec![\n    para(\n        &format!(\n            \"The flag lives with the caller: {}\",\n            if md_controlled { \"open\" } else { \"closed\" }\n        ),\n        cx,\n    ),\n    overlay_demo(\n        self.demo_overlay(\"md-controlled\"),\n        \"md-controlled\",\n        \"Open (controlled)\",\n        Modal::new()\n            .id(\"modal-controlled\")\n            .is_open(md_controlled)\n            .title(\"Controlled\")\n            .radius(px(12.))\n            .is_dismissible(true)\n            .child(ModalCloseTrigger::new())\n            .child(gpui::div().child(\"Closing reports through onOpenChange.\"))\n            .on_open_change(cx.listener(|this, v: &bool, _, cx| {\n                this.set_demo_flag(\"md-controlled\", *v);\n                cx.notify();\n            }))\n            .into_any_element(),\n        cx,\n    ),\n])"
     },
     {
       "heading": "With Form",
@@ -3283,7 +3283,7 @@
     {
       "heading": "With Arrow",
       "imports": "use herogpui::prelude::{Button, Tooltip, Variant};\nuse gpui::prelude::*;\nuse gpui::px;",
-      "code": "row(vec![\n    Tooltip::new(\"With an arrow\")\n        .show_arrow(true)\n        // `offset` is the gap between trigger and panel.\n        .offset(px(10.))\n        .child(\n            Button::new(\"tooltip-arrow-on\")\n                .label(\"Arrow\")\n                .variant(Variant::Secondary),\n        )\n        .into_any_element(),\n    Tooltip::new(\"Without one\")\n        .show_arrow(false)\n        .child(\n            Button::new(\"tooltip-arrow-off\")\n                .label(\"No arrow\")\n                .variant(Variant::Secondary),\n        )\n        .into_any_element(),\n])"
+      "code": "row(vec![\n    Tooltip::new(\"With an arrow\")\n        .show_arrow(true)\n        // `offset` is the gap between trigger and panel.\n        .offset(px(10.))\n        .radius(px(4.))\n        .child(\n            Button::new(\"tooltip-arrow-on\")\n                .label(\"Arrow\")\n                .variant(Variant::Secondary),\n        )\n        .into_any_element(),\n    Tooltip::new(\"Without one\")\n        .show_arrow(false)\n        .child(\n            Button::new(\"tooltip-arrow-off\")\n                .label(\"No arrow\")\n                .variant(Variant::Secondary),\n        )\n        .into_any_element(),\n])"
     },
     {
       "heading": "Custom Triggers",

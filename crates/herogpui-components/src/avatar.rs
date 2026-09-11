@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use gpui::{
     px, App, ElementId, ImageCacheError, ImageSource, ImgResourceLoader, IntoElement,
-    ParentElement, RenderImage, RenderOnce, Resource, SharedString, Styled, Window,
+    ParentElement, Pixels, RenderImage, RenderOnce, Resource, SharedString, Styled, Window,
 };
 use herogpui_core::{element_id, Color};
 use herogpui_theme::ActiveTheme;
@@ -84,13 +84,16 @@ pub struct Avatar {
     /// the fallback paints.
     fallback_color: Option<Color>,
     /// Edge length, set by [`Avatar::size`]. v3 has no custom-pixel prop.
-    size_px: gpui::Pixels,
+    size_px: Pixels,
     /// Whether [`Avatar::size`] was `Sm`, which rounds one step tighter.
     small: bool,
     /// Whether [`Avatar::size`] was `Lg`, whose fallback text steps up.
     large: bool,
     color: Color,
     variant: AvatarVariant,
+    /// The corner radius, in place of the size's `rounded-3xl`
+    /// (`rounded-2xl` on `Sm`).
+    radius: Option<Pixels>,
     /// The `sx` slot, refined over the root style at the end of render.
     sx: Option<Box<gpui::StyleRefinement>>,
 }
@@ -115,6 +118,7 @@ impl Avatar {
             large: false,
             color: Color::Default,
             variant: AvatarVariant::Default,
+            radius: None,
             sx: None,
         }
     }
@@ -201,6 +205,14 @@ impl Avatar {
 
     pub fn color(mut self, c: Color) -> Self {
         self.color = c;
+        self
+    }
+
+    /// The corner radius, in place of the size's `rounded-3xl`
+    /// (`rounded-2xl` on `Sm`). Not a v3 prop; the removed v2 `radius` prop is
+    /// prohibited and this is a per-component repository extension.
+    pub fn radius(mut self, radius: impl Into<Pixels>) -> Self {
+        self.radius = Some(radius.into());
         self
     }
 
@@ -297,11 +309,13 @@ impl RenderOnce for Avatar {
         // steps the fallback text up to `text-base`.
         let font = if self.large { px(16.) } else { px(14.) };
         let leading = if self.large { px(24.) } else { px(20.) };
-        let radius = if self.small {
-            crate::util::soft_radius(cx)
-        } else {
-            crate::util::control_radius(cx)
-        };
+        let radius = self.radius.unwrap_or_else(|| {
+            if self.small {
+                crate::util::soft_radius(cx)
+            } else {
+                crate::util::control_radius(cx)
+            }
+        });
 
         let el = gpui::div()
             .relative()

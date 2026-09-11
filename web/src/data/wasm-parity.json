@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "artifactSha256": "89a0462228a6eaa6665a48055ee1601b33f086108581a92a3a55c2513f23ab75",
+  "artifactSha256": "20f025de38fb71d4c07c2c0b7e3943fbd43038069a6d3b5dc0cce9f871c24944",
   "glueSha256": "302da95d51f90e4c2fae0f499b7813f2dfb2a0e44d66d9aa79cacb157286fd82",
   "examples": {
     "accordion/Controlled": {
@@ -204,7 +204,7 @@
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "avatar/Usage": {
-      "codeSha256": "0dbfb4df843cf4a53a2828feb98bbc46d303c7b67c0de93102289649afa40669",
+      "codeSha256": "d5a28e9ca67318dd1428558e36a3acce66a4101b1c15e718765d2d429d4602f7",
       "descriptionSha256": "e38553dcc84475c71db94ef69a5180db6c26a7e9be1d4fbd2ed2016defe4f467"
     },
     "avatar/Variants": {
@@ -1580,7 +1580,7 @@
       "descriptionSha256": "c1dab6c0cfefab815fda2ac1b5d8d76622531c5163f6bf9e84728398426c8d91"
     },
     "modal/Controlled State": {
-      "codeSha256": "9161b6269ecfbe9e347a6822da303e0463453bb1255d24d70f1ea12913191566",
+      "codeSha256": "77c6758ceaecf95701d17d55d4d958620bcf5a834d3a9838e1fa7fe2725022c1",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "modal/Custom Animations": {
@@ -2688,7 +2688,7 @@
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "toggle-button/Usage": {
-      "codeSha256": "b2e26fd35fb4731b248abc40ec1b6a17d3eb008b47376e440dea1783ab13c66b",
+      "codeSha256": "3e0cc44cfb4ee8b286df71c427fe70472b28b84d20a064ccbf9af3f711bdb5b4",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "toggle-button/Variants": {
@@ -2740,7 +2740,7 @@
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "tooltip/With Arrow": {
-      "codeSha256": "c2b500c62522a555b8c31ecdf0fe501061642ece6af4cbcd94253a2aa8ccf301",
+      "codeSha256": "9455cf6687841d2960a73d01eb3c1a3db296351202a6d6103f79682b0727402d",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "typography/Alignment & truncation": {

@@ -5,7 +5,7 @@
 
 use gpui::{
     div, prelude::*, px, AnyElement, App, ClickEvent, ElementId, IntoElement, ParentElement,
-    RenderOnce, SharedString, Styled, Window,
+    Pixels, RenderOnce, SharedString, Styled, Window,
 };
 use herogpui_core::{element_id, Orientation as SelectionOrientation, SelectionMode, Size};
 use herogpui_theme::ActiveTheme;
@@ -67,6 +67,9 @@ pub struct ToggleButton {
     children: Vec<AnyElement>,
     /// Set by [`ToggleButton::hover_bg`]: the fill the hover fade eases *to*.
     hover_bg: Option<gpui::Hsla>,
+    /// The corner radius, in place of the owning helper. Group edges, the
+    /// hover fade and the press scale still apply.
+    radius: Option<Pixels>,
     /// `Arc` for the same reason as `on_change`: the pointer and the keyboard
     /// each hold it.
     on_press: Option<std::sync::Arc<dyn Fn(&ClickEvent, &mut Window, &mut App) + 'static>>,
@@ -114,6 +117,7 @@ impl ToggleButton {
             on_change: None,
             sx: None,
             hover_bg: None,
+            radius: None,
         }
     }
 
@@ -151,6 +155,15 @@ impl ToggleButton {
     /// Button contract, on a toggle. v3 has no such prop.
     pub fn hover_bg(mut self, color: impl Into<gpui::Hsla>) -> Self {
         self.hover_bg = Some(color.into());
+        self
+    }
+
+    /// The corner radius, in place of the owning `control_radius` helper.
+    /// Group edges, the hover fade and the press scale still apply. Not a v3
+    /// prop; the removed v2 `radius` prop is prohibited and this is a
+    /// per-component repository extension.
+    pub fn radius(mut self, radius: impl Into<Pixels>) -> Self {
+        self.radius = Some(radius.into());
         self
     }
 
@@ -289,7 +302,9 @@ impl RenderOnce for ToggleButton {
         let colors = cx.colors().clone();
         let sem = colors.accent;
         let disabled_opacity = cx.layout().disabled_opacity;
-        let radius = crate::util::control_radius(cx);
+        let radius = self
+            .radius
+            .unwrap_or_else(|| crate::util::control_radius(cx));
         let is_grouped = self.group_edge.is_some();
 
         let sx_background = crate::util::sx_background(&self.sx);

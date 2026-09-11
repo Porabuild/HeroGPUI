@@ -850,6 +850,7 @@ impl Gallery {
                                 .id("md-controlled")
                                 .is_open(md_controlled)
                                 .title("Controlled")
+                                .radius(px(12.))
                                 .is_dismissible(true)
                                 .child(h::ModalCloseTrigger::new())
                                 .child(gpui::div().child("Closing reports through onOpenChange."))
@@ -1846,6 +1847,7 @@ impl Gallery {
                             .show_arrow(true)
                             // `offset` is the gap between trigger and panel.
                             .offset(px(10.))
+                            .radius(px(4.))
                             .child(
                                 h::Button::new("tt-arrow-on")
                                     .label("Arrow")

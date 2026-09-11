@@ -543,6 +543,7 @@ impl Gallery {
                 (
                     "Usage",
                     row(vec![h::ToggleButton::new("tb-usage")
+                        .radius(px(8.))
                         .label("Bold")
                         .into_any_element()]),
                 ),

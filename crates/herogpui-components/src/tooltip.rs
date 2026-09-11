@@ -238,6 +238,8 @@ pub struct Tooltip {
     close_delay: Option<u64>,
     trigger: TooltipTrigger,
     children: Vec<AnyElement>,
+    /// The corner radius, in place of the owning `small_radius` helper.
+    radius: Option<Pixels>,
     /// The `sx` slot, refined over the root style at the end of render.
     sx: Option<Box<gpui::StyleRefinement>>,
 }
@@ -256,6 +258,7 @@ impl Tooltip {
             close_delay: None,
             trigger: TooltipTrigger::default(),
             children: Vec::new(),
+            radius: None,
             sx: None,
         }
     }
@@ -320,6 +323,15 @@ impl Tooltip {
     /// `--tooltip-close-delay` theme token.
     pub fn close_delay(mut self, ms: u64) -> Self {
         self.close_delay = Some(ms);
+        self
+    }
+
+    /// The corner radius, in place of the owning `small_radius` helper. The
+    /// tip's entry zoom interpolates the same value, so both follow the
+    /// override. Not a v3 prop; the removed v2 `radius` prop is prohibited
+    /// and this is a per-component repository extension.
+    pub fn radius(mut self, radius: impl Into<Pixels>) -> Self {
+        self.radius = Some(radius.into());
         self
     }
 
@@ -546,6 +558,9 @@ impl RenderOnce for Tooltip {
             let offset = self
                 .offset
                 .unwrap_or(if self.show_arrow { px(7.) } else { px(3.) });
+            // The entry zoom interpolates the tip's own radius, so one
+            // binding feeds both the painted shape and the animation.
+            let radius = self.radius.unwrap_or_else(|| util::small_radius(cx));
             // CSS gives an absolutely positioned tooltip max-content width capped
             // at 320px. GPUI otherwise resolves normal wrapping to min-content,
             // making even "With an arrow" one word wide, so shape the single line
@@ -587,7 +602,7 @@ impl RenderOnce for Tooltip {
                 // `.tooltip` is `p-2` all round, not a wider-than-tall pill.
                 .p(px(8.))
                 .w(tooltip_width)
-                .rounded(util::small_radius(cx))
+                .rounded(radius)
                 .bg(colors.overlay.background)
                 .text_color(colors.overlay.foreground)
                 .text_size(px(12.))
@@ -648,7 +663,7 @@ impl RenderOnce for Tooltip {
 
             // `absolute` does not lift the tip above later siblings in the page,
             // so it has to paint last.
-            let zoom = anim::ZoomBox::panel(px(8.), util::small_radius(cx)).padding_x(px(8.));
+            let zoom = anim::ZoomBox::panel(px(8.), radius).padding_x(px(8.));
             let animated = if self.should_skip_animation {
                 tip.into_any_element()
             } else if phase == util::OverlayPhase::Exiting {

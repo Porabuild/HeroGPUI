@@ -4,7 +4,7 @@
 //! including when composed inside a clipped or positioned container.
 
 use gpui::{
-    prelude::*, px, AnyElement, App, ClickEvent, IntoElement, ParentElement, RenderOnce,
+    prelude::*, px, AnyElement, App, ClickEvent, IntoElement, ParentElement, Pixels, RenderOnce,
     SharedString, Styled, Window,
 };
 use herogpui_core::{element_id, Backdrop};
@@ -39,7 +39,7 @@ impl ModalSize {
     /// `max-w-xs` … `max-w-lg` from `.modal__dialog--*`, which is Tailwind's
     /// scale: 20rem, 24rem, 28rem, 32rem. `Cover` and `Full` are `w-full`
     /// instead, so the width comes from the container.
-    fn max_width(self) -> Option<gpui::Pixels> {
+    fn max_width(self) -> Option<Pixels> {
         match self {
             ModalSize::Xs => Some(px(320.)),
             ModalSize::Sm => Some(px(384.)),
@@ -107,6 +107,9 @@ pub struct Modal {
     body: Vec<AnyElement>,
     footer: Vec<AnyElement>,
     on_close: Option<OnClose>,
+    /// The panel's corner radius, in place of the owning `container_radius`
+    /// helper. `Full` paints no radius at all, override or not.
+    radius: Option<Pixels>,
     /// The `sx` slot, refined over the root style at the end of render.
     sx: Option<Box<gpui::StyleRefinement>>,
 }
@@ -393,6 +396,7 @@ impl Modal {
             body: Vec::new(),
             footer: Vec::new(),
             on_close: None,
+            radius: None,
             sx: None,
         }
     }
@@ -439,6 +443,15 @@ impl Modal {
 
     pub fn placement(mut self, p: ModalPlacement) -> Self {
         self.placement = p;
+        self
+    }
+
+    /// The panel's corner radius, in place of the owning `container_radius`
+    /// helper. `Full` paints no radius at all, override or not. Not a v3
+    /// prop; the removed v2 `radius` prop is prohibited and this is a
+    /// per-component repository extension.
+    pub fn radius(mut self, radius: impl Into<Pixels>) -> Self {
+        self.radius = Some(radius.into());
         self
     }
 
@@ -622,6 +635,11 @@ impl RenderOnce for Modal {
         let full = self.size == ModalSize::Full;
         let panel_max = window.viewport_size().height - if full { px(0.) } else { px(80.) };
         let inside_body_max = panel_max - px(48.);
+        // The panel radius: an instance override replaces the helper's value,
+        // and `Full` paints none either way. Read off `self` before the body
+        // and the footer are moved into the panel.
+        let radius = self.radius;
+        let panel_radius = radius.unwrap_or_else(|| crate::util::container_radius(cx));
         // `.modal__dialog`: w-full, a per-size max width, and p-6.
         let panel = gpui::div()
             .relative()
@@ -651,7 +669,7 @@ impl RenderOnce for Modal {
             .bg(colors.overlay.background)
             .text_color(colors.foreground)
             .when(!full, |e| {
-                e.rounded(crate::util::container_radius(cx))
+                e.rounded(panel_radius)
                     .shadow(cx.layout().overlay_shadow.clone())
             })
             .overflow_hidden()
@@ -855,7 +873,7 @@ impl RenderOnce for Modal {
             // no width here; Full also has no radius, so its zoom-100 rule is
             // the shared fade with no geometric interpolation.
             width: self.size.max_width(),
-            radius: (!full).then(|| crate::util::container_radius(cx)),
+            radius: (!full).then_some(panel_radius),
             ..Default::default()
         };
         overlay = overlay.child(if exiting {

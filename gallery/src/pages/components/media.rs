@@ -66,6 +66,7 @@ impl Gallery {
                     "Fallback text uses 14px text with 20px lines, or 16px text with 24px lines for large avatars.",
                     row(vec![h::Avatar::new("usage-avatar")
                         .name("Jane Doe")
+                        .radius(px(8.))
                         .into_any_element()]),
                 ),
                 (

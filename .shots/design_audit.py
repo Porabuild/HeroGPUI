@@ -577,7 +577,8 @@ CHECKS = [
      r'Size::Md => \(px\(36\.\), px\(16\.\), px\((\d+(?:\.\d*)?)\.\)', None),
     ('toggle-button', '.toggle-button', 'radius', 'ToggleButton -> util::_radius',
      SRC + 'toggle_button.rs',
-     r'let radius = crate::util::(\w+_radius)', helper_px),
+     r'let radius = self\s*\.radius\s*\.unwrap_or_else\(\|\| crate::util::(\w+_radius)\(cx\)\);',
+     helper_px),
     ('toggle-button', '.toggle-button--icon-only', 'w', 'ToggleButton icon-only box',
      SRC + 'toggle_button.rs',
      r'Size::Md => \(px\((\d+(?:\.\d*)?)\.\)', None),
@@ -4162,6 +4163,18 @@ def self_test():
         'let radius = self.radius.unwrap_or_else(|| crate::util::soft_radius(cx));'
     ).group(1) == 'soft_radius',
         'the chip radius reader must follow the override to its helper')
+    expect(re.search(
+        r'let radius = self\s*\.radius\s*\.unwrap_or_else\(\|\| crate::util::(\w+_radius)\(cx\)\);',
+        'let radius = self\n'
+        '            .radius\n'
+        '            .unwrap_or_else(|| crate::util::control_radius(cx));'
+    ).group(1) == 'control_radius',
+        'the toggle button radius reader must follow the override to its helper')
+    expect(re.search(
+        r'let radius = self\s*\.radius\s*\.unwrap_or_else\(\|\| crate::util::(\w+_radius)\(cx\)\);',
+        'let radius = crate::util::control_radius(cx);'
+    ) is None,
+        'the toggle button radius reader must reject the un-overridden helper literal')
     breadcrumbs = 'let text_size = self.text_size.unwrap_or(px(14.));\n'
     expect(re.search(
         r'let text_size = self\.text_size\.unwrap_or\(px\((\d+(?:\.\d*)?)\.\)\)',

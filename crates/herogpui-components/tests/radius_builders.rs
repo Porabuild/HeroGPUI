@@ -28,6 +28,30 @@ fn radius_builders_override_their_helper_defaults() {
             "self.radius = Some(radius.into());",
             ".rounded(self.radius.unwrap_or_else(|| crate::util::key_radius(cx)))",
         ),
+        (
+            "toggle_button.rs",
+            include_str!("../src/toggle_button.rs"),
+            "self.radius = Some(radius.into());",
+            ".unwrap_or_else(|| crate::util::control_radius(cx));",
+        ),
+        (
+            "avatar.rs",
+            include_str!("../src/avatar.rs"),
+            "self.radius = Some(radius.into());",
+            "let radius = self.radius.unwrap_or_else(|| {",
+        ),
+        (
+            "tooltip.rs",
+            include_str!("../src/tooltip.rs"),
+            "self.radius = Some(radius.into());",
+            "let radius = self.radius.unwrap_or_else(|| util::small_radius(cx));",
+        ),
+        (
+            "modal.rs",
+            include_str!("../src/modal.rs"),
+            "self.radius = Some(radius.into());",
+            "let panel_radius = radius.unwrap_or_else(|| crate::util::container_radius(cx));",
+        ),
     ] {
         assert!(source.contains(stored), "{file}: the builder must store");
         assert!(source.contains(resolved), "{file}: the render must resolve");
