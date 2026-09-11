@@ -15,7 +15,13 @@ Do not reintroduce v2 concepts:
 
 - `content1` through `content4`, numbered color scales, or primary/secondary as
   color roles; v3 uses surfaces, semantic roles, and accent.
-- The removed `radius` prop or field `size` props.
+- The removed `radius` prop or the v3 field `size` props. HeroGPUI-only
+  additive size enums (`SliderSize` is the precedent; `CheckboxSize`,
+  `RadioSize`, `TabsSize`) are allowed only under this narrow exception: every
+  step is defined in the component's own docs, `Md` is byte-identical to the
+  pinned default, the builder is recorded in `extra_audit.py` as a repository
+  extension, and it never appears in `reference_metadata` or presents itself
+  as a v3 prop.
 - V2-only spellings such as `Divider`, `DateInput`, `Progress`,
   `CircularProgress`, `NumberInput`, or `isLoading`.
 - Removed props including `isStriped`, `isBordered`, `isPressable`,

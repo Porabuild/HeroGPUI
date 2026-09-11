@@ -164,6 +164,18 @@ def helper_px(name):
     return None
 
 
+def checkbox_md_metrics(src):
+    """The `Md` `(control, indicator, text)` pair from `CheckboxSize::metrics`.
+
+    The `Sm` arm must not satisfy it: the audit's default is the pinned `Md`.
+    """
+    match = re.search(
+        r'Self::Md => \(px\((\d+(?:\.\d*)?)\.\), px\((\d+(?:\.\d*)?)\.\), '
+        r'px\((\d+(?:\.\d*)?)\.\)\)',
+        mask_comments(mask_literals(src)))
+    return tuple(float(group) for group in match.groups()) if match else None
+
+
 def input_grouped_padding_from(src):
     """Input's grouped exposed-edge padding (the NumberField default too)."""
     match = re.search(
@@ -319,8 +331,7 @@ CHECKS = [
      # press-scale radius multiplies the same helper and must not satisfy this.
      r'let radius = crate::util::(\w+_radius)', helper_px),
     ('checkbox', '.checkbox__indicator', 'size', 'Checkbox tick size',
-     SRC + 'checkbox.rs',
-     r'`\.checkbox__indicator` `size-3`[\s\S]{0,160}?px\((\d+(?:\.\d*)?)\.\), px\(14', None),
+     SRC + 'checkbox.rs', 'checkbox_md_indicator', None),
     ('color-area', '.color-area', 'radius', 'ColorArea -> util::_radius',
      SRC + 'color_picker.rs',
      r'`\.color-area` is `rounded-2xl`[\s\S]{0,120}?util::(\w+_radius)', helper_px),
@@ -1281,7 +1292,7 @@ CHECKS = [
     ('fieldset', '.fieldset__actions', 'pt', 'Fieldset actions pt', SRC + 'field.rs',
      r'`\.fieldset__actions` is `gap-2 pt-1`[\s\S]{0,120}?\.pt\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('checkbox', '.checkbox__control', 'size', 'Checkbox control', SRC + 'checkbox.rs',
-     'let \\(box_px, icon_px, text\\) = \\(px\\((\\d+(?:\\.\\d*)?)\\)', None),
+     'checkbox_md_control', None),
     ('checkbox', '.checkbox__control', 'radius', 'Checkbox -> util::_radius', SRC + 'checkbox.rs',
      'checkbox_control_radius', None),
     # v3 sizes the checkmark slot itself (`size-2.5` inside the `size-3`
@@ -1490,8 +1501,7 @@ CHECKS = [
      r'\.w_full\(\)\s*\.pl\(px\((\d+(?:\.\d*)?)\.\)\)\s*'
      r'\.child\(crate::field::ErrorMessage::new', None),
     ('checkbox', '.checkbox__content', 'text', 'Checkbox content text',
-     SRC + 'checkbox.rs',
-     r'\(box_px, icon_px, text\) = \(px\(16\.\), px\(12\.\), px\((\d+(?:\.\d*)?)\.\)\)', None),
+     SRC + 'checkbox.rs', 'checkbox_md_text', None),
     ('color-field', '.color-field', 'gap', 'ColorField wrapper gap', SRC + 'color_picker.rs',
      'field_wrapper_gap:ColorField:root', None),
     ('color-slider', '.color-slider', 'gap', 'ColorSlider wrapper gap', SRC + 'color_picker.rs',
@@ -2705,6 +2715,10 @@ def our_value(path, pattern, transform):
         return checkbox_checkmark_canvas(path)
     if pattern == 'input_grouped_padding':
         return input_grouped_padding_from(read_path(path))
+    if pattern.startswith('checkbox_md_'):
+        index = {'control': 0, 'indicator': 1, 'text': 2}[pattern.removeprefix('checkbox_md_')]
+        metrics = checkbox_md_metrics(read_path(path))
+        return metrics[index] if metrics else None
     try:
         src = read_path(path)
     except OSError:
@@ -4089,6 +4103,13 @@ def self_test():
         'a resolver on a foreign owner must stay unreadable')
     expect(field_box_px_from('', 'resolved_something_else') is None,
            'an unknown FieldBox resolver must stay unreadable')
+    expect(checkbox_md_metrics('Self::Md => (px(16.), px(12.), px(14.)),')
+           == (16.0, 12.0, 14.0),
+           'the checkbox Md metrics must be readable')
+    expect(checkbox_md_metrics('Self::Sm => (px(14.), px(10.), px(12.)),') is None,
+           'the compact arm must not satisfy the pinned default reader')
+    expect(checkbox_md_metrics('') is None,
+           'a missing metrics arm must stay unreadable')
     grouped = 'let padding_x = self.group_padding_x.unwrap_or(px(12.));\n'
     expect(input_grouped_padding_from(grouped) == 12.0,
            'the grouped exposed-edge padding must be readable')

@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "artifactSha256": "ce91b4e701bac9db5fc367d818441f9c4ae218d5ebc6bb14a623dfc4fd38b7ce",
+  "artifactSha256": "00d892a138ae80d66d54bbd0c924d70875f4a65c26287a2b6790f2c352198726",
   "glueSha256": "1fa7830e69921b7578ed6c98b3a535080ac75f35707199185197b3cb9e7df965",
   "examples": {
     "accordion/Controlled": {
@@ -542,6 +542,10 @@
     "checkbox/Render Props": {
       "codeSha256": "0e9f733682071d803a329496eeb9694db0414b5b5ba9ea06074b987cb240ddfe",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "checkbox/Sizes": {
+      "codeSha256": "a8cffc3c8d14d918245e68b9bef190347b89aefb5b43131b2c3d53b270915625",
+      "descriptionSha256": "7ab4dbe4e41d5711aa9fc91cc90b9ca41bc9012ae67718d3b11004304af2bba0"
     },
     "checkbox/Usage": {
       "codeSha256": "473bef019852d8bf1bd0d902e42fe819d6a52ca138611bfb8ab2f01970ac3a4a",

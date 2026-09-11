@@ -1617,6 +1617,23 @@ pub(crate) fn fade_endpoints(
     }
 }
 
+/// The leading v3 pairs with a Tailwind text step: 12/16, 14/20 and 16/24.
+///
+/// `None` for a size outside the table, so an override keeps the component's
+/// own leading rather than guessing.
+pub(crate) fn leading_for(text_size: Pixels) -> Option<Pixels> {
+    let size = f32::from(text_size);
+    if (size - 12.0).abs() < f32::EPSILON {
+        Some(gpui::px(16.))
+    } else if (size - 14.0).abs() < f32::EPSILON {
+        Some(gpui::px(20.))
+    } else if (size - 16.0).abs() < f32::EPSILON {
+        Some(gpui::px(24.))
+    } else {
+        None
+    }
+}
+
 /// Refines `el`'s corners with the explicit `sx` corners, leaving each corner
 /// with the component's own radius when the override did not name it.
 ///
@@ -1786,6 +1803,14 @@ mod sx_extraction_tests {
                 bottom_left: None,
             }
         );
+    }
+
+    #[test]
+    fn leading_pairs_follow_the_v3_steps() {
+        assert_eq!(leading_for(px(12.)), Some(px(16.)));
+        assert_eq!(leading_for(px(14.)), Some(px(20.)));
+        assert_eq!(leading_for(px(16.)), Some(px(24.)));
+        assert_eq!(leading_for(px(13.)), None, "an unpairable size stays unset");
     }
 
     #[test]

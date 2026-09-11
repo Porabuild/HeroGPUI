@@ -1809,6 +1809,12 @@
       "code": "gpui::div()\n    .flex()\n    .flex_col()\n    .items_start()\n    .gap(px(12.))\n    .children(vec![\n        Checkbox::new(\"checkbox-1\")\n            .is_selected(basic)\n            .hover_bg(cx.colors().accent.soft_hover())\n            .label(gpui::div().child(\"Accept the terms\"))\n            .on_change(cx.listener(|this, v: &bool, _, cx| {\n                this.cb_basic = *v;\n                cx.notify();\n            }))\n            .into_any_element(),\n        Checkbox::new(\"checkbox-2\")\n            .is_selected(colored)\n            .variant(FieldVariant::Secondary)\n            .label(gpui::div().child(\"Subscribe to updates\"))\n            .on_change(cx.listener(|this, v: &bool, _, cx| {\n                this.cb_color = *v;\n                cx.notify();\n            }))\n            .into_any_element(),\n    ])"
     },
     {
+      "heading": "Sizes",
+      "description": "`size` is additive, not a v3 prop: `Md` is the pinned 16px control; `Sm` is a 14px control with a 10px indicator and 12px label text.",
+      "imports": "use herogpui::prelude::{Checkbox, CheckboxSize};\nuse gpui::prelude::*;\nuse gpui::px;",
+      "code": "gpui::div()\n    .flex()\n    .flex_col()\n    .items_start()\n    .gap(px(12.))\n    .children(vec![\n        Checkbox::new(\"checkbox-sz-sm\")\n            .size(CheckboxSize::Sm)\n            .label(gpui::div().child(\"Small\"))\n            .into_any_element(),\n        Checkbox::new(\"checkbox-sz-md\")\n            .size(CheckboxSize::Md)\n            .label(gpui::div().child(\"Medium\"))\n            .into_any_element(),\n    ])"
+    },
+    {
       "heading": "Variants",
       "imports": "use herogpui::prelude::{Checkbox, FieldVariant};\nuse gpui::prelude::*;\nuse gpui::px;",
       "code": "gpui::div()\n    .flex()\n    .flex_col()\n    .items_start()\n    .gap(px(12.))\n    .children(vec![\n        Checkbox::new(\"checkbox-primary\")\n            .default_selected(true)\n            .label(gpui::div().child(\"Primary\"))\n            .into_any_element(),\n        Checkbox::new(\"checkbox-secondary\")\n            .default_selected(true)\n            .variant(FieldVariant::Secondary)\n            .label(gpui::div().child(\"Secondary\"))\n            .into_any_element(),\n    ])"

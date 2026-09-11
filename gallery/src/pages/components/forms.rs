@@ -39,6 +39,20 @@ impl Gallery {
                     ]),
                 ),
                 (
+                    "Sizes",
+                    "`size` is additive, not a v3 prop: `Md` is the pinned 16px control; `Sm` is a 14px control with a 10px indicator and 12px label text.",
+                    col(vec![
+                        h::Checkbox::new("cb-sz-sm")
+                            .size(h::CheckboxSize::Sm)
+                            .label(gpui::div().child("Small"))
+                            .into_any_element(),
+                        h::Checkbox::new("cb-sz-md")
+                            .size(h::CheckboxSize::Md)
+                            .label(gpui::div().child("Medium"))
+                            .into_any_element(),
+                    ]),
+                ),
+                (
                     "Variants",
                     col(vec![
                         h::Checkbox::new("cb-v-primary")

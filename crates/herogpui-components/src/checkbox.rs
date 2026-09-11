@@ -339,6 +339,37 @@ fn lerp_point(a: (f32, f32), b: (f32, f32), t: f32) -> (f32, f32) {
     (a.0 + (b.0 - a.0) * t, a.1 + (b.1 - a.1) * t)
 }
 
+/// HeroGPUI-only compact size for a [`Checkbox`].
+///
+/// v3.2.4 removed the field `size` prop (the control is `size-4` through
+/// Tailwind), so this is additive: `Md` is byte-identical to the pinned
+/// default and `Sm` is HeroGPUI's own 14px step. Not a v3 prop.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum CheckboxSize {
+    Sm,
+    #[default]
+    Md,
+}
+
+impl CheckboxSize {
+    pub const ALL: [CheckboxSize; 2] = [Self::Sm, Self::Md];
+
+    /// `(control, indicator, label text)` for this step.
+    fn metrics(self) -> (gpui::Pixels, gpui::Pixels, gpui::Pixels) {
+        match self {
+            Self::Sm => (px(14.), px(10.), px(12.)),
+            Self::Md => (px(16.), px(12.), px(14.)),
+        }
+    }
+
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Sm => "Small",
+            Self::Md => "Medium",
+        }
+    }
+}
+
 /// HeroUI Checkbox.
 #[derive(IntoElement)]
 pub struct Checkbox {
@@ -375,6 +406,8 @@ pub struct Checkbox {
     is_round: bool,
     /// The control fill while hovered, in place of `--accent-hover`.
     hover_bg: Option<gpui::Hsla>,
+    /// The compact step; `Md` is the pinned default.
+    size: CheckboxSize,
     description: Option<gpui::SharedString>,
     /// The plain text of the label, when the caller had one.
     ///
@@ -452,6 +485,14 @@ impl Checkbox {
         self
     }
 
+    /// Sets the compact step. `Md` is the default and byte-identical to the
+    /// pinned control; `Sm` is a 14px control with a 10px indicator and 12px
+    /// label text (16px leading). Not a v3 prop.
+    pub fn size(mut self, size: CheckboxSize) -> Self {
+        self.size = size;
+        self
+    }
+
     pub fn variant(mut self, variant: herogpui_core::FieldVariant) -> Self {
         self.variant = variant;
         self
@@ -491,6 +532,7 @@ impl Checkbox {
             content: None,
             is_round: false,
             hover_bg: None,
+            size: CheckboxSize::default(),
             description: None,
             label_text: None,
             error_message: None,
@@ -745,7 +787,8 @@ impl RenderOnce for Checkbox {
 
         // `.checkbox__control` is `size-4`, `.checkbox__indicator` `size-3`
         // around a `size-2.5` checkmark, and `.checkbox__content` `text-sm`.
-        let (box_px, icon_px, text) = (px(16.), px(12.), px(14.));
+        // The `Sm` step scales all three together; `Md` is pinned.
+        let (box_px, icon_px, text) = self.size.metrics();
         let control_radius = if self.is_round {
             // `rounded-full` on the control: the fill matches it, the way the
             // control's `overflow-hidden` clips the pseudo-element upstream.
@@ -955,7 +998,7 @@ impl RenderOnce for Checkbox {
                     })),
             )
             .text_size(text)
-            .line_height(px(20.))
+            .line_height(crate::util::leading_for(text).unwrap_or(px(20.)))
             .font_weight(gpui::FontWeight::MEDIUM)
             .text_color(cx.colors().foreground);
 
@@ -1416,5 +1459,21 @@ impl RenderOnce for CheckboxGroup {
 
         root = crate::util::apply_sx(root, &self.sx);
         root
+    }
+}
+
+#[cfg(test)]
+mod size_tests {
+    use super::*;
+
+    #[test]
+    fn md_is_the_pinned_geometry_and_sm_scales_together() {
+        assert_eq!(CheckboxSize::default(), CheckboxSize::Md);
+        assert_eq!(CheckboxSize::Md.metrics(), (px(16.), px(12.), px(14.)));
+        assert_eq!(CheckboxSize::Sm.metrics(), (px(14.), px(10.), px(12.)));
+        assert_eq!(
+            crate::util::leading_for(CheckboxSize::Sm.metrics().2),
+            Some(px(16.))
+        );
     }
 }
