@@ -1,6 +1,6 @@
 //! Kbd — port of `@heroui/kbd`.
 
-use gpui::{px, AnyElement, App, IntoElement, ParentElement, RenderOnce, Styled, Window};
+use gpui::{px, AnyElement, App, IntoElement, ParentElement, Pixels, RenderOnce, Styled, Window};
 use herogpui_theme::ActiveTheme;
 
 /// Visual style of a key (`variant`).
@@ -29,6 +29,8 @@ impl KbdVariant {
 pub struct Kbd {
     variant: KbdVariant,
     children: Vec<AnyElement>,
+    /// The corner radius, in place of `--radius-lg`.
+    radius: Option<Pixels>,
     /// The `sx` slot, refined over the root style at the end of render.
     sx: Option<Box<gpui::StyleRefinement>>,
 }
@@ -38,12 +40,21 @@ impl Kbd {
         Self {
             variant: KbdVariant::Default,
             children: Vec::new(),
+            radius: None,
             sx: None,
         }
     }
 
     pub fn variant(mut self, v: KbdVariant) -> Self {
         self.variant = v;
+        self
+    }
+
+    /// The corner radius, in place of `--radius-lg`. Not a v3 prop; the
+    /// removed v2 `radius` prop is prohibited and this is a per-component
+    /// repository extension.
+    pub fn radius(mut self, radius: impl Into<Pixels>) -> Self {
+        self.radius = Some(radius.into());
         self
     }
 
@@ -83,7 +94,7 @@ impl RenderOnce for Kbd {
             .gap(px(2.))
             .px(px(8.))
             .h(h)
-            .rounded(crate::util::key_radius(cx))
+            .rounded(self.radius.unwrap_or_else(|| crate::util::key_radius(cx)))
             // Tailwind's `text-sm` pairs 14px with a 20px leading; gpui's phi
             // default would give 14 x 1.618 ≈ 23px.
             .text_size(text)

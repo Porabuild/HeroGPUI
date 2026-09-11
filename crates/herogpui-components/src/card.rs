@@ -1,6 +1,8 @@
 //! Card — port of `@heroui/card`.
 
-use gpui::{prelude::*, px, AnyElement, App, IntoElement, ParentElement, RenderOnce, Window};
+use gpui::{
+    prelude::*, px, AnyElement, App, IntoElement, ParentElement, Pixels, RenderOnce, Window,
+};
 use herogpui_theme::ActiveTheme;
 
 /// Card prominence level. Every fill level paints its surface shade and
@@ -40,8 +42,10 @@ impl CardVariant {
 #[derive(IntoElement)]
 pub struct Card {
     variant: CardVariant,
-    width: Option<gpui::Pixels>,
+    width: Option<Pixels>,
     children: Vec<AnyElement>,
+    /// The corner radius, in place of `min(32px, --radius-3xl)`.
+    radius: Option<Pixels>,
     /// The `sx` slot, refined over the root style at the end of render.
     sx: Option<Box<gpui::StyleRefinement>>,
 }
@@ -52,6 +56,7 @@ impl Card {
             variant: CardVariant::Default,
             width: None,
             children: Vec::new(),
+            radius: None,
             sx: None,
         }
     }
@@ -62,8 +67,16 @@ impl Card {
     }
 
     /// Fixed card width.
-    pub fn w(mut self, v: impl Into<gpui::Pixels>) -> Self {
+    pub fn w(mut self, v: impl Into<Pixels>) -> Self {
         self.width = Some(v.into());
+        self
+    }
+
+    /// The corner radius, in place of `min(32px, --radius-3xl)`. Not a v3
+    /// prop; the removed v2 `radius` prop is prohibited and this is a
+    /// per-component repository extension.
+    pub fn radius(mut self, radius: impl Into<Pixels>) -> Self {
+        self.radius = Some(radius.into());
         self
     }
 
@@ -101,7 +114,10 @@ impl RenderOnce for Card {
             .flex_col()
             .gap(px(12.))
             .p(px(16.))
-            .rounded(crate::util::container_radius(cx))
+            .rounded(
+                self.radius
+                    .unwrap_or_else(|| crate::util::container_radius(cx)),
+            )
             .children(self.children);
         // Upstream `.card` is `overflow-visible`: no clipping call here.
 

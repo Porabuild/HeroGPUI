@@ -511,6 +511,11 @@ EXTRA_OK_SCOPED = {
     'Badge.text_size': 'no-classname',
     'Chip.text_size': 'no-classname',
     'Breadcrumbs.text_size': 'no-classname',
+    # Narrow parity exception; see docs/agents/parity.md.
+    'Button.radius': 'repository-radius-extension',
+    'Card.radius': 'repository-radius-extension',
+    'Chip.radius': 'repository-radius-extension',
+    'Kbd.radius': 'repository-radius-extension',
     # v3's stylesheet declares `.range-calendar__cell-indicator`; only the
     # Calendar's prop table names the part.
     'RangeCalendar.cell_indicator': 'composition',

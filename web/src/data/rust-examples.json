@@ -2,8 +2,8 @@
   "button": [
     {
       "heading": "Usage",
-      "imports": "use herogpui::prelude::{Button, Size, Variant};",
-      "code": "Button::new(\"button\")\n    .label(\"Click me\")"
+      "imports": "use herogpui::prelude::{Button, Size, Variant};\nuse gpui::px;",
+      "code": "Button::new(\"button\")\n    .radius(px(8.))\n    .label(\"Click me\")"
     },
     {
       "heading": "Variants",
@@ -850,7 +850,7 @@
       "heading": "Custom Output Display",
       "description": "The output closure receives every live value and its formatted thumb label.",
       "imports": "use herogpui::prelude::{Chip, ChipLabel, ChipVariant, Color, Slider};\nuse gpui::prelude::*;\nuse gpui::px;",
-      "code": "gpui::div()\n    .w(px(320.))\n    .child(\n        Slider::new(\"slider-output\", volume)\n            .label(\"Brightness\")\n            .output(|values, labels| {\n                Chip::new()\n                    .variant(ChipVariant::Soft)\n                    .color(Color::Accent)\n                    .text_size(px(12.))\n                    .child(ChipLabel::new().child(format!(\n                        \"{:.0}% ({})\",\n                        values[0], labels[0]\n                    )))\n                    .into_any_element()\n            })\n            .on_change(cx.listener(|this, v: &f32, _, cx| {\n                this.set_demo_value(\"sl-controlled\", *v);\n                cx.notify();\n            })),\n    )"
+      "code": "gpui::div()\n    .w(px(320.))\n    .child(\n        Slider::new(\"slider-output\", volume)\n            .label(\"Brightness\")\n            .output(|values, labels| {\n                Chip::new()\n                    .variant(ChipVariant::Soft)\n                    .color(Color::Accent)\n                    .radius(px(4.))\n                    .text_size(px(12.))\n                    .child(ChipLabel::new().child(format!(\n                        \"{:.0}% ({})\",\n                        values[0], labels[0]\n                    )))\n                    .into_any_element()\n            })\n            .on_change(cx.listener(|this, v: &f32, _, cx| {\n                this.set_demo_value(\"sl-controlled\", *v);\n                cx.notify();\n            })),\n    )"
     },
     {
       "heading": "Range",
@@ -3657,8 +3657,8 @@
   "kbd": [
     {
       "heading": "Navigation Keys",
-      "imports": "use herogpui::prelude::Kbd;\nuse gpui::prelude::*;",
-      "code": "row(vec![\n    Kbd::new().child(\"\\u{2190}\").into_any_element(),\n    Kbd::new().child(\"\\u{2192}\").into_any_element(),\n    Kbd::new().child(\"\\u{2191}\").into_any_element(),\n    Kbd::new().child(\"\\u{2193}\").into_any_element(),\n    Kbd::new().child(\"Home\").into_any_element(),\n    Kbd::new().child(\"End\").into_any_element(),\n])"
+      "imports": "use herogpui::prelude::Kbd;\nuse gpui::prelude::*;\nuse gpui::px;",
+      "code": "row(vec![\n    Kbd::new()\n        .radius(px(3.))\n        .child(\"\\u{2190}\")\n        .into_any_element(),\n    Kbd::new().child(\"\\u{2192}\").into_any_element(),\n    Kbd::new().child(\"\\u{2191}\").into_any_element(),\n    Kbd::new().child(\"\\u{2193}\").into_any_element(),\n    Kbd::new().child(\"Home\").into_any_element(),\n    Kbd::new().child(\"End\").into_any_element(),\n])"
     },
     {
       "heading": "Special Keys",

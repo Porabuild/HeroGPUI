@@ -19,6 +19,7 @@ impl Gallery {
                 (
                     "Usage",
                     row(vec![h::Button::new("btn-usage")
+                        .radius(px(8.))
                         .label("Click me")
                         .into_any_element()]),
                 ),

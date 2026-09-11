@@ -16,7 +16,10 @@ impl Gallery {
                 (
                     "Navigation Keys",
                     row(vec![
-                        h::Kbd::new().child("\u{2190}").into_any_element(),
+                        h::Kbd::new()
+                            .radius(px(3.))
+                            .child("\u{2190}")
+                            .into_any_element(),
                         h::Kbd::new().child("\u{2192}").into_any_element(),
                         h::Kbd::new().child("\u{2191}").into_any_element(),
                         h::Kbd::new().child("\u{2193}").into_any_element(),

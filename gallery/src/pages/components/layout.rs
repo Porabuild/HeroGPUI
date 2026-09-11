@@ -12,6 +12,7 @@ impl Gallery {
             h::Card::new()
                 .variant(variant)
                 .w(px(260.))
+                .radius(px(4.))
                 .child(
                     h::CardHeader::new()
                         .child(h::CardTitle::new().child("Daily report"))

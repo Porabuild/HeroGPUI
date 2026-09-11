@@ -8,7 +8,7 @@
 
 use gpui::{
     div, prelude::*, AnyElement, App, ClickEvent, Div, ElementId, InteractiveElement, IntoElement,
-    ParentElement, RenderOnce, SharedString, Stateful, Styled, Window,
+    ParentElement, Pixels, RenderOnce, SharedString, Stateful, Styled, Window,
 };
 use herogpui_core::{element_id, Size, Variant};
 use herogpui_theme::ActiveTheme;
@@ -71,6 +71,9 @@ pub struct Button {
     /// place of the variant's hover colour. Additive — unset, the fade behaves
     /// exactly as it did before the builder existed.
     hover_bg: Option<gpui::Hsla>,
+    /// The corner radius, in place of `--radius-3xl` (capped). Group edges and
+    /// the press scale still apply.
+    radius: Option<Pixels>,
 }
 
 impl Button {
@@ -94,6 +97,7 @@ impl Button {
             on_press: None,
             sx: None,
             hover_bg: None,
+            radius: None,
         }
     }
 
@@ -164,10 +168,17 @@ impl Button {
     /// other button uses. The press state is unaffected either way — v3's
     /// `:active` is the opacity step [`apply_button_variant`] applies, not a
     /// third colour.
-    ///
     /// v3 has no such prop; on the web this is `className="hover:bg-…"`.
     pub fn hover_bg(mut self, color: impl Into<gpui::Hsla>) -> Self {
         self.hover_bg = Some(color.into());
+        self
+    }
+
+    /// The corner radius, in place of `--radius-3xl` (capped). Group edges and
+    /// the press scale still apply. Not a v3 prop; the removed v2 `radius`
+    /// prop is prohibited and this is a per-component repository extension.
+    pub fn radius(mut self, radius: impl Into<Pixels>) -> Self {
+        self.radius = Some(radius.into());
         self
     }
 
@@ -401,10 +412,10 @@ fn button_metrics(size: Size) -> ButtonMetrics {
 }
 
 struct ButtonMetrics {
-    text: gpui::Pixels,
-    line_height: gpui::Pixels,
-    padding_x: gpui::Pixels,
-    gap: gpui::Pixels,
+    text: Pixels,
+    line_height: Pixels,
+    padding_x: Pixels,
+    gap: Pixels,
 }
 
 /// The text colour `variant` paints, for child svgs that cannot inherit
@@ -426,7 +437,7 @@ pub fn button_foreground(variant: Variant, cx: &App) -> gpui::Hsla {
 pub(crate) fn group_radius_any<T: Styled>(
     el: T,
     edge: Option<(GroupEdge, bool)>,
-    radius: gpui::Pixels,
+    radius: Pixels,
 ) -> T {
     let Some((edge, vertical)) = edge else {
         return el.rounded(radius);
@@ -506,7 +517,7 @@ fn apply_collapsed_sides<T: Styled>(el: T, sides: CollapsedSides) -> T {
 fn group_radius(
     el: Stateful<Div>,
     edge: Option<(GroupEdge, bool)>,
-    radius: gpui::Pixels,
+    radius: Pixels,
 ) -> Stateful<Div> {
     let Some((edge, vertical)) = edge else {
         return el.rounded(radius);
@@ -581,7 +592,7 @@ impl RenderOnce for Button {
             // instead of overflowing.
             .whitespace_nowrap()
             .font_weight(gpui::FontWeight::MEDIUM)
-            .map(|e| group_radius(e, self.group_edge, util::control_radius(cx)))
+            .map(|e| group_radius(e, self.group_edge, self.radius.unwrap_or_else(|| util::control_radius(cx))))
             .text_size(metrics.text)
             .line_height(metrics.line_height)
             .h(self.size.control_height());
@@ -617,7 +628,7 @@ impl RenderOnce for Button {
         // bit the slot records instead of binding a second listener.
         if let Some(colors) = fade {
             let edge = self.group_edge;
-            let radius = util::control_radius(cx);
+            let radius = self.radius.unwrap_or_else(|| util::control_radius(cx));
             el = crate::anim::hover_fade(
                 el,
                 element_id::scoped(&self.id, "fade"),
@@ -682,7 +693,7 @@ impl RenderOnce for Button {
                     text_size: metrics.text,
                     line_height: metrics.line_height,
                     gap: metrics.gap,
-                    radius: util::control_radius(cx),
+                    radius: self.radius.unwrap_or_else(|| util::control_radius(cx)),
                     shrink_x: !self.full_width,
                     scale: press_scale,
                 },

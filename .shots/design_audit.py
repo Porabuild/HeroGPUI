@@ -650,7 +650,8 @@ CHECKS = [
      r'the card is the padded box[\s\S]{0,280}?\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('card', '.card', 'radius', 'Card root -> util::_radius',
      SRC + 'card.rs',
-     r'the card is the padded box[\s\S]{0,400}?\.rounded\(crate::util::(\w+_radius)',
+     r'the card is the padded box[\s\S]{0,400}?\.rounded\(\s*self\.radius\s*'
+     r'\.unwrap_or_else\(\|\| crate::util::(\w+_radius)\(cx\)\)',
      helper_px),
     ('card', '.card__content', 'gap', 'Card content gap',
      SRC + 'card.rs',
@@ -1145,7 +1146,8 @@ CHECKS = [
     # The radius reaches the button through `group_radius`, which is what lets a
     # grouped member round only its outer corners.
     ('button', '.button', 'radius', 'Button -> util::_radius', SRC + 'button.rs',
-     r'group_radius\(e, self\.group_edge, util::(\w+_radius)\(cx\)\)', helper_px),
+     r'group_radius\(e, self\.group_edge, self\.radius\.unwrap_or_else\(\|\| util::(\w+_radius)\(cx\)\)\)',
+     helper_px),
     ('button', '.button', 'h', 'Size::control_height Md', CORE,
      r'Control height[\s\S]*?Size::Md => gpui::px\((\d+(?:\.\d*)?)\)', None),
     ('button', '.button--sm', 'h', 'Size::control_height Sm', CORE,
@@ -1281,7 +1283,8 @@ CHECKS = [
     ('tooltip', '.tooltip', 'text', 'Tooltip text', SRC + 'tooltip.rs',
      r'\.text_size\(px\((\d+(?:\.\d*)?)\)\)', None),
     ('chip', '.chip', 'radius', 'Chip -> util::_radius', SRC + 'chip.rs',
-     r'let radius = crate::util::(\w+_radius)\(cx\)', helper_px),
+     r'let radius = self\.radius\.unwrap_or_else\(\|\| crate::util::(\w+_radius)\(cx\)\)',
+     helper_px),
     # --- The sweep: the rest of the measurable geometry -------------------
     ('chip', '.chip', 'gap', 'Chip gap', SRC + 'chip.rs',
      '\\.gap\\(px\\((\\d+(?:\\.\\d*)?)\\)\\)', None),
@@ -4149,6 +4152,16 @@ def self_test():
            'the compact arm must not satisfy the pinned default reader')
     expect(checkbox_md_metrics('') is None,
            'a missing metrics arm must stay unreadable')
+    expect(re.search(
+        r'group_radius\(e, self\.group_edge, self\.radius\.unwrap_or_else\(\|\| util::(\w+_radius)\(cx\)\)\)',
+        'group_radius(e, self.group_edge, self.radius.unwrap_or_else(|| util::control_radius(cx)))'
+    ).group(1) == 'control_radius',
+        'the button radius reader must follow the override to its helper')
+    expect(re.search(
+        r'let radius = self\.radius\.unwrap_or_else\(\|\| crate::util::(\w+_radius)\(cx\)\)',
+        'let radius = self.radius.unwrap_or_else(|| crate::util::soft_radius(cx));'
+    ).group(1) == 'soft_radius',
+        'the chip radius reader must follow the override to its helper')
     breadcrumbs = 'let text_size = self.text_size.unwrap_or(px(14.));\n'
     expect(re.search(
         r'let text_size = self\.text_size\.unwrap_or\(px\((\d+(?:\.\d*)?)\.\)\)',

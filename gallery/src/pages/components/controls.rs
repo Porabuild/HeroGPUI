@@ -131,6 +131,7 @@ impl Gallery {
                                         h::Chip::new()
                                             .variant(h::ChipVariant::Soft)
                                             .color(Color::Accent)
+                                            .radius(px(4.))
                                             .text_size(px(12.))
                                             .child(h::ChipLabel::new().child(format!(
                                                 "{:.0}% ({})",

@@ -58,6 +58,8 @@ pub struct Chip {
     /// The `sx` slot, refined over the root style at the end of render.
     /// The label's font size; unset keeps the size-step's pair.
     text_size: Option<Pixels>,
+    /// The corner radius, in place of the size-step's radius.
+    radius: Option<Pixels>,
     sx: Option<Box<gpui::StyleRefinement>>,
 }
 
@@ -69,6 +71,7 @@ impl Chip {
             size: Size::Md,
             children: Vec::new(),
             text_size: None,
+            radius: None,
             sx: None,
         }
     }
@@ -97,6 +100,14 @@ impl Chip {
     /// leading.
     pub fn text_size(mut self, size: impl Into<Pixels>) -> Self {
         self.text_size = Some(size.into());
+        self
+    }
+
+    /// The corner radius, in place of the size-step's radius. Not a v3 prop;
+    /// the removed v2 `radius` prop is prohibited and this is a
+    /// per-component repository extension.
+    pub fn radius(mut self, radius: impl Into<Pixels>) -> Self {
+        self.radius = Some(radius.into());
         self
     }
 
@@ -187,7 +198,7 @@ impl RenderOnce for Chip {
     fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
         let colors = cx.colors();
         let (bg, fg) = paint(colors, self.variant, self.color);
-        let radius = crate::util::soft_radius(cx);
+        let radius = self.radius.unwrap_or_else(|| crate::util::soft_radius(cx));
 
         // `.chip` is `px-2 py-0.5 text-xs leading-5 font-medium`, `--sm` is
         // `px-1 py-0 text-xs`, `--md` is `text-xs` and `--lg` is `px-3 py-1

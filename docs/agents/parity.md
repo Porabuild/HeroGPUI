@@ -21,7 +21,10 @@ Do not reintroduce v2 concepts:
   step is defined in the component's own docs, `Md` is byte-identical to the
   pinned default, the builder is recorded in `extra_audit.py` as a repository
   extension, and it never appears in `reference_metadata` or presents itself
-  as a v3 prop.
+  as a v3 prop. The same exception covers per-component `radius` builders that
+  replace one owning `util::*_radius` helper: the default stays the helper,
+  an `sx` corner still wins per corner over the instance radius, and the
+  builder is recorded the same way.
 - V2-only spellings such as `Divider`, `DateInput`, `Progress`,
   `CircularProgress`, `NumberInput`, or `isLoading`.
 - Removed props including `isStriped`, `isBordered`, `isPressable`,
