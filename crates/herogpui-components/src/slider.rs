@@ -842,6 +842,36 @@ impl RenderOnce for Slider {
 
         // `.slider__fill` is `pointer-events-none absolute bg-accent`.
         let fill_span = (fill_to - fill_from).max(0.0);
+        let mut fill_corners = sx_corners;
+        // A cap owns the perimeter rounding; its join with a single-thumb
+        // fill is internal. Keep range and no-corner-override styling intact.
+        if !range_mode
+            && [
+                sx_corners.top_left,
+                sx_corners.top_right,
+                sx_corners.bottom_left,
+                sx_corners.bottom_right,
+            ]
+            .iter()
+            .any(Option::is_some)
+        {
+            if fill_start {
+                fill_corners.bottom_left = Some(px(0.));
+                if vertical {
+                    fill_corners.bottom_right = Some(px(0.));
+                } else {
+                    fill_corners.top_left = Some(px(0.));
+                }
+            }
+            if fill_end {
+                fill_corners.top_right = Some(px(0.));
+                if vertical {
+                    fill_corners.top_left = Some(px(0.));
+                } else {
+                    fill_corners.bottom_right = Some(px(0.));
+                }
+            }
+        }
         content = content.child(
             gpui::div()
                 .absolute()
@@ -857,7 +887,7 @@ impl RenderOnce for Slider {
                         .h_full()
                         .w(gpui::relative(fill_span))
                 })
-                .map(|f| crate::util::round_sx_corners(f, &sx_corners)),
+                .map(|f| crate::util::round_sx_corners(f, &fill_corners)),
         );
 
         // thumbs

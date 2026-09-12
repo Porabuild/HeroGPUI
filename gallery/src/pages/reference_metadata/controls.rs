@@ -137,7 +137,7 @@ const SLIDER_API: &[ApiDoc] = &[
         prop: "className",
         ty: "string",
         default: "—",
-        description: "Additional CSS classes for the root. Native sx pixel corners also reach the track caps and both Md thumb layers.",
+        description: "Additional CSS classes for the root. Native sx pixel corners also reach the track caps and both Md thumb layers; joined single-thumb cap/fill edges remain square.",
         rust_owner: "Slider",
         rust: "—",
         status: ImplementationStatus::Unavailable,
