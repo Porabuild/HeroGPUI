@@ -607,8 +607,8 @@ def main():
 
         for key in ("docs_source", "api_source", "style_source"):
             url = field(block, key) or ""
-            if "/blob/v3.2.4/" not in url:
-                errors.append(f"{page}: {key} is not pinned to v3.2.4")
+            if "/blob/v3.2.5/" not in url:
+                errors.append(f"{page}: {key} is not pinned to v3.2.5")
 
     for page, count in seen_pages.items():
         if count != 1:
@@ -627,7 +627,7 @@ def main():
             **totals
         )
     )
-    print("contract        : HeroUI v3.2.4, checked in; runtime network calls: 0")
+    print("contract        : HeroUI v3.2.5, checked in; runtime network calls: 0")
     if errors:
         print("FAIL")
         for error in errors:

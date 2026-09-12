@@ -172,7 +172,7 @@ export default function AgentsMdPage() {
         The first paragraph of the root file pins the framework targets: the Zed GPUI git revision
         in <C>Cargo.toml</C> and <C>Cargo.lock</C>, with Rust 1.98. Newer upstream APIs are not
         evidence that an API is available here. Rule three pins the design-system contract the same
-        way: HeroUI v3.2.4 with its React Aria and Stately versions. Check{" "}
+        way: HeroUI v3.2.5 with its React Aria and Stately versions. Check{" "}
         <Link href="/docs/ai/llms-txt">llms.txt</Link> and the task guides before using an API that
         is not present in the checkout.
       </P>

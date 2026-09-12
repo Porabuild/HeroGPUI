@@ -1,0 +1,21 @@
+{
+  "clear": {
+    "opacity": "0",
+    "pointerEvents": "none",
+    "transition": "all"
+  },
+  "empty": "true",
+  "focused": true,
+  "open": "false",
+  "rect": {
+    "bottom": 326.140625,
+    "height": 20,
+    "left": 696,
+    "right": 716,
+    "top": 306.140625,
+    "width": 20,
+    "x": 696,
+    "y": 306.140625
+  },
+  "value": "Select one"
+}

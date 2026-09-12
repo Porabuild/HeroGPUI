@@ -49,7 +49,7 @@ instead of leaving compatibility aliases, no-op builders, or speculative flags.
   layering below it stays as it is; the facade is a layer on top, not a merge.
 - `gallery` is the documentation app. Page routing and categories live in
   `gallery/src/pages/mod.rs`; component demos live primarily in
-  `gallery/src/pages/components/`; checked-in v3.2.4 API metadata lives in
+  `gallery/src/pages/components/`; checked-in v3.2.5 API metadata lives in
   `gallery/src/pages/reference_metadata/`.
 - `.shots` contains parity audits, headless gallery drivers, reference images,
   and the real lint gate.
@@ -60,9 +60,9 @@ instead of leaving compatibility aliases, no-op builders, or speculative flags.
 Use the narrowest source that actually owns the contract:
 
 1. This checkout's tests and code for its current behavior and supported API.
-2. HeroUI v3.2.4 component code and styles for port parity.
+2. HeroUI v3.2.5 component code and styles for port parity.
 3. HeroUI's exact pinned dependencies for inherited interaction semantics:
-   React Aria 3.51.0, React Stately 3.49.0, and React Aria Components 1.20.0.
+   React Aria 3.52.0, React Stately 3.50.0, and React Aria Components 1.21.0.
 4. The `gpui-pre` 0.3.3 sources pinned in `Cargo.lock` for framework
    behavior and available APIs. Cargo unpacks them to
    `~/.cargo/registry/src/index.crates.io-*/gpui-pre-0.3.3/`; read that tree,
@@ -73,7 +73,7 @@ Use the narrowest source that actually owns the contract:
 
 The live `https://heroui.com/react/llms-full.txt` bundle is an input to several
 audits, but tagged source and the checked-in reference metadata establish the
-repository's v3.2.4 contract. A green audit is only evidence for what that audit
+repository's v3.2.5 contract. A green audit is only evidence for what that audit
 actually reads.
 
 ## Project invariants

@@ -16,14 +16,14 @@ It is **not** a progress report, a porting diary, or a parity scoreboard.
 **1. Say "HeroUI", not "HeroUI v3".**
 
 HeroGPUI brings HeroUI's design system to Rust. That is the whole story. Drop
-`v3`, `v3.2.4`, "the v3 token system", "v3 components", "the v3 contract".
+`v3`, `v3.2.5`, "the v3 token system", "v3 components", "the v3 contract".
 Version numbers appear only where they are load-bearing:
 
 - inside a code block that pins a dependency;
 - in a link to a specific upstream source file;
 - in `ARCHITECTURE.md` and other developer-facing files, which are not site copy.
 
-"HeroUI v3.2.4" in body prose is wrong. "HeroUI" is right.
+"HeroUI v3.2.5" in body prose is wrong. "HeroUI" is right.
 
 **2. Never comment on release status.**
 

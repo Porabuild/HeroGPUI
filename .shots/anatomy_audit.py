@@ -47,7 +47,7 @@ from state_audit import MODULE  # noqa: E402  (one table of sheet -> module)
 
 sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 
-CSS = os.path.join(os.environ.get('TEMP', '/tmp'), 'heroui-css')
+from bundle import CSS_CACHE as CSS
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from component_source import list_modules, read_module, read_path
 from bundle import css_cache as _css_cache

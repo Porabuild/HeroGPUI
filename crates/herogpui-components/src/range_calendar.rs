@@ -773,7 +773,7 @@ impl RangeCalendar {
         // which would shrink the cell as the cursor arrived.
         let mut cell = util::with_focus_ring(
             cell,
-            !outside_month && frame.focused == Some(date),
+            util::shows_focus_ring(!outside_month && frame.focused == Some(date), cx),
             true,
             Vec::new(),
             cx,

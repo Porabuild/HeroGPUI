@@ -153,9 +153,11 @@ WAVE = ('waves 1-5 — form controls, overlays and disclosure, '
 # --------------------------------------------------------------------------
 # (module, struct) -> the role, and the pinned upstream source that decides it.
 #
-# Every reference is a file under `web/node_modules`, at the versions
-# `docs/agents/parity.md` pins: react-aria 3.51.0, react-aria-components 1.20.0,
-# @heroui/react 3.2.4.
+# References name files under `web/node_modules`. The original role review
+# used react-aria 3.51.0, react-aria-components 1.20.0,
+# and @heroui/react 3.2.4. The active v3.2.5 target and dependency versions
+# are in `docs/agents/parity.md`; these role mappings still require the
+# per-component inherited-behavior review during that migration.
 # --------------------------------------------------------------------------
 EXPOSES_A_ROLE = {
     ('button.rs', 'Button'):

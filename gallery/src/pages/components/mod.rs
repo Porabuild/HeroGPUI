@@ -757,7 +757,7 @@ mod example_quality {
     #[test]
     fn gallery_sections_are_preserved_while_reordering() {
         for (name, count) in [
-            ("select", 19),
+            ("select", 20),
             ("autocomplete", 19),
             ("combo_box", 27),
             ("slider", 16),

@@ -7,7 +7,7 @@ when the website structure or contracts change.
 ## What this site is
 
 Public documentation and marketing site for **HeroGPUI**, a native Rust/GPUI
-port of **HeroUI v3.2.4**. Modelled on <https://heroui.com> (structure, docs
+port of **HeroUI v3.2.5**. Modelled on <https://heroui.com> (structure, docs
 experience) and <https://longbridge.github.io/gpui-component/> (a Rust UI
 library presenting itself on the web).
 
@@ -46,7 +46,7 @@ is regenerated, also regenerate `src/data/wasm-sections.json` and
 ## Verified toolchain recipe (do not re-derive)
 
 - Next.js **16.3.3** (App Router, Turbopack), React **19.2.8**,
-  `@heroui/react` **3.2.4**, Tailwind CSS **4.3.3**, TypeScript 5.9.
+  `@heroui/react` **3.2.5**, Tailwind CSS **4.3.3**, TypeScript 5.9.
 - Package manager is **pnpm** (`pnpm install`, `pnpm run build`). Never npm.
 - `src/app/globals.css` must keep these lines. `@heroui/styles` already
   imports `tailwindcss` and `tw-animate-css`; do not import `tailwindcss`
@@ -81,7 +81,7 @@ example a switch is **not** `<Switch>Label</Switch>`:
 Before writing any usage of a component, read its real typings:
 
 ```
-node_modules/.pnpm/@heroui+react@3.2.4_*/node_modules/@heroui/react/dist/components/<name>/*.d.ts
+node_modules/.pnpm/@heroui+react@3.2.5_*/node_modules/@heroui/react/dist/components/<name>/*.d.ts
 ```
 
 v3 also removed v2's `color`/`variant` matrix. Colors are
@@ -169,8 +169,8 @@ slug:
   "button": {
     "page": "Button",
     "importLine": "...",
-    "version": "3.2.4",
-    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.4/...",
+    "version": "3.2.5",
+    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/...",
     "apiSource": "...",
     "styleSource": "...",
     "requiredParts": ["Button", "Button.Label"],
@@ -213,8 +213,8 @@ not hand-edit them.
 
 ## Attribution
 
-**HeroUI v3.2.4 is Apache-2.0**, Copyright 2025 NextUI Inc. Verify this against
-`https://raw.githubusercontent.com/heroui-inc/heroui/v3.2.4/LICENSE` rather
+**HeroUI v3.2.5 is Apache-2.0**, Copyright 2025 NextUI Inc. Verify this against
+`https://raw.githubusercontent.com/heroui-inc/heroui/v3.2.5/LICENSE` rather
 than the `@heroui/react` npm manifest, whose `license` field says "MIT" while
 the tarball ships the Apache-2.0 text. The repository's own
 `E:\work\HeroGPUI\NOTICE` already states Apache-2.0; match its wording.

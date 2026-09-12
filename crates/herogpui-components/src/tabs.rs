@@ -32,6 +32,36 @@ impl TabsVariant {
     }
 }
 
+/// Content alignment inside each tab (`align`), independent of orientation.
+/// Start and end follow the port's left-to-right layout.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum TabsAlign {
+    Start,
+    #[default]
+    Center,
+    End,
+}
+
+impl TabsAlign {
+    pub const ALL: [Self; 3] = [Self::Start, Self::Center, Self::End];
+
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Start => "Start",
+            Self::Center => "Center",
+            Self::End => "End",
+        }
+    }
+
+    fn apply<T: Styled>(self, tab: T) -> T {
+        match self {
+            Self::Start => tab.justify_start().text_left(),
+            Self::Center => tab.justify_center().text_center(),
+            Self::End => tab.justify_end().text_right(),
+        }
+    }
+}
+
 /// `.tabs__separator` transitions its opacity for 150ms with `--ease-smooth`.
 const SEPARATOR_TRANSITION_MS: u64 = 150;
 /// `.tabs__indicator` transitions translate, width and height for 250ms with
@@ -431,6 +461,7 @@ pub struct Tabs {
     selected_key: Option<SharedString>,
     default_selected_key: Option<SharedString>,
     variant: TabsVariant,
+    align: TabsAlign,
     is_disabled: bool,
     /// The compact step; `Md` is the pinned default.
     size: TabsSize,
@@ -446,6 +477,13 @@ impl Tabs {
     /// `orientation` — a vertical tab list stacks its tabs.
     pub fn orientation(mut self, orientation: Orientation) -> Self {
         self.orientation = orientation;
+        self
+    }
+
+    /// Aligns content within each tab. The default is center. This does not
+    /// reposition the list, its indicator, panel content, or nested tabs.
+    pub fn align(mut self, align: TabsAlign) -> Self {
+        self.align = align;
         self
     }
 
@@ -487,6 +525,7 @@ impl Tabs {
             selected_key: None,
             default_selected_key: Some(default_selected_key.into()),
             variant: TabsVariant::Primary,
+            align: TabsAlign::default(),
             is_disabled: false,
             full_width: false,
             size: TabsSize::default(),
@@ -875,13 +914,13 @@ impl RenderOnce for Tabs {
                         // none of them widens the row.
                         .when(stretch, |t| t.flex_1().min_w(px(0.)))
                         .when(!stretch, |t| t.flex_shrink_0())
-                        // A tab's label does not wrap: `.tabs__list` is `w-max`,
-                        // so the row is as wide as its labels and the scroller
-                        // is what handles the overflow.
+                        // The port currently keeps labels on one line;
+                        // constrained vertical wrapping needs min-content
+                        // layout parity as well as a text wrapping change.
                         .whitespace_nowrap()
                         .flex()
                         .items_center()
-                        .justify_center()
+                        .map(|tab| self.align.apply(tab))
                         .rounded(crate::util::control_radius(cx))
                         .text_size(tab_text)
                         .line_height(
@@ -1078,13 +1117,13 @@ impl RenderOnce for Tabs {
                         // none of them widens the row.
                         .when(stretch, |t| t.flex_1().min_w(px(0.)))
                         .when(!stretch, |t| t.flex_shrink_0())
-                        // A tab's label does not wrap: `.tabs__list` is `w-max`,
-                        // so the row is as wide as its labels and the scroller
-                        // is what handles the overflow.
+                        // The port currently keeps labels on one line;
+                        // constrained vertical wrapping needs min-content
+                        // layout parity as well as a text wrapping change.
                         .whitespace_nowrap()
                         .flex()
                         .items_center()
-                        .justify_center()
+                        .map(|tab| self.align.apply(tab))
                         .text_size(tab_text)
                         .line_height(
                             crate::util::leading_for(tab_text).unwrap_or(px(20.)),

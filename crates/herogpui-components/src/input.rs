@@ -2479,8 +2479,10 @@ impl RenderOnce for Input {
             if is_disabled {
                 return;
             }
-            crate::util::set_focus_visible(true, cx);
             let key: &str = &ev.keystroke.key;
+            if crate::util::key_enables_focus_visible(key) {
+                crate::util::set_focus_visible(true, cx);
+            }
             let mods = ev.keystroke.modifiers;
             if state_entity.read(cx).marked.is_some() && !matches!(key, "escape" | "tab") {
                 cx.stop_propagation();

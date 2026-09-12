@@ -1,7 +1,7 @@
 {
   "version": 2,
-  "artifactSha256": "d01cb3a3af2ae80737b2c28e0372489bbd5df2aec680930a5c8a5e3d9d7d68dc",
-  "glueSha256": "f129bef083eff6cf28064ea62c53478c3a6de3163f7550bf5bd8c943fe70cae2",
+  "artifactSha256": "8dd94fb1feb5ec030b51f86ed8d6034a1b4c5f3846a52532899205df4c361282",
+  "glueSha256": "6043260c8366b5e45ed6a2b21bfc5379d9d9103f7d21d7ca6c6cf610796c7e39",
   "examples": {
     "accordion/Controlled": {
       "codeSha256": "2816548407263e0fdeada0ff2ec1e8f9fd45a2d33b24ab2cf163539711fe6f8a",
@@ -2095,6 +2095,10 @@
       "codeSha256": "cfc05749e114a7ab587f5a2b1462080841ce6678f2566883e9197489a88089db",
       "descriptionSha256": "4df5ee8af284ca967f8c2b4a2e87308e56339a167313228e0844bde089f77959"
     },
+    "select/With Clear Button": {
+      "codeSha256": "32fd6750838a4b6c2941e2d51c043d38699cc199584e50dd8aac590a47c90174",
+      "descriptionSha256": "c2c18c392d419175e7bd2b163abda4911da7e831c4c2ed7dfc9801e7591e01f9"
+    },
     "select/With Description": {
       "codeSha256": "9ba51cacd4ddb22d09eca6a2777ba762e441ff7d55bb2e47215e798981b4c380",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
@@ -2363,6 +2367,10 @@
       "codeSha256": "34c4da9dcabd1bdb1c09bb9997a85797f93ddc5eeb237db65395c86473900d64",
       "descriptionSha256": "bd1b170b2d53af8e5c000a001ec33e070a5a4f4ccc15d7a3ea277b09e6dae9a6"
     },
+    "tabs/Alignment": {
+      "codeSha256": "ba562fa3cdc5711cf93ca1d1b70fa4f135d3dda5bd6c18ea2e523946411e03ca",
+      "descriptionSha256": "28378ad4a5108e68292fbe44d2cc60b5ed3ce37739f4b7eb3577d16e5ed75bf2"
+    },
     "tabs/Disabled Tab": {
       "codeSha256": "6727f0e23948ba3a4bb62577280554a5908a71bb08f54a2a82ac703a4a4b877a",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
@@ -2461,7 +2469,7 @@
     },
     "tag-group/With Remove Button": {
       "codeSha256": "b990c85afa2adb1d4d616ebaaf43c22db548828a3e5fae538d69650e727f91bf",
-      "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      "descriptionSha256": "80e2c133f1a5906f0f99cfa0ca05b4353fa2dacd97593f31a6835bb2d4fee116"
     },
     "text-area/Controlled": {
       "codeSha256": "2aaa24100f1ea096b38a2e4a35c8aa0cf1f469becdc58de980ff9535978731ff",

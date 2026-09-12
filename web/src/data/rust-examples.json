@@ -500,6 +500,7 @@
     },
     {
       "heading": "With Remove Button",
+      "description": "The 24px remove target extends around the 12px icon without changing tag spacing.",
       "imports": "use herogpui::prelude::{Tag, TagGroup};\nuse gpui::prelude::*;\nuse gpui::px;",
       "code": "gpui::div()\n    .flex()\n    .flex_col()\n    .items_start()\n    .gap(px(12.))\n    .children(vec![\n        TagGroup::new(\"tag-group-remove-button\", tags())\n            .label(\"Skills\")\n            .on_remove(cx.listener(\n                |this, keys: &HashSet<SharedString>, _, cx| {\n                    this.tags.retain(|key| !keys.contains(key));\n                    this.tag_selection.retain(|key| !keys.contains(key));\n                    cx.notify();\n                },\n            )),\n        {\n            let custom_tags: Vec<Tag> = tags()\n                .into_iter()\n                .map(|tag| {\n                    tag.remove_content(|| {\n                        gpui::div().child(\"−\").into_any_element()\n                    })\n                })\n                .collect();\n            TagGroup::new(\"tag-group-custom-remove-button\", custom_tags)\n                .label(\"Skills\")\n                .on_remove(cx.listener(\n                    |this, keys: &HashSet<SharedString>, _, cx| {\n                        this.tags.retain(|key| !keys.contains(key));\n                        this.tag_selection.retain(|key| !keys.contains(key));\n                        cx.notify();\n                    },\n                ))\n        },\n    ])"
     },
@@ -2987,6 +2988,12 @@
       "code": "gpui::div()\n    .w(px(420.))\n    .child(\n        Tabs::new(\n            \"tabs-full-width\",\n            vec![\n                TabItem::new(\"all\", \"All\")\n                    .content(gpui::div().child(\"Everything.\")),\n                TabItem::new(\"unread\", \"Unread\")\n                    .content(gpui::div().child(\"Only unread.\")),\n                TabItem::new(\"archived\", \"Archived\")\n                    .content(gpui::div().child(\"Put away.\")),\n            ],\n            \"all\",\n        )\n        .full_width(true),\n    )"
     },
     {
+      "heading": "Alignment",
+      "description": "Align content inside each tab to Start, Center (the default), or End. Selection and the indicator keep the same geometry.",
+      "imports": "use herogpui::prelude::{Orientation, TabItem, Tabs, TabsAlign, TabsVariant};\nuse gpui::prelude::*;\nuse gpui::px;",
+      "code": "gpui::div()\n    .flex()\n    .flex_col()\n    .items_start()\n    .gap(px(12.))\n    .children(TabsVariant::ALL.into_iter().map(|variant| {\n        row(TabsAlign::ALL.into_iter().map(|align| {\n            Tabs::new(\n                format!(\"tabs-align-{variant:?}-{align:?}\"),\n                vec![\n                    TabItem::new(\"general\", \"General\"),\n                    TabItem::new(\"billing\", \"Subscription & Billing\"),\n                    TabItem::new(\"privacy\", \"Privacy\"),\n                ],\n                \"general\",\n            )\n            .variant(variant)\n            .orientation(Orientation::Vertical)\n            .align(align)\n            .sx(|el| el.h(px(116.)))\n        }).collect())\n    }).collect())"
+    },
+    {
       "heading": "Overflow",
       "description": "More tabs than fit scroll along their axis. Wheel input from the other axis continues to the page.",
       "imports": "use herogpui::prelude::{Orientation, TabItem, Tabs};\nuse gpui::prelude::*;\nuse gpui::px;",
@@ -3567,6 +3574,12 @@
       "description": "Use the arrow keys and Enter or Space to select a language. Selection closes the list and keeps focus on the trigger. Values and options use 14px text with 20px lines. Section headers use 12px text with 16px lines and keep their own spacing. The popup flips near window edges and scrolls to keep options reachable in short windows.",
       "imports": "use herogpui::prelude::Select;\nuse gpui::px;",
       "code": "Select::new(\"select-main\", language_items())\n    .label(\"Language\")\n    .placeholder(\"Choose one\")\n    .value(selected.clone())\n    .is_open(is_open)\n    // `radius` is the detached panel's corner; the trigger\n    // keeps the field chrome's own.\n    .radius(px(8.))\n    .on_open_change(cx.listener(|this, open: &bool, _, cx| {\n        this.select_open = *open;\n        cx.notify();\n    }))\n    .on_change(cx.listener(|this, key: &Option<SharedString>, _, cx| {\n        this.select_lang = key.clone();\n        this.select_open = false;\n        cx.notify();\n    }))"
+    },
+    {
+      "heading": "With Clear Button",
+      "description": "Clear the selection with the close control or Backspace/Delete on the closed trigger. An empty selection retains the control's layout space.",
+      "imports": "use herogpui::prelude::{FieldVariant, Select, SelectClearButton, SelectionMode};\nuse gpui::prelude::*;\nuse gpui::px;",
+      "code": "gpui::div()\n    .flex()\n    .flex_col()\n    .w(px(256.))\n    .gap(px(12.))\n    .children(vec![\n        Select::new(\"select-clear-single\", language_items())\n            .label(\"Language\").default_value(Some(\"rust\".into()))\n            .clear_button(SelectClearButton::new()).into_any_element(),\n        Select::new(\"select-clear-multiple\", language_items())\n            .label(\"Languages\").variant(FieldVariant::Secondary)\n            .selection_mode(SelectionMode::Multiple)\n            .default_selected_keys([\"rust\".into(), \"go\".into()])\n            .clear_button(SelectClearButton::new()).into_any_element(),\n    ])"
     },
     {
       "heading": "Box Customisation",

@@ -3,7 +3,7 @@
 The prop and animation audits both read documentation, and neither says anything
 about whether a control is the right *size*: `api_audit.py` was perfectly happy
 with a button whose corner radius was a third of v3's. This reads the real
-stylesheets from the v3.2.4 tag of the React repo, resolves the Tailwind
+stylesheets from the v3.2.5 tag of the React repo, resolves the Tailwind
 utilities through v3's own token scales, and compares the result with the
 constants this port renders from.
 
@@ -32,11 +32,11 @@ import sys
 
 sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 
-CACHE = os.path.join(os.environ.get('TEMP', '/tmp'), 'heroui-css')
-COMPONENTS = ('https://raw.githubusercontent.com/heroui-inc/heroui/v3.2.4'
+from bundle import CSS_CACHE as CACHE
+COMPONENTS = ('https://raw.githubusercontent.com/heroui-inc/heroui/v3.2.5'
               '/packages/styles/components/%s.css')
-# The same stylesheets are vendored (47KB) so the audit needs no network and
-# every run measures the same v3.2.4 tag. `--fetch` still refreshes upstream.
+# The same stylesheets are vendored so the audit needs no network and
+# every run measures the same v3.2.5 tag. `--fetch` still refreshes upstream.
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from component_source import list_modules, read_module, read_path
 from bundle import css_cache as unpack
@@ -949,7 +949,7 @@ CHECKS = [
     ('tabs', '.tabs__tab', 'text', 'Tabs tab text', SRC + 'tabs.rs',
      'tabs_md_text', None),
     ('tabs', '.tabs__tab', 'radius', 'Tabs tab -> util::_radius', SRC + 'tabs.rs',
-     r'\.justify_center\(\)[\s\S]{0,40}?\.rounded\(crate::util::(\w+_radius)\(cx\)\)', helper_px),
+     r'\.map\(\|tab\| self\.align\.apply\(tab\)\)\s*\.rounded\(crate::util::(\w+_radius)\(cx\)\)', helper_px),
     ('tabs', '.tabs__panel', 'p', 'Tabs panel padding', SRC + 'tabs.rs',
      r'`\.tabs__panel` is `w-full p-2`[\s\S]{0,240}?\.p\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('tabs', '.tabs__list-container', 'radius', 'Tabs list container radius',
@@ -1122,7 +1122,7 @@ CHECKS = [
     ('tag', '.tag--lg', 'radius', 'Tag Lg -> util::_radius', SRC + 'tag_group.rs',
      r'Size::Lg => crate::util::(\w+_radius)', helper_px),
     ('tag', '.tag__remove-button', 'size', 'Tag remove button', SRC + 'tag_group.rs',
-     r'is `size-3`\.[\s\S]{0,40}?\.size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+     r'let mut remove_visual = div\(\)\s*\.size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     # --- The three dialogs ------------------------------------------------
     # v3's dialog is one padded box with unpadded parts, and the spacing between
     # them comes from `+` rules rather than a gap. This port had a padded header,
@@ -1987,9 +1987,9 @@ CHECKS = [
 
 
 THEME_FILES = (
-    ('variables.css', 'https://raw.githubusercontent.com/heroui-inc/heroui/v3.2.4'
+    ('variables.css', 'https://raw.githubusercontent.com/heroui-inc/heroui/v3.2.5'
                       '/packages/styles/themes/default/variables.css'),
-    ('shared_theme.css', 'https://raw.githubusercontent.com/heroui-inc/heroui/v3.2.4'
+    ('shared_theme.css', 'https://raw.githubusercontent.com/heroui-inc/heroui/v3.2.5'
                          '/packages/styles/themes/shared/theme.css'),
 )
 
@@ -4488,6 +4488,25 @@ def self_test():
     expect(input_grouped_padding_from(grouped.replace('12.', '99.')) == 99.0,
            'a changed grouped fallback must be followed, so the metric check '
            'sees the drift')
+
+    tag_pattern = next(row[5] for row in CHECKS if row[3] == 'Tag remove button')
+    tag_visual = 'let mut remove_visual = div().size(px(12.));'
+    tag_target = 'let mut close = div().size(px(24.));'
+    expect(re.search(tag_pattern, tag_target + tag_visual).group(1) == '12',
+           'Tag size must read the visual, not the expanded hit target')
+    expect(re.search(tag_pattern, tag_visual.replace('12.', '24.')).group(1) == '24',
+           'Tag visual size drift must remain visible to the metric comparison')
+    expect(re.search(tag_pattern, tag_target) is None,
+           'a missing Tag visual must not be satisfied by the hit target')
+
+    tab_radius_pattern = next(row[5] for row in CHECKS if row[3] == 'Tabs tab -> util::_radius')
+    tab_radius = '.map(|tab| self.align.apply(tab)).rounded(crate::util::control_radius(cx))'
+    expect(re.search(tab_radius_pattern, tab_radius).group(1) == 'control_radius',
+           'Tabs radius must remain readable for configurable alignment')
+    expect(re.search(tab_radius_pattern, tab_radius.replace('control_radius', 'soft_radius')).group(1) == 'soft_radius',
+           'Tabs radius drift must remain visible to the metric comparison')
+    expect(re.search(tab_radius_pattern, '.rounded(crate::util::control_radius(cx))') is None,
+           'a foreign radius must not satisfy the tab radius reader')
 
     if failures:
         for failure in failures:

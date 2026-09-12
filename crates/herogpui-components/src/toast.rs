@@ -234,6 +234,14 @@ impl ToastStore {
         self.timer_generations.remove(&id);
     }
 
+    fn arm_timeout(&mut self, id: u64, timeout: Duration) -> u64 {
+        self.timeouts.insert(id, timeout);
+        let generation = self.next_timer_generation;
+        self.next_timer_generation = self.next_timer_generation.saturating_add(1);
+        self.timer_generations.insert(id, generation);
+        generation
+    }
+
     /// Inserts a fully-formed toast; zero ids are auto-assigned.
     pub fn insert(&mut self, mut data: ToastData) -> u64 {
         if data.id == 0 {
@@ -285,6 +293,9 @@ pub struct Toast {
     action: Option<(SharedString, ToastHandler)>,
     on_close: Option<ToastHandler>,
     timeout: Option<Duration>,
+    /// `true` after [`Toast::timeout`], so [`Toast::update`] can inherit a
+    /// running countdown when the caller omits it.
+    timeout_set: bool,
     /// Set by [`Toast::close_hover_bg`]: the close button's hover fill.
     close_hover_bg: Option<gpui::Hsla>,
     /// Set by [`Toast::padding`].
@@ -306,6 +317,7 @@ impl Toast {
             action: None,
             on_close: None,
             timeout: Some(DEFAULT_TOAST_TIMEOUT),
+            timeout_set: false,
             close_hover_bg: None,
             padding: None,
             radius: None,
@@ -372,6 +384,7 @@ impl Toast {
     /// `timeout: 0`: it stays until something closes it.
     pub fn timeout(mut self, timeout: Duration) -> Self {
         self.timeout = Some(timeout);
+        self.timeout_set = true;
         self
     }
 
@@ -438,40 +451,79 @@ impl Toast {
             let generation = if timeout.is_zero() {
                 None
             } else {
-                s.timeouts.insert(id, timeout);
-                let generation = s.next_timer_generation;
-                s.next_timer_generation = s.next_timer_generation.saturating_add(1);
-                s.timer_generations.insert(id, generation);
-                Some(generation)
+                Some(s.arm_timeout(id, timeout))
             };
             cx.notify();
             (pushed, generation)
         });
         if let Some(generation) = generation {
-            start_toast_timer(
-                store.downgrade(),
-                id,
-                timeout,
-                self.on_close,
-                generation,
-                cx,
-            );
+            start_toast_timer(store.downgrade(), id, timeout, generation, cx);
         }
         id
     }
+
+    /// `toast.update(id, title, options)` — replace content in place.
+    ///
+    /// The card keeps its key and stack position. Title, description, variant,
+    /// indicator, loading, action and chrome come from this builder. `timeout`
+    /// and `onClose` are inherited unless this builder set them; a missing id
+    /// falls back to a new toast, the way HeroUI does.
+    pub fn update(self, id: u64, cx: &mut App) -> u64 {
+        let store = toast_store(cx);
+        let timeout = self
+            .timeout_set
+            .then_some(self.timeout.unwrap_or(Duration::ZERO));
+        let on_close_set = self.on_close.is_some();
+        let replaced = store.update(cx, |s, cx| {
+            let Some(existing) = s.toasts.iter_mut().find(|toast| toast.id == id) else {
+                return None;
+            };
+            existing.color = self.color;
+            existing.title = self.title.clone();
+            existing.description = self.description.clone();
+            existing.closable = self.closable;
+            existing.indicator = self.indicator.clone();
+            existing.indicator_set = self.indicator_set;
+            existing.is_loading = self.is_loading;
+            existing.action = self.action.clone();
+            existing.close_hover_bg = self.close_hover_bg;
+            existing.padding = self.padding;
+            existing.radius = self.radius;
+            if on_close_set {
+                existing.on_close = self.on_close.clone();
+            }
+            let generation = match timeout {
+                None => None,
+                Some(duration) if duration.is_zero() => {
+                    s.timeouts.remove(&id);
+                    s.timer_generations.remove(&id);
+                    None
+                }
+                Some(duration) => Some((duration, s.arm_timeout(id, duration))),
+            };
+            cx.notify();
+            Some(generation)
+        });
+        match replaced {
+            Some(Some((duration, generation))) => {
+                start_toast_timer(store.downgrade(), id, duration, generation, cx);
+                id
+            }
+            Some(None) => id,
+            None => self.push(None, cx),
+        }
+    }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
 enum ToastTimerTick {
     Continue,
-    Closed(bool),
+    Closed(Option<ToastHandler>),
 }
 
 fn start_toast_timer(
     store: gpui::WeakEntity<ToastStore>,
     id: u64,
     timeout: Duration,
-    on_close: Option<ToastHandler>,
     generation: u64,
     cx: &mut App,
 ) {
@@ -487,30 +539,28 @@ fn start_toast_timer(
                 if !s.toasts.iter().any(|toast| toast.id == id) {
                     s.timer_generations.remove(&id);
                     s.timeouts.remove(&id);
-                    return ToastTimerTick::Closed(s.claim_close(id));
+                    return ToastTimerTick::Closed(None);
                 }
                 if s.timer_generations.get(&id) != Some(&generation) {
-                    return ToastTimerTick::Closed(false);
+                    return ToastTimerTick::Closed(None);
                 }
                 if s.paused {
                     return ToastTimerTick::Continue;
                 }
                 left = left.saturating_sub(TICK);
                 if left.is_zero() {
-                    let mine = s.claim_close(id);
+                    let callback = s.claim_close(id).then(|| s.on_close(id)).flatten();
                     s.dismiss(id);
                     cx.notify();
-                    return ToastTimerTick::Closed(mine);
+                    return ToastTimerTick::Closed(callback);
                 }
                 ToastTimerTick::Continue
             });
             match tick {
                 ToastTimerTick::Continue => {}
-                ToastTimerTick::Closed(mine) => {
-                    if mine {
-                        if let Some(cb) = on_close {
-                            cx.update(|cx| cb(cx));
-                        }
+                ToastTimerTick::Closed(callback) => {
+                    if let Some(cb) = callback {
+                        cx.update(|cx| cb(cx));
                     }
                     return;
                 }

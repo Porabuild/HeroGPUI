@@ -222,7 +222,7 @@ fn metadata_panels(
 // ---------------------------------------------------------------------------
 // Display translation
 //
-// The checked-in metadata deliberately mirrors the pinned HeroUI v3.2.4
+// The checked-in metadata deliberately mirrors the pinned HeroUI v3.2.5
 // contract, including the React/TypeScript spellings the audits verify. These
 // helpers are the only place that metadata reaches a user, and they translate
 // it at render time: Rust owners and builders are the actionable names,
@@ -464,14 +464,14 @@ const SCRUB_PHRASES: &[(&str, &str)] = &[
     ("the pinned React Aria", "the pinned upstream"),
     ("The pinned React Aria", "The pinned upstream"),
     (
-        "Pinned React Aria Components 1.20.0",
-        "The pinned upstream 1.20.0",
+        "Pinned React Aria Components 1.21.0",
+        "The pinned upstream 1.21.0",
     ),
     (
-        "pinned React Aria Components 1.20.0",
-        "the pinned upstream 1.20.0",
+        "pinned React Aria Components 1.21.0",
+        "the pinned upstream 1.21.0",
     ),
-    ("React Aria Components 1.20.0", "the pinned upstream 1.20.0"),
+    ("React Aria Components 1.21.0", "the pinned upstream 1.21.0"),
     ("React Aria/Stately", "the pinned upstream"),
     ("pinned React Aria's", "the pinned upstream's"),
     ("React Aria's", "the pinned upstream's"),
@@ -2005,7 +2005,7 @@ mod tests {
             reference_metadata::for_route("Form", "use herogpui::components::form::Form;")
                 .expect("Form metadata is registered");
 
-        // Exactly the pinned v3.2.4 API table — 14 rows, and v3 documents no
+        // Exactly the pinned v3.2.5 API table — 14 rows, and v3 documents no
         // `isDisabled` on Form: a form-level disable was a v2 leftover and is
         // gone from the port entirely.
         assert_eq!(metadata.api.len(), 14);
@@ -2138,15 +2138,15 @@ mod tests {
             entry.class_or_token.contains("no form.css") && entry.rust.contains("gap(px(16.))")
         }));
 
-        assert_eq!(metadata.version, "3.2.4");
+        assert_eq!(metadata.version, "3.2.5");
         assert!(metadata.api_source.contains("form.tsx"));
-        assert!(metadata.api_source.contains("react-aria-components@1.20.0"));
+        assert!(metadata.api_source.contains("react-aria-components@1.21.0"));
         for url in [
             metadata.docs_source,
             metadata.api_source,
             metadata.style_source,
         ] {
-            assert!(url.contains("/blob/v3.2.4/"));
+            assert!(url.contains("/blob/v3.2.5/"));
         }
     }
 
@@ -2435,8 +2435,8 @@ mod tests {
                 && entry.rust.contains("w_full")
         }));
 
-        // v3.2.4 pins on every source.
-        assert_eq!(metadata.version, "3.2.4");
+        // v3.2.5 pins on every source.
+        assert_eq!(metadata.version, "3.2.5");
         assert!(metadata.api_source.contains("input-group.tsx"));
         assert!(metadata.style_source.contains("input-group.css"));
         for url in [
@@ -2444,7 +2444,7 @@ mod tests {
             metadata.api_source,
             metadata.style_source,
         ] {
-            assert!(url.contains("/blob/v3.2.4/"));
+            assert!(url.contains("/blob/v3.2.5/"));
         }
     }
 
@@ -3684,7 +3684,7 @@ impl Widget {
                     && entry.status == reference_metadata::ImplementationStatus::Partial
             }));
         }
-        // v3.2.4 parity: the composed close trigger accepts custom children while
+        // v3.2.5 parity: the composed close trigger accepts custom children while
         // staying wired to the modal's dismissal paths, so it is Implemented.
         assert!(metadata.api.iter().any(|entry| {
             entry.owner == "Modal.CloseTrigger"
@@ -4085,7 +4085,7 @@ impl Widget {
         assert!(metadata.docs_source.contains("(data-display)/table.mdx"));
         assert!(metadata
             .api_source
-            .contains("react-aria-components@1.20.0/packages/react-aria-components/src/Table.tsx"));
+            .contains("react-aria-components@1.21.0/packages/react-aria-components/src/Table.tsx"));
         assert!(metadata
             .style_source
             .contains("packages/styles/components/table.css"));
@@ -4533,7 +4533,7 @@ impl Widget {
     fn pinned_metadata_still_records_upstream_evidence() {
         // The display layer translates at render time; the checked-in rows
         // that api/reference/reason audits verify must keep the upstream
-        // spellings untouched so the pinned v3.2.4 contract stays auditable.
+        // spellings untouched so the pinned v3.2.5 contract stays auditable.
         let all = reference_metadata::ALL;
         let api_rows = || all.iter().flat_map(|metadata| metadata.api.iter());
         assert!(api_rows().any(|row| row.prop == "className"));
@@ -4605,7 +4605,7 @@ impl Widget {
             .all(|cell| forbidden_display_token(cell).is_none()));
 
         let contract = contract_display_row(metadata, 3);
-        assert!(contract.cells[3].contains("/blob/v3.2.4/"));
+        assert!(contract.cells[3].contains("/blob/v3.2.5/"));
         assert!(contract.cells[3].contains("https://"));
     }
 
@@ -4664,7 +4664,7 @@ impl Widget {
                 page,
                 import_line,
                 source_module: "slider",
-                version: "3.2.4",
+                version: "3.2.5",
                 docs_source: "",
                 api_source: "",
                 style_source: "",

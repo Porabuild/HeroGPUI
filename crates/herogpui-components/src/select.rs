@@ -17,8 +17,8 @@
 use std::{cell::RefCell, collections::HashSet, rc::Rc};
 
 use gpui::{
-    prelude::*, px, App, IntoElement, ParentElement, Pixels, RenderOnce, SharedString,
-    StatefulInteractiveElement, Styled, Window,
+    prelude::*, px, AnimationExt, App, IntoElement, ParentElement, Pixels, RenderOnce,
+    SharedString, StatefulInteractiveElement, Styled, Window,
 };
 use herogpui_core::{element_id, Color, FieldVariant, Placement, SelectionMode};
 use herogpui_theme::ActiveTheme;
@@ -165,6 +165,43 @@ fn shift_home_end_extends(key_name: &str, control: bool, macos: bool) -> bool {
     !matches!(key_name, "home" | "end") || (!macos && control)
 }
 
+/// The optional `Select.ClearButton` composition part.
+///
+/// Passed to [`Select::clear_button`]. It has no separate keyboard focus stop:
+/// Backspace and Delete on the closed trigger perform the same clear action.
+#[derive(Default)]
+pub struct SelectClearButton {
+    children: Vec<gpui::AnyElement>,
+    on_click: Option<std::sync::Arc<dyn Fn(&gpui::ClickEvent, &mut Window, &mut App)>>,
+}
+
+impl ParentElement for SelectClearButton {
+    fn extend(&mut self, elements: impl IntoIterator<Item = gpui::AnyElement>) {
+        self.children.extend(elements);
+    }
+}
+
+impl SelectClearButton {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Replaces the default close icon with caller content.
+    pub fn child(mut self, child: impl IntoElement) -> Self {
+        self.children.push(child.into_any_element());
+        self
+    }
+
+    /// Called after the selection request and the root's `on_clear` callback.
+    pub fn on_click(
+        mut self,
+        callback: impl Fn(&gpui::ClickEvent, &mut Window, &mut App) + 'static,
+    ) -> Self {
+        self.on_click = Some(std::sync::Arc::new(callback));
+        self
+    }
+}
+
 /// HeroUI Select (controlled).
 #[derive(IntoElement)]
 pub struct Select {
@@ -223,6 +260,8 @@ pub struct Select {
     full_width: bool,
     on_open_change: Option<std::sync::Arc<dyn Fn(&bool, &mut Window, &mut App) + 'static>>,
     on_selection_change: Option<OnSelectionChange>,
+    clear_buttons: Vec<SelectClearButton>,
+    on_clear: Option<std::sync::Arc<dyn Fn(&mut Window, &mut App)>>,
     on_selection_change_all:
         Option<std::sync::Arc<dyn Fn(&[SharedString], &mut Window, &mut App) + 'static>>,
     /// Optional trigger geometry/chrome overrides; defaults are the stock box.
@@ -235,6 +274,19 @@ pub struct Select {
 }
 
 impl Select {
+    /// Composes a clear control inside the trigger. Repeated calls add parts.
+    /// An empty selection hides the control while retaining its layout space.
+    pub fn clear_button(mut self, button: SelectClearButton) -> Self {
+        self.clear_buttons.push(button);
+        self
+    }
+
+    /// Reports a nonempty selection's clear request, including controlled mode.
+    pub fn on_clear(mut self, callback: impl Fn(&mut Window, &mut App) + 'static) -> Self {
+        self.on_clear = Some(std::sync::Arc::new(callback));
+        self
+    }
+
     /// `onChange` — the v3 name for [`Select::on_selection_change`].
     pub fn on_change(
         self,
@@ -420,6 +472,8 @@ impl Select {
             full_width: false,
             on_open_change: None,
             on_selection_change: None,
+            clear_buttons: Vec::new(),
+            on_clear: None,
             on_selection_change_all: None,
             form_state: live_form_state(),
             sx: None,
@@ -781,9 +835,82 @@ impl RenderOnce for Select {
             }
         });
 
-        let sem = cx.role(Color::Accent);
-        let colors = cx.colors();
-        let layout = cx.layout();
+        // `setSelectedKeys(empty)` clears even a required Select. A controlled
+        // owner's value and live form data stay authoritative until it updates.
+        let clear_empty = if multiple {
+            selected_keys.is_empty()
+        } else {
+            selected.is_none()
+        };
+        let has_clear = !self.clear_buttons.is_empty();
+        let clear_enabled = has_clear && !self.is_disabled && !clear_empty;
+        let clear_slots: Vec<_> = (0..self.clear_buttons.len())
+            .map(|index| {
+                util::interaction(
+                    element_id::scoped(&self.id, format!("clear-{index}")),
+                    window,
+                    cx,
+                )
+            })
+            .collect();
+        let clear_hovered = clear_enabled && clear_slots.iter().any(|slot| slot.read(cx).0);
+        let clear_own = value_own.clone();
+        let clear_keys_own = indices_own.clone();
+        let clear_form = self.form_state.clone();
+        let clear_single = self.on_selection_change.clone();
+        let clear_multiple = self.on_selection_change_all.clone();
+        let clear_callback = self.on_clear.clone();
+        let clear_range = selection_range.clone();
+        let clear_open = open_own.clone();
+        let clear_open_callback = self.on_open_change.clone();
+        let clear_selection = util::shared(move |window: &mut Window, cx: &mut App| {
+            if !clear_enabled {
+                return;
+            }
+            if multiple {
+                if let Some(own) = &clear_keys_own {
+                    clear_form.borrow_mut().value = crate::form::FormValue::Keys(Vec::new());
+                    own.update(cx, |value, cx| {
+                        value.clear();
+                        cx.notify();
+                    });
+                }
+                if let Some(callback) = &clear_multiple {
+                    callback(&[], window, cx);
+                }
+            } else {
+                if let Some(own) = &clear_own {
+                    clear_form.borrow_mut().value = crate::form::FormValue::Keys(Vec::new());
+                    own.update(cx, |value, cx| {
+                        *value = None;
+                        cx.notify();
+                    });
+                }
+                if let Some(callback) = &clear_single {
+                    callback(&None, window, cx);
+                }
+                // React Stately's single-selection callback closes an open list.
+                if is_open {
+                    if let Some(own) = &clear_open {
+                        own.update(cx, |value, cx| {
+                            *value = false;
+                            cx.notify();
+                        });
+                    }
+                    if let Some(callback) = &clear_open_callback {
+                        callback(&false, window, cx);
+                    }
+                }
+            }
+            clear_range.update(cx, |range, _| *range = SelectSelectionRange::default());
+            if let Some(callback) = &clear_callback {
+                callback(window, cx);
+            }
+        });
+
+        let sem = *cx.role(Color::Accent);
+        let colors = cx.colors().clone();
+        let layout = cx.layout().clone();
 
         // `.select__trigger` is `min-h-9 ... text-sm`.
         let field_box = self.field;
@@ -810,6 +937,9 @@ impl RenderOnce for Select {
             .min_h(h)
             .when_some(field_box.height, |el, h| el.h(h))
             .px(field_box.resolved_padding_x())
+            .when(has_clear, |el| {
+                el.relative().pr(field_box.padding_x.unwrap_or(px(28.)))
+            })
             .text_size(text)
             .line_height(px(20.))
             .cursor(util::interactive_cursor(cx));
@@ -842,7 +972,7 @@ impl RenderOnce for Select {
                 // `.select--secondary` hovers `--select-trigger-bg-hover: var(--default-hover)`.
                 FieldVariant::Secondary => colors.default.hover(),
             };
-            field = field.hover(move |s| s.bg(hover_bg));
+            field = field.hover(move |s| if clear_hovered { s } else { s.bg(hover_bg) });
         }
 
         if self.full_width {
@@ -886,6 +1016,8 @@ impl RenderOnce for Select {
             let fh = focus_handle.clone();
             let press_open = keyboard_press_open.clone();
             let row_keys = keys.clone();
+            let clear_keys = clear_selection.clone();
+            let key_focus = focus_handle.clone();
             field = field
                 .track_focus(&focus_handle)
                 .key_context("Select")
@@ -893,7 +1025,18 @@ impl RenderOnce for Select {
                     window.focus(&fh, cx);
                 })
                 .on_key_down(move |event, window, cx| {
+                    if !key_focus.is_focused(window) {
+                        return;
+                    }
                     let key = event.keystroke.key.as_str();
+                    if !was_open && clear_enabled && matches!(key, "backspace" | "delete") {
+                        cx.stop_propagation();
+                        window.prevent_default();
+                        // This key is consumed before the app root sees it.
+                        util::set_focus_visible(true, cx);
+                        clear_keys(window, cx);
+                        return;
+                    }
                     if matches!(key, "enter" | "space") {
                         // The browser's default newline can synthesize another
                         // Enter through beforeinput, including while held.
@@ -1280,18 +1423,125 @@ impl RenderOnce for Select {
                 &a11y::Name::maybe(self.label.clone()).described(Some(value_text)),
             )
             .a11y_expanded(is_open);
-        field = field.child(value_slot).child(
-            gpui::svg()
-                .size(px(16.))
-                .path(if is_open {
-                    // `.select__indicator` turns with the panel.
-                    icons::CHEVRON_UP
-                } else {
-                    icons::CHEVRON_DOWN
+        field = field.child(value_slot);
+        for (index, (button, slot)) in self.clear_buttons.into_iter().zip(clear_slots).enumerate() {
+            let id = element_id::scoped(&self.id, format!("clear-button-{index}"));
+            let pressed = clear_enabled && slot.read(cx).1;
+            let hovered = clear_enabled && slot.read(cx).0;
+            let scale = if pressed { 0.93 } else { 1. };
+            let mut visual = gpui::div()
+                .flex()
+                .items_center()
+                .justify_center()
+                .size(px(20. * scale))
+                .rounded(px(f32::from(util::small_radius(cx)) * scale))
+                .when(hovered, |el| el.bg(colors.default.hover()));
+            visual = if button.children.is_empty() {
+                visual.child(
+                    gpui::svg()
+                        .w(px(12. * scale))
+                        .h(px(14. * scale))
+                        .path(icons::CLOSE)
+                        .text_color(colors.muted),
+                )
+            } else {
+                visual.children(button.children)
+            };
+            let mut opacity = crate::anim::Tween::keyed(
+                &id,
+                "opacity",
+                if clear_empty { 0. } else { 1. },
+                window,
+                cx,
+            );
+            // Upstream hides immediately, but fades in when selection returns.
+            let reduced = ActiveTheme::reduce_motion(cx);
+            opacity.snap_if_reduced(reduced || clear_empty);
+            let visual = if opacity.animates(reduced) {
+                let from = opacity.from();
+                let value = opacity.value();
+                visual
+                    .with_animation(
+                        element_id::scoped(&id, format!("opacity-{}", opacity.generation())),
+                        gpui::Animation::new(std::time::Duration::from_millis(150))
+                            .with_easing(crate::anim::ease_smooth()),
+                        move |el, progress| {
+                            let alpha = from + (1. - from) * progress;
+                            value.set(alpha);
+                            el.opacity(alpha)
+                        },
+                    )
+                    .into_any_element()
+            } else {
+                opacity.settle();
+                visual.opacity(opacity.target()).into_any_element()
+            };
+            // `.select__clear-button`: keep its 20px layout slot and
+            // 24px pointer target independent.
+            // Only the target owns listeners; the animated visual never changes
+            // their element-id path during a press or an opacity transition.
+            let mut target = gpui::div()
+                .id(id.clone())
+                .absolute()
+                .left(px(-2.))
+                .top(px(-2.))
+                .size(px(24.))
+                .flex()
+                .items_center()
+                .justify_center()
+                .child(visual)
+                .debug_selector(move || format!("select-clear-{index}"));
+            if clear_enabled {
+                let focus = focus_handle.clone();
+                let clear = clear_selection.clone();
+                target = util::track_interaction_on_mouse_down(target, &slot, move |window, cx| {
+                    window.focus(&focus, cx);
+                    cx.stop_propagation();
                 })
-                .text_color(colors.muted)
-                .flex_shrink_0(),
-        );
+                .cursor(util::interactive_cursor(cx))
+                .on_mouse_down(gpui::MouseButton::Right, |_, _, cx| cx.stop_propagation())
+                .on_mouse_down(gpui::MouseButton::Middle, |_, _, cx| cx.stop_propagation())
+                .on_click(move |event, window, cx| {
+                    cx.stop_propagation();
+                    window.prevent_default();
+                    clear(window, cx);
+                    if let Some(callback) = &button.on_click {
+                        callback(event, window, cx);
+                    }
+                });
+            }
+            field = field.child(
+                gpui::div()
+                    .relative()
+                    .size(px(20.))
+                    .flex_shrink_0()
+                    .child(target),
+            );
+        }
+        // `.select__indicator`: clear compositions reserve its absolute end slot.
+        let indicator = gpui::svg()
+            .size(px(16.))
+            .path(if is_open {
+                icons::CHEVRON_UP
+            } else {
+                icons::CHEVRON_DOWN
+            })
+            .text_color(colors.muted)
+            .flex_shrink_0();
+        field = if has_clear {
+            field.child(
+                gpui::div()
+                    .absolute()
+                    .right(px(8.))
+                    .top_0()
+                    .bottom_0()
+                    .flex()
+                    .items_center()
+                    .child(indicator),
+            )
+        } else {
+            field.child(indicator)
+        };
 
         if !self.is_disabled && (self.on_open_change.is_some() || open_own.is_some()) {
             let on_open_change = self.on_open_change.clone();
@@ -1626,7 +1876,7 @@ impl RenderOnce for Select {
                 }
 
                 // `status-focused` on the row the keyboard is on.
-                if cursor_at == Some(i) {
+                if util::shows_focus_ring(cursor_at == Some(i), cx) {
                     item = item.border_2().border_color(row_focus);
                 }
 

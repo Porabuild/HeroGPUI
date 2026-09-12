@@ -651,6 +651,7 @@
     "Sizes",
     "Vertical",
     "Full Width",
+    "Alignment",
     "Overflow",
     "Disabled Tab",
     "With Separator",
@@ -776,6 +777,7 @@
   ],
   "select": [
     "Usage",
+    "With Clear Button",
     "Box Customisation",
     "Virtualization",
     "With Description",

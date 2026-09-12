@@ -2,7 +2,7 @@
 
 The documentation site for
 [HeroGPUI](https://github.com/Porabuild/HeroGPUI) — a native Rust/GPUI port
-of [HeroUI v3.2.4](https://heroui.com). Deployed to Vercel under the
+of [HeroUI v3.2.5](https://heroui.com). Deployed to Vercel under the
 Porabuild team and mounted at <https://porabuild.com/herogpui> via a
 Next.js multi-zone rewrite; see [DEPLOYMENT.md](DEPLOYMENT.md) for the
 operator runbook and [ARCHITECTURE.md](ARCHITECTURE.md) for the
@@ -32,7 +32,7 @@ Label, Description, ErrorMessage and FieldError).
 ## Stack
 
 - Next.js **16.3.3** (App Router, Turbopack), React **19.2.8**
-- `@heroui/react` **3.2.4** for site UI chrome, `@heroui/styles` for tokens;
+- `@heroui/react` **3.2.5** for site UI chrome, `@heroui/styles` for tokens;
   Tailwind CSS **4.3.3**, TypeScript 5, Shiki for Rust highlighting
 - Lint/format: **oxlint** + **oxfmt** (`pnpm run check`). No ESLint.
 - Package manager: **pnpm**. Never npm. Node `>=22.13.0`.

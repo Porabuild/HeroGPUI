@@ -697,10 +697,11 @@ impl RenderOnce for InputOTP {
             if self.variant == FieldVariant::Primary && !layout.field_shadow.is_empty() {
                 cell = cell.shadow(layout.field_shadow.clone());
             }
-            if is_cursor_cell {
+            if is_cursor_cell && crate::util::focus_visible(cx) {
                 // `status-focused-field` -- a 2px ring, no offset. A ring rather
                 // than a border, which would shrink the digit's box by 2px as
-                // the caret arrived.
+                // the caret arrived. The caret below still marks a pointer
+                // caret; only a keyboard session paints the ring.
                 let base = if self.variant == FieldVariant::Primary {
                     layout.field_shadow.clone()
                 } else {

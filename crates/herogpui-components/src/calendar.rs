@@ -952,7 +952,7 @@ impl Calendar {
         // a border shrinks the 36px circle as the cursor lands on it.
         let circle = crate::util::with_focus_ring(
             circle,
-            !outside_month && frame.focused == Some(date),
+            crate::util::shows_focus_ring(!outside_month && frame.focused == Some(date), cx),
             true,
             Vec::new(),
             cx,

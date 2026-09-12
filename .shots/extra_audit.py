@@ -747,6 +747,7 @@ EXTRA_OK_SCOPED = {
     'Slider.thumb_names': 'composition',
     'Select.indicator': 'composition',
     'Select.value_content': 'composition',
+    'Select.clear_button': 'composition',
     'Autocomplete.value_content': 'composition',
     'ComboBox.value_content': 'composition',
     'Checkbox.is_round': 'no-classname',

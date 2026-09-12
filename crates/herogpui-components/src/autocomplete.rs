@@ -1780,7 +1780,7 @@ impl RenderOnce for Autocomplete {
                     row = row.text_color(row_fg);
                 }
                 // `status-focused` on the row the keyboard is on.
-                if cursor_at == Some(index) {
+                if util::shows_focus_ring(cursor_at == Some(index), cx) {
                     row = row.border_2().border_color(row_focus);
                 }
 

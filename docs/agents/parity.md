@@ -5,10 +5,10 @@ tokens, motion, component anatomy, demos, reference metadata, or an audit.
 
 ## Contract and exclusions
 
-This repository ports HeroUI v3.2.4. Use tagged HeroUI source for component
+This repository ports HeroUI v3.2.5. Use tagged HeroUI source for component
 anatomy and styles, and the exact dependency versions HeroUI pins for inherited
-behavior: React Aria 3.51.0, React Stately 3.49.0, and React Aria Components
-1.20.0. GPUI framework claims must be valid for the `gpui-pre` version in
+behavior: React Aria 3.52.0, React Stately 3.50.0, and React Aria Components
+1.21.0. GPUI framework claims must be valid for the `gpui-pre` version in
 `Cargo.lock`, read from its unpacked registry sources.
 
 Do not reintroduce v2 concepts:
@@ -65,8 +65,8 @@ an all-green mapped subset is not proof that every upstream metric is covered.
 ## Running the audit set
 
 Every input is checked in, so the set needs no network and measures the same
-v3.2.4 contract on every machine. `.shots/heroui-bundle.txt.gz` is the docs
-bundle the prop and prose audits read; `.shots/heroui-css-v3.2.4.tar.gz` is the
+v3.2.5 contract on every machine. `.shots/heroui-bundle.txt.gz` is the docs
+bundle the prop and prose audits read; `.shots/heroui-css-v3.2.5.tar.gz` is the
 component stylesheets the design, motion and anatomy audits read. Both unpack
 themselves on first use.
 
@@ -88,7 +88,7 @@ pin, refresh the archive and `PINNED_RELEASE` together and re-run the set:
 
 ```powershell
 curl -sL https://heroui.com/react/llms-full.txt | gzip -9 > .shots/heroui-bundle.txt.gz
-python .shots/design_audit.py --fetch   # then re-pack heroui-css-v3.2.4.tar.gz
+python .shots/design_audit.py --fetch   # then re-pack heroui-css-v3.2.5.tar.gz
 ```
 
 Run focused scripts while iterating. Run the set when a broad parity claim,

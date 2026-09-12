@@ -12,7 +12,7 @@ running a driver.
   and report unreadable inputs separately from legitimate absence.
 - When changing a parser or evidence map, demonstrate a known-negative failure
   as well as the passing repository result.
-- Keep tagged inputs pinned to HeroUI v3.2.4 and inherited behavior evidence
+- Keep tagged inputs pinned to HeroUI v3.2.5 and inherited behavior evidence
   pinned to the versions in the root parity guide.
 - Drivers must capture the GPUI window with `PrintWindow`, never the user's
   screen. Prefer off-screen posted input; foreground capture is opt-in because it
