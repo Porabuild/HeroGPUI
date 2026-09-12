@@ -99,6 +99,12 @@ CONSTANT_ALLOWED = {
         'do share this focus scope -- a real gap, recorded here rather than '
         'hidden, and fixable only by making the id required, which is a '
         'public-API change of its own.',
+    ('crates/herogpui-components/src/toast.rs', 'toast-region'):
+        'the fallback seed for `ToastViewport`\'s own id, which `.id(..)` '
+        'overrides; see the `modal` entry. Every other id in the viewport -- '
+        'pointer state, focus handle, hotkey interceptor, and each toast\'s '
+        'parts -- derives from it, so a named viewport moves its whole '
+        'subtree.',
 }
 
 # (path, part-of-the-line) -> why this id may still be built with `format!`.

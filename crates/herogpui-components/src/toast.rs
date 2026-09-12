@@ -927,10 +927,8 @@ impl RenderOnce for ToastViewport {
             })
             .read(cx)
             .clone();
-        let _hotkey_sub = window.use_keyed_state(
-            ElementId::Name("toast-viewport-hotkey".into()),
-            cx,
-            |_, cx| {
+        let _hotkey_sub =
+            window.use_keyed_state(element_id::scoped(&region_id, "hotkey"), cx, |_, cx| {
                 let focus = region_focus.clone();
                 cx.intercept_keystrokes(move |event, window, cx| {
                     let Some(hub) = cx.try_global::<ToastHub>() else {
@@ -946,8 +944,7 @@ impl RenderOnce for ToastViewport {
                     focus.focus(window, cx);
                     cx.stop_propagation();
                 })
-            },
-        );
+            });
 
         let max_visible = self.max_visible_toasts;
         let hidden: Vec<ToastData> = if toasts.len() > max_visible {
