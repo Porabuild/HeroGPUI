@@ -1708,7 +1708,6 @@ impl Input {
         self
     }
 
-    /// Shows a clear button when there is a value.
     /// The fill the clear button takes on hover, in place of
     /// `--default-hover`.
     pub fn clear_hover_bg(mut self, color: impl Into<gpui::Hsla>) -> Self {
@@ -1716,6 +1715,7 @@ impl Input {
         self
     }
 
+    /// Shows a clear button when there is a value.
     pub fn is_clearable(mut self, v: bool) -> Self {
         self.is_clearable = v;
         self
@@ -2134,11 +2134,14 @@ impl RenderOnce for Input {
         // `is_bare` takes the same exit: one chrome call site, skipped by
         // either reason.
         if self.in_group.is_none() && !self.is_bare {
-            field = crate::util::apply_field_chrome(field, self.variant, is_invalid, focused, cx)
-                // The chrome paints the helper's radius last, so the resolved
-                // one goes back over it and an override survives the shared
-                // helper.
-                .rounded(radius);
+            field = crate::util::apply_field_chrome(
+                field,
+                self.variant,
+                is_invalid,
+                focused,
+                Some(radius),
+                cx,
+            );
         }
 
         // -- text content -----------------------------------------------------

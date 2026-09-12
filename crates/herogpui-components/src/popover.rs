@@ -797,7 +797,7 @@ impl Popover {
     }
 
     /// Sets both panel padding axes, feeding the resting panel and its entry
-    /// animation the same value. Unset keeps the stock 12px/14px insets.
+    /// animation the same value. Unset keeps v3's 16px `p-4` insets.
     pub fn padding(mut self, padding: impl Into<Pixels>) -> Self {
         self.padding = Some(padding.into());
         self
@@ -1010,6 +1010,14 @@ impl RenderOnce for Popover {
         let radius = self
             .radius
             .unwrap_or_else(|| crate::util::container_radius(cx));
+        // The padding pair is read off `self` here for the same reason: the
+        // resting panel's chain consumes it and so does the entry zoom below.
+        // Under reduced motion `entering_zoom` returns the element untouched,
+        // so the chain is then the only consumer — the override still reaches
+        // the resting panel on every motion path. The defaults are v3's
+        // `.popover__dialog` `p-4` on both axes either way.
+        let panel_padding_y = self.padding.unwrap_or(px(16.));
+        let panel_padding_x = self.padding.unwrap_or(px(16.));
         let mut panel = gpui::div()
             // `popover/popover.js` composes RAC `Popover` around a `Dialog`,
             // and `react-aria/dist/private/dialog/useDialog.js` is what gives
@@ -1028,8 +1036,8 @@ impl RenderOnce for Popover {
             .flex()
             .flex_col()
             .gap(px(8.))
-            .px(px(16.))
-            .py(px(16.))
+            .px(panel_padding_x)
+            .py(panel_padding_y)
             .bg(colors.overlay.background)
             .text_color(colors.surface.foreground)
             // `.popover` is `text-sm`.
@@ -1086,8 +1094,6 @@ impl RenderOnce for Popover {
             });
 
         // v3 fades the panel in on `[data-entering]`.
-        let panel_padding_y = self.padding.unwrap_or(px(12.));
-        let panel_padding_x = self.padding.unwrap_or(px(14.));
         let zoom = crate::anim::ZoomBox::panel(panel_padding_y, radius)
             .padding_x(panel_padding_x)
             .sized(px(260.));

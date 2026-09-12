@@ -20,11 +20,23 @@ impl Gallery {
                             .radius(px(3.))
                             .child("\u{2190}")
                             .into_any_element(),
-                        h::Kbd::new().child("\u{2192}").into_any_element(),
-                        h::Kbd::new().child("\u{2191}").into_any_element(),
-                        h::Kbd::new().child("\u{2193}").into_any_element(),
-                        h::Kbd::new().child("Home").into_any_element(),
-                        h::Kbd::new().child("End").into_any_element(),
+                        h::Kbd::new()
+                            .radius(px(3.))
+                            .child("\u{2192}")
+                            .into_any_element(),
+                        h::Kbd::new()
+                            .radius(px(3.))
+                            .child("\u{2191}")
+                            .into_any_element(),
+                        h::Kbd::new()
+                            .radius(px(3.))
+                            .child("\u{2193}")
+                            .into_any_element(),
+                        h::Kbd::new()
+                            .radius(px(3.))
+                            .child("Home")
+                            .into_any_element(),
+                        h::Kbd::new().radius(px(3.)).child("End").into_any_element(),
                     ]),
                 ),
                 (
@@ -155,7 +167,7 @@ impl Gallery {
                                 .child(
                                     h::Typography::new("Build better interfaces")
                                         .kind(*kind)
-                                        .font_family("monospace"),
+                                        .font_family(crate::app::MONO_FONT),
                                 )
                         })
                         .els()),

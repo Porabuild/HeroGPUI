@@ -241,10 +241,6 @@ impl Badge {
         self
     }
 
-    /// The one slot for caller-owned low-level styling: GPUI's styling methods
-    /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
-    /// applied to the badge's root element after every value the variant, the
-    /// color and the active theme chose, so they win.
     /// The label's font size; unset keeps the size-step's font. The
     /// fractional leading scales with the font.
     pub fn text_size(mut self, size: impl Into<Pixels>) -> Self {
@@ -252,6 +248,10 @@ impl Badge {
         self
     }
 
+    /// The one slot for caller-owned low-level styling: GPUI's styling methods
+    /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
+    /// applied to the badge's root element after every value the variant, the
+    /// color and the active theme chose, so they win.
     pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
         self.sx = Some(crate::util::capture_sx(style));
         self

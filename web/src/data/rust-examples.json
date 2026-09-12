@@ -445,13 +445,13 @@
   "tag-group": [
     {
       "heading": "Usage",
-      "description": "`radius(px)` replaces the chip's size-step corner; the remove button inside stays a circle.",
+      "description": "`radius(px)` replaces the chip's size-step corner.",
       "imports": "use herogpui::prelude::{Tag, TagGroup};\nuse gpui::px;",
       "code": "TagGroup::new(\"tag-group\", tags())\n    .full_width(true)\n    .label(\"Skills\")\n    .radius(px(2.))"
     },
     {
       "heading": "Hover Colour",
-      "description": "`hover_bg` names a hovered tag's fill and `remove_hover_bg` the remove button's.",
+      "description": "`hover_bg` names a hovered tag's fill and `remove_hover_bg` the remove button's, which stays a circle.",
       "imports": "use herogpui::prelude::{ActiveTheme, Tag, TagGroup};",
       "code": "TagGroup::new(\"tag-group-hover-bg\", tags())\n    .label(\"Skills\")\n    .hover_bg(cx.colors().accent.soft())\n    .remove_hover_bg(cx.colors().accent.soft_hover())\n    .on_remove(cx.listener(\n        |this, keys: &HashSet<SharedString>, _, cx| {\n            this.tags.retain(|key| !keys.contains(key));\n            this.tag_selection.retain(|key| !keys.contains(key));\n            cx.notify();\n        },\n    ))"
     },
@@ -650,7 +650,7 @@
       "heading": "Usage",
       "description": "The panel flips near window edges and scrolls to keep the alpha control reachable in short windows.",
       "imports": "use herogpui::prelude::{ColorPicker, PickerColor};",
-      "code": "ColorPicker::new(\"color-picker-main\", value)\n    // v3's Usage is uncontrolled; \"Controlled\" is separate.\n    .default_value(value)\n    .label(\"Accent\")\n    .font_family(\"monospace\")\n    .show_alpha(true)\n    .on_change(cx.listener(|this, c: &PickerColor, _, cx| {\n        this.picker_color = *c;\n        cx.notify();\n    }))"
+      "code": "ColorPicker::new(\"color-picker-main\", value)\n    // v3's Usage is uncontrolled; \"Controlled\" is separate.\n    .default_value(value)\n    .label(\"Accent\")\n    .font_family(crate::app::MONO_FONT)\n    .show_alpha(true)\n    .on_change(cx.listener(|this, c: &PickerColor, _, cx| {\n        this.picker_color = *c;\n        cx.notify();\n    }))"
     },
     {
       "heading": "Controlled",
@@ -1262,7 +1262,7 @@
       "heading": "Box Customisation",
       "description": "`height`, `padding_x` and `is_bare` resize the box in one call. A 28px bare box with an 8px inset.",
       "imports": "use herogpui::prelude::DateField;\nuse gpui::px;",
-      "code": "DateField::new(self.demo_text(\"df-custom-box\", \"\", cx))\n    .label(\"Compact\")\n    .height(px(28.))\n    .padding_x(px(8.))\n    .is_bare(true)\n    .font_family(\"monospace\")"
+      "code": "DateField::new(self.demo_text(\"df-custom-box\", \"\", cx))\n    .label(\"Compact\")\n    .height(px(28.))\n    .padding_x(px(8.))\n    .is_bare(true)\n    .font_family(crate::app::MONO_FONT)"
     },
     {
       "heading": "Granularity",
@@ -1571,7 +1571,7 @@
       "heading": "Box Customisation",
       "description": "The same box seam as the other fields: `height`, `padding_x` and `is_bare`.",
       "imports": "use herogpui::prelude::{ActiveTheme, TimeField, TimeState};\nuse gpui::px;",
-      "code": "TimeField::new(self.demo_time(\"tmf-custom-box\", cx))\n    .label(\"Compact\")\n    .height(px(28.))\n    .padding_x(px(8.))\n    .is_bare(true)\n    .stepper_hover_bg(cx.colors().accent.soft())\n    .font_family(\"monospace\")"
+      "code": "TimeField::new(self.demo_time(\"tmf-custom-box\", cx))\n    .label(\"Compact\")\n    .height(px(28.))\n    .padding_x(px(8.))\n    .is_bare(true)\n    .stepper_hover_bg(cx.colors().accent.soft())\n    .font_family(crate::app::MONO_FONT)"
     },
     {
       "heading": "With Icons",
@@ -2093,7 +2093,7 @@
       "heading": "Box Customisation",
       "description": "`padding_x` overrides the held field's exposed edges only -- a side with an addon keeps the addon's inset -- `height` resizes the single-line group, and `is_bare` drops the group's chrome.",
       "imports": "use herogpui::prelude::{Input, InputAddon, InputGroup};\nuse gpui::px;",
-      "code": "InputGroup::new()\n    .label(\"Compact\")\n    .height(px(28.))\n    .padding_x(px(8.))\n    .is_bare(true)\n    .font_family(\"monospace\")\n    .prefix(InputAddon::new(\"$\"))\n    .input(\n        Input::new(self.demo_text(\"ig-custom-box\", \"\", cx))\n            .placeholder(\"0.00\"),\n    )"
+      "code": "InputGroup::new()\n    .label(\"Compact\")\n    .height(px(28.))\n    .padding_x(px(8.))\n    .is_bare(true)\n    .font_family(crate::app::MONO_FONT)\n    .prefix(InputAddon::new(\"$\"))\n    .input(\n        Input::new(self.demo_text(\"ig-custom-box\", \"\", cx))\n            .placeholder(\"0.00\"),\n    )"
     },
     {
       "heading": "Variants",
@@ -3323,7 +3323,7 @@
       "heading": "Box Customisation",
       "description": "`height`, `padding_x` and `is_bare` size the trigger; `row_padding_x` / `row_padding_y` size the suggestion rows.",
       "imports": "use herogpui::prelude::{ActiveTheme, Autocomplete};\nuse gpui::px;",
-      "code": "Autocomplete::new(\n    self.demo_text(\"ac-custom-box\", \"\", cx),\n    language_items(),\n)\n.label(\"Compact\")\n.placeholder(\"Pick one\")\n.height(px(28.))\n.padding_x(px(4.))\n.is_bare(true)\n.row_padding_x(px(16.))\n.row_padding_y(px(2.))\n.row_hover_bg(cx.colors().accent.soft())\n.row_font_family(\"monospace\")"
+      "code": "Autocomplete::new(\n    self.demo_text(\"ac-custom-box\", \"\", cx),\n    language_items(),\n)\n.label(\"Compact\")\n.placeholder(\"Pick one\")\n.height(px(28.))\n.padding_x(px(4.))\n.is_bare(true)\n.row_padding_x(px(16.))\n.row_padding_y(px(2.))\n.row_hover_bg(cx.colors().accent.soft())\n.row_font_family(crate::app::MONO_FONT)"
     },
     {
       "heading": "Virtualization",
@@ -3425,7 +3425,7 @@
       "heading": "Box Customisation",
       "description": "The trigger forwards `height`, `padding_x` and `is_bare` to its input, and `row_padding_x` / `row_padding_y` size the rows.",
       "imports": "use herogpui::prelude::{ActiveTheme, ComboBox};\nuse gpui::px;",
-      "code": "ComboBox::new(\n    self.demo_text(\"cb-custom-box\", \"\", cx),\n    language_items(),\n)\n.label(\"Compact\")\n.placeholder(\"Pick one\")\n.height(px(28.))\n.padding_x(px(4.))\n.is_bare(true)\n.row_padding_x(px(16.))\n.row_padding_y(px(2.))\n.row_hover_bg(cx.colors().accent.soft())\n.row_font_family(\"monospace\")"
+      "code": "ComboBox::new(\n    self.demo_text(\"cb-custom-box\", \"\", cx),\n    language_items(),\n)\n.label(\"Compact\")\n.placeholder(\"Pick one\")\n.height(px(28.))\n.padding_x(px(4.))\n.is_bare(true)\n.row_padding_x(px(16.))\n.row_padding_y(px(2.))\n.row_hover_bg(cx.colors().accent.soft())\n.row_font_family(crate::app::MONO_FONT)"
     },
     {
       "heading": "Virtualization",
@@ -3569,7 +3569,7 @@
       "heading": "Box Customisation",
       "description": "`height`, `padding_x` and `is_bare` size the trigger; `row_padding_x` / `row_padding_y` size its option rows. This 28px bare trigger opens over 16px-padded rows.",
       "imports": "use herogpui::prelude::{ActiveTheme, Select};\nuse gpui::px;",
-      "code": "Select::new(\"select-custom-box\", language_items())\n    .label(\"Compact\")\n    .placeholder(\"Choose one\")\n    .height(px(28.))\n    .padding_x(px(4.))\n    .is_bare(true)\n    .row_padding_x(px(16.))\n    .row_padding_y(px(2.))\n    .row_hover_bg(cx.colors().accent.soft())\n    .row_font_family(\"monospace\")\n    .default_open(true)"
+      "code": "Select::new(\"select-custom-box\", language_items())\n    .label(\"Compact\")\n    .placeholder(\"Choose one\")\n    .height(px(28.))\n    .padding_x(px(4.))\n    .is_bare(true)\n    .row_padding_x(px(16.))\n    .row_padding_y(px(2.))\n    .row_hover_bg(cx.colors().accent.soft())\n    .row_font_family(crate::app::MONO_FONT)\n    .default_open(true)"
     },
     {
       "heading": "Virtualization",
@@ -3664,7 +3664,7 @@
     {
       "heading": "Navigation Keys",
       "imports": "use herogpui::prelude::Kbd;\nuse gpui::prelude::*;\nuse gpui::px;",
-      "code": "row(vec![\n    Kbd::new()\n        .radius(px(3.))\n        .child(\"\\u{2190}\")\n        .into_any_element(),\n    Kbd::new().child(\"\\u{2192}\").into_any_element(),\n    Kbd::new().child(\"\\u{2191}\").into_any_element(),\n    Kbd::new().child(\"\\u{2193}\").into_any_element(),\n    Kbd::new().child(\"Home\").into_any_element(),\n    Kbd::new().child(\"End\").into_any_element(),\n])"
+      "code": "row(vec![\n    Kbd::new()\n        .radius(px(3.))\n        .child(\"\\u{2190}\")\n        .into_any_element(),\n    Kbd::new()\n        .radius(px(3.))\n        .child(\"\\u{2192}\")\n        .into_any_element(),\n    Kbd::new()\n        .radius(px(3.))\n        .child(\"\\u{2191}\")\n        .into_any_element(),\n    Kbd::new()\n        .radius(px(3.))\n        .child(\"\\u{2193}\")\n        .into_any_element(),\n    Kbd::new()\n        .radius(px(3.))\n        .child(\"Home\")\n        .into_any_element(),\n    Kbd::new().radius(px(3.)).child(\"End\").into_any_element(),\n])"
     },
     {
       "heading": "Special Keys",
@@ -3707,7 +3707,7 @@
     {
       "heading": "Scale",
       "imports": "use herogpui::prelude::{Typography, TypographyType};\nuse gpui::prelude::*;\nuse gpui::px;",
-      "code": "gpui::div()\n    .flex()\n    .flex_col()\n    .items_start()\n    .gap(px(12.))\n    .children(scale\n        .iter()\n        .map(|(kind, name, meta)| {\n            gpui::div()\n                .flex()\n                .items_center()\n                .gap(px(24.))\n                .child(\n                    gpui::div()\n                        .w(px(110.))\n                        .flex()\n                        .flex_col()\n                        .child(\n                            gpui::div()\n                                .text_size(px(13.))\n                                .font_weight(gpui::FontWeight::SEMIBOLD)\n                                .child(name.to_string()),\n                        )\n                        .child(\n                            gpui::div()\n                                .text_size(px(11.))\n                                .text_color(muted)\n                                .child(meta.to_string()),\n                        ),\n                )\n                .child(\n                    Typography::new(\"Build better interfaces\")\n                        .kind(*kind)\n                        .font_family(\"monospace\"),\n                )\n        })\n        )"
+      "code": "gpui::div()\n    .flex()\n    .flex_col()\n    .items_start()\n    .gap(px(12.))\n    .children(scale\n        .iter()\n        .map(|(kind, name, meta)| {\n            gpui::div()\n                .flex()\n                .items_center()\n                .gap(px(24.))\n                .child(\n                    gpui::div()\n                        .w(px(110.))\n                        .flex()\n                        .flex_col()\n                        .child(\n                            gpui::div()\n                                .text_size(px(13.))\n                                .font_weight(gpui::FontWeight::SEMIBOLD)\n                                .child(name.to_string()),\n                        )\n                        .child(\n                            gpui::div()\n                                .text_size(px(11.))\n                                .text_color(muted)\n                                .child(meta.to_string()),\n                        ),\n                )\n                .child(\n                    Typography::new(\"Build better interfaces\")\n                        .kind(*kind)\n                        .font_family(crate::app::MONO_FONT),\n                )\n        })\n        )"
     },
     {
       "heading": "Colors & weights",

@@ -850,7 +850,7 @@ impl Gallery {
             crate::pages::Page::TagGroup.import_line(),
             vec![
                 (
-                    "Usage", "`radius(px)` replaces the chip's size-step corner; the remove button inside stays a circle.",
+                    "Usage", "`radius(px)` replaces the chip's size-step corner.",
                     col(vec![h::TagGroup::new("tg-usage", tags())
                         .full_width(true)
                         .label("Skills")
@@ -859,7 +859,7 @@ impl Gallery {
                 ),
                 (
                     "Hover Colour",
-                    "`hover_bg` names a hovered tag's fill and `remove_hover_bg` the remove button's.",
+                    "`hover_bg` names a hovered tag's fill and `remove_hover_bg` the remove button's, which stays a circle.",
                     col(vec![h::TagGroup::new("tg-hover-bg", tags())
                         .label("Skills")
                         .hover_bg(cx.colors().accent.soft())

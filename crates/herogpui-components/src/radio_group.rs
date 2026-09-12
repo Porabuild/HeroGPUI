@@ -379,10 +379,6 @@ impl RadioGroup {
         self
     }
 
-    /// The one slot for caller-owned low-level styling: GPUI's styling methods
-    /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
-    /// applied to the radio group's root element after every value the
-    /// orientation and the active theme chose, so they win.
     /// Sets the compact step. `Md` is the default and byte-identical to the
     /// pinned control; `Sm` is a 14px control with a 5px dot, 12px label text
     /// (16px leading) and a 10px row gap. Not a v3 prop.
@@ -409,6 +405,10 @@ impl RadioGroup {
         self
     }
 
+    /// The one slot for caller-owned low-level styling: GPUI's styling methods
+    /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
+    /// applied to the radio group's root element after every value the
+    /// orientation and the active theme chose, so they win.
     pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
         self.sx = Some(crate::util::capture_sx(style));
         self

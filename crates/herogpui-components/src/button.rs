@@ -168,6 +168,7 @@ impl Button {
     /// other button uses. The press state is unaffected either way — v3's
     /// `:active` is the opacity step [`apply_button_variant`] applies, not a
     /// third colour.
+    ///
     /// v3 has no such prop; on the web this is `className="hover:bg-…"`.
     pub fn hover_bg(mut self, color: impl Into<gpui::Hsla>) -> Self {
         self.hover_bg = Some(color.into());
@@ -568,6 +569,9 @@ impl RenderOnce for Button {
         // back over the override.
         let sx_background = util::sx_background(&self.sx);
         let sx_size = util::sx_pixel_size(&self.sx);
+        // The resting box, the hover fade's fill and the press box all take
+        // the same resolved corner, so it is resolved once.
+        let radius = self.radius.unwrap_or_else(|| util::control_radius(cx));
         let fade = interactive
             .then(|| button_hover_colors(self.variant, cx))
             .and_then(|variant| util::fade_endpoints(variant, sx_background, self.hover_bg));
@@ -592,7 +596,7 @@ impl RenderOnce for Button {
             // instead of overflowing.
             .whitespace_nowrap()
             .font_weight(gpui::FontWeight::MEDIUM)
-            .map(|e| group_radius(e, self.group_edge, self.radius.unwrap_or_else(|| util::control_radius(cx))))
+            .map(|e| group_radius(e, self.group_edge, radius))
             .text_size(metrics.text)
             .line_height(metrics.line_height)
             .h(self.size.control_height());
@@ -628,7 +632,6 @@ impl RenderOnce for Button {
         // bit the slot records instead of binding a second listener.
         if let Some(colors) = fade {
             let edge = self.group_edge;
-            let radius = self.radius.unwrap_or_else(|| util::control_radius(cx));
             el = crate::anim::hover_fade(
                 el,
                 element_id::scoped(&self.id, "fade"),
@@ -693,7 +696,7 @@ impl RenderOnce for Button {
                     text_size: metrics.text,
                     line_height: metrics.line_height,
                     gap: metrics.gap,
-                    radius: self.radius.unwrap_or_else(|| util::control_radius(cx)),
+                    radius,
                     shrink_x: !self.full_width,
                     scale: press_scale,
                 },

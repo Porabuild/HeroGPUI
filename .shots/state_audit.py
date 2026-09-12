@@ -159,8 +159,13 @@ ELSEWHERE = {
 # module with both kinds (a field *and* a trigger that rings for itself) passes,
 # and one with only `false` does not.
 REQUIRED = {
+    # The chrome call ends `..., <focus flag>, <radius override>, cx`: the
+    # focus flag is a real expression (never the literal `false`) and the
+    # radius override is `None` or `Some(...)` — the shared helper paints the
+    # caller's resolved radius, so the flag sits one argument further left.
     'status-focused-field':
-        r'apply_field_chrome\((?:[^()]|\([^()]*\))*?,\s*(?!false\b)[a-z_@][^,]*,\s*cx',
+        r'apply_field_chrome\((?:[^()]|\([^()]*\))*?,\s*(?!false\b)[a-z_@][^,]*,\s*'
+        r'(?:None|Some\([^()]*\)),\s*cx',
 }
 
 # States this port does not draw, with the reason.

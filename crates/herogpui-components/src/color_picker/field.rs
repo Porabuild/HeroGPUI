@@ -735,11 +735,9 @@ impl RenderOnce for ColorField {
                 self.state
                     .as_ref()
                     .is_some_and(|s| s.read(cx).focus_handle.is_focused(window)),
+                Some(radius),
                 cx,
-            )
-            // The chrome paints the helper's radius last, so the resolved one
-            // goes back over it and an override survives the shared helper.
-            .rounded(radius);
+            );
         }
 
         // v3's ColorField steps its channel on scroll; `isWheelDisabled` turns

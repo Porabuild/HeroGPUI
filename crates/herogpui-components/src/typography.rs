@@ -214,10 +214,6 @@ impl Typography {
         self
     }
 
-    /// The one slot for caller-owned low-level styling: GPUI's styling methods
-    /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
-    /// applied to the typography's root element after every value the kind, the
-    /// color and the active theme chose, so they win.
     /// The family the text is drawn with; unset keeps the kind's own family
     /// (mono for `Code`, inherited otherwise).
     pub fn font_family(mut self, family: impl Into<SharedString>) -> Self {
@@ -234,6 +230,10 @@ impl Typography {
         self
     }
 
+    /// The one slot for caller-owned low-level styling: GPUI's styling methods
+    /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
+    /// applied to the typography's root element after every value the kind, the
+    /// color and the active theme chose, so they win.
     pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
         self.sx = Some(crate::util::capture_sx(style));
         self

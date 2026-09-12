@@ -3,10 +3,26 @@
 
 #[test]
 fn text_size_builders_reach_their_label_sites() {
-    for (file, source) in [
-        ("badge.rs", include_str!("../src/badge.rs")),
-        ("chip.rs", include_str!("../src/chip.rs")),
-        ("breadcrumbs.rs", include_str!("../src/breadcrumbs.rs")),
+    // Each owner pairs the resolved size with its own leading mechanism, so
+    // the pairing pin is the file's exact spelling: `leading` alone would
+    // match any variable, and badge's v3 leadings are Tailwind's unitless
+    // fractional multipliers, not `util::leading_for` steps.
+    for (file, source, paired) in [
+        (
+            "badge.rs",
+            include_str!("../src/badge.rs"),
+            "DefiniteLength::Fraction(1.34)",
+        ),
+        (
+            "chip.rs",
+            include_str!("../src/chip.rs"),
+            "and_then(crate::util::leading_for)",
+        ),
+        (
+            "breadcrumbs.rs",
+            include_str!("../src/breadcrumbs.rs"),
+            "leading_for(text_size)",
+        ),
     ] {
         assert!(
             source.contains("self.text_size = Some(size.into());"),
@@ -17,10 +33,8 @@ fn text_size_builders_reach_their_label_sites() {
             "{file}: the label site must resolve the override"
         );
         assert!(
-            source.contains("leading_for")
-                || source.contains("leading)")
-                || source.contains("Fraction(1.34)"),
-            "{file}: the leading must stay paired"
+            source.contains(paired),
+            "{file}: the leading must stay paired through `{paired}`"
         );
     }
 }

@@ -968,7 +968,7 @@ impl RenderOnce for Autocomplete {
             .text_size(util::FIELD_TEXT)
             .line_height(px(20.));
         if !field_box.is_bare {
-            field = util::apply_field_chrome(field, self.variant, is_invalid, false, cx);
+            field = util::apply_field_chrome(field, self.variant, is_invalid, false, None, cx);
             // `.autocomplete__trigger:focus-visible` is `status-focused` -- the
             // offset ring, not a field's flush one, which is why the chrome
             // above is not told about the focus.

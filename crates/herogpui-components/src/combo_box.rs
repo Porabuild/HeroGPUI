@@ -52,6 +52,11 @@ use crate::{
     util,
 };
 
+/// The port's local floor on the root field stack when `fullWidth` is off:
+/// without a placeholder the inner input has no intrinsic width and the
+/// trigger would collapse to just its chevron.
+const TRIGGER_MIN_WIDTH: Pixels = px(180.);
+
 /// When the suggestion list opens.
 ///
 /// v3's table reads `"focus" | "input" | "manual"` with **`"focus"`** as the
@@ -1394,9 +1399,7 @@ impl RenderOnce for ComboBox {
             })
             .child(input.render(window, cx));
         let mut root = div()
-            // Without a placeholder the inner input has no intrinsic width and
-            // the trigger collapses to just its chevron, which is unclickable.
-            .when(!self.full_width, |e| e.min_w(px(180.)))
+            .when(!self.full_width, |e| e.min_w(TRIGGER_MIN_WIDTH))
             .relative()
             .flex()
             .flex_col()

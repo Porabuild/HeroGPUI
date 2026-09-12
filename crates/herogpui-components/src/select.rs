@@ -819,7 +819,7 @@ impl RenderOnce for Select {
         // ring, not a field's flush one, which is why the chrome is not told
         // about the focus here.
         if !field_box.is_bare {
-            field = util::apply_field_chrome(field, self.variant, self.is_invalid, false, cx);
+            field = util::apply_field_chrome(field, self.variant, self.is_invalid, false, None, cx);
         }
         if !field_box.is_bare && !self.is_disabled {
             field = util::ring_if_focused(field, &focus_handle, true, Vec::new(), window, cx);

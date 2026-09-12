@@ -754,6 +754,7 @@ impl RenderOnce for NumberField {
                 self.variant,
                 validity.is_invalid,
                 focus_handle.is_focused(window),
+                None,
                 cx,
             );
         }

@@ -1455,11 +1455,9 @@ impl RenderOnce for DateField {
                 self.variant,
                 is_invalid,
                 focus_handle.is_focused(window),
+                Some(radius),
                 cx,
-            )
-            // The chrome paints the helper's radius last, so the resolved one
-            // goes back over it and an override survives the shared helper.
-            .rounded(radius);
+            );
         }
         if self.full_width {
             group = group.w_full();

@@ -91,10 +91,6 @@ impl Chip {
         self
     }
 
-    /// The one slot for caller-owned low-level styling: GPUI's styling methods
-    /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
-    /// applied to the chip's root element after every value the variant, the
-    /// color and the active theme chose, so they win.
     /// The label's font size; unset keeps the size-step's pair. A 12/14/16
     /// size follows v3's pairing (16/20/24); other sizes keep the 20px
     /// leading.
@@ -111,6 +107,10 @@ impl Chip {
         self
     }
 
+    /// The one slot for caller-owned low-level styling: GPUI's styling methods
+    /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
+    /// applied to the chip's root element after every value the variant, the
+    /// color and the active theme chose, so they win.
     pub fn sx(mut self, style: impl FnOnce(gpui::Div) -> gpui::Div) -> Self {
         self.sx = Some(crate::util::capture_sx(style));
         self
