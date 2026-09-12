@@ -735,7 +735,11 @@ impl Render for Gallery {
             .child(gpui::div().flex().flex_1().min_h_0().child(sidebar).child(content))
             // Toasts last so they paint above the shell. Modal and Drawer
             // demos live on their own pages.
-            .child(h::ToastViewport::new().placement(self.toast_placement))
+            .child(
+                h::ToastViewport::new()
+                    .placement(self.toast_placement)
+                    .is_expanded(self.demo_flag("toast-expanded", false)),
+            )
     }
 }
 

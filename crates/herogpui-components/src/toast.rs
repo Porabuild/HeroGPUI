@@ -8,11 +8,12 @@
 //! roles, so [`Color`] is the variant type here.
 
 use std::collections::{HashMap, HashSet};
+use std::future::Future;
 use std::time::Duration;
 
 use gpui::{
-    prelude::*, px, App, ElementId, Entity, Global, IntoElement, Pixels, RenderOnce, SharedString,
-    Styled, Subscription, Window,
+    prelude::*, px, App, ElementId, Entity, Global, IntoElement, Keystroke, Pixels, RenderOnce,
+    SharedString, Styled, Subscription, Window,
 };
 use herogpui_core::{element_id, Color};
 use herogpui_theme::ActiveTheme;
@@ -22,6 +23,59 @@ use crate::icons;
 
 /// `maxVisibleToasts` default from `Toast.Provider`.
 pub const DEFAULT_MAX_VISIBLE_TOASTS: usize = 3;
+
+/// `exitDuration` default from `Toast.Provider` / the pinned queue (300ms).
+/// The stylesheet's `--toast-exit-duration` is 250ms; the queue keeps the card
+/// mounted slightly longer so the fade can finish.
+pub const DEFAULT_TOAST_EXIT_DURATION: Duration = Duration::from_millis(300);
+
+/// Pinned `DEFAULT_HOTKEY`: Alt+T, with no extra modifiers.
+pub const DEFAULT_TOAST_HOTKEY: ToastHotkey = ToastHotkey::ALT_T;
+
+/// `hotkey` on `Toast.Provider` — a modifier set plus one key.
+///
+/// HeroUI matches `KeyboardEvent` modifier booleans exactly and the remaining
+/// entries against `event.code`. An empty key disables the shortcut.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ToastHotkey {
+    pub alt: bool,
+    pub shift: bool,
+    pub control: bool,
+    pub platform: bool,
+    pub key: SharedString,
+}
+
+impl ToastHotkey {
+    pub const ALT_T: Self = Self {
+        alt: true,
+        shift: false,
+        control: false,
+        platform: false,
+        key: SharedString::new_static("t"),
+    };
+
+    /// `hotkey={[]}` — the document listener is installed but never matches.
+    pub fn disabled() -> Self {
+        Self {
+            alt: false,
+            shift: false,
+            control: false,
+            platform: false,
+            key: SharedString::default(),
+        }
+    }
+
+    fn matches(&self, keystroke: &Keystroke) -> bool {
+        if self.key.is_empty() {
+            return false;
+        }
+        keystroke.modifiers.alt == self.alt
+            && keystroke.modifiers.shift == self.shift
+            && keystroke.modifiers.control == self.control
+            && keystroke.modifiers.platform == self.platform
+            && keystroke.key.eq_ignore_ascii_case(self.key.as_ref())
+    }
+}
 
 /// Where the toast region sits (`placement` on `Toast.Provider`).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -102,6 +156,9 @@ pub struct ToastStore {
     /// `pauseAll` / `resumeAll`. Every toast's timer reads this on each tick,
     /// which is why the timer ticks rather than sleeping once.
     paused: bool,
+    /// Hover or focus-within on the region. Pinned HeroUI suspends timers on
+    /// interaction and documents that a forced `isExpanded` does not.
+    interaction_paused: bool,
     /// Timeout configured for each queued toast.
     timeouts: HashMap<u64, Duration>,
     /// Generation for each currently armed toast, so a stale task cannot close
@@ -112,6 +169,16 @@ pub struct ToastStore {
     /// toast's own timer both report the close; whoever claims the id first is
     /// the only one that does.
     reported: HashSet<u64>,
+    /// Dismissed cards still mounted for [`Self::exit_duration`].
+    exiting: Vec<ToastData>,
+    exit_generations: HashMap<u64, u64>,
+    next_exit_generation: u64,
+    /// `exitDuration` on `Toast.Provider`, synced from the viewport.
+    exit_duration: Duration,
+    /// `hotkey` on `Toast.Provider`, synced from the viewport.
+    hotkey: ToastHotkey,
+    /// Last stack `data-expanded` the viewport painted, so tests can read it.
+    viewport_expanded: bool,
 }
 
 impl ToastStore {
@@ -120,10 +187,17 @@ impl ToastStore {
             toasts: Vec::new(),
             next_id: 1,
             paused: false,
+            interaction_paused: false,
             timeouts: HashMap::new(),
             timer_generations: HashMap::new(),
             next_timer_generation: 1,
             reported: HashSet::new(),
+            exiting: Vec::new(),
+            exit_generations: HashMap::new(),
+            next_exit_generation: 1,
+            exit_duration: DEFAULT_TOAST_EXIT_DURATION,
+            hotkey: DEFAULT_TOAST_HOTKEY,
+            viewport_expanded: false,
         }
     }
 
@@ -164,6 +238,31 @@ impl ToastStore {
         self.paused
     }
 
+    /// True while the region is hovered or focus-within, or `pauseAll` is on.
+    pub fn timers_paused(&self) -> bool {
+        self.paused || self.interaction_paused
+    }
+
+    pub fn is_interaction_paused(&self) -> bool {
+        self.interaction_paused
+    }
+
+    /// Cards still mounted after `close` for `exitDuration`.
+    pub fn exiting(&self) -> &[ToastData] {
+        &self.exiting
+    }
+
+    /// The last `data-expanded` the viewport painted.
+    pub fn is_expanded(&self) -> bool {
+        self.viewport_expanded
+    }
+
+    /// Overflow past `maxVisibleToasts` — still queued, marked `data-hidden`.
+    pub fn hidden_toasts(&self, max_visible: usize) -> &[ToastData] {
+        let start = self.toasts.len().min(max_visible.max(1));
+        &self.toasts[start..]
+    }
+
     /// `add` — queue a toast, notify subscribers, and return its id.
     pub fn add(store: &Entity<Self>, data: ToastData, cx: &mut App) -> u64 {
         store.update(cx, |store, cx| {
@@ -174,19 +273,34 @@ impl ToastStore {
     }
 
     /// `close` — drop one toast by id and report its `onClose` once.
+    ///
+    /// The card leaves [`Self::toasts`] immediately. Unless reduced motion is
+    /// on or `exitDuration` is zero, it stays in [`Self::exiting`] for the
+    /// configured fade so `[data-exiting]` can paint. `onClose` still fires
+    /// at the start of that exit, matching the pinned queue.
     pub fn close(store: &Entity<Self>, id: u64, cx: &mut App) {
-        let on_close = store.update(cx, |store, cx| {
+        let skip_exit = ActiveTheme::reduce_motion(cx);
+        let (on_close, exit) = store.update(cx, |store, cx| {
             let callback = if store.claim_close(id) {
                 store.on_close(id)
             } else {
                 None
             };
+            let data = store.toasts.iter().find(|toast| toast.id == id).cloned();
             store.dismiss(id);
+            let exit = if skip_exit || store.exit_duration.is_zero() {
+                None
+            } else {
+                data.and_then(|toast| store.begin_exit(toast))
+            };
             cx.notify();
-            callback
+            (callback, exit)
         });
         if let Some(callback) = on_close {
             callback(cx);
+        }
+        if let Some((id, generation, duration)) = exit {
+            start_exit_timer(store.downgrade(), id, generation, duration, cx);
         }
     }
 
@@ -207,6 +321,8 @@ impl ToastStore {
         self.toasts.clear();
         self.timeouts.clear();
         self.timer_generations.clear();
+        self.exiting.clear();
+        self.exit_generations.clear();
     }
 
     /// The `onClose` of the toast with this id, so a caller closing a toast runs
@@ -232,6 +348,16 @@ impl ToastStore {
         self.toasts.retain(|t| t.id != id);
         self.timeouts.remove(&id);
         self.timer_generations.remove(&id);
+    }
+
+    fn begin_exit(&mut self, toast: ToastData) -> Option<(u64, u64, Duration)> {
+        let id = toast.id;
+        self.exiting.retain(|existing| existing.id != id);
+        self.exiting.push(toast);
+        let generation = self.next_exit_generation;
+        self.next_exit_generation = self.next_exit_generation.saturating_add(1);
+        self.exit_generations.insert(id, generation);
+        Some((id, generation, self.exit_duration))
     }
 
     fn arm_timeout(&mut self, id: u64, timeout: Duration) -> u64 {
@@ -475,9 +601,7 @@ impl Toast {
             .then_some(self.timeout.unwrap_or(Duration::ZERO));
         let on_close_set = self.on_close.is_some();
         let replaced = store.update(cx, |s, cx| {
-            let Some(existing) = s.toasts.iter_mut().find(|toast| toast.id == id) else {
-                return None;
-            };
+            let existing = s.toasts.iter_mut().find(|toast| toast.id == id)?;
             existing.color = self.color;
             existing.title = self.title.clone();
             existing.description = self.description.clone();
@@ -513,11 +637,65 @@ impl Toast {
             None => self.push(None, cx),
         }
     }
+
+    /// `toast.promise(promise, { loading, success, error })`.
+    ///
+    /// Pushes a loading toast (`isLoading`, `timeout: 0`) and, when `future`
+    /// settles, updates that same card in place. `Ok` is the success message
+    /// and variant; `Err` is the danger / `error` message. The default dismiss
+    /// clock starts at settle, matching the pinned queue.
+    pub fn promise(
+        future: impl Future<Output = Result<SharedString, SharedString>> + 'static,
+        loading: impl Into<SharedString>,
+        cx: &mut App,
+    ) -> u64 {
+        let id = Self::loading(loading).push(None, cx);
+        cx.spawn(async move |cx: &mut gpui::AsyncApp| {
+            let result = future.await;
+            cx.update(|cx| match result {
+                Ok(title) => {
+                    Self::success(title)
+                        .timeout(DEFAULT_TOAST_TIMEOUT)
+                        .update(id, cx);
+                }
+                Err(title) => {
+                    Self::error(title)
+                        .timeout(DEFAULT_TOAST_TIMEOUT)
+                        .update(id, cx);
+                }
+            });
+        })
+        .detach();
+        id
+    }
 }
 
 enum ToastTimerTick {
     Continue,
     Closed(Option<ToastHandler>),
+    Expired,
+}
+
+fn start_exit_timer(
+    store: gpui::WeakEntity<ToastStore>,
+    id: u64,
+    generation: u64,
+    duration: Duration,
+    cx: &mut App,
+) {
+    cx.spawn(async move |cx: &mut gpui::AsyncApp| {
+        cx.background_executor().timer(duration).await;
+        let Some(store) = store.upgrade() else { return };
+        store.update(cx, |s, cx| {
+            if s.exit_generations.get(&id) != Some(&generation) {
+                return;
+            }
+            s.exiting.retain(|toast| toast.id != id);
+            s.exit_generations.remove(&id);
+            cx.notify();
+        });
+    })
+    .detach();
 }
 
 fn start_toast_timer(
@@ -535,7 +713,7 @@ fn start_toast_timer(
         loop {
             cx.background_executor().timer(TICK).await;
             let Some(store) = store.upgrade() else { return };
-            let tick = store.update(cx, |s, cx| {
+            let tick = store.update(cx, |s, _cx| {
                 if !s.toasts.iter().any(|toast| toast.id == id) {
                     s.timer_generations.remove(&id);
                     s.timeouts.remove(&id);
@@ -544,15 +722,12 @@ fn start_toast_timer(
                 if s.timer_generations.get(&id) != Some(&generation) {
                     return ToastTimerTick::Closed(None);
                 }
-                if s.paused {
+                if s.timers_paused() {
                     return ToastTimerTick::Continue;
                 }
                 left = left.saturating_sub(TICK);
                 if left.is_zero() {
-                    let callback = s.claim_close(id).then(|| s.on_close(id)).flatten();
-                    s.dismiss(id);
-                    cx.notify();
-                    return ToastTimerTick::Closed(callback);
+                    return ToastTimerTick::Expired;
                 }
                 ToastTimerTick::Continue
             });
@@ -562,6 +737,10 @@ fn start_toast_timer(
                     if let Some(cb) = callback {
                         cx.update(|cx| cb(cx));
                     }
+                    return;
+                }
+                ToastTimerTick::Expired => {
+                    cx.update(|cx| ToastStore::close(&store, id, cx));
                     return;
                 }
             }
@@ -611,6 +790,13 @@ pub struct ToastViewport {
     width: Pixels,
     inset: Pixels,
     scale_factor: f32,
+    /// `isExpanded` — force the stack open. Hover/focus still expand when
+    /// this is false; a single toast never expands.
+    is_expanded: bool,
+    /// `exitDuration` — how long a dismissed card stays mounted.
+    exit_duration: Duration,
+    /// `hotkey` — focuses the region so the stack expands.
+    hotkey: ToastHotkey,
     id: Option<ElementId>,
     /// The `sx` slot, refined over the root style at the end of render.
     sx: Option<Box<gpui::StyleRefinement>>,
@@ -625,6 +811,9 @@ impl ToastViewport {
             scale_factor: 0.05,
             width: px(460.),
             inset: px(16.),
+            is_expanded: false,
+            exit_duration: DEFAULT_TOAST_EXIT_DURATION,
+            hotkey: DEFAULT_TOAST_HOTKEY,
             id: None,
             sx: None,
         }
@@ -664,6 +853,28 @@ impl ToastViewport {
         self
     }
 
+    /// `isExpanded` on `Toast.Provider`. Forces the stack open when more than
+    /// one toast is active. Hover and focus-within still expand when this is
+    /// false; the prop alone does not pause timers.
+    pub fn is_expanded(mut self, expanded: bool) -> Self {
+        self.is_expanded = expanded;
+        self
+    }
+
+    /// `exitDuration` on `Toast.Provider` — how long a dismissed card stays
+    /// mounted for `[data-exiting]`. `Duration::ZERO` removes it immediately.
+    pub fn exit_duration(mut self, duration: Duration) -> Self {
+        self.exit_duration = duration;
+        self
+    }
+
+    /// `hotkey` on `Toast.Provider`. The default is Alt+T. Pass
+    /// [`ToastHotkey::disabled`] to turn the shortcut off.
+    pub fn hotkey(mut self, hotkey: ToastHotkey) -> Self {
+        self.hotkey = hotkey;
+        self
+    }
+
     pub fn width(mut self, width: impl Into<Pixels>) -> Self {
         self.width = width.into();
         self
@@ -694,17 +905,113 @@ impl Default for ToastViewport {
 }
 
 impl RenderOnce for ToastViewport {
-    fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
-        let mut toasts: Vec<ToastData> = match cx.try_global::<ToastHub>() {
-            Some(hub) => hub
-                .store
-                .read(cx)
-                .visible_toasts(self.max_visible_toasts)
-                .to_vec(),
-            None => Vec::new(),
+    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        let store = cx.try_global::<ToastHub>().map(|hub| hub.store.clone());
+        let (mut toasts, exiting) = match store.as_ref() {
+            Some(store) => {
+                let snap = store.read(cx);
+                (snap.toasts().to_vec(), snap.exiting().to_vec())
+            }
+            None => (Vec::new(), Vec::new()),
         };
 
-        let mut region = gpui::div().absolute().flex().flex_col().gap(self.gap);
+        let region_id = self
+            .id
+            .clone()
+            .unwrap_or_else(|| ElementId::Name("toast-region".into()));
+        let pointer_state =
+            window.use_keyed_state(element_id::scoped(&region_id, "pointer"), cx, |_, _| false);
+        let region_focus = window
+            .use_keyed_state(element_id::scoped(&region_id, "focus"), cx, |_, cx| {
+                cx.focus_handle().tab_stop(false)
+            })
+            .read(cx)
+            .clone();
+        let _hotkey_sub = window.use_keyed_state(
+            ElementId::Name("toast-viewport-hotkey".into()),
+            cx,
+            |_, cx| {
+                let focus = region_focus.clone();
+                cx.intercept_keystrokes(move |event, window, cx| {
+                    let Some(hub) = cx.try_global::<ToastHub>() else {
+                        return;
+                    };
+                    let hotkey = hub.store.read(cx).hotkey.clone();
+                    if !hotkey.matches(&event.keystroke) {
+                        return;
+                    }
+                    if hub.store.read(cx).toasts().is_empty() {
+                        return;
+                    }
+                    focus.focus(window, cx);
+                    cx.stop_propagation();
+                })
+            },
+        );
+
+        let max_visible = self.max_visible_toasts;
+        let hidden: Vec<ToastData> = if toasts.len() > max_visible {
+            toasts.split_off(max_visible)
+        } else {
+            Vec::new()
+        };
+        let active_count = toasts.len();
+        let pointer_within = *pointer_state.read(cx);
+        let focus_within = region_focus.contains_focused(window, cx);
+        let interaction_within = (pointer_within || focus_within) && active_count > 0;
+        // A single remaining toast never expands; exiting cards do not count.
+        let expanded = (self.is_expanded || interaction_within) && active_count > 1;
+        if active_count == 0 && pointer_within {
+            pointer_state.update(cx, |held, _| *held = false);
+        }
+
+        if let Some(store) = store.as_ref() {
+            store.update(cx, |s, _| {
+                s.interaction_paused = interaction_within;
+                s.exit_duration = self.exit_duration;
+                s.hotkey = self.hotkey.clone();
+                s.viewport_expanded = expanded;
+            });
+        }
+
+        let stack_gap = if expanded || active_count <= 1 {
+            self.gap
+        } else {
+            px(0.)
+        };
+        let mut region = gpui::div()
+            .id(region_id)
+            .track_focus(&region_focus)
+            .absolute()
+            .flex()
+            .flex_col()
+            .gap(stack_gap)
+            .on_hover({
+                let pointer_state = pointer_state.clone();
+                move |over, window, cx| {
+                    pointer_state.update(cx, |held, cx| {
+                        if *held != *over {
+                            *held = *over;
+                            cx.notify();
+                        }
+                    });
+                    window.refresh();
+                }
+            })
+            .on_key_down({
+                let pointer_state = pointer_state.clone();
+                move |event, window, cx| {
+                    if event.keystroke.key != "escape" {
+                        return;
+                    }
+                    pointer_state.update(cx, |held, cx| {
+                        *held = false;
+                        cx.notify();
+                    });
+                    window.blur(cx);
+                    window.refresh();
+                }
+            });
 
         region = if self.placement.is_top() {
             region.top(self.inset)
@@ -726,54 +1033,81 @@ impl RenderOnce for ToastViewport {
         // edge; a top stack draws it first. Either way its depth stays zero.
         let width = self.width;
         let scale = self.scale_factor;
+        let peek = self.gap;
         let top = self.placement.is_top();
+        let visible_len = toasts.len();
         if !top {
             toasts.reverse();
         }
-        let last = toasts.len().saturating_sub(1);
-        let n = toasts.len();
-        let region = region.children(
-            toasts
-                .into_iter()
-                .enumerate()
-                .map(move |(i, t)| toast_card(t, width, if top { i } else { last - i }, scale)),
-        );
-        let region = crate::util::apply_sx(region, &self.sx);
-        match self.id {
-            Some(id) => {
-                let name = if n == 1 {
-                    SharedString::from("1 notification.")
-                } else {
-                    SharedString::from(format!("{n} notifications."))
-                };
-                region
-                    .id(id)
-                    .a11y_named(a11y::Role::Region, &a11y::Name::labelled(name))
-                    .into_any_element()
+        let last = visible_len.saturating_sub(1);
+        let n = active_count + hidden.len();
+        let visible_cards = toasts.into_iter().enumerate().map(move |(i, t)| {
+            let depth = if top { i } else { last - i };
+            ToastCardEl {
+                t,
+                width,
+                depth: if expanded { 0 } else { depth },
+                scale_factor: scale,
+                frontmost: depth == 0,
+                expanded,
+                hidden: false,
+                exiting: false,
+                peek,
             }
-            None => region.into_any_element(),
+        });
+        let hidden_cards = hidden.into_iter().map(move |t| ToastCardEl {
+            t,
+            width,
+            depth: 0,
+            scale_factor: scale,
+            frontmost: false,
+            expanded,
+            hidden: true,
+            exiting: false,
+            peek,
+        });
+        let exiting_cards = exiting.into_iter().map(move |t| ToastCardEl {
+            t,
+            width,
+            depth: 0,
+            scale_factor: scale,
+            frontmost: false,
+            expanded,
+            hidden: false,
+            exiting: true,
+            peek,
+        });
+        let region = region
+            .children(visible_cards)
+            .children(hidden_cards)
+            .children(exiting_cards);
+        let region = crate::util::apply_sx(region, &self.sx);
+        if self.id.is_some() {
+            let name = if n == 1 {
+                SharedString::from("1 notification.")
+            } else {
+                SharedString::from(format!("{n} notifications."))
+            };
+            region
+                .a11y_named(a11y::Role::Region, &a11y::Name::labelled(name))
+                .into_any_element()
+        } else {
+            region.into_any_element()
         }
     }
-}
-
-fn toast_card(t: ToastData, width: Pixels, depth: usize, scale_factor: f32) -> gpui::AnyElement {
-    // Each step back shrinks the card by `scale_factor`, expressed as a
-    // horizontal inset since a div cannot be scaled.
-    let shrink = (1.0 - scale_factor * depth as f32).clamp(0.5, 1.0);
-    let width = px(f32::from(width) * shrink);
-    ToastCardEl {
-        t,
-        width,
-        frontmost: depth == 0,
-    }
-    .into_any_element()
 }
 
 #[derive(IntoElement)]
 struct ToastCardEl {
     t: ToastData,
     width: Pixels,
+    depth: usize,
+    scale_factor: f32,
     frontmost: bool,
+    expanded: bool,
+    hidden: bool,
+    exiting: bool,
+    peek: Pixels,
 }
 
 impl RenderOnce for ToastCardEl {
@@ -784,7 +1118,11 @@ impl RenderOnce for ToastCardEl {
         // `colors` borrows it.
         // Every part of a toast card hangs off the toast's own numeric id.
         let base_id = ElementId::named_usize("toast", self.t.id as usize);
-        let close_focus = if self.t.closable && self.frontmost {
+        // Frontmost is always interactive. Expanded visible cards are too.
+        // Hidden and exiting cards stay inert (`data-hidden` / `data-exiting`).
+        let interactive = !self.hidden && !self.exiting && (self.frontmost || self.expanded);
+        let collapsed_behind = !self.frontmost && !self.expanded && !self.hidden && !self.exiting;
+        let close_focus = if self.t.closable && interactive {
             Some(crate::util::tab_stop_handle(
                 element_id::scoped(&element_id::scoped(&base_id, "close"), "focus"),
                 window,
@@ -821,6 +1159,11 @@ impl RenderOnce for ToastCardEl {
         // the resting card on every motion path.
         let panel_padding_y = self.t.padding.unwrap_or(px(12.));
         let panel_padding_x = self.t.padding.unwrap_or(px(16.));
+        // Each step back shrinks the card by `scale_factor`, expressed as a
+        // horizontal inset since a div cannot be scaled. Expanded cards stay
+        // full width (`--toast-scale: 1`).
+        let shrink = (1.0 - self.scale_factor * self.depth as f32).clamp(0.5, 1.0);
+        let width = px(f32::from(self.width) * shrink);
         let mut card = gpui::div()
             // `toast/toast.js` renders RAC's `UNSTABLE_Toast`, whose props come
             // from `react-aria/dist/private/toast/useToast.js`: the card is
@@ -836,7 +1179,7 @@ impl RenderOnce for ToastCardEl {
                 &a11y::Name::labelled(self.t.title.clone())
                     .described(self.t.description.clone()),
             )
-            .w(self.width)
+            .w(width)
             .flex()
             .items_start()
             .gap(px(6.))
@@ -849,17 +1192,33 @@ impl RenderOnce for ToastCardEl {
                 c.shadow(cx.layout().overlay_shadow.clone())
             })
             .overflow_hidden();
+        if self.hidden {
+            // `data-hidden`: stay in the tree at zero opacity, out of flow
+            // so overflow does not move the frontmost close target.
+            card = card.absolute().w(px(0.)).h(px(0.)).opacity(0.);
+        } else if collapsed_behind {
+            // Collapsed non-front: Sonner-style peek. GPUI cannot measure
+            // the front card's height, so the sliver is the region gap.
+            card = card.h(self.peek);
+        } else if self.exiting {
+            card = card.absolute();
+        }
 
         // `.toast__indicator` — `flex shrink-0 items-center justify-center p-1`
         // at `size-4`. v3 uses the overlay foreground for default/accent and a
         // status role's soft foreground for success/warning/danger.
         if self.t.is_loading {
             card = card.child(
-                gpui::div().flex().flex_shrink_0().p(px(4.)).child(
-                    crate::spinner::Spinner::new(element_id::scoped(&base_id, "spinner"))
-                        .size(herogpui_core::Size::Sm)
-                        .current_color(indicator_color),
-                ),
+                gpui::div()
+                    .flex()
+                    .flex_shrink_0()
+                    .p(px(4.))
+                    .when(collapsed_behind, |c| c.opacity(0.))
+                    .child(
+                        crate::spinner::Spinner::new(element_id::scoped(&base_id, "spinner"))
+                            .size(herogpui_core::Size::Sm)
+                            .current_color(indicator_color),
+                    ),
             );
         } else if let Some(icon) = self.t.indicator.clone().or_else(|| {
             // Not set at all means the variant's own glyph; set to nothing
@@ -877,6 +1236,7 @@ impl RenderOnce for ToastCardEl {
                     .items_center()
                     .justify_center()
                     .p(px(4.))
+                    .when(collapsed_behind, |c| c.opacity(0.))
                     .child(
                         gpui::svg()
                             .size(px(16.))
@@ -888,7 +1248,12 @@ impl RenderOnce for ToastCardEl {
 
         // `.toast__content` -- the title and description column, beside the
         // indicator and inside the card.
-        let mut text_col = gpui::div().flex().flex_col().flex_1().min_w_0();
+        let mut text_col = gpui::div()
+            .flex()
+            .flex_col()
+            .flex_1()
+            .min_w_0()
+            .when(collapsed_behind, |c| c.opacity(0.));
         text_col = text_col.child(
             gpui::div()
                 // `.toast__title` is `text-sm leading-5 font-medium`.
@@ -918,8 +1283,8 @@ impl RenderOnce for ToastCardEl {
                 .label(label)
                 .variant(herogpui_core::Variant::Secondary)
                 .size(herogpui_core::Size::Sm)
-                .is_disabled(!self.frontmost);
-            if self.frontmost {
+                .is_disabled(!interactive);
+            if interactive {
                 action = action.on_press(move |_, _, cx| {
                     on_press(cx);
                     // v3's action closes the toast it belongs to.
@@ -944,7 +1309,7 @@ impl RenderOnce for ToastCardEl {
                 .border_color(colors.border)
                 .bg(colors.overlay.background)
                 .rounded(crate::util::small_radius(cx));
-            if self.frontmost {
+            if interactive {
                 close_btn = crate::util::cursor_interactive(close_btn, cx);
                 // `.toast__close-button:hover` fills with `bg-default` --
                 // the full token, overriding the composed CloseButton's own
@@ -981,15 +1346,26 @@ impl RenderOnce for ToastCardEl {
             );
         }
 
-        crate::anim::entering_zoom(
-            card,
-            element_id::scoped(&base_id, "anim"),
-            crate::anim::ZoomBox::panel(panel_padding_y, radius)
-                .padding_x(panel_padding_x)
-                .sized(self.width),
-            crate::anim::Motion::LIST_IN,
-            cx,
-        )
+        let motion_box = crate::anim::ZoomBox::panel(panel_padding_y, radius)
+            .padding_x(panel_padding_x)
+            .sized(width);
+        if self.exiting {
+            crate::anim::exiting(
+                card,
+                element_id::scoped(&base_id, "anim"),
+                motion_box,
+                crate::anim::Motion::LIST_OUT,
+                cx,
+            )
+        } else {
+            crate::anim::entering_zoom(
+                card,
+                element_id::scoped(&base_id, "anim"),
+                motion_box,
+                crate::anim::Motion::LIST_IN,
+                cx,
+            )
+        }
     }
 }
 

@@ -193,7 +193,13 @@ remaining variations and motion frames still need work.
 Implemented `toast.update` as `Toast::update(id, cx)`. Content fields replace
 the existing card; omitted `timeout` / `onClose` stay; a missing id adds a new
 toast. Stack order is unchanged. Expanded-stack hover, `isExpanded`,
-`exitDuration` and hotkeys remain open.
+`exitDuration` and the Alt+T hotkey are implemented: the stack opens on
+hover/focus or `is_expanded(true)` when more than one toast is active;
+interaction pause stops the clocks; overflow stays mounted as hidden;
+dismissed cards stay in `exiting` for 300ms unless reduced motion is on.
+`Toast::promise` is `toast.promise`: a loading toast updates in place to the
+success or danger variant when the future settles, then the default dismiss
+clock starts. Callers map resolved data or errors into the `Ok` / `Err` titles.
 
 ## Focus-ring modality (intentional HeroUI deviation)
 

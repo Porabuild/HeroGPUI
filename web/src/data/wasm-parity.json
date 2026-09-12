@@ -1,7 +1,7 @@
 {
   "version": 2,
-  "artifactSha256": "8dd94fb1feb5ec030b51f86ed8d6034a1b4c5f3846a52532899205df4c361282",
-  "glueSha256": "6043260c8366b5e45ed6a2b21bfc5379d9d9103f7d21d7ca6c6cf610796c7e39",
+  "artifactSha256": "20e6bc0493579d8c5fcf43d8aabd7268f76b30589883e76a51086b52dc38228f",
+  "glueSha256": "180a34694028674f40e389405ff8f068645c43700d913dfba1dc2872204c2ae6",
   "examples": {
     "accordion/Controlled": {
       "codeSha256": "2816548407263e0fdeada0ff2ec1e8f9fd45a2d33b24ab2cf163539711fe6f8a",
@@ -2619,13 +2619,17 @@
       "codeSha256": "ca80250e17615a16adc5c7f4278263fe7c79a16d37abac035aaa51ecd156eb28",
       "descriptionSha256": "ef81829e941ebde6887b28cd431d2f39c685e661d77c023a31cc2033a96ffd61"
     },
+    "toast/Expanded Stack": {
+      "codeSha256": "b5ae6e58e94a0a3d4957c3fb1ebf3ab83d719ad0b61d4ce5bc98bec42d03749c",
+      "descriptionSha256": "2fee060b2f3a1155a9df0213efcdc2b5b0ee00b2aaf5f28d71ace687767aa760"
+    },
     "toast/Placements": {
       "codeSha256": "840776bda1cb57a59755c6809d2851d1dab24090f88dfd822677c4ba07c77735",
       "descriptionSha256": "3e68c4dbe6f1c3e3cc79eef936d2c9350a2727fec8e60dc4b9e539532ef65f4e"
     },
     "toast/Promise & Loading": {
-      "codeSha256": "5141b9d21582703eb05458a70b6d0e8f27feee22e06bf0847c4dd57158710e91",
-      "descriptionSha256": "88cd8cbc8f3b4fb2dbbacf6cedb270d192ab4206fb659d9cb223d0959127fdea"
+      "codeSha256": "06f0be676026aee030f5c19050246e58048a1f45d7aa2908e80ebeb0ee927126",
+      "descriptionSha256": "da5835d61518a3d433dd3e521c541b3dbacacb01da8e997aa67f13a3c3051eb3"
     },
     "toast/Push a toast": {
       "codeSha256": "2d766caf2d5a6afe1ed4e06885be5f3ae7b94b3a5fd38845d00e0c3e8bd29891",

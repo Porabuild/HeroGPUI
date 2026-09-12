@@ -645,6 +645,9 @@ EXTRA_OK_SCOPED = {
     'Dropdown.exiting': 'composition',
     # v3 positions Toast.Provider through layout classes.
     'Toast.inset': 'no-classname',
+    # Documented on the toast function as `toast.promise()`, not as a root
+    # Toast prop. The helper owns loading → in-place success/error.
+    'Toast.promise': 'documented-by-example',
     # v3 composes `<Pagination.Summary>Page 1 of 10</Pagination.Summary>`.
     'Pagination.summary': 'composition',
     'Pagination.previous_icon': 'composition',

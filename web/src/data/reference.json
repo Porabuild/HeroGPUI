@@ -3097,9 +3097,39 @@
         "prop": "maxVisibleToasts",
         "type": "number",
         "default": "3",
-        "description": "Limits rendered cards without evicting or pausing queued entries.",
+        "description": "Limits rendered cards without evicting or pausing queued entries. Overflow stays mounted as hidden cards.",
         "rustOwner": "ToastViewport",
         "rust": "max_visible_toasts(usize)",
+        "status": "implemented"
+      },
+      {
+        "owner": "Toast.Provider",
+        "prop": "isExpanded",
+        "type": "boolean",
+        "default": "false",
+        "description": "Forces the stack open when more than one toast is active. Hover and focus-within still expand when this is false; the prop does not pause timers.",
+        "rustOwner": "ToastViewport",
+        "rust": "is_expanded(bool)",
+        "status": "implemented"
+      },
+      {
+        "owner": "Toast.Provider",
+        "prop": "exitDuration",
+        "type": "number",
+        "default": "300",
+        "description": "Keeps a dismissed card mounted for the exit fade. Duration zero and reduced motion remove it immediately.",
+        "rustOwner": "ToastViewport",
+        "rust": "exit_duration(Duration)",
+        "status": "implemented"
+      },
+      {
+        "owner": "Toast.Provider",
+        "prop": "hotkey",
+        "type": "string[]",
+        "default": "['Alt', 'KeyT']",
+        "description": "Focuses the region so the stack expands. ToastHotkey::disabled turns the shortcut off. Extra modifiers must not be held.",
+        "rustOwner": "ToastViewport",
+        "rust": "hotkey(ToastHotkey)",
         "status": "implemented"
       },
       {
@@ -3537,30 +3567,30 @@
         "prop": "loading",
         "type": "ReactNode",
         "default": "—",
-        "description": "Toast::loading supplies the pending half; orchestration remains caller-owned.",
+        "description": "Shown while the future is pending as a persistent loading toast.",
         "rustOwner": "Toast",
-        "rust": "loading(title)",
-        "status": "partial"
+        "rust": "promise(future, loading, cx)",
+        "status": "implemented"
       },
       {
         "owner": "toast.promise",
         "prop": "success",
         "type": "ReactNode | (data) => ReactNode",
         "default": "—",
-        "description": "No first-class future wrapper maps resolved data into a replacement toast.",
+        "description": "Ok title replaces the loading toast in place as the success variant and starts the default dismiss clock. Map resolved data into that title before returning Ok.",
         "rustOwner": "Toast",
-        "rust": "manual dismiss + success",
-        "status": "unavailable"
+        "rust": "promise(future, loading, cx)",
+        "status": "implemented"
       },
       {
         "owner": "toast.promise",
         "prop": "error",
         "type": "ReactNode | (error) => ReactNode",
         "default": "—",
-        "description": "No first-class future wrapper maps errors into a replacement toast.",
+        "description": "Err title replaces the loading toast in place as the danger variant and starts the default dismiss clock. Map the error into that title before returning Err.",
         "rustOwner": "Toast",
-        "rust": "manual dismiss + error",
-        "status": "unavailable"
+        "rust": "promise(future, loading, cx)",
+        "status": "implemented"
       }
     ],
     "parts": [
@@ -3646,9 +3676,23 @@
       {
         "state": "Hidden",
         "selector": ".toast[data-hidden=true]",
-        "description": "Overflow remains queued and timed but is not mounted rather than mounted at zero opacity.",
-        "rust": "visible_toasts(max)",
-        "status": "partial"
+        "description": "Overflow stays queued and timed, mounted at zero opacity and out of flow so it does not move the frontmost close target.",
+        "rust": "hidden + hidden_toasts(max)",
+        "status": "implemented"
+      },
+      {
+        "state": "Expanded",
+        "selector": ".toast[data-expanded=true]",
+        "description": "Hover, focus-within, or isExpanded opens the stack when more than one toast is active. Collapsed non-front cards peek at the gap height.",
+        "rust": "ToastViewport::is_expanded + pointer/focus within",
+        "status": "implemented"
+      },
+      {
+        "state": "Exiting",
+        "selector": ".toast[data-exiting=true]",
+        "description": "Dismissed cards stay mounted for exitDuration and play LIST_OUT unless reduced motion is on.",
+        "rust": "ToastStore::exiting + anim::exiting",
+        "status": "implemented"
       },
       {
         "state": "Loading",
