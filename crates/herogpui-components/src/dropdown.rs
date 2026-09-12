@@ -158,6 +158,7 @@ pub struct Menu {
     row_text_size: Option<Pixels>,
     row_gap: Option<Pixels>,
     panel_padding: Option<Pixels>,
+    panel_gap: Option<Pixels>,
     animate_entry: bool,
     focus_handle: Option<gpui::FocusHandle>,
     /// Set by `Dropdown`: the menu panel is where Escape and an outside press
@@ -213,6 +214,7 @@ impl Menu {
             row_text_size: None,
             row_gap: None,
             panel_padding: None,
+            panel_gap: None,
             animate_entry: true,
             focus_handle: None,
             on_dismiss: None,
@@ -297,6 +299,13 @@ impl Menu {
     /// Unset preserves the stock metric.
     pub fn panel_padding(mut self, value: impl Into<Pixels>) -> Self {
         self.panel_padding = Some(value.into());
+        self
+    }
+
+    /// Space between panel entries (default 2px), including submenus.
+    /// `row_gap` independently controls spacing inside each item.
+    pub fn panel_gap(mut self, gap: impl Into<Pixels>) -> Self {
+        self.panel_gap = Some(gap.into());
         self
     }
 
@@ -750,7 +759,7 @@ impl RenderOnce for Menu {
             // the menu's width outright, so a long description could widen the
             // popover across half the window.
             .max_w(self.panel_max_width.unwrap_or(window.viewport_size().width * 0.48))
-            .gap(px(2.))
+            .gap(self.panel_gap.unwrap_or(px(2.)))
             .p(panel_padding)
             .bg(colors.overlay.background)
             .rounded(radius)
@@ -1553,6 +1562,7 @@ impl RenderOnce for Menu {
             sub.row_text_size = self.row_text_size;
             sub.row_gap = self.row_gap;
             sub.panel_padding = self.panel_padding;
+            sub.panel_gap = self.panel_gap;
             sub.animate_entry = self.animate_entry;
             sub.row_hover_bg = self.row_hover_bg;
             sub.row_hover_foreground = self.row_hover_foreground;

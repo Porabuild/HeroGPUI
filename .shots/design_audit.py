@@ -726,7 +726,7 @@ CHECKS = [
      '\\.min_w\\(self\\.panel_min_width\\.unwrap_or\\(px\\(([0-9.]+)\\)\\)\\)', None),
     ('dropdown', '.dropdown__menu', 'gap', 'Dropdown menu gap',
      SRC + 'dropdown.rs',
-     '\\.gap\\(px\\(([0-9.]+)\\)\\)\\s*\\.p\\(panel_padding\\)', None),
+     r'\.gap\(self\.panel_gap\.unwrap_or\(px\(([0-9.]+)\)\)\)\s*\.p\(panel_padding\)', None),
     ('dropdown', '.dropdown__menu', 'p', 'Dropdown menu padding',
      SRC + 'dropdown.rs',
      'let panel_padding\\s*=\\s*self\\.panel_padding\\s*\\.unwrap_or\\(if dropdown_composition\\s*\\{\\s*px\\([0-9.]+\\)\\s*\\}\\s*else\\s*\\{\\s*px\\(([0-9.]+)\\)\\s*\\}\\)', None),

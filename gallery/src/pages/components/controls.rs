@@ -204,7 +204,7 @@ impl Gallery {
                     col(vec![
                         fixed_demo(320., h::Slider::new("sl-continuous", 0.5)
                             .default_value(0.5).max_value(1.).continuous(true)
-                            .size(h::SliderSize::Sm).show_value(true)
+                            .sx(|el| el.rounded_full()).show_value(true)
                             .label(if self.demo_flag("sl-seeking", false) { "Preview paused" } else { "Preview playing" })
                             .on_drag_start(move |_, cx| { let _ = seek_start.update(cx, |this, cx| { this.set_demo_flag("sl-seeking", true); cx.notify(); }); })
                             .on_drag_end(move |_, cx| { let _ = seek_end.update(cx, |this, cx| { this.set_demo_flag("sl-seeking", false); cx.notify(); }); })),

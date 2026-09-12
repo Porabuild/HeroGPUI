@@ -265,3 +265,43 @@ fn compact_select_trigger_and_panel_use_configured_parts(cx: &mut TestAppContext
     assert_eq!(row.origin.y - panel.origin.y, px(4.));
     assert_eq!(row.size.height, px(28.));
 }
+
+#[gpui::test]
+fn standalone_menu_panel_gap_controls_row_interval_and_total_height(cx: &mut TestAppContext) {
+    for gap in [None, Some(px(0.))] {
+        let cx = open_host(cx, move || {
+            let menu = Menu::new(
+                "panel-gap",
+                vec![
+                    MenuItem::new("first", "First"),
+                    MenuItem::new("second", "Second"),
+                ],
+            )
+            .animate_entry(false)
+            .panel_padding(px(4.))
+            .row_height(px(28.))
+            .row_padding_y(px(2.))
+            .item_content(|key, _| {
+                let key = key.clone();
+                gpui::div()
+                    .h(px(20.))
+                    .w(px(40.))
+                    .debug_selector(move || format!("gap-{key}"))
+                    .into_any_element()
+            });
+            gpui::div()
+                .debug_selector(|| "gap-panel".into())
+                .child(match gap {
+                    Some(gap) => menu.panel_gap(gap),
+                    None => menu,
+                })
+                .into_any_element()
+        });
+        let first = cx.debug_bounds("gap-first").expect("first row");
+        let second = cx.debug_bounds("gap-second").expect("second row");
+        let panel = cx.debug_bounds("gap-panel").expect("panel");
+        let gap = gap.unwrap_or(px(2.));
+        assert_eq!(second.origin.y - first.origin.y, px(28.) + gap);
+        assert_eq!(panel.size.height, px(64.) + gap);
+    }
+}

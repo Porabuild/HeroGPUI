@@ -83,7 +83,7 @@ impl Gallery {
                                 .submenu(vec![h::MenuItem::new("copy", "Copy")])])
                                 .panel_min_width(px(180.)).panel_max_width(px(240.)).panel_max_height(px(160.))
                                 .row_height(px(28.)).row_padding_x(px(8.)).row_padding_y(px(2.))
-                                .row_text_size(px(12.)).row_gap(px(8.)).panel_padding(px(4.))
+                                .row_text_size(px(12.)).row_gap(px(8.)).panel_padding(px(4.)).panel_gap(px(0.))
                                 .animate_entry(false)
                                 .row_hover_bg(cx.colors().accent.color)
                                 .row_hover_foreground(cx.colors().accent.foreground)

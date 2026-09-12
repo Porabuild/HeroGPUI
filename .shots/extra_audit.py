@@ -811,6 +811,7 @@ EXTRA_OK_SCOPED = {
     'Dropdown.row_hover_foreground': 'no-classname',
     'Dropdown.row_gap': 'no-classname',
     'Dropdown.panel_padding': 'no-classname',
+    'Dropdown.panel_gap': 'no-classname',
     'Dropdown.animate_entry': 'no-classname',
     # Native seek gestures and snapping modes are additive application hooks.
     'Slider.continuous': 'repository-slider-extension',

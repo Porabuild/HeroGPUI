@@ -193,7 +193,7 @@
         "prop": "className",
         "type": "string",
         "default": "—",
-        "description": "Additional CSS classes for the menu. Standalone Menu provides panel sizing, row metrics and panel_padding builders; sx styles its outer wrapper.",
+        "description": "Additional CSS classes for the menu. Standalone Menu provides panel sizing, row metrics, panel_gap and panel_padding builders; sx styles its outer wrapper.",
         "rustOwner": "Menu",
         "rust": "—",
         "status": "unavailable"
@@ -4678,7 +4678,7 @@
         "prop": "className",
         "type": "string",
         "default": "—",
-        "description": "Additional CSS classes for the root.",
+        "description": "Additional CSS classes for the root. Native sx pixel corners also reach the track caps and both Md thumb layers.",
         "rustOwner": "Slider",
         "rust": "—",
         "status": "unavailable"

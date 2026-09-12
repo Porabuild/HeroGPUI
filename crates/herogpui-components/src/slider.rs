@@ -807,59 +807,19 @@ impl RenderOnce for Slider {
         } else {
             track_radius
         };
-        track = track
-            .when(fill_start && !vertical, |t| {
-                t.child(
-                    gpui::div()
-                        .absolute()
-                        .left(px(0.))
-                        .top(px(0.))
-                        .bottom(px(0.))
-                        .w(axis_inset)
-                        .bg(sem.color)
-                        .rounded_tl(track_radius)
-                        .rounded_bl(track_radius),
-                )
-            })
-            .when(fill_start && vertical, |t| {
-                t.child(
-                    gpui::div()
-                        .absolute()
-                        .bottom(px(0.))
-                        .left(px(0.))
-                        .right(px(0.))
-                        .h(axis_inset)
-                        .bg(sem.color)
-                        .rounded_bl(track_radius)
-                        .rounded_br(track_radius),
-                )
-            })
-            .when(fill_end && !vertical, |t| {
-                t.child(
-                    gpui::div()
-                        .absolute()
-                        .right(px(0.))
-                        .top(px(0.))
-                        .bottom(px(0.))
-                        .w(axis_inset)
-                        .bg(sem.color)
-                        .rounded_tr(track_radius)
-                        .rounded_br(track_radius),
-                )
-            })
-            .when(fill_end && vertical, |t| {
-                t.child(
-                    gpui::div()
-                        .absolute()
-                        .top(px(0.))
-                        .left(px(0.))
-                        .right(px(0.))
-                        .h(axis_inset)
-                        .bg(sem.color)
-                        .rounded_tl(track_radius)
-                        .rounded_tr(track_radius),
-                )
-            });
+        for (visible, at_start) in [(fill_start, true), (fill_end, false)] {
+            if visible {
+                track = track.child(fill_cap(
+                    vertical,
+                    at_start,
+                    axis_inset,
+                    track_cross,
+                    track_radius,
+                    &sx_corners,
+                    sem.color,
+                ));
+            }
+        }
 
         // The box the fill and thumbs position against: the track inset by
         // 12px per axis edge, which is where the transparent border leaves
@@ -964,7 +924,8 @@ impl RenderOnce for Slider {
                             })
                             .rounded(crate::util::key_radius(cx))
                             .bg(sem.foreground)
-                            .shadow(layout.field_shadow.clone()),
+                            .shadow(layout.field_shadow.clone())
+                            .map(|inner| crate::util::round_sx_corners(inner, &sx_corners)),
                     ),
                 // `Sm` is a single-layer round knob in the foreground token;
                 // there is no inner mark to nest.
@@ -1286,6 +1247,61 @@ impl RenderOnce for Slider {
         el = crate::util::apply_sx(el, &self.sx);
         el
     }
+}
+
+/// Keep cap coverage at the axis inset while letting explicit corners resolve
+/// against the track thickness rather than GPUI's narrower cap-strip box.
+fn fill_cap(
+    vertical: bool,
+    at_start: bool,
+    inset: gpui::Pixels,
+    cross: gpui::Pixels,
+    radius: gpui::Pixels,
+    corners: &gpui::Corners<Option<gpui::Pixels>>,
+    color: gpui::Hsla,
+) -> gpui::Div {
+    let explicit = corners.top_left.is_some()
+        || corners.top_right.is_some()
+        || corners.bottom_left.is_some()
+        || corners.bottom_right.is_some();
+    let length = if explicit { inset.max(cross) } else { inset };
+    let fallback = radius.min(inset.min(cross) / 2.);
+    let mut clip = gpui::div().absolute().overflow_hidden();
+    let mut paint = gpui::div().absolute().bg(color);
+    if vertical {
+        clip = clip.left(px(0.)).right(px(0.)).h(inset);
+        paint = paint.left(px(0.)).right(px(0.)).h(length);
+        if at_start {
+            clip = clip.bottom(px(0.));
+            paint = paint
+                .bottom(px(0.))
+                .rounded_bl(corners.bottom_left.unwrap_or(fallback))
+                .rounded_br(corners.bottom_right.unwrap_or(fallback));
+        } else {
+            clip = clip.top(px(0.));
+            paint = paint
+                .top(px(0.))
+                .rounded_tl(corners.top_left.unwrap_or(fallback))
+                .rounded_tr(corners.top_right.unwrap_or(fallback));
+        }
+    } else {
+        clip = clip.top(px(0.)).bottom(px(0.)).w(inset);
+        paint = paint.top(px(0.)).bottom(px(0.)).w(length);
+        if at_start {
+            clip = clip.left(px(0.));
+            paint = paint
+                .left(px(0.))
+                .rounded_tl(corners.top_left.unwrap_or(fallback))
+                .rounded_bl(corners.bottom_left.unwrap_or(fallback));
+        } else {
+            clip = clip.right(px(0.));
+            paint = paint
+                .right(px(0.))
+                .rounded_tr(corners.top_right.unwrap_or(fallback))
+                .rounded_br(corners.bottom_right.unwrap_or(fallback));
+        }
+    }
+    clip.child(paint)
 }
 
 fn live_form_state() -> Rc<RefCell<crate::form::LiveFormFieldState>> {
