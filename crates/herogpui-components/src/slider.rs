@@ -11,6 +11,8 @@ use herogpui_theme::ActiveTheme;
 
 use crate::a11y::A11y as _;
 
+type DragCallback = std::sync::Arc<dyn Fn(&mut Window, &mut App) + 'static>;
+
 type Thumb = std::sync::Arc<dyn Fn(usize, f32) -> gpui::AnyElement + 'static>;
 type Output = std::sync::Arc<dyn Fn(&[f32], &[String]) -> gpui::AnyElement + 'static>;
 type OnChangeAll = std::sync::Arc<dyn Fn(&[f32], &mut Window, &mut App) + 'static>;
@@ -57,6 +59,9 @@ pub struct Slider {
     min: f32,
     max: f32,
     step: f32,
+    steps: Vec<f32>,
+    on_drag_start: Option<DragCallback>,
+    on_drag_end: Option<DragCallback>,
     is_disabled: bool,
     orientation: Orientation,
     label: Option<String>,
@@ -123,6 +128,9 @@ impl Slider {
             min: 0.0,
             max: 100.0,
             step: 1.0,
+            steps: Vec::new(),
+            on_drag_start: None,
+            on_drag_end: None,
             is_disabled: false,
             orientation: Orientation::Horizontal,
             label: None,
@@ -301,7 +309,44 @@ impl Slider {
     }
 
     pub fn step(mut self, v: f32) -> Self {
+        self.steps.clear();
         self.step = if v.is_finite() && v > 0.0 { v } else { 1.0 };
+        self
+    }
+
+    /// Disables pointer snapping. Arrow keys move by 1% of the range.
+    /// This and `step`/`steps` replace the previous snapping mode.
+    pub fn continuous(mut self, continuous: bool) -> Self {
+        self.steps.clear();
+        self.step = if continuous { 0.0 } else { 1.0 };
+        self
+    }
+
+    /// Arbitrary snap points, sorted and deduplicated. Non-finite and out-of-range
+    /// points are ignored; no usable points falls back to continuous movement.
+    /// Arrow keys visit adjacent points; pointer ties choose the lower point.
+    pub fn steps(mut self, steps: impl IntoIterator<Item = f32>) -> Self {
+        self.steps = steps
+            .into_iter()
+            .filter(|value| value.is_finite())
+            .collect();
+        self.steps.sort_by(f32::total_cmp);
+        self.steps.dedup();
+        self.step = 0.0;
+        self
+    }
+
+    /// Fires before the first pointer value write, including a track press.
+    /// Keyboard changes do not start a drag.
+    pub fn on_drag_start(mut self, f: impl Fn(&mut Window, &mut App) + 'static) -> Self {
+        self.on_drag_start = Some(std::sync::Arc::new(f));
+        self
+    }
+
+    /// Fires once after the pointer release's `on_change_end`, even when the
+    /// value did not change. Release outside the track also ends the drag.
+    pub fn on_drag_end(mut self, f: impl Fn(&mut Window, &mut App) + 'static) -> Self {
+        self.on_drag_end = Some(std::sync::Arc::new(f));
         self
     }
 
@@ -415,17 +460,12 @@ impl RenderOnce for Slider {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         // `controlled` takes `cx` mutably, so it precedes the theme tokens.
         // Supplying `default_value` is what opts into the uncontrolled mode.
-        let (value, own) = crate::util::controlled(
-            window,
-            cx,
-            element_id::scoped(&self.id, "value"),
-            match self.default_value {
-                Some(_) => None,
-                None => Some(self.value),
-            },
-            self.default_value.unwrap_or(self.value),
-        );
-
+        let steps: Vec<f32> = self
+            .steps
+            .iter()
+            .copied()
+            .filter(|value| *value >= self.min && *value <= self.max)
+            .collect();
         let range_mode = self
             .values
             .as_ref()
@@ -434,24 +474,43 @@ impl RenderOnce for Slider {
                 .default_values
                 .as_ref()
                 .is_some_and(|values| !values.is_empty());
-        let range_default = self
-            .default_values
-            .clone()
-            .filter(|values| !values.is_empty())
-            .unwrap_or_else(|| vec![self.default_value.unwrap_or(self.value)]);
-        let range_controlled = self
-            .values
-            .clone()
-            .filter(|values| !values.is_empty())
-            .map(|values| normalize_values(&values, self.min, self.max, self.step));
-        let range_default = normalize_values(&range_default, self.min, self.max, self.step);
-        let (range_values, range_own) = crate::util::controlled(
-            window,
-            cx,
-            element_id::scoped(&self.id, "values"),
-            range_controlled,
-            range_default,
-        );
+        let (value, own) = if range_mode {
+            (self.value, None)
+        } else {
+            crate::util::controlled(
+                window,
+                cx,
+                element_id::scoped(&self.id, "value"),
+                match self.default_value {
+                    Some(_) => None,
+                    None => Some(self.value),
+                },
+                self.default_value.unwrap_or(self.value),
+            )
+        };
+
+        let (range_values, range_own) = if range_mode {
+            let range_default = self
+                .default_values
+                .clone()
+                .filter(|values| !values.is_empty())
+                .unwrap_or_else(|| vec![self.default_value.unwrap_or(self.value)]);
+            let range_controlled = self
+                .values
+                .clone()
+                .filter(|values| !values.is_empty())
+                .map(|values| normalize_values(&values, self.min, self.max, self.step));
+            let range_default = normalize_values(&range_default, self.min, self.max, self.step);
+            crate::util::controlled(
+                window,
+                cx,
+                element_id::scoped(&self.id, "values"),
+                range_controlled,
+                range_default,
+            )
+        } else {
+            (Vec::new(), None)
+        };
 
         // One thumb or many: the single-value form is a set of one, so the rest
         // of the render does not branch. Computed before the keyed states
@@ -459,6 +518,9 @@ impl RenderOnce for Slider {
         // thumb.
         let thumbs: Vec<f32> = if range_mode {
             range_values
+                .into_iter()
+                .map(|value| snap_value(value, self.min, self.max, self.step, &steps))
+                .collect()
         } else {
             vec![value]
         };
@@ -548,7 +610,7 @@ impl RenderOnce for Slider {
         // arrows and by the slider's own Tab cycle, and does not take the
         // focus ring.
         let thumb_enabled: Vec<bool> = (0..thumbs.len())
-            .map(|i| !self.disabled_keys.contains(&i))
+            .map(|i| !self.is_disabled && !self.disabled_keys.contains(&i))
             .collect();
         let any_enabled = thumb_enabled.iter().any(|&enabled| enabled);
 
@@ -932,7 +994,7 @@ impl RenderOnce for Slider {
         // jump to the ends, and Page Up/Down move by a tenth of the range --
         // React Aria's page step. Without this the pointer was the only way to
         // move a value at all.
-        if !self.is_disabled {
+        if !self.is_disabled || dragging.read(cx).active.is_some() {
             let keys_thumbs = thumbs.clone();
             let on_change_keys = self.on_change.clone();
             let all_keys = self.on_change_all.clone();
@@ -946,7 +1008,14 @@ impl RenderOnce for Slider {
             let form_is_disabled = self.is_disabled;
             let held_thumb = active_thumb.clone();
             let keys_enabled = thumb_enabled.clone();
-            let (min, max, step) = (self.min, self.max, self.step);
+            let (min, max) = (self.min, self.max);
+            let snap_step = self.step;
+            let step = if snap_step == 0.0 {
+                (max - min) / 100.0
+            } else {
+                snap_step
+            };
+            let key_steps = steps.clone();
             // A tenth of the range, but never less than one step.
             let page = ((max - min) / 10.0).max(step);
             // A slider whose per-thumb disabled set covers every thumb leaves
@@ -1001,7 +1070,20 @@ impl RenderOnce for Slider {
                     };
                     // Snapped and clamped the same way a drag is, so the two
                     // cannot land on different values.
-                    let next = snap_to_step(next, min, max, step);
+                    let next = match key {
+                        "right" | "up" if !key_steps.is_empty() => key_steps
+                            .iter()
+                            .copied()
+                            .find(|v| *v > current)
+                            .unwrap_or(current),
+                        "left" | "down" if !key_steps.is_empty() => key_steps
+                            .iter()
+                            .copied()
+                            .rev()
+                            .find(|v| *v < current)
+                            .unwrap_or(current),
+                        _ => snap_value(next, min, max, snap_step, &key_steps),
+                    };
                     let next_values = set_thumb(
                         index,
                         next,
@@ -1036,6 +1118,7 @@ impl RenderOnce for Slider {
                 min: self.min,
                 span: range_span,
                 step: self.step,
+                steps: steps.clone(),
                 thumbs: thumbs.clone(),
                 enabled: thumb_enabled.clone(),
             };
@@ -1051,6 +1134,7 @@ impl RenderOnce for Slider {
             let form_is_disabled_down = self.is_disabled;
             let b_down = bounds_slot.clone();
             let d_down = dragging.clone();
+            let on_drag_start = self.on_drag_start.clone();
             track = track.on_mouse_down(
                 gpui::MouseButton::Left,
                 move |ev: &MouseDownEvent, window, cx| {
@@ -1064,6 +1148,9 @@ impl RenderOnce for Slider {
                     else {
                         return;
                     };
+                    if let Some(cb) = &on_drag_start {
+                        cb(window, cx);
+                    }
                     // React Aria focuses and activates the chosen thumb before
                     // it writes the track press, so the following keys and
                     // pointer moves keep that thumb's identity.
@@ -1098,10 +1185,12 @@ impl RenderOnce for Slider {
                 },
             );
 
+            let is_disabled_move = self.is_disabled;
             let target_move = DragTarget {
                 min: self.min,
                 span: range_span,
                 step: self.step,
+                steps,
                 thumbs,
                 enabled: thumb_enabled,
             };
@@ -1114,6 +1203,7 @@ impl RenderOnce for Slider {
             let form_disabled_keys_move = self.disabled_keys.clone();
             let form_is_disabled_move = self.is_disabled;
             let b_move = bounds_slot;
+            let on_drag_end = self.on_drag_end.clone();
             let on_change_end = self.on_change_end.clone();
             let on_change_end_all = self.on_change_end_all.clone();
             track = track.child(
@@ -1122,7 +1212,8 @@ impl RenderOnce for Slider {
                     move |_, _, window, _| {
                         let d_move = dragging.clone();
                         window.on_mouse_event(move |ev: &MouseMoveEvent, phase, window, cx| {
-                            if phase != gpui::DispatchPhase::Capture
+                            if is_disabled_move
+                                || phase != gpui::DispatchPhase::Capture
                                 || ev.pressed_button != Some(gpui::MouseButton::Left)
                             {
                                 return;
@@ -1178,6 +1269,9 @@ impl RenderOnce for Slider {
                                     }
                                 } else if let Some(cb) = &on_change_end {
                                     cb(&values[0], window, cx);
+                                }
+                                if let Some(cb) = &on_drag_end {
+                                    cb(window, cx);
                                 }
                             }
                         });
@@ -1257,6 +1351,7 @@ struct DragTarget {
     min: f32,
     span: f32,
     step: f32,
+    steps: Vec<f32>,
     /// The current thumb set. With more than one, the nearest moves.
     thumbs: Vec<f32>,
     /// Which thumbs may follow the pointer — `Slider.Thumb.isDisabled`'s
@@ -1351,11 +1446,12 @@ fn value_from_pointer(
     }
     let frac = axis_fraction(pos, b, vertical);
     let raw = target.min + frac * target.span;
-    Some(snap_to_step(
+    Some(snap_value(
         raw,
         target.min,
         target.min + target.span,
         target.step,
+        &target.steps,
     ))
 }
 
@@ -1373,7 +1469,18 @@ fn nearest_thumb(thumbs: &[f32], enabled: &[bool], value: f32) -> Option<usize> 
         .filter(|index| enabled.get(*index).copied().unwrap_or(true))
 }
 
+fn snap_value(value: f32, min: f32, max: f32, step: f32, points: &[f32]) -> f32 {
+    points
+        .iter()
+        .copied()
+        .min_by(|a, b| (a - value).abs().total_cmp(&(b - value).abs()))
+        .unwrap_or_else(|| snap_to_step(value, min, max, step))
+}
+
 fn snap_to_step(value: f32, min: f32, max: f32, step: f32) -> f32 {
+    if step == 0.0 {
+        return value.clamp(min, max);
+    }
     let mut snapped = ((value - min) / step).round() * step + min;
     if snapped < min {
         snapped = min;

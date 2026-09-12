@@ -200,6 +200,9 @@ pub struct Select {
     row_height: Option<Pixels>,
     /// Replaces the list rows' `px-2.5` horizontal padding.
     row_padding_x: Option<Pixels>,
+    trigger_text_size: Option<Pixels>,
+    row_text_size: Option<Pixels>,
+    panel_padding: Option<Pixels>,
     /// Replaces the list rows' `py-1.5` vertical padding.
     row_padding_y: Option<Pixels>,
     /// The fill a hovered option row takes, in place of `--default`.
@@ -334,6 +337,24 @@ impl Select {
         self
     }
 
+    /// Overrides the trigger text size in pixels; unset preserves the stock metric.
+    pub fn trigger_text_size(mut self, value: impl Into<Pixels>) -> Self {
+        self.trigger_text_size = Some(value.into());
+        self
+    }
+
+    /// Overrides the row text size in pixels; unset preserves the stock metric.
+    pub fn row_text_size(mut self, value: impl Into<Pixels>) -> Self {
+        self.row_text_size = Some(value.into());
+        self
+    }
+
+    /// Overrides the panel padding in pixels; unset preserves the stock metric.
+    pub fn panel_padding(mut self, value: impl Into<Pixels>) -> Self {
+        self.panel_padding = Some(value.into());
+        self
+    }
+
     /// Replaces the list rows' `px-2.5` horizontal padding.
     pub fn row_padding_x(mut self, p: impl Into<Pixels>) -> Self {
         self.row_padding_x = Some(p.into());
@@ -407,6 +428,9 @@ impl Select {
             should_focus_wrap: false,
             row_height: None,
             row_padding_x: None,
+            trigger_text_size: None,
+            row_text_size: None,
+            panel_padding: None,
             row_padding_y: None,
             row_hover_bg: None,
             row_font_family: None,
@@ -625,22 +649,31 @@ impl RenderOnce for Select {
             true,
         );
         let overlay_active = overlay_phase != util::OverlayPhase::Closed;
-        let (selected, value_own) = util::controlled(
-            window,
-            cx,
-            element_id::scoped(&self.id, "value"),
-            self.is_controlled.then_some(self.selected.clone()),
-            self.default_value.clone(),
-        );
         let multiple = self.selection_mode == SelectionMode::Multiple;
-        let (selected_keys, indices_own) = util::controlled(
-            window,
-            cx,
-            element_id::scoped(&self.id, "values"),
-            self.is_multiple_controlled
-                .then(|| crate::selection::normalize_selection(self.selected_keys.clone(), true)),
-            crate::selection::normalize_selection(self.default_selected_keys.clone(), true),
-        );
+        let (selected, value_own) = if multiple {
+            (None, None)
+        } else {
+            util::controlled(
+                window,
+                cx,
+                element_id::scoped(&self.id, "value"),
+                self.is_controlled.then_some(self.selected.clone()),
+                self.default_value.clone(),
+            )
+        };
+        let (selected_keys, indices_own) = if multiple {
+            util::controlled(
+                window,
+                cx,
+                element_id::scoped(&self.id, "values"),
+                self.is_multiple_controlled.then(|| {
+                    crate::selection::normalize_selection(self.selected_keys.clone(), true)
+                }),
+                crate::selection::normalize_selection(self.default_selected_keys.clone(), true),
+            )
+        } else {
+            (Vec::new(), None)
+        };
         let form_default_keys = if multiple {
             let reset_keys = if self.is_multiple_controlled {
                 self.selected_keys.clone()
@@ -787,7 +820,10 @@ impl RenderOnce for Select {
 
         // `.select__trigger` is `min-h-9 ... text-sm`.
         let field_box = self.field;
-        let (h, text) = (field_box.resolved_height(), util::FIELD_TEXT);
+        let (h, text) = (
+            field_box.resolved_height(),
+            self.trigger_text_size.unwrap_or(util::FIELD_TEXT),
+        );
 
         let trigger_id = element_id::scoped(&self.id, "trigger");
         let trigger_selector = format!("select-trigger-{}", id_debug(&self.id));
@@ -1431,7 +1467,7 @@ impl RenderOnce for Select {
                 .w_full()
                 .flex()
                 .flex_col()
-                .p(px(6.))
+                .p(self.panel_padding.unwrap_or(px(6.)))
                 .bg(colors.overlay.background)
                 .rounded(radius)
                 // v3 gives a floating panel no border: `.popover` and friends are
@@ -1533,6 +1569,7 @@ impl RenderOnce for Select {
             let on_close = self.on_open_change.clone();
             let base_row = base;
             let base_row_id = base_id.clone();
+            let row_text_size = self.row_text_size.unwrap_or(util::FIELD_TEXT);
             let row_padding_x = self.row_padding_x.unwrap_or(px(10.));
             let row_font_family = self.row_font_family.clone();
             let row_padding_y = self.row_padding_y.unwrap_or(px(6.));
@@ -1605,7 +1642,7 @@ impl RenderOnce for Select {
                         .px(row_padding_x)
                         .py(row_padding_y)
                         .gap(px(12.))
-                        .text_size(util::FIELD_TEXT)
+                        .text_size(row_text_size)
                         .line_height(px(20.));
                 if let Some(family) = row_font_family.clone() {
                     item = item.font_family(family);
@@ -1810,7 +1847,7 @@ impl RenderOnce for Select {
                 }
             }
 
-            let zoom = crate::anim::ZoomBox::panel(px(6.), radius);
+            let zoom = crate::anim::ZoomBox::panel(self.panel_padding.unwrap_or(px(6.)), radius);
             let panel = if overlay_phase == util::OverlayPhase::Exiting {
                 crate::anim::exiting(
                     panel,

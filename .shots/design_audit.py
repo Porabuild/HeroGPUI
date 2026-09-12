@@ -723,14 +723,13 @@ CHECKS = [
      r'`\.switch__content` is `gap-3`[\s\S]{0,300}?\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('dropdown', '.dropdown__popover', 'min_w', 'Dropdown menu min width',
      SRC + 'dropdown.rs',
-     r'`md:min-w-55`[\s\S]{0,160}?\.min_w\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+     '\\.min_w\\(self\\.panel_min_width\\.unwrap_or\\(px\\(([0-9.]+)\\)\\)\\)', None),
     ('dropdown', '.dropdown__menu', 'gap', 'Dropdown menu gap',
      SRC + 'dropdown.rs',
-     r'\.max_w\(window\.viewport_size\(\)\.width \* 0\.48\)\s*'
-     r'\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+     '\\.gap\\(px\\(([0-9.]+)\\)\\)\\s*\\.p\\(panel_padding\\)', None),
     ('dropdown', '.dropdown__menu', 'p', 'Dropdown menu padding',
      SRC + 'dropdown.rs',
-     r'\.gap\(px\(2\.\)\)\s*\.p\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+     'let panel_padding\\s*=\\s*self\\.panel_padding\\s*\\.unwrap_or\\(if dropdown_composition\\s*\\{\\s*px\\([0-9.]+\\)\\s*\\}\\s*else\\s*\\{\\s*px\\(([0-9.]+)\\)\\s*\\}\\)', None),
     ('dropdown', '.dropdown__popover [data-slot="dropdown-menu"]', 'p',
      'Dropdown contextual menu padding', SRC + 'dropdown.rs', None, None),
     ('color-swatch', '.color-swatch--xs', 'size', 'ColorSwatch Xs', CORE,
@@ -788,10 +787,10 @@ CHECKS = [
      r'\.text_size\(util::(FIELD_TEXT)\)', lambda _: 14.0),
     ('select', '.select__trigger', 'text', '.select__trigger text -> FIELD_TEXT',
      SRC + 'select.rs',
-     r'let \(h, text\) = \(field_box\.resolved_height\(\), util::(FIELD_TEXT)\)', lambda _: 14.0),
+     r'self\.trigger_text_size\.unwrap_or\(util::(FIELD_TEXT)\)', lambda _: 14.0),
     ('select', '.select__value', 'text', '.select__value text -> FIELD_TEXT',
      SRC + 'select.rs',
-     r'let \(h, text\) = \(field_box\.resolved_height\(\), util::(FIELD_TEXT)\)', lambda _: 14.0),
+     r'self\.trigger_text_size\.unwrap_or\(util::(FIELD_TEXT)\)', lambda _: 14.0),
     ('color-input-group', '.color-input-group', 'text', '.color-input-group text -> FIELD_TEXT',
      SRC + 'color_picker.rs',
      r'\.text_size\(util::(FIELD_TEXT)\)', lambda _: 14.0),
@@ -1316,11 +1315,9 @@ CHECKS = [
     # Anchor the menu metrics to the row's own construction chain. A fixed
     # window was outrun when the row gained a bounds-recording canvas.
     ('menu-item', '.menu-item', 'radius', 'Menu row -> util::_radius', SRC + 'dropdown.rs',
-     r'\.px\(px\(8\.\)\)\s*\.rounded\(crate::util::(\w+_radius)\(cx\)\)',
-     helper_px),
+     '\\.px\\(row_padding_x\\)\\s*\\.rounded\\(crate::util::(\\w+_radius)\\(cx\\)\\)', helper_px),
     ('menu-item', '.menu-item', 'px', 'Menu row padding_x', SRC + 'dropdown.rs',
-     r'\.px\(px\((\d+(?:\.\d*)?)\)\)\s+\.rounded\(crate::util::\w+_radius\(cx\)\)',
-     None),
+     'let row_padding_x\\s*=\\s*self\\.row_padding_x\\.unwrap_or\\(if dropdown_composition\\s*\\{\\s*px\\([0-9.]+\\)\\s*\\}\\s*else\\s*\\{\\s*px\\(([0-9.]+)\\)\\s*\\}\\)', None),
     ('dropdown', '.dropdown__popover [data-slot="menu-item"]', 'px',
      'Dropdown contextual menu row padding_x', SRC + 'dropdown.rs', None, None),
     ('toast', '.toast', 'px', 'Toast padding_x', SRC + 'toast.rs',
@@ -1475,7 +1472,7 @@ CHECKS = [
      'px\(38\.\), px\(40\.\), px\(14\.\), px\((\d+(?:\.\d*)?)\.\)', None),
     ('select', '.select__trigger', 'min_h', 'Select trigger height',
      SRC + 'select.rs',
-     r'let \(h, text\) = \(field_box\.(resolved_height)\(\), util::FIELD_TEXT\)', field_box_px),
+     r'let \(h, text\) = \(\s*field_box\.(resolved_height)\(\),', field_box_px),
     ('select', '.select__trigger', 'radius', 'field chrome -> util::_radius',
      SRC + 'util.rs',
      r'radius_override\.unwrap_or_else\(\|\| (field_radius)\(cx\)\)', helper_px),
@@ -1675,12 +1672,11 @@ CHECKS = [
 
     # --- a menu row ----------------------------------------------------------
     ('menu-item', '.menu-item', 'gap', 'Menu item gap', SRC + 'dropdown.rs',
-     r'\.gap\(px\((\d+(?:\.\d*)?)\.\)\)\s*\.px\(px\(8\.\)\)', None),
+     'let row_gap = self\\.row_gap\\.unwrap_or\\(px\\(([0-9.]+)\\)\\);', None),
     ('menu-item', '.menu-item', 'min_h', 'Menu item min height', SRC + 'dropdown.rs',
-     r'`\.menu-item` is `min-h-9 py-1\.5`[\s\S]{0,160}?'
-     r'\.min_h\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+     'let row_height = self\\.row_height\\.unwrap_or\\(px\\(([0-9.]+)\\)\\);', None),
     ('menu-item', '.menu-item', 'py', 'Menu item py', SRC + 'dropdown.rs',
-     r'`\.menu-item` is `min-h-9 py-1\.5`[\s\S]{0,200}?\.py\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+     '\\.py\\(self\\.row_padding_y\\.unwrap_or\\(px\\(([0-9.]+)\\)\\)\\)', None),
     ('menu-item', '.menu-item__indicator', 'size', 'Menu item icon', SRC + 'dropdown.rs',
      r'`\.menu-item__indicator` is `size-4`\.\s*\.size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('list-box-item', '.list-box-item', 'min_h', 'ListBox row min height', SRC + 'list_box.rs',
@@ -1757,15 +1753,14 @@ CHECKS = [
     ('popover', '.popover', 'text', 'Popover text', SRC + 'popover.rs',
      r'`\.popover` is `text-sm`\.\s*\.text_size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('select', '.select__popover', 'text', 'Select popover row text -> FIELD_TEXT',
-     SRC + 'select.rs', r'\.text_size\(util::(FIELD_TEXT)\)', lambda _: 14.0),
+     SRC + 'select.rs', r'let row_text_size = self\.row_text_size\.unwrap_or\(util::(FIELD_TEXT)\)', lambda _: 14.0),
     ('combo-box', '.combo-box__popover', 'text', 'ComboBox popover row text -> FIELD_TEXT',
      SRC + 'combo_box.rs', r'\.text_size\(util::(FIELD_TEXT)\)', lambda _: 14.0),
     ('autocomplete', '.autocomplete__popover', 'text',
      'Autocomplete popover row text -> FIELD_TEXT', SRC + 'autocomplete.rs',
      r'\.text_size\(util::(FIELD_TEXT)\)', lambda _: 14.0),
     ('dropdown', '.dropdown__popover', 'text', 'Dropdown row text', SRC + 'dropdown.rs',
-     r'\.rounded\(crate::util::soft_radius\(cx\)\)\s*'
-     r'\.text_size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+     'let row_text_size = self\\.row_text_size\\.unwrap_or\\(px\\(([0-9.]+)\\)\\);', None),
     ('alert-dialog', '.alert-dialog__body', 'text', 'AlertDialog body text',
      SRC + 'alert_dialog.rs',
      r'\.when\(self\.size == AlertDialogSize::Cover, \|e\| e\.flex_1\(\)\)\s*\n\s*\.text_size\(px\((\d+(?:\.\d*)?)\.\)\)',
@@ -2829,22 +2824,26 @@ def rust_blocks_after(source, marker):
             yield source[opening + 1:end - 1]
 
 
+def contextual_metric_from(source, binding, method):
+    """Read the composition fallback actually consumed by the painted part."""
+    source = mask_literals(mask_comments(source))
+    if not re.search(r'\.' + method + r'\(' + binding + r'\)', source):
+        return None
+    expression = (r'let ' + binding + r'\s*=\s*self\.' + binding +
+                  r'\s*\.unwrap_or\(if dropdown_composition\s*\{\s*px\(([0-9.]+)\)')
+    match = re.search(expression, source)
+    return float(match.group(1)) if match else None
+
+
 def contextual_our_value(path, selector):
-    """Read a Dropdown override from its owning conditional block."""
     try:
         source = read_path(path)
     except OSError:
         return None
     if selector.endswith('[data-slot="dropdown-menu"]'):
-        expression = r'panel\s*=\s*panel\.p\(px\(([0-9.]+)\.\)\)'
-    elif selector.endswith('[data-slot="menu-item"]'):
-        expression = r'row\s*=\s*row\.px\(px\(([0-9.]+)\.\)\)'
-    else:
-        return None
-    for body in rust_blocks_after(source, 'if dropdown_composition'):
-        match = re.search(expression, body)
-        if match:
-            return float(match.group(1))
+        return contextual_metric_from(source, 'panel_padding', 'p')
+    if selector.endswith('[data-slot="menu-item"]'):
+        return contextual_metric_from(source, 'row_padding_x', 'px')
     return None
 
 
@@ -3904,6 +3903,20 @@ def self_test():
         '   } */\n')
     expect(list(rust_blocks_after(contextual_block, 'if dropdown_composition')) == [],
            'a block-commented contextual builder must stay unreadable')
+
+    metric_fixture = ('let panel_padding = self.panel_padding.unwrap_or('
+                      'if dropdown_composition { px(6.) } else { px(4.) });'
+                      'panel = panel.p(panel_padding);')
+    expect(contextual_metric_from(metric_fixture, 'panel_padding', 'p') == 6.,
+           'contextual padding must read the consumed fallback')
+    expect(contextual_metric_from(metric_fixture.replace('px(6.)', 'px(9.)'),
+                                  'panel_padding', 'p') == 9.,
+           'contextual padding must expose metric drift')
+    expect(contextual_metric_from(metric_fixture.replace('.p(panel_padding)', '.p(px(6.))'),
+                                  'panel_padding', 'p') is None,
+           'an unused binding must stay unreadable')
+    expect(contextual_metric_from('/*' + metric_fixture + '*/', 'panel_padding', 'p') is None,
+           'commented contextual metrics must stay unreadable')
 
     nested_css = (
         '.slider {\n'

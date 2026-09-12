@@ -17,7 +17,7 @@ const SLIDER_API: &[ApiDoc] = &[
         prop: "value",
         ty: "number | number[]",
         default: "—",
-        description: "The current value or values (controlled).",
+        description: "The current value or values (controlled). Only the active single/range value mode owns state.",
         rust_owner: "Slider",
         rust: "value(f32) / values(values)",
         status: ImplementationStatus::Implemented,

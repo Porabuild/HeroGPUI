@@ -1,7 +1,7 @@
 {
   "version": 2,
-  "artifactSha256": "d01cb3a3af2ae80737b2c28e0372489bbd5df2aec680930a5c8a5e3d9d7d68dc",
-  "glueSha256": "f129bef083eff6cf28064ea62c53478c3a6de3163f7550bf5bd8c943fe70cae2",
+  "artifactSha256": "59c58c4061d52db827273e702a0b4d1fecc5b8e617cb325cb974b05aaec6e1ae",
+  "glueSha256": "419a0ecf12adf13060f9e1a085a489829ab8b97c1e91dddb1ce205f085098547",
   "examples": {
     "accordion/Controlled": {
       "codeSha256": "2816548407263e0fdeada0ff2ec1e8f9fd45a2d33b24ab2cf163539711fe6f8a",
@@ -1159,6 +1159,10 @@
       "codeSha256": "15d612810e9cda1815fe140148bad19cebf7d466a7ca167e3f4d79991673800c",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
+    "dropdown/Standalone Compact Menu": {
+      "codeSha256": "35a2ebd01a8f376a00b780d9b3a968e6bab4ff859cb6249523727f132c34303b",
+      "descriptionSha256": "7a5ba15556d7ef2c59cb397e965d898874e046663926e17e371626194bce3f25"
+    },
     "dropdown/Usage": {
       "codeSha256": "4fe9cf793d6d3d386b437b1a2876d4941eea8a6be45be46b53da2eac41684bac",
       "descriptionSha256": "1a4f79a3f654e6b7a0341d9c0eb083344a68e8779b426771b3734f75cbe27a4a"
@@ -2036,8 +2040,8 @@
       "descriptionSha256": "d9d9ad0a9e44738e63a5f0ecd066a3a831473d8b74be3d230120b8c732f392e7"
     },
     "select/Box Customisation": {
-      "codeSha256": "1c1a35f516b24dc7691a5a5518c60b2cab508e0d780c581dd55afd00e96ec2a5",
-      "descriptionSha256": "4bb4282cf3fab46cd41cb2baa6a6593fa110a2243eba4351dbbdfb0f94d2a0c8"
+      "codeSha256": "d4581692a1ab87621ccbc36e8c263c21acb9522592c38c42ee3300c292b48b41",
+      "descriptionSha256": "ae8dd9a93101dcedcb9fa08c2970210220306a200683912d54a31dd23e9db2ea"
     },
     "select/Controlled": {
       "codeSha256": "a437beaf2a3cb67ccba4188953a7a510fa79b63830bfcd0066e1c39018ed264b",
@@ -2190,6 +2194,10 @@
     "slider/Format options": {
       "codeSha256": "7f00e2b1e08ede25076ff32956e085a2b75dc655e0b5540ef21dfcd4681a2f14",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "slider/Native Seeking": {
+      "codeSha256": "d5c835d9acd9f5080103c6617481082b3320f41ee44ef3aaaeb7e25c80730264",
+      "descriptionSha256": "d2a496c2d413bcd4de173017d564800226893448c5fcc496785023d49c6f578c"
     },
     "slider/Range": {
       "codeSha256": "082b07bb8a008e2c30052d83622556932517974bb185c117b560782da98496f4",
