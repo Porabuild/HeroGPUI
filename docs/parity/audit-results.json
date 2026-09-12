@@ -1,0 +1,123 @@
+{
+  "target": "v3.2.5",
+  "recorded_on": "2026-09-12",
+  "note": "Exit zero is not a full parity verdict: some audits report gaps without failing. See reported_gaps and interaction-sweep.md.",
+  "audits": [
+    {
+      "audit": "a11y_audit.py",
+      "exit": 0,
+      "reported_gaps": []
+    },
+    {
+      "audit": "anatomy_audit.py",
+      "exit": 0,
+      "reported_gaps": []
+    },
+    {
+      "audit": "anim_audit.py",
+      "exit": 0,
+      "reported_gaps": []
+    },
+    {
+      "audit": "api_audit.py",
+      "exit": 0,
+      "reported_gaps": [
+        "Toast                exitDuration, hotkey, isExpanded, update",
+        "REAL GAPS                   : 4"
+      ]
+    },
+    {
+      "audit": "behaviour_audit.py",
+      "exit": 0,
+      "reported_gaps": [
+        "MISSING            : 0",
+        "UNMAPPED           : 0"
+      ]
+    },
+    {
+      "audit": "demo_audit.py",
+      "exit": 0,
+      "reported_gaps": []
+    },
+    {
+      "audit": "design_audit.py",
+      "exit": 0,
+      "reported_gaps": []
+    },
+    {
+      "audit": "element_id_audit.py",
+      "exit": 0,
+      "reported_gaps": []
+    },
+    {
+      "audit": "example_audit.py",
+      "exit": 0,
+      "reported_gaps": [
+        "! Toast                     11    10  Expanded Stack",
+        "MISSING             : 1  (in 1 pages)"
+      ]
+    },
+    {
+      "audit": "extra_audit.py",
+      "exit": 0,
+      "reported_gaps": []
+    },
+    {
+      "audit": "fence_audit.py",
+      "exit": 0,
+      "reported_gaps": []
+    },
+    {
+      "audit": "inert_audit.py",
+      "exit": 0,
+      "reported_gaps": []
+    },
+    {
+      "audit": "package_audit.py",
+      "exit": 0,
+      "reported_gaps": []
+    },
+    {
+      "audit": "part_audit.py",
+      "exit": 0,
+      "reported_gaps": [
+        "? range-calendar         .range-calendar__grid-body",
+        "? range-calendar         .range-calendar__grid-row",
+        "UNVERIFIED         : 2"
+      ]
+    },
+    {
+      "audit": "reason_audit.py",
+      "exit": 0,
+      "reported_gaps": []
+    },
+    {
+      "audit": "reference_audit.py",
+      "exit": 0,
+      "reported_gaps": []
+    },
+    {
+      "audit": "state_audit.py",
+      "exit": 1,
+      "reported_gaps": [
+        "MISSING  Toast                  exiting                toast.rs: /anim::exiting|overlay_phase/",
+        "MISSING  Toast                  expanded               toast.rs: /expanded/",
+        "MISSING  Toast                  hidden                 toast.rs: /is_open|expanded/",
+        "MISSING         : 3",
+        "UNMAPPED        : 0"
+      ]
+    },
+    {
+      "audit": "theme_serde_audit.py",
+      "exit": 0,
+      "reported_gaps": []
+    },
+    {
+      "audit": "token_audit.py",
+      "exit": 0,
+      "reported_gaps": [
+        "MISSING            : 0"
+      ]
+    }
+  ]
+}

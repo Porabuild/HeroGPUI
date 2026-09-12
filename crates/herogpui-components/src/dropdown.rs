@@ -1189,9 +1189,11 @@ impl RenderOnce for Menu {
                     }
                     // `.menu-item` takes `status-focused` on the row the keyboard
                     // is on -- a ring, not a border, which would shift the row.
+                    // Pointer hover seats the cursor for the next arrow; it
+                    // must not paint the ring.
                     row = crate::util::with_focus_ring(
                         row,
-                        cursor_at == Some(i),
+                        crate::util::shows_focus_ring(cursor_at == Some(i), cx),
                         true,
                         Vec::new(),
                         cx,

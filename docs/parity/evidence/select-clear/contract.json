@@ -1,0 +1,83 @@
+{
+  "recorded_on": "2026-09-11",
+  "target": "v3.2.5",
+  "commit": "5f13f6ed355bdbd5d5f69e5944685438a3591793",
+  "source_hashes": {
+    "packages/react/src/components/select/select.tsx": "58ba0d29698c6eca8e59acaae4089678b31a689dc7ad763d7648e385c96a31df",
+    "packages/styles/components/select.css": "4fca9cb6c794007030b83bd7e17d105dbcfe3932beee1a92a02d727e4a31f32f",
+    "apps/docs/src/demos/en/select/with-clear-button.tsx": "744d805b737b729edcc2062d4786b70d0390b3b6c74f47583b961c89bade888e",
+    "packages/react/tests/components/select/select.test.tsx": "c07c735a34323970d0af17fe482680206dbec6ec1f031ebfc47fb387791bbf5e",
+    "packages/react/tests/components/select/select.browser.test.tsx": "72c619acc66bb7275121239c37d79dea613dc6b7b919d45b490e09cffde07cc4"
+  },
+  "status": "clear implemented; focused tests and shared-WASM paths observed; styling and wider variation coverage partial",
+  "behavior": [
+    {
+      "case": "primary click",
+      "contract": "Clear nonempty selection, then call root onClear, then part onClick; stop propagation and prevent default on click. Keep trigger focus.",
+      "observed": "Live single uncontrolled demo clears on release, focus remains on trigger, popup stays closed."
+    },
+    {
+      "case": "secondary and middle buttons",
+      "contract": "Do not clear; pointerdown stops propagation.",
+      "observed": "California remains selected after both pointer button sequences."
+    },
+    {
+      "case": "keyboard",
+      "contract": "Backspace/Delete clear only when a clear part is composed, selection is nonempty, and popup is closed. No modifier restriction in HeroUI handler.",
+      "observed": "Each key clears the live closed trigger; focus remains and popup stays closed."
+    },
+    {
+      "case": "empty",
+      "contract": "Preserve clear layout box but opacity zero and pointer-events none; no root onClear call.",
+      "observed": "After clear the box remains 20x20; opacity zero and pointer-events none."
+    },
+    {
+      "case": "required",
+      "contract": "No isRequired guard. SelectionManager.setSelectedKeys(empty) bypasses clearSelection() disallowEmptySelection guard.",
+      "observed": null
+    },
+    {
+      "case": "disabled",
+      "contract": "Resolved trigger disabled override takes precedence over root disabled. Neither pointer nor keyboard may mutate disabled selection.",
+      "observed": null
+    },
+    {
+      "case": "controlled",
+      "contract": "Request empty value through selection callbacks; retain owner value until owner updates. onClear still runs after request.",
+      "observed": null
+    },
+    {
+      "case": "multiple",
+      "contract": "Clear whole selected set through selectionManager, report empty array via useSelectState onChange. Preserve popup according to shouldCloseOnSelect.",
+      "observed": null
+    },
+    {
+      "case": "composition",
+      "contract": "Mounted clear part enables shortcut even when hidden because empty. Counted registration supports multiple parts; custom children replace default icon.",
+      "observed": null
+    }
+  ],
+  "visual_contract": {
+    "clear_layout": "20x20 with 4px padding and radius-xl",
+    "interactive_target": "24x24 ::after with -2px inset before press scaling",
+    "icon_declared": "14x14; verify flex-shrunk painted dimensions before porting",
+    "hover": "clear uses default-hover; owning trigger hover excluded while clear hovered",
+    "pressed": "scale(0.93), immediate transform",
+    "opacity": "150ms Smooth while nonempty; immediate disappearance when empty; reduced motion disables transition",
+    "trigger": "36px minimum height; 12px inline-start and 28px inline-end padding when indicator composed",
+    "indicator": "absolute inline-end 8px, size16, 150ms rotation; current port swaps SVG paths immediately",
+    "icon_observed": "Live bounding box 12x14: width shrinks under flex layout inside the 20px box with 4px padding. SVG preserves its own aspect ratio.",
+    "indicator_curve": "Computed default Tailwind curve cubic-bezier(0.4, 0, 0.2, 1), distinct from Smooth/CSS ease."
+  },
+  "port_source_sha256": "3a42f60fd3b80607a2c7d75e2971c22e84f53de277be4a9f3fc11b24fdd0b0f7",
+  "remaining": [
+    "Custom content scaling, pressed hit-target shrink and separate trigger-disabled override",
+    "Broader invalid, form reset and dynamic composition checks; disabled trigger override remains absent",
+    "Verify hidden clear hit area falls through to trigger, pointer cancellation, repeated clear, neighboring controls and instance isolation",
+    "Both variants and full theme/state coverage; custom content; full-width and bare geometry overrides",
+    "Capture intermediate opacity and indicator rotation frames, interruption/reversal and reduced motion",
+    "Native input and matching shared-WASM path"
+  ],
+  "updated_on": "2026-09-12",
+  "artifact_prefix": "8dd94fb1feb5"
+}

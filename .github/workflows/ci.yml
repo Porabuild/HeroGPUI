@@ -64,12 +64,12 @@ jobs:
           pnpm run lint
           pnpm run build
 
-  # The parity contract. These read the pinned v3.2.4 bundle checked in at
+  # The parity contract. These read the pinned v3.2.5 bundle checked in at
   # .shots/heroui-bundle.txt.gz, so they need no network and no Rust build --
   # they read the Rust sources as text. Kept off the Rust jobs so a parity
   # regression and a compile error report separately.
   parity:
-    name: HeroUI v3.2.4 parity audits
+    name: HeroUI v3.2.5 parity audits
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v6
@@ -77,6 +77,11 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+
+      - name: Pinned input and metric reader regressions
+        run: |
+          python .shots/test_bundle.py
+          python .shots/design_audit.py --self-test
 
       - name: Audit set
         run: |
@@ -385,4 +390,3 @@ jobs:
         run: |
           echo "$RESULTS"
           echo "$RESULTS" | jq -e 'all(.[] | .result; . == "success" or . == "skipped")'
-

@@ -1,0 +1,27 @@
+[
+  {
+    "align": "end",
+    "justify": "flex-end",
+    "text": "General"
+  },
+  {
+    "align": "end",
+    "justify": "flex-end",
+    "text": "Subscription & Billing"
+  },
+  {
+    "align": "end",
+    "justify": "flex-end",
+    "text": "Appearance"
+  },
+  {
+    "align": "end",
+    "justify": "flex-end",
+    "text": "Notifications"
+  },
+  {
+    "align": "end",
+    "justify": "flex-end",
+    "text": "Privacy"
+  }
+]

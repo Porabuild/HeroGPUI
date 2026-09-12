@@ -97,7 +97,7 @@ const KBD_API: &[ApiDoc] = &[
     },
 ];
 
-// The v3.2.4 docs also carry a `Kbd.Key` prop table, but the pinned
+// The v3.2.5 docs also carry a `Kbd.Key` prop table, but the pinned
 // `kbd.tsx` exports only `KbdRoot`, `KbdAbbr` and `KbdContent` — the table
 // has no backing component, so it is deliberately not ported.
 const KBD_PARTS: &[PartDoc] = &[
@@ -163,10 +163,10 @@ pub(super) const KBD: ReferenceMetadata = ReferenceMetadata {
     page: "Kbd",
     import_line: "use herogpui::components::kbd::Kbd;",
     source_module: "kbd",
-    version: "3.2.4",
-    docs_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/apps/docs/content/docs/en/react/components/(typography)/kbd.mdx",
-    api_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/react/src/components/kbd/kbd.tsx",
-    style_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/styles/components/kbd.css",
+    version: "3.2.5",
+    docs_source: "https://github.com/heroui-inc/heroui/blob/v3.2.5/apps/docs/content/docs/en/react/components/(typography)/kbd.mdx",
+    api_source: "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/react/src/components/kbd/kbd.tsx",
+    style_source: "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/styles/components/kbd.css",
     required_parts: KBD_REQUIRED_PARTS,
     api: KBD_API,
     parts: KBD_PARTS,
@@ -481,10 +481,10 @@ pub(super) const TYPOGRAPHY: ReferenceMetadata = ReferenceMetadata {
     page: "Typography",
     import_line: "use herogpui::components::typography::{Typography, TypographyType};",
     source_module: "typography",
-    version: "3.2.4",
-    docs_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/apps/docs/content/docs/en/react/components/(typography)/typography.mdx",
-    api_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/react/src/components/typography/typography.tsx",
-    style_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/styles/components/typography.css",
+    version: "3.2.5",
+    docs_source: "https://github.com/heroui-inc/heroui/blob/v3.2.5/apps/docs/content/docs/en/react/components/(typography)/typography.mdx",
+    api_source: "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/react/src/components/typography/typography.tsx",
+    style_source: "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/styles/components/typography.css",
     required_parts: TYPOGRAPHY_REQUIRED_PARTS,
     api: TYPOGRAPHY_API,
     parts: TYPOGRAPHY_PARTS,

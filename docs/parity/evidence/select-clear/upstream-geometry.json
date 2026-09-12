@@ -1,0 +1,100 @@
+{
+  "clear": {
+    "rect": {
+      "bottom": 461.140625,
+      "height": 20,
+      "left": 696,
+      "right": 716,
+      "top": 441.140625,
+      "width": 20,
+      "x": 696,
+      "y": 441.140625
+    },
+    "style": {
+      "flexShrink": "0",
+      "height": "20px",
+      "padding": "4px",
+      "rotate": "none",
+      "transform": "matrix(1, 0, 0, 1, 0, 0)",
+      "transition": "opacity 0.15s",
+      "transitionDuration": "0.15s",
+      "transitionTimingFunction": "ease",
+      "width": "20px"
+    }
+  },
+  "icon": {
+    "rect": {
+      "bottom": 458.140625,
+      "height": 14,
+      "left": 700,
+      "right": 712,
+      "top": 444.140625,
+      "width": 12,
+      "x": 700,
+      "y": 444.140625
+    },
+    "style": {
+      "flexShrink": "1",
+      "height": "14px",
+      "padding": "0px",
+      "rotate": "none",
+      "transform": "none",
+      "transition": "all",
+      "transitionDuration": "0s",
+      "transitionTimingFunction": "ease",
+      "width": "12px"
+    }
+  },
+  "indicator": {
+    "rect": {
+      "bottom": 459.140625,
+      "height": 16,
+      "left": 720,
+      "right": 736,
+      "top": 443.140625,
+      "width": 16,
+      "x": 720,
+      "y": 443.140625
+    },
+    "style": {
+      "flexShrink": "0",
+      "height": "16px",
+      "padding": "0px",
+      "rotate": "none",
+      "transform": "none",
+      "transition": "color 0.15s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.15s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.15s cubic-bezier(0.4, 0, 0.2, 1), outline-color 0.15s cubic-bezier(0.4, 0, 0.2, 1), text-decoration-color 0.15s cubic-bezier(0.4, 0, 0.2, 1), fill 0.15s cubic-bezier(0.4, 0, 0.2, 1), stroke 0.15s cubic-bezier(0.4, 0, 0.2, 1), --tw-gradient-from 0.15s cubic-bezier(0.4, 0, 0.2, 1), --tw-gradient-via 0.15s cubic-bezier(0.4, 0, 0.2, 1), --tw-gradient-to 0.15s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.15s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.15s cubic-bezier(0.4, 0, 0.2, 1), transform 0.15s cubic-bezier(0.4, 0, 0.2, 1), translate 0.15s cubic-bezier(0.4, 0, 0.2, 1), scale 0.15s cubic-bezier(0.4, 0, 0.2, 1), rotate 0.15s cubic-bezier(0.4, 0, 0.2, 1), filter 0.15s cubic-bezier(0.4, 0, 0.2, 1), -webkit-backdrop-filter 0.15s cubic-bezier(0.4, 0, 0.2, 1), backdrop-filter 0.15s cubic-bezier(0.4, 0, 0.2, 1), display 0.15s cubic-bezier(0.4, 0, 0.2, 1), content-visibility 0.15s cubic-bezier(0.4, 0, 0.2, 1), overlay 0.15s cubic-bezier(0.4, 0, 0.2, 1), pointer-events 0.15s cubic-bezier(0.4, 0, 0.2, 1)",
+      "transitionDuration": "0.15s",
+      "transitionTimingFunction": "cubic-bezier(0.4, 0, 0.2, 1)",
+      "width": "16px"
+    }
+  },
+  "target": {
+    "height": "24px",
+    "inset": "-2px",
+    "width": "24px"
+  },
+  "theme": "inter_5901b7c6-module__ec5Qua__variable dark",
+  "trigger": {
+    "rect": {
+      "bottom": 469.140625,
+      "height": 36,
+      "left": 488,
+      "right": 744,
+      "top": 433.140625,
+      "width": 256,
+      "x": 488,
+      "y": 433.140625
+    },
+    "style": {
+      "flexShrink": "1",
+      "height": "36px",
+      "padding": "8px 28px 8px 12px",
+      "rotate": "none",
+      "transform": "none",
+      "transition": "background-color 0.15s, border-color 0.15s, box-shadow 0.15s cubic-bezier(0, 0, 0.2, 1)",
+      "transitionDuration": "0.15s, 0.15s, 0.15s",
+      "transitionTimingFunction": "ease, ease, cubic-bezier(0, 0, 0.2, 1)",
+      "width": "256px"
+    }
+  }
+}

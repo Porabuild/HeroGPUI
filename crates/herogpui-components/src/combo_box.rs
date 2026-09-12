@@ -1979,7 +1979,7 @@ impl RenderOnce for ComboBox {
                 }
 
                 // `status-focused` on the row the keyboard is on.
-                if cursor_at == Some(index) {
+                if util::shows_focus_ring(cursor_at == Some(index), cx) {
                     row = row.border_2().border_color(row_focus);
                 }
 

@@ -95,7 +95,7 @@ const INVENTORY: &[Part] = &[
     Part::pending(
         "select.rs",
         "trigger hover fill",
-        ".hover(move |s| s.bg(hover_bg))",
+        ".hover(move |s| if clear_hovered { s } else { s.bg(hover_bg) })",
         "util::sx_background",
     ),
     Part::pending(

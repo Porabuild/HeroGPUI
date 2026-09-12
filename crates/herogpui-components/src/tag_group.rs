@@ -694,6 +694,15 @@ impl RenderOnce for TagGroup {
                     },
                     |render| render(),
                 );
+                // `.tag__remove-button` is `size-3`.
+                let mut remove_visual = div()
+                    .size(px(12.))
+                    .rounded_full()
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .flex_shrink_0()
+                    .child(remove_content);
                 let mut close = div()
                     .id(element_id::scoped(
                         &element_id::indexed(&self.id, "tag", index),
@@ -707,23 +716,27 @@ impl RenderOnce for TagGroup {
                     // the row together, which needs the id graph gpui does
                     // not have. The button itself is an RAC `Button`.
                     .a11y_named(a11y::Role::Button, &a11y::Name::labelled("Remove"))
+                    .group("tag-remove")
                     .flex()
                     .items_center()
                     .justify_center()
-                    // `.tag__remove-button` is `size-3`.
-                    .size(px(12.))
-                    .rounded_full()
-                    .flex_shrink_0()
-                    .child(remove_content);
+                    // v3.2.5's `touch-target` extends 6px on each side of
+                    // the glyph. A 12px parent retains the layout footprint.
+                    .size(px(24.))
+                    .absolute()
+                    .top(px(-6.))
+                    .left(px(-6.))
+                    .flex_shrink_0();
                 if !disabled {
                     let hover_bg = self.remove_hover_bg.unwrap_or(colors.default.hover());
                     let remove_focus = &remove_focus_handles[index];
                     let focus_for_remove = group_focus.clone();
                     let cursor_for_remove = cursor.clone();
+                    remove_visual =
+                        remove_visual.group_hover("tag-remove", move |s| s.bg(hover_bg));
                     close = close
                         .track_focus(remove_focus)
                         .cursor(crate::util::interactive_cursor(cx))
-                        .hover(move |s| s.bg(hover_bg))
                         // React Aria's grid-list stops row key handling while
                         // a child button owns the focus, except for Tab.
                         .on_key_down(|event, _, cx| {
@@ -756,8 +769,8 @@ impl RenderOnce for TagGroup {
                                 cx.notify();
                             });
                         });
-                    close = crate::util::ring_if_focused(
-                        close,
+                    remove_visual = crate::util::ring_if_focused(
+                        remove_visual,
                         remove_focus,
                         true,
                         Vec::new(),
@@ -765,7 +778,13 @@ impl RenderOnce for TagGroup {
                         cx,
                     );
                 }
-                chip = chip.child(close);
+                chip = chip.child(
+                    div()
+                        .relative()
+                        .size(px(12.))
+                        .flex_shrink_0()
+                        .child(close.child(remove_visual)),
+                );
             }
 
             // React Aria's TagGroup: the arrows move between tags. Delete or

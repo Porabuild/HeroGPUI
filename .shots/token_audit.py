@@ -37,7 +37,11 @@ import sys
 
 sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 
-CSS = os.path.join(os.environ.get('TEMP', '/tmp'), 'heroui-css', 'variables.css')
+from bundle import CSS_CACHE, css_cache
+
+if not css_cache():
+    raise SystemExit("token_audit: pinned stylesheet archive is missing")
+CSS = os.path.join(CSS_CACHE, 'variables.css')
 THEME = 'crates/herogpui-theme/src/'
 
 # A CSS variable -> the Rust that exposes it, where the spelling differs.

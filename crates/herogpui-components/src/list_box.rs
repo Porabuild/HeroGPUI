@@ -1373,9 +1373,15 @@ impl ListBox {
 
                 // `.list-box-item` takes `status-focused` on the row the keyboard
                 // is on. A ring rather than a border: a border would move the
-                // row's content by two pixels as the cursor arrived.
-                let row =
-                    util::with_focus_ring(row, cursor_at == Some(index), true, Vec::new(), cx);
+                // row's content by two pixels as the cursor arrived. Pointer
+                // hover seats the cursor without painting the ring.
+                let row = util::with_focus_ring(
+                    row,
+                    util::shows_focus_ring(cursor_at == Some(index), cx),
+                    true,
+                    Vec::new(),
+                    cx,
+                );
                 let mut row = row;
 
                 if let Some(path) = icon {

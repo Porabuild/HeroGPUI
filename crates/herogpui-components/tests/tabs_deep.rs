@@ -19,7 +19,9 @@ use gpui::{
     point, prelude::*, px, Font, FontFeatures, FontStyle, FontWeight, KeyDownEvent, Keystroke,
     Modifiers, MouseButton, Pixels, TestAppContext, VisualTestContext, WindowTextSystem,
 };
-use herogpui_components::{Button, KeyboardActivation, Orientation, TabItem, Tabs, TabsVariant};
+use herogpui_components::{
+    Button, KeyboardActivation, Orientation, TabItem, Tabs, TabsAlign, TabsVariant,
+};
 
 use harness::{click, events, open_host, press};
 
@@ -1279,6 +1281,62 @@ fn measure_tabs(
         );
     }
     boxes
+}
+
+#[gpui::test]
+fn tabs_alignment_preserves_indicator_geometry_and_keyboard_selection(cx: &mut TestAppContext) {
+    for variant in TabsVariant::ALL {
+        for orientation in [Orientation::Horizontal, Orientation::Vertical] {
+            let mut default_boxes = None;
+            for alignment in [
+                None,
+                Some(TabsAlign::Start),
+                Some(TabsAlign::Center),
+                Some(TabsAlign::End),
+            ] {
+                harness::still();
+                let recorded = events();
+                let for_view = recorded.clone();
+                let cx = open_host(cx, move || {
+                    let recorded = for_view.clone();
+                    let tabs = Tabs::new(
+                        "aligned",
+                        vec![
+                            TabItem::new("a", "A"),
+                            TabItem::new("disabled", "Disabled").is_disabled(true),
+                            TabItem::new("b", "Longer billing label"),
+                        ],
+                        "a",
+                    )
+                    .variant(variant)
+                    .orientation(orientation)
+                    .full_width(true)
+                    .on_selection_change(move |key, _, _| {
+                        recorded.borrow_mut().push(key.to_string());
+                    });
+                    gpui::div()
+                        .w(px(600.))
+                        .h(px(160.))
+                        .child(match alignment {
+                            Some(align) => tabs.align(align),
+                            None => tabs,
+                        })
+                        .into_any_element()
+                });
+                let boxes = measure_tabs(cx, "Name(\"aligned\")-indicator", 2);
+                assert_eq!(
+                    recorded.borrow().as_slice(),
+                    ["b"],
+                    "alignment must retain disabled skipping and activation"
+                );
+                if let Some(default) = &default_boxes {
+                    assert_eq!(&boxes, default, "{variant:?}/{orientation:?}/{alignment:?}: alignment must move content only");
+                } else {
+                    default_boxes = Some(boxes);
+                }
+            }
+        }
+    }
 }
 
 /// `full_width` is v3's `<Tabs.List className="w-full">` with

@@ -1001,7 +1001,13 @@ where
 // Focus rings (`status-focused`)
 // ---------------------------------------------------------------------------
 
-/// Whether the last input this app saw was a key.
+/// Whether the last input this app saw was a keyboard-control key.
+///
+/// HeroUI / React Aria treat every non-modifier key, including Escape, as
+/// focus-visible. Closing a pointer-opened menu then rings its trigger. This
+/// port only turns the modality on for keys that actually switch to keyboard
+/// controls; Escape and modifier-only keys leave it alone, and any pointer
+/// down turns it off.
 struct FocusVisible(bool);
 impl gpui::Global for FocusVisible {}
 
@@ -1259,6 +1265,34 @@ pub fn set_focus_visible(visible: bool, cx: &mut App) {
     }
 }
 
+/// Whether `target` should paint the keyboard focus ring.
+pub(crate) fn shows_focus_ring(target: bool, cx: &App) -> bool {
+    target && focus_visible(cx)
+}
+
+/// Keys that switch the app into keyboard focus-ring modality.
+///
+/// Escape dismisses overlays; it is not a switch to keyboard controls.
+/// Modifier-only keys also do not count. Any other key does, including Tab,
+/// arrows, Enter/Space, typeahead and editing keys.
+pub(crate) fn key_enables_focus_visible(key: &str) -> bool {
+    !matches!(
+        key,
+        "escape"
+            | "shift"
+            | "control"
+            | "ctrl"
+            | "alt"
+            | "option"
+            | "meta"
+            | "command"
+            | "win"
+            | "windows"
+            | "fn"
+            | "function"
+    )
+}
+
 /// Records keyboard-versus-pointer input, and moves the focus on Tab.
 ///
 /// Put this on the app's root element once. Three things have to be true for a
@@ -1269,9 +1303,10 @@ pub fn set_focus_visible(visible: bool, cx: &mut App) {
 ///   nothing focused there is no chain, so the very first Tab would go nowhere.
 /// - **Tab moves the focus.** In a browser the platform does this. Here the app
 ///   asks for it, and gpui walks the tab stops in tree order.
-/// - **The kind of input is recorded**, because a ring shows for a keyboard
-///   focus and not for a click. The mouse half runs in the capture phase, before
-///   the press reaches whatever it landed on.
+/// - **The kind of input is recorded**, because a ring shows only after a
+///   keyboard-control key, never after a pointer press or Escape. The mouse
+///   half runs in the capture phase, before the press reaches whatever it
+///   landed on.
 pub fn app_focus_root<T>(el: T, window: &mut gpui::Window, cx: &mut App) -> T
 where
     T: gpui::InteractiveElement,
@@ -1295,7 +1330,9 @@ where
             }
         })
         .on_key_down(|event, window, cx| {
-            set_focus_visible(true, cx);
+            if key_enables_focus_visible(&event.keystroke.key) {
+                set_focus_visible(true, cx);
+            }
             if event.keystroke.key == "tab" {
                 if event.keystroke.modifiers.shift {
                     window.focus_prev(cx);
@@ -1530,7 +1567,7 @@ pub fn ring_if_focused<T: Styled>(
     window: &gpui::Window,
     cx: &App,
 ) -> T {
-    let focused = handle.is_focused(window) && focus_visible(cx);
+    let focused = shows_focus_ring(handle.is_focused(window), cx);
     with_focus_ring(el, focused, offset, base, cx)
 }
 

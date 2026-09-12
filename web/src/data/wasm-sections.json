@@ -653,6 +653,7 @@
     "Sizes",
     "Vertical",
     "Full Width",
+    "Alignment",
     "Overflow",
     "Disabled Tab",
     "With Separator",
@@ -715,6 +716,7 @@
     "Custom Toast Rendering",
     "Promise & Loading",
     "Callbacks",
+    "Expanded Stack",
     "Custom Queues",
     "Setup",
     "Push a toast"
@@ -778,6 +780,7 @@
   ],
   "select": [
     "Usage",
+    "With Clear Button",
     "Box Customisation",
     "Virtualization",
     "With Description",

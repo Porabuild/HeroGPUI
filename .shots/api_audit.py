@@ -19,7 +19,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from component_source import list_modules, read_module, read_path
 from bundle import resolve as _resolve_bundle
 
-# The pinned v3.2.4 bundle. See .shots/bundle.py: reading upstream live would
+# The pinned v3.2.5 bundle. See .shots/bundle.py: reading upstream live would
 # measure this port against whatever HeroUI shipped most recently.
 BUNDLE = _resolve_bundle()
 SRC = 'crates/herogpui-components/src/'
@@ -622,6 +622,7 @@ PART_STRUCTS = {
     # monolithic root, whose builders can only be the parts' props.
     'RangeCalendar.YearPickerGrid': ['RangeCalendar'],
     'RangeCalendar.YearPickerTriggerHeading': ['RangeCalendar'],
+    'Select.ClearButton': ['SelectClearButton'],
     'Select.Popover': ['Select'],
     'Slider.Thumb': [],
     'Table.Body': ['Table'],

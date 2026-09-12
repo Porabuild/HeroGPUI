@@ -852,6 +852,19 @@ impl Gallery {
                         .into_any_element()]),
                 ),
                 (
+                    "With Clear Button", "Clear the selection with the close control or Backspace/Delete on the closed trigger. An empty selection retains the control's layout space.",
+                    field_col(vec![
+                        h::Select::new("select-clear-single", language_items())
+                            .label("Language").default_value(Some("rust".into()))
+                            .clear_button(h::SelectClearButton::new()).into_any_element(),
+                        h::Select::new("select-clear-multiple", language_items())
+                            .label("Languages").variant(FieldVariant::Secondary)
+                            .selection_mode(SelectionMode::Multiple)
+                            .default_selected_keys(["rust".into(), "go".into()])
+                            .clear_button(h::SelectClearButton::new()).into_any_element(),
+                    ]),
+                ),
+                (
                     "Box Customisation",
                     "`height`, `padding_x` and `is_bare` size the trigger; `row_padding_x` / `row_padding_y` size its option rows. This 28px bare trigger uses 12px trigger and row text, 8px row insets and 4px panel padding.",
                     field_col(vec![h::Select::new("sel-custom-box", language_items())

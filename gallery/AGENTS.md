@@ -20,7 +20,7 @@ reference metadata.
   callback value. Otherwise use the matching `default_*` seed.
 - Repeated components need unique ids, even when a helper constructs them.
 - Reference metadata must name real Rust owners/methods and pin source links to
-  HeroUI v3.2.4.
+  HeroUI v3.2.5.
 - Do not hard-code the current release page or route totals; derive them from
   workspace metadata and the page registry.
 - Use `.shots/rebuild.ps1` before smoke/capture so a locked executable cannot

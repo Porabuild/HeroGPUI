@@ -53,6 +53,13 @@ reason in the parity audit.
 - A root key handler must verify that its own focus handle owns the event before
   acting; keys from focused descendants bubble.
 - Gate `track_focus` for disabled controls so they leave the tab order.
+- Focus rings follow keyboard-control modality, not HeroUI's Escape restore.
+  `util::app_focus_root` turns the ring on for Tab, arrows, Enter/Space and
+  editing keys, never for Escape or a pointer press. Collection and calendar
+  cursors may move under the pointer; paint the ring only through
+  `util::shows_focus_ring`. A stopped key handler that skips the root must call
+  `util::set_focus_visible(true)` only when `util::key_enables_focus_visible`
+  is true for that key.
 - `tab_group` orders stops but does not trap focus. Use `util::trap_tab` for
   dialogs and stop propagation so `util::app_focus_root` does not advance twice.
 - A component that reads its own focus state uses `util::tab_stop_handle` so the

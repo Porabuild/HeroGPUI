@@ -29,7 +29,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from bundle import resolve as _resolve_bundle
 from gallery_pages import page_sources
 
-# The pinned v3.2.4 bundle. See .shots/bundle.py: reading upstream live would
+# The pinned v3.2.5 bundle. See .shots/bundle.py: reading upstream live would
 # measure this port against whatever HeroUI shipped most recently.
 BUNDLE = _resolve_bundle()
 PAGES = page_sources()

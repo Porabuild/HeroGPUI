@@ -50,8 +50,8 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
 use gpui::{
-    canvas, prelude::*, px, AbsoluteLength, AnyElement, Bounds, Pixels, TestAppContext,
-    VisualTestContext,
+    canvas, point, prelude::*, px, AbsoluteLength, AnyElement, Bounds, Modifiers, Pixels,
+    TestAppContext, VisualTestContext,
 };
 use harness::{click, events, open_host, press, Events};
 use herogpui_components::{
@@ -77,6 +77,13 @@ fn still() {
 /// next event hits the stale frame.
 fn flush_frame(cx: &mut VisualTestContext) {
     cx.update(|window, _| window.refresh());
+}
+
+/// Parks the pointer off the stack. Hover now pauses toast clocks, so a test
+/// that expects a timeout after a click has to leave the region first.
+fn leave_stack(cx: &mut VisualTestContext) {
+    cx.simulate_mouse_move(point(px(-100.), px(-100.)), None, Modifiers::none());
+    flush_frame(cx);
 }
 
 /// The snapshot the last render's closure left behind.
@@ -290,9 +297,11 @@ fn toast_pause_keeps_the_rendered_card_alive_and_dismissable(cx: &mut TestAppCon
             "a rendered paused toast must still be dismissable by hand"
         );
     });
+    leave_stack(cx);
 
     // Resume: a fresh 300ms toast dies on the resumed clock. Five 100ms ticks
-    // is far past its timeout.
+    // is far past its timeout. Leave the stack first: hover now pauses
+    // timers, and the click above left the pointer on the card.
     cx.update(|_window, cx| {
         pause_toasts(false, cx);
         Toast::new("Post-resume")
@@ -478,9 +487,11 @@ fn toast_on_close_fires_once_for_each_dismissal_path(cx: &mut TestAppContext) {
         0,
         "the sibling's onClose must not fire"
     );
+    leave_stack(cx);
 
     // The timed toast's own clock dismisses it: the tick loop fires onClose
-    // once when the toast leaves. 500ms is past the 300ms timeout.
+    // once when the toast leaves. 500ms is past the 300ms timeout. Leave
+    // the stack first so the click's leftover hover does not pause it.
     cx.executor().advance_clock(Duration::from_millis(500));
     assert_eq!(
         *timed_out.borrow(),

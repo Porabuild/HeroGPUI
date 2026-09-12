@@ -1741,36 +1741,46 @@ impl Gallery {
                     ]),
                 ),
                 (
-                    "Promise & Loading", "`toast.promise` shows a loading toast while the work runs, then replaces it. `Toast::loading` is the pending half: a spinner, and no timeout, so it waits to be closed.",
+                    "Promise & Loading", "`toast.promise` shows a loading toast while the work runs, then updates it in place. `Toast::promise` owns that swap: Ok is success, Err is danger, and the default dismiss clock starts at settle.",
                     col(vec![
-                        row(vec![h::Button::new("toast-promise")
-                            .label("Upload a file")
-                            .variant(Variant::Secondary)
-                            .size(Size::Sm)
-                            .on_press(|_, window, cx| {
-                                let id = h::Toast::loading("Uploading\u{2026}")
-                                    .description("document.pdf")
-                                    .push(None, cx);
-                                // The resolution replaces the pending toast,
-                                // which is what v3's promise helper does.
-                                window
-                                    .spawn(cx, async move |cx| {
-                                        cx.background_executor()
-                                            .timer(std::time::Duration::from_millis(1500))
-                                            .await;
-                                        cx.update(|_window, cx| {
-                                            h::dismiss_toast(id, cx);
-                                            h::Toast::success("Uploaded")
-                                                .description("document.pdf \u{2014} 1 KB")
-                                                .closable(true)
-                                                .action("View", |_| {})
-                                                .push(None, cx);
-                                        })
-                                        .ok();
-                                    })
-                                    .detach();
-                            })
-                            .into_any_element()]),
+                        row(vec![
+                            h::Button::new("toast-promise")
+                                .label("Upload a file")
+                                .variant(Variant::Secondary)
+                                .size(Size::Sm)
+                                .on_press(|_, _, cx| {
+                                    let executor = cx.background_executor().clone();
+                                    h::Toast::promise(
+                                        async move {
+                                            executor
+                                                .timer(std::time::Duration::from_millis(1500))
+                                                .await;
+                                            Ok("document.pdf uploaded \u{2014} 1 KB".into())
+                                        },
+                                        "Uploading\u{2026}",
+                                        cx,
+                                    );
+                                })
+                                .into_any_element(),
+                            h::Button::new("toast-promise-error")
+                                .label("Create event (error)")
+                                .variant(Variant::Secondary)
+                                .size(Size::Sm)
+                                .on_press(|_, _, cx| {
+                                    let executor = cx.background_executor().clone();
+                                    h::Toast::promise(
+                                        async move {
+                                            executor
+                                                .timer(std::time::Duration::from_millis(1500))
+                                                .await;
+                                            Err("The date is in the past".into())
+                                        },
+                                        "Creating event\u{2026}",
+                                        cx,
+                                    );
+                                })
+                                .into_any_element(),
+                        ]),
                     ]),
                 ),
                 (
@@ -1789,6 +1799,40 @@ impl Gallery {
                                     .push(None, cx);
                             })
                             .into_any_element()]),
+                    ]),
+                ),
+                (
+                    "Expanded Stack", "Hover or focus the stack to expand it. `isExpanded` keeps it open; timers still run unless the pointer or focus is inside.",
+                    col(vec![
+                        row(vec![
+                            h::Button::new("toast-stack-push")
+                                .label("Push three")
+                                .variant(Variant::Secondary)
+                                .size(Size::Sm)
+                                .on_press(|_, _, cx| {
+                                    for n in 1..=3 {
+                                        h::Toast::new(format!("Stacked {n}"))
+                                            .description("Hover the stack to expand.")
+                                            .timeout(std::time::Duration::from_secs(8))
+                                            .push(None, cx);
+                                    }
+                                })
+                                .into_any_element(),
+                            h::Button::new("toast-stack-keep")
+                                .label(if self.demo_flag("toast-expanded", false) {
+                                    "Stop forcing open"
+                                } else {
+                                    "Keep expanded"
+                                })
+                                .variant(Variant::Tertiary)
+                                .size(Size::Sm)
+                                .on_press(cx.listener(|this, _, _, cx| {
+                                    let next = !this.demo_flag("toast-expanded", false);
+                                    this.set_demo_flag("toast-expanded", next);
+                                    cx.notify();
+                                }))
+                                .into_any_element(),
+                        ]),
                     ]),
                 ),
                 (

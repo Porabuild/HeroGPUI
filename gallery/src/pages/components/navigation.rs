@@ -765,6 +765,31 @@ impl Gallery {
                         .into_any_element()]),
                 ),
                 (
+                    "Alignment",
+                    "Align content inside each tab to Start, Center (the default), or End. Selection and the indicator keep the same geometry.",
+                    col(h::TabsVariant::ALL.into_iter().map(|variant| {
+                        row(h::TabsAlign::ALL.into_iter().map(|align| {
+                            spec(
+                                &format!("{} / {}", variant.label(), align.label()),
+                                h::Tabs::new(
+                                    format!("tabs-align-{variant:?}-{align:?}"),
+                                    vec![
+                                        h::TabItem::new("general", "General"),
+                                        h::TabItem::new("billing", "Subscription & Billing"),
+                                        h::TabItem::new("privacy", "Privacy"),
+                                    ],
+                                    "general",
+                                )
+                                .variant(variant)
+                                .orientation(Orientation::Vertical)
+                                .align(align)
+                                .sx(|el| el.h(px(116.))),
+                                cx,
+                            )
+                        }).collect())
+                    }).collect()),
+                ),
+                (
                     "Overflow",
                     "More tabs than fit scroll along their axis. Wheel input from the other axis continues to the page.",
                     col(vec![

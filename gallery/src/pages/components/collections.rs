@@ -1000,6 +1000,7 @@ impl Gallery {
                 ),
                 (
                     "With Remove Button",
+                    "The 24px remove target extends around the 12px icon without changing tag spacing.",
                     col(vec![
                         spec(
                             "Default remove button",
