@@ -3653,7 +3653,7 @@
       },
       {
         "token": ".toast",
-        "description": "Card fill, row alignment, six-pixel gap, horizontal 16px padding, radius and overlay shadow match; the vertical inset resolves to 10px rather than v3's 12px, with the `padding` builder overriding both axes, the port adds no card border, and cards use flex stacking rather than absolute overlap.",
+        "description": "Card fill, row alignment, six-pixel gap, padding, radius and overlay shadow match; the port does not add a card border, and cards use flex stacking rather than absolute overlap.",
         "rust": "ToastCardEl",
         "status": "partial"
       },
@@ -19584,7 +19584,7 @@
       {
         "name": "Popover.Dialog",
         "slot": "popover-dialog",
-        "description": "Dialog focus scope and the resolved content inset (stock 12px y / 14px x, `padding(px)` overridable) are built into the monolithic panel.",
+        "description": "Dialog focus scope and 16px content inset are built into the monolithic panel.",
         "rustOwner": "Popover",
         "status": "partial"
       },
@@ -19635,9 +19635,9 @@
       },
       {
         "token": ".popover__dialog",
-        "description": "The programmatic dialog focus scope matches; the resting inset resolves to 12px y / 14px x rather than v3's fixed 16px, and the `padding` builder overrides it.",
-        "rust": "panel_padding_x/y + panel_focus",
-        "status": "partial"
+        "description": "Sixteen-pixel inset and a programmatic dialog focus scope.",
+        "rust": "px(px(16.)) + py(px(16.)) + panel_focus",
+        "status": "implemented"
       },
       {
         "token": ".popover__heading",

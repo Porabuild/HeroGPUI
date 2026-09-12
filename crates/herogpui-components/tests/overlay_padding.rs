@@ -100,9 +100,9 @@ fn assert_resting_insets(cx: &mut VisualTestContext, id: &str, padding_x: f32, p
 }
 
 fn assert_both_popovers(cx: &mut VisualTestContext) {
-    // The stock default is the ZOOM default — 14 x-wide / 12 y-wide — which
-    // is what proves the chain and the zoom resolve one pair.
-    assert_resting_insets(cx, "plain", 14., 12.);
+    // The stock default is v3's `.popover__dialog` `p-4` — 16 on both axes —
+    // which is what proves the chain and the zoom resolve one pair.
+    assert_resting_insets(cx, "plain", 16., 16.);
     assert_resting_insets(cx, "wide", 24., 24.);
 }
 
@@ -149,8 +149,8 @@ fn popover_panel_chain_consumes_the_padding_the_zoom_interpolates() {
         .expect("popover.rs: the panel zoom must interpolate the hoisted pair");
 
     for binding in [
-        "let panel_padding_y = self.padding.unwrap_or(px(12.));",
-        "let panel_padding_x = self.padding.unwrap_or(px(14.));",
+        "let panel_padding_y = self.padding.unwrap_or(px(16.));",
+        "let panel_padding_x = self.padding.unwrap_or(px(16.));",
     ] {
         assert_eq!(
             popover.matches(binding).count(),
@@ -206,7 +206,7 @@ fn toast_card_chain_consumes_the_padding_the_zoom_interpolates() {
         .expect("toast.rs: the card zoom must interpolate the hoisted pair");
 
     for binding in [
-        "let panel_padding_y = self.t.padding.unwrap_or(px(10.));",
+        "let panel_padding_y = self.t.padding.unwrap_or(px(12.));",
         "let panel_padding_x = self.t.padding.unwrap_or(px(16.));",
     ] {
         assert_eq!(

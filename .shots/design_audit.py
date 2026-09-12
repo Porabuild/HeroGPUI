@@ -925,7 +925,7 @@ CHECKS = [
      None),
     ('tabs', '.tabs__list[data-orientation="vertical"] .tabs__tab', 'min_w',
      'Tabs vertical tab minimum width', SRC + 'tabs.rs',
-     r'\.when\(vertical, \|t\| t\.w_full\(\)\.min_w\(px\((\d+(?:\.\d*)?)\.\)\)\)',
+     r'never narrows below 80px[\s\S]{0,120}?VERTICAL_TAB_MIN_WIDTH: gpui::Pixels = px\((\d+(?:\.\d*)?)\.\)',
      None),
     ('tabs', '.tabs__panel[data-orientation="horizontal"]', 'mt',
      'Tabs horizontal panel margin', SRC + 'tabs.rs',
@@ -1149,7 +1149,7 @@ CHECKS = [
     # The radius reaches the button through `group_radius`, which is what lets a
     # grouped member round only its outer corners.
     ('button', '.button', 'radius', 'Button -> util::_radius', SRC + 'button.rs',
-     r'group_radius\(e, self\.group_edge, self\.radius\.unwrap_or_else\(\|\| util::(\w+_radius)\(cx\)\)\)',
+     r'let radius = self\s*\.radius\s*\.unwrap_or_else\(\|\| util::(\w+_radius)\(cx\)\);',
      helper_px),
     ('button', '.button', 'h', 'Size::control_height Md', CORE,
      r'Control height[\s\S]*?Size::Md => gpui::px\((\d+(?:\.\d*)?)\)', None),
@@ -1288,9 +1288,9 @@ CHECKS = [
     ('dropdown', '.dropdown__popover [data-slot="menu-item"]', 'px',
      'Dropdown contextual menu row padding_x', SRC + 'dropdown.rs', None, None),
     ('toast', '.toast', 'px', 'Toast padding_x', SRC + 'toast.rs',
-     r'\.px\(px\((\d+(?:\.\d*)?)\)\)\s*\n\s*\.py\(', None),
+     r'let panel_padding_x = self\.t\.padding\.unwrap_or\(px\((\d+(?:\.\d*)?)\)\);', None),
     ('toast', '.toast', 'py', 'Toast padding_y', SRC + 'toast.rs',
-     r'\.py\(px\((\d+(?:\.\d*)?)\)\)\s*\n\s*\.rounded', None),
+     r'let panel_padding_y = self\.t\.padding\.unwrap_or\(px\((\d+(?:\.\d*)?)\)\);', None),
     ('tooltip', '.tooltip', 'text', 'Tooltip text', SRC + 'tooltip.rs',
      r'\.text_size\(px\((\d+(?:\.\d*)?)\)\)', None),
     ('chip', '.chip', 'radius', 'Chip -> util::_radius', SRC + 'chip.rs',
@@ -1300,7 +1300,8 @@ CHECKS = [
     ('chip', '.chip', 'gap', 'Chip gap', SRC + 'chip.rs',
      '\\.gap\\(px\\((\\d+(?:\\.\\d*)?)\\)\\)', None),
     ('popover', '.popover__dialog', 'p', 'Popover padding', SRC + 'popover.rs',
-     '\\.px\\(px\\((\\d+(?:\\.\\d*)?)\\)\\)\\s+\\.py\\(px\\(16\\.\\)\\)', None),
+     'let panel_padding_y = self\\.padding\\.unwrap_or\\(px\\(16\\.\\)\\);'
+     '\\s*let panel_padding_x = self\\.padding\\.unwrap_or\\(px\\((\\d+(?:\\.\\d*)?)\\)\\);', None),
     ('pagination', '.pagination', 'gap', 'Pagination root gap', SRC + 'pagination.rs',
      r'\.justify_between\(\)[\s\S]{0,40}?\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('alert', '.alert', 'gap', 'Alert gap', SRC + 'alert.rs',
@@ -1441,7 +1442,7 @@ CHECKS = [
      r'let \(h, text\) = \(field_box\.(resolved_height)\(\), util::FIELD_TEXT\)', field_box_px),
     ('select', '.select__trigger', 'radius', 'field chrome -> util::_radius',
      SRC + 'util.rs',
-     'let mut el = el\.rounded\((field_radius)\(cx\)\)', helper_px),
+     'radius_override\.unwrap_or_else\(\|\| (field_radius)\(cx\)\)', helper_px),
     ('calendar', '.calendar', 'w', 'Calendar width', SRC + 'calendar.rs',
      'CALENDAR_WIDTH: gpui::Pixels = px\((\d+(?:\.\d*)?)\.\)', None),
     ('calendar', '.calendar__cell', 'text', 'Calendar cell text', SRC + 'calendar.rs',
@@ -3034,6 +3035,13 @@ _CANVAS_CALL = re.compile(
     r'\A\s*&self\.id,\s*check_stroke,\s*reduce_motion,\s*'
     r'px\((\d+(?:\.\d*)?)\.\)\s*,\s*accent_foreground,?\s*\Z')
 
+# The canvas may instead be the indicator box minus the documented inset:
+# `icon_px - px(2.)` keeps v3's `size-2.5`-in-`size-3` proportion at every
+# size step. The inset is captured and subtracted from the Md indicator.
+_CANVAS_INSET = re.compile(
+    r'\A\s*&self\.id,\s*check_stroke,\s*reduce_motion,\s*'
+    r'icon_px\s*-\s*px\((\d+(?:\.\d*)?)\.\)\s*,\s*accent_foreground,?\s*\Z')
+
 
 def checkbox_checkmark_canvas_from(source):
     """Read the checkmark canvas size from the `check_layer` call.
@@ -3062,7 +3070,14 @@ def checkbox_checkmark_canvas_from(source):
         return None
     call = _CANVAS_CALL.fullmatch(
         children[0][len('check_layer('):-1])
-    return float(call.group(1)) if call else None
+    if call:
+        return float(call.group(1))
+    inset = _CANVAS_INSET.fullmatch(
+        children[0][len('check_layer('):-1])
+    if not inset:
+        return None
+    metrics = checkbox_md_metrics(src)
+    return metrics[1] - float(inset.group(1)) if metrics else None
 
 
 def checkbox_checkmark_canvas(path):
@@ -4077,6 +4092,15 @@ def self_test():
            'the checkmark canvas must read the size argument of check_layer')
     expect(checkbox_checkmark_canvas_from(canvas_fixture.replace('px(10.)', 'px(12.)')) == 12.0,
            'a retuned checkmark canvas must be read, not assumed')
+    inset_fixture = ('Self::Md => (px(16.), px(12.), px(14.)),\n'
+                     + canvas_fixture.replace('px(10.)', 'icon_px - px(2.)'))
+    expect(checkbox_checkmark_canvas_from(inset_fixture) == 10.0,
+           'the checkmark canvas may be the indicator minus the documented inset')
+    expect(checkbox_checkmark_canvas_from(inset_fixture.replace('px(2.)', 'px(3.)')) == 9.0,
+           'a retuned checkmark inset must be read, not assumed')
+    expect(checkbox_checkmark_canvas_from(
+        canvas_fixture.replace('px(10.)', 'icon_px - px(2.)')) is None,
+        'an inset-form canvas without the Md metrics must stay unreadable')
     for fixture in [
             canvas_fixture.replace('.size(icon_px)', '.size(box_px)'),
             canvas_fixture.replace('px(10.)', 'icon_px'),
@@ -4194,10 +4218,62 @@ def self_test():
     expect(checkbox_md_metrics('') is None,
            'a missing metrics arm must stay unreadable')
     expect(re.search(
-        r'group_radius\(e, self\.group_edge, self\.radius\.unwrap_or_else\(\|\| util::(\w+_radius)\(cx\)\)\)',
-        'group_radius(e, self.group_edge, self.radius.unwrap_or_else(|| util::control_radius(cx)))'
+        r'let radius = self\s*\.radius\s*\.unwrap_or_else\(\|\| util::(\w+_radius)\(cx\)\);',
+        'let radius = self\n'
+        '            .radius\n'
+        '            .unwrap_or_else(|| util::control_radius(cx));'
     ).group(1) == 'control_radius',
-        'the button radius reader must follow the override to its helper')
+        'the button radius reader must follow the hoisted override to its helper')
+    expect(re.search(
+        r'let radius = self\s*\.radius\s*\.unwrap_or_else\(\|\| util::(\w+_radius)\(cx\)\);',
+        '.map(|e| group_radius(e, self.group_edge, radius))'
+    ) is None,
+        'the button radius reader must reject a derived site with no resolution')
+    expect(float(re.search(
+        r'let panel_padding_x = self\.t\.padding\.unwrap_or\(px\((\d+(?:\.\d*)?)\)\);',
+        'let panel_padding_x = self.t.padding.unwrap_or(px(16.));'
+    ).group(1)) == 16.,
+        'the toast padding_x reader must read the resolved default')
+    expect(re.search(
+        r'let panel_padding_x = self\.t\.padding\.unwrap_or\(px\((\d+(?:\.\d*)?)\)\);',
+        '.px(panel_padding_x)\n            .py(panel_padding_y)'
+    ) is None,
+        'the toast padding reader must reject the old inline chain')
+    expect(float(re.search(
+        r'let panel_padding_y = self\.padding\.unwrap_or\(px\(16\.\)\);'
+        r'\s*let panel_padding_x = self\.padding\.unwrap_or\(px\((\d+(?:\.\d*)?)\)\);',
+        'let panel_padding_y = self.padding.unwrap_or(px(16.));\n'
+        '        let panel_padding_x = self.padding.unwrap_or(px(16.));'
+    ).group(1)) == 16.,
+        'the popover padding reader must pin v3 on y and read x')
+    expect(re.search(
+        r'let panel_padding_y = self\.padding\.unwrap_or\(px\(16\.\)\);'
+        r'\s*let panel_padding_x = self\.padding\.unwrap_or\(px\((\d+(?:\.\d*)?)\)\);',
+        'let panel_padding_y = self.padding.unwrap_or(px(12.));\n'
+        '        let panel_padding_x = self.padding.unwrap_or(px(14.));'
+    ) is None,
+        'the popover padding reader must reject non-v3 defaults')
+    expect(re.search(
+        r'radius_override\.unwrap_or_else\(\|\| (field_radius)\(cx\)\)',
+        'let radius = radius_override.unwrap_or_else(|| field_radius(cx));'
+    ).group(1) == 'field_radius',
+        'the field chrome radius reader must follow the resolved fallback')
+    expect(re.search(
+        r'radius_override\.unwrap_or_else\(\|\| (field_radius)\(cx\)\)',
+        'let mut el = el.rounded(field_radius(cx))'
+    ) is None,
+        'the field chrome radius reader must reject the old inline rounding')
+    expect(re.search(
+        r'never narrows below 80px[\s\S]{0,120}?VERTICAL_TAB_MIN_WIDTH: gpui::Pixels = px\((\d+(?:\.\d*)?)\.\)',
+        '/// a vertical tab never narrows below 80px, so a\n'
+        'const VERTICAL_TAB_MIN_WIDTH: gpui::Pixels = px(80.);'
+    ).group(1) == '80',
+        'the tabs minimum-width reader must read the documented constant')
+    expect(re.search(
+        r'never narrows below 80px[\s\S]{0,120}?VERTICAL_TAB_MIN_WIDTH: gpui::Pixels = px\((\d+(?:\.\d*)?)\.\)',
+        'const VERTICAL_TAB_MIN_WIDTH: gpui::Pixels = px(80.);'
+    ) is None,
+        'the tabs minimum-width reader must reject an undocumented constant')
     expect(re.search(
         r'let radius = self\.radius\.unwrap_or_else\(\|\| crate::util::(\w+_radius)\(cx\)\)',
         'let radius = self.radius.unwrap_or_else(|| crate::util::soft_radius(cx));'

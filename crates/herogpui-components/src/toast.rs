@@ -87,7 +87,8 @@ pub struct ToastData {
     pub on_close: Option<ToastHandler>,
     /// The fill the close button takes on hover, in place of `--default`.
     pub close_hover_bg: Option<gpui::Hsla>,
-    /// Both card padding axes; unset keeps the stock 10px/16px insets.
+    /// Both card padding axes; unset keeps v3's `px-4 py-3` (16px/12px)
+    /// insets.
     pub padding: Option<Pixels>,
     /// The card's corner radius; unset keeps `container_radius`. The card's
     /// entry zoom interpolates the same value.
@@ -391,7 +392,8 @@ impl Toast {
         self
     }
 
-    /// Sets both card padding axes; unset keeps the stock 10px/16px insets.
+    /// Sets both card padding axes; unset keeps v3's `px-4 py-3` (16px/12px)
+    /// insets.
     pub fn padding(mut self, padding: impl Into<Pixels>) -> Self {
         self.padding = Some(padding.into());
         self
@@ -767,7 +769,7 @@ impl RenderOnce for ToastCardEl {
         // Under reduced motion `entering_zoom` returns the element untouched,
         // so the chain is then the only consumer — the override still reaches
         // the resting card on every motion path.
-        let panel_padding_y = self.t.padding.unwrap_or(px(10.));
+        let panel_padding_y = self.t.padding.unwrap_or(px(12.));
         let panel_padding_x = self.t.padding.unwrap_or(px(16.));
         let mut card = gpui::div()
             // `toast/toast.js` renders RAC's `UNSTABLE_Toast`, whose props come
