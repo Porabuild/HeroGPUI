@@ -56,10 +56,16 @@ interface MappingRow {
 
 const STYLE_ROUTES: MappingRow[] = [
   {
-    route: "Override",
-    rust: ".sx(|el| el.bg(..))",
+    route: "Shared look",
+    rust: "ThemeBuilder::components / .recipe(\"name\")",
     detail:
-      "One slot per component for caller-owned low-level styling; it refines the root element last, so it wins.",
+      "Put height, padding, radius and semantic colours on the theme. Instance sx is for placement, width and flex.",
+  },
+  {
+    route: "Override",
+    rust: ".sx(|el| el.w(..))",
+    detail:
+      "One slot per component for caller-owned placement and one-off sizing; it refines the root element last, so it wins.",
   },
   {
     route: "Layout",
@@ -124,8 +130,9 @@ export default function StylingPage() {
       />
 
       <p>
-        Use documented builders for variants, theme tokens for shared values, GPUI&apos;s styling
-        methods for elements you own, and render closures for state-aware content.
+        Use documented builders for variants, <code>ThemeBuilder::components</code> for shared
+        component appearance, theme tokens for colours, GPUI&apos;s styling methods for elements you
+        own, and render closures for state-aware content.
       </p>
 
       <h2 id="variants-carry-the-intent">Variants carry the intent</h2>

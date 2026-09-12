@@ -398,6 +398,8 @@ EXTRA_OK = {
     'id': 'gpui-element-id',
     # The one slot that replaces v3 `className` on every component.
     'sx': 'no-classname',
+    # Named overlays from `Theme.components`; v3 leaves this to CSS classes.
+    'recipe': 'no-classname',
     'w': 'no-classname',
     'h': 'no-classname',
     'max_h': 'no-classname',
@@ -533,6 +535,8 @@ EXTRA_OK_SCOPED = {
     # Field-family boxes pass the resolved radius to `apply_field_chrome`;
     # InputOTP's slots carry it directly.
     'Input.radius': 'repository-radius-extension',
+    'TextField.radius': 'repository-radius-extension',
+    'SearchField.radius': 'repository-radius-extension',
     'InputOTP.radius': 'repository-radius-extension',
     'TimeField.radius': 'repository-radius-extension',
     'DateField.radius': 'repository-radius-extension',
@@ -761,9 +765,12 @@ EXTRA_OK_SCOPED = {
     'Input.height': 'no-classname',
     'Input.padding_x': 'no-classname',
     'Input.font_family': 'no-classname',
+    'Input.text_size': 'no-classname',
     'TextField.height': 'no-classname',
     'TextField.padding_x': 'no-classname',
     'TextField.font_family': 'no-classname',
+    'TextField.text_size': 'no-classname',
+    'SearchField.text_size': 'no-classname',
     'TextArea.padding_x': 'no-classname',
     'TextArea.font_family': 'no-classname',
     # A bare field is the chrome-less treatment `InputGroup.Input` already

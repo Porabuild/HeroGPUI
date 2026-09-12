@@ -174,8 +174,9 @@ pub use ::herogpui_theme as theme;
 #[cfg(feature = "theme")]
 pub use ::herogpui_theme::{
     follow_system_appearance, set_reduce_motion, set_theme, stop_following_system_appearance,
-    toggle_light_dark, toggle_reduce_motion, use_theme, ActiveTheme, Appearance, Theme,
-    ThemeProvider,
+    toggle_light_dark, toggle_reduce_motion, use_theme, ActiveTheme, Appearance, ButtonStyle,
+    ComponentColor, ComponentTheme, ComponentThemes, MenuStyle, SelectStyle, SliderStyle,
+    SwitchStyle, TextFieldStyle, Theme, ThemeProvider,
 };
 #[cfg(feature = "serde")]
 pub use ::herogpui_theme::{ThemeDocument, ThemeDocumentError};
@@ -279,7 +280,8 @@ pub mod prelude {
     #[cfg(feature = "theme")]
     pub use herogpui_theme::{
         follow_system_appearance, set_reduce_motion, set_theme, stop_following_system_appearance,
-        toggle_light_dark, toggle_reduce_motion, use_theme, ActiveTheme, Appearance, Theme,
-        ThemeProvider,
+        toggle_light_dark, toggle_reduce_motion, use_theme, ActiveTheme, Appearance, ButtonStyle,
+        ComponentColor, ComponentTheme, ComponentThemes, MenuStyle, SelectStyle, SliderStyle,
+        SwitchStyle, TextFieldStyle, Theme, ThemeProvider,
     };
 }

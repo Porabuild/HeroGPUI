@@ -6,20 +6,36 @@ import { StaticTable } from "@/components/ui/static-table";
 
 export const metadata: Metadata = {
   title: "Customization",
-  description: "Create a named HeroGPUI theme by overriding semantic colors and layout tokens.",
+  description:
+    "Create a named HeroGPUI theme by overriding semantic colors, layout tokens, and component recipes.",
 };
 
 const VIOLET = `use gpui::px;
-use herogpui::core::oklch;
-use herogpui::theme::{snow, Theme};
+use herogpui::core::{oklch, FieldVariant};
+use herogpui::theme::{
+    snow, ButtonStyle, ComponentTheme, ComponentThemes, SelectStyle, SliderStyle, Theme,
+};
 
 let violet = Theme::builder("violet", Theme::light())
     .accent(oklch(0.55, 0.23, 295.0))   // hover / soft / focus all derive
     .role("success", oklch(0.73, 0.19, 150.0), snow())
     .radius(px(6.))                     // field_radius follows at 1.5x
+    .components(
+        ComponentThemes::default()
+            .slider(ComponentTheme::new(SliderStyle::default().radius(px(9999.))))
+            .select(
+                ComponentTheme::new(SelectStyle::default().variant(FieldVariant::Secondary))
+                    .recipe("compact", SelectStyle::default().height(px(28.))),
+            )
+            .button(ComponentTheme::new(ButtonStyle::default()).recipe(
+                "compact",
+                ButtonStyle::default().style(|el| el.h(px(28.)).px(px(10.))),
+            )),
+    )
     .build();
 
-herogpui::theme::set_theme(violet, cx);`;
+herogpui::theme::set_theme(violet, cx);
+Button::new("ok").label("OK").recipe("compact");`;
 
 const DERIVE = `// Override one base token; every derived value follows.
 let violet = Theme::builder("violet", Theme::light())
@@ -85,6 +101,10 @@ const BUILDER_ROWS: BuilderRow[] = [
     method: "field(bg, fg) / field_placeholder / field_border",
     sets: "The field tokens individually.",
   },
+  {
+    method: "components(ComponentThemes)",
+    sets: "Typed component defaults and named recipes. Resolved live from ThemeProvider each frame. Not a ThemeDocument JSON key.",
+  },
   { method: "build()", sets: "Returns the `Theme`." },
 ];
 
@@ -93,13 +113,14 @@ export default function CustomizationPage() {
     <>
       <PageHeader
         title="Customization"
-        description="Create a named HeroGPUI theme by overriding semantic colors and layout tokens."
+        description="Create a named HeroGPUI theme by overriding semantic colors, layout tokens, and component recipes."
       />
 
       <p>
-        Start from a light or dark <code>Theme</code> and override the semantic colors or layout
-        values your application needs. <code>Theme::builder(id, base)</code> names the result, and
-        derived values follow the base token they came from.
+        Start from a light or dark <code>Theme</code> and override the semantic colors, layout
+        values, or <code>ThemeBuilder::components</code> recipes your application needs.{" "}
+        <code>Theme::builder(id, base)</code> names the result, and derived color values follow the
+        base token they came from. Empty component styles keep stock HeroUI metrics.
       </p>
 
       <h2 id="the-builder">The builder</h2>
@@ -147,6 +168,9 @@ export default function CustomizationPage() {
         <code>use_theme(&quot;light&quot;, cx)</code> switches back — and a theme registered with{" "}
         <code>set_theme</code> is thereafter switchable to by id like any other. See{" "}
         <Link href="/docs/getting-started/dark-mode">Dark Mode</Link> for the switching rules.
+        Renderers resolve <code>Theme.components</code> from the active provider each frame, so a
+        later <code>set_theme</code> updates every <code>.recipe(&quot;name&quot;)</code> call site
+        without rebuilding those builders.
       </p>
 
       <h2 id="colour-maths">Colour maths</h2>

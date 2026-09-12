@@ -34,6 +34,7 @@ pub(crate) struct FieldBox {
     pub(crate) height: Option<Pixels>,
     pub(crate) padding_x: Option<Pixels>,
     pub(crate) is_bare: bool,
+    pub(crate) is_bare_is_set: bool,
 }
 
 impl FieldBox {
@@ -1645,6 +1646,30 @@ pub(crate) fn leading_for(text_size: Pixels) -> Option<Pixels> {
 ///
 /// Child painted parts (a slider's track/fill/knob, a switch's track/thumb)
 /// call this after their own radius so an `sx` corner wins per corner.
+/// Fill corners the caller did not name, so a theme radius reaches every
+/// painted part while an explicit `sx` corner still wins per corner.
+pub(crate) fn fill_unspecified_corners(
+    mut corners: gpui::Corners<Option<Pixels>>,
+    radius: Option<Pixels>,
+) -> gpui::Corners<Option<Pixels>> {
+    let Some(radius) = radius else {
+        return corners;
+    };
+    if corners.top_left.is_none() {
+        corners.top_left = Some(radius);
+    }
+    if corners.top_right.is_none() {
+        corners.top_right = Some(radius);
+    }
+    if corners.bottom_right.is_none() {
+        corners.bottom_right = Some(radius);
+    }
+    if corners.bottom_left.is_none() {
+        corners.bottom_left = Some(radius);
+    }
+    corners
+}
+
 pub(crate) fn round_sx_corners<T: Styled>(el: T, corners: &gpui::Corners<Option<Pixels>>) -> T {
     let mut el = el;
     if let Some(pixels) = corners.top_left {

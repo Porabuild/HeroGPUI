@@ -259,7 +259,8 @@ impl Gallery {
         doc_page(
             "Customization",
             "Build custom themes with Theme::builder: start from a base appearance and override \
-             semantic scales, single shades or layout tokens. Register the result with the provider.",
+             semantic scales, layout tokens, and ThemeBuilder::components recipes. Register the \
+             result with the provider.",
             "",
             vec![
                 ("Custom theme builder", code_block(CUSTOM_THEME_SNIPPET, cx)),
@@ -271,8 +272,11 @@ impl Gallery {
 }
 
 const CUSTOM_THEME_SNIPPET: &str = r#"use gpui::{px, CursorStyle};
-use herogpui::core::oklch;
-use herogpui::theme::{snow, Theme};
+use herogpui::core::{oklch, FieldVariant};
+use herogpui::theme::{
+    snow, ButtonStyle, ComponentTheme, ComponentThemes, SelectStyle, SliderStyle,
+    Theme,
+};
 
 let violet = Theme::builder("violet", Theme::light())
     .accent(oklch(0.55, 0.23, 295.0))   // hover / soft / focus all derive
@@ -283,9 +287,22 @@ let violet = Theme::builder("violet", Theme::light())
     .tooltip_cooldown_ms(800)           // how long tips keep opening instantly
     .long_press_ms(400)                 // long-press trigger wait
     .hover_fade_ms(150)                 // background fade duration
+    .components(
+        ComponentThemes::default()
+            .slider(ComponentTheme::new(SliderStyle::default().radius(px(9999.))))
+            .select(
+                ComponentTheme::new(SelectStyle::default().variant(FieldVariant::Secondary))
+                    .recipe("compact", SelectStyle::default().height(px(28.))),
+            )
+            .button(ComponentTheme::new(ButtonStyle::default()).recipe(
+                "compact",
+                ButtonStyle::default().style(|el| el.h(px(28.)).px(px(10.))),
+            )),
+    )
     .build();
 
-herogpui::theme::set_theme(violet, cx);"#;
+herogpui::theme::set_theme(violet, cx);
+Button::new("ok").label("OK").recipe("compact");"#;
 
 fn feature_row(title: &str, desc: &str, cx: &App) -> gpui::AnyElement {
     let colors = cx.colors();

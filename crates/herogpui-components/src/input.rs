@@ -1196,6 +1196,7 @@ pub struct Input {
     /// `validationErrors` — messages from a server round-trip.
     validation_errors: Vec<SharedString>,
     variant: FieldVariant,
+    variant_is_set: bool,
     input_type: InputType,
     max_length: Option<usize>,
     min_length: Option<usize>,
@@ -1225,6 +1226,9 @@ pub struct Input {
     /// [`Input::is_bare`] — render the standalone box with no chrome at all,
     /// the way `InputGroup.Input` already does.
     is_bare: bool,
+    is_bare_is_set: bool,
+    /// [`Input::text_size`] — the field value and placeholder type size.
+    text_size: Option<Pixels>,
     /// [`Input::font_family`] — the family the field text is drawn and
     /// measured with. `None` inherits the window's text style.
     font_family: Option<SharedString>,
@@ -1278,6 +1282,7 @@ pub struct Input {
     )>,
     /// The `sx` slot, refined over the root style at the end of render.
     sx: Option<Box<gpui::StyleRefinement>>,
+    recipes: Vec<SharedString>,
 }
 
 impl Input {
@@ -1352,6 +1357,7 @@ impl Input {
             validate: None,
             validation_errors: Vec::new(),
             variant: FieldVariant::Primary,
+            variant_is_set: false,
             input_type: InputType::Text,
             max_length: None,
             min_length: None,
@@ -1366,6 +1372,8 @@ impl Input {
             padding_x: None,
             group_padding_x: None,
             is_bare: false,
+            is_bare_is_set: false,
+            text_size: None,
             font_family: None,
             radius: None,
             in_group: None,
@@ -1389,6 +1397,7 @@ impl Input {
             on_submit: None,
             field_anchor: None,
             sx: None,
+            recipes: Vec::new(),
         }
     }
 
@@ -1583,6 +1592,19 @@ impl Input {
 
     pub fn variant(mut self, v: FieldVariant) -> Self {
         self.variant = v;
+        self.variant_is_set = true;
+        self
+    }
+
+    /// Named theme overlay from [`herogpui_theme::ComponentThemes::text_field`].
+    /// Stackable; a missing name adds no override.
+    pub fn recipe(mut self, name: impl Into<SharedString>) -> Self {
+        self.recipes.push(name.into());
+        self
+    }
+
+    pub(crate) fn with_recipes(mut self, recipes: Vec<SharedString>) -> Self {
+        self.recipes = recipes;
         self
     }
 
@@ -1629,8 +1651,8 @@ impl Input {
         if let Some(padding_x) = field.padding_x {
             self = self.padding_x(padding_x);
         }
-        if field.is_bare {
-            self = self.is_bare(true);
+        if field.is_bare_is_set {
+            self = self.is_bare(field.is_bare);
         }
         self
     }
@@ -1645,6 +1667,13 @@ impl Input {
     /// the error line reports, is unchanged.
     pub fn is_bare(mut self, v: bool) -> Self {
         self.is_bare = v;
+        self.is_bare_is_set = true;
+        self
+    }
+
+    /// The field value and placeholder type size, replacing v3's `text-sm`.
+    pub fn text_size(mut self, size: impl Into<Pixels>) -> Self {
+        self.text_size = Some(size.into());
         self
     }
 
@@ -1780,7 +1809,7 @@ impl Input {
 }
 
 impl RenderOnce for Input {
-    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(mut self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         // One structured id per rendered field, and every part of the field
         // hangs off it. The state entity is what makes it unique, and
         // `named_usize` keeps it as structure, so a part's name can never
@@ -1904,6 +1933,25 @@ impl RenderOnce for Input {
             self.state.update(cx, |state, _| state.marked = None);
         }
         let colors = cx.colors();
+        let field_theme = cx.theme().components.text_field.resolve(&self.recipes);
+        if !self.variant_is_set {
+            if let Some(variant) = field_theme.variant {
+                self.variant = variant;
+            }
+        }
+        if !self.is_bare_is_set {
+            if let Some(is_bare) = field_theme.is_bare {
+                self.is_bare = is_bare;
+            }
+        }
+        self.height = self.height.or(field_theme.height);
+        self.padding_x = self.padding_x.or(field_theme.padding_x);
+        self.radius = self.radius.or(field_theme.radius);
+        let theme_background = field_theme.background.map(|color| color.resolve(colors));
+        let theme_foreground = field_theme.foreground.map(|color| color.resolve(colors));
+        let theme_placeholder = field_theme
+            .placeholder
+            .map_or(colors.muted, |color| color.resolve(colors));
         let accent = colors.accent;
         let field_focus = crate::util::FieldFocus {
             is_focused: focused,
@@ -1936,6 +1984,7 @@ impl RenderOnce for Input {
         // caller asked for.
         let (h, text) = (crate::util::FIELD_HEIGHT, crate::util::FIELD_TEXT);
         let h = self.height.unwrap_or(h);
+        let text = self.text_size.or(field_theme.text_size).unwrap_or(text);
 
         let is_invalid = validity.is_invalid;
         let _border_color = if is_invalid {
@@ -2141,6 +2190,12 @@ impl RenderOnce for Input {
                 cx,
             );
         }
+        if let Some(background) = theme_background {
+            field = field.bg(background);
+        }
+        if let Some(foreground) = theme_foreground {
+            field = field.text_color(foreground);
+        }
 
         // -- text content -----------------------------------------------------
         let st = self.state.read(cx);
@@ -2210,7 +2265,7 @@ impl RenderOnce for Input {
         } else if is_empty && !focused && self.placeholder.is_some() {
             row = row.child(
                 gpui::div()
-                    .text_color(colors.muted)
+                    .text_color(theme_placeholder)
                     .truncate()
                     .child(self.placeholder.clone().unwrap().to_string()),
             );
@@ -2931,6 +2986,24 @@ impl TextField {
         self
     }
 
+    /// Named theme recipe — see [`Input::recipe`].
+    pub fn recipe(mut self, name: impl Into<SharedString>) -> Self {
+        self.inner = self.inner.recipe(name);
+        self
+    }
+
+    /// The field text size — see [`Input::text_size`].
+    pub fn text_size(mut self, size: impl Into<Pixels>) -> Self {
+        self.inner = self.inner.text_size(size);
+        self
+    }
+
+    /// The box's corner radius — see [`Input::radius`].
+    pub fn radius(mut self, r: impl Into<Pixels>) -> Self {
+        self.inner = self.inner.radius(r);
+        self
+    }
+
     /// Drops the field's chrome — see [`Input::is_bare`].
     pub fn is_bare(mut self, v: bool) -> Self {
         self.inner = self.inner.is_bare(v);
@@ -3041,6 +3114,10 @@ pub struct SearchField {
     placeholder: SharedString,
     description: Option<SharedString>,
     variant: FieldVariant,
+    variant_is_set: bool,
+    recipes: Vec<SharedString>,
+    text_size: Option<Pixels>,
+    radius: Option<Pixels>,
     full_width: bool,
     /// Optional box geometry/chrome overrides forwarded to the inner `Input`.
     field: crate::util::FieldBox,
@@ -3093,6 +3170,10 @@ impl SearchField {
             placeholder: "Search".into(),
             description: None,
             variant: FieldVariant::Primary,
+            variant_is_set: false,
+            recipes: Vec::new(),
+            text_size: None,
+            radius: None,
             full_width: false,
             field: crate::util::FieldBox::default(),
             is_disabled: false,
@@ -3129,6 +3210,25 @@ impl SearchField {
 
     pub fn variant(mut self, variant: FieldVariant) -> Self {
         self.variant = variant;
+        self.variant_is_set = true;
+        self
+    }
+
+    /// Named recipe from `Theme.components.text_field.recipes`. Stackable.
+    pub fn recipe(mut self, name: impl Into<SharedString>) -> Self {
+        self.recipes.push(name.into());
+        self
+    }
+
+    /// The field text size — forwarded to the inner [`Input`].
+    pub fn text_size(mut self, size: impl Into<Pixels>) -> Self {
+        self.text_size = Some(size.into());
+        self
+    }
+
+    /// The box's corner radius — forwarded to the inner [`Input`].
+    pub fn radius(mut self, r: impl Into<Pixels>) -> Self {
+        self.radius = Some(r.into());
         self
     }
 
@@ -3153,6 +3253,7 @@ impl SearchField {
     /// for a caller painting around it.
     pub fn is_bare(mut self, v: bool) -> Self {
         self.field.is_bare = v;
+        self.field.is_bare_is_set = true;
         self
     }
 
@@ -3299,7 +3400,7 @@ impl RenderOnce for SearchField {
             .when_some(self.value, |i, v| i.value(v))
             .when_some(self.default_value, |i, v| i.default_value(v))
             .when_some(self.validation_behavior, |i, b| i.validation_behavior(b))
-            .variant(self.variant)
+            .with_recipes(self.recipes)
             .is_disabled(self.is_disabled)
             .is_read_only(self.is_read_only)
             .is_required(self.is_required)
@@ -3317,6 +3418,15 @@ impl RenderOnce for SearchField {
                     .text_color(colors.muted)
                     .into_any_element(),
             });
+        if self.variant_is_set {
+            input = input.variant(self.variant);
+        }
+        if let Some(size) = self.text_size {
+            input = input.text_size(size);
+        }
+        if let Some(r) = self.radius {
+            input = input.radius(r);
+        }
         input = input.with_field_box(self.field);
         if let Some(icon) = self.clear_icon {
             input = input.clear_content(icon);

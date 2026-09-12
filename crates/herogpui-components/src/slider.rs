@@ -98,6 +98,7 @@ pub struct Slider {
     form_thumb_states: Rc<RefCell<Vec<Rc<RefCell<crate::form::LiveFormFieldState>>>>>,
     /// The `sx` slot, refined over the root style at the end of render.
     sx: Option<Box<gpui::StyleRefinement>>,
+    recipes: Vec<gpui::SharedString>,
 }
 
 impl Slider {
@@ -152,6 +153,7 @@ impl Slider {
             form_state: live_form_state(),
             form_thumb_states: Rc::new(RefCell::new(Vec::new())),
             sx: None,
+            recipes: Vec::new(),
         }
     }
 
@@ -443,6 +445,13 @@ impl Slider {
         f: impl Fn(&[f32], &mut Window, &mut App) + 'static,
     ) -> Self {
         self.on_change_end_all = Some(std::sync::Arc::new(f));
+        self
+    }
+
+    /// Named theme overlay from [`herogpui_theme::ComponentThemes::slider`].
+    /// Stackable; a missing name adds no override.
+    pub fn recipe(mut self, name: impl Into<gpui::SharedString>) -> Self {
+        self.recipes.push(name.into());
         self
     }
 
@@ -743,7 +752,10 @@ impl RenderOnce for Slider {
         // A vertical slider swaps the axis: the rail runs top to bottom and
         // the fill grows upward from the zero end.
         let vertical = !self.orientation.is_horizontal();
-        let sx_corners = crate::util::sx_radius(&self.sx);
+        let sx_corners = crate::util::fill_unspecified_corners(
+            crate::util::sx_radius(&self.sx),
+            cx.theme().components.slider.resolve(&self.recipes).radius,
+        );
         let mut track = gpui::div()
             .id(self.id.clone())
             .relative()

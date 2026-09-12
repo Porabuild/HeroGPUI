@@ -160,6 +160,7 @@ pub struct Menu {
     panel_padding: Option<Pixels>,
     panel_gap: Option<Pixels>,
     animate_entry: bool,
+    animate_entry_is_set: bool,
     focus_handle: Option<gpui::FocusHandle>,
     /// Set by `Dropdown`: the menu panel is where Escape and an outside press
     /// land, and the open state belongs to the wrapper. The `bool` says
@@ -178,6 +179,7 @@ pub struct Menu {
     panel_debug_label: Option<&'static str>,
     /// The `sx` slot, refined over the root style at the end of render.
     sx: Option<Box<gpui::StyleRefinement>>,
+    recipes: Vec<SharedString>,
 }
 
 impl Menu {
@@ -216,12 +218,14 @@ impl Menu {
             panel_padding: None,
             panel_gap: None,
             animate_entry: true,
+            animate_entry_is_set: false,
             focus_handle: None,
             on_dismiss: None,
             overlay_token: None,
             dropdown_composition: false,
             panel_debug_label: None,
             sx: None,
+            recipes: Vec::new(),
         }
     }
 
@@ -313,6 +317,14 @@ impl Menu {
     /// Exit animation and keyboard behavior are unchanged.
     pub fn animate_entry(mut self, animate: bool) -> Self {
         self.animate_entry = animate;
+        self.animate_entry_is_set = true;
+        self
+    }
+
+    /// Named theme overlay from [`herogpui_theme::ComponentThemes::menu`].
+    /// Stackable; a missing name adds no override.
+    pub fn recipe(mut self, name: impl Into<SharedString>) -> Self {
+        self.recipes.push(name.into());
         self
     }
 
@@ -728,6 +740,31 @@ impl RenderOnce for Menu {
         // old panel locations.
 
         let colors = cx.colors();
+        let menu_theme = cx.theme().components.menu.resolve(&self.recipes);
+        self.panel_min_width = self.panel_min_width.or(menu_theme.panel_min_width);
+        self.panel_max_width = self.panel_max_width.or(menu_theme.panel_max_width);
+        self.panel_max_height = self.panel_max_height.or(menu_theme.panel_max_height);
+        self.panel_padding = self.panel_padding.or(menu_theme.panel_padding);
+        self.panel_gap = self.panel_gap.or(menu_theme.panel_gap);
+        self.row_height = self.row_height.or(menu_theme.row_height);
+        self.row_padding_x = self.row_padding_x.or(menu_theme.row_padding_x);
+        self.row_padding_y = self.row_padding_y.or(menu_theme.row_padding_y);
+        self.row_text_size = self.row_text_size.or(menu_theme.row_text_size);
+        self.row_gap = self.row_gap.or(menu_theme.row_gap);
+        self.radius = self.radius.or(menu_theme.radius);
+        if !self.animate_entry_is_set {
+            if let Some(animate) = menu_theme.animate_entry {
+                self.animate_entry = animate;
+            }
+        }
+        if self.row_hover_bg.is_none() {
+            self.row_hover_bg = menu_theme.row_hover_bg.map(|color| color.resolve(colors));
+        }
+        if self.row_hover_foreground.is_none() {
+            self.row_hover_foreground = menu_theme
+                .row_hover_foreground
+                .map(|color| color.resolve(colors));
+        }
         let row_hover_bg = self.row_hover_bg.unwrap_or(colors.default.color);
         let dropdown_composition = self.dropdown_composition;
         // The panel's entry zoom interpolates the panel's own radius, so one
@@ -1567,6 +1604,8 @@ impl RenderOnce for Menu {
             sub.row_hover_bg = self.row_hover_bg;
             sub.row_hover_foreground = self.row_hover_foreground;
             sub.radius = self.radius;
+            sub.recipes = self.recipes.clone();
+            sub.animate_entry_is_set = self.animate_entry_is_set;
             sub.item_content = self.item_content.clone();
             sub.indicator_content = self.indicator_content.clone();
             if let Some(token) = overlay_token.clone() {
@@ -1702,6 +1741,7 @@ pub struct Dropdown {
     placement: DropdownPlacement,
     /// The `sx` slot, refined over the root style at the end of render.
     sx: Option<Box<gpui::StyleRefinement>>,
+    recipes: Vec<SharedString>,
 }
 
 /// `placement` on `Dropdown.Popover`.
@@ -1791,7 +1831,15 @@ impl Dropdown {
             radius: None,
             placement: DropdownPlacement::BottomStart,
             sx: None,
+            recipes: Vec::new(),
         }
+    }
+
+    /// Named theme overlay forwarded onto the painted [`Menu`].
+    /// Stackable; a missing name adds no override.
+    pub fn recipe(mut self, name: impl Into<SharedString>) -> Self {
+        self.recipes.push(name.into());
+        self
     }
 
     /// `type` on `Dropdown.ItemIndicator`.
@@ -2098,6 +2146,7 @@ impl RenderOnce for Dropdown {
             .indicator(self.indicator);
             menu.item_content = self.item_content.clone();
             menu.indicator_content = self.indicator_content.clone();
+            menu.recipes = self.recipes.clone();
             if let Some(row_hover_bg) = self.row_hover_bg {
                 menu = menu.row_hover_bg(row_hover_bg);
             }

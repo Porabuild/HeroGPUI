@@ -37,7 +37,9 @@ RENAME = {
 DOCUMENT_ONLY = {'base'}
 
 # Builder methods that are not JSON keys.
-BUILDER_ONLY = {'build'}
+# `components` is a typed Rust subtree (`ComponentThemes` + recipes), not a
+# CSS-variable-style sparse JSON token.
+BUILDER_ONLY = {'build', 'components'}
 
 PUB_FN = re.compile(r'pub fn ([A-Za-z_][A-Za-z0-9_]*)\s*\(')
 # A field of ThemeDocument: `pub name:` at struct indent, skipping serde attrs.

@@ -348,7 +348,9 @@ impl Page {
             Page::Installation => "Get HeroGPUI running in your GPUI application in minutes.",
             Page::Theming => "The OKLCH semantic token system shared by every component.",
             Page::DarkMode => "Switch between the light and dark appearance at runtime.",
-            Page::Customization => "Build custom themes by overriding a handful of base tokens.",
+            Page::Customization => {
+                "Build custom themes by overriding tokens and ThemeBuilder::components recipes."
+            }
             Page::Styling => "Typed props, theme tokens, slots and render closures — there are no CSS classes.",
             Page::DesignPrinciples => "The ten principles behind every HeroGPUI component.",
             Page::Button => "A pressable button with variants and states.",

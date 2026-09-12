@@ -41,6 +41,7 @@ pub struct Theme {
     pub appearance: Appearance,
     pub colors: ThemeColors,
     pub layout: LayoutTheme,
+    pub components: crate::ComponentThemes,
 }
 
 impl Theme {
@@ -51,6 +52,7 @@ impl Theme {
             appearance: Appearance::Light,
             colors: ThemeColors::light(),
             layout: LayoutTheme::light(),
+            components: crate::ComponentThemes::default(),
         }
     }
 
@@ -61,6 +63,7 @@ impl Theme {
             appearance: Appearance::Dark,
             colors: ThemeColors::dark(),
             layout: LayoutTheme::dark(),
+            components: crate::ComponentThemes::default(),
         }
     }
 
@@ -85,6 +88,12 @@ pub struct ThemeBuilder {
 }
 
 impl ThemeBuilder {
+    /// Component defaults and named recipes, resolved by renderers on every frame.
+    pub fn components(mut self, components: crate::ComponentThemes) -> Self {
+        self.theme.components = components;
+        self
+    }
+
     pub fn id(mut self, id: impl Into<SharedString>) -> Self {
         self.theme.id = id.into();
         self

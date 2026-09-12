@@ -249,6 +249,7 @@ pub struct Switch {
     hover_bg: Option<gpui::Hsla>,
     /// The `sx` slot, refined over the root style at the end of render.
     sx: Option<Box<gpui::StyleRefinement>>,
+    recipes: Vec<gpui::SharedString>,
 }
 
 impl Switch {
@@ -315,6 +316,7 @@ impl Switch {
             label_first: false,
             on_change: None,
             hover_bg: None,
+            recipes: Vec::new(),
             form_state: Rc::new(RefCell::new(crate::form::LiveFormFieldState {
                 value: crate::form::FormValue::Flag(false),
                 is_invalid: false,
@@ -421,6 +423,13 @@ impl Switch {
 
     pub fn size(mut self, s: Size) -> Self {
         self.size = s;
+        self
+    }
+
+    /// Named theme overlay from [`herogpui_theme::ComponentThemes::switch`].
+    /// Stackable; a missing name adds no override.
+    pub fn recipe(mut self, name: impl Into<gpui::SharedString>) -> Self {
+        self.recipes.push(name.into());
         self
     }
 
@@ -585,7 +594,10 @@ impl RenderOnce for Switch {
 
         // `default` is the v3 unchecked track. A soft (alpha) mix vanishes on
         // a white overlay, so the track uses the solid role colour.
-        let sx_corners = crate::util::sx_radius(&self.sx);
+        let sx_corners = crate::util::fill_unspecified_corners(
+            crate::util::sx_radius(&self.sx),
+            cx.theme().components.switch.resolve(&self.recipes).radius,
+        );
         let track_bg = if checked { accent_color } else { default_color };
         let hover_bg = self
             .hover_bg

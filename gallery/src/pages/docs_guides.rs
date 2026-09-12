@@ -125,6 +125,13 @@ impl Gallery {
                             cx,
                         ),
                         mapping(
+                            "Shared appearance",
+                            "Theme recipes: put height, padding, radius and semantic colours on \
+                             `ThemeBuilder::components` / `.recipe(\"name\")`. Instance `sx` is \
+                             for placement, width and flex.",
+                            cx,
+                        ),
+                        mapping(
                             "Full width",
                             "Layout: wrap the control in a styled div, or use the prop the \
                              component documents for it (`full_width`).",
@@ -366,7 +373,9 @@ impl Gallery {
                         para(
                             "Start from a built-in theme and override a base token when your \
                               application needs a different value. Derived colours follow \
-                              through the same `color-mix` rules the theme itself uses.",
+                              through the same `color-mix` rules the theme itself uses. Shared \
+                              component metrics belong on `ThemeBuilder::components` and named \
+                              recipes, not on every call site.",
                             cx,
                         ),
                         code_block(DP_CUSTOM, cx),

@@ -10,8 +10,12 @@ fn slider_and_switch_refine_their_parts_with_sx_corners() {
         ("switch.rs", include_str!("../src/switch.rs")),
     ] {
         assert!(
-            source.contains("let sx_corners = crate::util::sx_radius(&self.sx);"),
+            source.contains("crate::util::sx_radius(&self.sx)"),
             "{file}: the parts must read the sx corners"
+        );
+        assert!(
+            source.contains("crate::util::fill_unspecified_corners("),
+            "{file}: a theme radius must fill corners sx did not name"
         );
         assert!(
             source.contains("crate::util::round_sx_corners("),
@@ -22,8 +26,8 @@ fn slider_and_switch_refine_their_parts_with_sx_corners() {
         include_str!("../src/slider.rs")
             .matches("crate::util::round_sx_corners(")
             .count(),
-        3,
-        "the slider track, fill and thumb must each refine their corners"
+        4,
+        "the slider track, fill and both thumb layers must each refine their corners"
     );
     assert_eq!(
         include_str!("../src/switch.rs")
