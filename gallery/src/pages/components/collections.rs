@@ -74,6 +74,26 @@ impl Gallery {
                     .into_any_element()]),
                 ),
                 (
+                    "Standalone Compact Menu", "An embedded panel with 28px rows, 12px text and caller-owned dismissal. Its submenu inherits presentation and actions.",
+                    col(vec![
+                        h::Button::new("dd-standalone-show").label("Show menu")
+                            .on_press(cx.listener(|this, _, _, cx| { this.set_demo_flag("dd-standalone", true); cx.notify(); })).into_any_element(),
+                        if self.demo_flag("dd-standalone", false) {
+                            h::Menu::new("dd-standalone", vec![h::MenuItem::new("tools", "Tools")
+                                .submenu(vec![h::MenuItem::new("copy", "Copy")])])
+                                .panel_min_width(px(180.)).panel_max_width(px(240.)).panel_max_height(px(160.))
+                                .row_height(px(28.)).row_padding_x(px(8.)).row_padding_y(px(2.))
+                                .row_text_size(px(12.)).row_gap(px(8.)).panel_padding(px(4.)).panel_gap(px(0.))
+                                .animate_entry(false)
+                                .row_hover_bg(cx.colors().accent.color)
+                                .row_hover_foreground(cx.colors().accent.foreground)
+                                .on_action(cx.listener(|this, key: &SharedString, _, cx| { this.dropdown_selected = Some(key.clone()); cx.notify(); }))
+                                .on_dismiss(cx.listener(|this, _: &bool, _, cx| { this.set_demo_flag("dd-standalone", false); cx.notify(); }))
+                                .into_any_element()
+                        } else { gpui::div().into_any_element() },
+                    ]),
+                ),
+                (
                     "With Icons",
                     col(vec![h::Dropdown::uncontrolled(
                         "dd-icons-dd",

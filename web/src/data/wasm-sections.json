@@ -55,6 +55,7 @@
   "dropdown": [
     "Usage",
     "Row Hover",
+    "Standalone Compact Menu",
     "With Icons",
     "With Descriptions",
     "With Disabled Items",
@@ -186,6 +187,7 @@
     "Range Slider",
     "Basic Usage",
     "Disabled",
+    "Native Seeking",
     "Sizes",
     "Vertical Orientation",
     "Disabled Thumb",

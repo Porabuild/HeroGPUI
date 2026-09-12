@@ -866,14 +866,18 @@ impl Gallery {
                 ),
                 (
                     "Box Customisation",
-                    "`height`, `padding_x` and `is_bare` size the trigger; `row_padding_x` / `row_padding_y` size its option rows. This 28px bare trigger opens over 16px-padded rows.",
+                    "`height`, `padding_x` and `is_bare` size the trigger; `row_padding_x` / `row_padding_y` size its option rows. This 28px bare trigger uses 12px trigger and row text, 8px row insets and 4px panel padding.",
                     field_col(vec![h::Select::new("sel-custom-box", language_items())
                         .label("Compact")
                         .placeholder("Choose one")
                         .height(px(28.))
                         .padding_x(px(4.))
                         .is_bare(true)
-                        .row_padding_x(px(16.))
+                        .trigger_text_size(px(12.))
+                        .row_text_size(px(12.))
+                        .panel_padding(px(4.))
+                        .row_height(px(28.))
+                        .row_padding_x(px(8.))
                         .row_padding_y(px(2.))
                         .row_hover_bg(cx.colors().accent.soft())
                         .row_font_family(crate::app::MONO_FONT)

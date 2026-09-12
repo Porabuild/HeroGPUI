@@ -5,6 +5,7 @@
 //! (radius, border width, shadows), and a global [`ThemeProvider`] with an
 //! [`ActiveTheme`] accessor trait.
 
+mod components;
 mod layout;
 mod provider;
 mod semantic;
@@ -12,6 +13,7 @@ mod theme;
 #[cfg(feature = "serde")]
 mod theme_document;
 
+pub use components::*;
 pub use layout::*;
 pub use provider::*;
 pub use semantic::*;

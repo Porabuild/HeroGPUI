@@ -8,6 +8,8 @@ impl Gallery {
     // -----------------------------------------------------------------------
 
     pub fn page_slider(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
+        let seek_start = cx.entity().downgrade();
+        let seek_end = seek_start.clone();
         let volume = self.demo_value("sl-controlled", 40.);
         let value = self.slider_value;
         component_doc_page!(
@@ -196,6 +198,20 @@ impl Gallery {
                             .show_value(true)
                             .is_disabled(true),
                     )]),
+                ),
+                (
+                    "Native Seeking", "Continuous seeking brackets pointer updates with drag hooks; arbitrary presets retain keyboard navigation.",
+                    col(vec![
+                        fixed_demo(320., h::Slider::new("sl-continuous", 0.5)
+                            .default_value(0.5).max_value(1.).continuous(true)
+                            .sx(|el| el.rounded_full()).show_value(true)
+                            .label(if self.demo_flag("sl-seeking", false) { "Preview paused" } else { "Preview playing" })
+                            .on_drag_start(move |_, cx| { let _ = seek_start.update(cx, |this, cx| { this.set_demo_flag("sl-seeking", true); cx.notify(); }); })
+                            .on_drag_end(move |_, cx| { let _ = seek_end.update(cx, |this, cx| { this.set_demo_flag("sl-seeking", false); cx.notify(); }); })),
+                        fixed_demo(320., h::Slider::new("sl-presets", 1.)
+                            .default_value(1.).min_value(0.25).max_value(2.)
+                            .steps([0.25, 0.5, 1., 1.5, 2.]).show_value(true)),
+                    ]),
                 ),
                 (
                     "Sizes", "`size` is HeroGPUI's additive scale: `Md` is v3's 20px rail with its two-layer thumb, and `Sm` is a 6px pill with a single 12px knob.",

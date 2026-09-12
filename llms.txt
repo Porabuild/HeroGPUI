@@ -10,7 +10,7 @@ HeroGPUI implements HeroUI's design system in Rust: OKLCH semantic tokens,
 layout tokens, and typed component builders for Windows, macOS and Linux.
 
 - **Crate:** `herogpui` (the single dependency; re-exports GPUI itself)
-- **Theme:** `herogpui-theme` — `ThemeProvider` global, `ActiveTheme` trait
+- **Theme:** `herogpui-theme` — `ThemeProvider` global, `ActiveTheme` trait, `ThemeBuilder::components` / named recipes
   (`cx.colors()`, `cx.role(Color::Accent)`, `cx.layout()`)
 - **Core:** `herogpui-core` — `Color`, `Variant`, `FieldVariant`, `Prominence`,
   `Backdrop`, `Size`, `SizeXl`, `Orientation`, `SelectionMode`, OKLCH math
@@ -196,6 +196,68 @@ let brand = ThemeDocument::theme_from_json(r#"{
     "accent": "oklch(0.55 0.23 295)"
 }"#).unwrap();
 ```
+
+**Component themes.** Shared appearance belongs on `ThemeBuilder::components`, not
+on per-call-site `sx`. Empty styles preserve stock HeroUI metrics. Renderers
+read the active `ThemeProvider` every frame (not the builder's construction-time
+theme):
+
+stock defaults → `theme.components.*.defaults` → named recipes in `.recipe()`
+order → explicit component builders → instance `sx`.
+
+A missing recipe name is a no-op. `sx` is for placement, width and flex.
+
+```rust
+use herogpui::prelude::*;
+
+let app = Theme::builder("app", Theme::light())
+    .components(
+        ComponentThemes::default()
+            .slider(ComponentTheme::new(SliderStyle::default().radius(px(9999.))))
+            .switch(ComponentTheme::new(SwitchStyle::default().radius(px(9999.))))
+            .select(
+                ComponentTheme::new(SelectStyle::default().variant(FieldVariant::Secondary))
+                    .recipe("compact", SelectStyle::default().height(px(28.)).padding_x(px(8.))),
+            )
+            .menu(
+                ComponentTheme::new(MenuStyle::default().panel_gap(px(0.)))
+                    .recipe("compact", MenuStyle::default().row_height(px(28.)).panel_padding(px(4.)))
+                    .recipe(
+                        "accent",
+                        MenuStyle::default()
+                            .row_hover_bg(ComponentColor::Role(Color::Accent))
+                            .row_hover_foreground(ComponentColor::RoleForeground(Color::Accent)),
+                    ),
+            )
+            .button(
+                ComponentTheme::new(ButtonStyle::default()).recipe(
+                    "compact",
+                    ButtonStyle::default().style(|el| {
+                        el.h(px(28.)).px(px(10.)).text_size(px(12.)).line_height(px(16.))
+                    }),
+                ),
+            )
+            .text_field(
+                ComponentTheme::new(TextFieldStyle::default())
+                    .recipe("search", TextFieldStyle::default().height(px(32.)).text_size(px(13.))),
+            ),
+    )
+    .build();
+herogpui::theme::set_theme(app, cx);
+
+Button::new("ok").label("OK").recipe("compact").recipe("muted");
+```
+
+`ComponentTheme<T>::new(defaults).defaults(T).recipe("name", style)` and
+`ComponentThemes::{slider,switch,select,menu,button,text_field}`. `ComponentColor`
+is a semantic token (`Role(Color::Accent)`, `Muted`, `FieldBackground`, …) or
+`Literal(Hsla)` / `From<Hsla>`. `SliderStyle.radius` reaches the track, thumb
+layers and caps through the same per-corner `sx` join as instance corners.
+`ButtonStyle::style(|el| …)` captures sparse GPUI metrics; instance `sx` refines
+over it. `.recipe("name")` is on Slider, Switch, Select, Menu, Dropdown, Button,
+Input, TextField and SearchField. `cx.components()` / `ActiveTheme::components()`
+reads the live table. `components` is Rust-only — it is not a `ThemeDocument` JSON
+key.
 
 Color math (`herogpui-core`): `oklch(l, c, h)`, `oklcha(..)`,
 `mix_oklab(a, b, t)`, `soft_mix(color, pct)`, `with_alpha`, `readable_color`.
@@ -450,7 +512,7 @@ ProgressBar, ProgressCircle, Spinner and Typography; elsewhere `variant` (or
 ### Buttons
 `Button`, `ToggleButton` and `CloseButton` reconcile explicit pixel `sx` corners on their painted skins and hover fills, with each specified corner winning over `radius`. Press geometry scales those corners individually; unmentioned grouped corners keep their group-edge shape.
 
-- **Button** — `variant(Variant)`, `size`, `full_width`, `is_icon_only`, `radius(px)`, `is_disabled`, `is_pending`, ordered children (the icons and label text are children in order, matching v3 — there are no start/end content slots), `on_press`
+- **Button** — `variant(Variant)`, `size`, `full_width`, `is_icon_only`, `radius(px)`, `recipe("name")` (stacks `Theme.components.button` recipes), `is_disabled`, `is_pending`, ordered children (the icons and label text are children in order, matching v3 — there are no start/end content slots), `on_press`
   - `hover_bg(Hsla)` names the fill the hover fade eases *to*. v3 has no such prop — on the web it is `className="hover:bg-…"` — and it exists because an `sx` background alone pins both of the fade's endpoints (a fade back to the variant colour would paint over the override), leaving a custom surface with no hover. With it the fade runs from the resting background (the `sx` one when set, the variant's otherwise) to the named colour, on the same timing; the press state is the usual opacity step either way.
 - **ButtonGroup** — `id()`, `variant`, `size`, `orientation`, `button(Button)` (members inherit), `is_disabled`, `full_width`. A named group reports `role="group"`.
 - **CloseButton** — `is_disabled`, `radius(px)`, `icon(el)`, `content(|state| el)`, `on_press`, `hover_bg(color)` (v3's `variant` has one value, so there is nothing to select and no builder for it). `hover_bg` is additive, matching `Button::hover_bg`: the fade rests on the `sx` background when set, else `--default`, and eases to the named colour. `radius` is the same per-component repository extension as `Button::radius`, not the removed v2 prop: the box is the button's whole shape, so the pressed box scales the resolved value instead of snapping back to the helper.
@@ -458,7 +520,9 @@ ProgressBar, ProgressCircle, Spinner and Typography; elsewhere `variant` (or
   - `ToggleButton::on_change(&bool)` reports the selection a press moves to, alongside `on_press`. A button's selection key is `key()` when given, otherwise its element id, so a group can namespace child ids without breaking selection.
 
 ### Collections
-- **Dropdown** — `Dropdown::new(trigger, items, is_open).placement(Placement).on_open_change(&bool).on_action(&str).row_hover_bg(color).radius(px)`, `MenuItem::new(key,label).shortcut().icon().danger()`, `MenuItem::SectionLabel`, `MenuItem::Separator`. Built-in labels use 14px/20px medium text, descriptions and section headers use 12px/16px, and shortcut hints render as light `Kbd`. `radius` is the same per-component repository extension as `Button::radius`, and the menu panel's entry zoom interpolates the override; an item's own `rounded-2xl` mark is an inner part and keeps its step.
+- **Dropdown** — `Dropdown::new(trigger, items, is_open).placement(Placement).on_open_change(&bool).on_action(&str).row_hover_bg(color).radius(px).recipe("name")` (stacks `Theme.components.menu` recipes onto the menu and its submenus), `MenuItem::new(key,label).shortcut().icon().danger()`, `MenuItem::SectionLabel`, `MenuItem::Separator`. Built-in labels use 14px/20px medium text, descriptions and section headers use 12px/16px, and shortcut hints render as light `Kbd`. `radius` is the same per-component repository extension as `Button::radius`, and the menu panel's entry zoom interpolates the override; an item's own `rounded-2xl` mark is an inner part and keeps its step.
+  - Standalone `Menu::new(id, items)` can be embedded in a tray or caller-positioned popup. `recipe("name")` stacks `Theme.components.menu` recipes. `focus_handle(handle)` supplies the root handle; `on_dismiss(|refocus: &bool, window, cx| ..)` lets the owner remove the menu. `false` means a keyboard pick must not immediately refocus a clickable trigger. `panel_min_width`, `panel_max_width`, `panel_max_height`, `row_height` (minimum), `row_padding_x`, `row_padding_y`, `row_text_size`, `row_gap`, `panel_gap` (default 2px between entries), and `panel_padding` accept pixels and reach painted parts. Compact: 28px row / 8px x / 2px y / 12px text / 8px gap / 4px panel. Normal app styling: 36px / 10px / 6px / 14px / 12px / 6px. Unset keeps stock standalone defaults (36 / 8 / 6 / 14 / 12 / 4). `animate_entry(false)` suppresses entry motion. `row_hover_foreground(color)` pairs with `row_hover_bg` for hovered/focused/open-submenu rows, including built-in shortcut and icon colors; disabled rows keep their treatment. Presentation, action/dismissal and render callbacks propagate to submenus; selection remains scoped to each menu, as in the stock implementation; their own focus returns to the parent on Left/Escape. `sx` still styles the outer wrapper.
+
   The menu positions against the measured trigger: all eight placements flip
   to the side with more room when the preferred side cannot fit, keep a 12px
   cross-axis viewport inset, and cap the scroller to the available height with
@@ -489,8 +553,10 @@ ColorSlider labels/output, ColorPicker triggers, and ColorField display text use
 - **ColorSwatchPicker** — `value`, `size`, `shape`, `layout(SwatchLayout::{Grid,Stack})`, `on_change`
 
 ### Controls
-- **Slider** — `Slider::new(id, value).value().default_value().min_value().max_value().step().orientation().size(SliderSize).label().show_value().format_options().on_change(&f32).on_change_end(&f32)`. The multi-thumb form is `values(Vec<f32>)` + `on_change_all(&[f32])`; dragging moves whichever thumb is nearest, and `thumb(|index, value|)` is v3's `Slider.Thumb` render prop. `size(SliderSize)` is additive, not a v3 prop: `Md` (the default) is v3's geometry — a 20px rail, a 28x20-around-24x16 two-layer thumb and a 12px axis inset — while `Sm` is a 6px pill rail with an 8px inset and a single 12px round knob in the foreground colour. Labels and outputs use 14px text with a fixed 20px line height.
-- **Switch** — `is_selected`, `size`, `hover_bg(color)`, `is_disabled`, `is_read_only`, `is_invalid`, `is_required`, `label(el)`, `on_change(&bool)` / `on_press`. v3's `value` is the form-submission value, not the state, so there is no builder for it. Content uses 14px text with 20px lines; the built-in label uses 16px text with 24px lines.
+- **Slider** — `Slider::new(id, value).value().default_value().min_value().max_value().step().orientation().size(SliderSize).label().show_value().format_options().recipe("name").on_change(&f32).on_change_end(&f32)`. `recipe` stacks `Theme.components.slider` overlays; a theme `radius` reaches the track, thumb layers and caps, with instance `sx` corners still winning per corner. The multi-thumb form is `values(Vec<f32>)` + `on_change_all(&[f32])`; dragging moves whichever thumb is nearest, and `thumb(|index, value|)` is v3's `Slider.Thumb` render prop. `size(SliderSize)` is additive, not a v3 prop: `Md` (the default) is v3's geometry — a 20px rail, a 28x20-around-24x16 two-layer thumb and a 12px axis inset — while `Sm` is a 6px pill rail with an 8px inset and a single 12px round knob in the foreground colour. Labels and outputs use 14px text with a fixed 20px line height.
+  - Native seek extensions: `continuous(true)` disables pointer snapping and uses 1% arrow / 10% page keyboard increments. `steps(iter)` snaps to sorted, deduplicated finite points inside min/max; arrows visit adjacent points and ties choose the lower point. No usable points falls back to continuous movement. `step`, `continuous` and `steps` replace the preceding mode; stock remains `step(1.0)`. `on_drag_start(|window, cx| ..)` precedes the first pointer write; `on_drag_end(|window, cx| ..)` follows `on_change_end` on left release, including outside the track and unchanged clicks. Keyboard changes only call the change callbacks. Single-thumb mode allocates no unused range value state. Pixel corners supplied by `sx` reach the track, fill, edge caps and both Md thumb layers; `sx(|el| el.rounded_full())` rounds the painted perimeter. Joined single-thumb cap/fill edges stay square under supplied corners; no-sx and range fill geometry is unchanged.
+
+- **Switch** — `is_selected`, `size`, `hover_bg(color)`, `recipe("name")` (stacks `Theme.components.switch` overlays; theme `radius` reaches track and thumb), `is_disabled`, `is_read_only`, `is_invalid`, `is_required`, `label(el)`, `on_change(&bool)` / `on_press`. v3's `value` is the form-submission value, not the state, so there is no builder for it. Content uses 14px text with 20px lines; the built-in label uses 16px text with 24px lines.
 
 ### Data Display
 - **Badge** — `BadgeAnchor::new()` is v3's `Badge.Anchor`, the positioning wrapper whose children are the anchored element plus the `Badge::new().variant(BadgeVariant::{Primary,Secondary,Soft}).color().size().text_size(px).radius(px).placement(BadgePlacement)` composed as a later child. `BadgeLabel::new()` is the `px-0.5` text slot — v3 auto-wraps plain text children in it, which GPUI cannot intercept, so the wrap is explicit. No children on the badge is v3's dot badge, and the page-background ring stays unconditional. `radius` is the same per-component repository extension as `Button::radius`, not the removed v2 prop: the size step (`small_radius`/`control_radius`/`soft_radius`) stays the fallback, so an un-overridden badge keeps its step.
@@ -561,7 +627,7 @@ The geometry is pure and testable: `calendar_view::{page, aligned_anchor,
 week_start, month_headings, linear_cells, range_heading, year_page}`.
 
 ### Forms
-- **Input** — `InputState {value,cursor,anchor,focus_handle}`, `variant(FieldVariant)`, `label`, `placeholder`, `description`, `error_message`, `start/end_content`, `full_width`, `is_clearable`, `clear_hover_bg(color)`, `is_required`, `is_disabled`, `is_read_only`, `is_invalid`, `on_change(&str)`, `on_submit(&str)`. Text adornments inherit the field's 14px text and 20px line height. Labels use 14px/20px and descriptions/errors use 12px/16px, independent of host leading. Platform text replacement, composition updates, and paste preserve selection, filtering, and change callbacks. Enter during composition does not submit the field.
+- **Input** — `InputState {value,cursor,anchor,focus_handle}`, `variant(FieldVariant)`, `label`, `placeholder`, `description`, `error_message`, `start/end_content`, `full_width`, `text_size(px)`, `radius(px)`, `recipe("name")` (stacks `Theme.components.text_field` recipes), `is_clearable`, `clear_hover_bg(color)`, `is_required`, `is_disabled`, `is_read_only`, `is_invalid`, `on_change(&str)`, `on_submit(&str)`. Text adornments inherit the field's 14px text and 20px line height. Labels use 14px/20px and descriptions/errors use 12px/16px, independent of host leading. Platform text replacement, composition updates, and paste preserve selection, filtering, and change callbacks. Enter during composition does not submit the field.
   - `input_type(InputType::{Text,Password,Email,Number,Tel,Url,Search})` — `Password` masks, `Number` filters keystrokes
   - `max_length` (enforced while typing), `min_length`, `min`, `max`, `step`, `pattern(fn)`
   - `validity(&str) -> InputValidity` — a pure query; feed the result back through `is_invalid` / `error_message`
@@ -571,9 +637,9 @@ week_start, month_headings, linear_cells, range_heading, year_page}`.
   - `font_family(name)` — the family the value, placeholder and caret measurement use (a monospace token field). The field's own text layout captures the font during `render`, before any element's text style is pushed, so the family is threaded into that captured font as well as set on the box.
   - `radius(px)` — replaces the box's corner radius. Not a v3 prop; it is the same per-component repository extension as `Button::radius`, and the box and shared field chrome use the same resolved radius. A bare or grouped box retains it without painting its own chrome.
   - The same `height(px)`, `padding_x(px)` and `is_bare(bool)` builders now reach the rest of the single-line family: `SearchField`, `NumberField`, `TimeField`, `DateField` and `ColorField` (both its static display box and the editable path, which forwards them to the inner `Input`). Each defaults to the stock 36px box, `px-3` inset and full chrome; a bare field keeps its geometry, editing and focus, and drops only the paint.
-- **TextField** — the labelled wrapper around `Input`; forwards `start_content`, `height`, `padding_x`, `is_bare` and `font_family`
+- **TextField** — the labelled wrapper around `Input`; forwards `start_content`, `height`, `padding_x`, `is_bare`, `font_family`, `text_size`, `radius` and `recipe`
 - **TextArea** — genuinely multi-line: one wrapping paragraph per newline, Enter inserts a newline, and the caret sits in the line it belongs to. Platform composition and paste use the shared Input handler; Enter confirms active composition before inserting a newline. Label/helper/error typography follows the shared Input wrapper (14px/20px labels; 12px/16px helper and error text). gpui wraps text by default (`WhiteSpace::Normal`); it is the single-line field that opts out with `whitespace_nowrap`. `rows`, `variant`, `full_width`, `max_length`, `min_length`, the validation flags, `on_change`, plus `padding_x`, `is_bare` and `font_family` forwarded to the inner field (`height` is not: the box grows with its content from the `rows` floor)
-- **SearchField** — Input with a magnifier and clear action; labels use 14px/20px and helper/error text uses 12px/16px via the shared Input wrapper. `on_clear`, `is_required`, `is_read_only`, `is_invalid`
+- **SearchField** — Input with a magnifier and clear action; labels use 14px/20px and helper/error text uses 12px/16px via the shared Input wrapper. `recipe("name")`, `text_size(px)`, `radius(px)`, `on_clear`, `is_required`, `is_read_only`, `is_invalid`
 - **NumberField** — `format_options(NumberFormat)`, `NumberState {value,min,max,step,input}`, `hide_steppers`, `on_change(&f64)`
   - Group text and text slots use 14px text with a 20px line height, independent of parent leading.
 - **InputOTP** — `OtpState::with_length(cx, n)`, `separator`, `slot_hover_bg(color)`, `radius(px)`, `on_complete(&str)`. Custom slot content inherits 14px/20px text; the built-in digits use 18px/24px text. `radius` is the same per-component repository extension as `Button::radius`, not the removed v2 prop, and every slot in the row takes it in place of the field radius; the caret and the group separator keep their own smaller radius.
@@ -629,7 +695,8 @@ Modal, Drawer, and AlertDialog cover the window even inside clipped or positione
 - **Autocomplete** — `Autocomplete::new(state, items).placement(Placement).max_items().radius(px).on_selection_change()` — filters while focused. Items are `PickerItem::new(key, label)`: v3 keeps a stable `Key` separate from the visible `textValue`, so `value` / `defaultValue` / `disabledKeys`, the selection callbacks and the form value address items by key, while filtering and the trigger's visible text use labels — duplicate labels never alias each other's selection or row. Value, option and empty-result text uses 14px/20px metrics; section headers use 12px/16px medium text. The popup anchors to the measured trigger with an 8px gap, flipping to the side with more room when the preferred side cannot fit and keeping a 12px cross-axis viewport inset with the scroller capped to the available height; the search stays visible while the inner list scrolls and shrinks to the available height within the upstream 320px max, and virtual paging follows the visible list height. `radius` is the same per-component repository extension as `Button::radius`, not the removed v2 prop, and it is the detached panel's corner — the panel's entry zoom interpolates the same value — while the trigger keeps the shared field chrome's own field radius.
   - `filter(fn(item_label, input) -> bool)` replaces the default case-insensitive substring match and owns the whole decision, including what an empty query means; `input_value` / `on_input_change` for a controlled query; `on_clear` is only the after-clear callback — the clear affordance is always mounted with the trigger, invisible and inert while the selection is empty or the field is disabled, and still working when read-only.
 - **ComboBox** — `ComboBox::new(state, items).is_open().placement(Placement).menu_trigger(MenuTrigger::{Input,Manual,Focus}).allows_custom_value().max_items().radius(px).on_selection_change().on_open_change()` — items are keyed `PickerItem::new(key, label)`s: the selection, `disabledKeys`, the callbacks and the form value address items by key, while filtering and the input text use labels. `selected_keys(keys)` is the controlled ordered selection; `selected_key(key)` the single-key spelling (the empty string is v3's `null`). A committed custom value keeps the typed text and reports a null selected key — as an empty `on_selection_change_all` slice, and only when a selection actually existed; `form_value(ComboBoxFormValue::{Key,Text})` chooses what a named field submits (key by default — an empty selection still submits one empty value — and text under `allowsCustomValue`). Value, option and empty-result text uses 14px/20px metrics; section headers use 12px/16px medium text. When the preferred side cannot fit the popup, it flips to the side with more room, keeping a 12px cross-axis viewport inset with the scroller capped to the available height; plain and virtual lists use the available height with an 8px field gap, and wheel input stays in the list. `radius` is the same per-component repository extension as `Button::radius`, not the removed v2 prop, and it is the detached panel's corner — the panel's entry zoom interpolates the same value — while the trigger is the inner `Input`'s box and keeps the shared field chrome's own field radius.
-- **Select** — `Select::new(id, options).value(..).is_open().placement(Placement).variant().full_width().disabled_keys().is_invalid().is_required().radius(px).on_selection_change()/.on_change().on_open_change()`; `selection_mode(SelectionMode::Multiple)` with `selected_keys()` + `on_selection_change_all()`. `row_height(px)` is `ListLayout`'s `rowHeight` and what virtualizes the popup list through `uniform_list`: every option is exactly that tall, including the option box inside the row (it does not keep the 36px `.list-box-item` floor a plain list has). Enter and Space commit the highlighted option in single mode; if the selection callback closes the controlled popup, key release keeps it closed and leaves focus on the trigger. Value and option text uses 14px/20px metrics; section headers use 12px/16px medium text. `full_width(true)` expands both the root and trigger to the available container width. When the preferred side cannot fit the popup, it flips to the side with more room, keeping a 12px cross-axis viewport inset with the scroller capped to the available height; plain and virtual lists use the available height with an 8px trigger gap. `radius` is the same per-component repository extension as `Button::radius`, not the removed v2 prop, and it is the detached panel's corner — the panel's entry zoom interpolates the same value — while the trigger keeps the shared field chrome's own field radius. `clear_button(SelectClearButton::new().child(content).on_click(callback))` composes an optional clear control; omit `child` for the default icon. `on_clear(callback)` reports clearing after the selection callback. It clears the whole selection, including required fields; controlled owners receive the request without losing ownership. Backspace/Delete work only on a nonempty, enabled, closed trigger with a clear part composed. Empty controls retain layout space and do not intercept clicks.
+- **Select** — `Select::new(id, options).value(..).is_open().placement(Placement).variant().full_width().disabled_keys().is_invalid().is_required().radius(px).recipe("name").on_selection_change()/.on_change().on_open_change()` (`recipe` stacks `Theme.components.select` recipes); `selection_mode(SelectionMode::Multiple)` with `selected_keys()` + `on_selection_change_all()`. `row_height(px)` is `ListLayout`'s `rowHeight` and what virtualizes the popup list through `uniform_list`: every option is exactly that tall, including the option box inside the row (it does not keep the 36px `.list-box-item` floor a plain list has). Enter and Space commit the highlighted option in single mode; if the selection callback closes the controlled popup, key release keeps it closed and leaves focus on the trigger. Value and option text uses 14px/20px metrics; section headers use 12px/16px medium text. `full_width(true)` expands both the root and trigger to the available container width. When the preferred side cannot fit the popup, it flips to the side with more room, keeping a 12px cross-axis viewport inset with the scroller capped to the available height; plain and virtual lists use the available height with an 8px trigger gap. `radius` is the same per-component repository extension as `Button::radius`, not the removed v2 prop, and it is the detached panel's corner — the panel's entry zoom interpolates the same value — while the trigger keeps the shared field chrome's own field radius. `clear_button(SelectClearButton::new().child(content).on_click(callback))` composes an optional clear control; omit `child` for the default icon. `on_clear(callback)` reports clearing after the selection callback. It clears the whole selection, including required fields; controlled owners receive the request without losing ownership. Backspace/Delete work only on a nonempty, enabled, closed trigger with a clear part composed. Empty controls retain layout space and do not intercept clicks.
+  - Compact parts: `trigger_text_size(px(12.))`, `row_text_size(px(12.))`, `panel_padding(px(4.))`; defaults stay 14px, 14px and 6px. Panel entry/exit uses the configured padding. Only the active single/multiple selection axis owns state; a single controlled select needs only `value`, a multiple controlled select only `selected_keys`.
   - The collection box seam: `Select` and `Autocomplete` accept `height(px)`, `padding_x(px)` and `is_bare(bool)` on the trigger, and every collection (`Select`, `ComboBox`, `Autocomplete`, `ListBox`) accepts `row_padding_x(px)` / `row_padding_y(px)` for its option rows and `row_hover_bg(color)` for the fill a hovered row takes. `Select`, `ComboBox` and `Autocomplete` also accept `row_font_family(name)` for their detached popover rows, which do not inherit the trigger's font. Defaults are the stock metrics (`8/6` on ComboBox and ListBox, `10/6` on Select and Autocomplete). An explicit `height` fixes the trigger box, so content taller than it overflows; unset keeps the 36px minimum and grows with content; `ComboBox` forwards its three trigger builders to the inner `Input`, and `is_bare` drops only the paint while the list still opens and selects.
 
 ### Typography

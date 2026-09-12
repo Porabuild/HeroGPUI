@@ -8,7 +8,7 @@
 
 use gpui::{
     div, prelude::*, AnyElement, App, ClickEvent, Div, ElementId, InteractiveElement, IntoElement,
-    ParentElement, Pixels, RenderOnce, SharedString, Stateful, Styled, Window,
+    ParentElement, Pixels, Refineable, RenderOnce, SharedString, Stateful, Styled, Window,
 };
 use herogpui_core::{element_id, Size, Variant};
 use herogpui_theme::ActiveTheme;
@@ -74,6 +74,7 @@ pub struct Button {
     /// The corner radius, in place of `--radius-3xl` (capped). Group edges and
     /// the press scale still apply.
     radius: Option<Pixels>,
+    recipes: Vec<SharedString>,
 }
 
 impl Button {
@@ -98,6 +99,7 @@ impl Button {
             sx: None,
             hover_bg: None,
             radius: None,
+            recipes: Vec::new(),
         }
     }
 
@@ -183,6 +185,13 @@ impl Button {
         self
     }
 
+    /// Named theme overlay from [`herogpui_theme::ComponentThemes::button`].
+    /// Stackable; a missing name adds no override.
+    pub fn recipe(mut self, name: impl Into<SharedString>) -> Self {
+        self.recipes.push(name.into());
+        self
+    }
+
     /// Joins this button to a group edge. Internal: a caller reaches it by
     /// putting the button in a [`crate::button_group::ButtonGroup`].
     pub(crate) fn group_edge(mut self, edge: GroupEdge, vertical: bool) -> Self {
@@ -201,9 +210,11 @@ impl Button {
     ) -> Self {
         if !self.variant_is_set {
             self.variant = variant;
+            self.variant_is_set = true;
         }
         if !self.size_is_set {
             self.size = size;
+            self.size_is_set = true;
         }
         if !self.is_disabled_is_set {
             self.is_disabled = is_disabled;
@@ -536,7 +547,7 @@ fn group_radius(
 }
 
 impl RenderOnce for Button {
-    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(mut self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         // The handle that says whether this button holds the focus.
         // `use_keyed_state` takes `cx` mutably, so it precedes the tokens.
         let focus_handle = util::tab_stop_handle(element_id::scoped(&self.id, "focus"), window, cx);
@@ -547,6 +558,39 @@ impl RenderOnce for Button {
             .as_ref()
             .map(|_| util::interaction(element_id::scoped(&self.id, "interaction"), window, cx));
         let layout = cx.layout();
+        let button_theme = cx.theme().components.button.resolve(&self.recipes);
+        if !self.variant_is_set {
+            if let Some(variant) = button_theme.variant {
+                self.variant = variant;
+            }
+        }
+        if !self.size_is_set {
+            if let Some(size) = button_theme.size {
+                self.size = size;
+            }
+        }
+        self.radius = self.radius.or(button_theme.radius);
+        if self.hover_bg.is_none() {
+            self.hover_bg = button_theme
+                .hover_bg
+                .map(|color| color.resolve(cx.colors()));
+        }
+        let theme_style = button_theme.style.map(Box::new);
+        let theme_bg = button_theme
+            .background
+            .map(|color| color.resolve(cx.colors()));
+        let theme_fg = button_theme
+            .foreground
+            .map(|color| color.resolve(cx.colors()));
+        let theme_hover_fg = button_theme
+            .hover_foreground
+            .map(|color| color.resolve(cx.colors()));
+        let theme_pressed_bg = button_theme
+            .pressed_bg
+            .map(|color| color.resolve(cx.colors()));
+        let theme_disabled_fg = button_theme
+            .disabled_foreground
+            .map(|color| color.resolve(cx.colors()));
         // Copied out: `hover_fade` below takes `&mut App`, and holding the
         // `layout` borrow across it would be a second borrow of `cx`.
         let disabled_opacity = layout.disabled_opacity;
@@ -567,8 +611,13 @@ impl RenderOnce for Button {
         // while an `sx` background on its own replaces *both* endpoints —
         // the fill the fade draws would otherwise paint the variant colour
         // back over the override.
-        let sx_background = util::sx_background(&self.sx);
-        let sx_size = util::sx_pixel_size(&self.sx);
+        let sx_background = util::sx_background(&self.sx).or(theme_bg);
+        let instance_size = util::sx_pixel_size(&self.sx);
+        let theme_size = util::sx_pixel_size(&theme_style);
+        let sx_size = gpui::Size {
+            width: instance_size.width.or(theme_size.width),
+            height: instance_size.height.or(theme_size.height),
+        };
         let sx_corners = util::sx_radius(&self.sx);
         // The resting box, the hover fade's fill and the press box all take
         // the same resolved corner, so it is resolved once.
@@ -752,6 +801,23 @@ impl RenderOnce for Button {
             el = el.opacity(disabled_opacity);
         }
 
+        if let Some(style) = &theme_style {
+            el.style().refine(style);
+        }
+        if let Some(foreground) = theme_fg {
+            el = el.text_color(foreground);
+        }
+        if let Some(foreground) = theme_hover_fg {
+            el = el.hover(move |style| style.text_color(foreground));
+        }
+        if let Some(background) = theme_pressed_bg {
+            el = el.active(move |style| style.bg(background));
+        }
+        if (self.is_disabled || self.is_pending)
+            && let Some(foreground) = theme_disabled_fg
+        {
+            el = el.text_color(foreground);
+        }
         el = util::apply_sx(el, &self.sx);
         el.into_any_element()
     }

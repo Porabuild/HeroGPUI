@@ -159,8 +159,7 @@ fn keyboard_dropdown_keeps_ring_after_escape(cx: &mut TestAppContext) {
 #[gpui::test]
 fn pointer_then_arrow_switches_to_keyboard(cx: &mut TestAppContext) {
     still();
-    let opened = events();
-    let log = opened.clone();
+    let log = events();
     let cx = open_host(cx, move || {
         let log = log.clone();
         Dropdown::uncontrolled(

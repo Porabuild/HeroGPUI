@@ -136,10 +136,12 @@ export default async function ComponentPage({ params }: ComponentPageProps) {
         <section aria-labelledby="customization">
           <h2 id="customization">Customization</h2>
           <p className="mt-2 text-sm text-muted">
-            Typed builders that change how {component.title} looks, plus one slot for everything
-            else: every builder carries <code>sx</code>, which takes GPUI&apos;s own styling methods
-            and refines them over the component&apos;s root element after the theme&apos;s values,
-            so an override wins. Behaviour builders live in the API reference below.
+            Shared appearance belongs on <code>ThemeBuilder::components</code> and{" "}
+            <code>.recipe(&quot;name&quot;)</code>. Typed builders change how {component.title} looks
+            at one call site. Every builder also carries <code>sx</code> for placement, width and
+            flex: it takes GPUI&apos;s own styling methods and refines them over the component&apos;s
+            root after the theme, so an instance override wins. Behaviour builders live in the API
+            reference below.
           </p>
           <h3 id="styling-reference">Styling</h3>
           <div className="mt-4">

@@ -393,3 +393,242 @@ fn small_default_thumb_is_a_single_pill_layer() {
         "Sm's fill must be a pill"
     );
 }
+
+#[gpui::test]
+fn md_sx_corners_reach_inner_mark_and_clipped_caps(cx: &mut TestAppContext) {
+    for vertical in [false, true] {
+        for rounding in 0..3 {
+            let cx = open_host(cx, move || {
+                let slider = Slider::new("painted-corners", 100.).orientation(if vertical {
+                    herogpui_core::Orientation::Vertical
+                } else {
+                    herogpui_core::Orientation::Horizontal
+                });
+                let slider = match rounding {
+                    1 => slider.sx(|el| el.rounded_full()),
+                    2 => slider.sx(|el| el.rounded_tl(px(3.))),
+                    _ => slider,
+                };
+                gpui::div().w(px(600.)).child(slider).into_any_element()
+            });
+            let (quads, scale, key_radius) = cx.update(|window, cx| {
+                (
+                    window.painted_quads(),
+                    window.scale_factor(),
+                    f32::from(herogpui_components::util::key_radius(cx)),
+                )
+            });
+            let close = |a: f32, b: f32| (a - b).abs() < 0.05;
+            let inner = quads
+                .iter()
+                .find(|quad| {
+                    close(
+                        quad.bounds.size.width.0 / scale,
+                        if vertical { 16. } else { 24. },
+                    ) && close(
+                        quad.bounds.size.height.0 / scale,
+                        if vertical { 24. } else { 16. },
+                    )
+                })
+                .expect("Md inner mark must paint");
+            let expected = match rounding {
+                1 => [8.; 4],
+                2 => [
+                    3.,
+                    key_radius.min(8.),
+                    key_radius.min(8.),
+                    key_radius.min(8.),
+                ],
+                _ => [key_radius.min(8.); 4],
+            };
+            assert_painted_corners(inner, scale, expected);
+            for at_start in [false, true] {
+                let length = if rounding == 0 { 12. } else { 20. };
+                let offset = if vertical == at_start {
+                    (if vertical { 160. } else { 600. }) - length
+                } else {
+                    0.
+                };
+                let cap = quads
+                    .iter()
+                    .find(|quad| {
+                        close(
+                            quad.bounds.size.width.0 / scale,
+                            if vertical { 20. } else { length },
+                        ) && close(
+                            quad.bounds.size.height.0 / scale,
+                            if vertical { length } else { 20. },
+                        ) && close(
+                            (if vertical {
+                                quad.bounds.origin.y
+                            } else {
+                                quad.bounds.origin.x
+                            })
+                            .0 / scale,
+                            offset,
+                        )
+                    })
+                    .expect("cap must paint at the corresponding track edge");
+                let mut expected = [0.; 4];
+                let indices = match (vertical, at_start) {
+                    (false, true) => [0, 3],
+                    (false, false) => [1, 2],
+                    (true, true) => [2, 3],
+                    (true, false) => [0, 1],
+                };
+                for index in indices {
+                    expected[index] = if rounding == 1 {
+                        10.
+                    } else if rounding == 2 && index == 0 {
+                        3.
+                    } else {
+                        6.
+                    };
+                }
+                assert_painted_corners(cap, scale, expected);
+                let visible = cap.bounds.intersect(&cap.content_mask.bounds);
+                let extent = if vertical {
+                    visible.size.height
+                } else {
+                    visible.size.width
+                };
+                assert!(
+                    close(extent.0 / scale, 12.),
+                    "corner expansion must not widen cap coverage"
+                );
+            }
+        }
+    }
+}
+
+fn assert_painted_corners(quad: &gpui::Quad, scale: f32, expected: [f32; 4]) {
+    let corners = quad.corner_radii;
+    for (actual, expected) in [
+        corners.top_left,
+        corners.top_right,
+        corners.bottom_right,
+        corners.bottom_left,
+    ]
+    .into_iter()
+    .zip(expected)
+    {
+        assert!(
+            (actual.0 / scale - expected).abs() < 0.05,
+            "painted corner {} must match {expected}",
+            actual.0 / scale
+        );
+    }
+}
+
+#[gpui::test]
+fn single_thumb_fill_cap_joins_are_square_only_with_sx_corners(cx: &mut TestAppContext) {
+    for vertical in [false, true] {
+        for small in [false, true] {
+            for range in [false, true] {
+                for rounded in [false, true] {
+                    for value in [50., 100.] {
+                        let cx = open_host(cx, move || {
+                            let mut slider = Slider::new("fill-joins", value)
+                                .size(if small {
+                                    herogpui_components::SliderSize::Sm
+                                } else {
+                                    herogpui_components::SliderSize::Md
+                                })
+                                .orientation(if vertical {
+                                    herogpui_core::Orientation::Vertical
+                                } else {
+                                    herogpui_core::Orientation::Horizontal
+                                });
+                            if range {
+                                slider = slider.values([0., value]);
+                            }
+                            if rounded {
+                                slider = slider.sx(|el| el.rounded_full());
+                            }
+                            gpui::div().w(px(600.)).child(slider).into_any_element()
+                        });
+                        let (quads, scale) =
+                            cx.update(|window, _| (window.painted_quads(), window.scale_factor()));
+                        let inset = if small { 8. } else { 12. };
+                        let cross = if small { 6. } else { 20. };
+                        let extent = if vertical { 160. } else { 600. };
+                        let length = (extent - 2. * inset) * value / 100.;
+                        let origin = if vertical {
+                            extent - inset - length
+                        } else {
+                            inset
+                        };
+                        let near = |a: f32, b: f32| (a - b).abs() < 0.05;
+                        let fill = quads
+                            .iter()
+                            .find(|quad| {
+                                let b = quad.bounds;
+                                near(
+                                    b.size.width.0 / scale,
+                                    if vertical { cross } else { length },
+                                ) && near(
+                                    b.size.height.0 / scale,
+                                    if vertical { length } else { cross },
+                                ) && near(
+                                    (if vertical { b.origin.y } else { b.origin.x }).0 / scale,
+                                    origin,
+                                )
+                            })
+                            .expect("value fill must paint");
+                        let radius = if rounded || small { cross / 2. } else { 0. };
+                        let mut expected = [radius; 4];
+                        if rounded && !range {
+                            for index in if vertical { [2, 3] } else { [0, 3] } {
+                                expected[index] = 0.;
+                            }
+                            if value > 99. {
+                                expected = [0.; 4];
+                            }
+                            // The clipped cap and fill meet at the exact inset,
+                            // with full cross-axis coverage and no overlap gap.
+                            let cap = quads
+                                .iter()
+                                .find(|quad| {
+                                    let b = quad.bounds.intersect(&quad.content_mask.bounds);
+                                    near(
+                                        (if vertical {
+                                            b.size.height
+                                        } else {
+                                            b.size.width
+                                        })
+                                        .0 / scale,
+                                        inset,
+                                    ) && near(
+                                        (if vertical {
+                                            b.size.width
+                                        } else {
+                                            b.size.height
+                                        })
+                                        .0 / scale,
+                                        cross,
+                                    ) && near(
+                                        (if vertical { b.origin.y } else { b.origin.x }).0 / scale,
+                                        if vertical { extent - inset } else { 0. },
+                                    )
+                                })
+                                .expect("start cap must cover the strip adjoining the fill");
+                            let cap = cap.bounds.intersect(&cap.content_mask.bounds);
+                            let join = if vertical {
+                                fill.bounds.origin.y.0 + fill.bounds.size.height.0
+                            } else {
+                                cap.origin.x.0 + cap.size.width.0
+                            };
+                            let other = if vertical {
+                                cap.origin.y.0
+                            } else {
+                                fill.bounds.origin.x.0
+                            };
+                            assert!(near(join, other), "cap/fill bounds must abut");
+                        }
+                        assert_painted_corners(fill, scale, expected);
+                    }
+                }
+            }
+        }
+    }
+}

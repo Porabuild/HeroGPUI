@@ -12,6 +12,7 @@ import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from component_source import list_modules, module_exists, read_module, read_path
+from design_audit import contextual_metric_from
 
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -265,36 +266,12 @@ def method_argument_count(signature):
     return count - int(first.startswith(("self", "mut self", "&self", "&mut self")))
 
 
-def rust_blocks_after(source, marker):
-    """Yield balanced Rust blocks whose opening statement contains marker."""
-    for match in re.finditer(re.escape(marker), source):
-        opening = source.find("{", match.end())
-        if opening < 0:
-            continue
-        depth = 1
-        index = opening + 1
-        while index < len(source) and depth:
-            if source[index] == "{":
-                depth += 1
-            elif source[index] == "}":
-                depth -= 1
-            index += 1
-        if depth == 0:
-            yield source[opening + 1 : index - 1]
-
-
 def dropdown_context_value(source, selector):
-    """Read the numeric proof for one Dropdown-only nested override."""
+    """Share the design audit's proof for the consumed composition fallback."""
     if selector.endswith('[data-slot="dropdown-menu"]'):
-        pattern = r'panel\s*=\s*panel\.p\(px\(([0-9.]+)\.\)\)'
-    elif selector.endswith('[data-slot="menu-item"]'):
-        pattern = r'row\s*=\s*row\.px\(px\(([0-9.]+)\.\)\)'
-    else:
-        return None
-    for body in rust_blocks_after(source, "if dropdown_composition"):
-        match = re.search(pattern, body)
-        if match:
-            return float(match.group(1))
+        return contextual_metric_from(source, 'panel_padding', 'p')
+    if selector.endswith('[data-slot="menu-item"]'):
+        return contextual_metric_from(source, 'row_padding_x', 'px')
     return None
 
 

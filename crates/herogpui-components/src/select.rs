@@ -229,6 +229,7 @@ pub struct Select {
     placeholder: SharedString,
     description: Option<SharedString>,
     variant: FieldVariant,
+    variant_is_set: bool,
     is_disabled: bool,
     is_invalid: bool,
     /// `shouldFocusWrap` — whether the arrow keys wrap at the ends of the list.
@@ -237,6 +238,9 @@ pub struct Select {
     row_height: Option<Pixels>,
     /// Replaces the list rows' `px-2.5` horizontal padding.
     row_padding_x: Option<Pixels>,
+    trigger_text_size: Option<Pixels>,
+    row_text_size: Option<Pixels>,
+    panel_padding: Option<Pixels>,
     /// Replaces the list rows' `py-1.5` vertical padding.
     row_padding_y: Option<Pixels>,
     /// The fill a hovered option row takes, in place of `--default`.
@@ -271,6 +275,7 @@ pub struct Select {
     form_state: Rc<RefCell<crate::form::LiveFormFieldState>>,
     /// The `sx` slot, refined over the root style at the end of render.
     sx: Option<Box<gpui::StyleRefinement>>,
+    recipes: Vec<SharedString>,
 }
 
 impl Select {
@@ -383,6 +388,25 @@ impl Select {
     /// still opens and selects.
     pub fn is_bare(mut self, v: bool) -> Self {
         self.field.is_bare = v;
+        self.field.is_bare_is_set = true;
+        self
+    }
+
+    /// Overrides the trigger text size in pixels; unset preserves the stock metric.
+    pub fn trigger_text_size(mut self, value: impl Into<Pixels>) -> Self {
+        self.trigger_text_size = Some(value.into());
+        self
+    }
+
+    /// Overrides the row text size in pixels; unset preserves the stock metric.
+    pub fn row_text_size(mut self, value: impl Into<Pixels>) -> Self {
+        self.row_text_size = Some(value.into());
+        self
+    }
+
+    /// Overrides the panel padding in pixels; unset preserves the stock metric.
+    pub fn panel_padding(mut self, value: impl Into<Pixels>) -> Self {
+        self.panel_padding = Some(value.into());
         self
     }
 
@@ -454,11 +478,15 @@ impl Select {
             placeholder: "Select an item".into(),
             description: None,
             variant: FieldVariant::Primary,
+            variant_is_set: false,
             is_disabled: false,
             is_invalid: false,
             should_focus_wrap: false,
             row_height: None,
             row_padding_x: None,
+            trigger_text_size: None,
+            row_text_size: None,
+            panel_padding: None,
             row_padding_y: None,
             row_hover_bg: None,
             row_font_family: None,
@@ -477,6 +505,7 @@ impl Select {
             on_selection_change_all: None,
             form_state: live_form_state(),
             sx: None,
+            recipes: Vec::new(),
         }
     }
 
@@ -616,6 +645,14 @@ impl Select {
 
     pub fn variant(mut self, v: FieldVariant) -> Self {
         self.variant = v;
+        self.variant_is_set = true;
+        self
+    }
+
+    /// Named theme overlay from [`herogpui_theme::ComponentThemes::select`].
+    /// Stackable; a missing name adds no override.
+    pub fn recipe(mut self, name: impl Into<SharedString>) -> Self {
+        self.recipes.push(name.into());
         self
     }
 
@@ -679,22 +716,31 @@ impl RenderOnce for Select {
             true,
         );
         let overlay_active = overlay_phase != util::OverlayPhase::Closed;
-        let (selected, value_own) = util::controlled(
-            window,
-            cx,
-            element_id::scoped(&self.id, "value"),
-            self.is_controlled.then_some(self.selected.clone()),
-            self.default_value.clone(),
-        );
         let multiple = self.selection_mode == SelectionMode::Multiple;
-        let (selected_keys, indices_own) = util::controlled(
-            window,
-            cx,
-            element_id::scoped(&self.id, "values"),
-            self.is_multiple_controlled
-                .then(|| crate::selection::normalize_selection(self.selected_keys.clone(), true)),
-            crate::selection::normalize_selection(self.default_selected_keys.clone(), true),
-        );
+        let (selected, value_own) = if multiple {
+            (None, None)
+        } else {
+            util::controlled(
+                window,
+                cx,
+                element_id::scoped(&self.id, "value"),
+                self.is_controlled.then_some(self.selected.clone()),
+                self.default_value.clone(),
+            )
+        };
+        let (selected_keys, indices_own) = if multiple {
+            util::controlled(
+                window,
+                cx,
+                element_id::scoped(&self.id, "values"),
+                self.is_multiple_controlled.then(|| {
+                    crate::selection::normalize_selection(self.selected_keys.clone(), true)
+                }),
+                crate::selection::normalize_selection(self.default_selected_keys.clone(), true),
+            )
+        } else {
+            (Vec::new(), None)
+        };
         let form_default_keys = if multiple {
             let reset_keys = if self.is_multiple_controlled {
                 self.selected_keys.clone()
@@ -911,10 +957,38 @@ impl RenderOnce for Select {
         let sem = *cx.role(Color::Accent);
         let colors = cx.colors().clone();
         let layout = cx.layout().clone();
+        let select_theme = cx.theme().components.select.resolve(&self.recipes);
+        if !self.variant_is_set {
+            if let Some(variant) = select_theme.variant {
+                self.variant = variant;
+            }
+        }
+        self.field.height = self.field.height.or(select_theme.height);
+        self.field.padding_x = self.field.padding_x.or(select_theme.padding_x);
+        if !self.field.is_bare_is_set {
+            if let Some(is_bare) = select_theme.is_bare {
+                self.field.is_bare = is_bare;
+            }
+        }
+        self.trigger_text_size = self.trigger_text_size.or(select_theme.trigger_text_size);
+        self.row_height = self.row_height.or(select_theme.row_height);
+        self.row_padding_x = self.row_padding_x.or(select_theme.row_padding_x);
+        self.row_padding_y = self.row_padding_y.or(select_theme.row_padding_y);
+        self.row_text_size = self.row_text_size.or(select_theme.row_text_size);
+        self.panel_padding = self.panel_padding.or(select_theme.panel_padding);
+        self.radius = self.radius.or(select_theme.radius);
+        if self.row_hover_bg.is_none() {
+            self.row_hover_bg = select_theme
+                .row_hover_bg
+                .map(|color| color.resolve(&colors));
+        }
 
         // `.select__trigger` is `min-h-9 ... text-sm`.
         let field_box = self.field;
-        let (h, text) = (field_box.resolved_height(), util::FIELD_TEXT);
+        let (h, text) = (
+            field_box.resolved_height(),
+            self.trigger_text_size.unwrap_or(util::FIELD_TEXT),
+        );
 
         let trigger_id = element_id::scoped(&self.id, "trigger");
         let trigger_selector = format!("select-trigger-{}", id_debug(&self.id));
@@ -1681,7 +1755,7 @@ impl RenderOnce for Select {
                 .w_full()
                 .flex()
                 .flex_col()
-                .p(px(6.))
+                .p(self.panel_padding.unwrap_or(px(6.)))
                 .bg(colors.overlay.background)
                 .rounded(radius)
                 // v3 gives a floating panel no border: `.popover` and friends are
@@ -1783,6 +1857,7 @@ impl RenderOnce for Select {
             let on_close = self.on_open_change.clone();
             let base_row = base;
             let base_row_id = base_id.clone();
+            let row_text_size = self.row_text_size.unwrap_or(util::FIELD_TEXT);
             let row_padding_x = self.row_padding_x.unwrap_or(px(10.));
             let row_font_family = self.row_font_family.clone();
             let row_padding_y = self.row_padding_y.unwrap_or(px(6.));
@@ -1855,7 +1930,7 @@ impl RenderOnce for Select {
                         .px(row_padding_x)
                         .py(row_padding_y)
                         .gap(px(12.))
-                        .text_size(util::FIELD_TEXT)
+                        .text_size(row_text_size)
                         .line_height(px(20.));
                 if let Some(family) = row_font_family.clone() {
                     item = item.font_family(family);
@@ -2060,7 +2135,7 @@ impl RenderOnce for Select {
                 }
             }
 
-            let zoom = crate::anim::ZoomBox::panel(px(6.), radius);
+            let zoom = crate::anim::ZoomBox::panel(self.panel_padding.unwrap_or(px(6.)), radius);
             let panel = if overlay_phase == util::OverlayPhase::Exiting {
                 crate::anim::exiting(
                     panel,

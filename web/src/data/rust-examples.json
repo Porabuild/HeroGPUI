@@ -261,6 +261,12 @@
       "code": "Dropdown::uncontrolled(\n    \"dd-hover-trigger\",\n    Button::new(\"dropdown-hover\")\n        .label(\"Actions\")\n        .variant(Variant::Secondary),\n    plain(),\n)\n.row_hover_bg(cx.colors().accent.soft())"
     },
     {
+      "heading": "Standalone Compact Menu",
+      "description": "An embedded panel with 28px rows, 12px text and caller-owned dismissal. Its submenu inherits presentation and actions.",
+      "imports": "use herogpui::prelude::{ActiveTheme, Button, Dropdown, Menu, MenuItem};\nuse gpui::prelude::*;\nuse gpui::px;",
+      "code": "gpui::div()\n    .flex()\n    .flex_col()\n    .items_start()\n    .gap(px(12.))\n    .children(vec![\n        Button::new(\"dropdown-standalone-show\").label(\"Show menu\")\n            .on_press(cx.listener(|this, _, _, cx| { this.set_demo_flag(\"dd-standalone\", true); cx.notify(); })).into_any_element(),\n        if self.demo_flag(\"dd-standalone\", false) {\n            Menu::new(\"dropdown-standalone\", vec![MenuItem::new(\"tools\", \"Tools\")\n                .submenu(vec![MenuItem::new(\"copy\", \"Copy\")])])\n                .panel_min_width(px(180.)).panel_max_width(px(240.)).panel_max_height(px(160.))\n                .row_height(px(28.)).row_padding_x(px(8.)).row_padding_y(px(2.))\n                .row_text_size(px(12.)).row_gap(px(8.)).panel_padding(px(4.)).panel_gap(px(0.))\n                .animate_entry(false)\n                .row_hover_bg(cx.colors().accent.color)\n                .row_hover_foreground(cx.colors().accent.foreground)\n                .on_action(cx.listener(|this, key: &SharedString, _, cx| { this.dropdown_selected = Some(key.clone()); cx.notify(); }))\n                .on_dismiss(cx.listener(|this, _: &bool, _, cx| { this.set_demo_flag(\"dd-standalone\", false); cx.notify(); }))\n                .into_any_element()\n        } else { gpui::div().into_any_element() },\n    ])"
+    },
+    {
       "heading": "With Icons",
       "imports": "use herogpui::prelude::{Button, Dropdown, MenuItem, Variant, icons};",
       "code": "Dropdown::uncontrolled(\n    \"dd-icons-dd\",\n    Button::new(\"dropdown-icons\")\n        .label(\"File\")\n        .variant(Variant::Secondary),\n    vec![\n        MenuItem::new(\"new\", \"New file\").icon(icons::PLUS),\n        MenuItem::new(\"copy\", \"Copy\").icon(icons::COPY),\n        MenuItem::new(\"delete\", \"Delete\")\n            .icon(icons::CLOSE)\n            .danger(),\n    ],\n)\n.id(\"dropdown-icons-dd\")"
@@ -879,6 +885,12 @@
       "description": "A disabled slider keeps its value readable but answers no drag, wheel, or keys.",
       "imports": "use herogpui::prelude::Slider;\nuse gpui::prelude::*;\nuse gpui::px;",
       "code": "gpui::div()\n    .w(px(320.))\n    .child(Slider::new(\"slider-disabled\", 30.)\n            .default_value(30.)\n            .label(\"Volume\")\n            .show_value(true)\n            .is_disabled(true))"
+    },
+    {
+      "heading": "Native Seeking",
+      "description": "Continuous seeking brackets pointer updates with drag hooks; arbitrary presets retain keyboard navigation.",
+      "imports": "use herogpui::prelude::Slider;\nuse gpui::prelude::*;\nuse gpui::px;",
+      "code": "gpui::div()\n    .flex()\n    .flex_col()\n    .items_start()\n    .gap(px(12.))\n    .children(vec![\n        gpui::div()\n            .w(px(320.))\n            .child(Slider::new(\"slider-continuous\", 0.5)\n                    .default_value(0.5).max_value(1.).continuous(true)\n                    .sx(|el| el.rounded_full()).show_value(true)\n                    .label(if self.demo_flag(\"sl-seeking\", false) { \"Preview paused\" } else { \"Preview playing\" })\n                    .on_drag_start(move |_, cx| { let _ = seek_start.update(cx, |this, cx| { this.set_demo_flag(\"sl-seeking\", true); cx.notify(); }); })\n                    .on_drag_end(move |_, cx| { let _ = seek_end.update(cx, |this, cx| { this.set_demo_flag(\"sl-seeking\", false); cx.notify(); }); })),\n        gpui::div()\n            .w(px(320.))\n            .child(Slider::new(\"slider-presets\", 1.)\n                    .default_value(1.).min_value(0.25).max_value(2.)\n                    .steps([0.25, 0.5, 1., 1.5, 2.]).show_value(true)),\n    ])"
     },
     {
       "heading": "Sizes",
@@ -3589,9 +3601,9 @@
     },
     {
       "heading": "Box Customisation",
-      "description": "`height`, `padding_x` and `is_bare` size the trigger; `row_padding_x` / `row_padding_y` size its option rows. This 28px bare trigger opens over 16px-padded rows.",
+      "description": "`height`, `padding_x` and `is_bare` size the trigger; `row_padding_x` / `row_padding_y` size its option rows. This 28px bare trigger uses 12px trigger and row text, 8px row insets and 4px panel padding.",
       "imports": "use herogpui::prelude::{ActiveTheme, Select};\nuse gpui::px;",
-      "code": "Select::new(\"select-custom-box\", language_items())\n    .label(\"Compact\")\n    .placeholder(\"Choose one\")\n    .height(px(28.))\n    .padding_x(px(4.))\n    .is_bare(true)\n    .row_padding_x(px(16.))\n    .row_padding_y(px(2.))\n    .row_hover_bg(cx.colors().accent.soft())\n    .row_font_family(crate::app::MONO_FONT)\n    .default_open(true)"
+      "code": "Select::new(\"select-custom-box\", language_items())\n    .label(\"Compact\")\n    .placeholder(\"Choose one\")\n    .height(px(28.))\n    .padding_x(px(4.))\n    .is_bare(true)\n    .trigger_text_size(px(12.))\n    .row_text_size(px(12.))\n    .panel_padding(px(4.))\n    .row_height(px(28.))\n    .row_padding_x(px(8.))\n    .row_padding_y(px(2.))\n    .row_hover_bg(cx.colors().accent.soft())\n    .row_font_family(crate::app::MONO_FONT)\n    .default_open(true)"
     },
     {
       "heading": "Virtualization",

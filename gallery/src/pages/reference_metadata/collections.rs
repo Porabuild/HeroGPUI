@@ -190,7 +190,7 @@ const DROPDOWN_API: &[ApiDoc] = &[
         prop: "className",
         ty: "string",
         default: "—",
-        description: "Additional CSS classes for the menu.",
+        description: "Additional CSS classes for the menu. Standalone Menu provides panel sizing, row metrics, panel_gap and panel_padding builders; sx styles its outer wrapper.",
         rust_owner: "Menu",
         rust: "—",
         status: ImplementationStatus::Unavailable,

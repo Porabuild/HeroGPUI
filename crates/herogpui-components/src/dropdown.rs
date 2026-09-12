@@ -2,8 +2,9 @@
 //! `@heroui/listbox`.
 
 use gpui::{
-    px, AnyElement, App, Bounds, ClickEvent, InteractiveElement, IntoElement, ParentElement,
-    Pixels, RenderOnce, SharedString, StatefulInteractiveElement, Styled, Window,
+    prelude::FluentBuilder as _, px, AnyElement, App, Bounds, ClickEvent, InteractiveElement,
+    IntoElement, ParentElement, Pixels, RenderOnce, SharedString, StatefulInteractiveElement,
+    Styled, Window,
 };
 use herogpui_core::{element_id, SelectionMode};
 use herogpui_theme::ActiveTheme;
@@ -144,9 +145,23 @@ pub struct Menu {
     on_action: Option<OnSelect>,
     /// The fill a hovered menu row takes, in place of `--default`.
     row_hover_bg: Option<gpui::Hsla>,
+    row_hover_foreground: Option<gpui::Hsla>,
     /// The panel's corner radius, in place of the owning `container_radius`
     /// helper. [`Dropdown`] forwards its own override here.
     radius: Option<Pixels>,
+    panel_min_width: Option<Pixels>,
+    panel_max_width: Option<Pixels>,
+    panel_max_height: Option<Pixels>,
+    row_height: Option<Pixels>,
+    row_padding_x: Option<Pixels>,
+    row_padding_y: Option<Pixels>,
+    row_text_size: Option<Pixels>,
+    row_gap: Option<Pixels>,
+    panel_padding: Option<Pixels>,
+    panel_gap: Option<Pixels>,
+    animate_entry: bool,
+    animate_entry_is_set: bool,
+    focus_handle: Option<gpui::FocusHandle>,
     /// Set by `Dropdown`: the menu panel is where Escape and an outside press
     /// land, and the open state belongs to the wrapper. The `bool` says
     /// whether the trigger should take the focus back: Escape, an outside
@@ -164,6 +179,7 @@ pub struct Menu {
     panel_debug_label: Option<&'static str>,
     /// The `sx` slot, refined over the root style at the end of render.
     sx: Option<Box<gpui::StyleRefinement>>,
+    recipes: Vec<SharedString>,
 }
 
 impl Menu {
@@ -189,12 +205,27 @@ impl Menu {
             on_selection_change: None,
             on_action: None,
             row_hover_bg: None,
+            row_hover_foreground: None,
             radius: None,
+            panel_min_width: None,
+            panel_max_width: None,
+            panel_max_height: None,
+            row_height: None,
+            row_padding_x: None,
+            row_padding_y: None,
+            row_text_size: None,
+            row_gap: None,
+            panel_padding: None,
+            panel_gap: None,
+            animate_entry: true,
+            animate_entry_is_set: false,
+            focus_handle: None,
             on_dismiss: None,
             overlay_token: None,
             dropdown_composition: false,
             panel_debug_label: None,
             sx: None,
+            recipes: Vec::new(),
         }
     }
 
@@ -202,12 +233,105 @@ impl Menu {
     /// press outside the panel.
     ///
     /// Not a v3 prop: v3's `Dropdown.Menu` is inside the `Dropdown` that owns
-    /// `isOpen`, and React Aria's `useOverlay` closes it from there. Crate-only,
-    /// because only `Dropdown` can supply it. The `bool` is whether to return
+    /// `isOpen`, and React Aria's `useOverlay` closes it from there. Standalone
+    /// callers remove the menu in this callback. The `bool` is whether to return
     /// the focus to the trigger — see the field docs for why a key pick passes
     /// `false`.
-    pub(crate) fn on_dismiss(mut self, f: impl Fn(&bool, &mut Window, &mut App) + 'static) -> Self {
+    pub fn on_dismiss(mut self, f: impl Fn(&bool, &mut Window, &mut App) + 'static) -> Self {
         self.on_dismiss = Some(std::rc::Rc::new(f));
+        self
+    }
+
+    /// Overrides the panel min width in pixels, including submenus.
+    /// Unset preserves the stock metric.
+    pub fn panel_min_width(mut self, value: impl Into<Pixels>) -> Self {
+        self.panel_min_width = Some(value.into());
+        self
+    }
+
+    /// Overrides the panel max width in pixels, including submenus.
+    /// Unset preserves the stock metric.
+    pub fn panel_max_width(mut self, value: impl Into<Pixels>) -> Self {
+        self.panel_max_width = Some(value.into());
+        self
+    }
+
+    /// Overrides the panel max height in pixels, including submenus.
+    /// Unset preserves the stock metric.
+    pub fn panel_max_height(mut self, value: impl Into<Pixels>) -> Self {
+        self.panel_max_height = Some(value.into());
+        self
+    }
+
+    /// Overrides the row minimum height in pixels, including submenus.
+    /// Described rows may grow to fit their content.
+    /// Unset preserves the stock metric.
+    pub fn row_height(mut self, value: impl Into<Pixels>) -> Self {
+        self.row_height = Some(value.into());
+        self
+    }
+
+    /// Overrides the row padding x in pixels, including submenus.
+    /// Unset preserves the stock metric.
+    pub fn row_padding_x(mut self, value: impl Into<Pixels>) -> Self {
+        self.row_padding_x = Some(value.into());
+        self
+    }
+
+    /// Overrides the row padding y in pixels, including submenus.
+    /// Unset preserves the stock metric.
+    pub fn row_padding_y(mut self, value: impl Into<Pixels>) -> Self {
+        self.row_padding_y = Some(value.into());
+        self
+    }
+
+    /// Overrides the row text size in pixels, including submenus.
+    /// Unset preserves the stock metric.
+    pub fn row_text_size(mut self, value: impl Into<Pixels>) -> Self {
+        self.row_text_size = Some(value.into());
+        self
+    }
+
+    /// Overrides the row gap in pixels, including submenus.
+    /// Unset preserves the stock metric.
+    pub fn row_gap(mut self, value: impl Into<Pixels>) -> Self {
+        self.row_gap = Some(value.into());
+        self
+    }
+
+    /// Overrides the panel padding in pixels, including submenus.
+    /// Unset preserves the stock metric.
+    pub fn panel_padding(mut self, value: impl Into<Pixels>) -> Self {
+        self.panel_padding = Some(value.into());
+        self
+    }
+
+    /// Space between panel entries (default 2px), including submenus.
+    /// `row_gap` independently controls spacing inside each item.
+    pub fn panel_gap(mut self, gap: impl Into<Pixels>) -> Self {
+        self.panel_gap = Some(gap.into());
+        self
+    }
+
+    /// Whether the panel and its submenus play their entry animation (default true).
+    /// Exit animation and keyboard behavior are unchanged.
+    pub fn animate_entry(mut self, animate: bool) -> Self {
+        self.animate_entry = animate;
+        self.animate_entry_is_set = true;
+        self
+    }
+
+    /// Named theme overlay from [`herogpui_theme::ComponentThemes::menu`].
+    /// Stackable; a missing name adds no override.
+    pub fn recipe(mut self, name: impl Into<SharedString>) -> Self {
+        self.recipes.push(name.into());
+        self
+    }
+
+    /// Supplies the root menu's focus handle. Submenus own independent handles
+    /// and return focus here on Left/Escape. The menu still focuses on entry.
+    pub fn focus_handle(mut self, handle: gpui::FocusHandle) -> Self {
+        self.focus_handle = Some(handle);
         self
     }
 
@@ -297,6 +421,13 @@ impl Menu {
     /// The fill a hovered menu row takes, in place of `--default`.
     pub fn row_hover_bg(mut self, color: impl Into<gpui::Hsla>) -> Self {
         self.row_hover_bg = Some(color.into());
+        self
+    }
+
+    /// Paired highlight text/icon color for hovered, focused and open-submenu
+    /// rows. Disabled rows retain their disabled treatment. Forwarded to submenus.
+    pub fn row_hover_foreground(mut self, color: impl Into<gpui::Hsla>) -> Self {
+        self.row_hover_foreground = Some(color.into());
         self
     }
 
@@ -443,11 +574,14 @@ impl RenderOnce for Menu {
         });
         // The keyboard's own state: which row it is on, the handle that receives
         // the keys, and the letters typed so far.
-        let focus_handle =
-            window.use_keyed_state(element_id::scoped(&base_id, "focus"), cx, |_, cx| {
-                cx.focus_handle().tab_stop(true)
-            });
-        let focus_handle = focus_handle.read(cx).clone();
+        let focus_handle = self.focus_handle.clone().unwrap_or_else(|| {
+            window
+                .use_keyed_state(element_id::scoped(&base_id, "focus"), cx, |_, cx| {
+                    cx.focus_handle().tab_stop(true)
+                })
+                .read(cx)
+                .clone()
+        });
         let cursor = window.use_keyed_state(element_id::scoped(&base_id, "cursor"), cx, |_, _| {
             None::<usize>
         });
@@ -467,22 +601,23 @@ impl RenderOnce for Menu {
         // slots exist only when the closure is set: `track_interaction`'s
         // handlers cost a frame of state, and the closure is the only reader
         // (the press v3's `Dropdown.Item` render props document).
-        let interaction: Vec<crate::util::Interaction> = if self.item_content.is_some() {
-            (0..self.items.len())
-                .map(|i| {
-                    crate::util::interaction(
-                        element_id::scoped(
-                            &element_id::indexed(&base_id, "item", i),
-                            "interaction",
-                        ),
-                        window,
-                        cx,
-                    )
-                })
-                .collect()
-        } else {
-            Vec::new()
-        };
+        let interaction: Vec<crate::util::Interaction> =
+            if self.item_content.is_some() || self.row_hover_foreground.is_some() {
+                (0..self.items.len())
+                    .map(|i| {
+                        crate::util::interaction(
+                            element_id::scoped(
+                                &element_id::indexed(&base_id, "item", i),
+                                "interaction",
+                            ),
+                            window,
+                            cx,
+                        )
+                    })
+                    .collect()
+            } else {
+                Vec::new()
+            };
         // A menu takes focus when it opens, which is what makes the arrows work
         // without a click first. The one-shot re-arms while the menu plays its
         // exit, so a menu that reopens after a dismissal -- a pick or Escape
@@ -605,6 +740,31 @@ impl RenderOnce for Menu {
         // old panel locations.
 
         let colors = cx.colors();
+        let menu_theme = cx.theme().components.menu.resolve(&self.recipes);
+        self.panel_min_width = self.panel_min_width.or(menu_theme.panel_min_width);
+        self.panel_max_width = self.panel_max_width.or(menu_theme.panel_max_width);
+        self.panel_max_height = self.panel_max_height.or(menu_theme.panel_max_height);
+        self.panel_padding = self.panel_padding.or(menu_theme.panel_padding);
+        self.panel_gap = self.panel_gap.or(menu_theme.panel_gap);
+        self.row_height = self.row_height.or(menu_theme.row_height);
+        self.row_padding_x = self.row_padding_x.or(menu_theme.row_padding_x);
+        self.row_padding_y = self.row_padding_y.or(menu_theme.row_padding_y);
+        self.row_text_size = self.row_text_size.or(menu_theme.row_text_size);
+        self.row_gap = self.row_gap.or(menu_theme.row_gap);
+        self.radius = self.radius.or(menu_theme.radius);
+        if !self.animate_entry_is_set {
+            if let Some(animate) = menu_theme.animate_entry {
+                self.animate_entry = animate;
+            }
+        }
+        if self.row_hover_bg.is_none() {
+            self.row_hover_bg = menu_theme.row_hover_bg.map(|color| color.resolve(colors));
+        }
+        if self.row_hover_foreground.is_none() {
+            self.row_hover_foreground = menu_theme
+                .row_hover_foreground
+                .map(|color| color.resolve(colors));
+        }
         let row_hover_bg = self.row_hover_bg.unwrap_or(colors.default.color);
         let dropdown_composition = self.dropdown_composition;
         // The panel's entry zoom interpolates the panel's own radius, so one
@@ -613,6 +773,17 @@ impl RenderOnce for Menu {
             .radius
             .unwrap_or_else(|| crate::util::container_radius(cx));
 
+        let row_height = self.row_height.unwrap_or(px(36.));
+        let row_padding_x = self.row_padding_x.unwrap_or(if dropdown_composition {
+            px(10.)
+        } else {
+            px(8.)
+        });
+        let row_text_size = self.row_text_size.unwrap_or(px(14.));
+        let row_gap = self.row_gap.unwrap_or(px(12.));
+        let panel_padding =
+            self.panel_padding
+                .unwrap_or(if dropdown_composition { px(6.) } else { px(4.) });
         let panel = gpui::div()
             .relative()
             .flex()
@@ -620,13 +791,13 @@ impl RenderOnce for Menu {
             // `.dropdown__popover` is `md:min-w-55` (220px) and the menu inside
             // it is `gap-0.5 p-1` -- `.dropdown__menu` overrides `.menu`'s
             // `gap-1` with half a step.
-            .min_w(px(220.))
+            .min_w(self.panel_min_width.unwrap_or(px(220.)))
             // `max-w-[48svw]`. Without a ceiling a described row's copy set
             // the menu's width outright, so a long description could widen the
             // popover across half the window.
-            .max_w(window.viewport_size().width * 0.48)
-            .gap(px(2.))
-            .p(px(4.))
+            .max_w(self.panel_max_width.unwrap_or(window.viewport_size().width * 0.48))
+            .gap(self.panel_gap.unwrap_or(px(2.)))
+            .p(panel_padding)
             .bg(colors.overlay.background)
             .rounded(radius)
             .shadow(cx.layout().overlay_shadow.clone());
@@ -663,10 +834,8 @@ impl RenderOnce for Menu {
         } else {
             panel = panel.max_h(window.viewport_size().height * 0.6);
         }
-        if dropdown_composition {
-            // Dropdown's nested `[data-slot="dropdown-menu"]` overrides the
-            // standalone Menu p-1 inset with p-1.5.
-            panel = panel.p(px(6.));
+        if let Some(max_height) = self.panel_max_height {
+            panel = panel.max_h(max_height);
         }
         if let Some(label) = self.panel_debug_label {
             panel = panel.debug_selector(move || label.to_owned());
@@ -897,7 +1066,16 @@ impl RenderOnce for Menu {
                         || self.selected_keys.contains(&key);
                     let is_item_disabled = self.disabled_keys.contains(&key);
                     let has_submenu = !submenu.is_empty();
-                    let text_color = if is_item_disabled {
+                    let open_key =
+                        element_id::scoped(&element_id::scoped(&base_id, "sub"), key.clone());
+                    let highlighted = !is_item_disabled
+                        && (cursor_at == Some(i)
+                            || submenu_open.as_ref() == Some(&open_key)
+                            || interaction.get(i).is_some_and(|slot| slot.read(cx).0));
+                    let highlight_foreground = self.row_hover_foreground.filter(|_| highlighted);
+                    let text_color = if let Some(color) = highlight_foreground {
+                        color
+                    } else if is_item_disabled {
                         colors.muted
                     } else if is_danger {
                         colors.danger.color
@@ -912,10 +1090,10 @@ impl RenderOnce for Menu {
                         // width rather than its own content's.
                         .w_full()
                         .items_center()
-                        .gap(px(12.))
-                        .px(px(8.))
+                        .gap(row_gap)
+                        .px(row_padding_x)
                         .rounded(crate::util::soft_radius(cx))
-                        .text_size(px(14.))
+                        .text_size(row_text_size)
                         .line_height(px(20.))
                         .text_color(text_color);
                     if let Some(recorded_item_bounds) = item_bounds[i].clone() {
@@ -938,7 +1116,9 @@ impl RenderOnce for Menu {
                     }
                     // `.menu-item` is `min-h-9 py-1.5`; a described row grows
                     // past the minimum instead of clipping its second line.
-                    row = row.min_h(px(36.)).py(px(6.));
+                    row = row
+                        .min_h(row_height)
+                        .py(self.row_padding_y.unwrap_or(px(6.)));
                     // `react-aria/dist/private/menu/useMenuItem.js` decides the
                     // row's role in one place: `let role = 'menuitem'`, and
                     // then, *only when the row is not a submenu trigger*,
@@ -972,11 +1152,6 @@ impl RenderOnce for Menu {
                     } else if self.selection_mode != SelectionMode::None {
                         row = row.a11y_checked(is_selected, false);
                     }
-                    if dropdown_composition {
-                        // Dropdown's nested `[data-slot="menu-item"]` uses
-                        // px-2.5, while standalone Menu remains px-2.
-                        row = row.px(px(10.));
-                    }
                     if is_item_disabled {
                         // `status-disabled` is `--disabled-opacity`; the muted
                         // text alone was this port's own idea of the state.
@@ -1009,6 +1184,9 @@ impl RenderOnce for Menu {
                         });
                     }
                     row = when_selected(row, is_selected, sem_primary(cx));
+                    if highlighted && self.row_hover_foreground.is_some() {
+                        row = row.bg(row_hover_bg).text_color(text_color);
+                    }
                     // `.menu-item` takes `status-focused` on the row the keyboard
                     // is on -- a ring, not a border, which would shift the row.
                     // Pointer hover seats the cursor for the next arrow; it
@@ -1033,12 +1211,12 @@ impl RenderOnce for Menu {
                                 .size(px(13.))
                                 .path(icons::CHECK)
                                 // svg() never inherits text colour.
-                                .text_color(sem_primary(cx))
+                                .text_color(highlight_foreground.unwrap_or_else(|| sem_primary(cx)))
                                 .into_any_element(),
                             IndicatorKind::Dot => gpui::div()
                                 .size(px(6.))
                                 .rounded_full()
-                                .bg(sem_primary(cx))
+                                .bg(highlight_foreground.unwrap_or_else(|| sem_primary(cx)))
                                 .into_any_element(),
                         })
                     } else {
@@ -1133,7 +1311,7 @@ impl RenderOnce for Menu {
                                             // `Description`, which is `text-xs`.
                                             .text_size(px(12.))
                                             .line_height(px(16.))
-                                            .text_color(colors.muted)
+                                            .text_color(highlight_foreground.unwrap_or(colors.muted))
                                             // `[data-slot="description"]` is
                                             // `text-wrap`, so its box is the
                                             // column's width, not its own
@@ -1161,6 +1339,10 @@ impl RenderOnce for Menu {
                         row = row.child(
                             crate::kbd::Kbd::new()
                                 .variant(crate::kbd::KbdVariant::Light)
+                                .map(|kbd| match highlight_foreground {
+                                    Some(color) => kbd.sx(move |el| el.text_color(color)),
+                                    None => kbd,
+                                })
                                 .child(sc.to_string()),
                         );
                     }
@@ -1171,7 +1353,7 @@ impl RenderOnce for Menu {
                             gpui::svg()
                                 .size(px(13.))
                                 .path(icons::CHEVRON_RIGHT)
-                                .text_color(colors.muted),
+                                .text_color(highlight_foreground.unwrap_or(colors.muted)),
                         );
                         if let Some(content) = indicator {
                             row = row.child(content);
@@ -1186,17 +1368,13 @@ impl RenderOnce for Menu {
                         row = crate::anim::pressed(
                             row,
                             crate::anim::PressBox {
-                                height: px(36.),
-                                padding_x: Some(if dropdown_composition {
-                                    px(10.)
-                                } else {
-                                    px(8.)
-                                }),
+                                height: row_height,
+                                padding_x: Some(row_padding_x),
                                 width: None,
                                 min_width: None,
-                                text_size: px(14.),
+                                text_size: row_text_size,
                                 line_height: px(20.),
-                                gap: px(12.),
+                                gap: row_gap,
                                 radius: crate::util::soft_radius(cx),
                                 shrink_x: false,
                                 scale: crate::anim::PRESSED_SCALE_SUBTLE,
@@ -1359,8 +1537,7 @@ impl RenderOnce for Menu {
         // mid-animation only the internal padding flexes, never the origin.
         // Animating the surface instead would hang its `py` between the
         // placed box and the painted panel (one RAC gap plus ~6px).
-        let zoom =
-            crate::anim::ZoomBox::panel(if dropdown_composition { px(6.) } else { px(4.) }, radius);
+        let zoom = crate::anim::ZoomBox::panel(panel_padding, radius);
         let panel = if self.exiting {
             crate::anim::exiting(
                 panel,
@@ -1369,7 +1546,7 @@ impl RenderOnce for Menu {
                 crate::anim::Motion::LIST_OUT,
                 cx,
             )
-        } else {
+        } else if self.animate_entry {
             crate::anim::entering_zoom(
                 panel,
                 element_id::scoped(&base_id, "panel"),
@@ -1377,6 +1554,8 @@ impl RenderOnce for Menu {
                 crate::anim::Motion::POPOVER_IN,
                 cx,
             )
+        } else {
+            panel.into_any_element()
         };
 
         // Parent and child menus share one deferred surface. The submenu is its
@@ -1413,6 +1592,22 @@ impl RenderOnce for Menu {
                 .disabled_keys(self.disabled_keys)
                 .embedded(all_panel_bounds.clone())
                 .focus_first(submenu_focus.clone());
+            sub.panel_min_width = self.panel_min_width;
+            sub.panel_max_width = self.panel_max_width;
+            sub.panel_max_height = self.panel_max_height;
+            sub.row_height = self.row_height;
+            sub.row_padding_x = self.row_padding_x;
+            sub.row_padding_y = self.row_padding_y;
+            sub.row_text_size = self.row_text_size;
+            sub.row_gap = self.row_gap;
+            sub.panel_padding = self.panel_padding;
+            sub.panel_gap = self.panel_gap;
+            sub.animate_entry = self.animate_entry;
+            sub.row_hover_bg = self.row_hover_bg;
+            sub.row_hover_foreground = self.row_hover_foreground;
+            sub.radius = self.radius;
+            sub.recipes = self.recipes.clone();
+            sub.animate_entry_is_set = self.animate_entry_is_set;
             sub.item_content = self.item_content.clone();
             sub.indicator_content = self.indicator_content.clone();
             if let Some(token) = overlay_token.clone() {
@@ -1548,6 +1743,7 @@ pub struct Dropdown {
     placement: DropdownPlacement,
     /// The `sx` slot, refined over the root style at the end of render.
     sx: Option<Box<gpui::StyleRefinement>>,
+    recipes: Vec<SharedString>,
 }
 
 /// `placement` on `Dropdown.Popover`.
@@ -1637,7 +1833,15 @@ impl Dropdown {
             radius: None,
             placement: DropdownPlacement::BottomStart,
             sx: None,
+            recipes: Vec::new(),
         }
+    }
+
+    /// Named theme overlay forwarded onto the painted [`Menu`].
+    /// Stackable; a missing name adds no override.
+    pub fn recipe(mut self, name: impl Into<SharedString>) -> Self {
+        self.recipes.push(name.into());
+        self
     }
 
     /// `type` on `Dropdown.ItemIndicator`.
@@ -1944,6 +2148,7 @@ impl RenderOnce for Dropdown {
             .indicator(self.indicator);
             menu.item_content = self.item_content.clone();
             menu.indicator_content = self.indicator_content.clone();
+            menu.recipes = self.recipes.clone();
             if let Some(row_hover_bg) = self.row_hover_bg {
                 menu = menu.row_hover_bg(row_hover_bg);
             }

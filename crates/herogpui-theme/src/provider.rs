@@ -54,7 +54,7 @@ impl ThemeProvider {
         themes.insert("light".into(), Theme::light());
         themes.insert("dark".into(), Theme::dark());
         let id = theme.id.clone();
-        themes.entry(id.clone()).or_insert(theme);
+        themes.insert(id.clone(), theme);
         // gpui does not surface the OS `prefers-reduced-motion` setting, so the
         // env var stands in for it; `set_reduce_motion` is the app-level
         // override, matching v3's `data-reduce-motion` precedence.
@@ -111,6 +111,7 @@ pub trait ActiveTheme {
     fn theme(&self) -> &Theme;
     fn colors(&self) -> &ThemeColors;
     fn layout(&self) -> &LayoutTheme;
+    fn components(&self) -> &crate::ComponentThemes;
     fn role(&self, color: Color) -> &RoleColor;
     fn is_dark_theme(&self) -> bool;
     /// Whether animations should be suppressed. Components must check this
@@ -129,6 +130,10 @@ impl ActiveTheme for App {
 
     fn layout(&self) -> &LayoutTheme {
         &self.theme().layout
+    }
+
+    fn components(&self) -> &crate::ComponentThemes {
+        &self.theme().components
     }
 
     fn role(&self, color: Color) -> &RoleColor {

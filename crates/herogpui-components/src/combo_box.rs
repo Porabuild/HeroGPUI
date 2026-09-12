@@ -669,6 +669,7 @@ impl ComboBox {
     /// ring, for a caller painting around it. The list still opens.
     pub fn is_bare(mut self, v: bool) -> Self {
         self.field.is_bare = v;
+        self.field.is_bare_is_set = true;
         self
     }
 
