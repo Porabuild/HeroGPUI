@@ -35,8 +35,7 @@ fn full_width_builders_reach_their_roots() {
             "{file}: the builder must store the flag"
         );
         assert!(
-            source.contains("if self.full_width {")
-                || source.contains("if self.full_width { el.w_full()"),
+            source.contains("if self.full_width {"),
             "{file}: the root must read the flag"
         );
         assert!(

@@ -164,22 +164,35 @@ def helper_px(name):
     return None
 
 
+def size_md_metrics(src, owner, count):
+    """Read only the owning production `metrics` method's direct Md arm."""
+    src = mask_literals(strip_cfg_test(src))
+    owners = list(rust_blocks_after(src, 'impl ' + owner + ' '))
+    if len(owners) != 1:
+        return None
+    methods = list(rust_blocks_after(owners[0], 'fn metrics(self)'))
+    if len(methods) != 1:
+        return None
+    body = methods[0].strip()
+    header = re.match(r'match\s+self\s*\{', body)
+    if not header or _balanced_block_end(body, header.end() - 1) != len(body):
+        return None
+    arm = re.search(r'\bSelf::Md\s*=>\s*\(([^()]*(?:px\([^()]*\)[^()]*)*)\)\s*,', body)
+    if not arm or _brace_depth_at(body, header.end(), arm.start()) != 0:
+        return None
+    value = r'px\((\d+(?:\.\d*)?)\)'
+    match = re.fullmatch(r'\s*' + r'\s*,\s*'.join([value] * count) + r'\s*', arm.group(1))
+    return tuple(float(group) for group in match.groups()) if match else None
+
+
 def tabs_md_metrics(src):
     """The `Md` `(height, padding_x, text)` from `TabsSize::metrics`."""
-    match = re.search(
-        r'Self::Md => \(px\((\d+(?:\.\d*)?)\.\), px\((\d+(?:\.\d*)?)\.\), '
-        r'px\((\d+(?:\.\d*)?)\.\)\)',
-        mask_comments(mask_literals(src)))
-    return tuple(float(group) for group in match.groups()) if match else None
+    return size_md_metrics(src, 'TabsSize', 3)
 
 
 def radio_md_metrics(src):
     """The `Md` `(control, dot, text, gap)` from `RadioSize::metrics`."""
-    match = re.search(
-        r'Self::Md => \(px\((\d+(?:\.\d*)?)\.\), px\((\d+(?:\.\d*)?)\.\), '
-        r'px\((\d+(?:\.\d*)?)\.\), px\((\d+(?:\.\d*)?)\.\)\)',
-        mask_comments(mask_literals(src)))
-    return tuple(float(group) for group in match.groups()) if match else None
+    return size_md_metrics(src, 'RadioSize', 4)
 
 
 def checkbox_md_metrics(src):
@@ -187,11 +200,35 @@ def checkbox_md_metrics(src):
 
     The `Sm` arm must not satisfy it: the audit's default is the pinned `Md`.
     """
-    match = re.search(
-        r'Self::Md => \(px\((\d+(?:\.\d*)?)\.\), px\((\d+(?:\.\d*)?)\.\), '
-        r'px\((\d+(?:\.\d*)?)\.\)\)',
-        mask_comments(mask_literals(src)))
-    return tuple(float(group) for group in match.groups()) if match else None
+    return size_md_metrics(src, 'CheckboxSize', 3)
+
+
+def supporting_text_indent_from(src, owner):
+    """Description and error must both use the owning control's size metrics."""
+    src = mask_literals(strip_cfg_test(src))
+    renders = list(rust_blocks_after(src, 'impl RenderOnce for ' + owner + ' '))
+    if len(renders) != 1:
+        return None
+    body = renders[0]
+    if owner == 'Checkbox':
+        metrics = checkbox_md_metrics(src)
+        binding = r'let\s+\(box_px,\s*icon_px,\s*text\)\s*=\s*self\.size\.metrics\(\);'
+        indent = r'box_px\s*\+\s*px\(([\d.]+)\)'
+    elif owner == 'RadioGroup':
+        metrics = radio_md_metrics(src)
+        binding = r'let\s+\(circle,\s*dot,\s*text,\s*gap\)\s*=\s*self\.size\.metrics\(\);'
+        indent = r'circle\s*\+\s*gap'
+    else:
+        return None
+    if not metrics or not re.search(binding, body):
+        return None
+    values = []
+    for part in ['Description', 'ErrorMessage']:
+        match = re.search(r'\.pl\(' + indent + r'\)\s*\.child\(crate::field::' + part + r'::new', body)
+        if not match:
+            return None
+        values.append(metrics[0] + (float(match.group(1)) if owner == 'Checkbox' else metrics[3]))
+    return values[0] if values[0] == values[1] else None
 
 
 def input_grouped_padding_from(src):
@@ -1188,8 +1225,7 @@ CHECKS = [
      r'Control height[\s\S]*?Size::Md => gpui::px\((\d+(?:\.\d*)?)\)', None),
 
     # --- Fields -----------------------------------------------------------
-    # The field box resolves its own radius once, because the shared chrome
-    # below paints the helper's and the override has to go back over it.
+    # The field box passes its resolved radius to the shared chrome.
     ('input', '.input', 'radius', 'util::field_radius', SRC + 'input.rs',
      r'let radius = self\s*\.radius\s*\.unwrap_or_else\(\|\| crate::util::(\w+_radius)\(cx\)\);',
      helper_px),
@@ -1442,7 +1478,7 @@ CHECKS = [
      r'let \(h, text\) = \(field_box\.(resolved_height)\(\), util::FIELD_TEXT\)', field_box_px),
     ('select', '.select__trigger', 'radius', 'field chrome -> util::_radius',
      SRC + 'util.rs',
-     'radius_override\.unwrap_or_else\(\|\| (field_radius)\(cx\)\)', helper_px),
+     r'radius_override\.unwrap_or_else\(\|\| (field_radius)\(cx\)\)', helper_px),
     ('calendar', '.calendar', 'w', 'Calendar width', SRC + 'calendar.rs',
      'CALENDAR_WIDTH: gpui::Pixels = px\((\d+(?:\.\d*)?)\.\)', None),
     ('calendar', '.calendar__cell', 'text', 'Calendar cell text', SRC + 'calendar.rs',
@@ -1537,8 +1573,7 @@ CHECKS = [
      r'\.items_start\(\)\s*\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('checkbox', '.checkbox > [data-slot="description"]', 'ps',
      'Checkbox description/error indent', SRC + 'checkbox.rs',
-     r'\.w_full\(\)\s*\.pl\(px\((\d+(?:\.\d*)?)\.\)\)\s*'
-     r'\.child\(crate::field::ErrorMessage::new', None),
+     'supporting_text_indent:Checkbox', None),
     ('checkbox', '.checkbox__content', 'text', 'Checkbox content text',
      SRC + 'checkbox.rs', 'checkbox_md_text', None),
     ('color-field', '.color-field', 'gap', 'ColorField wrapper gap', SRC + 'color_picker.rs',
@@ -1931,8 +1966,7 @@ CHECKS = [
      None),
     ('radio', '.radio > [data-slot="description"]', 'ps',
      'Radio description/error indent', SRC + 'radio_group.rs',
-     r'\.pl\(px\((\d+(?:\.\d*)?)\.\)\)\s*'
-     r'\.child\(crate::field::Description::new', None),
+     'supporting_text_indent:RadioGroup', None),
     ('separator', '.separator__container', 'gap', 'Separator container gap',
      SRC + 'separator.rs',
      r'`\.separator__container` is `flex items-center gap-3`[\s\S]{0,300}?'
@@ -2753,6 +2787,8 @@ def our_value(path, pattern, transform):
         return checkbox_checkmark_canvas(path)
     if pattern == 'input_grouped_padding':
         return input_grouped_padding_from(read_path(path))
+    if pattern.startswith('supporting_text_indent:'):
+        return supporting_text_indent_from(read_path(path), pattern.split(':')[1])
     if pattern.startswith('checkbox_md_'):
         index = {'control': 0, 'indicator': 1, 'text': 2}[pattern.removeprefix('checkbox_md_')]
         metrics = checkbox_md_metrics(read_path(path))
@@ -4092,7 +4128,16 @@ def self_test():
            'the checkmark canvas must read the size argument of check_layer')
     expect(checkbox_checkmark_canvas_from(canvas_fixture.replace('px(10.)', 'px(12.)')) == 12.0,
            'a retuned checkmark canvas must be read, not assumed')
-    inset_fixture = ('Self::Md => (px(16.), px(12.), px(14.)),\n'
+    def metrics_fixture(owner, values):
+        return ('impl ' + owner + ' {\n'
+                '    fn metrics(self) -> (' + ', '.join(['Pixels'] * len(values)) + ') {\n'
+                '        match self {\n'
+                '            Self::Md => (' + ', '.join('px(%s)' % v for v in values) + '),\n'
+                '        }\n'
+                '    }\n'
+                '}\n')
+
+    inset_fixture = (metrics_fixture('CheckboxSize', ['16.', '12.', '14.'])
                      + canvas_fixture.replace('px(10.)', 'icon_px - px(2.)'))
     expect(checkbox_checkmark_canvas_from(inset_fixture) == 10.0,
            'the checkmark canvas may be the indicator minus the documented inset')
@@ -4196,27 +4241,54 @@ def self_test():
         'a resolver on a foreign owner must stay unreadable')
     expect(field_box_px_from('', 'resolved_something_else') is None,
            'an unknown FieldBox resolver must stay unreadable')
-    expect(tabs_md_metrics('Self::Md => (px(32.), px(16.), px(14.)),')
-           == (32.0, 16.0, 14.0),
-           'the tabs Md metrics must be readable')
-    expect(tabs_md_metrics('Self::Sm => (px(28.), px(12.), px(12.)),') is None,
-           'the compact tabs arm must not satisfy the pinned default reader')
-    expect(tabs_md_metrics('') is None,
-           'a missing tabs metrics arm must stay unreadable')
-    expect(radio_md_metrics('Self::Md => (px(16.), px(6.), px(14.), px(12.)),')
-           == (16.0, 6.0, 14.0, 12.0),
-           'the radio Md metrics must be readable')
-    expect(radio_md_metrics('Self::Sm => (px(14.), px(5.), px(12.), px(10.)),') is None,
-           'the compact radio arm must not satisfy the pinned default reader')
-    expect(radio_md_metrics('') is None,
-           'a missing radio metrics arm must stay unreadable')
-    expect(checkbox_md_metrics('Self::Md => (px(16.), px(12.), px(14.)),')
-           == (16.0, 12.0, 14.0),
-           'the checkbox Md metrics must be readable')
-    expect(checkbox_md_metrics('Self::Sm => (px(14.), px(10.), px(12.)),') is None,
-           'the compact arm must not satisfy the pinned default reader')
-    expect(checkbox_md_metrics('') is None,
-           'a missing metrics arm must stay unreadable')
+    for owner, reader, values in [
+            ('TabsSize', tabs_md_metrics, ['32.', '16.', '14.']),
+            ('RadioSize', radio_md_metrics, ['16.', '6.', '14.', '12.']),
+            ('CheckboxSize', checkbox_md_metrics, ['16.', '12.', '14.'])]:
+        fixture = metrics_fixture(owner, values)
+        expect(reader(fixture) == tuple(map(float, values)),
+               owner + ': the owning Md metrics must be readable')
+        retuned = fixture.replace('px(' + values[0] + ')', 'px(99.5)')
+        expect(reader(retuned) == (99.5, *map(float, values[1:])),
+               owner + ': changed fractional metrics must be read, not assumed')
+        for broken in [
+                '',
+                fixture.replace('Self::Md', 'Self::Sm'),
+                fixture.replace('impl ' + owner, 'impl Other'),
+                fixture.replace('fn metrics(self)', 'fn unrelated(self)'),
+                '#[cfg(test)]\nmod tests {\n' + fixture + '}\n',
+                '/* ' + fixture + ' */',
+                fixture.replace('match self {', 'let unused = match self {')
+                       .replace('        }\n', '        };\n        other()\n'),
+                fixture.replace('Self::Md', 'Self::Sm') + '\nimpl Other {\n'
+                       + 'fn metrics(self) { match self { Self::Md => (px(16.), px(12.), px(14.)), } }\n}\n']:
+            expect(reader(broken) is None,
+                   owner + ': missing, foreign, test-only or unused metrics must not pass')
+
+    for owner, size_owner, values, binding, indent in [
+            ('Checkbox', 'CheckboxSize', ['16.', '12.', '14.'],
+             'let (box_px, icon_px, text) = self.size.metrics();', 'box_px + px(12.)'),
+            ('RadioGroup', 'RadioSize', ['16.', '6.', '14.', '12.'],
+             'let (circle, dot, text, gap) = self.size.metrics();', 'circle + gap')]:
+        fixture = (metrics_fixture(size_owner, values)
+                   + 'impl RenderOnce for ' + owner + ' {\n'
+                   + 'fn render(self) {\n' + binding + '\n'
+                   + 'div().pl(' + indent + ').child(crate::field::Description::new(text));\n'
+                   + 'div().pl(' + indent + ').child(crate::field::ErrorMessage::new(error));\n'
+                   + '}\n}\n')
+        expect(supporting_text_indent_from(fixture, owner) == 28.,
+               owner + ': both supporting-text branches must follow the Md control')
+        expect(supporting_text_indent_from(fixture.replace('px(16.)', 'px(15.)'), owner) == 27.,
+               owner + ': changed control width must affect the measured indent')
+        for broken in [
+                fixture.replace('impl RenderOnce for ' + owner, 'impl RenderOnce for Other'),
+                fixture.replace(binding, ''),
+                fixture.replace('self.size.metrics()', 'other.metrics()'),
+                fixture.replace('.pl(' + indent + ')', '.pl(px(28.))', 1),
+                fixture.replace('ErrorMessage::new', 'Other::new'),
+                '#[cfg(test)]\nmod tests {\n' + fixture + '}\n']:
+            expect(supporting_text_indent_from(broken, owner) is None,
+                   owner + ': missing ownership, metric binding or either indent must fail')
     expect(re.search(
         r'let radius = self\s*\.radius\s*\.unwrap_or_else\(\|\| util::(\w+_radius)\(cx\)\);',
         'let radius = self\n'

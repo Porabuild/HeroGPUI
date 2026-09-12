@@ -63,10 +63,11 @@ impl Gallery {
             vec![
                 (
                     "Usage",
-                    "Fallback text uses 14px text with 20px lines, or 16px text with 24px lines for large avatars.",
+                    "Fallback text uses 14px/20px, or 16px/24px for large avatars. Here `radius` sets 8px corners and `sx` squares just the top-left corner on the fallback and loaded image.",
                     row(vec![h::Avatar::new("usage-avatar")
                         .name("Jane Doe")
                         .radius(px(8.))
+                        .sx(|el| el.rounded_tl(px(0.)))
                         .into_any_element()]),
                 ),
                 (

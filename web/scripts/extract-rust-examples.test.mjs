@@ -5,6 +5,7 @@ import { resolve } from "node:path";
 import test from "node:test";
 
 import {
+  addImports,
   documentationParity,
   humanizeGalleryIds,
   normalizeCollapsedItem,
@@ -13,6 +14,25 @@ import {
 } from "./extract-rust-examples.mjs";
 import { MANIFEST_VERSION, buildManifest, parseExampleSource } from "./extract-wasm-sections.mjs";
 import { readGalleryComponentSource } from "./lib/gallery-source.mjs";
+
+test("corner styling in sx brings the GPUI Styled trait into generated snippets", () => {
+  for (const corner of ["tl", "tr", "bl", "br"]) {
+    const imports = addImports(
+      "use herogpui::prelude::Button;",
+      'Button::new("example").radius(px(8.)).sx(|el| el.rounded_' + corner + "(px(0.)))",
+      [],
+    );
+    assert.ok(imports.includes("use gpui::prelude::*;"), corner);
+  }
+  assert.ok(
+    !addImports(
+      "use herogpui::prelude::Button;",
+      'Button::new("example").radius(px(8.))',
+      [],
+    ).includes("use gpui::prelude::*;"),
+    "an inherent radius builder alone does not require Styled",
+  );
+});
 
 test("documentationParity keeps component examples and reference metadata in sync", () => {
   assert.deepEqual(documentationParity(["button", "date-field"], ["button", "date-field"]), {

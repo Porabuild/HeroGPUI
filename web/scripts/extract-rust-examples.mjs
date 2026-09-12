@@ -866,7 +866,7 @@ function resolveImportPaths(canonical, code, aliases) {
   return { path, globs };
 }
 
-function addImports(canonical, code, aliases) {
+export function addImports(canonical, code, aliases) {
   const { path, globs } = resolveImportPaths(canonical, code, aliases);
 
   // Rule: merge every name sharing a path onto one line; braces only when a
@@ -888,7 +888,7 @@ function addImports(canonical, code, aliases) {
   const gpuiLines = [];
   if (
     /\bgpui::/.test(code) ||
-    /\.(?:child|children|flex|flex_col|flex_wrap|items_start|gap|when|on_press|on_click|into_any_element|size|w|h|px|text_color|rounded|path)\s*\(/.test(
+    /\.(?:child|children|flex|flex_col|flex_wrap|items_start|gap|when|on_press|on_click|into_any_element|size|w|h|px|text_color|rounded(?:_[a-z0-9]+)*|path)\s*\(/.test(
       code,
     )
   ) {

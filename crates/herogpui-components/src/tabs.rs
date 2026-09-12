@@ -377,6 +377,19 @@ struct TabFocusState {
 
 /// HeroGPUI-only compact step for [`Tabs`].
 ///
+/// | Metric (pixels) | Sm | Md (pinned default) |
+/// | --- | --- | --- |
+/// | Tab height / horizontal padding | 28 / 12 | 32 / 16 |
+/// | Label text / line height | 12 / 16 | 14 / 20 |
+///
+/// Both steps have zero vertical tab padding; the whole tab box is its hitbox.
+/// Primary tabs and their full-box indicator keep `control_radius`, with 4px
+/// list padding. Secondary tabs stay square with a 2px accent indicator and
+/// no list padding. The content panel keeps 8px padding. Horizontal tabs adjoin
+/// and can scroll; `full_width` divides the available width equally. Vertical
+/// lists retain a 4px gap and each tab's 80px minimum width. Explicit `sx`
+/// pixel corners refine the indicator independently of its default shape.
+///
 /// v3.2.4 has no Tabs `size` prop (the box is `h-8 px-4 text-sm` through
 /// classes), so this is additive: `Md` is byte-identical to the pinned box and
 /// `Sm` is HeroGPUI's own 28px step. The secondary underline keeps its 2px

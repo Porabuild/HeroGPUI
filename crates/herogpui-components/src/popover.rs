@@ -731,8 +731,7 @@ pub struct Popover {
     should_flip: bool,
     on_open_change: Option<OnOpenChange>,
     children: Vec<AnyElement>,
-    /// When set, both panel axes use this padding; unset keeps the stock
-    /// asymmetric 12px vertical / 14px horizontal insets.
+    /// Both panel padding axes; unset keeps v3's 16px `p-4` insets.
     padding: Option<Pixels>,
     /// The panel's corner radius, in place of the owning `container_radius`
     /// helper.

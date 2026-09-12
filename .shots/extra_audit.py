@@ -530,8 +530,8 @@ EXTRA_OK_SCOPED = {
     # Forwarded onto the ProgressBar the component delegates its track to, the
     # way Meter forwards `sx`.
     'Meter.radius': 'repository-radius-extension',
-    # Field-family boxes: the ones painted by the shared `apply_field_chrome`
-    # set the resolved radius back over it, and InputOTP's slots carry it.
+    # Field-family boxes pass the resolved radius to `apply_field_chrome`;
+    # InputOTP's slots carry it directly.
     'Input.radius': 'repository-radius-extension',
     'InputOTP.radius': 'repository-radius-extension',
     'TimeField.radius': 'repository-radius-extension',

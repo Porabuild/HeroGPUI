@@ -1,6 +1,8 @@
 //! Per-component `radius` builders under the narrow parity exception: the
 //! default stays the owning `util` helper, and the builder replaces it.
 
+mod source_scan;
+
 #[test]
 fn radius_builders_override_their_helper_defaults() {
     for (file, source, stored, resolved) in [
@@ -422,4 +424,41 @@ fn badge_and_tag_steps_stay_the_fallback_and_inner_parts_keep_their_own() {
         tag.contains(".rounded_full()"),
         "tag_group.rs: the remove button inside a chip stays a circle"
     );
+}
+
+// Both the actual skin and its animated fill must consume pixel corners. The
+// press helper derives its corners from that skin before introducing a slot.
+#[test]
+fn button_shapes_reconcile_sx_on_skin_and_fill_before_press_wrapping() {
+    for (file, source) in [
+        ("button.rs", include_str!("../src/button.rs")),
+        ("toggle_button.rs", include_str!("../src/toggle_button.rs")),
+        ("close_button.rs", include_str!("../src/close_button.rs")),
+    ] {
+        let expected = if file == "close_button.rs" { 3 } else { 2 };
+        assert!(
+            button_corner_wiring(source, expected),
+            "{file}: skin, fade and owned active corners must reconcile"
+        );
+        let missing_consumer = source.replacen("round_sx_corners(", "ignored_corners(", 1);
+        assert!(
+            !button_corner_wiring(&missing_consumer, expected),
+            "{file}: removing the actual skin consumer must fail"
+        );
+    }
+    let anim = include_str!("../src/anim.rs");
+    source_scan::scope_contains(
+        anim,
+        "fn pressed_with_optional_background(",
+        "pressed_corners(&el.style().corner_radii, b.radius, b.scale)",
+    )
+    .unwrap();
+}
+
+fn button_corner_wiring(source: &str, count: usize) -> bool {
+    let Some(render) = source_scan::enclosing_function(source, "sx_radius(&self.sx)") else {
+        return false;
+    };
+    render.matches("round_sx_corners(").count() == count
+        && render.contains("crate::anim::hover_fade(")
 }

@@ -740,8 +740,8 @@ impl RangeCalendar {
         // `.range-calendar__cell[data-pressed]` scales the inner button to
         // 0.9 and only the range caps recolour, to `bg-accent-hover` even
         // when the cap is also today; a pressed middle or today cell keeps
-        // its soft fill, while a pressed plain day shows the hover fill it
-        // already wears. The recolour has to merge with the press geometry
+        // its soft fill, while a pressed plain day uses the default fill,
+        // independently of `day_hover_bg`. The recolour merges with the press geometry
         // in one refinement -- a chained `.active` would overwrite it and
         // drop the scale.
         let cell = if selectable {

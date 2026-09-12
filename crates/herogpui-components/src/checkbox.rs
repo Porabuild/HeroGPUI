@@ -341,6 +341,20 @@ fn lerp_point(a: (f32, f32), b: (f32, f32), t: f32) -> (f32, f32) {
 
 /// HeroGPUI-only compact size for a [`Checkbox`].
 ///
+/// | Metric (pixels) | Sm | Md (pinned default) |
+/// | --- | --- | --- |
+/// | Control / indicator / check canvas | 14 / 10 / 8 | 16 / 12 / 10 |
+/// | Label text / line height | 12 / 16 | 14 / 20 |
+/// | Control-to-label gap / supporting-text indent | 12 / 26 | 12 / 28 |
+/// | Indeterminate dash width / height | 10 / 2 | 12 / 2 |
+///
+/// Both steps have zero row padding and no extra minimum hitbox: the clickable
+/// row contains the control and caller content, growing for taller content.
+/// Supporting text remains 12/16 with a 4px vertical gap. The control keeps
+/// `mark_radius` unless `radius` overrides it; `is_round` uses half the control
+/// width. Indicator fill motion and press behavior are unchanged. A Checkbox
+/// has no orientation setting; CheckboxGroup owns its option layout.
+///
 /// v3.2.4 removed the field `size` prop (the control is `size-4` through
 /// Tailwind), so this is additive: `Md` is byte-identical to the pinned
 /// default and `Sm` is HeroGPUI's own 14px step. Not a v3 prop.
@@ -1064,14 +1078,14 @@ impl RenderOnce for Checkbox {
             root = root.child(
                 gpui::div()
                     .w_full()
-                    .pl(px(28.))
+                    .pl(box_px + px(12.))
                     .child(crate::field::ErrorMessage::new(message)),
             );
         } else if let Some(description) = self.description {
             root = root.child(
                 gpui::div()
                     .w_full()
-                    .pl(px(28.))
+                    .pl(box_px + px(12.))
                     .child(crate::field::Description::new(description)),
             );
         }

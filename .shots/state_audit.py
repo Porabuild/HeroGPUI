@@ -382,6 +382,22 @@ def self_test():
         if not condition:
             failures.append(message)
 
+    focus_pattern = REQUIRED['status-focused-field']
+    for radius in ['None', 'Some(radius)']:
+        focused = ('apply_field_chrome(field, variant, invalid,\n'
+                   '    focused, ' + radius + ', cx)')
+        unfocused = focused.replace('    focused,', '    false,')
+        expect(bool(re.search(focus_pattern, focused, re.S)),
+               'field focus must read the flag before ' + radius)
+        expect(not re.search(focus_pattern, unfocused, re.S),
+               'a radius argument must not disguise a literal false focus flag')
+        expect(bool(re.search(focus_pattern, unfocused + ';\n' + focused, re.S)),
+               'an unfocused sibling must not hide a real focused call')
+        expect(not re.search(focus_pattern,
+                             'apply_field_chrome(field, variant, focused, false, '
+                             + radius + ', cx)', re.S),
+               'the invalid flag must not stand in for the focus argument')
+
     def module_source(module):
         path = SRC + module
         return (read_path(path, errors='replace')

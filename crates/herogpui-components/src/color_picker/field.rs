@@ -326,11 +326,10 @@ impl ColorField {
     /// v3 prop; the removed v2 `radius` prop is prohibited and this is a
     /// per-component repository extension.
     ///
-    /// The shared field chrome paints the helper's radius over this box, so
-    /// the resolved value is set back over it; a bare box, which paints no
-    /// chrome, keeps it from the chain below. Both paths follow it: the
-    /// editable box is the inner field's own, so the override rides along
-    /// with the field box, the way its `height` and `padding_x` do.
+    /// The static box and shared field chrome use the same resolved radius;
+    /// a bare box retains it without painting chrome. The editable path
+    /// forwards the override to its inner field alongside `height` and
+    /// `padding_x`.
     pub fn radius(mut self, radius: impl Into<Pixels>) -> Self {
         self.radius = Some(radius.into());
         self
@@ -698,8 +697,7 @@ impl RenderOnce for ColorField {
         }
 
         let field_box = self.field;
-        // The box's own radius, resolved once: the shared field chrome below
-        // paints the helper's, so an override has to go back over it.
+        // The box and shared field chrome use the same resolved radius.
         let radius = self.radius.unwrap_or_else(|| util::field_radius(cx));
         let mut field = div()
             .id(self.id.clone())

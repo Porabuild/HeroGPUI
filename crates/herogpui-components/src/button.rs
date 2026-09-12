@@ -569,6 +569,7 @@ impl RenderOnce for Button {
         // back over the override.
         let sx_background = util::sx_background(&self.sx);
         let sx_size = util::sx_pixel_size(&self.sx);
+        let sx_corners = util::sx_radius(&self.sx);
         // The resting box, the hover fade's fill and the press box all take
         // the same resolved corner, so it is resolved once.
         let radius = self.radius.unwrap_or_else(|| util::control_radius(cx));
@@ -597,6 +598,7 @@ impl RenderOnce for Button {
             .whitespace_nowrap()
             .font_weight(gpui::FontWeight::MEDIUM)
             .map(|e| group_radius(e, self.group_edge, radius))
+            .map(|e| util::round_sx_corners(e, &sx_corners))
             .text_size(metrics.text)
             .line_height(metrics.line_height)
             .h(self.size.control_height());
@@ -637,7 +639,9 @@ impl RenderOnce for Button {
                 element_id::scoped(&self.id, "fade"),
                 colors,
                 interaction.as_ref(),
-                move |fill| group_radius_any(fill, edge, radius),
+                move |fill| {
+                    util::round_sx_corners(group_radius_any(fill, edge, radius), &sx_corners)
+                },
                 window,
                 cx,
             );
@@ -756,6 +760,24 @@ impl RenderOnce for Button {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn explicit_corners_refine_group_edges_without_rounding_unnamed_seams() {
+        let sx = gpui::Corners {
+            top_right: Some(gpui::px(12.)),
+            ..Default::default()
+        };
+        let mut skin = group_radius_any(div(), Some((GroupEdge::Start, false)), gpui::px(2.));
+        skin = util::round_sx_corners(skin, &sx);
+        let corners = &skin.style().corner_radii;
+        assert_eq!(corners.top_left, Some(gpui::px(2.).into()));
+        assert_eq!(corners.top_right, Some(gpui::px(12.).into()));
+        assert_eq!(corners.bottom_left, Some(gpui::px(2.).into()));
+        assert_eq!(
+            corners.bottom_right, None,
+            "the unmentioned attached edge stays square"
+        );
+    }
 
     /// Stand-ins for the variant's own pair and the two overrides. Distinct
     /// values so every assertion below names which one it expected, rather

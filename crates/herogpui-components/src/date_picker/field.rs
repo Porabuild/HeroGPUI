@@ -639,9 +639,8 @@ impl DateField {
     /// v3 prop; the removed v2 `radius` prop is prohibited and this is a
     /// per-component repository extension.
     ///
-    /// The shared field chrome paints the helper's radius over this box, so
-    /// the resolved value is set back over it; a bare field, which paints no
-    /// chrome, keeps it from the chain below.
+    /// The box and shared field chrome use the same resolved radius. A bare
+    /// field retains it without painting chrome.
     pub fn radius(mut self, radius: impl Into<Pixels>) -> Self {
         self.radius = Some(radius.into());
         self
@@ -1179,8 +1178,7 @@ impl RenderOnce for DateField {
         // first arrow press lands on a sensible date instead of jumping a step
         // from nothing.
         let seed = self.placeholder_value.unwrap_or_else(Date::today);
-        // The field box's own radius, resolved once: the shared field chrome
-        // below paints the helper's, so an override has to go back over it.
+        // The box and shared field chrome use the same resolved radius.
         let radius = self.radius.unwrap_or_else(|| crate::util::field_radius(cx));
         // `useDateField` is `role: 'group'` on the field box. The hidden
         // native input is `role: 'presentation'` and has no counterpart

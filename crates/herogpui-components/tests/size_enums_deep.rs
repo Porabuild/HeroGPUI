@@ -312,3 +312,67 @@ fn radio_size_steps_the_control_circle_and_md_is_the_default(cx: &mut TestAppCon
         "the Sm control circle must step to 14px, got {sm:?}"
     );
 }
+
+/// A long supporting line determines the intrinsic component width: its shaped
+/// width plus the indentation. This measures both actual Description/ErrorMessage
+/// paths without inserting a probe that could change their layout.
+#[gpui::test]
+fn compact_supporting_text_tracks_the_control_and_label_gap(cx: &mut TestAppContext) {
+    const SUPPORT: &str = "Supporting text long enough to determine the component width";
+    let cx = open_host(cx, || {
+        let mut host = gpui::div().flex().flex_col().items_start().gap(px(8.));
+        for (size, name) in [
+            (CheckboxSize::Sm, "check-sm"),
+            (CheckboxSize::Md, "check-md"),
+        ] {
+            for error in [false, true] {
+                let key = format!("{name}-{error}");
+                let check = Checkbox::new(key.clone()).size(size).label("A");
+                let check = if error {
+                    check.is_invalid(true).error_message(SUPPORT)
+                } else {
+                    check.description(SUPPORT)
+                };
+                host = host.child(gpui::div().debug_selector(move || key).child(check));
+            }
+        }
+        for (size, name) in [(RadioSize::Sm, "radio-sm"), (RadioSize::Md, "radio-md")] {
+            for error in [false, true] {
+                let key = format!("{name}-{error}");
+                let option = if error {
+                    RadioOption::new("A").error_message(SUPPORT)
+                } else {
+                    RadioOption::new("A").description(SUPPORT)
+                };
+                host = host.child(
+                    gpui::div()
+                        .debug_selector({
+                            let key = key.clone();
+                            move || key
+                        })
+                        .child(RadioGroup::new(key, vec![option]).size(size)),
+                );
+            }
+        }
+        host.child(
+            gpui::div()
+                .debug_selector(|| "support-reference".to_owned())
+                .child(herogpui_components::Description::new(SUPPORT)),
+        )
+        .into_any_element()
+    });
+    settle(cx);
+    let text = f32::from(box_of(cx, "support-reference").size.width);
+    for (name, indent) in [
+        ("check-sm", 26.),
+        ("check-md", 28.),
+        ("radio-sm", 24.),
+        ("radio-md", 28.),
+    ] {
+        for error in [false, true] {
+            let key = Box::leak(format!("{name}-{error}").into_boxed_str());
+            let bounds = box_of(cx, key);
+            assert!(near(bounds.size.width, text + indent), "{key}: supporting text must be indented {indent}px, got {bounds:?} with text width {text}");
+        }
+    }
+}

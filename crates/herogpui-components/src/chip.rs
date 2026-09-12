@@ -55,11 +55,11 @@ pub struct Chip {
     color: Color,
     size: Size,
     children: Vec<AnyElement>,
-    /// The `sx` slot, refined over the root style at the end of render.
     /// The label's font size; unset keeps the size-step's pair.
     text_size: Option<Pixels>,
     /// The corner radius, in place of the size-step's radius.
     radius: Option<Pixels>,
+    /// The `sx` slot, refined over the root style at the end of render.
     sx: Option<Box<gpui::StyleRefinement>>,
 }
 

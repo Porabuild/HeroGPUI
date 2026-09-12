@@ -2,8 +2,9 @@
   "button": [
     {
       "heading": "Usage",
-      "imports": "use herogpui::prelude::{Button, Size, Variant};\nuse gpui::px;",
-      "code": "Button::new(\"button\")\n    .radius(px(8.))\n    .label(\"Click me\")"
+      "description": "`radius` sets the corners; `sx` squares the top-left corner, including while pressed.",
+      "imports": "use herogpui::prelude::{Button, Size, Variant};\nuse gpui::prelude::*;\nuse gpui::px;",
+      "code": "Button::new(\"button\")\n    .radius(px(8.))\n    .sx(|el| el.rounded_tl(px(0.)))\n    .label(\"Click me\")"
     },
     {
       "heading": "Variants",
@@ -127,9 +128,9 @@
   "close-button": [
     {
       "heading": "Usage",
-      "description": "`radius(px)` replaces the box's corner and the pressed box scales the same value.",
-      "imports": "use herogpui::prelude::CloseButton;\nuse gpui::px;",
-      "code": "CloseButton::new(\"close-button\")\n    .radius(px(4.))"
+      "description": "`radius` sets the corners; `sx` squares the top-left corner, including while pressed.",
+      "imports": "use herogpui::prelude::CloseButton;\nuse gpui::prelude::*;\nuse gpui::px;",
+      "code": "CloseButton::new(\"close-button\")\n    .radius(px(4.))\n    .sx(|el| el.rounded_tl(px(0.)))"
     },
     {
       "heading": "Interactive",
@@ -162,8 +163,9 @@
   "toggle-button": [
     {
       "heading": "Usage",
-      "imports": "use herogpui::prelude::{ToggleButton, ToggleButtonGroup};\nuse gpui::px;",
-      "code": "ToggleButton::new(\"toggle-button\")\n    .radius(px(8.))\n    .label(\"Bold\")"
+      "description": "`radius` sets the corners; `sx` squares the top-left corner, including while pressed.",
+      "imports": "use herogpui::prelude::{ToggleButton, ToggleButtonGroup};\nuse gpui::prelude::*;\nuse gpui::px;",
+      "code": "ToggleButton::new(\"toggle-button\")\n    .radius(px(8.))\n    .sx(|el| el.rounded_tl(px(0.)))\n    .label(\"Bold\")"
     },
     {
       "heading": "Hover Colour",
@@ -256,7 +258,7 @@
       "heading": "Row Hover",
       "description": "`row_hover_bg` names the fill a hovered menu row takes, in place of `--default`.",
       "imports": "use herogpui::prelude::{ActiveTheme, Button, Dropdown, MenuItem, Variant};",
-      "code": "Dropdown::new(\n    \"dropdown-hover-trigger\",\n    Button::new(\"dropdown-hover\")\n        .label(\"Actions\")\n        .variant(Variant::Secondary),\n    plain(),\n    false,\n)\n.row_hover_bg(cx.colors().accent.soft())"
+      "code": "Dropdown::uncontrolled(\n    \"dd-hover-trigger\",\n    Button::new(\"dropdown-hover\")\n        .label(\"Actions\")\n        .variant(Variant::Secondary),\n    plain(),\n)\n.row_hover_bg(cx.colors().accent.soft())"
     },
     {
       "heading": "With Icons",
@@ -452,8 +454,8 @@
     {
       "heading": "Hover Colour",
       "description": "`hover_bg` names a hovered tag's fill and `remove_hover_bg` the remove button's, which stays a circle.",
-      "imports": "use herogpui::prelude::{ActiveTheme, Tag, TagGroup};",
-      "code": "TagGroup::new(\"tag-group-hover-bg\", tags())\n    .label(\"Skills\")\n    .hover_bg(cx.colors().accent.soft())\n    .remove_hover_bg(cx.colors().accent.soft_hover())\n    .on_remove(cx.listener(\n        |this, keys: &HashSet<SharedString>, _, cx| {\n            this.tags.retain(|key| !keys.contains(key));\n            this.tag_selection.retain(|key| !keys.contains(key));\n            cx.notify();\n        },\n    ))"
+      "imports": "use herogpui::prelude::{ActiveTheme, SelectionMode, Tag, TagGroup};",
+      "code": "TagGroup::new(\"tag-group-hover-bg\", tags())\n    .label(\"Skills\")\n    .selection_mode(SelectionMode::Single)\n    .hover_bg(cx.colors().accent.soft())\n    .remove_hover_bg(cx.colors().accent.soft_hover())\n    .on_remove(cx.listener(\n        |this, keys: &HashSet<SharedString>, _, cx| {\n            this.tags.retain(|key| !keys.contains(key));\n            this.tag_selection.retain(|key| !keys.contains(key));\n            cx.notify();\n        },\n    ))"
     },
     {
       "heading": "Disabled",
@@ -1020,8 +1022,9 @@
   "chip": [
     {
       "heading": "Usage",
-      "imports": "use herogpui::prelude::{Chip, ChipLabel};\nuse gpui::prelude::*;",
-      "code": "Chip::new()\n    .child(ChipLabel::new().child(\"Chip\"))"
+      "description": "`text_size` sets the label size and paired leading; `radius` replaces the chip's default corner.",
+      "imports": "use herogpui::prelude::{Chip, ChipLabel};\nuse gpui::prelude::*;\nuse gpui::px;",
+      "code": "Chip::new()\n    .text_size(px(14.))\n    .radius(px(4.))\n    .child(ChipLabel::new().child(\"Chip\"))"
     },
     {
       "heading": "Statuses",
@@ -1059,8 +1062,8 @@
     {
       "heading": "Row Hover",
       "description": "`row_hover_bg` names the fill a hovered unselected interactive row takes; a selected row keeps its selection fill.",
-      "imports": "use herogpui::prelude::{ActiveTheme, Table};\nuse gpui::prelude::*;",
-      "code": "stretch_col(vec![build(\"tbl-row-hover\")\n    .row_hover_bg(cx.colors().accent.soft())\n    .into_any_element()])"
+      "imports": "use herogpui::prelude::{ActiveTheme, SelectionMode, Table};\nuse gpui::prelude::*;",
+      "code": "stretch_col(vec![build(\"tbl-row-hover\")\n    .selection_mode(SelectionMode::Single)\n    .row_hover_bg(cx.colors().accent.soft())\n    .into_any_element()])"
     },
     {
       "heading": "Variants",
@@ -1814,7 +1817,7 @@
       "heading": "Sizes",
       "description": "`size` is additive, not a v3 prop: `Md` is the pinned 16px control; `Sm` is a 14px control with a 10px indicator and 12px label text.",
       "imports": "use herogpui::prelude::{Checkbox, CheckboxSize};\nuse gpui::prelude::*;\nuse gpui::px;",
-      "code": "gpui::div()\n    .flex()\n    .flex_col()\n    .items_start()\n    .gap(px(12.))\n    .children(vec![\n        Checkbox::new(\"checkbox-sz-sm\")\n            .size(CheckboxSize::Sm)\n            .label(gpui::div().child(\"Small\"))\n            .into_any_element(),\n        Checkbox::new(\"checkbox-sz-md\")\n            .size(CheckboxSize::Md)\n            .label(gpui::div().child(\"Medium\"))\n            .into_any_element(),\n    ])"
+      "code": "gpui::div()\n    .flex()\n    .flex_col()\n    .items_start()\n    .gap(px(12.))\n    .children(vec![\n        Checkbox::new(\"checkbox-sz-sm\")\n            .size(CheckboxSize::Sm)\n            .label(gpui::div().child(\"Small\"))\n            .description(\"Supporting text aligns with this label\")\n            .into_any_element(),\n        Checkbox::new(\"checkbox-sz-md\")\n            .size(CheckboxSize::Md)\n            .label(gpui::div().child(\"Medium\"))\n            .description(\"Supporting text aligns with this label\")\n            .into_any_element(),\n    ])"
     },
     {
       "heading": "Variants",
@@ -2369,7 +2372,7 @@
       "heading": "Sizes",
       "description": "`size` is additive, not a v3 prop: `Md` is the pinned 16px control; `Sm` is a 14px control with a 5px dot, 12px label text and a 10px row gap.",
       "imports": "use herogpui::prelude::{RadioGroup, RadioSize};\nuse gpui::prelude::*;\nuse gpui::px;",
-      "code": "gpui::div()\n    .flex()\n    .flex_col()\n    .items_start()\n    .gap(px(12.))\n    .children(vec![\n        RadioGroup::new(\"radio-group-sz-sm\", plans())\n            .size(RadioSize::Sm)\n            .default_value(\"Free\")\n            .into_any_element(),\n        RadioGroup::new(\"radio-group-sz-md\", plans())\n            .size(RadioSize::Md)\n            .default_value(\"Free\")\n            .into_any_element(),\n    ])"
+      "code": "gpui::div()\n    .flex()\n    .flex_col()\n    .items_start()\n    .gap(px(12.))\n    .children(vec![\n        RadioGroup::new(\"radio-group-sz-sm\", plans())\n            .size(RadioSize::Sm)\n            .descriptions([Some(\"100 messages\"), Some(\"200 messages\"), None])\n            .default_value(\"Free\")\n            .into_any_element(),\n        RadioGroup::new(\"radio-group-sz-md\", plans())\n            .size(RadioSize::Md)\n            .descriptions([Some(\"100 messages\"), Some(\"200 messages\"), None])\n            .default_value(\"Free\")\n            .into_any_element(),\n    ])"
     },
     {
       "heading": "Variants",
@@ -2707,9 +2710,9 @@
   "avatar": [
     {
       "heading": "Usage",
-      "description": "Fallback text uses 14px text with 20px lines, or 16px text with 24px lines for large avatars.",
-      "imports": "use herogpui::prelude::Avatar;\nuse gpui::px;",
-      "code": "Avatar::new(\"avatar-avatar\")\n    .name(\"Jane Doe\")\n    .radius(px(8.))"
+      "description": "Fallback text uses 14px/20px, or 16px/24px for large avatars. Here `radius` sets 8px corners and `sx` squares just the top-left corner on the fallback and loaded image.",
+      "imports": "use herogpui::prelude::Avatar;\nuse gpui::prelude::*;\nuse gpui::px;",
+      "code": "Avatar::new(\"avatar-avatar\")\n    .name(\"Jane Doe\")\n    .radius(px(8.))\n    .sx(|el| el.rounded_tl(px(0.)))"
     },
     {
       "heading": "Fallback Content",

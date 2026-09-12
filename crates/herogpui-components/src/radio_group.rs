@@ -85,6 +85,19 @@ pub struct RadioOptionState {
 
 /// HeroGPUI-only compact size for a [`RadioGroup`].
 ///
+/// | Metric (pixels) | Sm | Md (pinned default) |
+/// | --- | --- | --- |
+/// | Control / selected dot / pressed dot | 14 / 5 / 8 | 16 / 6 / 8 |
+/// | Label text / line height | 12 / 16 | 14 / 20 |
+/// | Control-to-label gap / supporting-text indent | 10 / 24 | 12 / 28 |
+///
+/// Both steps have zero row padding and no extra minimum hitbox: each clickable
+/// row includes its control and label and grows with caller content. Options
+/// remain 16px apart in either orientation; horizontal groups wrap. Supporting
+/// text remains 12/16 with a 4px vertical gap. Control and dot keep `key_radius`;
+/// `radius` overrides only the control. Press scales the control by 0.95 when
+/// motion is enabled; the selected dot's pressed size remains 8px in both steps.
+///
 /// v3.2.4 removed the field `size` prop, so this is additive: `Md` is
 /// byte-identical to the pinned default and `Sm` is HeroGPUI's own 14px step.
 /// Not a v3 prop.
@@ -809,7 +822,7 @@ impl RenderOnce for RadioGroup {
                     group = group.child(
                         gpui::div().flex().flex_col().gap(px(4.)).child(row).child(
                             gpui::div()
-                                .pl(px(28.))
+                                .pl(circle + gap)
                                 .child(crate::field::ErrorMessage::new(message)),
                         ),
                     );
@@ -818,7 +831,7 @@ impl RenderOnce for RadioGroup {
                     group = group.child(
                         gpui::div().flex().flex_col().gap(px(4.)).child(row).child(
                             gpui::div()
-                                .pl(px(28.))
+                                .pl(circle + gap)
                                 .child(crate::field::Description::new(text)),
                         ),
                     );

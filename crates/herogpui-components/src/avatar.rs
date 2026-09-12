@@ -316,6 +316,7 @@ impl RenderOnce for Avatar {
                 crate::util::control_radius(cx)
             }
         });
+        let sx_corners = crate::util::sx_radius(&self.sx);
 
         let el = gpui::div()
             .relative()
@@ -353,6 +354,7 @@ impl RenderOnce for Avatar {
             .line_height(leading)
             .font_weight(gpui::FontWeight::MEDIUM)
             .child(fallback_content);
+        let fallback = crate::util::round_sx_corners(fallback, &sx_corners);
 
         // Keep the image lifecycle slot alive even when the source is absent:
         // image latches must reset when an image is removed and later re-added
@@ -486,13 +488,14 @@ impl RenderOnce for Avatar {
                 match got {
                     // Success: the image replaces the fallback inside the
                     // `.avatar__image` box.
-                    Some(Ok(data)) => el.child(
+                    Some(Ok(data)) => el.child(crate::util::round_sx_corners(
                         gpui::img(data)
                             .absolute()
                             .inset_0()
                             .size_full()
                             .rounded(radius),
-                    ),
+                        &sx_corners,
+                    )),
                     // Pending and error both keep the fallback box; with a
                     // `delay_ms` window still running the box stays empty.
                     Some(Err(_)) | None => {
@@ -514,6 +517,41 @@ impl RenderOnce for Avatar {
 // fallback looks plausible on screen, so the check is mechanical.
 #[cfg(test)]
 mod fill_tokens {
+    #[test]
+    fn fallback_and_image_keep_the_roots_explicit_corners() {
+        use gpui::{px, AbsoluteLength, Styled};
+
+        let sx = Some(crate::util::capture_sx(|el| {
+            el.rounded_tl(px(0.)).rounded_br(px(3.))
+        }));
+        let corners = crate::util::sx_radius(&sx);
+        let mut image =
+            crate::util::round_sx_corners(gpui::img("avatar.png").rounded(px(8.)), &corners);
+        let radii = image.style().corner_radii.clone();
+        for (actual, expected) in [
+            (radii.top_left, 0.),
+            (radii.top_right, 8.),
+            (radii.bottom_left, 8.),
+            (radii.bottom_right, 3.),
+        ] {
+            assert_eq!(actual, Some(AbsoluteLength::Pixels(px(expected))));
+        }
+
+        let source = include_str!("avatar.rs")
+            .split("#[cfg(test)]")
+            .next()
+            .unwrap();
+        let compact: String = source.split_whitespace().collect();
+        for consumer in [
+            "letsx_corners=crate::util::sx_radius(&self.sx);",
+            "letfallback=crate::util::round_sx_corners(fallback,&sx_corners);",
+            "crate::util::round_sx_corners(gpui::img(data).absolute().inset_0().size_full().rounded(radius),&sx_corners,)",
+            "crate::util::apply_sx(el,&self.sx)",
+        ] {
+            assert!(compact.contains(consumer), "missing corner consumer: {consumer}");
+        }
+    }
+
     #[test]
     fn the_fills_and_foregrounds_follow_the_pinned_css() {
         // Scan the implementation only; this test's own text names the

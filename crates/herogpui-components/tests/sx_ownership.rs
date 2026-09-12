@@ -67,20 +67,19 @@ const INVENTORY: &[Part] = &[
         "crate::anim::hover_fade(",
         "util::sx_background",
     ),
-    // Pending conversions. `sx_background` is the intended extractor; the
-    // consumer's own state precedence is settled in the same change.
-    Part::pending(
+    Part::wired(
         "toggle_button.rs",
         "fill and hover-fade endpoints",
         "crate::anim::hover_fade(",
         "util::sx_background",
     ),
-    Part::pending(
+    Part::wired(
         "close_button.rs",
         "fill and hover-fade endpoints",
         "crate::anim::hover_fade(",
         "util::sx_background",
     ),
+    // Pending conversions. Resolve each part's state precedence when wiring.
     Part::pending(
         "switch.rs",
         "track hover fill",

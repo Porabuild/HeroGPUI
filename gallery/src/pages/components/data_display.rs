@@ -208,7 +208,10 @@ impl Gallery {
             vec![
                 (
                     "Usage",
+                    "`text_size` sets the label size and paired leading; `radius` replaces the chip's default corner.",
                     row(vec![h::Chip::new()
+                        .text_size(px(14.))
+                        .radius(px(4.))
                         .child(h::ChipLabel::new().child("Chip"))
                         .into_any_element()]),
                 ),
@@ -343,6 +346,7 @@ impl Gallery {
                     "Row Hover",
                     "`row_hover_bg` names the fill a hovered unselected interactive row takes; a selected row keeps its selection fill.",
                     stretch_col(vec![build("tbl-row-hover")
+                        .selection_mode(SelectionMode::Single)
                         .row_hover_bg(cx.colors().accent.soft())
                         .into_any_element()]),
                 ),

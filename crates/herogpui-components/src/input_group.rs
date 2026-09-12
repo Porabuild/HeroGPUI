@@ -69,8 +69,8 @@ pub struct InputGroup {
     /// The family the held field is drawn and measured with; unset keeps the
     /// field's own setting.
     font_family: Option<SharedString>,
-    /// The corner radius, forwarded onto the held field and set back over the
-    /// group box's own chrome.
+    /// The corner radius used by the group's chrome and forwarded to the
+    /// held field.
     radius: Option<Pixels>,
     is_disabled: bool,
     is_invalid: bool,
@@ -172,9 +172,8 @@ impl InputGroup {
     /// `radius` prop is prohibited and this is a per-component repository
     /// extension.
     ///
-    /// The shared field chrome paints the helper's radius over the group box,
-    /// so the resolved value is set back over it; the held field carries the
-    /// same value, the way [`InputGroup::font_family`] forwards the family.
+    /// The group's chrome uses the resolved radius, and an explicit override
+    /// is also forwarded to the held field.
     pub fn radius(mut self, radius: impl Into<Pixels>) -> Self {
         self.radius = Some(radius.into());
         self
@@ -282,8 +281,7 @@ impl RenderOnce for InputGroup {
         let is_invalid = self.is_invalid || self.error_message.is_some();
         let (is_disabled, is_textarea) = (self.is_disabled, self.is_textarea);
         let field_box = self.field;
-        // The group box's own radius, resolved once: the shared field chrome
-        // below paints the helper's, so an override has to go back over it.
+        // Resolve the radius passed to the group's shared field chrome.
         let radius = self.radius.unwrap_or_else(|| util::field_radius(cx));
         // A textarea group grows with its content and ignores the height
         // override; every other group defaults to the 36px row.

@@ -143,6 +143,7 @@ impl RenderOnce for CloseButton {
         // The box is the button's whole shape, so the press-scale derivation
         // below multiplies this resolved value rather than the helper's.
         let radius = self.radius.unwrap_or_else(|| crate::util::small_radius(cx));
+        let sx_corners = crate::util::sx_radius(&self.sx);
         let disabled_opacity = cx.layout().disabled_opacity;
         // `.close-button` is `h-6 p-1` with a `size-4` glyph.
         let (box_size, icon_size) = (px(24.), px(16.));
@@ -171,6 +172,7 @@ impl RenderOnce for CloseButton {
             .size(box_size)
             .p(px(4.))
             .rounded(radius)
+            .map(|el| crate::util::round_sx_corners(el, &sx_corners))
             .when(fade.is_none(), |e| e.bg(idle_bg))
             .text_color(colors.muted);
 
@@ -180,7 +182,7 @@ impl RenderOnce for CloseButton {
                 element_id::scoped(&self.id, "fade"),
                 fade_colors,
                 interaction.as_ref(),
-                move |fill| fill.rounded(radius),
+                move |fill| crate::util::round_sx_corners(fill.rounded(radius), &sx_corners),
                 window,
                 cx,
             );
@@ -203,14 +205,19 @@ impl RenderOnce for CloseButton {
             let inset = px(f32::from(box_size) * (1.0 - PRESS_SCALE) / 2.0);
             let pressed = px(f32::from(box_size) * PRESS_SCALE);
             let pressed_radius = px(f32::from(radius) * PRESS_SCALE);
+            let pressed_corners =
+                crate::anim::pressed_corners(&el.style().corner_radii, radius, PRESS_SCALE);
             el = el.active(move |s| {
-                s.h(pressed)
-                    .w(pressed)
-                    .mt(inset)
-                    .mb(inset)
-                    .ml(inset)
-                    .mr(inset)
-                    .rounded(pressed_radius)
+                crate::util::round_sx_corners(
+                    s.h(pressed)
+                        .w(pressed)
+                        .mt(inset)
+                        .mb(inset)
+                        .ml(inset)
+                        .mr(inset)
+                        .rounded(pressed_radius),
+                    &pressed_corners,
+                )
             });
         }
 

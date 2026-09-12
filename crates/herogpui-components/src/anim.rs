@@ -355,6 +355,28 @@ fn scaled_by(value: gpui::Pixels, scale: f32) -> gpui::Pixels {
     px(f32::from(value) * scale)
 }
 
+/// Scale the skin's resolved pixel corners independently. Unsupported Rems
+/// retain the existing PressBox fallback; callers keep them on the root.
+pub(crate) fn pressed_corners(
+    corners: &gpui::CornersRefinement<gpui::AbsoluteLength>,
+    fallback: gpui::Pixels,
+    scale: f32,
+) -> gpui::Corners<Option<gpui::Pixels>> {
+    let scale_corner = |corner| {
+        let radius = match corner {
+            Some(gpui::AbsoluteLength::Pixels(radius)) => radius,
+            _ => fallback,
+        };
+        Some(scaled_by(radius, scale))
+    };
+    gpui::Corners {
+        top_left: scale_corner(corners.top_left),
+        top_right: scale_corner(corners.top_right),
+        bottom_right: scale_corner(corners.bottom_right),
+        bottom_left: scale_corner(corners.bottom_left),
+    }
+}
+
 /// Everything a pressed control scales down.
 #[derive(Clone, Copy, Debug)]
 pub struct PressBox {
@@ -436,7 +458,7 @@ fn press_slot_recorder(id: ElementId) -> AnyElement {
 }
 
 fn pressed_with_optional_background(
-    el: gpui::Stateful<gpui::Div>,
+    mut el: gpui::Stateful<gpui::Div>,
     b: PressBox,
     background: Option<gpui::Hsla>,
     cx: &App,
@@ -457,6 +479,7 @@ fn pressed_with_optional_background(
     let inset = gpui::DefiniteLength::Fraction((1.0 - b.scale) / 2.0);
     let pressed_min_height = scaled_by(b.height, b.scale);
     let pressed_radius = scaled_by(b.radius, b.scale);
+    let corners = pressed_corners(&el.style().corner_radii, b.radius, b.scale);
 
     // `active` state only exists for elements with a hitbox, and a hitbox is
     // only inserted for elements that track focus, set a cursor, or listen to
@@ -470,15 +493,18 @@ fn pressed_with_optional_background(
             Some(background) => s.bg(background),
             None => s,
         };
-        s.absolute()
-            .left(inset)
-            .right(inset)
-            .top(inset)
-            .bottom(inset)
-            .w(gpui::Length::Auto)
-            .h(gpui::Length::Auto)
-            .min_h(pressed_min_height)
-            .rounded(pressed_radius)
+        crate::util::round_sx_corners(
+            s.absolute()
+                .left(inset)
+                .right(inset)
+                .top(inset)
+                .bottom(inset)
+                .w(gpui::Length::Auto)
+                .h(gpui::Length::Auto)
+                .min_h(pressed_min_height)
+                .rounded(pressed_radius),
+            &corners,
+        )
     });
 
     // The slot keeps the resting footprint: fixed where the caller gave us a
@@ -963,6 +989,42 @@ mod tests {
     use super::*;
     use gpui::px;
     use herogpui_theme::{set_reduce_motion, set_theme, Theme, ThemeProvider};
+
+    #[test]
+    fn press_scales_resolved_corners_without_erasing_partial_overrides() {
+        let mut skin = crate::util::round_sx_corners(
+            gpui::div().rounded(px(2.)),
+            &gpui::Corners {
+                top_left: Some(px(12.)),
+                bottom_right: Some(px(0.)),
+                ..Default::default()
+            },
+        );
+        let corners = pressed_corners(&skin.style().corner_radii, px(8.), 0.5);
+        assert_eq!(
+            corners,
+            gpui::Corners {
+                top_left: Some(px(6.)),
+                top_right: Some(px(1.)),
+                bottom_right: Some(px(0.)),
+                bottom_left: Some(px(1.)),
+            }
+        );
+        let mut pressed = crate::util::round_sx_corners(gpui::div().rounded(px(4.)), &corners);
+        assert_eq!(pressed.style().corner_radii.top_left, Some(px(6.).into()));
+        assert_eq!(
+            pressed.style().corner_radii.bottom_right,
+            Some(px(0.).into())
+        );
+        let unsupported = gpui::CornersRefinement {
+            top_left: Some(gpui::rems(1.).into()),
+            ..Default::default()
+        };
+        assert_eq!(
+            pressed_corners(&unsupported, px(8.), 0.5),
+            gpui::Corners::all(px(4.)).map(|radius| Some(*radius))
+        );
+    }
 
     /// `hover_fade_ms` is public configuration: the stock theme keeps the
     /// button's `100ms`, a zero resolves like reduced motion, and any other

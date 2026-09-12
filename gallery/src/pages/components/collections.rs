@@ -63,13 +63,12 @@ impl Gallery {
                 (
                     "Row Hover",
                     "`row_hover_bg` names the fill a hovered menu row takes, in place of `--default`.",
-                    col(vec![h::Dropdown::new(
+                    col(vec![h::Dropdown::uncontrolled(
                         "dd-hover-trigger",
                         h::Button::new("dd-hover")
                             .label("Actions")
                             .variant(Variant::Secondary),
                         plain(),
-                        false,
                     )
                     .row_hover_bg(cx.colors().accent.soft())
                     .into_any_element()]),
@@ -862,6 +861,7 @@ impl Gallery {
                     "`hover_bg` names a hovered tag's fill and `remove_hover_bg` the remove button's, which stays a circle.",
                     col(vec![h::TagGroup::new("tg-hover-bg", tags())
                         .label("Skills")
+                        .selection_mode(SelectionMode::Single)
                         .hover_bg(cx.colors().accent.soft())
                         .remove_hover_bg(cx.colors().accent.soft_hover())
                         .on_remove(cx.listener(

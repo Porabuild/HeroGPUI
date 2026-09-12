@@ -199,6 +199,25 @@ def check_motions():
     return bad
 
 
+def switch_child_fill(src):
+    """The animated track fill and interaction binding must both be wired."""
+    return bool(
+        re.search(
+            r'track\s*=\s*track\s*\.child\(\s*track_motion_frame\.render\(\s*'
+            r'gpui::div\(\)\s*'
+            r'\.absolute\(\)\s*\.inset_0\(\)\s*\.rounded\(track_r\)\s*'
+            r'\.map\(\|fill\|\s*crate::util::round_sx_corners\(fill,\s*&sx_corners\)\)'
+            r'\s*,\s*\)\s*,\s*\)',
+            src,
+            re.S,
+        )
+        and re.search(
+            r'track\s*=\s*crate::util::track_interaction\(track,\s*&interaction\)',
+            src,
+        )
+    )
+
+
 def check_switch_motion():
     """The Switch property transitions against its component CSS."""
     css_path = os.path.join(CACHE, 'switch.css')
@@ -259,21 +278,7 @@ def check_switch_motion():
         and 'if reduce_motion' in track_source
         and 'let animate = !reduce_motion' in track_source
     )
-    child_fill = bool(
-        re.search(
-            r'track\s*=\s*track\s*\.child\(\s*track_motion_frame\.render\(\s*'
-            r'gpui::div\(\)\s*'
-            r'\.absolute\(\)\s*\.inset_0\(\)\s*\.rounded\(track_r\)\s*'
-            r'\.map\(\|fill\|\s*crate::util::round_sx_corners\(fill,\s*&sx_corners\)\)'
-            r'\s*,\s*\)\s*,\s*\)',
-            src,
-            re.S,
-        )
-        and re.search(
-            r'track\s*=\s*crate::util::track_interaction\(track,\s*&interaction\)',
-            src,
-        )
-    )
+    child_fill = switch_child_fill(src)
     if (
         want_track is None
         or want_thumb is None
@@ -1039,7 +1044,29 @@ def corpus():
     return '\n'.join(text)
 
 
+def self_test():
+    src = read_path(os.path.join(SRC, 'switch.rs'))
+    failures = []
+    if not switch_child_fill(src):
+        failures.append('the production Switch track fill must be readable')
+    for old, new in [
+            ('track_motion_frame.render(', 'other_frame.render('),
+            ('round_sx_corners(fill, &sx_corners)', 'round_sx_corners(other, &sx_corners)'),
+            ('track = crate::util::track_interaction(track, &interaction)',
+             'track = crate::util::track_interaction(other, &interaction)')]:
+        broken = src.replace(old, new)
+        if broken == src or switch_child_fill(broken):
+            failures.append('the Switch reader must reject broken wiring: ' + old)
+    for failure in failures:
+        print('! self-test: ' + failure)
+    if not failures:
+        print('self-test PASS: Switch fill ownership, corner refinement and interaction wiring')
+    return int(bool(failures))
+
+
 def main():
+    if '--self-test' in sys.argv[1:]:
+        return self_test()
     bundle = corpus()
     src = source()
 

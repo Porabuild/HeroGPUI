@@ -1,7 +1,7 @@
 {
   "version": 2,
-  "artifactSha256": "633e47e70f6e9ce0b7128bea2903e9def67424b0d153b1db68e7353489243a3b",
-  "glueSha256": "754f8eccd6ab0d4b0c182a3d9ab81bf08a8230fbcfbafb547230f92a12d73e74",
+  "artifactSha256": "d01cb3a3af2ae80737b2c28e0372489bbd5df2aec680930a5c8a5e3d9d7d68dc",
+  "glueSha256": "f129bef083eff6cf28064ea62c53478c3a6de3163f7550bf5bd8c943fe70cae2",
   "examples": {
     "accordion/Controlled": {
       "codeSha256": "2816548407263e0fdeada0ff2ec1e8f9fd45a2d33b24ab2cf163539711fe6f8a",
@@ -204,8 +204,8 @@
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "avatar/Usage": {
-      "codeSha256": "d5a28e9ca67318dd1428558e36a3acce66a4101b1c15e718765d2d429d4602f7",
-      "descriptionSha256": "e38553dcc84475c71db94ef69a5180db6c26a7e9be1d4fbd2ed2016defe4f467"
+      "codeSha256": "85e5a9a83de824c8c8595c96d11ad7b1c40a82e397f1bf2a165a4c56a8f148a3",
+      "descriptionSha256": "5b34988dd9d650e70e8abf82f7332d51e9c5f42e591827905153c725e68612d3"
     },
     "avatar/Variants": {
       "codeSha256": "1397066749b47d0292b8870f6313b0fdbeeb2645174242b73b06ded8aead4f30",
@@ -340,8 +340,8 @@
       "descriptionSha256": "2302f228c749becbd93b2cc4185cce072553dd34c6416e373ca12f4476f323a7"
     },
     "button/Usage": {
-      "codeSha256": "a7ccaa8ce9e4bb2068ce6c15ee2ce4fd5f4dfc074a50229677c5946961f482d9",
-      "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      "codeSha256": "1b47e6cf3c3232dfbf04eeed12ff7a935fc68a781d3c2ba26980d83dd18d1cd3",
+      "descriptionSha256": "3c37a2b3c918b2429550a6547365ca8ada075f43e1b3e9c99e94fed717c0bc29"
     },
     "button/Variants": {
       "codeSha256": "9767a676cd987f51ce465fe3bfd7e66eea16eccdd8672a984c70b57325100aeb",
@@ -544,7 +544,7 @@
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "checkbox/Sizes": {
-      "codeSha256": "a8cffc3c8d14d918245e68b9bef190347b89aefb5b43131b2c3d53b270915625",
+      "codeSha256": "3979dc0e172319743d3979e7fe3581516efbb6d0d17b032af9506c6e429c56fd",
       "descriptionSha256": "7ab4dbe4e41d5711aa9fc91cc90b9ca41bc9012ae67718d3b11004304af2bba0"
     },
     "checkbox/Usage": {
@@ -572,8 +572,8 @@
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "chip/Usage": {
-      "codeSha256": "e23be6414225500de8990b9dbbd9bd5960835ba5e9aeb000c187568e4ee163c1",
-      "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      "codeSha256": "6f0ca5102cf6e93e4b76d319c5a32ba6636a3267538587c9a005e43957a7a9e0",
+      "descriptionSha256": "9ca0429acce53bbb57b725abbf60c8c35a96185834fb21d35545576ad634722b"
     },
     "chip/Variants": {
       "codeSha256": "da926bc67a1b23c4a2330107819fb6e5c79a7b7966a86c0c3fb629f57cffeef1",
@@ -600,8 +600,8 @@
       "descriptionSha256": "6e11fd2fbf15c504cba23cccb0d8a2c22fbb7fc21f05f09cf6ac631a7727a328"
     },
     "close-button/Usage": {
-      "codeSha256": "e98b41c8ef4fca038d01158386042152ed63f646f08be8d168caf477682180b7",
-      "descriptionSha256": "ef5095333dc37d77ca58af7d0d30e3e5ecec803095ccb986c057e77829cad1cb"
+      "codeSha256": "2bd1813b6c8d00826d0bce4c4dddad88efc42b45949d0d9502ae0f74beb47258",
+      "descriptionSha256": "3c37a2b3c918b2429550a6547365ca8ada075f43e1b3e9c99e94fed717c0bc29"
     },
     "close-button/With Custom Icon": {
       "codeSha256": "bb15d777a75548c20053446e66dac28c55eed568d5b135306dbbe4a39545d032",
@@ -1152,7 +1152,7 @@
       "descriptionSha256": "d5c2ab16d20aeb9912fa390966d352733990f68c63e171dfb8e5345196d33839"
     },
     "dropdown/Row Hover": {
-      "codeSha256": "75a816b2a2b5ece480237638881854ea5fbb2b646e749afde14ad62a852b9373",
+      "codeSha256": "007e10da7db905175bacdc6d1c2a5c0a46f0a0a33e9cc6b78aa64a3bbe487d2a",
       "descriptionSha256": "9d97d5c9a86ca4dfe3577d2e5b6b86b265004b35fb0d06cc5de2cc9772c895fe"
     },
     "dropdown/Single With Custom Indicator": {
@@ -1832,7 +1832,7 @@
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "radio-group/Sizes": {
-      "codeSha256": "5d1c9a7f3b6993a0aa33ac4df148cbfa4c791e96e4c92b882a2a4f29ee84a1c6",
+      "codeSha256": "fd024e6681e59554bae0614522e24148a7f06c16398212fe928b519fc25fe85b",
       "descriptionSha256": "ac81592960be3d7c6fb268013698d27a8af49c2aa8acd6e4d89dedf12880ce87"
     },
     "radio-group/Uncontrolled": {
@@ -2336,7 +2336,7 @@
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "table/Row Hover": {
-      "codeSha256": "c1aa71cb4a4692266133d4900b536be67b76a446a72313f37c8c79bc731adcb6",
+      "codeSha256": "3952a2ace9633c3964cf7a3040cd2dacc0385ce1fe5de66e9396d6056559dbfe",
       "descriptionSha256": "e6dfce1f92629b3b8a44117b7b7afe23a3b687f06648a222c21de1ac20f137dd"
     },
     "table/Secondary Variant": {
@@ -2420,7 +2420,7 @@
       "descriptionSha256": "fc0c581090a608e82e34f9fde01391d40f2e7e139c64bfab05f8d93518b25b15"
     },
     "tag-group/Hover Colour": {
-      "codeSha256": "45f3c8f516c7e9d253f046905178fbeca026fb7626c83d3393c538b84c918213",
+      "codeSha256": "cbadc3481b89ece83397072829f5e3c5ff56e9dd2488addd80f714e92c5ef68a",
       "descriptionSha256": "ef26f4d4bae96dd5f7403f43717829c8ebf6cafc6b8e487f2e5430bf85a45b29"
     },
     "tag-group/Removable": {
@@ -2688,8 +2688,8 @@
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "toggle-button/Usage": {
-      "codeSha256": "3e0cc44cfb4ee8b286df71c427fe70472b28b84d20a064ccbf9af3f711bdb5b4",
-      "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      "codeSha256": "1cf9f772f79bb4301342ce299a50b7b3ad874adacdad7ef9e453df01ca1400c6",
+      "descriptionSha256": "3c37a2b3c918b2429550a6547365ca8ada075f43e1b3e9c99e94fed717c0bc29"
     },
     "toggle-button/Variants": {
       "codeSha256": "167945eb4aa761a49c9f1350eb92bad6285ba89f97f407ae42fc1eb807180861",

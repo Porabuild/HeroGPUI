@@ -710,6 +710,29 @@ mod example_quality {
     }
 
     #[test]
+    fn hover_customisation_examples_enable_the_interaction_they_demonstrate() {
+        let dropdown = section_body(page_fn(SRC, "dropdown"), "Row Hover");
+        assert!(dropdown.contains("h::Dropdown::uncontrolled("));
+        assert!(dropdown.contains(".row_hover_bg("));
+
+        for (page, title, fill) in [
+            ("tag_group", "Hover Colour", ".hover_bg("),
+            ("table", "Row Hover", ".row_hover_bg("),
+        ] {
+            let body = section_body(page_fn(SRC, page), title);
+            assert!(
+                body.contains(".selection_mode(SelectionMode::Single)"),
+                "{page} {title}: hover styling requires interactive rows"
+            );
+            assert!(body.contains(fill));
+            assert!(
+                !body.contains(".selected_keys("),
+                "keep selection uncontrolled"
+            );
+        }
+    }
+
+    #[test]
     fn range_calendar_unavailable_dates_uses_explicit_pinned_ranges() {
         let page = page_fn(SRC, "range_calendar");
         let unavailable = section_body(page, "Unavailable Dates");

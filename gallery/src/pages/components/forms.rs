@@ -45,10 +45,12 @@ impl Gallery {
                         h::Checkbox::new("cb-sz-sm")
                             .size(h::CheckboxSize::Sm)
                             .label(gpui::div().child("Small"))
+                            .description("Supporting text aligns with this label")
                             .into_any_element(),
                         h::Checkbox::new("cb-sz-md")
                             .size(h::CheckboxSize::Md)
                             .label(gpui::div().child("Medium"))
+                            .description("Supporting text aligns with this label")
                             .into_any_element(),
                     ]),
                 ),
@@ -1821,10 +1823,12 @@ impl Gallery {
                     col(vec![
                         h::RadioGroup::new("rg-sz-sm", plans())
                             .size(h::RadioSize::Sm)
+                            .descriptions([Some("100 messages"), Some("200 messages"), None])
                             .default_value("Free")
                             .into_any_element(),
                         h::RadioGroup::new("rg-sz-md", plans())
                             .size(h::RadioSize::Md)
+                            .descriptions([Some("100 messages"), Some("200 messages"), None])
                             .default_value("Free")
                             .into_any_element(),
                     ]),

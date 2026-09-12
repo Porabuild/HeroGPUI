@@ -18,8 +18,10 @@ impl Gallery {
             vec![
                 (
                     "Usage",
+                    "`radius` sets the corners; `sx` squares the top-left corner, including while pressed.",
                     row(vec![h::Button::new("btn-usage")
                         .radius(px(8.))
+                        .sx(|el| el.rounded_tl(px(0.)))
                         .label("Click me")
                         .into_any_element()]),
                 ),
@@ -463,9 +465,10 @@ impl Gallery {
             crate::pages::Page::CloseButton.import_line(),
             vec![
                 (
-                    "Usage", "`radius(px)` replaces the box's corner and the pressed box scales the same value.",
+                    "Usage", "`radius` sets the corners; `sx` squares the top-left corner, including while pressed.",
                     row(vec![h::CloseButton::new("cb-usage")
                         .radius(px(4.))
+                        .sx(|el| el.rounded_tl(px(0.)))
                         .into_any_element()]),
                 ),
                 (
@@ -544,8 +547,10 @@ impl Gallery {
             vec![
                 (
                     "Usage",
+                    "`radius` sets the corners; `sx` squares the top-left corner, including while pressed.",
                     row(vec![h::ToggleButton::new("tb-usage")
                         .radius(px(8.))
+                        .sx(|el| el.rounded_tl(px(0.)))
                         .label("Bold")
                         .into_any_element()]),
                 ),

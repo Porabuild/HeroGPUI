@@ -308,6 +308,7 @@ impl RenderOnce for ToggleButton {
         let is_grouped = self.group_edge.is_some();
 
         let sx_background = crate::util::sx_background(&self.sx);
+        let sx_corners = crate::util::sx_radius(&self.sx);
         let fade = (!self.is_disabled)
             .then(|| {
                 let idle = if is_selected {
@@ -398,6 +399,7 @@ impl RenderOnce for ToggleButton {
         };
 
         el = crate::button::group_radius_any(el, self.group_edge, radius);
+        el = crate::util::round_sx_corners(el, &sx_corners);
 
         if let Some(colors) = fade {
             let edge = self.group_edge;
@@ -406,7 +408,12 @@ impl RenderOnce for ToggleButton {
                 element_id::scoped(&self.id, "fade"),
                 colors,
                 interaction.as_ref(),
-                move |fill| crate::button::group_radius_any(fill, edge, radius),
+                move |fill| {
+                    crate::util::round_sx_corners(
+                        crate::button::group_radius_any(fill, edge, radius),
+                        &sx_corners,
+                    )
+                },
                 window,
                 cx,
             );
