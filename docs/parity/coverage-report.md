@@ -12,10 +12,10 @@ This is a maintainer work-queue summary. It does not turn gallery section headin
 
 | Metric | Count |
 | --- | --- |
-| Specimens | 724 |
+| Specimens | 726 |
 | Verified | 0 |
-| Outstanding | 724 |
-| Unobserved/unreviewed | 723 |
+| Outstanding | 726 |
+| Unobserved/unreviewed | 725 |
 | Components | 67 |
 | Gallery sections | 719 |
 
@@ -23,7 +23,7 @@ This is a maintainer work-queue summary. It does not turn gallery section headin
 
 | Status | Specimens |
 | --- | --- |
-| implemented-unverified | 4 |
+| implemented-unverified | 6 |
 | intentional-deviation | 0 |
 | measured-gap | 0 |
 | not-applicable | 0 |
@@ -36,11 +36,11 @@ This is a maintainer work-queue summary. It does not turn gallery section headin
 
 | Surface | With evidence | Missing evidence |
 | --- | --- | --- |
-| upstream | 4 | 720 |
-| native | 0 | 724 |
-| wasm | 0 | 724 |
-| tests | 3 | 721 |
-| all_surfaces | 0 | 724 |
+| upstream | 5 | 721 |
+| native | 1 | 725 |
+| wasm | 1 | 725 |
+| tests | 5 | 721 |
+| all_surfaces | 1 | 725 |
 
 ## Component queue
 
@@ -53,7 +53,7 @@ This is a maintainer work-queue summary. It does not turn gallery section headin
 | Avatar | 7 | 0 | 7 |
 | Badge | 7 | 0 | 7 |
 | Breadcrumbs | 5 | 0 | 5 |
-| Button | 14 | 0 | 14 |
+| Button | 16 | 0 | 16 |
 | Button Group | 9 | 0 | 9 |
 | Calendar | 21 | 0 | 21 |
 | Card | 6 | 0 | 6 |
@@ -119,6 +119,6 @@ This is a maintainer work-queue summary. It does not turn gallery section headin
 - Measured gaps: **0**
 - Intentional deviations: **0**
 - Platform limits: **1**
-- Unresolved specimen records: **724**
+- Unresolved specimen records: **726**
 
 The JSON file contains the complete unresolved id list and per-component detail. Add a concrete evidence record before changing a specimen to `verified`; record intentional deviations and platform limits with user-facing notes.

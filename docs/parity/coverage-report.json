@@ -8,15 +8,15 @@
   "last_evidence_commit": null,
   "last_evidence_commit_recorded": false,
   "totals": {
-    "specimens": 724,
+    "specimens": 726,
     "verified": 0,
-    "outstanding": 724,
-    "unobserved": 723,
+    "outstanding": 726,
+    "unobserved": 725,
     "components": 67,
     "gallery_sections": 719
   },
   "status_counts": {
-    "implemented-unverified": 4,
+    "implemented-unverified": 6,
     "intentional-deviation": 0,
     "measured-gap": 0,
     "not-applicable": 0,
@@ -26,31 +26,31 @@
     "verified": 0
   },
   "scope_counts": {
-    "component-state": 2,
+    "component-state": 4,
     "cross-component": 1,
     "gallery-section": 719,
     "platform-harness": 2
   },
   "evidence_counts": {
     "upstream": {
-      "specimens_with_evidence": 4,
-      "specimens_missing_evidence": 720
+      "specimens_with_evidence": 5,
+      "specimens_missing_evidence": 721
     },
     "native": {
-      "specimens_with_evidence": 0,
-      "specimens_missing_evidence": 724
+      "specimens_with_evidence": 1,
+      "specimens_missing_evidence": 725
     },
     "wasm": {
-      "specimens_with_evidence": 0,
-      "specimens_missing_evidence": 724
+      "specimens_with_evidence": 1,
+      "specimens_missing_evidence": 725
     },
     "tests": {
-      "specimens_with_evidence": 3,
+      "specimens_with_evidence": 5,
       "specimens_missing_evidence": 721
     },
     "all_surfaces": {
-      "specimens_with_evidence": 0,
-      "specimens_missing_evidence": 724
+      "specimens_with_evidence": 1,
+      "specimens_missing_evidence": 725
     }
   },
   "unobserved_statuses": [
@@ -70,6 +70,20 @@
     }
   ],
   "unresolved": [
+    {
+      "id": "button/usage/press-motion",
+      "component": "Button",
+      "scope": "component-state",
+      "status": "implemented-unverified",
+      "state": "press-motion"
+    },
+    {
+      "id": "button/usage/rest-geometry",
+      "component": "Button",
+      "scope": "component-state",
+      "status": "implemented-unverified",
+      "state": "rest-geometry"
+    },
     {
       "id": "gallery/accordion/controlled",
       "component": "Accordion",
@@ -5335,9 +5349,9 @@
     },
     {
       "component": "Button",
-      "specimens": 14,
+      "specimens": 16,
       "statuses": {
-        "implemented-unverified": 0,
+        "implemented-unverified": 2,
         "intentional-deviation": 0,
         "measured-gap": 0,
         "not-applicable": 0,
@@ -5347,8 +5361,10 @@
         "verified": 0
       },
       "verified": 0,
-      "outstanding": 14,
+      "outstanding": 16,
       "unresolved_ids": [
+        "button/usage/press-motion",
+        "button/usage/rest-geometry",
         "gallery/button/adding-custom-variants",
         "gallery/button/custom-hover-fill",
         "gallery/button/disabled-state",

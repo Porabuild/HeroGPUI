@@ -17592,6 +17592,143 @@
   "retired_gallery_sections": {},
   "specimens": [
     {
+      "id": "button/usage/rest-geometry",
+      "component": "Button",
+      "scope": "component-state",
+      "status": "implemented-unverified",
+      "upstream": {
+        "tag": "v3.2.5",
+        "source": "docs/parity/evidence/matched-button-usage-6067b2e3/README.md",
+        "selector": ".button (Usage / btn-usage)",
+        "demoSection": "Usage"
+      },
+      "port": {
+        "module": "button",
+        "galleryPage": "Button",
+        "gallerySection": "Usage",
+        "specimenKey": "btn-usage"
+      },
+      "configuration": {
+        "variant": "primary",
+        "size": "md",
+        "radius": "8px with squared top-left",
+        "themes": "light+dark",
+        "motion": "normal",
+        "state": "rest"
+      },
+      "state": "rest-geometry",
+      "setup": [
+        "Render the keyed btn-usage specimen (Primary Md, label Click me, radius 8px, sx squared top-left) at rest in light and dark."
+      ],
+      "assertions": [
+        "Resting height is 36 logical px; padding_x 16 and 14px label; three 8px corners with a square top-left.",
+        "Port box is 90×36 vs upstream 89.08×36; the 0.92px width gap is Geist vs Inter advance width, not a layout defect.",
+        "Fixture porabuild accent vs ported HeroUI primary is a named token-source deviation, not a geometry failure."
+      ],
+      "evidence": {
+        "upstream": [
+          {
+            "path": "docs/parity/evidence/matched-button-usage-6067b2e3/upstream-light.png",
+            "sha256": "c577c46141e8d9148147e8f103d6a9879385a1175e3c306d57df857b9ad03f45"
+          },
+          {
+            "path": "docs/parity/evidence/matched-button-usage-6067b2e3/upstream-dark.png",
+            "sha256": "5eadd84c789b8c4830204112b8108b0a06fdfed93ce16406f688e455dd1d0201"
+          },
+          {
+            "path": "docs/parity/evidence/matched-button-usage-6067b2e3/README.md",
+            "sha256": "fc954e2db479d06c6944606074957e94bf25138230a86a2ed6343f6ea5edb9ad"
+          }
+        ],
+        "native": [
+          {
+            "path": "docs/parity/evidence/native-button-usage/native-usage-light.png",
+            "sha256": "e386c3cca30558f0e82ca407c35e682f5324ac1c1319a62398a73c5cfaaccddc"
+          },
+          {
+            "path": "docs/parity/evidence/native-button-usage/native-usage-dark.png",
+            "sha256": "520e2fc40c6178cd3c138d20782dcb439282203997237c74d4415a380ea5798a"
+          },
+          {
+            "path": "docs/parity/evidence/native-button-usage/README.md",
+            "sha256": "4e8bbca8dd0222bf7676e6b698f0ff51b7f24f325a86f07a7fff63287ae01b03"
+          }
+        ],
+        "wasm": [
+          {
+            "path": "docs/parity/evidence/matched-button-usage-6067b2e3/port-light.png",
+            "sha256": "eaeb7563c2b9d1f2160253f4ed03993826095490dd9eae5e48133f239c134eea"
+          },
+          {
+            "path": "docs/parity/evidence/matched-button-usage-6067b2e3/port-dark.png",
+            "sha256": "b6887cb9aa7b2d14374921655d77371333ac58b83f6fa50ceadc3415836f4ad1"
+          }
+        ],
+        "tests": [
+          {
+            "path": "crates/herogpui-components/tests/buttons.rs",
+            "sha256": "56b9aad41cebafa3cdbaf6cc2b4ef9c3916683a0f237baff8fb246287b200582"
+          },
+          {
+            "path": "crates/herogpui-components/tests/component_themes.rs",
+            "sha256": "1ff4de60cf1f8daabc67f16dd7eb71e4364fb8395570c2913bc2e127ef448a4d"
+          },
+          {
+            "path": "crates/herogpui-components/tests/radius_builders.rs",
+            "sha256": "4835a0a324e26d3943aeceb258e7e91732f9091b86d1c393dcc2fb2a4cf2fb47"
+          }
+        ]
+      },
+      "source": {
+        "plan": "docs/parity/ui-design-plan.md",
+        "notes": "Concrete expansion of gallery/button/usage. WASM recaptured at artifact 6067b2e3; PNG bytes match the e2bfda29 set. Native provenance is still 7b192268 (button sources unchanged); HEAD native recapture is blocked in this agent host (control ack + TCC). Not verified: native is not HEAD-bound and motion/interaction were not driven."
+      }
+    },
+    {
+      "id": "button/usage/press-motion",
+      "component": "Button",
+      "scope": "component-state",
+      "status": "implemented-unverified",
+      "upstream": {
+        "tag": "v3.2.5",
+        "source": "packages/styles/components/button.css",
+        "selector": "transform 250ms var(--ease-smooth) scale(0.97)",
+        "demoSection": "Usage"
+      },
+      "port": {
+        "module": "button",
+        "galleryPage": "Button",
+        "gallerySection": "Usage",
+        "specimenKey": "btn-usage"
+      },
+      "configuration": {
+        "state": "pressed",
+        "motion": "full+reduce"
+      },
+      "state": "press-motion",
+      "setup": [
+        "Pointer-press a default Md Button; interrupt mid-ramp; repeat under reduced motion."
+      ],
+      "assertions": [
+        "Press inset ramps 250ms ease-smooth about the centre to the 0.97 scale; mid-press release resumes from the painted frame; reduced motion snaps."
+      ],
+      "evidence": {
+        "upstream": [],
+        "native": [],
+        "wasm": [],
+        "tests": [
+          "crates/herogpui-components/tests/buttons.rs::button_press_collapses_toward_its_centre",
+          "crates/herogpui-components/tests/buttons.rs::button_release_mid_press_resumes_from_the_painted_frame",
+          "crates/herogpui-components/tests/buttons.rs::reduced_motion_press_snaps_without_animating",
+          "crates/herogpui-components/tests/buttons.rs::button_press_uses_the_pinned_background_endpoint"
+        ]
+      },
+      "source": {
+        "plan": "docs/parity/ui-design-plan.md",
+        "notes": "Test-backed only. Visual press-ramp captures (native/wasm, intermediate samples) are still required before verified."
+      }
+    },
+    {
       "id": "shared/focus-modality/escape",
       "component": "Shared focus modality",
       "scope": "cross-component",

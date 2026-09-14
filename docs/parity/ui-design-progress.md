@@ -76,10 +76,17 @@ tests, extract checks, inventory/coverage `--check`, `parity_report.py`,
 and the component and gallery suites are green. The synchronized artifact
 is
 `6067b2e3e8810b32b8fc5af431b4f5a2e1e40825b2bee6aed7fa31fe19e7cfce`.
-The coverage report still shows 0 verified of 724 specimens; native
-captures exist on disk but are not seeded as ledger evidence. Next work is
-the verification wave, starting with the Button family (fixtures and three
-capture surfaces already exist).
+The coverage report is 0 verified of 726 specimens after expanding the
+first Button family records. `button/usage/rest-geometry` and
+`button/usage/press-motion` are `implemented-unverified`: WASM `btn-usage`
+was recaptured at artifact `6067b2e3` (PNG bytes identical to the
+`e2bfda29` set), upstream fixture captures were reused, and press motion
+is test-backed only. HEAD native recapture is blocked in the agent host
+(control-file ack never fires unfocused; `screencapture -l` / computer-use
+cannot photograph the unsigned gallery binary). Named deviations: Geist vs
+Inter advance width, porabuild vs HeroUI tokens. Next: HEAD-native
+`btn-usage` from a Screen Recording-granted terminal, then press-ramp
+visual samples before any `verified` row.
 
 ## Implemented
 
