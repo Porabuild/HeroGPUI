@@ -16913,7 +16913,7 @@
     "sha256": "99816a71d82bb9d62f9b86bf6f61ec67566cd63e478735f22dd5ba5c97784291"
   },
   "source_snapshot": {
-    "sha256": "ac45fc8519a1720944ad8ef0287094ac4951fb4d50d248d005d5c0245da5f7dc",
+    "sha256": "b4c32756b343c6d1ce3febf07ebea6aa58531887d5665efcb0b1d94034c5ea62",
     "files": {
       ".cargo/config.toml": "656172d7bc0b7cda27bccdffaf87ca34d6c1b3857e3c95f989d9dc164f3395be",
       ".gitattributes": "56aeefb81d13c5858bee5d166f0421d4382e4fd47fc3953fb84032b407a2ef09",
@@ -16921,7 +16921,7 @@
       ".shots/anatomy_audit.py": "09860c4f2a130a95a5a48b9d1845c3cc833b409f67b8797d69749b407a3cbc55",
       ".shots/anim_audit.py": "4139622e471ff6882955a015b8c8f3a1785e50c7458827fb461afdeba89c561f",
       ".shots/api_audit.py": "42727574e56515939db795fd0931b40c0078af83ec96c6b585bcf81ba03bc0b6",
-      ".shots/batch.ps1": "855696a609db244d9dbb9e4e04853767f82e256b4d1c0af34a9828db5c6bfe18",
+      ".shots/batch.ps1": "ef6b5b45dd1f2315ad40355d972429fa0c52a1003cf64bd9a984ebd8818667e3",
       ".shots/behaviour_audit.py": "4fae67f1476898bc4c7cda7ea3f7a132101f8052367382a7a7cece5e30638254",
       ".shots/bundle.py": "db932e7ff262f4d06b28e1d049d4a9c4e9e2469f3e2332c599e56762aaffe4ab",
       ".shots/capture-tiles.ps1": "886fba34271cee70a4d92e6054dc3facd700217d0394d09079b3d1471dd2062f",
@@ -45572,7 +45572,7 @@
       }
     }
   ],
-  "verification_sha256": "79010a442cfd5ab9d91362b0a9e6f6b6a2305f3a57027069eaf074e8add4da16",
+  "verification_sha256": "2d436c1c7d61c5b6016ff93994174c6cd357b5a94b854b48d8b74406f119a17a",
   "retired_source_changes": [],
   "retired_upstream_demos": {},
   "upstream_source_snapshot": {
