@@ -133,9 +133,18 @@ HeroUI spelling wins, and GPUI's keep the `gpui::` path (`gpui::Size`).
 A desktop gallery ships with the library and documents every component:
 
 ```bash
+python3 .shots/gpui_patches.py --materialize  # once per clone, before any cargo command
 cargo run -p herogpui-gallery   # open the component gallery
 cargo install --path gallery --locked  # install the gallery CLI from this checkout
 ```
+
+HeroGPUI patches five published `gpui-pre` packages and checks in only the
+patches, under `docs/upstream/patches/`. The first line above applies them to
+the pinned registry sources under the gitignored `.vendor/`, which
+`[patch.crates-io]` points at. It is idempotent and near-instant when warm, but
+it is not optional: without it cargo stops at `failed to load source for
+dependency` before it builds anything. Consumers of the published crates are
+unaffected -- this is a workspace-local development substitution.
 
 `HEROGPUI_PAGE` and `HEROGPUI_THEME` select the page and appearance;
 `HEROGPUI_WINDOW_SIZE` sets the window size.

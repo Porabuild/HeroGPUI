@@ -6,15 +6,30 @@ rounded corners, so a child gradient or image can paint square pixels through
 the corner. The fix belongs in the renderer because every component shares
 that mask.
 
-The checked-in directories `crates/gpui_pre`, `crates/gpui_pre_wgpu`,
-`crates/gpui_pre_apple`, and `crates/gpui_pre_windows` are local forks of the
-exact 0.3.3 registry packages. They are selected by the `[patch.crates-io]`
-entries at the end of the workspace `Cargo.toml`; no file in Cargo's registry
+No fork source is checked in. The repository records the deviation as unified
+patches under `docs/upstream/patches/`, and
+
+```sh
+python3 .shots/gpui_patches.py --materialize
+```
+
+builds the patched trees into the gitignored `.vendor/` root —
+`.vendor/gpui-pre-0.3.3`, `.vendor/gpui-pre-wgpu-0.3.3`,
+`.vendor/gpui-pre-apple-0.3.3`, `.vendor/gpui-pre-windows-0.3.3` and
+`.vendor/gpui-pre-web-0.3.3` — by copying the exact 0.3.3 registry packages and
+applying each patch. Those five paths are what the `[patch.crates-io]` entries
+at the end of the workspace `Cargo.toml` select; no file in Cargo's registry
 cache is edited. The lockfile consequently records these packages without a
 registry source or checksum.
 
-The intentional fork delta is recorded as unified patches under
-`docs/upstream/patches/`:
+**A fresh clone must run that command before any cargo command**, including the
+`cargo metadata` rust-analyzer runs on load and including `cargo fmt --all`.
+The five patch paths do not exist yet, and cargo does not degrade gracefully:
+it aborts at manifest load with `failed to load source for dependency`. The
+command is idempotent and a warm run costs a fraction of a second, so the right
+habit is to run it first, always. Every CI job that touches cargo does.
+
+The intentional fork delta:
 
 - `gpui-pre-0.3.3.patch` adds exact `ClipRegion` intersections and immutable
   `RoundedClip` scene nodes. Each primitive references its ancestor chain by
@@ -28,6 +43,13 @@ The intentional fork delta is recorded as unified patches under
   definitions used to generate its bindings.
 - `gpui-pre-windows-0.3.3.patch` uploads the node buffer to DirectX and applies
   the same coverage to every masked fragment path, including subpixel text.
+- `gpui-pre-web-0.3.3.patch` is unrelated to the renderer work above; it carries
+  the web platform's two `events.rs` fixes and the `default = []` feature
+  deviation, and is written up in `gpui-web-scroll-and-ime.md`.
+
+Each patch also adds an empty `[workspace]` table to the package manifest, so a
+materialized tree is a workspace root of its own rather than a member of
+HeroGPUI's and keeps upstream's lint configuration.
 
 Styled backgrounds, borders, and overflow masks derive from the same snapped
 outer rectangle, normalized radii, and device-pixel border widths. Unequal
@@ -52,7 +74,8 @@ the same ancestor index when narrowing their rectangular cull. Scene replay
 imports each distinct referenced chain once per replay, and scene clearing
 releases the frame's nodes.
 
-Regenerate and verify these patches with:
+To change the fork, edit the materialized tree under `.vendor/` and re-record
+it. To verify it, replay it:
 
 ```sh
 python3 .shots/gpui_patches.py --write
@@ -60,34 +83,45 @@ python3 .shots/gpui_patches.py --check
 python3 .shots/gpui_patches.py --self-test
 ```
 
-The command reads the exact pin and local fork paths from `Cargo.toml`, finds
-those published package sources in Cargo's registry cache, and verifies that
-applying each patch to a fresh copy reproduces its fork byte for byte. It
-rejects missing or stale patches and fuzzy/offset application. Registry cache
+The command reads the exact pin and the `.vendor/` paths from `Cargo.toml`,
+finds those published package sources in Cargo's registry cache, and verifies
+that applying each patch to a fresh copy reproduces the materialized tree byte
+for byte — so `--check` is the assertion that the patch is still the complete
+and exact statement of the deviation, with nothing left only in a working tree.
+It rejects missing or stale patches and any application that is not positionally
+exact. The patch is applied in-process rather than by `patch(1)`, so the three
+CI hosts cannot disagree about fuzz, deletions or whitespace. Registry cache
 metadata and per-package lockfiles are excluded; builds use the workspace
-lockfile. On a cold cache it retrieves the exact packages with `cargo info`
-outside the patched workspace. It never edits registry sources. CI runs the
-same check so dependency edits cannot silently drift from the recorded patch.
+lockfile. Nothing is downloaded by the script: the pristine tree is one cargo
+unpacked itself after checking the `.crate` against the registry index, and on a
+cold cache `cargo info` — run outside the patched workspace, so the overrides
+cannot redirect it — is what fetches it. It never edits registry sources. CI
+runs the same check so dependency edits cannot silently drift from the recorded
+patch.
 
 When upgrading gpui-pre, keep the patch workflow explicit:
 
 1. Pin the new `gpui-pre`, `gpui-pre-*` family versions together. Do not let a
    new version resolve with the old exact patch fork; the version pins are
    intentionally exact so Cargo cannot silently drop the renderer fix.
-2. Copy the new registry package sources into fresh local fork directories,
-   then apply the previous version's corresponding patch with `patch -p2` from
-   each fork root.
-   Resolve source drift deliberately, especially around `ContentMask`, shader
-   record layouts, and the Apple generated-header vendor files.
-3. Update the four patch files and this note to the new upstream version,
-   retain the `[patch.crates-io]` entries, regenerate `Cargo.lock`, and verify
-   that `cargo tree -i gpui-pre` reports the local path source.
+2. Rename the five patch files to the new version, point the five
+   `[patch.crates-io]` paths at `.vendor/<name>-<new version>`, and run
+   `--materialize`. It will fail loudly on every hunk that no longer applies;
+   resolve that drift deliberately in the `.vendor/` tree, especially around
+   `ContentMask`, shader record layouts, and the Apple generated-header vendor
+   files, then re-record with `--write`.
+3. Update this note to the new upstream version, regenerate `Cargo.lock`, and
+   verify that `cargo tree -i gpui-pre` reports the `.vendor/` path source.
 4. Run the native and wasm checks and the focused regressions below. Rebuild
    the committed WASM artifact with the matching `wasm-bindgen`, regenerate
    its manifests, and verify both WebGPU and WebGL rendering.
 
 The regular component suite includes the actual WGPU shader assembly module
-for Naga validation on every host platform. macOS also runs real Metal pixel
+for Naga validation on every host platform --
+`crates/herogpui-components/tests/rounded_clip_shaders.rs` includes
+`.vendor/gpui-pre-wgpu-0.3.3/src/shaders.rs` by `#[path]`, so it validates the
+patched shaders themselves rather than a copy that can drift, and it is one more
+thing that needs `--materialize` to have run. macOS also runs real Metal pixel
 tests through `MetalHeadlessRenderer` with runtime shader compilation:
 
 ```sh
@@ -121,7 +155,7 @@ left colored pixels beneath its independently antialiased rim. Like the pinned
 HeroUI CSS, the complete track and caps use one-pixel, zero-blur inset edge
 shadows, painted before the thumb.
 
-The same local `gpui-pre` fork also carries one small accessibility extension:
+The same `gpui-pre` patch also carries one small accessibility extension:
 AccessKit 0.24 exposes `AriaCurrent`, but gpui-pre 0.3.3 does not publish an
 `aria_current` builder or copy that field into its node writer. The fork adds
 that setter and node propagation; the component layer uses it for the active

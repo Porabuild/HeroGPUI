@@ -1,6 +1,15 @@
 //! Validate the renderer's actual assembled shaders in normal workspace tests,
 //! including on platforms that do not use WGPU for their native window.
-#[path = "../../gpui_pre_wgpu/src/shaders.rs"]
+//!
+//! The module below is the patched dependency's own source, included by path so
+//! the assertions run against the shaders the renderer actually assembles
+//! rather than a copy that can drift. It lives under `.vendor/`, which
+//! `.shots/gpui_patches.py --materialize` writes from the pinned published
+//! package plus `docs/upstream/patches/gpui-pre-wgpu-0.3.3.patch`, so this file
+//! is one more reason a fresh clone must run that bootstrap before cargo --
+//! without it even `cargo fmt --all` fails, on this `#[path]` and not on the
+//! `[patch.crates-io]` table.
+#[path = "../../../.vendor/gpui-pre-wgpu-0.3.3/src/shaders.rs"]
 mod shaders;
 
 use shaders::WEBGL_SHADERS;

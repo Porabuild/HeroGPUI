@@ -175,7 +175,7 @@ class InventoryTests(unittest.TestCase):
         source.parent.mkdir(parents=True, exist_ok=True)
         source.write_text('source')
         previous = SOURCE_SNAPSHOT(self.root)
-        artifact = self.root / 'crates/gpui_pre/target/debug/build/out/generated.rs'
+        artifact = self.root / 'crates/herogpui-components/target/debug/build/out/generated.rs'
         artifact.parent.mkdir(parents=True, exist_ok=True)
         artifact.write_text('generated')
         self.assertEqual(SOURCE_SNAPSHOT(self.root), previous)

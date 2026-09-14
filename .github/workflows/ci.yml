@@ -48,6 +48,19 @@ jobs:
         working-directory: web
         run: pnpm install --frozen-lockfile
 
+      # `cargo fmt --all` is a cargo command, so it needs the patched GPUI
+      # sources materialized like every other one -- and this job needs it for a
+      # second reason besides `[patch.crates-io]`:
+      # `crates/herogpui-components/tests/rounded_clip_shaders.rs` includes the
+      # renderer's own `shaders.rs` by `#[path]`, so rustfmt fails on a missing
+      # module before cargo ever resolves a dependency.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Materialize the patched GPUI sources
+        run: python .shots/gpui_patches.py --materialize
+
       - name: Format check
         run: cargo fmt --all -- --check
 
@@ -146,15 +159,23 @@ jobs:
         with:
           tool: cargo-machete
 
+      # The patches are the only record of the fork, so this is the gate that
+      # keeps them honest: each one has to apply to the pristine published
+      # package with no fuzz and no offset, and reproduce the `.vendor/` tree
+      # the rest of this job just built against, byte for byte. A hand-edit
+      # under `.vendor/` that never made it back into a patch fails here.
       - name: Verify GPUI renderer patches
-        run: python .shots/gpui_patches.py --check
+        run: |
+          python .shots/gpui_patches.py --self-test
+          python .shots/gpui_patches.py --check
 
       # Unused-dependency gate. cargo-machete reads every manifest in the
       # tree and greps the crate sources for each dependency's name -- no
       # build, not even a toolchain -- so it answers in seconds and sits
-      # before the clippy step below, which pays for a full compile. The
-      # vendored `crates/gpui_web` fork is clean under it too (verified by
-      # running machete on that directory directly).
+      # before the clippy step below, which pays for a full compile. It walks
+      # the working directory rather than the dependency graph, and the
+      # materialized GPUI sources under `.vendor/` are hidden from it by the
+      # leading dot, so it sees only HeroGPUI's own manifests.
       #
       # There is no ignore list today, deliberately: the tree is clean with
       # none (verified against cargo-machete 0.9.2, what install-action
@@ -164,7 +185,7 @@ jobs:
       # that crate's manifest, or the same table under
       # `[workspace.metadata.cargo-machete]` in the root. Every entry must
       # carry its reason in a comment beside it, the way
-      # `[package.metadata.cargo-shear]` does in crates/gpui_web; an entry
+      # `[package.metadata.cargo-shear]` does upstream; an entry
       # without a reason is a hole in the gate.
       - name: Unused dependencies (cargo-machete)
         run: cargo machete
@@ -338,10 +359,12 @@ jobs:
       #   channel
       #    --> .../wasm_thread-0.3.3/src/lib.rs:1:1
       #
-      # `multithreaded` is now off in the vendored fork's own manifest
-      # (`crates/gpui_web/Cargo.toml`, which `[patch.crates-io]` substitutes --
-      # the only place it can be switched, because `gpui_platform`'s wasm32
-      # edge enables default features and cargo unions feature sets). With it
+      # `multithreaded` is now off in the forked manifest itself -- a
+      # `default = []` hunk in `docs/upstream/patches/gpui-pre-web-0.3.3.patch`,
+      # materialized into `.vendor/gpui-pre-web-0.3.3/Cargo.toml`, which
+      # `[patch.crates-io]` substitutes. That is the only place it can be
+      # switched, because `gpui_platform`'s wasm32 edge enables default features
+      # and cargo unions feature sets. With it
       # off, `wasm_thread` is not in the graph and stable builds this target,
       # profile included. Nothing was using it: `crates/herogpui-web` starts the
       # app with `single_threaded_web()`, and the multi-threaded platform needs
@@ -349,6 +372,20 @@ jobs:
       # back on means bringing the nightly pin back with it.
       - name: Add the wasm32 target to the pinned toolchain
         run: rustup target add wasm32-unknown-unknown
+
+      # This job builds its own environment instead of using
+      # `./.github/actions/rust-env`, so it repeats that action's
+      # materialization step. `gpui-pre-web` is the package that matters most
+      # here: its `default = []` hunk is what keeps `wasm_thread` -- and with it
+      # a nightly toolchain -- out of the wasm32 graph, and it now lives only in
+      # `docs/upstream/patches/gpui-pre-web-0.3.3.patch`. Before
+      # `Swatinem/rust-cache`, which runs a `cargo metadata` of its own.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Materialize the patched GPUI sources
+        run: python .shots/gpui_patches.py --materialize
 
       - uses: Swatinem/rust-cache@v2
         with:
