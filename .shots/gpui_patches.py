@@ -394,7 +394,7 @@ def git(root, *arguments, run=subprocess.run):
     return run(["git", *arguments], cwd=root, capture_output=True, text=True)
 
 
-def enable_hooks(root=ROOT, run=subprocess.run):
+def enable_hooks(root=ROOT, run=subprocess.run, env=None):
     """Point `core.hooksPath` at the versioned hooks, unless something already claims it.
 
     Cargo resolves `[patch.crates-io]` at manifest load, so nothing inside the
@@ -415,7 +415,12 @@ def enable_hooks(root=ROOT, run=subprocess.run):
     `.shots/run-tests.sh` reach this through their own materialization step as
     well as the workflow's.
     """
-    if os.environ.get("CI") or not (root / HOOKS_PATH).is_dir():
+    # The environment is a parameter, not a global read: this decision is
+    # disabled under `CI`, so a self-test that consulted the ambient
+    # environment could only pass off a runner -- which is exactly how it
+    # first broke.
+    env = os.environ if env is None else env
+    if env.get("CI") or not (root / HOOKS_PATH).is_dir():
         return None
     try:
         inside = git(root, "rev-parse", "--is-inside-work-tree", run=run)
@@ -528,41 +533,37 @@ def self_test():
         inside = {("rev-parse", "--is-inside-work-tree"): Reply(0, "true\n")}
 
         # No `.githooks/` at all: nothing to enable, and no git call made.
-        assert enable_hooks(root / "base", fake_git({})) is None
+        assert enable_hooks(root / "base", fake_git({}), env={}) is None
         assert not calls, "enable_hooks shelled out for a tree with no .githooks/"
 
-        # Unset anywhere (`--get` exits 1): this call claims it.
-        assert enable_hooks(hooked, fake_git({**inside, ("config", "--get"): Reply(1)})) == HOOKS_PATH
+        # Unset anywhere (`--get` exits 1): this call claims it. The empty
+        # environment is the point -- a runner sets `CI`, and inheriting it
+        # made this assertion unreachable on the only machine that gates it.
+        unset = {**inside, ("config", "--get"): Reply(1)}
+        assert enable_hooks(hooked, fake_git(unset), env={}) == HOOKS_PATH
         assert calls[-1] == ["git", "config", "core.hooksPath", HOOKS_PATH]
 
         # Already claimed, here or globally: left exactly as the developer set it.
         calls.clear()
         claimed = {**inside, ("config", "--get"): Reply(0, ".husky\n")}
-        assert enable_hooks(hooked, fake_git(claimed)) is None
+        assert enable_hooks(hooked, fake_git(claimed), env={}) is None
         assert all(call[:2] != ["git", "config"] or "--get" in call for call in calls), \
             "enable_hooks overwrote an existing core.hooksPath"
 
         # Not a work tree, and no git on PATH: both are quiet no-ops.
-        assert enable_hooks(hooked, fake_git({("rev-parse", "--is-inside-work-tree"): Reply(128)})) is None
+        assert enable_hooks(hooked, fake_git({("rev-parse", "--is-inside-work-tree"): Reply(128)}), env={}) is None
 
         def no_git(*_, **__):
             raise OSError("git: not found")
 
-        assert enable_hooks(hooked, no_git) is None
+        assert enable_hooks(hooked, no_git, env={}) is None
 
         # A CI runner: the checkout is thrown away after the job, so hooks
-        # there would only be log noise.
+        # there would only be log noise. Injected rather than set on
+        # `os.environ`, so the case reads the same on a runner and off one.
         calls.clear()
-        previous_ci = os.environ.get("CI")
-        os.environ["CI"] = "true"
-        try:
-            assert enable_hooks(hooked, fake_git({**inside, ("config", "--get"): Reply(1)})) is None
-            assert not calls, "enable_hooks shelled out on a CI runner"
-        finally:
-            if previous_ci is None:
-                del os.environ["CI"]
-            else:
-                os.environ["CI"] = previous_ci
+        assert enable_hooks(hooked, fake_git(unset), env={"CI": "true"}) is None
+        assert not calls, "enable_hooks shelled out on a CI runner"
     print("GPUI patch self-test: materialize, replay, tamper, stale and missing patches all handled")
     print("GPUI hook self-test: core.hooksPath claimed only when unset, in a work tree, with git present")
 

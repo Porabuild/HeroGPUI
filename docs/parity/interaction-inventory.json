@@ -16913,7 +16913,7 @@
     "sha256": "99816a71d82bb9d62f9b86bf6f61ec67566cd63e478735f22dd5ba5c97784291"
   },
   "source_snapshot": {
-    "sha256": "54878a91d8733f2951ed8126f74a19b84bdbe37e452e14f163a786eef12c607c",
+    "sha256": "4a6c503edb52b99355c4c56cf881a029cd121a7dea8b7995d9b40aa7830652f8",
     "files": {
       ".cargo/config.toml": "656172d7bc0b7cda27bccdffaf87ca34d6c1b3857e3c95f989d9dc164f3395be",
       ".gitattributes": "77b98c2399fed202e770babce5b84b8c24e1e2b5e4ac94c5f1ce3ba1981d446f",
@@ -16940,7 +16940,7 @@
       ".shots/fence_audit.py": "b270939f89dfbbc334119c9050b6b8a26f8d9856bbdbdd0035918ae34ef1d66a",
       ".shots/gallery_pages.py": "ef8a6ed2b106aa8176ffc71a95dc3b70416ec65df2bc5bf85284764aafc3c2e9",
       ".shots/gap_context.py": "a28ea267adc7259bc29b0e59fe98e850f62e5b65b52c44096ccd9b417afa7ed1",
-      ".shots/gpui_patches.py": "81c6defda25b9911cb51ef75743994d31dc259e5c0feae55878df01e39ed6b7a",
+      ".shots/gpui_patches.py": "f71a462bece9214949d927b579614b076fdc7c975eb2069ff54863f2b17bffec",
       ".shots/heroui-bundle.txt.gz": "5bc0ad0f6129d3344b7720d4e8f2dc4f36e56e3c4b73f95387206410a4e3c41a",
       ".shots/heroui-css-v3.2.5.tar.gz": "16b270c1e29b44669647225982e3edd71fc905cb35fa11d1d231e7fcba88fcd0",
       ".shots/inert_audit.py": "0e1a13d2d25f2b1166946493a55a7ee97971d1c7a139fe6e699b4e623ede9c0a",
@@ -45383,7 +45383,7 @@
       }
     }
   ],
-  "verification_sha256": "afd58fda792e088f66c3a6835763c106b4ceaefc7c4b3653717e67c519ba0dee",
+  "verification_sha256": "e143b05d7b68e94ae98ef557abb2e007005b16f0582dc764e9721bd1e255d57c",
   "retired_source_changes": [],
   "retired_upstream_demos": {},
   "upstream_source_snapshot": {
