@@ -1932,7 +1932,7 @@ impl RenderOnce for Autocomplete {
                                 .items_center()
                                 .justify_center()
                                 .child(render(row_selected)),
-                        )
+                        );
                     }
                     None if row_selected => {
                         row = row.child(

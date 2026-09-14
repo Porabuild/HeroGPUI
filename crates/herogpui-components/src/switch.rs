@@ -169,6 +169,7 @@ fn thumb_motion(
     }
 }
 
+#[allow(clippy::too_many_arguments)] // one parameter per motion track channel
 fn color_motion(
     id: &gpui::ElementId,
     target: gpui::Hsla,
@@ -864,7 +865,7 @@ impl RenderOnce for Switch {
                         .child(crate::field::Description::new(description)),
                 )
             });
-        let error = validity.first().map(|message| message.to_owned().into());
+        let error = validity.first();
         if let Some(error) = crate::anim::field_error_panel(&self.id, error, window, cx) {
             root = root.child(gpui::div().pl(indent).child(error));
         }

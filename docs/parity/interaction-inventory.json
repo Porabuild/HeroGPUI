@@ -16913,7 +16913,7 @@
     "sha256": "99816a71d82bb9d62f9b86bf6f61ec67566cd63e478735f22dd5ba5c97784291"
   },
   "source_snapshot": {
-    "sha256": "939f208c66de17697c2dd62d4e0c23c77565eb610f811956bffab669503de1ed",
+    "sha256": "ac45fc8519a1720944ad8ef0287094ac4951fb4d50d248d005d5c0245da5f7dc",
     "files": {
       ".cargo/config.toml": "656172d7bc0b7cda27bccdffaf87ca34d6c1b3857e3c95f989d9dc164f3395be",
       ".gitattributes": "56aeefb81d13c5858bee5d166f0421d4382e4fd47fc3953fb84032b407a2ef09",
@@ -16940,12 +16940,12 @@
       ".shots/fence_audit.py": "4a734e8bea8655938f519bcc2b617e83a0829846e0045062da6c50f6f9b9f060",
       ".shots/gallery_pages.py": "ef8a6ed2b106aa8176ffc71a95dc3b70416ec65df2bc5bf85284764aafc3c2e9",
       ".shots/gap_context.py": "a28ea267adc7259bc29b0e59fe98e850f62e5b65b52c44096ccd9b417afa7ed1",
-      ".shots/gpui_patches.py": "8185cf1c296c614dfdc0c8a8190b02bb006bddb5c453f9a77558769a222ecb14",
+      ".shots/gpui_patches.py": "cb683ec91ec4df20ff82dd5481ad0b4074a1c710c2b4fbad56d467a467fffa2f",
       ".shots/heroui-bundle.txt.gz": "5bc0ad0f6129d3344b7720d4e8f2dc4f36e56e3c4b73f95387206410a4e3c41a",
       ".shots/heroui-css-v3.2.5.tar.gz": "16b270c1e29b44669647225982e3edd71fc905cb35fa11d1d231e7fcba88fcd0",
       ".shots/inert_audit.py": "0e1a13d2d25f2b1166946493a55a7ee97971d1c7a139fe6e699b4e623ede9c0a",
-      ".shots/interaction_inventory.py": "db55ca1372d121817fda0c374020cf4e0d1f4e26acb6d04497cd94fd17425728",
-      ".shots/lint.ps1": "c8a1ee21b1a0df32d9abb34dd9ffcf173febad35e364a0be951182aaa194018b",
+      ".shots/interaction_inventory.py": "f788d547763d200446d5567a3215a665fb96d8419fa1db46219a54e4b52735c9",
+      ".shots/lint.ps1": "2eab95898c04592a1a4729b7e364d4c18bd50b6aa1cd12d095a4a30112ac74c0",
       ".shots/native_capture.py": "d36c36280542c49e14ca93227e5a07552752ff5757526647802ec3eb4db6d0d8",
       ".shots/package_audit.py": "b1419d64e40e60b2b5a15053fbb5ce98fa700b738be6d635abac0a47e97fb0f7",
       ".shots/parity_report.py": "f77963b402bca275fb174f05f013c431dc32885d0a7ed56dc551637b56dbd665",
@@ -16965,7 +16965,7 @@
       ".shots/test_bundle.py": "a55b0b05459a32274f7ddaa7be4485af2e6ad1225c24679bc2a48ffd0588ddec",
       ".shots/test_coverage_report.py": "ddf0c965f6fd39dbf268bbeae20701bfe13577e507bf6e27c2cdcd12632bb809",
       ".shots/test_inert.py": "931174dd8a73944fe6d70fc4856c59b90dfd408bb1624f5956e56e92b96e97f9",
-      ".shots/test_interaction_inventory.py": "5d0b9a8198830f1dccb3a0d67571d05b1fcbf09218d593434220dd0d0d18007e",
+      ".shots/test_interaction_inventory.py": "bda80cf389f9a842e90d94e412d660ea88ca33ad7a984664f86c61fb49938390",
       ".shots/test_native_capture.py": "372ada08c533d4e0917b8639d2fb1d6bcd802d0eed24aef3de7ed700709a479d",
       ".shots/test_parity_report.py": "15543b6b073ee5149a3794d1765ee0a06387abd1cc8f7567e33342246d77f99b",
       ".shots/theme_serde_audit.py": "acf971f8405e8f71727435ab5e2eb30f40b04157adc8972e8e027aa9c6bb8184",
@@ -16973,7 +16973,7 @@
       ".shots/write_only.py": "ebfacd961c597d8fd625fb9a29f24efaff245dfad9b1032649537fca25f8954a",
       "Cargo.lock": "f4861f3906c011a4b33870b2dde8c8ed78514517dd2d2da1de4d724302b6fd35",
       "Cargo.toml": "8f279743c6555ff702e88fb3f9d49d222ca1b5fa0b27502c8ce9f5a00d1b182e",
-      "crates/gpui_pre/Cargo.toml": "a56ddd1c92a9722723286ed0e67ff4bc362534a6b56e5481c2f9e48157954bd5",
+      "crates/gpui_pre/Cargo.toml": "5804f42a75625a233be1b3aec4eccd0f82f343c5a100af1955bad0695714b9ec",
       "crates/gpui_pre/build.rs": "b90eba40b438c7de5d991969f2f685de3873cce4f070c28e4a389cc48e2b939b",
       "crates/gpui_pre/examples/a11y.rs": "136308b44a36f7a0dbee5269b2434d8476cec42beb7f8b46e4e38e864d4cc805",
       "crates/gpui_pre/examples/active_state_bug.rs": "94230a37b899e1c56fe34ac249c081113a0a1446f568c6cf0372905a3816b9ae",
@@ -17114,14 +17114,6 @@
       "crates/gpui_pre/src/window/a11y.rs": "048dcfb31e77ee5c5c3d7d9e17efcbec33add31b746b57dbc52c5ad6e21a0894",
       "crates/gpui_pre/src/window/prompts.rs": "0d58ec14e8139af53b50f4ad67690f01959ed59ffafc4adb2cf522f3f6197164",
       "crates/gpui_pre/src/window.rs": "1aad0f9097e7b230af2aa35d9aa3268df2b632496aa5d9fd88581708f3e58220",
-      "crates/gpui_pre/target/debug/build/clang-sys-de9ee760737e2d1f/out/common.rs": "c827ffc2761c4b96952334e35ff443198adfc86fbe2822c309dfe5ea1bcc8cc0",
-      "crates/gpui_pre/target/debug/build/clang-sys-de9ee760737e2d1f/out/dynamic.rs": "c28adab4ea893d12f47d8b229c38a134a6553c654a1d243f37f7f03ed82e5723",
-      "crates/gpui_pre/target/debug/build/clang-sys-de9ee760737e2d1f/out/macros.rs": "41eef7020d4c28ce70c71036009be4be5844572b26e32b840f671b924174475e",
-      "crates/gpui_pre/target/debug/build/ref-cast-4d09411ea1d9c4a7/out/private.rs": "6a36d7f9721fdf6fc969493d0546811e40184300cb335c3f86fb882e62db74d2",
-      "crates/gpui_pre/target/debug/build/serde-9bab3a1c26c49265/out/private.rs": "f8e9470772811a1bdcd201fb21e14cbf37a57d192b38cd98f66bd4a83442c26b",
-      "crates/gpui_pre/target/debug/build/serde-ed51dec9b4503221/out/private.rs": "f8e9470772811a1bdcd201fb21e14cbf37a57d192b38cd98f66bd4a83442c26b",
-      "crates/gpui_pre/target/debug/build/serde_core-04ce3793083e4302/out/private.rs": "27ad1b5fb4eebeb1da6419cbfad3ac1922ed1d817fcbab0a1dae1bdfd38d8307",
-      "crates/gpui_pre/target/debug/build/thiserror-e96231eb9293313e/out/private.rs": "c385ad46030276a0b59234d0d09c638287f044510ad8b82b8bf012de2f3a3539",
       "crates/gpui_pre/tests/action_macros.rs": "47b69024f403feb6cb63c9990a6993b8582856146f5a6ae16984714321956a84",
       "crates/gpui_pre_apple/Cargo.toml": "328375b8e866251f372eb1e942f8297586ba40e592e7644dcebe14d15aa51fd5",
       "crates/gpui_pre_apple/build.rs": "5cc6c21f78732508b98a08c34bb2ca9e36607047484acb4e077f8e0914d53055",
@@ -17142,14 +17134,6 @@
       "crates/gpui_pre_wgpu/src/wgpu_atlas.rs": "527292f7dd4981d1a929fd2ba7b4edc5f68c2562023c5c5961915ec15c081a12",
       "crates/gpui_pre_wgpu/src/wgpu_context.rs": "544e8b264d03aed0a97bfcec529f8106165813bb3413c98f124362704e90f026",
       "crates/gpui_pre_wgpu/src/wgpu_renderer.rs": "afaad53929c95fa991b60c8e9f7baa888c90168b8b20d4c8c80cc34254b661bc",
-      "crates/gpui_pre_wgpu/target/debug/build/clang-sys-de9ee760737e2d1f/out/common.rs": "c827ffc2761c4b96952334e35ff443198adfc86fbe2822c309dfe5ea1bcc8cc0",
-      "crates/gpui_pre_wgpu/target/debug/build/clang-sys-de9ee760737e2d1f/out/dynamic.rs": "c28adab4ea893d12f47d8b229c38a134a6553c654a1d243f37f7f03ed82e5723",
-      "crates/gpui_pre_wgpu/target/debug/build/clang-sys-de9ee760737e2d1f/out/macros.rs": "41eef7020d4c28ce70c71036009be4be5844572b26e32b840f671b924174475e",
-      "crates/gpui_pre_wgpu/target/debug/build/ref-cast-4d09411ea1d9c4a7/out/private.rs": "6a36d7f9721fdf6fc969493d0546811e40184300cb335c3f86fb882e62db74d2",
-      "crates/gpui_pre_wgpu/target/debug/build/serde-9bab3a1c26c49265/out/private.rs": "f8e9470772811a1bdcd201fb21e14cbf37a57d192b38cd98f66bd4a83442c26b",
-      "crates/gpui_pre_wgpu/target/debug/build/serde-ed51dec9b4503221/out/private.rs": "f8e9470772811a1bdcd201fb21e14cbf37a57d192b38cd98f66bd4a83442c26b",
-      "crates/gpui_pre_wgpu/target/debug/build/serde_core-04ce3793083e4302/out/private.rs": "27ad1b5fb4eebeb1da6419cbfad3ac1922ed1d817fcbab0a1dae1bdfd38d8307",
-      "crates/gpui_pre_wgpu/target/debug/build/thiserror-e96231eb9293313e/out/private.rs": "c385ad46030276a0b59234d0d09c638287f044510ad8b82b8bf012de2f3a3539",
       "crates/gpui_pre_windows/Cargo.toml": "d56dbc91df32de82bfa07a182c24b3f6c460830b1355961054d67f0d7b8040bc",
       "crates/gpui_pre_windows/build.rs": "3192734d0448f3ec44525e3b55c025d30d9926edce6b24e5575ac27a1ab3ad06",
       "crates/gpui_pre_windows/src/clipboard.rs": "513125f0afe8c9393f02121310cd250784de0910adff7d77b31363992281fd4c",
@@ -17189,9 +17173,9 @@
       "crates/herogpui-components/src/accordion.rs": "53b7aba0d3e6fc89103e96104d205d62583e1570cf7450dde2b34ea9dc5eac50",
       "crates/herogpui-components/src/alert.rs": "0a251a346e98bcf73e643517f65c12b9a3e2c087686850bb6624c14cfc0c0707",
       "crates/herogpui-components/src/alert_dialog.rs": "f7b5658d06352ce4cbb1e3dc45c2c47efc2f574822cdf94e11ac6be5d72a2632",
-      "crates/herogpui-components/src/anim.rs": "e32a289abe5f5ca6d45b6910ff41b6b443126ae4008d0b1ae7bddb16eae31012",
+      "crates/herogpui-components/src/anim.rs": "ebd17fd62bb9e7fc68f1aad2891b675bc6c4ab03e47de0bbd0210194d6250447",
       "crates/herogpui-components/src/assets.rs": "05ec554aa108a597ac5214b9f329659dca3cd867630dcd095bc93ec6edbe6052",
-      "crates/herogpui-components/src/autocomplete.rs": "97b753f49acb67a9ea0652d4244cec001c87c405f1c303c1e1bd2cacd8c44c81",
+      "crates/herogpui-components/src/autocomplete.rs": "740f1aa754e16b234d5168bdb5caebefd3c93589ddf382d715803e470674b1c6",
       "crates/herogpui-components/src/avatar.rs": "495e14f4adc68aebba68a0b877e6a6baa89e80d487cb9d6461e0091f08a7f6ac",
       "crates/herogpui-components/src/badge.rs": "77cb81e924f6699d04339fc80731394249b2587a103ecaebea649aa257b0e87b",
       "crates/herogpui-components/src/breadcrumbs.rs": "f9072d9017ef7ca4c4ed408adaf8094add7fe5e43e5c3c2463c771920d208294",
@@ -17210,8 +17194,8 @@
       "crates/herogpui-components/src/color_picker/picker.rs": "c6b6a4a6f6ef3886c898a3c9d9933e86bf8d749e5bf70b303421305b68620de2",
       "crates/herogpui-components/src/color_picker/slider.rs": "06262c6b32261b792e3234f730c8c967a3871452a402586d10506281e093cd9a",
       "crates/herogpui-components/src/color_picker/swatch.rs": "f8d01b4e1e9a29d690cc10a7523d9e82c49b2c8d0d822c19be3a9328b607d3c4",
-      "crates/herogpui-components/src/color_picker/swatch_picker.rs": "4c51c1ee043c0b6b7f62daeb652efa53457440e7a0b5525619def72a6821ecd6",
-      "crates/herogpui-components/src/combo_box.rs": "1242026578ef1f0932213d63c294f78a77b6c4e4ab225aaf32e30bde4721d1f0",
+      "crates/herogpui-components/src/color_picker/swatch_picker.rs": "63cd8140759a2b93d214316b1367545c75fa5edec628abf044586e9901c35d08",
+      "crates/herogpui-components/src/combo_box.rs": "2ee8d729b09f388a149fb9c1a8e89fb556eac46dbfd98fba2a2ff97e16412b76",
       "crates/herogpui-components/src/date_constraints.rs": "10a5231b3951e2277d93027ce040fc3c10c72e445de3a655fd8b2cf3d71889f6",
       "crates/herogpui-components/src/date_picker/field.rs": "21542a8c5355ac74a08cf9576d256a33a66ace4288837ff55e1c66b17bbd488e",
       "crates/herogpui-components/src/date_picker/mod.rs": "c06834f2801c332486bbdf1c006b255f5804c042d03d22dd77be6bf1f7896911",
@@ -17237,31 +17221,31 @@
       "crates/herogpui-components/src/meter.rs": "4e41a1361073fed119e65c6c4762700f578f31164d8274397e34a672a815b750",
       "crates/herogpui-components/src/modal.rs": "41551903f97d998515000c825494aff5d9b35a52e50f75330608aa03eb6603ed",
       "crates/herogpui-components/src/number_field.rs": "19a1b33233c5be3c1b362e1f57139d238363decc1f7a953c68af50715506112b",
-      "crates/herogpui-components/src/pagination.rs": "842c13b0cdf39f43c3a3780a1f137e9f7e8037aa9e630df8b6fd52d571aa3975",
+      "crates/herogpui-components/src/pagination.rs": "fc0d8b7e1ca189853fb745fc72383a6e923f7520b97171d06c9a07c9f79062c3",
       "crates/herogpui-components/src/picker_item.rs": "b9e039b07de731141c8f085849186429d568977363a1981a02f32eaaeefd9231",
       "crates/herogpui-components/src/popover.rs": "6abd1ef9b149b5af13de334ad52660bbeb068746b20f2ee3c3f42584e7210646",
-      "crates/herogpui-components/src/progress.rs": "bf92bdee4c171052f63d37cb11dd4de514d99cf2d9a05d73ee08cde9b44f00d2",
+      "crates/herogpui-components/src/progress.rs": "8b018a858e0f72e5c4264836584fcd362e084d00cdd566c56a8c6eee1c897524",
       "crates/herogpui-components/src/radio_group.rs": "018b8d395b8373dc8f7e559d13f28de13488395fc07d60e8071c692561a3f037",
       "crates/herogpui-components/src/range_calendar.rs": "4038fb1b1fa077aa12ca819a4f735d1576055523be5a24739466405e4d504c19",
       "crates/herogpui-components/src/scroll_shadow.rs": "a91dc4909618c2a481602954cda62ba8a742ad586f9a03314580e0fbf52c3082",
       "crates/herogpui-components/src/scrollbar.rs": "7a72e282ad11465d2ec4f0f77ddd4b2ea0168149047a416baefc8980e4b2bb95",
-      "crates/herogpui-components/src/select.rs": "631fdc76d39dec72ed7668bb82244c0763800fb6aa3131be9249b47ae934f255",
+      "crates/herogpui-components/src/select.rs": "2e474080afdcc8d7d6e728a124419b64540c20fb6e5501ff22d318d32388e298",
       "crates/herogpui-components/src/selection.rs": "5cb1b59aa951da376a769c69fbf710999bf48b8751fd89cd0ce2b04196fcdf7d",
       "crates/herogpui-components/src/separator.rs": "87c772faf3c4419a2260d7d25bd1d61f6e7d8687a8e8d5bca61cc904261e7d50",
       "crates/herogpui-components/src/skeleton.rs": "c7f32935695706deb0a17a7f848e1018548ea66d5a61b43e4ca4670fcd013716",
-      "crates/herogpui-components/src/slider.rs": "ba902cb7648d5e1f5c9397f94a99f834eea294491a57d49f254df5f7be63bb9e",
-      "crates/herogpui-components/src/spinner.rs": "acf4a1ea95861aa13e38f377aacad89f966df74a114a7524dfed7922b877065b",
+      "crates/herogpui-components/src/slider.rs": "9f0ffb1bd7ba3247648e64ef163fe14d0449ce7cd1b89850191e479a0aeaf654",
+      "crates/herogpui-components/src/spinner.rs": "10c4b1a1efc5b64ba7a7516e880310bdee3e7f5b3dd7a3bbb0af372ba47ee8ca",
       "crates/herogpui-components/src/surface.rs": "e16b524216ed05dcdcf9083d212503a92831d30306cd4ad35cb0457fd9e6ce12",
-      "crates/herogpui-components/src/switch.rs": "804338c8b64853aeabca398ecf02ff4420320b8bb2b5c176348596b099f1c587",
-      "crates/herogpui-components/src/table.rs": "ab6e3e19e7a29f93dcaccc4981da7bcdfe5f1737d19a78e439b1a9f2fbd54c68",
+      "crates/herogpui-components/src/switch.rs": "7678f85dc78de1e1d6a3e5394a4f2455d45918345173a16fbd2b2e0ffac7d7ab",
+      "crates/herogpui-components/src/table.rs": "d8b48f9e60a50929671d330fc917ad7bcaf30b82084672bcb547f9d14b4a73b7",
       "crates/herogpui-components/src/tabs.rs": "401ded43e984993e831b85be8dfc997c9c19f7b797fb28e75dd8c7ea5685a2d0",
       "crates/herogpui-components/src/tag_group.rs": "60c1bcbd0fc7f37e7fb4b84b692519da2dfd9d3fecebd5276b991f65cde38a6d",
-      "crates/herogpui-components/src/textarea.rs": "16dfa590a4ae6bb56c663eae5fc5c361be15e6fafe2f1bd32de0fff7f92db178",
+      "crates/herogpui-components/src/textarea.rs": "c5cf0d4108b8f1d626b630dd26420a8e0ce6c5ccc5c1c73bc1795570672ac2c9",
       "crates/herogpui-components/src/time_field.rs": "c3711c2615ab779551db3d651b58c428c2cfa3217ad8eb9e9d73e9e09a7dae8e",
-      "crates/herogpui-components/src/toast.rs": "c8d2f6aa1fce770cfc81c2359dca5884e7b3ee208bd7ccfe92b7de929d4cd47c",
+      "crates/herogpui-components/src/toast.rs": "e61e86dda4d6363fde36960b2ebd1dc872bbca22640ec8996483929c191c07a2",
       "crates/herogpui-components/src/toggle_button.rs": "fddef5d54038431db25263ea1ab77976f0de15b1f820b7b146453547b4940b05",
       "crates/herogpui-components/src/toolbar.rs": "998823917dbebebb1ec413ec1de9a92b04173f6fc12f1c8a33b60ae4144e2b7d",
-      "crates/herogpui-components/src/tooltip.rs": "f5647ad79d9a6a1ebc8563d7f95f045c002cf1f8c909540e5b8b670adc2e3fb6",
+      "crates/herogpui-components/src/tooltip.rs": "bd9b4f5aa095fca73c417909f1c6d2c04973d504d676beddd38249b13a30eef4",
       "crates/herogpui-components/src/typography.rs": "1de994d7962e429a30ae67b94d800691261cc2706b364461b71e95dfe77a68ce",
       "crates/herogpui-components/src/util.rs": "cd1a7a3d1853f215df0bf0e6eaf22606365f2a4a155752431a9977a7a11aacf9",
       "crates/herogpui-components/src/validation.rs": "e3e3db7686894f01abdad07e61f4f0f1bc9b64591b5500b494730d743a04aba7",
@@ -17273,7 +17257,7 @@
       "crates/herogpui-components/tests/allocation_axes.rs": "7ac28fabade6b76d9ba711bc01e7c653a1b4d5dcaf5679371ae5f73a1862d976",
       "crates/herogpui-components/tests/autocomplete_hover_deep.rs": "3a5542f35a92294aa186ac6427b4caa268c2d69141def3a1975c8ce68d928f52",
       "crates/herogpui-components/tests/avatar_deep.rs": "b831c805cc0f1325d3b433ed0a624a0ed21ac6c73dd30a1dbe944182765bca7d",
-      "crates/herogpui-components/tests/badge_parts.rs": "1f68ea2c27a686d25f8454ec3b50854c37e907ec93b1cacb29ee82a05d45656b",
+      "crates/herogpui-components/tests/badge_parts.rs": "46cfe7740538be4bae4d0bf8bfd97a72e6d5d11c02d51f76a96ec7dc1e5541dc",
       "crates/herogpui-components/tests/buttons.rs": "56b9aad41cebafa3cdbaf6cc2b4ef9c3916683a0f237baff8fb246287b200582",
       "crates/herogpui-components/tests/calendars_and_more.rs": "40b31a8a3e8ee140dbce41463a3f589d81f509b0a2bc334c70e92939f146b9b0",
       "crates/herogpui-components/tests/calendars_deep.rs": "fa3db622fd3dd89a23fa98667f4fc2350ca2c4a97a8f56aaee472539246bd753",
@@ -17287,7 +17271,7 @@
       "crates/herogpui-components/tests/collections.rs": "c8e31def8b81d17a8b91022064e34b439af3cf4d766e4a0f3b9d815fbbae1df6",
       "crates/herogpui-components/tests/collections_deep.rs": "ec5b3604fffd5030019a433b5ef2181d09a59967c9a643cf96d13188853fbf7f",
       "crates/herogpui-components/tests/color_geometry_deep.rs": "fe52b23e5d098165aa0d3d7c74a872c9d455572af02400ae2d0dec4b07bc9837",
-      "crates/herogpui-components/tests/combo_box_open.rs": "be42dab884344276b861018e1b17e12d0659e1b691098c2691b973f5baaa3b45",
+      "crates/herogpui-components/tests/combo_box_open.rs": "1fbe77408c70fb76b3c985ffbe550c8380a533ca9f00930cee64c3270d131c4e",
       "crates/herogpui-components/tests/combo_box_selection.rs": "cc4f1fd716f4178e5b37c58742c25a4f743376b9daddc6bac6bb4658383c47f7",
       "crates/herogpui-components/tests/component_themes.rs": "1ff4de60cf1f8daabc67f16dd7eb71e4364fb8395570c2913bc2e127ef448a4d",
       "crates/herogpui-components/tests/cursor_token.rs": "a239bffc23cd1bf1c3152624c9e29c1ee672ca64cd97fd560d508ffb605a83e8",
@@ -17304,7 +17288,7 @@
       "crates/herogpui-components/tests/feedback_compose.rs": "f4a728bfc5fbeff17fab9a20cf94c941096c807562aa3e45cc3c90909b363ff0",
       "crates/herogpui-components/tests/field_keyboard_contracts.rs": "eecb655b1a25466e8805acb2c5c43ecc0ad30391e6ac9dd5be74d73455fb9142",
       "crates/herogpui-components/tests/field_slots_deep.rs": "a878bad6edafe13cfa6e6fbd7beb5d6351a1541555f94bcadba818fc827d27b3",
-      "crates/herogpui-components/tests/fields.rs": "f4366b5212532e9b2cfc1baedf99bb0a2c0e5cc52e6552bc7044872c0b4bbc64",
+      "crates/herogpui-components/tests/fields.rs": "1e5ff6d91e3d416e648eaa0e4de6dbcc225fde1e67e0f9cee56287da0d6659b0",
       "crates/herogpui-components/tests/focus_visible_deep.rs": "c04a562a5976848d0c3ae6f07f0deef6722120d290e70c0062067985bec662b1",
       "crates/herogpui-components/tests/font_seams.rs": "770593d47a0e2ca4132cf92490a8964b0943980c617fca21f6c09eba7f8b0d81",
       "crates/herogpui-components/tests/form_state_lifecycle.rs": "19305dfb50f863e70bf21f78d9e6a4cf14cedcb25a2af82283804f99c7ad39d0",
@@ -17327,8 +17311,8 @@
       "crates/herogpui-components/tests/panel_padding.rs": "e10bb6b57adb65d59526a50625866ced25e8ae2269b8d0640c22ef08eb2afc1d",
       "crates/herogpui-components/tests/parts_pagination.rs": "81ffb66c57b5a8947fa5dc3242801d30e8fd8e9c844159c6e04685bb0a97fe3a",
       "crates/herogpui-components/tests/parts_thumbs.rs": "3cd2fa53355a3c4a9d5e5b9ca6a2875c3020e6be8db2778099aac54fdc65b5a5",
-      "crates/herogpui-components/tests/pickers.rs": "8cf328b499ce16a00591d8f2804c1fd18e69e136f4ca6aa34b9ba62ef0d3193b",
-      "crates/herogpui-components/tests/pickers_deep.rs": "d08196c9aa1ce57824a855540d88177db709596e779cd31a79a59aaffee7f0c3",
+      "crates/herogpui-components/tests/pickers.rs": "d9ad97aa3bfad7a1ad979c057cdb63e990bacdee91dc6506d563fb0c41ed49bc",
+      "crates/herogpui-components/tests/pickers_deep.rs": "8b28a05cddee75c419e966352f5634056b357d445671004d4105c8bd997ff2b2",
       "crates/herogpui-components/tests/placement.rs": "16c8e5328fa130c11adb3eb470013d95bfac09a0728a8aa67508ee6dd4cefd22",
       "crates/herogpui-components/tests/placement_extra.rs": "c3d7f850cf14f62e2e701f7208a036cbd2a1ec736e72b2c522a07e1574ca89fc",
       "crates/herogpui-components/tests/popover_stack_deep.rs": "7a2b93d617ff920cacaebd90d434c660378cffa02808882c31cbe9667ae3c2a4",
@@ -17360,7 +17344,7 @@
       "crates/herogpui-components/tests/theme_repaint.rs": "7ff54967e0ce386679595873f0e5fbe5a02ad1da1e71cf17244d98af34fb0cee",
       "crates/herogpui-components/tests/theme_tokens.rs": "349e9d1cc5b04f0404b7f977b0ac290625270aa5e3e5535eaaf997256ea1a51e",
       "crates/herogpui-components/tests/toast_promise_deep.rs": "52a9900bfc87addfe0f7738800ab7258dbac7cfa744632b81a44771788cbe4e0",
-      "crates/herogpui-components/tests/toast_stack_deep.rs": "000a0385a6e5e3c1ba6a4593c444c896a5326150127022a661e206f769f287fc",
+      "crates/herogpui-components/tests/toast_stack_deep.rs": "3e3655a9f2e4f11b7e4def6d7e374a7796294fa55ea736b807a81f9cd166551b",
       "crates/herogpui-components/tests/toast_update_deep.rs": "d1eb0beb9a5648222995e67e0992ffde66ba6dd5ebe2a645705892a430443b12",
       "crates/herogpui-components/tests/toolbar_divider_deep.rs": "f200b40a3a65edc10e9b94181418ccdd775875c323a282e3424e11b5b22159e4",
       "crates/herogpui-components/tests/typography_deep.rs": "57921807192c1f59cb4415910666d5334e9cb3f30fa5717a967bcc9a7561cdf9",
@@ -17437,7 +17421,7 @@
       "gallery/assets/herogpui/sample.png": "da6e1a7c304f5dcfb62ddf211e1a1b56df50399aa6c9b47c940e2d3b92788a32",
       "gallery/src/app.rs": "a4eb199c5a713cd6d186ca740adbcb70df651932fef8d597b5b22b144b3c349c",
       "gallery/src/assets.rs": "34ab586951a183104d02f402afbfaae294eb3fc899cb8443c4fcbfecf47a2f2f",
-      "gallery/src/control.rs": "9906bba96e670f9a9ce26dad5fc75b2a16d861cd229e673a21de9818db51c980",
+      "gallery/src/control.rs": "48f1d68195c75d73125d97de760326f29bbe5c43688370e3bd581b3dbd8f06ef",
       "gallery/src/highlight.rs": "5a82b332c8dc67b0278f38b4fa7330a28be7fd21c64088edc2afbee7cfc5102b",
       "gallery/src/lib.rs": "941a3e3037bcf1ea676ef0d33ff7e01b46f09b73695b85004e640e95925333e8",
       "gallery/src/main.rs": "a8f7a353b374ed26ce2e56894b5450deb476b79ab1025c6d0b9adf54203b5cf1",
@@ -17461,7 +17445,7 @@
       "gallery/src/pages/docs_guides.rs": "d963ca03f05cf60d2de4d4eff771b9a1d69c62e0132019290f1afbb8da08e78d",
       "gallery/src/pages/mod.rs": "9651fdbc8c6c89fa96fb8c3415263cf5afe7bb6b2cc89c80da784cfc9781a602",
       "gallery/src/pages/overview.rs": "13a0bab16116b730e6e4be52647db42d78ecfd93ccdc5cda907242e483dcb3dd",
-      "gallery/src/pages/reference.rs": "c7d3305da7f9a458fb0edd1be1d6f6207865b42a972eba70adef0a7e992fd2e5",
+      "gallery/src/pages/reference.rs": "4b9791fa37424053256f5b9fe6e00345b451833781a39c99fca06a02f885e38f",
       "gallery/src/pages/reference_metadata/buttons.rs": "c94daf5a54e64b781e854a6be72fd6bb8bdde99786d44f023c4b22d064d4ac79",
       "gallery/src/pages/reference_metadata/collections.rs": "b3e724272fe26811f583e5ac91e5aa6b1a75dfbe97033caa13c68533acfcfc7f",
       "gallery/src/pages/reference_metadata/colors.rs": "92f6d89d5f55e083bdd51fe7a0b43a5faceb0f2ead9d9173c96b91bd248ca601",
@@ -17902,7 +17886,7 @@
       "id": "select/clear/custom-child-scaling",
       "component": "Select",
       "scope": "component-state",
-      "status": "platform-limited",
+      "status": "implemented-unverified",
       "upstream": {
         "tag": "v3.2.5",
         "source": "docs/parity/evidence/select-clear/README.md",
@@ -17983,8 +17967,95 @@
             "plan": "docs/parity/ui-design-plan.md",
             "notes": "Converted from measured-gap: the pressed-target half is implemented and covered by clear_pressed_target_scales_about_the_slot_center in select_clear_deep.rs; the remaining custom-child half is a pinned-GPUI platform limit (transforms exist only on Svg elements)."
           }
+        },
+        {
+          "id": "select/clear/custom-child-scaling",
+          "component": "Select",
+          "scope": "component-state",
+          "status": "platform-limited",
+          "upstream": {
+            "tag": "v3.2.5",
+            "source": "docs/parity/evidence/select-clear/README.md",
+            "selector": ".select__clear-button:active, .select__clear-button[data-pressed=\"true\"] { transform: scale(0.93) }",
+            "demoSection": "Clear button"
+          },
+          "port": {
+            "module": "select",
+            "galleryPage": "Select",
+            "gallerySection": "Clear Button",
+            "specimenKey": "sel-clear-primary"
+          },
+          "configuration": {
+            "content": "custom-clear-child"
+          },
+          "state": "clear-custom-content",
+          "setup": [
+            "Render a SelectClearButton with custom content and exercise hover, press and hide/show."
+          ],
+          "assertions": [
+            "The pressed scale(0.93) covers the whole control: the visual, glyph and expanded 24px pointer target shrink about the shared center (24 * 0.93 = 22.32px) and restore on release, as CSS transforms rescale hit testing without touching layout (pinned select.css .select__clear-button).",
+            "Custom child subtree scaling is a platform limit: gpui-pre 0.3.3 exposes paint transforms only on Svg (src/elements/svg.rs Svg::with_transformation, Transformation), and no Styled or div transform exists, so a composed child subtree cannot scale with the press."
+          ],
+          "evidence": {
+            "upstream": [
+              "docs/parity/evidence/select-clear/README.md"
+            ],
+            "native": [],
+            "wasm": [],
+            "tests": [
+              "crates/herogpui-components/tests/select_clear_deep.rs"
+            ]
+          },
+          "source": {
+            "plan": "docs/parity/ui-design-plan.md",
+            "notes": "Converted from measured-gap: the pressed-target half is implemented and covered by clear_pressed_target_scales_about_the_slot_center in select_clear_deep.rs; the remaining custom-child half is a pinned-GPUI platform limit (transforms exist only on Svg elements). Re-recorded as platform-limited after the 2026-09-14 implementation-wave fingerprint change; custom-child subtree scaling is still gpui-pre 0.3.3 Svg-only."
+          }
+        },
+        {
+          "id": "select/clear/custom-child-scaling",
+          "component": "Select",
+          "scope": "component-state",
+          "status": "platform-limited",
+          "upstream": {
+            "tag": "v3.2.5",
+            "source": "docs/parity/evidence/select-clear/README.md",
+            "selector": ".select__clear-button:active, .select__clear-button[data-pressed=\"true\"] { transform: scale(0.93) }",
+            "demoSection": "Clear button"
+          },
+          "port": {
+            "module": "select",
+            "galleryPage": "Select",
+            "gallerySection": "Clear Button",
+            "specimenKey": "sel-clear-primary"
+          },
+          "configuration": {
+            "content": "custom-clear-child"
+          },
+          "state": "clear-custom-content",
+          "setup": [
+            "Render a SelectClearButton with custom content and exercise hover, press and hide/show."
+          ],
+          "assertions": [
+            "The pressed scale(0.93) covers the whole control: the visual, glyph and expanded 24px pointer target shrink about the shared center (24 * 0.93 = 22.32px) and restore on release, as CSS transforms rescale hit testing without touching layout (pinned select.css .select__clear-button).",
+            "Custom child subtree scaling is a platform limit: gpui-pre 0.3.3 exposes paint transforms only on Svg (src/elements/svg.rs Svg::with_transformation, Transformation), and no Styled or div transform exists, so a composed child subtree cannot scale with the press."
+          ],
+          "evidence": {
+            "upstream": [
+              "docs/parity/evidence/select-clear/README.md"
+            ],
+            "native": [],
+            "wasm": [],
+            "tests": [
+              "crates/herogpui-components/tests/select_clear_deep.rs"
+            ]
+          },
+          "source": {
+            "plan": "docs/parity/ui-design-plan.md",
+            "notes": "Converted from measured-gap: the pressed-target half is implemented and covered by clear_pressed_target_scales_about_the_slot_center in select_clear_deep.rs; the remaining custom-child half is a pinned-GPUI platform limit (transforms exist only on Svg elements). Re-recorded as platform-limited after the 2026-09-14 implementation-wave fingerprint change; custom-child subtree scaling is still gpui-pre 0.3.3 Svg-only."
+          }
         }
-      ]
+      ],
+      "invalidation": "upstream, implementation, artifact or documentation inputs changed"
     },
     {
       "id": "web/modal/open-state-url",
@@ -45501,7 +45572,7 @@
       }
     }
   ],
-  "verification_sha256": "55e75ea63551871b8ee666d064d0b1f0ddedabf4a16c30d961042bd7d28b3775",
+  "verification_sha256": "79010a442cfd5ab9d91362b0a9e6f6b6a2305f3a57027069eaf074e8add4da16",
   "retired_source_changes": [],
   "retired_upstream_demos": {},
   "upstream_source_snapshot": {

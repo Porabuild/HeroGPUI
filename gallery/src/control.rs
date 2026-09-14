@@ -127,8 +127,9 @@ pub fn preview_only(cx: &App) -> bool {
 /// string cannot report an error back to its reader, so the web bootstrap
 /// ignores unknown values here, consistently with how an unknown `?theme=`
 /// falls back to light.
+#[allow(dead_code)] // the web bootstrap is its only production reader; the native control file has its own parser
 pub fn overlays_requested(value: Option<&str>) -> bool {
-    matches!(value, Some("1") | Some("true"))
+    matches!(value, Some("1" | "true"))
 }
 
 fn parse_sections(raw: &str) -> Vec<String> {

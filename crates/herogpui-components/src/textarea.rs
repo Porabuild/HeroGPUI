@@ -201,19 +201,6 @@ impl TextArea {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::rows_height;
-    use gpui::px;
-
-    #[test]
-    fn rows_keep_the_pinned_textarea_minimum() {
-        assert_eq!(rows_height(0), px(38.));
-        assert_eq!(rows_height(1), px(38.));
-        assert_eq!(rows_height(3), px(76.));
-    }
-}
-
 impl TextArea {
     /// Hands the inner field to [`crate::input_group::InputGroup::text_area`].
     ///
@@ -239,5 +226,18 @@ impl RenderOnce for TextArea {
             .when_some(self.min_w, |e, w| e.min_w(w))
             .child(self.inner);
         crate::util::apply_sx(el, &self.sx)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::rows_height;
+    use gpui::px;
+
+    #[test]
+    fn rows_keep_the_pinned_textarea_minimum() {
+        assert_eq!(rows_height(0), px(38.));
+        assert_eq!(rows_height(1), px(38.));
+        assert_eq!(rows_height(3), px(76.));
     }
 }

@@ -45,7 +45,7 @@ pub const ACCORDION_TRIGGER_HOVER_MS: u64 = 150;
 /// How long a press takes: `transform 250ms var(--ease-smooth)`.
 ///
 /// The instant [`pressed`] still arrives in one frame — gpui's `active` is a
-/// style swap with no timeline — but [`pressed_with_background_ramp`] rides
+/// style swap with no timeline — but `pressed_with_background_ramp` rides
 /// this pinned duration on the components whose stylesheets declare it.
 pub const PRESS_MS: u64 = 250;
 
@@ -424,6 +424,7 @@ enum IndicatorEasing {
     EaseOut,
 }
 
+#[allow(clippy::too_many_arguments)] // the two easing wrappers pass their parameters straight through
 fn rotating_indicator_with_angle_easing(
     id: &ElementId,
     expanded: bool,
@@ -1096,6 +1097,7 @@ pub(crate) fn pressed_with_background_ramp(
         // geometry and fill with no animation mounted.
         let s = scale_tween.value().get();
         let mut skin = el;
+        #[allow(clippy::float_cmp)] // untouched is exactly the identity scale
         if s != 1.0 {
             skin = skin_at_scale(skin, s, &b, &resting_corners);
             // The pressed fill only exists when the caller named endpoints; a
@@ -1377,6 +1379,7 @@ pub fn hover_fade(
 /// the theme's shared hover token; components whose stylesheet declares a
 /// different transition (Accordion's 150ms trigger) use this seam so the
 /// parity implementation does not silently inherit the button's 100ms.
+#[allow(clippy::too_many_arguments)] // the seam adds one parameter to the stock fade
 pub(crate) fn hover_fade_with_duration(
     el: gpui::Stateful<gpui::Div>,
     id: impl Into<ElementId>,
@@ -1403,6 +1406,7 @@ pub(crate) fn hover_fade_with_duration(
 /// `hover_fade_with_duration` with the component's named HeroUI easing curve.
 /// The stock helper uses `--ease-out`; NumberField's group is one of the v3
 /// surfaces that explicitly names `--ease-smooth` for its background transition.
+#[allow(clippy::too_many_arguments)] // the seam adds one parameter to the stock fade
 pub(crate) fn hover_fade_with_duration_and_easing(
     el: gpui::Stateful<gpui::Div>,
     id: impl Into<ElementId>,
@@ -1432,6 +1436,7 @@ pub(crate) fn hover_fade_with_duration_and_easing(
 /// Composite triggers use this when a nested affordance owns the pointer: the
 /// parent fill eases back to its resting endpoint while the nested control is
 /// hovered, then resumes the normal target when the pointer leaves it.
+#[allow(clippy::too_many_arguments)] // the seam adds one parameter to the stock fade
 pub(crate) fn hover_fade_with_duration_and_easing_suppressed(
     el: gpui::Stateful<gpui::Div>,
     id: impl Into<ElementId>,
@@ -1741,6 +1746,7 @@ pub(crate) struct FieldChrome {
 /// whose own `overflow-hidden` would clip an outset ring painted by a child
 /// to the shell's box — the layer then paints after the subtree, the same
 /// way every floating surface does.
+#[allow(clippy::too_many_arguments)] // one parameter per chrome track, ring and shell option
 pub(crate) fn field_chrome_ramp<E>(
     mut el: E,
     id: &ElementId,
@@ -1760,7 +1766,6 @@ where
     let slot = window.use_keyed_state(element_id::scoped(id, "chrome-hover"), cx, |_, _| false);
     let is_hovered = *slot.read(cx) && hovered.is_some();
     el.interactivity().on_hover({
-        let slot = slot.clone();
         move |over: &bool, _, cx| {
             slot.update(cx, |hovered, cx| {
                 if *hovered != *over {
@@ -2070,6 +2075,7 @@ pub(crate) fn field_error_panel(
     )
 }
 
+#[allow(clippy::too_many_arguments)] // the two motion tracks are the caller's paired contract
 fn collapsible_panel_with_timings(
     id: &ElementId,
     is_open: bool,
@@ -2118,10 +2124,7 @@ fn collapsible_panel_with_timings(
     let body = gpui::div()
         .flex_shrink_0()
         .on_children_prepainted(move |bounds, _, cx| {
-            let next = bounds
-                .first()
-                .map(|bound| bound.size.height)
-                .unwrap_or(px(0.));
+            let next = bounds.first().map_or(px(0.), |bound| bound.size.height);
             measured_for_listener.update(cx, |height, cx| {
                 if height.get() != Some(next) {
                     height.set(Some(next));
@@ -2477,6 +2480,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::float_cmp)] // the scales are declared as exact identities
     fn drawer_backdrop_uses_its_own_fluid_timing() {
         assert_eq!(Motion::DRAWER_BACKDROP_IN.ms, 250);
         assert_eq!(Motion::DRAWER_BACKDROP_OUT.ms, 200);
@@ -2487,6 +2491,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::float_cmp)] // the scales are declared as exact identities
     fn field_error_uses_independent_height_and_opacity_timelines() {
         assert_eq!(Motion::FIELD_ERROR_HEIGHT.ms, 350);
         assert_eq!(Motion::FIELD_ERROR_HEIGHT.curve, Curve::Smooth);

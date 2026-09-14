@@ -523,6 +523,7 @@ fn tree_column_padding(depth: usize) -> Option<Pixels> {
 /// sort indicator together while ignoring an empty cell. One-pixel separator
 /// overlays are deliberately excluded; they are decorative and must not turn
 /// into a column's intrinsic width.
+#[allow(clippy::float_cmp)] // f32::MAX is the unset sentinel, checked exactly
 fn intrinsic_children_width(bounds: &[gpui::Bounds<Pixels>]) -> f32 {
     let mut left = f32::MAX;
     let mut right = f32::MIN;
@@ -1855,7 +1856,7 @@ impl RenderOnce for Table {
                         if values.len() <= column_index {
                             values.resize(column_index + 1, None);
                         }
-                        if values[column_index].map_or(true, |current| next > current) {
+                        if values[column_index].is_none_or(|current| next > current) {
                             values[column_index] = Some(next);
                             cx.notify();
                         }
@@ -1864,7 +1865,7 @@ impl RenderOnce for Table {
             }
             cell = cell.child(column.label.clone());
             let header_selector = format!("table-header-track-{column_index}");
-            cell = cell.debug_selector(move || header_selector.clone());
+            cell = cell.debug_selector(move || header_selector);
 
             if secondary {
                 let radius = cx.layout().radius_2xl().min(px(32.));
@@ -2524,7 +2525,7 @@ impl RenderOnce for Table {
         let table_id = self.id.clone();
         let ctx = std::rc::Rc::new(RowCtx {
             id: base_id.clone(),
-            measured_widths: measured_widths.clone(),
+            measured_widths,
             measure_intrinsic: self
                 .columns
                 .iter()
@@ -3492,7 +3493,7 @@ impl RenderOnce for Table {
         let el = wrapper.child(
             gpui::div()
                 .id(element_id::scoped(&base_id, "scroll-x"))
-                .debug_selector(move || scroll_selector.clone())
+                .debug_selector(move || scroll_selector)
                 .flex()
                 .flex_col()
                 .items_start()
@@ -3757,7 +3758,7 @@ impl RowCtx {
                         if values.len() <= c {
                             values.resize(c + 1, None);
                         }
-                        if values[c].map_or(true, |current| next > current) {
+                        if values[c].is_none_or(|current| next > current) {
                             values[c] = Some(next);
                             cx.notify();
                         }

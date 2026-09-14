@@ -45,6 +45,13 @@ ignored = [
 ]
 ignored-paths = ["src/_ownership_and_data_flow.rs"]
 
+# `ztracing::instrument` re-exports tracing's attribute when its cfg is on, and
+# that macro expands to `tracing::` paths resolved in this crate; machete greps
+# tokens and cannot see the expansion. The vendored manifest keeps upstream's
+# direct dependency rather than drifting from the published crate.
+[package.metadata.cargo-machete]
+ignored = ["tracing"]
+
 [package.metadata.gpui-pre]
 zed-crate = "gpui"
 zed-version = "0.2.2"

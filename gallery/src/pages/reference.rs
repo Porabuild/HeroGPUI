@@ -4023,13 +4023,11 @@ impl Widget {
                 && entry.prop == "children"
                 && entry.status == reference_metadata::ImplementationStatus::Implemented
         }));
-        for (owner, prop) in [("Select.Popover", "placement")] {
-            assert!(metadata.api.iter().any(|entry| {
-                entry.owner == owner
-                    && entry.prop == prop
-                    && entry.status == reference_metadata::ImplementationStatus::Implemented
-            }));
-        }
+        assert!(metadata.api.iter().any(|entry| {
+            entry.owner == "Select.Popover"
+                && entry.prop == "placement"
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
+        }));
         for class_or_token in [".select__indicator", ".select__popover[data-entering]"] {
             assert!(metadata.styling.iter().any(|entry| {
                 entry.class_or_token == class_or_token

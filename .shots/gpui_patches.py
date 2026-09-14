@@ -12,8 +12,10 @@ import tomllib
 
 ROOT = Path(__file__).resolve().parents[1]
 PACKAGES = ("gpui-pre", "gpui-pre-apple", "gpui-pre-wgpu", "gpui-pre-windows")
-# Cargo uses the workspace lockfile. These registry/cache files are not fork code.
-IGNORED = {".cargo-checksum.json", ".cargo-ok", "Cargo.lock"}
+# Cargo uses the workspace lockfile. These registry/cache files are not fork
+# code: `Cargo.toml.orig` is the packager's pre-normalization backup and is
+# gitignored, so it exists only in an unpacked registry copy, never in the fork.
+IGNORED = {".cargo-checksum.json", ".cargo-ok", "Cargo.lock", "Cargo.toml.orig"}
 
 
 def files(root):

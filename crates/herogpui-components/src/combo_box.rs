@@ -1499,7 +1499,7 @@ impl RenderOnce for ComboBox {
                 .join(", ");
             let value_selector = format!("combobox-value-{entity_id}");
             let default_children = div()
-                .debug_selector(move || value_selector.clone())
+                .debug_selector(move || value_selector)
                 .w_full()
                 .min_w_0()
                 .whitespace_normal()
@@ -2099,7 +2099,7 @@ impl RenderOnce for ComboBox {
                                 .items_center()
                                 .justify_center()
                                 .child(render(row_selected)),
-                        )
+                        );
                     }
                     None if multiple && row_selected => {
                         row = row.child(

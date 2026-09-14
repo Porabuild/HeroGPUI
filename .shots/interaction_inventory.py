@@ -86,6 +86,9 @@ def source_snapshot(root):
         if not path.is_file():
             raise ValueError(f'missing inventory input: {name}')
         files.add(path)
+    # Build output follows whatever was last compiled in this checkout, and a
+    # fresh CI checkout has none of it; only repository sources invalidate.
+    files = {p for p in files if not {'target', '.git'}.intersection(p.relative_to(root).parts)}
     if not any(p.suffix == '.rs' for p in files):
         raise ValueError('no Rust sources found')
     hashes = {p.relative_to(root).as_posix(): digest(p.read_bytes()) for p in sorted(files)}

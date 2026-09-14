@@ -146,7 +146,7 @@ fn combo_box_retains_panel_for_exit_motion_then_releases_it(cx: &mut TestAppCont
     let state = combo_state(cx);
     let entity_id = state.entity_id().as_u64();
     let panel_selector = selector(format!("combobox-panel-{entity_id}"));
-    let state_for_view = state.clone();
+    let state_for_view = state;
     let cx = open_host(cx, move || {
         ComboBox::new(state_for_view.clone(), keyed(&["Typst", "Rust"]))
             .default_open(true)
@@ -154,14 +154,14 @@ fn combo_box_retains_panel_for_exit_motion_then_releases_it(cx: &mut TestAppCont
     });
     cx.run_until_parked();
     assert!(
-        cx.debug_bounds(&panel_selector).is_some(),
+        cx.debug_bounds(panel_selector).is_some(),
         "an opened ComboBox must render its panel"
     );
 
     click(cx, 298., 18.);
     cx.update(|window, _| window.refresh());
     assert!(
-        cx.debug_bounds(&panel_selector).is_some(),
+        cx.debug_bounds(panel_selector).is_some(),
         "the panel must remain mounted during the 100ms exit transition"
     );
 
@@ -169,7 +169,7 @@ fn combo_box_retains_panel_for_exit_motion_then_releases_it(cx: &mut TestAppCont
     cx.update(|window, _| window.refresh());
     cx.run_until_parked();
     assert!(
-        cx.debug_bounds(&panel_selector).is_none(),
+        cx.debug_bounds(panel_selector).is_none(),
         "the retained panel must leave the tree after its exit lifetime"
     );
 }

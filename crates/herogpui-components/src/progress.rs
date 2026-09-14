@@ -494,7 +494,7 @@ mod tests {
             .expect("the ProgressCircle implementation is always present");
         assert!(source.contains("PROGRESS_CIRCLE_FILL_MS"));
         assert!(source.contains("\"fill-fraction\""));
-        assert!(source.contains("let paint_fraction = live_fraction.clone()"));
+        assert!(source.contains("let paint_fraction = fraction_motion.value()"));
         assert!(source.contains("let fraction = paint_fraction.get()"));
         assert!(source.contains("fraction_motion.animates(reduce_motion)"));
     }
@@ -677,7 +677,7 @@ impl RenderOnce for ProgressCircle {
             fraction_motion.snap_if_reduced(reduce_motion);
         }
         let animate_fraction = !self.is_indeterminate && fraction_motion.animates(reduce_motion);
-        let live_fraction = fraction_motion.value();
+        let paint_fraction = fraction_motion.value();
         let colors = cx.colors();
         let arc_color = if self.color == Color::Default {
             colors.default.foreground
@@ -689,7 +689,6 @@ impl RenderOnce for ProgressCircle {
         let spins = self.is_indeterminate && !reduce_motion;
         let rotation = std::rc::Rc::new(std::cell::Cell::new(0.0f32));
         let paint_rotation = rotation.clone();
-        let paint_fraction = live_fraction.clone();
 
         let arc = gpui::canvas(
             move |bounds, _, _| bounds,

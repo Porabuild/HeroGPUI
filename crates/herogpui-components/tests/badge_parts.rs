@@ -269,15 +269,12 @@ fn a_grown_label_overhangs_a_quarter_of_its_grown_box_at_every_placement(cx: &mu
             "91.0..127.0 x 83.0..111.0",
         ),
     ] {
-        let cx = open_host(cx, {
-            let placement = placement;
-            move || {
-                anchored(
-                    Badge::new()
-                        .placement(placement)
-                        .child(BadgeLabel::new().child(gpui::div().w(px(30.)).h(px(10.)))),
-                )
-            }
+        let cx = open_host(cx, move || {
+            anchored(
+                Badge::new()
+                    .placement(placement)
+                    .child(BadgeLabel::new().child(gpui::div().w(px(30.)).h(px(10.)))),
+            )
         });
         assert_eq!(
             bounds_str(&probe(cx, "badge")),

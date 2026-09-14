@@ -657,7 +657,7 @@ impl RenderOnce for Tooltip {
                 // graph the port names the tip with its own content instead,
                 // which is the text that describedby would have resolved to.
                 .id(element_id::scoped(&key, "tip"))
-                .a11y_named(a11y::Role::Tooltip, &a11y::Name::labelled(content.clone()))
+                .a11y_named(a11y::Role::Tooltip, &a11y::Name::labelled(content))
                 // The placement anchor lives on an outer absolute wrapper
                 // below. Keeping the painted surface relative lets the entry
                 // slide use top/left without replacing that anchor.
@@ -849,6 +849,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::float_cmp)] // the rotations are quarter-turn constants
     fn arrow_rotations_face_the_tooltip_side() {
         assert_eq!(arrow_rotation(TooltipPlacement::Top), 0.);
         assert_eq!(arrow_rotation(TooltipPlacement::TopRight), 0.);

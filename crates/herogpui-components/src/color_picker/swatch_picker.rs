@@ -23,6 +23,7 @@ mod tests {
     use super::swatch_visual_scale;
 
     #[test]
+    #[allow(clippy::float_cmp)] // the scale ladder is declared exactly
     fn selected_scale_wins_over_hover_and_rest() {
         assert_eq!(swatch_visual_scale(false, false), 1.0);
         assert_eq!(swatch_visual_scale(false, true), 1.1);

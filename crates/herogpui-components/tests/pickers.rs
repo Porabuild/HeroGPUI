@@ -831,8 +831,10 @@ fn autocomplete_item_indicator_receives_row_selection_state(cx: &mut TestAppCont
     assert!(
         recorded.len() >= 2
             && recorded
-                .chunks_exact(2)
-                .all(|states| states == [true, false]),
+                .as_chunks::<2>()
+                .0
+                .iter()
+                .all(|states| states == &[true, false]),
         "the composed item indicator must receive each row's selection state"
     );
 }

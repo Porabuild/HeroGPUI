@@ -2092,7 +2092,7 @@ impl RenderOnce for Select {
                                 .items_center()
                                 .justify_center()
                                 .child(render(is_sel)),
-                        )
+                        );
                     }
                     None if is_sel => {
                         item = item.child(

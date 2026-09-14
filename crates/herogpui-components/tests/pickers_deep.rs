@@ -5788,7 +5788,7 @@ fn autocomplete_long_selected_value_wraps_the_trigger(cx: &mut TestAppContext) {
     let state = search_state(cx);
     let entity_id = state.entity_id().as_u64();
     let base = format!("autocomplete-{entity_id}");
-    let state_for_view = state.clone();
+    let state_for_view = state;
     let cx = open_host(cx, move || {
         auto_at(
             100.,
@@ -5834,7 +5834,7 @@ fn combo_box_long_value_content_wraps_the_value_row(cx: &mut TestAppContext) {
     let long = "A project name that is intentionally long enough to wrap";
     let state = search_state(cx);
     let entity_id = state.entity_id().as_u64();
-    let state_for_view = state.clone();
+    let state_for_view = state;
     let cx = open_host(cx, move || {
         combo_at(
             100.,

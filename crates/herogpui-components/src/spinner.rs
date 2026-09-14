@@ -76,16 +76,6 @@ pub struct Spinner {
     sx: Option<Box<gpui::StyleRefinement>>,
 }
 
-#[cfg(test)]
-mod tests {
-    use super::Spinner;
-
-    #[test]
-    fn default_speed_matches_heroui_spin_fast_token() {
-        assert_eq!(Spinner::new("spinner").duration_ms, 750);
-    }
-}
-
 impl Spinner {
     pub fn new(id: impl Into<gpui::ElementId>) -> Self {
         Self {
@@ -191,5 +181,15 @@ impl RenderOnce for Spinner {
             crate::a11y::Role::Status,
             &crate::a11y::Name::labelled("Loading"),
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Spinner;
+
+    #[test]
+    fn default_speed_matches_heroui_spin_fast_token() {
+        assert_eq!(Spinner::new("spinner").duration_ms, 750);
     }
 }

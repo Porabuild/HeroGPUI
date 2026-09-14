@@ -1340,8 +1340,8 @@ impl RenderOnce for ToastViewport {
             measured_heights: hidden_heights.clone(),
             height_state: hidden_height_state.clone(),
         });
-        let exiting_heights = measured_heights.clone();
-        let exiting_height_state = measured_height_state.clone();
+        let exiting_heights = measured_heights;
+        let exiting_height_state = measured_height_state;
         let exiting_cards = exiting.into_iter().map(move |t| {
             let frontmost = exiting_frontmost.contains(&t.id);
             ToastCardEl {
@@ -1704,7 +1704,7 @@ impl RenderOnce for ToastCardEl {
                 // `.toast__close-button:hover` fills with `bg-default` --
                 // the full token, overriding the composed CloseButton's own
                 // `--default-hover` refinement.
-                let close_hovered_for_click = close_hovered.clone();
+                let close_hovered_for_click = close_hovered;
                 let close_focus_for_click = close_focus.clone();
                 close_btn = close_btn.on_click(move |_, window, cx| {
                     let visible = *close_hovered_for_click.read(cx)

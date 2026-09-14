@@ -152,10 +152,7 @@ class InventoryTests(unittest.TestCase):
                 inventory.validate_specimens(current, self.root)
 
     def test_real_snapshot_includes_gallery_manifest_preview_host_and_assets(self):
-        for name in inventory.INPUT_FILES:
-            path = self.root / name
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text('fixture')
+        self.write_input_files()
         paths = ('crates/herogpui-components/src/button.rs',
                  'web/src/components/preview/gallery-frame.tsx',
                  'gallery/assets/icon.svg', 'crates/herogpui-web/fonts/font.ttf',
@@ -171,6 +168,23 @@ class InventoryTests(unittest.TestCase):
             current = SOURCE_SNAPSHOT(self.root)
             self.assertNotEqual(current['sha256'], previous['sha256'], name)
             previous = current
+
+    def test_snapshot_ignores_build_output_directories(self):
+        self.write_input_files()
+        source = self.root / 'crates/herogpui-components/src/button.rs'
+        source.parent.mkdir(parents=True, exist_ok=True)
+        source.write_text('source')
+        previous = SOURCE_SNAPSHOT(self.root)
+        artifact = self.root / 'crates/gpui_pre/target/debug/build/out/generated.rs'
+        artifact.parent.mkdir(parents=True, exist_ok=True)
+        artifact.write_text('generated')
+        self.assertEqual(SOURCE_SNAPSHOT(self.root), previous)
+
+    def write_input_files(self):
+        for name in inventory.INPUT_FILES:
+            path = self.root / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text('fixture')
 
     def test_write_failure_preserves_original_inventory(self):
         path = self.root / 'evidence.json'

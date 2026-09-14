@@ -3,7 +3,7 @@
 
 Target: `v3.2.5` (`5f13f6ed355bdbd5d5f69e5944685438a3591793`)
 Inventory date: `2026-09-14`
-Inventory verification: `55e75ea63551871b8ee666d064d0b1f0ddedabf4a16c30d961042bd7d28b3775`
+Inventory verification: `79010a442cfd5ab9d91362b0a9e6f6b6a2305f3a57027069eaf074e8add4da16`
 Last evidence commit: `(none recorded)`
 
 This is a maintainer work-queue summary. It does not turn gallery section headings, static audits, or successful builds into parity evidence.
@@ -15,7 +15,7 @@ This is a maintainer work-queue summary. It does not turn gallery section headin
 | Specimens | 726 |
 | Verified | 0 |
 | Outstanding | 726 |
-| Unobserved/unreviewed | 725 |
+| Unobserved/unreviewed | 726 |
 | Components | 67 |
 | Gallery sections | 719 |
 
@@ -23,11 +23,11 @@ This is a maintainer work-queue summary. It does not turn gallery section headin
 
 | Status | Specimens |
 | --- | --- |
-| implemented-unverified | 6 |
+| implemented-unverified | 7 |
 | intentional-deviation | 0 |
 | measured-gap | 0 |
 | not-applicable | 0 |
-| platform-limited | 1 |
+| platform-limited | 0 |
 | specified | 0 |
 | unreviewed | 719 |
 | verified | 0 |
@@ -118,7 +118,7 @@ This is a maintainer work-queue summary. It does not turn gallery section headin
 
 - Measured gaps: **0**
 - Intentional deviations: **0**
-- Platform limits: **1**
+- Platform limits: **0**
 - Unresolved specimen records: **726**
 
 The JSON file contains the complete unresolved id list and per-component detail. Add a concrete evidence record before changing a specimen to `verified`; record intentional deviations and platform limits with user-facing notes.

@@ -1407,6 +1407,7 @@ impl RenderOnce for Slider {
 
 /// Keep cap coverage at the axis inset while letting explicit corners resolve
 /// against the track thickness rather than GPUI's narrower cap-strip box.
+#[allow(clippy::too_many_arguments)] // the axis, corner and colour inputs are all independent
 fn fill_cap(
     vertical: bool,
     at_start: bool,

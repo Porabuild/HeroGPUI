@@ -851,7 +851,7 @@ fn sleep_mid_flight() {
 #[gpui::test]
 fn number_field_chrome_mounts_settled_and_interpolates_focus(cx: &mut TestAppContext) {
     let state = cx.new(|cx| NumberState::new(cx, 5.0));
-    let state_for_view = state.clone();
+    let state_for_view = state;
     // Placed below the window's default pointer position: a field under the
     // pointer at mount is legitimately hovered, and would ease its hover
     // chrome in — this test needs the untouched resting mount.
@@ -900,7 +900,7 @@ fn number_field_chrome_mounts_settled_and_interpolates_focus(cx: &mut TestAppCon
 fn number_field_focus_snaps_under_reduced_motion(cx: &mut TestAppContext) {
     still();
     let state = cx.new(|cx| NumberState::new(cx, 5.0));
-    let state_for_view = state.clone();
+    let state_for_view = state;
     let cx = open_host(cx, move || {
         NumberField::new(state_for_view.clone()).into_any_element()
     });
@@ -923,7 +923,7 @@ fn number_field_invalid_chrome_interpolates(cx: &mut TestAppContext) {
     let invalid = Rc::new(std::cell::Cell::new(false));
     let seed = invalid.clone();
     let state = cx.new(|cx| NumberState::new(cx, 5.0));
-    let state_for_view = state.clone();
+    let state_for_view = state;
     let cx = open_host(cx, move || {
         let invalid = seed.clone();
         NumberField::new(state_for_view.clone())
@@ -958,7 +958,7 @@ fn number_field_invalid_chrome_interpolates(cx: &mut TestAppContext) {
 #[gpui::test]
 fn number_field_hover_interpolates_the_group_surface(cx: &mut TestAppContext) {
     let state = cx.new(|cx| NumberState::new(cx, 5.0));
-    let state_for_view = state.clone();
+    let state_for_view = state;
     let cx = open_host(cx, move || {
         NumberField::new(state_for_view.clone()).into_any_element()
     });
@@ -993,7 +993,7 @@ fn input_otp_invalid_slots_interpolate_the_danger_outline(cx: &mut TestAppContex
     let invalid = Rc::new(std::cell::Cell::new(false));
     let seed = invalid.clone();
     let state = cx.new(|cx| OtpState::with_length(cx, 4));
-    let state_for_view = state.clone();
+    let state_for_view = state;
     let cx = open_host(cx, move || {
         let invalid = seed.clone();
         InputOTP::new(state_for_view.clone())
@@ -1027,7 +1027,7 @@ fn input_otp_invalid_slots_interpolate_the_danger_outline(cx: &mut TestAppContex
 #[gpui::test]
 fn input_otp_hover_interpolates_the_slot_surface(cx: &mut TestAppContext) {
     let state = cx.new(|cx| OtpState::with_length(cx, 4));
-    let state_for_view = state.clone();
+    let state_for_view = state;
     let cx = open_host(cx, move || {
         InputOTP::new(state_for_view.clone()).into_any_element()
     });

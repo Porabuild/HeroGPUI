@@ -515,6 +515,7 @@ struct NavStyle {
     radius: gpui::Pixels,
 }
 
+#[allow(clippy::too_many_arguments)] // one parameter per nav-cell style channel
 fn nav_button(
     id: gpui::ElementId,
     icon: gpui::AnyElement,

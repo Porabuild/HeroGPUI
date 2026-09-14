@@ -84,13 +84,13 @@ fn expanded_stack_uses_measured_absolute_card_offsets(cx: &mut TestAppContext) {
             .push(None, cx);
         (older, newer)
     });
-    let mut cx = open_host(cx, || {
+    let cx = open_host(cx, || {
         ToastViewport::new().is_expanded(true).into_any_element()
     });
     // The first frame records natural card heights; the next frame consumes
     // them to position the absolute stack.
-    flush_frame(&mut cx);
-    flush_frame(&mut cx);
+    flush_frame(cx);
+    flush_frame(cx);
     let older_key: &'static str = Box::leak(format!("toast-slot-{older}").into_boxed_str());
     let newer_key: &'static str = Box::leak(format!("toast-slot-{newer}").into_boxed_str());
     let older_bounds = cx
