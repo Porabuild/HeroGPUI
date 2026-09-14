@@ -728,7 +728,7 @@ impl RenderOnce for Checkbox {
             self.default_checked,
         );
         let reset_own = own.clone();
-        let reset_state = self.form_state.clone();
+        let reset_state = Rc::downgrade(&self.form_state);
         let reset_value = self.value.clone();
         let reset_change = self
             .checked
@@ -740,10 +740,12 @@ impl RenderOnce for Checkbox {
                 let default_checked = self.default_checked;
                 let reset_state = reset_state.clone();
                 crate::util::shared(move |window: &mut Window, cx: &mut App| {
-                    reset_state.borrow_mut().value = match (&reset_value, default_checked) {
-                        (Some(value), true) => crate::form::FormValue::Text(value.clone()),
-                        _ => crate::form::FormValue::Flag(default_checked),
-                    };
+                    if let Some(state) = reset_state.upgrade() {
+                        state.borrow_mut().value = match (&reset_value, default_checked) {
+                            (Some(value), true) => crate::form::FormValue::Text(value.clone()),
+                            _ => crate::form::FormValue::Flag(default_checked),
+                        };
+                    }
                     if let Some(held) = &reset_own {
                         held.update(cx, |checked, cx| {
                             *checked = default_checked;
@@ -1337,7 +1339,7 @@ impl RenderOnce for CheckboxGroup {
             self.default_value.clone(),
         );
         let reset_own = own.clone();
-        let reset_state = self.form_state.clone();
+        let reset_state = Rc::downgrade(&self.form_state);
         let reset_options = self.options.clone();
         let reset_change = self
             .value
@@ -1350,15 +1352,17 @@ impl RenderOnce for CheckboxGroup {
                 let reset_state = reset_state.clone();
                 let reset_options = reset_options.clone();
                 crate::util::shared(move |window: &mut Window, cx: &mut App| {
-                    reset_state.borrow_mut().value = crate::form::FormValue::Keys(
-                        reset_options
-                            .iter()
-                            .filter(|option| {
-                                default_value.contains(&option.key) && !option.is_disabled
-                            })
-                            .map(|option| option.key.clone())
-                            .collect(),
-                    );
+                    if let Some(state) = reset_state.upgrade() {
+                        state.borrow_mut().value = crate::form::FormValue::Keys(
+                            reset_options
+                                .iter()
+                                .filter(|option| {
+                                    default_value.contains(&option.key) && !option.is_disabled
+                                })
+                                .map(|option| option.key.clone())
+                                .collect(),
+                        );
+                    }
                     if let Some(held) = &reset_own {
                         held.update(cx, |value, cx| {
                             *value = default_value.clone();
@@ -1481,10 +1485,9 @@ impl RenderOnce for CheckboxGroup {
 
         root = root.child(list);
 
-        if is_invalid {
-            if let Some(message) = self.error_message {
-                root = root.child(crate::field::ErrorMessage::new(message));
-            }
+        let error = is_invalid.then(|| self.error_message.clone()).flatten();
+        if let Some(error) = crate::anim::field_error_panel(&self.id, error, window, cx) {
+            root = root.child(error);
         } else if let Some(description) = self.description {
             root = root.child(crate::field::Description::new(description));
         }

@@ -26,6 +26,229 @@ use crate::{
     util,
 };
 
+/// HeroUI's color surfaces use an 8px checker cell pair (a 16px repeating
+/// tile) beneath translucent values. GPUI has no repeating-conic background,
+/// so the shared color controls compose the same tile from clipped child
+/// squares. Keeping this helper here makes swatches and alpha sliders use one
+/// palette and one phase at every size and orientation.
+pub(super) fn transparency_checker(width: Pixels, height: Pixels) -> gpui::Div {
+    const CELL: f32 = 8.0;
+    let columns = (f32::from(width) / CELL).ceil().max(1.0) as usize;
+    let rows = (f32::from(height) / CELL).ceil().max(1.0) as usize;
+    let light = gpui::rgb(0xefefef);
+    let dark = gpui::rgb(0xf7f7f7);
+    let mut grid = div().absolute().inset_0().flex().flex_col();
+    for row in 0..rows {
+        let mut line = div().flex().h(px(CELL));
+        for column in 0..columns {
+            line = line.child(div().size(px(CELL)).bg(if (row + column) % 2 == 0 {
+                light
+            } else {
+                dark
+            }));
+        }
+        grid = grid.child(line);
+    }
+    grid
+}
+
+/// HeroUI's color surfaces use a one-pixel translucent inset edge rather than
+/// a semantic theme border. GPUI's shadow primitive needs a small blur to
+/// produce a visible raster edge, so the one-pixel spread is kept exact while
+/// the blur stays at the smallest drawable value.
+pub(super) fn color_inner_shadow() -> gpui::BoxShadow {
+    gpui::BoxShadow {
+        color: gpui::black().alpha(0.1),
+        offset: gpui::point(px(0.), px(0.)),
+        blur_radius: px(1.),
+        spread_radius: px(1.),
+        inset: true,
+    }
+}
+
+/// The ColorArea/ColorSlider thumb depth treatment: a one-pixel outer hairline
+/// plus the matching inset hairline inside the white ring.
+pub(super) fn color_thumb_shadows() -> Vec<gpui::BoxShadow> {
+    let edge = gpui::black().alpha(0.1);
+    vec![
+        gpui::BoxShadow {
+            color: edge,
+            offset: gpui::point(px(0.), px(0.)),
+            blur_radius: px(1.),
+            spread_radius: px(1.),
+            inset: false,
+        },
+        gpui::BoxShadow {
+            color: edge,
+            offset: gpui::point(px(0.), px(0.)),
+            blur_radius: px(1.),
+            spread_radius: px(1.),
+            inset: true,
+        },
+    ]
+}
+
+/// HeroUI shades the track's two long edges and each cap's outer edge with
+/// unblurred one-pixel inset shadows. One complete capsule has all four edges.
+pub(super) fn color_track_shadows() -> Vec<gpui::BoxShadow> {
+    let edge = gpui::black().alpha(0.1);
+    let offsets = [
+        (px(1.), px(0.)),
+        (px(-1.), px(0.)),
+        (px(0.), px(1.)),
+        (px(0.), px(-1.)),
+    ];
+    offsets
+        .into_iter()
+        .map(|(x, y)| gpui::BoxShadow {
+            color: edge,
+            offset: gpui::point(x, y),
+            blur_radius: px(0.),
+            spread_radius: px(0.),
+            inset: true,
+        })
+        .collect()
+}
+
+/// Tailwind's placement-specific `slide-in-from-*` offsets for the color
+/// picker popover. The floating engine may later flip a requested placement;
+/// the caller records that remaining resolved-placement limitation in its
+/// reference metadata while still matching every requested side.
+pub(super) fn color_picker_entry_offset(placement: Placement) -> (f32, f32) {
+    if placement.is_above() {
+        (0.0, 4.0)
+    } else if placement.is_side() {
+        if placement.is_start_side() {
+            (4.0, 0.0)
+        } else {
+            (-4.0, 0.0)
+        }
+    } else {
+        (0.0, -4.0)
+    }
+}
+
+/// HeroUI transitions a color thumb's focus-ring shadow over 150ms. GPUI's
+/// shared `with_focus_ring` helper resolves the shadow list immediately, so
+/// color controls keep a small keyed opacity tween for the focus layers while
+/// preserving their component-specific depth shadows.
+const COLOR_FOCUS_RING_TRANSITION_MS: u64 = 150;
+
+#[derive(Clone)]
+struct ColorFocusRingMotion {
+    focused: bool,
+    generation: usize,
+    from: f32,
+    opacity: Rc<Cell<f32>>,
+}
+
+pub(super) struct ColorFocusRingMotionFrame {
+    base: ElementId,
+    generation: usize,
+    from: f32,
+    to: f32,
+    opacity: Rc<Cell<f32>>,
+    animate: bool,
+}
+
+fn color_focus_ring_shadows(
+    base: &[gpui::BoxShadow],
+    ring: &[gpui::BoxShadow],
+    opacity: f32,
+) -> Vec<gpui::BoxShadow> {
+    if opacity <= f32::EPSILON {
+        return base.to_vec();
+    }
+    let mut shadows = base.to_vec();
+    shadows.extend(ring.iter().cloned().map(|mut shadow| {
+        shadow.color = shadow.color.alpha(opacity);
+        shadow
+    }));
+    shadows
+}
+
+impl ColorFocusRingMotionFrame {
+    fn render<T>(
+        self,
+        element: T,
+        base_shadows: Vec<gpui::BoxShadow>,
+        offset: bool,
+        cx: &App,
+    ) -> gpui::AnyElement
+    where
+        T: Styled + IntoElement + 'static,
+    {
+        let ring_shadows = util::focus_ring_shadows(offset, cx);
+        let paint = move |element: T, opacity: f32| {
+            element.shadow(color_focus_ring_shadows(
+                &base_shadows,
+                &ring_shadows,
+                opacity,
+            ))
+        };
+        if !self.animate {
+            self.opacity.set(self.to);
+            return paint(element, self.to).into_any_element();
+        }
+
+        let opacity = self.opacity;
+        let from = self.from;
+        let to = self.to;
+        element
+            .with_animation(
+                element_id::indexed(&self.base, "focus-ring", self.generation),
+                Animation::new(Duration::from_millis(COLOR_FOCUS_RING_TRANSITION_MS))
+                    .with_easing(crate::anim::ease_out()),
+                move |element, delta| {
+                    let next = from + (to - from) * delta;
+                    opacity.set(next);
+                    paint(element, next)
+                },
+            )
+            .into_any_element()
+    }
+}
+
+pub(super) fn color_focus_ring_motion(
+    id: &ElementId,
+    focused: bool,
+    window: &mut Window,
+    cx: &mut App,
+) -> ColorFocusRingMotionFrame {
+    let state = window.use_keyed_state(element_id::scoped(id, "focus-ring-motion"), cx, |_, _| {
+        ColorFocusRingMotion {
+            focused,
+            generation: 0,
+            from: if focused { 1.0 } else { 0.0 },
+            opacity: Rc::new(Cell::new(if focused { 1.0 } else { 0.0 })),
+        }
+    });
+    let mut current = state.read(cx).clone();
+    let to = if focused { 1.0 } else { 0.0 };
+    if current.focused != focused {
+        current.focused = focused;
+        current.generation = current.generation.wrapping_add(1);
+        current.from = current.opacity.get();
+        state.update(cx, |stored, _| *stored = current.clone());
+    }
+    let reduced_motion = ActiveTheme::reduce_motion(cx);
+    if reduced_motion && (current.opacity.get() - to).abs() > f32::EPSILON {
+        current.from = to;
+        current.opacity.set(to);
+        state.update(cx, |stored, _| *stored = current.clone());
+    }
+    ColorFocusRingMotionFrame {
+        base: id.clone(),
+        generation: current.generation,
+        from: current.from,
+        to,
+        opacity: current.opacity,
+        animate: current.generation != 0
+            && !reduced_motion
+            && (current.from - to).abs() > f32::EPSILON,
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Value model
 // ---------------------------------------------------------------------------
@@ -622,6 +845,74 @@ mod tests {
     fn rejects_bad_hex() {
         assert!(PickerColor::from_hex("#12345").is_none());
         assert!(PickerColor::from_hex("nope").is_none());
+    }
+
+    #[test]
+    fn color_surfaces_keep_the_pinned_depth_layers() {
+        let inner = color_inner_shadow();
+        assert!(inner.inset);
+        assert_eq!(inner.offset, gpui::point(px(0.), px(0.)));
+        assert_eq!(inner.spread_radius, px(1.));
+        assert!((inner.color.a - 0.1).abs() < f32::EPSILON);
+
+        let thumb = color_thumb_shadows();
+        assert_eq!(thumb.len(), 2);
+        assert!(!thumb[0].inset);
+        assert!(thumb[1].inset);
+        assert!(thumb.iter().all(|shadow| {
+            shadow.offset == gpui::point(px(0.), px(0.))
+                && shadow.spread_radius == px(1.)
+                && (shadow.color.a - 0.1).abs() < f32::EPSILON
+        }));
+
+        let track = color_track_shadows();
+        assert_eq!(track.len(), 4);
+        assert!(track.iter().all(|shadow| shadow.inset
+            && shadow.blur_radius == px(0.)
+            && shadow.spread_radius == px(0.)));
+
+        assert_eq!(
+            color_slider_thumb_transition_offset(0.25, 0.75, px(200.), false,),
+            px(-100.)
+        );
+        assert_eq!(
+            color_slider_thumb_transition_offset(0.25, 0.75, px(200.), true,),
+            px(100.)
+        );
+    }
+
+    #[test]
+    fn color_focus_ring_transition_preserves_depth_and_fades_ring_layers() {
+        let base = color_thumb_shadows();
+        let ring = vec![gpui::BoxShadow {
+            color: gpui::white(),
+            offset: gpui::point(px(0.), px(0.)),
+            blur_radius: px(1.),
+            spread_radius: px(2.),
+            inset: false,
+        }];
+
+        let resting = color_focus_ring_shadows(&base, &ring, 0.0);
+        assert_eq!(resting, base);
+
+        let halfway = color_focus_ring_shadows(&base, &ring, 0.5);
+        assert_eq!(halfway.len(), base.len() + 1);
+        assert!((halfway.last().expect("ring layer").color.a - 0.5).abs() < 1e-6);
+
+        let focused = color_focus_ring_shadows(&base, &ring, 1.0);
+        assert_eq!(focused.len(), base.len() + 1);
+        assert_eq!(focused.last().expect("ring layer").color, gpui::white());
+    }
+
+    #[test]
+    fn color_picker_entry_offsets_follow_the_requested_side() {
+        assert_eq!(
+            color_picker_entry_offset(Placement::BottomStart),
+            (0.0, -4.0)
+        );
+        assert_eq!(color_picker_entry_offset(Placement::TopEnd), (0.0, 4.0));
+        assert_eq!(color_picker_entry_offset(Placement::Left), (4.0, 0.0));
+        assert_eq!(color_picker_entry_offset(Placement::Right), (-4.0, 0.0));
     }
 
     #[test]

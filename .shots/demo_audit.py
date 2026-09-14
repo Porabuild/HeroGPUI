@@ -45,11 +45,13 @@ import os
 import re
 import sys
 import urllib.request
+from urllib.parse import urlsplit, urlunsplit
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import api_audit  # noqa: E402  (reads the bundle and the sources on import)
 import example_audit as ex  # noqa: E402
+from bundle import PINNED_RELEASE
 
 sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 
@@ -71,6 +73,23 @@ WONT_DEMO_PROPS = {}
 
 PREVIEW_CACHE = os.path.join(os.environ.get('TEMP', '/tmp'),
                              'herogpui-demo-audit')
+
+
+def pinned_source_url(url):
+    """Bundle source links may name the moving v3 branch; read the audited tag."""
+    parsed = urlsplit(url)
+    if parsed.hostname == 'raw.githubusercontent.com':
+        for prefix in ('/heroui-inc/heroui/v3/', '/heroui-inc/heroui/refs/heads/v3/'):
+            if parsed.path.startswith(prefix):
+                path = '/heroui-inc/heroui/' + PINNED_RELEASE + '/' + parsed.path[len(prefix):]
+                parsed = parsed._replace(path=path)
+                break
+    return urlunsplit(parsed)
+
+
+def preview_cache_path(url):
+    name = hashlib.sha256(pinned_source_url(url).encode('utf-8')).hexdigest() + '.txt'
+    return os.path.join(PREVIEW_CACHE, name)
 
 
 def camel_to_snake(name):
@@ -170,9 +189,9 @@ def props_used(chunk):
 
 def fetch_text(url, refresh=False):
     """Read one v3 source file, cached so the full gate stays fast."""
+    url = pinned_source_url(url)
     os.makedirs(PREVIEW_CACHE, exist_ok=True)
-    name = hashlib.sha256(url.encode('utf-8')).hexdigest() + '.txt'
-    path = os.path.join(PREVIEW_CACHE, name)
+    path = preview_cache_path(url)
     if refresh or not os.path.exists(path):
         try:
             with urllib.request.urlopen(url, timeout=20) as response:
@@ -198,13 +217,14 @@ def bundle_page(page):
     return ''
 
 
-def preview_props(page, refresh=False):
+def preview_props(page, refresh=False, *, read_source=None):
     """Props in ComponentPreview sources omitted from the rendered bundle."""
+    read_source = fetch_text if read_source is None else read_source
     body = bundle_page(page)
     source = re.search(r'^\*\*Source\*\*: (https://\S+)[ \t]*$', body, re.M)
     if not source:
         return set()
-    mdx = fetch_text(source.group(1), refresh)
+    mdx = read_source(source.group(1), refresh)
     previews = re.findall(r'<ComponentPreview\b.*?\bname="([^"]+)".*?/>',
                           mdx, re.S)
     if not previews:
@@ -220,7 +240,7 @@ def preview_props(page, refresh=False):
         demo = preview[len(prefix):]
         url = ('https://raw.githubusercontent.com/heroui-inc/heroui/v3/'
                'apps/docs/src/demos/en/%s/%s.tsx' % (slug, demo))
-        code = fetch_text(url, refresh)
+        code = read_source(url, refresh)
         used |= props_used('```tsx\n%s\n```' % code)
     return used
 

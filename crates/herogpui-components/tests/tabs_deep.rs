@@ -796,6 +796,52 @@ fn tabs_vertical_panel_is_to_the_right_of_the_list(cx: &mut TestAppContext) {
     );
 }
 
+/// A constrained vertical Tabs list must release its intrinsic min-content
+/// width so long labels wrap inside the available tab column, as the pinned
+/// `.tabs__tab { width: 100% }` layout does. The panel stays beside the list;
+/// it must not be pushed off-screen by one unbroken label.
+#[gpui::test]
+fn tabs_vertical_labels_wrap_inside_a_constrained_root(cx: &mut TestAppContext) {
+    let cx = open_host(cx, move || {
+        gpui::div()
+            .w(px(320.))
+            .h(px(180.))
+            .child(
+                Tabs::new(
+                    "tb-vertical-wrap",
+                    vec![
+                        TabItem::new(
+                            "first",
+                            "Profile and account security and recovery settings",
+                        )
+                        .content(gpui::div().child("Security settings.")),
+                        TabItem::new("second", "Billing and invoices")
+                            .content(gpui::div().child("Billing settings.")),
+                    ],
+                    "first",
+                )
+                .orientation(Orientation::Vertical)
+                .into_any_element(),
+            )
+            .into_any_element()
+    });
+
+    for _ in 0..4 {
+        flush_frame(cx);
+    }
+    let indicator = cx
+        .debug_bounds("Name(\"tb-vertical-wrap\")-indicator")
+        .expect("the selected vertical tab indicator must be painted");
+    assert!(
+        indicator.size.height > px(32.),
+        "a long constrained vertical label must wrap and grow its tab, got {indicator:?}"
+    );
+    assert!(
+        indicator.size.width < px(260.),
+        "the tab column must release its intrinsic label width, got {indicator:?}"
+    );
+}
+
 /// Home and End jump the roving selection to the first and last tab
 /// respectively — React Aria's `useTabList` is what makes these keys, and the
 /// port's `list_nav::resolve` implements them beside the arrows.

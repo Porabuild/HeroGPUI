@@ -1,0 +1,27 @@
+{
+  "dpr": 1,
+  "viewport": {
+    "w": 800,
+    "h": 413
+  },
+  "strip": "fixture=button-usage theme=dark stage=640x360 @heroui/react@3.2.5 pnpm-lock.yaml sha256:96fe7abea3effa8a",
+  "stage": {
+    "x": 0,
+    "y": 53,
+    "w": 640,
+    "h": 360
+  },
+  "button": {
+    "x": 275.45,
+    "y": 215,
+    "w": 89.08,
+    "h": 36,
+    "radius": "0px 8px 8px",
+    "topLeftRadius": "0px",
+    "bg": "lab(58.0423 31.2753 -64.9448)",
+    "color": "lab(1.95246 0.20735 -0.760898)",
+    "fontSize": "14px",
+    "padding": "0px 16px",
+    "fontFamily": "Geist, \"Geist Fallback\", ui-sans-serif, system-ui, sans-serif"
+  }
+}

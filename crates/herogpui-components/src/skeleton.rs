@@ -31,7 +31,12 @@ impl Skeleton {
         Self {
             id: "skeleton".into(),
             w: None,
-            h: Some(px(24.)),
+            // A leaf keeps the pinned 24px fallback. A composed Skeleton
+            // sizes itself from its children unless the caller supplies an
+            // explicit height, which is how the upstream parent shimmer can
+            // cover a profile/card/list shape without collapsing it to one
+            // line.
+            h: None,
             animation_type: None,
             radius: None,
             children: Vec::new(),
@@ -93,6 +98,7 @@ impl ParentElement for Skeleton {
 impl RenderOnce for Skeleton {
     fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
         let colors = cx.colors();
+        let has_children = !self.children.is_empty();
         // `.skeleton` is `bg-surface-tertiary/70`, not the solid token: the
         // placeholder is meant to read as a tint of whatever it sits on. This
         // painted it opaque, so every skeleton came out the full tertiary fill
@@ -114,10 +120,14 @@ impl RenderOnce for Skeleton {
             )
             .overflow_hidden()
             .when_some(self.w, |el, w| el.w(w))
-            .when_some(self.h, |el, h| el.h(h))
-            .when(!self.children.is_empty(), |el| {
-                el.child(div().opacity(0.).children(self.children))
-            });
+            .when_some(
+                self.h.or_else(|| (!has_children).then(|| px(24.))),
+                |el, h| el.h(h),
+            )
+            // HeroUI keeps composed child skeletons visible and suppresses
+            // their individual shimmer in the gallery with
+            // `animationType="none"`; the parent owns the synchronized band.
+            .when(has_children, |el| el.children(self.children));
 
         match animation {
             SkeletonAnimation::None => crate::util::apply_sx(base, &self.sx).into_any_element(),
@@ -158,5 +168,22 @@ impl RenderOnce for Skeleton {
                 crate::util::apply_sx(base.child(band), &self.sx).into_any_element()
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn composed_skeletons_keep_children_visible_for_a_parent_shimmer() {
+        let source = include_str!("skeleton.rs")
+            .split("#[cfg(test)]")
+            .next()
+            .expect("the implementation section is always present");
+        assert!(source.contains("self.h.or_else(|| (!has_children).then(|| px(24.)))"));
+        assert!(source.contains(".when(has_children, |el| el.children(self.children))"));
+        assert!(
+            !source.contains("div().opacity(0.).children(self.children)"),
+            "composed Skeleton children must remain visible beneath the parent shimmer"
+        );
     }
 }

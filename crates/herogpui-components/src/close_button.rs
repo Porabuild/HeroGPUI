@@ -190,35 +190,8 @@ impl RenderOnce for CloseButton {
 
         if self.is_disabled {
             el = el.opacity(disabled_opacity);
-        } else {
-            el = crate::util::cursor_interactive(el, cx);
-            if fade.is_none() {
-                el = el.hover(move |s| s.bg(hover_end));
-            }
-            // `.close-button--default:active, &[data-pressed="true"]` is
-            // `transform: scale(0.93)`. gpui 0.2.2 has no div-level scale, so
-            // the press shrinks the 24px box about its centre and the leftover
-            // becomes margin — the same geometry `anim::pressed` uses.
-            // `.active` is an instant style swap, matching
-            // `motion-reduce:transition-none` while preserving the transform.
-            const PRESS_SCALE: f32 = 0.93;
-            let inset = px(f32::from(box_size) * (1.0 - PRESS_SCALE) / 2.0);
-            let pressed = px(f32::from(box_size) * PRESS_SCALE);
-            let pressed_radius = px(f32::from(radius) * PRESS_SCALE);
-            let pressed_corners =
-                crate::anim::pressed_corners(&el.style().corner_radii, radius, PRESS_SCALE);
-            el = el.active(move |s| {
-                crate::util::round_sx_corners(
-                    s.h(pressed)
-                        .w(pressed)
-                        .mt(inset)
-                        .mb(inset)
-                        .ml(inset)
-                        .mr(inset)
-                        .rounded(pressed_radius),
-                    &pressed_corners,
-                )
-            });
+        } else if fade.is_none() {
+            el = el.hover(move |s| s.bg(hover_end));
         }
 
         el = match (self.content.clone(), self.icon) {
@@ -259,6 +232,55 @@ impl RenderOnce for CloseButton {
             ),
         };
         if !self.is_disabled {
+            // `.close-button--default:active, &[data-pressed="true"]` is
+            // `transform: scale(0.93)` about `origin-center`, riding
+            // `transition: transform 250ms var(--ease-out-quart)`. The pinned
+            // sheet's pressed state changes no background, so this is the one
+            // animated track. gpui has no div-level scale, so the press
+            // shrinks the 24px skin about its centre inside a stable slot —
+            // the same geometry `anim::pressed` uses — and the ramp eases it
+            // the way the stylesheet's transition does. Reduced motion snaps
+            // to the scaled endpoint, matching
+            // `motion-reduce:transition-none`, which removes the timing but
+            // keeps the transform. The wrap comes after every visual child:
+            // children added after it land on the slot and fight the skin for
+            // its width.
+            const PRESS_SCALE: f32 = 0.93;
+            let pressed_radius = px(f32::from(radius) * PRESS_SCALE);
+            debug_assert!(pressed_radius <= radius);
+            // Reapply the caller's corner refinement on the skin immediately
+            // before the press wrapper. This keeps the painted skin, hover
+            // fill and the press slot on the same resolved shape.
+            el = crate::util::round_sx_corners(el, &sx_corners);
+            el = crate::anim::pressed_with_background_ramp(
+                el,
+                crate::anim::PressBox {
+                    height: box_size,
+                    padding_x: None,
+                    width: Some(box_size),
+                    min_width: None,
+                    text_size: icon_size,
+                    line_height: icon_size,
+                    gap: px(0.),
+                    radius,
+                    shrink_x: true,
+                    scale: PRESS_SCALE,
+                },
+                None,
+                crate::anim::CLOSE_BUTTON_PRESS,
+                interaction.as_ref(),
+                window,
+                cx,
+            );
+        }
+
+        if !self.is_disabled {
+            // The interaction tracking (hover, mouse/keyboard press) belongs
+            // on the press slot, like Button: the handlers see the whole
+            // resting footprint, and the skin below is its listener-free
+            // visual child. The ramp wired its own tracking already unless a
+            // `content` closure's slot exists.
+            el = crate::util::cursor_interactive(el, cx);
             if let Some(slot) = &interaction {
                 el = crate::util::track_interaction(el, slot);
             }
@@ -280,6 +302,10 @@ impl RenderOnce for CloseButton {
                 .child(el);
             return crate::util::apply_sx(root, &self.sx);
         }
+        // `.close-button:focus-visible` is `status-focused`: the ring and the
+        // focus tracking land on the press slot — the element the ramp
+        // returned — so keyboard activation and pointer activation answer on
+        // the same element and the ring draws around the resting footprint.
         let el = crate::util::ring_if_focused(
             el.track_focus(&focus_handle),
             &focus_handle,

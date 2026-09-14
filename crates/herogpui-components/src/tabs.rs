@@ -776,9 +776,19 @@ impl RenderOnce for Tabs {
             })
             .collect::<Vec<_>>();
 
-        let colors = cx.colors();
-        let layout = cx.layout();
+        let colors = cx.colors().clone();
+        let layout = cx.layout().clone();
         let tabs_hover_opacity = layout.tabs_hover_opacity;
+        // The pinned stylesheet dims unselected tabs and overflow arrows to
+        // `tabs_hover_opacity`. GPUI cannot animate an element's opacity
+        // without moving its listener path, so a same-colour overlay is faded
+        // over the finished content while the stable tab/arrow element keeps
+        // focus and pointer ownership.
+        let tab_overlay = if secondary {
+            colors.background.alpha(1.0 - tabs_hover_opacity)
+        } else {
+            colors.default.color.alpha(1.0 - tabs_hover_opacity)
+        };
         let key_stops: Vec<usize> = self
             .items
             .iter()
@@ -801,6 +811,11 @@ impl RenderOnce for Tabs {
             .relative()
             .flex()
             .flex_shrink_0()
+            // A vertical list is a flex item beside the panel; releasing its
+            // cross-axis min-content width is what lets long labels wrap.
+            // Keep the zero shrink on the column's main axis so a bounded
+            // vertical scroller still retains its intrinsic content height.
+            .when(vertical, |list| list.h_auto().min_w(px(0.)))
             .child({
                 let measured = geometry.clone();
                 gpui::canvas(
@@ -878,6 +893,14 @@ impl RenderOnce for Tabs {
             .absolute()
             .inset_0()
         };
+        let label_constrained = vertical || stretch;
+        let tab_label = move |label: SharedString| {
+            gpui::div()
+                .min_w(px(0.))
+                .when(label_constrained, |slot| slot.flex_1())
+                .whitespace_normal()
+                .child(label.to_string())
+        };
         match self.variant {
             TabsVariant::Primary => {
                 // `.tabs__list` is `p-1` and nothing else: the tabs sit
@@ -906,6 +929,11 @@ impl RenderOnce for Tabs {
                         // `.tabs__tab` is `h-8 px-4 rounded-3xl text-sm
                         // font-medium`.
                         .h(tab_h)
+                        // The v3 box is a 32px floor. When a caller constrains
+                        // a tab share enough for normal whitespace to wrap,
+                        // let the label determine the extra height so lines
+                        // stay inside the tab and never paint over siblings.
+                        .when(label_constrained, |t| t.h_auto().min_h(tab_h))
                         .px(tab_padding_x)
                         .when(vertical, |t| t.w_full().min_w(VERTICAL_TAB_MIN_WIDTH))
                         // Stretched tabs take an equal share: `flex_1` zeroes
@@ -914,10 +942,6 @@ impl RenderOnce for Tabs {
                         // none of them widens the row.
                         .when(stretch, |t| t.flex_1().min_w(px(0.)))
                         .when(!stretch, |t| t.flex_shrink_0())
-                        // The port currently keeps labels on one line;
-                        // constrained vertical wrapping needs min-content
-                        // layout parity as well as a text wrapping change.
-                        .whitespace_nowrap()
                         .flex()
                         .items_center()
                         .map(|tab| self.align.apply(tab))
@@ -971,9 +995,6 @@ impl RenderOnce for Tabs {
                             });
                     } else {
                         tab = tab.text_color(colors.muted);
-                        if !disabled {
-                            tab = tab.hover(move |s| s.opacity(tabs_hover_opacity));
-                        }
                     }
                     if !disabled {
                         // A tab list is one stop and the arrows move within
@@ -1070,7 +1091,7 @@ impl RenderOnce for Tabs {
                             });
                     }
                     // `.tab:focus-visible` is `status-focused`.
-                    let tab = crate::util::with_focus_ring(
+                    let mut tab = crate::util::with_focus_ring(
                         tab,
                         focused
                             && list_focus.is_focused(window)
@@ -1080,7 +1101,20 @@ impl RenderOnce for Tabs {
                         Vec::new(),
                         cx,
                     );
-                    list = list.child(tab.child(item.label.to_string()));
+                    tab = tab.child(tab_label(item.label.clone()));
+                    if !active && !disabled {
+                        let radius = crate::util::control_radius(cx);
+                        tab = crate::anim::hover_fade(
+                            tab,
+                            element_id::scoped(&base, format!("tab-hover-{}", item.key)),
+                            (colors.default.color.alpha(0.0), tab_overlay),
+                            None,
+                            move |fill| fill.rounded(radius),
+                            window,
+                            cx,
+                        );
+                    }
+                    list = list.child(tab);
                 }
             }
             TabsVariant::Secondary => {
@@ -1109,6 +1143,7 @@ impl RenderOnce for Tabs {
                         // The same `h-8 px-4 text-sm` box, `rounded-none`, with
                         // the indicator as a 2px bar along the bottom.
                         .h(tab_h)
+                        .when(label_constrained, |t| t.h_auto().min_h(tab_h))
                         .px(tab_padding_x)
                         .when(vertical, |t| t.w_full().min_w(VERTICAL_TAB_MIN_WIDTH))
                         // Stretched tabs take an equal share: `flex_1` zeroes
@@ -1117,10 +1152,6 @@ impl RenderOnce for Tabs {
                         // none of them widens the row.
                         .when(stretch, |t| t.flex_1().min_w(px(0.)))
                         .when(!stretch, |t| t.flex_shrink_0())
-                        // The port currently keeps labels on one line;
-                        // constrained vertical wrapping needs min-content
-                        // layout parity as well as a text wrapping change.
-                        .whitespace_nowrap()
                         .flex()
                         .items_center()
                         .map(|tab| self.align.apply(tab))
@@ -1146,9 +1177,6 @@ impl RenderOnce for Tabs {
                             tab.border_color(gpui::transparent_black())
                         })
                     };
-                    if !active && !disabled {
-                        tab = tab.hover(move |tab| tab.opacity(tabs_hover_opacity));
-                    }
                     if !disabled {
                         // A tab list is one stop and the arrows move within
                         // it. Automatic activation selects as focus moves;
@@ -1244,7 +1272,7 @@ impl RenderOnce for Tabs {
                             });
                     }
                     // `.tab:focus-visible` is `status-focused`.
-                    let tab = crate::util::with_focus_ring(
+                    let mut tab = crate::util::with_focus_ring(
                         tab,
                         focused
                             && list_focus.is_focused(window)
@@ -1254,7 +1282,20 @@ impl RenderOnce for Tabs {
                         Vec::new(),
                         cx,
                     );
-                    list = list.child(tab.child(item.label.to_string()));
+                    tab = tab.child(tab_label(item.label.clone()));
+                    if !active && !disabled {
+                        let radius = crate::util::control_radius(cx);
+                        tab = crate::anim::hover_fade(
+                            tab,
+                            element_id::scoped(&base, format!("tab-hover-{}", item.key)),
+                            (colors.background.alpha(0.0), tab_overlay),
+                            None,
+                            move |fill| fill.rounded(radius),
+                            window,
+                            cx,
+                        );
+                    }
+                    list = list.child(tab);
                 }
             }
         }
@@ -1289,16 +1330,17 @@ impl RenderOnce for Tabs {
         // `.tabs__list-container__scroll-prev` and
         // `.tabs__list-container__scroll-next` are `size-4` circles at the
         // edges, shown only when there is something that way to scroll to.
-        let arrow = |id: &str, icon: &'static str, direction: f32, handle: gpui::ScrollHandle| {
-            gpui::div()
-                    .id(element_id::scoped(&base, id))
+        let mut arrow =
+            |id: &str, icon: &'static str, direction: f32, handle: gpui::ScrollHandle| {
+                let arrow_id = element_id::scoped(&base, id);
+                let arrow = gpui::div()
+                    .id(arrow_id.clone())
                     // gpui has no hitbox occlusion, so a chevron floating over
                     // the list hands its click to the tab underneath as well.
                     // v3's chevron is `z-2` above the `z-index: 1` tabs exactly
                     // so it takes the press; `occlude` stops the hit test at
                     // the button, which is that on-top layer.
                     .occlude()
-                    .absolute()
                     .size(px(16.))
                     .flex()
                     .items_center()
@@ -1306,7 +1348,6 @@ impl RenderOnce for Tabs {
                     .rounded_full()
                     .cursor(crate::util::interactive_cursor(cx))
                     .text_color(colors.foreground)
-                    .hover(move |arrow| arrow.opacity(tabs_hover_opacity))
                     .child(
                         gpui::svg()
                             .size(px(12.))
@@ -1329,8 +1370,27 @@ impl RenderOnce for Tabs {
                         };
                         handle.set_offset(next);
                         window.refresh();
-                    })
-        };
+                    });
+                let arrow = crate::anim::hover_fade(
+                    arrow,
+                    element_id::scoped(&arrow_id, "hover-fade"),
+                    (
+                        if secondary {
+                            colors.background.alpha(0.0)
+                        } else {
+                            colors.default.color.alpha(0.0)
+                        },
+                        tab_overlay,
+                    ),
+                    None,
+                    move |fill| fill.rounded_full(),
+                    window,
+                    cx,
+                );
+                // Keep the occlusion on the outer animated node as well as the
+                // inner control so the list tab underneath cannot win a hit test.
+                arrow.absolute().occlude()
+            };
         let container_radius = layout.radius_lg() * 2.5;
         let container = gpui::div()
             .relative()
@@ -1346,19 +1406,33 @@ impl RenderOnce for Tabs {
             // A scroller only overflows if it is bounded: without `w_full` the
             // box grows to fit every tab and nothing ever scrolls.
             .when(!vertical, |c| c.w_full())
-            .when(vertical, |c| c.h_full())
+            // In a vertical row the list container is the horizontal flex
+            // item beside the panel. Allow that item to shrink below a long
+            // label's max-content width while keeping the list column's
+            // vertical main-axis sizing intact.
+            .when(vertical, |c| c.h_full().min_w(px(0.)).flex_shrink(1.))
             .child(
-                gpui::div()
-                    .id(element_id::scoped(&base, "scroller"))
-                    // Match the scroller's flex axis to the list: its
-                    // `flex_shrink_0` then preserves content width horizontally
-                    // and content height vertically. A stretched list never
-                    // exceeds the viewport and therefore never scrolls.
-                    .flex()
-                    .when(!vertical, |e| e.w_full().overflow_x_scroll())
-                    .when(vertical, |e| e.h_full().flex_col().overflow_y_scroll())
-                    .restrict_scroll_to_axis()
-                    .track_scroll(&scroll)
+                crate::scroll_shadow::ScrollShadow::new(element_id::scoped(
+                    &base, "scroller",
+                ))
+                    .orientation(if vertical {
+                        Orientation::Vertical
+                    } else {
+                        Orientation::Horizontal
+                    })
+                    .size(px(64.))
+                    .gap(px(0.))
+                    .hide_scroll_bar(true)
+                    .scroll_handle(scroll.clone())
+                    .fill_axis(true)
+                    .when(vertical, |shadow| shadow.unbounded_h())
+                    .sx(move |root| {
+                        if vertical {
+                            root.h_full()
+                        } else {
+                            root.w_full()
+                        }
+                    })
                     .child(list),
             )
             .child({

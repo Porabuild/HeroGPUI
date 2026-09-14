@@ -72,6 +72,45 @@ fn is_expanded_opens_the_stack_without_pausing_timers(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
+fn expanded_stack_uses_measured_absolute_card_offsets(cx: &mut TestAppContext) {
+    still();
+    let (older, newer) = cx.update(|cx| {
+        let older = Toast::new("An older notification")
+            .description("A description that gives this card measurable height.")
+            .timeout(Duration::ZERO)
+            .push(None, cx);
+        let newer = Toast::new("Newest notification")
+            .timeout(Duration::ZERO)
+            .push(None, cx);
+        (older, newer)
+    });
+    let mut cx = open_host(cx, || {
+        ToastViewport::new().is_expanded(true).into_any_element()
+    });
+    // The first frame records natural card heights; the next frame consumes
+    // them to position the absolute stack.
+    flush_frame(&mut cx);
+    flush_frame(&mut cx);
+    let older_key: &'static str = Box::leak(format!("toast-slot-{older}").into_boxed_str());
+    let newer_key: &'static str = Box::leak(format!("toast-slot-{newer}").into_boxed_str());
+    let older_bounds = cx
+        .debug_bounds(older_key)
+        .expect("the older toast has an absolute stack slot");
+    let newer_bounds = cx
+        .debug_bounds(newer_key)
+        .expect("the newer toast has an absolute stack slot");
+    assert!(
+        older_bounds.origin.y < newer_bounds.origin.y,
+        "the older toast must be offset above the frontmost card"
+    );
+    assert_eq!(
+        older_bounds.bottom() + px(12.),
+        newer_bounds.origin.y,
+        "expanded cards must use measured height plus the configured gap"
+    );
+}
+
+#[gpui::test]
 fn hover_expands_the_stack_and_pauses_timers(cx: &mut TestAppContext) {
     still();
     cx.update(|cx| {

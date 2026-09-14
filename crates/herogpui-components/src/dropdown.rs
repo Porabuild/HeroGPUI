@@ -2013,6 +2013,14 @@ impl RenderOnce for Dropdown {
             |_, cx| cx.focus_handle(),
         );
         let trigger_handle = trigger_focus.read(cx).clone();
+        let anchor_bounds = window
+            .use_keyed_state(
+                element_id::scoped(&wrap_base_id, "anchor-bounds"),
+                cx,
+                |_, _| std::rc::Rc::new(std::cell::Cell::new(None::<Bounds<Pixels>>)),
+            )
+            .read(cx)
+            .clone();
         let mut trigger_wrap = gpui::div()
             .id(element_id::scoped(&wrap_base_id, "trigger"))
             .track_focus(&trigger_handle)
@@ -2117,7 +2125,6 @@ impl RenderOnce for Dropdown {
         // trigger is measured the way RAC's `useOverlayPosition` positions
         // against the trigger rect -- the measure element only records the
         // bounds the popover below reads to flip and cap the panel.
-        let anchor_bounds = std::rc::Rc::new(std::cell::Cell::new(None));
         let trigger = crate::popover::PopoverTriggerMeasure::new(
             trigger_wrap.child(self.trigger),
             anchor_bounds.clone(),

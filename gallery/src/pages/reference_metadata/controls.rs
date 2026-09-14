@@ -27,7 +27,7 @@ const SLIDER_API: &[ApiDoc] = &[
         prop: "defaultValue",
         ty: "number | number[]",
         default: "—",
-        description: "The initial value or values (uncontrolled).",
+        description: "The initial value or values (uncontrolled). Use this seed for interactive examples that do not store onChange values, including custom number formatting.",
         rust_owner: "Slider",
         rust: "default_value(f32) / default_values(values)",
         status: ImplementationStatus::Implemented,
@@ -425,7 +425,7 @@ const SLIDER_STATES: &[StateDoc] = &[
     StateDoc {
         state: "Dragging",
         selector: ".slider__thumb[data-dragging=\"true\"]",
-        description: "Pointer drag state updates the value and scales the inner thumb to 90%; gpui applies the scale without CSS's 250ms ramp.",
+        description: "Pointer drag state updates the value and scales the inner thumb to 90% over the pinned 250ms ease-out ramp; reduced motion settles directly.",
         rust: "DragState",
         status: ImplementationStatus::Implemented,
     },
@@ -471,7 +471,7 @@ const SLIDER_STYLING: &[StyleDoc] = &[
         class_or_token: "[data-slot=\"label\"] / .slider__output",
         value: "text-sm font-medium; output tabular-nums",
         description: "Label and output typography.",
-        rust: "Slider::render text_size(px(14.)) + line_height(px(20.)) + FontWeight::MEDIUM",
+        rust: "Slider::render text_size(px(14.)) + line_height(px(20.)) + FontWeight::MEDIUM + tabular_font_features",
         status: ImplementationStatus::Implemented,
     },
     StyleDoc {
@@ -498,9 +498,9 @@ const SLIDER_STYLING: &[StyleDoc] = &[
     StyleDoc {
         class_or_token: ".slider__thumb[data-dragging=\"true\"]::after",
         value: "scale(0.9); 250ms ease-out; motion-reduce none",
-        description: "Dragging feedback and reduced-motion override.",
-        rust: "DragState inner geometry scale; instant under gpui",
-        status: ImplementationStatus::Partial,
+        description: "Dragging feedback and reduced-motion override. The stable outer hit target keeps its footprint while the inner geometry follows the CSS scale transition.",
+        rust: "keyed slider_thumb_motion + inner geometry scale + reduce_motion",
+        status: ImplementationStatus::Implemented,
     },
     StyleDoc {
         class_or_token: ".slider__thumb[data-focus-visible=\"true\"]",
@@ -987,15 +987,15 @@ const SWITCH_STYLING: &[StyleDoc] = &[
     StyleDoc {
         class_or_token: ".switch__content",
         value: "inline-flex items-center gap-3 text-sm font-medium",
-        description: "Clickable control and label row.",
-        rust: "items_center + gap(px(12.)) + text_size(px(14.))",
-        status: ImplementationStatus::Partial,
+        description: "Clickable control and label row; the row owns focus and the switch role.",
+        rust: "row id + a11y switch + track_interaction + on_click",
+        status: ImplementationStatus::Implemented,
     },
     StyleDoc {
         class_or_token: ".switch__control",
         value: "32x16 / 40x20 / 48x24; rounded-lg/xl",
-        description: "Track dimensions and radii for sm, md and lg.",
-        rust: "size match in Switch::render",
+        description: "Track dimensions, radii and rounded overflow clipping for sm, md and lg.",
+        rust: "size match + overflow_hidden in Switch::render",
         status: ImplementationStatus::Implemented,
     },
     StyleDoc {
@@ -1007,9 +1007,9 @@ const SWITCH_STYLING: &[StyleDoc] = &[
     },
     StyleDoc {
         class_or_token: ".switch[data-selected] .switch__thumb",
-        value: "margin 300ms ease-out-fluid",
-        description: "Thumb travels from its current position and reverses without jumping.",
-        rust: "ThumbMotionFrame + THUMB_TRANSITION_MS",
+        value: "margin 300ms ease-out-fluid; background-color 200ms ease-out",
+        description: "Thumb travels from its current position and reverses without jumping; its fill eases separately over 200ms.",
+        rust: "ThumbMotionFrame + THUMB_TRANSITION_MS + THUMB_COLOR_TRANSITION_MS",
         status: ImplementationStatus::Implemented,
     },
     StyleDoc {

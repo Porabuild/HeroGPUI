@@ -70,10 +70,14 @@
 //! | `role="separator"` | `useSeparator` | AccessKit 0.24 has no `Role::Separator`. `Role::Splitter` is a pane splitter, not a rule. [`crate::separator::Separator`] takes an optional `.id()` so a later AccessKit bump can claim the role; until then the row stays `PENDING` rather than lying. |
 //! | `aria-multiselectable` | `useListBox`, `useGridList`, `useGrid` — `selectionMode === 'multiple' ? 'true' : undefined` | No gpui builder. Whether a collection takes more than one selection is not something an AccessKit node can say here; each row's [`A11y::a11y_selected`] still reports its own state. |
 //! | `aria-sort` | `useTableColumnHeader` — `isSortedColumn ? sortDirection : 'none'` on a sortable column | No gpui builder. Upstream itself drops it on Android Talkback (`!isAndroid()`) and puts the sort order into `aria-describedby` instead, which is the half [`Name`] can carry. |
-//! | `aria-current="page"` | RAC `Breadcrumbs.mjs`'s `linkProps`, and `@heroui/react`'s `Pagination.Link` (`aria-current: isActive ? "page" : undefined`) | No gpui builder and no AccessKit field. The current crumb and the active page are still distinguishable: neither is a link or a pressable button in this port, so they report a different role from their siblings. |
 //! | `aria-autocomplete="list"` | `useComboBox`, `useAutocomplete` | No gpui builder. |
 //! | `aria-live` / `aria-atomic` / `aria-relevant` | `useTagGroup`'s grid (`'aria-live': isFocusWithin ? 'polite' : 'off'`) | gpui exposes no live-region builder at all, the same reason the toast's inner `role="alert"` node is omitted. |
 //! | `aria-colspan` | `useGridCell` | No gpui builder; this port's table has no spanning cells to describe either. |
+//!
+//! `aria-current="page"` is the deliberate exception: the local gpui-pre
+//! 0.3.3 fork adds the missing builder backed by AccessKit 0.24, and
+//! Breadcrumbs/Pagination now forward current-page semantics to their active
+//! nodes.
 //!
 //! Every one of these is a "gpui has no equivalent" omission in the sense
 //! `docs/agents/parity.md` requires: checked against the pinned gpui source,
@@ -180,7 +184,7 @@
 
 use gpui::{SharedString, StatefulInteractiveElement};
 
-pub use gpui::accesskit::{Role, Toggled};
+pub use gpui::accesskit::{AriaCurrent, Role, Toggled};
 
 use crate::validation::Validity;
 
@@ -477,6 +481,14 @@ pub trait A11y: StatefulInteractiveElement + Sized {
     /// here is the flag itself.
     fn a11y_selected(self, selected: bool) -> Self {
         self.aria_selected(selected)
+    }
+
+    /// The current page/step/location value for navigation landmarks.
+    ///
+    /// This uses the local gpui-pre accessibility extension, which forwards
+    /// AccessKit 0.24's `AriaCurrent` state to platform accessibility trees.
+    fn a11y_current(self, current: AriaCurrent) -> Self {
+        self.aria_current(current)
     }
 
     /// `aria-posinset` / `aria-setsize`, from a **zero-based** index.

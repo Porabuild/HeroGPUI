@@ -15,6 +15,97 @@ fn flush_frame(cx: &mut VisualTestContext) {
     cx.update(|window, _| window.refresh());
 }
 
+#[gpui::test]
+fn table_body_rows_share_intrinsic_column_tracks_with_the_header(cx: &mut TestAppContext) {
+    let cx = open_host(cx, || {
+        gpui::div()
+            .w(px(420.))
+            .child(
+                Table::new(vec!["Name".into(), "Notes".into()])
+                    .id("table-track")
+                    .row(vec![
+                        gpui::div()
+                            .w(px(240.))
+                            .child("A long first-column value")
+                            .into_any_element(),
+                        gpui::div().child("first").into_any_element(),
+                    ])
+                    .row(vec![
+                        gpui::div().child("Short").into_any_element(),
+                        gpui::div().child("second").into_any_element(),
+                    ]),
+            )
+            .into_any_element()
+    });
+    // The first pass records the long cell's intrinsic minimum; the following
+    // pass applies that same minimum to the header and every body row.
+    for _ in 0..3 {
+        flush_frame(cx);
+    }
+    let header = cx
+        .debug_bounds("table-header-track-1")
+        .expect("the second header track paints");
+    let first_row = cx
+        .debug_bounds("table-row-track-0-1")
+        .expect("the first row's second track paints");
+    let second_row = cx
+        .debug_bounds("table-row-track-1-1")
+        .expect("the second row's second track paints");
+    assert_eq!(header.origin.x, first_row.origin.x);
+    assert_eq!(first_row.origin.x, second_row.origin.x);
+}
+
+/// HeroUI's tree-column rule replaces the normal start padding with one rem
+/// for each 1-based row level. A deep tree must therefore advance by one 16px
+/// step per level; the old `12 + 20 * depth` approximation drifted four pixels
+/// too far by the grandchild and made nested labels visibly misalign.
+#[gpui::test]
+fn table_tree_column_indent_advances_one_rem_per_level(cx: &mut TestAppContext) {
+    let cx = open_host(cx, || {
+        Table::new(vec![])
+            .id("table-tree-indent")
+            .column(TableColumn::new("Name").default_width(px(320.)))
+            .tree_column(0)
+            .expanded_keys([SharedString::from("root"), SharedString::from("child")])
+            .tree_row(
+                TableRow::new(vec![gpui::div()
+                    .id("tree-indent-root-label")
+                    .debug_selector(|| "tree-indent-root-label".to_owned())
+                    .child("Root")
+                    .into_any_element()])
+                .key("root")
+                .children(vec![TableRow::new(vec![gpui::div()
+                    .id("tree-indent-child-label")
+                    .debug_selector(|| "tree-indent-child-label".to_owned())
+                    .child("Child")
+                    .into_any_element()])
+                .key("child")
+                .children(vec![TableRow::new(vec![gpui::div()
+                    .id("tree-indent-leaf-label")
+                    .debug_selector(|| "tree-indent-leaf-label".to_owned())
+                    .child("Leaf")
+                    .into_any_element()])
+                .key("leaf")])]),
+            )
+            .into_any_element()
+    });
+
+    for _ in 0..3 {
+        flush_frame(cx);
+    }
+    let root = cx
+        .debug_bounds("tree-indent-root-label")
+        .expect("the root tree label paints");
+    let child = cx
+        .debug_bounds("tree-indent-child-label")
+        .expect("the child tree label paints");
+    let leaf = cx
+        .debug_bounds("tree-indent-leaf-label")
+        .expect("the grandchild tree label paints");
+    assert_eq!(child.origin.x - root.origin.x, px(16.));
+    assert_eq!(leaf.origin.x - child.origin.x, px(16.));
+}
+
 fn press_mod_a(cx: &mut VisualTestContext) {
     if cfg!(target_os = "macos") {
         press(cx, "cmd-a");

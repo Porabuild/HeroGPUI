@@ -295,8 +295,9 @@ EXPOSES_A_ROLE = {
         '`Popover` around the area/sliders; the overlay is the same '
         '`useDialog` contract wave 2 already carries for `Popover`.',
     ('color_picker.rs', 'ColorSwatch'):
-        'Role::Image named by the colour hex. `useColorSwatch.js` is '
-        '`role: \'img\'`. Only a swatch the caller named reports a node — '
+        'Role::Image named by the colour hex or the caller\'s `colorName`. '
+        '`useColorSwatch.js` is `role: \'img\'`. Only a swatch the caller '
+        'named reports a node — '
         '`ColorSwatch::new(color)` takes no id, and a constant would fold '
         'every preview into one image.',
 

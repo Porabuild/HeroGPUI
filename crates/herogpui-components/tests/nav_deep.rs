@@ -91,7 +91,7 @@
 
 mod harness;
 
-use std::{cell::Cell, collections::HashSet, rc::Rc};
+use std::{cell::Cell, collections::HashSet, rc::Rc, time::Duration};
 
 use gpui::{
     prelude::*, px, Font, FontFeatures, FontStyle, FontWeight, SharedString, TestAppContext,
@@ -165,6 +165,22 @@ fn flush_frame(cx: &mut VisualTestContext) {
     cx.update(|window, _| window.refresh());
 }
 
+/// Lets the shared 200ms Accordion/Disclosure panel motion reach its endpoint
+/// before a coordinate-sensitive assertion. React Aria keeps a panel mounted
+/// while that transition runs, so tests that click the settled body or the
+/// trigger below it must advance the deterministic clock first.
+fn settle_collapsible(cx: &mut VisualTestContext) {
+    // GPUI's animation phase uses wall-clock `Instant`s; the test executor's
+    // virtual clock advances the retained panel timer but not that phase.
+    std::thread::sleep(Duration::from_millis(220));
+    cx.update(|window, cx| {
+        window.simulate_next_frame(cx);
+    });
+    cx.executor().advance_clock(Duration::from_millis(210));
+    cx.run_until_parked();
+    flush_frame(cx);
+}
+
 /// The keys of an expanded set joined in a stable order.
 ///
 /// A `HashSet` iterates in no particular order, so asserting on a raw join
@@ -235,6 +251,7 @@ fn accordion_keyboard_toggles_and_ignores_unbound_keys(cx: &mut TestAppContext) 
     press(cx, "tab");
     press(cx, "enter");
     flush_frame(cx);
+    settle_collapsible(cx);
     assert_eq!(recorded.borrow().as_slice(), ["alpha"]);
     press(cx, "space");
     flush_frame(cx);
@@ -298,6 +315,7 @@ fn accordion_default_expanded_seed_opens_and_toggles(cx: &mut TestAppContext) {
     // reports the empty set — a closed item would have reported "alpha".
     click(cx, 60., 26.);
     flush_frame(cx);
+    settle_collapsible(cx);
     assert_eq!(
         recorded.borrow().as_slice(),
         [""],
@@ -419,6 +437,7 @@ fn accordion_body_control_tab_reachable_open_skipped_closed(cx: &mut TestAppCont
     press(cx, "tab");
     press(cx, "enter");
     flush_frame(cx);
+    settle_collapsible(cx);
 
     // The body is mounted now, so its Button is the next stop after the
     // trigger: Tab from the trigger reaches it and Enter fires *it*.
@@ -494,6 +513,7 @@ fn accordion_default_single_expand_and_opt_in_multiple(cx: &mut TestAppContext) 
     // The second press must report exactly "two" — the first panel collapsed.
     click(cx, 60., 26.);
     flush_frame(cx);
+    settle_collapsible(cx);
     click(cx, 60., 137.);
     assert_eq!(
         recorded.borrow().as_slice(),
@@ -508,6 +528,7 @@ fn accordion_default_single_expand_and_opt_in_multiple(cx: &mut TestAppContext) 
     // (sorted_join puts "four" before "three").
     click(cx, 60., 289.);
     flush_frame(cx);
+    settle_collapsible(cx);
     click(cx, 60., 400.);
     assert_eq!(
         recorded.borrow().as_slice(),
@@ -578,6 +599,7 @@ fn accordion_identical_item_keys_stay_independent_per_instance(cx: &mut TestAppC
     // recorded by the first accordion only.
     click(cx, 60., 26.);
     flush_frame(cx);
+    settle_collapsible(cx);
     assert_eq!(first.borrow().as_slice(), ["one"]);
     assert!(
         second.borrow().is_empty(),
@@ -592,6 +614,7 @@ fn accordion_identical_item_keys_stay_independent_per_instance(cx: &mut TestAppC
     // nothing into the first's recorder.
     click(cx, 60., 286.);
     flush_frame(cx);
+    settle_collapsible(cx);
     assert_eq!(
         second.borrow().as_slice(),
         ["one"],
@@ -608,6 +631,7 @@ fn accordion_identical_item_keys_stay_independent_per_instance(cx: &mut TestAppC
     // answers the pointer on its own, start to finish.
     click(cx, 60., 286.);
     flush_frame(cx);
+    settle_collapsible(cx);
     assert_eq!(
         second.borrow().as_slice(),
         ["one", ""],
@@ -658,16 +682,62 @@ fn disclosure_uncontrolled_press_opens_and_closes_its_body(cx: &mut TestAppConte
 
     click(cx, 60., 18.);
     flush_frame(cx);
+    settle_collapsible(cx);
     click(cx, 60., 62.);
     assert_eq!(probes.borrow().as_slice(), ["body"]);
 
     click(cx, 60., 18.);
     flush_frame(cx);
+    settle_collapsible(cx);
     click(cx, 60., 62.);
     assert_eq!(
         probes.borrow().as_slice(),
         ["body"],
         "the body must leave the hit-test tree after the uncontrolled close"
+    );
+}
+
+/// React Aria keeps a disclosure panel mounted until its 200ms height/opacity
+/// transition finishes, then applies `hidden`. The GPUI port must preserve
+/// that lifetime so an in-flight close does not tear down measured content or
+/// leave the keyed animation without a child tree.
+#[gpui::test]
+fn disclosure_panel_retains_body_until_exit_motion_finishes(cx: &mut TestAppContext) {
+    let cx = open_host(cx, || {
+        Disclosure::new("nav-disclosure-motion", "Details")
+            .default_expanded(true)
+            .child(
+                gpui::div()
+                    .h(px(36.))
+                    .debug_selector(|| "disclosure-motion-body".to_owned()),
+            )
+            .into_any_element()
+    });
+
+    assert!(cx.debug_bounds("disclosure-motion-body").is_some());
+    click(cx, 60., 18.);
+    flush_frame(cx);
+    assert!(
+        cx.debug_bounds("disclosure-motion-body").is_some(),
+        "the body must remain mounted during the 200ms close transition"
+    );
+
+    // Reopening before the stale close timer fires must cancel that timer and
+    // retarget the same keyed motion slot from its live frame.
+    click(cx, 60., 18.);
+    flush_frame(cx);
+    settle_collapsible(cx);
+    assert!(
+        cx.debug_bounds("disclosure-motion-body").is_some(),
+        "a reopened panel must survive the stale close timer"
+    );
+
+    click(cx, 60., 18.);
+    flush_frame(cx);
+    settle_collapsible(cx);
+    assert!(
+        cx.debug_bounds("disclosure-motion-body").is_none(),
+        "the body must leave the tree after the retained exit lifetime"
     );
 }
 
@@ -688,6 +758,7 @@ fn disclosure_default_expanded_seeds_uncontrolled_state(cx: &mut TestAppContext)
 
     click(cx, 60., 18.);
     flush_frame(cx);
+    settle_collapsible(cx);
     click(cx, 60., 62.);
     assert_eq!(
         probes.borrow().as_slice(),
@@ -836,6 +907,7 @@ fn disclosure_group_default_seed_and_single_mode_replace_the_open_item(cx: &mut 
     press(cx, "tab");
     press(cx, "enter");
     flush_frame(cx);
+    settle_collapsible(cx);
     assert_eq!(
         reported.borrow().as_slice(),
         ["dgb"],
@@ -880,6 +952,7 @@ fn disclosure_group_controlled_value_waits_for_the_owner(cx: &mut TestAppContext
     press(cx, "tab");
     press(cx, "enter");
     flush_frame(cx);
+    settle_collapsible(cx);
     assert_eq!(
         reported.borrow().as_slice(),
         ["dgb"],
@@ -922,6 +995,7 @@ fn disclosure_group_multiple_mode_keeps_both_items_open(cx: &mut TestAppContext)
     press(cx, "tab");
     press(cx, "enter");
     flush_frame(cx);
+    settle_collapsible(cx);
     assert_eq!(reported.borrow().as_slice(), ["dga,dgb"]);
 
     click(cx, 60., 62.);
@@ -1025,6 +1099,14 @@ fn disclosure_group_duplicate_titles_keep_distinct_key_identity(cx: &mut TestApp
 // ---------------------------------------------------------------------------
 // Breadcrumbs
 // ---------------------------------------------------------------------------
+
+#[test]
+fn current_breadcrumb_publishes_accesskit_current_page_state() {
+    let source = include_str!("../src/breadcrumbs.rs");
+    assert!(source.contains("a11y_current(a11y::AriaCurrent::Page)"));
+    assert!(source.contains(".when(is_last"));
+}
+
 //
 // v3's API table documents no overflow/collapse prop (no `maxItems`-style
 // truncation anywhere on the page), so the port's always-visible single row

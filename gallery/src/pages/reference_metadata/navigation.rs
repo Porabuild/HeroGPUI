@@ -325,9 +325,10 @@ const PAGINATION_STATES: &[StateDoc] = &[
     StateDoc {
         state: "Active page",
         selector: "[data-active=\"true\"], [aria-current=\"page\"]",
-        description: "Current page with tertiary-button fill.",
-        rust: "n == page + link(page, active)",
-        status: ImplementationStatus::Partial,
+        description:
+            "Current page with tertiary-button fill and AccessKit aria-current=page semantics.",
+        rust: "n == page + link(page, active) + a11y_current(Page)",
+        status: ImplementationStatus::Implemented,
     },
     StateDoc {
         state: "Hovered",
@@ -363,24 +364,24 @@ const PAGINATION_STYLING: &[StyleDoc] = &[
     StyleDoc {
         class_or_token: ".pagination",
         value: "flex w-full flex-col items-center justify-between gap-4 sm:flex-row",
-        description: "Responsive root layout.",
-        rust: "flex row + items_center + justify_between + gap(px(16.))",
-        status: ImplementationStatus::Partial,
+        description: "Responsive root layout: below the pinned 640px sm breakpoint the summary and controls stack in one column and align to the start; wider viewports use the horizontal row.",
+        rust: "pagination_stacks_for_width(window.viewport_size().width) + flex_col/flex_row + self_start",
+        status: ImplementationStatus::Implemented,
     },
     StyleDoc {
         class_or_token: ".pagination__summary",
         value: "flex items-center gap-2 self-start text-sm text-muted",
         description:
-            "Summary text follows the size-specific 12/16, 14/20 and 16/24 font/line-height pairs.",
-        rust: "flex + gap(px(8.)) + cell_text + cell_leading + muted",
-        status: ImplementationStatus::Partial,
+            "Summary text follows the size-specific 12/16, 14/20 and 16/24 font/line-height pairs and aligns to the start in the stacked layout.",
+        rust: "flex + gap(px(8.)) + cell_text + cell_leading + muted + self_start below sm",
+        status: ImplementationStatus::Implemented,
     },
     StyleDoc {
         class_or_token: ".pagination__content",
         value: "flex items-center gap-1 self-start",
-        description: "Link-row layout.",
-        rust: "row flex + items_center + gap(px(4.))",
-        status: ImplementationStatus::Partial,
+        description: "Link-row layout, aligned to the start beside the summary when the responsive root stacks.",
+        rust: "row flex + items_center + gap(px(4.)) + self_start below sm",
+        status: ImplementationStatus::Implemented,
     },
     StyleDoc {
         class_or_token: ".pagination__item",
@@ -399,8 +400,8 @@ const PAGINATION_STYLING: &[StyleDoc] = &[
     StyleDoc {
         class_or_token: ".pagination__link transitions",
         value: "transform 250ms ease-smooth; background/box-shadow 100ms ease-out",
-        description: "Link state interpolation.",
-        rust: "instant active refinements; press geometry has no timeline",
+        description: "Background and press scale now interpolate on the pinned timelines; focus-shadow interpolation remains a GPUI limitation.",
+        rust: "anim::hover_fade + anim::pressed_with_background",
         status: ImplementationStatus::Partial,
     },
     StyleDoc {
@@ -801,9 +802,9 @@ const TABS_STYLING: &[StyleDoc] = &[
     StyleDoc {
         class_or_token: ".tabs__list-container__scroller",
         value: "ScrollShadow size 64 with hidden scrollbar",
-        description: "Scrollable viewport follows the configured axis without remapping wheel input from the other axis; fading overflow edges remain unavailable.",
-        rust: "raw overflow scroller; chevrons are measured but edge fades are absent",
-        status: ImplementationStatus::Partial,
+        description: "Scrollable viewport follows the configured axis without remapping wheel input from the other axis; shared edge fades appear only while overflow remains in that direction and the native scrollbar is hidden.",
+        rust: "ScrollShadow::new(...).size(px(64)).hide_scroll_bar(true) + shared ScrollHandle",
+        status: ImplementationStatus::Implemented,
     },
     StyleDoc {
         class_or_token: ".tabs__list-container__scroll-prev/next",
@@ -815,8 +816,8 @@ const TABS_STYLING: &[StyleDoc] = &[
     StyleDoc {
         class_or_token: ".tabs__list-container__scroll-prev/next transitions",
         value: "opacity 150ms ease-smooth; hover opacity-70; focus-visible status-focused",
-        description: "Chevron interaction feedback.",
-        rust: "hover opacity snaps; no property interpolation or programmatic focus ring",
+        description: "Chevron hover opacity now fades through the shared stable-element motion; focus-visible ownership remains a separate limitation.",
+        rust: "anim::hover_fade + focus omission",
         status: ImplementationStatus::Partial,
     },
     StyleDoc {
@@ -829,22 +830,22 @@ const TABS_STYLING: &[StyleDoc] = &[
     StyleDoc {
         class_or_token: ".tabs__list[data-orientation=\"vertical\"]",
         value: "flex-col gap-1; tab min-w-20",
-        description: "Vertical list geometry.",
-        rust: "flex_col + gap(px(4)) + min_w(px(80))",
+        description: "Vertical list geometry; its cross-axis min-content floor is released beside a constrained panel while the main-axis column remains scrollable.",
+        rust: "flex_col + gap(px(4)) + min_w(px(80)) + parent flex_shrink(1)/min_w(0)",
         status: ImplementationStatus::Implemented,
     },
     StyleDoc {
         class_or_token: ".tabs__tab",
         value: "relative flex h-8 w-full rounded-3xl px-4 text-sm font-medium text-muted",
-        description: "Box metrics and typography match. Constrained vertical labels wrap upstream, but the port keeps labels on one line and can widen the list beside a panel.",
-        rust: "32px height + 16px padding + control_radius + 14px medium text; whitespace_nowrap",
+        description: "A released min-content label slot preserves normal whitespace so constrained tabs wrap instead of widening or overlapping siblings; the port grows the tab above the fixed 32px floor when multiple lines need room.",
+        rust: "32px minimum + 16px padding + control_radius + 14px medium text; min_w(0) + whitespace_normal + h_auto when constrained",
         status: ImplementationStatus::Partial,
     },
     StyleDoc {
         class_or_token: ".tabs__tab transitions",
         value: "color/background/opacity 150ms ease-smooth; shadow 150ms ease-out",
-        description: "Property interpolation between tab states.",
-        rust: "state colors and opacity swap on a frame",
+        description: "Unselected-tab dimming now fades as a same-colour overlay while the tab element keeps its focus and pointer identity; color and shadow transitions remain immediate.",
+        rust: "anim::hover_fade overlay + immediate color/shadow endpoints",
         status: ImplementationStatus::Partial,
     },
     StyleDoc {
@@ -858,7 +859,7 @@ const TABS_STYLING: &[StyleDoc] = &[
         class_or_token: ".tabs__tab:hover",
         value: "unselected enabled opacity-70",
         description: "Pointer hover treatment in both variants.",
-        rust: "hover(.. opacity(0.7))",
+        rust: "anim::hover_fade + tabs_hover_opacity",
         status: ImplementationStatus::Implemented,
     },
     StyleDoc {
@@ -999,12 +1000,12 @@ const ACCORDION_API: &[ApiDoc] = &[
 ];
 
 const ACCORDION_PARTS: &[PartDoc] = &[
-    PartDoc { name: "Accordion", slot: "accordion", description: "Full-width owner of item expansion and presentation.", rust_owner: "Accordion", status: ImplementationStatus::Implemented },
+    PartDoc { name: "Accordion", slot: "accordion", description: "Full-width owner of item expansion and presentation. Give simultaneous accordions distinct id values when they reuse item keys.", rust_owner: "Accordion", status: ImplementationStatus::Implemented },
     PartDoc { name: "Accordion.Item", slot: "accordion-item", description: "Keyed item holding trigger and body configuration.", rust_owner: "AccordionItem", status: ImplementationStatus::Implemented },
     PartDoc { name: "Accordion.Heading", slot: "accordion-heading", description: "Heading semantics are folded into the trigger row because GPUI has no heading accessibility node.", rust_owner: "AccordionItem", status: ImplementationStatus::Partial },
     PartDoc { name: "Accordion.Trigger", slot: "accordion-trigger", description: "Focusable, pointer-pressable item header.", rust_owner: "AccordionItem", status: ImplementationStatus::Implemented },
     PartDoc { name: "Accordion.Indicator", slot: "accordion-indicator", description: "Built-in chevron or caller content receiving AccordionItemState.", rust_owner: "AccordionItem", status: ImplementationStatus::Implemented },
-    PartDoc { name: "Accordion.Panel", slot: "accordion-panel", description: "Expanded body host; collapsed content leaves the tree.", rust_owner: "AccordionItem", status: ImplementationStatus::Partial },
+    PartDoc { name: "Accordion.Panel", slot: "accordion-panel", description: "Measured body host that keeps closing content mounted through the 200ms exit transition.", rust_owner: "AccordionItem", status: ImplementationStatus::Implemented },
     PartDoc { name: "Accordion.Body", slot: "accordion-body", description: "Padded, muted body around caller content.", rust_owner: "AccordionItem", status: ImplementationStatus::Implemented },
 ];
 
@@ -1059,12 +1060,12 @@ const ACCORDION_STYLING: &[StyleDoc] = &[
     StyleDoc { class_or_token: ".accordion__body", value: "text-sm", description: "Body content uses 14px type with a 20px line height independently of host leading.", rust: "text_size(px(14.)) + line_height(px(20.))", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".accordion__body-inner", value: "px-4 pt-0 pb-4 text-muted", description: "Horizontal and bottom inset, zero top inset and muted color match.", rust: "px(16.) pt(0.) pb(16.) text_color(muted)", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".accordion__heading", value: "flex", description: "The trigger row supplies the layout without a separate heading wrapper.", rust: "header flex", status: ImplementationStatus::Partial },
-    StyleDoc { class_or_token: ".accordion__indicator", value: "ms-auto size-4 shrink-0 text-muted; rotate 250ms; reduced-motion none", description: "Size, trailing placement and custom content match; built-in glyphs swap without rotation interpolation.", rust: "size(16.) flex_shrink_0 + indicator(render)", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".accordion__indicator", value: "ms-auto size-4 shrink-0 text-muted; rotate 250ms with the default transition curve; reduced-motion none", description: "The built-in down-chevron rotates to the expanded endpoint with a keyed 250ms default transition; custom indicator content remains caller-owned.", rust: "anim::rotating_indicator + indicator(render)", status: ImplementationStatus::Partial },
     StyleDoc { class_or_token: ".accordion__item::after", value: "absolute bottom h-px w-full rounded-xs bg-separator", description: "The same one-pixel rule is a flow child rather than an absolute pseudo-element.", rust: "h(1.) w_full hairline_radius separator", status: ImplementationStatus::Partial },
     StyleDoc { class_or_token: ".accordion__trigger", value: "flex flex-1 items-center justify-between px-4 py-4 text-sm font-medium", description: "Trigger geometry and typography match.", rust: "flex items_center justify_between px(16.) py(16.) text 14 medium", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".accordion__trigger transition", value: "opacity and box-shadow 150ms ease-out; reduced-motion none", description: "The port reaches focus and disabled endpoints without interpolating them.", rust: "immediate style state", status: ImplementationStatus::Partial },
-    StyleDoc { class_or_token: ".accordion__trigger hover", value: "closed default: foreground 3% mix; surface: bg-default", description: "Hover is correctly limited to closed triggers; the default variant uses default-soft rather than the exact foreground mix.", rust: "!is_open hover(default.soft)", status: ImplementationStatus::Partial },
-    StyleDoc { class_or_token: ".accordion__panel", value: "height 200ms ease-out-quad; opacity 200ms ease-out; overflow clip", description: "Expanded content is laid out at its endpoint and collapsed content leaves immediately.", rust: "conditional body child", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".accordion__trigger hover", value: "closed default: foreground 3% mix; surface: bg-default; 150ms ease-out", description: "Hover is limited to closed triggers and interpolates the pinned foreground wash or surface default fill over the stylesheet's 150ms ease-out transition.", rust: "!is_open + anim::hover_fade(idle, hover)", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".accordion__panel", value: "height 200ms ease-out-quad; opacity 200ms ease-out; overflow clip", description: "measured natural body height drives the 0↔natural height and opacity transitions; closing content stays mounted until the 200ms exit completes, and reduced motion snaps the endpoint.", rust: "anim::collapsible_panel + panel_phase + keyed Tween<Pixels/f32>", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".accordion--surface", value: "bg-surface; min(32px, radius-3xl)", description: "Surface fill, clipped radius and absence of an extra shadow match.", rust: "surface.background + container_radius + overflow_hidden", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".accordion--surface item separators", value: "start 3%; width 94%; surface-foreground/6", description: "Inset geometry matches; the semantic separator token supplies the line color.", rust: "mx(relative(.03)) w(relative(.94)) separator", status: ImplementationStatus::Implemented },
 ];
@@ -1152,16 +1153,18 @@ const DISCLOSURE_PARTS: &[PartDoc] = &[
     PartDoc {
         name: "Disclosure.Indicator",
         slot: "disclosure-indicator",
-        description: "Built-in 16px chevron whose glyph reflects expansion.",
+        description:
+            "Built-in 16px down-chevron that rotates through 180 degrees as expansion changes.",
         rust_owner: "Disclosure",
-        status: ImplementationStatus::Partial,
+        status: ImplementationStatus::Implemented,
     },
     PartDoc {
         name: "Disclosure.Content",
         slot: "disclosure-content",
-        description: "Mounted panel container while expanded.",
+        description:
+            "measured panel container that stays mounted during the 200ms closing transition.",
         rust_owner: "Disclosure",
-        status: ImplementationStatus::Partial,
+        status: ImplementationStatus::Implemented,
     },
     PartDoc {
         name: "Disclosure.Body",
@@ -1176,7 +1179,7 @@ const DISCLOSURE_STATES: &[StateDoc] = &[
     StateDoc {
         state: "Expanded",
         selector: ".disclosure[data-expanded=true]",
-        description: "Shows the body and uses the expanded indicator glyph.",
+        description: "Shows the body and rotates the shared down-chevron to its expanded endpoint.",
         rust: "is_expanded(bool) / expanded_keys",
         status: ImplementationStatus::Implemented,
     },
@@ -1215,8 +1218,8 @@ const DISCLOSURE_STYLING: &[StyleDoc] = &[
     StyleDoc { class_or_token: ".disclosure", value: "relative", description: "The root establishes the indicator/content positioning context.", rust: "relative()", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".disclosure__heading", value: "flex", description: "The heading and trigger are represented by one built-in Button row.", rust: "Button", status: ImplementationStatus::Partial },
     StyleDoc { class_or_token: ".disclosure__trigger", value: "inline-block no-highlight; interactive cursor; focused and disabled status utilities", description: "Pointer, focus and disabled behavior come from Button, but the trigger is not independently styled or composed.", rust: "Button::new(trigger_id).is_disabled(bool)", status: ImplementationStatus::Partial },
-    StyleDoc { class_or_token: ".disclosure__indicator", value: "ms-auto size-4 shrink-0 text-inherit; transform 250ms; reduced-motion none", description: "Size and trailing placement match; the port swaps chevron glyphs in one frame instead of rotating one glyph.", rust: "child(svg size(px(16.)))", status: ImplementationStatus::Partial },
-    StyleDoc { class_or_token: ".disclosure__content", value: "height 200ms ease-out-quad; opacity 200ms ease-out; overflow clip; reduced-motion none", description: "The port fades entry for 200ms but does not interpolate measured height and removes content immediately on collapse.", rust: "anim::entering + Motion::DISCLOSURE", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".disclosure__indicator", value: "ms-auto size-4 shrink-0 text-inherit; transform 250ms with the default transition curve; reduced-motion none", description: "A single 16px down-chevron rotates through 180 degrees with a keyed 250ms default transition and snaps under reduced motion.", rust: "anim::rotating_indicator(child(svg size(px(16.))))", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".disclosure__content", value: "height 200ms ease-out-quad; opacity 200ms ease-out; overflow clip; reduced-motion none", description: "measured natural body height drives both height and opacity for 200ms; closing content stays mounted until the transition ends, while reduced motion removes it immediately.", rust: "anim::collapsible_panel + panel_phase + keyed Tween<Pixels/f32>", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".disclosure__body", value: "p-2", description: "Eight-pixel inset around panel content.", rust: "p(px(8.))", status: ImplementationStatus::Implemented },
 ];
 
@@ -1351,8 +1354,8 @@ const BREADCRUMBS_STATES: &[StateDoc] = &[
     StateDoc {
         state: "Current",
         selector: ".breadcrumbs__link[data-current=\"true\"]",
-        description: "The last crumb is the current page: it renders in the link token, is not a tab stop, answers no press even with an href, and never takes the disabled fade.",
-        rust: "is_last -> colors.link + no tab stop + no on_click",
+        description: "The last crumb is the current page: it renders in the link token, exposes AccessKit aria-current=page, is not a tab stop, answers no press even with an href, and never takes the disabled fade.",
+        rust: "is_last -> colors.link + a11y_current(Page) + no tab stop + no on_click",
         status: ImplementationStatus::Implemented,
     },
     StateDoc {

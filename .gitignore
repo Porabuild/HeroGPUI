@@ -67,3 +67,7 @@ web/.verify/
 .vercel/
 .vercel
 .env*
+
+# Vendored gpui-pre forks are standalone workspaces and may be built in
+# place; their target output is not source.
+crates/gpui_pre*/target/

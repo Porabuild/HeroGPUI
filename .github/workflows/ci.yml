@@ -65,9 +65,9 @@ jobs:
           pnpm run build
 
   # The parity contract. These read the pinned v3.2.5 bundle checked in at
-  # .shots/heroui-bundle.txt.gz, so they need no network and no Rust build --
-  # they read the Rust sources as text. Kept off the Rust jobs so a parity
-  # regression and a compile error report separately.
+  # .shots/heroui-bundle.txt.gz and the checked-in CSS archive. Demo source
+  # fallbacks fetch from the pinned tag on a cold cache; no Rust build is
+  # needed. A parity regression and a compile error report separately.
   parity:
     name: HeroUI v3.2.5 parity audits
     runs-on: ubuntu-24.04
@@ -78,22 +78,33 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Pinned input and metric reader regressions
+      - name: Parity reader regressions
         run: |
           python .shots/test_bundle.py
           python .shots/design_audit.py --self-test
+          python .shots/test_interaction_inventory.py
+          python .shots/test_parity_report.py
+          python .shots/test_coverage_report.py
+          python .shots/test_inert.py
 
-      - name: Audit set
-        run: |
-          set -euo pipefail
-          for audit in .shots/*audit.py; do
-            echo "==> $audit"
-            python "$audit"
-          done
-          echo "==> .shots/write_only.py"
-          python .shots/write_only.py
+      - name: Interaction inventory freshness
+        run: python .shots/interaction_inventory.py --check
 
-      # In the `.shots/*audit.py` glob above already; run again on its own so a
+      - name: Maintainer coverage report freshness
+        run: python .shots/coverage_report.py --check
+
+      - name: Audit set with strict summary checks
+        run: python .shots/parity_report.py --output "$RUNNER_TEMP/parity-report.json"
+
+      - name: Preserve parity report
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: parity-report
+          path: ${{ runner.temp }}/parity-report.json
+          if-no-files-found: ignore
+
+      # In the aggregate above already; run its self-test separately so a
       # broken *scanner* reports separately from a broken contract. The a11y
       # audit's subject is not in the pinned docs bundle -- it is the React
       # Aria hooks under `web/node_modules` -- so a parser regression there
@@ -101,9 +112,8 @@ jobs:
       - name: Accessibility contract scanner
         run: python .shots/a11y_audit.py --self-test
 
-      # Not in the `.shots/*audit.py` glob above on purpose: that step is
-      # documented as needing no network and no Rust build, while this is a
-      # generator whose --check fetches a pinned FontTools through uv. It
+      # Separate from the static audit set: this generator's --check fetches
+      # a pinned FontTools through uv. It
       # guards a failure the compiler cannot see -- the embedded font files are
       # subsets keyed to the glyphs the sources actually use, and adding a new
       # string literal silently leaves a glyph with no outline to draw.
@@ -134,6 +144,9 @@ jobs:
         uses: taiki-e/install-action@v2
         with:
           tool: cargo-machete
+
+      - name: Verify GPUI renderer patches
+        run: python .shots/gpui_patches.py --check
 
       # Unused-dependency gate. cargo-machete reads every manifest in the
       # tree and greps the crate sources for each dependency's name -- no
@@ -213,6 +226,11 @@ jobs:
         # and git-bash ships on every GitHub Windows runner.
         shell: bash
         run: bash .shots/run-tests.sh --workspace --locked
+
+      - name: Windows gallery control protocol
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: .shots/test-control.ps1
 
       # The workspace run above uses default features. `serde` is off by
       # default on purpose, so its unit tests would otherwise never run.

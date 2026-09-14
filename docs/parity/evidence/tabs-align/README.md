@@ -32,12 +32,23 @@ Focused integration tests cover both variants and orientations, omitted and
 explicit alignment, disabled-tab skipping, selection callbacks, and unchanged
 indicator geometry. All 27 tests in `tabs_deep` pass.
 
-## Remaining proof and discrepancy
+## Constrained vertical labels
 
-Upstream wraps constrained vertical labels beside a panel; HeroGPUI currently
-keeps them on one line and can widen the list. Removing `whitespace_nowrap`
-alone did not fix its intrinsic/min-content layout. The reference marks this
-partial. The port matrix is not the same constrained layout as upstream and
-does not establish wrapping parity. Primary matrix overflow chevrons also need
-separate investigation. Nested lists, horizontal visual positioning, every
-interactive state, motion frames and native input remain unverified here.
+The pinned stylesheet uses normal whitespace for vertical tab labels. HeroGPUI
+now releases the list and label min-content floors only on the vertical
+cross-axis, so a long label wraps inside the available tab column while the
+vertical scroll axis and chevron hit targets remain stable. Constrained tabs
+grow above the 32px box floor when a second line needs room; this is the
+documented GPUI rendering extension to the fixed-height CSS rule.
+
+The regression `tabs_vertical_labels_wrap_inside_a_constrained_root` in
+`crates/herogpui-components/tests/tabs_deep.rs` measures the selected tab at
+320px root width and requires both a multi-line height and a released column
+width. `tabs_vertical_overflow_chevrons_scroll_the_list` continues to pass,
+confirming that the cross-axis constraint does not move the vertical chevrons
+or change the 80%-of-viewport scroll step. A matching constrained vertical
+specimen is rendered in the gallery's **Wrapping Labels** section.
+
+The fixed-height endpoint remains Partial in reference metadata; nested lists,
+horizontal visual positioning, every interactive state, motion frames and
+native input remain unverified here.

@@ -1,0 +1,10 @@
+{
+  "dpr": 1,
+  "viewport": {
+    "w": 800,
+    "h": 533
+  },
+  "strip": "fixture=modal-open theme=light stage=720x480 @heroui/react@3.2.5 pnpm-lock.yaml sha256:96fe7abea3effa8a",
+  "hasHeading": true,
+  "hasBody": true
+}

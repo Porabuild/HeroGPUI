@@ -8,12 +8,13 @@
 //! - hover is `bg-default-hover` only; focus-visible is `status-focused`;
 //!   disabled is `status-disabled` (dim, no pointer, no press).
 //!
-//! gpui 0.2.2 has no div-level transform, so the press is the same centred
-//! inset `anim::pressed` uses: the 24px box shrinks to `24 * 0.93` and the
-//! leftover margin keeps neighbours from reflowing. Reduced motion keeps that
-//! geometry but removes transition timing; the GPUI active style is already
-//! instant. Pointer / keyboard activation and render-prop state stay in
-//! `buttons.rs` and `value_props.rs`.
+//! gpui has no div-level transform, so the press is the same centred inset
+//! `anim::pressed` uses: the 24px box shrinks to `24 * 0.93` and the leftover
+//! margin keeps neighbours from reflowing. The shrink ramps over the
+//! stylesheet's `transform 250ms var(--ease-out-quart)`; reduced motion keeps
+//! the endpoint geometry but arrives on the first frame. Pointer / keyboard
+//! activation and render-prop state stay in `buttons.rs` and
+//! `value_props.rs`.
 
 mod harness;
 
@@ -35,6 +36,25 @@ const SVG_MARGIN: f32 = 2.;
 
 fn flush_frame(cx: &mut VisualTestContext) {
     cx.update(|window, _| window.refresh());
+}
+
+/// How many animation-frame callbacks are pending: one per live animation.
+/// The press ramp registers one while it runs and stops when it settles, the
+/// way `checkbox_motion.rs` observes motion.
+fn pending_frames(cx: &mut VisualTestContext) -> usize {
+    cx.update(|window, cx| window.simulate_next_frame(cx))
+}
+
+/// Drains frames until every in-flight animation has settled, failing if one
+/// never does (a re-arming animation would keep registering callbacks).
+fn settle(cx: &mut VisualTestContext) {
+    for _ in 0..100 {
+        if pending_frames(cx) == 0 {
+            return;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+    panic!("close button animations never settled");
 }
 
 fn probe(name: String) -> &'static str {
@@ -113,21 +133,29 @@ mod pinned_source {
     }
 
     /// Reduced motion removes transition timing, not the pinned press
-    /// transform. Disabled stays off the `.active` path.
+    /// transform (`motion-reduce:transition-none` keeps the property values).
+    /// The press rides the shared 250ms `--ease-out-quart` ramp, and disabled
+    /// stays off the press path entirely.
     #[test]
     fn press_scale_is_instant_and_enabled_only() {
         let src = source();
         assert!(
-            src.contains(".active("),
-            "the press must be represented by GPUI's active style"
+            src.contains("const PRESS_SCALE: f32 = 0.93;"),
+            "CloseButton must keep the pinned 0.93 press scale at the call site"
         );
         assert!(
-            !src.contains("if !ActiveTheme::reduce_motion(cx)"),
-            "reduced motion must not remove the pressed transform"
+            src.contains("crate::anim::pressed_with_background_ramp(")
+                && src.contains("crate::anim::CLOSE_BUTTON_PRESS"),
+            "the press must ride the shared ramp with the pinned close-button \
+             timing, not an instant style swap"
         );
         assert!(
-            !src.contains("with_animation"),
-            "CloseButton press must remain an instant style swap"
+            !src.contains(".active("),
+            "the press is keyed state and a timeline now, not GPUI's active style"
+        );
+        assert!(
+            !src.contains("opacity(0.7)"),
+            "CloseButton must not substitute a dim for the pinned press scale"
         );
     }
 }
@@ -136,8 +164,10 @@ mod pinned_source {
 // Press geometry
 // ---------------------------------------------------------------------------
 
-/// A pointer press must shrink the 24px box to `24 * 0.93` about its centre
-/// and spring back, and the completed click must still report `on_press`.
+/// A pointer press must ramp the 24px box down to `24 * 0.93` about its
+/// centre — starting from the painted frame, animating over the pinned 250ms,
+/// settling at the pinned endpoint — and spring back the same way, while the
+/// completed click still reports `on_press`.
 #[gpui::test]
 fn press_scales_the_box_to_0_93(cx: &mut TestAppContext) {
     let presses = events();
@@ -160,6 +190,8 @@ fn press_scales_the_box_to_0_93(cx: &mut TestAppContext) {
     let at = centre(at_rest);
     cx.simulate_mouse_move(at, None, Modifiers::none());
     flush_frame(cx);
+    // The hover fade eases its own fill here, so pending frames are expected;
+    // what hover must never do is move the box.
     let hovered = bounds(cx, root);
     assert!(
         near(hovered.size.width, BOX) && near(hovered.size.height, BOX),
@@ -168,6 +200,17 @@ fn press_scales_the_box_to_0_93(cx: &mut TestAppContext) {
 
     cx.simulate_mouse_down(at, MouseButton::Left, Modifiers::none());
     flush_frame(cx);
+    let starting = bounds(cx, root);
+    assert!(
+        near(starting.size.width, BOX),
+        "the ramp starts from the painted frame, not the endpoint, got {starting:?}"
+    );
+    assert!(
+        pending_frames(cx) > 0,
+        "a press must start the transform ramp, not snap"
+    );
+
+    settle(cx);
     let pressed = bounds(cx, root);
     let scaled = BOX * PRESS_SCALE;
     assert!(
@@ -182,6 +225,11 @@ fn press_scales_the_box_to_0_93(cx: &mut TestAppContext) {
 
     cx.simulate_mouse_up(at, MouseButton::Left, Modifiers::none());
     flush_frame(cx);
+    assert!(
+        pending_frames(cx) > 0,
+        "the release must ramp back rather than snap"
+    );
+    settle(cx);
     let released = bounds(cx, root);
     assert!(
         near(released.size.width, BOX) && near(released.size.height, BOX),

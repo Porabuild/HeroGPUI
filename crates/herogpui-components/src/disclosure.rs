@@ -122,6 +122,7 @@ impl RenderOnce for Disclosure {
             self.default_expanded,
         );
         let cb = self.on_toggle.clone();
+        let indicator_id = element_id::scoped(&self.id, "indicator");
         let children = match self.content {
             Some(render) => vec![render(DisclosureRenderState {
                 is_expanded: expanded,
@@ -139,20 +140,19 @@ impl RenderOnce for Disclosure {
         })
         .label(self.title.clone())
         .is_disabled(self.is_disabled)
-        // `.disclosure__indicator` is `ms-auto size-4` and turns 180 degrees
-        // when the panel is open, which is a glyph swap here. It trails the
-        // label as the button's ordered child, the way v3 composes it.
-        .child(
+        // `.disclosure__indicator` is `ms-auto size-4` and rotates one
+        // down-chevron through 180 degrees over 250ms when the panel opens.
+        .child(crate::anim::rotating_indicator(
+            &indicator_id,
+            expanded,
             gpui::svg()
                 .size(px(16.))
-                .path(if expanded {
-                    crate::icons::CHEVRON_UP
-                } else {
-                    crate::icons::CHEVRON_DOWN
-                })
-                .text_color(cx.colors().muted)
-                .into_any_element(),
-        )
+                .path(crate::icons::CHEVRON_DOWN)
+                .flex_shrink_0()
+                .text_color(cx.colors().muted),
+            window,
+            cx,
+        ))
         .on_press(move |_, w, cx| {
             if let Some(held) = &expanded_own {
                 held.update(cx, |expanded, cx| {
@@ -171,38 +171,32 @@ impl RenderOnce for Disclosure {
             .flex()
             .flex_col()
             .child(trigger);
-        // v3 transitions measured height and opacity. gpui cannot animate an
-        // unmeasured content height, so this preserves the 200ms entry fade;
-        // collapsed content leaves the tree immediately.
-        if expanded {
-            el = el.child(
-                crate::anim::entering(
-                    gpui::div()
-                        // `DisclosureBody` is an RAC `DisclosurePanel`
-                        // (`disclosure/disclosure.js`), whose role is `group`
-                        // and whose accessible name is the trigger
-                        // (`Disclosure.mjs`: `role: role = 'group'`;
-                        // `useDisclosure.js`: `'aria-labelledby': triggerId`).
-                        // The trigger's own `aria-expanded` cannot be stated
-                        // here: it is the caller-visible `Button` below, and
-                        // gpui has no way to inject a prop into an element
-                        // another builder owns. See `crate::a11y`.
-                        .id(element_id::scoped(&self.id, "panel"))
-                        .a11y_named(a11y::Role::Group, &a11y::Name::labelled(self.title.clone()))
-                        // `.disclosure__body` is `p-2`.
-                        .p(px(8.))
-                        .flex()
-                        .flex_col()
-                        .gap(px(6.))
-                        .children(children),
-                    "disclosure-body",
-                    crate::anim::Motion::DISCLOSURE,
-                    cx,
-                )
-                .into_any_element(),
-            );
+        // v3 transitions measured height and opacity. The shared collapsible
+        // helper retains the body for the 200ms closing phase and measures its
+        // natural height before driving the clipped outer panel.
+        let panel_id = element_id::scoped(&self.id, "panel");
+        let panel = gpui::div()
+            // `DisclosureBody` is an RAC `DisclosurePanel`
+            // (`disclosure/disclosure.js`), whose role is `group` and whose
+            // accessible name is the trigger (`Disclosure.mjs`:
+            // `role: role = 'group'`; `useDisclosure.js`:
+            // `'aria-labelledby': triggerId`). The trigger's own
+            // `aria-expanded` is carried by the caller-visible Button.
+            .id(panel_id.clone())
+            .a11y_named(a11y::Role::Group, &a11y::Name::labelled(self.title.clone()));
+        let body = gpui::div()
+            // `.disclosure__body` is `p-2`.
+            .p(px(8.))
+            .flex()
+            .flex_col()
+            .gap(px(6.))
+            .children(children)
+            .into_any_element();
+        if let Some(panel) =
+            crate::anim::collapsible_panel(&panel_id, expanded, panel, body, window, cx)
+        {
+            el = el.child(panel);
         }
-        let _ = window;
         crate::util::apply_sx(el, &self.sx).into_any_element()
     }
 }

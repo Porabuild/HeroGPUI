@@ -199,6 +199,7 @@ component_style! {
         text_size: Pixels,
         radius: Pixels,
         is_bare: bool,
+        focus_ring: bool,
         background: ComponentColor,
         foreground: ComponentColor,
         placeholder: ComponentColor,
@@ -393,6 +394,14 @@ mod tests {
             stacked.row_hover_bg,
             Some(ComponentColor::Role(Color::Accent))
         );
+    }
+
+    #[test]
+    fn text_field_theme_can_configure_focus_ring_visibility() {
+        let theme = ComponentTheme::new(TextFieldStyle::default().focus_ring(false))
+            .recipe("ring", TextFieldStyle::default().focus_ring(true));
+        assert_eq!(theme.resolve(&[]).focus_ring, Some(false));
+        assert_eq!(theme.resolve(&["ring".into()]).focus_ring, Some(true));
     }
 
     #[test]

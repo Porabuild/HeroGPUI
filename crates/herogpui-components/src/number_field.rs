@@ -417,6 +417,13 @@ impl NumberField {
         self
     }
 
+    /// Shows or hides only the group's visual focus ring. The number field
+    /// remains focusable, editable and stepper-accessible when set to `false`.
+    pub fn focus_ring(mut self, v: bool) -> Self {
+        self.field.focus_ring = Some(v);
+        self
+    }
+
     /// The one slot for caller-owned low-level styling: GPUI's styling methods
     /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
     /// applied to the field's root element — the column holding the label, the
@@ -721,6 +728,7 @@ impl RenderOnce for NumberField {
         // hairline. The steppers used to sit *outside* the field as two loose
         // buttons, which is not a shape v3 has.
         let steppers = !self.hide_steppers;
+        let group_radius = crate::util::field_radius(cx);
         // NumberField.Input keeps `px-3` even beside either button. Passing
         // false on both sides removes the standalone chrome without borrowing
         // InputGroup's addon-padding behavior. The group owns the row and its
@@ -750,11 +758,12 @@ impl RenderOnce for NumberField {
             .text_size(crate::util::FIELD_TEXT)
             .line_height(px(20.));
         if !field_box.is_bare {
-            group = crate::util::apply_field_chrome(
+            group = crate::util::apply_field_chrome_with_focus_ring(
                 group,
                 self.variant,
                 validity.is_invalid,
                 focus_handle.is_focused(window),
+                field_box.focus_ring.unwrap_or(true),
                 None,
                 cx,
             );
@@ -769,6 +778,10 @@ impl RenderOnce for NumberField {
             && !validity.is_invalid
             && !focus_handle.is_focused(window)
         {
+            let idle_bg = match self.variant {
+                FieldVariant::Primary => colors.field.background,
+                FieldVariant::Secondary => colors.default.color,
+            };
             let hover_bg = match self.variant {
                 FieldVariant::Primary => colors.field.hover(),
                 // `.number-field--secondary` hovers
@@ -776,7 +789,23 @@ impl RenderOnce for NumberField {
                 FieldVariant::Secondary => colors.default.hover(),
             };
             let hover_border = colors.field.border_hover();
-            group = group.hover(move |style| style.bg(hover_bg).border_color(hover_border));
+            // The group stylesheet names a 150ms `ease-smooth` background
+            // transition. Keep the stable group (and its focus/keyboard
+            // listeners) in place while an absolute fill interpolates only
+            // the hover surface; the border endpoint still switches through
+            // the one allowed hover refinement.
+            group = group.hover(move |style| style.border_color(hover_border));
+            group = crate::anim::hover_fade_with_duration_and_easing(
+                group,
+                element_id::scoped(&base_id, "group-hover-fade"),
+                (idle_bg, hover_bg),
+                None,
+                |fill| fill.rounded(group_radius),
+                Some(150),
+                crate::anim::HoverFadeEasing::EaseSmooth,
+                window,
+                cx,
+            );
         }
 
         // `border-field-placeholder/15` is the seam between a stepper and the
@@ -822,6 +851,7 @@ impl RenderOnce for NumberField {
                         self.validation_errors.clone(),
                         self.validate.clone(),
                         &colors,
+                        layout.field_border_width,
                         vertical_stepper_h,
                         px(24.),
                         increment_icon,
@@ -838,6 +868,7 @@ impl RenderOnce for NumberField {
                         self.validation_errors.clone(),
                         self.validate.clone(),
                         &colors,
+                        layout.field_border_width,
                         vertical_stepper_h,
                         px(24.),
                         decrement_icon,
@@ -858,6 +889,7 @@ impl RenderOnce for NumberField {
                         self.validation_errors.clone(),
                         self.validate.clone(),
                         &colors,
+                        layout.field_border_width,
                         h,
                         btn_px,
                         decrement_icon,
@@ -879,6 +911,7 @@ impl RenderOnce for NumberField {
                         self.validation_errors.clone(),
                         self.validate.clone(),
                         &colors,
+                        layout.field_border_width,
                         h,
                         btn_px,
                         increment_icon,
@@ -1010,10 +1043,12 @@ impl RenderOnce for NumberField {
             );
         }
         el = el.child(group);
-        if !validity.messages.is_empty() {
-            // Every message, space-joined in upstream order — React Aria's
-            // `FieldError` default — not just the first.
-            el = el.child(crate::field::ErrorMessage::new(validity.joined()));
+        // Every message, space-joined in upstream order — React Aria's
+        // `FieldError` default — not just the first. The shared feedback row
+        // retains the last message while its height and opacity settle out.
+        let error = (!validity.messages.is_empty()).then(|| validity.joined().into());
+        if let Some(error) = crate::anim::field_error_panel(&base_id, error, window, cx) {
+            el = el.child(error);
         } else if let Some(description) = self.description.clone() {
             el = el.child(crate::field::Description::new(description));
         }
@@ -1032,6 +1067,7 @@ fn stepper_btn(
     validation_errors: Vec<SharedString>,
     validate: Option<crate::validation::Validator<f64>>,
     colors: &herogpui_theme::ThemeColors,
+    field_border_width: gpui::Pixels,
     h: gpui::Pixels,
     btn_px: gpui::Pixels,
     icon: gpui::AnyElement,
@@ -1067,7 +1103,13 @@ fn stepper_btn(
         .justify_center()
         .flex_shrink_0()
         .w(btn_px)
-        .h(h);
+        .h(h)
+        // HeroUI gives each spin button the field border token. The default
+        // theme keeps this at zero, while custom themes can opt into a visible
+        // field border; carrying it here prevents the stepper cells from
+        // losing the shared shell's border treatment in that configuration.
+        .border(field_border_width)
+        .border_color(colors.field.border);
     // The icon joins the skin before the press wrap: children added after
     // `pressed` land on the slot and fight the skin for width.
     b = b.text_color(colors.field.foreground).child(icon);
@@ -1284,6 +1326,33 @@ mod hover_tokens {
             source.contains("FieldVariant::Secondary => colors.default.hover()"),
             "the secondary group hover must read `colors.default.hover()` \
              (pinned `--number-field-group-bg-hover: var(--default-hover)`)"
+        );
+    }
+
+    #[test]
+    fn stepper_cells_carry_the_shared_field_border_token() {
+        let source = include_str!("number_field.rs")
+            .split("#[cfg(test)]")
+            .next()
+            .expect("the implementation section is always present");
+        assert!(
+            source.contains(".border(field_border_width)")
+                && source.contains(".border_color(colors.field.border)"),
+            "spin buttons must preserve the configured field border token"
+        );
+    }
+
+    #[test]
+    fn group_hover_uses_the_pinned_smooth_transition() {
+        let source = include_str!("number_field.rs")
+            .split("#[cfg(test)]")
+            .next()
+            .expect("the implementation section is always present");
+        assert!(
+            source.contains("hover_fade_with_duration_and_easing")
+                && source.contains("HoverFadeEasing::EaseSmooth")
+                && source.contains("Some(150)"),
+            "the group hover surface must use HeroUI's 150ms ease-smooth fade"
         );
     }
 }

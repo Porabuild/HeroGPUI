@@ -47,6 +47,7 @@ use std::{
     collections::HashSet,
     process::Command,
     rc::Rc,
+    time::Duration,
 };
 
 use gpui::{
@@ -73,6 +74,19 @@ fn keyed(labels: &[&str]) -> Vec<PickerItem> {
         .iter()
         .map(|l| PickerItem::new(l.to_string(), l.to_string()))
         .collect()
+}
+
+/// Drives the shared measured Disclosure panel to its settled endpoint before
+/// asserting the sibling's reflow. GPUI animations use wall time, while the
+/// retained exit timer uses the test executor clock.
+fn settle_collapsible(cx: &mut VisualTestContext) {
+    std::thread::sleep(Duration::from_millis(220));
+    cx.update(|window, cx| {
+        window.simulate_next_frame(cx);
+    });
+    cx.executor().advance_clock(Duration::from_millis(210));
+    cx.run_until_parked();
+    cx.update(|window, _| window.refresh());
 }
 
 /// Column *c*'s centre in a bare Calendar: seven cells across `CALENDAR_WIDTH`
@@ -1122,8 +1136,7 @@ fn color_picker_default_trigger_owns_open_state_without_callback(cx: &mut TestAp
     );
 
     press(cx, "tab tab escape");
-    cx.executor()
-        .advance_clock(std::time::Duration::from_millis(150));
+    cx.executor().advance_clock(Duration::from_millis(150));
     click(cx, 132., 82.);
     assert_eq!(
         colors.borrow().as_slice(),
@@ -2868,6 +2881,7 @@ fn disclosure_toggles_and_group_reports(cx: &mut TestAppContext) {
     assert_eq!(reported.borrow().as_slice(), ["grp-b"]);
     click(cx, 60., 154.);
     assert_eq!(reported.borrow().as_slice(), ["grp-b", "grp-a"]);
+    settle_collapsible(cx);
 
     // With A expanded its body (p-2 + a 20px child = 36px) pushes B down to
     // y 208..244; a press at the old spot records nothing and the new one

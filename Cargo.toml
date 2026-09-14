@@ -12,7 +12,13 @@ members = [
 # The vendored `gpui_web` fork is a workspace root of its own (see its
 # manifest's header), reached only through `[patch.crates-io]` at the bottom of
 # this file. Naming it here says that omission from `members` is deliberate.
-exclude = ["crates/gpui_web"]
+exclude = [
+    "crates/gpui_pre",
+    "crates/gpui_pre_apple",
+    "crates/gpui_pre_wgpu",
+    "crates/gpui_pre_windows",
+    "crates/gpui_web",
+]
 
 [workspace.package]
 version = "0.1.0"
@@ -157,7 +163,17 @@ strip = "symbols"
 # `[patch."https://github.com/zed-industries/zed"]` key (what the old separate
 # wasm checkout used, when GPUI came from a Zed git rev) matches no source in
 # that graph and applies *nothing*, with no error. Prove it is live with
-# `cargo tree -i --target wasm32-unknown-unknown gpui-pre-web`, which must
+# `cargo tree -i gpui-pre-web --target wasm32-unknown-unknown`, which must
 # print the `crates/gpui_web` path source.
 [patch.crates-io]
+# The published gpui-pre 0.3.3 clips `overflow_hidden()` to a rectangle even
+# when the element has rounded corners. Keep the exact upstream snapshot in
+# the workspace so the shared content mask can carry those corners through the
+# renderer; every component then gets the same fix automatically. The fork
+# delta and the rebase procedure are recorded in
+# docs/upstream/gpui-rounded-content-mask.md.
+gpui-pre = { path = "crates/gpui_pre" }
+gpui-pre-apple = { path = "crates/gpui_pre_apple" }
+gpui-pre-wgpu = { path = "crates/gpui_pre_wgpu" }
+gpui-pre-windows = { path = "crates/gpui_pre_windows" }
 gpui-pre-web = { path = "crates/gpui_web" }

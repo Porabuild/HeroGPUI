@@ -95,7 +95,7 @@ const INVENTORY: &[Part] = &[
     Part::pending(
         "select.rs",
         "trigger hover fill",
-        ".hover(move |s| if clear_hovered { s } else { s.bg(hover_bg) })",
+        ".hover(move |s| {",
         "util::sx_background",
     ),
     Part::pending(
@@ -107,13 +107,13 @@ const INVENTORY: &[Part] = &[
     Part::pending(
         "pagination.rs",
         "control hover fill",
-        ".hover(move |s| s.bg(hover_bg))",
+        "crate::anim::hover_fade(",
         "util::sx_background",
     ),
     Part::pending(
         "accordion.rs",
         "header hover fill",
-        ".hover(move |s| s.bg(hover_bg))",
+        "crate::anim::hover_fade_with_duration(",
         "util::sx_background",
     ),
     Part::pending(
@@ -149,7 +149,7 @@ const INVENTORY: &[Part] = &[
     Part::pending(
         "tag_group.rs",
         "tag hover fill",
-        ".hover(move |s| s.bg(hover))",
+        "hover_fade_with_duration_and_easing(",
         "util::sx_background",
     ),
     Part::pending(
@@ -161,19 +161,19 @@ const INVENTORY: &[Part] = &[
     Part::pending(
         "input_otp.rs",
         "slot hover fill",
-        "cell = cell.hover(move |s| s.bg(hover_bg));",
+        "let hover_bg = self.slot_hover_bg.unwrap_or(match self.variant {",
         "util::sx_background",
     ),
     Part::pending(
         "input_group.rs",
         "group hover fill",
-        ".hover(move |style| style.bg(hover_bg)",
+        ".hover(move |style| style.border_color(hover_border));",
         "util::sx_background",
     ),
     Part::pending(
         "number_field.rs",
         "group hover fill",
-        ".hover(move |style| style.bg(hover_bg)",
+        "hover_fade_with_duration_and_easing(",
         "util::sx_background",
     ),
     Part::pending(
@@ -186,12 +186,6 @@ const INVENTORY: &[Part] = &[
         "date_picker/range.rs",
         "trigger hover fill",
         ".hover(move |s| s.bg(hover_bg))",
-        "util::sx_background",
-    ),
-    Part::pending(
-        "toast.rs",
-        "close-button hover fill",
-        "close_btn = close_btn.hover(move |s| s.bg(hover_bg));",
         "util::sx_background",
     ),
 ];

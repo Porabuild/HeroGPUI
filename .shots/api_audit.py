@@ -468,8 +468,6 @@ WONT_PORT = {
     # "automatically set to 'search'" -- a search field has one input type.
     'SearchField.type': 'single-valued',
     'ScrollShadow.variant': 'single-valued',
-    # An accessible name with no accessibility layer to expose it to.
-    'ColorSwatch.colorName': 'no-a11y-attrs',
     # Taken as a constructor argument rather than a builder, because these
     # components are meaningless without it: `ColorArea::new(id, value)`,
     # `ColorSlider::new(id, value, channel)`, `ColorField::new(id, value)`,

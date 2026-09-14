@@ -1,8 +1,9 @@
 //! Badge — port of `@heroui/badge`.
 
 use gpui::{
-    prelude::*, px, AnyElement, App, DefiniteLength, Hsla, IntoElement, ParentElement, Pixels,
-    RenderOnce, Styled, Window,
+    point, prelude::*, px, AbsoluteLength, AnyElement, App, Bounds, DefiniteLength, Display, Edges,
+    Element, GlobalElementId, Hsla, InspectorElementId, IntoElement, LayoutId, Length,
+    ParentElement, Pixels, Position, RenderOnce, Style, Styled, Window,
 };
 use herogpui_core::{Color, Size};
 use herogpui_theme::{ActiveTheme, ThemeColors};
@@ -290,6 +291,126 @@ fn paint(colors: &ThemeColors, variant: BadgeVariant, color: Color) -> (Hsla, Hs
     }
 }
 
+/// The placement node around one anchored [`Badge`]. v3's placement class is
+/// two declarations — the `top/right/bottom/left: 0` pin at the anchor's
+/// corner and `transform: translate(±25%, ±25%)`, a shift by a quarter of the
+/// badge's *own* box outward on each participating axis. gpui-pre 0.3.3 has
+/// no div-level transform (SVG only), and a percentage inset would resolve
+/// against the containing block rather than the badge, so the two declarations
+/// split across two nodes: this absolute wrapper carries the corner pin in
+/// layout, and prepaint reads the badge's laid-out box and prepaints it
+/// shifted by its quarter-box translate — the measure-then-offset pass
+/// gpui's `Anchored` and the port's `PopoverArrow` and `PopoverPositioner`
+/// run.
+struct PlacedBadge {
+    placement: BadgePlacement,
+    badge: AnyElement,
+}
+
+impl Element for PlacedBadge {
+    type RequestLayoutState = LayoutId;
+    type PrepaintState = ();
+
+    fn id(&self) -> Option<gpui::ElementId> {
+        None
+    }
+
+    fn source_location(&self) -> Option<&'static core::panic::Location<'static>> {
+        None
+    }
+
+    fn request_layout(
+        &mut self,
+        _: Option<&GlobalElementId>,
+        _: Option<&InspectorElementId>,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> (LayoutId, Self::RequestLayoutState) {
+        let badge = self.badge.request_layout(window, cx);
+        // The placement class's corner pin (`top-0 right-0` and friends),
+        // carried here so the badge node is positioned at the anchor corner
+        // before the translate is applied in prepaint.
+        let pinned = || Length::Definite(DefiniteLength::Absolute(AbsoluteLength::Pixels(px(0.))));
+        let mut inset = Edges::<Length>::auto();
+        match self.placement {
+            BadgePlacement::TopRight => {
+                inset.top = pinned();
+                inset.right = pinned();
+            }
+            BadgePlacement::TopLeft => {
+                inset.top = pinned();
+                inset.left = pinned();
+            }
+            BadgePlacement::BottomRight => {
+                inset.bottom = pinned();
+                inset.right = pinned();
+            }
+            BadgePlacement::BottomLeft => {
+                inset.bottom = pinned();
+                inset.left = pinned();
+            }
+        }
+        let layout = window.request_layout(
+            Style {
+                position: Position::Absolute,
+                display: Display::Flex,
+                inset,
+                ..Style::default()
+            },
+            [badge],
+            cx,
+        );
+        (layout, badge)
+    }
+
+    fn prepaint(
+        &mut self,
+        _: Option<&GlobalElementId>,
+        _: Option<&InspectorElementId>,
+        _: Bounds<Pixels>,
+        badge: &mut Self::RequestLayoutState,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> Self::PrepaintState {
+        // `translate(±25%, ±25%)` resolves against the badge's own box, and
+        // the box is final by prepaint time: a grown label overhangs a
+        // quarter of its grown box, exactly like the CSS transform. The raw
+        // fraction is applied as-is — a 42px box overhangs 10.5px, the same
+        // arithmetic a browser paints.
+        let size = window.layout_bounds(*badge).size;
+        let (dx, dy) = match self.placement {
+            BadgePlacement::TopRight => (size.width / 4., -(size.height / 4.)),
+            BadgePlacement::TopLeft => (-(size.width / 4.), -(size.height / 4.)),
+            BadgePlacement::BottomRight => (size.width / 4., size.height / 4.),
+            BadgePlacement::BottomLeft => (-(size.width / 4.), size.height / 4.),
+        };
+        window.with_element_offset(point(dx, dy), |window| {
+            self.badge.prepaint(window, cx);
+        });
+    }
+
+    fn paint(
+        &mut self,
+        _: Option<&GlobalElementId>,
+        _: Option<&InspectorElementId>,
+        _: Bounds<Pixels>,
+        _: &mut Self::RequestLayoutState,
+        _: &mut Self::PrepaintState,
+        window: &mut Window,
+        cx: &mut App,
+    ) {
+        self.badge.paint(window, cx);
+    }
+}
+
+impl IntoElement for PlacedBadge {
+    type Element = Self;
+
+    fn into_element(self) -> Self {
+        self
+    }
+}
+
 impl RenderOnce for Badge {
     fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
         let colors = cx.colors();
@@ -325,23 +446,17 @@ impl RenderOnce for Badge {
         let radius = self.radius.unwrap_or(radius);
         let font = self.text_size.unwrap_or(font);
 
-        // Each placement class sits at its corner with `top/right/bottom/left:
-        // 0` and then translates itself `±25%` of its own box outward — an
-        // overhang of a quarter of the badge: 4px sm, 7px md, 8px lg.
-        // `size / 2 - 4` was only ever right for sm.
-        //
-        // The port can only afford a quarter of the *min* box: GPUI 0.2.2 has
-        // no div-level transform, and a percentage `top`/`right` inset would
-        // resolve against the containing block, not the badge itself. A badge
-        // grown past its min box (a longer label) therefore overhangs less
-        // than v3's quarter-of-own-box translate would; only dot and
-        // min-box-fitting badges are exact.
-        let offset = size_px / -4.0;
+        // Each placement class pins the badge at its anchor corner with
+        // `top/right/bottom/left: 0` and then translates itself `±25%` of
+        // its own box outward — an overhang of a quarter of the badge: 4px
+        // sm, 7px md, 8px lg at the min box. The pin sits on the badge here;
+        // the translate is [`PlacedBadge`]'s, applied in prepaint from the
+        // badge's laid-out box.
         let (top, bottom, left, right) = match self.placement {
-            BadgePlacement::TopRight => (Some(offset), None, None, Some(offset)),
-            BadgePlacement::TopLeft => (Some(offset), None, Some(offset), None),
-            BadgePlacement::BottomRight => (None, Some(offset), None, Some(offset)),
-            BadgePlacement::BottomLeft => (None, Some(offset), Some(offset), None),
+            BadgePlacement::TopRight => (Some(px(0.)), None, None, Some(px(0.))),
+            BadgePlacement::TopLeft => (Some(px(0.)), None, Some(px(0.)), None),
+            BadgePlacement::BottomRight => (None, Some(px(0.)), None, Some(px(0.))),
+            BadgePlacement::BottomLeft => (None, Some(px(0.)), Some(px(0.)), None),
         };
 
         let (bg, fg) = paint(colors, self.variant, self.color);
@@ -385,7 +500,10 @@ impl RenderOnce for Badge {
         } else {
             badge.children(self.children)
         };
-        crate::util::apply_sx(badge, &self.sx)
+        PlacedBadge {
+            placement: self.placement,
+            badge: crate::util::apply_sx(badge, &self.sx).into_any_element(),
+        }
     }
 }
 

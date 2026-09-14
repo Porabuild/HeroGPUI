@@ -1,0 +1,18 @@
+{
+  "dpr": 1,
+  "viewport": {
+    "w": 640,
+    "h": 360
+  },
+  "v": "e2bfda29",
+  "page": "Select",
+  "section": "Usage",
+  "specimen": null,
+  "canvas": {
+    "w": 640,
+    "h": 360,
+    "clientW": 640,
+    "clientH": 360
+  },
+  "loadingGone": true
+}

@@ -1570,6 +1570,41 @@ fn color_field_typing_reports_a_colour(cx: &mut TestAppContext) {
     );
 }
 
+#[gpui::test]
+fn color_field_accepts_an_uncontrolled_null_default(cx: &mut TestAppContext) {
+    let changes = events();
+    let recorded = changes.clone();
+    let state = cx.new(|cx| InputState::new(cx));
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        let changes = changes.clone();
+        ColorField::new("cf-null-default", None::<PickerColor>)
+            .default_value(None::<PickerColor>)
+            .state(state_for_view.clone())
+            .placeholder("#000000")
+            .on_change(move |colour, _, _| {
+                changes.borrow_mut().push(match colour {
+                    Some(c) => c.to_hex(),
+                    None => "none".to_owned(),
+                });
+            })
+            .into_any_element()
+    });
+
+    click(cx, 60., 18.);
+    cx.simulate_input("00ff00");
+    assert_eq!(
+        recorded.borrow().last().map(String::as_str),
+        Some("#00FF00"),
+        "an uncontrolled null field must accept its first complete color"
+    );
+    assert_eq!(
+        cx.update(|_, cx| state.read(cx).value().to_owned()),
+        "00ff00",
+        "the empty field's text input remains editable"
+    );
+}
+
 // ---------------------------------------------------------------------------
 // DateField
 // ---------------------------------------------------------------------------
@@ -2102,6 +2137,39 @@ fn is_bare_keeps_the_field_focusable_and_editable(cx: &mut TestAppContext) {
     });
 }
 
+/// `focus_ring(false)` is narrower than `is_bare(true)`: the field keeps its
+/// normal chrome and remains a live text control while the focus-ring paint is
+/// opted out.
+#[gpui::test]
+fn focus_ring_opt_out_keeps_the_field_focusable_and_editable(cx: &mut TestAppContext) {
+    let state = cx.new(|cx| InputState::new(cx));
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        Input::new(state_for_view.clone())
+            .focus_ring(false)
+            .into_any_element()
+    });
+    click(cx, 40., 18.);
+    press(cx, "r i n g");
+    cx.update(|_, cx| {
+        assert_eq!(
+            state.read(cx).value(),
+            "ring",
+            "disabling the visual ring must not disable focus or editing"
+        );
+    });
+}
+
+/// The shared focus-ring option must stay on the field-chrome call site so all
+/// wrappers using `Input` inherit the same behavior.
+#[gpui::test]
+fn focus_ring_opt_out_reuses_the_shared_chrome_path() {
+    source_scan::assert_chrome_call_is_under(
+        include_str!("../src/input.rs"),
+        "if self.in_group.is_none() && !self.is_bare {",
+    );
+}
+
 /// The single chrome call site stays single: `is_bare` is an extra reason to
 /// skip it, not a second copy of the background/border/shadow logic.
 #[gpui::test]
@@ -2585,6 +2653,33 @@ fn the_field_family_gates_its_chrome_on_one_bare_flag() {
     ] {
         source_scan::assert_chrome_call_is_under(source, guard);
     }
+}
+
+#[test]
+fn color_field_static_group_uses_the_pinned_hover_transition() {
+    let source = include_str!("../src/color_picker/field.rs");
+    assert!(
+        source.contains("colors.field.hover()")
+            && source.contains("colors.default.hover()")
+            && source.contains("colors.field.border_hover()"),
+        "ColorField must retain both variant hover endpoints and the border token"
+    );
+    assert!(
+        source.contains("hover_fade_with_duration_and_easing")
+            && source.contains("Some(150)")
+            && source.contains("HoverFadeEasing::EaseSmooth"),
+        "ColorField group hover must use HeroUI's 150ms ease-smooth transition"
+    );
+    assert!(
+        source.contains("!self.is_disabled && !self.is_invalid && !focused"),
+        "disabled, invalid, and focused states must keep ownership of their chrome"
+    );
+    assert!(
+        source.contains("if validity.is_invalid")
+            && source.contains("FieldVariant::Primary => colors.field.focus()")
+            && source.contains("FieldVariant::Secondary => colors.default.color"),
+        "invalid ColorField groups must use the pinned field-focus fill for both variants"
+    );
 }
 
 /// `InputGroup.height` is the group's box and reaches the held Input so the

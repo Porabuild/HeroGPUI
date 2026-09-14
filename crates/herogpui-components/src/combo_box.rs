@@ -336,10 +336,11 @@ impl ComboBox {
         self
     }
 
-    /// Reports the whole selection, including the empty single selection a
-    /// cleared input or a committed custom value stands for (pinned React
-    /// Stately reports `null` there). The empty slice fires only when a
-    /// selection actually existed to clear.
+    /// Reports the whole selection: one key for a changed single pick by
+    /// pointer, Enter or Tab, and all keys in multiple mode. Re-picking the
+    /// current single key does not report a value change. A cleared input or
+    /// committed custom value reports an empty slice only when a selection
+    /// existed, matching React Stately 3.50.0's `onChange`/`null` contract.
     pub fn on_selection_change_all(
         mut self,
         handler: impl Fn(&[SharedString], &mut Window, &mut App) + 'static,
@@ -511,7 +512,9 @@ impl ComboBox {
         self
     }
 
-    /// `onChange` — the v3 name for [`ComboBox::on_selection_change`].
+    /// Single-key convenience alias for [`ComboBox::on_selection_change`].
+    /// Use [`Self::on_selection_change_all`] for the complete `onChange` value,
+    /// including an empty selection and multiple keys.
     pub fn on_change(
         self,
         handler: impl Fn(&SharedString, &mut Window, &mut App) + 'static,
@@ -673,6 +676,13 @@ impl ComboBox {
         self
     }
 
+    /// Shows or hides only the editable trigger's visual focus ring. The
+    /// trigger stays focusable and the list still opens when set to `false`.
+    pub fn focus_ring(mut self, v: bool) -> Self {
+        self.field.focus_ring = Some(v);
+        self
+    }
+
     /// Replaces the list rows' `px-2` horizontal padding.
     pub fn row_padding_x(mut self, p: impl Into<Pixels>) -> Self {
         self.row_padding_x = Some(p.into());
@@ -821,11 +831,36 @@ impl RenderOnce for ComboBox {
             cx,
             element_id::scoped(&base_id, "overlay"),
             open_state,
-            false,
+            true,
         );
         let overlay_active = overlay_phase != util::OverlayPhase::Closed;
+        // The field positioner discovers flips during prepaint. Keep its
+        // resolved physical side keyed to this ComboBox so entry motion starts
+        // from the side that is actually painted.
+        let requested_placement = window.use_keyed_state(
+            element_id::scoped(&base_id, "requested-placement"),
+            cx,
+            |_, _| self.placement,
+        );
+        let resolved_placement = window.use_keyed_state(
+            element_id::scoped(&base_id, "resolved-placement"),
+            cx,
+            |_, _| Rc::new(Cell::new(None::<Placement>)),
+        );
+        if *requested_placement.read(cx) != self.placement {
+            requested_placement.update(cx, |placement, _| *placement = self.placement);
+            resolved_placement.read(cx).set(None);
+        }
+        let resolved_placement = resolved_placement.read(cx).clone();
+        let entry_placement = resolved_placement.get().unwrap_or(self.placement);
 
         // Owned copies: `input.render` below needs `cx` mutably.
+        let anchor_bounds: Rc<Cell<Option<gpui::Bounds<Pixels>>>> = window
+            .use_keyed_state(element_id::scoped(&base_id, "anchor-bounds"), cx, |_, _| {
+                Rc::new(Cell::new(None))
+            })
+            .read(cx)
+            .clone();
         let colors = cx.colors().clone();
         let layout = cx.layout().clone();
         // One binding feeds every panel surface below: the painted panel and
@@ -909,7 +944,7 @@ impl RenderOnce for ComboBox {
         // through `onInputChange` when it actually changed, as the pinned
         // controlled input state does.
         let restore_own = selection_own.clone();
-        let restore_state = self.form_state.clone();
+        let restore_state = Rc::downgrade(&self.form_state);
         let restore_input = self.state.clone();
         let restore_items = items.clone();
         let restore_default = default_selection;
@@ -923,8 +958,10 @@ impl RenderOnce for ComboBox {
                         .and_then(|key| label_of_key(&restore_items, key))
                         .cloned()
                         .unwrap_or_default();
-                    restore_state.borrow_mut().value =
-                        crate::form::FormValue::Keys(restore_default.clone());
+                    if let Some(state) = restore_state.upgrade() {
+                        state.borrow_mut().value =
+                            crate::form::FormValue::Keys(restore_default.clone());
+                    }
                     let input_changed = restore_input.read(cx).value() != default_text.as_ref();
                     restore_input.update(cx, |state, cx| {
                         state.set_value(default_text.to_string());
@@ -985,10 +1022,21 @@ impl RenderOnce for ComboBox {
             window.use_keyed_state(element_id::scoped(&base_id, "matches"), cx, |_, _| {
                 MatchesCache::default()
             });
+        // Keep the last open collection for the retained exit frame. Closing
+        // a row can update the input text in the same dispatch; React Aria
+        // keeps the old rows under its fade and does not re-run a custom
+        // filter for that committed label.
+        let retained_matches = window.use_keyed_state(
+            element_id::scoped(&base_id, "retained-matches"),
+            cx,
+            |_, _| empty_matches(),
+        );
         let consume_matches = overlay_active
             || cursor.read(cx).is_some()
             || (self.allows_custom_value && !raw_query.is_empty());
-        let matches: Rc<[PickerItem]> = if !consume_matches {
+        let matches: Rc<[PickerItem]> = if overlay_phase == util::OverlayPhase::Exiting {
+            retained_matches.read(cx).clone()
+        } else if !consume_matches {
             empty_matches()
         } else {
             let filter = self.filter.clone();
@@ -1021,6 +1069,9 @@ impl RenderOnce for ComboBox {
                 }),
             }
         };
+        if overlay_phase == util::OverlayPhase::Open {
+            retained_matches.update(cx, |value, _| *value = matches.clone());
+        }
 
         // `MenuTrigger::Focus` opens the list when the field takes focus. The
         // check reads the focus handle every frame; the keyed state is the
@@ -1095,6 +1146,20 @@ impl RenderOnce for ComboBox {
         // style rather than the inherited text color, so the hover refinement
         // goes on the glyph as well as the trigger that wraps it.
         let trigger_hover_fg = colors.field.foreground;
+        let trigger_indicator = crate::anim::rotating_indicator_with_duration(
+            &element_id::scoped(&base_id, "trigger-indicator"),
+            is_open,
+            gpui::svg()
+                .size(util::FIELD_ICON)
+                .path(icons::CHEVRON_DOWN)
+                .text_color(colors.muted)
+                .when(!self.is_disabled && !self.is_read_only, |glyph| {
+                    glyph.hover(move |st| st.text_color(trigger_hover_fg))
+                }),
+            150,
+            window,
+            cx,
+        );
         let mut trigger = div()
             .id(element_id::scoped(&base_id, "trigger"))
             // `combo-box/combo-box.js` composes an RAC `Button` here, whose
@@ -1113,15 +1178,7 @@ impl RenderOnce for ComboBox {
             .size(px(20.))
             .rounded(px(6.))
             .text_color(colors.muted)
-            .child(
-                gpui::svg()
-                    .size(util::FIELD_ICON)
-                    .path(icons::CHEVRON_DOWN)
-                    .text_color(colors.muted)
-                    .when(!self.is_disabled && !self.is_read_only, |glyph| {
-                        glyph.hover(move |st| st.text_color(trigger_hover_fg))
-                    }),
-            );
+            .child(trigger_indicator);
         if !self.is_disabled && !self.is_read_only {
             trigger = trigger
                 .cursor(util::interactive_cursor(cx))
@@ -1216,20 +1273,32 @@ impl RenderOnce for ComboBox {
                 }
             }
 
-            let has_matches = match &filter_on_change {
-                Some(f) => items_on_change.iter().any(|item| f(item.label(), text)),
-                None if text.is_empty() => !items_on_change.is_empty(),
-                None => {
-                    let query = text.to_lowercase();
-                    items_on_change
-                        .iter()
-                        .any(|item| item.label().to_lowercase().contains(&query))
-                }
-            };
-            let can_show = has_matches || allows_empty_collection;
             let is_open = open_own_on_change
                 .as_ref()
                 .map_or(was_open, |held| *held.read(cx));
+
+            // A row pick closes the uncontrolled popup before copying the
+            // selected label into the input. React Aria batches those updates
+            // and does not run the custom filter for the value that is being
+            // committed into a now-closing field. Preserve that boundary so
+            // the retained exit frame stays visual-only and the filter's
+            // callback count does not change on a pick.
+            let closing_after_pick = was_open && !is_open;
+            let has_matches = if closing_after_pick {
+                true
+            } else {
+                match &filter_on_change {
+                    Some(f) => items_on_change.iter().any(|item| f(item.label(), text)),
+                    None if text.is_empty() => !items_on_change.is_empty(),
+                    None => {
+                        let query = text.to_lowercase();
+                        items_on_change
+                            .iter()
+                            .any(|item| item.label().to_lowercase().contains(&query))
+                    }
+                }
+            };
+            let can_show = has_matches || allows_empty_collection;
 
             if !is_open && menu_trigger_on_change != MenuTrigger::Manual && can_show {
                 if let Some(focus_open) = &focus_open_on_change {
@@ -1376,7 +1445,6 @@ impl RenderOnce for ComboBox {
         // must not push the popover down. `scrollable_field_popover` below
         // reads these bounds to flip and cap the panel; the measure element
         // inside `Input` only records them.
-        let anchor_bounds: Rc<Cell<Option<gpui::Bounds<Pixels>>>> = Rc::new(Cell::new(None));
         let inside_pressed_for_group = inside_pressed.clone();
         let field_selector = format!("combobox-field-{entity_id}");
         input = input.field_anchor(anchor_bounds.clone(), field_selector);
@@ -1429,7 +1497,12 @@ impl RenderOnce for ComboBox {
                 .map(ToString::to_string)
                 .collect::<Vec<_>>()
                 .join(", ");
+            let value_selector = format!("combobox-value-{entity_id}");
             let default_children = div()
+                .debug_selector(move || value_selector.clone())
+                .w_full()
+                .min_w_0()
+                .whitespace_normal()
                 .text_size(util::FIELD_TEXT)
                 .line_height(px(20.))
                 .text_color(colors.field.foreground)
@@ -1728,6 +1801,10 @@ impl RenderOnce for ComboBox {
                         }
                         // Taking a suggestion fills the field with the row's
                         // label and closes the list, the way a click does.
+                        // Close first so the retained exit frame does not
+                        // re-run the custom filter for the value we are about
+                        // to copy into the input.
+                        key_close(window, cx);
                         state.update(cx, |st, cx| {
                             st.set_value(item_label.to_string());
                             cx.notify();
@@ -1745,10 +1822,14 @@ impl RenderOnce for ComboBox {
                         if key == "tab" {
                             key_blur.consume(cx);
                         }
+                        if selected_now.first() != Some(&item_key) {
+                            if let Some(cb) = &on_selection_change_all {
+                                cb(std::slice::from_ref(&item_key), window, cx);
+                            }
+                        }
                         if let Some(cb) = &on_selection_change {
                             cb(&item_key, window, cx);
                         }
-                        key_close(window, cx);
                     }
                     crate::list_nav::Move::Ignore => {}
                 }
@@ -1805,7 +1886,9 @@ impl RenderOnce for ComboBox {
                 .overflow_y_scroll()
                 // `overscroll-contain` upstream: a wheel over the popup must
                 // not scroll the page behind it (Select/ColorPicker pattern).
-                .occlude()
+                // A retained exit panel is visual-only and must not block the
+                // next pointer target behind its old bounds.
+                .when(overlay_phase == util::OverlayPhase::Open, |el| el.occlude())
                 .track_scroll(&panel_scroll_now)
                 // RAC caps the popover at the available viewport height
                 // (`calculatePosition`'s `getMaxHeight`); the positioner
@@ -1875,6 +1958,7 @@ impl RenderOnce for ComboBox {
             let rows = matches;
             let sections = self.sections.clone();
             let row_disabled_keys = self.disabled_keys.clone();
+            let row_read_only = self.is_read_only;
             let row_selected_keys = self.selected_keys.clone();
             let indicator: Option<Rc<dyn Fn(bool) -> gpui::AnyElement>> =
                 self.indicator.take().map(Rc::from);
@@ -1898,6 +1982,7 @@ impl RenderOnce for ComboBox {
             // `useOption` adds `aria-posinset`/`aria-setsize` only
             // `if (isVirtualized)`; `row_height` is what windows this list.
             let row_virtualized = self.row_height.is_some();
+            let panel_interactive = overlay_phase == util::OverlayPhase::Open;
             let row_count = rows.len();
             let row_padding_x = self.row_padding_x.unwrap_or(px(8.));
             let row_font_family = self.row_font_family.clone();
@@ -1936,6 +2021,8 @@ impl RenderOnce for ComboBox {
                 let item_disabled = row_disabled_keys.contains(item.key());
                 let hover_bg = row_hover_bg;
                 let row_selector = format!("combobox-{entity_id}-item-{}", item.key());
+                let row_selected = row_selected_keys.contains(item.key());
+                let has_indicator_slot = indicator.is_some() || (multiple && row_selected);
                 let mut row = div()
                         .id(element_id::scoped(&row_base, item.key().clone()))
                         // `useOption.mjs`: `role: 'option'` plus
@@ -1965,14 +2052,19 @@ impl RenderOnce for ComboBox {
                         .justify_between()
                         .text_size(util::FIELD_TEXT)
                         .line_height(px(20.))
-                        .child(item.label().to_string());
+                        // HeroUI's list-box item reserves `pe-7` whenever its
+                        // indicator slot is present; the indicator itself is
+                        // absolute at the inline end. Keeping it out of flex
+                        // flow prevents long labels from pushing the checkmark.
+                        .relative()
+                        .when(has_indicator_slot, |row| row.pr(px(28.)));
                 if let Some(family) = row_font_family.clone() {
                     row = row.font_family(family);
                 }
 
                 if item_disabled {
                     row = row.opacity(row_disabled_opacity);
-                } else {
+                } else if !row_read_only {
                     row = row
                         .cursor(util::interactive_cursor(cx))
                         .hover(move |s| s.bg(hover_bg));
@@ -1983,30 +2075,61 @@ impl RenderOnce for ComboBox {
                     row = row.border_2().border_color(row_focus);
                 }
 
+                // HeroUI's ListBox.Item does not add an ellipsis rule. Keep
+                // normal text flow in both natural and virtual rows; the
+                // caller owns the fixed row geometry when `row_height` is
+                // supplied, just as the upstream Virtualizer owns its
+                // `rowHeight` layout.
+                let label = div().flex_1().min_w_0().whitespace_normal();
+                row = row.child(label.child(item.label().to_string()));
+
                 // `ListBox.ItemIndicator`: a caller-drawn tick replaces the
                 // check glyph, and is asked for on every row so it can draw the
                 // unselected state too.
-                let row_selected = row_selected_keys.contains(item.key());
                 match &indicator {
-                    Some(render) => row = row.child(render(row_selected)),
+                    Some(render) => {
+                        row = row.child(
+                            div()
+                                .absolute()
+                                .top_0()
+                                .bottom_0()
+                                .right(px(8.))
+                                .w(px(16.))
+                                .flex()
+                                .items_center()
+                                .justify_center()
+                                .child(render(row_selected)),
+                        )
+                    }
                     None if multiple && row_selected => {
                         row = row.child(
-                            gpui::svg()
-                                .size(px(13.))
-                                .path(icons::CHECK)
-                                .text_color(row_accent),
+                            div()
+                                .absolute()
+                                .top_0()
+                                .bottom_0()
+                                .right(px(8.))
+                                .w(px(16.))
+                                .flex()
+                                .items_center()
+                                .justify_center()
+                                .child(
+                                    gpui::svg()
+                                        .size(px(13.))
+                                        .path(icons::CHECK)
+                                        .text_color(row_accent),
+                                ),
                         );
                     }
                     None => {}
                 }
 
-                if item_disabled {
+                if item_disabled || row_read_only {
                     return done(head, row.into_any_element());
                 }
 
                 // Multiple mode toggles membership and leaves the panel open.
                 if multiple {
-                    if on_change_all.is_some() || selection_own.is_some() {
+                    if panel_interactive && (on_change_all.is_some() || selection_own.is_some()) {
                         let cb = on_change_all.clone();
                         let own = selection_own.clone();
                         let current = row_selected_keys.clone();
@@ -2055,34 +2178,45 @@ impl RenderOnce for ComboBox {
                 let label = item.label().clone();
                 let state = row_state.clone();
                 let on_selection_change = on_change_one.clone();
+                let on_selection_change_all = on_change_all.clone();
+                let selection_changed = row_selected_keys.first() != Some(&value);
                 let own = selection_own.clone();
                 let open_own = row_open_own.clone();
                 let close_open = row_close_open.clone();
-                row = row.on_click(move |_, window, cx| {
-                    let is_open = open_own
-                        .as_ref()
-                        .map_or(row_open_state, |held| *held.read(cx));
-                    if !is_open {
-                        return;
-                    }
-                    state.update(cx, |s, cx| {
-                        s.set_value(label.to_string());
-                        cx.notify();
-                    });
-                    // Uncontrolled: record the pick in the selection too, or
-                    // `ComboBox.Value` would never see it.
-                    if let Some(held) = &own {
-                        let next = vec![value.clone()];
-                        held.update(cx, |v, cx| {
-                            *v = next;
+                if panel_interactive {
+                    row = row.on_click(move |_, window, cx| {
+                        let is_open = open_own
+                            .as_ref()
+                            .map_or(row_open_state, |held| *held.read(cx));
+                        if !is_open {
+                            return;
+                        }
+                        // Close first so the retained exit frame does not
+                        // re-run the custom filter for the selected label.
+                        close_open(window, cx);
+                        state.update(cx, |s, cx| {
+                            s.set_value(label.to_string());
                             cx.notify();
                         });
-                    }
-                    if let Some(cb) = &on_selection_change {
-                        cb(&value, window, cx);
-                    }
-                    close_open(window, cx);
-                });
+                        // Uncontrolled: record the pick in the selection too, or
+                        // `ComboBox.Value` would never see it.
+                        if let Some(held) = &own {
+                            let next = vec![value.clone()];
+                            held.update(cx, |v, cx| {
+                                *v = next;
+                                cx.notify();
+                            });
+                        }
+                        if selection_changed {
+                            if let Some(cb) = &on_selection_change_all {
+                                cb(std::slice::from_ref(&value), window, cx);
+                            }
+                        }
+                        if let Some(cb) = &on_selection_change {
+                            cb(&value, window, cx);
+                        }
+                    });
+                }
 
                 done(head, row.into_any_element())
             };
@@ -2120,21 +2254,41 @@ impl RenderOnce for ComboBox {
                 }
             }
 
-            let panel = crate::anim::entering_zoom(
-                panel,
-                element_id::scoped(&base_id, "anim"),
-                crate::anim::ZoomBox::panel(px(4.), container_radius).padding_x(px(4.)),
-                crate::anim::Motion::LIST_IN,
-                cx,
-            );
+            let (slide_x, slide_y) = crate::popover::placement_entry_offset(entry_placement);
+            let zoom = crate::anim::ZoomBox::panel(px(4.), container_radius).padding_x(px(4.));
+            let zoom = crate::anim::ZoomBox {
+                slide_x: (slide_x != 0.0).then(|| px(slide_x)),
+                slide_y: (slide_y != 0.0).then(|| px(slide_y)),
+                ..zoom
+            };
+            let panel = if overlay_phase == util::OverlayPhase::Exiting {
+                crate::anim::exiting(
+                    panel,
+                    element_id::scoped(&base_id, "anim-out"),
+                    zoom,
+                    crate::anim::Motion::LIST_OUT,
+                    cx,
+                )
+            } else {
+                crate::anim::entering_zoom(
+                    panel,
+                    element_id::scoped(&base_id, "anim"),
+                    zoom,
+                    crate::anim::Motion::LIST_IN,
+                    cx,
+                )
+            };
             // RAC positions the popover against the field with an 8px gap,
             // flips it when the other side has more room, and caps it at the
             // available viewport height past a 12px inset.
-            root = root.child(util::floating(crate::popover::scrollable_field_popover(
-                anchor_bounds,
-                self.placement,
-                panel,
-            )));
+            root = root.child(util::floating(
+                crate::popover::scrollable_field_popover_with_resolved_placement(
+                    anchor_bounds,
+                    self.placement,
+                    Some(resolved_placement),
+                    panel,
+                ),
+            ));
         }
 
         // The popover hangs off the field it belongs to, so the field — not

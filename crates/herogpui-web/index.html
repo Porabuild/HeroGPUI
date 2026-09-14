@@ -114,7 +114,13 @@
           .replace(/[?#].*$/, '')
           .replace(/index\.html$/, '')
           .replace(/\/?$/, '/');
-        return new URL(name, dir).href;
+        const url = new URL(name, dir);
+        // The docs iframe appends the checked-in WASM hash as `v`. Carry it
+        // onto both the glue module and the explicit WASM URL below so a
+        // deploy cannot reuse a cached artifact with a newer loader.
+        const version = new URLSearchParams(window.location.search).get('v');
+        if (version) url.searchParams.set('v', version);
+        return url.href;
       }
 
       // The host page's live appearance wins over the ?theme= query (the
@@ -186,10 +192,11 @@
         try {
           // Dynamic import: the URL form serving this page varies (see
           // assetUrl), so the module URL is computed at boot time.
+          const wasmUrl = assetUrl('herogpui_web_bg.wasm');
           const { default: init, run, set_preview_section, set_theme } = await import(
             assetUrl('herogpui_web.js')
           );
-          await init();
+          await init({ module_or_path: wasmUrl });
           wasmSetPreviewSection = set_preview_section;
           wasmSetTheme = set_theme;
           // `undefined` lets the wasm side resolve the page from the query

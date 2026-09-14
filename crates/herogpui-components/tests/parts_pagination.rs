@@ -70,6 +70,13 @@ use herogpui_components::Pagination;
 
 use harness::{click, events, open_host, press};
 
+#[test]
+fn active_page_publishes_accesskit_current_page_state() {
+    let source = include_str!("../src/pagination.rs");
+    assert!(source.contains("a11y_current(a11y::AriaCurrent::Page)"));
+    assert!(source.contains("when(active"));
+}
+
 #[gpui::test]
 fn link_render_prop_receives_active_page_and_keeps_it_pressable(cx: &mut TestAppContext) {
     let states = Rc::new(RefCell::new(HashMap::<usize, bool>::new()));

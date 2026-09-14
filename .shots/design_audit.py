@@ -632,7 +632,7 @@ CHECKS = [
      r'`\.toast__description` is `text-sm text-muted`\.[\s\S]{0,60}?\.text_size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('toast', '.toast__close-button', 'size', 'Toast close button',
      SRC + 'toast.rs',
-     r'`\.toast__close-button` is `size-5`[\s\S]{0,240}?\.size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+     r'`\.toast__close-button` is `absolute -end-1 -top-1 size-5`[\s\S]{0,800}?\.size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('date-picker', '.date-picker__popover', 'p', 'DatePicker popover padding',
      SRC + 'date_picker.rs',
      r'are `p-3`\.[\s\S]{0,60}?\.p\(px\((\d+(?:\.\d*)?)\.\)\)', None),
@@ -654,16 +654,16 @@ CHECKS = [
      lambda multiplier: min(32.0, RADIUS_BASE * float(multiplier))),
     ('input-otp', '.input-otp__slot-value', 'text', 'InputOTP digit text',
      SRC + 'input_otp.rs',
-     r'`\.input-otp__slot-value` is `text-lg[\s\S]{0,200}?\.text_size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+     r'`\.input-otp__slot-value` is `text-lg[\s\S]{0,800}?\.text_size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('input-otp', '.input-otp__caret', 'w', 'InputOTP caret width',
      SRC + 'input_otp.rs',
-     r'`\.input-otp__caret` is `h-4[\s\S]{0,200}?\.w\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+     r'`\.input-otp__caret` is `h-4[\s\S]{0,500}?\.w\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('input-otp', '.input-otp__caret', 'h', 'InputOTP caret height',
      SRC + 'input_otp.rs',
-     r'`\.input-otp__caret` is `h-4[\s\S]{0,240}?\.h\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+     r'`\.input-otp__caret` is `h-4[\s\S]{0,500}?\.h\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('input-otp', '.input-otp__caret', 'radius', 'InputOTP caret -> util::_radius',
      SRC + 'input_otp.rs',
-     r'`\.input-otp__caret` is `h-4[\s\S]{0,300}?\.rounded\(crate::util::(\w+_radius)', helper_px),
+     r'`\.input-otp__caret` is `h-4[\s\S]{0,650}?\.rounded\(crate::util::(\w+_radius)', helper_px),
     ('input-otp', '.input-otp__slot', 'radius', 'InputOTP slot -> field_radius',
      SRC + 'util.rs',
      r'pub fn (field_radius)', helper_px),
@@ -714,13 +714,13 @@ CHECKS = [
      r'[\s\S]{0,200}?\.line_height\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('switch', '.switch__content', 'text', 'Switch content text',
      SRC + 'switch.rs',
-     r'let mut el = gpui::div\(\)[\s\S]{0,120}?\.text_size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+     r'let mut el = gpui::div\(\)[\s\S]{0,500}?\.text_size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('switch', '.switch__label', 'text', 'Switch label text',
      SRC + 'switch.rs',
      r'`\.switch__label` is `text-base`[\s\S]{0,120}?\.text_size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('switch', '.switch__content', 'gap', 'Switch content gap',
      SRC + 'switch.rs',
-     r'`\.switch__content` is `gap-3`[\s\S]{0,300}?\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+     r'`\.switch__content` is `gap-3`[\s\S]{0,500}?\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('dropdown', '.dropdown__popover', 'min_w', 'Dropdown menu min width',
      SRC + 'dropdown.rs',
      '\\.min_w\\(self\\.panel_min_width\\.unwrap_or\\(px\\(([0-9.]+)\\)\\)\\)', None),
@@ -836,7 +836,7 @@ CHECKS = [
     ('alert', '.alert__description', 'text', 'Alert description text', SRC + 'alert.rs',
      r'`\.alert__description` is `text-sm`\.[\s\S]{0,40}?\.text_size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('accordion', '.accordion__indicator', 'size', 'Accordion indicator', SRC + 'accordion.rs',
-     r'`\.accordion__indicator` is `size-4`\.[\s\S]{0,40}?\.size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+     r'`\.accordion__indicator` is one `size-4` down-chevron[\s\S]{0,700}?\.size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('color-swatch-picker', '.color-swatch-picker', 'gap', 'ColorSwatchPicker gap',
      SRC + 'color_picker.rs',
      r'let mut row = div\(\)[\s\S]{0,200}?\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
@@ -1624,8 +1624,8 @@ CHECKS = [
      r'let track_cross = px\((\d+(?:\.\d*)?)\.\)', None),
     ('slider', '.slider__thumb', 'radius', 'Slider thumb -> small_radius',
      SRC + 'slider.rs',
-     r'thumb_el = match &self\.thumb[\s\S]{0,240}?'
-     r'\.rounded\(crate::util::(\w+_radius)\(cx\)\)', helper_px),
+     r'thumb_el = match &self\.thumb[\s\S]{0,800}?'
+     r'\.rounded\(crate::util::(small_radius)\(cx\)\)', helper_px),
     ('slider', '.slider[data-orientation="horizontal"] .slider__thumb', 'w',
      'Slider horizontal outer thumb width', SRC + 'slider.rs',
      r'let thumb_along = px\((\d+(?:\.\d*)?)\.\)', None),
@@ -1634,8 +1634,8 @@ CHECKS = [
      r'let thumb_along = px\((\d+(?:\.\d*)?)\.\)', None),
     ('slider', '.slider__thumb::after', 'radius', 'Slider inner thumb -> key_radius',
      SRC + 'slider.rs',
-     r'inner\.w\(px\(24\. \* scale\)\)\.h\(px\(16\. \* scale\)\)'
-     r'[\s\S]{0,120}?\.rounded\(crate::util::(\w+_radius)\(cx\)\)', helper_px),
+     r'let inner = gpui::div\(\)[\s\S]{0,180}?'
+     r'\.rounded\(crate::util::(\w+_radius)\(cx\)\)', helper_px),
     ('slider', '.slider[data-orientation="horizontal"] .slider__thumb::after', 'w',
      'Slider horizontal inner thumb width', SRC + 'slider.rs',
      r'inner\.w\(px\((\d+(?:\.\d*)?)\. \* scale\)\)\.h\(px\(16\. \* scale\)\)', None),
@@ -1902,8 +1902,8 @@ CHECKS = [
      'Year cell -> control_radius', SRC + 'calendar.rs',
      r'`h-8 px-2\.5[\s\S]{0,400}?\.rounded\(crate::util::(\w+_radius)\(cx\)\)', helper_px),
     ('calendar-year-picker', '.calendar-year-picker__trigger-indicator', 'text',
-     'Year trigger chevron (v3 sizes it with text-xs)', SRC + 'calendar.rs',
-     r'\.size\(px\((\d+(?:\.\d*)?)\.\)\)\s*\.path\(if open \{\s*icons::CHEVRON_UP', None),
+     'Year trigger chevron (single down asset, v3 text-xs)', SRC + 'calendar.rs',
+     r'\.size\(px\((\d+(?:\.\d*)?)\.\)\)\s*\.path\(icons::CHEVRON_DOWN\)', None),
 
     # --- what a Disclosure borrows from the Accordion -------------------------
     ('disclosure', '.disclosure__indicator', 'size', 'Disclosure indicator',
@@ -1920,8 +1920,9 @@ CHECKS = [
      r'\.gap\(px\((\d+(?:\.\d*)?)\.\)\)\s*\.children\(self\.items\)', None),
     ('table', '.table__sortable-column-indicator', 'size', 'Table sort chevron',
      SRC + 'table.rs',
-     r'None => gpui::svg\(\)\s*\.size\(px\((\d+(?:\.\d*)?)\.\)\)\s*'
-     r'\.path\(descriptor\.direction\.indicator\(\)\)', None),
+     r'None => \{[\s\S]{0,900}?rotating_indicator_with_duration[\s\S]{0,700}?'
+     r'gpui::svg\(\)\s*\.size\(px\((\d+(?:\.\d*)?)\.\)\)\s*'
+     r'\.path\(icons::CHEVRON_UP\)', None),
     ('pagination', '.pagination__link', 'text', 'Pagination link -> Size::text_size Md', CORE,
      r'text-base` ladder[\s\S]{0,400}?Size::Md => gpui::px\((\d+(?:\.\d*)?)\)', None),
 
@@ -1976,7 +1977,10 @@ CHECKS = [
      r'\.rounded\(px\((\d+(?:\.\d*)?)\.\)\)', None),
 
     ('toast', '.toast__close-button', 'border', 'Toast close button border', SRC + 'toast.rs',
-     r'`sm:border\s*//\s*border-border sm:bg-overlay`[\s\S]{0,200}?'
+     # The stable hit target owns focus/radius while the child `close_visual`
+     # owns the animated painted border. Keep this source window wide enough
+     # to span the interaction wiring between those two builders.
+     r'with `sm:border border-border sm:bg-overlay`[\s\S]{0,3200}?'
      r'\.border\(cx\.layout\(\)\.(border_width)\)', lambda _: 1.0),
 ]
 
@@ -3383,7 +3387,8 @@ def check_toggle_button_style_contract():
             render))),
         ('selected hover', 'colors.accent.soft_hover()' in render),
         ('default hover', 'colors.default.hover()' in render),
-        ('pressed fill', 'pressed_with_background(' in render and
+        ('pressed fill', ('pressed_with_background(' in render or
+         'pressed_with_background_ramp(' in render) and
          'el.active(move |style| style.bg(hover_bg))' in render),
         ('group focus offset', 'ring_if_focused(' in render and '!is_grouped,' in render),
     ]
@@ -3527,21 +3532,30 @@ def check_tabs_style_contract():
     )
     tab_css = tab.group(1) if tab else ''
     arrow_css = arrows.group(1) if arrows else ''
-    arrow_parts = src.split('let arrow =', 1)
+    arrow_parts = src.split('let mut arrow =', 1)
+    if len(arrow_parts) != 2:
+        arrow_parts = src.split('let arrow =', 1)
     arrow_src = arrow_parts[1].split('let container_radius', 1)[0] if len(arrow_parts) == 2 else ''
     layout_src = read_path(LAYOUT, errors='replace')
     hover_default = tabs_token_default(layout_src)
     masked = mask_comments(mask_literals(src))
-    primary_tab_hover = 'tab.hover(move |s| s.opacity(tabs_hover_opacity))' in masked
-    secondary_tab_hover = 'tab.hover(move |tab| tab.opacity(tabs_hover_opacity))' in masked
+    hover_fade_count = masked.count('crate::anim::hover_fade(')
+    primary_tab_hover = hover_fade_count >= 2 and 'tab_overlay' in masked
+    secondary_tab_hover = hover_fade_count >= 2 and 'tab_overlay' in masked
     binding = tabs_token_binding(src)
     checks = [
         ('tab hover opacity', 'opacity-70' in tab_css and primary_tab_hover
          and secondary_tab_hover and binding and hover_default == 0.7),
+        ('shared scroll shadow',
+         'crate::scroll_shadow::ScrollShadow::new' in masked
+         and '.size(px(64.))' in masked
+         and '.hide_scroll_bar(true)' in masked
+         and '.scroll_handle(scroll.clone())' in masked
+         and '.fill_axis(true)' in masked),
         ('chevron transparent fill', bool(arrow_src) and
-         'bg-transparent' in arrow_css and '.bg(' not in arrow_src),
+         'bg-transparent' in arrow_css and '.alpha(0.0)' in arrow_src),
         ('chevron hover opacity', 'opacity-70' in arrow_css and binding and
-         '.hover(move |arrow| arrow.opacity(tabs_hover_opacity))' in arrow_src
+         'crate::anim::hover_fade(' in arrow_src
          and hover_default == 0.7),
     ]
     print()

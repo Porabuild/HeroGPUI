@@ -456,7 +456,7 @@ impl RenderOnce for RadioGroup {
         }
 
         let reset_own = own.clone();
-        let reset_state = self.form_state.clone();
+        let reset_state = Rc::downgrade(&self.form_state);
         let reset_change = self.is_controlled.then(|| self.on_change.clone()).flatten();
         let reset_index = self.default_value;
         let reset_value = reset_index
@@ -466,8 +466,10 @@ impl RenderOnce for RadioGroup {
         self.form_state.borrow_mut().restore = (reset_own.is_some() || reset_change.is_some())
             .then(|| {
                 crate::util::shared(move |window: &mut Window, cx: &mut App| {
-                    reset_state.borrow_mut().value =
-                        crate::form::FormValue::Text(reset_value.clone());
+                    if let Some(state) = reset_state.upgrade() {
+                        state.borrow_mut().value =
+                            crate::form::FormValue::Text(reset_value.clone());
+                    }
                     if let Some(held) = &reset_own {
                         held.update(cx, |selected, cx| {
                             *selected = reset_index;
@@ -599,7 +601,7 @@ impl RenderOnce for RadioGroup {
             // affordance, no click handler and no place in the tab order or
             // the arrow navigation.
             let row_disabled = self.is_disabled || option.is_disabled;
-            let (_, is_pressed) = interaction
+            let (is_hovered, is_pressed) = interaction
                 .get(i)
                 .map(|slot| *slot.read(cx))
                 .unwrap_or_default();
@@ -610,10 +612,14 @@ impl RenderOnce for RadioGroup {
                 is_invalid: option_invalid,
                 is_required: self.is_required,
             };
-            // `.radio__control` has no border (`--field-border-width: 0`); it is
-            // a filled square. Unselected it is `bg-field` plus `shadow-field`;
-            // selected it fills with `bg-accent` and the indicator shrinks to a
-            // 6px `bg-accent-foreground` dot (`scale: 0.4286` of 16px).
+            // `.radio__control` uses the field border width and shadow from the
+            // active theme. Unselected hover changes its fill; selected hover
+            // keeps `bg-accent` and only changes the border, matching
+            // `radio.css` where `bg-accent-hover` is reserved for press.
+            let hover_bg = match self.variant {
+                FieldVariant::Primary => colors.field.hover(),
+                FieldVariant::Secondary => colors.default.hover(),
+            };
             let mut circle_el = gpui::div()
                 .id(element_id::scoped(
                     &element_id::indexed(&id_prefix, "opt", i),
@@ -625,7 +631,21 @@ impl RenderOnce for RadioGroup {
                 .size(circle)
                 .rounded(control_radius)
                 .flex_shrink_0()
+                .border(layout.field_border_width)
+                // HeroUI removes the field border from the selected control;
+                // the accent fill owns that edge. An enabled custom theme can
+                // expose a nonzero field border, so keep the selected state
+                // transparent instead of letting the base border show through.
+                .border_color(if is_selected {
+                    gpui::transparent_black()
+                } else {
+                    colors.field.border
+                })
                 .bg(if is_selected { sem.color } else { control_bg })
+                .when(is_hovered && !row_disabled, |el| {
+                    el.border_color(colors.field.border_hover())
+                        .when(!is_selected, |el| el.bg(hover_bg))
+                })
                 .when_some(control_shadow.clone(), |el, shadows| el.shadow(shadows));
 
             if let Some(render) = &self.indicator {
@@ -878,10 +898,9 @@ impl RenderOnce for RadioGroup {
             root = root.child(crate::field::Description::new(description.clone()));
         }
         root = root.child(group);
-        if is_invalid {
-            if let Some(message) = &self.error_message {
-                root = root.child(crate::field::ErrorMessage::new(message.clone()));
-            }
+        let error = is_invalid.then(|| self.error_message.clone()).flatten();
+        if let Some(error) = crate::anim::field_error_panel(&self.id, error, window, cx) {
+            root = root.child(error);
         }
         root = crate::util::apply_sx(root, &self.sx);
         root
@@ -929,6 +948,21 @@ mod tests {
             std::sync::Arc::ptr_eq(&walk, &stops) && std::sync::Arc::ptr_eq(&list, &values),
             "Arc clones of the walk and value lists must share pointer identity"
         );
+    }
+
+    #[test]
+    fn hover_background_respects_selection_and_variant() {
+        let source = include_str!("radio_group.rs")
+            .split("#[cfg(test)]")
+            .next()
+            .expect("the implementation section is always present");
+        assert!(source.contains("let hover_bg = match self.variant"));
+        assert!(source.contains("FieldVariant::Primary => colors.field.hover()"));
+        assert!(source.contains("FieldVariant::Secondary => colors.default.hover()"));
+        assert!(source.contains(".when(is_hovered && !row_disabled"));
+        assert!(source.contains(".when(!is_selected, |el| el.bg(hover_bg))"));
+        assert!(source.contains("colors.field.border_hover()"));
+        assert!(source.contains("if is_selected {\n                    gpui::transparent_black()"));
     }
 }
 

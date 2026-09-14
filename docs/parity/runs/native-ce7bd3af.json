@@ -1,0 +1,551 @@
+{
+  "schema_version": 1,
+  "native_binary_sha256": "ce7bd3af7f37bd3776a2961b7200c1337576ea0b285d09d4901ddcf31d5071c9",
+  "platform": "macOS arm64",
+  "route_list": ".shots/smoke.ps1",
+  "route_list_sha256": "6f6ead64d96da895fdcf3f0aae38863bdf0a518c8604c39db7501d6d5073a9cd",
+  "accessibility": "Activated by CUA on the full Accordion page before the sweep; retained on the same native window during root resets.",
+  "request_options": {
+    "reset": true,
+    "preview": "gallery",
+    "theme": "light",
+    "motion": "reduce",
+    "overlays": false
+  },
+  "assertion": "Every requested route returned its matching frame acknowledgement while the native process remained alive.",
+  "coverage_limit": "Default route smoke. Does not certify individual variants, interactions or visual parity.",
+  "routes": [
+    {
+      "page": "All Components",
+      "seq": "all-identity-routes-1",
+      "result": "ack",
+      "detail": "all-identity-routes-1",
+      "elapsed": 0.256
+    },
+    {
+      "page": "Releases",
+      "seq": "all-identity-routes-2",
+      "result": "ack",
+      "detail": "all-identity-routes-2",
+      "elapsed": 0.26
+    },
+    {
+      "page": "v0.1.0",
+      "seq": "all-identity-routes-3",
+      "result": "ack",
+      "detail": "all-identity-routes-3",
+      "elapsed": 0.392
+    },
+    {
+      "page": "Introduction",
+      "seq": "all-identity-routes-4",
+      "result": "ack",
+      "detail": "all-identity-routes-4",
+      "elapsed": 0.24
+    },
+    {
+      "page": "Installation",
+      "seq": "all-identity-routes-5",
+      "result": "ack",
+      "detail": "all-identity-routes-5",
+      "elapsed": 0.332
+    },
+    {
+      "page": "Theming",
+      "seq": "all-identity-routes-6",
+      "result": "ack",
+      "detail": "all-identity-routes-6",
+      "elapsed": 0.422
+    },
+    {
+      "page": "Dark Mode",
+      "seq": "all-identity-routes-7",
+      "result": "ack",
+      "detail": "all-identity-routes-7",
+      "elapsed": 0.158
+    },
+    {
+      "page": "Customization",
+      "seq": "all-identity-routes-8",
+      "result": "ack",
+      "detail": "all-identity-routes-8",
+      "elapsed": 0.311
+    },
+    {
+      "page": "Styling",
+      "seq": "all-identity-routes-9",
+      "result": "ack",
+      "detail": "all-identity-routes-9",
+      "elapsed": 0.358
+    },
+    {
+      "page": "Design Principles",
+      "seq": "all-identity-routes-10",
+      "result": "ack",
+      "detail": "all-identity-routes-10",
+      "elapsed": 0.45
+    },
+    {
+      "page": "Button",
+      "seq": "all-identity-routes-11",
+      "result": "ack",
+      "detail": "all-identity-routes-11",
+      "elapsed": 0.277
+    },
+    {
+      "page": "Button Group",
+      "seq": "all-identity-routes-12",
+      "result": "ack",
+      "detail": "all-identity-routes-12",
+      "elapsed": 0.312
+    },
+    {
+      "page": "Close Button",
+      "seq": "all-identity-routes-13",
+      "result": "ack",
+      "detail": "all-identity-routes-13",
+      "elapsed": 0.326
+    },
+    {
+      "page": "Toggle Button",
+      "seq": "all-identity-routes-14",
+      "result": "ack",
+      "detail": "all-identity-routes-14",
+      "elapsed": 0.395
+    },
+    {
+      "page": "Dropdown",
+      "seq": "all-identity-routes-15",
+      "result": "ack",
+      "detail": "all-identity-routes-15",
+      "elapsed": 0.391
+    },
+    {
+      "page": "List Box",
+      "seq": "all-identity-routes-16",
+      "result": "ack",
+      "detail": "all-identity-routes-16",
+      "elapsed": 0.331
+    },
+    {
+      "page": "Tag Group",
+      "seq": "all-identity-routes-17",
+      "result": "ack",
+      "detail": "all-identity-routes-17",
+      "elapsed": 0.413
+    },
+    {
+      "page": "Color Area",
+      "seq": "all-identity-routes-18",
+      "result": "ack",
+      "detail": "all-identity-routes-18",
+      "elapsed": 0.325
+    },
+    {
+      "page": "Color Field",
+      "seq": "all-identity-routes-19",
+      "result": "ack",
+      "detail": "all-identity-routes-19",
+      "elapsed": 0.408
+    },
+    {
+      "page": "Color Picker",
+      "seq": "all-identity-routes-20",
+      "result": "ack",
+      "detail": "all-identity-routes-20",
+      "elapsed": 0.353
+    },
+    {
+      "page": "Color Slider",
+      "seq": "all-identity-routes-21",
+      "result": "ack",
+      "detail": "all-identity-routes-21",
+      "elapsed": 0.261
+    },
+    {
+      "page": "Color Swatch",
+      "seq": "all-identity-routes-22",
+      "result": "ack",
+      "detail": "all-identity-routes-22",
+      "elapsed": 0.437
+    },
+    {
+      "page": "Color Swatch Picker",
+      "seq": "all-identity-routes-23",
+      "result": "ack",
+      "detail": "all-identity-routes-23",
+      "elapsed": 0.308
+    },
+    {
+      "page": "Slider",
+      "seq": "all-identity-routes-24",
+      "result": "ack",
+      "detail": "all-identity-routes-24",
+      "elapsed": 0.287
+    },
+    {
+      "page": "Switch",
+      "seq": "all-identity-routes-25",
+      "result": "ack",
+      "detail": "all-identity-routes-25",
+      "elapsed": 0.346
+    },
+    {
+      "page": "Badge",
+      "seq": "all-identity-routes-26",
+      "result": "ack",
+      "detail": "all-identity-routes-26",
+      "elapsed": 0.257
+    },
+    {
+      "page": "Chip",
+      "seq": "all-identity-routes-27",
+      "result": "ack",
+      "detail": "all-identity-routes-27",
+      "elapsed": 0.398
+    },
+    {
+      "page": "Table",
+      "seq": "all-identity-routes-28",
+      "result": "ack",
+      "detail": "all-identity-routes-28",
+      "elapsed": 0.303
+    },
+    {
+      "page": "Calendar",
+      "seq": "all-identity-routes-29",
+      "result": "ack",
+      "detail": "all-identity-routes-29",
+      "elapsed": 0.368
+    },
+    {
+      "page": "Date Field",
+      "seq": "all-identity-routes-30",
+      "result": "ack",
+      "detail": "all-identity-routes-30",
+      "elapsed": 0.25
+    },
+    {
+      "page": "Date Picker",
+      "seq": "all-identity-routes-31",
+      "result": "ack",
+      "detail": "all-identity-routes-31",
+      "elapsed": 0.263
+    },
+    {
+      "page": "Date Range Picker",
+      "seq": "all-identity-routes-32",
+      "result": "ack",
+      "detail": "all-identity-routes-32",
+      "elapsed": 0.385
+    },
+    {
+      "page": "Range Calendar",
+      "seq": "all-identity-routes-33",
+      "result": "ack",
+      "detail": "all-identity-routes-33",
+      "elapsed": 0.257
+    },
+    {
+      "page": "Time Field",
+      "seq": "all-identity-routes-34",
+      "result": "ack",
+      "detail": "all-identity-routes-34",
+      "elapsed": 0.394
+    },
+    {
+      "page": "Alert",
+      "seq": "all-identity-routes-35",
+      "result": "ack",
+      "detail": "all-identity-routes-35",
+      "elapsed": 0.383
+    },
+    {
+      "page": "Meter",
+      "seq": "all-identity-routes-36",
+      "result": "ack",
+      "detail": "all-identity-routes-36",
+      "elapsed": 0.375
+    },
+    {
+      "page": "Progress Bar",
+      "seq": "all-identity-routes-37",
+      "result": "ack",
+      "detail": "all-identity-routes-37",
+      "elapsed": 0.457
+    },
+    {
+      "page": "Progress Circle",
+      "seq": "all-identity-routes-38",
+      "result": "ack",
+      "detail": "all-identity-routes-38",
+      "elapsed": 0.248
+    },
+    {
+      "page": "Skeleton",
+      "seq": "all-identity-routes-39",
+      "result": "ack",
+      "detail": "all-identity-routes-39",
+      "elapsed": 0.266
+    },
+    {
+      "page": "Spinner",
+      "seq": "all-identity-routes-40",
+      "result": "ack",
+      "detail": "all-identity-routes-40",
+      "elapsed": 0.25
+    },
+    {
+      "page": "Checkbox",
+      "seq": "all-identity-routes-41",
+      "result": "ack",
+      "detail": "all-identity-routes-41",
+      "elapsed": 0.362
+    },
+    {
+      "page": "Checkbox Group",
+      "seq": "all-identity-routes-42",
+      "result": "ack",
+      "detail": "all-identity-routes-42",
+      "elapsed": 0.407
+    },
+    {
+      "page": "Fieldset",
+      "seq": "all-identity-routes-43",
+      "result": "ack",
+      "detail": "all-identity-routes-43",
+      "elapsed": 0.149
+    },
+    {
+      "page": "Label & Messages",
+      "seq": "all-identity-routes-44",
+      "result": "ack",
+      "detail": "all-identity-routes-44",
+      "elapsed": 0.335
+    },
+    {
+      "page": "Form",
+      "seq": "all-identity-routes-45",
+      "result": "ack",
+      "detail": "all-identity-routes-45",
+      "elapsed": 0.234
+    },
+    {
+      "page": "Input",
+      "seq": "all-identity-routes-46",
+      "result": "ack",
+      "detail": "all-identity-routes-46",
+      "elapsed": 0.474
+    },
+    {
+      "page": "Input Group",
+      "seq": "all-identity-routes-47",
+      "result": "ack",
+      "detail": "all-identity-routes-47",
+      "elapsed": 0.229
+    },
+    {
+      "page": "Input OTP",
+      "seq": "all-identity-routes-48",
+      "result": "ack",
+      "detail": "all-identity-routes-48",
+      "elapsed": 0.277
+    },
+    {
+      "page": "Number Field",
+      "seq": "all-identity-routes-49",
+      "result": "ack",
+      "detail": "all-identity-routes-49",
+      "elapsed": 0.436
+    },
+    {
+      "page": "Radio Group",
+      "seq": "all-identity-routes-50",
+      "result": "ack",
+      "detail": "all-identity-routes-50",
+      "elapsed": 0.164
+    },
+    {
+      "page": "Search Field",
+      "seq": "all-identity-routes-51",
+      "result": "ack",
+      "detail": "all-identity-routes-51",
+      "elapsed": 0.293
+    },
+    {
+      "page": "Text Area",
+      "seq": "all-identity-routes-52",
+      "result": "ack",
+      "detail": "all-identity-routes-52",
+      "elapsed": 0.552
+    },
+    {
+      "page": "Text Field",
+      "seq": "all-identity-routes-53",
+      "result": "ack",
+      "detail": "all-identity-routes-53",
+      "elapsed": 0.326
+    },
+    {
+      "page": "Card",
+      "seq": "all-identity-routes-54",
+      "result": "ack",
+      "detail": "all-identity-routes-54",
+      "elapsed": 0.368
+    },
+    {
+      "page": "Separator",
+      "seq": "all-identity-routes-55",
+      "result": "ack",
+      "detail": "all-identity-routes-55",
+      "elapsed": 0.235
+    },
+    {
+      "page": "Surface",
+      "seq": "all-identity-routes-56",
+      "result": "ack",
+      "detail": "all-identity-routes-56",
+      "elapsed": 0.266
+    },
+    {
+      "page": "Toolbar",
+      "seq": "all-identity-routes-57",
+      "result": "ack",
+      "detail": "all-identity-routes-57",
+      "elapsed": 0.559
+    },
+    {
+      "page": "Avatar",
+      "seq": "all-identity-routes-58",
+      "result": "ack",
+      "detail": "all-identity-routes-58",
+      "elapsed": 0.269
+    },
+    {
+      "page": "Accordion",
+      "seq": "all-identity-routes-59",
+      "result": "ack",
+      "detail": "all-identity-routes-59",
+      "elapsed": 0.256
+    },
+    {
+      "page": "Breadcrumbs",
+      "seq": "all-identity-routes-60",
+      "result": "ack",
+      "detail": "all-identity-routes-60",
+      "elapsed": 0.366
+    },
+    {
+      "page": "Disclosure",
+      "seq": "all-identity-routes-61",
+      "result": "ack",
+      "detail": "all-identity-routes-61",
+      "elapsed": 0.441
+    },
+    {
+      "page": "Link",
+      "seq": "all-identity-routes-62",
+      "result": "ack",
+      "detail": "all-identity-routes-62",
+      "elapsed": 0.275
+    },
+    {
+      "page": "Pagination",
+      "seq": "all-identity-routes-63",
+      "result": "ack",
+      "detail": "all-identity-routes-63",
+      "elapsed": 0.295
+    },
+    {
+      "page": "Tabs",
+      "seq": "all-identity-routes-64",
+      "result": "ack",
+      "detail": "all-identity-routes-64",
+      "elapsed": 0.318
+    },
+    {
+      "page": "Alert Dialog",
+      "seq": "all-identity-routes-65",
+      "result": "ack",
+      "detail": "all-identity-routes-65",
+      "elapsed": 0.312
+    },
+    {
+      "page": "Drawer",
+      "seq": "all-identity-routes-66",
+      "result": "ack",
+      "detail": "all-identity-routes-66",
+      "elapsed": 0.4
+    },
+    {
+      "page": "Modal",
+      "seq": "all-identity-routes-67",
+      "result": "ack",
+      "detail": "all-identity-routes-67",
+      "elapsed": 0.384
+    },
+    {
+      "page": "Popover",
+      "seq": "all-identity-routes-68",
+      "result": "ack",
+      "detail": "all-identity-routes-68",
+      "elapsed": 0.353
+    },
+    {
+      "page": "Toast",
+      "seq": "all-identity-routes-69",
+      "result": "ack",
+      "detail": "all-identity-routes-69",
+      "elapsed": 0.401
+    },
+    {
+      "page": "Tooltip",
+      "seq": "all-identity-routes-70",
+      "result": "ack",
+      "detail": "all-identity-routes-70",
+      "elapsed": 0.401
+    },
+    {
+      "page": "Autocomplete",
+      "seq": "all-identity-routes-71",
+      "result": "ack",
+      "detail": "all-identity-routes-71",
+      "elapsed": 0.45
+    },
+    {
+      "page": "Combo Box",
+      "seq": "all-identity-routes-72",
+      "result": "ack",
+      "detail": "all-identity-routes-72",
+      "elapsed": 0.429
+    },
+    {
+      "page": "Select",
+      "seq": "all-identity-routes-73",
+      "result": "ack",
+      "detail": "all-identity-routes-73",
+      "elapsed": 0.165
+    },
+    {
+      "page": "Kbd",
+      "seq": "all-identity-routes-74",
+      "result": "ack",
+      "detail": "all-identity-routes-74",
+      "elapsed": 0.27
+    },
+    {
+      "page": "Typography",
+      "seq": "all-identity-routes-75",
+      "result": "ack",
+      "detail": "all-identity-routes-75",
+      "elapsed": 0.372
+    },
+    {
+      "page": "Scroll Shadow",
+      "seq": "all-identity-routes-76",
+      "result": "ack",
+      "detail": "all-identity-routes-76",
+      "elapsed": 0.274
+    }
+  ]
+}

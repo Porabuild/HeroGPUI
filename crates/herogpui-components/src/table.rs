@@ -69,13 +69,6 @@ impl SortDirection {
             SortDirection::Descending => SortDirection::Ascending,
         }
     }
-
-    fn indicator(self) -> &'static str {
-        match self {
-            SortDirection::Ascending => icons::CHEVRON_UP,
-            SortDirection::Descending => icons::CHEVRON_DOWN,
-        }
-    }
 }
 
 type Indicator = std::sync::Arc<dyn Fn(SortDirection) -> AnyElement + 'static>;
@@ -506,6 +499,97 @@ fn shift_home_end_extends(key_name: &str, control: bool, macos: bool) -> bool {
 /// fraction of the *whole* row cannot account for the fixed columns.
 fn flex_cell(el: gpui::Div) -> gpui::Div {
     el.flex_basis(px(0.)).flex_1()
+}
+
+/// The pinned table stylesheet replaces the tree column's start padding with
+/// one `1rem` step for every 1-based row level. `flatten_tree` stores the root
+/// at depth zero, so a root keeps the regular 16px cell padding and a child at
+/// depth `d` resolves to `16px * (d + 1)`. Keeping this in one helper avoids
+/// the intrinsic-width probe and the painted cell drifting apart at deeper
+/// levels.
+fn tree_column_padding(depth: usize) -> Option<Pixels> {
+    (depth > 0).then(|| px(16. * (depth as f32 + 1.)))
+}
+
+/// The horizontal extent of the direct children that a cell lays out. GPUI
+/// reports absolute child bounds, so taking their union keeps a label and a
+/// sort indicator together while ignoring an empty cell. One-pixel separator
+/// overlays are deliberately excluded; they are decorative and must not turn
+/// into a column's intrinsic width.
+fn intrinsic_children_width(bounds: &[gpui::Bounds<Pixels>]) -> f32 {
+    let mut left = f32::MAX;
+    let mut right = f32::MIN;
+    for bound in bounds.iter().filter(|bound| bound.size.width > px(2.)) {
+        left = left.min(f32::from(bound.origin.x));
+        right = right.max(f32::from(bound.origin.x + bound.size.width));
+    }
+    if left == f32::MAX {
+        0.0
+    } else {
+        (right - left).max(0.0)
+    }
+}
+
+/// Paints the split inset ring HeroUI uses for a focused row cell.
+///
+/// A single rounded overlay on the row makes the focus geometry look plausible
+/// until a cell has its own clipping/background: the outer corners and the
+/// shared vertical edges then bleed into neighboring cells. Keeping the four
+/// strips on each cell reproduces the stylesheet's first/middle/last cases
+/// without changing cell layout or intercepting the row's click handler.
+fn table_cell_focus_ring(cx: &App, first: bool, last: bool) -> gpui::Div {
+    let color = cx.colors().focus;
+    let radius = crate::util::key_radius(cx);
+    let mut top = gpui::div()
+        .absolute()
+        .top_0()
+        .left_0()
+        .right_0()
+        .h(px(2.))
+        .bg(color);
+    let mut bottom = gpui::div()
+        .absolute()
+        .bottom_0()
+        .left_0()
+        .right_0()
+        .h(px(2.))
+        .bg(color);
+    if first {
+        top = top.rounded_tl(radius);
+        bottom = bottom.rounded_bl(radius);
+    }
+    if last {
+        top = top.rounded_tr(radius);
+        bottom = bottom.rounded_br(radius);
+    }
+    let mut ring = gpui::div().absolute().inset_0().child(top).child(bottom);
+    if first {
+        ring = ring.child(
+            gpui::div()
+                .absolute()
+                .top_0()
+                .bottom_0()
+                .left_0()
+                .w(px(2.))
+                .rounded_tl(radius)
+                .rounded_bl(radius)
+                .bg(color),
+        );
+    }
+    if last {
+        ring = ring.child(
+            gpui::div()
+                .absolute()
+                .top_0()
+                .bottom_0()
+                .right_0()
+                .w(px(2.))
+                .rounded_tr(radius)
+                .rounded_br(radius)
+                .bg(color),
+        );
+    }
+    ring
 }
 
 /// HeroUI Table.
@@ -1428,20 +1512,32 @@ impl RenderOnce for Table {
             .iter()
             .enumerate()
             .map(|(column_index, column)| {
+                let measured = measured_widths_now.get(column_index).copied().flatten();
                 if column.allows_resizing {
                     if effective_widths[column_index].is_some() {
                         (None, None)
                     } else {
-                        (Some(px(resize_limits[column_index].0)), column.max_width)
+                        let min = measured.map_or(resize_limits[column_index].0, |width| {
+                            resize_limits[column_index].0.max(f32::from(width))
+                        });
+                        (Some(px(min)), column.max_width)
                     }
                 } else {
-                    (column.min_width, column.max_width)
+                    let min = match (column.min_width, measured) {
+                        (Some(configured), Some(content)) => {
+                            Some(px(f32::from(configured).max(f32::from(content))))
+                        }
+                        (Some(configured), None) => Some(configured),
+                        (None, Some(content)) => Some(content),
+                        (None, None) => None,
+                    };
+                    (min, column.max_width)
                 }
             })
             .collect();
         let resize_columns = std::sync::Arc::new(self.columns.clone());
         let resize_measurements = std::sync::Arc::new(measured_widths_now.clone());
-        let colors = cx.colors();
+        let colors = cx.colors().clone();
         // Copies of the tokens the tail needs: the row builder borrows `cx`
         // mutably, which ends the borrow `cx.colors()` holds.
         let muted = colors.muted;
@@ -1603,8 +1699,16 @@ impl RenderOnce for Table {
                 .flex()
                 .items_center()
                 .justify_center()
+                .relative()
                 .w(px(44.))
                 .py(px(10.));
+            if secondary {
+                let radius = cx.layout().radius_2xl().min(px(32.));
+                cell = cell
+                    .bg(colors.surface_secondary)
+                    .rounded_tl(radius)
+                    .rounded_bl(radius);
+            }
             if self.selection_mode == SelectionMode::Multiple {
                 // The `Mod+A` keydown handler reads the same set, so it gets a
                 // clone rather than the variable itself.
@@ -1662,6 +1766,8 @@ impl RenderOnce for Table {
             // A resized column keeps the width the drag left it at.
             let effective = effective_widths[column_index];
             let (layout_min, layout_max) = layout_width_bounds[column_index];
+            let first_header = column_index == 0 && !selectable;
+            let last_header = column_index + 1 == self.columns.len();
             let mut cell = gpui::div()
                 .when(effective.is_none(), flex_cell)
                 .when_some(effective, |c, w| c.w(w))
@@ -1676,12 +1782,46 @@ impl RenderOnce for Table {
                 .text_size(px(12.))
                 .line_height(px(16.))
                 .font_weight(gpui::FontWeight::MEDIUM)
+                .when(column.allows_sorting, |c| c.w_full().justify_between())
                 .text_color(if sorted.is_some() {
                     colors.foreground
                 } else {
                     colors.muted
                 })
-                .child(column.label.clone());
+                .relative();
+            if !column.allows_resizing {
+                let measurements = measured_widths.clone();
+                cell = cell.on_children_prepainted(move |bounds, _, cx| {
+                    let content = intrinsic_children_width(&bounds);
+                    if content <= 0. {
+                        return;
+                    }
+                    let next = px(content + 32.);
+                    measurements.update(cx, |values, cx| {
+                        if values.len() <= column_index {
+                            values.resize(column_index + 1, None);
+                        }
+                        if values[column_index].map_or(true, |current| next > current) {
+                            values[column_index] = Some(next);
+                            cx.notify();
+                        }
+                    });
+                });
+            }
+            cell = cell.child(column.label.clone());
+            let header_selector = format!("table-header-track-{column_index}");
+            cell = cell.debug_selector(move || header_selector.clone());
+
+            if secondary {
+                let radius = cx.layout().radius_2xl().min(px(32.));
+                cell = cell.bg(colors.surface_secondary);
+                if first_header {
+                    cell = cell.rounded_tl(radius).rounded_bl(radius);
+                }
+                if last_header {
+                    cell = cell.rounded_tr(radius).rounded_br(radius);
+                }
+            }
 
             if let Some(descriptor) = sorted {
                 if self.show_indicator {
@@ -1690,14 +1830,40 @@ impl RenderOnce for Table {
                     // the column is sorted in and replaces the chevron.
                     cell = cell.child(match &self.indicator {
                         Some(render) => render(descriptor.direction),
-                        None => gpui::svg()
-                            .size(px(12.))
-                            .path(descriptor.direction.indicator())
-                            // svg() never inherits text colour.
-                            .text_color(colors.foreground)
-                            .into_any_element(),
+                        None => {
+                            let indicator_id = element_id::indexed(
+                                &element_id::scoped(&base_id, "sort-indicator"),
+                                "column",
+                                column_index,
+                            );
+                            crate::anim::rotating_indicator_with_duration(
+                                &indicator_id,
+                                descriptor.direction == SortDirection::Descending,
+                                gpui::svg()
+                                    .size(px(12.))
+                                    .path(icons::CHEVRON_UP)
+                                    // svg() never inherits text colour.
+                                    .text_color(colors.foreground),
+                                100,
+                                window,
+                                cx,
+                            )
+                        }
                     });
                 }
+            }
+
+            if !last_header && !column.allows_resizing {
+                cell = cell.child(
+                    gpui::div()
+                        .absolute()
+                        .right_0()
+                        .top(px(10.))
+                        .h(px(16.))
+                        .w(px(1.))
+                        .rounded(crate::util::hairline_radius(cx))
+                        .bg(colors.separator),
+                );
             }
 
             // A sortable header wraps the cell in a click target, which is a
@@ -2288,6 +2454,12 @@ impl RenderOnce for Table {
         let table_id = self.id.clone();
         let ctx = std::rc::Rc::new(RowCtx {
             id: base_id.clone(),
+            measured_widths: measured_widths.clone(),
+            measure_intrinsic: self
+                .columns
+                .iter()
+                .map(|column| !column.allows_resizing)
+                .collect(),
             widths: self
                 .columns
                 .iter()
@@ -2320,6 +2492,7 @@ impl RenderOnce for Table {
             cursor: cursor_at,
             secondary,
             row_hover_bg: self.row_hover_bg,
+            hover_group_prefix: table_id.clone(),
             virtualized: virtual_projection.is_some(),
             is_tree,
         });
@@ -3212,6 +3385,11 @@ struct RowCtx {
     /// The table's id, so one table's row ids cannot collide with another's.
     /// Every row part is scoped off it.
     id: gpui::ElementId,
+    /// Intrinsic content widths for non-resizable columns. The table uses
+    /// these as shared minimum tracks so a long body cell cannot make its row
+    /// disagree with the header or its siblings.
+    measured_widths: gpui::Entity<Vec<Option<Pixels>>>,
+    measure_intrinsic: Vec<bool>,
     /// `(defaultWidth or the resize, minWidth, maxWidth)` per column.
     widths: Vec<(Option<Pixels>, Option<Pixels>, Option<Pixels>)>,
     row_header_columns: Vec<bool>,
@@ -3238,6 +3416,10 @@ struct RowCtx {
     /// The caller's unselected-row hover fill, when one was named. Selected
     /// rows keep their selection fill regardless.
     row_hover_bg: Option<gpui::Hsla>,
+    /// Prefix for per-row hover groups. HeroUI paints hover and selected
+    /// surfaces on each cell, allowing the cell's radius/clip to own the
+    /// resulting geometry instead of leaking a row-level fill through gaps.
+    hover_group_prefix: SharedString,
     /// Whether the collection is windowed, which is the guard upstream puts
     /// `aria-rowindex` behind (`.../grid/useGridRow.mjs`).
     virtualized: bool,
@@ -3273,6 +3455,16 @@ impl RowCtx {
         let is_selected = self.selected_keys.contains(&key);
         let is_disabled = self.disabled_keys.contains(&key);
         let row_header_columns = &self.row_header_columns;
+        let selected_bg = is_selected.then(|| colors.surface.background.alpha(0.1));
+        let hover_bg = (!is_selected && !is_disabled).then(|| {
+            self.row_hover_bg.unwrap_or(if self.secondary {
+                colors.default.color.alpha(0.5)
+            } else {
+                colors.surface.background.alpha(0.4)
+            })
+        });
+        let hover_group: SharedString = format!("{}-row-hover-{i}", self.hover_group_prefix).into();
+        let row_focused = self.cursor == Some(i);
 
         let mut row = gpui::div()
             .id(element_id::indexed(&self.id, "row", i))
@@ -3299,15 +3491,18 @@ impl RowCtx {
                 row.a11y_expanded(self.expanded.iter().any(|k| k == tree_key))
             })
             .flex()
+            .group(hover_group.clone())
             // A virtual row is laid out on its own, so it takes the width it is
             // *given*: without `w_full` the columns bunch at the left edge. That
             // is true of both virtual paths, so it is not conditional on the
             // fixed height any more -- `gpui::list`'s rows have none.
             .w_full()
             .when_some(fixed_h, |e, h| e.h(h));
-        if i + 1 < self.row_keys.len() {
+        if !self.secondary && i + 1 < self.row_keys.len() {
             row = row.border_b_1().border_color(colors.separator.alpha(0.5));
         }
+
+        let data_count = row_data.cells.len();
 
         if self.selectable {
             let mut cell = gpui::div()
@@ -3320,8 +3515,13 @@ impl RowCtx {
                 .flex()
                 .items_center()
                 .justify_center()
+                .relative()
                 .w(px(44.))
                 .py(px(10.))
+                .when_some(selected_bg, |cell, bg| cell.bg(bg))
+                .when_some(hover_bg, |cell, bg| {
+                    cell.group_hover(hover_group.clone(), move |s| s.bg(bg))
+                })
                 .on_mouse_down(gpui::MouseButton::Left, |_, _, cx| {
                     cx.stop_propagation();
                 });
@@ -3363,6 +3563,9 @@ impl RowCtx {
                 });
             }
             cell = cell.child(box_el);
+            if row_focused {
+                cell = cell.child(table_cell_focus_ring(cx, true, data_count == 0));
+            }
             row = row.child(cell);
         }
 
@@ -3384,43 +3587,75 @@ impl RowCtx {
                 .flex()
                 .items_center()
                 .gap(px(6.))
+                .relative()
                 // `.table__cell` is `px-4 py-3`.
                 .px(px(16.))
                 .py(px(12.))
+                .when(self.secondary, |e| {
+                    e.border_b_1()
+                        .border_color(colors.separator_tertiary().alpha(0.5))
+                })
                 .when(row_header_columns.get(c).copied().unwrap_or(false), |e| {
                     e.font_weight(gpui::FontWeight::MEDIUM)
                 })
-                // At the end of the chain, and after `flex_cell` — that
-                // helper takes a `gpui::Div`, which an `.id(..)` would have
-                // turned into a `Stateful<Div>` — and clear of the
-                // `.table__cell` padding window `.shots/design_audit.py`
-                // opens on the comment above.
-                //
-                // `useTableCell.mjs` is `.../grid/useGridCell.mjs`'s
-                // `role: 'gridcell'`, swapped for `'rowheader'` when the
-                // cell's column key is in `rowHeaderColumnKeys` — the port's
-                // `TableColumn::is_row_header`. The cell's contents are an
-                // arbitrary `AnyElement` here, so unlike a row (which
-                // upstream names from `node.textValue`) it carries no name of
-                // its own; whatever the caller composed inside reports itself.
+                .when_some(selected_bg, |cell, bg| cell.bg(bg))
+                .when_some(hover_bg, |cell, bg| {
+                    cell.group_hover(hover_group.clone(), move |s| s.bg(bg))
+                });
+            if self.measure_intrinsic.get(c).copied().unwrap_or(false) {
+                let measurements = self.measured_widths.clone();
+                let tree_indent = if c == tree_column {
+                    tree_column_padding(depth).map_or(0., f32::from)
+                } else {
+                    0.
+                };
+                cell_el = cell_el.on_children_prepainted(move |bounds, _, cx| {
+                    let content = intrinsic_children_width(&bounds);
+                    if content <= 0. {
+                        return;
+                    }
+                    let next = px(content + 32. + tree_indent);
+                    measurements.update(cx, |values, cx| {
+                        if values.len() <= c {
+                            values.resize(c + 1, None);
+                        }
+                        if values[c].map_or(true, |current| next > current) {
+                            values[c] = Some(next);
+                            cx.notify();
+                        }
+                    });
+                });
+            }
+            // At the end of the chain, and after `flex_cell` — that helper
+            // takes a `gpui::Div`, which an `.id(..)` would have turned into a
+            // `Stateful<Div>` — and clear of the `.table__cell` padding window
+            // `.shots/design_audit.py` opens on the comment above.
+            //
+            // `useTableCell.mjs` is `.../grid/useGridCell.mjs`'s
+            // `role: 'gridcell'`, swapped for `'rowheader'` when the cell's
+            // column key is in `rowHeaderColumnKeys` — the port's
+            // `TableColumn::is_row_header`. The cell's contents are an
+            // arbitrary `AnyElement` here, so unlike a row (which upstream
+            // names from `node.textValue`) it carries no name of its own;
+            // whatever the caller composed inside reports itself.
+            let mut cell_el = cell_el
+                .debug_selector(move || format!("table-row-track-{i}-{c}"))
                 .id(element_id::indexed(
                     &element_id::indexed(&self.id, "row", i),
                     "cell",
                     c,
                 ))
-                .a11y(
-                    if row_header_columns.get(c).copied().unwrap_or(false) {
-                        a11y::Role::RowHeader
-                    } else {
-                        a11y::Role::GridCell
-                    },
-                )
+                .a11y(if row_header_columns.get(c).copied().unwrap_or(false) {
+                    a11y::Role::RowHeader
+                } else {
+                    a11y::Role::GridCell
+                })
                 .a11y_column_index(c + usize::from(self.selectable));
             // The tree column carries the indent and the chevron; a row with
             // no children still indents, so siblings line up.
             if c == tree_column {
-                if depth > 0 {
-                    cell_el = cell_el.pl(px(12. + 20. * depth as f32));
+                if let Some(padding) = tree_column_padding(depth) {
+                    cell_el = cell_el.pl(padding);
                 }
                 if has_children {
                     let mut chevron = gpui::div()
@@ -3480,19 +3715,18 @@ impl RowCtx {
                     cell_el = cell_el.child(gpui::div().size(px(18.)).flex_shrink_0());
                 }
             }
-            cell_el.child(cell)
+            cell_el = cell_el.child(cell);
+            if row_focused {
+                let cell_index = c + usize::from(self.selectable);
+                let total_cells = data_count + usize::from(self.selectable);
+                cell_el = cell_el.child(table_cell_focus_ring(
+                    cx,
+                    cell_index == 0,
+                    cell_index + 1 == total_cells,
+                ));
+            }
+            cell_el
         }));
-
-        // A selected row reads as selected even where the checkbox is off
-        // screen, and outranks striping. `.table__row[data-selected]` fills
-        // `bg-surface/10`, and the pinned rule follows the hover rule, so a
-        // hovered selected row keeps this fill instead of the hover's. gpui
-        // allows one hover refinement per element, so the fill rides the
-        // single hover below.
-        let selected_bg = is_selected.then(|| colors.surface.background.alpha(0.1));
-        if let Some(selected_bg) = selected_bg {
-            row = row.bg(selected_bg);
-        }
 
         let row_action = self.on_row_click.clone();
         let row_selection = self.on_selection_change.clone();
@@ -3515,23 +3749,8 @@ impl RowCtx {
             let focus = self.focus.clone();
             let focus_for_click = self.focus.clone();
             let key_for_cursor = key.clone();
-            // `.table-root--primary` hovers `bg-surface/40`;
-            // `.table-root--secondary` rows hover `bg-default/50`. A selected
-            // row keeps its `bg-surface/10` fill instead -- the pinned
-            // selected rule wins the cascade over the hover's.
-            let secondary = self.secondary;
-            let row_hover_bg = self.row_hover_bg;
             row = row
                 .cursor(crate::util::interactive_cursor(cx))
-                .hover(move |s| {
-                    s.bg(selected_bg.unwrap_or_else(|| {
-                        row_hover_bg.unwrap_or(if secondary {
-                            colors.default.color.alpha(0.5)
-                        } else {
-                            colors.surface.background.alpha(0.4)
-                        })
-                    }))
-                })
                 .on_mouse_down(gpui::MouseButton::Left, move |_, window, cx| {
                     if window.default_prevented() {
                         return;
@@ -3615,15 +3834,9 @@ impl RowCtx {
                 });
         }
 
-        // v3 rings the focused row *inside* itself: the cells each carry an
-        // inset shadow, with the first and last three-sided, so the row reads as
-        // one continuous outline. One overlay across the row is the same picture
-        // and needs no per-cell cases.
+        // v3 rings the focused row *inside* itself: each cell carries its own
+        // inset strips so the outline stays clipped to the cell geometry.
         row.when(is_disabled, |row| row.opacity(cx.layout().disabled_opacity))
-            .relative()
-            .when(self.cursor == Some(i), |r| {
-                r.child(crate::util::inset_focus_ring(cx))
-            })
             .into_any_element()
     }
 }
@@ -3631,6 +3844,14 @@ impl RowCtx {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn tree_column_padding_uses_one_rem_per_one_based_level() {
+        assert_eq!(tree_column_padding(0), None);
+        assert_eq!(tree_column_padding(1), Some(px(32.)));
+        assert_eq!(tree_column_padding(2), Some(px(48.)));
+        assert_eq!(tree_column_padding(3), Some(px(64.)));
+    }
 
     #[test]
     fn a_new_column_starts_ascending() {
@@ -3861,15 +4082,33 @@ mod tests {
              (pinned `.table__row[data-selected] .table__cell`)"
         );
         assert!(
-            source.contains("s.bg(selected_bg.unwrap_or_else(|| {")
-                && source.contains("row_hover_bg.unwrap_or(if secondary {"),
-            "the hover must give way to the selected fill and otherwise honor \
-             the named row hover -- the pinned selected rule wins the cascade \
-             over `.table__row:hover`"
+            source.contains(".when_some(selected_bg, |cell, bg| cell.bg(bg))")
+                && source.contains("cell.group_hover(hover_group.clone(), move |s| s.bg(bg))"),
+            "selected and hover fills must be painted on each cell, with the \
+             selected row omitting the hover group so HeroUI's selected rule wins"
         );
         assert!(
             !source.contains("accent.soft()"),
             "the selected row must not paint a role soft wash"
+        );
+    }
+
+    #[test]
+    fn table_focus_ring_is_split_per_cell() {
+        let source = include_str!("table.rs")
+            .split("#[cfg(test)]")
+            .next()
+            .expect("the implementation section is always present");
+        assert!(
+            source.contains("fn table_cell_focus_ring(cx: &App, first: bool, last: bool)")
+                && source.contains(".top_0()")
+                && source.contains(".bottom_0()")
+                && source.contains("cell_el = cell_el.child(table_cell_focus_ring("),
+            "focused rows must paint clipped edge strips on each cell"
+        );
+        assert!(
+            !source.contains("r.child(crate::util::inset_focus_ring(cx))"),
+            "the row must not use one rounded overlay that bleeds across cells"
         );
     }
 
@@ -3880,9 +4119,9 @@ mod tests {
             .next()
             .expect("the implementation section is always present");
         assert!(
-            source.contains(
-                ".text_size(px(12.))\n                .line_height(px(16.))\n                .font_weight(gpui::FontWeight::MEDIUM)\n                .text_color"
-            ),
+            source.contains(".text_size(px(12.))")
+                && source.contains(".line_height(px(16.))")
+                && source.contains(".font_weight(gpui::FontWeight::MEDIUM)"),
             "table column headers must use the pinned `font-medium` weight"
         );
     }
@@ -3918,10 +4157,38 @@ mod tests {
             .next()
             .expect("the implementation section is always present");
         assert!(
-            source.contains("if i + 1 < self.row_keys.len() {")
+            source.contains("if !self.secondary && i + 1 < self.row_keys.len() {")
                 && source
                     .contains("row = row.border_b_1().border_color(colors.separator.alpha(0.5));"),
             "the final visible Table row must not receive a bottom separator"
+        );
+    }
+
+    #[test]
+    fn secondary_table_uses_surface_headers_and_cell_separators() {
+        let source = include_str!("table.rs")
+            .split("#[cfg(test)]")
+            .next()
+            .expect("the implementation section is always present");
+        assert!(
+            source.contains("cell = cell\n                    .bg(colors.surface_secondary)")
+                && source.contains("colors.separator_tertiary().alpha(0.5)"),
+            "secondary tables must paint the header surface and per-cell tertiary separators"
+        );
+    }
+
+    #[test]
+    fn table_headers_keep_short_separators_and_rotate_builtin_sort_indicator() {
+        let source = include_str!("table.rs")
+            .split("#[cfg(test)]")
+            .next()
+            .expect("the implementation section is always present");
+        assert!(
+            source.contains(".h(px(16.))")
+                && source.contains(".bg(colors.separator)")
+                && source.contains("rotating_indicator_with_duration")
+                && source.contains(".path(icons::CHEVRON_UP)"),
+            "table headers must draw the pinned separator and use the shared 100ms rotation"
         );
     }
 

@@ -3030,7 +3030,19 @@ fn select_value_render_props_flip_placeholder_with_a_pick(cx: &mut TestAppContex
     );
 
     // Pick row 2 (Gamma), centre y = 66 + 2*36 = 138.
+    eprintln!(
+        "DEBUG before {:?} {:?} {:?}",
+        cx.debug_bounds("select-list-Name(\"sel-ph\")-opt-0"),
+        cx.debug_bounds("select-list-Name(\"sel-ph\")-opt-1"),
+        cx.debug_bounds("select-list-Name(\"sel-ph\")-opt-2")
+    );
     click(cx, 60., 18.);
+    eprintln!(
+        "DEBUG after {:?} {:?} {:?}",
+        cx.debug_bounds("select-list-Name(\"sel-ph\")-opt-0"),
+        cx.debug_bounds("select-list-Name(\"sel-ph\")-opt-1"),
+        cx.debug_bounds("select-list-Name(\"sel-ph\")-opt-2")
+    );
     click(cx, 60., 138.);
     assert_eq!(picked.borrow().as_slice(), ["Some(\"Gamma\")"]);
     assert_eq!(
@@ -5584,6 +5596,272 @@ fn autocomplete_filter_reads_labels_and_end_commits_the_last_match(cx: &mut Test
 // Select row_height
 // ---------------------------------------------------------------------------
 
+#[test]
+fn select_option_visuals_follow_the_pinned_indicator_only_contract() {
+    let source = include_str!("../src/select.rs");
+    assert!(
+        source.contains("item = item.text_color(row_fg);"),
+        "selected Select rows must keep the normal foreground"
+    );
+    assert!(
+        source.contains("util::with_focus_ring("),
+        "focused Select rows must use the shared status-ring overlay"
+    );
+    assert!(
+        source.contains(".flex_1().min_w_0().whitespace_normal()"),
+        "Select rows must keep long option labels in normal text flow"
+    );
+    assert!(
+        source.contains(".min_w_0()\n            .whitespace_normal()"),
+        "the trigger value slot must wrap inside the space left by its indicator"
+    );
+    assert!(
+        !source.contains("item = item.border_2().border_color(row_focus);"),
+        "the Select option focus treatment must not change row geometry with a border"
+    );
+}
+
+#[test]
+fn picker_option_labels_never_add_a_virtual_row_ellipsis() {
+    for (name, source) in [
+        ("Select", include_str!("../src/select.rs")),
+        ("Autocomplete", include_str!("../src/autocomplete.rs")),
+        ("ComboBox", include_str!("../src/combo_box.rs")),
+    ] {
+        assert!(
+            source.contains(".flex_1().min_w_0().whitespace_normal()"),
+            "{name} option labels must keep HeroUI's normal wrapping in every row mode"
+        );
+        assert!(
+            !source.contains("Some(_) => label.truncate()"),
+            "{name} must not invent an ellipsis for fixed virtual rows"
+        );
+    }
+}
+
+#[test]
+fn picker_trigger_chevrons_use_one_rotating_down_svg() {
+    let select = include_str!("../src/select.rs");
+    let autocomplete = include_str!("../src/autocomplete.rs");
+    let combo_box = include_str!("../src/combo_box.rs");
+
+    assert!(
+        select.contains("trigger_indicator")
+            && select.contains("rotating_indicator_with_duration")
+            && select.contains(".path(icons::CHEVRON_DOWN)"),
+        "Select's trigger chevron must use the shared 150ms rotation helper"
+    );
+    assert!(
+        autocomplete.contains("rotating_indicator_with_duration")
+            && autocomplete.contains(".path(icons::CHEVRON_DOWN)"),
+        "Autocomplete's trigger chevron must use the shared 150ms rotation helper"
+    );
+    assert!(
+        combo_box.contains("rotating_indicator_with_duration")
+            && combo_box.contains(".path(icons::CHEVRON_DOWN)"),
+        "ComboBox's trigger chevron must use the shared 150ms rotation helper"
+    );
+    assert!(
+        !select.contains(".path(if is_open") && !autocomplete.contains(".path(if open"),
+        "picker triggers must not swap up/down paths as an immediate state change"
+    );
+    assert!(
+        select.contains(".pr(px(28.))")
+            && select.contains(".absolute()")
+            && select.contains(".right(px(8.))")
+            && select.contains(".w(px(16.))"),
+        "Select's trigger indicator must use the pinned absolute end slot"
+    );
+}
+
+#[gpui::test]
+fn select_custom_trigger_indicator_receives_open_state(cx: &mut TestAppContext) {
+    let seen = Rc::new(RefCell::new(None));
+    let recorded = seen.clone();
+    let cx = open_host(cx, move || {
+        let seen = seen.clone();
+        Select::new("sel-trigger-indicator", keyed(&["Alpha", "Beta"]))
+            .trigger_indicator(move |is_open| {
+                *seen.borrow_mut() = Some(is_open);
+                gpui::div().into_any_element()
+            })
+            .into_any_element()
+    });
+
+    click(cx, 60., 18.);
+    assert_eq!(
+        *recorded.borrow(),
+        Some(true),
+        "the custom Select trigger indicator must observe the live open state"
+    );
+}
+
+#[test]
+fn autocomplete_value_visuals_follow_the_pinned_wrap_contract() {
+    let source = include_str!("../src/autocomplete.rs");
+    assert!(
+        source.contains(".min_w_0()\n            .whitespace_normal()"),
+        "the Autocomplete value slot must wrap long selected labels"
+    );
+    assert!(
+        !source.contains(".min_w_0()\n            .truncate()"),
+        "the Autocomplete value slot must not ellipsize selected labels"
+    );
+}
+
+#[test]
+fn picker_collection_indicators_use_the_pinned_absolute_slot() {
+    for (name, source) in [
+        ("Select", include_str!("../src/select.rs")),
+        ("Autocomplete", include_str!("../src/autocomplete.rs")),
+        ("ComboBox", include_str!("../src/combo_box.rs")),
+    ] {
+        assert!(
+            source.contains(".relative()"),
+            "{name} rows need a positioning context"
+        );
+        assert!(
+            source.contains(".pr(px(28.))"),
+            "{name} rows need the pinned end padding"
+        );
+        assert!(
+            source.contains(".absolute()"),
+            "{name} indicators need an absolute slot"
+        );
+        assert!(
+            source.contains(".right(px(8.))"),
+            "{name} indicators need the end offset"
+        );
+        assert!(
+            source.contains(".w(px(16.))"),
+            "{name} indicators need the 16px slot"
+        );
+    }
+}
+
+/// HeroUI's Select value and natural-height list rows use `wrap-break-word`.
+/// Keep a long label visible in both places instead of silently clipping it
+/// with the one-line trigger/row ellipsis used by the virtualized path.
+#[gpui::test]
+fn select_long_values_wrap_the_trigger_and_natural_option_row(cx: &mut TestAppContext) {
+    still();
+    let long =
+        "A project name that is intentionally long enough to wrap across multiple trigger lines";
+    let cx = open_host(cx, move || {
+        Select::new(
+            "sel-wrap",
+            vec![
+                PickerItem::new("long", long),
+                PickerItem::new("short", "Short option"),
+            ],
+        )
+        .label("Project")
+        .default_value(Some("long".into()))
+        .default_open(true)
+        .into_any_element()
+    });
+    flush_frame(cx);
+
+    let trigger = cx
+        .debug_bounds("select-trigger-Name(\"sel-wrap\")")
+        .expect("the selected value trigger must be laid out");
+    assert!(
+        f32::from(trigger.size.height) > f32::from(herogpui_components::util::FIELD_HEIGHT) + 8.,
+        "a long selected value must wrap and grow the trigger, got {trigger:?}"
+    );
+
+    let option = cx
+        .debug_bounds("select-list-Name(\"sel-wrap\")-opt-0")
+        .expect("the long option must be laid out");
+    assert!(
+        f32::from(option.size.height) > f32::from(herogpui_components::util::FIELD_HEIGHT) + 8.,
+        "a natural-height long option must wrap instead of truncating, got {option:?}"
+    );
+}
+
+/// HeroUI's Autocomplete trigger value uses `wrap-break-word`, so a selected
+/// label grows the field instead of being clipped by a one-line ellipsis.
+#[gpui::test]
+fn autocomplete_long_selected_value_wraps_the_trigger(cx: &mut TestAppContext) {
+    still();
+    let long = "A project name that is intentionally long enough to wrap";
+    let state = search_state(cx);
+    let entity_id = state.entity_id().as_u64();
+    let base = format!("autocomplete-{entity_id}");
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        auto_at(
+            100.,
+            Autocomplete::new(
+                state_for_view.clone(),
+                vec![
+                    PickerItem::new("long", long),
+                    PickerItem::new("short", "Short option"),
+                ],
+            )
+            .default_value(["long"])
+            .label("Project")
+            .placeholder("Choose one"),
+        )
+    });
+    settle_select(cx, 640., 900.);
+
+    let trigger = cx
+        .debug_bounds(auto_trigger(&base))
+        .expect("the Autocomplete trigger must be laid out");
+    assert!(
+        f32::from(trigger.size.height) > f32::from(herogpui_components::util::FIELD_HEIGHT) + 8.,
+        "a long selected Autocomplete value must wrap and grow the trigger, got {trigger:?}"
+    );
+}
+
+#[test]
+fn combo_box_value_visuals_follow_the_pinned_wrap_contract() {
+    let source = include_str!("../src/combo_box.rs");
+    assert!(
+        source.contains(
+            ".w_full()\n                .min_w_0()\n                .whitespace_normal()"
+        ),
+        "the default ComboBox.Value content must wrap long selected labels"
+    );
+}
+
+/// HeroUI's optional ComboBox.Value slot uses `wrap-break-word`; the default
+/// render-prop children must grow the value row instead of clipping it.
+#[gpui::test]
+fn combo_box_long_value_content_wraps_the_value_row(cx: &mut TestAppContext) {
+    still();
+    let long = "A project name that is intentionally long enough to wrap";
+    let state = search_state(cx);
+    let entity_id = state.entity_id().as_u64();
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        combo_at(
+            100.,
+            ComboBox::new(
+                state_for_view.clone(),
+                vec![
+                    PickerItem::new("long", long),
+                    PickerItem::new("short", "Short option"),
+                ],
+            )
+            .default_value(["long"])
+            .label("Project")
+            .placeholder("Choose one")
+            .value_content(|value| value.default_children),
+        )
+    });
+    settle_select(cx, 640., 900.);
+
+    let value = cx
+        .debug_bounds(combo_probe(format!("combobox-value-{entity_id}")))
+        .expect("the ComboBox.Value slot must be laid out");
+    assert!(
+        f32::from(value.size.height) > 20.,
+        "a long ComboBox value must wrap and grow the value row, got {value:?}"
+    );
+}
+
 /// `Select::row_height` is the virtualized row box, and the option inside it
 /// must be that tall too. It carried `min_h(util::FIELD_HEIGHT)` regardless,
 /// so a row shorter than 36px was a 36px option overflowing a 28px row.
@@ -5840,9 +6118,9 @@ fn collection_trigger_padding_x_moves_the_value(cx: &mut TestAppContext) {
     }
 }
 
-/// Row `padding_x` moves the trailing indicator inward on both the plain and
-/// virtual paths; the defaults stay 10px (Select/Autocomplete) and 8px
-/// (ComboBox).
+/// The pinned item indicator is absolutely anchored eight pixels from the row
+/// edge, so changing row `padding_x` changes the label inset without moving
+/// the marker on either the plain or virtual path.
 #[gpui::test]
 fn collection_row_padding_x_moves_the_indicator(cx: &mut TestAppContext) {
     still();
@@ -5894,10 +6172,10 @@ fn collection_row_padding_x_moves_the_indicator(cx: &mut TestAppContext) {
     });
     settle_select(cx, 640., 900.);
 
-    for (default, wide, default_px) in [
-        ("sel-row-pad-default-tick", "sel-row-pad-wide-tick", 10.),
-        ("combo-row-pad-default-tick", "combo-row-pad-wide-tick", 8.),
-        ("auto-row-pad-default-tick", "auto-row-pad-wide-tick", 10.),
+    for (default, wide) in [
+        ("sel-row-pad-default-tick", "sel-row-pad-wide-tick"),
+        ("combo-row-pad-default-tick", "combo-row-pad-wide-tick"),
+        ("auto-row-pad-default-tick", "auto-row-pad-wide-tick"),
     ] {
         let default = cx
             .debug_bounds(default)
@@ -5907,10 +6185,9 @@ fn collection_row_padding_x_moves_the_indicator(cx: &mut TestAppContext) {
             .expect("the wide row indicator must paint");
         let moved = f32::from(default.origin.x - wide.origin.x);
         assert!(
-            (moved - (WIDE - default_px)).abs() < 0.5,
-            "`row_padding_x` must move the indicator inward by the delta over \
-             the owner's default, moved {moved}: default={default:?} \
-             wide={wide:?}"
+            moved.abs() < 0.5,
+            "the absolute indicator must stay at the row edge when `row_padding_x` \
+             changes, moved {moved}: default={default:?} wide={wide:?}"
         );
     }
 }
@@ -5974,14 +6251,10 @@ fn collection_virtual_row_padding_x_moves_the_indicator(cx: &mut TestAppContext)
     });
     settle_select(cx, 640., 900.);
 
-    for (default, wide, default_px) in [
-        ("sel-vrow-pad-default-tick", "sel-vrow-pad-wide-tick", 10.),
-        (
-            "combo-vrow-pad-default-tick",
-            "combo-vrow-pad-wide-tick",
-            8.,
-        ),
-        ("auto-vrow-pad-default-tick", "auto-vrow-pad-wide-tick", 10.),
+    for (default, wide) in [
+        ("sel-vrow-pad-default-tick", "sel-vrow-pad-wide-tick"),
+        ("combo-vrow-pad-default-tick", "combo-vrow-pad-wide-tick"),
+        ("auto-vrow-pad-default-tick", "auto-vrow-pad-wide-tick"),
     ] {
         let default = cx
             .debug_bounds(default)
@@ -5991,10 +6264,10 @@ fn collection_virtual_row_padding_x_moves_the_indicator(cx: &mut TestAppContext)
             .expect("the wide virtual row indicator must paint");
         let moved = f32::from(default.origin.x - wide.origin.x);
         assert!(
-            (moved - (WIDE - default_px)).abs() < 0.5,
-            "`row_padding_x` must move the virtual row indicator inward by \
-             the delta over the owner's default, moved {moved}: \
-             default={default:?} wide={wide:?}"
+            moved.abs() < 0.5,
+            "the absolute virtual indicator must stay at the row edge when \
+             `row_padding_x` changes, moved {moved}: default={default:?} \
+             wide={wide:?}"
         );
     }
 }

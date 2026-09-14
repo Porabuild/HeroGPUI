@@ -17,7 +17,7 @@ impl Gallery {
             vec![
                 (
                     "Usage", "Label content uses 14px medium text with 20px lines, independent of surrounding line height. Toggling animates: the accent fill scales and fades in while the check stroke draws, and unselecting undraws it; reduced motion snaps.",
-                    col(vec![
+                    specimen_body("cb-main", col(vec![
                         h::Checkbox::new("cb-1")
                             .is_selected(basic)
                             .hover_bg(cx.colors().accent.soft_hover())
@@ -36,98 +36,98 @@ impl Gallery {
                                 cx.notify();
                             }))
                             .into_any_element(),
-                    ]),
+                    ]), cx),
                 ),
                 (
                     "Sizes",
                     "`size` is additive, not a v3 prop: `Md` is the pinned 16px control; `Sm` is a 14px control with a 10px indicator and 12px label text.",
                     col(vec![
-                        h::Checkbox::new("cb-sz-sm")
+                        specimen_body("cb-size-Sm", h::Checkbox::new("cb-sz-sm")
                             .size(h::CheckboxSize::Sm)
                             .label(gpui::div().child("Small"))
                             .description("Supporting text aligns with this label")
-                            .into_any_element(),
-                        h::Checkbox::new("cb-sz-md")
+                            .into_any_element(), cx),
+                        specimen_body("cb-size-Md", h::Checkbox::new("cb-sz-md")
                             .size(h::CheckboxSize::Md)
                             .label(gpui::div().child("Medium"))
                             .description("Supporting text aligns with this label")
-                            .into_any_element(),
+                            .into_any_element(), cx),
                     ]),
                 ),
                 (
                     "Variants", "`radius(px)` replaces the control's default `rounded-md`; `is_round` keeps its documented circle either way.",
                     col(vec![
-                        h::Checkbox::new("cb-v-primary")
+                        specimen_body("cb-variant-Primary", h::Checkbox::new("cb-v-primary")
                             .default_selected(true)
                             .radius(px(4.))
                             .label(gpui::div().child("Primary"))
-                            .into_any_element(),
-                        h::Checkbox::new("cb-v-secondary")
+                            .into_any_element(), cx),
+                        specimen_body("cb-variant-Secondary", h::Checkbox::new("cb-v-secondary")
                             .default_selected(true)
                             .variant(FieldVariant::Secondary)
                             .label(gpui::div().child("Secondary"))
-                            .into_any_element(),
+                            .into_any_element(), cx),
                     ]),
                 ),
                 (
                     "Full Rounded",
                     col(vec![
-                        h::Checkbox::new("cb-round-1")
+                        specimen_body("cb-rounded-selected", h::Checkbox::new("cb-round-1")
                             .is_round(true)
                             .default_selected(true)
                             .label(gpui::div().child("Round control"))
-                            .into_any_element(),
-                        h::Checkbox::new("cb-round-2")
+                            .into_any_element(), cx),
+                        specimen_body("cb-rounded-unselected", h::Checkbox::new("cb-round-2")
                             .is_round(true)
                             .label(gpui::div().child("Round, unchecked"))
-                            .into_any_element(),
+                            .into_any_element(), cx),
                     ]),
                 ),
                 (
                     "Disabled", "A disabled checkbox keeps its value visible but rejects presses and leaves the tab order.",
-                    row(vec![h::Checkbox::new("cb-disabled-feature")
+                    specimen_body("cb-disabled", row(vec![h::Checkbox::new("cb-disabled-feature")
                         .label("Premium Feature")
                         .description("This feature is coming soon")
                         .is_disabled(true)
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "External Label",
-                    row(vec![gpui::div()
+                    specimen_body("cb-external-label", row(vec![gpui::div()
                         .flex()
                         .items_center()
                         .gap(px(12.))
                         .child(h::Checkbox::new("cb-external"))
                         .child(h::Label::new("Send me marketing emails"))
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "With Description",
-                    col(vec![h::Checkbox::new("cb-desc")
+                    specimen_body("cb-description", col(vec![h::Checkbox::new("cb-desc")
                         .default_selected(true)
                         .label(gpui::div().child("Weekly digest"))
                         .description("One email every Monday morning.")
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "Default Selected",
-                    col(vec![h::Checkbox::new("cb-default")
+                    specimen_body("cb-default-selected", col(vec![h::Checkbox::new("cb-default")
                         .default_selected(true)
                         .label(gpui::div().child("On by default"))
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "Invalid",
-                    col(vec![h::Checkbox::new("cb-invalid")
+                    specimen_body("cb-invalid", col(vec![h::Checkbox::new("cb-invalid")
                         .is_required(true)
                         .is_invalid(true)
                         .validation_errors(["You must accept the terms"])
                         .label(gpui::div().child("Accept the terms"))
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "Controlled",
-                    col(vec![
+                    specimen_body("cb-controlled", col(vec![
                         h::Checkbox::new("cb-controlled")
                             .is_selected(cb_controlled)
                             .label(gpui::div().child("Notifications"))
@@ -144,11 +144,11 @@ impl Gallery {
                             },
                             cx,
                         ),
-                    ]),
+                    ]), cx),
                 ),
                 (
                     "Indeterminate", "A \"select all\" checkbox: it starts indeterminate, and the first change clears the dash and follows the press.",
-                    col(vec![
+                    specimen_body("cb-indeterminate", col(vec![
                         h::Checkbox::new("cb-indeterminate-select-all")
                             .label("Select all")
                             .description("Shows indeterminate state (dash icon)")
@@ -162,20 +162,20 @@ impl Gallery {
                                 },
                             ))
                             .into_any_element(),
-                    ]),
+                    ]), cx),
                 ),
                 (
                     "Form Integration",
-                    col(vec![h::Checkbox::new("cb-form")
+                    specimen_body("cb-form", col(vec![h::Checkbox::new("cb-form")
                         .name("terms")
                         .value("accepted")
                         .is_required(true)
                         .label(gpui::div().child("Accept the terms"))
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "Render Props",
-                    col(vec![h::Checkbox::new("cb-render")
+                    specimen_body("cb-render-props", col(vec![h::Checkbox::new("cb-render")
                         .is_selected(cb_controlled)
                         .on_change(cx.listener(|this, v: &bool, _, cx| {
                             this.set_demo_flag("cb-controlled", *v);
@@ -190,12 +190,12 @@ impl Gallery {
                                 })
                                 .into_any_element()
                         })
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "Custom Indicator",
                     row(vec![
-                        h::Checkbox::new("cb-ind-heart")
+                        specimen_body("cb-indicator-heart", h::Checkbox::new("cb-ind-heart")
                             .default_selected(true)
                             .indicator(move |state| {
                                 if state.is_selected {
@@ -209,8 +209,8 @@ impl Gallery {
                                 }
                             })
                             .label(gpui::div().child("Heart"))
-                            .into_any_element(),
-                        h::Checkbox::new("cb-ind-plus")
+                            .into_any_element(), cx),
+                        specimen_body("cb-indicator-plus", h::Checkbox::new("cb-ind-plus")
                             .default_selected(true)
                             .indicator(move |state| {
                                 if state.is_selected {
@@ -224,8 +224,8 @@ impl Gallery {
                                 }
                             })
                             .label(gpui::div().child("Plus"))
-                            .into_any_element(),
-                        h::Checkbox::new("cb-ind-minus")
+                            .into_any_element(), cx),
+                        specimen_body("cb-indicator-indeterminate", h::Checkbox::new("cb-ind-minus")
                             .is_indeterminate(true)
                             .indicator(move |state| {
                                 if state.is_indeterminate {
@@ -240,7 +240,7 @@ impl Gallery {
                                 }
                             })
                             .label(gpui::div().child("Indeterminate"))
-                            .into_any_element(),
+                            .into_any_element(), cx),
                     ]),
                 ),
             ],
@@ -265,31 +265,31 @@ impl Gallery {
             vec![
                 (
                     "Usage", "Option labels use 14px/20px medium text; descriptions use 12px/16px regular text.",
-                    col(vec![h::CheckboxGroup::new("cbg-usage", group_options())
+                    specimen_body("cbg-main", col(vec![h::CheckboxGroup::new("cbg-usage", group_options())
                         .label("Notifications")
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "In Surface",
-                    col(vec![h::Surface::new()
+                    specimen_body("cbg-surface", col(vec![h::Surface::new()
                         .padding(px(24.))
                         .child(
                             h::CheckboxGroup::new("cbg-surface", group_options())
                                 .label("Notifications")
                                 .variant(FieldVariant::Secondary),
                         )
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "Disabled",
-                    col(vec![h::CheckboxGroup::new("cbg-disabled", group_options())
+                    specimen_body("cbg-disabled", col(vec![h::CheckboxGroup::new("cbg-disabled", group_options())
                         .label("Notifications")
                         .is_disabled(true)
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "Indeterminate", "A \"select all\" checkbox pairs with the group: it is indeterminate while only some children are selected.",
-                    col(vec![
+                    specimen_body("cbg-indeterminate", col(vec![
                         h::Checkbox::new("cbg-all")
                             .is_selected(selected.len() == 3)
                             .is_indeterminate(!selected.is_empty() && selected.len() < 3)
@@ -313,11 +313,11 @@ impl Gallery {
                                 cx.notify();
                             }))
                             .into_any_element(),
-                    ]),
+                    ]), cx),
                 ),
                 (
                     "Controlled", "The selected set lives in the caller and is fed back through `value`; the caption prints the live set.",
-                    col(vec![
+                    specimen_body("cbg-controlled", col(vec![
                         h::CheckboxGroup::new(
                             "cbg-controlled",
                             vec![
@@ -349,11 +349,11 @@ impl Gallery {
                             ),
                             cx,
                         ),
-                    ]),
+                    ]), cx),
                 ),
                 (
                     "Validation",
-                    col(vec![h::CheckboxGroup::new("cbg-validate", group_options())
+                    specimen_body("cbg-validation", col(vec![h::CheckboxGroup::new("cbg-validate", group_options())
                         .label("Notifications")
                         .is_required(true)
                         .is_invalid(selected.is_empty())
@@ -363,11 +363,11 @@ impl Gallery {
                             this.checkbox_group = keys.clone();
                             cx.notify();
                         }))
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "Features and Add-ons Example",
-                    col(vec![h::CheckboxGroup::new(
+                    specimen_body("cbg-addons", col(vec![h::CheckboxGroup::new(
                         "cbg-addons",
                         vec![
                             h::CheckboxOption::new("analytics", "Analytics")
@@ -380,11 +380,11 @@ impl Gallery {
                     )
                     .label("Add-ons")
                     .description("Billed monthly, cancel any time.")
-                    .into_any_element()]),
+                    .into_any_element()]), cx),
                 ),
                 (
                     "With Custom Indicator", "A custom indicator belongs to a standalone Checkbox, not to this port's group options; here two standalone checkboxes draw hearts.",
-                    col(vec![
+                    specimen_body("cbg-custom-indicator", col(vec![
                         h::Checkbox::new("cbg-ci-1")
                             .default_selected(true)
                             .indicator(move |state| {
@@ -414,11 +414,11 @@ impl Gallery {
                             })
                             .label(gpui::div().child("SMS"))
                             .into_any_element(),
-                    ]),
+                    ]), cx),
                 ),
                 (
                     "Vertical",
-                    col(vec![h::CheckboxGroup::new("cbg-v", options.clone())
+                    specimen_body("cbg-vertical", col(vec![h::CheckboxGroup::new("cbg-v", options.clone())
                         .label("Notifications")
                         .description("Pick how we reach you.")
                         .value(selected.iter().cloned())
@@ -426,11 +426,11 @@ impl Gallery {
                             this.checkbox_group = keys.clone();
                             cx.notify();
                         }))
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "Horizontal & invalid",
-                    col(vec![h::CheckboxGroup::new("cbg-h", options)
+                    specimen_body("cbg-horizontal-invalid", col(vec![h::CheckboxGroup::new("cbg-h", options)
                         .label("Channels")
                         .orientation(Orientation::Horizontal)
                         .error_message("Choose at least two channels.")
@@ -439,14 +439,14 @@ impl Gallery {
                             this.checkbox_group = keys.clone();
                             cx.notify();
                         }))
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "Uncontrolled",
-                    col(vec![h::CheckboxGroup::new("cbg-unc", group_options())
+                    specimen_body("cbg-uncontrolled", col(vec![h::CheckboxGroup::new("cbg-unc", group_options())
                         .label("Channels")
                         .default_value(vec![SharedString::from("email")])
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
             ],
             cx,
@@ -647,6 +647,7 @@ impl Gallery {
                     "FieldError", "A FieldError with no message renders nothing.",
                     col(vec![
                         h::FieldError::new()
+                            .id("field-error-demo")
                             .message("This field is required.")
                             .into_any_element(),
                         h::FieldError::new().into_any_element(),
@@ -854,30 +855,37 @@ impl Gallery {
                 (
                     "Variants",
                     field_col(vec![
-                        h::Input::new(self.demo_text("in-variant-primary", "", cx))
-                            .label(FieldVariant::Primary.label())
-                            .placeholder("Primary input")
-                            .variant(FieldVariant::Primary)
-                            .into_any_element(),
-                        h::Input::new(self.demo_text("in-variant-secondary", "", cx))
-                            .label(FieldVariant::Secondary.label())
-                            .placeholder("Secondary input")
-                            .variant(FieldVariant::Secondary)
-                            .into_any_element(),
+                        specimen_body(
+                            "in-variant-Primary",
+                            h::Input::new(self.demo_text("in-variant-primary", "", cx))
+                                .label(FieldVariant::Primary.label())
+                                .placeholder("Primary input")
+                                .variant(FieldVariant::Primary)
+                                .into_any_element(),
+                            cx,
+                        ),
+                        specimen_body(
+                            "in-variant-Secondary",
+                            h::Input::new(self.demo_text("in-variant-secondary", "", cx))
+                                .label(FieldVariant::Secondary.label())
+                                .placeholder("Secondary input")
+                                .variant(FieldVariant::Secondary)
+                                .into_any_element(),
+                            cx,
+                        ),
                     ]),
                 ),
                 (
                     "Usage",
                     "Text adornments inherit the field's 14px text and 20px line height. Platform text replacement, composition updates, and paste use the same editable state as keyboard input.",
-                    field_col(vec![h::Input::new(self.demo_text("in-usage", "", cx))
+                    specimen_body("in-main", field_col(vec![h::Input::new(self.demo_text("in-usage", "", cx))
                         .label("Name")
                         .placeholder("Enter your name")
-                        .radius(px(4.))
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "In Surface",
-                    field_col(vec![h::Surface::new()
+                    specimen_body("in-in-surface", field_col(vec![h::Surface::new()
                         .padding(px(24.))
                         .gap(px(16.))
                         .child(
@@ -887,19 +895,19 @@ impl Gallery {
                                 .variant(FieldVariant::Secondary)
                                 .description("The lower-emphasis variant, for use on a surface"),
                         )
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "Full Width",
-                    col(vec![h::Input::new(self.demo_text("in-full", "", cx))
+                    specimen_body("in-full-width", col(vec![h::Input::new(self.demo_text("in-full", "", cx))
                         .label("Name")
                         .placeholder("Full width input")
                         .full_width()
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "Input Types",
-                    field_col(vec![
+                    specimen_body("in-input-types", field_col(vec![
                         h::Input::new(self.demo_text("in-pw", "", cx))
                             .label("Password")
                             .input_type(h::InputType::Password)
@@ -929,11 +937,11 @@ impl Gallery {
                             .input_type(h::InputType::Tel)
                             .placeholder("+1 (555) 000-0000")
                             .into_any_element(),
-                    ]),
+                    ]), cx),
                 ),
                 (
                     "Controlled",
-                    col(vec![
+                    specimen_body("in-controlled", col(vec![
                         demo_field(
                             h::Input::new(self.demo_text("in-controlled", "", cx))
                                 .label("Name")
@@ -941,12 +949,12 @@ impl Gallery {
                                 .on_change(|_, _, _| {}),
                         ),
                         para(&format!("Value: {input_controlled}"), cx),
-                    ]),
+                    ]), cx),
                 ),
                 (
                     "States",
                     "Labels use 14px text with 20px lines; descriptions and errors use 12px text with 16px lines, independent of surrounding leading.",
-                    field_col(vec![
+                    specimen_body("in-states", field_col(vec![
                         h::Input::new(self.demo_text("in-required", "", cx))
                             .label("Required")
                             .placeholder("Enter a value")
@@ -968,18 +976,33 @@ impl Gallery {
                             .is_clearable(true)
                             .clear_hover_bg(cx.colors().accent.soft())
                             .into_any_element(),
-                    ]),
+                    ]), cx),
+                ),
+                (
+                    "Focus Ring",
+                    "`focus_ring(false)` keeps the input focusable and editable while suppressing only the visual focus ring. Invalid feedback and the field's normal chrome remain available.",
+                    specimen_body("in-focus-ring", field_col(vec![
+                        h::Input::new(self.demo_text("in-focus-ring-default", "", cx))
+                            .label("Default focus ring")
+                            .placeholder("Focus me")
+                            .into_any_element(),
+                        h::Input::new(self.demo_text("in-focus-ring-hidden", "", cx))
+                            .label("Focus ring hidden")
+                            .placeholder("Still editable")
+                            .focus_ring(false)
+                            .into_any_element(),
+                    ]), cx),
                 ),
                 (
                     "Compact Box",
                     "`height`, `padding_x` and `is_bare` are the box knobs: a 28px chromeless field with a leading icon, for a toolbar or a table cell the caller paints itself. Only the row height changes -- the text keeps its 14px size and 20px line.",
-                    field_col(vec![h::TextField::new(self.demo_text("in-compact", "", cx))
+                    specimen_body("in-compact-box", field_col(vec![h::TextField::new(self.demo_text("in-compact", "", cx))
                         .placeholder("Filter rows")
                         .height(px(28.))
                         .padding_x(px(8.))
                         .is_bare(true)
                         .start_content(icon(h::icons::SEARCH, cx))
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
             ],
             cx,
@@ -996,10 +1019,9 @@ impl Gallery {
                 (
                     "Usage",
                     "Prefix and suffix text uses 14px text with 20px lines alongside the input.",
-                    field_col(vec![h::InputGroup::new()
+                    specimen_body("ig-main", field_col(vec![h::InputGroup::new()
                         .label("Website")
                         .prefix(h::InputAddon::new("https://"))
-                        .radius(px(4.))
                         .input(
                             h::Input::new(self.demo_text("ig-usage", "", cx))
                                 // v3's group example seeds the input with
@@ -1008,12 +1030,12 @@ impl Gallery {
                                 .default_value("example.com")
                                 .placeholder("example.com"),
                         )
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "Box Customisation",
                     "`padding_x` overrides the held field's exposed edges only -- a side with an addon keeps the addon's inset -- `height` resizes the single-line group, and `is_bare` drops the group's chrome.",
-                    field_col(vec![h::InputGroup::new()
+                    specimen_body("ig-box-customisation", field_col(vec![h::InputGroup::new()
                         .label("Compact")
                         .height(px(28.))
                         .padding_x(px(8.))
@@ -1024,33 +1046,41 @@ impl Gallery {
                             h::Input::new(self.demo_text("ig-custom-box", "", cx))
                                 .placeholder("0.00"),
                         )
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "Variants",
                     field_col(vec![
-                        h::InputGroup::new()
-                            .label("Primary")
-                            .prefix(h::InputAddon::new("@"))
-                            .input(
-                                h::Input::new(self.demo_text("ig-v-primary", "", cx))
-                                    .placeholder("name@email.com"),
-                            )
-                            .into_any_element(),
-                        h::InputGroup::new()
-                            .label("Secondary")
-                            .variant(FieldVariant::Secondary)
-                            .prefix(h::InputAddon::new("@"))
-                            .input(
-                                h::Input::new(self.demo_text("ig-v-secondary", "", cx))
-                                    .placeholder("name@email.com"),
-                            )
-                            .into_any_element(),
+                        specimen_body(
+                            "ig-variant-Primary",
+                            h::InputGroup::new()
+                                .label("Primary")
+                                .prefix(h::InputAddon::new("@"))
+                                .input(
+                                    h::Input::new(self.demo_text("ig-v-primary", "", cx))
+                                        .placeholder("name@email.com"),
+                                )
+                                .into_any_element(),
+                            cx,
+                        ),
+                        specimen_body(
+                            "ig-variant-Secondary",
+                            h::InputGroup::new()
+                                .label("Secondary")
+                                .variant(FieldVariant::Secondary)
+                                .prefix(h::InputAddon::new("@"))
+                                .input(
+                                    h::Input::new(self.demo_text("ig-v-secondary", "", cx))
+                                        .placeholder("name@email.com"),
+                                )
+                                .into_any_element(),
+                            cx,
+                        ),
                     ]),
                 ),
                 (
                     "In Surface",
-                    field_col(vec![h::Surface::new()
+                    specimen_body("ig-in-surface", field_col(vec![h::Surface::new()
                         .padding(px(24.))
                         .child(
                             h::InputGroup::new()
@@ -1062,11 +1092,11 @@ impl Gallery {
                                         .placeholder("name@email.com"),
                                 ),
                         )
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "Loading State",
-                    field_col(vec![h::InputGroup::new()
+                    specimen_body("ig-loading", field_col(vec![h::InputGroup::new()
                         .label("Checking availability")
                         .input(h::Input::new(self.demo_text("ig-loading", "example", cx)))
                         .suffix(
@@ -1074,11 +1104,11 @@ impl Gallery {
                                 .pr(px(8.))
                                 .child(h::Spinner::new("ig-spinner").size(h::SpinnerSize::Sm)),
                         )
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "Required Field",
-                    field_col(vec![h::InputGroup::new()
+                    specimen_body("ig-required", field_col(vec![h::InputGroup::new()
                         .label("Website")
                         .is_required(true)
                         .prefix(h::InputAddon::new("https://"))
@@ -1086,11 +1116,11 @@ impl Gallery {
                             h::Input::new(self.demo_text("ig-required", "", cx))
                                 .placeholder("name@email.com"),
                         )
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "Disabled State",
-                    field_col(vec![h::InputGroup::new()
+                    specimen_body("ig-disabled", field_col(vec![h::InputGroup::new()
                         .label("Website")
                         .is_disabled(true)
                         .prefix(h::InputAddon::new("https://"))
@@ -1098,11 +1128,11 @@ impl Gallery {
                             h::Input::new(self.demo_text("ig-disabled", "example.com", cx))
                                 .is_disabled(true),
                         )
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "Full Width",
-                    col(vec![h::InputGroup::new()
+                    specimen_body("ig-full-width", col(vec![h::InputGroup::new()
                         .label("Website")
                         .full_width(true)
                         .prefix(h::InputAddon::new("https://"))
@@ -1110,42 +1140,42 @@ impl Gallery {
                             h::Input::new(self.demo_text("ig-full", "", cx))
                                 .placeholder("name@email.com"),
                         )
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "Text Prefix",
-                    field_col(vec![h::InputGroup::new()
+                    specimen_body("ig-text-prefix", field_col(vec![h::InputGroup::new()
                         .prefix(h::InputAddon::new("https://"))
                         .input(
                             h::Input::new(self.demo_text("ig-text-prefix", "", cx))
                                 .placeholder("example.com"),
                         )
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "Text Suffix",
-                    field_col(vec![h::InputGroup::new()
+                    specimen_body("ig-text-suffix", field_col(vec![h::InputGroup::new()
                         .input(
                             h::Input::new(self.demo_text("ig-text-suffix", "", cx))
                                 .placeholder("example"),
                         )
                         .suffix(h::InputAddon::new(".com"))
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "Icon Prefix and Text Suffix",
-                    field_col(vec![h::InputGroup::new()
+                    specimen_body("ig-icon-prefix-text-suffix", field_col(vec![h::InputGroup::new()
                         .prefix(gpui::div().pl(px(12.)).child(icon(h::icons::MAIL, cx)))
                         .input(
                             h::Input::new(self.demo_text("ig-icon-text", "", cx))
                                 .placeholder("name")
                         )
                         .suffix(h::InputAddon::new("@example.com"))
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "Copy Button Suffix",
-                    field_col(vec![h::InputGroup::new()
+                    specimen_body("ig-copy-suffix", field_col(vec![h::InputGroup::new()
                         .label("Website")
                         .input(h::Input::new(self.demo_text("ig-copy", "example.com", cx)))
                         .suffix(
@@ -1157,11 +1187,11 @@ impl Gallery {
                                     .child(icon(h::icons::COPY, cx)),
                             ),
                         )
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "Icon Prefix and Copy Button",
-                    field_col(vec![h::InputGroup::new()
+                    specimen_body("ig-icon-copy", field_col(vec![h::InputGroup::new()
                         .prefix(gpui::div().pl(px(12.)).child(icon(h::icons::KEY, cx)))
                         .input(h::Input::new(self.demo_text(
                             "ig-key",
@@ -1177,11 +1207,11 @@ impl Gallery {
                                     .child(icon(h::icons::COPY, cx)),
                             ),
                         )
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "Password Toggle",
-                    field_col(vec![h::InputGroup::new()
+                    specimen_body("ig-password-toggle", field_col(vec![h::InputGroup::new()
                         .label("Password")
                         .input(
                             h::Input::new(self.demo_text("ig-pw", "correct horse", cx)).input_type(
@@ -1212,11 +1242,11 @@ impl Gallery {
                                     })),
                             ),
                         )
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "Keyboard Shortcut",
-                    field_col(vec![h::InputGroup::new()
+                    specimen_body("ig-keyboard-shortcut", field_col(vec![h::InputGroup::new()
                         .prefix(gpui::div().pl(px(12.)).child(icon(h::icons::SEARCH, cx)))
                         .input(
                             h::Input::new(self.demo_text("ig-kbd", "", cx)).placeholder("Search"),
@@ -1229,11 +1259,11 @@ impl Gallery {
                                 .child(h::Kbd::new().variant(h::KbdVariant::Light).child("Ctrl"))
                                 .child(h::Kbd::new().variant(h::KbdVariant::Light).child("K")),
                         )
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "Badge Suffix",
-                    field_col(vec![h::InputGroup::new()
+                    specimen_body("ig-badge-suffix", field_col(vec![h::InputGroup::new()
                         .label("Plan")
                         .input(h::Input::new(self.demo_text("ig-badge", "Pro", cx)))
                         .suffix(
@@ -1245,53 +1275,53 @@ impl Gallery {
                                     .child(h::ChipLabel::new().child("Trial")),
                             ),
                         )
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "Validation",
-                    field_col(vec![h::InputGroup::new()
+                    specimen_body("ig-validation", field_col(vec![h::InputGroup::new()
                         .label("Website")
                         .is_required(true)
                         .is_invalid(true)
                         .error_message("Enter a valid URL")
                         .prefix(h::InputAddon::new("https://"))
                         .input(h::Input::new(self.demo_text("ig-invalid", "not a url", cx)))
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "With Prefix Icon",
-                    field_col(vec![h::InputGroup::new()
+                    specimen_body("ig-prefix-icon", field_col(vec![h::InputGroup::new()
                         .prefix(gpui::div().pl(px(12.)).child(icon(h::icons::GLOBE, cx)))
                         .input(
                             h::Input::new(self.demo_text("ig-prefix-icon", "", cx))
                                 .placeholder("name@email.com"),
                         )
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "With Suffix Icon",
-                    field_col(vec![h::InputGroup::new()
+                    specimen_body("ig-suffix-icon", field_col(vec![h::InputGroup::new()
                         .input(
                             h::Input::new(self.demo_text("ig-suffix-icon", "", cx))
                                 .placeholder("name@email.com"),
                         )
                         .suffix(gpui::div().pr(px(12.)).child(icon(h::icons::CHECK, cx)))
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "With Prefix and Suffix",
-                    field_col(vec![h::InputGroup::new()
+                    specimen_body("ig-prefix-suffix", field_col(vec![h::InputGroup::new()
                         .prefix(gpui::div().pl(px(12.)).child(icon(h::icons::SEARCH, cx)))
                         .input(
                             h::Input::new(self.demo_text("ig-both", "", cx))
                                 .placeholder("Search..."),
                         )
                         .suffix(gpui::div().pr(px(12.)).child(icon(h::icons::CLOSE, cx)))
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "With TextArea",
-                    field_col(vec![h::InputGroup::new()
+                    specimen_body("ig-text-area", field_col(vec![h::InputGroup::new()
                         .label("Note")
                         .prefix(
                             // The group's `:has(textarea)` rule owns the 8px
@@ -1305,11 +1335,11 @@ impl Gallery {
                                 .placeholder("Assign tasks or ask anything...")
                                 .rows(3),
                         )
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "Usage Example",
-                    field_col(vec![h::InputGroup::new()
+                    specimen_body("ig-usage-example", field_col(vec![h::InputGroup::new()
                         .label("Amount")
                         .description("Billed in US dollars.")
                         .prefix(h::InputAddon::new("$"))
@@ -1317,11 +1347,11 @@ impl Gallery {
                             h::Input::new(self.demo_text("ig-example", "", cx)).placeholder("0.00"),
                         )
                         .suffix(h::InputAddon::new("USD"))
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "TextArea Usage Example",
-                    field_col(vec![h::InputGroup::new()
+                    specimen_body("ig-text-area-example", field_col(vec![h::InputGroup::new()
                         .label("Changelog")
                         .description("Markdown is supported.")
                         .text_area(
@@ -1329,21 +1359,21 @@ impl Gallery {
                                 .placeholder("Share a quick project update...")
                                 .rows(4),
                         )
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "Addons",
-                    field_col(vec![h::InputGroup::new()
+                    specimen_body("ig-addons", field_col(vec![h::InputGroup::new()
                         .label("Amount")
                         .description("Charged monthly.")
                         .prefix(h::InputAddon::new("$"))
                         .input(h::Input::new(self.group_amount.clone()).placeholder("0.00"))
                         .suffix(h::InputAddon::new("USD"))
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "With a trailing action",
-                    field_col(vec![h::InputGroup::new()
+                    specimen_body("ig-trailing-action", field_col(vec![h::InputGroup::new()
                         .variant(FieldVariant::Secondary)
                         .input(h::Input::new(self.input_email.clone()).placeholder("Email"))
                         .suffix(
@@ -1352,7 +1382,7 @@ impl Gallery {
                                 .pr(px(4.))
                                 .child(h::Button::new("ig-send").label("Send").size(Size::Sm)),
                         )
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
             ],
             cx,
@@ -1371,7 +1401,7 @@ impl Gallery {
                     "Usage", "Custom slot content inherits 14px/20px text; the built-in digits use 18px/24px text.",
                     // v3 labels the field, explains where the code went, and
                     // splits the six slots into two groups around a separator.
-                    col(vec![
+                    specimen_body("otp-main", col(vec![
                         h::Label::new("Verify account").into_any_element(),
                         muted_para("We've sent a code to a****@gmail.com", cx),
                         h::InputOTP::new(self.otp.clone())
@@ -1397,42 +1427,62 @@ impl Gallery {
                             ))
                             .child(h::Link::new("otp-resend").label("Resend").href("#"))
                             .into_any_element(),
-                    ]),
+                    ]), cx),
+                ),
+                (
+                    "Filled & Active",
+                    "Filled slots use the focus background and the active cursor slot keeps its caret and keyboard-visible ring.",
+                    specimen_body(
+                        "otp-filled-active",
+                        h::InputOTP::new(self.demo_otp("otp-filled-active", 6, cx))
+                            .value("123")
+                            .auto_focus(true)
+                            .into_any_element(),
+                        cx,
+                    ),
                 ),
                 (
                     "Variants",
                     col(vec![
-                        h::InputOTP::new(self.demo_otp("otp-primary", 6, cx)).into_any_element(),
-                        h::InputOTP::new(self.demo_otp("otp-secondary", 6, cx))
-                            .variant(FieldVariant::Secondary)
-                            .into_any_element(),
+                        specimen_body(
+                            "otp-variant-Primary",
+                            h::InputOTP::new(self.demo_otp("otp-primary", 6, cx)).into_any_element(),
+                            cx,
+                        ),
+                        specimen_body(
+                            "otp-variant-Secondary",
+                            h::InputOTP::new(self.demo_otp("otp-secondary", 6, cx))
+                                .variant(FieldVariant::Secondary)
+                                .into_any_element(),
+                            cx,
+                        ),
                     ]),
                 ),
                 (
                     "In Surface",
-                    col(vec![h::Surface::new()
+                    specimen_body("otp-in-surface", col(vec![h::Surface::new()
                         .padding(px(24.))
                         .child(
                             h::InputOTP::new(self.demo_otp("otp-surface", 6, cx))
                                 .variant(FieldVariant::Secondary),
                         )
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "Disabled State",
-                    col(vec![h::InputOTP::new(self.demo_otp("otp-disabled", 6, cx))
+                    specimen_body("otp-disabled", col(vec![h::InputOTP::new(self.demo_otp("otp-disabled", 6, cx))
                         .is_disabled(true)
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "Four Digits",
-                    col(vec![
+                    specimen_body("otp-four-digits", col(vec![
                         h::InputOTP::new(self.demo_otp("otp-four", 4, cx)).into_any_element()
-                    ]),
+                    ]), cx),
                 ),
                 (
                     "Controlled",
-                    col(vec![
+                    specimen_body("otp-controlled", col(vec![
                         h::InputOTP::new(self.demo_otp("otp-controlled", 6, cx))
                             // `value` seeds the caller's copy into the field
                             // once, which is what "controlled" means here.
@@ -1450,11 +1500,11 @@ impl Gallery {
                             },
                             cx,
                         ),
-                    ]),
+                    ]), cx),
                 ),
                 (
                     "On Complete",
-                    col(vec![
+                    specimen_body("otp-on-complete", col(vec![
                         h::InputOTP::new(self.demo_otp("otp-complete", 6, cx))
                             .on_complete(cx.listener(|this, code: &str, _, cx| {
                                 this.otp_done = code.to_owned();
@@ -1469,12 +1519,12 @@ impl Gallery {
                             },
                             cx,
                         ),
-                    ]),
+                    ]), cx),
                 ),
                 (
                     "Custom Slots",
                     "The GPUI `slot` extension receives each slot's live index and character.",
-                    col(vec![h::InputOTP::new(self.demo_otp(
+                    specimen_body("otp-custom-slots", col(vec![h::InputOTP::new(self.demo_otp(
                         "otp-custom-slots",
                         4,
                         cx
@@ -1489,22 +1539,22 @@ impl Gallery {
                             .child(format!("#{index}"))
                             .into_any_element()
                     })
-                    .into_any_element(),]),
+                    .into_any_element(),]), cx),
                 ),
                 (
                     "Form Example",
-                    col(vec![{
+                    specimen_body("otp-form-example", col(vec![{
                         let state = self.demo_otp("otp-form", 6, cx);
                         h::Form::new()
                             .field(h::FormField::code("code", state.clone()).is_required(true))
                             .child(h::InputOTP::new(state).name("code"))
                             .child(h::Button::new("otp-form-submit").label("Verify"))
                             .into_any_element()
-                    }]),
+                    }]), cx),
                 ),
                 (
                     "With Pattern",
-                    col(vec![
+                    specimen_body("otp-pattern", col(vec![
                         spec(
                             "Digits (default)",
                             h::InputOTP::new(self.demo_otp("otp-pat-digits", 4, cx))
@@ -1523,11 +1573,11 @@ impl Gallery {
                                 .pattern(h::OtpPattern::Any),
                             cx,
                         ),
-                    ]),
+                    ]), cx),
                 ),
                 (
                     "With Validation",
-                    col(vec![
+                    specimen_body("otp-validation", col(vec![
                         h::InputOTP::new(self.demo_otp("otp-validate", 6, cx))
                             .validate(|code| {
                                 (code.chars().count() < 6).then(|| "Enter all six digits".into())
@@ -1538,7 +1588,7 @@ impl Gallery {
                             // looks like when the server says so.
                             .is_invalid(true)
                             .into_any_element(),
-                    ]),
+                    ]), cx),
                 ),
             ],
             cx,
@@ -1557,7 +1607,7 @@ impl Gallery {
             vec![
                 (
                     "Usage",
-                    field_col(vec![h::NumberField::new(self.demo_number(
+                    specimen_body("nf-main", field_col(vec![h::NumberField::new(self.demo_number(
                         "nf-usage",
                         1024.,
                         0.,
@@ -1571,49 +1621,57 @@ impl Gallery {
                     .name("width")
                     .full_width(true)
                     .label("Width")
-                    .into_any_element()]),
+                    .into_any_element()]), cx),
                 ),
                 (
                     "Box Customisation",
                     "`height` resizes the group and the inner field together; `padding_x` moves the input's inset without touching the steppers; `is_bare` drops the group's paint.",
-                    field_col(vec![h::NumberField::new(
+                    specimen_body("nf-box-customisation", field_col(vec![h::NumberField::new(
                         self.demo_number("nf-custom-box", 5., 0., 20., 1., cx),
                     )
                     .label("Compact")
                     .height(px(28.))
                     .padding_x(px(8.))
                     .is_bare(true)
-                    .into_any_element()]),
+                    .into_any_element()]), cx),
                 ),
                 (
                     "Without steppers",
-                    col(vec![h::NumberField::new(self.number.clone())
+                    specimen_body("nf-without-steppers", col(vec![h::NumberField::new(self.number.clone())
                         .label("Quantity")
                         .hide_steppers(true)
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "Format Options",
-                    col(vec![h::NumberField::new(self.price.clone())
+                    specimen_body("nf-format-options", col(vec![h::NumberField::new(self.price.clone())
                         .label("Price")
                         .format_options(h::NumberFormat::currency("USD"))
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "Variants",
                     col(vec![
-                        h::NumberField::new(self.demo_number("nf-primary", 5., 0., 20., 1., cx))
-                            .label("Primary")
-                            .into_any_element(),
-                        h::NumberField::new(self.demo_number("nf-secondary", 5., 0., 20., 1., cx))
-                            .label("Secondary")
-                            .variant(FieldVariant::Secondary)
-                            .into_any_element(),
+                        specimen_body(
+                            "nf-variant-Primary",
+                            h::NumberField::new(self.demo_number("nf-primary", 5., 0., 20., 1., cx))
+                                .label("Primary")
+                                .into_any_element(),
+                            cx,
+                        ),
+                        specimen_body(
+                            "nf-variant-Secondary",
+                            h::NumberField::new(self.demo_number("nf-secondary", 5., 0., 20., 1., cx))
+                                .label("Secondary")
+                                .variant(FieldVariant::Secondary)
+                                .into_any_element(),
+                            cx,
+                        ),
                     ]),
                 ),
                 (
                     "In Surface",
-                    col(vec![h::Surface::new()
+                    specimen_body("nf-in-surface", col(vec![h::Surface::new()
                         .padding(px(24.))
                         .gap(px(16.))
                         .child(
@@ -1629,47 +1687,47 @@ impl Gallery {
                             .variant(FieldVariant::Secondary)
                             .description("The secondary variant, for use on a surface"),
                         )
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "With Description",
-                    col(vec![h::NumberField::new(
+                    specimen_body("nf-description", col(vec![h::NumberField::new(
                         self.demo_number("nf-desc", 1., 0., 99., 1., cx),
                     )
                     .label("Quantity")
                     .description("How many licences to buy")
-                    .into_any_element()]),
+                    .into_any_element()]), cx),
                 ),
                 (
                     "Required Field",
-                    col(vec![h::NumberField::new(
+                    specimen_body("nf-required", col(vec![h::NumberField::new(
                         self.demo_number("nf-req", 1., 0., 99., 1., cx),
                     )
                     .label("Quantity")
                     .is_required(true)
-                    .into_any_element()]),
+                    .into_any_element()]), cx),
                 ),
                 (
                     "Disabled State",
-                    col(vec![h::NumberField::new(
+                    specimen_body("nf-disabled", col(vec![h::NumberField::new(
                         self.demo_number("nf-dis", 8., 0., 99., 1., cx),
                     )
                     .label("Quantity")
                     .is_disabled(true)
-                    .into_any_element()]),
+                    .into_any_element()]), cx),
                 ),
                 (
                     "Full Width",
-                    col(vec![h::NumberField::new(
+                    specimen_body("nf-full-width", col(vec![h::NumberField::new(
                         self.demo_number("nf-full", 3., 0., 99., 1., cx),
                     )
                     .label("Quantity")
                     .full_width(true)
-                    .into_any_element()]),
+                    .into_any_element()]), cx),
                 ),
                 (
                     "Validation",
-                    col(vec![h::NumberField::new(self.demo_number(
+                    specimen_body("nf-validation", col(vec![h::NumberField::new(self.demo_number(
                         "nf-invalid",
                         0.,
                         0.,
@@ -1685,21 +1743,21 @@ impl Gallery {
                     .is_required(true)
                     .is_invalid(true)
                     .validation_errors(["Order at least one"])
-                    .into_any_element()]),
+                    .into_any_element()]), cx),
                 ),
                 (
                     "Controlled",
-                    col(vec![
+                    specimen_body("nf-controlled", col(vec![
                         h::NumberField::new(self.demo_number("nf-ctl", 5., 0., 20., 1., cx))
                             .label("Quantity")
                             .on_change(cx.listener(|_, _v: &f64, _, cx| cx.notify()))
                             .into_any_element(),
                         para(&format!("Value: {nf_controlled}"), cx),
-                    ]),
+                    ]), cx),
                 ),
                 (
                     "Step Values",
-                    col(vec![
+                    specimen_body("nf-step-values", col(vec![
                         h::NumberField::new(self.demo_number("nf-step-5", 10., 0., 100., 5., cx))
                             .label("Step 5")
                             .into_any_element(),
@@ -1713,11 +1771,11 @@ impl Gallery {
                         ))
                         .label("Step 0.1")
                         .into_any_element(),
-                    ]),
+                    ]), cx),
                 ),
                 (
                     "Form Example",
-                    col(vec![{
+                    specimen_body("nf-form-example", col(vec![{
                         let seats = self.demo_number("nf-form", 1., 1., 99., 1., cx);
                         h::Form::new()
                             .field(h::FormField::number(seats.clone()).name("seats"))
@@ -1729,11 +1787,11 @@ impl Gallery {
                             )
                             .child(h::Button::new("nf-form-submit").label("Buy"))
                             .into_any_element()
-                    }]),
+                    }]), cx),
                 ),
                 (
                     "With Validation",
-                    col(vec![h::NumberField::new(self.demo_number(
+                    specimen_body("nf-with-validation", col(vec![h::NumberField::new(self.demo_number(
                         "nf-validate",
                         200.,
                         0.,
@@ -1744,22 +1802,22 @@ impl Gallery {
                     .label("Budget")
                     .description("At least 100")
                     .validate(|value| (*value < 100.).then(|| "Budget must be at least 100".into()))
-                    .into_any_element()]),
+                    .into_any_element()]), cx),
                 ),
                 (
                     "Custom Icons",
-                    col(vec![h::NumberField::new(
+                    specimen_body("nf-custom-icons", col(vec![h::NumberField::new(
                         self.demo_number("nf-icons", 1024., 0., 4096., 1., cx,)
                     )
                     .label("Width (Custom Icons)")
                     .description("Custom icon children")
                     .decrement_icon(icon(h::icons::CHEVRON_LEFT, cx))
                     .increment_icon(icon(h::icons::CHEVRON_RIGHT, cx))
-                    .into_any_element()]),
+                    .into_any_element()]), cx),
                 ),
                 (
                     "With Chevrons",
-                    col(vec![h::NumberField::new(
+                    specimen_body("nf-with-chevrons", col(vec![h::NumberField::new(
                         self.demo_number("nf-chev", 99., 0., 999., 1., cx),
                     )
                     .label("Amount")
@@ -1777,7 +1835,7 @@ impl Gallery {
                             .path(h::icons::CHEVRON_DOWN)
                             .text_color(cx.colors().foreground),
                     )
-                    .into_any_element()]),
+                    .into_any_element()]), cx),
                 ),
             ],
             cx,
@@ -1803,7 +1861,7 @@ impl Gallery {
             vec![
                 (
                     "Usage", "Option content uses 14px medium text with 20px lines, independent of surrounding line height.",
-                    col(vec![h::RadioGroup::new("rg-usage", plans())
+                    specimen_body("rg-main", col(vec![h::RadioGroup::new("rg-usage", plans())
                         .full_width(true)
                         .default_value("Free")
                         // v3's own example opens with the group's `<Label>` and
@@ -1815,51 +1873,51 @@ impl Gallery {
                             Some("Includes 200 messages per month"),
                             None,
                         ])
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "Sizes",
                     "`size` is additive, not a v3 prop: `Md` is the pinned 16px control; `Sm` is a 14px control with a 5px dot, 12px label text and a 10px row gap.",
                     col(vec![
-                        h::RadioGroup::new("rg-sz-sm", plans())
+                        specimen_body("rg-size-Sm", h::RadioGroup::new("rg-sz-sm", plans())
                             .size(h::RadioSize::Sm)
                             .descriptions([Some("100 messages"), Some("200 messages"), None])
                             .default_value("Free")
-                            .into_any_element(),
-                        h::RadioGroup::new("rg-sz-md", plans())
+                            .into_any_element(), cx),
+                        specimen_body("rg-size-Md", h::RadioGroup::new("rg-sz-md", plans())
                             .size(h::RadioSize::Md)
                             .descriptions([Some("100 messages"), Some("200 messages"), None])
                             .default_value("Free")
-                            .into_any_element(),
+                            .into_any_element(), cx),
                     ]),
                 ),
                 (
                     "Variants", "`radius(px)` rounds the control circle in place of `key_radius`; the pressed box scales the same value and the selected dot keeps its own.",
                     col(vec![
-                        h::RadioGroup::new("rg-v-primary", plans())
+                        specimen_body("rg-variant-Primary", h::RadioGroup::new("rg-v-primary", plans())
                             .default_value("Free")
                             .radius(px(4.))
-                            .into_any_element(),
-                        h::RadioGroup::new("rg-v-secondary", plans())
+                            .into_any_element(), cx),
+                        specimen_body("rg-variant-Secondary", h::RadioGroup::new("rg-v-secondary", plans())
                             .default_value("Pro")
                             .variant(FieldVariant::Secondary)
-                            .into_any_element(),
+                            .into_any_element(), cx),
                     ]),
                 ),
                 (
                     "In Surface",
-                    col(vec![h::Surface::new()
+                    specimen_body("rg-surface", col(vec![h::Surface::new()
                         .padding(px(24.))
                         .child(
                             h::RadioGroup::new("rg-surface", plans())
                                 .default_value("Free")
                                 .variant(FieldVariant::Secondary),
                         )
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "Validation",
-                    col(vec![
+                    specimen_body("rg-validation", col(vec![
                         h::RadioGroup::new("rg-validate", plans())
                             .default_value("")
                             .label("Plan")
@@ -1878,11 +1936,11 @@ impl Gallery {
                         )
                         .label("Delivery speed")
                         .into_any_element(),
-                    ]),
+                    ]), cx),
                 ),
                 (
                     "Delivery & Payment",
-                    col(vec![
+                    specimen_body("rg-delivery-payment", col(vec![
                         h::RadioGroup::new(
                             "rg-delivery",
                             vec![
@@ -1901,11 +1959,11 @@ impl Gallery {
                         .default_value("Card")
                         .orientation(Orientation::Horizontal)
                         .into_any_element(),
-                    ]),
+                    ]), cx),
                 ),
                 (
                     "Custom Indicator", "The checkmark replaces `Radio.Indicator` while the control, selection and focus behavior stay owned by the radio.",
-                    col(vec![
+                    specimen_body("rg-custom-indicator", col(vec![
                         h::RadioGroup::new("rg-indicator", plans())
                             .default_value("Enterprise")
                             .indicator(move |_, state| {
@@ -1920,11 +1978,11 @@ impl Gallery {
                                 }
                             })
                             .into_any_element(),
-                    ]),
+                    ]), cx),
                 ),
                 (
                     "Vertical",
-                    col(vec![h::RadioGroup::new("rg-v", options.clone())
+                    specimen_body("rg-vertical", col(vec![h::RadioGroup::new("rg-v", options.clone())
                         .value(selected_value.clone())
                         .on_change(cx.listener(|this, value: &SharedString, _, cx| {
                             this.radio_sel = match value.as_ref() {
@@ -1935,17 +1993,17 @@ impl Gallery {
                             };
                             cx.notify();
                         }))
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "Uncontrolled",
-                    col(vec![h::RadioGroup::new("rg-unc", options.clone())
+                    specimen_body("rg-uncontrolled", col(vec![h::RadioGroup::new("rg-unc", options.clone())
                         .default_value("Pro")
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "Horizontal Orientation",
-                    col(vec![h::RadioGroup::new("rg-h", options.clone())
+                    specimen_body("rg-horizontal", col(vec![h::RadioGroup::new("rg-h", options.clone())
                         .value(selected_value.clone())
                         .orientation(Orientation::Horizontal)
                         .on_change(cx.listener(|this, value: &SharedString, _, cx| {
@@ -1957,11 +2015,11 @@ impl Gallery {
                             };
                             cx.notify();
                         }))
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "Controlled", "The selected plan lives in the caller: the group reads `value` and the caption prints the selected plan.",
-                    col(vec![
+                    specimen_body("rg-controlled", col(vec![
                         h::RadioGroup::new(
                             "rg-controlled",
                             vec![
@@ -1981,11 +2039,11 @@ impl Gallery {
                             &format!("Selected plan: {}", self.radio_plan),
                             cx,
                         ),
-                    ]),
+                    ]), cx),
                 ),
                 (
                     "Disabled",
-                    col(vec![
+                    specimen_body("rg-disabled", col(vec![
                         // v3's own example disables the whole group
                         // (`<RadioGroup isDisabled>`); `Radio.isDisabled`
                         // instead disables one option — dimmed, unclickable,
@@ -2004,7 +2062,7 @@ impl Gallery {
                         )
                         .default_value("Enterprise")
                         .into_any_element(),
-                    ]),
+                    ]), cx),
                 ),
             ],
             cx,
@@ -2035,7 +2093,7 @@ impl Gallery {
             vec![
                 (
                     "Usage",
-                    col(vec![
+                    specimen_body("sf-main", col(vec![
                         demo_field(
                             h::SearchField::new(self.search_state.clone())
                                 .label("Search docs")
@@ -2053,36 +2111,44 @@ impl Gallery {
                             },
                             cx,
                         ),
-                    ]),
+                    ]), cx),
                 ),
                 (
                     "Box Customisation",
                     "`height`, `padding_x` and `is_bare` reach the inner field; a 28px bare search box.",
-                    field_col(vec![h::SearchField::new(self.demo_text("sf-custom-box", "", cx))
+                    specimen_body("sf-box-customisation", field_col(vec![h::SearchField::new(self.demo_text("sf-custom-box", "", cx))
                         .label("Compact")
                         .placeholder("Search...")
                         .height(px(28.))
                         .padding_x(px(8.))
                         .is_bare(true)
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "Variants",
                     field_col(vec![
-                        h::SearchField::new(self.demo_text("sf-v-primary", "", cx))
-                            .label("Primary")
-                            .placeholder("Search...")
-                            .into_any_element(),
-                        h::SearchField::new(self.demo_text("sf-v-secondary", "", cx))
-                            .label("Secondary")
-                            .placeholder("Search...")
-                            .variant(FieldVariant::Secondary)
-                            .into_any_element(),
+                        specimen_body(
+                            "sf-variant-Primary",
+                            h::SearchField::new(self.demo_text("sf-v-primary", "", cx))
+                                .label("Primary")
+                                .placeholder("Search...")
+                                .into_any_element(),
+                            cx,
+                        ),
+                        specimen_body(
+                            "sf-variant-Secondary",
+                            h::SearchField::new(self.demo_text("sf-v-secondary", "", cx))
+                                .label("Secondary")
+                                .placeholder("Search...")
+                                .variant(FieldVariant::Secondary)
+                                .into_any_element(),
+                            cx,
+                        ),
                     ]),
                 ),
                 (
                     "In Surface",
-                    field_col(vec![h::Surface::new()
+                    specimen_body("sf-in-surface", field_col(vec![h::Surface::new()
                         .padding(px(24.))
                         .gap(px(16.))
                         .child(
@@ -2092,54 +2158,54 @@ impl Gallery {
                                 .variant(FieldVariant::Secondary)
                                 .description("Enter keywords to search"),
                         )
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "With Description",
                     "Labels use 14px text with 20px lines; helper and error text use 12px text with 16px lines.",
-                    field_col(vec![h::SearchField::new(described)
+                    specimen_body("sf-description", field_col(vec![h::SearchField::new(described)
                         .label("Search")
                         .placeholder("Search products...")
                         .description("Searches titles and body text")
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "Required Field",
-                    field_col(vec![h::SearchField::new(required)
+                    specimen_body("sf-required", field_col(vec![h::SearchField::new(required)
                         .label("Search")
                         .placeholder("Enter search query...")
                         .is_required(true)
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "Disabled State",
-                    field_col(vec![h::SearchField::new(disabled)
+                    specimen_body("sf-disabled", field_col(vec![h::SearchField::new(disabled)
                         .label("Search")
                         .placeholder("Search...")
                         .is_disabled(true)
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "Full Width",
-                    col(vec![h::SearchField::new(full)
+                    specimen_body("sf-full-width", col(vec![h::SearchField::new(full)
                         .label("Search")
                         .placeholder("Search...")
                         .full_width()
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "Validation",
-                    field_col(vec![h::SearchField::new(invalid)
+                    specimen_body("sf-validation", field_col(vec![h::SearchField::new(invalid)
                         .label("Search")
                         .placeholder("Search...")
                         .is_required(true)
                         .is_invalid(true)
                         .validation_errors(["Search query must be at least 3 characters"])
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "Controlled",
-                    col(vec![
+                    specimen_body("sf-controlled", col(vec![
                         demo_field(
                             h::SearchField::new(controlled)
                                 .label("Search")
@@ -2159,11 +2225,11 @@ impl Gallery {
                             },
                             cx,
                         ),
-                    ]),
+                    ]), cx),
                 ),
                 (
                     "Render Props",
-                    field_col(vec![{
+                    specimen_body("sf-render-props", field_col(vec![{
                         let parts = render_props.clone();
                         h::SearchField::new(render_props)
                             .content(move |state| {
@@ -2182,11 +2248,11 @@ impl Gallery {
                                     .into_any_element()
                             })
                             .into_any_element()
-                    }]),
+                    }]), cx),
                 ),
                 (
                     "With Validation", "`validate` is run by the component: it returns the message, and the field shows it. Type one or two characters.",
-                    col(vec![
+                    specimen_body("sf-with-validation", col(vec![
                         demo_field(
                             h::SearchField::new(validated)
                                 .label("Search")
@@ -2199,11 +2265,11 @@ impl Gallery {
                                     })
                                 }),
                         ),
-                    ]),
+                    ]), cx),
                 ),
                 (
                     "Form Example",
-                    field_col(vec![{
+                    specimen_body("sf-form-example", field_col(vec![{
                         let field = h::SearchField::new(form_field)
                             .label("Search")
                             .placeholder("Search products...")
@@ -2218,25 +2284,25 @@ impl Gallery {
                             .child(field)
                             .child(h::Button::new("sf-form-submit").label("Search"))
                             .into_any_element()
-                    }]),
+                    }]), cx),
                 ),
                 (
                     "Custom Icons",
-                    field_col(vec![h::SearchField::new(icons)
+                    specimen_body("sf-custom-icons", field_col(vec![h::SearchField::new(icons)
                         .label("Search")
                         .placeholder("Search...")
                         .search_icon(icon(h::icons::GLOBE, cx))
                         .clear_icon(icon(h::icons::CHECK, cx))
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "With Keyboard Shortcut",
-                    field_col(vec![h::SearchField::new(shortcut)
+                    specimen_body("sf-keyboard-shortcut", field_col(vec![h::SearchField::new(shortcut)
                         .label("Search")
                         .placeholder("Search...")
                         .end_content(h::Kbd::new().child("Shift S"))
                         .description("Press Shift+S to focus")
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
             ],
             cx,
@@ -2257,35 +2323,43 @@ impl Gallery {
                 (
                     "Usage",
                     "Platform edits support composed text and paste. Enter confirms active composition before inserting a newline.",
-                    col(vec![fixed_demo(
+                    specimen_body("ta-main", col(vec![fixed_demo(
                         384.,
                         h::TextArea::new(self.demo_text("ta-usage", "", cx))
                             .placeholder("Share a quick project update...")
                             .cols(48)
                             .rows(6)
                             .full_width(),
-                    )]),
+                    )]), cx),
                 ),
                 (
                     "Variants",
                     "Labels use 14px text with 20px lines; helper and error text use 12px text with 16px lines.",
                     field_col(vec![
-                        h::TextArea::new(self.demo_text("ta-primary", "", cx))
-                            .label("Primary")
-                            .placeholder("Primary textarea")
-                            .rows(3)
-                            .into_any_element(),
-                        h::TextArea::new(self.demo_text("ta-secondary", "", cx))
-                            .label("Secondary")
-                            .placeholder("Secondary textarea")
-                            .variant(FieldVariant::Secondary)
-                            .rows(3)
-                            .into_any_element(),
+                        specimen_body(
+                            "ta-variant-Primary",
+                            h::TextArea::new(self.demo_text("ta-primary", "", cx))
+                                .label("Primary")
+                                .placeholder("Primary textarea")
+                                .rows(3)
+                                .into_any_element(),
+                            cx,
+                        ),
+                        specimen_body(
+                            "ta-variant-Secondary",
+                            h::TextArea::new(self.demo_text("ta-secondary", "", cx))
+                                .label("Secondary")
+                                .placeholder("Secondary textarea")
+                                .variant(FieldVariant::Secondary)
+                                .rows(3)
+                                .into_any_element(),
+                            cx,
+                        ),
                     ]),
                 ),
                 (
                     "In Surface",
-                    field_col(vec![h::Surface::new()
+                    specimen_body("ta-in-surface", field_col(vec![h::Surface::new()
                         .padding(px(24.))
                         .gap(px(16.))
                         .child(
@@ -2295,20 +2369,20 @@ impl Gallery {
                                 .variant(FieldVariant::Secondary)
                                 .rows(3),
                         )
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "Full Width",
-                    col(vec![h::TextArea::new(self.demo_text("ta-full", "", cx))
+                    specimen_body("ta-full-width", col(vec![h::TextArea::new(self.demo_text("ta-full", "", cx))
                         .label("Notes")
                         .placeholder("Full width textarea")
                         .rows(3)
                         .full_width()
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "Controlled",
-                    col(vec![
+                    specimen_body("ta-controlled", col(vec![
                         demo_field(
                             h::TextArea::new(self.demo_text("ta-controlled", "", cx))
                                 .label("Notes")
@@ -2317,15 +2391,30 @@ impl Gallery {
                                 .on_change(|_, _, _| {}),
                         ),
                         para(&format!("{} characters", ta_controlled.chars().count()), cx),
-                    ]),
+                    ]), cx),
                 ),
                 (
                     "Rows and Resizing",
-                    field_col(vec![h::TextArea::new(self.input_bio.clone())
-                        .label("Six rows")
-                        .placeholder("Write out the full meeting notes...")
-                        .rows(6)
-                        .into_any_element()]),
+                    field_col(vec![
+                        specimen_body(
+                            "ta-one-row-floor",
+                            h::TextArea::new(self.demo_text("ta-one-row-floor", "", cx))
+                                .label("One row (38px minimum)")
+                                .placeholder("A compact note")
+                                .rows(1)
+                                .into_any_element(),
+                            cx,
+                        ),
+                        specimen_body(
+                            "ta-rows-resizing",
+                            h::TextArea::new(self.input_bio.clone())
+                                .label("Six rows")
+                                .placeholder("Write out the full meeting notes...")
+                                .rows(6)
+                                .into_any_element(),
+                            cx,
+                        ),
+                    ]),
                 ),
             ],
             cx,
@@ -2346,75 +2435,101 @@ impl Gallery {
             vec![
                 (
                     "Usage",
-                    field_col(vec![h::TextField::new(self.text_field_state.clone())
-                        .label("Full name")
-                        .placeholder("Ada Lovelace")
-                        .description("As it appears on your ID.")
-                        .into_any_element()]),
+                    specimen_body(
+                        "tf-main",
+                        field_col(vec![h::TextField::new(self.demo_text("tf-usage", "", cx))
+                            .label("Full name")
+                            .placeholder("Ada Lovelace")
+                            .description("As it appears on your ID.")
+                            .into_any_element()]),
+                        cx
+                    ),
                 ),
                 (
                     "In Surface",
-                    field_col(vec![h::Surface::new()
-                        .padding(px(24.))
-                        .gap(px(16.))
-                        .child(
-                            h::TextField::new(self.demo_text("tf-surface", "", cx))
-                                .label("Full name")
-                                .placeholder("John")
-                                .variant(FieldVariant::Secondary)
-                                .description("Use the secondary variant on a surface"),
-                        )
-                        .into_any_element()]),
+                    specimen_body(
+                        "tf-in-surface",
+                        field_col(vec![h::Surface::new()
+                            .padding(px(24.))
+                            .gap(px(16.))
+                            .child(
+                                h::TextField::new(self.demo_text("tf-surface", "", cx))
+                                    .label("Full name")
+                                    .placeholder("John")
+                                    .variant(FieldVariant::Secondary)
+                                    .description("Use the secondary variant on a surface"),
+                            )
+                            .into_any_element()]),
+                        cx
+                    ),
                 ),
                 (
                     "With Description",
-                    field_col(vec![h::TextField::new(self.demo_text("tf-desc", "", cx))
-                        .label("Full name")
-                        .placeholder("Enter username")
-                        .description("As it appears on your ID.")
-                        .into_any_element()]),
+                    specimen_body(
+                        "tf-description",
+                        field_col(vec![h::TextField::new(self.demo_text("tf-desc", "", cx))
+                            .label("Full name")
+                            .placeholder("Enter username")
+                            .description("As it appears on your ID.")
+                            .into_any_element()]),
+                        cx
+                    ),
                 ),
                 (
                     "Required Field",
-                    field_col(vec![h::TextField::new(self.demo_text("tf-req", "", cx))
-                        .label("Full name")
-                        .placeholder("John Doe")
-                        .is_required(true)
-                        .into_any_element()]),
+                    specimen_body(
+                        "tf-required",
+                        field_col(vec![h::TextField::new(self.demo_text("tf-req", "", cx))
+                            .label("Full name")
+                            .placeholder("John Doe")
+                            .is_required(true)
+                            .into_any_element()]),
+                        cx
+                    ),
                 ),
                 (
                     "Disabled State",
-                    field_col(vec![h::TextField::new(self.demo_text(
-                        "tf-dis",
-                        "Ada Lovelace",
-                        cx,
-                    ))
-                    .label("Full name")
-                    .placeholder("Auto-generated")
-                    .is_disabled(true)
-                    .into_any_element()]),
+                    specimen_body(
+                        "tf-disabled",
+                        field_col(vec![h::TextField::new(self.demo_text(
+                            "tf-dis",
+                            "Ada Lovelace",
+                            cx,
+                        ))
+                        .label("Full name")
+                        .placeholder("Auto-generated")
+                        .is_disabled(true)
+                        .into_any_element()]),
+                        cx
+                    ),
                 ),
                 (
                     "Full Width",
-                    col(vec![h::TextField::new(self.demo_text("tf-full", "", cx))
-                        .label("Full name")
-                        .placeholder("John")
-                        .full_width()
-                        .into_any_element()]),
+                    specimen_body(
+                        "tf-full-width",
+                        col(vec![h::TextField::new(self.demo_text("tf-full", "", cx))
+                            .label("Full name")
+                            .placeholder("John")
+                            .full_width()
+                            .into_any_element()]),
+                        cx
+                    ),
                 ),
                 (
                     "Validation",
-                    field_col(vec![
-                        h::TextField::new(self.demo_text("tf-validate", "", cx,))
-                            .label("Full name")
-                            .placeholder("jane_doe")
-                            .is_required(true)
-                            .validate(|value| value
-                                .trim()
-                                .is_empty()
-                                .then(|| "Name is required".into()))
-                            .into_any_element(),
-                        h::TextField::new(self.demo_text("tf-invalid", "", cx))
+                    specimen_body(
+                        "tf-validation",
+                        field_col(vec![
+                            h::TextField::new(self.demo_text("tf-validate", "", cx,))
+                                .label("Full name")
+                                .placeholder("jane_doe")
+                                .is_required(true)
+                                .validate(|value| value
+                                    .trim()
+                                    .is_empty()
+                                    .then(|| "Name is required".into()))
+                                .into_any_element(),
+                            h::TextField::new(self.demo_text("tf-invalid", "", cx))
                         .label("Full name")
                         .placeholder("Ada Lovelace")
                         // `isInvalid` marks it invalid from the outside, which is
@@ -2422,81 +2537,103 @@ impl Gallery {
                         .is_invalid(true)
                         .error_message("Name is required")
                         .into_any_element()
-                    ]),
+                        ]),
+                        cx
+                    ),
                 ),
                 (
                     "Controlled",
-                    col(vec![
-                        demo_field(
-                            h::TextField::new(self.demo_text("tf-controlled", "", cx))
-                                .label("Full name")
-                                .placeholder("Jane")
-                                .on_change(|_, _, _| {}),
-                        ),
-                        para(&format!("Value: {tf_controlled}"), cx),
-                    ]),
+                    specimen_body(
+                        "tf-controlled",
+                        col(vec![
+                            demo_field(
+                                h::TextField::new(self.demo_text("tf-controlled", "", cx))
+                                    .label("Full name")
+                                    .placeholder("Jane")
+                                    .on_change(|_, _, _| {}),
+                            ),
+                            para(&format!("Value: {tf_controlled}"), cx),
+                        ]),
+                        cx
+                    ),
                 ),
                 (
                     "Render Props",
-                    field_col(vec![{
-                        let field = tf_render_props.clone();
-                        h::TextField::new(tf_render_props)
-                            .content(move |state| {
-                                h::TextField::new(field.clone())
-                                    .label(format!(
-                                        "{} · {} · {}",
-                                        if state.is_required {
-                                            "required"
-                                        } else {
-                                            "optional"
-                                        },
-                                        if state.is_invalid { "invalid" } else { "valid" },
-                                        if state.is_focus_within {
-                                            "focused"
-                                        } else {
-                                            "unfocused"
-                                        },
-                                    ))
-                                    .placeholder("Enter your email")
-                                    .is_required(true)
-                                    .into_any_element()
-                            })
-                            .is_required(true)
-                            .into_any_element()
-                    }]),
+                    specimen_body(
+                        "tf-render-props",
+                        field_col(vec![{
+                            let field = tf_render_props.clone();
+                            h::TextField::new(tf_render_props)
+                                .content(move |state| {
+                                    h::TextField::new(field.clone())
+                                        .label(format!(
+                                            "{} · {} · {}",
+                                            if state.is_required {
+                                                "required"
+                                            } else {
+                                                "optional"
+                                            },
+                                            if state.is_invalid { "invalid" } else { "valid" },
+                                            if state.is_focus_within {
+                                                "focused"
+                                            } else {
+                                                "unfocused"
+                                            },
+                                        ))
+                                        .placeholder("Enter your email")
+                                        .is_required(true)
+                                        .into_any_element()
+                                })
+                                .is_required(true)
+                                .into_any_element()
+                        }]),
+                        cx
+                    ),
                 ),
                 (
                     "Error Message",
-                    field_col(vec![h::TextField::new(self.text_field_state.clone())
-                        .label("Full name")
-                        .placeholder("Ada Lovelace")
-                        .is_required(true)
-                        .error_message("This field is required.")
-                        .into_any_element()]),
+                    specimen_body(
+                        "tf-error-message",
+                        field_col(vec![h::TextField::new(self.demo_text("tf-error", "", cx))
+                            .label("Full name")
+                            .placeholder("Ada Lovelace")
+                            .is_required(true)
+                            .error_message("This field is required.")
+                            .into_any_element()]),
+                        cx
+                    ),
                 ),
                 (
                     "TextArea",
-                    field_col(vec![h::TextArea::new(self.demo_text("tf-area", "", cx))
-                        .label("Bio")
-                        .placeholder("Write your message here...")
-                        .rows(4)
-                        .description("A `TextField` whose input is multi-line")
-                        .into_any_element()]),
+                    specimen_body(
+                        "tf-text-area",
+                        field_col(vec![h::TextArea::new(self.demo_text("tf-area", "", cx))
+                            .label("Bio")
+                            .placeholder("Write your message here...")
+                            .rows(4)
+                            .description("A `TextField` whose input is multi-line")
+                            .into_any_element()]),
+                        cx
+                    ),
                 ),
                 (
                     "Input Types",
-                    field_col(vec![
-                        h::TextField::new(self.demo_text("tf-pw", "", cx))
-                            .label("Password")
-                            .placeholder("••••••••")
-                            .input_type(h::InputType::Password)
-                            .into_any_element(),
-                        h::TextField::new(self.demo_text("tf-email", "", cx))
-                            .label("Email")
-                            .placeholder("user@example.com")
-                            .input_type(h::InputType::Email)
-                            .into_any_element(),
-                    ]),
+                    specimen_body(
+                        "tf-input-types",
+                        field_col(vec![
+                            h::TextField::new(self.demo_text("tf-pw", "", cx))
+                                .label("Password")
+                                .placeholder("••••••••")
+                                .input_type(h::InputType::Password)
+                                .into_any_element(),
+                            h::TextField::new(self.demo_text("tf-email", "", cx))
+                                .label("Email")
+                                .placeholder("user@example.com")
+                                .input_type(h::InputType::Email)
+                                .into_any_element(),
+                        ]),
+                        cx
+                    ),
                 ),
             ],
             cx,

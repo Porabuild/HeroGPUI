@@ -52,6 +52,29 @@ fn color_picker_flips_and_shifts_inside_the_viewport(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
+fn color_picker_initial_open_with_motion_mounts_and_settles(cx: &mut TestAppContext) {
+    let cx = open_host(cx, || {
+        gpui::div()
+            .size_full()
+            .child(
+                gpui::div().absolute().left(px(500.)).top(px(120.)).child(
+                    ColorPicker::new("motion-open-picker", PickerColor::hsb(210., 0.5, 0.6))
+                        .is_open(true)
+                        .show_alpha(true),
+                ),
+            )
+            .into_any_element()
+    });
+    cx.simulate_resize(gpui::size(px(640.), px(540.)));
+    cx.update(|window, _| window.refresh());
+    cx.run_until_parked();
+    let panel = cx
+        .debug_bounds(r#"Name("motion-open-picker")-panel"#)
+        .expect("an initially-open picker must render its panel");
+    assert!(panel.size.height > px(250.), "{panel:?}");
+}
+
+#[gpui::test]
 fn color_picker_scrolls_to_alpha_in_a_short_viewport(cx: &mut TestAppContext) {
     reduced_motion();
     let changed = Rc::new(Cell::new(false));

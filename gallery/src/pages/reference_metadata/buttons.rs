@@ -11,9 +11,9 @@ const BUTTON_API: &[ApiDoc] = &[
     ApiDoc {
         owner: "Button",
         prop: "variant",
-        ty: "'primary' | 'secondary' | 'tertiary' | 'outline' | 'ghost' | 'danger'",
+        ty: "'primary' | 'secondary' | 'tertiary' | 'outline' | 'ghost' | 'danger' | 'danger-soft'",
         default: "'primary'",
-        description: "Visual style variant; the pinned stylesheet also defines danger-soft.",
+        description: "Visual style variant, including a soft danger treatment.",
         rust_owner: "Button",
         rust: "variant(Variant)",
         status: ImplementationStatus::Implemented,
@@ -179,8 +179,8 @@ const BUTTON_STATES: &[StateDoc] = &[
     StateDoc {
         state: "Pressed",
         selector: ".button:active / [data-pressed=\"true\"]",
-        description: "Size-specific scale and render state for pointer or keyboard press.",
-        rust: "anim::pressed + InteractiveState::is_pressed",
+        description: "Size-specific scale, variant pressed-background endpoint and render state for pointer or keyboard press.",
+        rust: "button_pressed_background + anim::pressed_with_background + InteractiveState::is_pressed",
         status: ImplementationStatus::Implemented,
     },
     StateDoc {
@@ -287,16 +287,16 @@ const BUTTON_STYLING: &[StyleDoc] = &[
     StyleDoc {
         class_or_token: ".button background-color transition",
         value: "100ms ease-out; motion-reduce transition-none",
-        description: "Hover colors interpolate on a listener-free child fill and reduced motion swaps directly.",
-        rust: "anim::hover_fade + TRANSITION_MS + Curve::Out",
+        description: "Hover colors interpolate on a listener-free child fill and reduced motion swaps directly; the pressed fill eases between the same endpoints on the press ramp's own 100ms track.",
+        rust: "anim::hover_fade + TRANSITION_MS + Curve::Out; pressed_with_background_ramp",
         status: ImplementationStatus::Implemented,
     },
     StyleDoc {
         class_or_token: ".button transform / box-shadow transitions",
         value: "transform 250ms ease-smooth; box-shadow 100ms ease-out; motion-reduce transition-none",
-        description: "Press geometry and focus shadow reach the correct endpoints, but GPUI applies both without property interpolation.",
-        rust: "anim::pressed + ring_if_focused",
-        status: ImplementationStatus::Partial,
+        description: "The press ramps on the pinned transform timeline: the skin eases its geometry over 250ms ease-smooth, resuming from the painted frame when released mid-press and snapping under reduced motion. The pressed state changes no box-shadow (the ring is focus-only), so that track has no endpoints to interpolate and the focus ring stays immediate.",
+        rust: "anim::pressed_with_background_ramp + BUTTON_PRESS (Curve::Smooth) + ring_if_focused",
+        status: ImplementationStatus::Implemented,
     },
 ];
 
@@ -610,9 +610,9 @@ const CLOSE_BUTTON_STYLING: &[StyleDoc] = &[
     StyleDoc {
         class_or_token: ".close-button transitions",
         value: "transform 250ms ease-out-quart; color/box-shadow 150ms ease-out; background 100ms ease-out; motion-reduce none",
-        description: "The port changes hover, press and focus styling on a frame without these interpolation timelines.",
-        rust: "immediate hover/active/ring styles",
-        status: ImplementationStatus::Partial,
+        description: "The press ramps on the pinned transform timeline: the skin eases its geometry over 250ms ease-out-quart inside a stable slot, resuming from the painted frame when released mid-press and snapping to the scaled endpoint under reduced motion. The pressed state changes no colour or shadow (hover eases through anim::hover_fade; the focus ring is immediate), so those tracks have no pressed endpoints to interpolate.",
+        rust: "anim::pressed_with_background_ramp + CLOSE_BUTTON_PRESS (Curve::OutQuart) + hover_fade + ring_if_focused",
+        status: ImplementationStatus::Implemented,
     },
     StyleDoc {
         class_or_token: ".close-button:focus-visible",
@@ -1167,9 +1167,9 @@ const TOGGLE_BUTTON_STYLING: &[StyleDoc] = &[
     StyleDoc {
         class_or_token: ".toggle-button",
         value: "transform 250ms ease-smooth; background-color/box-shadow 100ms ease-out; motion-reduce none",
-        description: "v3 transitions press geometry and color; the port applies the geometry in one frame and does not interpolate the color or press ramp.",
-        rust: "anim::pressed + immediate hover/background",
-        status: ImplementationStatus::Partial,
+        description: "The press ramps on the pinned timelines: the skin eases its geometry over 250ms ease-smooth while the fill eases to the pressed endpoint over 100ms ease-out, resuming from the painted frame when released mid-press and snapping under reduced motion. Grouped members suppress the scale and keep the instant endpoint. The pressed state changes no box-shadow, so that track has no endpoints to interpolate.",
+        rust: "anim::pressed_with_background_ramp + BUTTON_PRESS (Curve::Smooth / Curve::Out)",
+        status: ImplementationStatus::Implemented,
     },
     StyleDoc {
         class_or_token: ".toggle-button-group",

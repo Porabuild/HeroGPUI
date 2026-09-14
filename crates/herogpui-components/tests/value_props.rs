@@ -485,8 +485,8 @@ fn combo_box_value_content_hands_placeholder_then_pick(cx: &mut TestAppContext) 
     );
     assert_eq!(
         changed.borrow().as_slice(),
-        ["0"],
-        "clearing the input must report the empty single selection"
+        ["1", "0"],
+        "picking reports one selected key, then clearing reports the empty selection"
     );
 }
 

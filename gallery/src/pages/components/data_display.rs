@@ -17,11 +17,13 @@ impl Gallery {
                     "Usage",
                     // v3 anchors three avatars: a danger count, an accent label
                     // and a success dot pinned to the bottom-right.
-                    row(vec![
-                        h::BadgeAnchor::new()
-                            .child(avatar_box(("badge-anchor", 0usize), "Jane Doe"))
-                            .child(
-                                h::Badge::new()
+                    specimen_body(
+                        "badge-main",
+                        row(vec![
+                            h::BadgeAnchor::new()
+                                .child(avatar_box(("badge-anchor", 0usize), "Jane Doe"))
+                                .child(
+                                    h::Badge::new()
                                     .color(Color::Danger)
                                     .size(Size::Sm)
                                     .text_size(px(14.))
@@ -29,42 +31,48 @@ impl Gallery {
                                     // corner; the step stays the fallback.
                                     .radius(px(4.))
                                     .child(h::BadgeLabel::new().child("5")),
-                            )
-                            .into_any_element(),
-                        h::BadgeAnchor::new()
-                            .child(avatar_box(("badge-anchor", 1usize), "Alex Brown"))
-                            .child(
-                                h::Badge::new()
-                                    .color(Color::Accent)
-                                    .size(Size::Sm)
-                                    .child(h::BadgeLabel::new().child("New")),
-                            )
-                            .into_any_element(),
-                        h::BadgeAnchor::new()
-                            .child(avatar_box(("badge-anchor", 2usize), "Chris Davis"))
-                            .child(
-                                h::Badge::new()
-                                    .color(Color::Success)
-                                    .size(Size::Sm)
-                                    .placement(h::BadgePlacement::BottomRight),
-                            )
-                            .into_any_element(),
-                    ]),
+                                )
+                                .into_any_element(),
+                            h::BadgeAnchor::new()
+                                .child(avatar_box(("badge-anchor", 1usize), "Alex Brown"))
+                                .child(
+                                    h::Badge::new()
+                                        .color(Color::Accent)
+                                        .size(Size::Sm)
+                                        .child(h::BadgeLabel::new().child("New")),
+                                )
+                                .into_any_element(),
+                            h::BadgeAnchor::new()
+                                .child(avatar_box(("badge-anchor", 2usize), "Chris Davis"))
+                                .child(
+                                    h::Badge::new()
+                                        .color(Color::Success)
+                                        .size(Size::Sm)
+                                        .placement(h::BadgePlacement::BottomRight),
+                                )
+                                .into_any_element(),
+                        ]),
+                        cx
+                    ),
                 ),
                 (
                     "Sizes",
                     row(Size::ALL
                         .iter()
                         .map(|sz| {
-                            spec(
-                                sz.label(),
-                                h::BadgeAnchor::new()
-                                    .child(avatar_box(("badge-anchor", 1usize), "Alex Brown"))
-                                    .child(
-                                        h::Badge::new()
-                                            .size(*sz)
-                                            .child(h::BadgeLabel::new().child("5")),
-                                    ),
+                            specimen_body(
+                                &format!("badge-size-{sz:?}"),
+                                spec(
+                                    sz.label(),
+                                    h::BadgeAnchor::new()
+                                        .child(avatar_box(("badge-anchor", 1usize), "Alex Brown"))
+                                        .child(
+                                            h::Badge::new()
+                                                .size(*sz)
+                                                .child(h::BadgeLabel::new().child("5")),
+                                        ),
+                                    cx,
+                                ),
                                 cx,
                             )
                         })
@@ -75,12 +83,16 @@ impl Gallery {
                     row(Color::ALL
                         .iter()
                         .map(|c| {
-                            spec(
-                                c.label(),
-                                // No children is v3's dot badge.
-                                h::BadgeAnchor::new()
-                                    .child(avatar_box(("badge-anchor", 2usize), "Chris Davis"))
-                                    .child(h::Badge::new().color(*c)),
+                            specimen_body(
+                                &format!("badge-dot-{c:?}"),
+                                spec(
+                                    c.label(),
+                                    // No children is v3's dot badge.
+                                    h::BadgeAnchor::new()
+                                        .child(avatar_box(("badge-anchor", 2usize), "Chris Davis"))
+                                        .child(h::Badge::new().color(*c)),
+                                    cx,
+                                ),
                                 cx,
                             )
                         })
@@ -88,63 +100,71 @@ impl Gallery {
                 ),
                 (
                     "With Content",
-                    row(vec![
-                        spec(
-                            "Number",
-                            h::BadgeAnchor::new()
-                                .child(avatar_box(("badge-anchor", 3usize), "Jane Doe"))
-                                .child(
-                                    h::Badge::new()
-                                        .color(Color::Danger)
-                                        .size(Size::Sm)
-                                        .child(h::BadgeLabel::new().child("5")),
-                                ),
-                            cx,
-                        ),
-                        spec(
-                            "Text",
-                            h::BadgeAnchor::new()
-                                .child(avatar_box(("badge-anchor", 4usize), "Alex Brown"))
-                                .child(
-                                    h::Badge::new()
-                                        .color(Color::Accent)
-                                        .child(h::BadgeLabel::new().child("NEW")),
-                                ),
-                            cx,
-                        ),
-                        spec(
-                            "Icon",
-                            // Only plain text is auto-wrapped upstream; an
-                            // element child composes straight into the badge.
-                            h::BadgeAnchor::new()
-                                .child(avatar_box(("badge-anchor", 5usize), "Chris Davis"))
-                                .child(
-                                    h::Badge::new().color(Color::Success).child(
-                                        gpui::svg()
-                                            .size(px(10.))
-                                            .path(h::icons::CHECK)
-                                            .text_color(cx.colors().success.foreground),
+                    specimen_body(
+                        "badge-content",
+                        row(vec![
+                            spec(
+                                "Number",
+                                h::BadgeAnchor::new()
+                                    .child(avatar_box(("badge-anchor", 3usize), "Jane Doe"))
+                                    .child(
+                                        h::Badge::new()
+                                            .color(Color::Danger)
+                                            .size(Size::Sm)
+                                            .child(h::BadgeLabel::new().child("5")),
                                     ),
-                                ),
-                            cx,
-                        ),
-                    ]),
+                                cx,
+                            ),
+                            spec(
+                                "Text",
+                                h::BadgeAnchor::new()
+                                    .child(avatar_box(("badge-anchor", 4usize), "Alex Brown"))
+                                    .child(
+                                        h::Badge::new()
+                                            .color(Color::Accent)
+                                            .child(h::BadgeLabel::new().child("NEW")),
+                                    ),
+                                cx,
+                            ),
+                            spec(
+                                "Icon",
+                                // Only plain text is auto-wrapped upstream; an
+                                // element child composes straight into the badge.
+                                h::BadgeAnchor::new()
+                                    .child(avatar_box(("badge-anchor", 5usize), "Chris Davis"))
+                                    .child(
+                                        h::Badge::new().color(Color::Success).child(
+                                            gpui::svg()
+                                                .size(px(10.))
+                                                .path(h::icons::CHECK)
+                                                .text_color(cx.colors().success.foreground),
+                                        ),
+                                    ),
+                                cx,
+                            ),
+                        ]),
+                        cx
+                    ),
                 ),
                 (
                     "Variants",
                     row(h::BadgeVariant::ALL
                         .iter()
                         .map(|v| {
-                            spec(
-                                v.label(),
-                                h::BadgeAnchor::new()
-                                    .child(avatar_box(("badge-anchor", 6usize), "Jane Doe"))
-                                    .child(
-                                        h::Badge::new()
-                                            .color(Color::Accent)
-                                            .variant(*v)
-                                            .child(h::BadgeLabel::new().child("5")),
-                                    ),
+                            specimen_body(
+                                &format!("badge-variant-{v:?}"),
+                                spec(
+                                    v.label(),
+                                    h::BadgeAnchor::new()
+                                        .child(avatar_box(("badge-anchor", 6usize), "Jane Doe"))
+                                        .child(
+                                            h::Badge::new()
+                                                .color(Color::Accent)
+                                                .variant(*v)
+                                                .child(h::BadgeLabel::new().child("5")),
+                                        ),
+                                    cx,
+                                ),
                                 cx,
                             )
                         })
@@ -155,15 +175,19 @@ impl Gallery {
                     row(Color::ALL
                         .iter()
                         .map(|c| {
-                            spec(
-                                c.label(),
-                                h::BadgeAnchor::new()
-                                    .child(avatar_box(("badge-anchor", 7usize), "Alex Brown"))
-                                    .child(
-                                        h::Badge::new()
-                                            .color(*c)
-                                            .child(h::BadgeLabel::new().child("5")),
-                                    ),
+                            specimen_body(
+                                &format!("badge-color-{c:?}"),
+                                spec(
+                                    c.label(),
+                                    h::BadgeAnchor::new()
+                                        .child(avatar_box(("badge-anchor", 7usize), "Alex Brown"))
+                                        .child(
+                                            h::Badge::new()
+                                                .color(*c)
+                                                .child(h::BadgeLabel::new().child("5")),
+                                        ),
+                                    cx,
+                                ),
                                 cx,
                             )
                         })
@@ -171,29 +195,44 @@ impl Gallery {
                 ),
                 (
                     "Placements",
-                    row(vec![
-                        // No children is v3's dot badge.
-                        h::BadgeAnchor::new()
-                            .child(avatar_box(("badge-anchor", 8usize), "Chris Davis"))
-                            .child(h::Badge::new().color(Color::Success))
-                            .into_any_element(),
-                        h::BadgeAnchor::new()
-                            .child(avatar_box(("badge-anchor", 9usize), "Jane Doe"))
-                            .child(
-                                h::Badge::new()
-                                    .placement(h::BadgePlacement::BottomRight)
-                                    .child(h::BadgeLabel::new().child("9")),
-                            )
-                            .into_any_element(),
-                        h::BadgeAnchor::new()
-                            .child(avatar_box(("badge-anchor", 10usize), "Alex Brown"))
-                            .child(
-                                h::Badge::new()
-                                    .placement(h::BadgePlacement::TopLeft)
-                                    .child(h::BadgeLabel::new().child("New")),
-                            )
-                            .into_any_element(),
-                    ]),
+                    specimen_body(
+                        "badge-placements",
+                        row(vec![
+                            // No children is v3's dot badge.
+                            h::BadgeAnchor::new()
+                                .child(avatar_box(("badge-anchor", 8usize), "Chris Davis"))
+                                .child(h::Badge::new().color(Color::Success))
+                                .into_any_element(),
+                            h::BadgeAnchor::new()
+                                .child(avatar_box(("badge-anchor", 9usize), "Jane Doe"))
+                                .child(
+                                    h::Badge::new()
+                                        .placement(h::BadgePlacement::BottomRight)
+                                        .child(h::BadgeLabel::new().child("9")),
+                                )
+                                .into_any_element(),
+                            h::BadgeAnchor::new()
+                                .child(avatar_box(("badge-anchor", 10usize), "Alex Brown"))
+                                .child(
+                                    h::Badge::new()
+                                        .placement(h::BadgePlacement::TopLeft)
+                                        .child(h::BadgeLabel::new().child("New")),
+                                )
+                                .into_any_element(),
+                            // A long label grows the badge past its min box,
+                            // and the corner overhang follows the grown box —
+                            // a quarter of it, per the pinned translate.
+                            h::BadgeAnchor::new()
+                                .child(avatar_box(("badge-anchor", 11usize), "Chris Davis"))
+                                .child(
+                                    h::Badge::new()
+                                        .placement(h::BadgePlacement::BottomLeft)
+                                        .child(h::BadgeLabel::new().child("999+")),
+                                )
+                                .into_any_element(),
+                        ]),
+                        cx
+                    ),
                 ),
             ],
             cx,
@@ -209,15 +248,15 @@ impl Gallery {
                 (
                     "Usage",
                     "`text_size` sets the label size and paired leading; `radius` replaces the chip's default corner.",
-                    row(vec![h::Chip::new()
+                    specimen_body("chip-main", row(vec![h::Chip::new()
                         .text_size(px(14.))
                         .radius(px(4.))
                         .child(h::ChipLabel::new().child("Chip"))
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "Statuses",
-                    row(vec![
+                    specimen_body("chip-statuses", row(vec![
                         h::Chip::new()
                             .color(Color::Success)
                             .variant(h::ChipVariant::Soft)
@@ -233,11 +272,11 @@ impl Gallery {
                             .variant(h::ChipVariant::Soft)
                             .child(h::ChipLabel::new().child("Vacation"))
                             .into_any_element(),
-                    ]),
+                    ]), cx),
                 ),
                 (
                     "With Icons",
-                    row(vec![
+                    specimen_body("chip-icons", row(vec![
                         h::Chip::new()
                             .color(Color::Success)
                             .child(icon(h::icons::CHECK, cx))
@@ -252,11 +291,11 @@ impl Gallery {
                             .child(icon(h::icons::SEARCH, cx))
                             .child(h::ChipLabel::new().child("Search"))
                             .into_any_element(),
-                    ]),
+                    ]), cx),
                 ),
                 (
                     "Variants",
-                    row(h::ChipVariant::ALL
+                    specimen_body("chip-variants", row(h::ChipVariant::ALL
                         .iter()
                         .map(|v| {
                             h::Chip::new()
@@ -264,29 +303,29 @@ impl Gallery {
                                 .color(Color::Accent)
                                 .child(h::ChipLabel::new().child(v.label()))
                         })
-                        .els()),
+                        .els()), cx),
                 ),
                 (
                     "Colors",
-                    row(Color::ALL
+                    specimen_body("chip-colors", row(Color::ALL
                         .iter()
                         .map(|c| {
                             h::Chip::new()
                                 .color(*c)
                                 .child(h::ChipLabel::new().child(c.label()))
                         })
-                        .els()),
+                        .els()), cx),
                 ),
                 (
                     "Sizes",
-                    row(Size::ALL
+                    specimen_body("chip-sizes", row(Size::ALL
                         .iter()
                         .map(|s| {
                             h::Chip::new()
                                 .size(*s)
                                 .child(h::ChipLabel::new().child(s.label()))
                         })
-                        .els()),
+                        .els()), cx),
                 ),
             ],
             cx,
@@ -669,14 +708,18 @@ impl Gallery {
                     ]),
                 ),
                 (
-                    "Secondary Variant",
+                    "Secondary Variant", "The flat variant keeps a surface-filled rounded header, tertiary separators on every body cell, and no tray background.",
                     // The `Primary` tray paints its own radius over the shell's,
                     // so the override is only visible on a flat `Secondary`
                     // table, where the shell is what rounds.
-                    stretch_col(vec![build("tbl-secondary-variant")
-                        .variant(h::TableVariant::Secondary)
-                        .radius(px(8.))
-                        .into_any_element()]),
+                    stretch_col(vec![specimen_body(
+                        "tbl-secondary-variant",
+                        build("tbl-secondary-variant")
+                            .variant(h::TableVariant::Secondary)
+                            .radius(px(8.))
+                            .into_any_element(),
+                        cx,
+                    )]),
                 ),
                 (
                     "Async Loading", "`isPending` covers the table while a request is in flight; `onLoadMore` fires when the last row scrolls into view.",

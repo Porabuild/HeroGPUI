@@ -63,6 +63,7 @@ fn main() {
         .run(move |cx: &mut App| {
             ThemeProvider::init_with(theme, cx);
             control::init_section_filter(cx);
+            control::init_specimen_filter(cx);
             control::set_preview_only(
                 std::env::var("HEROGPUI_PREVIEW").as_deref() == Ok("component"),
                 cx,
@@ -118,8 +119,8 @@ fn main() {
                 )
                 .unwrap();
             // `HEROGPUI_CONTROL=<file>` lets one process serve a whole batch of
-            // checks: the page, section, theme and overlay state all come from
-            // that file while the app runs.
+            // checks: the page, section, specimen, theme and overlay state all
+            // come from that file while the app runs.
             control::spawn(window, cx);
 
             // Activating raises the window and takes the focus, which is the

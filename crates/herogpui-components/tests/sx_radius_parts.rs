@@ -36,6 +36,10 @@ fn slider_and_switch_refine_their_parts_with_sx_corners() {
         3,
         "the switch track, animated fill and thumb must each refine their corners"
     );
+    assert!(
+        include_str!("../src/switch.rs").contains(".overflow_hidden()"),
+        "the switch track must clip its animated fill, thumb shadow and icons to its rounded bounds"
+    );
     let tabs = include_str!("../src/tabs.rs");
     assert!(
         tabs.contains("let sx_corners = crate::util::sx_radius(&self.sx);")

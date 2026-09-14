@@ -84,6 +84,28 @@ fn switch_read_only_ignores_pointer_press(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
+fn switch_label_row_toggles_once(cx: &mut TestAppContext) {
+    let changes = events();
+    let recorded = changes.clone();
+    let cx = open_host(cx, move || {
+        let changes = changes.clone();
+        Switch::new("label-pointer")
+            .label(gpui::div().w(px(64.)).child("Notifications"))
+            .on_change(move |selected, _, _| changes.borrow_mut().push(selected.to_string()))
+            .into_any_element()
+    });
+
+    // The label begins after the 40px track and 12px content gap. Its row is
+    // the v3 Switch.Content click target, so this must toggle exactly once.
+    click(cx, 72., 10.);
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["true"],
+        "clicking the switch label must toggle the row once"
+    );
+}
+
+#[gpui::test]
 fn switch_read_only_stays_focusable_but_ignores_space(cx: &mut TestAppContext) {
     let changes = events();
     let recorded = changes.clone();

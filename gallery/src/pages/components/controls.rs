@@ -102,6 +102,7 @@ impl Gallery {
                         fixed_demo(
                             320.,
                             h::Slider::new("sl-fmt-pct", 0.35)
+                                .default_value(0.35)
                                 .min_value(0.)
                                 .max_value(1.)
                                 .step(0.01)
@@ -112,6 +113,7 @@ impl Gallery {
                         fixed_demo(
                             320.,
                             h::Slider::new("sl-fmt-cur", 1200.)
+                                .default_value(1200.)
                                 .min_value(0.)
                                 .max_value(5000.)
                                 .step(50.)
@@ -155,6 +157,9 @@ impl Gallery {
                         320.,
                         h::Slider::new("sl-range", value)
                             .label("Price range")
+                            // An empty controlled range falls back to one
+                            // thumb; keep that fallback interactive too.
+                            .default_value(value)
                             .values(self.slider_range.clone())
                             .on_change_all(cx.listener(|this, vs: &[f32], _, cx| {
                                 this.slider_range = vs.to_vec();
@@ -251,6 +256,7 @@ impl Gallery {
                             320.,
                             h::Slider::new("sl-lock", value)
                                 .label("Price range")
+                                .default_value(value)
                                 .values(self.slider_range.clone())
                                 .disabled_keys([0])
                                 .on_change_all(cx.listener(|this, vs: &[f32], _, cx| {
@@ -268,6 +274,7 @@ impl Gallery {
                             // them back through `form_fields`, as DateRangePicker does.
                             let slider = h::Slider::new("sl-form", value)
                                 .label("Price range")
+                                .default_value(value)
                                 .values(self.slider_range.clone())
                                 .start_name("min")
                                 .end_name("max")
@@ -333,7 +340,7 @@ impl Gallery {
                         ),
                         fixed_demo(
                             320.,
-                            h::Slider::new("sl-disabled", value)
+                            h::Slider::new("sl-step-disabled", value)
                                 .is_disabled(true)
                                 .label("Disabled"),
                         ),
@@ -358,7 +365,7 @@ impl Gallery {
             vec![
                 (
                     "Usage", "Content uses 14px text with 20px lines; the built-in label uses 16px text with 24px lines.",
-                    col(vec![
+                    specimen_body("sw-main", col(vec![
                         h::Switch::new("sw-a")
                             .is_selected(a)
                             .hover_bg(cx.colors().accent.soft_hover())
@@ -376,18 +383,23 @@ impl Gallery {
                                 cx.notify();
                             }))
                             .into_any_element(),
-                    ]),
+                    ]), cx),
                 ),
                 (
                     "Sizes",
                     row(Size::ALL
                         .iter()
                         .map(|s| {
-                            spec(
-                                s.label(),
-                                h::Switch::new(el_id(format!("sw-{s:?}")))
-                                    .default_selected(true)
-                                    .size(*s),
+                            let key = format!("sw-size-{s:?}");
+                            specimen_body(
+                                &key,
+                                spec(
+                                    s.label(),
+                                    h::Switch::new(el_id(format!("sw-{s:?}")))
+                                        .default_selected(true)
+                                        .size(*s),
+                                    cx,
+                                ),
                                 cx,
                             )
                         })
@@ -396,44 +408,44 @@ impl Gallery {
                 (
                     "With Icons",
                     row(vec![
-                        h::Switch::new("sw-icon-1")
+                        specimen_body("sw-icon-selected", h::Switch::new("sw-icon-1")
                             .default_selected(true)
                             .thumb_icons(icon(h::icons::MOON, cx), icon(h::icons::SUN, cx))
                             .label(gpui::div().child("Appearance"))
-                            .into_any_element(),
-                        h::Switch::new("sw-icon-2")
+                            .into_any_element(), cx),
+                        specimen_body("sw-icon-unselected", h::Switch::new("sw-icon-2")
                             .thumb_icons(icon(h::icons::EYE_OFF, cx), icon(h::icons::EYE, cx))
                             .label(gpui::div().child("Show preview"))
-                            .into_any_element(),
+                            .into_any_element(), cx),
                     ]),
                 ),
                 (
                     "Without Label",
                     row(vec![
-                        h::Switch::new("sw-nolabel-1")
+                        specimen_body("sw-without-label-on", h::Switch::new("sw-nolabel-1")
                             .default_selected(true)
-                            .into_any_element(),
-                        h::Switch::new("sw-nolabel-2").into_any_element(),
+                            .into_any_element(), cx),
+                        specimen_body("sw-without-label-off", h::Switch::new("sw-nolabel-2").into_any_element(), cx),
                     ]),
                 ),
                 (
                     "With Description",
-                    col(vec![h::Switch::new("sw-desc")
+                    specimen_body("sw-description", col(vec![h::Switch::new("sw-desc")
                         .default_selected(true)
                         .label(gpui::div().child("Sync across devices"))
                         .description("Changes are pushed to every signed-in device.")
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "Default Selected",
-                    col(vec![h::Switch::new("sw-default")
+                    specimen_body("sw-default-selected", col(vec![h::Switch::new("sw-default")
                         .default_selected(true)
                         .label(gpui::div().child("On by default"))
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "Controlled",
-                    col(vec![
+                    specimen_body("sw-controlled", col(vec![
                         h::Switch::new("sw-controlled")
                             .is_selected(controlled)
                             .label(gpui::div().child("Notifications"))
@@ -450,11 +462,11 @@ impl Gallery {
                             },
                             cx,
                         ),
-                    ]),
+                    ]), cx),
                 ),
                 (
                     "Label Position",
-                    col(vec![
+                    specimen_body("sw-label-position", col(vec![
                         h::Switch::new("sw-lp-after")
                             .label(gpui::div().child("Label after"))
                             .into_any_element(),
@@ -462,11 +474,11 @@ impl Gallery {
                             .label_first(true)
                             .label(gpui::div().child("Label before"))
                             .into_any_element(),
-                    ]),
+                    ]), cx),
                 ),
                 (
                     "Group",
-                    col(vec![h::SwitchGroup::new()
+                    specimen_body("sw-group-vertical", col(vec![h::SwitchGroup::new()
                         .orientation(Orientation::Vertical)
                         .child(
                             h::Switch::new("sw-g-wifi")
@@ -495,11 +507,11 @@ impl Gallery {
                                     cx.notify();
                                 })),
                         )
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "Group Horizontal",
-                    row(vec![h::SwitchGroup::new()
+                    specimen_body("sw-group-horizontal", row(vec![h::SwitchGroup::new()
                         .orientation(Orientation::Horizontal)
                         .child(
                             h::Switch::new("sw-gh-1")
@@ -508,11 +520,11 @@ impl Gallery {
                         )
                         .child(h::Switch::new("sw-gh-2").label(gpui::div().child("SMS")))
                         .child(h::Switch::new("sw-gh-3").label(gpui::div().child("Push")))
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "Form Integration",
-                    col(vec![
+                    specimen_body("sw-form", col(vec![
                         {
                             let switch = h::Switch::new("sw-form")
                                 .name("terms")
@@ -555,11 +567,11 @@ impl Gallery {
                             },
                             cx,
                         ),
-                    ]),
+                    ]), cx),
                 ),
                 (
                     "Render Props",
-                    col(vec![h::Switch::new("sw-render")
+                    specimen_body("sw-render-props", col(vec![h::Switch::new("sw-render")
                         .is_selected(controlled)
                         .on_change(cx.listener(|this, v: &bool, _, cx| {
                             this.set_demo_flag("sw-controlled", *v);
@@ -590,18 +602,18 @@ impl Gallery {
                                 })
                                 .into_any_element()
                         })
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "Disabled",
                     row(vec![
-                        h::Switch::new("sw-d-off")
+                        specimen_body("sw-disabled-off", h::Switch::new("sw-d-off")
                             .is_disabled(true)
-                            .into_any_element(),
-                        h::Switch::new("sw-d-on")
+                            .into_any_element(), cx),
+                        specimen_body("sw-disabled-on", h::Switch::new("sw-d-on")
                             .is_selected(true)
                             .is_disabled(true)
-                            .into_any_element(),
+                            .into_any_element(), cx),
                     ]),
                 ),
             ],

@@ -462,29 +462,23 @@ impl RenderOnce for TagGroup {
         let collection_keys: Vec<SharedString> =
             self.tags.iter().map(|tag| tag.key.clone()).collect();
         let owns_focus = window.is_window_active() && group_focus.is_focused(window);
-        // One hover/press slot per tag, for a `tag_content` closure.
-        let interaction: Vec<crate::util::Interaction> = if self.tag_content.is_some() {
-            (0..self.tags.len())
-                .map(|index| {
-                    crate::util::interaction(
-                        element_id::scoped(
-                            &element_id::indexed(&self.id, "tag", index),
-                            "interaction",
-                        ),
-                        window,
-                        cx,
-                    )
-                })
-                .collect()
-        } else {
-            Vec::new()
-        };
+        // One hover/press slot per tag. The slot is also the source for the
+        // pinned 100ms background transition, so plain tags and tags with a
+        // `tag_content` render prop take exactly the same hover path. Keeping
+        // the slot on the stable element lets the animated fill change its id
+        // without dropping the interaction listener or focus state.
+        let interaction: Vec<crate::util::Interaction> = (0..self.tags.len())
+            .map(|index| {
+                crate::util::interaction(
+                    element_id::scoped(&element_id::indexed(&self.id, "tag", index), "interaction"),
+                    window,
+                    cx,
+                )
+            })
+            .collect();
         for (index, slot) in interaction.iter().enumerate() {
             let tag = &self.tags[index];
-            if (self.selection_mode == SelectionMode::None
-                || self.is_disabled
-                || tag.is_disabled
-                || self.disabled_keys.contains(&tag.key))
+            if (self.is_disabled || tag.is_disabled || self.disabled_keys.contains(&tag.key))
                 && *slot.read(cx) != (false, false)
             {
                 slot.update(cx, |state, _| *state = (false, false));
@@ -511,8 +505,11 @@ impl RenderOnce for TagGroup {
             Vec::new()
         };
         let ring_visible = crate::util::focus_visible(cx);
-        let colors = cx.colors();
-        let layout = cx.layout();
+        // The hover animation mutably borrows `cx` while it registers keyed
+        // state. Keep a snapshot of the semantic tokens so that borrow does
+        // not span that call; theme values are immutable for this render.
+        let colors = cx.colors().clone();
+        let disabled_opacity = cx.layout().disabled_opacity;
         let (pad_x, pad_y, text_size, leading) = Self::metrics(self.size);
         // The size step stays the fallback; an instance radius replaces it on
         // the chip alone — the remove button inside stays a circle.
@@ -622,8 +619,8 @@ impl RenderOnce for TagGroup {
             };
 
             if disabled {
-                chip = chip.opacity(layout.disabled_opacity);
-            } else if selectable {
+                chip = chip.opacity(disabled_opacity);
+            } else {
                 let hover = self.hover_bg.unwrap_or_else(|| {
                     if selected {
                         colors.accent.soft_hover()
@@ -634,9 +631,36 @@ impl RenderOnce for TagGroup {
                         }
                     }
                 });
-                chip = chip
-                    .cursor(crate::util::interactive_cursor(cx))
-                    .hover(move |s| s.bg(hover));
+                chip = chip.cursor(crate::util::interactive_cursor(cx));
+                // `.tag` declares `background-color 100ms var(--ease-smooth)`.
+                // Keep the chip itself as the stable hover listener and put
+                // only the interpolated fill in a rounded child. This avoids
+                // the keyed animation wrapper resetting the tag's focus and
+                // render-prop state, and the child inherits the same radius so
+                // a mid-transition frame cannot leak square corners.
+                if let Some(slot) = interaction.get(index) {
+                    chip = crate::anim::hover_fade_with_duration_and_easing(
+                        chip,
+                        element_id::scoped(&element_id::indexed(&self.id, "tag", index), "fade"),
+                        (
+                            if selected {
+                                colors.accent.soft()
+                            } else {
+                                match self.variant {
+                                    TagVariant::Default => colors.default.color,
+                                    TagVariant::Surface => colors.surface.background,
+                                }
+                            },
+                            hover,
+                        ),
+                        Some(slot),
+                        move |fill| fill.rounded(tag_radius),
+                        Some(100),
+                        crate::anim::HoverFadeEasing::EaseSmooth,
+                        window,
+                        cx,
+                    );
+                }
             }
 
             if let Some(path) = &tag.icon {
@@ -676,7 +700,7 @@ impl RenderOnce for TagGroup {
                 }
                 None => chip.child(tag.label.to_string()),
             };
-            if interactive {
+            if !disabled {
                 if let Some(slot) = interaction.get(index) {
                     chip = crate::util::track_interaction(chip, slot);
                 }

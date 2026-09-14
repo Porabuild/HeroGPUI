@@ -34,6 +34,15 @@ thread_local! {
     pub(super) static FORM_SERVER_RECORD: RefCell<Option<h::ValidationErrors>> = const { RefCell::new(None) };
 }
 
+impl Gallery {
+    pub(crate) fn reset_shared_demo_state(cx: &mut gpui::App) {
+        FORM_SERVER_RECORD.with(|record| *record.borrow_mut() = None);
+        h::clear_toasts(cx);
+        h::pause_toasts(false, cx);
+        crate::app::reset_toast_closed(cx);
+    }
+}
+
 macro_rules! component_doc_section {
     (($heading:expr, $body:expr $(,)?)) => {
         ($heading, None, $body, stringify!($body))
@@ -61,13 +70,32 @@ pub(super) fn preview_wrapper(body: impl IntoElement, cx: &gpui::App) -> AnyElem
 
 macro_rules! component_preview_section {
     (($heading:expr, $body:expr $(,)?), $cx:expr) => {
-        if crate::control::section_wanted($heading, $cx) {
+        if crate::control::include_section($heading, $cx) {
             return preview_wrapper($body, $cx);
         }
     };
     (($heading:expr, $description:literal, $body:expr $(,)?), $cx:expr) => {
-        if crate::control::section_wanted($heading, $cx) {
+        if crate::control::include_section($heading, $cx) {
             return preview_wrapper($body, $cx);
+        }
+    };
+}
+
+macro_rules! component_preview_specimen_section {
+    (($heading:expr, $body:expr $(,)?), $cx:expr) => {
+        if crate::control::include_section($heading, $cx) {
+            let body = $body;
+            if crate::control::specimen_matched($cx) {
+                return preview_wrapper(body, $cx);
+            }
+        }
+    };
+    (($heading:expr, $description:literal, $body:expr $(,)?), $cx:expr) => {
+        if crate::control::include_section($heading, $cx) {
+            let body = $body;
+            if crate::control::specimen_matched($cx) {
+                return preview_wrapper(body, $cx);
+            }
         }
     };
 }
@@ -81,7 +109,11 @@ macro_rules! component_doc_page {
         $cx:expr $(,)?
     ) => {
         if crate::control::preview_only($cx) {
-            $(component_preview_section!($section, $cx);)*
+            if crate::control::has_specimen($cx) {
+                $(component_preview_specimen_section!($section, $cx);)*
+            } else {
+                $(component_preview_section!($section, $cx);)*
+            }
             gpui::div().into_any_element()
         } else {
             crate::pages::component_doc_page(
@@ -258,6 +290,17 @@ pub(super) fn spec_block(label: &str, el: impl IntoElement, cx: &gpui::App) -> A
         )
         .child(el)
         .into_any_element()
+}
+
+/// Keeps one gallery example addressable without adding a driver-only prop to
+/// the public component. An unmatched key contributes an empty body, allowing
+/// the preview macro to continue looking in later sections.
+pub(super) fn specimen_body(key: &str, body: AnyElement, cx: &gpui::App) -> AnyElement {
+    if crate::control::specimen_wanted(key, cx) {
+        body
+    } else {
+        gpui::div().into_any_element()
+    }
 }
 
 /// Collects an iterator of elements into a `Vec<AnyElement>`.
@@ -437,6 +480,9 @@ pub(super) fn overlay_demo(
     panel: AnyElement,
     cx: &mut Context<'_, Gallery>,
 ) -> AnyElement {
+    if !crate::control::specimen_wanted(key, cx) {
+        return gpui::div().into_any_element();
+    }
     // The panel is `absolute inset-0` inside this frame, and v3's body is
     // `min-h-0 flex-1`, so a short frame squeezes the body to nothing.
     // Reserve that height only while the panel is open; a closed trigger
@@ -757,9 +803,9 @@ mod example_quality {
     #[test]
     fn gallery_sections_are_preserved_while_reordering() {
         for (name, count) in [
-            ("select", 20),
-            ("autocomplete", 19),
-            ("combo_box", 27),
+            ("select", 23),
+            ("autocomplete", 21),
+            ("combo_box", 29),
             ("slider", 17),
             ("date_field", 15),
             ("alert_dialog", 12),
@@ -767,9 +813,9 @@ mod example_quality {
             ("popover", 6),
             ("number_field", 17),
             ("text_area", 6),
-            ("date_range_picker", 9),
+            ("date_range_picker", 10),
             ("list_box", 15),
-            ("tag_group", 15),
+            ("tag_group", 16),
             ("meter", 5),
             ("progress_bar", 6),
         ] {
@@ -1156,6 +1202,201 @@ mod example_quality {
         assert!(range_picker.contains("operating system's regional date order"));
         assert!(range_picker.contains("submitted values"));
         assert!(!range_picker.contains("needs CLDR data"));
+    }
+
+    #[test]
+    fn date_field_specimens_are_addressable_without_rendering_siblings() {
+        let page = page_fn(SRC, "date_field");
+        for key in [
+            "df-usage",
+            "df-box",
+            "df-gran-day",
+            "df-gran-hour",
+            "df-gran-minute",
+            "df-gran-second",
+            "df-gran-12h",
+            "df-leading-locale",
+            "df-leading-forced",
+            "df-primary",
+            "df-secondary",
+            "df-dis",
+            "df-invalid",
+            "df-ctl",
+            "df-form",
+        ] {
+            assert!(
+                page.contains(key),
+                "DateField gallery must claim stable specimen key {key}"
+            );
+        }
+        assert!(
+            page.contains("map(|granularity|") && page.contains("specimen_body(key,"),
+            "granularity preview must wrap each requested key"
+        );
+        assert!(
+            section_body(page, "Variants")
+                .matches("specimen_body(")
+                .count()
+                == 2,
+            "variant preview must wrap each DateField variant"
+        );
+    }
+
+    #[test]
+    fn calendar_specimens_are_addressable_without_rendering_siblings() {
+        let page = page_fn(SRC, "calendar");
+        for key in [
+            "cal-indian",
+            "cal-hebrew",
+            "cal-usage",
+            "cal-default",
+            "cal-controlled",
+            "cal-minmax",
+            "cal-unavailable",
+            "cal-weeks",
+            "cal-multiple",
+            "cal-focused",
+            "cal-indicators",
+            "cal-nav",
+            "cal-real",
+            "cal-constraints",
+            "cal-first-day",
+            "cal-disabled",
+            "cal-readonly",
+            "cal-months",
+            "cal-week-view",
+            "cal-day-view",
+            "cal-year-picker",
+            "cal-heading-anchor",
+            "cal-heading-offset",
+        ] {
+            assert!(
+                page.contains(key),
+                "Calendar gallery must claim stable specimen key {key}"
+            );
+        }
+        assert_eq!(
+            section_body(page, "International Calendars")
+                .matches("specimen_body(")
+                .count(),
+            2,
+            "international calendar preview must filter each locale"
+        );
+        assert_eq!(
+            section_body(page, "Heading Offset")
+                .matches("specimen_body(")
+                .count(),
+            2,
+            "heading offset preview must filter each heading variant"
+        );
+    }
+
+    #[test]
+    fn remaining_date_time_specimens_are_addressable_without_rendering_siblings() {
+        let date_picker = page_fn(SRC, "date_picker");
+        for key in [
+            "dp-indian",
+            "dp-disabled",
+            "dp-controlled",
+            "dp-invalid",
+            "dp-format",
+            "dp-form",
+            "dp-indicator",
+            "dp-render-props",
+            "dp-usage",
+        ] {
+            assert!(
+                date_picker.contains(key),
+                "DatePicker gallery must claim stable specimen key {key}"
+            );
+        }
+
+        let date_range_picker = page_fn(SRC, "date_range_picker");
+        for key in [
+            "drp-indian",
+            "drp-disabled",
+            "drp-controlled",
+            "drp-invalid",
+            "drp-format",
+            "drp-form",
+            "drp-indicator",
+            "drp-render-props",
+            "drp-usage",
+        ] {
+            assert!(
+                date_range_picker.contains(key),
+                "DateRangePicker gallery must claim stable specimen key {key}"
+            );
+        }
+
+        let range_calendar = page_fn(SRC, "range_calendar");
+        for key in [
+            "rc-indian",
+            "rc-disabled",
+            "rc-dots",
+            "rc-year",
+            "rc-heading-anchor",
+            "rc-heading-offset",
+            "rc-default",
+            "rc-controlled",
+            "rc-minmax",
+            "rc-unavailable",
+            "rc-anchor",
+            "rc-noncontig",
+            "rc-weeks",
+            "rc-week-view",
+            "rc-day-view",
+            "rc-months",
+            "rc-readonly",
+            "rc-invalid",
+            "rc-focused",
+            "rc-real",
+            "rc-usage",
+        ] {
+            assert!(
+                range_calendar.contains(key),
+                "RangeCalendar gallery must claim stable specimen key {key}"
+            );
+        }
+        assert_eq!(
+            section_body(range_calendar, "Heading Offset")
+                .matches("specimen_body(")
+                .count(),
+            2,
+            "range heading offset preview must filter each heading variant"
+        );
+
+        let time_field = page_fn(SRC, "time_field");
+        for key in [
+            "tmf-24-hour",
+            "tmf-12-hour-seconds",
+            "tmf-leading-locale",
+            "tmf-leading-forced",
+            "tmf-usage",
+            "tmf-custom-box",
+            "tmf-icon",
+            "tmf-surface",
+            "tmf-desc",
+            "tmf-req",
+            "tmf-dis",
+            "tmf-full",
+            "tmf-invalid",
+            "tmf-ctl",
+            "tmf-validate",
+            "tmf-form",
+        ] {
+            assert!(
+                time_field.contains(key),
+                "TimeField gallery must claim stable specimen key {key}"
+            );
+        }
+        assert_eq!(
+            section_body(time_field, "Forced Leading Zeros")
+                .matches("specimen_body(")
+                .count(),
+            2,
+            "time leading-zero preview must filter each padding variant"
+        );
     }
 
     #[test]

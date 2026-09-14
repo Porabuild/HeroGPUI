@@ -64,11 +64,29 @@ an all-green mapped subset is not proof that every upstream metric is covered.
 
 ## Running the audit set
 
-Every input is checked in, so the set needs no network and measures the same
-v3.2.5 contract on every machine. `.shots/heroui-bundle.txt.gz` is the docs
-bundle the prop and prose audits read; `.shots/heroui-css-v3.2.5.tar.gz` is the
-component stylesheets the design, motion and anatomy audits read. Both unpack
-themselves on first use.
+The documentation and CSS inputs are checked in.
+`.shots/heroui-bundle.txt.gz` is the docs bundle the prop and prose audits read;
+`.shots/heroui-css-v3.2.5.tar.gz` contains the component stylesheets the design,
+motion and anatomy audits read. Both unpack themselves on first use.
+Some `ComponentPreview` source bodies are absent from the rendered bundle;
+`demo_audit.py` fetches those files from the pinned tag on a cold cache. Their
+cache keys include the normalized tagged URL. Routine runs reuse that cache;
+`--fetch` deliberately refreshes it. TLS certificate verification stays enabled.
+
+For a strict aggregate verdict and a fresh evidence snapshot, run:
+
+```sh
+python .shots/parity_report.py --output docs/parity/audit-results.json
+```
+
+This runner checks each reader's declared counters and diagnostics as well as
+its exit code. Missing input, unreadable summaries and reported gaps fail the
+report even when a legacy reader exits zero. It prewarms demo fallbacks, hashes
+the effective inputs and rejects changes during the run. Bundle override
+environment variables are rejected for this pinned report. A passing report
+still proves only mapped static coverage, not visual or interaction parity.
+
+The individual-reader loop remains useful for inspecting full diagnostic output:
 
 ```powershell
 Get-ChildItem .shots/*audit.py | ForEach-Object {
@@ -78,7 +96,45 @@ Get-ChildItem .shots/*audit.py | ForEach-Object {
 python .shots/write_only.py
 ```
 
-CI runs exactly this set, so a local pass is the same evidence CI produces.
+CI runs the strict aggregate, checks inventory freshness and exercises the
+reader regressions below. It preserves a generated `parity-report` artifact,
+including failed reader output. A failure before report generation remains a
+failed job even though there is no report artifact to upload.
+
+### Inventory freshness and reader regressions
+
+After synchronizing source, generated data and the WASM artifact, refresh and
+check the existing work queue:
+
+```sh
+python .shots/interaction_inventory.py --refresh
+python .shots/interaction_inventory.py --check
+python .shots/coverage_report.py --refresh
+python .shots/coverage_report.py --check
+python .shots/test_interaction_inventory.py
+python .shots/test_parity_report.py
+python .shots/test_coverage_report.py
+python .shots/test_inert.py
+```
+
+To refresh upstream source deltas and demos too, supply `--upstream` and
+`--baseline` together, pointing at verified extractions of the inventory's
+recorded target and baseline commits. This command does not change the release
+pin or fetch a moving branch.
+
+The inventory preserves unchanged reviews and retired rows, invalidates stale
+specimen verdicts, and writes atomically. A `verified` specimen needs existing,
+hashed upstream/native/WASM/test evidence tied to the current input fingerprint.
+An empty specimen list or a current gallery-section inventory is not completed
+state coverage. See [the implementation plan](../parity/ui-design-plan.md) for
+the required expansion and [execution progress](../parity/ui-design-progress.md)
+for the current frontier.
+
+The coverage generator writes `docs/parity/coverage-report.json` and its
+maintainer-readable Markdown companion from the inventory. It reports every
+status, evidence surface and unresolved id, including measured gaps, accepted
+deviations and platform limits. Its `--check` mode is the CI freshness gate;
+the report must not be edited by hand or interpreted as a parity verdict.
 
 Refreshing either pin is deliberate, never a side effect of a run. The bundle
 audits refuse any copy whose latest release is not `PINNED_RELEASE` in

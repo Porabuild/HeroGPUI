@@ -65,13 +65,27 @@ def main():
         errors.append("GPUI and gpui_platform versions differ")
     version = requirement.lstrip("=")
     locked = manifest(ROOT / "Cargo.lock")["package"]
+    # The published family remains the dependency contract of every package,
+    # while the workspace's `[patch.crates-io]` block substitutes local,
+    # version-identical renderer forks during development. The lockfile is
+    # therefore intentionally path-resolved for the five patched members.
+    patched_gpui = {
+        "gpui-pre",
+        "gpui-pre-apple",
+        "gpui-pre-wgpu",
+        "gpui-pre-windows",
+        "gpui-pre-web",
+    }
     for name in packages.values():
         entries = [entry for entry in locked if entry["name"] == name]
         if len(entries) != 1:
             errors.append(f"{name}: lockfile does not resolve to exactly one version")
             continue
         entry = entries[0]
-        if not (entry.get("source") or "").startswith("registry+"):
+        if name in patched_gpui:
+            if entry.get("source"):
+                errors.append(f"{name}: patched lockfile entry unexpectedly has a source")
+        elif not (entry.get("source") or "").startswith("registry+"):
             errors.append(f"{name}: lockfile source is not the crates.io registry")
         if version and entry.get("version") != version:
             errors.append(f"{name}: lockfile version is not the pinned {version}")

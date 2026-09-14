@@ -38,6 +38,9 @@ const THUMB_TRANSITION_MS: u64 = 300;
 /// `--ease-smooth`. The changing animation id belongs to the listener-free
 /// fill child, so the track keeps its stable interaction path.
 const TRACK_TRANSITION_MS: u64 = 250;
+/// `.switch__thumb` transitions its background color for 200ms with
+/// `--ease-out`, independently of the 300ms margin travel.
+const THUMB_COLOR_TRANSITION_MS: u64 = 200;
 
 #[derive(Clone)]
 struct ThumbMotion {
@@ -96,6 +99,9 @@ struct TrackMotionFrame {
     from: gpui::Hsla,
     to: gpui::Hsla,
     color: Rc<Cell<gpui::Hsla>>,
+    animation_key: &'static str,
+    duration_ms: u64,
+    curve: crate::anim::Curve,
     animate: bool,
 }
 
@@ -106,14 +112,14 @@ impl TrackMotionFrame {
             return fill.bg(self.to).into_any_element();
         }
 
-        let background = element_id::indexed(&self.base, "track-background", self.generation);
+        let background = element_id::indexed(&self.base, self.animation_key, self.generation);
         let color = self.color;
         let from = self.from;
         let to = self.to;
         fill.with_animation(
             background,
-            Animation::new(Duration::from_millis(TRACK_TRANSITION_MS))
-                .with_easing(|t| crate::anim::Curve::Smooth.at(t)),
+            Animation::new(Duration::from_millis(self.duration_ms))
+                .with_easing(move |t| self.curve.at(t)),
             move |fill, delta| {
                 let next = herogpui_core::mix_oklab(from, to, delta);
                 color.set(next);
@@ -163,19 +169,21 @@ fn thumb_motion(
     }
 }
 
-fn track_motion(
+fn color_motion(
     id: &gpui::ElementId,
     target: gpui::Hsla,
+    state_key: &'static str,
+    animation_key: &'static str,
+    duration_ms: u64,
+    curve: crate::anim::Curve,
     window: &mut Window,
     cx: &mut App,
 ) -> TrackMotionFrame {
-    let state = window.use_keyed_state(element_id::scoped(id, "track-motion"), cx, |_, _| {
-        TrackMotion {
-            target,
-            generation: 0,
-            from: target,
-            color: Rc::new(Cell::new(target)),
-        }
+    let state = window.use_keyed_state(element_id::scoped(id, state_key), cx, |_, _| TrackMotion {
+        target,
+        generation: 0,
+        from: target,
+        color: Rc::new(Cell::new(target)),
     });
     let mut current = state.read(cx).clone();
     if current.target != target {
@@ -197,8 +205,47 @@ fn track_motion(
         from: current.from,
         to: target,
         color: current.color,
+        animation_key,
+        duration_ms,
+        curve,
         animate,
     }
+}
+
+fn track_motion(
+    id: &gpui::ElementId,
+    target: gpui::Hsla,
+    window: &mut Window,
+    cx: &mut App,
+) -> TrackMotionFrame {
+    color_motion(
+        id,
+        target,
+        "track-motion",
+        "track-background",
+        TRACK_TRANSITION_MS,
+        crate::anim::Curve::Smooth,
+        window,
+        cx,
+    )
+}
+
+fn thumb_color_motion(
+    id: &gpui::ElementId,
+    target: gpui::Hsla,
+    window: &mut Window,
+    cx: &mut App,
+) -> TrackMotionFrame {
+    color_motion(
+        id,
+        target,
+        "thumb-color-motion",
+        "thumb-background",
+        THUMB_COLOR_TRANSITION_MS,
+        crate::anim::Curve::Out,
+        window,
+        cx,
+    )
 }
 
 /// HeroUI Switch (`<Switch>`).
@@ -501,7 +548,7 @@ impl RenderOnce for Switch {
             self.default_checked,
         );
         let reset_own = own.clone();
-        let reset_state = self.form_state.clone();
+        let reset_state = Rc::downgrade(&self.form_state);
         let reset_value = self.value.clone();
         let reset_change = self
             .checked
@@ -512,10 +559,12 @@ impl RenderOnce for Switch {
             .then(|| {
                 let default_checked = self.default_checked;
                 crate::util::shared(move |window: &mut Window, cx: &mut App| {
-                    reset_state.borrow_mut().value = match (&reset_value, default_checked) {
-                        (Some(value), true) => crate::form::FormValue::Text(value.clone()),
-                        _ => crate::form::FormValue::Flag(default_checked),
-                    };
+                    if let Some(state) = reset_state.upgrade() {
+                        state.borrow_mut().value = match (&reset_value, default_checked) {
+                            (Some(value), true) => crate::form::FormValue::Text(value.clone()),
+                            _ => crate::form::FormValue::Flag(default_checked),
+                        };
+                    }
                     if let Some(held) = &reset_own {
                         held.update(cx, |checked, cx| {
                             *checked = default_checked;
@@ -612,31 +661,29 @@ impl RenderOnce for Switch {
             track_bg
         };
         let track_motion_frame = track_motion(&self.id, track_target, window, cx);
-        let layout = cx.layout();
+        let disabled_opacity = cx.layout().disabled_opacity;
+        let field_shadow = cx.layout().field_shadow.clone();
 
-        // `useSwitch` is `useToggle` with `role: 'switch'` forced onto the
-        // native checkbox input, so the track is the control's node.
+        // `Switch.Content` is the interactive, labelled button in v3. Keep
+        // the role and focus target on the row so a click on the label has the
+        // same result as a click on the track; the track itself is visual.
         let name = a11y::Name::field(None, self.description.as_ref(), &validity);
         let mut track = gpui::div()
-            .id(self.id.clone())
-            .a11y_named(a11y::Role::Switch, &name)
-            .a11y_checked(checked, false)
-            .when(!self.is_disabled, |el| el.track_focus(&focus_handle))
+            .id(element_id::scoped(&self.id, "control"))
             .relative()
             .w(w)
             .h(h)
             .rounded(track_r)
             .map(|track| crate::util::round_sx_corners(track, &sx_corners))
+            // HeroUI clips the animated fill, thumb shadow and custom icon to
+            // the rounded control perimeter. This shared renderer mask keeps
+            // those descendants inside the track at every corner radius.
+            .overflow_hidden()
             .bg(track_bg)
             .flex()
             .items_center()
             .px(thumb_inset)
-            .when(!self.is_disabled, |t| {
-                t.cursor(crate::util::interactive_cursor(cx))
-            });
-        if !self.is_disabled {
-            track = crate::util::track_interaction(track, &interaction);
-        }
+            .when(!self.is_disabled, |t| t.cursor(crate::util::interactive_cursor(cx)));
         // v3's switch stylesheet has no invalid rule at all -- the state shows
         // in the field error below, not as a danger ring on the track, so the
         // ring this used to draw was an invention.
@@ -673,7 +720,6 @@ impl RenderOnce for Switch {
         }
         let thumb_el = if checked {
             thumb_el
-                .bg(accent_foreground)
                 .when(self.is_disabled, |thumb| thumb.opacity(0.4))
                 // The checked thumb carries its own three-layer shadow.
                 .shadow(vec![
@@ -700,33 +746,25 @@ impl RenderOnce for Switch {
                     },
                 ])
         } else {
-            thumb_el
-                .bg(if self.is_disabled {
-                    default_foreground.alpha(0.2)
-                } else {
-                    herogpui_theme::white()
-                })
-                .when(!layout.field_shadow.is_empty(), |t| {
-                    t.shadow(layout.field_shadow.clone())
-                })
+            thumb_el.when(!field_shadow.is_empty(), |t| t.shadow(field_shadow.clone()))
         };
-        track = track.child(thumb_motion.render(thumb_el, thumb_travel));
-
-        if !self.is_disabled && !self.is_read_only && (self.on_change.is_some() || own.is_some()) {
-            let on_change = self.on_change;
-            track = track.on_click(move |_, window, cx| {
-                // Uncontrolled: flip our own copy, or nothing could change it.
-                if let Some(held) = &own {
-                    held.update(cx, |v, cx| {
-                        *v = !checked;
-                        cx.notify();
-                    });
-                }
-                if let Some(cb) = &on_change {
-                    cb(&!checked, window, cx);
-                }
-            });
-        }
+        let thumb_bg = if checked {
+            accent_foreground
+        } else if self.is_disabled {
+            default_foreground.alpha(0.2)
+        } else {
+            herogpui_theme::white()
+        };
+        let thumb_color_frame = thumb_color_motion(&self.id, thumb_bg, window, cx);
+        // Keep the animated color on the painted thumb while the outer slot
+        // owns the margin transition. This preserves the stable hit geometry
+        // and lets the two upstream transitions run at their own durations.
+        let thumb_slot = gpui::div()
+            .w(thumb_w)
+            .h(thumb_h)
+            .flex_shrink_0()
+            .child(thumb_color_frame.render(thumb_el));
+        track = track.child(thumb_motion.render(thumb_slot, thumb_travel));
 
         if !self.is_disabled {
             track =
@@ -736,12 +774,19 @@ impl RenderOnce for Switch {
         // `.switch__content` is `gap-3`. v3 gets the label's side from the order
         // of its children, so `label_first` puts it before the control.
         let mut el = gpui::div()
+            .id(self.id.clone())
+            .a11y_named(a11y::Role::Switch, &name)
+            .a11y_checked(checked, false)
+            .when(!self.is_disabled, |root| root.track_focus(&focus_handle))
             .flex()
             .items_center()
             .gap(px(12.))
             .text_size(px(14.))
             .line_height(px(20.))
-            .font_weight(gpui::FontWeight::MEDIUM);
+            .font_weight(gpui::FontWeight::MEDIUM)
+            .when(!self.is_disabled, |root| {
+                root.cursor(crate::util::interactive_cursor(cx))
+            });
         let content_row = self.content.clone().map(|render| {
             let (is_hovered, is_pressed) = *interaction.read(cx);
             let focused = focus_handle.is_focused(window);
@@ -784,16 +829,33 @@ impl RenderOnce for Switch {
             (_, None, None) => el = el.child(track),
         }
 
+        if !self.is_disabled {
+            el = crate::util::track_interaction(el, &interaction);
+        }
+        if !self.is_disabled && !self.is_read_only && (self.on_change.is_some() || own.is_some()) {
+            let on_change = self.on_change;
+            el = el.on_click(move |_, window, cx| {
+                // Uncontrolled: flip our own copy, or nothing could change it.
+                if let Some(held) = &own {
+                    held.update(cx, |v, cx| {
+                        *v = !checked;
+                        cx.notify();
+                    });
+                }
+                if let Some(cb) = &on_change {
+                    cb(&!checked, window, cx);
+                }
+            });
+        }
+
         // Description and FieldError are direct siblings of Switch.Content.
         // Both use the size-specific track width plus the 12px content gap.
         let indent = w + px(12.);
-        let root = gpui::div()
+        let mut root = gpui::div()
             .flex()
             .flex_col()
             .gap(px(4.))
-            .when(self.is_disabled, |root| {
-                root.opacity(layout.disabled_opacity)
-            })
+            .when(self.is_disabled, |root| root.opacity(disabled_opacity))
             .child(el)
             .when_some(self.description, |root, description| {
                 root.child(
@@ -801,14 +863,11 @@ impl RenderOnce for Switch {
                         .pl(indent)
                         .child(crate::field::Description::new(description)),
                 )
-            })
-            .when_some(validity.first(), |root, message| {
-                root.child(
-                    gpui::div()
-                        .pl(indent)
-                        .child(crate::field::ErrorMessage::new(message)),
-                )
             });
+        let error = validity.first().map(|message| message.to_owned().into());
+        if let Some(error) = crate::anim::field_error_panel(&self.id, error, window, cx) {
+            root = root.child(gpui::div().pl(indent).child(error));
+        }
         crate::util::apply_sx(root, &self.sx).into_any_element()
     }
 }

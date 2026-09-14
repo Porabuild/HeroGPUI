@@ -64,15 +64,15 @@ impl Gallery {
                 (
                     "Usage",
                     "Fallback text uses 14px/20px, or 16px/24px for large avatars. Here `radius` sets 8px corners and `sx` squares just the top-left corner on the fallback and loaded image.",
-                    row(vec![h::Avatar::new("usage-avatar")
+                    specimen_body("avatar-main", row(vec![h::Avatar::new("usage-avatar")
                         .name("Jane Doe")
                         .radius(px(8.))
                         .sx(|el| el.rounded_tl(px(0.)))
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "Fallback Content",
-                    spec_row(vec![
+                    specimen_body("avatar-fallback", spec_row(vec![
                         spec(
                             "Initials",
                             h::Avatar::new("initials-avatar").name("Jane Doe"),
@@ -108,11 +108,11 @@ impl Gallery {
                                 .fallback_color(Color::Warning),
                             cx,
                         ),
-                    ]),
+                    ]), cx),
                 ),
                 (
                     "Sizes",
-                    spec_row(
+                    specimen_body("avatar-sizes", spec_row(
                         Size::ALL
                             .iter()
                             .enumerate()
@@ -126,19 +126,19 @@ impl Gallery {
                                 )
                             })
                             .collect()
-                    ),
+                    ), cx),
                 ),
                 (
                     "Colors",
-                    row(Color::ALL
+                    specimen_body("avatar-colors", row(Color::ALL
                         .iter()
                         .enumerate()
                         .map(|(i, c)| h::Avatar::new(("color-avatar", i)).name("HG").color(*c))
-                        .els()),
+                        .els()), cx),
                 ),
                 (
                     "Variants",
-                    spec_row(
+                    specimen_body("avatar-variants", spec_row(
                         h::AvatarVariant::ALL
                             .iter()
                             .enumerate()
@@ -153,11 +153,11 @@ impl Gallery {
                                 )
                             })
                             .collect()
-                    ),
+                    ), cx),
                 ),
                 (
                     "Avatar Group",
-                    row(vec![gpui::div()
+                    specimen_body("avatar-group", row(vec![gpui::div()
                         .flex()
                         .flex_col()
                         .items_start()
@@ -181,11 +181,11 @@ impl Gallery {
                             // fallback avatar, as v3's second row does.
                             gpui::div().flex().children(counter_members),
                         )
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "Custom Image Component", "A custom image source composes the same way: the loader below supplies the embedded sample image itself, and `on_load` fires once the image is ready and replaces the fallback.",
-                    col(vec![
+                    specimen_body("avatar-custom-image", col(vec![
                         spec(
                             "Custom loader",
                             h::Avatar::new("custom-loader-avatar")
@@ -199,7 +199,7 @@ impl Gallery {
                                 }),
                             cx,
                         ),
-                    ]),
+                    ]), cx),
                 ),
             ],
             cx,

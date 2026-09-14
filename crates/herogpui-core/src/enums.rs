@@ -311,29 +311,75 @@ pub enum SelectionMode {
 
 /// `placement` — where a floating panel sits relative to its trigger.
 ///
-/// v3 spells both physical (`"bottom left"`) and logical (`"bottom start"`)
-/// forms. This port has no RTL mode, so start coincides with left and end with
-/// right, and the two spellings collapse into one value each.
+/// The full React Aria union v3 forwards: both physical spellings
+/// (`"bottom left"`, `"bottom right"`) and logical aliases (`"start"`,
+/// `"end top"`, …) for every side. This port has no RTL mode, so the logical
+/// start/end aliases resolve to the same pixels as their left/right
+/// spellings; the spellings stay distinct values so `ALL` enumerates the
+/// whole 22-value vocabulary a caller can name.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Placement {
     /// `"bottom"` — below the trigger, centred.
     Bottom,
-    /// `"bottom start"` / `"bottom left"`.
+    /// `"bottom start"` — below the trigger, flush with its start edge.
     #[default]
     BottomStart,
-    /// `"bottom end"` / `"bottom right"`.
+    /// `"bottom left"` — below the trigger, flush with its left edge; the
+    /// physical spelling of [`Placement::BottomStart`] in this LTR-only port.
+    BottomLeft,
+    /// `"bottom end"` — below the trigger, flush with its end edge.
     BottomEnd,
+    /// `"bottom right"` — below the trigger, flush with its right edge; the
+    /// physical spelling of [`Placement::BottomEnd`] here.
+    BottomRight,
     /// `"top"` — above the trigger, centred.
     Top,
-    /// `"top start"` / `"top left"`.
+    /// `"top start"` — above the trigger, flush with its start edge.
     TopStart,
-    /// `"top end"` / `"top right"`.
+    /// `"top left"` — above the trigger, flush with its left edge; the
+    /// physical spelling of [`Placement::TopStart`] here.
+    TopLeft,
+    /// `"top end"` — above the trigger, flush with its end edge.
     TopEnd,
+    /// `"top right"` — above the trigger, flush with its right edge; the
+    /// physical spelling of [`Placement::TopEnd`] here.
+    TopRight,
+    /// `"left"` — beside the trigger's left edge, vertically centred.
     Left,
+    /// `"left top"` — beside the left edge, flush with the trigger's top.
+    LeftTop,
+    /// `"left bottom"` — beside the left edge, flush with the trigger's
+    /// bottom.
+    LeftBottom,
+    /// `"right"` — beside the trigger's right edge, vertically centred.
     Right,
+    /// `"right top"` — beside the right edge, flush with the trigger's top.
+    RightTop,
+    /// `"right bottom"` — beside the right edge, flush with the trigger's
+    /// bottom.
+    RightBottom,
+    /// `"start"` — the logical spelling of [`Placement::Left`] in an
+    /// LTR-only port.
+    Start,
+    /// `"start top"` — the logical spelling of [`Placement::LeftTop`] here.
+    StartTop,
+    /// `"start bottom"` — the logical spelling of [`Placement::LeftBottom`]
+    /// here.
+    StartBottom,
+    /// `"end"` — the logical spelling of [`Placement::Right`] in an
+    /// LTR-only port.
+    End,
+    /// `"end top"` — the logical spelling of [`Placement::RightTop`] here.
+    EndTop,
+    /// `"end bottom"` — the logical spelling of [`Placement::RightBottom`]
+    /// here.
+    EndBottom,
 }
 
 /// How a panel lines up along the trigger's cross axis.
+///
+/// The axis is relative to the side: for the top and bottom placements it is
+/// the trigger's horizontal axis, for the side placements its vertical one.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PlacementAlign {
     Start,
@@ -342,27 +388,55 @@ pub enum PlacementAlign {
 }
 
 impl Placement {
-    pub const ALL: [Placement; 8] = [
+    pub const ALL: [Placement; 22] = [
         Placement::Bottom,
         Placement::BottomStart,
+        Placement::BottomLeft,
         Placement::BottomEnd,
+        Placement::BottomRight,
         Placement::Top,
         Placement::TopStart,
+        Placement::TopLeft,
         Placement::TopEnd,
+        Placement::TopRight,
         Placement::Left,
+        Placement::LeftTop,
+        Placement::LeftBottom,
         Placement::Right,
+        Placement::RightTop,
+        Placement::RightBottom,
+        Placement::Start,
+        Placement::StartTop,
+        Placement::StartBottom,
+        Placement::End,
+        Placement::EndTop,
+        Placement::EndBottom,
     ];
 
     pub fn label(self) -> &'static str {
         match self {
             Placement::Bottom => "Bottom",
             Placement::BottomStart => "Bottom start",
+            Placement::BottomLeft => "Bottom left",
             Placement::BottomEnd => "Bottom end",
+            Placement::BottomRight => "Bottom right",
             Placement::Top => "Top",
             Placement::TopStart => "Top start",
+            Placement::TopLeft => "Top left",
             Placement::TopEnd => "Top end",
+            Placement::TopRight => "Top right",
             Placement::Left => "Left",
+            Placement::LeftTop => "Left top",
+            Placement::LeftBottom => "Left bottom",
             Placement::Right => "Right",
+            Placement::RightTop => "Right top",
+            Placement::RightBottom => "Right bottom",
+            Placement::Start => "Start",
+            Placement::StartTop => "Start top",
+            Placement::StartBottom => "Start bottom",
+            Placement::End => "End",
+            Placement::EndTop => "End top",
+            Placement::EndBottom => "End bottom",
         }
     }
 
@@ -370,19 +444,67 @@ impl Placement {
     pub fn is_above(self) -> bool {
         matches!(
             self,
-            Placement::Top | Placement::TopStart | Placement::TopEnd
+            Placement::Top
+                | Placement::TopStart
+                | Placement::TopLeft
+                | Placement::TopEnd
+                | Placement::TopRight
         )
     }
 
     /// Whether the panel sits beside the trigger rather than above or below.
     pub fn is_side(self) -> bool {
-        matches!(self, Placement::Left | Placement::Right)
+        matches!(
+            self,
+            Placement::Left
+                | Placement::LeftTop
+                | Placement::LeftBottom
+                | Placement::Right
+                | Placement::RightTop
+                | Placement::RightBottom
+                | Placement::Start
+                | Placement::StartTop
+                | Placement::StartBottom
+                | Placement::End
+                | Placement::EndTop
+                | Placement::EndBottom
+        )
     }
 
+    /// Whether the panel opens on the trigger's start side — the left edge,
+    /// because this port has no RTL mode.
+    pub fn is_start_side(self) -> bool {
+        matches!(
+            self,
+            Placement::Left
+                | Placement::LeftTop
+                | Placement::LeftBottom
+                | Placement::Start
+                | Placement::StartTop
+                | Placement::StartBottom
+        )
+    }
+
+    /// The alignment along the trigger's cross axis: horizontal for the top
+    /// and bottom placements, vertical for the side ones.
     pub fn align(self) -> PlacementAlign {
         match self {
-            Placement::BottomStart | Placement::TopStart => PlacementAlign::Start,
-            Placement::BottomEnd | Placement::TopEnd => PlacementAlign::End,
+            Placement::BottomStart
+            | Placement::BottomLeft
+            | Placement::TopStart
+            | Placement::TopLeft
+            | Placement::LeftTop
+            | Placement::RightTop
+            | Placement::StartTop
+            | Placement::EndTop => PlacementAlign::Start,
+            Placement::BottomEnd
+            | Placement::BottomRight
+            | Placement::TopEnd
+            | Placement::TopRight
+            | Placement::LeftBottom
+            | Placement::RightBottom
+            | Placement::StartBottom
+            | Placement::EndBottom => PlacementAlign::End,
             _ => PlacementAlign::Center,
         }
     }

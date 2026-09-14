@@ -19,20 +19,23 @@ impl Gallery {
                 (
                     "Usage",
                     "`radius` sets the corners; `sx` squares the top-left corner, including while pressed.",
-                    row(vec![h::Button::new("btn-usage")
+                    specimen_body("btn-usage", row(vec![h::Button::new("btn-usage")
                         .radius(px(8.))
                         .sx(|el| el.rounded_tl(px(0.)))
                         .label("Click me")
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "Variants",
                     row(Variant::ALL
                         .iter()
-                        .map(|v| {
-                            h::Button::new(el_id(format!("btn-v-{v:?}")))
-                                .label(v.label())
-                                .variant(*v)
+                        .filter_map(|v| {
+                            let key = format!("btn-v-{v:?}");
+                            crate::control::specimen_wanted(&key, cx).then(|| {
+                                h::Button::new(el_id(key))
+                                    .label(v.label())
+                                    .variant(*v)
+                            })
                         })
                         .els()),
                 ),
@@ -40,10 +43,13 @@ impl Gallery {
                     "Sizes",
                     row(Size::ALL
                         .iter()
-                        .map(|s| {
-                            h::Button::new(el_id(format!("btn-s-{s:?}")))
-                                .label(s.label())
-                                .size(*s)
+                        .filter_map(|s| {
+                            let key = format!("btn-s-{s:?}");
+                            crate::control::specimen_wanted(&key, cx).then(|| {
+                                h::Button::new(el_id(key))
+                                    .label(s.label())
+                                    .size(*s)
+                            })
                         })
                         .els()),
                 ),
@@ -93,7 +99,7 @@ impl Gallery {
                 ),
                 (
                     "Loading", "A static pending button: the spinner replaces the label's leading slot while `is_pending` holds, and the caller decides when the work is done.",
-                    row(vec![h::Button::new("btn-loading")
+                    specimen_body("btn-loading", row(vec![h::Button::new("btn-loading")
                         .is_pending(true)
                         .content(move |state| {
                             gpui::div()
@@ -110,11 +116,11 @@ impl Gallery {
                                 .child("Uploading...")
                                 .into_any_element()
                         })
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "Loading State", "The caller owns the pending window: pressing starts an upload and the state resets itself after two seconds.",
-                    row(vec![h::Button::new("btn-loading-state")
+                    specimen_body("btn-loading-state", row(vec![h::Button::new("btn-loading-state")
                         .is_pending(self.button_upload_pending)
                         .content(move |state| {
                             gpui::div()
@@ -163,7 +169,7 @@ impl Gallery {
                                     .detach();
                             }
                         })
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "Full Width",
@@ -192,11 +198,14 @@ impl Gallery {
                     "Disabled State",
                     row(Variant::ALL
                         .iter()
-                        .map(|v| {
-                            h::Button::new(el_id(format!("btn-d-{v:?}")))
-                                .label(v.label())
-                                .variant(*v)
-                                .is_disabled(true)
+                        .filter_map(|v| {
+                            let key = format!("btn-d-{v:?}");
+                            crate::control::specimen_wanted(&key, cx).then(|| {
+                                h::Button::new(el_id(key))
+                                    .label(v.label())
+                                    .variant(*v)
+                                    .is_disabled(true)
+                            })
                         })
                         .els()),
                 ),
@@ -316,123 +325,162 @@ impl Gallery {
                     // inherit `currentColor`, so the icon-only chevron reads
                     // the primary member's own foreground. gpui svgs never
                     // inherit, so the demo spells it out.
-                    row(vec![h::ButtonGroup::new()
-                        .separators(true)
-                        .button(h::Button::new("bgu-1").label("Merge pull request"))
-                        .button(
-                            h::Button::new("bgu-2").is_icon_only(true).child(
-                                gpui::svg()
-                                    .size(px(16.))
-                                    .path(h::icons::CHEVRON_DOWN)
-                                    .text_color(cx.colors().accent.foreground),
-                            ),
-                        )
-                        .into_any_element()]),
+                    specimen_body(
+                        "bgroup-usage",
+                        row(vec![h::ButtonGroup::new()
+                            .separators(true)
+                            .button(h::Button::new("bgu-1").label("Merge pull request"))
+                            .button(
+                                h::Button::new("bgu-2").is_icon_only(true).child(
+                                    gpui::svg()
+                                        .size(px(16.))
+                                        .path(h::icons::CHEVRON_DOWN)
+                                        .text_color(cx.colors().accent.foreground),
+                                ),
+                            )
+                            .into_any_element()]),
+                        cx
+                    ),
                 ),
                 (
                     "Merged",
-                    row(vec![h::ButtonGroup::new()
-                        .variant(Variant::Secondary)
-                        .separators(true)
-                        .button(h::Button::new("bg-1").label("Day"))
-                        .button(h::Button::new("bg-2").label("Week"))
-                        .button(h::Button::new("bg-3").label("Month"))
-                        .into_any_element()]),
+                    specimen_body(
+                        "bgroup-merged",
+                        row(vec![h::ButtonGroup::new()
+                            .variant(Variant::Secondary)
+                            .separators(true)
+                            .button(h::Button::new("bg-1").label("Day"))
+                            .button(h::Button::new("bg-2").label("Week"))
+                            .button(h::Button::new("bg-3").label("Month"))
+                            .into_any_element()]),
+                        cx
+                    ),
                 ),
                 (
                     "Sizes",
                     col(Size::ALL
                         .iter()
-                        .map(|sz| {
-                            h::ButtonGroup::new()
-                                .variant(Variant::Secondary)
-                                .size(*sz)
-                                .separators(true)
-                                .button(
-                                    h::Button::new(el_id(format!("bgs-{sz:?}-1"))).label("Left"),
-                                )
-                                .button(
-                                    h::Button::new(el_id(format!("bgs-{sz:?}-2"))).label("Middle"),
-                                )
-                                .button(
-                                    h::Button::new(el_id(format!("bgs-{sz:?}-3"))).label("Right"),
-                                )
+                        .filter_map(|sz| {
+                            let key = format!("bgroup-size-{sz:?}");
+                            crate::control::specimen_wanted(&key, cx).then(|| {
+                                h::ButtonGroup::new()
+                                    .variant(Variant::Secondary)
+                                    .size(*sz)
+                                    .separators(true)
+                                    .button(
+                                        h::Button::new(el_id(format!("bgs-{sz:?}-1")))
+                                            .label("Left"),
+                                    )
+                                    .button(
+                                        h::Button::new(el_id(format!("bgs-{sz:?}-2")))
+                                            .label("Middle"),
+                                    )
+                                    .button(
+                                        h::Button::new(el_id(format!("bgs-{sz:?}-3")))
+                                            .label("Right"),
+                                    )
+                            })
                         })
                         .els()),
                 ),
                 (
                     "With Icons",
-                    row(vec![h::ButtonGroup::new()
-                        .variant(Variant::Tertiary)
-                        .separators(true)
-                        .button(
-                            h::Button::new("bgi-1")
-                                .child(icon(h::icons::COPY, cx))
-                                .child("Fork"),
-                        )
-                        .button(
-                            h::Button::new("bgi-2")
-                                .child(icon(h::icons::PLUS, cx))
-                                .child("Star"),
-                        )
-                        .button(
-                            h::Button::new("bgi-3")
-                                .is_icon_only(true)
-                                .child(icon(h::icons::ELLIPSIS, cx)),
-                        )
-                        .into_any_element()]),
+                    specimen_body(
+                        "bgroup-icons",
+                        row(vec![h::ButtonGroup::new()
+                            .variant(Variant::Tertiary)
+                            .separators(true)
+                            .button(
+                                h::Button::new("bgi-1")
+                                    .child(icon(h::icons::COPY, cx))
+                                    .child("Fork"),
+                            )
+                            .button(
+                                h::Button::new("bgi-2")
+                                    .child(icon(h::icons::PLUS, cx))
+                                    .child("Star"),
+                            )
+                            .button(
+                                h::Button::new("bgi-3")
+                                    .is_icon_only(true)
+                                    .child(icon(h::icons::ELLIPSIS, cx)),
+                            )
+                            .into_any_element()]),
+                        cx
+                    ),
                 ),
                 (
                     "Variants",
                     col(Variant::GROUP
                         .iter()
-                        .map(|v| {
-                            h::ButtonGroup::new()
-                                .variant(*v)
-                                .separators(true)
-                                .button(h::Button::new(el_id(format!("bgv-{v:?}-1"))).label("One"))
-                                .button(h::Button::new(el_id(format!("bgv-{v:?}-2"))).label("Two"))
+                        .filter_map(|v| {
+                            let key = format!("bgroup-v-{v:?}");
+                            crate::control::specimen_wanted(&key, cx).then(|| {
+                                h::ButtonGroup::new()
+                                    .variant(*v)
+                                    .separators(true)
+                                    .button(
+                                        h::Button::new(el_id(format!("bgv-{v:?}-1"))).label("One"),
+                                    )
+                                    .button(
+                                        h::Button::new(el_id(format!("bgv-{v:?}-2"))).label("Two"),
+                                    )
+                            })
                         })
                         .els()),
                 ),
                 (
                     "Orientation",
                     row(vec![
-                        h::ButtonGroup::new()
-                            .variant(Variant::Secondary)
-                            .separators(true)
-                            .button(h::Button::new("bgo-l").label("Left"))
-                            .button(h::Button::new("bgo-c").label("Center"))
-                            .button(h::Button::new("bgo-r").label("Right"))
-                            .into_any_element(),
-                        h::ButtonGroup::new()
-                            .variant(Variant::Secondary)
-                            .orientation(Orientation::Vertical)
-                            .separators(true)
-                            .button(h::Button::new("bgv-top").label("Top"))
-                            .button(h::Button::new("bgv-mid").label("Middle"))
-                            .button(h::Button::new("bgv-bot").label("Bottom"))
-                            .into_any_element(),
+                        specimen_body(
+                            "bgroup-orientation-horizontal",
+                            h::ButtonGroup::new()
+                                .variant(Variant::Secondary)
+                                .separators(true)
+                                .button(h::Button::new("bgo-l").label("Left"))
+                                .button(h::Button::new("bgo-c").label("Center"))
+                                .button(h::Button::new("bgo-r").label("Right"))
+                                .into_any_element(),
+                            cx
+                        ),
+                        specimen_body(
+                            "bgroup-orientation-vertical",
+                            h::ButtonGroup::new()
+                                .variant(Variant::Secondary)
+                                .orientation(Orientation::Vertical)
+                                .separators(true)
+                                .button(h::Button::new("bgv-top").label("Top"))
+                                .button(h::Button::new("bgv-mid").label("Middle"))
+                                .button(h::Button::new("bgv-bot").label("Bottom"))
+                                .into_any_element(),
+                            cx
+                        ),
                     ]),
                 ),
                 (
                     "Full Width",
-                    col(vec![gpui::div()
-                        .w_full()
-                        .child(
-                            h::ButtonGroup::new()
-                                .variant(Variant::Secondary)
-                                .full_width(true)
-                                .separators(true)
-                                .button(h::Button::new("bgf-1").label("Cancel"))
-                                .button(h::Button::new("bgf-2").label("Save draft"))
-                                .button(h::Button::new("bgf-3").label("Publish")),
-                        )
-                        .into_any_element()]),
+                    specimen_body(
+                        "bgroup-full-width",
+                        col(vec![gpui::div()
+                            .w_full()
+                            .child(
+                                h::ButtonGroup::new()
+                                    .variant(Variant::Secondary)
+                                    .full_width(true)
+                                    .separators(true)
+                                    .button(h::Button::new("bgf-1").label("Cancel"))
+                                    .button(h::Button::new("bgf-2").label("Save draft"))
+                                    .button(h::Button::new("bgf-3").label("Publish")),
+                            )
+                            .into_any_element()]),
+                        cx
+                    ),
                 ),
                 (
                     "Without Separator",
-                    row(vec![h::ButtonGroup::new()
+                    specimen_body(
+                        "bgroup-without-separator",
+                        row(vec![h::ButtonGroup::new()
                         .variant(Variant::Secondary)
                         // v3: omit the `<ButtonGroup.Separator />` child
                         // composition — the port's default draws no dividers.
@@ -440,16 +488,22 @@ impl Gallery {
                         .button(h::Button::new("bgn-2").label("Two"))
                         .button(h::Button::new("bgn-3").label("Three"))
                         .into_any_element()]),
+                        cx
+                    ),
                 ),
                 (
                     "Disabled State",
-                    row(vec![h::ButtonGroup::new()
-                        .variant(Variant::Secondary)
-                        .is_disabled(true)
-                        .separators(true)
-                        .button(h::Button::new("bgd2-1").label("One"))
-                        .button(h::Button::new("bgd2-2").label("Two"))
-                        .into_any_element()]),
+                    specimen_body(
+                        "bgroup-disabled",
+                        row(vec![h::ButtonGroup::new()
+                            .variant(Variant::Secondary)
+                            .is_disabled(true)
+                            .separators(true)
+                            .button(h::Button::new("bgd2-1").label("One"))
+                            .button(h::Button::new("bgd2-2").label("Two"))
+                            .into_any_element()]),
+                        cx
+                    ),
                 ),
             ],
             cx,
@@ -466,14 +520,14 @@ impl Gallery {
             vec![
                 (
                     "Usage", "`radius` sets the corners; `sx` squares the top-left corner, including while pressed.",
-                    row(vec![h::CloseButton::new("cb-usage")
+                    specimen_body("close-usage", row(vec![h::CloseButton::new("cb-usage")
                         .radius(px(4.))
                         .sx(|el| el.rounded_tl(px(0.)))
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "Interactive",
-                    col(vec![
+                    specimen_body("close-interactive", col(vec![
                         h::CloseButton::new("cb-press")
                             .on_press(cx.listener(|this, _, _, cx| {
                                 this.close_button_presses += 1;
@@ -481,26 +535,26 @@ impl Gallery {
                             }))
                             .into_any_element(),
                         para(&format!("Pressed {presses} times"), cx),
-                    ]),
+                    ]), cx),
                 ),
                 (
                     "With Custom Icon",
-                    row(vec![spec(
+                    specimen_body("close-custom-icon", row(vec![spec(
                         "Custom icon",
                         h::CloseButton::new("cb-icon-1").icon(icon(h::icons::CLOSE_CIRCLE, cx)),
                         cx,
-                    ),]),
+                    )]), cx),
                 ),
                 (
                     "Hover Colour",
                     "`hover_bg` names the hover fill; it eases from the resting `--default` (or the `sx` background when one is set), the same contract as `Button`.",
-                    row(vec![h::CloseButton::new("cb-hover-bg")
+                    specimen_body("close-hover-bg", row(vec![h::CloseButton::new("cb-hover-bg")
                         .hover_bg(accent)
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "Render Function", "Hover, focus, or press the button to drive the custom icon from its live render state.",
-                    {
+                    specimen_body("close-render-state", {
                         let muted = cx.colors().muted;
                         let foreground = cx.colors().foreground;
                         col(vec![h::CloseButton::new("cb-render-state")
@@ -522,13 +576,13 @@ impl Gallery {
                                     .into_any_element()
                             })
                             .into_any_element()])
-                    }
+                    }, cx)
                 ),
                 (
                     "Disabled",
-                    row(vec![h::CloseButton::new("cb-disabled")
+                    specimen_body("close-disabled", row(vec![h::CloseButton::new("cb-disabled")
                         .is_disabled(true)
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
             ],
             cx,
@@ -548,35 +602,38 @@ impl Gallery {
                 (
                     "Usage",
                     "`radius` sets the corners; `sx` squares the top-left corner, including while pressed.",
-                    row(vec![h::ToggleButton::new("tb-usage")
+                    specimen_body("toggle-usage", row(vec![h::ToggleButton::new("tb-usage")
                         .radius(px(8.))
                         .sx(|el| el.rounded_tl(px(0.)))
                         .label("Bold")
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "Hover Colour",
                     "`hover_bg` follows the Button resting-endpoint contract: the fade runs from the resting background to the named hover fill.",
-                    row(vec![h::ToggleButton::new("tb-hover-bg")
+                    specimen_body("toggle-hover-bg", row(vec![h::ToggleButton::new("tb-hover-bg")
                         .label("Hover")
                         .hover_bg(accent)
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "Sizes",
                     row(Size::ALL
                         .iter()
-                        .map(|sz| {
-                            h::ToggleButton::new(el_id(format!("tb-sz-{sz:?}")))
-                                .label(sz.label())
-                                .size(*sz)
-                                .default_selected(true)
+                        .filter_map(|sz| {
+                            let key = format!("toggle-size-{sz:?}");
+                            crate::control::specimen_wanted(&key, cx).then(|| {
+                                h::ToggleButton::new(el_id(format!("tb-sz-{sz:?}")))
+                                    .label(sz.label())
+                                    .size(*sz)
+                                    .default_selected(true)
+                            })
                         })
                         .els()),
                 ),
                 (
                     "Icon Only",
-                    row(vec![
+                    specimen_body("toggle-icon-only", row(vec![
                         h::ToggleButton::new("tb-io-1")
                             .is_icon_only(true)
                             .default_selected(true)
@@ -590,11 +647,11 @@ impl Gallery {
                             .is_icon_only(true)
                             .child(icon(h::icons::SEARCH, cx))
                             .into_any_element(),
-                    ]),
+                    ]), cx),
                 ),
                 (
                     "Disabled",
-                    row(vec![
+                    specimen_body("toggle-disabled", row(vec![
                         h::ToggleButton::new("tb-dis-1")
                             .label("Off")
                             .is_disabled(true)
@@ -604,11 +661,11 @@ impl Gallery {
                             .is_selected(true)
                             .is_disabled(true)
                             .into_any_element(),
-                    ]),
+                    ]), cx),
                 ),
                 (
                     "Controlled",
-                    col(vec![
+                    specimen_body("toggle-controlled", col(vec![
                         h::ToggleButton::new("tb-like")
                             .label(if liked { "Liked" } else { "Like" })
                             .is_selected(liked)
@@ -633,11 +690,11 @@ impl Gallery {
                             },
                             cx,
                         ),
-                    ]),
+                    ]), cx),
                 ),
                 (
                     "Single selection",
-                    row(vec![h::ToggleButtonGroup::new("toggle-single")
+                    specimen_body("toggle-single-selection", row(vec![h::ToggleButtonGroup::new("toggle-single")
                         .selection_mode(SelectionMode::Single)
                         .separators(true)
                         .selected_keys(single.into_iter().collect::<Vec<_>>())
@@ -652,11 +709,11 @@ impl Gallery {
                             this.toggle_single = keys.first().cloned();
                             cx.notify();
                         }))
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "Multiple selection",
-                    row(vec![h::ToggleButtonGroup::new("toggle-multiple")
+                    specimen_body("toggle-multiple-selection", row(vec![h::ToggleButtonGroup::new("toggle-multiple")
                         .selection_mode(SelectionMode::Multiple)
                         .separators(true)
                         .selected_keys(multiple.iter().cloned().collect::<Vec<_>>())
@@ -675,11 +732,11 @@ impl Gallery {
                             this.toggle_multiple = keys.iter().cloned().collect();
                             cx.notify();
                         }))
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "Variants",
-                    row(vec![
+                    specimen_body("toggle-variants", row(vec![
                         h::ToggleButton::new("tb-v-default")
                             .label("Default")
                             .default_selected(true)
@@ -689,29 +746,28 @@ impl Gallery {
                             .variant(h::ToggleVariant::Ghost)
                             .default_selected(true)
                             .into_any_element(),
-                    ]),
+                    ]), cx),
                 ),
                 (
                     "Orientation",
-                    row(vec![
-                        h::ToggleButtonGroup::new("toggle-orientation-horizontal")
+                    row(vec![specimen_body("toggle-orientation-horizontal", h::ToggleButtonGroup::new("toggle-orientation-horizontal")
                             .separators(true)
                             .child_toggle(h::ToggleButton::new("tbo-h-1").label("Day"))
                             .child_toggle(h::ToggleButton::new("tbo-h-2").label("Week"))
                             .child_toggle(h::ToggleButton::new("tbo-h-3").label("Month"))
-                            .into_any_element(),
-                        h::ToggleButtonGroup::new("toggle-orientation-vertical")
+                            .into_any_element(), cx),
+                        specimen_body("toggle-orientation-vertical", h::ToggleButtonGroup::new("toggle-orientation-vertical")
                             .orientation(Orientation::Vertical)
                             .separators(true)
                             .child_toggle(h::ToggleButton::new("tbo-v-1").label("Day"))
                             .child_toggle(h::ToggleButton::new("tbo-v-2").label("Week"))
                             .child_toggle(h::ToggleButton::new("tbo-v-3").label("Month"))
-                            .into_any_element(),
+                            .into_any_element(), cx),
                     ]),
                 ),
                 (
                     "Full Width",
-                    col(vec![gpui::div()
+                    specimen_body("toggle-full-width", col(vec![gpui::div()
                         .w_full()
                         .child(
                             h::ToggleButtonGroup::new("toggle-full-width")
@@ -721,21 +777,21 @@ impl Gallery {
                                 .child_toggle(h::ToggleButton::new("tbf-2").label("Center"))
                                 .child_toggle(h::ToggleButton::new("tbf-3").label("Right")),
                         )
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "Without Separator",
-                    row(vec![h::ToggleButtonGroup::new("toggle-without-separator")
+                    specimen_body("toggle-without-separator", row(vec![h::ToggleButtonGroup::new("toggle-without-separator")
                         // v3: omit the `<ToggleButtonGroup.Separator />` child
                         // composition — the port's default draws no dividers.
                         .child_toggle(h::ToggleButton::new("tbn-1").label("One"))
                         .child_toggle(h::ToggleButton::new("tbn-2").label("Two"))
                         .child_toggle(h::ToggleButton::new("tbn-3").label("Three"))
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "Selection Mode", "Single: exactly one member stays selected.",
-                    col(vec![
+                    specimen_body("toggle-selection-mode", col(vec![
                         h::ToggleButtonGroup::new("toggle-selection-single")
                             .selection_mode(SelectionMode::Single)
                             .separators(true)
@@ -751,11 +807,11 @@ impl Gallery {
                             .child_toggle(h::ToggleButton::new("tbsm-m-2").key("b").label("B"))
                             .child_toggle(h::ToggleButton::new("tbsm-m-3").key("c").label("C"))
                             .into_any_element(),
-                    ]),
+                    ]), cx),
                 ),
                 (
                     "Default Selected Keys", "Uncontrolled: `defaultSelectedKeys` seeds the group's own selection, and the group keeps ownership from there — clicking a member still toggles it.",
-                    col(vec![
+                    specimen_body("toggle-default-selected-keys", col(vec![
                         h::ToggleButtonGroup::new("toggle-default-single")
                             .selection_mode(SelectionMode::Single)
                             .separators(true)
@@ -793,22 +849,22 @@ impl Gallery {
                                     .label("Underline"),
                             )
                             .into_any_element(),
-                    ]),
+                    ]), cx),
                 ),
                 (
                     "Vertical",
-                    row(vec![
+                    specimen_body("toggle-vertical", row(vec![
                         h::ToggleButtonGroup::new("toggle-vertical")
                             .orientation(Orientation::Vertical)
                             .separators(true)
                             .child_toggle(h::ToggleButton::new("tbv-1").label("Top"))
                             .child_toggle(h::ToggleButton::new("tbv-2").label("Bottom"))
                             .into_any_element(),
-                    ]),
+                    ]), cx),
                 ),
                 (
                     "Detached", "`is_detached` separates the buttons with gaps instead of connecting them; the attached icon group above the detached one shows the default for contrast.",
-                    col(vec![
+                    specimen_body("toggle-detached", col(vec![
                         h::ToggleButtonGroup::new("toggle-attached")
                             .separators(true)
                             .child_toggle(
@@ -845,7 +901,7 @@ impl Gallery {
                                     .child(icon(h::icons::MAIL, cx)),
                             )
                             .into_any_element(),
-                    ]),
+                    ]), cx),
                 ),
             ],
             cx,

@@ -72,6 +72,22 @@ pub enum ModalPlacement {
     Bottom,
 }
 
+/// HeroUI's desktop entry translation for a placed modal or alert dialog.
+///
+/// The pinned sheet uses `slide-in-from-top-1` and `slide-in-from-bottom-1`
+/// (four pixels) for the explicit top and bottom placements. `Auto` is
+/// centered on the desktop breakpoint and `Center` has no translation. The
+/// sign is expressed in GPUI's relative-offset coordinates: a top placement
+/// starts four pixels toward the trigger side and a bottom placement starts
+/// four pixels toward the trigger side before settling into its slot.
+pub(crate) fn placement_entry_offset(placement: ModalPlacement) -> (f32, f32) {
+    match placement {
+        ModalPlacement::Top => (0.0, 4.0),
+        ModalPlacement::Bottom => (0.0, -4.0),
+        ModalPlacement::Auto | ModalPlacement::Center => (0.0, 0.0),
+    }
+}
+
 /// `scroll` — whether overflow scrolls inside the dialog or moves the whole
 /// container.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -687,6 +703,14 @@ impl RenderOnce for Modal {
                         // `leading-[1.43]` on `text-sm`.
                         .line_height(px(20.))
                         .text_color(colors.muted)
+                        // `.modal__body` is `-m-[3px] my-0 overflow-visible
+                        // p-[3px]`: `my-0` zeroes the vertical margins, so
+                        // unlike the horizontal pair the 3px padding is 6px
+                        // of real body height -- the panel-height delta the
+                        // matched captures measured -- and AlertDialog and
+                        // Drawer carry the same compensation.
+                        .mx(px(-3.))
+                        .p(px(3.))
                         // v3 spells the body `min-h-0 flex-1` and scrolls it
                         // inside `.modal__dialog--scroll-inside`'s max height.
                         // There is no equivalent here: a gpui scroll container
@@ -874,6 +898,10 @@ impl RenderOnce for Modal {
             // the shared fade with no geometric interpolation.
             width: self.size.max_width(),
             radius: (!full).then_some(panel_radius),
+            slide_x: (!full && placement_entry_offset(self.placement).0 != 0.0)
+                .then(|| px(placement_entry_offset(self.placement).0)),
+            slide_y: (!full && placement_entry_offset(self.placement).1 != 0.0)
+                .then(|| px(placement_entry_offset(self.placement).1)),
             ..Default::default()
         };
         overlay = overlay.child(if exiting {
@@ -896,5 +924,18 @@ impl RenderOnce for Modal {
 
         overlay = crate::util::apply_sx(overlay, &self.sx);
         crate::util::window_overlay(overlay, window).into_any_element()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{placement_entry_offset, ModalPlacement};
+
+    #[test]
+    fn placement_entry_offsets_follow_the_painted_side() {
+        assert_eq!(placement_entry_offset(ModalPlacement::Top), (0.0, 4.0));
+        assert_eq!(placement_entry_offset(ModalPlacement::Bottom), (0.0, -4.0));
+        assert_eq!(placement_entry_offset(ModalPlacement::Auto), (0.0, 0.0));
+        assert_eq!(placement_entry_offset(ModalPlacement::Center), (0.0, 0.0));
     }
 }

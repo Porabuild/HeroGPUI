@@ -13,6 +13,10 @@ pub struct ColorSwatch {
     color: PickerColor,
     size: SizeXl,
     shape: SwatchShape,
+    /// `colorName` — a caller-provided accessible name. When omitted, the
+    /// swatch reports the color's canonical hex string, matching the
+    /// primitive's generated description.
+    color_name: Option<SharedString>,
     /// `ColorSwatchPicker.Item.isDisabled` — the item's own flag, drawn on
     /// the swatch it wraps.
     is_disabled: bool,
@@ -35,6 +39,7 @@ impl ColorSwatch {
             // own swatch scale (16/24/32/36/40).
             size: SizeXl::Md,
             shape: SwatchShape::Circle,
+            color_name: None,
             is_disabled: false,
             id: None,
             sx: None,
@@ -56,6 +61,14 @@ impl ColorSwatch {
 
     pub fn shape(mut self, shape: SwatchShape) -> Self {
         self.shape = shape;
+        self
+    }
+
+    /// `colorName` — overrides the generated hex name exposed to assistive
+    /// technology. This is useful when a design token or a human color name
+    /// is more meaningful than the raw value.
+    pub fn color_name(mut self, name: impl Into<SharedString>) -> Self {
+        self.color_name = Some(name.into());
         self
     }
 
@@ -102,24 +115,40 @@ impl RenderOnce for ColorSwatch {
             .overflow_hidden()
             .border(layout.border_width)
             .border_color(colors.border)
-            // Checkerboard under the color reveals translucency.
-            .bg(colors.surface_secondary)
             .when(self.is_disabled, |el| el.opacity(layout.disabled_opacity))
             .child(
                 div()
+                    .absolute()
+                    .inset_0()
                     .size_full()
                     .rounded(radius)
-                    .bg(self.color.to_hsla()),
+                    .overflow_hidden()
+                    .child(transparency_checker(edge, edge))
+                    .child(
+                        div()
+                            .absolute()
+                            .inset_0()
+                            .rounded(radius)
+                            .bg(self.color.to_hsla()),
+                    )
+                    .child(
+                        div()
+                            .absolute()
+                            .inset_0()
+                            .rounded(radius)
+                            .shadow(vec![color_inner_shadow()]),
+                    ),
             );
         let el = util::apply_sx(el, &self.sx);
         match self.id {
-            Some(id) => el
-                .id(id)
-                .a11y_named(
-                    a11y::Role::Image,
-                    &a11y::Name::labelled(self.color.to_hex()),
-                )
-                .into_any_element(),
+            Some(id) => {
+                let accessible_name = self
+                    .color_name
+                    .unwrap_or_else(|| SharedString::from(self.color.to_hex()));
+                el.id(id)
+                    .a11y_named(a11y::Role::Image, &a11y::Name::labelled(accessible_name))
+                    .into_any_element()
+            }
             None => el.into_any_element(),
         }
     }

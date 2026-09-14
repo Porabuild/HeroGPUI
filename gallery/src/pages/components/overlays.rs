@@ -1098,7 +1098,7 @@ impl Gallery {
                 ),
                 (
                     "Usage",
-                    stretch_col(vec![
+                    specimen_body("md-usage", stretch_col(vec![
                         overlay_min_h(
                             gpui::div()
                                 .relative()
@@ -1148,7 +1148,7 @@ impl Gallery {
                                 })),
                         )
                         .into_any_element(),
-                    ]),
+                    ]), cx),
                 ),
             ],
             cx,
@@ -1388,29 +1388,35 @@ impl Gallery {
                                 {
                                     placement_slot = placement_slot.pl(px(104.));
                                 }
-                                overlay_min_h(placement_slot, open, 260.).child(
-                                    h::Popover::new(
-                                        h::Button::new(el_id(format!("{id}-trigger")))
-                                            .label(label)
-                                            .variant(Variant::Secondary)
-                                            .size(Size::Sm),
-                                    )
-                                    .id(id)
-                                    .is_open(open)
-                                    .on_open_change(cx.listener(
-                                        move |this, open: &bool, _, cx| {
-                                            set_popover_open(
-                                                &mut this.popover_open,
-                                                &mut this.demo_flags,
-                                                id,
-                                                *open,
-                                            );
-                                            cx.notify();
-                                        },
-                                    ))
-                                    .placement(placement)
-                                    .title(label)
-                                .child(gpui::div().child("Anchored to its trigger.")),
+                                specimen_body(
+                                    id,
+                                    overlay_min_h(placement_slot, open, 260.)
+                                        .child(
+                                            h::Popover::new(
+                                                h::Button::new(el_id(format!("{id}-trigger")))
+                                                    .label(label)
+                                                    .variant(Variant::Secondary)
+                                                    .size(Size::Sm),
+                                            )
+                                            .id(id)
+                                            .is_open(open)
+                                            .on_open_change(cx.listener(
+                                                move |this, open: &bool, _, cx| {
+                                                    set_popover_open(
+                                                        &mut this.popover_open,
+                                                        &mut this.demo_flags,
+                                                        id,
+                                                        *open,
+                                                    );
+                                                    cx.notify();
+                                                },
+                                            ))
+                                            .placement(placement)
+                                            .title(label)
+                                            .child(gpui::div().child("Anchored to its trigger.")),
+                                        )
+                                        .into_any_element(),
+                                    cx,
                                 )
                             }),
                         )
@@ -1603,9 +1609,6 @@ impl Gallery {
                             h::Toast::new("Saved")
                                 .description("Your changes are live.")
                                 .closable(true)
-                                .close_hover_bg(cx.colors().accent.soft())
-                                .padding(px(18.))
-                                .radius(px(4.))
                                 .push(Some(std::time::Duration::from_secs(4)), cx);
                         })
                         .into_any_element()]),
@@ -1676,7 +1679,47 @@ impl Gallery {
                         .into_any_element()]),
                 ),
                 (
-                    "Custom Indicators", "The variant picks the glyph — success shows a tick, danger a crossed circle. `indicator` overrides it with any icon, and `indicator(None)` removes the glyph entirely.",
+                    "Long Title & Card Geometry",
+                    "Toast titles remain readable when they need more than one line. The close affordance is positioned outside the content flow, so wrapping does not steal width from the message.",
+                    specimen_body(
+                        "toast-long-title",
+                        row(vec![h::Button::new("toast-long-title-push")
+                            .label("Push a long title")
+                            .variant(Variant::Secondary)
+                            .size(Size::Sm)
+                            .on_press(|_, _, cx| {
+                                h::Toast::new(
+                                    "A notification title that intentionally spans multiple lines so the Toast card keeps all content readable",
+                                )
+                                .description("The close button stays anchored to the card corner.")
+                                .push(Some(std::time::Duration::from_secs(8)), cx);
+                            })
+                            .into_any_element()]),
+                        cx,
+                    ),
+                ),
+                (
+                    "Close Reveal",
+                    "The close affordance stays out of the message flow, fades in when the frontmost card is hovered or keyboard-focused, and ignores pointer activation while hidden.",
+                    specimen_body(
+                        "toast-close-reveal",
+                        row(vec![h::Button::new("toast-close-reveal-push")
+                            .label("Push persistent toast")
+                            .variant(Variant::Secondary)
+                            .size(Size::Sm)
+                            .on_press(|_, _, cx| {
+                                h::Toast::new("Hover or tab to reveal close")
+                                    .description("The close control fades in at the card corner.")
+                                    .closable(true)
+                                    .timeout(std::time::Duration::ZERO)
+                                    .push(None, cx);
+                            })
+                            .into_any_element()]),
+                        cx,
+                    ),
+                ),
+                (
+                    "Custom Indicators", "The variant picks the glyph — success shows a tick, danger a crossed circle. `indicator` overrides it with an asset path, `indicator_content` renders caller-owned GPUI content inside the same box, and `indicator(None)` removes the glyph entirely.",
                     col(vec![
                         row(vec![
                             h::Button::new("toast-ind-success")
@@ -1712,6 +1755,18 @@ impl Gallery {
                                         .push(None, cx);
                                 })
                                 .into_any_element(),
+                            h::Button::new("toast-ind-custom-content")
+                                .label("Custom content")
+                                .variant(Variant::Secondary)
+                                .size(Size::Sm)
+                                .on_press(|_, _, cx| {
+                                    h::Toast::new("Custom indicator content")
+                                        .description("The render factory owns this icon.")
+                                        .variant(Color::Accent)
+                                        .indicator_content(|cx| icon(h::icons::INFO_CIRCLE, cx))
+                                        .push(None, cx);
+                                })
+                                .into_any_element(),
                             h::Button::new("toast-ind-none")
                                 .label("No glyph")
                                 .variant(Variant::Secondary)
@@ -1741,16 +1796,16 @@ impl Gallery {
                     ]),
                 ),
                 (
-                    "Promise & Loading", "`toast.promise` shows a loading toast while the work runs, then updates it in place. `Toast::promise` owns that swap: Ok is success, Err is danger, and the default dismiss clock starts at settle.",
+                    "Promise & Loading", "`toast.promise` shows a loading toast while the work runs, then updates it in place. Ok is success, Err is danger, and the default dismiss clock starts at settle. `promise_task` lets the gallery own the pending work and cancel it when resetting the demo.",
                     col(vec![
                         row(vec![
                             h::Button::new("toast-promise")
                                 .label("Upload a file")
                                 .variant(Variant::Secondary)
                                 .size(Size::Sm)
-                                .on_press(|_, _, cx| {
+                                .on_press(cx.listener(|this, _, _, cx| {
                                     let executor = cx.background_executor().clone();
-                                    h::Toast::promise(
+                                    let (_, task) = h::Toast::promise_task(
                                         async move {
                                             executor
                                                 .timer(std::time::Duration::from_millis(1500))
@@ -1760,15 +1815,16 @@ impl Gallery {
                                         "Uploading\u{2026}",
                                         cx,
                                     );
-                                })
+                                    this.track_toast_promise(task);
+                                }))
                                 .into_any_element(),
                             h::Button::new("toast-promise-error")
                                 .label("Create event (error)")
                                 .variant(Variant::Secondary)
                                 .size(Size::Sm)
-                                .on_press(|_, _, cx| {
+                                .on_press(cx.listener(|this, _, _, cx| {
                                     let executor = cx.background_executor().clone();
-                                    h::Toast::promise(
+                                    let (_, task) = h::Toast::promise_task(
                                         async move {
                                             executor
                                                 .timer(std::time::Duration::from_millis(1500))
@@ -1778,7 +1834,8 @@ impl Gallery {
                                         "Creating event\u{2026}",
                                         cx,
                                     );
-                                })
+                                    this.track_toast_promise(task);
+                                }))
                                 .into_any_element(),
                         ]),
                     ]),
@@ -1803,37 +1860,41 @@ impl Gallery {
                 ),
                 (
                     "Expanded Stack", "Hover or focus the stack to expand it. `isExpanded` keeps it open; timers still run unless the pointer or focus is inside.",
-                    col(vec![
-                        row(vec![
-                            h::Button::new("toast-stack-push")
-                                .label("Push three")
-                                .variant(Variant::Secondary)
-                                .size(Size::Sm)
-                                .on_press(|_, _, cx| {
-                                    for n in 1..=3 {
-                                        h::Toast::new(format!("Stacked {n}"))
-                                            .description("Hover the stack to expand.")
-                                            .timeout(std::time::Duration::from_secs(8))
-                                            .push(None, cx);
-                                    }
-                                })
-                                .into_any_element(),
-                            h::Button::new("toast-stack-keep")
-                                .label(if self.demo_flag("toast-expanded", false) {
-                                    "Stop forcing open"
-                                } else {
-                                    "Keep expanded"
-                                })
-                                .variant(Variant::Tertiary)
-                                .size(Size::Sm)
-                                .on_press(cx.listener(|this, _, _, cx| {
-                                    let next = !this.demo_flag("toast-expanded", false);
-                                    this.set_demo_flag("toast-expanded", next);
-                                    cx.notify();
-                                }))
-                                .into_any_element(),
+                    specimen_body(
+                        "toast-expanded-stack",
+                        col(vec![
+                            row(vec![
+                                h::Button::new("toast-stack-push")
+                                    .label("Push three")
+                                    .variant(Variant::Secondary)
+                                    .size(Size::Sm)
+                                    .on_press(|_, _, cx| {
+                                        for n in 1..=3 {
+                                            h::Toast::new(format!("Stacked {n}"))
+                                                .description("Hover the stack to expand.")
+                                                .timeout(std::time::Duration::from_secs(8))
+                                                .push(None, cx);
+                                        }
+                                    })
+                                    .into_any_element(),
+                                h::Button::new("toast-stack-keep")
+                                    .label(if self.demo_flag("toast-expanded", false) {
+                                        "Stop forcing open"
+                                    } else {
+                                        "Keep expanded"
+                                    })
+                                    .variant(Variant::Tertiary)
+                                    .size(Size::Sm)
+                                    .on_press(cx.listener(|this, _, _, cx| {
+                                        let next = !this.demo_flag("toast-expanded", false);
+                                        this.set_demo_flag("toast-expanded", next);
+                                        cx.notify();
+                                    }))
+                                    .into_any_element(),
+                            ]),
                         ]),
-                    ]),
+                        cx,
+                    ),
                 ),
                 (
                     "Custom Queues", "`maxVisibleToasts` caps visibility without dropping overflow: the ones past the cap wait their turn. Push four and watch one queue.",
@@ -1970,21 +2031,43 @@ impl Gallery {
                 ),
                 (
                     "Placement",
-                    row(h::TooltipPlacement::ALL
-                        .iter()
-                        .map(|p| {
-                            h::Tooltip::new(p.label())
-                                .placement(*p)
-                                .show_arrow(true)
-                                .child(
-                                    h::Button::new(el_id(format!("tip-{}", p.label())))
-                                        .label(p.label())
-                                        .variant(Variant::Secondary)
-                                        .into_any_element(),
-                                )
-                                .into_any_element()
-                        })
-                        .collect()),
+                    specimen_body(
+                        "tt-placement",
+                        row(h::TooltipPlacement::ALL
+                            .iter()
+                            .map(|p| {
+                                h::Tooltip::new(p.label())
+                                    .placement(*p)
+                                    .show_arrow(true)
+                                    .child(
+                                        h::Button::new(el_id(format!("tip-{}", p.label())))
+                                            .label(p.label())
+                                            .variant(Variant::Secondary)
+                                            .into_any_element(),
+                                    )
+                                    .into_any_element()
+                            })
+                            .collect()),
+                        cx,
+                    ),
+                ),
+                (
+                    "Long Content",
+                    specimen_body(
+                        "tt-long-content",
+                        h::Tooltip::new(
+                            "https://example.com/a-really-long-unbroken-token-that-must-wrap-inside-the-tooltip",
+                        )
+                        .delay(0)
+                        .show_arrow(true)
+                        .child(
+                            h::Button::new("tt-long-content-trigger")
+                                .label("Long token")
+                                .variant(Variant::Secondary),
+                        )
+                        .into_any_element(),
+                        cx,
+                    ),
                 ),
                 (
                     "Delay",

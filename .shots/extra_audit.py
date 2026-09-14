@@ -463,6 +463,22 @@ EXTRA_OK = {
 
 # Scoped exceptions, when a bare name would excuse the wrong component.
 EXTRA_OK_SCOPED = {
+    # HeroGPUI exposes the shared field focus-ring switch as an additive
+    # accessibility-safe styling seam; it hides only the visual ring while
+    # preserving focus, editing and invalid feedback.
+    'Input.focus_ring': 'no-classname',
+    'InputGroup.focus_ring': 'no-classname',
+    'TextField.focus_ring': 'no-classname',
+    'TextArea.focus_ring': 'no-classname',
+    'SearchField.focus_ring': 'no-classname',
+    'NumberField.focus_ring': 'no-classname',
+    'TimeField.focus_ring': 'no-classname',
+    'DateField.focus_ring': 'no-classname',
+    'ColorField.focus_ring': 'no-classname',
+    'Select.focus_ring': 'no-classname',
+    'Autocomplete.focus_ring': 'no-classname',
+    'ComboBox.focus_ring': 'no-classname',
+    'Select.trigger_indicator': 'composition',
     # v3 composes Disclosure children; the monolithic GPUI group names each
     # disclosure and its body in one builder call.
     'DisclosureGroup.item': 'composition',
@@ -652,6 +668,10 @@ EXTRA_OK_SCOPED = {
     # Documented on the toast function as `toast.promise()`, not as a root
     # Toast prop. The helper owns loading → in-place success/error.
     'Toast.promise': 'documented-by-example',
+    # Native task ownership: the returned gpui::Task can cancel pending work
+    # when an owner resets or unmounts. promise() still detaches as HeroUI does;
+    # queue clear/update semantics are unchanged. See toast_promise_deep.rs.
+    'Toast.promise_task': 'gpui-task-lifecycle-extension',
     # v3 composes `<Pagination.Summary>Page 1 of 10</Pagination.Summary>`.
     'Pagination.summary': 'composition',
     'Pagination.previous_icon': 'composition',

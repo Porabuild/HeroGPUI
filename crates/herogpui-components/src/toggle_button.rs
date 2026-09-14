@@ -466,10 +466,17 @@ impl RenderOnce for ToggleButton {
             // v3 documents ToggleButton's pressed state as including the same
             // size-specific scale. Group members suppress it so the attached
             // control never opens gaps between buttons while pressed.
+            //
+            // Standalone, the press rides `pressed_with_background_ramp`:
+            // `toggle-button.css` declares the press as a transition
+            // (`transform 250ms var(--ease-smooth), background-color 100ms
+            // var(--ease-out)`), so the fill eases between the resting
+            // colour the hover fade holds and the pressed endpoint.
+            let press_endpoints = fade.map(|(idle, _)| (idle, hover_bg));
             if is_grouped {
                 el = el.active(move |style| style.bg(hover_bg));
             } else {
-                el = crate::anim::pressed_with_background(
+                el = crate::anim::pressed_with_background_ramp(
                     el,
                     crate::anim::PressBox {
                         height,
@@ -483,7 +490,10 @@ impl RenderOnce for ToggleButton {
                         shrink_x: true,
                         scale: press_scale,
                     },
-                    hover_bg,
+                    press_endpoints,
+                    crate::anim::BUTTON_PRESS,
+                    interaction.as_ref(),
+                    window,
                     cx,
                 );
             }

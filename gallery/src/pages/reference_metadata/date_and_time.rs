@@ -20,6 +20,7 @@ const DATE_FIELD_API: &[ApiDoc] = &[
     ApiDoc { owner: "DateField", prop: "className", ty: "string | render function", default: "—", description: "Browser CSS classes are unavailable.", rust_owner: "DateField", rust: "—", status: ImplementationStatus::Unavailable },
     ApiDoc { owner: "DateField", prop: "style", ty: "CSSProperties | render function", default: "—", description: "Browser inline styles are unavailable.", rust_owner: "DateField", rust: "—", status: ImplementationStatus::Unavailable },
     ApiDoc { owner: "DateField", prop: "fullWidth", ty: "boolean", default: "false", description: "Expands the root and input group to the available width.", rust_owner: "DateField", rust: "full_width(bool)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "DateField", prop: "focusRing", ty: "boolean", default: "true", description: "GPUI extension: hides only the segmented field's visual focus ring while retaining focus and editing.", rust_owner: "DateField", rust: "focus_ring(bool)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "DateField", prop: "id", ty: "string", default: "—", description: "The bound InputState entity supplies stable internal identity rather than a caller DOM id.", rust_owner: "DateField", rust: "new(state)", status: ImplementationStatus::Partial },
     ApiDoc { owner: "DateField", prop: "render", ty: "DOMRenderFunction<..., DateFieldRenderProps>", default: "—", description: "DOM root substitution has no GPUI equivalent.", rust_owner: "DateField", rust: "—", status: ImplementationStatus::Unavailable },
     ApiDoc { owner: "DateField", prop: "value", ty: "DateValue | null", default: "—", description: "Seeds the bound InputState's ISO text with the controlled Gregorian date on the first render; InputState::set_value updates it afterwards.", rust_owner: "DateField", rust: "value(Option<Date>)", status: ImplementationStatus::Partial },
@@ -128,7 +129,7 @@ const DATE_FIELD_STYLING: &[StyleDoc] = &[
     StyleDoc { class_or_token: ".date-field[data-invalid] [data-slot=description]", value: "hidden", description: "Invalid state replaces help text with the first resolved error.", rust: "validity.first() branch", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".date-field--full-width", value: "w-full", description: "Full-width root and group.", rust: "full_width(true)", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".date-input-group", value: "h-9 rounded-field border bg-field text-sm shadow-field overflow-hidden", description: "Base group geometry and primary field chrome; group text and slots use explicit 14px/20px metrics.", rust: "FIELD_HEIGHT + field_radius + field tokens", status: ImplementationStatus::Implemented },
-    StyleDoc { class_or_token: ".date-input-group transitions", value: "background/border 150ms ease-smooth; shadow 150ms ease-out; reduced-motion none", description: "The port reaches each state endpoint without interpolating field properties.", rust: "immediate hover/focus/invalid styles", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".date-input-group transitions", value: "background/border 150ms ease-smooth; shadow 150ms ease-out; reduced-motion none", description: "Enabled, unfocused hover background now interpolates over the pinned 150ms ease-smooth curve; border, focus and invalid shadow endpoints remain direct.", rust: "hover_fade_with_duration_and_easing + apply_field_chrome", status: ImplementationStatus::Partial },
     StyleDoc { class_or_token: ".date-input-group__input", value: "flex flex-1 gap-px px-3 py-2 bg-transparent", description: "Segment row uses 12px horizontal padding and a 2px GPUI gap rather than CSS's 1px gap.", rust: "group px(12px) + gap(2px)", status: ImplementationStatus::Partial },
     StyleDoc { class_or_token: ".date-input-group__input-container", value: "flex flex-1 width fit-content overflow-x auto overflow-y clip", description: "No public multi-input scroll container is rendered.", rust: "—", status: ImplementationStatus::Unavailable },
     StyleDoc { class_or_token: ".date-input-group__segment", value: "inline-block rounded-md px-0.5 text-end tabular-nums", description: "Segment radius and padding match; Consolas supplies tabular figures, but text is not end-aligned independently.", rust: "px(2px) + radius_md + Consolas", status: ImplementationStatus::Partial },
@@ -170,7 +171,8 @@ const TIME_FIELD_API: &[ApiDoc] = &[
     ApiDoc { owner: "TimeField", prop: "className", ty: "string | render function", default: "—", description: "Browser CSS classes are unavailable.", rust_owner: "TimeField", rust: "—", status: ImplementationStatus::Unavailable },
     ApiDoc { owner: "TimeField", prop: "style", ty: "CSSProperties | render function", default: "—", description: "Browser inline styles are unavailable.", rust_owner: "TimeField", rust: "—", status: ImplementationStatus::Unavailable },
     ApiDoc { owner: "TimeField", prop: "fullWidth", ty: "boolean", default: "false", description: "Expands the root and group to the available width.", rust_owner: "TimeField", rust: "full_width(bool)", status: ImplementationStatus::Implemented },
-    ApiDoc { owner: "TimeField", prop: "id", ty: "string", default: "—", description: "The bound TimeState entity supplies internal identity rather than a caller DOM id.", rust_owner: "TimeField", rust: "new(state)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "TimeField", prop: "focusRing", ty: "boolean", default: "true", description: "GPUI extension: hides only the segmented field's visual focus ring while retaining focus and editing.", rust_owner: "TimeField", rust: "focus_ring(bool)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "TimeField", prop: "id", ty: "string", default: "—", description: "The bound TimeState entity supplies internal identity rather than a caller DOM id. Simultaneous fields need distinct TimeState owners.", rust_owner: "TimeField", rust: "new(state)", status: ImplementationStatus::Partial },
     ApiDoc { owner: "TimeField", prop: "render", ty: "DOMRenderFunction<..., TimeFieldRenderProps>", default: "—", description: "DOM root substitution has no GPUI equivalent.", rust_owner: "TimeField", rust: "—", status: ImplementationStatus::Unavailable },
     ApiDoc { owner: "TimeField", prop: "value", ty: "TimeValue | null", default: "—", description: "Controlled plain-time value held on the builder and synced into the state when it changes; calendar date-time and zoned types are not represented.", rust_owner: "TimeField", rust: "value(Option<Time>)", status: ImplementationStatus::Partial },
     ApiDoc { owner: "TimeField", prop: "defaultValue", ty: "TimeValue | null", default: "—", description: "Seeds an uncontrolled plain-time value once.", rust_owner: "TimeField", rust: "default_value(Time)", status: ImplementationStatus::Partial },
@@ -330,7 +332,7 @@ const TIME_FIELD_STYLING: &[StyleDoc] = &[
     StyleDoc { class_or_token: ".time-field[data-invalid] [data-slot=description]", value: "hidden", description: "Invalid state replaces help text with the first error.", rust: "validity.first() branch", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".time-field--full-width", value: "w-full", description: "Full-width root and group stretch even in a non-stretching parent.", rust: "full_width(true)", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".date-input-group", value: "h-9 rounded-field border bg-field text-sm shadow-field overflow-hidden", description: "Shared base group geometry and primary field chrome; group text and slots use explicit 14px/20px metrics.", rust: "FIELD_HEIGHT + field_radius + field tokens", status: ImplementationStatus::Implemented },
-    StyleDoc { class_or_token: ".date-input-group transitions", value: "background/border 150ms ease-smooth; shadow 150ms ease-out; reduced-motion none", description: "The port reaches state endpoints without property interpolation.", rust: "immediate hover/focus/invalid styles", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".date-input-group transitions", value: "background/border 150ms ease-smooth; shadow 150ms ease-out; reduced-motion none", description: "Enabled, unfocused hover background now interpolates over the pinned 150ms ease-smooth curve; border, focus and invalid shadow endpoints remain direct.", rust: "hover_fade_with_duration_and_easing + apply_field_chrome", status: ImplementationStatus::Partial },
     StyleDoc { class_or_token: ".date-input-group__input", value: "flex flex-1 gap-px px-3 py-2 bg-transparent", description: "Segment row uses the correct padding with a 2px GPUI gap rather than CSS's 1px gap.", rust: "group px(12px) + gap(2px)", status: ImplementationStatus::Partial },
     StyleDoc { class_or_token: ".date-input-group__segment", value: "rounded-md px-0.5 text-end tabular-nums", description: "Radius and padding match; Consolas supplies tabular figures without independent text-end alignment.", rust: "px(2px) + radius_md + Consolas", status: ImplementationStatus::Partial },
     StyleDoc { class_or_token: ".date-input-group__segment focused/invalid", value: "accent-soft or danger-soft selection chrome", description: "Focused segments match accent-soft; invalid segment foreground is represented only by group error chrome.", rust: "focused segment accent.soft", status: ImplementationStatus::Partial },
@@ -669,7 +671,7 @@ const CALENDAR_PARTS: &[PartDoc] = &[
     PartDoc {
         name: "Calendar",
         slot: "calendar",
-        description: "Root state, layout and keyboard-navigation owner.",
+        description: "Root state, layout and keyboard-navigation owner. Simultaneous calendars need distinct CalendarState owners for internal identity and independent navigation.",
         rust_owner: "Calendar",
         status: ImplementationStatus::Implemented,
     },
@@ -753,9 +755,9 @@ const CALENDAR_PARTS: &[PartDoc] = &[
     PartDoc {
         name: "Calendar.YearPickerTriggerIndicator",
         slot: "calendar-year-picker-trigger-indicator",
-        description: "Chevron showing the year-picker open state.",
+        description: "One 12px down chevron that rotates 90 degrees over 150ms when the year picker opens.",
         rust_owner: "Calendar",
-        status: ImplementationStatus::Partial,
+        status: ImplementationStatus::Implemented,
     },
     PartDoc {
         name: "Calendar.YearPickerGrid",
@@ -791,16 +793,16 @@ const CALENDAR_STATES: &[StateDoc] = &[
     StateDoc {
         state: "Today",
         selector: ".calendar__cell[data-today=\"true\"]",
-        description: "v3 uses an accent-soft fill; the port currently draws an accent outline.",
-        rust: "is_today border",
-        status: ImplementationStatus::Partial,
+        description: "Accent-soft fill and foreground with the accent-soft-hover fill on an unselected hovered today.",
+        rust: "is_today accent.soft + accent.soft_hover",
+        status: ImplementationStatus::Implemented,
     },
     StateDoc {
         state: "Unavailable",
         selector: ".calendar__cell[data-unavailable=\"true\"]",
-        description: "Keyboard-focusable but pointer-inert date with disabled styling.",
-        rust: "is_unavailable + selectable gate",
-        status: ImplementationStatus::Partial,
+        description: "Keyboard-focusable but pointer-inert date with muted, dimmed status-disabled styling and an operation-not-allowed cursor.",
+        rust: "is_unavailable + disabled_opacity + OperationNotAllowed + selectable gate",
+        status: ImplementationStatus::Implemented,
     },
     StateDoc {
         state: "Outside month",
@@ -813,18 +815,16 @@ const CALENDAR_STATES: &[StateDoc] = &[
     StateDoc {
         state: "Hovered",
         selector: ":hover, [data-hovered=\"true\"]",
-        description:
-            "Default fill on selectable cells; v3's today-specific hover token is missing.",
-        rust: "hover(default.soft_hover())",
-        status: ImplementationStatus::Partial,
+        description: "Default fill on selectable cells and accent-soft-hover on an unselected today.",
+        rust: "hover(default) + today accent.soft_hover",
+        status: ImplementationStatus::Implemented,
     },
     StateDoc {
         state: "Pressed",
         selector: ":active, [data-pressed=\"true\"]",
-        description:
-            "Default fill and 0.95 scale on unselected cells; selected press styling is missing.",
-        rust: "anim::pressed + active(default)",
-        status: ImplementationStatus::Partial,
+        description: "Selectable cells scale to 0.95; selected cells use accent-hover, while today uses the default pressed fill.",
+        rust: "pressed_with_background + per-state pressed fill",
+        status: ImplementationStatus::Implemented,
     },
     StateDoc {
         state: "Focus visible",
@@ -909,8 +909,8 @@ const CALENDAR_STYLING: &[StyleDoc] = &[
     StyleDoc {
         class_or_token: ".calendar__nav-button",
         value: "size-6 rounded-2xl; transform 250ms; colors/shadow 100ms; opacity 150ms",
-        description: "Geometry, disabled state and focus ring exist; pressed and state transitions are incomplete.",
-        rust: "24px + soft_radius + hover + ring_if_focused",
+        description: "Geometry, disabled state and focus ring exist; hover fill now interpolates over 100ms ease-out while press scale remains the pinned deep scale.",
+        rust: "24px + soft_radius + hover_fade(100ms) + pressed + ring_if_focused",
         status: ImplementationStatus::Partial,
     },
     StyleDoc {
@@ -965,16 +965,16 @@ const CALENDAR_STYLING: &[StyleDoc] = &[
     StyleDoc {
         class_or_token: ".calendar__cell[data-today=\"true\"]",
         value: "accent-soft background and foreground; accent-soft-hover on hover",
-        description: "The port uses a border rather than v3's soft fill treatment.",
-        rust: "is_today border_1(marker)",
-        status: ImplementationStatus::Partial,
+        description: "Today uses the same soft fill, foreground and hover endpoint as v3.",
+        rust: "is_today accent.soft + accent.soft_hover",
+        status: ImplementationStatus::Implemented,
     },
     StyleDoc {
         class_or_token: ".calendar__cell[data-selected=\"true\"]",
         value: "accent background and foreground; selected press uses accent-hover",
-        description: "The selected fill matches; selected press interpolation and accent-hover are absent.",
-        rust: "is_sel accent fill",
-        status: ImplementationStatus::Partial,
+        description: "Selected fill, foreground and pressed accent-hover endpoint match; the browser transition is represented by GPUI's instantaneous press skin.",
+        rust: "is_sel accent fill + pressed_with_background(accent.hover)",
+        status: ImplementationStatus::Implemented,
     },
     StyleDoc {
         class_or_token: ".calendar__cell[data-outside-month=\"true\"]",
@@ -986,23 +986,23 @@ const CALENDAR_STYLING: &[StyleDoc] = &[
     StyleDoc {
         class_or_token: ".calendar__cell[data-unavailable=\"true\"]",
         value: "status-disabled without line-through",
-        description: "Pointer inertia matches; muted text replaces v3's opacity and not-allowed cursor.",
-        rust: "unavailable muted + selectable gate",
-        status: ImplementationStatus::Partial,
+        description: "Unavailable cells retain keyboard focus while using muted text, disabled opacity, an operation-not-allowed cursor and no line-through.",
+        rust: "unavailable muted + disabled_opacity + OperationNotAllowed + selectable gate",
+        status: ImplementationStatus::Implemented,
     },
     StyleDoc {
         class_or_token: ".calendar__cell[data-disabled=\"true\"]",
         value: "status-disabled; line-through except outside month",
-        description: "Out-of-range dates are muted and struck through; unavailable dates are not struck.",
-        rust: "disabled branch + line_through",
-        status: ImplementationStatus::Partial,
+        description: "Out-of-range dates use muted text, disabled opacity, an operation-not-allowed cursor and an in-month line-through; unavailable dates keep the same status skin without the line-through.",
+        rust: "disabled/unavailable + disabled_opacity + OperationNotAllowed + conditional line_through",
+        status: ImplementationStatus::Implemented,
     },
     StyleDoc {
         class_or_token: ".calendar__cell-indicator",
         value: "bottom-1 centered 3px dot; selected uses accent foreground",
-        description: "Size and selected color match; GPUI uses a 2px inset and accent resting color rather than 4px and muted.",
-        rust: "absolute bottom(2px) + size(3px) + marker color",
-        status: ImplementationStatus::Partial,
+        description: "The 3px dot is centred at the pinned 4px bottom-1 inset and uses the selected cell's accent foreground.",
+        rust: "absolute bottom(4px) + size(3px) + selected accent.foreground",
+        status: ImplementationStatus::Implemented,
     },
     StyleDoc {
         class_or_token: ".calendar-year-picker__trigger",
@@ -1021,9 +1021,9 @@ const CALENDAR_STYLING: &[StyleDoc] = &[
     StyleDoc {
         class_or_token: ".calendar-year-picker__trigger-indicator",
         value: "text-xs accent-soft foreground; transform 150ms; open rotate(90deg)",
-        description: "GPUI swaps muted up/down glyphs instead of rotating and interpolating one indicator.",
-        rust: "12px CHEVRON_UP / CHEVRON_DOWN",
-        status: ImplementationStatus::Partial,
+        description: "The single down chevron rotates through the pinned 90-degree angle over 150ms, with reduced motion settling immediately.",
+        rust: "rotating_indicator_with_angle_ease_out(150ms, YEAR_PICKER_INDICATOR_ANGLE)",
+        status: ImplementationStatus::Implemented,
     },
     StyleDoc {
         class_or_token: ".calendar:has(.calendar-year-picker__year-grid) > [data-slot=\"calendar-grid\"]",
@@ -1204,9 +1204,10 @@ const RANGE_CALENDAR_PARTS: &[PartDoc] = &[
     PartDoc {
         name: "RangeCalendar.YearPickerTriggerIndicator",
         slot: "calendar-year-picker-trigger-indicator",
-        description: "Year picker open-state chevron.",
+        description:
+            "One 12px down chevron that rotates 90 degrees over 150ms when the year picker opens.",
         rust_owner: "RangeCalendar",
-        status: ImplementationStatus::Partial,
+        status: ImplementationStatus::Implemented,
     },
     PartDoc {
         name: "RangeCalendar.YearPickerGrid",
@@ -1263,16 +1264,16 @@ const RANGE_CALENDAR_STATES: &[StateDoc] = &[
     StateDoc {
         state: "Today",
         selector: "[data-today=\"true\"]",
-        description: "v3 uses an accent-soft fill; the port uses an accent outline.",
-        rust: "is_today border",
-        status: ImplementationStatus::Partial,
+        description: "Accent-soft fill and foreground with the accent-soft-hover fill on an unselected hovered today.",
+        rust: "is_today accent.soft + accent.soft_hover",
+        status: ImplementationStatus::Implemented,
     },
     StateDoc {
         state: "Unavailable",
         selector: "[data-unavailable=\"true\"]",
-        description: "Focusable but pointer-inert date with disabled styling.",
-        rust: "is_unavailable + selectable gate",
-        status: ImplementationStatus::Partial,
+        description: "Focusable but pointer-inert date with muted, dimmed status-disabled styling and an operation-not-allowed cursor.",
+        rust: "is_unavailable + disabled_opacity + OperationNotAllowed + selectable gate",
+        status: ImplementationStatus::Implemented,
     },
     StateDoc {
         state: "Outside month",
@@ -1330,7 +1331,7 @@ const RANGE_CALENDAR_STYLING: &[StyleDoc] = &[
     StyleDoc { class_or_token: ".range-calendar--week/day-view", value: "circular cells; isolated seven-column headers and bodies", description: "Day rows start at the week boundary, disable leading dates and pad the visible end with blank cells.", rust: "VisibleDuration week/day branches", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".range-calendar__header", value: "flex items-center justify-between px-0.5 pb-4", description: "Header alignment, 2px horizontal inset and 16px bottom padding match.", rust: "items_center + justify_between + px(2px) + pb(16px)", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".range-calendar__heading", value: "flex-1 text-sm font-medium", description: "Month headings use 14px/20px medium text independent of the host line height.", rust: "text_size(14px) + line_height(20px) + MEDIUM", status: ImplementationStatus::Implemented },
-    StyleDoc { class_or_token: ".range-calendar__nav-button", value: "size-6 rounded-xl; transform 250ms; colors/shadow 100ms", description: "Geometry, hover, disabled and focus exist; press and property interpolation are incomplete.", rust: "24px + small_radius + hover + focus ring", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".range-calendar__nav-button", value: "size-6 rounded-xl; transform 250ms; colors/shadow 100ms", description: "Geometry, disabled state and focus ring exist; hover fill now interpolates over 100ms ease-out while press scale remains the pinned deep scale.", rust: "24px + small_radius + hover_fade(100ms) + pressed + focus ring", status: ImplementationStatus::Partial },
     StyleDoc { class_or_token: ".range-calendar__nav-button-icon", value: "size-4; RTL rotate 180deg", description: "Size matches; direction-aware rotation is unavailable.", rust: "svg size(16px)", status: ImplementationStatus::Partial },
     StyleDoc { class_or_token: ".range-calendar__grid", value: "grid repeat(7, 1fr) w-full", description: "Seven equal flex columns fill each panel, including the wider multiple-month layout.", rust: "seven flex_1 cells per row", status: ImplementationStatus::Partial },
     StyleDoc { class_or_token: ".range-calendar__grid-header/body", value: "display: contents; first body row mt-1", description: "Seven-column flex rows start 4px below the weekday block; each range cell retains its 2px vertical margins.", rust: "weekday_header + month_grid flex columns", status: ImplementationStatus::Partial },
@@ -1340,14 +1341,14 @@ const RANGE_CALENDAR_STYLING: &[StyleDoc] = &[
     StyleDoc { class_or_token: ".range-calendar__cell-button transition", value: "scale 200ms ease-out; motion-reduce none", description: "The 0.9 target is exact, but the scale lands on a frame.", rust: "anim::pressed instantaneous geometry", status: ImplementationStatus::Partial },
     StyleDoc { class_or_token: ".range-calendar__cell[data-selected=\"true\"]", value: "rounded-none bg-accent-soft with rounded row boundaries", description: "Track fill exists; CSS sibling-aware row caps are simplified.", rust: "in_range square accent soft fill", status: ImplementationStatus::Partial },
     StyleDoc { class_or_token: ".range-calendar__cell selection caps", value: "accent fill/foreground; 3xl logical start/end radii", description: "Endpoint accents exist as pills rather than directional half-caps joined to the track.", rust: "draw_start/draw_end rounded_full accent", status: ImplementationStatus::Partial },
-    StyleDoc { class_or_token: ".range-calendar__cell[data-today=\"true\"]", value: "accent-soft background and hover", description: "The port uses an outline rather than the soft fill.", rust: "is_today border_1", status: ImplementationStatus::Partial },
-    StyleDoc { class_or_token: ".range-calendar__cell[data-pressed=\"true\"]", value: "inner scale 0.9; endpoint accent-hover", description: "Scale geometry matches; interpolation and endpoint accent-hover do not.", rust: "PRESSED_SCALE_RANGE + default active fill", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".range-calendar__cell[data-today=\"true\"]", value: "accent-soft background and hover", description: "Today uses the same soft fill, foreground and hover endpoint as v3.", rust: "is_today accent.soft + accent.soft_hover", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".range-calendar__cell[data-pressed=\"true\"]", value: "inner scale 0.9; endpoint accent-hover", description: "Scale geometry and endpoint accent-hover match; the browser's 200ms interpolation remains an instantaneous GPUI press skin.", rust: "PRESSED_SCALE_RANGE + pressed_with_background(accent.hover)", status: ImplementationStatus::Partial },
     StyleDoc { class_or_token: ".range-calendar__cell[data-outside-month=\"true\"]", value: "text-muted opacity-50", description: "The whole custom-content subtree is dimmed.", rust: "muted + outer opacity(0.5)", status: ImplementationStatus::Implemented },
-    StyleDoc { class_or_token: ".range-calendar__cell[data-unavailable=\"true\"]", value: "status-disabled without line-through", description: "Pointer inertia matches; muted text approximates the status utility.", rust: "unavailable muted + selectable gate", status: ImplementationStatus::Partial },
-    StyleDoc { class_or_token: ".range-calendar__cell[data-disabled=\"true\"]", value: "status-disabled; line-through except outside month", description: "In-month line-through and outside exception match; cursor styling is not exposed.", rust: "disabled + line_through", status: ImplementationStatus::Partial },
-    StyleDoc { class_or_token: ".range-calendar__cell-indicator", value: "bottom-1 centered 3px dot; selected accent foreground", description: "Size and selection color match; the inset is 2px rather than 4px.", rust: "bottom(2px) + size(3px)", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".range-calendar__cell[data-unavailable=\"true\"]", value: "status-disabled without line-through", description: "Unavailable cells retain keyboard focus while using muted text, disabled opacity, an operation-not-allowed cursor and no line-through.", rust: "unavailable muted + disabled_opacity + OperationNotAllowed + selectable gate", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".range-calendar__cell[data-disabled=\"true\"]", value: "status-disabled; line-through except outside month", description: "In-month line-through, disabled opacity and operation-not-allowed cursor match; outside-month copies keep their own half-opacity wrapper.", rust: "disabled + disabled_opacity + OperationNotAllowed + line_through", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".range-calendar__cell-indicator", value: "bottom-1 centered 3px dot; selected accent foreground", description: "The 3px dot is centred at the pinned 4px bottom-1 inset and uses the selected cell's accent foreground.", rust: "bottom(4px) + size(3px) + selected accent.foreground", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".calendar-year-picker__trigger", value: "flex-1 gap-1 rounded-lg", description: "Composed and focusable, with extra padding and hover fill.", rust: "gap(4px) + key_radius + padding", status: ImplementationStatus::Partial },
-    StyleDoc { class_or_token: ".calendar-year-picker__trigger-indicator", value: "rotate 90deg over 150ms when open", description: "The port swaps up/down glyphs without rotation interpolation.", rust: "CHEVRON_UP / CHEVRON_DOWN", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".calendar-year-picker__trigger-indicator", value: "rotate 90deg over 150ms when open", description: "The single down chevron rotates through the pinned 90-degree angle over 150ms, with reduced motion settling immediately.", rust: "rotating_indicator_with_angle_ease_out(150ms, YEAR_PICKER_INDICATOR_ANGLE)", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".range-calendar:has(.calendar-year-picker__year-grid) > [data-slot=\"range-calendar-grid\"]", value: "day 150ms fade; year 200ms fade after 50ms", description: "The day body is hidden immediately beneath the year overlay.", rust: "invisible day body + absolute year overlay", status: ImplementationStatus::Unavailable },
     StyleDoc { class_or_token: ".calendar-year-picker__year-grid", value: "absolute three-column grid gap-1 overflow-y-auto p-1", description: "The scrollable three-column year grid occupies the retained day area; opening and keyboard movement reveal the active row.", rust: "absolute inset_0 + retained day layout + ScrollHandle + three-cell rows + gap(4px) + p(4px)", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".calendar-year-picker__year-cell", value: "h-8 px-2.5 rounded-3xl text-sm font-medium", description: "Geometry and core states exist; transitions are absent.", rust: "32px + px(10px) + control radius + text_size(14px) + line_height(20px) + MEDIUM", status: ImplementationStatus::Partial },
@@ -1400,7 +1401,7 @@ const DATE_PICKER_API: &[ApiDoc] = &[
     ApiDoc { owner: "DatePicker", prop: "className / style", ty: "string | render function / CSSProperties", default: "—", description: "Browser CSS classes and inline styles are unavailable.", rust_owner: "DatePicker", rust: "—", status: ImplementationStatus::Unavailable },
     ApiDoc { owner: "DatePicker", prop: "render", ty: "DOMRenderFunction<..., DatePickerRenderProps>", default: "—", description: "DOM root substitution has no GPUI equivalent.", rust_owner: "DatePicker", rust: "—", status: ImplementationStatus::Unavailable },
     ApiDoc { owner: "DatePicker.TriggerIndicator", prop: "children", ty: "ReactNode", default: "calendar icon", description: "Replaces the glyph inside the existing trigger geometry and behavior.", rust_owner: "DatePicker", rust: "trigger_indicator(element)", status: ImplementationStatus::Implemented },
-    ApiDoc { owner: "DatePicker.Popover", prop: "placement", ty: "Placement", default: "bottom", description: "The monolithic picker uses bottom-start placement and does not expose an independent popover builder.", rust_owner: "DatePicker", rust: "fixed BottomStart", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "DatePicker.Popover", prop: "placement", ty: "Placement", default: "bottom", description: "The full 22-value React Aria union renders through the shared vocabulary with React Aria's default eight-pixel popover offset: physical and aligned spellings plus the logical start/end aliases, which share their left/right side's pixels in this LTR-only port. The centered bottom value matches HeroUI's default.", rust_owner: "DatePicker", rust: "placement(Placement)", status: ImplementationStatus::Implemented },
 ];
 
 const DATE_PICKER_PARTS: &[PartDoc] = &[
@@ -1408,7 +1409,7 @@ const DATE_PICKER_PARTS: &[PartDoc] = &[
         name: "DatePicker.Root",
         slot: "date-picker",
         description:
-            "Root state owner and focus-within scope with a system-regionally formatted DateField.",
+            "Root state owner and focus-within scope with a system-regionally formatted DateField. Each picker keeps its own CalendarState identity.",
         rust_owner: "DatePicker",
         status: ImplementationStatus::Implemented,
     },
@@ -1429,7 +1430,7 @@ const DATE_PICKER_PARTS: &[PartDoc] = &[
     PartDoc {
         name: "DatePicker.Popover",
         slot: "date-picker-popover",
-        description: "Bottom-start overlay containing the Calendar.",
+        description: "Calendar overlay positioned by the shared Placement vocabulary.",
         rust_owner: "DatePicker",
         status: ImplementationStatus::Partial,
     },
@@ -1493,9 +1494,9 @@ const DATE_PICKER_STYLING: &[StyleDoc] = &[
     StyleDoc { class_or_token: ".date-picker__trigger", value: "inline-flex w-full items-center rounded-field p-1 text-sm", description: "The port folds trigger padding into the unified DateField but preserves full-width field radius and 14px type.", rust: "embedded DateField + 24px trigger", status: ImplementationStatus::Partial },
     StyleDoc { class_or_token: ".date-picker__trigger transition", value: "box-shadow 150ms ease-out; reduced-motion none", description: "The focus ring switches directly rather than interpolating its shadow.", rust: "ring_if_focused", status: ImplementationStatus::Partial },
     StyleDoc { class_or_token: ".date-picker__trigger-indicator", value: "size-4 text-field-placeholder", description: "The 16px indicator box matches; caller content retains the built-in hit target.", rust: "16px centered trigger_indicator", status: ImplementationStatus::Implemented },
-    StyleDoc { class_or_token: ".date-picker__popover", value: "w-fit overflow-y-auto bg-overlay p-3 shadow-overlay radius 20px", description: "Calendar overlay fill, 12px inset, shadow and pinned 20px radius match.", rust: "picker_panel", status: ImplementationStatus::Implemented },
-    StyleDoc { class_or_token: ".date-picker__popover entering", value: "150ms ease-smooth fade zoom-in-95 with placement slide", description: "The overlay appears immediately; picker entry motion is not implemented.", rust: "immediate overlay mount", status: ImplementationStatus::Unavailable },
-    StyleDoc { class_or_token: ".date-picker__popover exiting", value: "100ms ease-smooth fade zoom-out-95", description: "The picker deliberately unmounts immediately after selection so the same press cannot hit a retained calendar cell.", rust: "OverlayPhase without exit retention", status: ImplementationStatus::Unavailable },
+    StyleDoc { class_or_token: ".date-picker__popover", value: "w-fit overflow-y-auto bg-overlay p-3 shadow-overlay radius 20px offset 8px", description: "Calendar overlay fill, 12px inset, shadow, pinned 20px radius and React Aria's default eight-pixel trigger gap match; the panel caps to the available viewport height and scrolls inside the rounded surface.", rust: "picker_panel + scrollable_popover(offset=8px) + max_h_full + overflow_y_scroll", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".date-picker__popover entering", value: "150ms ease-smooth fade zoom-in-95 with placement slide", description: "The picker uses the shared keyed zoom/fade primitive and the resolved physical placement side; the positioner flips to the opposite side when the preferred side lacks room and clamps the origin inside the viewport.", rust: "anim::entering_zoom + PopoverPositioner", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".date-picker__popover exiting", value: "100ms ease-smooth fade zoom-out-95", description: "The picker retains its panel for the pinned exit duration while an internal inert calendar state removes stale cell, navigation, year-picker focus and pointer handlers without changing the painted exit.", rust: "OverlayPhase::Exiting + Calendar::inert + anim::exiting", status: ImplementationStatus::Partial },
 ];
 
 pub(super) const DATE_PICKER: ReferenceMetadata = ReferenceMetadata {
@@ -1548,7 +1549,7 @@ const DATE_RANGE_PICKER_API: &[ApiDoc] = &[
     ApiDoc { owner: "DateRangePicker", prop: "render", ty: "DOMRenderFunction<..., DateRangePickerRenderProps>", default: "—", description: "DOM root substitution has no GPUI equivalent.", rust_owner: "DateRangePicker", rust: "—", status: ImplementationStatus::Unavailable },
     ApiDoc { owner: "DateRangePicker.TriggerIndicator", prop: "children", ty: "ReactNode", default: "calendar icon", description: "Replaces the glyph inside the existing trigger geometry and behavior.", rust_owner: "DateRangePicker", rust: "trigger_indicator(element)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "DateRangePicker.RangeSeparator", prop: "children", ty: "ReactNode", default: "\" - \"", description: "Replaces the text between the two editable date fields.", rust_owner: "DateRangePicker", rust: "range_separator(element)", status: ImplementationStatus::Implemented },
-    ApiDoc { owner: "DateRangePicker.Popover", prop: "placement", ty: "Placement", default: "bottom", description: "The monolithic picker uses bottom-start placement and does not expose an independent popover builder.", rust_owner: "DateRangePicker", rust: "fixed BottomStart", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "DateRangePicker.Popover", prop: "placement", ty: "Placement", default: "bottom", description: "The full 22-value React Aria union renders through the shared vocabulary with React Aria's default eight-pixel popover offset: physical and aligned spellings plus the logical start/end aliases, which share their left/right side's pixels in this LTR-only port. The centered bottom value matches HeroUI's default.", rust_owner: "DateRangePicker", rust: "placement(Placement)", status: ImplementationStatus::Implemented },
 ];
 
 const DATE_RANGE_PICKER_PARTS: &[PartDoc] = &[
@@ -1556,7 +1557,7 @@ const DATE_RANGE_PICKER_PARTS: &[PartDoc] = &[
         name: "DateRangePicker.Root",
         slot: "date-range-picker",
         description:
-            "Root state owner and focus-within scope with two system-regionally formatted DateFields.",
+            "Root state owner and focus-within scope with two system-regionally formatted DateFields. Simultaneous pickers need distinct DateRangeState owners.",
         rust_owner: "DateRangePicker",
         status: ImplementationStatus::Implemented,
     },
@@ -1584,7 +1585,7 @@ const DATE_RANGE_PICKER_PARTS: &[PartDoc] = &[
     PartDoc {
         name: "DateRangePicker.Popover",
         slot: "date-range-picker-popover",
-        description: "Bottom-start overlay containing the RangeCalendar.",
+        description: "RangeCalendar overlay positioned by the shared Placement vocabulary.",
         rust_owner: "DateRangePicker",
         status: ImplementationStatus::Partial,
     },
@@ -1649,9 +1650,9 @@ const DATE_RANGE_PICKER_STYLING: &[StyleDoc] = &[
     StyleDoc { class_or_token: ".date-range-picker__trigger", value: "inline-flex w-full items-center rounded-field p-1 text-sm", description: "The port folds trigger padding into one unified field while preserving full-width geometry and 14px type.", rust: "embedded DateFields + 24px trigger", status: ImplementationStatus::Partial },
     StyleDoc { class_or_token: ".date-range-picker__range-separator", value: "px-1 text-field-placeholder", description: "Four-pixel horizontal inset and placeholder color around the default hyphen or replacement content.", rust: "range separator px(4.) + placeholder color", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".date-range-picker__trigger-indicator", value: "size-4 text-field-placeholder", description: "The 16px indicator box matches; caller content retains the built-in hit target.", rust: "16px centered trigger_indicator", status: ImplementationStatus::Implemented },
-    StyleDoc { class_or_token: ".date-range-picker__popover", value: "w-fit overflow-y-auto bg-overlay p-3 shadow-overlay radius 20px", description: "Range calendar overlay fill, 12px inset, shadow and pinned 20px radius match.", rust: "picker_panel", status: ImplementationStatus::Implemented },
-    StyleDoc { class_or_token: ".date-range-picker__popover entering", value: "150ms ease-smooth fade zoom-in-95 with placement slide", description: "The overlay appears immediately; picker entry motion is not implemented.", rust: "immediate overlay mount", status: ImplementationStatus::Unavailable },
-    StyleDoc { class_or_token: ".date-range-picker__popover exiting", value: "100ms ease-smooth fade zoom-out-95", description: "The picker unmounts immediately after completion so the same press cannot hit a retained calendar cell.", rust: "OverlayPhase without exit retention", status: ImplementationStatus::Unavailable },
+    StyleDoc { class_or_token: ".date-range-picker__popover", value: "w-fit overflow-y-auto bg-overlay p-3 shadow-overlay radius 20px offset 8px", description: "Range calendar overlay fill, 12px inset, shadow, pinned 20px radius and React Aria's default eight-pixel trigger gap match; the panel caps to the available viewport height and scrolls inside the rounded surface.", rust: "picker_panel + scrollable_popover(offset=8px) + max_h_full + overflow_y_scroll", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".date-range-picker__popover entering", value: "150ms ease-smooth fade zoom-in-95 with placement slide", description: "The picker uses the shared keyed zoom/fade primitive and the resolved physical placement side; the positioner flips to the opposite side when the preferred side lacks room and clamps the origin inside the viewport.", rust: "anim::entering_zoom + PopoverPositioner", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".date-range-picker__popover exiting", value: "100ms ease-smooth fade zoom-out-95", description: "The picker retains its panel for the pinned exit duration while an internal inert range-calendar state removes stale cell, navigation, year-picker focus and pointer handlers without changing the painted exit.", rust: "OverlayPhase::Exiting + RangeCalendar::inert + anim::exiting", status: ImplementationStatus::Partial },
 ];
 
 pub(super) const DATE_RANGE_PICKER: ReferenceMetadata = ReferenceMetadata {

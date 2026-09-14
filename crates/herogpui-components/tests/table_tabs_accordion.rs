@@ -42,7 +42,7 @@ mod harness;
 
 use std::cell::{Cell, RefCell};
 use std::collections::HashSet;
-use std::rc::Rc;
+use std::{rc::Rc, time::Duration};
 
 use gpui::{
     point, prelude::*, px, Font, FontFeatures, FontStyle, FontWeight, ScrollDelta,
@@ -144,6 +144,20 @@ fn sorted_join(keys: &HashSet<SharedString>) -> String {
 /// next event lands on the stale layout.
 fn flush_frame(cx: &mut VisualTestContext) {
     cx.update(|window, _| window.refresh());
+}
+
+/// Drives the shared 200ms measured panel transition to its endpoint. GPUI's
+/// animation phase uses wall time, while the retained exit timer uses the
+/// deterministic executor clock, so both are advanced here before a geometry
+/// assertion or a click below a panel.
+fn settle_collapsible(cx: &mut VisualTestContext) {
+    std::thread::sleep(Duration::from_millis(220));
+    cx.update(|window, cx| {
+        window.simulate_next_frame(cx);
+    });
+    cx.executor().advance_clock(Duration::from_millis(210));
+    cx.run_until_parked();
+    flush_frame(cx);
 }
 
 /// One horizontal wheel at window coordinates (`x`, `y`), scrolling `dx`
@@ -644,6 +658,24 @@ fn table_newly_disabled_cursor_cannot_activate(cx: &mut TestAppContext) {
 // Tabs
 // ---------------------------------------------------------------------------
 
+#[test]
+fn tabs_use_a_constrained_normal_whitespace_label_slot() {
+    let source = include_str!("../src/tabs.rs");
+    assert_eq!(
+        source.matches(".whitespace_normal()").count(),
+        1,
+        "both variants must share the same normal-whitespace label slot"
+    );
+    assert!(
+        source.contains(".min_w(px(0.))") && source.contains(".when(label_constrained"),
+        "the label slot must release its min-content width when constrained"
+    );
+    assert!(
+        !source.contains(".whitespace_nowrap()"),
+        "Tabs must not force labels into an intrinsic-width text node"
+    );
+}
+
 /// The overflow scroller: `.tabs__list` is `w-max`, so inside a bounded box
 /// the row grows past the box and `.tabs__list-container__scroller` scrolls
 /// it; the measuring canvas (which reads `ScrollHandle::max_offset` — written
@@ -1062,6 +1094,28 @@ fn tabs_disabled_list_answers_no_key_or_click(cx: &mut TestAppContext) {
 // Accordion
 // ---------------------------------------------------------------------------
 
+#[test]
+fn accordion_and_disclosure_indicators_use_shared_rotating_chevrons() {
+    let accordion = include_str!("../src/accordion.rs");
+    let disclosure = include_str!("../src/disclosure.rs");
+    let animation = include_str!("../src/anim.rs");
+
+    assert!(accordion.contains("crate::anim::rotating_indicator"));
+    assert!(accordion.contains(".path(icons::CHEVRON_DOWN)"));
+    assert!(disclosure.contains("crate::anim::rotating_indicator"));
+    assert!(disclosure.contains(".path(crate::icons::CHEVRON_DOWN)"));
+    assert!(disclosure.contains(".flex_shrink_0()"));
+    assert!(animation.contains("INDICATOR_ROTATION_MS: u64 = 250"));
+    assert!(animation.contains("with_easing(tailwind_default_ease())"));
+    assert!(animation.contains("rotation.target() * angle"));
+    assert!(animation.contains("progress * angle"));
+    assert!(accordion.contains("crate::anim::collapsible_panel"));
+    assert!(disclosure.contains("crate::anim::collapsible_panel"));
+    assert!(animation.contains("panel_phase"));
+    assert!(animation.contains("natural-height"));
+    assert!(animation.contains("Motion::DISCLOSURE.ms"));
+}
+
 /// `allowsMultipleExpanded` opted in to true: expanding a second item must
 /// not collapse the first, and the reported set must contain both keys at
 /// once. (The prop now has to be set explicitly — v3's default is `false`,
@@ -1088,6 +1142,7 @@ fn accordion_multiple_expand_keeps_both_open(cx: &mut TestAppContext) {
     // Both must be reported together — the multiple-expand mode.
     click(cx, 60., 26.);
     flush_frame(cx);
+    settle_collapsible(cx);
     click(cx, 60., 137.);
     assert_eq!(
         recorded.borrow().as_slice(),
@@ -1102,6 +1157,7 @@ fn accordion_multiple_expand_keeps_both_open(cx: &mut TestAppContext) {
     // which is where the closing click must land.
     click(cx, 60., 26.);
     flush_frame(cx);
+    settle_collapsible(cx);
     click(cx, 60., 79.);
     assert_eq!(
         recorded.borrow().as_slice(),

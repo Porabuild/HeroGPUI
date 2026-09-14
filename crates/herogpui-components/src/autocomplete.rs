@@ -35,10 +35,11 @@ use std::{
     cell::{Cell, RefCell},
     collections::HashMap,
     rc::Rc,
+    time::Duration,
 };
 
 use gpui::{
-    prelude::*, px, App, Entity, IntoElement, Pixels, RenderOnce, SharedString,
+    prelude::*, px, AnimationExt, App, Entity, IntoElement, Pixels, RenderOnce, SharedString,
     StatefulInteractiveElement, Styled, Window,
 };
 use herogpui_core::{element_id, FieldVariant, Placement, SelectionMode};
@@ -56,6 +57,10 @@ use crate::{
 
 type OnSelectionChange = std::sync::Arc<dyn Fn(&SharedString, &mut Window, &mut App) + 'static>;
 type AutocompleteFormState = Rc<RefCell<crate::form::LiveFormFieldState>>;
+
+/// `.autocomplete__clear-button:not([data-empty="true"])` fades in over
+/// 150ms with `--ease-smooth`; clearing itself remains an immediate hide.
+const CLEAR_OPACITY_TRANSITION_MS: u64 = 150;
 
 thread_local! {
     static AUTOCOMPLETE_FORM_STATES: RefCell<
@@ -496,6 +501,13 @@ impl Autocomplete {
         self
     }
 
+    /// Shows or hides only the trigger's visual focus ring. The trigger stays
+    /// keyboard focusable and the list still opens when set to `false`.
+    pub fn focus_ring(mut self, v: bool) -> Self {
+        self.field.focus_ring = Some(v);
+        self
+    }
+
     /// Replaces the list rows' `px-2.5` horizontal padding.
     pub fn row_padding_x(mut self, p: impl Into<Pixels>) -> Self {
         self.row_padding_x = Some(p.into());
@@ -699,6 +711,24 @@ impl RenderOnce for Autocomplete {
         );
         let overlay_active = overlay_phase != util::OverlayPhase::Closed;
         let overlay_exiting = overlay_phase == util::OverlayPhase::Exiting;
+        // Field popover placement can flip during prepaint. Feed the resolved
+        // physical side back into the next entry frame, just like Popover.
+        let requested_placement = window.use_keyed_state(
+            element_id::scoped(&base_id, "requested-placement"),
+            cx,
+            |_, _| self.placement,
+        );
+        let resolved_placement = window.use_keyed_state(
+            element_id::scoped(&base_id, "resolved-placement"),
+            cx,
+            |_, _| Rc::new(Cell::new(None::<Placement>)),
+        );
+        if *requested_placement.read(cx) != self.placement {
+            requested_placement.update(cx, |placement, _| *placement = self.placement);
+            resolved_placement.read(cx).set(None);
+        }
+        let resolved_placement = resolved_placement.read(cx).clone();
+        let entry_placement = resolved_placement.get().unwrap_or(self.placement);
 
         // `usePopover` closes when focus leaves the trigger-plus-panel scope.
         // Unlike Escape, blur leaves focus on its destination.
@@ -798,6 +828,24 @@ impl RenderOnce for Autocomplete {
         } else {
             (false, false)
         };
+        let reduce_motion = ActiveTheme::reduce_motion(cx);
+        let mut clear_opacity = crate::anim::Tween::keyed(
+            &base_id,
+            "clear-opacity",
+            if clear_empty { 0.0 } else { 1.0 },
+            window,
+            cx,
+        );
+        // HeroUI hides the clear button immediately when the selection is
+        // emptied, but lets a newly visible button fade in. Keeping the
+        // transition on a listener-free child preserves the stable 20px hit
+        // target and lets a clear/reselect reversal resume from its painted
+        // opacity.
+        if clear_empty {
+            clear_opacity.settle();
+        } else {
+            clear_opacity.snap_if_reduced(reduce_motion);
+        }
         let search_focus = self.state.read(cx).focus_handle.clone();
         if open && !*autofocused.read(cx) {
             window.focus(&search_focus, cx);
@@ -890,10 +938,17 @@ impl RenderOnce for Autocomplete {
             plain_edit_key.update(cx, |v, _| *v = false);
         }
 
+        let anchor_bounds: Rc<Cell<Option<gpui::Bounds<Pixels>>>> = window
+            .use_keyed_state(element_id::scoped(&base_id, "anchor-bounds"), cx, |_, _| {
+                Rc::new(Cell::new(None))
+            })
+            .read(cx)
+            .clone();
+
         // The theme tokens borrow `cx`, so they are copied out only after the
         // keyed-state updates above.
-        let colors = cx.colors();
-        let layout = cx.layout();
+        let colors = cx.colors().clone();
+        let layout = cx.layout().clone();
 
         let is_invalid = self.is_invalid || self.error_message.is_some();
         sync_form_state(
@@ -904,14 +959,16 @@ impl RenderOnce for Autocomplete {
         );
         self.form_state.borrow_mut().focus = focus_handle.clone();
         let restore_own = selection_own.clone();
-        let restore_state = self.form_state.clone();
+        let restore_state = Rc::downgrade(&self.form_state);
         let restore_default =
             normalize_selection(self.default_value.clone().unwrap_or_default(), multiple);
         let restore_all = self.on_selection_change_all.clone();
         self.form_state.borrow_mut().restore = (restore_own.is_some() || restore_all.is_some())
             .then(|| {
                 util::shared(move |window: &mut Window, cx: &mut App| {
-                    restore_state.borrow_mut().value = form_selection_value(&restore_default);
+                    if let Some(state) = restore_state.upgrade() {
+                        state.borrow_mut().value = form_selection_value(&restore_default);
+                    }
                     if let Some(held) = &restore_own {
                         let set = restore_default.clone();
                         held.update(cx, |v, cx| {
@@ -946,6 +1003,7 @@ impl RenderOnce for Autocomplete {
         // dismissal can see it and leave the close to the trigger's click.
         let trigger_pressed = Rc::new(Cell::new(false));
         let field_box = self.field;
+        let trigger_radius = self.radius.unwrap_or_else(|| util::field_radius(cx));
         // `.autocomplete__trigger` is `relative isolate inline-flex min-h-9
         // rounded-field border bg-field px-3 py-2 text-sm shadow-field`, plus
         // `pe-7` because the indicator sits inside it.
@@ -969,12 +1027,21 @@ impl RenderOnce for Autocomplete {
             .text_size(util::FIELD_TEXT)
             .line_height(px(20.));
         if !field_box.is_bare {
-            field = util::apply_field_chrome(field, self.variant, is_invalid, false, None, cx);
+            field = util::apply_field_chrome(
+                field,
+                self.variant,
+                is_invalid,
+                false,
+                Some(trigger_radius),
+                cx,
+            );
             // `.autocomplete__trigger:focus-visible` is `status-focused` -- the
             // offset ring, not a field's flush one, which is why the chrome
             // above is not told about the focus.
-            if let Some(handle) = &focus_handle {
-                field = util::ring_if_focused(field, handle, true, Vec::new(), window, cx);
+            if field_box.focus_ring.unwrap_or(true) {
+                if let Some(handle) = &focus_handle {
+                    field = util::ring_if_focused(field, handle, true, Vec::new(), window, cx);
+                }
             }
         }
         if self.is_disabled {
@@ -984,13 +1051,41 @@ impl RenderOnce for Autocomplete {
             // clickable and keeps the themed pointer.
             field = field.cursor(util::interactive_cursor(cx));
             if !field_box.is_bare {
+                let idle_bg = match self.variant {
+                    FieldVariant::Primary => colors.field.background,
+                    FieldVariant::Secondary => colors.default.color,
+                };
                 let hover_bg = match self.variant {
                     FieldVariant::Primary => colors.field.hover(),
                     // `.autocomplete--secondary` hovers
                     // `--autocomplete-trigger-bg-hover: var(--default-hover)`.
                     FieldVariant::Secondary => colors.default.hover(),
                 };
-                field = field.hover(move |s| if clear_hovered { s } else { s.bg(hover_bg) });
+                let hover_border = colors.field.border_hover();
+                // The trigger owns the stable focus/clear listeners. Animate
+                // only its background fill with the pinned 150ms
+                // `ease-smooth` curve; while the nested clear affordance is
+                // hovered, suppress the parent endpoint just like v3's
+                // `:not(:has(.autocomplete__clear-button:hover))` rule.
+                field = field.hover(move |s| {
+                    if clear_hovered {
+                        s
+                    } else {
+                        s.border_color(hover_border)
+                    }
+                });
+                field = crate::anim::hover_fade_with_duration_and_easing_suppressed(
+                    field,
+                    element_id::scoped(&base_id, "trigger-hover-fade"),
+                    (idle_bg, hover_bg),
+                    None,
+                    clear_hovered,
+                    |fill| fill.rounded(trigger_radius),
+                    Some(150),
+                    crate::anim::HoverFadeEasing::EaseSmooth,
+                    window,
+                    cx,
+                );
             }
         }
         if self.full_width {
@@ -1034,12 +1129,14 @@ impl RenderOnce for Autocomplete {
             .clone()
             // v3's own default for this prop.
             .unwrap_or_else(|| SharedString::from("Select an item"));
-        // `.autocomplete__value` is `flex-1 text-start text-sm`, and
-        // `text-field-placeholder` while nothing is chosen.
+        // `.autocomplete__value` is `flex-1 text-start text-sm
+        // wrap-break-word`, and `text-field-placeholder` while nothing is
+        // chosen. Keep the value slot's min-content floor released so a
+        // narrow trigger grows vertically for a long selected label.
         let default_children = gpui::div()
             .flex_1()
             .min_w_0()
-            .truncate()
+            .whitespace_normal()
             .text_size(util::FIELD_TEXT)
             .line_height(px(20.))
             .text_color(if is_placeholder {
@@ -1104,6 +1201,46 @@ impl RenderOnce for Autocomplete {
         // `.autocomplete__clear-button:hover` fills with `bg-default-hover`,
         // the role-hover mix -- not the lighter soft-hover wash.
         let hover_bg = colors.default.hover();
+        let clear_visual = gpui::div()
+            .debug_selector({
+                let base = base.clone();
+                move || format!("{base}-clear-visual")
+            })
+            .flex()
+            .items_center()
+            .justify_center()
+            .flex_shrink_0()
+            .size(clear_visual)
+            .rounded(clear_radius)
+            .when(clear_active, |el| el.hover(move |st| st.bg(hover_bg)))
+            .child(
+                gpui::svg()
+                    .size(clear_glyph)
+                    .path(icons::CLOSE)
+                    .text_color(colors.muted),
+            );
+        let clear_visual = if clear_opacity.animates(reduce_motion) {
+            let from = clear_opacity.from();
+            let to = clear_opacity.target();
+            let value = clear_opacity.value();
+            clear_visual
+                .with_animation(
+                    element_id::indexed(&base_id, "clear-opacity", clear_opacity.generation()),
+                    gpui::Animation::new(Duration::from_millis(CLEAR_OPACITY_TRANSITION_MS))
+                        .with_easing(crate::anim::ease_smooth()),
+                    move |visual, delta| {
+                        let next = from + (to - from) * delta;
+                        value.set(next);
+                        visual.opacity(next)
+                    },
+                )
+                .into_any_element()
+        } else {
+            clear_opacity.settle();
+            clear_visual
+                .opacity(clear_opacity.target())
+                .into_any_element()
+        };
         let mut clear = gpui::div()
             .id(element_id::scoped(&base_id, "clear"))
             // `autocomplete.js` hard-codes `"aria-label": "Clear selection"`
@@ -1124,31 +1261,11 @@ impl RenderOnce for Autocomplete {
             .justify_center()
             .flex_shrink_0()
             .when(clear_active, |el| el.cursor(util::interactive_cursor(cx)))
-            .when(clear_empty, |el| el.opacity(0.))
             .debug_selector({
                 let base = base.clone();
                 move || format!("{base}-clear")
             })
-            .child(
-                gpui::div()
-                    .debug_selector({
-                        let base = base.clone();
-                        move || format!("{base}-clear-visual")
-                    })
-                    .flex()
-                    .items_center()
-                    .justify_center()
-                    .flex_shrink_0()
-                    .size(clear_visual)
-                    .rounded(clear_radius)
-                    .when(clear_active, |el| el.hover(move |st| st.bg(hover_bg)))
-                    .child(
-                        gpui::svg()
-                            .size(clear_glyph)
-                            .path(icons::CLOSE)
-                            .text_color(colors.muted),
-                    ),
-            );
+            .child(clear_visual);
         if clear_active {
             let own = selection_own.clone();
             let selection_cb = self.on_selection_change_all.clone();
@@ -1182,20 +1299,22 @@ impl RenderOnce for Autocomplete {
         field = field.child(clear);
 
         // `.autocomplete__indicator` is `absolute inset-y-0 end-2 my-auto`, and
-        // its glyph is `size-4`. gpui 0.2.2 cannot rotate a div, so the chevron
-        // is swapped rather than turned -- which is what v3's `rotate-180` looks
-        // like on a symmetric glyph.
+        // its glyph is `size-4`. HeroUI keeps one down-chevron in the tree and
+        // rotates it over 150ms. Caller content still receives the live open
+        // state and remains caller-owned.
         let trigger_indicator = match self.indicator.take() {
             Some(render) => render(open),
-            None => gpui::svg()
-                .size(util::FIELD_ICON)
-                .path(if open {
-                    icons::CHEVRON_UP
-                } else {
-                    icons::CHEVRON_DOWN
-                })
-                .text_color(colors.field.placeholder)
-                .into_any_element(),
+            None => crate::anim::rotating_indicator_with_duration(
+                &element_id::scoped(&base_id, "trigger-indicator"),
+                open,
+                gpui::svg()
+                    .size(util::FIELD_ICON)
+                    .path(icons::CHEVRON_DOWN)
+                    .text_color(colors.field.placeholder),
+                150,
+                window,
+                cx,
+            ),
         };
         field = field.child(
             gpui::div()
@@ -1249,7 +1368,6 @@ impl RenderOnce for Autocomplete {
         // `useOverlayPosition` positions against the trigger rect.
         // `scrollable_field_popover` below reads these bounds to flip and
         // cap the panel; the measure element itself only records them.
-        let anchor_bounds: Rc<Cell<Option<gpui::Bounds<Pixels>>>> = Rc::new(Cell::new(None));
         let field = crate::popover::PopoverTriggerMeasure::new(field, anchor_bounds.clone());
 
         // --- the wrapper: `.autocomplete` is `flex flex-col gap-1` -----------
@@ -1727,6 +1845,7 @@ impl RenderOnce for Autocomplete {
                 let item_disabled = row_disabled_keys.contains(item.key());
                 let item_interactive = !item_disabled && !overlay_exiting;
                 let row_selected = row_selected_keys.contains(item.key());
+                let has_indicator_slot = indicator.is_some() || row_selected;
                 let row_selector = format!("{base}-{}", item.key());
                 let mut row = gpui::div()
                     .id(element_id::scoped(
@@ -1763,7 +1882,12 @@ impl RenderOnce for Autocomplete {
                     .gap(px(12.))
                     .text_size(util::FIELD_TEXT)
                     .line_height(px(20.))
-                    .child(gpui::div().truncate().child(item.label().to_string()));
+                    // HeroUI's list-box item reserves `pe-7` whenever its
+                    // indicator slot is present; the indicator itself is
+                    // absolute at the inline end. Keeping it out of flex
+                    // flow prevents long labels from pushing the checkmark.
+                    .relative()
+                    .when(has_indicator_slot, |row| row.pr(px(28.)));
                 if let Some(family) = row_font_family.clone() {
                     row = row.font_family(family);
                 }
@@ -1785,16 +1909,48 @@ impl RenderOnce for Autocomplete {
                     row = row.border_2().border_color(row_focus);
                 }
 
+                // HeroUI's ListBox.Item does not add an ellipsis rule. Keep
+                // normal text flow in both natural and virtual rows; the
+                // caller owns the fixed row geometry when `row_height` is
+                // supplied, just as the upstream Virtualizer owns its
+                // `rowHeight` layout.
+                let label = gpui::div().flex_1().min_w_0().whitespace_normal();
+                row = row.child(label.child(item.label().to_string()));
+
                 // The chosen rows are ticked, unless `ListBox.ItemIndicator` is
                 // drawn by the caller.
                 match &indicator {
-                    Some(render) => row = row.child(render(row_selected)),
+                    Some(render) => {
+                        row = row.child(
+                            gpui::div()
+                                .absolute()
+                                .top_0()
+                                .bottom_0()
+                                .right(px(8.))
+                                .w(px(16.))
+                                .flex()
+                                .items_center()
+                                .justify_center()
+                                .child(render(row_selected)),
+                        )
+                    }
                     None if row_selected => {
                         row = row.child(
-                            gpui::svg()
-                                .size(px(13.))
-                                .path(icons::CHECK)
-                                .text_color(row_accent),
+                            gpui::div()
+                                .absolute()
+                                .top_0()
+                                .bottom_0()
+                                .right(px(8.))
+                                .w(px(16.))
+                                .flex()
+                                .items_center()
+                                .justify_center()
+                                .child(
+                                    gpui::svg()
+                                        .size(px(13.))
+                                        .path(icons::CHECK)
+                                        .text_color(row_accent),
+                                ),
                         );
                     }
                     None => {}
@@ -1952,7 +2108,13 @@ impl RenderOnce for Autocomplete {
                 );
             }
 
+            let (slide_x, slide_y) = crate::popover::placement_entry_offset(entry_placement);
             let zoom = crate::anim::ZoomBox::panel(px(6.), radius);
+            let zoom = crate::anim::ZoomBox {
+                slide_x: (slide_x != 0.0).then(|| px(slide_x)),
+                slide_y: (slide_y != 0.0).then(|| px(slide_y)),
+                ..zoom
+            };
             let panel = if overlay_phase == util::OverlayPhase::Exiting {
                 crate::anim::exiting(
                     panel,
@@ -1975,11 +2137,14 @@ impl RenderOnce for Autocomplete {
             // available viewport height past a 12px inset -- which
             // `scrollable_field_popover` reads from the measured trigger
             // bounds above.
-            root = root.child(util::floating(crate::popover::scrollable_field_popover(
-                anchor_bounds,
-                self.placement,
-                panel,
-            )));
+            root = root.child(util::floating(
+                crate::popover::scrollable_field_popover_with_resolved_placement(
+                    anchor_bounds,
+                    self.placement,
+                    Some(resolved_placement),
+                    panel,
+                ),
+            ));
         }
 
         util::apply_sx(root, &self.sx)
@@ -2043,10 +2208,46 @@ mod hover_tokens {
             .next()
             .expect("the implementation section is always present");
         assert!(
-            source.contains(".hover(move |s| if clear_hovered { s } else { s.bg(hover_bg) })"),
+            source.contains("hover_fade_with_duration_and_easing_suppressed")
+                && source.contains("clear_hovered,"),
             "the trigger hover must be suppressed while the clear button is hovered \
              (pinned `.autocomplete__trigger:hover:not(\
              :has(.autocomplete__clear-button:hover))`)"
+        );
+    }
+
+    #[test]
+    fn trigger_hover_uses_the_pinned_smooth_transition() {
+        let source = include_str!("autocomplete.rs")
+            .split("#[cfg(test)]")
+            .next()
+            .expect("the implementation section is always present");
+        assert!(
+            source.contains("Some(150)")
+                && source.contains("HoverFadeEasing::EaseSmooth")
+                && source.contains("colors.field.border_hover()"),
+            "the trigger hover must animate its background while retaining the border endpoint"
+        );
+    }
+
+    #[test]
+    fn clear_button_visibility_fades_in_on_a_listener_free_visual_child() {
+        let source = include_str!("autocomplete.rs")
+            .split("#[cfg(test)]")
+            .next()
+            .expect("the implementation section is always present");
+        assert!(
+            source.contains("const CLEAR_OPACITY_TRANSITION_MS: u64 = 150;"),
+            "the clear button must retain HeroUI's 150ms visibility duration"
+        );
+        assert!(
+            source.contains("\"clear-opacity\"")
+                && source.contains("clear_opacity.animates(reduce_motion)"),
+            "clear visibility must use keyed reduced-motion-aware state"
+        );
+        assert!(
+            source.contains("clear_opacity.settle();") && source.contains(".with_animation("),
+            "clearing must hide immediately while appearance animates on the visual child"
         );
     }
 }

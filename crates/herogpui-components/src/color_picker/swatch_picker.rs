@@ -2,8 +2,34 @@
 
 use super::*;
 
+const SWATCH_SCALE_TRANSITION_MS: u64 = 100;
+const SWATCH_INDICATOR_TRANSITION_MS: u64 = 150;
+
+fn swatch_visual_scale(selected: bool, hovered: bool) -> f32 {
+    if selected {
+        0.77
+    } else if hovered {
+        1.1
+    } else {
+        1.0
+    }
+}
+
 // ColorSwatchPicker
 // ---------------------------------------------------------------------------
+
+#[cfg(test)]
+mod tests {
+    use super::swatch_visual_scale;
+
+    #[test]
+    fn selected_scale_wins_over_hover_and_rest() {
+        assert_eq!(swatch_visual_scale(false, false), 1.0);
+        assert_eq!(swatch_visual_scale(false, true), 1.1);
+        assert_eq!(swatch_visual_scale(true, false), 0.77);
+        assert_eq!(swatch_visual_scale(true, true), 0.77);
+    }
+}
 
 /// Layout of a [`ColorSwatchPicker`].
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -181,23 +207,21 @@ impl RenderOnce for ColorSwatchPicker {
             .copied()
             .find(|i| *i >= at)
             .or_else(|| enabled.first().copied());
-        let interactions: Vec<util::Interaction> =
-            if self.item_content.is_some() || self.indicator.is_some() {
-                (0..self.swatches.len())
-                    .map(|index| {
-                        util::interaction(
-                            element_id::scoped(
-                                &element_id::indexed(&self.id, "swatch", index),
-                                "interaction",
-                            ),
-                            window,
-                            cx,
-                        )
-                    })
-                    .collect()
-            } else {
-                Vec::new()
-            };
+        // The built-in swatch uses the same interaction slot as render props:
+        // HeroUI animates hover geometry even when callers do not provide a
+        // custom item renderer, so every enabled item needs a live hover bit.
+        let interactions: Vec<util::Interaction> = (0..self.swatches.len())
+            .map(|index| {
+                util::interaction(
+                    element_id::scoped(
+                        &element_id::indexed(&self.id, "swatch", index),
+                        "interaction",
+                    ),
+                    window,
+                    cx,
+                )
+            })
+            .collect();
         let pointer_focus =
             window.use_keyed_state(element_id::scoped(&self.id, "pointer-focus"), cx, |_, _| {
                 None::<usize>
@@ -250,6 +274,7 @@ impl RenderOnce for ColorSwatchPicker {
         };
 
         for (index, swatch) in self.swatches.iter().enumerate() {
+            let item_id = element_id::indexed(&self.id, "swatch", index);
             let selected = self.value.is_some_and(|v| v.to_hex() == swatch.to_hex());
             // `ColorSwatchPicker.Item.isDisabled` — the item's own flag
             // beside the group-wide one: dimmed, no press, and out of the tab
@@ -275,8 +300,30 @@ impl RenderOnce for ColorSwatchPicker {
                 is_disabled: item_disabled,
             };
 
+            let reduced_motion = ActiveTheme::reduce_motion(cx);
+            let target_scale = swatch_visual_scale(selected, recorded_hover);
+            let mut scale =
+                crate::anim::Tween::keyed(&item_id, "swatch-scale", target_scale, window, cx);
+            scale.snap_if_reduced(reduced_motion);
+            let target_border = if selected {
+                swatch.to_hsla()
+            } else {
+                gpui::transparent_black()
+            };
+            let mut border =
+                crate::anim::Tween::keyed(&item_id, "selection-border", target_border, window, cx);
+            border.snap_if_reduced(reduced_motion);
+            let mut indicator_scale = crate::anim::Tween::keyed(
+                &item_id,
+                "indicator-scale",
+                if selected { 1.0 } else { 0.0 },
+                window,
+                cx,
+            );
+            indicator_scale.snap_if_reduced(reduced_motion);
+
             let mut cell = div()
-                .id(element_id::indexed(&self.id, "swatch", index))
+                .id(item_id.clone())
                 .when(cursor_index == Some(index), |c| {
                     c.track_focus(&swatch_focus)
                 })
@@ -286,82 +333,133 @@ impl RenderOnce for ColorSwatchPicker {
                 .justify_center()
                 .size(item_edge)
                 .rounded(item_radius)
-                .border(border_width);
+                .border(border_width)
+                .border_color(gpui::transparent_black());
 
             if let Some(render) = &self.item_content {
                 cell = cell.child(render(index, state));
             } else {
-                cell = cell.child({
-                    // `.color-swatch-picker__swatch` is `size-full` inside the
-                    // border, `scale(1.1)` on hover and `scale(0.77)` when the
-                    // item is selected. gpui has no div transform, so each of
-                    // those is the size it comes to.
-                    let base_edge = f32::from(item_edge) - 2. * f32::from(border_width);
-                    let edge = px(if selected {
-                        base_edge * 0.77
-                    } else {
-                        base_edge
-                    });
-                    let radius = match (self.shape, self.size, selected) {
-                        (SwatchShape::Circle, _, _) => item_radius,
-                        (SwatchShape::Square, SizeXl::Xs, _) => px(6.),
-                        (SwatchShape::Square, SizeXl::Sm, true) => px(6.),
-                        (SwatchShape::Square, _, _) => px(8.),
-                    };
-                    let grown = px(f32::from(edge) * 1.1);
-                    div()
-                        .size(edge)
-                        .rounded(radius)
-                        .flex_shrink_0()
-                        .overflow_hidden()
-                        // The checkerboard that shows through a translucent
-                        // colour, as on a plain `ColorSwatch`.
-                        .bg(cx.colors().surface_secondary)
-                        .when(!item_disabled && !selected, |el| {
-                            el.hover(move |st| st.size(grown))
-                        })
-                        .child(div().size_full().rounded(radius).bg(swatch.to_hsla()))
-                });
-
-                // `.color-swatch-picker__indicator` spans the *item* (`absolute
-                // inset-0`) and centres a checkmark at `size-1/3` of it -- white by
-                // default, black over a light colour (`data-light-color`).
-                if let Some(render) = &self.indicator {
-                    cell = cell.child(
-                        div()
-                            .absolute()
-                            .inset_0()
-                            .flex()
-                            .items_center()
-                            .justify_center()
-                            .when(!selected, |indicator| indicator.opacity(0.))
-                            .child(render(index, state)),
-                    );
-                } else if selected {
-                    cell = cell.child(
-                        div()
-                            .absolute()
-                            .inset_0()
-                            .flex()
-                            .items_center()
-                            .justify_center()
-                            .child(
-                                gpui::svg()
-                                    .size(px(f32::from(item_edge) / 3.))
-                                    .path(crate::icons::CHECK)
-                                    .text_color(color_swatch_indicator_color(*swatch)),
-                            ),
-                    );
-                }
+                // `.color-swatch-picker__swatch` owns the animated built-in
+                // color surface; the stable cell remains the interaction hit
+                // target and the selection border is layered above it.
+                let base_edge = f32::from(item_edge) - 2. * f32::from(border_width);
+                let base_radius = match (self.shape, self.size) {
+                    (SwatchShape::Circle, _) => f32::from(item_radius),
+                    (SwatchShape::Square, SizeXl::Xs) => 6.,
+                    (SwatchShape::Square, SizeXl::Sm) => 6.,
+                    (SwatchShape::Square, _) => 8.,
+                };
+                let color = swatch.to_hsla();
+                let visual = div()
+                    .size(px(base_edge * scale.target()))
+                    .rounded(px(base_radius * scale.target()))
+                    .flex_shrink_0()
+                    .overflow_hidden()
+                    // The checkerboard that shows through a translucent
+                    // colour, as on a plain `ColorSwatch`.
+                    .bg(cx.colors().surface_secondary)
+                    .child(div().size_full().bg(color));
+                let visual = if scale.animates(reduced_motion) {
+                    let from = scale.from();
+                    let value = scale.value();
+                    visual
+                        .with_animation(
+                            element_id::indexed(&item_id, "swatch-scale", scale.generation()),
+                            Animation::new(Duration::from_millis(SWATCH_SCALE_TRANSITION_MS))
+                                .with_easing(crate::anim::ease_out()),
+                            move |el, delta| {
+                                let next = from + (target_scale - from) * delta;
+                                value.set(next);
+                                el.size(px(base_edge * next))
+                                    .rounded(px(base_radius * next))
+                            },
+                        )
+                        .into_any_element()
+                } else {
+                    scale.settle();
+                    visual.into_any_element()
+                };
+                cell = cell.child(visual);
             }
 
-            // Selected: `border-color: var(--color-swatch-current)` -- the
-            // border takes the swatch's own colour, and the gap the shrunk
-            // swatch leaves is what reads as a ring.
-            if selected {
-                cell = cell.border_color(swatch.to_hsla());
+            let border_visual = div().absolute().inset_0().border(border_width);
+            let border_visual = if border.animates(reduced_motion) {
+                let from = border.from();
+                let value = border.value();
+                border_visual
+                    .with_animation(
+                        element_id::indexed(&item_id, "selection-border", border.generation()),
+                        Animation::new(Duration::from_millis(SWATCH_SCALE_TRANSITION_MS))
+                            .with_easing(crate::anim::ease_out()),
+                        move |el, delta| {
+                            let next = herogpui_core::mix_oklab(from, target_border, delta);
+                            value.set(next);
+                            el.border_color(next)
+                        },
+                    )
+                    .into_any_element()
             } else {
-                cell = cell.border_color(gpui::transparent_black());
+                border.settle();
+                border_visual
+                    .border_color(border.target())
+                    .into_any_element()
+            };
+            cell = cell.child(border_visual);
+
+            if self.item_content.is_none() {
+                // `.color-swatch-picker__indicator` is an absolute centered
+                // slot; its child scales in and out without changing the hit
+                // box or pushing the swatch layout.
+                let indicator_content = if let Some(render) = &self.indicator {
+                    render(index, state)
+                } else {
+                    gpui::svg()
+                        .size(px(f32::from(item_edge) / 3.))
+                        .path(crate::icons::CHECK)
+                        .text_color(color_swatch_indicator_color(*swatch))
+                        .into_any_element()
+                };
+                let indicator_edge = f32::from(item_edge) / 3.;
+                let indicator_visual = div()
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .overflow_hidden()
+                    .size(px(indicator_edge * indicator_scale.target()))
+                    .child(indicator_content);
+                let indicator_visual = if indicator_scale.animates(reduced_motion) {
+                    let from = indicator_scale.from();
+                    let target = indicator_scale.target();
+                    let value = indicator_scale.value();
+                    indicator_visual
+                        .with_animation(
+                            element_id::indexed(
+                                &item_id,
+                                "indicator-scale",
+                                indicator_scale.generation(),
+                            ),
+                            Animation::new(Duration::from_millis(SWATCH_INDICATOR_TRANSITION_MS))
+                                .with_easing(crate::anim::ease_out()),
+                            move |el, delta| {
+                                let next = from + (target - from) * delta;
+                                value.set(next);
+                                el.size(px(indicator_edge * next))
+                            },
+                        )
+                        .into_any_element()
+                } else {
+                    indicator_scale.settle();
+                    indicator_visual.into_any_element()
+                };
+                cell = cell.child(
+                    div()
+                        .absolute()
+                        .inset_0()
+                        .flex()
+                        .items_center()
+                        .justify_center()
+                        .child(indicator_visual),
+                );
             }
 
             if item_disabled {
@@ -498,15 +596,15 @@ impl RenderOnce for ColorSwatchPicker {
                 });
             }
 
-            let mut cell =
-                util::with_focus_ring(cell, swatch_ring && item_focused, true, Vec::new(), cx);
-            cell = cell
+            let cell = cell
                 .a11y_named(
                     a11y::Role::RadioButton,
                     &a11y::Name::labelled(swatch.to_hex()),
                 )
                 .a11y_selected(selected);
-            row = row.child(cell);
+            let focus_motion =
+                color_focus_ring_motion(&item_id, swatch_ring && item_focused, window, cx);
+            row = row.child(focus_motion.render(cell, Vec::new(), true, cx));
         }
 
         row.a11y(a11y::Role::RadioGroup)

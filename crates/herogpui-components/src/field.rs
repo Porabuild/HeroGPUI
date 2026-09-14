@@ -166,6 +166,10 @@ impl RenderOnce for ErrorMessage {
 pub struct FieldError {
     text: Option<SharedString>,
     is_invalid: bool,
+    /// Optional stable identity used to retain and animate the row across
+    /// validation updates. Without an id the standalone slot keeps its
+    /// allocation-free static behavior for one-shot compositions.
+    id: Option<ElementId>,
 }
 
 impl FieldError {
@@ -173,6 +177,7 @@ impl FieldError {
         Self {
             text: None,
             is_invalid: false,
+            id: None,
         }
     }
 
@@ -189,6 +194,13 @@ impl FieldError {
         self.is_invalid = v;
         self
     }
+
+    /// Supplies the stable element identity needed for the v3 height/opacity
+    /// transition when a standalone FieldError is toggled across renders.
+    pub fn id(mut self, id: impl Into<ElementId>) -> Self {
+        self.id = Some(id.into());
+        self
+    }
 }
 
 impl Default for FieldError {
@@ -198,7 +210,12 @@ impl Default for FieldError {
 }
 
 impl RenderOnce for FieldError {
-    fn render(self, _window: &mut Window, _cx: &mut App) -> impl IntoElement {
+    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        let message = self.text.clone().filter(|_| self.is_invalid);
+        if let Some(id) = self.id {
+            return crate::anim::field_error_panel(&id, message, window, cx)
+                .unwrap_or_else(|| div().into_any_element());
+        }
         match (self.is_invalid, self.text) {
             // `.field-error` is `px-1`, which `.error-message` is not.
             (true, Some(text)) => div()

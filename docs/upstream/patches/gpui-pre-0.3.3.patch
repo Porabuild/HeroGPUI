@@ -1,0 +1,1174 @@
+--- a/gpui-pre-0.3.3/Cargo.toml
++++ b/gpui-pre-0.3.3/Cargo.toml
+@@ -659,3 +659,5 @@
+ [lints.rust.unexpected_cfgs]
+ level = "allow"
+ priority = 0
++
++[workspace]
+--- /dev/null
++++ b/gpui-pre-0.3.3/src/clip.rs
+@@ -0,0 +1,188 @@
++//! Rounded clipping keeps each ancestor's geometry separate from culling bounds.
++
++use crate::{px, Bounds, ContentMask, Corners, Pixels, Point, ScaledPixels};
++use smallvec::SmallVec;
++use std::fmt::Debug;
++
++/// One immutable rounded rectangle in a scene's clip chain.
++/// Separate horizontal and vertical radii preserve corners inset by unequal borders.
++#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
++#[repr(C)]
++pub struct RoundedClip<P: Clone + Debug + Default + PartialEq> {
++    /// Original geometry, never replaced by an intersection's bounding box.
++    pub bounds: Bounds<P>,
++    /// Horizontal corner radii.
++    pub radii_x: Corners<P>,
++    /// Vertical corner radii.
++    pub radii_y: Corners<P>,
++    /// One-based index of the next clip in the scene; zero ends the chain.
++    pub parent: u32,
++    /// Explicit GPU record padding.
++    pub padding: u32,
++}
++
++impl RoundedClip<Pixels> {
++    /// Convert logical clip geometry to device coordinates.
++    pub fn scale(&self, scale: f32) -> RoundedClip<ScaledPixels> {
++        RoundedClip {
++            bounds: self.bounds.scale(scale),
++            radii_x: self.radii_x.scale(scale),
++            radii_y: self.radii_y.scale(scale),
++            parent: 0,
++            padding: 0,
++        }
++    }
++
++    /// Exact point membership in the rounded rectangle.
++    pub fn contains(&self, point: Point<Pixels>) -> bool {
++        if self.bounds.is_empty() || !self.bounds.contains(&point) {
++            return false;
++        }
++        let x = f32::from(point.x - self.bounds.left());
++        let y = f32::from(point.y - self.bounds.top());
++        let right = f32::from(self.bounds.right() - point.x);
++        let bottom = f32::from(self.bounds.bottom() - point.y);
++        [
++            (x, y, self.radii_x.top_left, self.radii_y.top_left),
++            (right, y, self.radii_x.top_right, self.radii_y.top_right),
++            (
++                right,
++                bottom,
++                self.radii_x.bottom_right,
++                self.radii_y.bottom_right,
++            ),
++            (
++                x,
++                bottom,
++                self.radii_x.bottom_left,
++                self.radii_y.bottom_left,
++            ),
++        ]
++        .into_iter()
++        .all(|(x, y, rx, ry)| {
++            let (rx, ry) = (f32::from(rx), f32::from(ry));
++            if rx <= 0.0 || ry <= 0.0 || x >= rx || y >= ry {
++                return true;
++            }
++            let dx = (x - rx) / rx;
++            let dy = (y - ry) / ry;
++            dx * dx + dy * dy <= 1.0
++        })
++    }
++}
++
++/// The exact intersection of rectangular and rounded ancestor clips.
++///
++/// `bounds` is only a culling rectangle. Rounded curves keep the bounds and
++/// radii of their owning element, even when a narrow descendant intersects them.
++#[derive(Clone, Debug, Default, PartialEq, Eq)]
++pub struct ClipRegion {
++    /// Rectangular intersection used for culling and layout visibility.
++    pub bounds: Bounds<Pixels>,
++    /// Rounded constraints still relevant within `bounds`.
++    pub rounded_clips: SmallVec<[RoundedClip<Pixels>; 1]>,
++}
++
++impl From<ContentMask<Pixels>> for ClipRegion {
++    fn from(mask: ContentMask<Pixels>) -> Self {
++        let radii = mask
++            .corner_radii
++            .clamp_radii_for_quad_size(mask.bounds.size);
++        Self::rounded(mask.bounds, radii, radii)
++    }
++}
++
++impl ClipRegion {
++    /// Construct a clip with elliptical corners. The caller normalizes radii
++    /// against the original element before deriving any border inset.
++    pub fn rounded(
++        bounds: Bounds<Pixels>,
++        radii_x: Corners<Pixels>,
++        radii_y: Corners<Pixels>,
++    ) -> Self {
++        let mut region = Self {
++            bounds,
++            rounded_clips: SmallVec::new(),
++        };
++        if radii_x.max() > px(0.) && radii_y.max() > px(0.) && !bounds.is_empty() {
++            region.rounded_clips.push(RoundedClip {
++                bounds,
++                radii_x,
++                radii_y,
++                parent: 0,
++                padding: 0,
++            });
++        }
++        region
++    }
++
++    /// Intersect without approximating or relocating either region's curves.
++    pub fn intersect(&self, other: &Self) -> Self {
++        let bounds = self.bounds.intersect(&other.bounds);
++        let mut result = Self {
++            bounds,
++            rounded_clips: SmallVec::new(),
++        };
++        if bounds.is_empty() {
++            return result;
++        }
++        for clip in self.rounded_clips.iter().chain(&other.rounded_clips) {
++            // Logical containment cannot prune a curve: the GPU's conservative
++            // culling rectangle can expand across its antialiased edge.
++            if result.rounded_clips.contains(clip) {
++                continue;
++            }
++            result.rounded_clips.push(*clip);
++        }
++        result
++    }
++
++    /// Exact logical point membership, independent of rasterization scale.
++    pub fn contains(&self, point: Point<Pixels>) -> bool {
++        !self.bounds.is_empty()
++            && self.bounds.contains(&point)
++            && self.rounded_clips.iter().all(|clip| clip.contains(point))
++    }
++}
++
++/// Concrete clip record exported to the Metal shader bindings.
++#[allow(non_camel_case_types)]
++pub type RoundedClip_ScaledPixels = RoundedClip<ScaledPixels>;
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++    use crate::point;
++
++    #[test]
++    fn nested_clips_preserve_both_original_shapes() {
++        let outer: ClipRegion = ContentMask {
++            bounds: Bounds::from_corners(point(px(0.), px(0.)), point(px(100.), px(100.))),
++            corner_radii: Corners::all(px(16.)),
++            ..Default::default()
++        }
++        .into();
++        for (left, top, right, bottom) in
++            [(4., 4., 96., 96.), (0., 0., 10., 100.), (7., 1., 94., 80.)]
++        {
++            let inner: ClipRegion = ContentMask {
++                bounds: Bounds::from_corners(
++                    point(px(left), px(top)),
++                    point(px(right), px(bottom)),
++                ),
++                ..Default::default()
++            }
++            .into();
++            let intersection = outer.intersect(&inner);
++            for x in 0..100 {
++                for y in 0..100 {
++                    let point = point(px(x as f32 + 0.5), px(y as f32 + 0.5));
++                    assert_eq!(
++                        intersection.contains(point),
++                        outer.contains(point) && inner.contains(point)
++                    );
++                }
++            }
++        }
++    }
++}
+--- a/gpui-pre-0.3.3/src/debug_overlay.rs
++++ b/gpui-pre-0.3.3/src/debug_overlay.rs
+@@ -114,6 +114,7 @@
+                 origin: point(ScaledPixels(0.), ScaledPixels(0.)),
+                 size: viewport,
+             },
++            ..Default::default()
+         };
+ 
+         scene.insert_primitive(solid_quad(
+--- a/gpui-pre-0.3.3/src/elements/div.rs
++++ b/gpui-pre-0.3.3/src/elements/div.rs
+@@ -16,15 +16,15 @@
+ //! constructed by combining these two systems into an all-in-one element.
+ 
+ use crate::{
+-    Action, AnyDrag, AnyElement, AnyTooltip, AnyView, App, Bounds, ClickEvent, DispatchPhase,
+-    Display, Element, ElementId, Entity, EntityId, ExternalDragPayload, ExternalDragPayloadSource,
+-    FocusHandle, Global, GlobalElementId, Hitbox, HitboxBehavior, HitboxId, InspectorElementId,
+-    IntoElement, IsZero, KeyContext, KeyDownEvent, KeyUpEvent, KeyboardButton, KeyboardClickEvent,
+-    LayoutId, ModifiersChangedEvent, MouseButton, MouseClickEvent, MouseDownEvent, MouseExitEvent,
+-    MouseMoveEvent, MousePressureEvent, MouseUpEvent, OngoingScroll, Overflow, ParentElement,
+-    PinchEvent, Pixels, Point, Render, ScrollWheelEvent, SharedString, Size, Style,
+-    StyleRefinement, Styled, Task, TooltipId, Visibility, Window, WindowControlArea, point, px,
+-    size,
++    point, px, size, Action, AnyDrag, AnyElement, AnyTooltip, AnyView, App, Bounds, ClickEvent,
++    DispatchPhase, Display, Element, ElementId, Entity, EntityId, ExternalDragPayload,
++    ExternalDragPayloadSource, FocusHandle, Global, GlobalElementId, Hitbox, HitboxBehavior,
++    HitboxId, InspectorElementId, IntoElement, IsZero, KeyContext, KeyDownEvent, KeyUpEvent,
++    KeyboardButton, KeyboardClickEvent, LayoutId, ModifiersChangedEvent, MouseButton,
++    MouseClickEvent, MouseDownEvent, MouseExitEvent, MouseMoveEvent, MousePressureEvent,
++    MouseUpEvent, OngoingScroll, Overflow, ParentElement, PinchEvent, Pixels, Point, Render,
++    ScrollWheelEvent, SharedString, Size, Style, StyleRefinement, Styled, Task, TooltipId,
++    Visibility, Window, WindowControlArea,
+ };
+ use collections::HashMap;
+ use gpui_util::ResultExt;
+@@ -1354,6 +1354,18 @@
+         self
+     }
+ 
++    /// Set the ARIA current-value state for this element.
++    ///
++    /// AccessKit 0.24 carries `aria-current`, but the published gpui-pre
++    /// 0.3.3 builder surface omitted the corresponding setter. Keep the
++    /// extension next to the other accessibility builders so callers can
++    /// expose current-page/current-step semantics without inventing a second
++    /// node or mutating the AccessKit tree outside the element.
++    fn aria_current(mut self, current: accesskit::AriaCurrent) -> Self {
++        self.interactivity().aria.current = Some(current);
++        self
++    }
++
+     /// Set the expanded state for this element.
+     fn aria_expanded(mut self, expanded: bool) -> Self {
+         self.interactivity().aria.expanded = Some(expanded);
+@@ -1461,7 +1473,7 @@
+         mut self,
+         action: accesskit::Action,
+         listener: impl FnMut(Option<&accesskit::ActionData>, &mut crate::Window, &mut crate::App)
+-        + 'static,
++            + 'static,
+     ) -> Self {
+         self.interactivity()
+             .a11y_action_listeners
+@@ -2060,6 +2072,7 @@
+     pub(crate) description: Option<SharedString>,
+     pub(crate) keyshortcuts: Option<SharedString>,
+     pub(crate) selected: Option<bool>,
++    pub(crate) current: Option<accesskit::AriaCurrent>,
+     pub(crate) expanded: Option<bool>,
+     pub(crate) toggled: Option<accesskit::Toggled>,
+     pub(crate) numeric_value: Option<f64>,
+@@ -2330,7 +2343,7 @@
+ 
+                 window.with_text_style(style.text_style().cloned(), |window| {
+                     window.with_content_mask(
+-                        style.overflow_mask(bounds, window.rem_size()),
++                        style.overflow_mask(bounds, window.rem_size(), window.scale_factor()),
+                         |window| {
+                             let hitbox = if self.should_insert_hitbox(&style, window, cx) {
+                                 Some(window.insert_hitbox(bounds, self.hitbox_behavior))
+@@ -2490,7 +2503,11 @@
+                     style.paint(bounds, window, cx, |window: &mut Window, cx: &mut App| {
+                         window.with_text_style(style.text_style().cloned(), |window| {
+                             window.with_content_mask(
+-                                style.overflow_mask(bounds, window.rem_size()),
++                                style.overflow_mask(
++                                    bounds,
++                                    window.rem_size(),
++                                    window.scale_factor(),
++                                ),
+                                 |window| {
+                                     window.with_tab_group(tab_group, |window| {
+                                         // Register the container's own focus handle *inside* its
+@@ -3475,6 +3492,9 @@
+         }
+         if let Some(selected) = self.aria.selected {
+             node.set_selected(selected);
++        }
++        if let Some(current) = self.aria.current {
++            node.set_aria_current(current);
+         }
+         if let Some(expanded) = self.aria.expanded {
+             node.set_expanded(expanded);
+@@ -4312,8 +4332,8 @@
+ mod tests {
+     use super::*;
+     use crate::{
+-        AnyWindowHandle, AppContext as _, Context, InputEvent, Keystroke, MouseMoveEvent,
+-        TestAppContext, canvas, util::FluentBuilder as _,
++        canvas, util::FluentBuilder as _, AnyWindowHandle, AppContext as _, Context, InputEvent,
++        Keystroke, MouseMoveEvent, TestAppContext,
+     };
+     use std::{cell::Cell, rc::Weak};
+ 
+@@ -5066,6 +5086,17 @@
+         assert_eq!(node.numeric_value_step(), Some(1.0));
+     }
+ 
++    #[test]
++    fn test_write_a11y_info_aria_current() {
++        let mut interactivity = Interactivity::default();
++        interactivity.aria.current = Some(accesskit::AriaCurrent::Page);
++
++        let mut node = accesskit::Node::new(accesskit::Role::Link);
++        interactivity.write_a11y_info(&mut node);
++
++        assert_eq!(node.aria_current(), Some(accesskit::AriaCurrent::Page));
++    }
++
+     /// Two focusable, clickable elements ("a" and "b") used to exercise the
+     /// Enter/Space -> synthesized click press/release pairing.
+     struct KeyboardActivationTest {
+--- a/gpui-pre-0.3.3/src/elements/list.rs
++++ b/gpui-pre-0.3.3/src/elements/list.rs
+@@ -1282,9 +1282,15 @@
+                 let mut item_origin = bounds.origin + Point::new(px(0.), padding.top);
+                 item_origin.y -= layout_response.scroll_top.offset_in_item;
+                 for item in &mut layout_response.item_layouts {
+-                    window.with_content_mask(Some(ContentMask { bounds }), |window| {
++                    window.with_content_mask(
++                        Some(ContentMask {
++                            bounds,
++                            ..Default::default()
++                        }),
++                        |window| {
+                         item.element.prepaint_at(item_origin, window, cx);
+-                    });
++                        },
++                    );
+ 
+                     if let Some(autoscroll_bounds) = window.take_autoscroll()
+                         && autoscroll
+@@ -1613,11 +1619,17 @@
+             }
+         });
+ 
+-        window.with_content_mask(Some(ContentMask { bounds }), |window| {
++            window.with_content_mask(
++                Some(ContentMask {
++                    bounds,
++                    ..Default::default()
++                }),
++                |window| {
+             for item in &mut prepaint.layout.item_layouts {
+                 item.element.paint(window, cx);
+             }
+-        });
++                },
++            );
+     }
+ }
+ 
+--- a/gpui-pre-0.3.3/src/elements/uniform_list.rs
++++ b/gpui-pre-0.3.3/src/elements/uniform_list.rs
+@@ -489,7 +489,10 @@
+                         (self.render_items)(visible_range.clone(), window, cx)
+                     };
+ 
+-                    let content_mask = ContentMask { bounds };
++                    let content_mask = ContentMask {
++                        bounds,
++                        ..Default::default()
++                    };
+                     window.with_content_mask(Some(content_mask), |window| {
+                         for (mut item, ix) in items.into_iter().zip(visible_range.clone()) {
+                             let item_origin = padded_bounds.origin
+--- a/gpui-pre-0.3.3/src/gpui.rs
++++ b/gpui-pre-0.3.3/src/gpui.rs
+@@ -13,6 +13,7 @@
+ mod asset_cache;
+ mod assets;
+ mod bounds_tree;
++mod clip;
+ mod color;
+ /// The default colors used by GPUI.
+ pub mod colors;
+@@ -95,6 +96,7 @@
+ pub(crate) use arena::*;
+ pub use asset_cache::*;
+ pub use assets::*;
++pub use clip::*;
+ pub use color::*;
+ pub use ctor::ctor;
+ #[cfg(feature = "profiler")]
+@@ -106,7 +108,7 @@
+ pub use gestures::*;
+ pub use global::*;
+ pub use gpui_macros::{
+-    AppContext, IntoElement, Render, VisualContext, bench, property_test, register_action, test,
++    bench, property_test, register_action, test, AppContext, IntoElement, Render, VisualContext,
+ };
+ pub use spring::*;
+ 
+--- a/gpui-pre-0.3.3/src/scene.rs
++++ b/gpui-pre-0.3.3/src/scene.rs
+@@ -5,8 +5,8 @@
+ use serde::{Deserialize, Serialize};
+ 
+ use crate::{
+-    AtlasTextureId, AtlasTile, Background, Bounds, ContentMask, Corners, Edges, Hsla, Pixels,
+-    Point, Radians, ScaledPixels, Size, bounds_tree::BoundsTree, point,
++    bounds_tree::BoundsTree, point, AtlasTextureId, AtlasTile, Background, Bounds, ContentMask,
++    Corners, Edges, Hsla, Pixels, Point, Radians, ScaledPixels, Size,
+ };
+ use std::{
+     fmt::Debug,
+@@ -39,6 +39,9 @@
+ #[derive(Default)]
+ #[expect(missing_docs)]
+ pub struct Scene {
++    /// Immutable rounded clip nodes referenced by primitive masks.
++    pub rounded_clips: Vec<crate::RoundedClip<ScaledPixels>>,
++    clip_indices: std::collections::HashMap<[u32; 13], u32>,
+     pub(crate) paint_operations: Vec<PaintOperation>,
+     primitive_bounds: BoundsTree<ScaledPixels>,
+     layer_stack: Vec<DrawOrder>,
+@@ -55,6 +58,8 @@
+ #[expect(missing_docs)]
+ impl Scene {
+     pub fn clear(&mut self) {
++        self.rounded_clips.clear();
++        self.clip_indices.clear();
+         self.paint_operations.clear();
+         self.primitive_bounds.clear();
+         self.layer_stack.clear();
+@@ -72,6 +77,51 @@
+         self.paint_operations.len()
+     }
+ 
++    /// Intern a clip node for this frame. Identical ancestor chains share nodes.
++    pub fn insert_clip(&mut self, clip: crate::RoundedClip<ScaledPixels>) -> u32 {
++        assert!(
++            clip.parent as usize <= self.rounded_clips.len(),
++            "clip parent must already exist in this scene"
++        );
++        let key = [
++            clip.bounds.origin.x.0.to_bits(),
++            clip.bounds.origin.y.0.to_bits(),
++            clip.bounds.size.width.0.to_bits(),
++            clip.bounds.size.height.0.to_bits(),
++            clip.radii_x.top_left.0.to_bits(),
++            clip.radii_x.top_right.0.to_bits(),
++            clip.radii_x.bottom_right.0.to_bits(),
++            clip.radii_x.bottom_left.0.to_bits(),
++            clip.radii_y.top_left.0.to_bits(),
++            clip.radii_y.top_right.0.to_bits(),
++            clip.radii_y.bottom_right.0.to_bits(),
++            clip.radii_y.bottom_left.0.to_bits(),
++            clip.parent,
++        ];
++        if let Some(index) = self.clip_indices.get(&key) {
++            return *index;
++        }
++        let index = u32::try_from(self.rounded_clips.len()).expect("scene clip index overflow") + 1;
++        self.rounded_clips.push(clip);
++        self.clip_indices.insert(key, index);
++        index
++    }
++
++    fn import_clip(&mut self, mut index: u32, previous: &Scene) -> u32 {
++        let mut chain = Vec::new();
++        while index != 0 {
++            let clip = previous.rounded_clips[index as usize - 1];
++            index = clip.parent;
++            chain.push(clip);
++        }
++        let mut parent = 0;
++        for mut clip in chain.into_iter().rev() {
++            clip.parent = parent;
++            parent = self.insert_clip(clip);
++        }
++        parent
++    }
++
+     pub fn push_layer(&mut self, bounds: Bounds<ScaledPixels>) {
+         let order = self.primitive_bounds.insert(bounds);
+         self.layer_stack.push(order);
+@@ -139,9 +189,19 @@
+     }
+ 
+     pub fn replay(&mut self, range: Range<usize>, prev_scene: &Scene) {
++        let mut clip_remapping = std::collections::HashMap::new();
+         for operation in &prev_scene.paint_operations[range] {
+             match operation {
+-                PaintOperation::Primitive(primitive) => self.insert_primitive(primitive.clone()),
++                PaintOperation::Primitive(primitive) => {
++                    let mut primitive = primitive.clone();
++                    let mask = primitive.content_mask_mut();
++                    if mask.clip_index != 0 {
++                        mask.clip_index = *clip_remapping
++                            .entry(mask.clip_index)
++                            .or_insert_with(|| self.import_clip(mask.clip_index, prev_scene));
++                    }
++                    self.insert_primitive(primitive);
++                }
+                 PaintOperation::StartLayer(bounds) => self.push_layer(*bounds),
+                 PaintOperation::EndLayer => self.pop_layer(),
+             }
+@@ -255,6 +315,19 @@
+             Primitive::SubpixelSprite(sprite) => &sprite.content_mask,
+             Primitive::PolychromeSprite(sprite) => &sprite.content_mask,
+             Primitive::Surface(surface) => &surface.content_mask,
++        }
++    }
++
++    pub fn content_mask_mut(&mut self) -> &mut ContentMask<ScaledPixels> {
++        match self {
++            Primitive::Shadow(shadow) => &mut shadow.content_mask,
++            Primitive::Quad(quad) => &mut quad.content_mask,
++            Primitive::Path(path) => &mut path.content_mask,
++            Primitive::Underline(underline) => &mut underline.content_mask,
++            Primitive::MonochromeSprite(sprite) => &mut sprite.content_mask,
++            Primitive::SubpixelSprite(sprite) => &mut sprite.content_mask,
++            Primitive::PolychromeSprite(sprite) => &mut sprite.content_mask,
++            Primitive::Surface(surface) => &mut surface.content_mask,
+         }
+     }
+ }
+--- a/gpui-pre-0.3.3/src/style.rs
++++ b/gpui-pre-0.3.3/src/style.rs
+@@ -5,11 +5,11 @@
+ };
+ 
+ use crate::{
+-    AbsoluteLength, App, Background, BackgroundTag, BorderStyle, Bounds, ContentMask, Corners,
+-    CornersRefinement, CursorStyle, DefiniteLength, DevicePixels, Edges, EdgesRefinement, Font,
+-    FontFallbacks, FontFeatures, FontStyle, FontWeight, GridLocation, Hsla, Length, Pixels, Point,
+-    PointRefinement, Rgba, SharedString, Size, SizeRefinement, Styled, TextRun, Window, black, phi,
+-    point, px, quad, rems, size,
++    black, phi, point, px, quad, rems, size, AbsoluteLength, App, Background, BackgroundTag,
++    BorderStyle, Bounds, Corners, CornersRefinement, CursorStyle, DefiniteLength, DevicePixels,
++    Edges, EdgesRefinement, Font, FontFallbacks, FontFeatures, FontStyle, FontWeight, GridLocation,
++    Hsla, Length, Pixels, Point, PointRefinement, Rgba, SharedString, Size, SizeRefinement, Styled,
++    TextRun, Window,
+ };
+ use collections::HashSet;
+ use refineable::Refineable;
+@@ -639,29 +639,40 @@
+         &self,
+         bounds: Bounds<Pixels>,
+         rem_size: Pixels,
+-    ) -> Option<ContentMask<Pixels>> {
++        scale_factor: f32,
++    ) -> Option<crate::ClipRegion> {
+         match self.overflow {
+             Point {
+                 x: Overflow::Visible,
+                 y: Overflow::Visible,
+             } => None,
+             _ => {
++                let (bounds, radii, border_widths) =
++                    self.paint_geometry(bounds, rem_size, scale_factor);
++                let has_visible_border = self
++                    .border_color
++                    .is_some_and(|color| !color.is_transparent());
++                let border = if has_visible_border {
++                    border_widths
++                } else {
++                    Edges::default()
++                };
+                 let mut min = bounds.origin;
+                 let mut max = bounds.bottom_right();
+ 
+-                if self
+-                    .border_color
+-                    .is_some_and(|color| !color.is_transparent())
+-                {
+-                    min.x += self.border_widths.left.to_pixels(rem_size);
+-                    max.x -= self.border_widths.right.to_pixels(rem_size);
+-                    min.y += self.border_widths.top.to_pixels(rem_size);
+-                    max.y -= self.border_widths.bottom.to_pixels(rem_size);
+-                }
++                min.x += border.left;
++                max.x -= border.right;
++                min.y += border.top;
++                max.y -= border.bottom;
++
++                // A scroll container clips its rounded padding box even when
++                // only one scroll axis is enabled (for example, menu panels).
++                let scrolling =
++                    self.overflow.x == Overflow::Scroll || self.overflow.y == Overflow::Scroll;
+ 
+                 let bounds = match (
+-                    self.overflow.x == Overflow::Visible,
+-                    self.overflow.y == Overflow::Visible,
++                    !scrolling && self.overflow.x == Overflow::Visible,
++                    !scrolling && self.overflow.y == Overflow::Visible,
+                 ) {
+                     // x and y both visible
+                     (true, true) => return None,
+@@ -679,9 +690,55 @@
+                     (false, false) => Bounds::from_corners(min, max),
+                 };
+ 
+-                Some(ContentMask { bounds })
++                let (radii_x, radii_y) = if scrolling
++                    || (self.overflow.x != Overflow::Visible
++                        && self.overflow.y != Overflow::Visible)
++                {
++                    (
++                        Corners {
++                            top_left: (radii.top_left - border.left).max(px(0.)),
++                            top_right: (radii.top_right - border.right).max(px(0.)),
++                            bottom_right: (radii.bottom_right - border.right).max(px(0.)),
++                            bottom_left: (radii.bottom_left - border.left).max(px(0.)),
++                        },
++                        Corners {
++                            top_left: (radii.top_left - border.top).max(px(0.)),
++                            top_right: (radii.top_right - border.top).max(px(0.)),
++                            bottom_right: (radii.bottom_right - border.bottom).max(px(0.)),
++                            bottom_left: (radii.bottom_left - border.bottom).max(px(0.)),
++                        },
++                    )
++                } else {
++                    (Corners::default(), Corners::default())
++                };
++                Some(crate::ClipRegion::rounded(bounds, radii_x, radii_y))
+             }
+         }
++    }
++
++    // Background, border, and overflow must derive from the same device-pixel
++    // geometry. In particular, a fractional border can paint a whole pixel.
++    fn paint_geometry(
++        &self,
++        bounds: Bounds<Pixels>,
++        rem_size: Pixels,
++        scale_factor: f32,
++    ) -> (Bounds<Pixels>, Corners<Pixels>, Edges<Pixels>) {
++        let radii = self
++            .corner_radii
++            .to_pixels(rem_size)
++            .clamp_radii_for_quad_size(bounds.size);
++        let snap = |value: Pixels| {
++            px(crate::util::round_to_device_pixel(value.0, scale_factor) / scale_factor)
++        };
++        let origin = bounds.origin.map(snap);
++        let far = bounds.bottom_right().map(snap);
++        let bounds = Bounds::from_corners(origin, point(far.x.max(origin.x), far.y.max(origin.y)));
++        let radii = radii.clamp_radii_for_quad_size(bounds.size);
++        let borders = self.border_widths.to_pixels(rem_size).map(|value| {
++            px(crate::util::round_stroke_to_device_pixel(value.0, scale_factor) / scale_factor)
++        });
++        (bounds, radii, borders)
+     }
+ 
+     /// Paints the background of an element styled with this style.
+@@ -703,10 +760,8 @@
+         }
+ 
+         let rem_size = window.rem_size();
+-        let corner_radii = self
+-            .corner_radii
+-            .to_pixels(rem_size)
+-            .clamp_radii_for_quad_size(bounds.size);
++        let (bounds, corner_radii, border_widths) =
++            self.paint_geometry(bounds, rem_size, window.scale_factor());
+ 
+         window.paint_drop_shadows(bounds, corner_radii, &self.box_shadow);
+ 
+@@ -742,7 +797,6 @@
+         continuation(window, cx);
+ 
+         if self.is_border_visible() {
+-            let border_widths = self.border_widths.to_pixels(rem_size);
+             let mut background = self.border_color.unwrap_or_default();
+             background.a = 0.;
+             window.paint_quad(quad(
+--- a/gpui-pre-0.3.3/src/view.rs
++++ b/gpui-pre-0.3.3/src/view.rs
+@@ -1,7 +1,7 @@
+ use crate::{
+-    AnyElement, AnyEntity, AnyWeakEntity, App, Bounds, ContentMask, Context, Element, ElementId,
+-    Entity, EntityId, GlobalElementId, InspectorElementId, IntoElement, LayoutId, PaintIndex,
+-    Pixels, PrepaintStateIndex, Render, RenderOnce, Style, StyleRefinement, TextStyle, WeakEntity,
++    AnyElement, AnyEntity, AnyWeakEntity, App, Bounds, Context, Element, ElementId, Entity,
++    EntityId, GlobalElementId, InspectorElementId, IntoElement, LayoutId, PaintIndex, Pixels,
++    PrepaintStateIndex, Render, RenderOnce, Style, StyleRefinement, TextStyle, WeakEntity,
+ };
+ use crate::{Empty, Window};
+ use anyhow::Result;
+@@ -291,7 +291,7 @@
+ 
+ struct ViewElementCacheKey {
+     bounds: Bounds<Pixels>,
+-    content_mask: ContentMask<Pixels>,
++    content_mask: crate::ClipRegion,
+     text_style: TextStyle,
+ }
+ 
+--- a/gpui-pre-0.3.3/src/window.rs
++++ b/gpui-pre-0.3.3/src/window.rs
+@@ -1,41 +1,41 @@
++#[cfg(feature = "profiler")]
++use crate::profiler;
+ #[cfg(feature = "profiler")]
+ use crate::DebugFrameOverlayMode;
+ #[cfg(any(feature = "inspector", debug_assertions))]
+ use crate::Inspector;
+-#[cfg(feature = "profiler")]
+-use crate::profiler;
+ use crate::{
+-    Action, AnyDrag, AnyElement, AnyImageCache, AnyTooltip, AnyView, App, AppContext, Arena, Asset,
+-    AsyncWindowContext, AtlasTile, AvailableSpace, Background, BorderStyle, Bounds, BoxShadow,
+-    Capslock, Context, Corners, CursorHideMode, CursorStyle, Decorations, DevicePixels,
+-    DispatchActionListener, DispatchNodeId, DispatchTree, DisplayId, Edges, Effect, Entity,
+-    EntityId, EventEmitter, FileDropEvent, FontId, Global, GlobalElementId, GlyphId, GpuSpecs,
+-    Hsla, InputHandler, IsZero, KeyBinding, KeyContext, KeyDownEvent, KeyEvent, Keystroke,
+-    KeystrokeEvent, LayoutId, LineLayoutIndex, Modifiers, ModifiersChangedEvent, MonochromeSprite,
+-    MouseButton, MouseEvent, MouseMoveEvent, MouseUpEvent, Path, Pixels, PlatformAtlas,
+-    PlatformDisplay, PlatformInput, PlatformInputHandler, PlatformWindow, Point, PolychromeSprite,
+-    Priority, PromptButton, PromptLevel, Quad, Render, RenderGlyphParams, RenderImage,
+-    RenderImageParams, RenderSvgParams, Replay, ResizeEdge, SMOOTH_SVG_SCALE_FACTOR,
+-    SUBPIXEL_VARIANTS_X, SUBPIXEL_VARIANTS_Y, ScaledPixels, Scene, Shadow, SharedString, Size,
+-    StrikethroughStyle, Style, SubpixelSprite, SubscriberSet, Subscription, SystemWindowTab,
+-    SystemWindowTabController, TabStopMap, TaffyLayoutEngine, Task, TextInputConfiguration,
+-    TextInputStateChange, TextRenderingMode, TextStyle, TextStyleRefinement, ThermalState,
+-    TransformationMatrix, Underline, UnderlineStyle, WindowAppearance, WindowBackgroundAppearance,
+-    WindowBounds, WindowControls, WindowDecorations, WindowOptions, WindowParams, WindowTextSystem,
+-    point, prelude::*, px, rems, size, transparent_black,
++    point, prelude::*, px, rems, size, transparent_black, Action, AnyDrag, AnyElement,
++    AnyImageCache, AnyTooltip, AnyView, App, AppContext, Arena, Asset, AsyncWindowContext,
++    AtlasTile, AvailableSpace, Background, BorderStyle, Bounds, BoxShadow, Capslock, Context,
++    Corners, CursorHideMode, CursorStyle, Decorations, DevicePixels, DispatchActionListener,
++    DispatchNodeId, DispatchTree, DisplayId, Edges, Effect, Entity, EntityId, EventEmitter,
++    FileDropEvent, FontId, Global, GlobalElementId, GlyphId, GpuSpecs, Hsla, InputHandler, IsZero,
++    KeyBinding, KeyContext, KeyDownEvent, KeyEvent, Keystroke, KeystrokeEvent, LayoutId,
++    LineLayoutIndex, Modifiers, ModifiersChangedEvent, MonochromeSprite, MouseButton, MouseEvent,
++    MouseMoveEvent, MouseUpEvent, Path, Pixels, PlatformAtlas, PlatformDisplay, PlatformInput,
++    PlatformInputHandler, PlatformWindow, Point, PolychromeSprite, Priority, PromptButton,
++    PromptLevel, Quad, Render, RenderGlyphParams, RenderImage, RenderImageParams, RenderSvgParams,
++    Replay, ResizeEdge, ScaledPixels, Scene, Shadow, SharedString, Size, StrikethroughStyle, Style,
++    SubpixelSprite, SubscriberSet, Subscription, SystemWindowTab, SystemWindowTabController,
++    TabStopMap, TaffyLayoutEngine, Task, TextInputConfiguration, TextInputStateChange,
++    TextRenderingMode, TextStyle, TextStyleRefinement, ThermalState, TransformationMatrix,
++    Underline, UnderlineStyle, WindowAppearance, WindowBackgroundAppearance, WindowBounds,
++    WindowControls, WindowDecorations, WindowOptions, WindowParams, WindowTextSystem,
++    SMOOTH_SVG_SCALE_FACTOR, SUBPIXEL_VARIANTS_X, SUBPIXEL_VARIANTS_Y,
+ };
+ 
+ use crate::gestures::{GestureTuning, RecognizedTouchGesture, TouchGestureRecognizer};
+ use crate::interactive::TouchEvent;
+-use anyhow::{Context as _, Result, anyhow};
++use anyhow::{anyhow, Context as _, Result};
+ use collections::{FxHashMap, FxHashSet};
+ #[cfg(target_os = "macos")]
+ use core_video::pixel_buffer::CVPixelBuffer;
+ use derive_more::{Deref, DerefMut};
++use futures::channel::oneshot;
+ use futures::FutureExt;
+-use futures::channel::oneshot;
+ use gpui_util::post_inc;
+-use gpui_util::{ResultExt, measure};
++use gpui_util::{measure, ResultExt};
+ use itertools::FoldWhile::{Continue, Done};
+ use itertools::Itertools;
+ use parking_lot::RwLock;
+@@ -56,8 +56,8 @@
+     ops::{DerefMut, Range},
+     rc::Rc,
+     sync::{
++        atomic::{AtomicBool, AtomicUsize, Ordering::SeqCst},
+         Arc, Weak,
+-        atomic::{AtomicBool, AtomicUsize, Ordering::SeqCst},
+     },
+     time::Duration,
+ };
+@@ -827,7 +827,7 @@
+     #[deref]
+     pub bounds: Bounds<Pixels>,
+     /// The content mask when the hitbox was inserted.
+-    pub content_mask: ContentMask<Pixels>,
++    pub content_mask: crate::ClipRegion,
+     /// Flags that specify hitbox behavior.
+     pub behavior: HitboxBehavior,
+ }
+@@ -968,7 +968,7 @@
+     parent_node: DispatchNodeId,
+     element_id_stack: SmallVec<[ElementId; 32]>,
+     text_style_stack: Vec<TextStyleRefinement>,
+-    content_mask: Option<ContentMask<Pixels>>,
++    content_mask: Option<crate::ClipRegion>,
+     rem_size: Pixels,
+     element: Option<AnyElement>,
+     absolute_offset: Point<Pixels>,
+@@ -1167,7 +1167,7 @@
+     pub(crate) rendered_entity_stack: Vec<EntityId>,
+     pub(crate) element_offset_stack: Vec<Point<Pixels>>,
+     pub(crate) element_opacity: f32,
+-    pub(crate) content_mask_stack: Vec<ContentMask<Pixels>>,
++    pub(crate) content_mask_stack: Vec<crate::ClipRegion>,
+     pub(crate) requested_autoscroll: Option<Bounds<Pixels>>,
+     /// The [`TextInputConfiguration`] most recently forwarded to the platform
+     /// window, so that only actual changes are forwarded (reconfiguring a live
+@@ -2073,14 +2073,21 @@
+     pub default_prevented: bool,
+ }
+ 
+-/// Indicates which region of the window is visible. Content falling outside of this mask will not be
+-/// rendered. Currently, only rectangular content masks are supported, but we give the mask its own type
+-/// to leave room to support more complex shapes in the future.
++/// Indicates which region of the window is visible. Content falling outside of
++/// this mask will not be rendered. A mask carries both its rectangular cull
++/// bounds and optional rounded corners; the bounds keep scene culling cheap,
++/// while the renderer applies the corner shape to every primitive.
+ #[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
+ #[repr(C)]
+ pub struct ContentMask<P: Clone + Debug + Default + PartialEq> {
+     /// The bounds
+     pub bounds: Bounds<P>,
++    /// The corner radii of the visible region.
++    pub corner_radii: Corners<P>,
++    /// One-based scene clip-chain index. Zero uses the inline bounds and radii.
++    pub clip_index: u32,
++    /// Explicit GPU record padding.
++    pub clip_padding: u32,
+ }
+ 
+ impl ContentMask<Pixels> {
+@@ -2088,13 +2095,15 @@
+     pub fn scale(&self, factor: f32) -> ContentMask<ScaledPixels> {
+         ContentMask {
+             bounds: self.bounds.scale(factor),
+-        }
+-    }
+-
+-    /// Intersect the content mask with the given content mask.
+-    pub fn intersect(&self, other: &Self) -> Self {
+-        let bounds = self.bounds.intersect(&other.bounds);
+-        ContentMask { bounds }
++            corner_radii: self.corner_radii.scale(factor),
++            clip_index: self.clip_index,
++            clip_padding: 0,
++        }
++    }
++
++    /// Intersect without changing either mask's rounded geometry.
++    pub fn intersect(&self, other: &Self) -> crate::ClipRegion {
++        crate::ClipRegion::from(*self).intersect(&crate::ClipRegion::from(*other))
+     }
+ }
+ 
+@@ -2619,6 +2628,18 @@
+         self.rendered_frame.scene.quads.clone()
+     }
+ 
++    /// Returns the immutable rounded clip nodes referenced by painted primitives.
++    #[cfg(any(test, feature = "test-support"))]
++    pub fn painted_clips(&self) -> Vec<crate::RoundedClip<ScaledPixels>> {
++        self.rendered_frame.scene.rounded_clips.clone()
++    }
++
++    /// Returns painted shadows for renderer regression tests.
++    #[cfg(any(test, feature = "test-support"))]
++    pub fn painted_shadows(&self) -> Vec<Shadow> {
++        self.rendered_frame.scene.shadows.clone()
++    }
++
+     /// Set the content size of the window.
+     pub fn resize(&mut self, size: Size<Pixels>) {
+         self.platform_window.resize(size);
+@@ -2923,9 +2944,22 @@
+     }
+ 
+     #[inline]
+-    fn snapped_content_mask(&self) -> ContentMask<ScaledPixels> {
++    fn snapped_content_mask(&mut self) -> ContentMask<ScaledPixels> {
++        let region = self.content_mask();
++        let mut clip_index = 0;
++        for shape in &region.rounded_clips {
++            let mut clip = shape.scale(self.scale_factor());
++            // Use the original element's snapped shape, as paint_quad does.
++            // A descendant's culling bounds must never relocate these curves.
++            clip.bounds = self.snap_bounds(shape.bounds);
++            clip.parent = clip_index;
++            clip_index = self.next_frame.scene.insert_clip(clip);
++        }
+         ContentMask {
+-            bounds: self.cover_bounds(self.content_mask().bounds),
++            bounds: self.cover_bounds(region.bounds),
++            corner_radii: Corners::default(),
++            clip_index,
++            clip_padding: 0,
+         }
+     }
+ 
+@@ -3540,7 +3574,7 @@
+                 .set_active_node(deferred_draw.parent_node);
+ 
+             let paint_start = self.paint_index();
+-            let content_mask = deferred_draw.content_mask;
++            let content_mask = deferred_draw.content_mask.clone();
+             if let Some(element) = deferred_draw.element.as_mut() {
+                 self.with_rendered_view(deferred_draw.current_view, |window| {
+                     window.with_content_mask(content_mask, |window| {
+@@ -3617,7 +3651,7 @@
+                     parent_node: reused_subtree.refresh_node_id(deferred_draw.parent_node),
+                     element_id_stack: deferred_draw.element_id_stack.clone(),
+                     text_style_stack: deferred_draw.text_style_stack.clone(),
+-                    content_mask: deferred_draw.content_mask,
++                    content_mask: deferred_draw.content_mask.clone(),
+                     rem_size: deferred_draw.rem_size,
+                     priority: deferred_draw.priority,
+                     element: None,
+@@ -3736,12 +3770,12 @@
+     #[inline]
+     pub fn with_content_mask<R>(
+         &mut self,
+-        mask: Option<ContentMask<Pixels>>,
++        mask: Option<impl Into<crate::ClipRegion>>,
+         f: impl FnOnce(&mut Self) -> R,
+     ) -> R {
+         self.invalidator.debug_assert_paint_or_prepaint();
+         if let Some(mask) = mask {
+-            let mask = mask.intersect(&self.content_mask());
++            let mask = mask.into().intersect(&self.content_mask());
+             self.content_mask_stack.push(mask);
+             let result = f(self);
+             self.content_mask_stack.pop();
+@@ -3901,17 +3935,18 @@
+     }
+ 
+     /// Obtain the current content mask. This method should only be called during element drawing.
+-    pub fn content_mask(&self) -> ContentMask<Pixels> {
++    pub fn content_mask(&self) -> crate::ClipRegion {
+         self.invalidator.debug_assert_paint_or_prepaint();
+-        self.content_mask_stack
+-            .last()
+-            .cloned()
+-            .unwrap_or_else(|| ContentMask {
++        self.content_mask_stack.last().cloned().unwrap_or_else(|| {
++            ContentMask {
+                 bounds: Bounds {
+                     origin: Point::default(),
+                     size: self.viewport_size,
+                 },
+-            })
++                ..Default::default()
++            }
++            .into()
++        })
+     }
+ 
+     /// Provide elements in the called function with a new namespace in which their identifiers must be unique.
+@@ -4107,7 +4142,7 @@
+         element: AnyElement,
+         absolute_offset: Point<Pixels>,
+         priority: usize,
+-        content_mask: Option<ContentMask<Pixels>>,
++        content_mask: Option<crate::ClipRegion>,
+     ) {
+         self.invalidator.debug_assert_prepaint();
+         let parent_node = self.next_frame.dispatch_tree.active_node_id().unwrap();
+@@ -4174,12 +4209,22 @@
+                 continue;
+             }
+             let shadow_bounds = (bounds + shadow.offset).dilate(shadow.spread_radius);
++            // CSS expands a rounded shadow's curve together with its border
++            // box. Keeping the element radius on a spread shadow makes the
++            // outside edge visibly squarer than the control (most obvious on
++            // focus rings, whose two spread layers are the control's outline
++            // and offset gap). The shadow quad is larger by `spread` on every
++            // side, so the corresponding corner radius grows by the same
++            // amount. Negative spreads shrink the curve and clamp at zero.
++            let shadow_corner_radii = corner_radii.map(|radius| {
++                (*radius + shadow.spread_radius).max(Pixels::ZERO)
++            });
+             self.next_frame.scene.insert_primitive(Shadow {
+                 order: 0,
+                 blur_radius: shadow.blur_radius.scale(scale_factor),
+                 bounds: self.cover_bounds(shadow_bounds),
+                 content_mask,
+-                corner_radii: corner_radii.scale(scale_factor),
++                corner_radii: shadow_corner_radii.scale(scale_factor),
+                 color: shadow.color.opacity(opacity),
+                 element_bounds,
+                 element_corner_radii,
+@@ -4343,6 +4388,7 @@
+                 self.next_frame.scene.insert_primitive(Quad {
+                     content_mask: ContentMask {
+                         bounds: content_mask_bounds,
++                        ..quad.content_mask
+                     },
+                     ..quad
+                 });
+@@ -4357,14 +4403,13 @@
+         self.invalidator.debug_assert_paint();
+ 
+         let scale_factor = self.scale_factor();
+-        let content_mask = self.content_mask();
++        let content_mask = self.snapped_content_mask();
+         let opacity = self.element_opacity();
+-        path.content_mask = content_mask;
+         let color: Background = color.into();
+         path.color = color.opacity(opacity);
+-        self.next_frame
+-            .scene
+-            .insert_primitive(path.scale(scale_factor));
++        let mut path = path.scale(scale_factor);
++        path.content_mask = content_mask;
++        self.next_frame.scene.insert_primitive(path);
+     }
+ 
+     /// Paint an underline into the scene for the next frame at the current z-index.
+@@ -4391,11 +4436,12 @@
+         };
+         let element_opacity = self.element_opacity();
+ 
++        let content_mask = self.snapped_content_mask();
+         self.next_frame.scene.insert_primitive(Underline {
+             order: 0,
+             pad: 0,
+             bounds,
+-            content_mask: self.snapped_content_mask(),
++            content_mask,
+             color: style.color.unwrap_or_default().opacity(element_opacity),
+             thickness,
+             wavy: style.wavy.into(),
+@@ -4421,11 +4467,12 @@
+         };
+         let opacity = self.element_opacity();
+ 
++        let content_mask = self.snapped_content_mask();
+         self.next_frame.scene.insert_primitive(Underline {
+             order: 0,
+             pad: 0,
+             bounds,
+-            content_mask: self.snapped_content_mask(),
++            content_mask,
+             thickness: self.snap_stroke(style.thickness),
+             color: style.color.unwrap_or_default().opacity(opacity),
+             wavy: false.into(),
+@@ -7386,15 +7433,34 @@
+     };
+ 
+     use crate::{
+-        AnyWindowHandle, AppContext as _, Bounds, Context, DispatchPhase, DragMoveEvent, Empty,
+-        ExternalDragPayload, ExternalPaths, FileDragPaths, FileDropEvent, FocusHandle,
+-        InputEvent as _, InteractiveElement as _, IntoElement, LongPressEvent, MouseButton,
+-        MouseDownEvent, MouseMoveEvent, ParentElement, Pixels, Point, Render, RequestFrameOptions,
+-        StatefulInteractiveElement as _, Styled, TestAppContext, TouchDragEvent, TouchEvent,
+-        TouchId, TouchPhase, Window, WindowAppearance, WindowOptions, canvas, div, point, px, size,
++        canvas, div, point, px, size, AnyWindowHandle, AppContext as _, Bounds, ContentMask,
++        Context, Corners, DispatchPhase, DragMoveEvent, Empty, ExternalDragPayload, ExternalPaths,
++        FileDragPaths, FileDropEvent, FocusHandle, InputEvent as _, InteractiveElement as _,
++        IntoElement, LongPressEvent, MouseButton, MouseDownEvent, MouseMoveEvent, ParentElement,
++        Pixels, Point, Render, RequestFrameOptions, StatefulInteractiveElement as _, Styled,
++        TestAppContext, TouchDragEvent, TouchEvent, TouchId, TouchPhase, Window, WindowAppearance,
++        WindowOptions,
+     };
+ 
+     struct EmptyView;
++
++    #[test]
++    fn rounded_content_mask_intersection_keeps_the_original_curve() {
++        let outer = ContentMask {
++            bounds: Bounds::from_corners(point(px(0.), px(0.)), point(px(100.), px(100.))),
++            corner_radii: Corners::all(px(16.)),
++            ..Default::default()
++        };
++        let inset = ContentMask {
++            bounds: Bounds::from_corners(point(px(4.), px(4.)), point(px(96.), px(96.))),
++            ..Default::default()
++        };
++
++        let intersection = outer.intersect(&inset);
++        assert_eq!(intersection.bounds.origin, point(px(4.), px(4.)));
++        assert_eq!(intersection.rounded_clips[0].bounds, outer.bounds);
++        assert!(intersection.contains(point(px(4.5), px(8.5))));
++    }
+ 
+     impl Render for EmptyView {
+         fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
+@@ -7864,11 +7930,10 @@
+                 .to_platform_input(),
+                 cx,
+             );
+-            assert!(
+-                cx.active_drag
+-                    .as_ref()
+-                    .is_some_and(|drag| drag.value.downcast_ref::<ExternalPaths>().is_some())
+-            );
++            assert!(cx
++                .active_drag
++                .as_ref()
++                .is_some_and(|drag| drag.value.downcast_ref::<ExternalPaths>().is_some()));
+             window.dispatch_event(FileDropEvent::Exited.to_platform_input(), cx);
+             assert!(cx.active_drag.is_none());
+         });
+@@ -7886,11 +7951,10 @@
+                 .to_platform_input(),
+                 cx,
+             );
+-            assert!(
+-                cx.active_drag
+-                    .as_ref()
+-                    .is_some_and(|drag| drag.value.downcast_ref::<PathBuf>().is_some())
+-            );
++            assert!(cx
++                .active_drag
++                .as_ref()
++                .is_some_and(|drag| drag.value.downcast_ref::<PathBuf>().is_some()));
+             assert_eq!(
+                 successful.observed_drag_moves.borrow().last(),
+                 Some(&reentry_position)
+@@ -7907,11 +7971,10 @@
+                 .to_platform_input(),
+                 cx,
+             );
+-            assert!(
+-                cx.active_drag
+-                    .as_ref()
+-                    .is_some_and(|drag| drag.value.downcast_ref::<PathBuf>().is_some())
+-            );
++            assert!(cx
++                .active_drag
++                .as_ref()
++                .is_some_and(|drag| drag.value.downcast_ref::<PathBuf>().is_some()));
+ 
+             window.dispatch_event(
+                 FileDropEvent::Submit {
+@@ -7939,11 +8002,10 @@
+                 .to_platform_input(),
+                 cx,
+             );
+-            assert!(
+-                cx.active_drag
+-                    .as_ref()
+-                    .is_some_and(|drag| drag.value.downcast_ref::<ExternalPaths>().is_some())
+-            );
++            assert!(cx
++                .active_drag
++                .as_ref()
++                .is_some_and(|drag| drag.value.downcast_ref::<ExternalPaths>().is_some()));
+             window.dispatch_event(FileDropEvent::Exited.to_platform_input(), cx);
+         });
+         assert!(
+@@ -7973,11 +8035,10 @@
+                 .to_platform_input(),
+                 cx,
+             );
+-            assert!(
+-                cx.active_drag
+-                    .as_ref()
+-                    .is_some_and(|drag| drag.value.downcast_ref::<PathBuf>().is_some())
+-            );
++            assert!(cx
++                .active_drag
++                .as_ref()
++                .is_some_and(|drag| drag.value.downcast_ref::<PathBuf>().is_some()));
+             assert!(cx.stop_active_drag(window));
+             assert!(cx.active_drag.is_none());
+         });
