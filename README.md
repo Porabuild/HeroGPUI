@@ -133,7 +133,7 @@ HeroUI spelling wins, and GPUI's keep the `gpui::` path (`gpui::Size`).
 A desktop gallery ships with the library and documents every component:
 
 ```bash
-python3 .shots/gpui_patches.py --materialize  # once per clone, before any cargo command
+sh .shots/setup.sh              # once per clone, before any cargo command
 cargo run -p herogpui-gallery   # open the component gallery
 cargo install --path gallery --locked  # install the gallery CLI from this checkout
 ```
@@ -145,6 +145,13 @@ the pinned registry sources under the gitignored `.vendor/`, which
 it is not optional: without it cargo stops at `failed to load source for
 dependency` before it builds anything. Consumers of the published crates are
 unaffected -- this is a workspace-local development substitution.
+
+That line is the only manual step, and running it is what removes the need to
+run it again: it points `core.hooksPath` at the repository's `.githooks/`, and
+those hooks re-apply the patches after every checkout, pull, merge and rebase.
+It cannot be automated away entirely, because git deliberately never runs a
+repository's own hooks on `clone` -- so a brand-new clone runs it once, and
+nothing after that does.
 
 `HEROGPUI_PAGE` and `HEROGPUI_THEME` select the page and appearance;
 `HEROGPUI_WINDOW_SIZE` sets the window size.

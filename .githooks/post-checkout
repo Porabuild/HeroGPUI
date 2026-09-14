@@ -1,0 +1,13 @@
+#!/bin/sh
+# HeroGPUI: keep the gitignored `.vendor/` GPUI forks in step with the branch.
+#
+# Git passes <old-head> <new-head> <branch-flag>. A branch-flag of 0 is a
+# file-only checkout (`git checkout -- some/file`), which is not a tree move and
+# is not worth a hash sweep on every partial restore; a branch, tag or detached
+# checkout passes 1 and is exactly when `docs/upstream/patches/` can have
+# changed under us. `git clone` never reaches here, because git does not run a
+# repository's own hooks on clone -- see `.shots/setup.sh`.
+[ "${3:-1}" = "0" ] && exit 0
+root=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
+[ -f "$root/.shots/materialize.sh" ] || exit 0
+exec sh "$root/.shots/materialize.sh" --soft

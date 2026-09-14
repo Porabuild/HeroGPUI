@@ -36,6 +36,11 @@ if (Test-Path $exe) {
 # script exists to prevent, so it is dropped and re-pointed after the build.
 if ($exe -ne $launcher) { Remove-Item $launcher -Force -ErrorAction SilentlyContinue }
 
+# The patched GPUI sources are not checked in, and cargo resolves
+# `[patch.crates-io]` at manifest load, so nothing later can bootstrap them.
+# Warm runs are a hash comparison and print nothing.
+& (Join-Path $PSScriptRoot 'materialize.ps1')
+
 cargo build --workspace
 $code = $LASTEXITCODE
 Remove-Item $stale -Force -ErrorAction SilentlyContinue

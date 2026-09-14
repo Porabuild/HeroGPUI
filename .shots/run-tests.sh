@@ -39,8 +39,9 @@
 # Exit codes:
 #   0  PASS         -- every announced binary reported, all ok, cargo exited 0.
 #   1  FAILED       -- at least one `test result: FAILED` summary.
-#   2  NOTHING RAN  -- cargo announced no test binaries at all (build broke, or
-#                      the filter matched nothing). An empty run is not a pass.
+#   2  NOTHING RAN  -- cargo announced no test binaries at all (build broke, the
+#                      filter matched nothing, or `.vendor/` could not be built).
+#                      An empty run is not a pass.
 #   3  NO SUMMARY   -- fewer summaries than announced binaries; one died without
 #                      reporting. This is the gpuikit#180 shape.
 #   4  GREEN ABORT  -- all summaries ok but cargo exited non-zero; nothing failed
@@ -268,7 +269,7 @@ fi
 
 case "${1:-}" in
     -h | --help)
-        sed -n '2,49p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+        sed -n '2,50p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
         exit 0
         ;;
 esac
@@ -290,6 +291,19 @@ fi
 # A caller who genuinely wants to stop early passes `--fail-fast` and it wins,
 # because a later cargo argument overrides an earlier one.
 set -- --no-fail-fast "$@"
+
+# The patched GPUI sources are not in the tree: five `[patch.crates-io]` paths
+# point into the gitignored `.vendor/`, and cargo resolves them at manifest
+# load -- earlier than any build script, and out of reach of a cargo alias,
+# which cannot shadow a built-in command. A step in front of the cargo call is
+# the only place this can happen, so it happens here rather than in a sentence
+# in a README. A warm run is a hash comparison and prints nothing.
+if ! sh "$root/.shots/materialize.sh"; then
+    echo "VERDICT: NOTHING RAN -- the patched GPUI sources under .vendor/ could not be"
+    echo "  materialized, so cargo would have stopped at 'failed to load source for"
+    echo "  dependency' without building a single test binary. See the message above."
+    exit 2
+fi
 
 log=$(mktemp "${TMPDIR:-/tmp}/herogpui-tests.XXXXXX")
 trap 'rm -f "$log"' EXIT INT TERM

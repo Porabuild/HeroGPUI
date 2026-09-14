@@ -11,27 +11,50 @@ requirement or `[patch.crates-io]` silently stops applying; 0.3.1 and 0.3.2
 additionally must not be resolved, because `gpui-pre-macros` 0.3.1 breaks every
 `debug_assertions`-off build (see `RELEASING.md`).
 
-## Bootstrap the patched GPUI sources before any cargo command
+## Bootstrap the patched GPUI sources: one command per clone, then automatic
 
 Five of those packages are forked. The repository stores **only the patches**,
-under `docs/upstream/patches/`; the patched sources are not checked in. Before
-the first `cargo` command in a fresh clone — and before pointing
-rust-analyzer at it, because rust-analyzer runs `cargo metadata` — run:
+under `docs/upstream/patches/`; the patched sources are not checked in. Run this
+once in a fresh clone, before the first `cargo` command and before pointing
+rust-analyzer at the checkout, because rust-analyzer runs `cargo metadata`:
 
 ```sh
-python3 .shots/gpui_patches.py --materialize
+sh .shots/setup.sh
 ```
 
 That copies the pinned published packages out of cargo's registry cache into
 the gitignored `.vendor/` tree and applies each patch, exactly, with no fuzz and
-no offset. It is idempotent: a warm run is a hash comparison that finishes in
-well under a second, so it is safe to put in front of anything. Skipping it is
-not a soft failure — `[patch.crates-io]` names five paths that do not exist yet,
-and cargo aborts at manifest load with `failed to load source for dependency`.
+no offset — and it points `core.hooksPath` at the versioned `.githooks/`, which
+is what makes it the only time you have to think about this. From then on
+`post-checkout`, `post-merge` and `post-rewrite` re-materialize after every
+branch switch, `git pull`, merge and rebase, so `.vendor/` follows whatever
+`docs/upstream/patches/` says on the branch you are actually on. They print
+nothing when nothing changed, and a failure warns and exits 0 rather than
+wedging a checkout or a merge.
+
+`python3 .shots/gpui_patches.py --materialize` is still the underlying command,
+and it claims an unset `core.hooksPath` too, so whichever of the two you run is
+the last one you need; `--no-hook-setup` opts out, and a `core.hooksPath` you or
+your global config already set is never overwritten.
+
+Every entry point this repository owns materializes first as well —
+`.shots/run-tests.sh`, `.shots/lint.ps1`, `.shots/rebuild.ps1`,
+`.shots/smoke.ps1`, `.shots/refresh.ps1` and `.shots/native_capture.py` — and
+every CI job that touches cargo runs the step through
+`.github/actions/rust-env` or its own copy.
+
+The honest residual is that **first** run: git never executes a repository's own
+hooks on `clone`, by design, so nothing in the repository can act before someone
+does. Nor can anything else cover it — cargo resolves `[patch.crates-io]` at
+manifest load, before any build script, and a cargo alias cannot shadow a
+built-in command, so `cargo build` cannot be intercepted. A bare `cargo` in an
+unbootstrapped clone therefore still fails, and it fails loudly: `[patch.crates-io]`
+names five paths that do not exist yet, and cargo aborts at manifest load with
+`failed to load source for dependency`.
 `crates/herogpui-components/tests/rounded_clip_shaders.rs` also includes the
 renderer's own `shaders.rs` from `.vendor/` by `#[path]`, so even `cargo fmt
---all` fails without it. Every CI job that touches cargo runs the step first,
-through `.github/actions/rust-env` or its own copy.
+--all` fails without it. A warm run is a hash comparison that finishes in well
+under a second, which is why it is safe to put in front of anything.
 
 Use the pristine unpacked registry sources for API evidence —
 `~/.cargo/registry/src/index.crates.io-*/gpui-pre-0.3.3/` — and `.vendor/` when
