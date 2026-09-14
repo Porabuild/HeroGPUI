@@ -238,11 +238,12 @@ both ends of a track; inspect the corners at native and WASM scale rather than
 accepting a thumbnail that can hide a one-pixel leak.
 
 The pinned `gpui-pre` renderer has the rounded-clip behavior needed for this
-contract, but the workspace carries a small vendored fork. Any renderer change
-must be made in the versioned `crates/gpui_pre*` fork and regenerated into
-`docs/upstream/patches/gpui-pre-0.3.3*.patch` with `.shots/gpui_patches.py
---write`; `--check` must replay the patch against the published `=0.3.3`
-sources. Never edit the registry copy or rely on an unrecorded local change:
+contract, but the workspace carries a small fork of it, recorded only as
+patches. Any renderer change must be made in the materialized
+`.vendor/gpui-pre*-0.3.3` tree (`.shots/gpui_patches.py --materialize` builds
+it) and regenerated into `docs/upstream/patches/gpui-pre-0.3.3*.patch` with
+`.shots/gpui_patches.py --write`; `--check` must replay the patch against the
+published `=0.3.3` sources. Never edit the registry copy or rely on an unrecorded local change:
 the next GPUI release will replace that copy. When the pin changes, rebase the
 smallest possible patch, rerun the rounded-mask and focus-ring suites on every
 backend, and keep the old patch and evidence history until the new artifact is

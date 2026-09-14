@@ -212,8 +212,12 @@ No `RUSTUP_TOOLCHAIN` override: this builds on `rust-toolchain.toml`'s pinned
 stable. It used to need nightly, because `wasm_thread` — pulled in by the GPUI
 web platform's `multithreaded` feature — opens its `lib.rs` with
 `#![feature(stdarch_wasm_atomic_wait)]`, which stable rejects with
-`error[E0554]`. That feature is now off in `crates/gpui_web/Cargo.toml`'s
-`default` list (the only place it can be switched), and nothing was using it:
+`error[E0554]`. That feature is now off in the forked `gpui-pre-web` manifest's
+`default` list (the only place it can be switched) -- a `default = []` hunk in
+`docs/upstream/patches/gpui-pre-web-0.3.3.patch`, which
+`python3 .shots/gpui_patches.py --materialize` applies into
+`.vendor/gpui-pre-web-0.3.3/Cargo.toml` before the build. Run that command
+first; nothing here compiles without it. Nothing was using the feature:
 the app starts with `single_threaded_web()`, and web workers over shared wasm
 memory need a cross-origin-isolated context that GitHub Pages does not give.
 Never set a `RUSTFLAGS` environment variable for this build:

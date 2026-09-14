@@ -53,17 +53,6 @@ sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 
 SCAN_ROOT = 'crates'
 
-# These are exact-version gpui-pre source forks selected through the workspace
-# `[patch.crates-io]` block. Their rustdoc belongs to the external dependency;
-# the application fence contract is audited in HeroGPUI-owned crates below.
-EXTERNAL_GPUI_DIRS = {
-    'gpui_pre',
-    'gpui_pre_apple',
-    'gpui_pre_wgpu',
-    'gpui_pre_windows',
-    'gpui_web',
-}
-
 # (path relative to the repository root, why running it is not an option).
 # Every entry is asserted to still match a `no_run` fence in that file, so an
 # example that stops needing the exemption fails this audit until its entry
@@ -128,12 +117,11 @@ def rust_files(root):
     """Every `.rs` file under `root`, sorted, skipping build output."""
     found = []
     for base, dirs, names in os.walk(root):
-        dirs[:] = [
-            d for d in dirs
-            if d != 'target'
-            and not d.startswith('.')
-            and d not in EXTERNAL_GPUI_DIRS
-        ]
+        # The patched gpui-pre forks used to sit under `crates/` and had to be
+        # named here to keep an external dependency's rustdoc out of this
+        # contract. They are materialized into `.vendor/` now, which the
+        # dot-prefix rule already excludes -- and `SCAN_ROOT` does not reach it.
+        dirs[:] = [d for d in dirs if d != 'target' and not d.startswith('.')]
         for name in names:
             if name.endswith('.rs'):
                 found.append(os.path.join(base, name).replace(os.sep, '/'))

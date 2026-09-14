@@ -53,8 +53,8 @@ def main():
         if dependency.get("package") != packages[name]:
             errors.append(f"{name}: must rename the {packages[name]} package")
         # The pin is exact on purpose. `gpui-pre-platform` requires the rest of
-        # the family at an exact `=` version, and the vendored `gpui-pre-web`
-        # fork's own version has to satisfy that same requirement or
+        # the family at an exact `=` version, and the materialized
+        # `gpui-pre-web` fork's version has to satisfy that same requirement or
         # `[patch.crates-io]` stops applying with no error at all. A caret let a
         # bare `cargo update` walk off the pin once already.
         if not dependency.get("version", "").startswith("="):
@@ -66,9 +66,10 @@ def main():
     version = requirement.lstrip("=")
     locked = manifest(ROOT / "Cargo.lock")["package"]
     # The published family remains the dependency contract of every package,
-    # while the workspace's `[patch.crates-io]` block substitutes local,
-    # version-identical renderer forks during development. The lockfile is
-    # therefore intentionally path-resolved for the five patched members.
+    # while the workspace's `[patch.crates-io]` block substitutes the
+    # materialized, version-identical renderer forks from `.vendor/`. The
+    # lockfile is therefore intentionally path-resolved for the five patched
+    # members.
     patched_gpui = {
         "gpui-pre",
         "gpui-pre-apple",
@@ -92,24 +93,44 @@ def main():
     if any((entry.get("source") or "").startswith("git+") for entry in locked):
         errors.append("lockfile still contains a git source; the crates cannot be published")
 
-    # The vendored `gpui-pre-web` fork (`crates/gpui_web`) reaches the wasm32
-    # graph only through `[patch.crates-io]`, and cargo drops that override
-    # silently when the fork's version no longer satisfies what
-    # `gpui-pre-platform` asks for -- the fork's two `events.rs` hunks would
-    # just disappear from the browser build. Assert the version match and that
-    # the lock resolves the crate to the local path (no registry `source`).
-    fork = manifest(ROOT / "crates/gpui_web/Cargo.toml")["package"]
-    if version and fork.get("version") != version:
-        errors.append(
-            f"crates/gpui_web: vendored fork is {fork.get('version')!r}, "
-            f"not the pinned {version}; [patch.crates-io] will not apply"
-        )
+    # No fork source is checked in: the deviation is recorded as a patch under
+    # docs/upstream/patches/ and `.shots/gpui_patches.py --materialize` applies
+    # it to the pinned published source under the gitignored `.vendor/`. So the
+    # version agreement this audit guards is spelled in two committed places --
+    # the `[patch.crates-io]` path and the patch filename -- and both have to
+    # carry the pin. Cargo drops a `[patch.crates-io]` override silently when
+    # the substitute's version no longer satisfies what `gpui-pre-platform`
+    # asks for; the `gpui-pre-web` fork's two `events.rs` hunks and its
+    # `default = []` feature deviation would just disappear from the browser
+    # build, and nothing else would report it. `--check` verifies the patch
+    # content; this verifies the wiring, with no Rust build and no `.vendor/`
+    # tree, so it still runs in the parity job.
+    overrides = workspace.get("patch", {}).get("crates-io", {})
+    for name in sorted(patched_gpui):
+        entry = overrides.get(name)
+        if not isinstance(entry, dict) or not entry.get("path"):
+            errors.append(f"{name}: no [patch.crates-io] path override")
+            continue
+        if entry.get("git"):
+            errors.append(f"{name}: [patch.crates-io] must not use a git source")
+        expected_path = f".vendor/{name}-{version}"
+        if version and entry["path"] != expected_path:
+            errors.append(
+                f"{name}: [patch.crates-io] path is {entry['path']!r}, not {expected_path!r}; "
+                "the override would apply the wrong version or none at all"
+            )
+        patch_file = ROOT / "docs/upstream/patches" / f"{name}-{version}.patch"
+        if version and not patch_file.is_file():
+            errors.append(
+                f"{name}: docs/upstream/patches/{name}-{version}.patch is missing; "
+                "nothing can materialize the fork"
+            )
     web_entries = [entry for entry in locked if entry["name"] == "gpui-pre-web"]
     if len(web_entries) != 1:
         errors.append("gpui-pre-web: lockfile does not resolve to exactly one version")
     elif web_entries[0].get("source"):
         errors.append(
-            "gpui-pre-web: lockfile carries a source, so the vendored fork is not patched in"
+            "gpui-pre-web: lockfile carries a source, so the materialized fork is not patched in"
         )
     elif version and web_entries[0].get("version") != version:
         errors.append(f"gpui-pre-web: lockfile version is not the pinned {version}")

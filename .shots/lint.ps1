@@ -14,11 +14,10 @@ $root = Split-Path -Parent $PSScriptRoot
 Push-Location $root
 try {
     # 1. Every member crate must opt in, or the policy is not what it looks like.
-    # Exclude vendored crates that form their own workspace roots (the GPUI
-    # forks); they keep upstream's lint configuration, not this workspace's.
-    $vendored = @('gpui_web', 'gpui_pre', 'gpui_pre_apple', 'gpui_pre_wgpu', 'gpui_pre_windows')
+    # Only HeroGPUI's own crates live under crates/ now: the patched GPUI
+    # forks are materialized into .vendor/, keep upstream's lint
+    # configuration, and are never walked here.
     $members = Get-ChildItem -Path (Join-Path $root 'crates') -Directory |
-        Where-Object { $_.Name -notin $vendored } |
         ForEach-Object { Join-Path $_.FullName 'Cargo.toml' }
     $members += (Join-Path $root 'gallery/Cargo.toml')
 

@@ -8,18 +8,38 @@ git revision: cargo refuses to publish any crate that carries a git dependency,
 so every `cargo publish` below would have failed outright. GPUI now comes from
 the published `gpui-pre` crates named in `[workspace.dependencies]`, and
 that registry dependency is what makes the steps below executable. Reintroducing
-a git dependency anywhere in the workspace re-breaks publishing.
+a git dependency anywhere in the workspace re-breaks publishing. The five
+`[patch.crates-io]` overrides are deliberately `path` entries into `.vendor/`
+for that reason, and must stay `path` entries: a `git` override would put a git
+dependency back in the graph and make every crate below unpublishable again.
+
+## Materialize the patched GPUI sources first
+
+No step in this document works in a fresh clone until the patched GPUI sources
+exist. The repository carries only the patches, under `docs/upstream/patches/`,
+and `[patch.crates-io]` points at five `.vendor/` paths that are gitignored:
+
+```sh
+python3 .shots/gpui_patches.py --materialize
+```
+
+Without it, cargo stops at manifest load with `failed to load source for
+dependency` — `cargo package`, `cargo publish` and `cargo publish --dry-run`
+included. It is idempotent, so run it whenever in doubt. `.vendor/` is a build
+input, never a release artifact: the published crates depend on the registry
+`gpui-pre` family, and the patch overrides are a workspace-local development
+substitution that `cargo publish` does not carry into a `.crate`.
 
 ## Why the GPUI pin is exact
 
 `[workspace.dependencies]` pins `gpui-pre` and `gpui-pre-platform` at
-`=0.3.3`, and the vendored `gpui-pre-web` fork in `crates/gpui_web` carries the
-same version. Do not relax either to a caret. `gpui-pre-platform` requires the
-rest of the family at an exact `=` version of its own, so the caret bought no
-flexibility while letting a bare `cargo update` walk the workspace onto a
-version the fork no longer matched — at which point `[patch.crates-io]` stops
-applying with no error and the fork's `events.rs` hunks silently leave the
-browser build.
+`=0.3.3`, and the recorded `gpui-pre-web` patch carries the same version in its
+filename and in the `[patch.crates-io]` path it materializes to. Do not relax
+either to a caret. `gpui-pre-platform` requires the rest of the family at an
+exact `=` version of its own, so the caret bought no flexibility while letting a
+bare `cargo update` walk the workspace onto a version the fork no longer matched
+— at which point `[patch.crates-io]` stops applying with no error and the fork's
+`events.rs` hunks silently leave the browser build.
 
 0.3.1 and 0.3.2 must not be resolved. `gpui-pre-macros` 0.3.1 leaves the inner
 `__gpui_pre_derive_inspector_reflection` helper ungated while its body calls
@@ -56,7 +76,8 @@ credentials and none of these steps are required.
 
 1. Update `[workspace.package].version` and all four version requirements
    under `[workspace.dependencies]` to the same SemVer value.
-2. Run the complete local gate from `AGENTS.md`, plus:
+2. Run the complete local gate from `AGENTS.md` (which starts with the
+   materialization above), plus:
 
    ```powershell
    cargo package -p herogpui-core --allow-dirty --no-verify --list

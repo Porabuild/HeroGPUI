@@ -52,7 +52,13 @@ instead of leaving compatibility aliases, no-op builders, or speculative flags.
   `gallery/src/pages/components/`; checked-in v3.2.5 API metadata lives in
   `gallery/src/pages/reference_metadata/`.
 - `.shots` contains parity audits, headless gallery drivers, reference images,
-  and the real lint gate.
+  the real lint gate, and `gpui_patches.py`, which materializes the patched
+  GPUI sources into `.vendor/`.
+- `.vendor/` is generated and gitignored: the five forked `gpui-pre*` packages,
+  built from the pinned registry sources plus `docs/upstream/patches/*.patch`
+  by `python3 .shots/gpui_patches.py --materialize`. Run that before any cargo
+  command in a fresh clone -- cargo aborts at manifest load without it -- and
+  never commit or hand-edit its contents; re-record with `--write` instead.
 - `llms.txt` is the public API reference intended for LLM consumers.
 
 ## Source hierarchy
@@ -108,7 +114,9 @@ replace ordinary test commands with watch mode.
 
 ## CI-shaped verification
 
-`.github/workflows/ci.yml` is authoritative. Its jobs cover:
+`.github/workflows/ci.yml` is authoritative. Every job that runs cargo first
+runs `python .shots/gpui_patches.py --materialize`, through
+`.github/actions/rust-env` or its own copy of the step. Its jobs cover:
 
 - Formatting, generated gallery/WASM freshness, and website typecheck, lint
   and production build.
