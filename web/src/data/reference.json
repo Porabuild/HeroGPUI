@@ -10361,9 +10361,9 @@
       },
       {
         "token": ".input-otp__slot transitions",
-        "description": "Animated slot-state interpolation.",
-        "rust": "instant hover/focus/invalid swaps",
-        "status": "partial"
+        "description": "Slot fill, border color and focus ring interpolate between their state endpoints on the pinned curves; an interrupted flip resumes from the painted frame and reduced motion snaps.",
+        "rust": "anim::field_chrome_ramp per slot (Tween bg/border 150ms Smooth + ring 150ms Out)",
+        "status": "implemented"
       },
       {
         "token": ".input-otp__slot:hover",
@@ -11325,9 +11325,9 @@
       },
       {
         "token": ".tabs__tab",
-        "description": "A released min-content label slot preserves normal whitespace so constrained tabs wrap instead of widening or overlapping siblings; the port grows the tab above the fixed 32px floor when multiple lines need room.",
-        "rust": "32px minimum + 16px padding + control_radius + 14px medium text; min_w(0) + whitespace_normal + h_auto when constrained",
-        "status": "partial"
+        "description": "The pinned fixed 32px box is matched exactly: the stylesheet ships no truncate, nowrap or overflow utility on the tab, so a constrained label wraps and its overflow lines paint past the pill the way the default overflow does instead of growing the tab. Those lines stay pointer-inert in the port, while browser hit testing follows painted text.",
+        "rust": "fixed h(32px) + 16px padding + control_radius + 14px medium text; min_w(0) + whitespace_normal label slot",
+        "status": "implemented"
       },
       {
         "token": ".tabs__tab transitions",
@@ -14000,9 +14000,9 @@
       },
       {
         "token": ".number-field__group transitions",
-        "description": "The hover background now interpolates through the pinned 150ms ease-smooth curve; focus, border and shadow endpoints remain direct because GPUI has no property-transition primitive for those layers.",
-        "rust": "anim::hover_fade_with_duration_and_easing(150ms, EaseSmooth) + apply_field_chrome",
-        "status": "partial"
+        "description": "Hover, focus and invalid chrome all interpolate between their endpoints: fill and border color ride the pinned smooth curve and the focus/invalid ring rides ease-out, keyed per group, resuming from the painted frame and snapping under reduced motion.",
+        "rust": "anim::field_chrome_ramp (Tween bg/border 150ms Smooth + ring 150ms Out) over the shared field-chrome endpoints",
+        "status": "implemented"
       },
       {
         "token": ".number-field__input",
@@ -19494,8 +19494,8 @@
     "styling": [
       {
         "token": ".select__clear-button",
-        "description": "The default visual and glyph shrink on press, with a stable expanded target. Empty controls retain layout, hide immediately and stop intercepting input. Custom child scaling and pressed target shrink remain partial.",
-        "rust": "SelectClearButton + clear slots + Tween opacity",
+        "description": "The pressed scale(0.93) covers the whole control: the visual, glyph and expanded pointer target shrink about the shared center (24px * 0.93) and restore on release, as CSS transform hit testing rescales the target without touching layout. Empty controls retain layout, hide immediately and stop intercepting input. Custom child scaling stays a platform limit: gpui-pre 0.3.3 exposes paint transforms only on Svg (Svg::with_transformation), so a composed child subtree cannot scale with the press.",
+        "rust": "SelectClearButton + clear slots + Tween opacity + pressed target inset",
         "status": "partial"
       },
       {
@@ -21200,7 +21200,7 @@
       {
         "name": "Table.Content",
         "slot": "table-content",
-        "description": "Flex column standing in for the HTML table; border-separate table layout is not reproduced.",
+        "description": "Flex column standing in for the HTML table: one measured track triple per column is shared by the header cells, their wrappers and every body row, so a table narrower than its columns overflows the scroll container as one grid. CSS border-separate spacing and the wasm32 measurement path remain out of reach.",
         "rustOwner": "Table",
         "status": "partial"
       },
@@ -21395,8 +21395,8 @@
       },
       {
         "token": ".table__content",
-        "description": "14px type and 20px line height match. The port keeps a flex column, but measured intrinsic minima now feed every header/body row so long content shares one column track; CSS table-specific border-spacing remains unavailable.",
-        "rust": "min_w_full flex_col + measured intrinsic min_w tracks + text_size(px(14.)) line_height(px(20.))",
+        "description": "14px type and 20px line height match. The port keeps a flex column, but one measured track triple per column — explicit width, else flex floored by the widest cell across the header and every row — feeds the header cells, their sortable and resizable wrappers, and every body row alike, so a table narrower than its columns keeps one track set and overflows the scroll container as one grid instead of staggering. Residual: CSS border-separate/border-spacing spacing is not reproduced, and the wasm32 build keeps flex tracks fluid because intrinsic measurement is native-only, so a narrow web table can still resolve tracks per row.",
+        "rust": "min_w_full flex_col + one measured min_w track triple shared by header cells, header wrappers and RowCtx rows + overflow past the scroll-x viewport + text_size(px(14.)) line_height(px(20.))",
         "status": "partial"
       },
       {

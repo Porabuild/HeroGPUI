@@ -1646,12 +1646,19 @@ impl RenderOnce for Select {
             // 24px pointer target independent.
             // Only the target owns listeners; the animated visual never changes
             // their element-id path during a press or an opacity transition.
+            // `&:active, &[data-pressed="true"]` applies
+            // `transform: scale(0.93)` to the whole control about its center,
+            // and CSS transforms rescale hit testing without touching layout,
+            // so the absolute target tracks the same centered box — 24px at
+            // rest, 22.32px inset by 1.16px while the press lasts.
+            let target_size = px(24. * scale);
+            let target_inset = px((20. - 24. * scale) / 2.);
             let mut target = gpui::div()
                 .id(id.clone())
                 .absolute()
-                .left(px(-2.))
-                .top(px(-2.))
-                .size(px(24.))
+                .left(target_inset)
+                .top(target_inset)
+                .size(target_size)
                 .flex()
                 .items_center()
                 .justify_center()

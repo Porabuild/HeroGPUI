@@ -55,6 +55,370 @@ fn table_body_rows_share_intrinsic_column_tracks_with_the_header(cx: &mut TestAp
     assert_eq!(first_row.origin.x, second_row.origin.x);
 }
 
+/// Upstream draws one `border-separate` table, so the header's `<th>` cells
+/// define tracks that every body row shares. A table narrower than its
+/// columns must therefore keep one track set — the grid overflows the
+/// viewport and the scroll container slides the whole grid — instead of
+/// letting each row resolve its own tracks and stagger against the header.
+#[gpui::test]
+fn a_table_narrower_than_its_columns_keeps_one_track_set_across_header_and_rows(
+    cx: &mut TestAppContext,
+) {
+    let cx = open_host(cx, || {
+        gpui::div()
+            .w(px(320.))
+            .child(
+                Table::new(vec!["First".into(), "Second".into(), "Third".into()])
+                    .id("table-narrow")
+                    .row(vec![
+                        gpui::div().w(px(200.)).child("wide-one").into_any_element(),
+                        gpui::div().w(px(150.)).child("wide-two").into_any_element(),
+                        gpui::div()
+                            .w(px(120.))
+                            .child("wide-three")
+                            .into_any_element(),
+                    ])
+                    .row(vec![
+                        gpui::div().child("narrow").into_any_element(),
+                        gpui::div().child("cells").into_any_element(),
+                        gpui::div().child("here").into_any_element(),
+                    ]),
+            )
+            .into_any_element()
+    });
+    // The first pass records the widest cell per column; the next passes lay
+    // every row out against those shared minima.
+    for _ in 0..3 {
+        flush_frame(cx);
+    }
+    let mut header_tracks = Vec::new();
+    let mut row_tracks = Vec::new();
+    for column in 0..3 {
+        let header_selector: &'static str =
+            Box::leak(format!("table-header-track-{column}").into_boxed_str());
+        let first_selector: &'static str =
+            Box::leak(format!("table-row-track-0-{column}").into_boxed_str());
+        let second_selector: &'static str =
+            Box::leak(format!("table-row-track-1-{column}").into_boxed_str());
+        let header = cx
+            .debug_bounds(header_selector)
+            .unwrap_or_else(|| panic!("header track {column} paints"));
+        let first = cx
+            .debug_bounds(first_selector)
+            .unwrap_or_else(|| panic!("first row's track {column} paints"));
+        let second = cx
+            .debug_bounds(second_selector)
+            .unwrap_or_else(|| panic!("second row's track {column} paints"));
+        assert_eq!(
+            header.origin.x, first.origin.x,
+            "column {column}: header and first body row must share a track origin"
+        );
+        assert_eq!(
+            first.origin.x, second.origin.x,
+            "column {column}: body rows must share a track origin"
+        );
+        assert_eq!(
+            header.size.width, first.size.width,
+            "column {column}: header and body must share a track width"
+        );
+        assert_eq!(
+            first.size.width, second.size.width,
+            "column {column}: body rows must share a track width"
+        );
+        header_tracks.push(header);
+        row_tracks.push(first);
+    }
+    // The columns' natural widths (232 + 182 + 152 with padding) exceed the
+    // 320px viewport, so the whole grid must overflow it and scroll together
+    // rather than squeeze into it.
+    let grid_right = header_tracks[2].origin.x + header_tracks[2].size.width;
+    assert!(
+        grid_right > px(320.),
+        "a narrow table must overflow its viewport so the scroller moves the \
+         whole grid; last track ends at {grid_right}"
+    );
+    assert_eq!(
+        row_tracks[1].origin.x - row_tracks[0].origin.x,
+        header_tracks[1].origin.x - header_tracks[0].origin.x,
+        "the first track's width must agree between header and body"
+    );
+}
+
+/// The shared-track contract must also hold on a sortable narrow table, where
+/// each header cell is `w_full` inside a flexible wrapper: the wrapper, not
+/// the per-row flex resolution, has to carry the column's measured minimum so
+/// the header still lands on the body's tracks.
+#[gpui::test]
+fn a_narrow_sortable_table_keeps_one_track_set_across_header_and_rows(cx: &mut TestAppContext) {
+    let cx = open_host(cx, || {
+        gpui::div()
+            .w(px(320.))
+            .child(
+                Table::new(vec![])
+                    .id("table-narrow-sortable")
+                    .column(TableColumn::new("First").allows_sorting(true))
+                    .column(TableColumn::new("Second").allows_sorting(true))
+                    .column(TableColumn::new("Third").allows_sorting(true))
+                    .on_sort_change(|_, _, _| {})
+                    .row(vec![
+                        gpui::div().w(px(220.)).child("wide-one").into_any_element(),
+                        gpui::div().w(px(140.)).child("wide-two").into_any_element(),
+                        gpui::div()
+                            .w(px(100.))
+                            .child("wide-three")
+                            .into_any_element(),
+                    ])
+                    .row(vec![
+                        gpui::div().child("narrow").into_any_element(),
+                        gpui::div().child("cells").into_any_element(),
+                        gpui::div().child("here").into_any_element(),
+                    ]),
+            )
+            .into_any_element()
+    });
+    for _ in 0..3 {
+        flush_frame(cx);
+    }
+    for column in 0..3 {
+        let header_selector: &'static str =
+            Box::leak(format!("table-header-track-{column}").into_boxed_str());
+        let body_selector: &'static str =
+            Box::leak(format!("table-row-track-0-{column}").into_boxed_str());
+        let header = cx
+            .debug_bounds(header_selector)
+            .unwrap_or_else(|| panic!("header track {column} paints"));
+        let body = cx
+            .debug_bounds(body_selector)
+            .unwrap_or_else(|| panic!("body track {column} paints"));
+        assert_eq!(
+            header.origin.x, body.origin.x,
+            "sortable column {column}: header and body must share a track origin"
+        );
+        assert_eq!(
+            header.size.width, body.size.width,
+            "sortable column {column}: header and body must share a track width"
+        );
+    }
+}
+
+/// A sortable wrapper must carry the column's explicit width: upstream's
+/// `<th>` honors `width` on a sortable column, so the header track cannot
+/// become an equal share of the leftover space while the body keeps the named
+/// width.
+#[gpui::test]
+fn a_sortable_explicit_width_column_gives_the_header_the_body_track(cx: &mut TestAppContext) {
+    let cx = open_host(cx, || {
+        gpui::div()
+            .w(px(800.))
+            .child(
+                Table::new(vec![])
+                    .id("table-sortable-widths")
+                    .column(
+                        TableColumn::new("First")
+                            .allows_sorting(true)
+                            .default_width(px(232.)),
+                    )
+                    .column(
+                        TableColumn::new("Second")
+                            .allows_sorting(true)
+                            .default_width(px(182.)),
+                    )
+                    .on_sort_change(|_, _, _| {})
+                    .row(vec![
+                        gpui::div().child("a").into_any_element(),
+                        gpui::div().child("b").into_any_element(),
+                    ]),
+            )
+            .into_any_element()
+    });
+    for _ in 0..3 {
+        flush_frame(cx);
+    }
+    let mut body_origins = Vec::new();
+    for column in 0..2 {
+        let header_selector: &'static str =
+            Box::leak(format!("table-header-track-{column}").into_boxed_str());
+        let body_selector: &'static str =
+            Box::leak(format!("table-row-track-0-{column}").into_boxed_str());
+        let header = cx
+            .debug_bounds(header_selector)
+            .unwrap_or_else(|| panic!("header track {column} paints"));
+        let body = cx
+            .debug_bounds(body_selector)
+            .unwrap_or_else(|| panic!("body track {column} paints"));
+        assert_eq!(
+            header.size.width, body.size.width,
+            "sortable column {column}: the header must keep the column width"
+        );
+        assert_eq!(
+            header.origin.x, body.origin.x,
+            "sortable column {column}: header and body must share a track origin"
+        );
+        body_origins.push(body.origin.x);
+    }
+    assert_eq!(body_origins[1] - body_origins[0], px(232.));
+}
+
+/// The windowed body draws the same `RowCtx` rows a short table does, so a
+/// narrow virtual table must share the header's track set exactly like the
+/// plain path.
+#[gpui::test]
+fn a_narrow_virtual_table_keeps_one_track_set_across_header_and_rows(cx: &mut TestAppContext) {
+    let cx = open_host(cx, || {
+        gpui::div()
+            .w(px(320.))
+            .child(
+                Table::new(vec!["First".into(), "Second".into()])
+                    .id("table-narrow-virtual")
+                    .row_height(px(44.))
+                    .max_h(px(120.))
+                    .virtual_rows(
+                        20,
+                        "narrow-virtual-rows",
+                        |i| SharedString::from(i.to_string()),
+                        |_| {
+                            TableRow::new(vec![
+                                gpui::div().w(px(300.)).child("wide-one").into_any_element(),
+                                gpui::div().w(px(200.)).child("wide-two").into_any_element(),
+                            ])
+                        },
+                    ),
+            )
+            .into_any_element()
+    });
+    for _ in 0..4 {
+        flush_frame(cx);
+    }
+    for column in 0..2 {
+        let header_selector: &'static str =
+            Box::leak(format!("table-header-track-{column}").into_boxed_str());
+        let header = cx
+            .debug_bounds(header_selector)
+            .unwrap_or_else(|| panic!("header track {column} paints"));
+        let body_widths = [0, 1]
+            .iter()
+            .map(|row| {
+                let selector: &'static str =
+                    Box::leak(format!("table-row-track-{row}-{column}").into_boxed_str());
+                cx.debug_bounds(selector)
+                    .unwrap_or_else(|| panic!("virtual row {row} track {column} paints"))
+            })
+            .collect::<Vec<_>>();
+        for (row, body) in body_widths.iter().enumerate() {
+            assert_eq!(
+                header.origin.x, body.origin.x,
+                "virtual row {row} column {column}: header and body must share a track origin"
+            );
+            assert_eq!(
+                header.size.width, body.size.width,
+                "virtual row {row} column {column}: header and body must share a track width"
+            );
+        }
+    }
+}
+
+/// A table narrower than its columns must not squeeze into the viewport: the
+/// scroll container keeps the viewport width while the shared grid extends
+/// past it, which is the overflow `overflow-x-auto` scrolls together.
+#[gpui::test]
+fn a_narrow_table_overflows_its_scroll_viewport_instead_of_squeezing(cx: &mut TestAppContext) {
+    let cx = open_host(cx, || {
+        gpui::div()
+            .w(px(320.))
+            .child(
+                Table::new(vec!["First".into(), "Second".into()])
+                    .id("table-narrow-scroll")
+                    .row(vec![
+                        gpui::div().w(px(280.)).child("wide-one").into_any_element(),
+                        gpui::div().w(px(240.)).child("wide-two").into_any_element(),
+                    ]),
+            )
+            .into_any_element()
+    });
+    for _ in 0..3 {
+        flush_frame(cx);
+    }
+    let viewport = cx
+        .debug_bounds("table-narrow-scroll-scroll-x")
+        .expect("the scroll viewport paints");
+    assert!(
+        viewport.size.width <= px(321.),
+        "the scroll viewport must stay at the table box width, not follow the \
+         grid; got {:?}",
+        viewport.size.width
+    );
+    let last = cx
+        .debug_bounds("table-header-track-1")
+        .expect("the last header track paints");
+    let grid_right = last.origin.x + last.size.width;
+    assert!(
+        grid_right > viewport.right(),
+        "the shared grid must extend past the scroll viewport so the whole \
+         grid scrolls; grid ends at {grid_right}, viewport at {:?}",
+        viewport.right()
+    );
+}
+
+/// Selection must survive the narrow layout: the keyboard cursor still walks
+/// the rows and Enter still selects through the scroller's overflow.
+#[gpui::test]
+fn a_narrow_table_still_walks_and_selects_rows_with_the_keyboard(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        Table::new(vec!["First".into(), "Second".into()])
+            .id("table-narrow-select")
+            .selection_mode(SelectionMode::Single)
+            .keyed_row(
+                "alpha",
+                vec![
+                    gpui::div().w(px(280.)).child("wide-one").into_any_element(),
+                    gpui::div().w(px(240.)).child("wide-two").into_any_element(),
+                ],
+            )
+            .keyed_row(
+                "beta",
+                vec![
+                    gpui::div().child("narrow").into_any_element(),
+                    gpui::div().child("cells").into_any_element(),
+                ],
+            )
+            .on_selection_change(move |keys, _, _| {
+                recorded.borrow_mut().push(
+                    keys.iter()
+                        .map(ToString::to_string)
+                        .collect::<Vec<_>>()
+                        .join(","),
+                );
+            })
+            .into_any_element()
+    });
+    for _ in 0..3 {
+        flush_frame(cx);
+    }
+    // The tracks must still be shared while the keyboard work happens.
+    let header = cx
+        .debug_bounds("table-header-track-1")
+        .expect("the header track paints");
+    let body = cx
+        .debug_bounds("table-row-track-0-1")
+        .expect("the body track paints");
+    assert_eq!(header.origin.x, body.origin.x);
+
+    press(cx, "tab");
+    press(cx, "down");
+    press(cx, "enter");
+    flush_frame(cx);
+    press(cx, "down");
+    press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["alpha", "beta"],
+        "the narrow table must walk to and select the second row"
+    );
+}
+
 /// HeroUI's tree-column rule replaces the normal start padding with one rem
 /// for each 1-based row level. A deep tree must therefore advance by one 16px
 /// step per level; the old `12 + 20 * depth` approximation drifted four pixels

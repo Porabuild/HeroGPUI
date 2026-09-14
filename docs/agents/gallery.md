@@ -74,6 +74,13 @@ raises the gallery, and can interrupt the user.
 .shots/capture2.ps1 -PageList Tooltip -HoverX 455 -HoverY 544
 ```
 
+On macOS, where the `PrintWindow` and posted-input drivers above do not run,
+[`native_capture.py`](../../.shots/native_capture.py) is the host-specific
+driver with the same control-file semantics: it captures the window with
+`screencapture -l<window-id>` and injects no input. Its prerequisites,
+permission notes, and the mapping to the PowerShell drivers are in
+[`native_capture.md`](../../.shots/native_capture.md).
+
 ## Deep links and environment controls
 
 - `HEROGPUI_PAGE` selects a route.

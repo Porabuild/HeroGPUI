@@ -799,9 +799,12 @@ fn tabs_vertical_panel_is_to_the_right_of_the_list(cx: &mut TestAppContext) {
 /// A constrained vertical Tabs list must release its intrinsic min-content
 /// width so long labels wrap inside the available tab column, as the pinned
 /// `.tabs__tab { width: 100% }` layout does. The panel stays beside the list;
-/// it must not be pushed off-screen by one unbroken label.
+/// it must not be pushed off-screen by one unbroken label. The tab itself
+/// keeps the pinned fixed `h-8` box: upstream ships no truncate, nowrap or
+/// overflow utility on `.tabs__tab`, so the wrapped lines paint past the pill
+/// instead of growing it.
 #[gpui::test]
-fn tabs_vertical_labels_wrap_inside_a_constrained_root(cx: &mut TestAppContext) {
+fn tabs_vertical_labels_wrap_inside_the_pinned_fixed_height(cx: &mut TestAppContext) {
     let cx = open_host(cx, move || {
         gpui::div()
             .w(px(320.))
@@ -832,9 +835,10 @@ fn tabs_vertical_labels_wrap_inside_a_constrained_root(cx: &mut TestAppContext) 
     let indicator = cx
         .debug_bounds("Name(\"tb-vertical-wrap\")-indicator")
         .expect("the selected vertical tab indicator must be painted");
-    assert!(
-        indicator.size.height > px(32.),
-        "a long constrained vertical label must wrap and grow its tab, got {indicator:?}"
+    assert_eq!(
+        indicator.size.height,
+        px(32.),
+        "a wrapping label must keep the pinned fixed-height tab, got {indicator:?}"
     );
     assert!(
         indicator.size.width < px(260.),

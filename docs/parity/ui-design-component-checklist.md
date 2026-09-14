@@ -1008,7 +1008,7 @@ Use the component-specific lists below for selection, backdrop, scroll, time/dat
 
 **Required state and transition cases:** Unselected/selected/hovered/focus-visible/disabled, selection/panel switch, dynamic tab removal, overflow start/middle/end, narrow resize and rapid indicator reversal. Test pointer and keyboard selection while preserving the chosen focus-modality rule.
 
-**Review and implementation work:** Keep the implemented align API and evidence; constrained vertical label wrapping now releases only the list cross-axis min-content floor and grows tabs above the 32px floor when needed. Complete edge fades/chevron feedback and state/indicator interpolation. Verify nested alignment isolation, correct selected-panel sizing and scroll limits; do not mark the entire component complete from the alignment demo.
+**Review and implementation work:** Keep the implemented align API and evidence; constrained vertical label wrapping now matches the pinned 32px tab box, with overflow wrap painting past the pill. Complete remaining state/indicator interpolation. Verify nested alignment isolation, correct selected-panel sizing and scroll limits; do not mark the entire component complete from the alignment demo.
 
 - **Anatomy to account for:** `Tabs`, `Tabs.ListContainer`, `Tabs.List`, `Tabs.Tab`, `Tabs.Separator`, `Tabs.Indicator`, `Tabs.Panel`.
 - **Current metadata axes to reconcile:** `Tabs.align` = "start" | "center" | "end" (default: "center"); `Tabs.variant` = "primary" | "secondary" (default: "primary"); `Tabs.orientation` = "horizontal" | "vertical" (default: "horizontal").

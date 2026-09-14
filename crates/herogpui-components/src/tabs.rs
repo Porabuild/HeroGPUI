@@ -893,6 +893,10 @@ impl RenderOnce for Tabs {
             .absolute()
             .inset_0()
         };
+        // A constrained label slot releases its min-content width so normal
+        // whitespace wraps inside the tab share; the tab keeps its fixed
+        // `h-8` box and the wrapped lines paint past it like the stylesheet's
+        // default overflow.
         let label_constrained = vertical || stretch;
         let tab_label = move |label: SharedString| {
             gpui::div()
@@ -927,13 +931,15 @@ impl RenderOnce for Tabs {
                         .relative()
                         .when(!disabled && focused, |t| t.track_focus(&list_focus))
                         // `.tabs__tab` is `h-8 px-4 rounded-3xl text-sm
-                        // font-medium`.
+                        // font-medium` — `h-8` is a fixed box, not a floor.
+                        // Upstream ships no truncate, nowrap or overflow
+                        // utility on the tab, so a wrapped label keeps its
+                        // extra lines and paints them past the pill the way
+                        // CSS `overflow: visible` does; gpui paints every
+                        // wrapped line too, giving the same rendering. Those
+                        // lines stay pointer-inert here, while a browser
+                        // hit-tests painted text as the tab.
                         .h(tab_h)
-                        // The v3 box is a 32px floor. When a caller constrains
-                        // a tab share enough for normal whitespace to wrap,
-                        // let the label determine the extra height so lines
-                        // stay inside the tab and never paint over siblings.
-                        .when(label_constrained, |t| t.h_auto().min_h(tab_h))
                         .px(tab_padding_x)
                         .when(vertical, |t| t.w_full().min_w(VERTICAL_TAB_MIN_WIDTH))
                         // Stretched tabs take an equal share: `flex_1` zeroes
@@ -1140,10 +1146,11 @@ impl RenderOnce for Tabs {
                         .a11y_selected(active)
                         .relative()
                         .when(!disabled && focused, |t| t.track_focus(&list_focus))
-                        // The same `h-8 px-4 text-sm` box, `rounded-none`, with
-                        // the indicator as a 2px bar along the bottom.
+                        // The same fixed `h-8 px-4 text-sm` box,
+                        // `rounded-none`, with the indicator as a 2px bar
+                        // along the bottom; wrapped label lines paint past it
+                        // as in the primary variant.
                         .h(tab_h)
-                        .when(label_constrained, |t| t.h_auto().min_h(tab_h))
                         .px(tab_padding_x)
                         .when(vertical, |t| t.w_full().min_w(VERTICAL_TAB_MIN_WIDTH))
                         // Stretched tabs take an equal share: `flex_1` zeroes

@@ -2,7 +2,7 @@
 
 Target: HeroUI React v3.2.5 at `5f13f6ed355bdbd5d5f69e5944685438a3591793`.
 Starting HeroGPUI commit: `cdc93ba4d4686c68cc6e4a2e1923b6c36ddb2127`.
-Updated 2026-09-13. The [plan](ui-design-plan.md) and
+Updated 2026-09-14. The [plan](ui-design-plan.md) and
 [component checklist](ui-design-component-checklist.md) remain the full scope.
 
 ## Current frontier
@@ -62,7 +62,53 @@ and web harness limits visible. Refresh it with
 `.shots/coverage_report.py --refresh` and use `--check` in CI; it does not
 claim parity from the current unreviewed section seeds.
 
+The 2026-09-14 implementation wave is source-frozen. Named goal-item-2 gaps
+are closed or recorded: InputOTP slot chrome and NumberField group chrome
+interpolate on the pinned 150ms field-chrome ramps; Tabs match the fixed
+32px tab box, with overflow wrap painting past the pill; Table narrow width
+shares one measured track triple on native GPUI while wasm32 stays fluid
+(documented Partial); Select clear pressed-target scaling is implemented
+and custom-child subtree scaling remains `platform-limited` (gpui-pre 0.3.3
+Svg-only transforms). A macOS native capture driver
+(`.shots/native_capture.py`) landed with a Button Usage pilot set under
+[native-button-usage](evidence/native-button-usage/). Gallery metadata
+tests, extract checks, inventory/coverage `--check`, `parity_report.py`,
+and the component and gallery suites are green. The synchronized artifact
+is
+`6067b2e3e8810b32b8fc5af431b4f5a2e1e40825b2bee6aed7fa31fe19e7cfce`.
+The coverage report still shows 0 verified of 724 specimens; native
+captures exist on disk but are not seeded as ledger evidence. Next work is
+the verification wave, starting with the Button family (fixtures and three
+capture surfaces already exist).
+
 ## Implemented
+
+- Shared field chrome (`anim::field_chrome_ramp`) now interpolates InputOTP
+  slot fill/border (150ms ease-smooth) and focus ring (150ms ease-out) plus
+  NumberField group hover/focus/invalid chrome on the same keyed ramps,
+  resuming from the painted frame and snapping under reduced motion. Slot
+  transitions and `.number-field__group transitions` metadata rows are
+  Implemented; NumberField stepper `:active` scale of custom icon children
+  remains Partial. `fields`, `hover_overrides` and gallery metadata tests
+  cover the contract.
+- Tabs keep the pinned `h-8` (32px) box. Constrained labels wrap and overflow
+  lines paint past the pill because the v3.2.5 sheet ships no truncate,
+  nowrap or overflow utility; those lines stay pointer-inert in the port.
+  `.tabs__tab` metadata is Implemented. The wrapping-labels specimen and
+  `tabs_vertical_labels_wrap_inside_the_pinned_fixed_height` lock it.
+- Table columns narrower than their content now share one measured track
+  triple across header and body on native GPUI, so a 320px table overflows
+  as one aligned grid (`tbl-narrow-width`). wasm32 still cannot take
+  intrinsic minima (prepaint reports a flex child as the whole track), so
+  web tables stay fluid unless a column width is pinned — recorded Partial
+  under `.table__content`. `border-separate` spacing remains Partial.
+- Select's clear-button pressed target now scales about the 24px slot center
+  (`select_clear_deep`). Custom child subtree scaling is `platform-limited`
+  because gpui-pre 0.3.3 exposes paint transforms only on Svg.
+- `.shots/native_capture.py` is the macOS counterpart of the Windows capture
+  drivers (plan §5.2): same control/ack protocol, `screencapture -l` instead
+  of PrintWindow. CI runs `test_native_capture.py`. The Button Usage pilot
+  set lives at `docs/parity/evidence/native-button-usage/`.
 
 - Table selection now follows the pinned React Stately collection contract for
   `selectionBehavior`, `defaultSelectedKeys`, and `disallowEmptySelection`.
@@ -625,16 +671,16 @@ claim parity from the current unreviewed section seeds.
   wrapped selected label. CUA observed the two-line value row in the rebuilt
   preview. The current artifact is
   `d8992557a1442106c950c30d5d476b1141e6d6a38e39789508dd3abfe7b8fd6c`.
-- Vertical Tabs now release the list's cross-axis min-content floor while
-  retaining an intrinsic main-axis scroll column. Long labels wrap inside the
-  constrained panel instead of widening the list, and tabs grow above the
-  pinned 32px floor only when a second line needs room. The vertical chevrons
-  keep their 80%-of-viewport step and remain on top of the list. Native
-  regressions cover constrained wrapping and overflow hit testing; the gallery
-  Wrapping Labels specimen shows both horizontal and vertical cases. The exact
-  fixed-height CSS endpoint remains a documented Partial styling note. The
-  rebuilt WASM artifact is
-  `898bf0269260d8c3d4373827234607398e36b0045cbdb6ef7366aabae742f110`.
+- Vertical Tabs keep the pinned 32px tab box. Long labels wrap inside the
+  constrained panel instead of widening the list; overflow lines paint past
+  the pill because the v3.2.5 sheet ships no truncation utility. The
+  vertical chevrons keep their 80%-of-viewport step and remain on top of
+  the list. Native regressions cover constrained wrapping and overflow hit
+  testing; the gallery Wrapping Labels specimen shows both orientations.
+  The wrap-floor work first landed with artifact
+  `898bf0269260d8c3d4373827234607398e36b0045cbdb6ef7366aabae742f110`; the
+  2026-09-14 wave resynchronized at
+  `6067b2e3e8810b32b8fc5af431b4f5a2e1e40825b2bee6aed7fa31fe19e7cfce`.
 - Calendar and RangeCalendar day-state styling now follows the pinned calendar
   sheet for today, hover and selected/pressed endpoints. Unavailable and
   out-of-range cells also carry disabled opacity and the operation-not-allowed

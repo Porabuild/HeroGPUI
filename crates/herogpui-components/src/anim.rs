@@ -1573,6 +1573,373 @@ struct HoverFade {
     generation: usize,
 }
 
+// ---------------------------------------------------------------------------
+// Field chrome — the shell transition the field-family sheets share
+// ---------------------------------------------------------------------------
+
+/// How long a v3 field shell takes to change its fill and border colour, and
+/// on which curve. `.input-otp__slot` (lines 28-32) and `.number-field__group`
+/// (lines 39-43) declare the identical block — `background-color 150ms
+/// var(--ease-smooth), border-color 150ms var(--ease-smooth), box-shadow
+/// 150ms var(--ease-out)` with `motion-reduce:transition-none` after it — so
+/// one constant quartet keeps both ports on the pinned timings.
+pub(crate) const FIELD_CHROME_COLOR_MS: u64 = 150;
+pub(crate) const FIELD_CHROME_COLOR_CURVE: Curve = Curve::Smooth;
+pub(crate) const FIELD_CHROME_SHADOW_MS: u64 = 150;
+pub(crate) const FIELD_CHROME_SHADOW_CURVE: Curve = Curve::Out;
+
+/// A state ring as the two shadows [`focus_ring_shadows`] paint: the ring
+/// itself and — for a theme with a `ring-offset` width — the
+/// background-coloured ring carving the gap.
+///
+/// [`focus_ring_shadows`]: crate::util::focus_ring_shadows
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct FieldRing {
+    /// The ring's colour and spread.
+    pub ring: (gpui::Hsla, f32),
+    /// The offset-gap ring's colour and spread; spread zero when the theme
+    /// sets no offset.
+    pub gap: (gpui::Hsla, f32),
+}
+
+impl FieldRing {
+    /// The no-ring endpoint: zero spreads, transparent colours — the shape CSS
+    /// interpolates a missing box shadow from, and what `mix_oklab` treats as
+    /// "the other colour's hue at reduced alpha".
+    pub const NONE: Self = Self {
+        ring: (gpui::hsla(0., 0., 0., 0.), 0.0),
+        gap: (gpui::hsla(0., 0., 0., 0.), 0.0),
+    };
+
+    /// One ring with no offset gap — the invalid danger ring's shape.
+    pub(crate) fn solid(color: gpui::Hsla, spread: f32) -> Self {
+        Self {
+            ring: (color, spread),
+            gap: Self::NONE.ring,
+        }
+    }
+
+    /// The same shape with every colour at zero alpha and every spread at
+    /// zero: where a ring fades out to.
+    fn faded(self) -> Self {
+        Self {
+            ring: (herogpui_core::with_alpha(self.ring.0, 0.0), 0.0),
+            gap: (herogpui_core::with_alpha(self.gap.0, 0.0), 0.0),
+        }
+    }
+
+    /// The shadows one frame of this ring paints — the settled form of
+    /// `focus_ring_shadows`: one-pixel blur (a zero blur integrates over
+    /// nothing in gpui's shadow shader), largest first.
+    fn shadows(self) -> Vec<gpui::BoxShadow> {
+        let mut shadows = vec![ring_shadow(self.ring)];
+        if self.gap.1 > 0.0 {
+            shadows.push(ring_shadow(self.gap));
+        }
+        shadows
+    }
+
+    /// CSS box-shadow interpolation: each shadow's colour and spread ease
+    /// between the endpoints, `mix_oklab` being the pinned colour math.
+    fn mix(self, to: Self, delta: f32) -> Self {
+        let lerp = |a: f32, b: f32| a + (b - a) * delta;
+        Self {
+            ring: (
+                herogpui_core::mix_oklab(self.ring.0, to.ring.0, delta),
+                lerp(self.ring.1, to.ring.1),
+            ),
+            gap: (
+                herogpui_core::mix_oklab(self.gap.0, to.gap.0, delta),
+                lerp(self.gap.1, to.gap.1),
+            ),
+        }
+    }
+}
+
+fn ring_shadow((color, spread): (gpui::Hsla, f32)) -> gpui::BoxShadow {
+    gpui::BoxShadow {
+        color,
+        offset: gpui::point(px(0.), px(0.)),
+        blur_radius: px(1.),
+        spread_radius: px(spread),
+        inset: false,
+    }
+}
+
+/// The shared keyboard focus ring — `status-focused-field`, `ring-2
+/// ring-focus` with no offset — as a chrome-ramp endpoint: the shape
+/// [`focus_ring_shadows`] paints, including the offset-gap ring for a theme
+/// that sets a `ring-offset` width.
+///
+/// [`focus_ring_shadows`]: crate::util::focus_ring_shadows
+pub(crate) fn focus_ring_endpoint(cx: &App) -> FieldRing {
+    let colors = cx.colors();
+    let gap = cx.layout().ring_offset_width;
+    let mut ring = FieldRing::solid(colors.focus, 2.0 + f32::from(gap));
+    if gap > px(0.) {
+        ring.gap = (colors.background, f32::from(gap));
+    }
+    ring
+}
+
+/// The invalid danger ring — the shared chrome helper's focused-invalid
+/// treatment, `status-invalid-field`'s 2px ring — as a chrome-ramp endpoint.
+pub(crate) fn danger_ring_endpoint(cx: &App) -> FieldRing {
+    FieldRing::solid(cx.colors().danger.color, 2.0)
+}
+
+/// One resolved field-shell chrome state: the fill, the border colour, the
+/// border-box width and the state ring. This is the shape the field-family
+/// ramp interpolates — the endpoints a caller resolves from its variant and
+/// flags, exactly what [`apply_field_chrome`] would paint for the same state.
+///
+/// [`apply_field_chrome`]: crate::util::apply_field_chrome
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct FieldChrome {
+    /// The state fill: `--field-background`, `--field-focus` or a hover mix.
+    pub bg: gpui::Hsla,
+    /// The border colour. The default theme's `--field-border` is
+    /// transparent, which is what makes the port's invalid outline fade in
+    /// and out rather than crossfade.
+    pub border: gpui::Hsla,
+    /// The painted border-box width. Widths are geometry and the pinned
+    /// transition names only the colours, so this snaps while they ease.
+    pub border_width: gpui::Pixels,
+    /// The keyboard focus ring or invalid danger ring, or `None` — which
+    /// still gives the `box-shadow` track an endpoint to ease through.
+    pub ring: Option<FieldRing>,
+}
+
+/// Interpolates a field shell's chrome the way the pinned `transition` block
+/// runs it, instead of snapping each state's endpoints in one frame.
+///
+/// The caller paints the shell's settled chrome through the shared helpers —
+/// `apply_field_chrome` or `with_focus_ring`, the same paint Input and
+/// TextArea take — and resolves `idle`, that chrome as endpoints, plus
+/// `hovered`, the chrome while the pointer rests on the shell. Hover is the
+/// one bit a render cannot ask for, so this arms the element's hover listener
+/// against a keyed slot, exactly like [`hover_fade`]. A shell whose tracks are
+/// all still in their first generation has never transitioned: its painted
+/// chrome is the state and nothing mounts — CSS transitions do not run on
+/// load. Past that first flip the interpolating fill, border and ring mount
+/// as listener-free absolutely-positioned children that own the shell's
+/// border and state ring for good, painting their settled endpoints whenever
+/// nothing is in flight.
+///
+/// The technique is the press ramp's: three [`Tween`]s keyed on the shell's
+/// own id keep the last target, the generation and the frame actually on
+/// screen, so an interrupted flip resumes from the painted frame, and the
+/// animation ids the layers change per generation never touch the element
+/// that owns state — its id, hit-testing, focus and listeners. Reduced motion
+/// snaps all three tracks to their endpoints, matching
+/// `motion-reduce:transition-none`, which removes the timing but keeps the
+/// state's property values.
+///
+/// `base_shadows` is the shell's constant shadow list (`--field-shadow`); the
+/// state ring rides on top of it because `shadow()` replaces rather than
+/// adds. `ring_escapes_clip` mounts the ring layer deferred, for a shell
+/// whose own `overflow-hidden` would clip an outset ring painted by a child
+/// to the shell's box — the layer then paints after the subtree, the same
+/// way every floating surface does.
+pub(crate) fn field_chrome_ramp<E>(
+    mut el: E,
+    id: &ElementId,
+    idle: FieldChrome,
+    hovered: Option<FieldChrome>,
+    base_shadows: Vec<gpui::BoxShadow>,
+    radius: gpui::Pixels,
+    ring_escapes_clip: bool,
+    window: &mut Window,
+    cx: &mut App,
+) -> E
+where
+    E: InteractiveElement + Styled + ParentElement,
+{
+    // Hover is a question about the last frame's pointer, so it lives in a
+    // keyed slot the handler writes and this render reads.
+    let slot = window.use_keyed_state(element_id::scoped(id, "chrome-hover"), cx, |_, _| false);
+    let is_hovered = *slot.read(cx) && hovered.is_some();
+    el.interactivity().on_hover({
+        let slot = slot.clone();
+        move |over: &bool, _, cx| {
+            slot.update(cx, |hovered, cx| {
+                if *hovered != *over {
+                    *hovered = *over;
+                    cx.notify();
+                }
+            });
+        }
+    });
+
+    let (target, other_ring) = if is_hovered {
+        (hovered.unwrap_or(idle), idle.ring)
+    } else {
+        (idle, hovered.and_then(|hovered| hovered.ring))
+    };
+    // Whether the state ring is one of this shell's tracked endpoints. When it
+    // is, the ring layer owns the shell's shadow list for as long as the
+    // layers are mounted; when it never is, whatever ring the caller painted
+    // stays on the shell untouched.
+    let ring_tracked = idle.ring.is_some() || target.ring.is_some();
+    let reduce = ActiveTheme::reduce_motion(cx);
+    let mut bg = Tween::keyed(id, "chrome-bg", target.bg, window, cx);
+    let mut border = Tween::keyed(id, "chrome-border", target.border, window, cx);
+    // A missing ring target still eases: it fades from the other endpoint's
+    // shape — transparent, spread zero — the way CSS interpolates an absent
+    // box shadow.
+    let ring_target = target
+        .ring
+        .or_else(|| other_ring.map(|ring| ring.faded()))
+        .unwrap_or(FieldRing::NONE);
+    let mut ring = Tween::keyed(id, "chrome-ring", ring_target, window, cx);
+    bg.snap_if_reduced(reduce);
+    border.snap_if_reduced(reduce);
+    ring.snap_if_reduced(reduce);
+
+    // Pristine: every track still sits in its first generation, so nothing has
+    // ever transitioned and the chrome the caller painted through the shared
+    // helpers IS the state — CSS transitions do not run on load. Nothing
+    // mounts, and the shell keeps every property it was given.
+    let pristine = bg.generation() == 0 && border.generation() == 0 && ring.generation() == 0;
+    if pristine {
+        return el;
+    }
+
+    // The containing block the layers stretch across. The shell's own paint
+    // stays underneath, but the two properties the layers now own must stop
+    // being cast by the shell: its border (the border layer repaints it, and
+    // a semi-transparent frame over an instant one would read too dark) and —
+    // when the ring is tracked — its shadow list, which drops to the field's
+    // constant base while the ring layer carries the state ring.
+    el = el.relative().border(px(0.));
+    if ring_tracked {
+        el = if base_shadows.is_empty() {
+            el
+        } else {
+            el.shadow(base_shadows)
+        };
+    }
+
+    let (bg_from, bg_to) = (bg.from(), bg.target());
+    let bg_value = bg.value();
+    let (border_from, border_to) = (border.from(), border.target());
+    let border_value = border.value();
+    // Border widths are geometry: the layer paints the wider endpoint's box
+    // so a fading outline keeps its shape while its colour eases out.
+    let border_width = idle.border_width.max(target.border_width);
+    let (ring_from, ring_to) = (ring.from(), ring.target());
+    let ring_value = ring.value();
+
+    let fill = if bg.animates(reduce) {
+        bg_value.set(bg_from);
+        gpui::div()
+            .absolute()
+            .inset_0()
+            .rounded(radius)
+            .with_animation(
+                element_id::indexed(id, "chrome-bg", bg.generation()),
+                gpui::Animation::new(Duration::from_millis(FIELD_CHROME_COLOR_MS))
+                    .with_easing(|t| FIELD_CHROME_COLOR_CURVE.at(t)),
+                move |fill, delta| {
+                    let next = if delta >= 1.0 {
+                        bg_to
+                    } else {
+                        herogpui_core::mix_oklab(bg_from, bg_to, delta)
+                    };
+                    bg_value.set(next);
+                    fill.bg(next)
+                },
+            )
+            .into_any_element()
+    } else {
+        bg.settle();
+        gpui::div()
+            .absolute()
+            .inset_0()
+            .rounded(radius)
+            .bg(bg_to)
+            .into_any_element()
+    };
+    let border_layer = if border.animates(reduce) {
+        border_value.set(border_from);
+        gpui::div()
+            .absolute()
+            .inset_0()
+            .rounded(radius)
+            .with_animation(
+                element_id::indexed(id, "chrome-border", border.generation()),
+                gpui::Animation::new(Duration::from_millis(FIELD_CHROME_COLOR_MS))
+                    .with_easing(|t| FIELD_CHROME_COLOR_CURVE.at(t)),
+                move |layer, delta| {
+                    let next = if delta >= 1.0 {
+                        border_to
+                    } else {
+                        herogpui_core::mix_oklab(border_from, border_to, delta)
+                    };
+                    border_value.set(next);
+                    layer.border(border_width).border_color(next)
+                },
+            )
+            .into_any_element()
+    } else {
+        border.settle();
+        gpui::div()
+            .absolute()
+            .inset_0()
+            .rounded(radius)
+            .border(border_width)
+            .border_color(border_to)
+            .into_any_element()
+    };
+    let ring_layer: Option<AnyElement> = if ring.generation() == 0 {
+        // The ring has never been part of this shell's state: the caller's
+        // painted ring (if any) is the state.
+        None
+    } else if ring.animates(reduce) {
+        ring_value.set(ring_from);
+        Some(
+            gpui::div()
+                .absolute()
+                .inset_0()
+                .rounded(radius)
+                .with_animation(
+                    element_id::indexed(id, "chrome-ring", ring.generation()),
+                    gpui::Animation::new(Duration::from_millis(FIELD_CHROME_SHADOW_MS))
+                        .with_easing(|t| FIELD_CHROME_SHADOW_CURVE.at(t)),
+                    move |layer, delta| {
+                        let next = if delta >= 1.0 {
+                            ring_to
+                        } else {
+                            ring_from.mix(ring_to, delta)
+                        };
+                        ring_value.set(next);
+                        layer.shadow(next.shadows())
+                    },
+                )
+                .into_any_element(),
+        )
+    } else {
+        ring.settle();
+        Some(
+            gpui::div()
+                .absolute()
+                .inset_0()
+                .rounded(radius)
+                .shadow(ring_to.shadows())
+                .into_any_element(),
+        )
+    };
+    let ring_layer: Option<AnyElement> = match ring_layer {
+        Some(layer) if ring_escapes_clip => Some(crate::util::floating(layer).into_any_element()),
+        some => some,
+    };
+    el = el.child(fill).child(border_layer);
+    if let Some(ring_layer) = ring_layer {
+        el = el.child(ring_layer);
+    }
+    el
+}
+
 /// v3's `@keyframes caret-blink`: opaque at 0/70/100%, transparent at 20/50%.
 ///
 /// Reproduced as a repeating 1s animation over the same stops, so a text caret

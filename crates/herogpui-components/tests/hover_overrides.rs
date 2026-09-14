@@ -92,7 +92,10 @@ fn every_hover_override_reaches_its_painted_fill() {
             "input_otp.rs",
             "slot_hover_bg",
             "let hover_bg = self.slot_hover_bg.unwrap_or(match self.variant {",
-            "s.bg(hover_bg)",
+            // `.input-otp__slot` hovers through the pinned 150ms shell
+            // transition, so the override resolves into the chrome ramp's
+            // hovered endpoint rather than an immediate fill.
+            "bg: hovered_bg,",
         ),
         (
             "input.rs",

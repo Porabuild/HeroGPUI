@@ -1,0 +1,55 @@
+{
+  "schema": "herogpui-native-capture/1",
+  "driver": ".shots/native_capture.py",
+  "captured_at": "2026-09-14T05:19:32Z",
+  "host": {
+    "system": "Darwin",
+    "release": "25.6.0",
+    "mac_ver": "26.6.2",
+    "machine": "arm64"
+  },
+  "git": {
+    "commit": "7b192268986266f83583a1bb29c11090e457c367",
+    "dirty": true
+  },
+  "binary": {
+    "path": "/Users/svecherenko/work/HeroGPUI/.poracode/worktrees/poracode-happy-puma-7d7612a6/target/debug/herogpui-gallery",
+    "sha256": "18874c56a9fb634e9ea674f3feb28d2e6f59dc82b114c986329c5b365695cb61",
+    "profile": "debug",
+    "package": "herogpui-gallery"
+  },
+  "window": {
+    "cg_window_id": 7403,
+    "title": "HeroGPUI — Gallery",
+    "owner_pid": 78787,
+    "owner_name": "herogpui-gallery",
+    "bounds_pt": {
+      "x": 0.0,
+      "y": 33.0,
+      "w": 1200.0,
+      "h": 832.0
+    }
+  },
+  "capture": {
+    "method": "screencapture -l<window-id> -x -o",
+    "png_width_px": 2400,
+    "png_height_px": 1664,
+    "dpr": 2.0,
+    "logical_size_px": {
+      "width": 1200.0,
+      "height": 832.0
+    },
+    "uniform": false,
+    "retina_note": "PNG pixels are dpr x the window's logical points; logical px = png px / dpr"
+  },
+  "request": {
+    "lines": [
+      "seq=2",
+      "page=Button",
+      "section=Usage",
+      "specimen=btn-usage",
+      "theme=dark",
+      "preview=component"
+    ]
+  }
+}

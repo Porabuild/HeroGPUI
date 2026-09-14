@@ -792,7 +792,7 @@ impl Gallery {
                 ),
                 (
                     "Wrapping Labels",
-                    "The label slot releases its min-content width, so long labels wrap inside constrained horizontal shares and vertical tab columns without overlapping neighboring tabs.",
+                    "The label slot releases its min-content width, so long labels wrap inside constrained horizontal shares and vertical tab columns. Tabs keep the pinned fixed 32px height and ship no truncation utility, so wrapped lines paint past the pill exactly as the v3.2.5 sheet renders them.",
                     specimen_body("tabs-wrapping", col(vec![
                         h::Tabs::new(
                             "tabs-wrapping",

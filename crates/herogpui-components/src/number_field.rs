@@ -758,13 +758,92 @@ impl RenderOnce for NumberField {
             .text_size(crate::util::FIELD_TEXT)
             .line_height(px(20.));
         if !field_box.is_bare {
+            // The settled group chrome comes from the same shared helper the
+            // other fields take — variant fill and shadow, the invalid danger
+            // outline or ring, the keyboard focus ring.
+            let focused = focus_handle.is_focused(window);
+            let show_focus_ring = field_box.focus_ring.unwrap_or(true);
             group = crate::util::apply_field_chrome_with_focus_ring(
                 group,
                 self.variant,
                 validity.is_invalid,
-                focus_handle.is_focused(window),
-                field_box.focus_ring.unwrap_or(true),
+                focused,
+                show_focus_ring,
                 None,
+                cx,
+            );
+            // `.number-field__group` transitions all three chrome properties
+            // rather than swapping them (lines 39-43: `background-color 150ms
+            // var(--ease-smooth), border-color 150ms var(--ease-smooth),
+            // box-shadow 150ms var(--ease-out)`), so the same state table
+            // resolves again as ramp endpoints and the shared chrome ramp
+            // interpolates between them: focus-within fills `--field-focus`
+            // and hover fills `--field-hover`/`--field-border-hover` only
+            // while the group is neither focused nor invalid. The ramp owns
+            // the group's border and ring past its first flip, so the
+            // helper's instant ones stop being cast.
+            let ringed = focused && show_focus_ring;
+            // The shared helper's chain is an else-if: a ringed group carries
+            // no border at all (the ring replaces the chrome), and an invalid
+            // group that is not ringed carries the one-pixel danger outline.
+            let outlined = validity.is_invalid && !ringed;
+            let idle = crate::anim::FieldChrome {
+                bg: match self.variant {
+                    // `--field-focus: var(--field-background)` — focus and
+                    // invalid fill the group with the field token itself.
+                    FieldVariant::Primary => colors.field.background,
+                    FieldVariant::Secondary => colors.default.color,
+                },
+                border: if outlined {
+                    colors.danger.color
+                } else {
+                    colors.field.border
+                },
+                border_width: if outlined {
+                    layout.border_width.max(px(1.))
+                } else if ringed {
+                    px(0.)
+                } else {
+                    layout.field_border_width
+                },
+                ring: if ringed {
+                    Some(if validity.is_invalid {
+                        crate::anim::danger_ring_endpoint(cx)
+                    } else {
+                        crate::anim::focus_ring_endpoint(cx)
+                    })
+                } else {
+                    None
+                },
+            };
+            let hovered = (!self.is_disabled && !validity.is_invalid && !focused).then(|| {
+                crate::anim::FieldChrome {
+                    bg: match self.variant {
+                        FieldVariant::Primary => colors.field.hover(),
+                        // `.number-field--secondary` hovers
+                        // `--number-field-group-bg-hover: var(--default-hover)`.
+                        FieldVariant::Secondary => colors.default.hover(),
+                    },
+                    border: colors.field.border_hover(),
+                    border_width: layout.field_border_width,
+                    ring: None,
+                }
+            });
+            group = crate::anim::field_chrome_ramp(
+                group,
+                &element_id::scoped(&base_id, "group"),
+                idle,
+                hovered,
+                match self.variant {
+                    FieldVariant::Primary => layout.field_shadow.clone(),
+                    FieldVariant::Secondary => Vec::new(),
+                },
+                group_radius,
+                // The group is `overflow-hidden` — its own clip would cut an
+                // outset ring painted by a child, so the ring layer paints
+                // deferred instead.
+                true,
+                window,
                 cx,
             );
         }
@@ -772,40 +851,6 @@ impl RenderOnce for NumberField {
             group = group.w_full();
         } else {
             group = group.w(px(220.));
-        }
-        if !field_box.is_bare
-            && !self.is_disabled
-            && !validity.is_invalid
-            && !focus_handle.is_focused(window)
-        {
-            let idle_bg = match self.variant {
-                FieldVariant::Primary => colors.field.background,
-                FieldVariant::Secondary => colors.default.color,
-            };
-            let hover_bg = match self.variant {
-                FieldVariant::Primary => colors.field.hover(),
-                // `.number-field--secondary` hovers
-                // `--number-field-group-bg-hover: var(--default-hover)`.
-                FieldVariant::Secondary => colors.default.hover(),
-            };
-            let hover_border = colors.field.border_hover();
-            // The group stylesheet names a 150ms `ease-smooth` background
-            // transition. Keep the stable group (and its focus/keyboard
-            // listeners) in place while an absolute fill interpolates only
-            // the hover surface; the border endpoint still switches through
-            // the one allowed hover refinement.
-            group = group.hover(move |style| style.border_color(hover_border));
-            group = crate::anim::hover_fade_with_duration_and_easing(
-                group,
-                element_id::scoped(&base_id, "group-hover-fade"),
-                (idle_bg, hover_bg),
-                None,
-                |fill| fill.rounded(group_radius),
-                Some(150),
-                crate::anim::HoverFadeEasing::EaseSmooth,
-                window,
-                cx,
-            );
         }
 
         // `border-field-placeholder/15` is the seam between a stepper and the
@@ -1343,16 +1388,17 @@ mod hover_tokens {
     }
 
     #[test]
-    fn group_hover_uses_the_pinned_smooth_transition() {
+    fn group_chrome_uses_the_pinned_shell_transition() {
         let source = include_str!("number_field.rs")
             .split("#[cfg(test)]")
             .next()
             .expect("the implementation section is always present");
         assert!(
-            source.contains("hover_fade_with_duration_and_easing")
-                && source.contains("HoverFadeEasing::EaseSmooth")
-                && source.contains("Some(150)"),
-            "the group hover surface must use HeroUI's 150ms ease-smooth fade"
+            source.contains("crate::anim::field_chrome_ramp(")
+                && source.contains("crate::anim::focus_ring_endpoint(cx)")
+                && source.contains("crate::anim::danger_ring_endpoint(cx)"),
+            "the group must move focus, invalid and hover chrome through the \
+             shared keyed ramp, not one-frame endpoint swaps"
         );
     }
 }

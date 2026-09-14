@@ -1546,6 +1546,17 @@ impl RenderOnce for Table {
                 }
             })
             .collect();
+        // The one column-track computation. Upstream draws a `border-separate`
+        // table, so the header's `<th>` cells resolve tracks every row shares;
+        // this port stands in for that with one `(width, min, max)` triple per
+        // column — the explicit width when one wins, otherwise `flex-basis:0;
+        // flex-grow:1` floored by the widest cell measured across the header
+        // and every body row. The header cells below and every `RowCtx` row
+        // must read this same triple, and the sortable and resizable header
+        // wrappers must carry it too: a wrapper that only grows equally would
+        // resolve its own track and stagger the header off the body. A table
+        // narrower than the tracks then overflows `scroll-x` as one grid
+        // instead of squeezing each row separately.
         let layout_width_bounds: Vec<(Option<Pixels>, Option<Pixels>)> = self
             .columns
             .iter()
@@ -1940,7 +1951,18 @@ impl RenderOnce for Table {
                         )
                         .a11y_column_index(column_index + usize::from(selectable))
                         .group(sort_group.clone())
-                        .flex_1()
+                        // The wrapper owns the column's track, so it reads the
+                        // same triple the body cell read: a fixed width when
+                        // one wins, otherwise the shared flex floor. Leaving
+                        // the wrapper an unconditional equal-growth track
+                        // ignored the width entirely and resolved the header's
+                        // tracks separately from the body's.
+                        .when(effective.is_none(), |wrapper| {
+                            wrapper.flex_basis(px(0.)).flex_grow(1.).flex_shrink(1.)
+                        })
+                        .when_some(effective, |wrapper, w| wrapper.w(w))
+                        .when_some(layout_min, |wrapper, w| wrapper.min_w(w))
+                        .when_some(layout_max, |wrapper, w| wrapper.max_w(w))
                         .flex()
                         .cursor(crate::util::interactive_cursor(cx))
                         // The focus is what makes Enter and Space sort: gpui
@@ -2023,6 +2045,11 @@ impl RenderOnce for Table {
                     .relative()
                     .when(effective.is_none(), flex_cell)
                     .when_some(effective, |c, w| c.w(w))
+                    // The wrapper owns the column's track, so it carries the
+                    // shared bounds instead of leaning on the inner cell's
+                    // automatic minimum (see `layout_width_bounds`).
+                    .when_some(layout_min, |wrapper, w| wrapper.min_w(w))
+                    .when_some(layout_max, |wrapper, w| wrapper.max_w(w))
                     .when(effective.is_none(), |wrapper| {
                         wrapper.child(
                             gpui::canvas(
@@ -3459,9 +3486,13 @@ impl RenderOnce for Table {
         // width. `min_h_0` is what permits that shrink: the scroller only
         // scrolls horizontally, so its visible y-overflow would otherwise keep
         // the content-based minimum and never yield.
+        // The headless probe name for the scroll viewport's bounds, so a test
+        // can read the grid's overflow against it.
+        let scroll_selector = format!("{table_id}-scroll-x");
         let el = wrapper.child(
             gpui::div()
                 .id(element_id::scoped(&base_id, "scroll-x"))
+                .debug_selector(move || scroll_selector.clone())
                 .flex()
                 .flex_col()
                 .items_start()

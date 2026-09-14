@@ -1,7 +1,7 @@
 {
   "version": 2,
-  "artifactSha256": "ec73394a27435b5347d0c2b2fccb56cb6b8547d5b5b105cac1ada80dc7e11d01",
-  "glueSha256": "90e939da61b68e7f2b3696ca2564e2ace5270fdf05b1b74da39ff0fa9dbd785f",
+  "artifactSha256": "6067b2e3e8810b32b8fc5af431b4f5a2e1e40825b2bee6aed7fa31fe19e7cfce",
+  "glueSha256": "ae1408c83e365ec94da3ea121639d7bfdf607b4beab5fe596e1762f380a4f34d",
   "examples": {
     "accordion/Controlled": {
       "codeSha256": "ac39d58e626756503af3f2fedbcf0a3a791b32096093d62ca5c6aab77146d75b",
@@ -2403,6 +2403,10 @@
       "codeSha256": "96a96e7769f9ceb3aa6462b30d36aed8419ad87c9a5185186bc669e2ccca0041",
       "descriptionSha256": "e57ea6a2d480784352df5cfb32cb0ded25635c932a13603362b68acd4f1e3229"
     },
+    "table/Narrow Width": {
+      "codeSha256": "8a8f7ad5ca8cdafae70a7a2fae887c13ff55792e8db6eb699982a2542b659820",
+      "descriptionSha256": "1eac6f2c694a28f31fcd2571c23d7c77c42825daa903be34a8a728c06f6c4333"
+    },
     "table/Pagination": {
       "codeSha256": "4a9d199f4c5ad5cdbb1dab026c15ed0160a7c1c88ebec9e7eca24c1cd0ee91f2",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
@@ -2485,7 +2489,7 @@
     },
     "tabs/Wrapping Labels": {
       "codeSha256": "a4c4e195ae326b017313362064622c7bc892ec525c2b8dfcffb78f72bf16ebdd",
-      "descriptionSha256": "cc88d0ff06fd5bc3785bc05a2926d1d34139787096ef750150b9388af6cc6808"
+      "descriptionSha256": "e7a80ce3ee9c870277eba0c11c64bbfe303068658f254295317578a5040ae281"
     },
     "tag-group/Controlled": {
       "codeSha256": "0c603501f7ed022f818fce956390c981b2cc94da28b6ad99c179d944337111e5",

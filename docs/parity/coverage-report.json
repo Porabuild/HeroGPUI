@@ -2,55 +2,55 @@
   "schema_version": 1,
   "target": "v3.2.5",
   "target_commit": "5f13f6ed355bdbd5d5f69e5944685438a3591793",
-  "inventory_recorded_on": "2026-09-13",
-  "inventory_verification_sha256": "b03e605fa3cd0de2e8940d7576138234246f5972b4686290f3d6ae622da85a17",
-  "source_snapshot_sha256": "d00d9df12dd12a1f9697ecabed66523bd181105e7c2e8bccfdef2c18da900061",
+  "inventory_recorded_on": "2026-09-14",
+  "inventory_verification_sha256": "55e75ea63551871b8ee666d064d0b1f0ddedabf4a16c30d961042bd7d28b3775",
+  "source_snapshot_sha256": "939f208c66de17697c2dd62d4e0c23c77565eb610f811956bffab669503de1ed",
   "last_evidence_commit": null,
   "last_evidence_commit_recorded": false,
   "totals": {
-    "specimens": 722,
+    "specimens": 724,
     "verified": 0,
-    "outstanding": 722,
-    "unobserved": 721,
+    "outstanding": 724,
+    "unobserved": 723,
     "components": 67,
-    "gallery_sections": 717
+    "gallery_sections": 719
   },
   "status_counts": {
     "implemented-unverified": 4,
     "intentional-deviation": 0,
-    "measured-gap": 1,
+    "measured-gap": 0,
     "not-applicable": 0,
-    "platform-limited": 0,
+    "platform-limited": 1,
     "specified": 0,
-    "unreviewed": 717,
+    "unreviewed": 719,
     "verified": 0
   },
   "scope_counts": {
     "component-state": 2,
     "cross-component": 1,
-    "gallery-section": 717,
+    "gallery-section": 719,
     "platform-harness": 2
   },
   "evidence_counts": {
     "upstream": {
       "specimens_with_evidence": 4,
-      "specimens_missing_evidence": 718
+      "specimens_missing_evidence": 720
     },
     "native": {
       "specimens_with_evidence": 0,
-      "specimens_missing_evidence": 722
+      "specimens_missing_evidence": 724
     },
     "wasm": {
       "specimens_with_evidence": 0,
-      "specimens_missing_evidence": 722
+      "specimens_missing_evidence": 724
     },
     "tests": {
-      "specimens_with_evidence": 2,
-      "specimens_missing_evidence": 720
+      "specimens_with_evidence": 3,
+      "specimens_missing_evidence": 721
     },
     "all_surfaces": {
       "specimens_with_evidence": 0,
-      "specimens_missing_evidence": 722
+      "specimens_missing_evidence": 724
     }
   },
   "unobserved_statuses": [
@@ -58,17 +58,17 @@
     "specified",
     "implemented-unverified"
   ],
-  "measured_gaps": [
+  "measured_gaps": [],
+  "intentional_deviations": [],
+  "platform_limits": [
     {
       "id": "select/clear/custom-child-scaling",
       "component": "Select",
       "scope": "component-state",
-      "status": "measured-gap",
+      "status": "platform-limited",
       "state": "clear-custom-content"
     }
   ],
-  "intentional_deviations": [],
-  "platform_limits": [],
   "unresolved": [
     {
       "id": "gallery/accordion/controlled",
@@ -4271,6 +4271,13 @@
       "state": "section-seed"
     },
     {
+      "id": "gallery/table/narrow-width",
+      "component": "Table",
+      "scope": "gallery-section",
+      "status": "unreviewed",
+      "state": "section-seed"
+    },
+    {
       "id": "gallery/table/pagination",
       "component": "Table",
       "scope": "gallery-section",
@@ -4293,6 +4300,13 @@
     },
     {
       "id": "gallery/table/selection",
+      "component": "Table",
+      "scope": "gallery-section",
+      "status": "unreviewed",
+      "state": "section-seed"
+    },
+    {
+      "id": "gallery/table/selection-behavior",
       "component": "Table",
       "scope": "gallery-section",
       "status": "unreviewed",
@@ -5100,7 +5114,7 @@
       "id": "select/clear/custom-child-scaling",
       "component": "Select",
       "scope": "component-state",
-      "status": "measured-gap",
+      "status": "platform-limited",
       "state": "clear-custom-content"
     },
     {
@@ -6517,9 +6531,9 @@
       "statuses": {
         "implemented-unverified": 0,
         "intentional-deviation": 0,
-        "measured-gap": 1,
+        "measured-gap": 0,
         "not-applicable": 0,
-        "platform-limited": 0,
+        "platform-limited": 1,
         "specified": 0,
         "unreviewed": 23,
         "verified": 0
@@ -6732,7 +6746,7 @@
     },
     {
       "component": "Table",
-      "specimens": 15,
+      "specimens": 17,
       "statuses": {
         "implemented-unverified": 0,
         "intentional-deviation": 0,
@@ -6740,11 +6754,11 @@
         "not-applicable": 0,
         "platform-limited": 0,
         "specified": 0,
-        "unreviewed": 15,
+        "unreviewed": 17,
         "verified": 0
       },
       "verified": 0,
-      "outstanding": 15,
+      "outstanding": 17,
       "unresolved_ids": [
         "gallery/table/async-loading",
         "gallery/table/column-resizing",
@@ -6753,10 +6767,12 @@
         "gallery/table/empty-state",
         "gallery/table/expandable-rows",
         "gallery/table/loading",
+        "gallery/table/narrow-width",
         "gallery/table/pagination",
         "gallery/table/row-hover",
         "gallery/table/secondary-variant",
         "gallery/table/selection",
+        "gallery/table/selection-behavior",
         "gallery/table/sorting",
         "gallery/table/usage",
         "gallery/table/variants",

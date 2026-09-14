@@ -2,8 +2,8 @@
 # HeroGPUI parity coverage report
 
 Target: `v3.2.5` (`5f13f6ed355bdbd5d5f69e5944685438a3591793`)
-Inventory date: `2026-09-13`
-Inventory verification: `b03e605fa3cd0de2e8940d7576138234246f5972b4686290f3d6ae622da85a17`
+Inventory date: `2026-09-14`
+Inventory verification: `55e75ea63551871b8ee666d064d0b1f0ddedabf4a16c30d961042bd7d28b3775`
 Last evidence commit: `(none recorded)`
 
 This is a maintainer work-queue summary. It does not turn gallery section headings, static audits, or successful builds into parity evidence.
@@ -12,12 +12,12 @@ This is a maintainer work-queue summary. It does not turn gallery section headin
 
 | Metric | Count |
 | --- | --- |
-| Specimens | 722 |
+| Specimens | 724 |
 | Verified | 0 |
-| Outstanding | 722 |
-| Unobserved/unreviewed | 721 |
+| Outstanding | 724 |
+| Unobserved/unreviewed | 723 |
 | Components | 67 |
-| Gallery sections | 717 |
+| Gallery sections | 719 |
 
 ## Status distribution
 
@@ -25,22 +25,22 @@ This is a maintainer work-queue summary. It does not turn gallery section headin
 | --- | --- |
 | implemented-unverified | 4 |
 | intentional-deviation | 0 |
-| measured-gap | 1 |
+| measured-gap | 0 |
 | not-applicable | 0 |
-| platform-limited | 0 |
+| platform-limited | 1 |
 | specified | 0 |
-| unreviewed | 717 |
+| unreviewed | 719 |
 | verified | 0 |
 
 ## Evidence surfaces
 
 | Surface | With evidence | Missing evidence |
 | --- | --- | --- |
-| upstream | 4 | 718 |
-| native | 0 | 722 |
-| wasm | 0 | 722 |
-| tests | 2 | 720 |
-| all_surfaces | 0 | 722 |
+| upstream | 4 | 720 |
+| native | 0 | 724 |
+| wasm | 0 | 724 |
+| tests | 3 | 721 |
+| all_surfaces | 0 | 724 |
 
 ## Component queue
 
@@ -102,7 +102,7 @@ This is a maintainer work-queue summary. It does not turn gallery section headin
 | Spinner | 4 | 0 | 4 |
 | Surface | 3 | 0 | 3 |
 | Switch | 13 | 0 | 13 |
-| Table | 15 | 0 | 15 |
+| Table | 17 | 0 | 17 |
 | Tabs | 13 | 0 | 13 |
 | Tag Group | 17 | 0 | 17 |
 | Text Area | 6 | 0 | 6 |
@@ -116,9 +116,9 @@ This is a maintainer work-queue summary. It does not turn gallery section headin
 
 ## Explicit gap queues
 
-- Measured gaps: **1**
+- Measured gaps: **0**
 - Intentional deviations: **0**
-- Platform limits: **0**
-- Unresolved specimen records: **722**
+- Platform limits: **1**
+- Unresolved specimen records: **724**
 
 The JSON file contains the complete unresolved id list and per-component detail. Add a concrete evidence record before changing a specimen to `verified`; record intentional deviations and platform limits with user-facing notes.

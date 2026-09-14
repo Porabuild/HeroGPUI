@@ -837,9 +837,9 @@ const TABS_STYLING: &[StyleDoc] = &[
     StyleDoc {
         class_or_token: ".tabs__tab",
         value: "relative flex h-8 w-full rounded-3xl px-4 text-sm font-medium text-muted",
-        description: "A released min-content label slot preserves normal whitespace so constrained tabs wrap instead of widening or overlapping siblings; the port grows the tab above the fixed 32px floor when multiple lines need room.",
-        rust: "32px minimum + 16px padding + control_radius + 14px medium text; min_w(0) + whitespace_normal + h_auto when constrained",
-        status: ImplementationStatus::Partial,
+        description: "The pinned fixed 32px box is matched exactly: the stylesheet ships no truncate, nowrap or overflow utility on the tab, so a constrained label wraps and its overflow lines paint past the pill the way the default overflow does instead of growing the tab. Those lines stay pointer-inert in the port, while browser hit testing follows painted text.",
+        rust: "fixed h(32px) + 16px padding + control_radius + 14px medium text; min_w(0) + whitespace_normal label slot",
+        status: ImplementationStatus::Implemented,
     },
     StyleDoc {
         class_or_token: ".tabs__tab transitions",

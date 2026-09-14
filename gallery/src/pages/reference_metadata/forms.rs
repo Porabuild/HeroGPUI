@@ -2221,9 +2221,9 @@ const INPUT_OTP_STYLING: &[StyleDoc] = &[
     StyleDoc {
         class_or_token: ".input-otp__slot transitions",
         value: "background/border 150ms ease-smooth; shadow 150ms ease-out",
-        description: "Animated slot-state interpolation.",
-        rust: "instant hover/focus/invalid swaps",
-        status: ImplementationStatus::Partial,
+        description: "Slot fill, border color and focus ring interpolate between their state endpoints on the pinned curves; an interrupted flip resumes from the painted frame and reduced motion snaps.",
+        rust: "anim::field_chrome_ramp per slot (Tween bg/border 150ms Smooth + ring 150ms Out)",
+        status: ImplementationStatus::Implemented,
     },
     StyleDoc {
         class_or_token: ".input-otp__slot:hover",
@@ -2383,7 +2383,7 @@ const NUMBER_FIELD_STATES: &[StateDoc] = &[
 const NUMBER_FIELD_STYLING: &[StyleDoc] = &[
     StyleDoc { class_or_token: ".number-field", value: "flex flex-col gap-1", description: "Root field stack and four-pixel label/message spacing.", rust: "flex_col + gap(px(4.))", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".number-field__group", value: "grid h-9; 40px 1fr 40px; rounded-field border bg-field text-sm shadow-field", description: "The default flex anatomy matches the three column geometry and shared field shell, with explicit 14px/20px group text; GPUI has no CSS grid or autofill pseudo-state.", rust: "FIELD_HEIGHT + 40px buttons + apply_field_chrome", status: ImplementationStatus::Partial },
-    StyleDoc { class_or_token: ".number-field__group transitions", value: "background/border 150ms ease-smooth; shadow 150ms ease-out; reduced motion none", description: "The hover background now interpolates through the pinned 150ms ease-smooth curve; focus, border and shadow endpoints remain direct because GPUI has no property-transition primitive for those layers.", rust: "anim::hover_fade_with_duration_and_easing(150ms, EaseSmooth) + apply_field_chrome", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".number-field__group transitions", value: "background/border 150ms ease-smooth; shadow 150ms ease-out; reduced motion none", description: "Hover, focus and invalid chrome all interpolate between their endpoints: fill and border color ride the pinned smooth curve and the focus/invalid ring rides ease-out, keyed per group, resuming from the painted frame and snapping under reduced motion.", rust: "anim::field_chrome_ramp (Tween bg/border 150ms Smooth + ring 150ms Out) over the shared field-chrome endpoints", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".number-field__input", value: "min-w-0 rounded-none border-0 bg-transparent px-3 py-2 text-base sm:text-sm tabular-nums", description: "Inset, transparent grouped chrome and desktop text size match; GPUI text does not expose tabular numeral selection.", rust: "Input::in_group + FIELD_TEXT", status: ImplementationStatus::Partial },
     StyleDoc { class_or_token: ".number-field__increment-button / .number-field__decrement-button", value: "h-full w-10 rounded-none bg-transparent; icon size-4; field border token", description: "Default cell and icon metrics match with a 15% placeholder seam, and custom nonzero field borders are carried by each stepper cell.", rust: "stepper_btn 40x36 + FIELD_ICON + field_border_width", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".number-field buttons transitions", value: "background/border 150ms ease-smooth; reduced motion none", description: "Button color changes are immediate.", rust: "stepper hover/press colors", status: ImplementationStatus::Partial },

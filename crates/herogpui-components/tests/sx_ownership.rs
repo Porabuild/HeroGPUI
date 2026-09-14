@@ -173,7 +173,7 @@ const INVENTORY: &[Part] = &[
     Part::pending(
         "number_field.rs",
         "group hover fill",
-        "hover_fade_with_duration_and_easing(",
+        "crate::anim::field_chrome_ramp(",
         "util::sx_background",
     ),
     Part::pending(

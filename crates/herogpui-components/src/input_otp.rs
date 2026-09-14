@@ -753,8 +753,16 @@ impl RenderOnce for InputOTP {
 
             let ch = *cell_ch;
             let is_cursor_cell = focused && i == cursor && !disabled;
+            let filled = ch != ' ';
+            // The slot carries its own id because its hover listener needs
+            // element state: gpui wires hover listeners only for elements the
+            // tree can name, and the chrome ramp below tracks hover through
+            // one. The id derives from the row's, so instances never share a
+            // timeline.
+            let slot_id = element_id::indexed(&base_id, "slot", i);
 
             let mut cell = gpui::div()
+                .id(slot_id.clone())
                 .flex()
                 .items_center()
                 .relative()
@@ -773,9 +781,12 @@ impl RenderOnce for InputOTP {
 
             // Every slot is filled and shadowed, empty or not. The pinned CSS
             // gives the slot the theme field border width/color, then changes
-            // its background by variant and active/filled state. Keeping the
-            // border in the base style means a nonzero application field
-            // border remains visible without changing the slot geometry.
+            // its background by variant and active/filled state — and
+            // transitions all three chrome properties rather than swapping
+            // them, so the endpoints resolve here and the shared chrome ramp
+            // (`.input-otp__slot`, lines 28-32: `background-color 150ms
+            // var(--ease-smooth), border-color 150ms var(--ease-smooth),
+            // box-shadow 150ms var(--ease-out)`) interpolates between them.
             let slot_bg = match self.variant {
                 FieldVariant::Primary => colors.field.background,
                 FieldVariant::Secondary => colors.default.color,
@@ -784,53 +795,84 @@ impl RenderOnce for InputOTP {
                 FieldVariant::Primary => colors.field.focus(),
                 FieldVariant::Secondary => colors.default.color,
             };
-            cell = cell
-                .border(layout.field_border_width)
-                .border_color(colors.field.border)
-                .bg(slot_bg)
-                .text_color(colors.foreground)
-                .when(is_cursor_cell || ch != ' ', |slot| slot.bg(active_bg));
+            // HeroUI's invalid rule comes after active and filled rules:
+            // every invalid slot keeps the focus background and receives
+            // the danger outline, including the keyboard-active slot — which
+            // is why the ring below is skipped once `invalid` holds.
+            let focus_ring = (!invalid && is_cursor_cell && crate::util::focus_visible(cx))
+                .then(|| crate::anim::focus_ring_endpoint(cx));
+            let idle = crate::anim::FieldChrome {
+                bg: if invalid {
+                    colors.field.focus()
+                } else if is_cursor_cell || filled {
+                    active_bg
+                } else {
+                    slot_bg
+                },
+                border: if invalid {
+                    colors.danger.color
+                } else {
+                    colors.field.border
+                },
+                border_width: if invalid {
+                    layout.border_width.max(px(1.))
+                } else {
+                    layout.field_border_width
+                },
+                ring: focus_ring,
+            };
             // `--input-otp-slot-bg-hover` is `--default-hover` for the
             // secondary variant; primary slots use the field hover token.
             // Active and filled slots keep their focus background while their
             // hover border still follows the shared field token.
-            if !self.is_disabled {
-                let hover_bg = self.slot_hover_bg.unwrap_or(match self.variant {
-                    FieldVariant::Primary => colors.field.hover(),
-                    FieldVariant::Secondary => colors.default.hover(),
-                });
-                cell = cell.hover(move |s| {
-                    let s = s.border_color(colors.field.border_hover());
-                    if is_cursor_cell || ch != ' ' {
-                        s
-                    } else {
-                        s.bg(hover_bg)
-                    }
-                });
-            }
-            if self.variant == FieldVariant::Primary && !layout.field_shadow.is_empty() {
-                cell = cell.shadow(layout.field_shadow.clone());
-            }
-            if invalid {
-                // HeroUI's invalid rule comes after active and filled rules:
-                // every invalid slot keeps the focus background and receives
-                // the danger outline, including the keyboard-active slot.
-                cell = cell
-                    .bg(colors.field.focus())
-                    .border(layout.border_width.max(px(1.)))
-                    .border_color(colors.danger.color);
-            } else if is_cursor_cell && crate::util::focus_visible(cx) {
-                // `status-focused-field` -- a 2px ring, no offset. A ring rather
-                // than a border, which would shrink the digit's box by 2px as
-                // the caret arrived. The caret below still marks a pointer
-                // caret; only a keyboard session paints the ring.
-                let base = if self.variant == FieldVariant::Primary {
-                    layout.field_shadow.clone()
-                } else {
-                    Vec::new()
-                };
-                cell = crate::util::with_focus_ring(cell, true, false, base, cx);
-            }
+            let hover_bg = self.slot_hover_bg.unwrap_or(match self.variant {
+                FieldVariant::Primary => colors.field.hover(),
+                FieldVariant::Secondary => colors.default.hover(),
+            });
+            let hovered_bg = if is_cursor_cell || filled {
+                idle.bg
+            } else {
+                hover_bg
+            };
+            let hovered = (!self.is_disabled).then(|| crate::anim::FieldChrome {
+                bg: hovered_bg,
+                border: colors.field.border_hover(),
+                border_width: idle.border_width,
+                ring: focus_ring,
+            });
+            // The settled slot chrome comes from the endpoints themselves, and
+            // the ring rides `status-focused-field` through the shared painter
+            // on top of the slot's constant field shadow — the same paint the
+            // other field parts take.
+            let base_shadows = match self.variant {
+                FieldVariant::Primary => layout.field_shadow.clone(),
+                FieldVariant::Secondary => Vec::new(),
+            };
+            cell = cell
+                .bg(idle.bg)
+                .border(idle.border_width)
+                .border_color(idle.border);
+            cell = crate::util::with_focus_ring(
+                cell,
+                focus_ring.is_some(),
+                false,
+                base_shadows.clone(),
+                cx,
+            );
+            // The ramp owns the slot's border and ring past its first flip,
+            // so the instant ones it painted above stop being cast there.
+            cell = crate::anim::field_chrome_ramp(
+                cell,
+                &slot_id,
+                idle,
+                hovered,
+                base_shadows,
+                radius,
+                false,
+                window,
+                cx,
+            );
+            cell = cell.text_color(colors.foreground);
 
             // `slot` is v3's render prop on `InputOTP.Slot`: it receives the
             // slot's `index` and its character, so a caller can draw the cell's
@@ -1115,10 +1157,19 @@ mod tests {
             .next()
             .expect("the implementation section is always present");
         assert!(source.contains("const SLOT_VALUE_IN_MS: u64 = 250"));
-        assert!(source.contains(".border(layout.field_border_width)"));
+        // The chrome endpoints resolve in pinned precedence — invalid over
+        // active/filled over resting — and the shared ramp interpolates them:
+        // `.input-otp__slot` transitions `background-color 150ms
+        // var(--ease-smooth), border-color 150ms var(--ease-smooth),
+        // box-shadow 150ms var(--ease-out)`, snapped by
+        // `motion-reduce:transition-none`.
+        assert!(source.contains("crate::anim::field_chrome_ramp("));
+        assert!(source.contains("colors.field.focus()"));
+        assert!(source.contains("colors.danger.color"));
+        assert!(source.contains("layout.border_width.max(px(1.))"));
+        assert!(source.contains("layout.field_border_width"));
         assert!(source.contains("colors.field.border_hover()"));
-        assert!(source.contains(".when(is_cursor_cell || ch != ' ', |slot| slot.bg(active_bg))"));
-        assert!(source.contains(".bg(colors.field.focus())"));
+        assert!(source.contains("crate::anim::focus_ring_endpoint(cx)"));
         assert!(source.contains(".absolute()"));
         assert!(source.contains(".top(px(12.))"));
         assert!(source.contains("value-in"));

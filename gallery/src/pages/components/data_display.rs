@@ -647,6 +647,46 @@ impl Gallery {
                     ])
                 },),
                 (
+                    "Narrow Width", "A table narrower than its columns resolves one shared column track set — the widest cell per column sizes the track the header and every body row sit on — and the scroll container slides that whole grid horizontally instead of letting each row squeeze separately.",
+                    // The 320px host is the point: the columns' named widths
+                    // exceed it, which is the exact constraint under which a
+                    // per-row track resolution staggered the body against the
+                    // header.
+                    stretch_col(vec![
+                        gpui::div()
+                            .w(px(320.))
+                            .child({
+                                let cell = |text: &str| {
+                                    gpui::div().child(text.to_owned()).into_any_element()
+                                };
+                                h::Table::new(vec![])
+                                    .id("tbl-narrow-width")
+                                    .column(h::TableColumn::new("Name").default_width(px(180.)))
+                                    .column(h::TableColumn::new("Role").default_width(px(150.)))
+                                    .column(
+                                        h::TableColumn::new("Department").default_width(px(170.)),
+                                    )
+                                    .row(vec![
+                                        cell("Tony Reichert"),
+                                        cell("CEO"),
+                                        cell("Sales"),
+                                    ])
+                                    .row(vec![
+                                        cell("Zoey Lang"),
+                                        cell("Tech Lead"),
+                                        cell("Engineering"),
+                                    ])
+                                    .row(vec![
+                                        cell("Jane Fisher"),
+                                        cell("Designer"),
+                                        cell("Design"),
+                                    ])
+                                    .into_any_element()
+                            })
+                            .into_any_element(),
+                    ]),
+                ),
+                (
                     "Expandable Rows", "A row's children are nested under it, and `expandedKeys` decides which parents show theirs. The chevron sits in the tree column; Right expands the focused parent, and Left collapses it or returns the row cursor to its parent.",
                     stretch_col(vec![
                         {

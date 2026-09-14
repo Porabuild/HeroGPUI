@@ -51,14 +51,14 @@ mod harness;
 
 use std::{cell::RefCell, collections::HashSet, rc::Rc};
 
-use gpui::{prelude::*, px, SharedString, TestAppContext};
+use gpui::{point, prelude::*, px, Modifiers, SharedString, TestAppContext, VisualTestContext};
 use herogpui_components::{
     Button, Checkbox, CheckboxGroup, CheckboxOption, CheckboxState, Form, FormData, FormField,
-    Input, InputState, NumberField, NumberState, RadioGroup, RadioOption, Switch, SwitchGroup,
-    Time, TimeField, TimeState,
+    Input, InputOTP, InputState, NumberField, NumberState, OtpState, RadioGroup, RadioOption,
+    Switch, SwitchGroup, Time, TimeField, TimeState,
 };
 
-use harness::{click, events, open_host, press, Events};
+use harness::{click, events, open_host, press, still, Events};
 
 /// The keys of a selection joined in a stable order.
 ///
@@ -803,4 +803,256 @@ fn form_validation_blocks_submit(cx: &mut TestAppContext) {
         submitted.borrow().is_empty(),
         "onSubmit must not fire while a required field is empty"
     );
+}
+
+// ---------------------------------------------------------------------------
+// Field chrome motion
+//
+// `.input-otp__slot` and `.number-field__group` declare the identical shell
+// transition — `background-color 150ms var(--ease-smooth), border-color 150ms
+// var(--ease-smooth), box-shadow 150ms var(--ease-out)`, with
+// `motion-reduce:transition-none` after it — and both move focus, invalid and
+// hover chrome through the shared `anim::field_chrome_ramp`. The headless
+// platform has no rasterizer, so these tests observe motion the way
+// checkbox_motion.rs does: every animation in flight registers a next-frame
+// callback, so the count of pending frames is the count of live animations.
+// They prove animation lifetime and nothing about per-frame pixels.
+// ---------------------------------------------------------------------------
+
+/// How many animation-frame callbacks are pending: one per live animation.
+fn pending_frames(cx: &mut VisualTestContext) -> usize {
+    cx.update(|window, cx| window.simulate_next_frame(cx))
+}
+
+/// Forces the frame that carries the state a flag just changed.
+fn flush_frame(cx: &mut VisualTestContext) {
+    cx.update(|window, _| window.refresh());
+}
+
+/// Drains frames until every in-flight animation has settled, failing if one
+/// never does (a re-arming animation would keep registering callbacks).
+fn settle(cx: &mut VisualTestContext) {
+    for _ in 0..200 {
+        if pending_frames(cx) == 0 {
+            return;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+    panic!("field chrome animations never settled");
+}
+
+/// Even the longest chrome track (150ms) is still running this far in.
+const MID_FLIGHT_MS: u64 = 60;
+
+fn sleep_mid_flight() {
+    std::thread::sleep(std::time::Duration::from_millis(MID_FLIGHT_MS));
+}
+
+#[gpui::test]
+fn number_field_chrome_mounts_settled_and_interpolates_focus(cx: &mut TestAppContext) {
+    let state = cx.new(|cx| NumberState::new(cx, 5.0));
+    let state_for_view = state.clone();
+    // Placed below the window's default pointer position: a field under the
+    // pointer at mount is legitimately hovered, and would ease its hover
+    // chrome in — this test needs the untouched resting mount.
+    let cx = open_host(cx, move || {
+        gpui::div()
+            .mt(px(200.))
+            .child(NumberField::new(state_for_view.clone()))
+            .into_any_element()
+    });
+
+    // A field that mounts unfocused shows its resting chrome immediately: no
+    // animation may mount for it, at this frame or after a forced one.
+    assert_eq!(
+        pending_frames(cx),
+        0,
+        "an unfocused NumberField must mount settled"
+    );
+    flush_frame(cx);
+    assert_eq!(pending_frames(cx), 0);
+
+    // Focus (the field is the page's only tab stop): the ring eases in on the
+    // pinned `box-shadow 150ms var(--ease-out)` track. The inner input's own
+    // repeating caret blink also starts here, so nothing may be asserted to
+    // settle until focus is gone.
+    press(cx, "tab");
+    flush_frame(cx);
+    sleep_mid_flight();
+    assert!(
+        pending_frames(cx) > 0,
+        "taking focus must animate the focus ring, not swap it in"
+    );
+
+    // And blur: the caret stops with focus, and the ring eases back out.
+    cx.update(|window, cx| window.blur(cx));
+    flush_frame(cx);
+    sleep_mid_flight();
+    assert!(
+        pending_frames(cx) > 0,
+        "losing focus must animate the ring out, not swap it off"
+    );
+    settle(cx);
+    assert_eq!(pending_frames(cx), 0);
+}
+
+#[gpui::test]
+fn number_field_focus_snaps_under_reduced_motion(cx: &mut TestAppContext) {
+    still();
+    let state = cx.new(|cx| NumberState::new(cx, 5.0));
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        NumberField::new(state_for_view.clone()).into_any_element()
+    });
+
+    // `motion-reduce:transition-none` keeps the state's property values but
+    // removes the timing: the ring lands on its endpoint with no animation.
+    press(cx, "tab");
+    flush_frame(cx);
+    assert_eq!(
+        pending_frames(cx),
+        0,
+        "reduced motion must snap the focus chrome"
+    );
+    flush_frame(cx);
+    assert_eq!(pending_frames(cx), 0);
+}
+
+#[gpui::test]
+fn number_field_invalid_chrome_interpolates(cx: &mut TestAppContext) {
+    let invalid = Rc::new(std::cell::Cell::new(false));
+    let seed = invalid.clone();
+    let state = cx.new(|cx| NumberState::new(cx, 5.0));
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        let invalid = seed.clone();
+        NumberField::new(state_for_view.clone())
+            .is_invalid(invalid.get())
+            .into_any_element()
+    });
+    settle(cx);
+
+    // Flipping to invalid fades the danger outline in: the border track is
+    // transparent -> danger at the outline's width, over the pinned 150ms.
+    invalid.set(true);
+    flush_frame(cx);
+    sleep_mid_flight();
+    assert!(
+        pending_frames(cx) > 0,
+        "becoming invalid must animate the danger outline in"
+    );
+    settle(cx);
+
+    // And back: the same track fades the outline out again.
+    invalid.set(false);
+    flush_frame(cx);
+    sleep_mid_flight();
+    assert!(
+        pending_frames(cx) > 0,
+        "recovering from invalid must animate the danger outline out"
+    );
+    settle(cx);
+    assert_eq!(pending_frames(cx), 0);
+}
+
+#[gpui::test]
+fn number_field_hover_interpolates_the_group_surface(cx: &mut TestAppContext) {
+    let state = cx.new(|cx| NumberState::new(cx, 5.0));
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        NumberField::new(state_for_view.clone()).into_any_element()
+    });
+    settle(cx);
+
+    // The group is a 220x36 box at the window origin; a pointer over its
+    // middle hovers it, and the fill and border ease to the hover tokens on
+    // their shared 150ms smooth track.
+    cx.simulate_mouse_move(point(px(110.), px(18.)), None, Modifiers::none());
+    flush_frame(cx);
+    sleep_mid_flight();
+    assert!(
+        pending_frames(cx) > 0,
+        "hovering the group must ease the hover surface in"
+    );
+    settle(cx);
+
+    // Leaving eases the same tracks back to the resting endpoints.
+    cx.simulate_mouse_move(point(px(-100.), px(-100.)), None, Modifiers::none());
+    flush_frame(cx);
+    sleep_mid_flight();
+    assert!(
+        pending_frames(cx) > 0,
+        "leaving the group must ease the hover surface out"
+    );
+    settle(cx);
+    assert_eq!(pending_frames(cx), 0);
+}
+
+#[gpui::test]
+fn input_otp_invalid_slots_interpolate_the_danger_outline(cx: &mut TestAppContext) {
+    let invalid = Rc::new(std::cell::Cell::new(false));
+    let seed = invalid.clone();
+    let state = cx.new(|cx| OtpState::with_length(cx, 4));
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        let invalid = seed.clone();
+        InputOTP::new(state_for_view.clone())
+            .is_invalid(invalid.get())
+            .into_any_element()
+    });
+    settle(cx);
+
+    // Every slot carries the danger outline, fading in on the shared
+    // border-color track.
+    invalid.set(true);
+    flush_frame(cx);
+    sleep_mid_flight();
+    assert!(
+        pending_frames(cx) > 0,
+        "becoming invalid must animate the slots' danger outlines in"
+    );
+    settle(cx);
+
+    invalid.set(false);
+    flush_frame(cx);
+    sleep_mid_flight();
+    assert!(
+        pending_frames(cx) > 0,
+        "recovering from invalid must animate the slots' danger outlines out"
+    );
+    settle(cx);
+    assert_eq!(pending_frames(cx), 0);
+}
+
+#[gpui::test]
+fn input_otp_hover_interpolates_the_slot_surface(cx: &mut TestAppContext) {
+    let state = cx.new(|cx| OtpState::with_length(cx, 4));
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        InputOTP::new(state_for_view.clone()).into_any_element()
+    });
+    settle(cx);
+
+    // Cell 0 spans x 8..46 (the zero-width origin item, then the 38px cell),
+    // y 0..40. Hovering it eases the slot fill and border to the hover
+    // endpoints; an unfocused row mounts no caret, so the pending frames are
+    // the chrome tracks alone.
+    cx.simulate_mouse_move(point(px(27.), px(20.)), None, Modifiers::none());
+    flush_frame(cx);
+    sleep_mid_flight();
+    assert!(
+        pending_frames(cx) > 0,
+        "hovering a slot must ease its hover chrome in"
+    );
+    settle(cx);
+
+    cx.simulate_mouse_move(point(px(-100.), px(-100.)), None, Modifiers::none());
+    flush_frame(cx);
+    sleep_mid_flight();
+    assert!(
+        pending_frames(cx) > 0,
+        "leaving a slot must ease its hover chrome out"
+    );
+    settle(cx);
+    assert_eq!(pending_frames(cx), 0);
 }

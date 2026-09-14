@@ -368,8 +368,11 @@ fn animated_field_fills_keep_the_owner_radius() {
         autocomplete.contains("|fill| fill.rounded(trigger_radius)"),
         "Autocomplete hover fills must follow the trigger radius"
     );
+    // NumberField's hover/focus surface rides the shared chrome ramp, which
+    // rounds every interpolating layer with the radius its caller hands it.
     assert!(
-        number_field.contains("|fill| fill.rounded(group_radius)"),
+        number_field.contains("crate::anim::field_chrome_ramp(")
+            && number_field.contains("group_radius,"),
         "NumberField hover fills must follow the group radius"
     );
 }

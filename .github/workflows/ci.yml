@@ -86,6 +86,7 @@ jobs:
           python .shots/test_parity_report.py
           python .shots/test_coverage_report.py
           python .shots/test_inert.py
+          python .shots/test_native_capture.py
 
       - name: Interaction inventory freshness
         run: python .shots/interaction_inventory.py --check

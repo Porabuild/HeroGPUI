@@ -3292,9 +3292,9 @@ impl Widget {
         }));
         assert!(metadata.styling.iter().any(|entry| {
             entry.class_or_token == ".tabs__tab"
-                && entry.status == reference_metadata::ImplementationStatus::Partial
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
                 && entry.rust.contains("whitespace_normal")
-                && entry.rust.contains("h_auto")
+                && entry.rust.contains("h(32px)")
         }));
         assert!(metadata.styling.iter().any(|entry| {
             entry.class_or_token == ".tabs__tab transitions"
@@ -3636,15 +3636,14 @@ impl Widget {
             entry.class_or_token == "pinned With Chevrons composition"
                 && entry.status == reference_metadata::ImplementationStatus::Implemented
         }));
-        for class_or_token in [
-            ".number-field__group transitions",
-            ".number-field buttons:active",
-        ] {
-            assert!(metadata.styling.iter().any(|entry| {
-                entry.class_or_token == class_or_token
-                    && entry.status == reference_metadata::ImplementationStatus::Partial
-            }));
-        }
+        assert!(metadata.styling.iter().any(|entry| {
+            entry.class_or_token == ".number-field__group transitions"
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
+        }));
+        assert!(metadata.styling.iter().any(|entry| {
+            entry.class_or_token == ".number-field buttons:active"
+                && entry.status == reference_metadata::ImplementationStatus::Partial
+        }));
     }
 
     #[test]
