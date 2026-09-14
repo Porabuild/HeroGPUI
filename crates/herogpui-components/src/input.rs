@@ -2242,12 +2242,12 @@ impl RenderOnce for Input {
                 // the listener-free visual fill follows HeroUI's 150ms
                 // ease-smooth transition. The border endpoint is immediate,
                 // and custom theme backgrounds retain their caller-owned fill.
-                field = field.hover(move |style| style.border_color(hover_border));
                 field = crate::anim::hover_fade_with_duration_and_easing(
                     field,
                     element_id::scoped(&base_id, "hover-fade"),
                     (idle_bg, hover_bg),
                     None,
+                    Some(hover_border),
                     |fill| fill.rounded(radius),
                     Some(150),
                     crate::anim::HoverFadeEasing::EaseSmooth,

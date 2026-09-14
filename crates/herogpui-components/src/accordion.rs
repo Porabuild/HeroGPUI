@@ -399,6 +399,7 @@ impl RenderOnce for Accordion {
                     element_id::scoped(&element_id::scoped(&id, item.key.clone()), "hover-fade"),
                     (idle_bg, hover_bg),
                     None,
+                    None,
                     |fill| fill,
                     Some(crate::anim::ACCORDION_TRIGGER_HOVER_MS),
                     window,

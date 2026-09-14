@@ -95,7 +95,10 @@ const INVENTORY: &[Part] = &[
     Part::pending(
         "select.rs",
         "trigger hover fill",
-        ".hover(move |s| {",
+        // The trigger's hover endpoint moved into the fade's `hover_border`
+        // argument when `anim` took ownership of the element's gpui hover
+        // style; the call is the consumer now.
+        "crate::anim::hover_fade_with_duration_and_easing_suppressed(",
         "util::sx_background",
     ),
     Part::pending(
@@ -167,7 +170,9 @@ const INVENTORY: &[Part] = &[
     Part::pending(
         "input_group.rs",
         "group hover fill",
-        ".hover(move |style| style.border_color(hover_border));",
+        // Same move as select.rs: the border endpoint is now the fade's
+        // `hover_border` argument rather than a `.hover(..)` on the group.
+        "crate::anim::hover_fade_with_duration_and_easing(",
         "util::sx_background",
     ),
     Part::pending(

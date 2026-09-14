@@ -794,12 +794,12 @@ impl RenderOnce for ColorField {
                 // only the visual fill interpolates over HeroUI's 150ms
                 // ease-smooth hover transition. The border endpoint remains
                 // an immediate hover refinement, matching the field family.
-                field = field.hover(move |style| style.border_color(hover_border));
                 field = crate::anim::hover_fade_with_duration_and_easing(
                     field,
                     element_id::scoped(&self.id, "field-hover-fade"),
                     (idle_bg, hover_bg),
                     None,
+                    Some(hover_border),
                     |fill| fill.rounded(radius),
                     Some(150),
                     crate::anim::HoverFadeEasing::EaseSmooth,

@@ -408,6 +408,7 @@ impl RenderOnce for ToggleButton {
                 element_id::scoped(&self.id, "fade"),
                 colors,
                 interaction.as_ref(),
+                None,
                 move |fill| {
                     crate::util::round_sx_corners(
                         crate::button::group_radius_any(fill, edge, radius),

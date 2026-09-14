@@ -391,7 +391,6 @@ impl RenderOnce for InputGroup {
             // Keep the group identity and focus listeners stable while only
             // the hover surface interpolates over HeroUI's 150ms ease-smooth
             // transition. The border endpoint remains an immediate refinement.
-            group = group.hover(move |style| style.border_color(hover_border));
             group = crate::anim::hover_fade_with_duration_and_easing(
                 group,
                 element_id::scoped(&group_id, "hover-fade"),
@@ -403,6 +402,7 @@ impl RenderOnce for InputGroup {
                     hover_bg,
                 ),
                 None,
+                Some(hover_border),
                 |fill| fill.rounded(radius),
                 Some(150),
                 crate::anim::HoverFadeEasing::EaseSmooth,

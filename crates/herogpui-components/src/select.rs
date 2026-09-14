@@ -1115,18 +1115,12 @@ impl RenderOnce for Select {
             // Keep clear-button ownership and trigger focus stable while the
             // field surface eases over HeroUI's 150ms ease-smooth transition.
             // The nested clear affordance suppresses the trigger endpoint.
-            field = field.hover(move |s| {
-                if clear_hovered {
-                    s
-                } else {
-                    s.border_color(hover_border)
-                }
-            });
             field = crate::anim::hover_fade_with_duration_and_easing_suppressed(
                 field,
                 element_id::scoped(&self.id, "trigger-hover-fade"),
                 (idle_bg, hover_bg),
                 None,
+                (!clear_hovered).then_some(hover_border),
                 clear_hovered,
                 |fill| fill.rounded(trigger_radius),
                 Some(150),

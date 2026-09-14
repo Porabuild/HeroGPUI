@@ -705,6 +705,7 @@ impl RenderOnce for Button {
                 element_id::scoped(&self.id, "fade"),
                 colors,
                 interaction.as_ref(),
+                None,
                 move |fill| {
                     util::round_sx_corners(group_radius_any(fill, edge, radius), &sx_corners)
                 },

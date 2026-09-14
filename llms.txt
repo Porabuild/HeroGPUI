@@ -768,9 +768,15 @@ is the gpui equivalent and the single place the timings live.
   drawer's `slide-out-to-*`. A `RenderOnce` component leaves the tree the moment
   `isOpen` goes false, so `util::overlay_phase` holds it for `EXITING_MS` first:
   it returns `Closed` / `Open` / `Exiting`, and the caller picks the animation.
-- `anim::hover_fade(el, id, idle, hovered, window, cx)` — v3's
+- `anim::hover_fade(el, id, idle, hovered, hover_border, window, cx)` — v3's
   `transition-colors`. gpui has no property transitions, so the element keeps its
   own hover flag and generation counter and each change eases the fill in OKLab.
+  The helper owns the element's one gpui hover style: pass the immediate border
+  endpoint as `hover_border` rather than calling `.hover(..)` on the same element
+  yourself. That style is what makes gpui notify on a real pointer crossing —
+  the fade's own listener records the pointer without notifying, because
+  notifying there re-renders forever whenever the element's id is not stable
+  across frames.
 - `anim::caret_blink(el, id, cx)` — v3's `@keyframes caret-blink`, on the text
   and OTP carets.
 - `anim::Motion` — the duration, scale and `Curve` v3 declares per overlay:

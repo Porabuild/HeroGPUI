@@ -1479,12 +1479,12 @@ impl RenderOnce for DateField {
                     herogpui_core::FieldVariant::Secondary => colors.default.hover(),
                 };
                 let hover_border = colors.field.border_hover();
-                group = group.hover(move |style| style.border_color(hover_border));
                 group = crate::anim::hover_fade_with_duration_and_easing(
                     group,
                     element_id::scoped(&base_id, "hover-fade"),
                     (idle_bg, hover_bg),
                     None,
+                    Some(hover_border),
                     move |fill| fill.rounded(radius),
                     Some(150),
                     crate::anim::HoverFadeEasing::EaseSmooth,

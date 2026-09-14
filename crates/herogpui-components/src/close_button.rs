@@ -182,6 +182,7 @@ impl RenderOnce for CloseButton {
                 element_id::scoped(&self.id, "fade"),
                 fade_colors,
                 interaction.as_ref(),
+                None,
                 move |fill| crate::util::round_sx_corners(fill.rounded(radius), &sx_corners),
                 window,
                 cx,

@@ -5,6 +5,43 @@
 //! suppressed when the user asks for reduced motion — with no opt-in required
 //! from the caller.
 //!
+//! ## Hover slots never request their own frame
+//!
+//! [`hover_fade`] and [`field_chrome_ramp`] keep a copy of the pointer state in
+//! keyed state, because a colour ramp needs to know which endpoint it is easing
+//! towards and gpui hands that out only through a listener. Those listeners
+//! record the new value and stop; they must never call `cx.notify()`.
+//!
+//! gpui reconciles an `on_hover` listener during *paint* whenever the element's
+//! interactive state is new, deferring a call so the listener catches up with a
+//! pointer that was already inside (`Interactivity::paint` in pinned gpui-pre
+//! 0.3.3). That reconciliation is not a user event, so a listener that notifies
+//! turns every such frame into a request for another one. It settles only if
+//! the element keeps the same id across frames -- and a control whose id comes
+//! from a caller-owned state entity does not, if the caller rebuilds that
+//! entity in `render`. The result is an unbounded re-render that spins a real
+//! app at full CPU and hangs a headless test, where `App::flush_effects` draws
+//! every dirty window until none is left.
+//!
+//! What repaints on a genuine crossing instead is gpui's own hover machinery:
+//! when an element carries a hover style, `Interactivity::paint` installs a
+//! capture-phase `MouseMoveEvent` handler that notifies the view. That handler
+//! is the *only* repaint on offer -- `Window::dispatch_mouse_event` refreshes
+//! for an active drag and nothing else -- and it is gated on `hover_style`
+//! specifically: a `mouse_cursor`-only element installs the handler but leaves
+//! its `hover_state` `None` and so notifies nothing.
+//!
+//! So the rule is **whoever owns the element's `on_hover` owns its gpui hover
+//! style**, and these two helpers own both rather than trusting a caller to
+//! supply the second. [`hover_fade`] takes the immediate `hover_border`
+//! endpoint that its callers used to apply themselves; [`field_chrome_ramp`]
+//! sets an empty refinement, because every endpoint it has is interpolated and
+//! a style swap would snap the colour. When an `Interaction` slot is passed,
+//! `util::track_interaction` owns the listener and its notify, and that
+//! caller keeps its own hover style. A caller that sets a second hover style on
+//! the same element trips gpui's own `debug_assert!("hover style already set")`,
+//! so the ownership rule cannot be broken silently.
+//!
 //! This module is the gpui equivalent. Components call [`entering`] instead of
 //! reaching for `with_animation` directly, so the reduced-motion check and the
 //! duration/easing live in exactly one place.
@@ -1353,11 +1390,13 @@ where
 ///
 /// Returns the element with a plain `hover` swap under reduced motion, so the
 /// state is still visible without motion.
+#[allow(clippy::too_many_arguments)] // one parameter per endpoint the fade owns
 pub fn hover_fade(
     el: gpui::Stateful<gpui::Div>,
     id: impl Into<ElementId>,
     colors: (gpui::Hsla, gpui::Hsla),
     interaction: Option<&crate::util::Interaction>,
+    hover_border: Option<gpui::Hsla>,
     round_corners: impl Fn(gpui::Div) -> gpui::Div,
     window: &mut Window,
     cx: &mut App,
@@ -1367,6 +1406,7 @@ pub fn hover_fade(
         id,
         colors,
         interaction,
+        hover_border,
         round_corners,
         None,
         HoverFadeEasing::EaseOut,
@@ -1385,6 +1425,7 @@ pub(crate) fn hover_fade_with_duration(
     id: impl Into<ElementId>,
     colors: (gpui::Hsla, gpui::Hsla),
     interaction: Option<&crate::util::Interaction>,
+    hover_border: Option<gpui::Hsla>,
     round_corners: impl Fn(gpui::Div) -> gpui::Div,
     duration_override_ms: Option<u64>,
     window: &mut Window,
@@ -1395,6 +1436,7 @@ pub(crate) fn hover_fade_with_duration(
         id,
         colors,
         interaction,
+        hover_border,
         round_corners,
         duration_override_ms,
         HoverFadeEasing::EaseOut,
@@ -1412,6 +1454,7 @@ pub(crate) fn hover_fade_with_duration_and_easing(
     id: impl Into<ElementId>,
     colors: (gpui::Hsla, gpui::Hsla),
     interaction: Option<&crate::util::Interaction>,
+    hover_border: Option<gpui::Hsla>,
     round_corners: impl Fn(gpui::Div) -> gpui::Div,
     duration_override_ms: Option<u64>,
     easing: HoverFadeEasing,
@@ -1423,6 +1466,7 @@ pub(crate) fn hover_fade_with_duration_and_easing(
         id,
         colors,
         interaction,
+        hover_border,
         false,
         round_corners,
         duration_override_ms,
@@ -1442,6 +1486,7 @@ pub(crate) fn hover_fade_with_duration_and_easing_suppressed(
     id: impl Into<ElementId>,
     colors: (gpui::Hsla, gpui::Hsla),
     interaction: Option<&crate::util::Interaction>,
+    hover_border: Option<gpui::Hsla>,
     suppressed: bool,
     round_corners: impl Fn(gpui::Div) -> gpui::Div,
     duration_override_ms: Option<u64>,
@@ -1472,6 +1517,11 @@ pub(crate) fn hover_fade_with_duration_and_easing_suppressed(
     el = el.bg(if current.hovered { hovered } else { idle });
     el = match interaction {
         Some(slot) => {
+            debug_assert!(
+                hover_border.is_none(),
+                "the interaction slot's owner keeps its own gpui hover style; \
+                 `hover_border` is only read by the listener-owned branch"
+            );
             let hovered_now = slot.read(cx).0 && !suppressed;
             if hovered_now != current.hovered {
                 current.hovered = hovered_now;
@@ -1485,17 +1535,29 @@ pub(crate) fn hover_fade_with_duration_and_easing_suppressed(
             el
         }
         None => {
+            // This branch owns the element's `on_hover`, so it also owns its
+            // gpui hover style -- the listener below records the pointer
+            // without notifying, and this is what makes gpui notify on a real
+            // crossing. See the hover-slot note in the module documentation.
+            // `hover_border` carries the caller's immediate border endpoint;
+            // the fill itself is the interpolated child, never a style swap.
+            let el = el.hover(move |style| match hover_border {
+                Some(color) => style.border_color(color),
+                None => style,
+            });
             let held = state.clone();
             el.on_hover(move |over: &bool, _, cx| {
                 let over = *over && !suppressed;
-                held.update(cx, |s, cx| {
+                held.update(cx, |s, _| {
                     if s.hovered != over {
                         s.hovered = over;
                         // A new generation gives the fill's animation a new id,
                         // which is what restarts it mid-flight when the pointer
                         // turns around.
                         s.generation = s.generation.wrapping_add(1);
-                        cx.notify();
+                        // Recording the pointer must not itself ask for a
+                        // frame -- see the hover-slot note in the module
+                        // documentation above.
                     }
                 });
             })
@@ -1765,12 +1827,21 @@ where
     // keyed slot the handler writes and this render reads.
     let slot = window.use_keyed_state(element_id::scoped(id, "chrome-hover"), cx, |_, _| false);
     let is_hovered = *slot.read(cx) && hovered.is_some();
+    // This helper owns the element's `on_hover`, so it owns its gpui hover
+    // style too. The refinement is deliberately empty: every chrome endpoint
+    // here is interpolated by the tweens below, and a style swap would snap
+    // the colour gpui is meant only to notify about. Setting it is what makes
+    // a real pointer crossing repaint, which is why the listener records
+    // without notifying. See the hover-slot note in the module documentation.
+    el = el.hover(|style| style);
     el.interactivity().on_hover({
         move |over: &bool, _, cx| {
-            slot.update(cx, |hovered, cx| {
+            slot.update(cx, |hovered, _| {
                 if *hovered != *over {
                     *hovered = *over;
-                    cx.notify();
+                    // Recording the pointer must not itself ask for a frame
+                    // -- see the hover-slot note in the module documentation
+                    // above.
                 }
             });
         }

@@ -1562,6 +1562,7 @@ impl RenderOnce for RangeCalendar {
                         element_id::scoped(&button_id, "hover-fade"),
                         (herogpui_core::with_alpha(colors.default.color, 0.0), hover_bg),
                         None,
+                        None,
                         move |fill| fill.rounded(radius),
                         Some(100),
                         window,

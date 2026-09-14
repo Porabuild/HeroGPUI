@@ -654,6 +654,7 @@ impl RenderOnce for TagGroup {
                             hover,
                         ),
                         Some(slot),
+                        None,
                         move |fill| fill.rounded(tag_radius),
                         Some(100),
                         crate::anim::HoverFadeEasing::EaseSmooth,

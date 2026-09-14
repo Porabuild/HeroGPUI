@@ -1067,18 +1067,12 @@ impl RenderOnce for Autocomplete {
                 // `ease-smooth` curve; while the nested clear affordance is
                 // hovered, suppress the parent endpoint just like v3's
                 // `:not(:has(.autocomplete__clear-button:hover))` rule.
-                field = field.hover(move |s| {
-                    if clear_hovered {
-                        s
-                    } else {
-                        s.border_color(hover_border)
-                    }
-                });
                 field = crate::anim::hover_fade_with_duration_and_easing_suppressed(
                     field,
                     element_id::scoped(&base_id, "trigger-hover-fade"),
                     (idle_bg, hover_bg),
                     None,
+                    (!clear_hovered).then_some(hover_border),
                     clear_hovered,
                     |fill| fill.rounded(trigger_radius),
                     Some(150),
