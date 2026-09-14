@@ -14,7 +14,11 @@
 //! value walk the collection, so a selection reads in row order however it
 //! was picked — the walk `Select.Value` has always followed.
 
-use std::{cell::RefCell, collections::HashSet, rc::Rc};
+use std::{
+    cell::{Cell, RefCell},
+    collections::HashSet,
+    rc::Rc,
+};
 
 use gpui::{
     prelude::*, px, AnimationExt, App, IntoElement, ParentElement, Pixels, RenderOnce,
@@ -256,6 +260,10 @@ pub struct Select {
     /// `ListBox.ItemIndicator` — draws the tick. The closure is handed whether
     /// the row is selected.
     indicator: Option<Box<dyn Fn(bool) -> gpui::AnyElement + 'static>>,
+    /// `Select.Indicator` — draws the trigger indicator. The closure is handed
+    /// whether the popover is open; arbitrary caller content is kept as-is,
+    /// while the built-in SVG follows the pinned 150ms rotation.
+    trigger_indicator: Option<Box<dyn Fn(bool) -> gpui::AnyElement + 'static>>,
     /// `Select.Value` — draws the trigger's value. The closure is handed the
     /// selected key, or `None` while the placeholder shows.
     value_content: Option<Box<dyn Fn(util::SelectionValue<'_>) -> gpui::AnyElement + 'static>>,
@@ -340,6 +348,20 @@ impl Select {
         self
     }
 
+    /// `Select.Indicator` — draw the trigger indicator yourself.
+    ///
+    /// The closure receives the current open state, which is the GPUI analog
+    /// of v3's `data-open` attribute. The default SVG indicator rotates over
+    /// the pinned 150ms transition; caller-provided content remains caller
+    /// owned and can use this state to render its own visual.
+    pub fn trigger_indicator(
+        mut self,
+        render: impl Fn(bool) -> gpui::AnyElement + 'static,
+    ) -> Self {
+        self.trigger_indicator = Some(Box::new(render));
+        self
+    }
+
     /// `Select.Value` — draw the trigger's value yourself.
     ///
     /// The closure is handed the render props v3 passes into
@@ -389,6 +411,13 @@ impl Select {
     pub fn is_bare(mut self, v: bool) -> Self {
         self.field.is_bare = v;
         self.field.is_bare_is_set = true;
+        self
+    }
+
+    /// Shows or hides only the trigger's visual focus ring. The trigger stays
+    /// keyboard focusable and the list still opens when set to `false`.
+    pub fn focus_ring(mut self, v: bool) -> Self {
+        self.field.focus_ring = Some(v);
         self
     }
 
@@ -494,6 +523,7 @@ impl Select {
             field: util::FieldBox::default(),
             sections: Vec::new(),
             indicator: None,
+            trigger_indicator: None,
             value_content: None,
             is_required: false,
             disabled_keys: HashSet::new(),
@@ -716,6 +746,25 @@ impl RenderOnce for Select {
             true,
         );
         let overlay_active = overlay_phase != util::OverlayPhase::Closed;
+        // The field popover resolves flips during prepaint. Keep the
+        // requested placement and the physical side in keyed state so the
+        // next entry frame uses the side that was actually painted.
+        let requested_placement = window.use_keyed_state(
+            element_id::scoped(&self.id, "requested-placement"),
+            cx,
+            |_, _| self.placement,
+        );
+        let resolved_placement = window.use_keyed_state(
+            element_id::scoped(&self.id, "resolved-placement"),
+            cx,
+            |_, _| Rc::new(Cell::new(None::<Placement>)),
+        );
+        if *requested_placement.read(cx) != self.placement {
+            requested_placement.update(cx, |placement, _| *placement = self.placement);
+            resolved_placement.read(cx).set(None);
+        }
+        let resolved_placement = resolved_placement.read(cx).clone();
+        let entry_placement = resolved_placement.get().unwrap_or(self.placement);
         let multiple = self.selection_mode == SelectionMode::Multiple;
         let (selected, value_own) = if multiple {
             (None, None)
@@ -764,7 +813,7 @@ impl RenderOnce for Select {
         );
         let reset_own = value_own.clone();
         let reset_keys_own = indices_own.clone();
-        let reset_state = self.form_state.clone();
+        let reset_state = Rc::downgrade(&self.form_state);
         let reset_change = self
             .is_controlled
             .then(|| self.on_selection_change.clone())
@@ -783,8 +832,10 @@ impl RenderOnce for Select {
         .then(|| {
             util::shared(move |window: &mut Window, cx: &mut App| {
                 if reset_mode == SelectionMode::Multiple {
-                    reset_state.borrow_mut().value =
-                        select_form_value(&reset_items, &None, &form_default_keys);
+                    if let Some(state) = reset_state.upgrade() {
+                        state.borrow_mut().value =
+                            select_form_value(&reset_items, &None, &form_default_keys);
+                    }
                     if let Some(held) = &reset_keys_own {
                         held.update(cx, |selected, cx| {
                             *selected = form_default_keys.clone();
@@ -795,8 +846,9 @@ impl RenderOnce for Select {
                         on_change(&form_default_keys, window, cx);
                     }
                 } else {
-                    reset_state.borrow_mut().value =
-                        select_form_value(&reset_items, &reset_key, &[]);
+                    if let Some(state) = reset_state.upgrade() {
+                        state.borrow_mut().value = select_form_value(&reset_items, &reset_key, &[]);
+                    }
                     if let Some(held) = &reset_own {
                         held.update(cx, |selected, cx| {
                             *selected = reset_key.clone();
@@ -954,6 +1006,12 @@ impl RenderOnce for Select {
             }
         });
 
+        let anchor_bounds: Rc<Cell<Option<gpui::Bounds<Pixels>>>> = window
+            .use_keyed_state(element_id::scoped(&self.id, "anchor-bounds"), cx, |_, _| {
+                Rc::new(Cell::new(None))
+            })
+            .read(cx)
+            .clone();
         let sem = *cx.role(Color::Accent);
         let colors = cx.colors().clone();
         let layout = cx.layout().clone();
@@ -1000,7 +1058,9 @@ impl RenderOnce for Select {
         // up open. The trigger's capture-phase handler runs before the panel's
         // `on_mouse_down_out` in the same dispatch, so the dismissal can see it
         // and leave the close to the trigger's click.
-        let trigger_pressed = Rc::new(std::cell::Cell::new(false));
+        let trigger_pressed = Rc::new(Cell::new(false));
+        let trigger_radius = util::field_radius(cx);
+        let trigger_focused = focus_handle.is_focused(window);
         let mut field = gpui::div()
             .id(trigger_id)
             .debug_selector(move || trigger_selector)
@@ -1011,9 +1071,12 @@ impl RenderOnce for Select {
             .min_h(h)
             .when_some(field_box.height, |el, h| el.h(h))
             .px(field_box.resolved_padding_x())
-            .when(has_clear, |el| {
-                el.relative().pr(field_box.padding_x.unwrap_or(px(28.)))
-            })
+            // HeroUI's trigger reserves `pe-7` for its always-present
+            // `.select__indicator`, whether or not a clear button is composed.
+            // The indicator is taken out of flex flow below, so the value and
+            // clear slots cannot push it or overlap its hit box.
+            .relative()
+            .pr(px(28.))
             .text_size(text)
             .line_height(px(20.))
             .cursor(util::interactive_cursor(cx));
@@ -1025,13 +1088,11 @@ impl RenderOnce for Select {
         if !field_box.is_bare {
             field = util::apply_field_chrome(field, self.variant, self.is_invalid, false, None, cx);
         }
-        if !field_box.is_bare && !self.is_disabled {
+        if !field_box.is_bare && field_box.focus_ring.unwrap_or(true) && !self.is_disabled {
             field = util::ring_if_focused(field, &focus_handle, true, Vec::new(), window, cx);
         }
 
-        if !field_box.is_bare
-            && (self.is_invalid || (focus_handle.is_focused(window) && util::focus_visible(cx)))
-        {
+        if !field_box.is_bare && (self.is_invalid || (trigger_focused && util::focus_visible(cx))) {
             field = field.bg(match self.variant {
                 FieldVariant::Primary => colors.field.focus(),
                 FieldVariant::Secondary => colors.default.color,
@@ -1040,13 +1101,33 @@ impl RenderOnce for Select {
 
         if self.is_disabled {
             field = field.opacity(layout.disabled_opacity);
-        } else if !field_box.is_bare {
+        } else if !field_box.is_bare && !self.is_invalid && !trigger_focused {
+            let idle_bg = match self.variant {
+                FieldVariant::Primary => colors.field.background,
+                FieldVariant::Secondary => colors.default.color,
+            };
             let hover_bg = match self.variant {
                 FieldVariant::Primary => colors.field.hover(),
                 // `.select--secondary` hovers `--select-trigger-bg-hover: var(--default-hover)`.
                 FieldVariant::Secondary => colors.default.hover(),
             };
-            field = field.hover(move |s| if clear_hovered { s } else { s.bg(hover_bg) });
+            let hover_border = colors.field.border_hover();
+            // Keep clear-button ownership and trigger focus stable while the
+            // field surface eases over HeroUI's 150ms ease-smooth transition.
+            // The nested clear affordance suppresses the trigger endpoint.
+            field = crate::anim::hover_fade_with_duration_and_easing_suppressed(
+                field,
+                element_id::scoped(&self.id, "trigger-hover-fade"),
+                (idle_bg, hover_bg),
+                None,
+                (!clear_hovered).then_some(hover_border),
+                clear_hovered,
+                |fill| fill.rounded(trigger_radius),
+                Some(150),
+                crate::anim::HoverFadeEasing::EaseSmooth,
+                window,
+                cx,
+            );
         }
 
         if self.full_width {
@@ -1448,8 +1529,13 @@ impl RenderOnce for Select {
         // `defaultChildren`, which a `Select.Value` closure can hand straight
         // back for the placeholder case.
         let default_children = gpui::div()
+            // HeroUI's `.select__value` uses `wrap-break-word`: a long
+            // selected label grows the trigger instead of disappearing into
+            // an ellipsis. `min_w_0` keeps the value slot from forcing the
+            // chevron/clear affordance out of the trigger.
             .flex_1()
-            .truncate()
+            .min_w_0()
+            .whitespace_normal()
             .text_color(if has_value {
                 colors.foreground
             } else {
@@ -1554,12 +1640,19 @@ impl RenderOnce for Select {
             // 24px pointer target independent.
             // Only the target owns listeners; the animated visual never changes
             // their element-id path during a press or an opacity transition.
+            // `&:active, &[data-pressed="true"]` applies
+            // `transform: scale(0.93)` to the whole control about its center,
+            // and CSS transforms rescale hit testing without touching layout,
+            // so the absolute target tracks the same centered box — 24px at
+            // rest, 22.32px inset by 1.16px while the press lasts.
+            let target_size = px(24. * scale);
+            let target_inset = px((20. - 24. * scale) / 2.);
             let mut target = gpui::div()
                 .id(id.clone())
                 .absolute()
-                .left(px(-2.))
-                .top(px(-2.))
-                .size(px(24.))
+                .left(target_inset)
+                .top(target_inset)
+                .size(target_size)
                 .flex()
                 .items_center()
                 .justify_center()
@@ -1592,30 +1685,37 @@ impl RenderOnce for Select {
                     .child(target),
             );
         }
-        // `.select__indicator`: clear compositions reserve its absolute end slot.
-        let indicator = gpui::svg()
-            .size(px(16.))
-            .path(if is_open {
-                icons::CHEVRON_UP
-            } else {
-                icons::CHEVRON_DOWN
-            })
-            .text_color(colors.muted)
-            .flex_shrink_0();
-        field = if has_clear {
-            field.child(
-                gpui::div()
-                    .absolute()
-                    .right(px(8.))
-                    .top_0()
-                    .bottom_0()
-                    .flex()
-                    .items_center()
-                    .child(indicator),
-            )
-        } else {
-            field.child(indicator)
+        // `.select__indicator`: clear compositions reserve its absolute end
+        // slot. HeroUI keeps one down-chevron in the tree and rotates it over
+        // 150ms; do the same for the built-in SVG. A caller-provided trigger
+        // indicator receives the live open state and owns its own pixels.
+        let indicator = match self.trigger_indicator.take() {
+            Some(render) => render(is_open),
+            None => crate::anim::rotating_indicator_with_duration(
+                &element_id::scoped(&self.id, "trigger-indicator"),
+                is_open,
+                gpui::svg()
+                    .size(px(16.))
+                    .path(icons::CHEVRON_DOWN)
+                    .text_color(colors.muted)
+                    .flex_shrink_0(),
+                150,
+                window,
+                cx,
+            ),
         };
+        field = field.child(
+            gpui::div()
+                .absolute()
+                .right(px(8.))
+                .top_0()
+                .bottom_0()
+                .w(px(16.))
+                .flex()
+                .items_center()
+                .justify_center()
+                .child(indicator),
+        );
 
         if !self.is_disabled && (self.on_open_change.is_some() || open_own.is_some()) {
             let on_open_change = self.on_open_change.clone();
@@ -1668,7 +1768,6 @@ impl RenderOnce for Select {
         // `useOverlayPosition` positions against the trigger rect.
         // `scrollable_field_popover` below reads these bounds to flip and
         // cap the panel; the measure element itself only records them.
-        let anchor_bounds = Rc::new(std::cell::Cell::new(None));
         let field = crate::popover::PopoverTriggerMeasure::new(field, anchor_bounds.clone());
 
         // listbox panel
@@ -1826,9 +1925,7 @@ impl RenderOnce for Select {
             // `row_height` is what turns this list into a windowed one.
             let row_virtualized = self.row_height.is_some();
             let row_fg = colors.foreground;
-            let row_focus = colors.focus;
             let row_hover_bg = self.row_hover_bg.unwrap_or(colors.default.color);
-            let row_accent = sem.color;
             let row_disabled_opacity = layout.disabled_opacity;
             // Everything a row reads, owned: `uniform_list`'s callback is
             // `'static` and is called again on every scroll, so it cannot
@@ -1861,7 +1958,10 @@ impl RenderOnce for Select {
             let row_padding_x = self.row_padding_x.unwrap_or(px(10.));
             let row_font_family = self.row_font_family.clone();
             let row_padding_y = self.row_padding_y.unwrap_or(px(6.));
-            let row = move |i: usize, fixed_h: Option<Pixels>, cx: &mut App| {
+            let row = move |i: usize,
+                            fixed_h: Option<Pixels>,
+                            window: &mut Window,
+                            cx: &mut App| {
                 let base = &base_row;
                 let base_id = &base_row_id;
                 let opt = &items[i];
@@ -1889,6 +1989,7 @@ impl RenderOnce for Select {
                 } else {
                     selected.as_ref() == Some(&row_key)
                 };
+                let has_indicator_slot = indicator.is_some() || is_sel;
                 let opt_disabled = opt_disabled_keys.contains(&row_key);
                 let row_selector = format!("{base}-opt-{i}");
                 let mut item = gpui::div()
@@ -1931,7 +2032,13 @@ impl RenderOnce for Select {
                         .py(row_padding_y)
                         .gap(px(12.))
                         .text_size(row_text_size)
-                        .line_height(px(20.));
+                        .line_height(px(20.))
+                        // HeroUI's list-box item reserves `pe-7` whenever its
+                        // indicator slot is present; the indicator itself is
+                        // absolute at the inline end. Keeping it out of flex
+                        // flow prevents long labels from pushing the checkmark.
+                        .relative()
+                        .when(has_indicator_slot, |row| row.pr(px(28.)));
                 if let Some(family) = row_font_family.clone() {
                     item = item.font_family(family);
                 }
@@ -1944,30 +2051,94 @@ impl RenderOnce for Select {
                         .hover(move |s| s.bg(row_hover_bg));
                 }
 
-                if is_sel {
-                    item = item.text_color(row_accent);
-                } else {
-                    item = item.text_color(row_fg);
-                }
+                // `.list-box-item[data-selected]` is indicator-only in v3:
+                // selection does not recolour or bold the option label.
+                item = item.text_color(row_fg);
 
-                // `status-focused` on the row the keyboard is on.
-                if util::shows_focus_ring(cursor_at == Some(i), cx) {
-                    item = item.border_2().border_color(row_focus);
-                }
+                // `status-focused` is an overlay shadow in v3. A border
+                // changes the row's content geometry when the cursor moves.
+                item = util::with_focus_ring(
+                    item,
+                    util::shows_focus_ring(cursor_at == Some(i), cx),
+                    true,
+                    Vec::new(),
+                    cx,
+                );
 
-                item = item.child(gpui::div().truncate().child(opt.label().to_string()));
+                // HeroUI's ListBox.Item does not add an ellipsis rule. Keep
+                // normal text flow in both natural and virtual rows; the
+                // caller owns the fixed row geometry when `row_height` is
+                // supplied, just as the upstream Virtualizer owns its
+                // `rowHeight` layout.
+                let label = gpui::div().flex_1().min_w_0().whitespace_normal();
+                item = item.child(label.child(opt.label().to_string()));
 
                 match &indicator {
-                    Some(render) => item = item.child(render(is_sel)),
+                    Some(render) => {
+                        item = item.child(
+                            gpui::div()
+                                .absolute()
+                                .top_0()
+                                .bottom_0()
+                                .right(px(8.))
+                                .w(px(16.))
+                                .flex()
+                                .items_center()
+                                .justify_center()
+                                .child(render(is_sel)),
+                        );
+                    }
                     None if is_sel => {
                         item = item.child(
-                            gpui::svg()
-                                .size(px(13.))
-                                .path(icons::CHECK)
-                                .text_color(row_accent),
+                            gpui::div()
+                                .absolute()
+                                .top_0()
+                                .bottom_0()
+                                .right(px(8.))
+                                .w(px(16.))
+                                .flex()
+                                .items_center()
+                                .justify_center()
+                                .child(
+                                    gpui::svg()
+                                        .size(px(13.))
+                                        .path(icons::CHECK)
+                                        // HeroUI's default list-item indicator is
+                                        // `text-default-foreground`, independent of
+                                        // the accent selection role.
+                                        .text_color(row_fg),
+                                ),
                         );
                     }
                     None => {}
+                }
+
+                // `.list-box-item:active` scales an option to 98% over the
+                // pinned 250ms ease-out-quart transition. Wrap before the
+                // selection listener is attached so the stable slot owns the
+                // row's hit target and the click remains reachable after the
+                // visual skin moves inside it.
+                if panel_interactive && !opt_disabled {
+                    item = crate::anim::pressed_with_background_ramp(
+                        item,
+                        crate::anim::PressBox {
+                            height: fixed_h.unwrap_or(util::FIELD_HEIGHT),
+                            padding_x: Some(row_padding_x),
+                            width: None,
+                            min_width: None,
+                            text_size: row_text_size,
+                            line_height: px(20.),
+                            gap: px(12.),
+                            radius: util::soft_radius(cx),
+                            shrink_x: false,
+                            scale: crate::anim::PRESSED_SCALE_SUBTLE,
+                        },
+                        None,
+                        crate::anim::LIST_ITEM_PRESS,
+                        None,
+                        window,
+                        cx,
+                    );
                 }
 
                 if panel_interactive && !opt_disabled {
@@ -2097,7 +2268,13 @@ impl RenderOnce for Select {
                 gpui::div()
                     .flex()
                     .flex_col()
-                    .when_some(fixed_h, |el, h| el.h(h).w_full())
+                    // Keep the row wrapper at the panel's inline extent in
+                    // both the natural and virtual paths. The stable press
+                    // slot below uses `w_full`; without the same constraint
+                    // on natural rows, a long label expands the wrapper to
+                    // its min-content width and the option stops wrapping.
+                    .w_full()
+                    .when_some(fixed_h, |el, h| el.h(h))
                     .children(rows)
                     .into_any_element()
             };
@@ -2119,7 +2296,7 @@ impl RenderOnce for Select {
                             options_len,
                             move |range, _window, cx| {
                                 range
-                                    .map(|i| row(i, Some(row_height), cx))
+                                    .map(|i| row(i, Some(row_height), _window, cx))
                                     .collect::<Vec<_>>()
                             },
                         )
@@ -2130,12 +2307,18 @@ impl RenderOnce for Select {
                 }
                 None => {
                     for i in 0..options_len {
-                        panel = panel.child(row(i, None, cx));
+                        panel = panel.child(row(i, None, window, cx));
                     }
                 }
             }
 
+            let (slide_x, slide_y) = crate::popover::placement_entry_offset(entry_placement);
             let zoom = crate::anim::ZoomBox::panel(self.panel_padding.unwrap_or(px(6.)), radius);
+            let zoom = crate::anim::ZoomBox {
+                slide_x: (slide_x != 0.0).then(|| px(slide_x)),
+                slide_y: (slide_y != 0.0).then(|| px(slide_y)),
+                ..zoom
+            };
             let panel = if overlay_phase == util::OverlayPhase::Exiting {
                 crate::anim::exiting(
                     panel,
@@ -2157,11 +2340,14 @@ impl RenderOnce for Select {
             // flips it when the other side has more room, and caps it at the
             // available viewport height past a 12px inset — which `Select`
             // inherits unchanged from `useOverlayPosition`/`Popover`.
-            root = root.child(util::floating(crate::popover::scrollable_field_popover(
-                anchor_bounds,
-                self.placement,
-                panel,
-            )));
+            root = root.child(util::floating(
+                crate::popover::scrollable_field_popover_with_resolved_placement(
+                    anchor_bounds,
+                    self.placement,
+                    Some(resolved_placement),
+                    panel,
+                ),
+            ));
         }
 
         root = util::apply_sx(root, &self.sx);
@@ -2386,6 +2572,41 @@ mod tests {
         assert!(
             !source.contains("soft_hover()") && !source.contains("default.soft()"),
             "no select surface may hover a soft token"
+        );
+    }
+
+    #[test]
+    fn trigger_hover_uses_the_pinned_smooth_transition() {
+        let source = include_str!("select.rs")
+            .split("#[cfg(test)]")
+            .next()
+            .expect("the implementation section is always present");
+        assert!(
+            source.contains("hover_fade_with_duration_and_easing_suppressed")
+                && source.contains("Some(150)")
+                && source.contains("HoverFadeEasing::EaseSmooth")
+                && source.contains("|fill| fill.rounded(trigger_radius)"),
+            "Select trigger hover must animate with the pinned 150ms smooth \
+             transition and preserve the trigger radius"
+        );
+        assert!(
+            source.contains("!field_box.is_bare && !self.is_invalid && !trigger_focused"),
+            "invalid and focused triggers must keep ownership of their chrome"
+        );
+    }
+
+    #[test]
+    fn option_rows_use_the_pinned_subtle_press_transition() {
+        let source = include_str!("select.rs")
+            .split("#[cfg(test)]")
+            .next()
+            .expect("the implementation section is always present");
+        assert!(
+            source.contains("crate::anim::pressed_with_background_ramp(")
+                && source.contains("crate::anim::LIST_ITEM_PRESS")
+                && source.contains("PRESSED_SCALE_SUBTLE")
+                && source.contains("radius: util::soft_radius(cx)"),
+            "Select options must use the shared 98% quart press ramp and keep their row radius"
         );
     }
 }

@@ -12,11 +12,13 @@
 //! at y 64+36i with ≤4px of entry-zoom padding, which that y covers in every
 //! phase of the animation.
 //!
-//! Reduce motion is not set: the ComboBox panel leaves the tree outright when
-//! the list closes (no exit phase), so a probe click where a row *would* be is
-//! a safe "is it closed" check.
+//! Reduce motion is not set. The ComboBox retains its panel for the pinned
+//! 100ms exit so close motion can play; the exit frame is visual-only and does
+//! not occlude a later pointer target.
 
 mod harness;
+
+use std::time::Duration;
 
 use gpui::{prelude::*, Focusable, TestAppContext};
 use herogpui_components::{ComboBox, Input, InputState, MenuTrigger, PickerItem};
@@ -29,6 +31,11 @@ fn keyed(labels: &[&str]) -> Vec<PickerItem> {
         .iter()
         .map(|l| PickerItem::new(l.to_string(), l.to_string()))
         .collect()
+}
+
+fn selector(name: String) -> &'static str {
+    let leaked: &'static mut str = Box::leak(name.into_boxed_str());
+    &*leaked
 }
 
 /// An `InputState` entity, created before the host opens so the test can keep
@@ -131,6 +138,39 @@ fn combo_box_default_trigger_opens_on_focus(cx: &mut TestAppContext) {
         opened.borrow().as_slice(),
         ["open:true", "open:false"],
         "picking must close the list"
+    );
+}
+
+#[gpui::test]
+fn combo_box_retains_panel_for_exit_motion_then_releases_it(cx: &mut TestAppContext) {
+    let state = combo_state(cx);
+    let entity_id = state.entity_id().as_u64();
+    let panel_selector = selector(format!("combobox-panel-{entity_id}"));
+    let state_for_view = state;
+    let cx = open_host(cx, move || {
+        ComboBox::new(state_for_view.clone(), keyed(&["Typst", "Rust"]))
+            .default_open(true)
+            .into_any_element()
+    });
+    cx.run_until_parked();
+    assert!(
+        cx.debug_bounds(panel_selector).is_some(),
+        "an opened ComboBox must render its panel"
+    );
+
+    click(cx, 298., 18.);
+    cx.update(|window, _| window.refresh());
+    assert!(
+        cx.debug_bounds(panel_selector).is_some(),
+        "the panel must remain mounted during the 100ms exit transition"
+    );
+
+    cx.executor().advance_clock(Duration::from_millis(300));
+    cx.update(|window, _| window.refresh());
+    cx.run_until_parked();
+    assert!(
+        cx.debug_bounds(panel_selector).is_none(),
+        "the retained panel must leave the tree after its exit lifetime"
     );
 }
 

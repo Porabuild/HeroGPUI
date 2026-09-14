@@ -18,6 +18,113 @@ pub struct ColorSliderThumbState {
 }
 
 const COLOR_SLIDER_TRACK_INSET_PX: f32 = 10.0;
+const COLOR_SLIDER_THUMB_TRANSITION_MS: u64 = 250;
+
+#[derive(Clone)]
+struct ColorSliderThumbMotion {
+    target: f32,
+    generation: usize,
+    from: f32,
+    position: Rc<Cell<f32>>,
+}
+
+struct ColorSliderThumbMotionFrame {
+    base: ElementId,
+    generation: usize,
+    from: f32,
+    to: f32,
+    position: Rc<Cell<f32>>,
+    animate: bool,
+}
+
+impl ColorSliderThumbMotionFrame {
+    fn render(self, thumb: gpui::Div, travel: Pixels, vertical: bool) -> gpui::AnyElement {
+        if !self.animate {
+            self.position.set(self.to);
+            return thumb.into_any_element();
+        }
+
+        let base = self.base;
+        let generation = self.generation;
+        let from = self.from;
+        let to = self.to;
+        let position = self.position;
+        thumb
+            .relative()
+            .with_animation(
+                element_id::indexed(&base, "thumb-position", generation),
+                Animation::new(Duration::from_millis(COLOR_SLIDER_THUMB_TRANSITION_MS))
+                    .with_easing(|t| crate::anim::Curve::Out.at(t)),
+                move |thumb, delta| {
+                    let next = from + (to - from) * delta;
+                    position.set(next);
+                    // The wrapper has already moved to the target. Offset the
+                    // visual child back toward the live frame until the tween
+                    // reaches the endpoint. Vertical tracks measure from the
+                    // opposite edge, so their sign is reversed.
+                    let offset = color_slider_thumb_transition_offset(next, to, travel, vertical);
+                    if vertical {
+                        thumb.top(offset)
+                    } else {
+                        thumb.left(offset)
+                    }
+                },
+            )
+            .into_any_element()
+    }
+}
+
+fn color_slider_thumb_motion(
+    id: &ElementId,
+    target: f32,
+    window: &mut Window,
+    cx: &mut App,
+) -> ColorSliderThumbMotionFrame {
+    let state = window.use_keyed_state(element_id::scoped(id, "thumb-position"), cx, |_, _| {
+        ColorSliderThumbMotion {
+            target,
+            generation: 0,
+            from: target,
+            position: Rc::new(Cell::new(target)),
+        }
+    });
+    let mut current = state.read(cx).clone();
+    if (current.target - target).abs() > f32::EPSILON {
+        current.target = target;
+        current.generation = current.generation.wrapping_add(1);
+        current.from = current.position.get();
+        state.update(cx, |stored, _| *stored = current.clone());
+    }
+    if ActiveTheme::reduce_motion(cx) && (current.position.get() - target).abs() > f32::EPSILON {
+        current.from = target;
+        current.position.set(target);
+        state.update(cx, |stored, _| *stored = current.clone());
+    }
+    ColorSliderThumbMotionFrame {
+        base: id.clone(),
+        generation: current.generation,
+        from: current.from,
+        to: target,
+        position: current.position,
+        animate: current.generation != 0
+            && !ActiveTheme::reduce_motion(cx)
+            && (current.from - target).abs() > f32::EPSILON,
+    }
+}
+
+pub(super) fn color_slider_thumb_transition_offset(
+    from: f32,
+    to: f32,
+    travel: Pixels,
+    vertical: bool,
+) -> Pixels {
+    let offset = if vertical {
+        (to - from) * f32::from(travel)
+    } else {
+        (from - to) * f32::from(travel)
+    };
+    px(offset)
+}
 
 /// ColorSlider — adjusts a single channel along a gradient track.
 #[derive(IntoElement)]
@@ -185,14 +292,25 @@ impl ColorSlider {
         self
     }
 
-    /// The two ends of this channel's gradient, given the current color.
+    /// React Stately's `getDisplayColor`: hue uses the saturated spectrum,
+    /// and only the alpha channel displays transparency.
+    fn display_color(&self) -> PickerColor {
+        match self.channel {
+            ColorChannel::Hue => PickerColor::hsb(self.value.hue, 1.0, 1.0),
+            ColorChannel::Alpha => self.value,
+            _ => self.value.with_alpha(1.0),
+        }
+    }
+
+    /// The two ends of the displayed gradient, shared by the ramp and caps.
     fn gradient_ends(&self) -> (Hsla, Hsla) {
         let (min, max) = self.channel.range();
+        let color = self.display_color();
         (
-            self.value
+            color
                 .with_channel_in(self.channel, self.color_space, min)
                 .to_hsla(),
-            self.value
+            color
                 .with_channel_in(self.channel, self.color_space, max)
                 .to_hsla(),
         )
@@ -307,7 +425,7 @@ impl RenderOnce for ColorSlider {
         );
         let restore_own = own.clone();
         let restore_on_change = self.on_change.clone();
-        let restore_form_state = self.form_state.clone();
+        let restore_form_state = Rc::downgrade(&self.form_state);
         let restore_channel = self.channel;
         let restore_space = self.color_space;
         let restore_is_disabled = self.is_disabled;
@@ -321,12 +439,14 @@ impl RenderOnce for ColorSlider {
             if let Some(callback) = &restore_on_change {
                 callback(&restore_default, window, cx);
             }
-            sync_color_form_state(
-                &restore_form_state,
-                color_slider_form_value(restore_default, restore_channel, restore_space),
-                !restore_is_disabled,
-                false,
-            );
+            if let Some(state) = restore_form_state.upgrade() {
+                sync_color_form_state(
+                    &state,
+                    color_slider_form_value(restore_default, restore_channel, restore_space),
+                    !restore_is_disabled,
+                    false,
+                );
+            }
         });
         self.form_state.borrow_mut().restore = Some(restore);
         // The handle the keys arrive on. `use_keyed_state` takes `cx` mutably, so
@@ -354,13 +474,13 @@ impl RenderOnce for ColorSlider {
             cx,
             |_, _| false,
         );
-        let colors = cx.colors();
-        let border_width = f32::from(cx.layout().border_width);
         let (min, max) = self.channel.range();
         // Read in the requested space: HSL and HSB saturation are different
         // numbers for the same colour.
         let raw = self.value.channel_in(self.channel, self.color_space);
         let norm = ((raw - min) / (max - min)).clamp(0.0, 1.0);
+        let thumb_motion = color_slider_thumb_motion(&self.id, norm, window, cx);
+        let default_thumb_color = cx.colors().default.color;
         // `.color-slider__track` is `relative rounded-2xl` with the gradient
         // inside it; `.color-slider__output` is the value read-out above.
         let track_h = px(20.);
@@ -369,9 +489,7 @@ impl RenderOnce for ColorSlider {
         let mut track = div()
             .id(self.id.clone())
             .relative()
-            .rounded(px(COLOR_SLIDER_TRACK_INSET_PX))
-            .border(cx.layout().border_width)
-            .border_color(colors.border);
+            .rounded(px(COLOR_SLIDER_TRACK_INSET_PX));
         track = if vertical {
             track.w(track_h).h(self.length)
         } else {
@@ -385,12 +503,12 @@ impl RenderOnce for ColorSlider {
                     recorder_bounds.update(cx, |slot, _| {
                         *slot = Bounds {
                             origin: gpui::point(
-                                f32::from(bounds.origin.x) - border_width,
-                                f32::from(bounds.origin.y) - border_width,
+                                f32::from(bounds.origin.x),
+                                f32::from(bounds.origin.y),
                             ),
                             size: gpui::size(
-                                f32::from(bounds.size.width) + border_width * 2.0,
-                                f32::from(bounds.size.height) + border_width * 2.0,
+                                f32::from(bounds.size.width),
+                                f32::from(bounds.size.height),
                             ),
                         };
                     });
@@ -402,68 +520,79 @@ impl RenderOnce for ColorSlider {
             .inset_0(),
         );
 
-        // Hue needs the full spectrum, and lightness needs a midpoint so its
-        // hue survives between black and white.
-        track = if self.channel == ColorChannel::Lightness {
+        // Clip the complete painted track once, as ColorArea does. A 10px-wide
+        // cap's own radius is clamped to 5px by GPUI, so clipping each cap
+        // separately cannot preserve the track's 10px curve. Edge shadows and
+        // the thumb remain siblings outside this clip.
+        let mut layers = div()
+            .absolute()
+            .inset_0()
+            .rounded(px(COLOR_SLIDER_TRACK_INSET_PX))
+            .overflow_hidden();
+
+        if self.channel == ColorChannel::Alpha {
+            let checker = if vertical {
+                transparency_checker(track_h, self.length)
+            } else {
+                transparency_checker(self.length, track_h)
+            };
+            layers = layers.child(checker);
+        }
+
+        // The ramp spans the thumb's travel. Extending it underneath the
+        // constant-color caps skips values at each join and creates a jump.
+        let cap = px(COLOR_SLIDER_TRACK_INSET_PX);
+        let (start_color, end_color) = self.gradient_ends();
+        let ramp = div()
+            .absolute()
+            .inset_0()
+            .when(vertical, |ramp| ramp.top(cap).bottom(cap))
+            .when(!vertical, |ramp| ramp.left(cap).right(cap));
+        let ramp = if self.channel == ColorChannel::Lightness {
             let (start, middle, end) =
-                lightness_gradient_colors(self.value, self.color_space, min, max);
-            track.child(
-                div()
-                    .absolute()
-                    .inset_0()
-                    .rounded(px(COLOR_SLIDER_TRACK_INSET_PX))
-                    .overflow_hidden()
-                    .child(three_stop_gradient(vertical, start, middle, end)),
-            )
+                lightness_gradient_colors(self.display_color(), self.color_space, min, max);
+            ramp.child(three_stop_gradient(vertical, start, middle, end))
         } else if self.channel == ColorChannel::Hue {
-            let mut spectrum = div()
+            ramp.child(hue_gradient(
+                self.display_color(),
+                self.color_space,
+                vertical,
+            ))
+        } else {
+            ramp.bg(gpui::linear_gradient(
+                if vertical { 0.0 } else { 90.0 },
+                gpui::linear_color_stop(start_color, 0.0),
+                gpui::linear_color_stop(end_color, 1.0),
+            ))
+        };
+        layers = layers.child(ramp);
+
+        // Alpha's transparent start cap leaves the shared checkerboard visible.
+        let start_cap = if vertical {
+            div().absolute().left_0().right_0().bottom_0().h(cap)
+        } else {
+            div().absolute().top_0().bottom_0().left_0().w(cap)
+        };
+        let end_cap = if vertical {
+            div().absolute().left_0().right_0().top_0().h(cap)
+        } else {
+            div().absolute().top_0().bottom_0().right_0().w(cap)
+        };
+        layers = layers
+            .child(start_cap.bg(start_color))
+            .child(end_cap.bg(end_color));
+        track = track.child(layers);
+
+        // HeroUI uses inset edge shadows, without a solid track border. A
+        // separate outline over the antialiased fill leaves a colored fringe.
+        // Keep the edge shading below the thumb, including at its endpoints.
+        track = track.child(
+            div()
                 .absolute()
                 .inset_0()
                 .rounded(px(COLOR_SLIDER_TRACK_INSET_PX))
-                .overflow_hidden();
-            // Six 60-degree bands approximate the continuous hue wheel.
-            for i in 0..6 {
-                let from = PickerColor::hsb(i as f32 * 60.0, 1.0, 1.0).to_hsla();
-                let to = PickerColor::hsb((i as f32 + 1.0) * 60.0, 1.0, 1.0).to_hsla();
-                spectrum = if vertical {
-                    spectrum.child(
-                        div()
-                            .absolute()
-                            .left_0()
-                            .right_0()
-                            .top(px(f32::from(self.length) * ((5 - i) as f32 / 6.0)))
-                            .h(px(f32::from(self.length) / 6.0 + 1.0))
-                            .bg(gpui::linear_gradient(
-                                0.0,
-                                gpui::linear_color_stop(from, 0.0),
-                                gpui::linear_color_stop(to, 1.0),
-                            )),
-                    )
-                } else {
-                    spectrum.child(
-                        div()
-                            .absolute()
-                            .top_0()
-                            .bottom_0()
-                            .left(px(f32::from(self.length) * (i as f32 / 6.0)))
-                            .w(px(f32::from(self.length) / 6.0 + 1.0))
-                            .bg(gpui::linear_gradient(
-                                90.0,
-                                gpui::linear_color_stop(from, 0.0),
-                                gpui::linear_color_stop(to, 1.0),
-                            )),
-                    )
-                };
-            }
-            track.child(spectrum)
-        } else {
-            let (from, to) = self.gradient_ends();
-            track.bg(gpui::linear_gradient(
-                if vertical { 0.0 } else { 90.0 },
-                gpui::linear_color_stop(from, 0.0),
-                gpui::linear_color_stop(to, 1.0),
-            ))
-        };
+                .shadow(color_track_shadows()),
+        );
 
         // A vertical slider's zero end is at the bottom, so the offset is
         // measured from the far edge.
@@ -483,28 +612,49 @@ impl RenderOnce for ColorSlider {
             is_disabled: self.is_disabled,
         };
         let thumb_content = self.thumb.as_ref().map(|render| render(thumb_state));
-        let mut thumb = util::with_focus_ring(
+        let focus_motion = color_focus_ring_motion(
+            &element_id::scoped(&self.id, "slider-thumb"),
+            is_focus_visible,
+            window,
+            cx,
+        );
+        let thumb_surface = focus_motion.render(
             div()
-                .id(element_id::scoped(&self.id, "slider-thumb"))
-                .absolute()
-                .when(vertical, |t| t.left(px(2.)).top(thumb_offset))
-                .when(!vertical, |t| t.top(px(2.)).left(thumb_offset))
                 // `.color-slider__thumb` is `size-4`.
                 .size(px(16.))
                 .rounded(px(16.))
                 .border(px(3.))
                 .border_color(gpui::white())
                 .bg(if self.is_disabled {
-                    colors.default.color
+                    default_thumb_color
                 } else {
                     self.value.with_alpha(1.0).to_hsla()
                 })
                 .when_some(thumb_content, |thumb, content| thumb.child(content)),
-            is_focus_visible,
+            color_thumb_shadows(),
             true,
-            Vec::new(),
             cx,
         );
+        let thumb_visual = div()
+            .size(px(16.))
+            .flex()
+            .items_center()
+            .justify_center()
+            .child(thumb_surface);
+        let mut thumb = div()
+            .id(element_id::scoped(&self.id, "slider-thumb"))
+            .absolute()
+            .when(vertical, |t| t.left(px(2.)).top(thumb_offset))
+            .when(!vertical, |t| t.top(px(2.)).left(thumb_offset))
+            .size(px(16.))
+            .when(!self.is_disabled, |t| {
+                t.cursor(if is_dragging {
+                    gpui::CursorStyle::ClosedHand
+                } else {
+                    gpui::CursorStyle::OpenHand
+                })
+            })
+            .child(thumb_motion.render(thumb_visual, px(travel), vertical));
         if !self.is_disabled {
             let hovered = thumb_hovered;
             thumb = thumb.on_hover(move |is_hovered, _, cx| {
@@ -709,7 +859,7 @@ impl RenderOnce for ColorSlider {
             // unit.
             Some(render) => render(self.value, &display),
             None => div()
-                .text_color(colors.muted)
+                .text_color(cx.colors().muted)
                 .child(display)
                 .into_any_element(),
         };
@@ -731,7 +881,7 @@ impl RenderOnce for ColorSlider {
                     .font_weight(gpui::FontWeight::MEDIUM)
                     .child(
                         div()
-                            .text_color(colors.foreground)
+                            .text_color(cx.colors().foreground)
                             .child(self.channel.label()),
                     )
                     // The disabled root dims Output through status-disabled,
@@ -741,6 +891,7 @@ impl RenderOnce for ColorSlider {
                             .when(self.is_disabled, |output| {
                                 output.opacity(cx.layout().disabled_opacity)
                             })
+                            .font_features(util::tabular_font_features())
                             .child(output),
                     ),
             )

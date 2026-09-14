@@ -1,0 +1,1058 @@
+--- a/gpui-pre-wgpu-0.3.3/Cargo.toml
++++ b/gpui-pre-wgpu-0.3.3/Cargo.toml
+@@ -114,6 +114,10 @@
+ [dependencies.wgpu]
+ version = "29.0.4"
+ 
++[dev-dependencies.naga]
++version = "29.0.4"
++features = ["wgsl-in"]
++
+ [target.'cfg(target_family = "wasm")'.dependencies.web-sys]
+ version = "0.3"
+ features = ["HtmlCanvasElement"]
+@@ -142,3 +146,5 @@
+ [lints.rust.unexpected_cfgs]
+ level = "allow"
+ priority = 0
++
++[workspace]
+--- a/gpui-pre-wgpu-0.3.3/src/gpui_wgpu.rs
++++ b/gpui-pre-wgpu-0.3.3/src/gpui_wgpu.rs
+@@ -1,4 +1,5 @@
+ mod cosmic_text_system;
++mod shaders;
+ mod wgpu_atlas;
+ mod wgpu_context;
+ mod wgpu_renderer;
+--- /dev/null
++++ b/gpui-pre-wgpu-0.3.3/src/shaders.rs
+@@ -0,0 +1,54 @@
++/// Shader variant for backends with storage buffer support: the shared shader
++/// logic plus the storage-buffer instance transport.
++pub(crate) const STORAGE_BUFFER_SHADERS: &str = concat!(
++    include_str!("shaders.wgsl"),
++    include_str!("shaders_storage.wgsl"),
++);
++
++/// Shader variant for WebGL2, which has no storage buffers: the shared shader
++/// logic plus the texture-based instance transport.
++pub(crate) const WEBGL_SHADERS: &str = concat!(
++    include_str!("shaders.wgsl"),
++    include_str!("shaders_webgl.wgsl"),
++);
++
++/// Subpixel text rendering requires dual-source blending, which WebGL2 lacks, so
++/// this variant only ever runs with the storage-buffer transport. The `enable`
++/// directive must precede all declarations.
++pub(crate) const SUBPIXEL_SHADERS: &str = concat!(
++    "enable dual_source_blending;\n",
++    include_str!("shaders.wgsl"),
++    include_str!("shaders_storage.wgsl"),
++    include_str!("shaders_subpixel.wgsl"),
++);
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    #[test]
++    fn webgl_shader_is_valid_wgsl_without_storage_buffers() {
++        assert!(!WEBGL_SHADERS.contains("var<storage"));
++        validate_wgsl(WEBGL_SHADERS, naga::valid::Capabilities::empty());
++    }
++
++    #[test]
++    fn storage_buffer_shader_is_valid_wgsl() {
++        validate_wgsl(STORAGE_BUFFER_SHADERS, naga::valid::Capabilities::empty());
++    }
++
++    #[test]
++    fn subpixel_shader_is_valid_wgsl() {
++        validate_wgsl(
++            SUBPIXEL_SHADERS,
++            naga::valid::Capabilities::DUAL_SOURCE_BLENDING,
++        );
++    }
++
++    fn validate_wgsl(source: &str, capabilities: naga::valid::Capabilities) {
++        let module = naga::front::wgsl::parse_str(source).expect("shader should parse");
++        naga::valid::Validator::new(naga::valid::ValidationFlags::all(), capabilities)
++            .validate(&module)
++            .expect("shader should validate");
++    }
++}
+--- a/gpui-pre-wgpu-0.3.3/src/shaders.wgsl
++++ b/gpui-pre-wgpu-0.3.3/src/shaders.wgsl
+@@ -109,6 +109,21 @@
+     top_right: f32,
+     bottom_right: f32,
+     bottom_left: f32,
++}
++
++struct ContentMask {
++    bounds: Bounds,
++    corner_radii: Corners,
++    clip_index: u32,
++    clip_padding: u32,
++}
++
++struct RoundedClip {
++    bounds: Bounds,
++    radii_x: Corners,
++    radii_y: Corners,
++    parent: u32,
++    padding: u32,
+ }
+ 
+ struct Edges {
+@@ -189,21 +204,67 @@
+   return (vec2<f32>(tile.bounds.origin) + unit_vertex * vec2<f32>(tile.bounds.size)) / atlas_size;
+ }
+ 
+-fn distance_from_clip_rect_impl(position: vec2<f32>, clip_bounds: Bounds) -> vec4<f32> {
++fn distance_from_clip_rect_impl(position: vec2<f32>, mask: ContentMask) -> vec4<f32> {
++    let tl = position - mask.bounds.origin;
++    let br = mask.bounds.origin + mask.bounds.size - position;
++    return vec4<f32>(tl.x, br.x, tl.y, br.y);
++}
++
++fn distance_from_clip_bounds_impl(position: vec2<f32>, clip_bounds: Bounds) -> vec4<f32> {
+     let tl = position - clip_bounds.origin;
+     let br = clip_bounds.origin + clip_bounds.size - position;
+     return vec4<f32>(tl.x, br.x, tl.y, br.y);
+ }
+ 
+-fn distance_from_clip_rect(unit_vertex: vec2<f32>, bounds: Bounds, clip_bounds: Bounds) -> vec4<f32> {
++fn distance_from_clip_rect(unit_vertex: vec2<f32>, bounds: Bounds, mask: ContentMask) -> vec4<f32> {
+     let position = unit_vertex * vec2<f32>(bounds.size) + bounds.origin;
+-    return distance_from_clip_rect_impl(position, clip_bounds);
+-}
+-
+-fn distance_from_clip_rect_transformed(unit_vertex: vec2<f32>, bounds: Bounds, clip_bounds: Bounds, transform: TransformationMatrix) -> vec4<f32> {
++    return distance_from_clip_rect_impl(position, mask);
++}
++
++fn distance_from_clip_rect_transformed(unit_vertex: vec2<f32>, bounds: Bounds, mask: ContentMask, transform: TransformationMatrix) -> vec4<f32> {
+     let position = unit_vertex * vec2<f32>(bounds.size) + bounds.origin;
+     let transformed = transpose(transform.rotation_scale) * position + transform.translation;
+-    return distance_from_clip_rect_impl(transformed, clip_bounds);
++    return distance_from_clip_rect_impl(transformed, mask);
++}
++
++// Signed distance near an ellipse boundary; exact for circles and on the axes.
++fn clip_corner_distance(point: vec2<f32>, radii: vec2<f32>) -> f32 {
++    if (any(radii <= vec2<f32>(0.0)) || any(point >= radii)) {
++        return -1e20;
++    }
++    let p = point - radii;
++    let k0 = length(p / radii);
++    let k1 = length(p / (radii * radii));
++    if (k1 == 0.0) { return -min(radii.x, radii.y); }
++    return k0 * (k0 - 1.0) / k1;
++}
++
++fn rounded_clip_distance(position: vec2<f32>, clip: RoundedClip) -> f32 {
++    let tl = position - clip.bounds.origin;
++    let br = clip.bounds.size - tl;
++    var distance = max(max(-tl.x, -tl.y), max(-br.x, -br.y));
++    distance = max(distance, clip_corner_distance(tl, vec2<f32>(clip.radii_x.top_left, clip.radii_y.top_left)));
++    distance = max(distance, clip_corner_distance(vec2<f32>(br.x, tl.y), vec2<f32>(clip.radii_x.top_right, clip.radii_y.top_right)));
++    distance = max(distance, clip_corner_distance(br, vec2<f32>(clip.radii_x.bottom_right, clip.radii_y.bottom_right)));
++    distance = max(distance, clip_corner_distance(vec2<f32>(tl.x, br.y), vec2<f32>(clip.radii_x.bottom_left, clip.radii_y.bottom_left)));
++    return distance;
++}
++
++fn content_mask_coverage(position: vec2<f32>, mask_bounds: vec4<f32>, mask_radii: vec4<f32>, clip_index: u32) -> f32 {
++    var distance = -1e20;
++    if (clip_index == 0u) {
++        let radii = Corners(mask_radii.x, mask_radii.y, mask_radii.z, mask_radii.w);
++        distance = rounded_clip_distance(position, RoundedClip(Bounds(mask_bounds.xy, mask_bounds.zw), radii, radii, 0u, 0u));
++    } else {
++        var index = clip_index;
++        loop {
++            let clip = load_clip(index - 1u);
++            distance = max(distance, rounded_clip_distance(position, clip));
++            index = clip.parent;
++            if (index == 0u) { break; }
++        }
++    }
++    return saturate(0.5 - distance);
+ }
+ 
+ // https://gamedev.stackexchange.com/questions/92015/optimized-linear-to-srgb-glsl
+@@ -520,7 +581,7 @@
+     order: u32,
+     border_style: u32,
+     bounds: Bounds,
+-    content_mask: Bounds,
++    content_mask: ContentMask,
+     background: Background,
+     border_color: Hsla,
+     corner_radii: Corners,
+@@ -536,6 +597,9 @@
+     @location(3) @interpolate(flat) background_solid: vec4<f32>,
+     @location(4) @interpolate(flat) background_color0: vec4<f32>,
+     @location(5) @interpolate(flat) background_color1: vec4<f32>,
++    @location(6) @interpolate(flat) clip_mask_bounds: vec4<f32>,
++    @location(7) @interpolate(flat) clip_mask_radii: vec4<f32>,
++    @location(8) @interpolate(flat) clip_index: u32,
+ }
+ 
+ @vertex
+@@ -557,14 +621,24 @@
+     out.background_color1 = gradient.color1;
+     out.border_color = hsla_to_rgba(quad.border_color);
+     out.quad_id = instance_id;
++    out.clip_mask_bounds = vec4<f32>(quad.content_mask.bounds.origin, quad.content_mask.bounds.size);
++    out.clip_index = quad.content_mask.clip_index;
++    out.clip_mask_radii = vec4<f32>(
++        quad.content_mask.corner_radii.top_left,
++        quad.content_mask.corner_radii.top_right,
++        quad.content_mask.corner_radii.bottom_right,
++        quad.content_mask.corner_radii.bottom_left,
++    );
+     out.clip_distances = distance_from_clip_rect(unit_vertex, quad.bounds, quad.content_mask);
+     return out;
+ }
+ 
+ @fragment
+ fn fs_quad(input: QuadVarying) -> @location(0) vec4<f32> {
++    let coverage = content_mask_coverage(input.position.xy, input.clip_mask_bounds, input.clip_mask_radii, input.clip_index);
+     // Alpha clip first, since we don't have `clip_distance`.
+-    if (any(input.clip_distances < vec4<f32>(0.0))) {
++    if (any(input.clip_distances < vec4<f32>(0.0))
++        || coverage <= 0.0) {
+         return vec4<f32>(0.0);
+     }
+ 
+@@ -584,7 +658,7 @@
+             quad.border_widths.right == 0.0 &&
+             quad.border_widths.bottom == 0.0 &&
+             unrounded) {
+-        return blend_color(background_color, 1.0);
++        return blend_color(background_color, coverage);
+     }
+ 
+     let size = quad.bounds.size;
+@@ -650,7 +724,7 @@
+     // However, that might negatively impact performance in the case of
+     // reasonable sizes for rounded corners.
+     if (is_within_inner_straight_border && !is_near_rounded_corner) {
+-        return blend_color(background_color, 1.0);
++        return blend_color(background_color, coverage);
+     }
+ 
+     // Signed distance of the point to the outside edge of the quad's border. It
+@@ -889,7 +963,7 @@
+                     saturate(antialias_threshold - inner_sdf));
+     }
+ 
+-    return blend_color(color, saturate(antialias_threshold - outer_sdf));
++    return blend_color(color, min(coverage, saturate(antialias_threshold - outer_sdf)));
+ }
+ 
+ // Returns the dash velocity of a corner given the dash velocity of the two
+@@ -953,7 +1027,7 @@
+     // The shadow rect for drop shadows; the "hole" rect for inset shadows.
+     bounds: Bounds,
+     corner_radii: Corners,
+-    content_mask: Bounds,
++    content_mask: ContentMask,
+     color: Hsla,
+     // Only consulted when `inset == 1u`: the element's own bounds, used as a rounded-rect
+     // clip so the shadow never escapes the element.
+@@ -970,6 +1044,9 @@
+     @location(1) @interpolate(flat) shadow_id: u32,
+     //TODO: use `clip_distance` once Naga supports it
+     @location(3) clip_distances: vec4<f32>,
++    @location(4) @interpolate(flat) clip_mask_bounds: vec4<f32>,
++    @location(5) @interpolate(flat) clip_mask_radii: vec4<f32>,
++    @location(6) @interpolate(flat) clip_index: u32,
+ }
+ 
+ @vertex
+@@ -992,14 +1069,24 @@
+     out.position = to_device_position(unit_vertex, geometry);
+     out.color = hsla_to_rgba(shadow.color);
+     out.shadow_id = instance_id;
++    out.clip_mask_bounds = vec4<f32>(shadow.content_mask.bounds.origin, shadow.content_mask.bounds.size);
++    out.clip_index = shadow.content_mask.clip_index;
++    out.clip_mask_radii = vec4<f32>(
++        shadow.content_mask.corner_radii.top_left,
++        shadow.content_mask.corner_radii.top_right,
++        shadow.content_mask.corner_radii.bottom_right,
++        shadow.content_mask.corner_radii.bottom_left,
++    );
+     out.clip_distances = distance_from_clip_rect(unit_vertex, geometry, shadow.content_mask);
+     return out;
+ }
+ 
+ @fragment
+ fn fs_shadow(input: ShadowVarying) -> @location(0) vec4<f32> {
++    let coverage = content_mask_coverage(input.position.xy, input.clip_mask_bounds, input.clip_mask_radii, input.clip_index);
+     // Alpha clip first, since we don't have `clip_distance`.
+-    if (any(input.clip_distances < vec4<f32>(0.0))) {
++    if (any(input.clip_distances < vec4<f32>(0.0))
++        || coverage <= 0.0) {
+         return vec4<f32>(0.0);
+     }
+ 
+@@ -1042,7 +1129,7 @@
+         alpha *= saturate(0.5 - element_distance);
+     }
+ 
+-    return blend_color(input.color, alpha);
++    return blend_color(input.color, alpha * coverage);
+ }
+ 
+ // --- path rasterization --- //
+@@ -1052,6 +1139,7 @@
+     st_position: vec2<f32>,
+     color: Background,
+     bounds: Bounds,
++    content_mask: ContentMask,
+ }
+ 
+ 
+@@ -1062,6 +1150,9 @@
+     @location(1) @interpolate(flat) vertex_id: u32,
+     //TODO: use `clip_distance` once Naga supports it
+     @location(3) clip_distances: vec4<f32>,
++    @location(4) @interpolate(flat) clip_mask_bounds: vec4<f32>,
++    @location(5) @interpolate(flat) clip_mask_radii: vec4<f32>,
++    @location(6) @interpolate(flat) clip_index: u32,
+ }
+ 
+ @vertex
+@@ -1072,15 +1163,25 @@
+     out.position = to_device_position_impl(v.xy_position);
+     out.st_position = v.st_position;
+     out.vertex_id = vertex_id;
+-    out.clip_distances = distance_from_clip_rect_impl(v.xy_position, v.bounds);
++    out.clip_distances = distance_from_clip_bounds_impl(v.xy_position, v.bounds);
++    out.clip_mask_bounds = vec4<f32>(v.content_mask.bounds.origin, v.content_mask.bounds.size);
++    out.clip_index = v.content_mask.clip_index;
++    out.clip_mask_radii = vec4<f32>(
++        v.content_mask.corner_radii.top_left,
++        v.content_mask.corner_radii.top_right,
++        v.content_mask.corner_radii.bottom_right,
++        v.content_mask.corner_radii.bottom_left,
++    );
+     return out;
+ }
+ 
+ @fragment
+ fn fs_path_rasterization(input: PathRasterizationVarying) -> @location(0) vec4<f32> {
++    let coverage = content_mask_coverage(input.position.xy, input.clip_mask_bounds, input.clip_mask_radii, input.clip_index);
+     let dx = dpdx(input.st_position);
+     let dy = dpdy(input.st_position);
+-    if (any(input.clip_distances < vec4<f32>(0.0))) {
++    if (any(input.clip_distances < vec4<f32>(0.0))
++        || coverage <= 0.0) {
+         return vec4<f32>(0.0);
+     }
+ 
+@@ -1106,7 +1207,7 @@
+     );
+     let color = gradient_color(background, input.position.xy, bounds,
+         prepared_gradient.solid, prepared_gradient.color0, prepared_gradient.color1);
+-    return vec4<f32>(color.rgb * color.a * alpha, color.a * alpha);
++    return vec4<f32>(color.rgb * color.a * alpha, color.a * alpha) * coverage;
+ }
+ 
+ // --- paths --- //
+@@ -1150,7 +1251,7 @@
+     order: u32,
+     pad: u32,
+     bounds: Bounds,
+-    content_mask: Bounds,
++    content_mask: ContentMask,
+     color: Hsla,
+     thickness: f32,
+     wavy: u32,
+@@ -1163,6 +1264,9 @@
+     @location(1) @interpolate(flat) underline_id: u32,
+     //TODO: use `clip_distance` once Naga supports it
+     @location(3) clip_distances: vec4<f32>,
++    @location(4) @interpolate(flat) clip_mask_bounds: vec4<f32>,
++    @location(5) @interpolate(flat) clip_mask_radii: vec4<f32>,
++    @location(6) @interpolate(flat) clip_index: u32,
+ }
+ 
+ @vertex
+@@ -1174,24 +1278,34 @@
+     out.position = to_device_position(unit_vertex, underline.bounds);
+     out.color = hsla_to_rgba(underline.color);
+     out.underline_id = instance_id;
++    out.clip_mask_bounds = vec4<f32>(underline.content_mask.bounds.origin, underline.content_mask.bounds.size);
++    out.clip_index = underline.content_mask.clip_index;
++    out.clip_mask_radii = vec4<f32>(
++        underline.content_mask.corner_radii.top_left,
++        underline.content_mask.corner_radii.top_right,
++        underline.content_mask.corner_radii.bottom_right,
++        underline.content_mask.corner_radii.bottom_left,
++    );
+     out.clip_distances = distance_from_clip_rect(unit_vertex, underline.bounds, underline.content_mask);
+     return out;
+ }
+ 
+ @fragment
+ fn fs_underline(input: UnderlineVarying) -> @location(0) vec4<f32> {
++    let coverage = content_mask_coverage(input.position.xy, input.clip_mask_bounds, input.clip_mask_radii, input.clip_index);
+     const WAVE_FREQUENCY: f32 = 2.0;
+     const WAVE_HEIGHT_RATIO: f32 = 0.8;
+ 
+     // Alpha clip first, since we don't have `clip_distance`.
+-    if (any(input.clip_distances < vec4<f32>(0.0))) {
++    if (any(input.clip_distances < vec4<f32>(0.0))
++        || coverage <= 0.0) {
+         return vec4<f32>(0.0);
+     }
+ 
+     let underline = load_underline(input.underline_id);
+     if (underline.wavy == 0u)
+     {
+-        return blend_color(input.color, input.color.a);
++        return blend_color(input.color, input.color.a * coverage);
+     }
+ 
+     let half_thickness = underline.thickness * 0.5;
+@@ -1207,7 +1321,7 @@
+     let distance_from_top_border = distance_in_pixels - half_thickness;
+     let distance_from_bottom_border = distance_in_pixels + half_thickness;
+     let alpha = saturate(0.5 - max(-distance_from_bottom_border, distance_from_top_border));
+-    return blend_color(input.color, alpha * input.color.a);
++    return blend_color(input.color, alpha * input.color.a * coverage);
+ }
+ 
+ // --- monochrome sprites --- //
+@@ -1216,7 +1330,7 @@
+     order: u32,
+     pad: u32,
+     bounds: Bounds,
+-    content_mask: Bounds,
++    content_mask: ContentMask,
+     color: Hsla,
+     tile: AtlasTile,
+     transformation: TransformationMatrix,
+@@ -1228,6 +1342,9 @@
+     @location(0) tile_position: vec2<f32>,
+     @location(1) @interpolate(flat) color: vec4<f32>,
+     @location(3) clip_distances: vec4<f32>,
++    @location(4) @interpolate(flat) clip_mask_bounds: vec4<f32>,
++    @location(5) @interpolate(flat) clip_mask_radii: vec4<f32>,
++    @location(6) @interpolate(flat) clip_index: u32,
+ }
+ 
+ @vertex
+@@ -1240,21 +1357,31 @@
+ 
+     out.tile_position = to_tile_position(unit_vertex, sprite.tile);
+     out.color = hsla_to_rgba(sprite.color);
++    out.clip_mask_bounds = vec4<f32>(sprite.content_mask.bounds.origin, sprite.content_mask.bounds.size);
++    out.clip_index = sprite.content_mask.clip_index;
++    out.clip_mask_radii = vec4<f32>(
++        sprite.content_mask.corner_radii.top_left,
++        sprite.content_mask.corner_radii.top_right,
++        sprite.content_mask.corner_radii.bottom_right,
++        sprite.content_mask.corner_radii.bottom_left,
++    );
+     out.clip_distances = distance_from_clip_rect_transformed(unit_vertex, sprite.bounds, sprite.content_mask, sprite.transformation);
+     return out;
+ }
+ 
+ @fragment
+ fn fs_mono_sprite(input: MonoSpriteVarying) -> @location(0) vec4<f32> {
++    let coverage = content_mask_coverage(input.position.xy, input.clip_mask_bounds, input.clip_mask_radii, input.clip_index);
+     let sample = textureSample(t_sprite, s_sprite, input.tile_position).r;
+     let alpha_corrected = apply_contrast_and_gamma_correction(sample, input.color.rgb, gamma_params.grayscale_enhanced_contrast, gamma_params.gamma_ratios);
+ 
+     // Alpha clip after using the derivatives.
+-    if (any(input.clip_distances < vec4<f32>(0.0))) {
++    if (any(input.clip_distances < vec4<f32>(0.0))
++        || coverage <= 0.0) {
+         return vec4<f32>(0.0);
+     }
+ 
+-    return blend_color(input.color, alpha_corrected);
++    return blend_color(input.color, alpha_corrected * coverage);
+ }
+ 
+ // --- polychrome sprites --- //
+@@ -1265,7 +1392,7 @@
+     grayscale: u32,
+     opacity: f32,
+     bounds: Bounds,
+-    content_mask: Bounds,
++    content_mask: ContentMask,
+     corner_radii: Corners,
+     tile: AtlasTile,
+ }
+@@ -1276,6 +1403,9 @@
+     @location(0) tile_position: vec2<f32>,
+     @location(1) @interpolate(flat) sprite_id: u32,
+     @location(3) clip_distances: vec4<f32>,
++    @location(4) @interpolate(flat) clip_mask_bounds: vec4<f32>,
++    @location(5) @interpolate(flat) clip_mask_radii: vec4<f32>,
++    @location(6) @interpolate(flat) clip_index: u32,
+ }
+ 
+ @vertex
+@@ -1287,15 +1417,25 @@
+     out.position = to_device_position(unit_vertex, sprite.bounds);
+     out.tile_position = to_tile_position(unit_vertex, sprite.tile);
+     out.sprite_id = instance_id;
++    out.clip_mask_bounds = vec4<f32>(sprite.content_mask.bounds.origin, sprite.content_mask.bounds.size);
++    out.clip_index = sprite.content_mask.clip_index;
++    out.clip_mask_radii = vec4<f32>(
++        sprite.content_mask.corner_radii.top_left,
++        sprite.content_mask.corner_radii.top_right,
++        sprite.content_mask.corner_radii.bottom_right,
++        sprite.content_mask.corner_radii.bottom_left,
++    );
+     out.clip_distances = distance_from_clip_rect(unit_vertex, sprite.bounds, sprite.content_mask);
+     return out;
+ }
+ 
+ @fragment
+ fn fs_poly_sprite(input: PolySpriteVarying) -> @location(0) vec4<f32> {
++    let coverage = content_mask_coverage(input.position.xy, input.clip_mask_bounds, input.clip_mask_radii, input.clip_index);
+     let sample = textureSample(t_sprite, s_sprite, input.tile_position);
+     // Alpha clip after using the derivatives.
+-    if (any(input.clip_distances < vec4<f32>(0.0))) {
++    if (any(input.clip_distances < vec4<f32>(0.0))
++        || coverage <= 0.0) {
+         return vec4<f32>(0.0);
+     }
+ 
+@@ -1307,14 +1447,14 @@
+         let grayscale = dot(color.rgb, GRAYSCALE_FACTORS);
+         color = vec4<f32>(vec3<f32>(grayscale), sample.a);
+     }
+-    return blend_color(color, sprite.opacity * saturate(0.5 - distance));
++    return blend_color(color, sprite.opacity * min(coverage, saturate(0.5 - distance)));
+ }
+ 
+ // --- surfaces --- //
+ 
+ struct SurfaceParams {
+     bounds: Bounds,
+-    content_mask: Bounds,
++    @size(48) content_mask: ContentMask,
+ }
+ 
+ @group(1) @binding(0) var<uniform> surface_locals: SurfaceParams;
+@@ -1333,6 +1473,9 @@
+     @builtin(position) position: vec4<f32>,
+     @location(0) texture_position: vec2<f32>,
+     @location(3) clip_distances: vec4<f32>,
++    @location(4) @interpolate(flat) clip_mask_bounds: vec4<f32>,
++    @location(5) @interpolate(flat) clip_mask_radii: vec4<f32>,
++    @location(6) @interpolate(flat) clip_index: u32,
+ }
+ 
+ @vertex
+@@ -1342,14 +1485,24 @@
+     var out = SurfaceVarying();
+     out.position = to_device_position(unit_vertex, surface_locals.bounds);
+     out.texture_position = unit_vertex;
++    out.clip_mask_bounds = vec4<f32>(surface_locals.content_mask.bounds.origin, surface_locals.content_mask.bounds.size);
++    out.clip_index = surface_locals.content_mask.clip_index;
++    out.clip_mask_radii = vec4<f32>(
++        surface_locals.content_mask.corner_radii.top_left,
++        surface_locals.content_mask.corner_radii.top_right,
++        surface_locals.content_mask.corner_radii.bottom_right,
++        surface_locals.content_mask.corner_radii.bottom_left,
++    );
+     out.clip_distances = distance_from_clip_rect(unit_vertex, surface_locals.bounds, surface_locals.content_mask);
+     return out;
+ }
+ 
+ @fragment
+ fn fs_surface(input: SurfaceVarying) -> @location(0) vec4<f32> {
++    let coverage = content_mask_coverage(input.position.xy, input.clip_mask_bounds, input.clip_mask_radii, input.clip_index);
+     // Alpha clip after using the derivatives.
+-    if (any(input.clip_distances < vec4<f32>(0.0))) {
++    if (any(input.clip_distances < vec4<f32>(0.0))
++        || coverage <= 0.0) {
+         return vec4<f32>(0.0);
+     }
+ 
+@@ -1358,5 +1511,5 @@
+         textureSampleLevel(t_cb_cr, s_surface, input.texture_position, 0.0).rg,
+         1.0);
+ 
+-    return ycbcr_to_RGB * y_cb_cr;
+-}
++    return blend_color(ycbcr_to_RGB * y_cb_cr, coverage);
++}
+--- a/gpui-pre-wgpu-0.3.3/src/shaders_storage.wgsl
++++ b/gpui-pre-wgpu-0.3.3/src/shaders_storage.wgsl
+@@ -40,3 +40,9 @@
+ fn load_poly_sprite(instance_id: u32) -> PolychromeSprite {
+     return b_poly_sprites[instance_id];
+ }
++
++@group(3) @binding(0) var<storage, read> b_clips: array<RoundedClip>;
++
++fn load_clip(index: u32) -> RoundedClip {
++    return b_clips[index];
++}
+--- a/gpui-pre-wgpu-0.3.3/src/shaders_subpixel.wgsl
++++ b/gpui-pre-wgpu-0.3.3/src/shaders_subpixel.wgsl
+@@ -4,7 +4,7 @@
+     order: u32,
+     pad: u32,
+     bounds: Bounds,
+-    content_mask: Bounds,
++    content_mask: ContentMask,
+     color: Hsla,
+     tile: AtlasTile,
+     transformation: TransformationMatrix,
+@@ -16,6 +16,9 @@
+     @location(0) tile_position: vec2<f32>,
+     @location(1) @interpolate(flat) color: vec4<f32>,
+     @location(3) clip_distances: vec4<f32>,
++    @location(4) @interpolate(flat) clip_mask_bounds: vec4<f32>,
++    @location(5) @interpolate(flat) clip_mask_radii: vec4<f32>,
++    @location(6) @interpolate(flat) clip_index: u32,
+ }
+ 
+ struct SubpixelSpriteFragmentOutput {
+@@ -32,12 +35,21 @@
+     out.position = to_device_position_transformed(unit_vertex, sprite.bounds, sprite.transformation);
+     out.tile_position = to_tile_position(unit_vertex, sprite.tile);
+     out.color = hsla_to_rgba(sprite.color);
++    out.clip_mask_bounds = vec4<f32>(sprite.content_mask.bounds.origin, sprite.content_mask.bounds.size);
++    out.clip_index = sprite.content_mask.clip_index;
++    out.clip_mask_radii = vec4<f32>(
++        sprite.content_mask.corner_radii.top_left,
++        sprite.content_mask.corner_radii.top_right,
++        sprite.content_mask.corner_radii.bottom_right,
++        sprite.content_mask.corner_radii.bottom_left,
++    );
+     out.clip_distances = distance_from_clip_rect_transformed(unit_vertex, sprite.bounds, sprite.content_mask, sprite.transformation);
+     return out;
+ }
+ 
+ @fragment
+ fn fs_subpixel_sprite(input: SubpixelSpriteOutput) -> SubpixelSpriteFragmentOutput {
++    let coverage = content_mask_coverage(input.position.xy, input.clip_mask_bounds, input.clip_mask_radii, input.clip_index);
+     var sample = textureSample(t_sprite, s_sprite, input.tile_position).rgb;
+     if (gamma_params.is_bgr != 0u) {
+         sample = sample.bgr;
+@@ -45,12 +57,13 @@
+     let alpha_corrected = apply_contrast_and_gamma_correction3(sample, input.color.rgb, gamma_params.subpixel_enhanced_contrast, gamma_params.gamma_ratios);
+ 
+     // Alpha clip after using the derivatives.
+-    if (any(input.clip_distances < vec4<f32>(0.0))) {
++    if (any(input.clip_distances < vec4<f32>(0.0))
++        || coverage <= 0.0) {
+         return SubpixelSpriteFragmentOutput(vec4<f32>(0.0), vec4<f32>(0.0));
+     }
+ 
+     var out = SubpixelSpriteFragmentOutput();
+     out.foreground = vec4<f32>(input.color.rgb, 1.0);
+-    out.alpha = vec4<f32>(input.color.a * alpha_corrected, 1.0);
++    out.alpha = vec4<f32>(input.color.a * alpha_corrected * coverage, coverage);
+     return out;
+ }
+--- a/gpui-pre-wgpu-0.3.3/src/shaders_webgl.wgsl
++++ b/gpui-pre-wgpu-0.3.3/src/shaders_webgl.wgsl
+@@ -1,4 +1,5 @@
+ @group(1) @binding(0) var t_instances: texture_2d<u32>;
++@group(3) @binding(0) var t_clips: texture_2d<u32>;
+ 
+ // Each texel of `t_instances` packs four 32-bit words of instance data. Records
+ // are read strictly front to back, so all readers share a cursor that keeps the
+@@ -74,6 +75,10 @@
+     return Bounds(read_vec2_f32(cursor), read_vec2_f32(cursor));
+ }
+ 
++fn read_content_mask(cursor: ptr<function, InstanceCursor>) -> ContentMask {
++    return ContentMask(read_bounds(cursor), read_corners(cursor), read_word(cursor), read_word(cursor));
++}
++
+ fn read_corners(cursor: ptr<function, InstanceCursor>) -> Corners {
+     return Corners(
+         read_f32(cursor),
+@@ -136,12 +141,12 @@
+ }
+ 
+ fn load_quad(instance_id: u32) -> Quad {
+-    var cursor = instance_cursor(instance_id * 40u);
++    var cursor = instance_cursor(instance_id * 46u);
+     return Quad(
+         read_word(&cursor),
+         read_word(&cursor),
+         read_bounds(&cursor),
+-        read_bounds(&cursor),
++        read_content_mask(&cursor),
+         read_background(&cursor),
+         read_hsla(&cursor),
+         read_corners(&cursor),
+@@ -150,13 +155,13 @@
+ }
+ 
+ fn load_shadow(instance_id: u32) -> Shadow {
+-    var cursor = instance_cursor(instance_id * 28u);
++    var cursor = instance_cursor(instance_id * 34u);
+     return Shadow(
+         read_word(&cursor),
+         read_f32(&cursor),
+         read_bounds(&cursor),
+         read_corners(&cursor),
+-        read_bounds(&cursor),
++        read_content_mask(&cursor),
+         read_hsla(&cursor),
+         read_bounds(&cursor),
+         read_corners(&cursor),
+@@ -166,12 +171,13 @@
+ }
+ 
+ fn load_path_vertex(vertex_id: u32) -> PathRasterizationVertex {
+-    var cursor = instance_cursor(vertex_id * 26u);
++    var cursor = instance_cursor(vertex_id * 36u);
+     return PathRasterizationVertex(
+         read_vec2_f32(&cursor),
+         read_vec2_f32(&cursor),
+         read_background(&cursor),
+         read_bounds(&cursor),
++        read_content_mask(&cursor),
+     );
+ }
+ 
+@@ -181,12 +187,12 @@
+ }
+ 
+ fn load_underline(instance_id: u32) -> Underline {
+-    var cursor = instance_cursor(instance_id * 16u);
++    var cursor = instance_cursor(instance_id * 22u);
+     return Underline(
+         read_word(&cursor),
+         read_word(&cursor),
+         read_bounds(&cursor),
+-        read_bounds(&cursor),
++        read_content_mask(&cursor),
+         read_hsla(&cursor),
+         read_f32(&cursor),
+         read_word(&cursor),
+@@ -194,12 +200,12 @@
+ }
+ 
+ fn load_mono_sprite(instance_id: u32) -> MonochromeSprite {
+-    var cursor = instance_cursor(instance_id * 28u);
++    var cursor = instance_cursor(instance_id * 34u);
+     return MonochromeSprite(
+         read_word(&cursor),
+         read_word(&cursor),
+         read_bounds(&cursor),
+-        read_bounds(&cursor),
++        read_content_mask(&cursor),
+         read_hsla(&cursor),
+         read_atlas_tile(&cursor),
+         read_transformation(&cursor),
+@@ -207,15 +213,53 @@
+ }
+ 
+ fn load_poly_sprite(instance_id: u32) -> PolychromeSprite {
+-    var cursor = instance_cursor(instance_id * 24u);
++    var cursor = instance_cursor(instance_id * 30u);
+     return PolychromeSprite(
+         read_word(&cursor),
+         read_word(&cursor),
+         read_word(&cursor),
+         read_f32(&cursor),
+         read_bounds(&cursor),
+-        read_bounds(&cursor),
++        read_content_mask(&cursor),
+         read_corners(&cursor),
+         read_atlas_tile(&cursor),
+     );
+ }
++
++// Clip readers reference only group 3. Reusing the instance cursor would also
++// make surface fragments require t_instances at their uniform-buffer binding.
++fn fetch_clip_texel(index: u32, width: u32) -> vec4<u32> {
++    return textureLoad(t_clips, vec2<i32>(i32(index % width), i32(index / width)), 0);
++}
++
++fn load_clip(index: u32) -> RoundedClip {
++    let word_index = index * 14u;
++    let width = textureDimensions(t_clips).x;
++    let texel_index = word_index / 4u;
++    // A 14-word record starts at word 0 or 2 and always spans four texels.
++    let a = fetch_clip_texel(texel_index, width);
++    let b = fetch_clip_texel(texel_index + 1u, width);
++    let c = fetch_clip_texel(texel_index + 2u, width);
++    let d = fetch_clip_texel(texel_index + 3u, width);
++    var bounds_words = a;
++    var rx_words = b;
++    var ry_words = c;
++    var parent = d.x;
++    var padding = d.y;
++    if word_index % 4u == 2u {
++        bounds_words = vec4<u32>(a.zw, b.xy);
++        rx_words = vec4<u32>(b.zw, c.xy);
++        ry_words = vec4<u32>(c.zw, d.xy);
++        parent = d.z;
++        padding = d.w;
++    }
++    let bounds = bitcast<vec4<f32>>(bounds_words);
++    let rx = bitcast<vec4<f32>>(rx_words);
++    let ry = bitcast<vec4<f32>>(ry_words);
++    return RoundedClip(
++        Bounds(bounds.xy, bounds.zw),
++        Corners(rx.x, rx.y, rx.z, rx.w),
++        Corners(ry.x, ry.y, ry.z, ry.w),
++        parent, padding,
++    );
++}
+--- a/gpui-pre-wgpu-0.3.3/src/wgpu_renderer.rs
++++ b/gpui-pre-wgpu-0.3.3/src/wgpu_renderer.rs
+@@ -2,8 +2,8 @@
+ use anyhow::{Context as _, Result};
+ use bytemuck::{Pod, Zeroable};
+ use gpui::{
+-    AtlasTextureId, Background, Bounds, DevicePixels, GpuSpecs, Path, Point, PrimitiveBatch,
+-    ScaledPixels, Scene, Size, get_gamma_correction_ratios,
++    get_gamma_correction_ratios, AtlasTextureId, Background, Bounds, ContentMask, Corners,
++    DevicePixels, GpuSpecs, Path, Point, PrimitiveBatch, ScaledPixels, Scene, Size,
+ };
+ use log::warn;
+ #[cfg(not(target_family = "wasm"))]
+@@ -18,29 +18,7 @@
+ 
+ const INSTANCE_TEXTURE_TEXEL_SIZE: u64 = 16;
+ 
+-/// Shader variant for backends with storage buffer support: the shared shader
+-/// logic plus the storage-buffer instance transport.
+-const STORAGE_BUFFER_SHADERS: &str = concat!(
+-    include_str!("shaders.wgsl"),
+-    include_str!("shaders_storage.wgsl"),
+-);
+-
+-/// Shader variant for WebGL2, which has no storage buffers: the shared shader
+-/// logic plus the texture-based instance transport.
+-const WEBGL_SHADERS: &str = concat!(
+-    include_str!("shaders.wgsl"),
+-    include_str!("shaders_webgl.wgsl"),
+-);
+-
+-/// Subpixel text rendering requires dual-source blending, which WebGL2 lacks, so
+-/// this variant only ever runs with the storage-buffer transport. The `enable`
+-/// directive must precede all declarations.
+-const SUBPIXEL_SHADERS: &str = concat!(
+-    "enable dual_source_blending;\n",
+-    include_str!("shaders.wgsl"),
+-    include_str!("shaders_storage.wgsl"),
+-    include_str!("shaders_subpixel.wgsl"),
+-);
++use crate::shaders::{STORAGE_BUFFER_SHADERS, SUBPIXEL_SHADERS, WEBGL_SHADERS};
+ 
+ fn least_common_multiple(left: u64, right: u64) -> u64 {
+     let mut first = left;
+@@ -79,9 +57,50 @@
+ 
+ #[repr(C)]
+ #[derive(Clone, Copy, Pod, Zeroable)]
++struct PodCorners {
++    top_left: f32,
++    top_right: f32,
++    bottom_right: f32,
++    bottom_left: f32,
++}
++
++impl From<Corners<ScaledPixels>> for PodCorners {
++    fn from(corners: Corners<ScaledPixels>) -> Self {
++        Self {
++            top_left: corners.top_left.0,
++            top_right: corners.top_right.0,
++            bottom_right: corners.bottom_right.0,
++            bottom_left: corners.bottom_left.0,
++        }
++    }
++}
++
++#[repr(C)]
++#[derive(Clone, Copy, Pod, Zeroable)]
++struct PodContentMask {
++    bounds: PodBounds,
++    corner_radii: PodCorners,
++    clip_index: u32,
++    clip_padding: u32,
++}
++
++impl From<ContentMask<ScaledPixels>> for PodContentMask {
++    fn from(mask: ContentMask<ScaledPixels>) -> Self {
++        Self {
++            bounds: mask.bounds.into(),
++            corner_radii: mask.corner_radii.into(),
++            clip_index: mask.clip_index,
++            clip_padding: 0,
++        }
++    }
++}
++
++#[repr(C)]
++#[derive(Clone, Copy, Pod, Zeroable)]
+ struct SurfaceParams {
+     bounds: PodBounds,
+-    content_mask: PodBounds,
++    content_mask: PodContentMask,
++    padding: [u32; 2],
+ }
+ 
+ #[repr(C)]
+@@ -107,6 +126,7 @@
+     st_position: Point<f32>,
+     color: Background,
+     bounds: Bounds<ScaledPixels>,
++    content_mask: ContentMask<ScaledPixels>,
+ }
+ 
+ pub struct WgpuSurfaceConfig {
+@@ -146,6 +166,7 @@
+ }
+ 
+ struct InstanceBindings {
++    clips: InstanceBinding,
+     quads: InstanceBinding,
+     shadows: InstanceBinding,
+     underlines: InstanceBinding,
+@@ -852,8 +873,12 @@
+                                color_targets: &[Option<wgpu::ColorTargetState>],
+                                sample_count: u32,
+                                module: &wgpu::ShaderModule| {
+-            let mut bind_group_layouts = vec![Some(globals_layout), Some(data_layout)];
+-            bind_group_layouts.extend(texture_layout.map(Some));
++            let bind_group_layouts = [
++                Some(globals_layout),
++                Some(data_layout),
++                texture_layout,
++                Some(&layouts.instances),
++            ];
+             let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                 label: Some(&format!("{name}_layout")),
+                 bind_group_layouts: &bind_group_layouts,
+@@ -1442,6 +1467,7 @@
+                 ..Default::default()
+             });
+ 
++            pass.set_bind_group(3, &instance_bindings.clips.bind_group, &[]);
+             for batch in scene.batches() {
+                 match batch {
+                     PrimitiveBatch::Quads(range) => self.draw_instances(
+@@ -1467,6 +1493,7 @@
+                             &mut encoder,
+                             paths,
+                             &mut instance_offset,
++                            &instance_bindings.clips,
+                         )?;
+ 
+                         pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+@@ -1484,6 +1511,7 @@
+                             ..Default::default()
+                         });
+ 
++                        pass.set_bind_group(3, &instance_bindings.clips.bind_group, &[]);
+                         if rasterized {
+                             self.draw_paths_from_intermediate(
+                                 paths,
+@@ -1544,7 +1572,15 @@
+         scene: &Scene,
+         instance_offset: &mut u64,
+     ) -> Result<InstanceBindings> {
++        let empty_clip = gpui::RoundedClip::<ScaledPixels>::default();
++        let clips = if scene.rounded_clips.is_empty() {
++            std::slice::from_ref(&empty_clip)
++        } else {
++            &scene.rounded_clips
++        };
++        // Keep clip records first: WebGL addresses this binding's texture from zero.
+         Ok(InstanceBindings {
++            clips: self.write_instance_binding("clips_bind_group", instance_offset, clips)?,
+             quads: self.write_instance_binding(
+                 "quads_bind_group",
+                 instance_offset,
+@@ -1704,6 +1740,7 @@
+         encoder: &mut wgpu::CommandEncoder,
+         paths: &[Path<ScaledPixels>],
+         instance_offset: &mut u64,
++        clips: &InstanceBinding,
+     ) -> Result<bool> {
+         let mut vertices = Vec::new();
+         for path in paths {
+@@ -1713,6 +1750,7 @@
+                 st_position: v.st_position,
+                 color: path.color,
+                 bounds,
++                content_mask: path.content_mask,
+             }));
+         }
+ 
+@@ -1753,6 +1791,7 @@
+                 ..Default::default()
+             });
+ 
++            pass.set_bind_group(3, &clips.bind_group, &[]);
+             pass.set_pipeline(&resources.pipelines.path_rasterization);
+             pass.set_bind_group(0, &resources.path_globals_bind_group, &[]);
+             pass.set_bind_group(1, &vertex_binding.bind_group, &[]);
+@@ -2204,40 +2243,19 @@
+     use gpui::{MonochromeSprite, PolychromeSprite, Quad, Shadow, SubpixelSprite, Underline};
+ 
+     #[test]
+-    fn webgl_shader_is_valid_wgsl_without_storage_buffers() {
+-        assert!(!WEBGL_SHADERS.contains("var<storage"));
+-        validate_wgsl(WEBGL_SHADERS, naga::valid::Capabilities::empty());
+-    }
+-
+-    #[test]
+-    fn storage_buffer_shader_is_valid_wgsl() {
+-        validate_wgsl(STORAGE_BUFFER_SHADERS, naga::valid::Capabilities::empty());
+-    }
+-
+-    #[test]
+-    fn subpixel_shader_is_valid_wgsl() {
+-        validate_wgsl(
+-            SUBPIXEL_SHADERS,
+-            naga::valid::Capabilities::DUAL_SOURCE_BLENDING,
++    fn webgl_record_sizes_match_shader_word_strides() {
++        assert_eq!(std::mem::size_of::<SurfaceParams>(), 64);
++        assert_eq!(std::mem::size_of::<Quad>(), 46 * 4);
++        assert_eq!(std::mem::size_of::<Shadow>(), 34 * 4);
++        assert_eq!(std::mem::size_of::<PathRasterizationVertex>(), 36 * 4);
++        assert_eq!(std::mem::size_of::<PathSprite>(), 4 * 4);
++        assert_eq!(
++            std::mem::size_of::<gpui::RoundedClip<ScaledPixels>>(),
++            14 * 4
+         );
+-    }
+-
+-    fn validate_wgsl(source: &str, capabilities: naga::valid::Capabilities) {
+-        let module = naga::front::wgsl::parse_str(source).expect("shader should parse");
+-        naga::valid::Validator::new(naga::valid::ValidationFlags::all(), capabilities)
+-            .validate(&module)
+-            .expect("shader should validate");
+-    }
+-
+-    #[test]
+-    fn webgl_record_sizes_match_shader_word_strides() {
+-        assert_eq!(std::mem::size_of::<Quad>(), 40 * 4);
+-        assert_eq!(std::mem::size_of::<Shadow>(), 28 * 4);
+-        assert_eq!(std::mem::size_of::<PathRasterizationVertex>(), 26 * 4);
+-        assert_eq!(std::mem::size_of::<PathSprite>(), 4 * 4);
+-        assert_eq!(std::mem::size_of::<Underline>(), 16 * 4);
+-        assert_eq!(std::mem::size_of::<MonochromeSprite>(), 28 * 4);
+-        assert_eq!(std::mem::size_of::<SubpixelSprite>(), 28 * 4);
+-        assert_eq!(std::mem::size_of::<PolychromeSprite>(), 24 * 4);
+-    }
+-}
++        assert_eq!(std::mem::size_of::<Underline>(), 22 * 4);
++        assert_eq!(std::mem::size_of::<MonochromeSprite>(), 34 * 4);
++        assert_eq!(std::mem::size_of::<SubpixelSprite>(), 34 * 4);
++        assert_eq!(std::mem::size_of::<PolychromeSprite>(), 30 * 4);
++    }
++}

@@ -384,9 +384,27 @@ impl RenderOnce for Accordion {
                     }
                     AccordionVariant::Surface => colors.default.color,
                 });
-                header = header
-                    .cursor(crate::util::interactive_cursor(cx))
-                    .hover(move |s| s.bg(hover_bg));
+                // The stylesheet declares a 150ms ease-out transition for
+                // the trigger's interactive surface. `hover` alone swaps the
+                // wash on a single GPUI frame, so use the shared animated
+                // fill while leaving the trigger's text, indicator and focus
+                // slot on the stable element. The default endpoint is
+                // transparent; a surface trigger rests on the card fill.
+                let idle_bg = match self.variant {
+                    AccordionVariant::Default => herogpui_core::with_alpha(colors.foreground, 0.0),
+                    AccordionVariant::Surface => colors.surface.background,
+                };
+                header = crate::anim::hover_fade_with_duration(
+                    header.cursor(crate::util::interactive_cursor(cx)),
+                    element_id::scoped(&element_id::scoped(&id, item.key.clone()), "hover-fade"),
+                    (idle_bg, hover_bg),
+                    None,
+                    None,
+                    |fill| fill,
+                    Some(crate::anim::ACCORDION_TRIGGER_HOVER_MS),
+                    window,
+                    cx,
+                );
             } else {
                 header = crate::util::cursor_interactive(header, cx);
             }
@@ -419,17 +437,22 @@ impl RenderOnce for Accordion {
                     .child(render(item_state, window, cx))
                     .into_any_element()
             } else {
-                gpui::svg()
-                    // `.accordion__indicator` is `size-4`.
-                    .size(px(16.))
-                    .path(if is_open {
-                        icons::CHEVRON_UP
-                    } else {
-                        icons::CHEVRON_DOWN
-                    })
-                    .text_color(colors.muted)
-                    .flex_shrink_0()
-                    .into_any_element()
+                // `.accordion__indicator` is one `size-4` down-chevron; the
+                // expanded rule rotates that same node 180 degrees for 250ms.
+                // Custom content remains caller-owned and still receives the
+                // live item state above, just as a custom React indicator does.
+                let indicator_id = element_id::scoped(&id, item.key.clone());
+                crate::anim::rotating_indicator(
+                    &indicator_id,
+                    is_open,
+                    gpui::svg()
+                        .size(px(16.))
+                        .path(icons::CHEVRON_DOWN)
+                        .text_color(colors.muted)
+                        .flex_shrink_0(),
+                    window,
+                    cx,
+                )
             };
             header = header.child(indicator);
 
@@ -480,35 +503,33 @@ impl RenderOnce for Accordion {
                 cx,
             );
             // `.accordion__heading` wraps the trigger and `.accordion__panel`
-            // the body; both are plain flex boxes with the metrics on the parts
-            // inside them.
+            // the body. The panel owns the measured height transition while
+            // its body carries the pinned inset and text metrics.
             let mut section = gpui::div().flex().flex_col().child(header);
-            if is_open {
-                section = section.child(
-                    gpui::div()
-                        // `AccordionPanel` is an RAC `DisclosurePanel`, whose
-                        // role is `group` and whose accessible name is the
-                        // trigger it hangs off (`Disclosure.mjs`:
-                        // `role: role = 'group'`; `useDisclosure.js`:
-                        // `'aria-labelledby': triggerId`). gpui has no id
-                        // graph, so the trigger's text is inlined as the
-                        // panel's name.
-                        .id(element_id::scoped(
-                            &element_id::scoped(&id, item.key.clone()),
-                            "panel",
-                        ))
-                        .a11y_named(
-                            a11y::Role::Group,
-                            &a11y::Name::labelled(item.title.clone()),
-                        )
-                        .px(px(16.))
-                        .pb(px(16.))
-                        .pt(px(0.))
-                        .text_size(px(14.))
-                        .line_height(px(20.))
-                        .text_color(colors.muted)
-                        .child(item.content),
-                );
+            let item_id = element_id::scoped(&id, item.key.clone());
+            let panel_id = element_id::scoped(&item_id, "panel");
+            let panel = gpui::div()
+                // `AccordionPanel` is an RAC `DisclosurePanel`, whose role
+                // is `group` and whose accessible name is the trigger it
+                // hangs off (`Disclosure.mjs`: `role: role = 'group'`;
+                // `useDisclosure.js`: `'aria-labelledby': triggerId`).
+                // gpui has no id graph, so the trigger's text is inlined as
+                // the panel's name.
+                .id(panel_id.clone())
+                .a11y_named(a11y::Role::Group, &a11y::Name::labelled(item.title.clone()));
+            let body = gpui::div()
+                .px(px(16.))
+                .pb(px(16.))
+                .pt(px(0.))
+                .text_size(px(14.))
+                .line_height(px(20.))
+                .text_color(colors.muted)
+                .child(item.content)
+                .into_any_element();
+            if let Some(panel) =
+                crate::anim::collapsible_panel(&panel_id, is_open, panel, body, window, cx)
+            {
+                section = section.child(panel);
             }
 
             // `.accordion__item::after` is a 1px `bg-separator` line at the
@@ -618,6 +639,11 @@ mod tests {
         assert!(
             !source.contains("colors.default.soft()"),
             "no accordion trigger may hover a soft token"
+        );
+        assert!(
+            source.contains("crate::anim::hover_fade_with_duration(")
+                && source.contains("ACCORDION_TRIGGER_HOVER_MS"),
+            "the trigger wash must use the shared 150ms hover transition"
         );
     }
 }

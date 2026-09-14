@@ -417,6 +417,13 @@ impl NumberField {
         self
     }
 
+    /// Shows or hides only the group's visual focus ring. The number field
+    /// remains focusable, editable and stepper-accessible when set to `false`.
+    pub fn focus_ring(mut self, v: bool) -> Self {
+        self.field.focus_ring = Some(v);
+        self
+    }
+
     /// The one slot for caller-owned low-level styling: GPUI's styling methods
     /// (`bg`, `text_color`, `w`, `h`, `p`, `rounded`, `border_color`, …)
     /// applied to the field's root element — the column holding the label, the
@@ -721,6 +728,7 @@ impl RenderOnce for NumberField {
         // hairline. The steppers used to sit *outside* the field as two loose
         // buttons, which is not a shape v3 has.
         let steppers = !self.hide_steppers;
+        let group_radius = crate::util::field_radius(cx);
         // NumberField.Input keeps `px-3` even beside either button. Passing
         // false on both sides removes the standalone chrome without borrowing
         // InputGroup's addon-padding behavior. The group owns the row and its
@@ -750,12 +758,92 @@ impl RenderOnce for NumberField {
             .text_size(crate::util::FIELD_TEXT)
             .line_height(px(20.));
         if !field_box.is_bare {
-            group = crate::util::apply_field_chrome(
+            // The settled group chrome comes from the same shared helper the
+            // other fields take — variant fill and shadow, the invalid danger
+            // outline or ring, the keyboard focus ring.
+            let focused = focus_handle.is_focused(window);
+            let show_focus_ring = field_box.focus_ring.unwrap_or(true);
+            group = crate::util::apply_field_chrome_with_focus_ring(
                 group,
                 self.variant,
                 validity.is_invalid,
-                focus_handle.is_focused(window),
+                focused,
+                show_focus_ring,
                 None,
+                cx,
+            );
+            // `.number-field__group` transitions all three chrome properties
+            // rather than swapping them (lines 39-43: `background-color 150ms
+            // var(--ease-smooth), border-color 150ms var(--ease-smooth),
+            // box-shadow 150ms var(--ease-out)`), so the same state table
+            // resolves again as ramp endpoints and the shared chrome ramp
+            // interpolates between them: focus-within fills `--field-focus`
+            // and hover fills `--field-hover`/`--field-border-hover` only
+            // while the group is neither focused nor invalid. The ramp owns
+            // the group's border and ring past its first flip, so the
+            // helper's instant ones stop being cast.
+            let ringed = focused && show_focus_ring;
+            // The shared helper's chain is an else-if: a ringed group carries
+            // no border at all (the ring replaces the chrome), and an invalid
+            // group that is not ringed carries the one-pixel danger outline.
+            let outlined = validity.is_invalid && !ringed;
+            let idle = crate::anim::FieldChrome {
+                bg: match self.variant {
+                    // `--field-focus: var(--field-background)` — focus and
+                    // invalid fill the group with the field token itself.
+                    FieldVariant::Primary => colors.field.background,
+                    FieldVariant::Secondary => colors.default.color,
+                },
+                border: if outlined {
+                    colors.danger.color
+                } else {
+                    colors.field.border
+                },
+                border_width: if outlined {
+                    layout.border_width.max(px(1.))
+                } else if ringed {
+                    px(0.)
+                } else {
+                    layout.field_border_width
+                },
+                ring: if ringed {
+                    Some(if validity.is_invalid {
+                        crate::anim::danger_ring_endpoint(cx)
+                    } else {
+                        crate::anim::focus_ring_endpoint(cx)
+                    })
+                } else {
+                    None
+                },
+            };
+            let hovered = (!self.is_disabled && !validity.is_invalid && !focused).then(|| {
+                crate::anim::FieldChrome {
+                    bg: match self.variant {
+                        FieldVariant::Primary => colors.field.hover(),
+                        // `.number-field--secondary` hovers
+                        // `--number-field-group-bg-hover: var(--default-hover)`.
+                        FieldVariant::Secondary => colors.default.hover(),
+                    },
+                    border: colors.field.border_hover(),
+                    border_width: layout.field_border_width,
+                    ring: None,
+                }
+            });
+            group = crate::anim::field_chrome_ramp(
+                group,
+                &element_id::scoped(&base_id, "group"),
+                idle,
+                hovered,
+                match self.variant {
+                    FieldVariant::Primary => layout.field_shadow.clone(),
+                    FieldVariant::Secondary => Vec::new(),
+                },
+                group_radius,
+                // The group is `overflow-hidden` — its own clip would cut an
+                // outset ring painted by a child, so the ring layer paints
+                // deferred instead.
+                true,
+                window,
                 cx,
             );
         }
@@ -763,20 +851,6 @@ impl RenderOnce for NumberField {
             group = group.w_full();
         } else {
             group = group.w(px(220.));
-        }
-        if !field_box.is_bare
-            && !self.is_disabled
-            && !validity.is_invalid
-            && !focus_handle.is_focused(window)
-        {
-            let hover_bg = match self.variant {
-                FieldVariant::Primary => colors.field.hover(),
-                // `.number-field--secondary` hovers
-                // `--number-field-group-bg-hover: var(--default-hover)`.
-                FieldVariant::Secondary => colors.default.hover(),
-            };
-            let hover_border = colors.field.border_hover();
-            group = group.hover(move |style| style.bg(hover_bg).border_color(hover_border));
         }
 
         // `border-field-placeholder/15` is the seam between a stepper and the
@@ -822,6 +896,7 @@ impl RenderOnce for NumberField {
                         self.validation_errors.clone(),
                         self.validate.clone(),
                         &colors,
+                        layout.field_border_width,
                         vertical_stepper_h,
                         px(24.),
                         increment_icon,
@@ -838,6 +913,7 @@ impl RenderOnce for NumberField {
                         self.validation_errors.clone(),
                         self.validate.clone(),
                         &colors,
+                        layout.field_border_width,
                         vertical_stepper_h,
                         px(24.),
                         decrement_icon,
@@ -858,6 +934,7 @@ impl RenderOnce for NumberField {
                         self.validation_errors.clone(),
                         self.validate.clone(),
                         &colors,
+                        layout.field_border_width,
                         h,
                         btn_px,
                         decrement_icon,
@@ -879,6 +956,7 @@ impl RenderOnce for NumberField {
                         self.validation_errors.clone(),
                         self.validate.clone(),
                         &colors,
+                        layout.field_border_width,
                         h,
                         btn_px,
                         increment_icon,
@@ -1010,10 +1088,12 @@ impl RenderOnce for NumberField {
             );
         }
         el = el.child(group);
-        if !validity.messages.is_empty() {
-            // Every message, space-joined in upstream order — React Aria's
-            // `FieldError` default — not just the first.
-            el = el.child(crate::field::ErrorMessage::new(validity.joined()));
+        // Every message, space-joined in upstream order — React Aria's
+        // `FieldError` default — not just the first. The shared feedback row
+        // retains the last message while its height and opacity settle out.
+        let error = (!validity.messages.is_empty()).then(|| validity.joined().into());
+        if let Some(error) = crate::anim::field_error_panel(&base_id, error, window, cx) {
+            el = el.child(error);
         } else if let Some(description) = self.description.clone() {
             el = el.child(crate::field::Description::new(description));
         }
@@ -1032,6 +1112,7 @@ fn stepper_btn(
     validation_errors: Vec<SharedString>,
     validate: Option<crate::validation::Validator<f64>>,
     colors: &herogpui_theme::ThemeColors,
+    field_border_width: gpui::Pixels,
     h: gpui::Pixels,
     btn_px: gpui::Pixels,
     icon: gpui::AnyElement,
@@ -1067,7 +1148,13 @@ fn stepper_btn(
         .justify_center()
         .flex_shrink_0()
         .w(btn_px)
-        .h(h);
+        .h(h)
+        // HeroUI gives each spin button the field border token. The default
+        // theme keeps this at zero, while custom themes can opt into a visible
+        // field border; carrying it here prevents the stepper cells from
+        // losing the shared shell's border treatment in that configuration.
+        .border(field_border_width)
+        .border_color(colors.field.border);
     // The icon joins the skin before the press wrap: children added after
     // `pressed` land on the slot and fight the skin for width.
     b = b.text_color(colors.field.foreground).child(icon);
@@ -1284,6 +1371,34 @@ mod hover_tokens {
             source.contains("FieldVariant::Secondary => colors.default.hover()"),
             "the secondary group hover must read `colors.default.hover()` \
              (pinned `--number-field-group-bg-hover: var(--default-hover)`)"
+        );
+    }
+
+    #[test]
+    fn stepper_cells_carry_the_shared_field_border_token() {
+        let source = include_str!("number_field.rs")
+            .split("#[cfg(test)]")
+            .next()
+            .expect("the implementation section is always present");
+        assert!(
+            source.contains(".border(field_border_width)")
+                && source.contains(".border_color(colors.field.border)"),
+            "spin buttons must preserve the configured field border token"
+        );
+    }
+
+    #[test]
+    fn group_chrome_uses_the_pinned_shell_transition() {
+        let source = include_str!("number_field.rs")
+            .split("#[cfg(test)]")
+            .next()
+            .expect("the implementation section is always present");
+        assert!(
+            source.contains("crate::anim::field_chrome_ramp(")
+                && source.contains("crate::anim::focus_ring_endpoint(cx)")
+                && source.contains("crate::anim::danger_ring_endpoint(cx)"),
+            "the group must move focus, invalid and hover chrome through the \
+             shared keyed ramp, not one-frame endpoint swaps"
         );
     }
 }

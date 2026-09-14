@@ -178,7 +178,7 @@ const PROGRESS_BAR_STATES: &[StateDoc] = &[
         state: "Indeterminate",
         selector: ":not([aria-valuenow])",
         description: "A 40% fill sweeps with the pinned 1.5s curve; reduced motion leaves it static.",
-        rust: "is_indeterminate + progress-bar-indeterminate + reduce_motion",
+        rust: "is_indeterminate + element_id::scoped(id, \"indeterminate\") + reduce_motion",
         status: ImplementationStatus::Implemented,
     },
     StateDoc {
@@ -201,9 +201,9 @@ const PROGRESS_BAR_STYLING: &[StyleDoc] = &[
     StyleDoc {
         class_or_token: "[data-slot=label] / .progress-bar__output",
         value: "text-sm font-medium; output tabular-nums",
-        description: "Text size, 20px line height and weight match; GPUI does not request tabular numeral font features on the output alone.",
-        rust: "text_size(px(14.)) + line_height(px(20.)) + FontWeight::MEDIUM",
-        status: ImplementationStatus::Partial,
+        description: "Text size, 20px line height and weight match; the output wrapper requests HeroUI's tabular numeral feature without changing the label metrics.",
+        rust: "text_size(px(14.)) + line_height(px(20.)) + FontWeight::MEDIUM + tabular_font_features",
+        status: ImplementationStatus::Implemented,
     },
     StyleDoc {
         class_or_token: ".progress-bar__track",
@@ -437,8 +437,8 @@ const PROGRESS_CIRCLE_STATES: &[StateDoc] = &[
     StateDoc {
         state: "Indeterminate",
         selector: ":not([aria-valuenow])",
-        description: "A quarter arc completes one linear turn per second; reduced motion leaves the same arc static.",
-        rust: "is_indeterminate + progress-circle-spin + reduce_motion",
+        description: "The track wrapper rotates the quarter arc and its full ring together once per second; reduced motion leaves both layers static.",
+        rust: "is_indeterminate + progress_visual spin + reduce_motion",
         status: ImplementationStatus::Implemented,
     },
     StateDoc {
@@ -489,9 +489,9 @@ const PROGRESS_CIRCLE_STYLING: &[StyleDoc] = &[
     StyleDoc {
         class_or_token: ".progress-circle__fill-circle",
         value: "stroke-dashoffset 300ms ease-out; motion-reduce none",
-        description: "Value changes redraw immediately because the local canvas has no retained dash-offset transition.",
-        rust: "direct fraction repaint",
-        status: ImplementationStatus::Partial,
+        description: "Value changes interpolate the retained canvas arc fraction from the painted frame; reduced motion settles directly.",
+        rust: "Tween::keyed(fill-fraction) + PROGRESS_CIRCLE_FILL_MS + ease_out",
+        status: ImplementationStatus::Implemented,
     },
     StyleDoc {
         class_or_token: ".progress-circle--default",
@@ -503,8 +503,8 @@ const PROGRESS_CIRCLE_STYLING: &[StyleDoc] = &[
     StyleDoc {
         class_or_token: "@keyframes progress-circle-spin",
         value: "1s linear infinite; motion-reduce animate-none",
-        description: "Indeterminate track rotation and its reduced-motion override.",
-        rust: "PROGRESS_CIRCLE_SPIN_MS + progress_circle_spin_turn + reduce_motion",
+        description: "Indeterminate track-wrapper rotation moves the full ring and quarter fill together, with the reduced-motion static endpoint.",
+        rust: "PROGRESS_CIRCLE_SPIN_MS + progress_circle_spin_turn + progress_visual + reduce_motion",
         status: ImplementationStatus::Implemented,
     },
 ];
@@ -568,10 +568,10 @@ const ALERT_API: &[ApiDoc] = &[
         prop: "children",
         ty: "ReactNode",
         default: "—",
-        description: "Custom indicator icon, defaulting to the status glyph. The port draws only the pinned per-status glyph (Info for default and accent, check for success, triangle for warning, circle-exclamation for danger); there is no builder to replace it.",
+        description: "Custom indicator icon, defaulting to the status glyph. The port accepts caller content while retaining the pinned 24px indicator box.",
         rust_owner: "Alert",
-        rust: "—",
-        status: ImplementationStatus::Unavailable,
+        rust: "indicator(content)",
+        status: ImplementationStatus::Implemented,
     },
     ApiDoc {
         owner: "Alert.Indicator",
@@ -656,9 +656,9 @@ const ALERT_PARTS: &[PartDoc] = &[
     PartDoc {
         name: "Alert.Indicator",
         slot: "alert__indicator",
-        description: "`flex items-center justify-center p-1 select-none` box around the `box-content size-4` status glyph, painted with the status soft-foreground (`text-foreground` on default). The port draws the pinned glyph but offers no custom indicator children.",
+        description: "`flex items-center justify-center p-1 select-none` box around the `box-content size-4` status glyph or caller-owned indicator content, painted with the status soft-foreground when using the default glyph.",
         rust_owner: "Alert",
-        status: ImplementationStatus::Partial,
+        status: ImplementationStatus::Implemented,
     },
     PartDoc {
         name: "Alert.Content",
@@ -905,9 +905,9 @@ const SKELETON_STYLING: &[StyleDoc] = &[
     StyleDoc {
         class_or_token: ".skeleton",
         value: "relative overflow-hidden rounded-lg bg-surface-secondary/50",
-        description: "Theme secondary-surface placeholder clipped to the shared hairline radius.",
-        rust: "surface_tertiary + hairline_radius + overflow_hidden",
-        status: ImplementationStatus::Partial,
+        description: "Theme tertiary-surface placeholder clipped to the shared hairline radius; composed children retain their layout and remain visible under a parent shimmer.",
+        rust: "surface_tertiary + hairline_radius + overflow_hidden + child composition",
+        status: ImplementationStatus::Implemented,
     },
     StyleDoc {
         class_or_token: ".skeleton--shimmer",
@@ -992,7 +992,7 @@ const SPINNER_STATES: &[StateDoc] = &[StateDoc {
 }];
 
 const SPINNER_STYLING: &[StyleDoc] = &[
-    StyleDoc { class_or_token: ".spinner", value: "size-6 animate-spin", description: "The default indicator keeps its 24px diameter in flex layouts and rotates while motion is enabled; duration_ms provides the gallery's speed customization point.", rust: "SpinnerSize::Md + duration_ms(u64) + repeated rotation", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".spinner", value: "size-6 animate-spin-fast (750ms linear)", description: "The default indicator keeps its 24px diameter in flex layouts and follows HeroUI's 750ms linear spin token; duration_ms provides the gallery's speed customization point.", rust: "SpinnerSize::Md + duration_ms(u64) + repeated linear rotation", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".spinner--sm / --md / --lg / --xl", value: "16px / 24px / 32px / 40px", description: "All four documented diameters map directly.", rust: "SpinnerSize::px", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".spinner--current / semantic colors", value: "currentColor or semantic role", description: "GPUI SVGs require current text color to be resolved by the caller; semantic roles resolve from the active theme.", rust: "current_color(Hsla) / color(Color)", status: ImplementationStatus::Partial },
 ];

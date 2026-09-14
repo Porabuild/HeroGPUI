@@ -20,6 +20,9 @@ pub struct Alert {
     title: SharedString,
     description: Option<SharedString>,
     color: Color,
+    /// `Alert.Indicator` children replace the status glyph while retaining
+    /// the pinned 24px indicator box and status-owned default fallback.
+    indicator: Option<AnyElement>,
     /// Composed children — v3's "Additional content like buttons, close
     /// button, etc.", appended after the content column.
     children: Vec<AnyElement>,
@@ -42,6 +45,7 @@ impl Alert {
             title: title.into(),
             description: None,
             color: Color::Default,
+            indicator: None,
             children: Vec::new(),
             sx: None,
             radius: None,
@@ -50,6 +54,14 @@ impl Alert {
 
     pub fn description(mut self, d: impl Into<SharedString>) -> Self {
         self.description = Some(d.into());
+        self
+    }
+
+    /// Replaces the default status glyph inside the indicator slot. The
+    /// caller owns the child content; the surrounding box keeps HeroUI's
+    /// 4px inset and fixed 16px glyph footprint.
+    pub fn indicator(mut self, content: impl IntoElement) -> Self {
+        self.indicator = Some(content.into_any_element());
         self
     }
 
@@ -127,11 +139,14 @@ impl RenderOnce for Alert {
         // nothing, so the token is applied unconditionally.
         alert = alert.shadow(layout.surface_shadow.clone());
 
-        let indicator_glyph = gpui::svg()
+        let default_indicator_glyph = gpui::svg()
             .size(px(16.))
             .path(glyph)
             .text_color(role_fg)
             .flex_shrink_0();
+        let indicator_glyph = self
+            .indicator
+            .unwrap_or_else(|| default_indicator_glyph.into_any_element());
         alert = alert.child(
             // `.alert__indicator` is a `p-1` box around the 16px glyph, centered.
             gpui::div()
@@ -221,7 +236,7 @@ mod painted_tokens {
         // between `let indicator_glyph = gpui::svg()` and the statement's
         // terminating `;` is the full builder chain that paints the glyph.
         let chain = source
-            .split("let indicator_glyph = gpui::svg()")
+            .split("let default_indicator_glyph = gpui::svg()")
             .nth(1)
             .expect("the indicator must paint the glyph as a declared svg element")
             .split(';')
@@ -237,5 +252,14 @@ mod painted_tokens {
             !chain.contains("colors.muted"),
             "the default indicator is `text-foreground`, not the muted tone"
         );
+    }
+
+    #[test]
+    fn custom_indicator_keeps_the_shared_indicator_box() {
+        let source = implementation();
+        assert!(source.contains("pub fn indicator(mut self, content: impl IntoElement)"));
+        assert!(source.contains(".indicator\n            .unwrap_or_else"));
+        assert!(source.contains(".p(px(4.))"));
+        assert!(source.contains(".size(px(16.))"));
     }
 }

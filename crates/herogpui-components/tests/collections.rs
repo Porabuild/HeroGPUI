@@ -44,7 +44,7 @@ mod harness;
 
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
-use std::rc::Rc;
+use std::{rc::Rc, time::Duration};
 
 use gpui::{
     prelude::*, px, Font, FontFeatures, FontStyle, FontWeight, TestAppContext, VisualTestContext,
@@ -76,6 +76,19 @@ fn sorted_join(keys: &HashSet<gpui::SharedString>) -> String {
     let mut keys: Vec<String> = keys.iter().map(ToString::to_string).collect();
     keys.sort();
     keys.join(",")
+}
+
+/// Drives the measured Accordion panel to its settled endpoint before the
+/// second header's coordinate is used. GPUI's animation phase uses wall time;
+/// the retained exit timer uses the test executor clock.
+fn settle_collapsible(cx: &mut VisualTestContext) {
+    std::thread::sleep(Duration::from_millis(220));
+    cx.update(|window, cx| {
+        window.simulate_next_frame(cx);
+    });
+    cx.executor().advance_clock(Duration::from_millis(210));
+    cx.run_until_parked();
+    cx.update(|window, _| window.refresh());
 }
 
 /// The advance width of `text` shaped the way the components shape it: gpui's
@@ -593,6 +606,27 @@ fn fixed_height_virtual_list_box_caps_in_an_unbounded_parent(cx: &mut TestAppCon
 // TagGroup
 // ---------------------------------------------------------------------------
 
+#[test]
+fn tag_group_uses_the_pinned_smooth_hover_transition() {
+    let source = include_str!("../src/tag_group.rs");
+    assert!(
+        source.contains("hover_fade_with_duration_and_easing"),
+        "TagGroup must animate its background through the shared keyed fade"
+    );
+    assert!(
+        source.contains("HoverFadeEasing::EaseSmooth"),
+        "TagGroup uses the stylesheet's ease-smooth curve"
+    );
+    assert!(
+        source.contains("Some(100)"),
+        "TagGroup's background transition is the pinned 100ms duration"
+    );
+    assert!(
+        source.contains("fill.rounded(tag_radius)"),
+        "the animated fill must share the tag radius to prevent corner leaks"
+    );
+}
+
 #[gpui::test]
 fn tag_group_remove_reports_the_key(cx: &mut TestAppContext) {
     let events = events();
@@ -826,6 +860,7 @@ fn accordion_single_mode_closes_the_previous(cx: &mut TestAppContext) {
     // 52 (header) + 2+40+16 (body) + 1 (separator) + 26 (half header) = 137.
     click(cx, 60., 26.);
     assert_eq!(expanded.borrow().as_slice(), ["one"]);
+    settle_collapsible(cx);
     click(cx, 60., 137.);
     assert_eq!(
         expanded.borrow().as_slice(),

@@ -59,6 +59,11 @@ impl PopoverSide {
 struct PopoverPositioner {
     trigger: std::rc::Rc<std::cell::Cell<Option<Bounds<Pixels>>>>,
     resolved: std::rc::Rc<std::cell::Cell<Option<PopoverResolved>>>,
+    /// Optional physical placement feedback for components whose entry
+    /// animation depends on the side the viewport resolver actually chose.
+    /// The positioner owns the measurement; the composing component owns the
+    /// keyed cell so the result survives the next render.
+    resolved_placement: Option<ResolvedPlacementHandle>,
     placement: PopoverPlacement,
     offset: Pixels,
     should_flip: bool,
@@ -88,6 +93,14 @@ struct PopoverResolved {
     panel: Bounds<Pixels>,
     side: PopoverSide,
 }
+
+/// A small cross-component feedback channel for the resolved physical side.
+///
+/// `PopoverPositioner` learns the side during prepaint, after the composing
+/// component has already built its panel. Keeping the side in a keyed cell
+/// lets the next render select the correct placement-relative entry offset
+/// without exposing the positioner's private geometry type.
+pub(crate) type ResolvedPlacementHandle = std::rc::Rc<std::cell::Cell<Option<PopoverPlacement>>>;
 
 /// The v3 `Popover.Arrow` part.
 ///
@@ -310,7 +323,10 @@ impl Element for PopoverTriggerMeasure {
         window: &mut Window,
         cx: &mut App,
     ) {
-        self.bounds.set(Some(bounds));
+        let next = Some(bounds);
+        if self.bounds.get() != next {
+            self.bounds.set(next);
+        }
         self.child.prepaint(window, cx);
     }
 
@@ -355,16 +371,28 @@ impl PopoverPositioner {
             constrain_height: false,
             cross_start: false,
             match_trigger_width: false,
+            resolved_placement: None,
             children: Vec::new(),
         }
     }
 
+    fn with_resolved_placement(mut self, handle: ResolvedPlacementHandle) -> Self {
+        self.resolved_placement = Some(handle);
+        self
+    }
+
     fn preferred_side(&self) -> PopoverSide {
-        match self.placement {
-            PopoverPlacement::Left => PopoverSide::Left,
-            PopoverPlacement::Right => PopoverSide::Right,
-            placement if placement.is_above() => PopoverSide::Top,
-            _ => PopoverSide::Bottom,
+        let placement = self.placement;
+        if placement.is_side() {
+            if placement.is_start_side() {
+                PopoverSide::Left
+            } else {
+                PopoverSide::Right
+            }
+        } else if placement.is_above() {
+            PopoverSide::Top
+        } else {
+            PopoverSide::Bottom
         }
     }
 
@@ -581,6 +609,21 @@ impl Element for PopoverPositioner {
             );
         }
         let side = self.resolved_side(trigger, popup, viewport);
+        if let Some(handle) = &self.resolved_placement {
+            let resolved = match side {
+                PopoverSide::Top => PopoverPlacement::Top,
+                PopoverSide::Bottom => PopoverPlacement::Bottom,
+                PopoverSide::Left => PopoverPlacement::Left,
+                PopoverSide::Right => PopoverPlacement::Right,
+            };
+            if handle.get() != Some(resolved) {
+                handle.set(Some(resolved));
+                // The first prepaint discovers a flip only after the panel
+                // has been built. Re-render once so an entry animation can
+                // use the resolved physical side on its next frame.
+                window.defer(cx, |window, _| window.refresh());
+            }
+        }
         if self.constrain_height {
             let max_height = match side {
                 PopoverSide::Top | PopoverSide::Bottom => {
@@ -637,6 +680,27 @@ impl Element for PopoverPositioner {
     }
 }
 
+/// HeroUI's placement-specific `slide-in-from-*` entry offsets for popovers.
+/// The positioner feeds the resolved physical side back into the composing
+/// component, so a viewport flip animates from the side actually painted.
+///
+/// The offset follows the physical side only: aligned and logical spellings
+/// share the motion of the centered form they hang beside, exactly as the
+/// pinned `data-placement` CSS keys animation to the four sides.
+pub(crate) fn placement_entry_offset(placement: PopoverPlacement) -> (f32, f32) {
+    if placement.is_above() {
+        (0.0, 4.0)
+    } else if placement.is_side() {
+        if placement.is_start_side() {
+            (4.0, 0.0)
+        } else {
+            (-4.0, 0.0)
+        }
+    } else {
+        (0.0, -4.0)
+    }
+}
+
 impl IntoElement for PopoverPositioner {
     type Element = Self;
 
@@ -651,6 +715,48 @@ pub(crate) fn scrollable_popover(
     placement: PopoverPlacement,
     panel: impl IntoElement,
 ) -> impl IntoElement {
+    scrollable_popover_with_resolved_placement(trigger, placement, None, panel)
+}
+
+/// Scrollable content-sized positioner for composed surfaces that need the
+/// default viewport flip and a viewport-bounded panel. DatePicker and
+/// DateRangePicker use this path so their calendar panels share the same
+/// trigger measurement, resolved-side feedback and short-viewport scrolling as
+/// the other picker overlays.
+pub(crate) fn popover_with_resolved_placement(
+    trigger: std::rc::Rc<std::cell::Cell<Option<Bounds<Pixels>>>>,
+    placement: PopoverPlacement,
+    offset: Pixels,
+    resolved_placement: Option<ResolvedPlacementHandle>,
+    panel: impl IntoElement,
+) -> impl IntoElement {
+    let mut positioner = PopoverPositioner::new(
+        trigger,
+        std::rc::Rc::new(std::cell::Cell::new(None)),
+        placement,
+        offset,
+        true,
+        false,
+    );
+    // The picker panel owns the scroll container. The positioner supplies the
+    // available height from the resolved physical side, then lays the panel
+    // out again with that definite cap so the calendar can scroll instead of
+    // painting outside the viewport.
+    positioner.constrain_height = true;
+    if let Some(handle) = resolved_placement {
+        positioner = positioner.with_resolved_placement(handle);
+    }
+    positioner.child(panel)
+}
+
+/// The ColorPicker variant of [`scrollable_popover`] that feeds the resolved
+/// physical side back to its placement-aware entry animation.
+pub(crate) fn scrollable_popover_with_resolved_placement(
+    trigger: std::rc::Rc<std::cell::Cell<Option<Bounds<Pixels>>>>,
+    placement: PopoverPlacement,
+    resolved_placement: Option<ResolvedPlacementHandle>,
+    panel: impl IntoElement,
+) -> impl IntoElement {
     let mut positioner = PopoverPositioner::new(
         trigger,
         std::rc::Rc::new(std::cell::Cell::new(None)),
@@ -660,20 +766,19 @@ pub(crate) fn scrollable_popover(
         false,
     );
     positioner.constrain_height = true;
+    if let Some(handle) = resolved_placement {
+        positioner = positioner.with_resolved_placement(handle);
+    }
     positioner.child(panel)
 }
 
-/// A trigger-width variant of [`scrollable_popover`] for field panels.
-///
-/// `Select.Popover` is `min-w-(--trigger-width)`: the panel matches the
-/// trigger width, so the positioner measures with that width on both passes
-/// instead of `MaxContent`. The panel must still use `max_h_full()`; a plain
-/// list owns the panel's vertical scroll container, while a virtual list
-/// sizes itself from its rows (`Infer`) so it caps together with the panel
-/// instead of nesting a fixed viewport inside an outer scroller.
-pub(crate) fn scrollable_field_popover(
+/// Trigger-width field panel that feeds the resolved physical side back to a
+/// picker entry animation. Select, Autocomplete and ComboBox share this path;
+/// keeping the feedback here prevents their flip logic from drifting.
+pub(crate) fn scrollable_field_popover_with_resolved_placement(
     trigger: std::rc::Rc<std::cell::Cell<Option<Bounds<Pixels>>>>,
     placement: PopoverPlacement,
+    resolved_placement: Option<ResolvedPlacementHandle>,
     panel: impl IntoElement,
 ) -> impl IntoElement {
     let mut positioner = PopoverPositioner::new(
@@ -686,6 +791,9 @@ pub(crate) fn scrollable_field_popover(
     );
     positioner.constrain_height = true;
     positioner.match_trigger_width = true;
+    if let Some(handle) = resolved_placement {
+        positioner = positioner.with_resolved_placement(handle);
+    }
     positioner.child(panel)
 }
 
@@ -866,6 +974,26 @@ impl RenderOnce for Popover {
         let (phase, dismissal_token) =
             crate::util::overlay_scope(window, cx, phase_key, is_open, true);
         let exiting = phase == crate::util::OverlayPhase::Exiting;
+        // Positioning resolves flips during prepaint, after this render has
+        // already chosen the panel's entry direction. Keep the requested
+        // placement and the resolved physical side in keyed state so a flip,
+        // resize, or initially-open mount can feed the next entry frame.
+        let requested_placement = window.use_keyed_state(
+            element_id::scoped(&self.id, "requested-placement"),
+            cx,
+            |_, _| self.placement,
+        );
+        let resolved_placement = window.use_keyed_state(
+            element_id::scoped(&self.id, "resolved-placement"),
+            cx,
+            |_, _| std::rc::Rc::new(std::cell::Cell::new(None::<PopoverPlacement>)),
+        );
+        if *requested_placement.read(cx) != self.placement {
+            requested_placement.update(cx, |placement, _| *placement = self.placement);
+            resolved_placement.read(cx).set(None);
+        }
+        let resolved_placement = resolved_placement.read(cx).clone();
+        let entry_placement = resolved_placement.get().unwrap_or(self.placement);
         // Escape is read on the root, and a key event only reaches an element
         // that is on the focused element's path -- so an open panel needs
         // *something* inside this root to hold the focus. A click on the
@@ -876,7 +1004,12 @@ impl RenderOnce for Popover {
         // deliberately not a tab stop: the popover adds no stop of its own.
         // Both `use_keyed_state` calls take `cx` mutably, so they precede the
         // theme tokens.
-        let anchor_bounds = std::rc::Rc::new(std::cell::Cell::new(None::<Bounds<Pixels>>));
+        let anchor_bounds = window
+            .use_keyed_state(element_id::scoped(&self.id, "anchor-bounds"), cx, |_, _| {
+                std::rc::Rc::new(std::cell::Cell::new(None::<Bounds<Pixels>>))
+            })
+            .read(cx)
+            .clone();
         let resolved = std::rc::Rc::new(std::cell::Cell::new(None::<PopoverResolved>));
         let root_focus = window
             .use_keyed_state(element_id::scoped(&self.id, "root-focus"), cx, |_, cx| {
@@ -1092,10 +1225,17 @@ impl RenderOnce for Popover {
                 crate::util::DismissResult::Handled
             });
 
-        // v3 fades the panel in on `[data-entering]`.
+        // v3 fades the panel in on `[data-entering]` and shifts it four
+        // pixels from the resolved placement side.
+        let (slide_x, slide_y) = placement_entry_offset(entry_placement);
         let zoom = crate::anim::ZoomBox::panel(panel_padding_y, radius)
             .padding_x(panel_padding_x)
             .sized(px(260.));
+        let zoom = crate::anim::ZoomBox {
+            slide_x: (slide_x != 0.0).then(|| px(slide_x)),
+            slide_y: (slide_y != 0.0).then(|| px(slide_y)),
+            ..zoom
+        };
         let panel = if exiting {
             crate::anim::exiting(
                 panel,
@@ -1122,9 +1262,26 @@ impl RenderOnce for Popover {
             self.should_flip,
             has_arrow,
         )
+        .with_resolved_placement(resolved_placement)
         .child(panel);
         root = root.child(positioner);
         root = crate::util::apply_sx(root, &self.sx);
         root
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{placement_entry_offset, PopoverPlacement};
+
+    #[test]
+    fn placement_entry_offsets_follow_the_painted_side() {
+        assert_eq!(placement_entry_offset(PopoverPlacement::Top), (0.0, 4.0));
+        assert_eq!(
+            placement_entry_offset(PopoverPlacement::BottomStart),
+            (0.0, -4.0)
+        );
+        assert_eq!(placement_entry_offset(PopoverPlacement::Left), (4.0, 0.0));
+        assert_eq!(placement_entry_offset(PopoverPlacement::Right), (-4.0, 0.0));
     }
 }

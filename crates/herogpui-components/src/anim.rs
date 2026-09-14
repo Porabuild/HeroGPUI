@@ -5,6 +5,43 @@
 //! suppressed when the user asks for reduced motion — with no opt-in required
 //! from the caller.
 //!
+//! ## Hover slots never request their own frame
+//!
+//! [`hover_fade`] and `field_chrome_ramp` keep a copy of the pointer state in
+//! keyed state, because a colour ramp needs to know which endpoint it is easing
+//! towards and gpui hands that out only through a listener. Those listeners
+//! record the new value and stop; they must never call `cx.notify()`.
+//!
+//! gpui reconciles an `on_hover` listener during *paint* whenever the element's
+//! interactive state is new, deferring a call so the listener catches up with a
+//! pointer that was already inside (`Interactivity::paint` in pinned gpui-pre
+//! 0.3.3). That reconciliation is not a user event, so a listener that notifies
+//! turns every such frame into a request for another one. It settles only if
+//! the element keeps the same id across frames -- and a control whose id comes
+//! from a caller-owned state entity does not, if the caller rebuilds that
+//! entity in `render`. The result is an unbounded re-render that spins a real
+//! app at full CPU and hangs a headless test, where `App::flush_effects` draws
+//! every dirty window until none is left.
+//!
+//! What repaints on a genuine crossing instead is gpui's own hover machinery:
+//! when an element carries a hover style, `Interactivity::paint` installs a
+//! capture-phase `MouseMoveEvent` handler that notifies the view. That handler
+//! is the *only* repaint on offer -- `Window::dispatch_mouse_event` refreshes
+//! for an active drag and nothing else -- and it is gated on `hover_style`
+//! specifically: a `mouse_cursor`-only element installs the handler but leaves
+//! its `hover_state` `None` and so notifies nothing.
+//!
+//! So the rule is **whoever owns the element's `on_hover` owns its gpui hover
+//! style**, and these two helpers own both rather than trusting a caller to
+//! supply the second. [`hover_fade`] takes the immediate `hover_border`
+//! endpoint that its callers used to apply themselves; `field_chrome_ramp`
+//! sets an empty refinement, because every endpoint it has is interpolated and
+//! a style swap would snap the colour. When an `Interaction` slot is passed,
+//! `util::track_interaction` owns the listener and its notify, and that
+//! caller keeps its own hover style. A caller that sets a second hover style on
+//! the same element trips gpui's own `debug_assert!("hover style already set")`,
+//! so the ownership rule cannot be broken silently.
+//!
 //! This module is the gpui equivalent. Components call [`entering`] instead of
 //! reaching for `with_animation` directly, so the reduced-motion check and the
 //! duration/easing live in exactly one place.
@@ -32,10 +69,21 @@ pub const ENTERING_MS: u64 = 150;
 /// 100ms's 33), but the button states its own, and this is the button's.
 pub const TRANSITION_MS: u64 = 100;
 
+/// Toast cards translate for 350ms but fade on their own 150ms opacity track.
+/// The separate constant keeps that stylesheet timing visible to the shared
+/// motion readers without conflating it with the placement motion itself.
+pub const TOAST_OPACITY_MS: u64 = 150;
+
+/// `.accordion__trigger`'s opacity/box-shadow transition duration. Accordion
+/// has its own 150ms declaration; it must not inherit the button's 100ms hover
+/// token when it uses the shared colour-fill machinery.
+pub const ACCORDION_TRIGGER_HOVER_MS: u64 = 150;
+
 /// How long a press takes: `transform 250ms var(--ease-smooth)`.
 ///
-/// Recorded rather than used — gpui's `active` is a style swap with no
-/// timeline, so [`pressed`] arrives in one frame. See the note there.
+/// The instant [`pressed`] still arrives in one frame — gpui's `active` is a
+/// style swap with no timeline — but `pressed_with_background_ramp` rides
+/// this pinned duration on the components whose stylesheets declare it.
 pub const PRESS_MS: u64 = 250;
 
 /// `progress-bar-indeterminate`: one sweep every 1.5 seconds.
@@ -50,6 +98,10 @@ pub fn progress_bar_indeterminate_ease() -> impl Fn(f32) -> f32 {
 
 /// `@keyframes progress-circle-spin`: one linear turn per second.
 pub const PROGRESS_CIRCLE_SPIN_MS: u64 = 1000;
+/// `.progress-circle__fill-circle` value changes use the pinned 300ms
+/// ease-out stroke transition. The canvas-backed port applies the same
+/// timeline to its retained arc fraction.
+pub const PROGRESS_CIRCLE_FILL_MS: u64 = 300;
 
 /// Rotation for one `progress-circle-spin` iteration, in radians.
 pub fn progress_circle_spin_turn(delta: f32) -> f32 {
@@ -103,6 +155,9 @@ pub enum Curve {
     OutQuad,
     /// `--ease-out-fluid`: `cubic-bezier(0.32, 0.72, 0, 1)`.
     OutFluid,
+    /// `--ease-out-quart`: `cubic-bezier(0.165, 0.84, 0.44, 1)` — the
+    /// close button's transform curve.
+    OutQuart,
     Linear,
 }
 
@@ -113,6 +168,7 @@ impl Curve {
             Curve::Smooth => cubic_bezier(0.25, 0.1, 0.25, 1.0, t),
             Curve::OutQuad => cubic_bezier(0.25, 0.46, 0.45, 0.94, t),
             Curve::OutFluid => cubic_bezier(0.32, 0.72, 0.0, 1.0, t),
+            Curve::OutQuart => cubic_bezier(0.165, 0.84, 0.44, 1.0, t),
             Curve::Linear => t,
         }
     }
@@ -184,13 +240,26 @@ impl Motion {
     };
 
     /// `.disclosure__content` is a *transition*, not an `animate-in`: `height
-    /// 200ms ease-out-quad, opacity 200ms ease-out`. gpui cannot animate a
-    /// height it has not measured, so the panel fades at that duration and
-    /// curve rather than sliding.
+    /// 200ms ease-out-quad, opacity 200ms ease-out`. The collapsible panel
+    /// helper measures its natural child extent and drives both properties at
+    /// these curves.
     pub const DISCLOSURE: Motion = Motion {
         ms: 200,
         scale: 1.0,
         curve: Curve::OutQuad,
+    };
+
+    /// `field-error.css` expands the error row over 350ms with the smooth
+    /// curve, independently of its shorter 150ms opacity transition.
+    pub const FIELD_ERROR_HEIGHT: Motion = Motion {
+        ms: 350,
+        scale: 1.0,
+        curve: Curve::Smooth,
+    };
+    pub const FIELD_ERROR_OPACITY: Motion = Motion {
+        ms: 150,
+        scale: 1.0,
+        curve: Curve::Out,
     };
 
     /// `translate 250ms cubic-bezier(0.32, 0.72, 0, 1)` — the drawer's slide,
@@ -202,6 +271,20 @@ impl Motion {
     };
     /// `--drawer-exit-duration: 200ms`, same curve.
     pub const DRAWER_OUT: Motion = Motion {
+        ms: 200,
+        scale: 1.0,
+        curve: Curve::OutFluid,
+    };
+
+    /// Drawer-specific backdrop fade from `drawer.css`: it follows the
+    /// panel's fluid enter curve instead of the shared modal backdrop token.
+    pub const DRAWER_BACKDROP_IN: Motion = Motion {
+        ms: 250,
+        scale: 1.0,
+        curve: Curve::OutFluid,
+    };
+    /// Drawer-specific backdrop exit from `drawer.css`.
+    pub const DRAWER_BACKDROP_OUT: Motion = Motion {
         ms: 200,
         scale: 1.0,
         curve: Curve::OutFluid,
@@ -219,6 +302,28 @@ impl Motion {
         scale: 0.95,
         curve: Curve::OutQuad,
     };
+
+    /// `350ms ease-out-fluid` — Toast's placement-aware card translation and
+    /// fade when a new notification enters the queue.
+    pub const TOAST_IN: Motion = Motion {
+        ms: 350,
+        scale: 1.0,
+        curve: Curve::OutFluid,
+    };
+    /// `350ms ease-out-fluid` — the frontmost Toast card leaves toward the
+    /// placement edge while its opacity settles to zero.
+    pub const TOAST_OUT: Motion = Motion {
+        ms: 350,
+        scale: 1.0,
+        curve: Curve::OutFluid,
+    };
+    /// `200ms ease-out-fluid` and `scale(.96)` — a non-frontmost Toast card
+    /// retires in an expanded/collapsed stack without leaving its slot.
+    pub const TOAST_STACK_OUT: Motion = Motion {
+        ms: 200,
+        scale: 0.96,
+        curve: Curve::OutFluid,
+    };
 }
 
 /// v3's `--ease-smooth`, which is CSS `ease`: `cubic-bezier(0.25, 0.1, 0.25, 1)`.
@@ -233,6 +338,174 @@ pub fn ease_smooth() -> impl Fn(f32) -> f32 {
 /// `transition-all duration-200`.
 pub(crate) fn tailwind_default_ease() -> impl Fn(f32) -> f32 {
     |t| cubic_bezier(0.4, 0.0, 0.2, 1.0, t)
+}
+
+/// The transition on v3's accordion and disclosure indicators. Both stylesheets
+/// keep one down-chevron in the DOM and rotate it 180 degrees when expanded;
+/// the two components share this keyed implementation so a quick reversal
+/// resumes from the frame that was actually painted. The bare Tailwind
+/// `transition` utility uses the pinned default curve, rather than the named
+/// `ease-smooth` token used by several other HeroUI transitions.
+#[allow(dead_code)]
+pub(crate) const INDICATOR_ROTATION_MS: u64 = 250;
+
+/// HeroUI's calendar year-picker indicator uses the same transition timing
+/// as its trigger heading color and rotates the down chevron through one
+/// quarter turn when the picker opens.
+pub(crate) const YEAR_PICKER_INDICATOR_MS: u64 = 150;
+pub(crate) const YEAR_PICKER_INDICATOR_ANGLE: f32 = std::f32::consts::FRAC_PI_2;
+
+/// Render a 16px indicator SVG with the same state-driven rotation used by
+/// HeroUI's `.accordion__indicator` and `.disclosure__indicator` rules.
+///
+/// `svg` must already carry its path and visual styling. The wrapper animates
+/// only the SVG transform, so its layout box stays fixed while the angle moves
+/// from the live frame to the new expanded endpoint. Reduced motion still
+/// paints the endpoint immediately and does not schedule a frame.
+pub(crate) fn rotating_indicator(
+    id: &ElementId,
+    expanded: bool,
+    svg: gpui::Svg,
+    window: &mut Window,
+    cx: &mut App,
+) -> AnyElement {
+    // Keep the chevron duration tied to the disclosure motion token so an
+    // application theme can audit one source of truth for both the panel and
+    // its indicator (the stock value is `Motion::DISCLOSURE.ms` = 250ms).
+    rotating_indicator_with_duration(id, expanded, svg, Motion::DISCLOSURE.ms, window, cx)
+}
+
+/// Render a rotating SVG indicator with an owner-specific transition length.
+///
+/// HeroUI's disclosure indicators use the bare 250ms transition, while the
+/// field/picker indicators use the same transform with a 150ms duration. Keep
+/// the keyed/live-frame behavior shared so both families reverse from the
+/// frame that was actually painted.
+pub(crate) fn rotating_indicator_with_duration(
+    id: &ElementId,
+    expanded: bool,
+    svg: gpui::Svg,
+    duration_ms: u64,
+    window: &mut Window,
+    cx: &mut App,
+) -> AnyElement {
+    rotating_indicator_with_angle(
+        id,
+        expanded,
+        svg,
+        duration_ms,
+        std::f32::consts::PI,
+        window,
+        cx,
+    )
+}
+
+/// Render an indicator with an owner-specific rotation angle.
+///
+/// Most HeroUI disclosure-like indicators turn a down chevron through 180°.
+/// Calendar year-picker indicators are the exception: the pinned stylesheet
+/// turns the same glyph through 90° over 150ms. Keeping the angle in this
+/// shared helper preserves keyed reversal and reduced-motion behavior without
+/// making Calendar and RangeCalendar invent separate animation state.
+pub(crate) fn rotating_indicator_with_angle(
+    id: &ElementId,
+    expanded: bool,
+    svg: gpui::Svg,
+    duration_ms: u64,
+    angle: f32,
+    window: &mut Window,
+    cx: &mut App,
+) -> AnyElement {
+    rotating_indicator_with_angle_easing(
+        id,
+        expanded,
+        svg,
+        duration_ms,
+        angle,
+        IndicatorEasing::TailwindDefault,
+        window,
+        cx,
+    )
+}
+
+/// Render an indicator with HeroUI's explicit `--ease-out` curve.
+///
+/// Calendar year-picker CSS names this curve directly, unlike the bare
+/// transition used by Accordion and Disclosure. Its keyed state is shared
+/// with the general angle helper, so interrupted open/close motion still
+/// resumes from the painted frame.
+pub(crate) fn rotating_indicator_with_angle_ease_out(
+    id: &ElementId,
+    expanded: bool,
+    svg: gpui::Svg,
+    duration_ms: u64,
+    angle: f32,
+    window: &mut Window,
+    cx: &mut App,
+) -> AnyElement {
+    rotating_indicator_with_angle_easing(
+        id,
+        expanded,
+        svg,
+        duration_ms,
+        angle,
+        IndicatorEasing::EaseOut,
+        window,
+        cx,
+    )
+}
+
+#[derive(Clone, Copy)]
+enum IndicatorEasing {
+    TailwindDefault,
+    EaseOut,
+}
+
+#[allow(clippy::too_many_arguments)] // the two easing wrappers pass their parameters straight through
+fn rotating_indicator_with_angle_easing(
+    id: &ElementId,
+    expanded: bool,
+    svg: gpui::Svg,
+    duration_ms: u64,
+    angle: f32,
+    easing: IndicatorEasing,
+    window: &mut Window,
+    cx: &mut App,
+) -> AnyElement {
+    let reduce_motion = ActiveTheme::reduce_motion(cx);
+    let target = if expanded { 1.0 } else { 0.0 };
+    let mut rotation = Tween::keyed(id, "indicator-rotation", target, window, cx);
+    rotation.snap_if_reduced(reduce_motion);
+
+    if !rotation.animates(reduce_motion) {
+        rotation.settle();
+        return svg
+            .with_transformation(gpui::Transformation::rotate(gpui::radians(
+                rotation.target() * angle,
+            )))
+            .into_any_element();
+    }
+
+    let from = rotation.from();
+    let to = rotation.target();
+    let value = rotation.value();
+    let animation = gpui::Animation::new(Duration::from_millis(duration_ms));
+    let animation = match easing {
+        IndicatorEasing::TailwindDefault => animation.with_easing(tailwind_default_ease()),
+        IndicatorEasing::EaseOut => animation.with_easing(ease_out()),
+    };
+    svg.with_animation(
+        element_id::indexed(id, "indicator-rotation", rotation.generation()),
+        animation,
+        move |svg, delta| {
+            let progress = from + (to - from) * delta;
+            value.set(progress);
+            svg.with_transformation(gpui::Transformation::rotate(gpui::radians(
+                progress * angle,
+            )))
+        },
+    )
+    .into_any_element()
 }
 
 /// The keyed tween bookkeeping the checkbox's motion slots share: the last
@@ -270,9 +543,31 @@ impl<T: Copy + PartialEq + 'static> Tween<T> {
         window: &mut Window,
         cx: &mut App,
     ) -> Self {
-        let state = window.use_keyed_state(element_id::scoped(id, tag), cx, |_, _| {
-            Self::settled(target)
-        });
+        Self::keyed_with_initial(id, tag, target, None, window, cx)
+    }
+
+    /// Reads a keyed slot, optionally seeding its first frame from an
+    /// explicit value. The seed is used only when the slot is first created;
+    /// later target changes still resume from the live value written by the
+    /// previous animation generation.
+    pub(crate) fn keyed_with_initial(
+        id: &ElementId,
+        tag: &'static str,
+        target: T,
+        initial_from: Option<T>,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> Self {
+        let state =
+            window.use_keyed_state(element_id::scoped(id, tag), cx, |_, _| match initial_from {
+                Some(from) if from != target => Self {
+                    target,
+                    generation: 1,
+                    from,
+                    value: Rc::new(Cell::new(from)),
+                },
+                _ => Self::settled(target),
+            });
         let mut current = state.read(cx).clone();
         if current.target != target {
             current.target = target;
@@ -330,6 +625,15 @@ pub const PRESSED_SCALE: f32 = 0.97;
 /// less than a button, a calendar cell and a radio control more, and a range
 /// calendar cell most.
 pub const PRESSED_SCALE_SUBTLE: f32 = 0.98;
+
+/// `list-box-item.css`'s pressed transform: option rows ease to 98% over
+/// 250ms with the pinned quart curve. Keep this beside the shared press ramp
+/// so ListBox and Select cannot drift into different row motion.
+pub(crate) const LIST_ITEM_PRESS: PressTiming = PressTiming {
+    transform_ms: 250,
+    transform: Curve::OutQuart,
+    background: None,
+};
 pub const PRESSED_SCALE_FIRM: f32 = 0.96;
 pub const PRESSED_SCALE_DEEP: f32 = 0.95;
 pub const PRESSED_SCALE_RANGE: f32 = 0.9;
@@ -374,6 +678,35 @@ pub(crate) fn pressed_corners(
         top_right: scale_corner(corners.top_right),
         bottom_right: scale_corner(corners.bottom_right),
         bottom_left: scale_corner(corners.bottom_left),
+    }
+}
+
+/// Carry the resting corner shape onto the stable press slot.
+///
+/// `pressed_with_optional_background` wraps a button's painted skin in a
+/// footprint-preserving slot.  The slot is the element that owns the focus
+/// ring, so leaving its corners at the default zero radius turns a rounded
+/// button's ring into a square.  Keep partial group corners partial; only a
+/// completely unspecified refinement needs the PressBox fallback.
+fn resting_slot_corners(
+    corners: &gpui::CornersRefinement<gpui::AbsoluteLength>,
+    fallback: gpui::Pixels,
+) -> gpui::Corners<Option<gpui::Pixels>> {
+    let any_specified = corners.top_left.is_some()
+        || corners.top_right.is_some()
+        || corners.bottom_right.is_some()
+        || corners.bottom_left.is_some();
+    let resolve = |corner| match corner {
+        Some(gpui::AbsoluteLength::Pixels(radius)) => Some(radius),
+        Some(_) => Some(fallback),
+        None if any_specified => None,
+        None => Some(fallback),
+    };
+    gpui::Corners {
+        top_left: resolve(corners.top_left),
+        top_right: resolve(corners.top_right),
+        bottom_right: resolve(corners.bottom_right),
+        bottom_left: resolve(corners.bottom_left),
     }
 }
 
@@ -507,16 +840,30 @@ fn pressed_with_optional_background(
         )
     });
 
-    // The slot keeps the resting footprint: fixed where the caller gave us a
-    // width or asked for full width, and otherwise the skin's resting width
-    // recorded while it hugged the slot at rest. Callers must add every
-    // visual child to the skin *before* pressing — children added after land
-    // on the slot and fight the skin for its width.
     let Some(id) = el.interactivity().element_id.clone() else {
         // No identity to anchor the slot's resting width on; skip the scale
         // rather than risk a reflow.
         return el;
     };
+    let slot_corners = resting_slot_corners(&el.style().corner_radii, b.radius);
+    press_slot(el, id, b, &slot_corners, cx)
+}
+
+/// Wraps a built skin in the stable press slot: the resting footprint that
+/// keeps the caller's id, hit-testing, focus and focus-ring geometry while
+/// the skin inside carries the press.
+fn press_slot(
+    el: impl IntoElement,
+    id: ElementId,
+    b: PressBox,
+    slot_corners: &gpui::Corners<Option<gpui::Pixels>>,
+    cx: &App,
+) -> gpui::Stateful<gpui::Div> {
+    // The slot keeps the resting footprint: fixed where the caller gave us a
+    // width or asked for full width, and otherwise the skin's resting width
+    // recorded while it hugged the slot at rest. Callers must add every
+    // visual child to the skin *before* pressing — children added after land
+    // on the slot and fight the skin for its width.
     let mut slot = gpui::div()
         .id(element_id::scoped(&id, "press-slot"))
         .relative()
@@ -527,6 +874,7 @@ fn pressed_with_optional_background(
         // A minimum, not a fixed height: a tall content row grows the slot
         // past the control minimum instead of being clipped to it.
         .min_h(b.height);
+    slot = crate::util::round_sx_corners(slot, slot_corners);
     slot = match b.width {
         Some(width) => slot.w(width),
         None if !b.shrink_x => slot.w_full(),
@@ -538,6 +886,282 @@ fn pressed_with_optional_background(
         }
     };
     slot.child(el)
+}
+
+/// Resting corner radii resolved against a fallback, ready to be rescaled per
+/// animation frame by [`scale_corners`].
+fn resting_corner_radii(
+    el: &mut gpui::Stateful<gpui::Div>,
+    fallback: gpui::Pixels,
+) -> gpui::Corners<Option<gpui::Pixels>> {
+    pressed_corners(&el.style().corner_radii, fallback, 1.0)
+}
+
+/// The corners a scale `s` paints: every resolved radius shrinks about the
+/// centre with the box.
+fn scale_corners(
+    corners: &gpui::Corners<Option<gpui::Pixels>>,
+    s: f32,
+) -> gpui::Corners<Option<gpui::Pixels>> {
+    let scale = |radius: Option<gpui::Pixels>| radius.map(|radius| scaled_by(radius, s));
+    gpui::Corners {
+        top_left: scale(corners.top_left),
+        top_right: scale(corners.top_right),
+        bottom_right: scale(corners.bottom_right),
+        bottom_left: scale(corners.bottom_left),
+    }
+}
+
+/// Lays the skin out at scale `s`: the four fractional insets, the `Auto`
+/// extents that let them rule the box, and the rescaled minimum height and
+/// corners. Shared verbatim by the settled and animated paint paths so the
+/// ramp's frames land exactly where the instant press did.
+fn skin_at_scale(
+    skin: gpui::Stateful<gpui::Div>,
+    s: f32,
+    b: &PressBox,
+    resting: &gpui::Corners<Option<gpui::Pixels>>,
+) -> gpui::Stateful<gpui::Div> {
+    let inset = gpui::DefiniteLength::Fraction((1.0 - s) / 2.0);
+    crate::util::round_sx_corners(
+        skin.absolute()
+            .left(inset)
+            .right(inset)
+            .top(inset)
+            .bottom(inset)
+            .w(gpui::Length::Auto)
+            .h(gpui::Length::Auto)
+            .min_h(scaled_by(b.height, s))
+            .rounded(scaled_by(b.radius, s)),
+        &scale_corners(resting, s),
+    )
+}
+
+/// One component's pinned press transition, read from its stylesheet's
+/// `transition` block: the `transform` track and the `background-color` track
+/// carry separate durations and easings, exactly as the cascade interpolates
+/// them independently.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct PressTiming {
+    /// The `transform` duration and easing.
+    pub transform_ms: u64,
+    pub transform: Curve,
+    /// The `background-color` duration and easing, or `None` when the pressed
+    /// state changes no background — the track then has no endpoints to ease
+    /// between.
+    pub background: Option<(u64, Curve)>,
+}
+
+/// `button.css` and `toggle-button.css`, lines 11-15 / 13-17:
+/// `transform 250ms var(--ease-smooth), background-color 100ms
+/// var(--ease-out), box-shadow 100ms var(--ease-out)`. The pressed state
+/// changes no box-shadow, so only the first two tracks have endpoints here.
+pub(crate) const BUTTON_PRESS: PressTiming = PressTiming {
+    transform_ms: PRESS_MS,
+    transform: Curve::Smooth,
+    background: Some((100, Curve::Out)),
+};
+
+/// `close-button.css`, lines 14-19: `transform 250ms var(--ease-out-quart),
+/// color 150ms var(--ease-out), background-color 100ms var(--ease-out),
+/// box-shadow 150ms var(--ease-out)`. Its pressed state declares only
+/// `transform: scale(0.93)` — the colour tracks have no pressed endpoints.
+pub(crate) const CLOSE_BUTTON_PRESS: PressTiming = PressTiming {
+    transform_ms: 250,
+    transform: Curve::OutQuart,
+    background: None,
+};
+
+/// Applies a component's `[data-pressed]` press as the interpolated ramp its
+/// stylesheet's `transition` block declares, instead of the one-frame swap
+/// [`pressed_with_background`] paints.
+///
+/// The geometry and the fill ride separate timelines — `transform` and
+/// `background-color` interpolate on their own pinned durations and easings —
+/// the way the cascade runs them as independent transitions. Each track keeps
+/// a [`Tween`] keyed by the button's own element id, so sibling instances
+/// never share a timeline, and a release mid-press re-snapshots the frame
+/// actually on screen as the new start rather than restarting from rest.
+///
+/// The skin stays the listener-free visual child of the stable press slot:
+/// the animation ids above it change per generation, and everything that
+/// owns state — the slot's id, hit-testing, focus and focus ring — never
+/// moves. Reduced motion snaps both tracks to their endpoints, matching
+/// `motion-reduce:transition-none`, which removes the timing but keeps the
+/// pressed property values.
+///
+/// `endpoints` is the colour track's `(resting, pressed)` pair, resolved by
+/// the caller from its variant; `None` for a component whose pressed state
+/// changes no background. `interaction` supplies the pressed bit when the
+/// caller already tracks one (a `content` closure's slot); otherwise a
+/// per-instance slot is created here and `util::track_interaction` is wired
+/// onto the returned slot — the same handlers that keep a render prop's
+/// `isPressed` current, including the keyboard press and the release outside
+/// the control's bounds.
+pub(crate) fn pressed_with_background_ramp(
+    mut el: gpui::Stateful<gpui::Div>,
+    b: PressBox,
+    endpoints: Option<(gpui::Hsla, gpui::Hsla)>,
+    timing: PressTiming,
+    interaction: Option<&crate::util::Interaction>,
+    window: &mut Window,
+    cx: &mut App,
+) -> gpui::Stateful<gpui::Div> {
+    // A full-width control has a stable slot and a painted skin with the same
+    // inline extent. Without this, the slot centers the skin at its intrinsic
+    // min-content width: list rows become narrow, long labels never wrap, and
+    // absolute indicators/focus rings appear to move when row padding changes.
+    // Content-sized controls keep their intrinsic width and use the recorder
+    // below instead.
+    if !b.shrink_x {
+        el = el.w_full();
+    }
+    let slot_corners = resting_slot_corners(&el.style().corner_radii, b.radius);
+    let Some(id) = el.interactivity().element_id.clone() else {
+        // No identity to key the tweens or the slot's resting width on; skip
+        // the scale rather than risk a reflow, like the instant press.
+        return el;
+    };
+
+    // The pressed bit a frame behind the pointer, exactly like a render
+    // prop's: a handler stashes it in the keyed slot and this render reads it.
+    let (tracked, pressed) = match interaction {
+        Some(slot) => (None, slot.read(cx).1),
+        None => {
+            let tracked =
+                crate::util::interaction(element_id::scoped(&id, "press-track"), window, cx);
+            let pressed = tracked.read(cx).1;
+            (Some(tracked), pressed)
+        }
+    };
+
+    let (resting, pressed_bg) = endpoints.unwrap_or_default();
+    let reduce = ActiveTheme::reduce_motion(cx);
+    let mut scale_tween = Tween::keyed(
+        &id,
+        "press-transform",
+        if pressed { b.scale } else { 1.0 },
+        window,
+        cx,
+    );
+    let mut color_tween = endpoints.map(|_| {
+        Tween::keyed(
+            &id,
+            "press-bg",
+            if pressed { pressed_bg } else { resting },
+            window,
+            cx,
+        )
+    });
+    scale_tween.snap_if_reduced(reduce);
+    if let Some(tween) = &mut color_tween {
+        tween.snap_if_reduced(reduce);
+    }
+
+    let resting_corners = resting_corner_radii(&mut el, b.radius);
+    let animates = scale_tween.animates(reduce)
+        || color_tween
+            .as_ref()
+            .is_some_and(|tween| tween.animates(reduce));
+
+    let skin = if animates {
+        // Each track mounts keyed by its own generation: an interrupted flip
+        // re-keys only the track that turned around, and re-renders while it
+        // runs paint the same delta against the same shared skin.
+        // `with_animation` keeps its own frames coming until it settles, and
+        // every painted value is written back into the tween, which is where
+        // a later generation resumes from.
+        let transform_ms = timing.transform_ms;
+        let transform = timing.transform;
+        let scale_from = scale_tween.from();
+        let scale_to = scale_tween.target();
+        let scale_value = scale_tween.value();
+        let transform_id = element_id::indexed(&id, "press-transform", scale_tween.generation());
+        let geometry = move |delta: f32| {
+            let s = if delta >= 1.0 {
+                scale_to
+            } else {
+                scale_from + (scale_to - scale_from) * delta
+            };
+            scale_value.set(s);
+            s
+        };
+        match color_tween {
+            Some(tween) => {
+                let (color_from, color_to) = (tween.from(), tween.target());
+                let color_value = tween.value();
+                let (bg_ms, bg_curve) = timing.background.unwrap_or((100, Curve::Out));
+                let animated = el
+                    .with_animation(
+                        element_id::indexed(&id, "press-bg", tween.generation()),
+                        gpui::Animation::new(Duration::from_millis(bg_ms))
+                            .with_easing(move |t| bg_curve.at(t)),
+                        move |skin, delta| {
+                            let color = if delta >= 1.0 {
+                                color_to
+                            } else {
+                                herogpui_core::mix_oklab(color_from, color_to, delta)
+                            };
+                            color_value.set(color);
+                            skin.bg(color)
+                        },
+                    )
+                    .with_animation(
+                        transform_id,
+                        transform_animation(transform_ms, transform),
+                        move |el, delta| {
+                            let s = geometry(delta);
+                            el.map_element(|skin| skin_at_scale(skin, s, &b, &resting_corners))
+                        },
+                    );
+                animated.into_any_element()
+            }
+            None => {
+                let animated = el.with_animation(
+                    transform_id,
+                    transform_animation(transform_ms, transform),
+                    move |skin, delta| {
+                        let s = geometry(delta);
+                        skin_at_scale(skin, s, &b, &resting_corners)
+                    },
+                );
+                animated.into_any_element()
+            }
+        }
+    } else {
+        // Settled: the tween's painted value is the state. At rest the skin
+        // stays exactly as the caller built it; pressed it takes the final
+        // geometry and fill with no animation mounted.
+        let s = scale_tween.value().get();
+        let mut skin = el;
+        #[allow(clippy::float_cmp)] // untouched is exactly the identity scale
+        if s != 1.0 {
+            skin = skin_at_scale(skin, s, &b, &resting_corners);
+            // The pressed fill only exists when the caller named endpoints; a
+            // transform-only press (CloseButton) leaves the skin's own
+            // background — its stylesheet changes no colour on `:active`.
+            if pressed && endpoints.is_some() {
+                skin = skin.bg(pressed_bg);
+            }
+        }
+        skin.into_any_element()
+    };
+
+    let slot = press_slot(skin, id, b, &slot_corners, cx);
+    match interaction {
+        Some(_) => slot,
+        None => crate::util::track_interaction(
+            slot,
+            tracked
+                .as_ref()
+                .expect("a press ramp without an interaction slot creates one"),
+        ),
+    }
+}
+
+/// The `transform` track's pinned duration and curve, as an [`gpui::Animation`].
+fn transform_animation(ms: u64, curve: Curve) -> gpui::Animation {
+    gpui::Animation::new(Duration::from_millis(ms)).with_easing(move |t| curve.at(t))
 }
 
 /// `[data-exiting]` duration. Every overlay in v3 leaves in `duration-100`.
@@ -561,6 +1185,10 @@ pub struct ZoomBox {
     pub text_size: Option<gpui::Pixels>,
     pub line_height: Option<gpui::Pixels>,
     pub radius: Option<gpui::Pixels>,
+    /// Optional placement-relative entry offset. A positive value starts on
+    /// the corresponding physical side and eases back to zero with the panel.
+    pub slide_x: Option<gpui::Pixels>,
+    pub slide_y: Option<gpui::Pixels>,
 }
 
 impl ZoomBox {
@@ -656,6 +1284,15 @@ where
             }
             if let Some(r) = b.radius {
                 el = el.rounded(lerp(r, f));
+            }
+            if b.slide_x.is_some() || b.slide_y.is_some() {
+                el = el.relative();
+            }
+            if let Some(x) = b.slide_x {
+                el = el.left(lerp(x, 1.0 - delta));
+            }
+            if let Some(y) = b.slide_y {
+                el = el.top(lerp(y, 1.0 - delta));
             }
             el
         },
@@ -753,21 +1390,116 @@ where
 ///
 /// Returns the element with a plain `hover` swap under reduced motion, so the
 /// state is still visible without motion.
+#[allow(clippy::too_many_arguments)] // one parameter per endpoint the fade owns
 pub fn hover_fade(
     el: gpui::Stateful<gpui::Div>,
     id: impl Into<ElementId>,
     colors: (gpui::Hsla, gpui::Hsla),
     interaction: Option<&crate::util::Interaction>,
+    hover_border: Option<gpui::Hsla>,
     round_corners: impl Fn(gpui::Div) -> gpui::Div,
+    window: &mut Window,
+    cx: &mut App,
+) -> gpui::Stateful<gpui::Div> {
+    hover_fade_with_duration_and_easing(
+        el,
+        id,
+        colors,
+        interaction,
+        hover_border,
+        round_corners,
+        None,
+        HoverFadeEasing::EaseOut,
+        window,
+        cx,
+    )
+}
+
+/// `hover_fade` with an owner-specific duration. Most HeroUI controls read
+/// the theme's shared hover token; components whose stylesheet declares a
+/// different transition (Accordion's 150ms trigger) use this seam so the
+/// parity implementation does not silently inherit the button's 100ms.
+#[allow(clippy::too_many_arguments)] // the seam adds one parameter to the stock fade
+pub(crate) fn hover_fade_with_duration(
+    el: gpui::Stateful<gpui::Div>,
+    id: impl Into<ElementId>,
+    colors: (gpui::Hsla, gpui::Hsla),
+    interaction: Option<&crate::util::Interaction>,
+    hover_border: Option<gpui::Hsla>,
+    round_corners: impl Fn(gpui::Div) -> gpui::Div,
+    duration_override_ms: Option<u64>,
+    window: &mut Window,
+    cx: &mut App,
+) -> gpui::Stateful<gpui::Div> {
+    hover_fade_with_duration_and_easing(
+        el,
+        id,
+        colors,
+        interaction,
+        hover_border,
+        round_corners,
+        duration_override_ms,
+        HoverFadeEasing::EaseOut,
+        window,
+        cx,
+    )
+}
+
+/// `hover_fade_with_duration` with the component's named HeroUI easing curve.
+/// The stock helper uses `--ease-out`; NumberField's group is one of the v3
+/// surfaces that explicitly names `--ease-smooth` for its background transition.
+#[allow(clippy::too_many_arguments)] // the seam adds one parameter to the stock fade
+pub(crate) fn hover_fade_with_duration_and_easing(
+    el: gpui::Stateful<gpui::Div>,
+    id: impl Into<ElementId>,
+    colors: (gpui::Hsla, gpui::Hsla),
+    interaction: Option<&crate::util::Interaction>,
+    hover_border: Option<gpui::Hsla>,
+    round_corners: impl Fn(gpui::Div) -> gpui::Div,
+    duration_override_ms: Option<u64>,
+    easing: HoverFadeEasing,
+    window: &mut Window,
+    cx: &mut App,
+) -> gpui::Stateful<gpui::Div> {
+    hover_fade_with_duration_and_easing_suppressed(
+        el,
+        id,
+        colors,
+        interaction,
+        hover_border,
+        false,
+        round_corners,
+        duration_override_ms,
+        easing,
+        window,
+        cx,
+    )
+}
+
+/// `hover_fade_with_duration_and_easing` with a render-time suppression flag.
+/// Composite triggers use this when a nested affordance owns the pointer: the
+/// parent fill eases back to its resting endpoint while the nested control is
+/// hovered, then resumes the normal target when the pointer leaves it.
+#[allow(clippy::too_many_arguments)] // the seam adds one parameter to the stock fade
+pub(crate) fn hover_fade_with_duration_and_easing_suppressed(
+    el: gpui::Stateful<gpui::Div>,
+    id: impl Into<ElementId>,
+    colors: (gpui::Hsla, gpui::Hsla),
+    interaction: Option<&crate::util::Interaction>,
+    hover_border: Option<gpui::Hsla>,
+    suppressed: bool,
+    round_corners: impl Fn(gpui::Div) -> gpui::Div,
+    duration_override_ms: Option<u64>,
+    easing: HoverFadeEasing,
     window: &mut Window,
     cx: &mut App,
 ) -> gpui::Stateful<gpui::Div> {
     let (idle, hovered) = colors;
     let id = id.into();
-    let Some(duration) = hover_fade_duration(cx) else {
-        return el.bg(idle).hover(move |s: StyleRefinement| s.bg(hovered));
+    let duration = match duration_override_ms {
+        None => hover_fade_duration(cx),
+        Some(ms) => hover_fade_duration_with_override(cx, Some(ms)),
     };
-
     let state = window.use_keyed_state(id.clone(), cx, |_, _| HoverFade::default());
     let mut current = *state.read(cx);
 
@@ -778,12 +1510,19 @@ pub fn hover_fade(
     // `relative()` makes the element the containing block the fill stretches
     // across; the resting colour is the element's own, and the fill overlays it
     // between generations.
-    let mut el = el
-        .relative()
-        .bg(if current.hovered { hovered } else { idle });
+    let mut el = el;
+    if duration.is_some() {
+        el = el.relative();
+    }
+    el = el.bg(if current.hovered { hovered } else { idle });
     el = match interaction {
         Some(slot) => {
-            let hovered_now = slot.read(cx).0;
+            debug_assert!(
+                hover_border.is_none(),
+                "the interaction slot's owner keeps its own gpui hover style; \
+                 `hover_border` is only read by the listener-owned branch"
+            );
+            let hovered_now = slot.read(cx).0 && !suppressed;
             if hovered_now != current.hovered {
                 current.hovered = hovered_now;
                 current.generation = current.generation.wrapping_add(1);
@@ -796,21 +1535,41 @@ pub fn hover_fade(
             el
         }
         None => {
+            // This branch owns the element's `on_hover`, so it also owns its
+            // gpui hover style -- the listener below records the pointer
+            // without notifying, and this is what makes gpui notify on a real
+            // crossing. See the hover-slot note in the module documentation.
+            // `hover_border` carries the caller's immediate border endpoint;
+            // the fill itself is the interpolated child, never a style swap.
+            let el = el.hover(move |style| match hover_border {
+                Some(color) => style.border_color(color),
+                None => style,
+            });
             let held = state.clone();
             el.on_hover(move |over: &bool, _, cx| {
-                let over = *over;
-                held.update(cx, |s, cx| {
+                let over = *over && !suppressed;
+                held.update(cx, |s, _| {
                     if s.hovered != over {
                         s.hovered = over;
                         // A new generation gives the fill's animation a new id,
                         // which is what restarts it mid-flight when the pointer
                         // turns around.
                         s.generation = s.generation.wrapping_add(1);
-                        cx.notify();
+                        // Recording the pointer must not itself ask for a
+                        // frame -- see the hover-slot note in the module
+                        // documentation above.
                     }
                 });
             })
         }
+    };
+
+    // Reduced motion and a zero-duration theme still need an immediate hover
+    // endpoint. Use the same listener/state path as the animated case instead
+    // of installing a second `.hover` refinement on a caller that already owns
+    // one for its border. GPUI deliberately rejects duplicate hover styles.
+    let Some(duration) = duration else {
+        return el;
     };
 
     // Generation 0 is the first render: the resting colour on the element IS
@@ -829,19 +1588,48 @@ pub fn hover_fade(
     el.child(
         round_corners(gpui::div().absolute().inset_0()).with_animation(
             element_id::indexed(&id, "fade", current.generation),
-            gpui::Animation::new(duration).with_easing(ease_out()),
+            gpui::Animation::new(duration).with_easing(move |t| easing.at(t)),
             move |fill, delta| fill.bg(herogpui_core::mix_oklab(from, to, delta)),
         ),
     )
 }
 
+#[derive(Clone, Copy)]
+pub(crate) enum HoverFadeEasing {
+    EaseOut,
+    EaseSmooth,
+}
+
+impl HoverFadeEasing {
+    fn at(self, t: f32) -> f32 {
+        match self {
+            Self::EaseOut => ease_out()(t),
+            Self::EaseSmooth => ease_smooth()(t),
+        }
+    }
+}
+
 /// The duration [`hover_fade`] eases over, or `None` when it must resolve
 /// immediately: reduced motion, or a theme that set `hover_fade_ms` to zero.
 fn hover_fade_duration(cx: &App) -> Option<Duration> {
+    hover_fade_duration_with_override(cx, None)
+}
+
+fn hover_fade_duration_with_override(
+    cx: &App,
+    duration_override_ms: Option<u64>,
+) -> Option<Duration> {
     if ActiveTheme::reduce_motion(cx) {
         return None;
     }
-    let ms = cx.layout().hover_fade_ms;
+    // A theme value of zero is the public global opt-out and must still win
+    // over a component's stylesheet-specific default.
+    let configured = cx.layout().hover_fade_ms;
+    let ms = if configured == 0 {
+        0
+    } else {
+        duration_override_ms.unwrap_or(configured)
+    };
     (ms > 0).then(|| Duration::from_millis(ms))
 }
 
@@ -850,6 +1638,382 @@ fn hover_fade_duration(cx: &App) -> Option<Duration> {
 struct HoverFade {
     hovered: bool,
     generation: usize,
+}
+
+// ---------------------------------------------------------------------------
+// Field chrome — the shell transition the field-family sheets share
+// ---------------------------------------------------------------------------
+
+/// How long a v3 field shell takes to change its fill and border colour, and
+/// on which curve. `.input-otp__slot` (lines 28-32) and `.number-field__group`
+/// (lines 39-43) declare the identical block — `background-color 150ms
+/// var(--ease-smooth), border-color 150ms var(--ease-smooth), box-shadow
+/// 150ms var(--ease-out)` with `motion-reduce:transition-none` after it — so
+/// one constant quartet keeps both ports on the pinned timings.
+pub(crate) const FIELD_CHROME_COLOR_MS: u64 = 150;
+pub(crate) const FIELD_CHROME_COLOR_CURVE: Curve = Curve::Smooth;
+pub(crate) const FIELD_CHROME_SHADOW_MS: u64 = 150;
+pub(crate) const FIELD_CHROME_SHADOW_CURVE: Curve = Curve::Out;
+
+/// A state ring as the two shadows [`focus_ring_shadows`] paint: the ring
+/// itself and — for a theme with a `ring-offset` width — the
+/// background-coloured ring carving the gap.
+///
+/// [`focus_ring_shadows`]: crate::util::focus_ring_shadows
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct FieldRing {
+    /// The ring's colour and spread.
+    pub ring: (gpui::Hsla, f32),
+    /// The offset-gap ring's colour and spread; spread zero when the theme
+    /// sets no offset.
+    pub gap: (gpui::Hsla, f32),
+}
+
+impl FieldRing {
+    /// The no-ring endpoint: zero spreads, transparent colours — the shape CSS
+    /// interpolates a missing box shadow from, and what `mix_oklab` treats as
+    /// "the other colour's hue at reduced alpha".
+    pub const NONE: Self = Self {
+        ring: (gpui::hsla(0., 0., 0., 0.), 0.0),
+        gap: (gpui::hsla(0., 0., 0., 0.), 0.0),
+    };
+
+    /// One ring with no offset gap — the invalid danger ring's shape.
+    pub(crate) fn solid(color: gpui::Hsla, spread: f32) -> Self {
+        Self {
+            ring: (color, spread),
+            gap: Self::NONE.ring,
+        }
+    }
+
+    /// The same shape with every colour at zero alpha and every spread at
+    /// zero: where a ring fades out to.
+    fn faded(self) -> Self {
+        Self {
+            ring: (herogpui_core::with_alpha(self.ring.0, 0.0), 0.0),
+            gap: (herogpui_core::with_alpha(self.gap.0, 0.0), 0.0),
+        }
+    }
+
+    /// The shadows one frame of this ring paints — the settled form of
+    /// `focus_ring_shadows`: one-pixel blur (a zero blur integrates over
+    /// nothing in gpui's shadow shader), largest first.
+    fn shadows(self) -> Vec<gpui::BoxShadow> {
+        let mut shadows = vec![ring_shadow(self.ring)];
+        if self.gap.1 > 0.0 {
+            shadows.push(ring_shadow(self.gap));
+        }
+        shadows
+    }
+
+    /// CSS box-shadow interpolation: each shadow's colour and spread ease
+    /// between the endpoints, `mix_oklab` being the pinned colour math.
+    fn mix(self, to: Self, delta: f32) -> Self {
+        let lerp = |a: f32, b: f32| a + (b - a) * delta;
+        Self {
+            ring: (
+                herogpui_core::mix_oklab(self.ring.0, to.ring.0, delta),
+                lerp(self.ring.1, to.ring.1),
+            ),
+            gap: (
+                herogpui_core::mix_oklab(self.gap.0, to.gap.0, delta),
+                lerp(self.gap.1, to.gap.1),
+            ),
+        }
+    }
+}
+
+fn ring_shadow((color, spread): (gpui::Hsla, f32)) -> gpui::BoxShadow {
+    gpui::BoxShadow {
+        color,
+        offset: gpui::point(px(0.), px(0.)),
+        blur_radius: px(1.),
+        spread_radius: px(spread),
+        inset: false,
+    }
+}
+
+/// The shared keyboard focus ring — `status-focused-field`, `ring-2
+/// ring-focus` with no offset — as a chrome-ramp endpoint: the shape
+/// [`focus_ring_shadows`] paints, including the offset-gap ring for a theme
+/// that sets a `ring-offset` width.
+///
+/// [`focus_ring_shadows`]: crate::util::focus_ring_shadows
+pub(crate) fn focus_ring_endpoint(cx: &App) -> FieldRing {
+    let colors = cx.colors();
+    let gap = cx.layout().ring_offset_width;
+    let mut ring = FieldRing::solid(colors.focus, 2.0 + f32::from(gap));
+    if gap > px(0.) {
+        ring.gap = (colors.background, f32::from(gap));
+    }
+    ring
+}
+
+/// The invalid danger ring — the shared chrome helper's focused-invalid
+/// treatment, `status-invalid-field`'s 2px ring — as a chrome-ramp endpoint.
+pub(crate) fn danger_ring_endpoint(cx: &App) -> FieldRing {
+    FieldRing::solid(cx.colors().danger.color, 2.0)
+}
+
+/// One resolved field-shell chrome state: the fill, the border colour, the
+/// border-box width and the state ring. This is the shape the field-family
+/// ramp interpolates — the endpoints a caller resolves from its variant and
+/// flags, exactly what [`apply_field_chrome`] would paint for the same state.
+///
+/// [`apply_field_chrome`]: crate::util::apply_field_chrome
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct FieldChrome {
+    /// The state fill: `--field-background`, `--field-focus` or a hover mix.
+    pub bg: gpui::Hsla,
+    /// The border colour. The default theme's `--field-border` is
+    /// transparent, which is what makes the port's invalid outline fade in
+    /// and out rather than crossfade.
+    pub border: gpui::Hsla,
+    /// The painted border-box width. Widths are geometry and the pinned
+    /// transition names only the colours, so this snaps while they ease.
+    pub border_width: gpui::Pixels,
+    /// The keyboard focus ring or invalid danger ring, or `None` — which
+    /// still gives the `box-shadow` track an endpoint to ease through.
+    pub ring: Option<FieldRing>,
+}
+
+/// Interpolates a field shell's chrome the way the pinned `transition` block
+/// runs it, instead of snapping each state's endpoints in one frame.
+///
+/// The caller paints the shell's settled chrome through the shared helpers —
+/// `apply_field_chrome` or `with_focus_ring`, the same paint Input and
+/// TextArea take — and resolves `idle`, that chrome as endpoints, plus
+/// `hovered`, the chrome while the pointer rests on the shell. Hover is the
+/// one bit a render cannot ask for, so this arms the element's hover listener
+/// against a keyed slot, exactly like [`hover_fade`]. A shell whose tracks are
+/// all still in their first generation has never transitioned: its painted
+/// chrome is the state and nothing mounts — CSS transitions do not run on
+/// load. Past that first flip the interpolating fill, border and ring mount
+/// as listener-free absolutely-positioned children that own the shell's
+/// border and state ring for good, painting their settled endpoints whenever
+/// nothing is in flight.
+///
+/// The technique is the press ramp's: three [`Tween`]s keyed on the shell's
+/// own id keep the last target, the generation and the frame actually on
+/// screen, so an interrupted flip resumes from the painted frame, and the
+/// animation ids the layers change per generation never touch the element
+/// that owns state — its id, hit-testing, focus and listeners. Reduced motion
+/// snaps all three tracks to their endpoints, matching
+/// `motion-reduce:transition-none`, which removes the timing but keeps the
+/// state's property values.
+///
+/// `base_shadows` is the shell's constant shadow list (`--field-shadow`); the
+/// state ring rides on top of it because `shadow()` replaces rather than
+/// adds. `ring_escapes_clip` mounts the ring layer deferred, for a shell
+/// whose own `overflow-hidden` would clip an outset ring painted by a child
+/// to the shell's box — the layer then paints after the subtree, the same
+/// way every floating surface does.
+#[allow(clippy::too_many_arguments)] // one parameter per chrome track, ring and shell option
+pub(crate) fn field_chrome_ramp<E>(
+    mut el: E,
+    id: &ElementId,
+    idle: FieldChrome,
+    hovered: Option<FieldChrome>,
+    base_shadows: Vec<gpui::BoxShadow>,
+    radius: gpui::Pixels,
+    ring_escapes_clip: bool,
+    window: &mut Window,
+    cx: &mut App,
+) -> E
+where
+    E: InteractiveElement + Styled + ParentElement,
+{
+    // Hover is a question about the last frame's pointer, so it lives in a
+    // keyed slot the handler writes and this render reads.
+    let slot = window.use_keyed_state(element_id::scoped(id, "chrome-hover"), cx, |_, _| false);
+    let is_hovered = *slot.read(cx) && hovered.is_some();
+    // This helper owns the element's `on_hover`, so it owns its gpui hover
+    // style too. The refinement is deliberately empty: every chrome endpoint
+    // here is interpolated by the tweens below, and a style swap would snap
+    // the colour gpui is meant only to notify about. Setting it is what makes
+    // a real pointer crossing repaint, which is why the listener records
+    // without notifying. See the hover-slot note in the module documentation.
+    el = el.hover(|style| style);
+    el.interactivity().on_hover({
+        move |over: &bool, _, cx| {
+            slot.update(cx, |hovered, _| {
+                if *hovered != *over {
+                    *hovered = *over;
+                    // Recording the pointer must not itself ask for a frame
+                    // -- see the hover-slot note in the module documentation
+                    // above.
+                }
+            });
+        }
+    });
+
+    let (target, other_ring) = if is_hovered {
+        (hovered.unwrap_or(idle), idle.ring)
+    } else {
+        (idle, hovered.and_then(|hovered| hovered.ring))
+    };
+    // Whether the state ring is one of this shell's tracked endpoints. When it
+    // is, the ring layer owns the shell's shadow list for as long as the
+    // layers are mounted; when it never is, whatever ring the caller painted
+    // stays on the shell untouched.
+    let ring_tracked = idle.ring.is_some() || target.ring.is_some();
+    let reduce = ActiveTheme::reduce_motion(cx);
+    let mut bg = Tween::keyed(id, "chrome-bg", target.bg, window, cx);
+    let mut border = Tween::keyed(id, "chrome-border", target.border, window, cx);
+    // A missing ring target still eases: it fades from the other endpoint's
+    // shape — transparent, spread zero — the way CSS interpolates an absent
+    // box shadow.
+    let ring_target = target
+        .ring
+        .or_else(|| other_ring.map(|ring| ring.faded()))
+        .unwrap_or(FieldRing::NONE);
+    let mut ring = Tween::keyed(id, "chrome-ring", ring_target, window, cx);
+    bg.snap_if_reduced(reduce);
+    border.snap_if_reduced(reduce);
+    ring.snap_if_reduced(reduce);
+
+    // Pristine: every track still sits in its first generation, so nothing has
+    // ever transitioned and the chrome the caller painted through the shared
+    // helpers IS the state — CSS transitions do not run on load. Nothing
+    // mounts, and the shell keeps every property it was given.
+    let pristine = bg.generation() == 0 && border.generation() == 0 && ring.generation() == 0;
+    if pristine {
+        return el;
+    }
+
+    // The containing block the layers stretch across. The shell's own paint
+    // stays underneath, but the two properties the layers now own must stop
+    // being cast by the shell: its border (the border layer repaints it, and
+    // a semi-transparent frame over an instant one would read too dark) and —
+    // when the ring is tracked — its shadow list, which drops to the field's
+    // constant base while the ring layer carries the state ring.
+    el = el.relative().border(px(0.));
+    if ring_tracked {
+        el = if base_shadows.is_empty() {
+            el
+        } else {
+            el.shadow(base_shadows)
+        };
+    }
+
+    let (bg_from, bg_to) = (bg.from(), bg.target());
+    let bg_value = bg.value();
+    let (border_from, border_to) = (border.from(), border.target());
+    let border_value = border.value();
+    // Border widths are geometry: the layer paints the wider endpoint's box
+    // so a fading outline keeps its shape while its colour eases out.
+    let border_width = idle.border_width.max(target.border_width);
+    let (ring_from, ring_to) = (ring.from(), ring.target());
+    let ring_value = ring.value();
+
+    let fill = if bg.animates(reduce) {
+        bg_value.set(bg_from);
+        gpui::div()
+            .absolute()
+            .inset_0()
+            .rounded(radius)
+            .with_animation(
+                element_id::indexed(id, "chrome-bg", bg.generation()),
+                gpui::Animation::new(Duration::from_millis(FIELD_CHROME_COLOR_MS))
+                    .with_easing(|t| FIELD_CHROME_COLOR_CURVE.at(t)),
+                move |fill, delta| {
+                    let next = if delta >= 1.0 {
+                        bg_to
+                    } else {
+                        herogpui_core::mix_oklab(bg_from, bg_to, delta)
+                    };
+                    bg_value.set(next);
+                    fill.bg(next)
+                },
+            )
+            .into_any_element()
+    } else {
+        bg.settle();
+        gpui::div()
+            .absolute()
+            .inset_0()
+            .rounded(radius)
+            .bg(bg_to)
+            .into_any_element()
+    };
+    let border_layer = if border.animates(reduce) {
+        border_value.set(border_from);
+        gpui::div()
+            .absolute()
+            .inset_0()
+            .rounded(radius)
+            .with_animation(
+                element_id::indexed(id, "chrome-border", border.generation()),
+                gpui::Animation::new(Duration::from_millis(FIELD_CHROME_COLOR_MS))
+                    .with_easing(|t| FIELD_CHROME_COLOR_CURVE.at(t)),
+                move |layer, delta| {
+                    let next = if delta >= 1.0 {
+                        border_to
+                    } else {
+                        herogpui_core::mix_oklab(border_from, border_to, delta)
+                    };
+                    border_value.set(next);
+                    layer.border(border_width).border_color(next)
+                },
+            )
+            .into_any_element()
+    } else {
+        border.settle();
+        gpui::div()
+            .absolute()
+            .inset_0()
+            .rounded(radius)
+            .border(border_width)
+            .border_color(border_to)
+            .into_any_element()
+    };
+    let ring_layer: Option<AnyElement> = if ring.generation() == 0 {
+        // The ring has never been part of this shell's state: the caller's
+        // painted ring (if any) is the state.
+        None
+    } else if ring.animates(reduce) {
+        ring_value.set(ring_from);
+        Some(
+            gpui::div()
+                .absolute()
+                .inset_0()
+                .rounded(radius)
+                .with_animation(
+                    element_id::indexed(id, "chrome-ring", ring.generation()),
+                    gpui::Animation::new(Duration::from_millis(FIELD_CHROME_SHADOW_MS))
+                        .with_easing(|t| FIELD_CHROME_SHADOW_CURVE.at(t)),
+                    move |layer, delta| {
+                        let next = if delta >= 1.0 {
+                            ring_to
+                        } else {
+                            ring_from.mix(ring_to, delta)
+                        };
+                        ring_value.set(next);
+                        layer.shadow(next.shadows())
+                    },
+                )
+                .into_any_element(),
+        )
+    } else {
+        ring.settle();
+        Some(
+            gpui::div()
+                .absolute()
+                .inset_0()
+                .rounded(radius)
+                .shadow(ring_to.shadows())
+                .into_any_element(),
+        )
+    };
+    let ring_layer: Option<AnyElement> = match ring_layer {
+        Some(layer) if ring_escapes_clip => Some(crate::util::floating(layer).into_any_element()),
+        some => some,
+    };
+    el = el.child(fill).child(border_layer);
+    if let Some(ring_layer) = ring_layer {
+        el = el.child(ring_layer);
+    }
+    el
 }
 
 /// v3's `@keyframes caret-blink`: opaque at 0/70/100%, transparent at 20/50%.
@@ -901,6 +2065,237 @@ where
         Styled::opacity,
     )
     .into_any_element()
+}
+
+/// Render a measured Accordion/Disclosure panel with the pinned height and
+/// opacity transition.
+///
+/// `panel` owns the component's id and accessibility semantics; `body` is
+/// wrapped in a non-shrinking measurement slot so its natural height remains
+/// available even while the outer panel is clipped to an animated height. The
+/// body stays mounted through the 200ms closing phase, which lets focus and
+/// layout settle the same way the React Aria panel does before it becomes
+/// hidden. A reopened panel cancels the stale exit timer and retargets both
+/// tweens from their live frame.
+pub(crate) fn collapsible_panel(
+    id: &ElementId,
+    is_open: bool,
+    panel: gpui::Stateful<gpui::Div>,
+    body: AnyElement,
+    window: &mut Window,
+    cx: &mut App,
+) -> Option<AnyElement> {
+    collapsible_panel_with_timings(
+        id,
+        is_open,
+        panel,
+        body,
+        Motion::DISCLOSURE,
+        Motion::DISCLOSURE,
+        window,
+        cx,
+    )
+}
+
+/// Render a validation error row with v3's independent height and opacity
+/// timelines. The message is retained in keyed state while the row exits so
+/// the height tween has a real measured body instead of collapsing before the
+/// animation begins. A quick revalidation updates that retained body and
+/// retargets both tweens from their current painted values.
+pub(crate) fn field_error_panel(
+    id: &ElementId,
+    message: Option<gpui::SharedString>,
+    window: &mut Window,
+    cx: &mut App,
+) -> Option<AnyElement> {
+    let retained =
+        window.use_keyed_state(element_id::scoped(id, "field-error-message"), cx, |_, _| {
+            None::<gpui::SharedString>
+        });
+    let is_open = message.is_some();
+    if let Some(message) = message {
+        if retained.read(cx).as_ref() != Some(&message) {
+            retained.update(cx, |stored, cx| {
+                *stored = Some(message);
+                cx.notify();
+            });
+        }
+    }
+    let message = retained.read(cx).clone().unwrap_or_default();
+    let panel_id = element_id::scoped(id, "field-error-panel");
+    let panel = gpui::div()
+        .id(panel_id.clone())
+        .flex_shrink_0()
+        .px(px(4.))
+        .text_size(px(12.))
+        .line_height(px(16.))
+        .text_color(cx.colors().danger.color);
+    let body = gpui::div()
+        .flex_shrink_0()
+        .child(message.to_string())
+        .into_any_element();
+    collapsible_panel_with_timings(
+        &panel_id,
+        is_open,
+        panel,
+        body,
+        Motion::FIELD_ERROR_HEIGHT,
+        Motion::FIELD_ERROR_OPACITY,
+        window,
+        cx,
+    )
+}
+
+#[allow(clippy::too_many_arguments)] // the two motion tracks are the caller's paired contract
+fn collapsible_panel_with_timings(
+    id: &ElementId,
+    is_open: bool,
+    panel: gpui::Stateful<gpui::Div>,
+    body: AnyElement,
+    height_motion: Motion,
+    opacity_motion: Motion,
+    window: &mut Window,
+    cx: &mut App,
+) -> Option<AnyElement> {
+    let reduce_motion = ActiveTheme::reduce_motion(cx);
+    // Remember whether this panel has ever been visited. A default-open panel
+    // has no opening transition in React Aria (its initial effect sets the
+    // height to `auto`), while a panel opened after starting closed animates
+    // from zero. This state is created even while the panel is closed so the
+    // first later open is distinguishable from a default-open render.
+    let lifecycle = window.use_keyed_state(element_id::scoped(id, "lifecycle"), cx, |_, _| {
+        CollapsibleLifecycle::default()
+    });
+    let lifecycle_snapshot = *lifecycle.read(cx);
+    let default_open = lifecycle_snapshot.default_open;
+    if !lifecycle_snapshot.seen {
+        lifecycle.update(cx, |state, _| {
+            state.seen = true;
+            state.default_open = is_open;
+        });
+    }
+
+    let exit_ms = height_motion.ms.max(opacity_motion.ms);
+    let phase = crate::util::panel_phase(
+        window,
+        cx,
+        element_id::scoped(id, "phase"),
+        is_open,
+        !reduce_motion,
+        exit_ms,
+    );
+    if phase == crate::util::OverlayPhase::Closed {
+        return None;
+    }
+
+    let measured = window.use_keyed_state(element_id::scoped(id, "natural-height"), cx, |_, _| {
+        Rc::new(Cell::new(None::<gpui::Pixels>))
+    });
+    let measured_for_listener = measured.clone();
+    let body = gpui::div()
+        .flex_shrink_0()
+        .on_children_prepainted(move |bounds, _, cx| {
+            let next = bounds.first().map_or(px(0.), |bound| bound.size.height);
+            measured_for_listener.update(cx, |height, cx| {
+                if height.get() != Some(next) {
+                    height.set(Some(next));
+                    cx.notify();
+                }
+            });
+        })
+        .child(body);
+
+    let natural_height = measured.read(cx).get();
+    // The first open frame must remain intrinsically sized so content is
+    // immediately usable and its natural extent can be measured. Skipping
+    // the height tween until that measurement exists also prevents an
+    // initial default-open panel from animating from an invented zero height.
+    if natural_height.is_none() {
+        let panel = panel.flex_shrink_0().child(body);
+        return Some(
+            panel
+                .opacity(if is_open { 1.0 } else { 0.0 })
+                .into_any_element(),
+        );
+    }
+    let target_height = if is_open {
+        natural_height.unwrap_or(px(0.))
+    } else {
+        px(0.)
+    };
+    let initial_open = is_open && !default_open && natural_height.is_some();
+    let mut height = Tween::keyed_with_initial(
+        id,
+        "panel-height",
+        target_height,
+        initial_open.then_some(px(0.)),
+        window,
+        cx,
+    );
+    let mut opacity = Tween::keyed_with_initial(
+        id,
+        "panel-opacity",
+        if is_open { 1.0 } else { 0.0 },
+        initial_open.then_some(0.0),
+        window,
+        cx,
+    );
+    height.snap_if_reduced(reduce_motion);
+    opacity.snap_if_reduced(reduce_motion);
+
+    let panel = panel.flex_shrink_0().overflow_hidden().child(body);
+    let animate_height = height.animates(reduce_motion);
+    let animate_opacity = opacity.animates(reduce_motion);
+    if !animate_height && !animate_opacity {
+        height.settle();
+        opacity.settle();
+        return Some(
+            panel
+                .h(height.target())
+                .opacity(opacity.target())
+                .into_any_element(),
+        );
+    }
+
+    let height_from = height.from();
+    let height_to = height.target();
+    let height_value = height.value();
+    let opacity_from = opacity.from();
+    let opacity_to = opacity.target();
+    let opacity_value = opacity.value();
+    let animation_id = element_id::scoped(
+        id,
+        format!(
+            "panel-motion-{}-{}",
+            height.generation(),
+            opacity.generation()
+        ),
+    );
+    let duration_ms = height_motion.ms.max(opacity_motion.ms).max(1);
+    let panel = panel.with_animation(
+        animation_id,
+        gpui::Animation::new(Duration::from_millis(duration_ms)),
+        move |panel, delta| {
+            let height_delta = height_motion
+                .curve
+                .at((delta * duration_ms as f32 / height_motion.ms.max(1) as f32).min(1.0));
+            let opacity_delta = opacity_motion
+                .curve
+                .at((delta * duration_ms as f32 / opacity_motion.ms.max(1) as f32).min(1.0));
+            let next_height = height_from + (height_to - height_from) * height_delta;
+            let next_opacity = opacity_from + (opacity_to - opacity_from) * opacity_delta;
+            height_value.set(next_height);
+            opacity_value.set(next_opacity);
+            panel.h(next_height).opacity(next_opacity)
+        },
+    );
+    Some(panel.into_any_element())
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+struct CollapsibleLifecycle {
+    seen: bool,
+    default_open: bool,
 }
 
 /// Like [`entering`] but for content that also slides in — used by `Drawer`,
@@ -1026,6 +2421,36 @@ mod tests {
         );
     }
 
+    #[test]
+    fn stable_press_slot_keeps_button_radius_and_group_seams() {
+        let full = gpui::CornersRefinement {
+            top_left: Some(gpui::px(12.).into()),
+            top_right: Some(gpui::px(12.).into()),
+            bottom_right: Some(gpui::px(12.).into()),
+            bottom_left: Some(gpui::px(12.).into()),
+        };
+        assert_eq!(
+            resting_slot_corners(&full, px(8.)),
+            gpui::Corners {
+                top_left: Some(px(12.)),
+                top_right: Some(px(12.)),
+                bottom_right: Some(px(12.)),
+                bottom_left: Some(px(12.)),
+            }
+        );
+
+        let group_start = gpui::CornersRefinement {
+            top_left: Some(gpui::px(12.).into()),
+            bottom_left: Some(gpui::px(12.).into()),
+            ..Default::default()
+        };
+        let corners = resting_slot_corners(&group_start, px(8.));
+        assert_eq!(corners.top_left, Some(px(12.)));
+        assert_eq!(corners.bottom_left, Some(px(12.)));
+        assert_eq!(corners.top_right, None);
+        assert_eq!(corners.bottom_right, None);
+    }
+
     /// `hover_fade_ms` is public configuration: the stock theme keeps the
     /// button's `100ms`, a zero resolves like reduced motion, and any other
     /// value reaches the helper the fade reads.
@@ -1040,6 +2465,11 @@ mod tests {
                 Some(Duration::from_millis(TRANSITION_MS)),
                 "the stock theme uses the button's own 100ms"
             );
+            assert_eq!(
+                hover_fade_duration_with_override(cx, Some(ACCORDION_TRIGGER_HOVER_MS)),
+                Some(Duration::from_millis(ACCORDION_TRIGGER_HOVER_MS)),
+                "Accordion keeps its pinned 150ms declaration"
+            );
         });
         cx.update(|cx| {
             set_theme(
@@ -1051,6 +2481,11 @@ mod tests {
         });
         cx.update(|cx| {
             assert_eq!(hover_fade_duration(cx), None, "zero resolves immediately");
+            assert_eq!(
+                hover_fade_duration_with_override(cx, Some(ACCORDION_TRIGGER_HOVER_MS)),
+                None,
+                "the theme-wide zero opt-out still suppresses owner overrides"
+            );
         });
         cx.update(|cx| {
             set_theme(
@@ -1113,6 +2548,28 @@ mod tests {
         let smooth = ease_smooth();
         assert!(smooth(0.0).abs() < 1e-3);
         assert!((smooth(1.0) - 1.0).abs() < 1e-3);
+    }
+
+    #[test]
+    #[allow(clippy::float_cmp)] // the scales are declared as exact identities
+    fn drawer_backdrop_uses_its_own_fluid_timing() {
+        assert_eq!(Motion::DRAWER_BACKDROP_IN.ms, 250);
+        assert_eq!(Motion::DRAWER_BACKDROP_OUT.ms, 200);
+        assert_eq!(Motion::DRAWER_BACKDROP_IN.curve, Curve::OutFluid);
+        assert_eq!(Motion::DRAWER_BACKDROP_OUT.curve, Curve::OutFluid);
+        assert_eq!(Motion::DRAWER_BACKDROP_IN.scale, 1.0);
+        assert_eq!(Motion::DRAWER_BACKDROP_OUT.scale, 1.0);
+    }
+
+    #[test]
+    #[allow(clippy::float_cmp)] // the scales are declared as exact identities
+    fn field_error_uses_independent_height_and_opacity_timelines() {
+        assert_eq!(Motion::FIELD_ERROR_HEIGHT.ms, 350);
+        assert_eq!(Motion::FIELD_ERROR_HEIGHT.curve, Curve::Smooth);
+        assert_eq!(Motion::FIELD_ERROR_OPACITY.ms, 150);
+        assert_eq!(Motion::FIELD_ERROR_OPACITY.curve, Curve::Out);
+        assert_eq!(Motion::FIELD_ERROR_HEIGHT.scale, 1.0);
+        assert_eq!(Motion::FIELD_ERROR_OPACITY.scale, 1.0);
     }
 
     #[test]

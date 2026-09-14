@@ -10,7 +10,11 @@
 //!
 //! Geometry is derived from the port's own constants, never measured:
 //! `ModalSize::Md` is `max-w-md` = 448px, the desktop side Drawer is 384px, the
-//! harness window is 1920x1080 and `util::FIELD_HEIGHT` is 36px. The entry and
+//! harness window is 1920x1080 and `util::FIELD_HEIGHT` is 36px. The one
+//! exception measures rather than derives: the Md panel-height regression
+//! reads the painted panel through a body probe, because its whole point is
+//! the composition the pinned stylesheet and the matched captures agree on.
+//! The entry and
 //! exit animations run on wall time, which the test clock does not drive, so
 //! they are suppressed by [still] and the clock is still advanced past
 //! `EXITING_MS` (100ms) before a closed-proof probe — the exit phase is what
@@ -197,6 +201,57 @@ fn modal_escape_closes(cx: &mut TestAppContext) {
         "the exit must unmount the panel: the spot the button covered records nothing new"
     );
     assert_eq!(recorded.borrow().len(), 1, "no further dismissal may fire");
+}
+
+/// The Md panel's pinned vertical composition, measured on the painted panel.
+///
+/// modal.css builds every dialog panel from `p-6` (24) + the heading's 24px
+/// `text-base` line + `.modal__header + .modal__body`'s `mt-2` (8) + the
+/// body's `-m-[3px] my-0 p-[3px]` (3 top, 3 bottom) + one `leading-[1.43]`
+/// `text-sm` line (20) + `p-6` (24) = 106px. That is the height the matched
+/// upstream capture measured (docs/parity/evidence/matched-modal-open) and
+/// 6px more than this panel drew before the body's `p-[3px]` landed: `my-0`
+/// zeroes the vertical margins, so unlike the horizontal pair that padding is
+/// real height, and omitting it was the whole delta.
+///
+/// The panel itself carries no debug selector, so the probe is the body's
+/// one-line content (the fixture's own sentence) and the Center placement's
+/// centering invariant recovers the height from the window: the probe's top
+/// edge sits the top chain (24 + 24 + 8 + 3 = 59) below the panel's top edge,
+/// and the centered panel's top edge is `(viewport - height) / 2`.
+#[gpui::test]
+fn modal_md_panel_height_matches_the_pinned_composition(cx: &mut TestAppContext) {
+    still();
+    let cx = open_host(cx, || {
+        Modal::new()
+            .id("ovl-modal-md-geometry")
+            .is_open(true)
+            .title("Size: Md")
+            .child(ModalCloseTrigger::new())
+            .child(
+                gpui::div()
+                    .debug_selector(|| "modal-md-body-probe".into())
+                    .child("Every size shares one panel style."),
+            )
+            .into_any_element()
+    });
+    let viewport_height = cx.update(|window, _| f32::from(window.viewport_size().height));
+    let probe = cx
+        .debug_bounds("modal-md-body-probe")
+        .expect("the open modal's body content must paint");
+    // The one `leading-[1.43]` body line: 14px text in a 20px line box.
+    assert!(
+        (f32::from(probe.size.height) - 20.).abs() < 0.5,
+        "the body's single line must be the 20px `leading-[1.43]` box, got {}",
+        probe.size.height
+    );
+    let panel_top = f32::from(probe.origin.y) - (24. + 24. + 8. + 3.);
+    let panel_height = viewport_height - 2. * panel_top;
+    assert!(
+        (panel_height - 106.).abs() < 0.5,
+        "the Md panel must stand 106px over the one-line body composition \
+         (24 + 24 + 8 + 3 + 20 + 3 + 24), got {panel_height}"
+    );
 }
 
 #[gpui::test]

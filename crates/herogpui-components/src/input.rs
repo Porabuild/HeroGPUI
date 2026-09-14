@@ -340,6 +340,11 @@ fn state_accepts(
 
 fn insert_char(state: &mut InputState, ch: char) {
     delete_selection(state);
+    // A collapsed anchor can remain after a multi-character platform edit
+    // sets the range once and then inserts several characters. Treat the
+    // first insertion as a normal caret edit so the next character does not
+    // delete the character just inserted.
+    state.anchor = None;
     let byte_idx = char_to_byte(&state.value, state.cursor);
     state.value.insert(byte_idx, ch);
     state.cursor += 1;
@@ -1227,6 +1232,9 @@ pub struct Input {
     /// the way `InputGroup.Input` already does.
     is_bare: bool,
     is_bare_is_set: bool,
+    /// Whether focused state paints the visual focus ring. `None` lets the
+    /// active `TextFieldStyle` choose; unset everywhere keeps the stock ring.
+    focus_ring: Option<bool>,
     /// [`Input::text_size`] — the field value and placeholder type size.
     text_size: Option<Pixels>,
     /// [`Input::font_family`] — the family the field text is drawn and
@@ -1373,6 +1381,7 @@ impl Input {
             group_padding_x: None,
             is_bare: false,
             is_bare_is_set: false,
+            focus_ring: None,
             text_size: None,
             font_family: None,
             radius: None,
@@ -1654,6 +1663,9 @@ impl Input {
         if field.is_bare_is_set {
             self = self.is_bare(field.is_bare);
         }
+        if let Some(focus_ring) = field.focus_ring {
+            self = self.focus_ring(focus_ring);
+        }
         self
     }
 
@@ -1668,6 +1680,18 @@ impl Input {
     pub fn is_bare(mut self, v: bool) -> Self {
         self.is_bare = v;
         self.is_bare_is_set = true;
+        self
+    }
+
+    /// Shows or hides only the field's visual focus ring.
+    ///
+    /// `false` keeps the control focusable and editable and keeps invalid
+    /// feedback, but suppresses the accent ring painted while it is focused.
+    /// Use [`Input::is_bare`] when the surrounding caller should own all field
+    /// chrome instead. The default is `true`, or the value supplied by the
+    /// active [`herogpui_theme::TextFieldStyle`].
+    pub fn focus_ring(mut self, v: bool) -> Self {
+        self.focus_ring = Some(v);
         self
     }
 
@@ -1932,7 +1956,10 @@ impl RenderOnce for Input {
         if !focused && self.state.read(cx).marked.is_some() {
             self.state.update(cx, |state, _| state.marked = None);
         }
-        let colors = cx.colors();
+        // The shared hover tween below borrows the app mutably; own the theme
+        // snapshot so the remaining field labels and clear affordance can use
+        // the same resolved tokens after the animation is installed.
+        let colors = cx.colors().clone();
         let field_theme = cx.theme().components.text_field.resolve(&self.recipes);
         if !self.variant_is_set {
             if let Some(variant) = field_theme.variant {
@@ -1944,14 +1971,17 @@ impl RenderOnce for Input {
                 self.is_bare = is_bare;
             }
         }
+        if self.focus_ring.is_none() {
+            self.focus_ring = field_theme.focus_ring;
+        }
         self.height = self.height.or(field_theme.height);
         self.padding_x = self.padding_x.or(field_theme.padding_x);
         self.radius = self.radius.or(field_theme.radius);
-        let theme_background = field_theme.background.map(|color| color.resolve(colors));
-        let theme_foreground = field_theme.foreground.map(|color| color.resolve(colors));
+        let theme_background = field_theme.background.map(|color| color.resolve(&colors));
+        let theme_foreground = field_theme.foreground.map(|color| color.resolve(&colors));
         let theme_placeholder = field_theme
             .placeholder
-            .map_or(colors.muted, |color| color.resolve(colors));
+            .map_or(colors.muted, |color| color.resolve(&colors));
         let accent = colors.accent;
         let field_focus = crate::util::FieldFocus {
             is_focused: focused,
@@ -1987,6 +2017,7 @@ impl RenderOnce for Input {
         let text = self.text_size.or(field_theme.text_size).unwrap_or(text);
 
         let is_invalid = validity.is_invalid;
+        let show_focus_ring = self.focus_ring.unwrap_or(true);
         let _border_color = if is_invalid {
             colors.danger.color
         } else if focused {
@@ -2059,7 +2090,12 @@ impl RenderOnce for Input {
             .text_size(text)
             .line_height(px(20.))
             .when_some(self.font_family.clone(), |f, family| f.font_family(family))
-            .rounded(radius)
+            // A grouped input is the transparent middle of the shared
+            // `.input-group` shell. HeroUI's `.input-group__input` is
+            // `rounded-none`; letting the inner field keep its field radius
+            // makes custom fills and focus overlays expose a second set of
+            // corners inside the group's single rounded outline.
+            .when(self.in_group.is_none(), |f| f.rounded(radius))
             .when(!self.is_disabled, |e| {
                 e.cursor(gpui::CursorStyle::IBeam)
                     .track_focus(&focus_handle)
@@ -2181,14 +2217,44 @@ impl RenderOnce for Input {
         // `is_bare` takes the same exit: one chrome call site, skipped by
         // either reason.
         if self.in_group.is_none() && !self.is_bare {
-            field = crate::util::apply_field_chrome(
+            field = crate::util::apply_field_chrome_with_focus_ring(
                 field,
                 self.variant,
                 is_invalid,
                 focused,
+                show_focus_ring,
                 Some(radius),
                 cx,
             );
+
+            if !self.is_disabled && !is_invalid && !focused && theme_background.is_none() {
+                let idle_bg = match self.variant {
+                    FieldVariant::Primary => colors.field.background,
+                    FieldVariant::Secondary => colors.default.color,
+                };
+                let hover_bg = match self.variant {
+                    FieldVariant::Primary => colors.field.hover(),
+                    // `.input--secondary` uses the default-hover endpoint.
+                    FieldVariant::Secondary => colors.default.hover(),
+                };
+                let hover_border = colors.field.border_hover();
+                // Keep the editable Input as the stable behavior owner while
+                // the listener-free visual fill follows HeroUI's 150ms
+                // ease-smooth transition. The border endpoint is immediate,
+                // and custom theme backgrounds retain their caller-owned fill.
+                field = crate::anim::hover_fade_with_duration_and_easing(
+                    field,
+                    element_id::scoped(&base_id, "hover-fade"),
+                    (idle_bg, hover_bg),
+                    None,
+                    Some(hover_border),
+                    |fill| fill.rounded(radius),
+                    Some(150),
+                    crate::anim::HoverFadeEasing::EaseSmooth,
+                    window,
+                    cx,
+                );
+            }
         }
         if let Some(background) = theme_background {
             field = field.bg(background);
@@ -2807,16 +2873,13 @@ impl RenderOnce for Input {
             el = el.child(label_row);
         }
         el = el.child(field_element);
-        if !validity.messages.is_empty() {
-            // Every message, space-joined in upstream order — React Aria's
-            // `FieldError` default — not just the first.
-            el = el.child(
-                gpui::div()
-                    .text_size(px(12.))
-                    .line_height(px(16.))
-                    .text_color(colors.danger.color)
-                    .child(validity.joined()),
-            );
+        // Every message, space-joined in upstream order — React Aria's
+        // `FieldError` default — not just the first. The shared helper keeps
+        // the last message mounted while the invalid row animates out, so a
+        // description cannot replace it halfway through the height tween.
+        let error = (!validity.messages.is_empty()).then(|| validity.joined().into());
+        if let Some(error) = crate::anim::field_error_panel(&base_id, error, window, cx) {
+            el = el.child(error);
         } else if let Some(desc) = self.description {
             el = el.child(
                 gpui::div()
@@ -3009,6 +3072,13 @@ impl TextField {
     /// Drops the field's chrome — see [`Input::is_bare`].
     pub fn is_bare(mut self, v: bool) -> Self {
         self.inner = self.inner.is_bare(v);
+        self
+    }
+
+    /// Shows or hides only the inner field's visual focus ring — see
+    /// [`Input::focus_ring`].
+    pub fn focus_ring(mut self, v: bool) -> Self {
+        self.inner = self.inner.focus_ring(v);
         self
     }
 
@@ -3259,6 +3329,13 @@ impl SearchField {
         self
     }
 
+    /// Shows or hides only the search field's visual focus ring. The field
+    /// remains focusable, editable and accessible when set to `false`.
+    pub fn focus_ring(mut self, v: bool) -> Self {
+        self.field.focus_ring = Some(v);
+        self
+    }
+
     pub fn is_disabled(mut self, v: bool) -> Self {
         self.is_disabled = v;
         self
@@ -3471,6 +3548,34 @@ impl RenderOnce for SearchField {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[gpui::test]
+    fn platform_multi_character_insert_keeps_all_characters(cx: &mut gpui::TestAppContext) {
+        use gpui::InputHandler;
+        let cx = cx.add_empty_window();
+        cx.update(|window, cx| {
+            let state = cx.new(|cx| InputState::new(cx));
+            let mut handler = PlatformTextInput {
+                state: state.clone(),
+                on_edit: crate::util::shared(|_, _, _| {}),
+                input_type: InputType::Text,
+                max_length: None,
+                multiline: false,
+                bounds: gpui::Bounds::default(),
+                font: window.text_style().font(),
+                paragraphs: cx.new(|_| Vec::new()),
+            };
+            handler.replace_text_in_range(None, "Go", window, cx);
+            assert_eq!(state.read(cx).value(), "Go");
+            assert_eq!(
+                handler
+                    .selected_text_range(false, window, cx)
+                    .unwrap()
+                    .range,
+                2..2
+            );
+        });
+    }
 
     #[gpui::test]
     fn platform_composition_replaces_marked_utf16_ranges(cx: &mut gpui::TestAppContext) {
@@ -3944,6 +4049,24 @@ two";
 // screen, so the check is mechanical.
 #[cfg(test)]
 mod hover_tokens {
+    #[test]
+    fn the_field_uses_the_pinned_hover_transition() {
+        let source = include_str!("input.rs")
+            .split("#[cfg(test)]")
+            .next()
+            .expect("the implementation section is always present");
+        assert!(
+            source.contains("colors.field.hover()")
+                && source.contains("colors.default.hover()")
+                && source.contains("colors.field.border_hover()")
+        );
+        assert!(
+            source.contains("hover_fade_with_duration_and_easing")
+                && source.contains("HoverFadeEasing::EaseSmooth")
+                && source.contains("Some(150)")
+        );
+    }
+
     #[test]
     fn the_clear_button_hovers_the_role_hover_token() {
         // Scan the implementation only; this test's own text names the

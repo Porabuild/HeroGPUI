@@ -68,9 +68,9 @@ pub struct Spinner {
     color: Color,
     /// Set by `color="current"`: the resolved colour of the surrounding text.
     current_color: Option<gpui::Hsla>,
-    /// One full turn, in milliseconds. v3 changes this with an animation
-    /// utility class (`animate-[spin_1.5s_linear_infinite]`), which is its
-    /// "Speed" example; there are no classes here, so it is a prop.
+    /// One full turn, in milliseconds. HeroUI's default `animate-spin-fast`
+    /// token is 750ms; the local setter also gives the gallery a deterministic
+    /// equivalent of its speed utility examples.
     duration_ms: u64,
     /// The `sx` slot, refined over the root style at the end of render.
     sx: Option<Box<gpui::StyleRefinement>>,
@@ -83,7 +83,7 @@ impl Spinner {
             size: SpinnerSize::default(),
             color: Color::Accent,
             current_color: None,
-            duration_ms: 800,
+            duration_ms: 750,
             sx: None,
         }
     }
@@ -181,5 +181,15 @@ impl RenderOnce for Spinner {
             crate::a11y::Role::Status,
             &crate::a11y::Name::labelled("Loading"),
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Spinner;
+
+    #[test]
+    fn default_speed_matches_heroui_spin_fast_token() {
+        assert_eq!(Spinner::new("spinner").duration_ms, 750);
     }
 }

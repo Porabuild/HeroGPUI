@@ -11,7 +11,7 @@ use gpui::{
     prelude::*, px, AnyElement, App, ElementId, IntoElement, ParentElement, Pixels, RenderOnce,
     SharedString, StatefulInteractiveElement, Styled, Window,
 };
-use herogpui_core::element_id;
+use herogpui_core::{element_id, PlacementAlign};
 use herogpui_theme::ActiveTheme;
 
 use crate::{
@@ -20,43 +20,76 @@ use crate::{
 };
 
 /// Where the tip sits relative to its trigger.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum TooltipPlacement {
-    #[default]
-    Top,
-    Bottom,
-    Left,
-    Right,
+///
+/// Shares the one placement vocabulary with the popovers and pickers — the
+/// full 22-value React Aria union. The logical `start`/`end` aliases resolve
+/// to the same pixels as their `left`/`right` spellings because this port has
+/// no RTL mode.
+pub use herogpui_core::Placement as TooltipPlacement;
+
+/// The arrow points back at the trigger, so it faces opposite the tip.
+fn arrow_rotation(placement: TooltipPlacement) -> f32 {
+    if placement.is_above() {
+        // The asset's apex is at the bottom, so it points down unrotated:
+        // a tip above the trigger needs no rotation at all.
+        0.
+    } else if placement.is_side() {
+        if placement.is_start_side() {
+            -std::f32::consts::FRAC_PI_2
+        } else {
+            std::f32::consts::FRAC_PI_2
+        }
+    } else {
+        std::f32::consts::PI
+    }
 }
 
-impl TooltipPlacement {
-    pub const ALL: [TooltipPlacement; 4] = [
-        TooltipPlacement::Top,
-        TooltipPlacement::Bottom,
-        TooltipPlacement::Left,
-        TooltipPlacement::Right,
-    ];
+/// HeroUI's `slide-in-from-*` entry offset for the physical side. Aligned
+/// top/bottom placements share the same motion as their centered form.
+fn entry_offset(placement: TooltipPlacement) -> (f32, f32) {
+    if placement.is_above() {
+        (0.0, 4.0)
+    } else if placement.is_side() {
+        if placement.is_start_side() {
+            (4.0, 0.0)
+        } else {
+            (-4.0, 0.0)
+        }
+    } else {
+        (0.0, -4.0)
+    }
+}
 
-    pub fn label(self) -> &'static str {
-        match self {
-            TooltipPlacement::Top => "Top",
-            TooltipPlacement::Bottom => "Bottom",
-            TooltipPlacement::Left => "Left",
-            TooltipPlacement::Right => "Right",
+/// GPUI's pinned text wrapper breaks normal prose at spaces but has no
+/// `overflow-wrap: anywhere` style. HeroUI applies that rule to tooltip text
+/// so a long URL or token still fits the 320px cap. Zero-width break
+/// opportunities preserve the visible and accessible text while allowing the
+/// existing normal wrapper to split an unbroken token when it reaches the cap.
+fn tooltip_text_with_break_opportunities(text: &str) -> String {
+    let mut chars = text.chars().peekable();
+    let mut result = String::with_capacity(text.len());
+    while let Some(ch) = chars.next() {
+        result.push(ch);
+        if !ch.is_whitespace()
+            && ch != '\u{200b}'
+            && chars
+                .peek()
+                .is_some_and(|next| !next.is_whitespace() && *next != '\u{200b}')
+        {
+            result.push('\u{200b}');
         }
     }
+    result
+}
 
-    /// The arrow points back at the trigger, so it faces opposite the tip.
-    fn arrow_rotation(self) -> f32 {
-        match self {
-            // The asset's apex is at the bottom, so it points down unrotated:
-            // a tip above the trigger needs no rotation at all.
-            TooltipPlacement::Top => 0.,
-            TooltipPlacement::Bottom => std::f32::consts::PI,
-            TooltipPlacement::Left => -std::f32::consts::FRAC_PI_2,
-            TooltipPlacement::Right => std::f32::consts::FRAC_PI_2,
-        }
-    }
+fn tooltip_display_content(text: &str, natural_width: Pixels) -> (String, bool) {
+    let needs_breaks = natural_width > px(320.);
+    let display = if needs_breaks {
+        tooltip_text_with_break_opportunities(text)
+    } else {
+        text.to_owned()
+    };
+    (display, needs_breaks)
 }
 
 /// Hover state for one tooltip.
@@ -566,7 +599,7 @@ impl RenderOnce for Tooltip {
             // making even "With an arrow" one word wide, so shape the single line
             // and pin the same max-content result explicitly.
             let content = self.content.clone();
-            let run = gpui::TextRun {
+            let raw_run = gpui::TextRun {
                 len: content.len(),
                 font: window.text_style().font(),
                 color: gpui::black(),
@@ -574,13 +607,40 @@ impl RenderOnce for Tooltip {
                 underline: None,
                 strikethrough: None,
             };
-            let line = window
-                .text_system()
-                .shape_line(content.clone(), px(12.), &[run], None);
             let hairline_width = if layout.overlay_hairline.is_some() {
                 layout.border_width * 2.
             } else {
                 px(0.)
+            };
+            // `overflow-wrap: anywhere` only takes effect when the natural
+            // line would exceed the 320px cap.  Inserting a zero-width break
+            // after every character unconditionally makes short placements
+            // such as the `Left` tooltip wrap its final letter because GPUI's
+            // line wrapper treats the opportunity as a legal split even when
+            // the unbroken word would fit.  Measure the natural text first,
+            // then add opportunities only for content that actually needs the
+            // cap.
+            let raw_line =
+                window
+                    .text_system()
+                    .shape_line(content.clone(), px(12.), &[raw_run], None);
+            let natural_width = raw_line.width + px(16.) + hairline_width;
+            let (display, needs_breaks) = tooltip_display_content(content.as_ref(), natural_width);
+            let display_content: SharedString = display.into();
+            let run = gpui::TextRun {
+                len: display_content.len(),
+                font: window.text_style().font(),
+                color: gpui::black(),
+                background_color: None,
+                underline: None,
+                strikethrough: None,
+            };
+            let line = if display_content == content {
+                raw_line
+            } else {
+                window
+                    .text_system()
+                    .shape_line(display_content.clone(), px(12.), &[run], None)
             };
             let intrinsic_width = line.width + px(16.) + hairline_width;
             let tooltip_width = if intrinsic_width < px(320.) {
@@ -597,8 +657,11 @@ impl RenderOnce for Tooltip {
                 // graph the port names the tip with its own content instead,
                 // which is the text that describedby would have resolved to.
                 .id(element_id::scoped(&key, "tip"))
-                .a11y_named(a11y::Role::Tooltip, &a11y::Name::labelled(content.clone()))
-                .absolute()
+                .a11y_named(a11y::Role::Tooltip, &a11y::Name::labelled(content))
+                // The placement anchor lives on an outer absolute wrapper
+                // below. Keeping the painted surface relative lets the entry
+                // slide use top/left without replacing that anchor.
+                .relative()
                 // `.tooltip` is `p-2` all round, not a wider-than-tall pill.
                 .p(px(8.))
                 .w(tooltip_width)
@@ -607,20 +670,23 @@ impl RenderOnce for Tooltip {
                 .text_color(colors.overlay.foreground)
                 .text_size(px(12.))
                 .line_height(px(16.))
+                // GPUI's normal wrapper can round a max-content width down by
+                // a glyph fraction and split the last letter of a short
+                // placement label (for example, `Left`).  Short tooltips have
+                // already been measured to fit, so keep that line intact;
+                // long capped content still uses normal wrapping at the
+                // inserted zero-width opportunities above.
+                .when(!needs_breaks, |el| el.whitespace_nowrap())
                 .when_some(layout.overlay_hairline, |el, hairline| {
                     el.border(layout.border_width).border_color(hairline)
                 })
                 .shadow(layout.overlay_shadow.clone())
-                .child(content);
-
-            tip = match self.placement {
-                TooltipPlacement::Top => tip.bottom_full().mb(offset),
-                TooltipPlacement::Bottom => tip.top_full().mt(offset),
-                TooltipPlacement::Left => tip.right_full().mr(offset),
-                TooltipPlacement::Right => tip.left_full().ml(offset),
-            };
+                .child(display_content);
 
             if self.show_arrow {
+                // The arrow leaf pins to the tip's resolved side; the
+                // placement's cross-axis alignment flushes it to that edge or
+                // centres it by stretching, mirroring the anchor below.
                 let mut arrow = gpui::div().absolute().child(
                     gpui::svg()
                         .size(px(12.))
@@ -629,41 +695,48 @@ impl RenderOnce for Tooltip {
                         // tinted to match the tip body explicitly.
                         .text_color(colors.overlay.background)
                         .with_transformation(gpui::Transformation::rotate(gpui::radians(
-                            self.placement.arrow_rotation(),
+                            arrow_rotation(self.placement),
                         ))),
                 );
-                arrow = match self.placement {
-                    TooltipPlacement::Top => arrow
-                        .top_full()
-                        .left(px(0.))
-                        .right(px(0.))
-                        .flex()
-                        .justify_center(),
-                    TooltipPlacement::Bottom => arrow
-                        .bottom_full()
-                        .left(px(0.))
-                        .right(px(0.))
-                        .flex()
-                        .justify_center(),
-                    TooltipPlacement::Left => arrow
-                        .left_full()
-                        .top(px(0.))
-                        .bottom(px(0.))
-                        .flex()
-                        .items_center(),
-                    TooltipPlacement::Right => arrow
-                        .right_full()
-                        .top(px(0.))
-                        .bottom(px(0.))
-                        .flex()
-                        .items_center(),
+                arrow = if self.placement.is_side() {
+                    let base = if self.placement.is_start_side() {
+                        arrow.left_full()
+                    } else {
+                        arrow.right_full()
+                    };
+                    match self.placement.align() {
+                        PlacementAlign::Start => base.top(px(0.)),
+                        PlacementAlign::End => base.bottom(px(0.)),
+                        PlacementAlign::Center => {
+                            base.top(px(0.)).bottom(px(0.)).flex().items_center()
+                        }
+                    }
+                } else {
+                    let base = if self.placement.is_above() {
+                        arrow.top_full()
+                    } else {
+                        arrow.bottom_full()
+                    };
+                    match self.placement.align() {
+                        PlacementAlign::Start => base.left(px(0.)),
+                        PlacementAlign::End => base.right(px(0.)),
+                        PlacementAlign::Center => {
+                            base.left(px(0.)).right(px(0.)).flex().justify_center()
+                        }
+                    }
                 };
                 tip = tip.child(arrow);
             }
 
             // `absolute` does not lift the tip above later siblings in the page,
             // so it has to paint last.
+            let (slide_x, slide_y) = entry_offset(self.placement);
             let zoom = anim::ZoomBox::panel(px(8.), radius).padding_x(px(8.));
+            let zoom = anim::ZoomBox {
+                slide_x: (slide_x != 0.0).then(|| px(slide_x)),
+                slide_y: (slide_y != 0.0).then(|| px(slide_y)),
+                ..zoom
+            };
             let animated = if self.should_skip_animation {
                 tip.into_any_element()
             } else if phase == util::OverlayPhase::Exiting {
@@ -685,9 +758,151 @@ impl RenderOnce for Tooltip {
                     cx,
                 )
             };
-            wrapper = wrapper.child(util::floating(animated));
+            // Keep the placement anchor outside the animated surface. The
+            // inner `ZoomBox` can then apply its four-pixel relative slide
+            // without clobbering the anchor's absolute side constraint.
+            let mut anchor = gpui::div().absolute();
+            anchor = if self.placement.is_side() {
+                let base = if self.placement.is_start_side() {
+                    anchor.right_full().mr(offset)
+                } else {
+                    anchor.left_full().ml(offset)
+                };
+                match self.placement.align() {
+                    PlacementAlign::Start => base.top_0(),
+                    PlacementAlign::End => base.bottom_0(),
+                    PlacementAlign::Center => base.top_0().bottom_0().flex().items_center(),
+                }
+            } else {
+                let base = if self.placement.is_above() {
+                    anchor.bottom_full().mb(offset)
+                } else {
+                    anchor.top_full().mt(offset)
+                };
+                match self.placement.align() {
+                    PlacementAlign::Start => base.left_0(),
+                    PlacementAlign::End => base.right_0(),
+                    PlacementAlign::Center => base.left_0().right_0().flex().justify_center(),
+                }
+            };
+            wrapper = wrapper.child(util::floating(anchor.child(animated)));
         }
 
         util::apply_sx(wrapper, &self.sx).into_any_element()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        arrow_rotation, entry_offset, tooltip_display_content,
+        tooltip_text_with_break_opportunities, TooltipPlacement,
+    };
+
+    #[test]
+    fn tooltip_text_adds_breaks_without_changing_whitespace() {
+        assert_eq!(
+            tooltip_text_with_break_opportunities("longtoken"),
+            "l\u{200b}o\u{200b}n\u{200b}g\u{200b}t\u{200b}o\u{200b}k\u{200b}e\u{200b}n"
+        );
+        assert_eq!(
+            tooltip_text_with_break_opportunities("two words\nnext"),
+            "t\u{200b}w\u{200b}o w\u{200b}o\u{200b}r\u{200b}d\u{200b}s\nn\u{200b}e\u{200b}x\u{200b}t"
+        );
+    }
+
+    #[test]
+    fn short_tooltips_keep_their_label_while_long_content_gets_breaks() {
+        assert_eq!(
+            tooltip_display_content("Left", gpui::px(40.)),
+            ("Left".to_owned(), false)
+        );
+        let (long, needs_breaks) = tooltip_display_content("longtoken", gpui::px(321.));
+        assert!(needs_breaks);
+        assert!(long.contains('\u{200b}'));
+    }
+
+    #[test]
+    fn entry_offsets_follow_the_tooltip_side() {
+        assert_eq!(entry_offset(TooltipPlacement::Top), (0.0, 4.0));
+        assert_eq!(entry_offset(TooltipPlacement::TopStart), (0.0, 4.0));
+        assert_eq!(entry_offset(TooltipPlacement::TopLeft), (0.0, 4.0));
+        assert_eq!(entry_offset(TooltipPlacement::TopEnd), (0.0, 4.0));
+        assert_eq!(entry_offset(TooltipPlacement::TopRight), (0.0, 4.0));
+        assert_eq!(entry_offset(TooltipPlacement::Bottom), (0.0, -4.0));
+        assert_eq!(entry_offset(TooltipPlacement::BottomStart), (0.0, -4.0));
+        assert_eq!(entry_offset(TooltipPlacement::BottomLeft), (0.0, -4.0));
+        assert_eq!(entry_offset(TooltipPlacement::BottomEnd), (0.0, -4.0));
+        assert_eq!(entry_offset(TooltipPlacement::BottomRight), (0.0, -4.0));
+        assert_eq!(entry_offset(TooltipPlacement::Left), (4.0, 0.0));
+        assert_eq!(entry_offset(TooltipPlacement::LeftTop), (4.0, 0.0));
+        assert_eq!(entry_offset(TooltipPlacement::LeftBottom), (4.0, 0.0));
+        assert_eq!(entry_offset(TooltipPlacement::Start), (4.0, 0.0));
+        assert_eq!(entry_offset(TooltipPlacement::StartTop), (4.0, 0.0));
+        assert_eq!(entry_offset(TooltipPlacement::StartBottom), (4.0, 0.0));
+        assert_eq!(entry_offset(TooltipPlacement::Right), (-4.0, 0.0));
+        assert_eq!(entry_offset(TooltipPlacement::RightTop), (-4.0, 0.0));
+        assert_eq!(entry_offset(TooltipPlacement::RightBottom), (-4.0, 0.0));
+        assert_eq!(entry_offset(TooltipPlacement::End), (-4.0, 0.0));
+        assert_eq!(entry_offset(TooltipPlacement::EndTop), (-4.0, 0.0));
+        assert_eq!(entry_offset(TooltipPlacement::EndBottom), (-4.0, 0.0));
+    }
+
+    #[test]
+    #[allow(clippy::float_cmp)] // the rotations are quarter-turn constants
+    fn arrow_rotations_face_the_tooltip_side() {
+        assert_eq!(arrow_rotation(TooltipPlacement::Top), 0.);
+        assert_eq!(arrow_rotation(TooltipPlacement::TopRight), 0.);
+        assert_eq!(
+            arrow_rotation(TooltipPlacement::Bottom),
+            std::f32::consts::PI
+        );
+        assert_eq!(
+            arrow_rotation(TooltipPlacement::BottomLeft),
+            std::f32::consts::PI
+        );
+        assert_eq!(
+            arrow_rotation(TooltipPlacement::Left),
+            -std::f32::consts::FRAC_PI_2
+        );
+        assert_eq!(
+            arrow_rotation(TooltipPlacement::StartBottom),
+            -std::f32::consts::FRAC_PI_2
+        );
+        assert_eq!(
+            arrow_rotation(TooltipPlacement::Right),
+            std::f32::consts::FRAC_PI_2
+        );
+        assert_eq!(
+            arrow_rotation(TooltipPlacement::EndTop),
+            std::f32::consts::FRAC_PI_2
+        );
+    }
+
+    #[test]
+    fn placement_list_includes_the_supported_aligned_edges() {
+        assert_eq!(TooltipPlacement::ALL.len(), 22);
+        for placement in [
+            TooltipPlacement::TopStart,
+            TooltipPlacement::TopLeft,
+            TooltipPlacement::TopEnd,
+            TooltipPlacement::TopRight,
+            TooltipPlacement::BottomStart,
+            TooltipPlacement::BottomLeft,
+            TooltipPlacement::BottomEnd,
+            TooltipPlacement::BottomRight,
+            TooltipPlacement::LeftTop,
+            TooltipPlacement::LeftBottom,
+            TooltipPlacement::RightTop,
+            TooltipPlacement::RightBottom,
+            TooltipPlacement::Start,
+            TooltipPlacement::StartTop,
+            TooltipPlacement::StartBottom,
+            TooltipPlacement::End,
+            TooltipPlacement::EndTop,
+            TooltipPlacement::EndBottom,
+        ] {
+            assert!(TooltipPlacement::ALL.contains(&placement));
+        }
     }
 }

@@ -84,6 +84,46 @@ fn error_updates_the_loading_toast_as_danger(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
+fn owned_promise_can_cancel_work_without_changing_queue_clear_semantics(cx: &mut TestAppContext) {
+    let (cancelled, retained, task) = cx.update(|cx| {
+        let executor = cx.background_executor().clone();
+        let (cancelled, task) = Toast::promise_task(
+            async move {
+                executor.timer(Duration::from_millis(400)).await;
+                Ok("Cancelled result".into())
+            },
+            "Owned loading",
+            cx,
+        );
+        let executor = cx.background_executor().clone();
+        let retained = Toast::promise(
+            async move {
+                executor.timer(Duration::from_millis(400)).await;
+                Ok("Retained result".into())
+            },
+            "Detached loading",
+            cx,
+        );
+        (cancelled, retained, task)
+    });
+    cx.run_until_parked();
+    drop(task);
+    assert_eq!(
+        ids(cx),
+        [retained, cancelled],
+        "cancellation leaves queue cleanup to the owner"
+    );
+    cx.update(herogpui_components::clear_toasts);
+    cx.executor().advance_clock(Duration::from_millis(400));
+    cx.run_until_parked();
+    assert_eq!(
+        titles(cx),
+        ["Retained result"],
+        "the detached promise still upserts after clear, as in HeroUI"
+    );
+}
+
+#[gpui::test]
 fn loading_stays_until_the_future_settles(cx: &mut TestAppContext) {
     let id = cx.update(|cx| {
         let executor = cx.background_executor().clone();

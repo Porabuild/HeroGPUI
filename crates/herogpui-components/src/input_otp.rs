@@ -1,8 +1,10 @@
 //! InputOTP — port of `@heroui/input-otp`.
 
+use std::{cell::Cell, rc::Rc, time::Duration};
+
 use gpui::{
-    prelude::*, px, App, Entity, FocusHandle, Focusable, IntoElement, KeyDownEvent, Pixels,
-    RenderOnce, SharedString, Styled, Window,
+    prelude::*, px, Animation, AnimationExt, AnyElement, App, Entity, FocusHandle, Focusable,
+    IntoElement, KeyDownEvent, Pixels, RenderOnce, SharedString, Styled, Window,
 };
 use herogpui_core::{element_id, FieldVariant};
 use herogpui_theme::ActiveTheme;
@@ -203,7 +205,96 @@ fn refresh_stored_validity(
     }
 }
 
-type Slot = std::sync::Arc<dyn Fn(usize, Option<char>) -> gpui::AnyElement + 'static>;
+type Slot = std::sync::Arc<dyn Fn(usize, Option<char>) -> AnyElement + 'static>;
+
+/// HeroUI's `.input-otp__slot-value` enters over 250ms with the smooth curve.
+/// GPUI's 0.3.3 public Div API does not expose a transform builder, so the
+/// portable part of that endpoint is animated here through opacity. The slot
+/// owner remains stable while the listener-free value child owns the animation,
+/// so typing a new character cannot lose the field's input path.
+const SLOT_VALUE_IN_MS: u64 = 250;
+
+#[derive(Clone)]
+struct SlotValueMotion {
+    value: Option<char>,
+    generation: usize,
+    from: f32,
+    opacity: Rc<Cell<f32>>,
+}
+
+struct SlotValueMotionFrame {
+    base: gpui::ElementId,
+    generation: usize,
+    from: f32,
+    to: f32,
+    opacity: Rc<Cell<f32>>,
+    animate: bool,
+}
+
+impl SlotValueMotionFrame {
+    fn render(self, value: gpui::Div) -> AnyElement {
+        if !self.animate {
+            self.opacity.set(self.to);
+            return value.opacity(self.to).into_any_element();
+        }
+
+        let opacity = self.opacity;
+        let from = self.from;
+        let to = self.to;
+        value
+            .with_animation(
+                element_id::indexed(&self.base, "value-in", self.generation),
+                Animation::new(Duration::from_millis(SLOT_VALUE_IN_MS))
+                    .with_easing(|t| crate::anim::Curve::Smooth.at(t)),
+                move |value, delta| {
+                    let next = from + (to - from) * delta;
+                    opacity.set(next);
+                    value.opacity(next)
+                },
+            )
+            .into_any_element()
+    }
+}
+
+fn slot_value_motion(
+    id: &gpui::ElementId,
+    value: Option<char>,
+    window: &mut Window,
+    cx: &mut App,
+) -> SlotValueMotionFrame {
+    let state = window.use_keyed_state(element_id::scoped(id, "value-motion"), cx, |_, _| {
+        let opacity = if value.is_some() { 1.0 } else { 0.0 };
+        SlotValueMotion {
+            value,
+            generation: 0,
+            from: opacity,
+            opacity: Rc::new(Cell::new(opacity)),
+        }
+    });
+    let mut current = state.read(cx).clone();
+    let target = if value.is_some() { 1.0 } else { 0.0 };
+    if current.value != value {
+        current.value = value;
+        current.generation = current.generation.wrapping_add(1);
+        current.from = current.opacity.get();
+        state.update(cx, |stored, _| *stored = current.clone());
+    }
+    if ActiveTheme::reduce_motion(cx) && (current.opacity.get() - target).abs() > f32::EPSILON {
+        current.from = target;
+        current.opacity.set(target);
+        state.update(cx, |stored, _| *stored = current.clone());
+    }
+    SlotValueMotionFrame {
+        base: id.clone(),
+        generation: current.generation,
+        from: current.from,
+        to: target,
+        opacity: current.opacity,
+        animate: current.generation != 0
+            && !ActiveTheme::reduce_motion(cx)
+            && (current.from - target).abs() > f32::EPSILON,
+    }
+}
 
 /// `textAlign` — where a digit sits inside its slot.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -326,10 +417,7 @@ impl InputOTP {
     ///
     /// The closure receives the slot's `index` and its character (`None` when
     /// empty), the values v3 passes into the same render prop.
-    pub fn slot(
-        mut self,
-        render: impl Fn(usize, Option<char>) -> gpui::AnyElement + 'static,
-    ) -> Self {
+    pub fn slot(mut self, render: impl Fn(usize, Option<char>) -> AnyElement + 'static) -> Self {
         self.slot = Some(std::sync::Arc::new(render));
         self
     }
@@ -562,8 +650,11 @@ impl RenderOnce for InputOTP {
                 .update(cx, |state, _| state.set_validity(validity.clone()));
         }
         let invalid = validity.is_invalid;
-        let colors = cx.colors();
-        let layout = cx.layout();
+        // Clone the small token records before per-slot keyed animation state
+        // borrows `cx` mutably. This keeps the render loop free to update a
+        // character's motion without holding an immutable theme borrow over it.
+        let colors = cx.colors().clone();
+        let layout = cx.layout().clone();
 
         // v3's `InputOTP` wraps the `input-otp` package, which renders one
         // real `<input>` behind the slots — `aria-placeholder`,
@@ -662,10 +753,19 @@ impl RenderOnce for InputOTP {
 
             let ch = *cell_ch;
             let is_cursor_cell = focused && i == cursor && !disabled;
+            let filled = ch != ' ';
+            // The slot carries its own id because its hover listener needs
+            // element state: gpui wires hover listeners only for elements the
+            // tree can name, and the chrome ramp below tracks hover through
+            // one. The id derives from the row's, so instances never share a
+            // timeline.
+            let slot_id = element_id::indexed(&base_id, "slot", i);
 
             let mut cell = gpui::div()
+                .id(slot_id.clone())
                 .flex()
                 .items_center()
+                .relative()
                 // `textAlign` positions the digit inside its slot.
                 .map(|c| match self.text_align {
                     OtpTextAlign::Left => c.justify_start().pl(px(6.)),
@@ -679,39 +779,100 @@ impl RenderOnce for InputOTP {
                 .line_height(px(20.))
                 .font_weight(gpui::FontWeight::SEMIBOLD);
 
-            // Every slot is filled and shadowed, empty or not -- v3 gives
-            // `.input-otp__slot` `bg-field shadow-field` with a zero-width
-            // border, and `bg-field-focus` (which resolves back to the same
-            // background) once it is active or filled. Drawing empty slots as a
-            // bare 2px outline instead made them all but invisible.
+            // Every slot is filled and shadowed, empty or not. The pinned CSS
+            // gives the slot the theme field border width/color, then changes
+            // its background by variant and active/filled state — and
+            // transitions all three chrome properties rather than swapping
+            // them, so the endpoints resolve here and the shared chrome ramp
+            // (`.input-otp__slot`, lines 28-32: `background-color 150ms
+            // var(--ease-smooth), border-color 150ms var(--ease-smooth),
+            // box-shadow 150ms var(--ease-out)`) interpolates between them.
             let slot_bg = match self.variant {
                 FieldVariant::Primary => colors.field.background,
                 FieldVariant::Secondary => colors.default.color,
             };
-            cell = cell.bg(slot_bg).text_color(colors.foreground);
-            // `--input-otp-slot-bg-hover` is `--default-hover`.
-            if !self.is_disabled {
-                let hover_bg = self.slot_hover_bg.unwrap_or(colors.default.hover());
-                cell = cell.hover(move |s| s.bg(hover_bg));
-            }
-            if self.variant == FieldVariant::Primary && !layout.field_shadow.is_empty() {
-                cell = cell.shadow(layout.field_shadow.clone());
-            }
-            if is_cursor_cell && crate::util::focus_visible(cx) {
-                // `status-focused-field` -- a 2px ring, no offset. A ring rather
-                // than a border, which would shrink the digit's box by 2px as
-                // the caret arrived. The caret below still marks a pointer
-                // caret; only a keyboard session paints the ring.
-                let base = if self.variant == FieldVariant::Primary {
-                    layout.field_shadow.clone()
+            let active_bg = match self.variant {
+                FieldVariant::Primary => colors.field.focus(),
+                FieldVariant::Secondary => colors.default.color,
+            };
+            // HeroUI's invalid rule comes after active and filled rules:
+            // every invalid slot keeps the focus background and receives
+            // the danger outline, including the keyboard-active slot — which
+            // is why the ring below is skipped once `invalid` holds.
+            let focus_ring = (!invalid && is_cursor_cell && crate::util::focus_visible(cx))
+                .then(|| crate::anim::focus_ring_endpoint(cx));
+            let idle = crate::anim::FieldChrome {
+                bg: if invalid {
+                    colors.field.focus()
+                } else if is_cursor_cell || filled {
+                    active_bg
                 } else {
-                    Vec::new()
-                };
-                cell = crate::util::with_focus_ring(cell, true, false, base, cx);
-            } else if invalid {
-                // `status-invalid-field` — a 1px danger outline.
-                cell = cell.border_1().border_color(colors.danger.color);
-            }
+                    slot_bg
+                },
+                border: if invalid {
+                    colors.danger.color
+                } else {
+                    colors.field.border
+                },
+                border_width: if invalid {
+                    layout.border_width.max(px(1.))
+                } else {
+                    layout.field_border_width
+                },
+                ring: focus_ring,
+            };
+            // `--input-otp-slot-bg-hover` is `--default-hover` for the
+            // secondary variant; primary slots use the field hover token.
+            // Active and filled slots keep their focus background while their
+            // hover border still follows the shared field token.
+            let hover_bg = self.slot_hover_bg.unwrap_or(match self.variant {
+                FieldVariant::Primary => colors.field.hover(),
+                FieldVariant::Secondary => colors.default.hover(),
+            });
+            let hovered_bg = if is_cursor_cell || filled {
+                idle.bg
+            } else {
+                hover_bg
+            };
+            let hovered = (!self.is_disabled).then(|| crate::anim::FieldChrome {
+                bg: hovered_bg,
+                border: colors.field.border_hover(),
+                border_width: idle.border_width,
+                ring: focus_ring,
+            });
+            // The settled slot chrome comes from the endpoints themselves, and
+            // the ring rides `status-focused-field` through the shared painter
+            // on top of the slot's constant field shadow — the same paint the
+            // other field parts take.
+            let base_shadows = match self.variant {
+                FieldVariant::Primary => layout.field_shadow.clone(),
+                FieldVariant::Secondary => Vec::new(),
+            };
+            cell = cell
+                .bg(idle.bg)
+                .border(idle.border_width)
+                .border_color(idle.border);
+            cell = crate::util::with_focus_ring(
+                cell,
+                focus_ring.is_some(),
+                false,
+                base_shadows.clone(),
+                cx,
+            );
+            // The ramp owns the slot's border and ring past its first flip,
+            // so the instant ones it painted above stop being cast there.
+            cell = crate::anim::field_chrome_ramp(
+                cell,
+                &slot_id,
+                idle,
+                hovered,
+                base_shadows,
+                radius,
+                false,
+                window,
+                cx,
+            );
+            cell = cell.text_color(colors.foreground);
 
             // `slot` is v3's render prop on `InputOTP.Slot`: it receives the
             // slot's `index` and its character, so a caller can draw the cell's
@@ -720,12 +881,22 @@ impl RenderOnce for InputOTP {
                 cell = cell.child(render(i, if ch == ' ' { None } else { Some(ch) }));
             } else if ch != ' ' {
                 // `.input-otp__slot-value` is `text-lg leading-6`: the digit is
-                // a step larger than the slot's own `text-sm`.
+                // a step larger than the slot's own `text-sm`. The shared
+                // motion frame covers the portable opacity part of
+                // `slot-value-in`; GPUI has no public scale/translate builder.
+                let value_motion = slot_value_motion(
+                    &element_id::indexed(&base_id, "slot-value", i),
+                    Some(ch),
+                    window,
+                    cx,
+                );
                 cell = cell.child(
-                    gpui::div()
-                        .text_size(px(18.))
-                        .line_height(px(24.))
-                        .child(ch.to_string()),
+                    value_motion.render(
+                        gpui::div()
+                            .text_size(px(18.))
+                            .line_height(px(24.))
+                            .child(ch.to_string()),
+                    ),
                 );
             } else if is_cursor_cell {
                 // v3's `@keyframes caret-blink`.
@@ -733,6 +904,13 @@ impl RenderOnce for InputOTP {
                     // `.input-otp__caret` is `h-4 w-[2px] rounded-sm
                     // bg-field-placeholder`.
                     gpui::div()
+                        .absolute()
+                        .left(match self.text_align {
+                            OtpTextAlign::Left => px(6.),
+                            OtpTextAlign::Center => px(18.),
+                            OtpTextAlign::Right => px(30.),
+                        })
+                        .top(px(12.))
                         .w(px(2.))
                         .h(px(16.))
                         .rounded(crate::util::hairline_radius(cx))
@@ -924,17 +1102,18 @@ impl RenderOnce for InputOTP {
         // A field that can be invalid has to be able to say why — every
         // message, space-joined in upstream order (React Aria's `FieldError`
         // default), not just the first.
-        match validity.messages.is_empty() {
-            true => crate::util::apply_sx(row, &self.sx).into_any_element(),
-            false => {
-                let el = gpui::div()
-                    .flex()
-                    .flex_col()
-                    .gap(px(6.))
-                    .child(row)
-                    .child(crate::field::ErrorMessage::new(validity.joined()));
-                crate::util::apply_sx(el, &self.sx).into_any_element()
-            }
+        let error = (!validity.messages.is_empty()).then(|| validity.joined().into());
+        let error_panel = crate::anim::field_error_panel(&base_id, error, window, cx);
+        if let Some(error_panel) = error_panel {
+            let el = gpui::div()
+                .flex()
+                .flex_col()
+                .gap(px(6.))
+                .child(row)
+                .child(error_panel);
+            crate::util::apply_sx(el, &self.sx).into_any_element()
+        } else {
+            crate::util::apply_sx(row, &self.sx).into_any_element()
         }
     }
 }
@@ -969,5 +1148,30 @@ mod tests {
         assert!(OtpPattern::Any.accepts(' '));
         assert!(!OtpPattern::Any.accepts('\n'));
         assert!(!OtpPattern::Any.accepts('\t'));
+    }
+
+    #[test]
+    fn slot_visual_contract_keeps_pinned_state_precedence() {
+        let source = include_str!("input_otp.rs")
+            .split("#[cfg(test)]")
+            .next()
+            .expect("the implementation section is always present");
+        assert!(source.contains("const SLOT_VALUE_IN_MS: u64 = 250"));
+        // The chrome endpoints resolve in pinned precedence — invalid over
+        // active/filled over resting — and the shared ramp interpolates them:
+        // `.input-otp__slot` transitions `background-color 150ms
+        // var(--ease-smooth), border-color 150ms var(--ease-smooth),
+        // box-shadow 150ms var(--ease-out)`, snapped by
+        // `motion-reduce:transition-none`.
+        assert!(source.contains("crate::anim::field_chrome_ramp("));
+        assert!(source.contains("colors.field.focus()"));
+        assert!(source.contains("colors.danger.color"));
+        assert!(source.contains("layout.border_width.max(px(1.))"));
+        assert!(source.contains("layout.field_border_width"));
+        assert!(source.contains("colors.field.border_hover()"));
+        assert!(source.contains("crate::anim::focus_ring_endpoint(cx)"));
+        assert!(source.contains(".absolute()"));
+        assert!(source.contains(".top(px(12.))"));
+        assert!(source.contains("value-in"));
     }
 }

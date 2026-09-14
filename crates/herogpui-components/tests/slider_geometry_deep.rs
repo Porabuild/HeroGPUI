@@ -443,7 +443,9 @@ fn md_sx_corners_reach_inner_mark_and_clipped_caps(cx: &mut TestAppContext) {
             };
             assert_painted_corners(inner, scale, expected);
             for at_start in [false, true] {
-                let length = if rounding == 0 { 12. } else { 20. };
+                // The cap paints a square footprint under its clipped 12px
+                // coverage so the 20px rail can retain a 10px radius.
+                let length = 20.;
                 let offset = if vertical == at_start {
                     (if vertical { 160. } else { 600. }) - length
                 } else {
@@ -477,7 +479,7 @@ fn md_sx_corners_reach_inner_mark_and_clipped_caps(cx: &mut TestAppContext) {
                     (true, false) => [0, 1],
                 };
                 for index in indices {
-                    expected[index] = if rounding == 1 {
+                    expected[index] = if rounding == 0 || rounding == 1 {
                         10.
                     } else if rounding == 2 && index == 0 {
                         3.

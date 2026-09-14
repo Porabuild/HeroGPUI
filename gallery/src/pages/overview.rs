@@ -53,7 +53,7 @@ impl Gallery {
                 .iter()
                 .any(|page| !page.import_line().is_empty())
         }) {
-            if !crate::control::section_wanted(section.title, cx) {
+            if !crate::control::include_section(section.title, cx) {
                 continue;
             }
             let mut cards: Vec<AnyElement> = section

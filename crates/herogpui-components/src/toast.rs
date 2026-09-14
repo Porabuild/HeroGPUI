@@ -7,13 +7,15 @@
 //! v3 names the colour prop `variant`, and its values are the semantic colour
 //! roles, so [`Color`] is the variant type here.
 
+use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::future::Future;
+use std::rc::Rc;
 use std::time::Duration;
 
 use gpui::{
-    prelude::*, px, App, ElementId, Entity, Global, IntoElement, Keystroke, Pixels, RenderOnce,
-    SharedString, Styled, Subscription, Window,
+    prelude::*, px, AnimationExt, AnyElement, App, ElementId, Entity, Global, IntoElement,
+    Keystroke, Pixels, RenderOnce, SharedString, Styled, Subscription, Window,
 };
 use herogpui_core::{element_id, Color};
 use herogpui_theme::ActiveTheme;
@@ -118,6 +120,100 @@ impl ToastPlacement {
 /// What a toast's action button, or its `onClose`, runs.
 pub type ToastHandler = std::sync::Arc<dyn Fn(&mut App) + 'static>;
 
+/// Toast's placement translation and opacity use separate CSS timelines in
+/// HeroUI. Keep the card itself stable and put the opacity animation inside a
+/// small wrapper so a 150ms fade does not shorten the 350ms edge translation.
+fn toast_entering<E>(
+    el: E,
+    id: impl Into<ElementId>,
+    edge: crate::anim::Edge,
+    travel: Pixels,
+    motion: crate::anim::Motion,
+    cx: &App,
+) -> AnyElement
+where
+    E: IntoElement + Styled + 'static,
+{
+    if ActiveTheme::reduce_motion(cx) {
+        return el.into_any_element();
+    }
+    let id = id.into();
+    let opacity = el.with_animation(
+        element_id::scoped(&id, "opacity"),
+        gpui::Animation::new(Duration::from_millis(crate::anim::TOAST_OPACITY_MS))
+            .with_easing(move |t| motion.curve.at(t)),
+        |el, delta| el.opacity(delta),
+    );
+    gpui::div()
+        .child(opacity)
+        .with_animation(
+            element_id::scoped(&id, "slide"),
+            gpui::Animation::new(Duration::from_millis(motion.ms))
+                .with_easing(move |t| motion.curve.at(t)),
+            move |el, delta| {
+                let remaining = travel * (1.0 - delta);
+                match edge {
+                    crate::anim::Edge::Left => el.ml(-remaining),
+                    crate::anim::Edge::Right => el.mr(-remaining),
+                    crate::anim::Edge::Top => el.mt(-remaining),
+                    crate::anim::Edge::Bottom => el.mb(-remaining),
+                }
+            },
+        )
+        .into_any_element()
+}
+
+/// Frontmost Toast exit: the card fades on the 150ms opacity track while its
+/// placement translation continues for the full 350ms motion.
+fn toast_exiting<E>(
+    el: E,
+    id: impl Into<ElementId>,
+    edge: crate::anim::Edge,
+    travel: Pixels,
+    motion: crate::anim::Motion,
+    cx: &App,
+) -> AnyElement
+where
+    E: IntoElement + Styled + 'static,
+{
+    if ActiveTheme::reduce_motion(cx) {
+        return el.into_any_element();
+    }
+    let id = id.into();
+    let opacity = el.with_animation(
+        element_id::scoped(&id, "opacity"),
+        gpui::Animation::new(Duration::from_millis(crate::anim::TOAST_OPACITY_MS))
+            .with_easing(move |t| motion.curve.at(t)),
+        |el, delta| el.opacity(1.0 - delta),
+    );
+    gpui::div()
+        .child(opacity)
+        .with_animation(
+            element_id::scoped(&id, "slide"),
+            gpui::Animation::new(Duration::from_millis(motion.ms))
+                .with_easing(move |t| motion.curve.at(t)),
+            move |el, delta| {
+                let gone = travel * delta;
+                match edge {
+                    crate::anim::Edge::Left => el.ml(-gone),
+                    crate::anim::Edge::Right => el.mr(-gone),
+                    crate::anim::Edge::Top => el.mt(-gone),
+                    crate::anim::Edge::Bottom => el.mb(-gone),
+                }
+            },
+        )
+        .into_any_element()
+}
+
+/// Caller-owned content for `Toast.Indicator`.
+///
+/// Toasts are queued and cloned while they remain mounted, so the content is
+/// represented as a small render factory rather than a one-shot `AnyElement`.
+/// The factory receives the live app context and must return a fresh element
+/// for each render; the surrounding indicator box still owns the pinned 4px
+/// inset and 16px content footprint.
+pub type ToastIndicatorContent = Rc<dyn Fn(&mut App) -> AnyElement + 'static>;
+
 /// One toast's data.
 #[derive(Clone)]
 pub struct ToastData {
@@ -132,6 +228,9 @@ pub struct ToastData {
     /// glyph, and `indicator={null}` hides it. `indicator_set` is which of the
     /// two an empty `indicator` means.
     pub indicator: Option<SharedString>,
+    /// Optional caller-owned indicator render factory. This takes precedence
+    /// over the path/default glyph while preserving the shared indicator box.
+    pub indicator_content: Option<ToastIndicatorContent>,
     pub indicator_set: bool,
     /// `isLoading` — a spinner stands in for the indicator.
     pub is_loading: bool,
@@ -172,6 +271,7 @@ pub struct ToastStore {
     /// Dismissed cards still mounted for [`Self::exit_duration`].
     exiting: Vec<ToastData>,
     exit_generations: HashMap<u64, u64>,
+    exit_frontmost: HashSet<u64>,
     next_exit_generation: u64,
     /// `exitDuration` on `Toast.Provider`, synced from the viewport.
     exit_duration: Duration,
@@ -194,6 +294,7 @@ impl ToastStore {
             reported: HashSet::new(),
             exiting: Vec::new(),
             exit_generations: HashMap::new(),
+            exit_frontmost: HashSet::new(),
             next_exit_generation: 1,
             exit_duration: DEFAULT_TOAST_EXIT_DURATION,
             hotkey: DEFAULT_TOAST_HOTKEY,
@@ -286,12 +387,13 @@ impl ToastStore {
             } else {
                 None
             };
+            let was_frontmost = store.toasts.first().is_some_and(|toast| toast.id == id);
             let data = store.toasts.iter().find(|toast| toast.id == id).cloned();
             store.dismiss(id);
             let exit = if skip_exit || store.exit_duration.is_zero() {
                 None
             } else {
-                data.and_then(|toast| store.begin_exit(toast))
+                data.and_then(|toast| store.begin_exit(toast, was_frontmost))
             };
             cx.notify();
             (callback, exit)
@@ -323,6 +425,7 @@ impl ToastStore {
         self.timer_generations.clear();
         self.exiting.clear();
         self.exit_generations.clear();
+        self.exit_frontmost.clear();
     }
 
     /// The `onClose` of the toast with this id, so a caller closing a toast runs
@@ -350,10 +453,19 @@ impl ToastStore {
         self.timer_generations.remove(&id);
     }
 
-    fn begin_exit(&mut self, toast: ToastData) -> Option<(u64, u64, Duration)> {
+    fn begin_exit(
+        &mut self,
+        toast: ToastData,
+        was_frontmost: bool,
+    ) -> Option<(u64, u64, Duration)> {
         let id = toast.id;
         self.exiting.retain(|existing| existing.id != id);
         self.exiting.push(toast);
+        if was_frontmost {
+            self.exit_frontmost.insert(id);
+        } else {
+            self.exit_frontmost.remove(&id);
+        }
         let generation = self.next_exit_generation;
         self.next_exit_generation = self.next_exit_generation.saturating_add(1);
         self.exit_generations.insert(id, generation);
@@ -414,6 +526,7 @@ pub struct Toast {
     description: Option<SharedString>,
     closable: bool,
     indicator: Option<SharedString>,
+    indicator_content: Option<ToastIndicatorContent>,
     indicator_set: bool,
     is_loading: bool,
     action: Option<(SharedString, ToastHandler)>,
@@ -438,6 +551,7 @@ impl Toast {
             description: None,
             closable: true,
             indicator: None,
+            indicator_content: None,
             indicator_set: false,
             is_loading: false,
             action: None,
@@ -477,6 +591,21 @@ impl Toast {
     /// `indicator={null}`.
     pub fn indicator(mut self, icon: impl Into<Option<SharedString>>) -> Self {
         self.indicator = icon.into();
+        self.indicator_content = None;
+        self.indicator_set = true;
+        self
+    }
+
+    /// Replaces the variant glyph with caller-owned content while retaining
+    /// HeroUI's shared indicator box. The closure runs for each mounted-card
+    /// render, which keeps queued and exiting toasts cloneable and lets the
+    /// content read the live theme through `App`.
+    pub fn indicator_content<E, F>(mut self, render: F) -> Self
+    where
+        E: IntoElement + 'static,
+        F: Fn(&mut App) -> E + 'static,
+    {
+        self.indicator_content = Some(Rc::new(move |cx| render(cx).into_any_element()));
         self.indicator_set = true;
         self
     }
@@ -566,6 +695,7 @@ impl Toast {
                 description: self.description.clone(),
                 closable: self.closable,
                 indicator: self.indicator.clone(),
+                indicator_content: self.indicator_content.clone(),
                 indicator_set: self.indicator_set,
                 is_loading: self.is_loading,
                 action: self.action.clone(),
@@ -607,6 +737,7 @@ impl Toast {
             existing.description = self.description.clone();
             existing.closable = self.closable;
             existing.indicator = self.indicator.clone();
+            existing.indicator_content = self.indicator_content.clone();
             existing.indicator_set = self.indicator_set;
             existing.is_loading = self.is_loading;
             existing.action = self.action.clone();
@@ -649,8 +780,22 @@ impl Toast {
         loading: impl Into<SharedString>,
         cx: &mut App,
     ) -> u64 {
+        let (id, task) = Self::promise_task(future, loading, cx);
+        task.detach();
+        id
+    }
+
+    /// A GPUI-owned version of [`Self::promise`], returning its completion task.
+    /// Keep the task alive, or detach it, to publish the settled result. Dropping
+    /// it cancels pending work but leaves the loading toast for the owner to
+    /// dismiss or clear. A result already published is unaffected.
+    pub fn promise_task(
+        future: impl Future<Output = Result<SharedString, SharedString>> + 'static,
+        loading: impl Into<SharedString>,
+        cx: &mut App,
+    ) -> (u64, gpui::Task<()>) {
         let id = Self::loading(loading).push(None, cx);
-        cx.spawn(async move |cx: &mut gpui::AsyncApp| {
+        let task = cx.spawn(async move |cx: &mut gpui::AsyncApp| {
             let result = future.await;
             cx.update(|cx| match result {
                 Ok(title) => {
@@ -664,9 +809,8 @@ impl Toast {
                         .update(id, cx);
                 }
             });
-        })
-        .detach();
-        id
+        });
+        (id, task)
     }
 }
 
@@ -692,6 +836,7 @@ fn start_exit_timer(
             }
             s.exiting.retain(|toast| toast.id != id);
             s.exit_generations.remove(&id);
+            s.exit_frontmost.remove(&id);
             cx.notify();
         });
     })
@@ -907,12 +1052,16 @@ impl Default for ToastViewport {
 impl RenderOnce for ToastViewport {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let store = cx.try_global::<ToastHub>().map(|hub| hub.store.clone());
-        let (mut toasts, exiting) = match store.as_ref() {
+        let (mut toasts, exiting, exiting_frontmost) = match store.as_ref() {
             Some(store) => {
                 let snap = store.read(cx);
-                (snap.toasts().to_vec(), snap.exiting().to_vec())
+                (
+                    snap.toasts().to_vec(),
+                    snap.exiting().to_vec(),
+                    snap.exit_frontmost.clone(),
+                )
             }
-            None => (Vec::new(), Vec::new()),
+            None => (Vec::new(), Vec::new(), HashSet::new()),
         };
 
         let region_id = self
@@ -927,6 +1076,16 @@ impl RenderOnce for ToastViewport {
             })
             .read(cx)
             .clone();
+        // HeroUI measures every mounted card and uses those heights for both
+        // the expanded offsets and the collapsed front-height overlap. Keep
+        // the cache in a keyed slot so a rerender of the viewport or a queue
+        // update does not throw away measurements that still belong to the
+        // same toast ids.
+        let measured_height_state =
+            window.use_keyed_state(element_id::scoped(&region_id, "heights"), cx, |_, _| {
+                Rc::new(RefCell::new(HashMap::<u64, Pixels>::new()))
+            });
+        let measured_heights = measured_height_state.read(cx).clone();
         let _hotkey_sub =
             window.use_keyed_state(element_id::scoped(&region_id, "hotkey"), cx, |_, cx| {
                 let focus = region_focus.clone();
@@ -952,6 +1111,18 @@ impl RenderOnce for ToastViewport {
         } else {
             Vec::new()
         };
+        // Toast ids are monotonic, so retaining every measured height would
+        // make a long-lived viewport grow forever. Keep measurements only for
+        // cards that are still mounted, including cards in their exit lifetime.
+        let live_ids: HashSet<u64> = toasts
+            .iter()
+            .chain(hidden.iter())
+            .chain(exiting.iter())
+            .map(|toast| toast.id)
+            .collect();
+        measured_heights
+            .borrow_mut()
+            .retain(|id, _| live_ids.contains(id));
         let active_count = toasts.len();
         let pointer_within = *pointer_state.read(cx);
         let focus_within = region_focus.contains_focused(window, cx);
@@ -976,13 +1147,52 @@ impl RenderOnce for ToastViewport {
         } else {
             px(0.)
         };
+        // HeroUI keeps a 16px inline inset and switches to
+        // `calc(100vw - 2rem)` below its small breakpoint. GPUI has no media
+        // query breakpoint here, so clamp the configured desktop width to the
+        // live viewport on every platform. This prevents a 460px toast from
+        // escaping a narrow native or browser window while preserving the
+        // configured width whenever the viewport has room.
+        let width = px(f32::from(self.width)
+            .min((f32::from(window.viewport_size().width) - f32::from(self.inset) * 2.0).max(1.0)));
+        let front_height = toasts
+            .first()
+            .and_then(|toast| measured_heights.borrow().get(&toast.id).copied())
+            .unwrap_or(px(0.));
+        let have_all_heights = active_count > 0
+            && front_height > px(0.)
+            && (!expanded
+                || toasts
+                    .iter()
+                    .all(|toast| measured_heights.borrow().contains_key(&toast.id)));
+        let stack_absolute = have_all_heights;
+        let expanded_height = if expanded {
+            let content_height = toasts.iter().fold(0.0, |height, toast| {
+                height
+                    + measured_heights
+                        .borrow()
+                        .get(&toast.id)
+                        .map_or(0.0, |value| f32::from(*value))
+            });
+            px(content_height + f32::from(self.gap) * active_count.saturating_sub(1) as f32)
+        } else {
+            px(f32::from(front_height)
+                + f32::from(self.gap) * active_count.saturating_sub(1) as f32)
+        };
         let mut region = gpui::div()
             .id(region_id)
             .track_focus(&region_focus)
-            .absolute()
-            .flex()
-            .flex_col()
-            .gap(stack_gap)
+            .absolute();
+        if stack_absolute {
+            // The absolute region itself is already a positioned containing
+            // block for its absolute card slots. Calling `.relative()` here
+            // would replace the placement's absolute positioning and detach
+            // the whole stack from the window edge.
+            region = region.h(expanded_height);
+        } else {
+            region = region.flex().flex_col().gap(stack_gap);
+        }
+        region = region
             .on_hover({
                 let pointer_state = pointer_state.clone();
                 move |over, window, cx| {
@@ -1017,8 +1227,22 @@ impl RenderOnce for ToastViewport {
         };
 
         region = match self.placement {
-            ToastPlacement::TopStart | ToastPlacement::BottomStart => region.left(self.inset),
-            ToastPlacement::TopEnd | ToastPlacement::BottomEnd => region.right(self.inset),
+            ToastPlacement::TopStart | ToastPlacement::BottomStart => {
+                let region = region.left(self.inset);
+                if stack_absolute {
+                    region.w(width)
+                } else {
+                    region
+                }
+            }
+            ToastPlacement::TopEnd | ToastPlacement::BottomEnd => {
+                let region = region.right(self.inset);
+                if stack_absolute {
+                    region.w(width)
+                } else {
+                    region
+                }
+            }
             // Centred placements stretch and centre their children.
             ToastPlacement::Top | ToastPlacement::Bottom => {
                 region.left_0().right_0().items_center()
@@ -1028,30 +1252,75 @@ impl RenderOnce for ToastViewport {
         // Pinned React Stately unshifts new entries, so index zero is the
         // frontmost toast. A bottom stack draws it last so it sits nearest the
         // edge; a top stack draws it first. Either way its depth stays zero.
-        let width = self.width;
         let scale = self.scale_factor;
         let peek = self.gap;
         let top = self.placement.is_top();
         let visible_len = toasts.len();
-        if !top {
-            toasts.reverse();
-        }
         let last = visible_len.saturating_sub(1);
         let n = active_count + hidden.len();
-        let visible_cards = toasts.into_iter().enumerate().map(move |(i, t)| {
-            let depth = if top { i } else { last - i };
-            ToastCardEl {
+        let align_end = matches!(
+            self.placement,
+            ToastPlacement::TopEnd | ToastPlacement::BottomEnd
+        );
+        let align_center = matches!(self.placement, ToastPlacement::Top | ToastPlacement::Bottom);
+        let mut specs: Vec<(ToastData, usize, Pixels)> = Vec::with_capacity(visible_len);
+        if stack_absolute {
+            // Paint older cards first so the newest/frontmost card owns the
+            // overlap and its controls remain on top in both top and bottom
+            // placements. The source queue stays newest-first for state and
+            // callback semantics; only paint order is reversed here.
+            let mut offset = 0.0;
+            for (depth, toast) in toasts.into_iter().enumerate() {
+                specs.push((toast.clone(), depth, px(offset)));
+                if expanded {
+                    offset += measured_heights
+                        .borrow()
+                        .get(&toast.id)
+                        .map_or(0.0, |value| f32::from(*value))
+                        + f32::from(peek);
+                } else {
+                    offset = f32::from(peek) * (depth + 1) as f32;
+                }
+            }
+            specs.reverse();
+        } else {
+            if !top {
+                toasts.reverse();
+            }
+            for (i, toast) in toasts.into_iter().enumerate() {
+                let depth = if top { i } else { last - i };
+                specs.push((toast, depth, px(0.)));
+            }
+        }
+        let visible_heights = measured_heights.clone();
+        let visible_height_state = measured_height_state.clone();
+        let visible_cards = specs
+            .into_iter()
+            .map(move |(t, depth, offset)| ToastCardEl {
                 t,
                 width,
-                depth: if expanded { 0 } else { depth },
+                depth: if expanded && !stack_absolute {
+                    0
+                } else {
+                    depth
+                },
                 scale_factor: scale,
                 frontmost: depth == 0,
                 expanded,
                 hidden: false,
                 exiting: false,
                 peek,
-            }
-        });
+                stack_absolute,
+                stack_offset: offset,
+                front_height,
+                stack_top: top,
+                align_end,
+                align_center,
+                measured_heights: visible_heights.clone(),
+                height_state: visible_height_state.clone(),
+            });
+        let hidden_heights = measured_heights.clone();
+        let hidden_height_state = measured_height_state.clone();
         let hidden_cards = hidden.into_iter().map(move |t| ToastCardEl {
             t,
             width,
@@ -1062,17 +1331,38 @@ impl RenderOnce for ToastViewport {
             hidden: true,
             exiting: false,
             peek,
+            stack_absolute,
+            stack_offset: px(0.),
+            front_height,
+            stack_top: top,
+            align_end,
+            align_center,
+            measured_heights: hidden_heights.clone(),
+            height_state: hidden_height_state.clone(),
         });
-        let exiting_cards = exiting.into_iter().map(move |t| ToastCardEl {
-            t,
-            width,
-            depth: 0,
-            scale_factor: scale,
-            frontmost: false,
-            expanded,
-            hidden: false,
-            exiting: true,
-            peek,
+        let exiting_heights = measured_heights;
+        let exiting_height_state = measured_height_state;
+        let exiting_cards = exiting.into_iter().map(move |t| {
+            let frontmost = exiting_frontmost.contains(&t.id);
+            ToastCardEl {
+                t,
+                width,
+                depth: 0,
+                scale_factor: scale,
+                frontmost,
+                expanded,
+                hidden: false,
+                exiting: true,
+                peek,
+                stack_absolute,
+                stack_offset: px(0.),
+                front_height,
+                stack_top: top,
+                align_end,
+                align_center,
+                measured_heights: exiting_heights.clone(),
+                height_state: exiting_height_state.clone(),
+            }
         });
         let region = region
             .children(visible_cards)
@@ -1105,6 +1395,20 @@ struct ToastCardEl {
     hidden: bool,
     exiting: bool,
     peek: Pixels,
+    stack_absolute: bool,
+    stack_offset: Pixels,
+    front_height: Pixels,
+    stack_top: bool,
+    align_end: bool,
+    align_center: bool,
+    measured_heights: Rc<RefCell<HashMap<u64, Pixels>>>,
+    height_state: Entity<Rc<RefCell<HashMap<u64, Pixels>>>>,
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+struct ToastCloseMotion {
+    visible: bool,
+    generation: usize,
 }
 
 impl RenderOnce for ToastCardEl {
@@ -1128,6 +1432,36 @@ impl RenderOnce for ToastCardEl {
         } else {
             None
         };
+        let close_hovered =
+            window.use_keyed_state(element_id::scoped(&base_id, "close-hovered"), cx, |_, _| {
+                false
+            });
+        let close_motion =
+            window.use_keyed_state(element_id::scoped(&base_id, "close-motion"), cx, |_, _| {
+                ToastCloseMotion::default()
+            });
+        let close_focused = close_focus
+            .as_ref()
+            .is_some_and(|focus| focus.is_focused(window));
+        let close_target = interactive && (*close_hovered.read(cx) || close_focused);
+        let mut close_frame = *close_motion.read(cx);
+        if close_frame.visible != close_target {
+            close_frame.visible = close_target;
+            close_frame.generation = close_frame.generation.wrapping_add(1);
+            close_motion.update(cx, |current, _| *current = close_frame);
+        }
+        let close_visible = close_frame.visible;
+        // Build caller-owned indicator content before borrowing theme colors;
+        // the render factory needs a mutable `App` while the card uses the
+        // immutable color snapshot for every following slot.
+        let custom_indicator = if self.t.is_loading {
+            None
+        } else {
+            self.t
+                .indicator_content
+                .as_ref()
+                .map(|render_indicator| render_indicator(cx))
+        };
         let colors = cx.colors();
         let sem = cx.role(self.t.color);
         let title_color = match self.t.color {
@@ -1143,17 +1477,14 @@ impl RenderOnce for ToastCardEl {
             }
         };
 
-        // The card's entry zoom interpolates the card's own radius, so one
-        // binding feeds both the painted shape and the animation.
+        // The card owns its resting radius; Toast's pinned motion translates
+        // the whole card from the placement edge instead of scaling its
+        // rounded chrome.
         let radius = self
             .t
             .radius
             .unwrap_or_else(|| crate::util::container_radius(cx));
-        // The padding pair is read off the data here for the same reason: the
-        // resting card's chain consumes it and so does the entry zoom below.
-        // Under reduced motion `entering_zoom` returns the element untouched,
-        // so the chain is then the only consumer — the override still reaches
-        // the resting card on every motion path.
+        // The padding pair remains caller-owned geometry on every motion path.
         let panel_padding_y = self.t.padding.unwrap_or(px(12.));
         let panel_padding_x = self.t.padding.unwrap_or(px(16.));
         // Each step back shrinks the card by `scale_factor`, expressed as a
@@ -1161,20 +1492,38 @@ impl RenderOnce for ToastCardEl {
         // full width (`--toast-scale: 1`).
         let shrink = (1.0 - self.scale_factor * self.depth as f32).clamp(0.5, 1.0);
         let width = px(f32::from(self.width) * shrink);
-        let mut card = gpui::div()
-            // `toast/toast.js` renders RAC's `UNSTABLE_Toast`, whose props come
-            // from `react-aria/dist/private/toast/useToast.js`: the card is
-            // `role="alertdialog"` with `aria-modal="false"`, named by its
-            // title and described by its description. The `aria-modal` half
-            // and the inner `role="alert"` content node are recorded omissions
-            // in `crate::a11y` — the first has no gpui builder and no AccessKit
-            // field, the second exists only to make a live announcement gpui
-            // cannot make.
+        let should_measure = !self.hidden && !self.exiting && (self.frontmost || self.expanded);
+        // `toast/toast.js` renders RAC's `UNSTABLE_Toast`, whose props come
+        // from `react-aria/dist/private/toast/useToast.js`: the card is
+        // `role="alertdialog"` with `aria-modal="false"`, named by its
+        // title and described by its description. The `aria-modal` half
+        // and the inner `role="alert"` content node are recorded omissions
+        // in `crate::a11y` — the first has no gpui builder and no AccessKit
+        // field, the second exists only to make a live announcement gpui
+        // cannot make.
+        let mut card = gpui::div();
+        if should_measure {
+            let measured_heights = self.measured_heights.clone();
+            let height_state = self.height_state.clone();
+            let toast_id = self.t.id;
+            card = card.on_children_prepainted(move |bounds, _, cx| {
+                let content_height = bounds
+                    .iter()
+                    .map(|bound| f32::from(bound.size.height))
+                    .fold(0.0, f32::max);
+                let next = px(content_height + f32::from(panel_padding_y) * 2.0);
+                let mut heights = measured_heights.borrow_mut();
+                if heights.get(&toast_id).copied() != Some(next) {
+                    heights.insert(toast_id, next);
+                    height_state.update(cx, |_, cx| cx.notify());
+                }
+            });
+        }
+        let mut card = card
             .id(base_id.clone())
             .a11y_named(
                 a11y::Role::AlertDialog,
-                &a11y::Name::labelled(self.t.title.clone())
-                    .described(self.t.description.clone()),
+                &a11y::Name::labelled(self.t.title.clone()).described(self.t.description.clone()),
             )
             .w(width)
             .flex()
@@ -1182,22 +1531,45 @@ impl RenderOnce for ToastCardEl {
             .gap(px(6.))
             .px(panel_padding_x)
             .py(panel_padding_y)
+            .relative()
             .rounded(radius)
             .bg(colors.surface.background)
             .text_color(colors.overlay.foreground)
             .when(!cx.layout().overlay_shadow.is_empty(), |c| {
                 c.shadow(cx.layout().overlay_shadow.clone())
-            })
-            .overflow_hidden();
+            });
+        if interactive {
+            let close_hovered = close_hovered.clone();
+            card = card.on_hover(move |over, window, cx| {
+                close_hovered.update(cx, |held, cx| {
+                    if *held != *over {
+                        *held = *over;
+                        cx.notify();
+                    }
+                });
+                window.refresh();
+            });
+        }
         if self.hidden {
             // `data-hidden`: stay in the tree at zero opacity, out of flow
             // so overflow does not move the frontmost close target.
-            card = card.absolute().w(px(0.)).h(px(0.)).opacity(0.);
+            card = card
+                .when(!self.stack_absolute, |card| card.absolute())
+                .w(px(0.))
+                .h(px(0.))
+                .opacity(0.);
         } else if collapsed_behind {
             // Collapsed non-front: Sonner-style peek. GPUI cannot measure
-            // the front card's height, so the sliver is the region gap.
-            card = card.h(self.peek);
-        } else if self.exiting {
+            // the front card's height until the first laid-out frame; once it
+            // is known, every collapsed card owns that same height and its
+            // absolute offset exposes only the pinned gap between entries.
+            let collapsed_height = if self.stack_absolute {
+                self.front_height
+            } else {
+                self.peek
+            };
+            card = card.h(collapsed_height).overflow_hidden();
+        } else if self.exiting && !self.stack_absolute {
             card = card.absolute();
         }
 
@@ -1216,6 +1588,17 @@ impl RenderOnce for ToastCardEl {
                             .size(herogpui_core::Size::Sm)
                             .current_color(indicator_color),
                     ),
+            );
+        } else if let Some(custom_indicator) = custom_indicator {
+            card = card.child(
+                gpui::div()
+                    .flex()
+                    .flex_shrink_0()
+                    .items_center()
+                    .justify_center()
+                    .p(px(4.))
+                    .when(collapsed_behind, |c| c.opacity(0.))
+                    .child(custom_indicator),
             );
         } else if let Some(icon) = self.t.indicator.clone().or_else(|| {
             // Not set at all means the variant's own glyph; set to nothing
@@ -1258,7 +1641,10 @@ impl RenderOnce for ToastCardEl {
                 .line_height(px(20.))
                 .font_weight(gpui::FontWeight::MEDIUM)
                 .text_color(title_color)
-                .truncate()
+                // HeroUI's title slot has no truncation utility. Let a long
+                // notification grow naturally inside the width-constrained
+                // content column, just like the description beneath it.
+                .whitespace_normal()
                 .child(self.t.title.to_string()),
         );
         if let Some(desc) = &self.t.description {
@@ -1293,27 +1679,42 @@ impl RenderOnce for ToastCardEl {
 
         if self.t.closable {
             let id = self.t.id;
+            let hover_bg = self.t.close_hover_bg.unwrap_or(colors.default.color);
+            let radius = crate::util::small_radius(cx);
             let mut close_btn = gpui::div()
                 .id(element_id::scoped(&base_id, "close"))
                 .flex()
                 .items_center()
                 .justify_center()
-                // `.toast__close-button` is `size-5` with `sm:border
-                // border-border sm:bg-overlay`, and its icon follows the close
-                // button's own `size-3`.
+                // `.toast__close-button` is `absolute -end-1 -top-1 size-5`
+                // with `sm:border border-border sm:bg-overlay`, and its icon
+                // follows the close button's own `size-3`. Keeping it out of
+                // the flex row preserves the title/action width and lets the
+                // rounded card own only its content geometry.
                 .size(px(20.))
-                .border(cx.layout().border_width)
-                .border_color(colors.border)
-                .bg(colors.overlay.background)
-                .rounded(crate::util::small_radius(cx));
+                .absolute()
+                .top(px(-4.))
+                .right(px(-4.))
+                // The focus ring belongs to this stable 20px hit target, not
+                // only to its animated child surface. Keep the radius here so
+                // keyboard focus cannot turn into a square outline.
+                .rounded(radius);
             if interactive {
                 close_btn = crate::util::cursor_interactive(close_btn, cx);
                 // `.toast__close-button:hover` fills with `bg-default` --
                 // the full token, overriding the composed CloseButton's own
                 // `--default-hover` refinement.
-                let hover_bg = self.t.close_hover_bg.unwrap_or(colors.default.color);
-                close_btn = close_btn.hover(move |s| s.bg(hover_bg));
-                close_btn = close_btn.on_click(move |_, _, cx| dismiss_toast(id, cx));
+                let close_hovered_for_click = close_hovered;
+                let close_focus_for_click = close_focus.clone();
+                close_btn = close_btn.on_click(move |_, window, cx| {
+                    let visible = *close_hovered_for_click.read(cx)
+                        || close_focus_for_click
+                            .as_ref()
+                            .is_some_and(|focus| focus.is_focused(window));
+                    if visible {
+                        dismiss_toast(id, cx);
+                    }
+                });
                 // A keyboard tab stop that rings on focus-visible — gpui builds
                 // its tab order from `track_focus` handles, and the Enter/Space
                 // activation fires the click listener above on its own.
@@ -1333,35 +1734,125 @@ impl RenderOnce for ToastCardEl {
                 // the front toast.
                 close_btn = close_btn.opacity(0.);
             }
-            card = card.child(
-                close_btn.child(
+            let close_visual = gpui::div()
+                .absolute()
+                .inset_0()
+                .flex()
+                .items_center()
+                .justify_center()
+                .border(cx.layout().border_width)
+                .border_color(colors.border)
+                .bg(colors.overlay.background)
+                .rounded(radius)
+                .hover(move |s| s.bg(hover_bg))
+                .child(
                     gpui::svg()
                         .size(px(12.))
                         .path(icons::CLOSE)
                         .text_color(colors.muted),
-                ),
-            );
+                );
+            let close_visual: AnyElement = if close_frame.generation > 0
+                && !ActiveTheme::reduce_motion(cx)
+            {
+                let visible = close_visible;
+                let from = if visible { 0.0 } else { 1.0 };
+                let to = if visible { 1.0 } else { 0.0 };
+                close_visual
+                    .with_animation(
+                        element_id::indexed(&base_id, "close-opacity", close_frame.generation),
+                        gpui::Animation::new(Duration::from_millis(crate::anim::TOAST_OPACITY_MS))
+                            .with_easing(|t| crate::anim::Curve::Smooth.at(t)),
+                        move |el, delta| el.opacity(from + (to - from) * delta),
+                    )
+                    .into_any_element()
+            } else {
+                close_visual
+                    .opacity(if close_visible { 1.0 } else { 0.0 })
+                    .into_any_element()
+            };
+            card = card.child(close_btn.child(close_visual));
         }
 
-        let motion_box = crate::anim::ZoomBox::panel(panel_padding_y, radius)
-            .padding_x(panel_padding_x)
-            .sized(width);
-        if self.exiting {
+        let card_height = if self.hidden {
+            px(0.)
+        } else if collapsed_behind {
+            self.front_height
+        } else {
+            self.measured_heights
+                .borrow()
+                .get(&self.t.id)
+                .copied()
+                .unwrap_or(self.front_height)
+        };
+        // HeroUI's `--toast-enter: -100%` uses the card's own extent. The
+        // measured height is available after the first layout; keep a small
+        // line-height-based fallback for the first frame so a new toast still
+        // starts from the correct edge before its height is cached.
+        let travel = if card_height > px(0.) {
+            card_height
+        } else if self.front_height > px(0.) {
+            self.front_height
+        } else {
+            px(44.)
+        };
+        let edge = if self.stack_top {
+            crate::anim::Edge::Top
+        } else {
+            crate::anim::Edge::Bottom
+        };
+        let animated = if self.exiting && self.frontmost {
+            toast_exiting(
+                card,
+                element_id::scoped(&base_id, "anim"),
+                edge,
+                travel,
+                crate::anim::Motion::TOAST_OUT,
+                cx,
+            )
+        } else if self.exiting {
             crate::anim::exiting(
                 card,
                 element_id::scoped(&base_id, "anim"),
-                motion_box,
-                crate::anim::Motion::LIST_OUT,
+                crate::anim::ZoomBox::panel(panel_padding_y, radius)
+                    .padding_x(panel_padding_x)
+                    .sized(width),
+                crate::anim::Motion::TOAST_STACK_OUT,
                 cx,
             )
         } else {
-            crate::anim::entering_zoom(
+            toast_entering(
                 card,
                 element_id::scoped(&base_id, "anim"),
-                motion_box,
-                crate::anim::Motion::LIST_IN,
+                edge,
+                travel,
+                crate::anim::Motion::TOAST_IN,
                 cx,
             )
+        };
+        if self.stack_absolute {
+            let slot_id = self.t.id;
+            let mut slot = gpui::div()
+                .absolute()
+                .left_0()
+                .right_0()
+                .h(card_height)
+                .flex()
+                .debug_selector(move || format!("toast-slot-{slot_id}"));
+            slot = if self.stack_top {
+                slot.top(self.stack_offset)
+            } else {
+                slot.bottom(self.stack_offset)
+            };
+            slot = if self.align_end {
+                slot.justify_end()
+            } else if self.align_center {
+                slot.justify_center()
+            } else {
+                slot.justify_start()
+            };
+            slot.child(animated).into_any_element()
+        } else {
+            animated
         }
     }
 }
@@ -1453,9 +1944,12 @@ mod tests {
     #[test]
     fn loading_indicator_inherits_the_status_indicator_color() {
         let loading = implementation_source()
-            .split("if self.t.is_loading {")
+            .split("// `.toast__indicator`")
             .nth(1)
             .expect("the loading indicator implementation is present")
+            .split("if self.t.is_loading {")
+            .nth(1)
+            .expect("the loading branch follows the indicator marker")
             .split("} else if let Some(icon)")
             .next()
             .expect("the custom indicator implementation follows loading");
@@ -1463,6 +1957,22 @@ mod tests {
             loading.contains(".current_color(indicator_color)"),
             "the loading spinner must inherit the toast indicator color"
         );
+    }
+
+    #[test]
+    fn custom_indicator_content_keeps_the_shared_indicator_box() {
+        let source = implementation_source();
+        assert!(source.contains("pub fn indicator_content<E, F>"));
+        assert!(source.contains(".indicator_content\n                .as_ref()"));
+        let custom = source
+            .split(".indicator_content\n                .as_ref()")
+            .nth(1)
+            .expect("the custom indicator branch is present")
+            .split("} else if let Some(icon)")
+            .next()
+            .expect("the default indicator follows the custom branch");
+        assert!(custom.contains(".p(px(4.))"));
+        assert!(custom.contains("render_indicator(cx)"));
     }
 
     #[test]
@@ -1488,6 +1998,80 @@ mod tests {
             .next()
             .expect("the action implementation follows the content");
         assert!(!content.contains(".gap(px(2.))"));
+    }
+
+    #[test]
+    fn toast_titles_wrap_instead_of_truncating() {
+        let content = implementation_source()
+            .split("let mut text_col =")
+            .nth(1)
+            .expect("the toast content implementation is present")
+            .split("if let Some(desc)")
+            .next()
+            .expect("the description follows the title");
+        assert!(
+            content.contains(".whitespace_normal()"),
+            "the pinned toast title has normal wrapping"
+        );
+        assert!(
+            !content.contains(".truncate()"),
+            "toast titles must remain readable when they exceed one line"
+        );
+    }
+
+    #[test]
+    fn toast_close_button_is_out_of_flow() {
+        let close = implementation_source()
+            .split("let mut close_btn =")
+            .nth(1)
+            .expect("the close button implementation is present")
+            .split("if interactive")
+            .next()
+            .expect("the close interaction follows its geometry");
+        assert!(close.contains(".absolute()"));
+        assert!(close.contains(".top(px(-4.))"));
+        assert!(close.contains(".right(px(-4.))"));
+        assert!(close.contains(".rounded(radius)"));
+    }
+
+    #[test]
+    fn toast_close_button_reveals_on_card_hover_and_fades() {
+        let source = implementation_source();
+        assert!(source.contains("close-hovered"));
+        assert!(source.contains("close-opacity"));
+        assert!(source.contains("TOAST_OPACITY_MS"));
+        assert!(source.contains("close_focus_for_click"));
+        assert!(source.contains("if visible {\n                        dismiss_toast"));
+        assert!(source.contains("!ActiveTheme::reduce_motion(cx)"));
+    }
+
+    #[test]
+    fn toast_viewport_clamps_width_to_the_live_window() {
+        let source = implementation_source();
+        let width = source
+            .split("let width = px(")
+            .nth(1)
+            .expect("the viewport width clamp is present")
+            .split("let front_height")
+            .next()
+            .expect("the width is resolved before stack layout");
+        assert!(width.contains("window.viewport_size().width"));
+        assert!(width.contains("self.inset"));
+        assert!(width.contains(".min("));
+        assert!(source.contains("region.w(width)"));
+    }
+
+    #[test]
+    fn toast_motion_uses_the_physical_placement_edge() {
+        let source = implementation_source();
+        assert!(source.contains("toast_entering("));
+        assert!(source.contains("toast_exiting("));
+        assert!(source.contains("crate::anim::Motion::TOAST_IN"));
+        assert!(source.contains("crate::anim::Motion::TOAST_OUT"));
+        assert!(source.contains("crate::anim::Motion::TOAST_STACK_OUT"));
+        assert!(source.contains("TOAST_OPACITY_MS"));
+        assert!(source.contains("let edge = if self.stack_top"));
+        assert!(source.contains("self.exiting && self.frontmost"));
     }
 
     // The pinned `.toast__close-button:hover` fills with `bg-default`, the

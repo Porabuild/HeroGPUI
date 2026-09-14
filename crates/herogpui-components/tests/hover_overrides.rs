@@ -62,7 +62,7 @@ fn every_hover_override_reaches_its_painted_fill() {
             "tag_group.rs",
             "hover_bg",
             "let hover = self.hover_bg.unwrap_or_else(|| {",
-            "s.bg(hover)",
+            "hover_fade_with_duration_and_easing(",
         ),
         (
             "tag_group.rs",
@@ -73,14 +73,14 @@ fn every_hover_override_reaches_its_painted_fill() {
         (
             "table.rs",
             "row_hover_bg",
-            "let row_hover_bg = self.row_hover_bg;",
-            "row_hover_bg.unwrap_or(if secondary {",
+            "let hover_bg = (!is_selected && !is_disabled).then(|| {",
+            "row_hover_bg.unwrap_or(if self.secondary {",
         ),
         (
             "accordion.rs",
             "hover_bg",
             "let hover_bg = self.hover_bg.unwrap_or_else(|| match self.variant {",
-            "s.bg(hover_bg)",
+            "(idle_bg, hover_bg),",
         ),
         (
             "time_field.rs",
@@ -91,8 +91,11 @@ fn every_hover_override_reaches_its_painted_fill() {
         (
             "input_otp.rs",
             "slot_hover_bg",
-            "let hover_bg = self.slot_hover_bg.unwrap_or(colors.default.hover());",
-            "s.bg(hover_bg)",
+            "let hover_bg = self.slot_hover_bg.unwrap_or(match self.variant {",
+            // `.input-otp__slot` hovers through the pinned 150ms shell
+            // transition, so the override resolves into the chrome ramp's
+            // hovered endpoint rather than an immediate fill.
+            "bg: hovered_bg,",
         ),
         (
             "input.rs",
@@ -140,7 +143,10 @@ fn every_hover_override_reaches_its_painted_fill() {
             "calendar.rs",
             "nav_hover_bg",
             "let hover_bg = self.nav_hover_bg.unwrap_or(colors.default.color);",
-            "s.bg(hover_bg)",
+            // `.calendar__nav-button` hovers through the pinned 100ms
+            // background transition, so the override resolves into the
+            // fade's hover endpoint rather than an immediate fill.
+            "colors.default.color, 0.0), hover_bg),",
         ),
         (
             "calendar.rs",
@@ -152,7 +158,7 @@ fn every_hover_override_reaches_its_painted_fill() {
             "range_calendar.rs",
             "nav_hover_bg",
             "let hover_bg = self.nav_hover_bg.unwrap_or(colors.default.color);",
-            "s.bg(hover_bg)",
+            "colors.default.color, 0.0), hover_bg),",
         ),
         (
             "range_calendar.rs",

@@ -19,14 +19,19 @@ pub fn component_src(relative: &str) -> String {
         .unwrap_or_else(|err| panic!("{} must be readable: {err}", path.display()))
 }
 
-/// Asserts `source` has exactly one `apply_field_chrome(` call and that it
-/// sits inside `guard` (the complete `if ... {` line).
+/// Asserts `source` has exactly one shared field-chrome call and that it sits
+/// inside `guard` (the complete `if ... {` line). The optional focus-ring
+/// variant is counted alongside the stock helper because both share the same
+/// chrome call site.
 ///
 /// Counting appearances alone would pass if the call moved outside the guard;
 /// scoping to the guarded block binds the call to the condition the builder
 /// actually controls. Pass the full condition so compound guards work.
 pub fn assert_chrome_call_is_under(source: &str, guard: &str) {
-    let calls = source.matches("apply_field_chrome(").count();
+    let calls = source.matches("apply_field_chrome(").count()
+        + source
+            .matches("apply_field_chrome_with_focus_ring(")
+            .count();
     assert_eq!(
         calls, 1,
         "the component must have exactly one chrome call site, found {calls}"
@@ -37,7 +42,8 @@ pub fn assert_chrome_call_is_under(source: &str, guard: &str) {
     let body_at = guard_at + guard.len();
     let body_len = guard_body_len(&source[body_at..]);
     assert!(
-        source[body_at..body_at + body_len].contains("apply_field_chrome("),
+        source[body_at..body_at + body_len].contains("apply_field_chrome(")
+            || source[body_at..body_at + body_len].contains("apply_field_chrome_with_focus_ring("),
         "the only chrome call must sit inside the `{guard}` guard"
     );
 }

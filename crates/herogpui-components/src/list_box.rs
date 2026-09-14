@@ -543,28 +543,23 @@ impl RenderOnce for ListBox {
         let typed = window.use_keyed_state(element_id::scoped(&base_id, "typed"), cx, |_, _| {
             crate::list_nav::Typeahead::default()
         });
-        // One hover/press slot per row, for an `item_content` closure. The
-        // slots exist only when the closure is set: `track_interaction`'s
-        // handlers cost a frame of state, and the closure is the only reader
-        // (the press v3's `ListBox.Item` render props document).
-        let interaction: std::rc::Rc<Vec<util::Interaction>> = if self.item_content.is_some() {
-            std::rc::Rc::new(
-                (0..self.items.len())
-                    .map(|index| {
-                        util::interaction(
-                            element_id::scoped(
-                                &element_id::indexed(&self.id, "item", index),
-                                "interaction",
-                            ),
-                            window,
-                            cx,
-                        )
-                    })
-                    .collect(),
-            )
-        } else {
-            std::rc::Rc::new(Vec::new())
-        };
+        // One hover/press slot per row. Custom `item_content` render props
+        // read the slot's state, and ordinary rows use the same slot for the
+        // default HeroUI `scale(0.98)` press skin.
+        let interaction: std::rc::Rc<Vec<util::Interaction>> = std::rc::Rc::new(
+            (0..self.items.len())
+                .map(|index| {
+                    util::interaction(
+                        element_id::scoped(
+                            &element_id::indexed(&self.id, "item", index),
+                            "interaction",
+                        ),
+                        window,
+                        cx,
+                    )
+                })
+                .collect(),
+        );
 
         let colors = cx.colors();
 
@@ -1129,6 +1124,7 @@ impl RenderOnce for ListBox {
                             &cursor,
                             &row_range,
                             selection_own.as_ref(),
+                            _window,
                             cx,
                         );
                         let measured = measured_heights.clone();
@@ -1195,6 +1191,7 @@ impl RenderOnce for ListBox {
                                         &cursor,
                                         &row_range,
                                         selection_own.as_ref(),
+                                        _window,
                                         cx,
                                     )
                                 })
@@ -1223,6 +1220,7 @@ impl RenderOnce for ListBox {
                 &cursor,
                 &selection_range,
                 selection_own.as_ref(),
+                window,
                 cx,
             ));
         }
@@ -1247,6 +1245,7 @@ impl ListBox {
         cursor: &gpui::Entity<Option<usize>>,
         selection_range: &gpui::Entity<ListBoxSelectionRange>,
         selection_own: Option<&gpui::Entity<HashSet<SharedString>>>,
+        window: &mut Window,
         cx: &mut App,
     ) -> gpui::AnyElement {
         let colors = cx.colors();
@@ -1351,6 +1350,7 @@ impl ListBox {
                     .items_center()
                     .gap(px(12.))
                     .px(self.row_padding_x.unwrap_or(px(8.)))
+                    .relative()
                     // A virtual row is laid out on its own, so it takes the width
                     // it is given rather than inheriting a stretch.
                     .map(|el| match fixed_h {
@@ -1420,11 +1420,6 @@ impl ListBox {
                             is_indeterminate: false,
                         },
                     ));
-                    if pressable {
-                        if let Some(slot) = interaction {
-                            row = util::track_interaction(row, slot);
-                        }
-                    }
                 } else {
                     // Headless probe: the label column starts at the row's
                     // content edge, so tests can measure row padding.
@@ -1451,18 +1446,42 @@ impl ListBox {
                 }
 
                 if let Some(render) = &self.indicator {
-                    row = row.child(render(selected));
+                    // HeroUI's `.list-box-item__indicator` is absolute at the
+                    // inline end, with `pe-7` reserved on the row whenever an
+                    // indicator exists. Keeping the slot out of flex flow
+                    // prevents a long label from changing its width or
+                    // pushing the checkmark away from the row edge.
+                    row = row.pr(px(28.)).child(
+                        div()
+                            .absolute()
+                            .top_0()
+                            .bottom_0()
+                            .right(px(8.))
+                            .w(px(16.))
+                            .flex()
+                            .items_center()
+                            .justify_center()
+                            .child(render(selected)),
+                    );
                 } else if selected && self.selection_mode != SelectionMode::None {
-                    row = row.child(
-                        gpui::svg()
-                            // `.list-box-item__indicator` is `size-4`.
-                            .size(px(16.))
-                            .path(icons::CHECK)
-                            .flex_shrink_0()
-                            .text_color(match variant {
-                                ListBoxItemVariant::Default => colors.default.foreground,
-                                ListBoxItemVariant::Danger => colors.danger.color,
-                            }),
+                    row = row.pr(px(28.)).child(
+                        div()
+                            .absolute()
+                            .top_0()
+                            .bottom_0()
+                            .right(px(8.))
+                            .w(px(16.))
+                            .flex()
+                            .items_center()
+                            .justify_center()
+                            .child(gpui::svg()
+                                    // `.list-box-item__indicator` is `size-4`.
+                                    .size(px(16.))
+                                    .path(icons::CHECK)
+                                    .text_color(match variant {
+                                        ListBoxItemVariant::Default => colors.default.foreground,
+                                        ListBoxItemVariant::Danger => colors.danger.color,
+                                    })),
                     );
                 } else if let Some(sc) = shortcut {
                     row = row.child(
@@ -1470,6 +1489,35 @@ impl ListBox {
                             .variant(crate::kbd::KbdVariant::Light)
                             .child(sc.to_string()),
                     );
+                }
+
+                if pressable {
+                    // Wrap first so the stable press slot owns the hitbox;
+                    // then record pointer/keyboard state on that slot for
+                    // both built-in rows and caller render props.
+                    row = crate::anim::pressed_with_background_ramp(
+                        row,
+                        crate::anim::PressBox {
+                            height: row_h,
+                            padding_x: Some(self.row_padding_x.unwrap_or(px(8.))),
+                            width: None,
+                            min_width: None,
+                            text_size,
+                            line_height: px(20.),
+                            gap: px(12.),
+                            radius: util::soft_radius(cx),
+                            shrink_x: false,
+                            scale: crate::anim::PRESSED_SCALE_SUBTLE,
+                        },
+                        None,
+                        crate::anim::LIST_ITEM_PRESS,
+                        interaction,
+                        window,
+                        cx,
+                    );
+                    if let Some(slot) = interaction {
+                        row = util::track_interaction(row, slot);
+                    }
                 }
 
                 if !disabled {
@@ -1611,6 +1659,34 @@ impl ListBox {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn implementation_source() -> &'static str {
+        include_str!("list_box.rs")
+            .split("#[cfg(test)]")
+            .next()
+            .expect("the implementation section is always present")
+    }
+
+    #[test]
+    fn selected_indicators_are_absolute_and_reserve_end_padding() {
+        let source = implementation_source();
+        assert!(source.contains(".relative()"));
+        assert!(source.contains(".pr(px(28.))"));
+        assert!(source.contains(".absolute()"));
+        assert!(source.contains(".right(px(8.))"));
+        assert!(source.contains(".top_0()"));
+        assert!(source.contains(".bottom_0()"));
+    }
+
+    #[test]
+    fn ordinary_rows_use_the_pinned_subtle_press_skin() {
+        let source = implementation_source();
+        assert!(source.contains("PRESSED_SCALE_SUBTLE"));
+        assert!(source.contains("util::track_interaction(row, slot)"));
+        assert!(source.contains("crate::anim::pressed_with_background_ramp("));
+        assert!(source.contains("crate::anim::LIST_ITEM_PRESS"));
+        assert!(source.contains("shrink_x: false"));
+    }
 
     /// The Home/End gate takes the platform as an explicit bool, so this
     /// truth table is free of `cfg!` and mechanically proves both maps from

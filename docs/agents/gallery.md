@@ -27,7 +27,9 @@ diagnosing a stale render.
 
 `smoke.ps1` uses one off-screen process and the `HEROGPUI_CONTROL` protocol to
 walk every current route, then retries a suspected crash alone. Trust the
-script's current route list and output rather than a copied page count.
+script's current route list and output rather than a copied page count. Both
+shared and isolated runs require an acknowledgement of a rendered frame;
+remaining alive for a fixed delay is not a passing smoke result.
 
 When maintaining a driver, keep the GPUI window off-screen rather than
 minimized; a minimized window may never render. The gallery is a
@@ -72,6 +74,13 @@ raises the gallery, and can interrupt the user.
 .shots/capture2.ps1 -PageList Tooltip -HoverX 455 -HoverY 544
 ```
 
+On macOS, where the `PrintWindow` and posted-input drivers above do not run,
+[`native_capture.py`](../../.shots/native_capture.py) is the host-specific
+driver with the same control-file semantics: it captures the window with
+`screencapture -l<window-id>` and injects no input. Its prerequisites,
+permission notes, and the mapping to the PowerShell drivers are in
+[`native_capture.md`](../../.shots/native_capture.md).
+
 ## Deep links and environment controls
 
 - `HEROGPUI_PAGE` selects a route.
@@ -82,9 +91,69 @@ raises the gallery, and can interrupt the user.
 - `HEROGPUI_UNFOCUSED=1` prevents the app from taking focus.
 - `HEROGPUI_REDUCE_MOTION=1` substitutes for an OS preference GPUI does not
   expose.
-- `HEROGPUI_CONTROL=<file>` selects page, section, theme, and overlay state in a
-  running process. Wait for the matching `<file>.ack`; it is written after the
-  requested frame draws.
+- The web bootstrap accepts `v=<artifact-hash-prefix>` on a deep link. The
+  value is forwarded to both `herogpui_web.js` and `herogpui_web_bg.wasm`, so
+  the documentation iframe can invalidate the glue and binary together after a
+  gallery rebuild.
+- The web bootstrap also accepts `overlays=1` (or `overlays=true`) on a deep
+  link: the browser spelling of `HEROGPUI_OPEN_OVERLAYS`. In component-preview
+  mode the constructed example's overlay starts open; in the full gallery the
+  same demos the native variable seeds start open. Any other value is ignored,
+  like an unknown `?theme=`.
+- `HEROGPUI_CONTROL=<file>` selects page, section, specimen, theme, overlay and
+  reset state in a running process. A `specimen` is a stable key claimed by one
+  live example in component-preview mode; an unknown key is rejected after the
+  rendered-frame check. The sibling result files replace the input extension:
+  `control.txt` produces `control.ack` or `control.error`.
+
+Publish complete UTF-8 control requests by atomic replacement with a new,
+nonempty `seq` for every request. The PowerShell 7 drivers share
+[control.ps1](../../.shots/control.ps1), whose writer uses a sibling temporary
+file and [.NET's replacing move](https://learn.microsoft.com/en-us/dotnet/api/system.io.file.move).
+Do not write directly to the live control file: a reader could observe a new
+sequence number before its page and options have been written.
+
+```text
+seq=1
+page=Select
+section=Usage
+theme=light
+overlays=0
+reset=1
+preview=component
+motion=reduce
+specimen=btn-v-DangerSoft
+```
+
+`page` uses the exact navigation title, such as `Combo Box`. `section` retains
+the case-insensitive substring/CSV filter; every requested filter must match
+rendered content. In component-preview mode only the first matching example is
+constructed, so request one example at a time. `specimen` narrows that preview
+to one explicitly keyed example and requires `preview=component`; omit it to
+clear the previous key. Unknown pages, unmatched filters,
+duplicate keys and invalid option values report an error instead of acknowledging
+the previous page or a blank preview.
+
+Omitting `section`, `theme` and `overlays` means all sections, light theme and the
+existing closed-overlay switch. Omitting `page`, `preview` or `motion` preserves
+that setting. `reset=1` creates a fresh gallery root and retires its previous
+demo state, focus, toasts and shared validation record. Late callbacks belonging
+to the old root cannot update the new root. The gallery retains the tasks from
+its promise demos and cancels them before clearing toasts, so an old upload
+cannot repopulate the reset queue. `reset=0` or omission preserves demo
+values. `preview` accepts `gallery` or `component`; `motion` accepts `full` or
+`reduce`.
+
+Wait for the case-sensitive matching sequence in `.ack`, or surface the matching `seq`/`error`
+record in `.error`. The acknowledgement is scheduled from the requested render
+and delivered on a subsequent frame; a fixed timer does not establish that
+ordering. It proves one rendered frame, not asset completion, settled motion,
+correct pixels or the success of subsequent input. Keep the screenshot and
+behavior checks below. Run `.shots/test-control.ps1` for the protocol helpers;
+CI runs it on Windows, including a failed-publication case with a locked file.
+Batch and smoke own their process cleanup in `finally`: stop and wait for the
+child before deleting result files. Their environment overrides belong to the
+child's `ProcessStartInfo`, leaving the caller's environment intact.
 
 Window sizing differs between the foreground capture path and the off-screen
 driver, which creates its window at the requested size. Prefer a section deep

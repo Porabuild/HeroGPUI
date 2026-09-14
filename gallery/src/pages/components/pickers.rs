@@ -19,7 +19,7 @@ impl Gallery {
             vec![
                 (
                     "Usage", "Values and options use 14px text with 20px lines. Section headers use 12px text with 16px lines and keep their own spacing. The popup anchors to the trigger with an 8px gap, flips when the preferred side cannot fit and the opposite side has more room, keeps the search visible, and scrolls the list within the available height up to 320px; virtual paging follows the visible list height.",
-                    field_col(vec![h::Autocomplete::new(
+                    specimen_body("ac-main", field_col(vec![h::Autocomplete::new(
                         self.ac_entity.clone(),
                         language_items(),
                     )
@@ -28,12 +28,49 @@ impl Gallery {
                     // `radius` is the detached panel's corner; the trigger
                     // keeps the field chrome's own.
                     .radius(px(8.))
-                    .into_any_element()]),
+                    .into_any_element()]), cx),
+                ),
+                (
+                    "Placement",
+                    "The field panel can enter above its trigger; the four-pixel entry translation follows the resolved physical side after viewport flipping.",
+                    specimen_body("ac-placement-top", field_col(vec![h::Autocomplete::new(
+                        self.demo_text("ac-placement-top", "", cx),
+                        language_items(),
+                    )
+                    .label("Language")
+                    .placeholder("Select a language")
+                    .placement(h::Placement::Top)
+                    .default_open(true)
+                    .into_any_element()]), cx),
+                ),
+                (
+                    "Long Selected Value",
+                    "Selected labels follow HeroUI's wrap-break-word value slot: the trigger grows vertically instead of clipping the label with an ellipsis.",
+                    specimen_body("ac-long-value", col(vec![
+                        gpui::div()
+                            .w(px(260.))
+                            .child(
+                                h::Autocomplete::new(
+                                    self.demo_text("ac-long-value", "", cx),
+                                    vec![
+                                        h::PickerItem::new(
+                                            "long",
+                                            "A project name that is intentionally long enough to wrap",
+                                        ),
+                                        h::PickerItem::new("short", "Short option"),
+                                    ],
+                                )
+                                .label("Project")
+                                .placeholder("Choose one")
+                                .default_value(["long"]),
+                            )
+                            .into_any_element(),
+                    ]), cx),
                 ),
                 (
                     "Box Customisation",
                     "`height`, `padding_x` and `is_bare` size the trigger; `row_padding_x` / `row_padding_y` size the suggestion rows.",
-                    field_col(vec![h::Autocomplete::new(
+                    specimen_body("ac-box-customisation", field_col(vec![h::Autocomplete::new(
                         self.demo_text("ac-custom-box", "", cx),
                         language_items(),
                     )
@@ -46,11 +83,11 @@ impl Gallery {
                     .row_padding_y(px(2.))
                     .row_hover_bg(cx.colors().accent.soft())
                     .row_font_family(crate::app::MONO_FONT)
-                    .into_any_element()]),
+                    .into_any_element()]), cx),
                 ),
                 (
                     "Virtualization", "`row_height` makes the list geometry computable, so gpui's `uniform_list` builds only the rows in view. A thousand options, forty pixels each.",
-                    col(vec![
+                    specimen_body("ac-virtualization", col(vec![
                         demo_field(
                             h::Autocomplete::new(
                                 self.demo_text("ac-virtual", "", cx),
@@ -61,25 +98,33 @@ impl Gallery {
                             .max_items(1000)
                             .row_height(px(40.)),
                         ),
-                    ]),
+                    ]), cx),
                 ),
                 (
                     "Variants",
                     field_col(vec![
-                        h::Autocomplete::new(self.demo_text("ac-primary", "", cx), language_items())
-                            .label("Primary")
-                            .placeholder("Select a language")
-                            .into_any_element(),
-                        h::Autocomplete::new(self.demo_text("ac-secondary", "", cx), language_items())
-                            .label("Secondary")
-                            .placeholder("Select a language")
-                            .variant(FieldVariant::Secondary)
-                            .into_any_element(),
+                        specimen_body(
+                            "ac-variant-Primary",
+                            h::Autocomplete::new(self.demo_text("ac-primary", "", cx), language_items())
+                                .label("Primary")
+                                .placeholder("Select a language")
+                                .into_any_element(),
+                            cx,
+                        ),
+                        specimen_body(
+                            "ac-variant-Secondary",
+                            h::Autocomplete::new(self.demo_text("ac-secondary", "", cx), language_items())
+                                .label("Secondary")
+                                .placeholder("Select a language")
+                                .variant(FieldVariant::Secondary)
+                                .into_any_element(),
+                            cx,
+                        ),
                     ]),
                 ),
                 (
                     "In Surface",
-                    field_col(vec![h::Surface::new()
+                    specimen_body("ac-in-surface", field_col(vec![h::Surface::new()
                         .padding(px(24.))
                         .child(
                             h::Autocomplete::new(self.demo_text("ac-surface", "", cx), language_items())
@@ -87,11 +132,11 @@ impl Gallery {
                                 .placeholder("Select a language")
                                 .variant(FieldVariant::Secondary),
                         )
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "Full Width",
-                    col(vec![gpui::div()
+                    specimen_body("ac-full-width", col(vec![gpui::div()
                         .w(px(400.))
                         .child(
                             h::Autocomplete::new(
@@ -102,44 +147,44 @@ impl Gallery {
                             .placeholder("Select a language")
                             .full_width(true),
                         )
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "With Description",
-                    field_col(vec![h::Autocomplete::new(
+                    specimen_body("ac-description", field_col(vec![h::Autocomplete::new(
                         self.demo_text("ac-desc", "", cx),
                         language_items(),
                     )
                     .label("Language")
                     .placeholder("Select a language")
                     .description("Type to filter the list")
-                    .into_any_element()]),
+                    .into_any_element()]), cx),
                 ),
                 (
                     "Required",
-                    field_col(vec![h::Autocomplete::new(
+                    specimen_body("ac-required", field_col(vec![h::Autocomplete::new(
                         self.demo_text("ac-required", "", cx),
                         language_items(),
                     )
                     .label("Language")
                     .placeholder("Select a language")
                     .is_required(true)
-                    .into_any_element()]),
+                    .into_any_element()]), cx),
                 ),
                 (
                     "Disabled",
-                    field_col(vec![h::Autocomplete::new(
+                    specimen_body("ac-disabled", field_col(vec![h::Autocomplete::new(
                         self.demo_text("ac-disabled", "Rust", cx),
                         language_items(),
                     )
                     .label("Language")
                     .placeholder("Select a language")
                     .is_disabled(true)
-                    .into_any_element()]),
+                    .into_any_element()]), cx),
                 ),
                 (
                     "With Disabled Options",
-                    field_col(vec![h::Autocomplete::new(
+                    specimen_body("ac-disabled-options", field_col(vec![h::Autocomplete::new(
                         self.demo_text("ac-disabled-opts", "", cx),
                         language_items(),
                     )
@@ -147,11 +192,11 @@ impl Gallery {
                     .placeholder("Select a language")
                     .disabled_keys([SharedString::from("go"), SharedString::from("python")])
                     .default_open(true)
-                    .into_any_element()]),
+                    .into_any_element()]), cx),
                 ),
                 (
                     "Allows Empty Collection",
-                    field_col(vec![h::Autocomplete::new(
+                    specimen_body("ac-empty-collection", field_col(vec![h::Autocomplete::new(
                         self.demo_text("ac-empty", "zzz", cx),
                         language_items(),
                     )
@@ -159,11 +204,11 @@ impl Gallery {
                     .placeholder("Select a language")
                     .allows_empty_collection(true)
                     .default_open(true)
-                    .into_any_element()]),
+                    .into_any_element()]), cx),
                 ),
                 (
                     "With Sections",
-                    field_col(vec![h::Autocomplete::new(
+                    specimen_body("ac-sections", field_col(vec![h::Autocomplete::new(
                         self.demo_text("ac-sections", "", cx),
                         vec![
                             h::PickerItem::new("rust", "Rust"),
@@ -177,11 +222,11 @@ impl Gallery {
                     .section_before("rust", "Systems")
                     .section_before("typescript", "Scripting")
                     .default_open(true)
-                    .into_any_element()]),
+                    .into_any_element()]), cx),
                 ),
                 (
                     "Multiple Select",
-                    field_col(vec![h::Autocomplete::new(
+                    specimen_body("ac-multiple-select", field_col(vec![h::Autocomplete::new(
                         self.demo_text("ac-multi-select", "", cx),
                         language_items(),
                     )
@@ -192,11 +237,11 @@ impl Gallery {
                     // selection, seeded once, by key.
                     .default_value(["rust"])
                     .default_open(true)
-                    .into_any_element()]),
+                    .into_any_element()]), cx),
                 ),
                 (
                     "Controlled",
-                    col(vec![
+                    specimen_body("ac-controlled", col(vec![
                         h::Autocomplete::new(self.demo_text("ac-controlled", "", cx), language_items())
                             .label("Language")
                             .placeholder("Select a language")
@@ -218,11 +263,11 @@ impl Gallery {
                             },
                             cx,
                         ),
-                    ]),
+                    ]), cx),
                 ),
                 (
                     "Controlled Multiple",
-                    field_col(vec![h::Autocomplete::new(
+                    specimen_body("ac-controlled-multiple", field_col(vec![h::Autocomplete::new(
                         self.demo_text("ac-ctl-multi", "", cx),
                         language_items(),
                     )
@@ -234,11 +279,11 @@ impl Gallery {
                         this.set_demo_selection("ac-multi", keys.to_vec());
                         cx.notify();
                     }))
-                    .into_any_element()]),
+                    .into_any_element()]), cx),
                 ),
                 (
                     "Controlled Open State",
-                    col(vec![
+                    specimen_body("ac-controlled-open", col(vec![
                         row(vec![
                             h::Button::new("ac-open-btn")
                                 .label(if ac_open { "Close" } else { "Open" })
@@ -260,11 +305,11 @@ impl Gallery {
                                 cx.notify();
                             }))
                             .into_any_element(),
-                    ]),
+                    ]), cx),
                 ),
                 (
                     "Asynchronous Filtering", "The matches are fetched as the query changes. `filter` is the hook for that -- it decides what counts as a match -- and a spinner beside the field says a request is in flight.",
-                    col(vec![
+                    specimen_body("ac-async-filtering", col(vec![
                         row(vec![
                             h::Autocomplete::new(self.demo_text("ac-async", "", cx), language_items())
                                 .label("Language")
@@ -279,13 +324,13 @@ impl Gallery {
                                 .into_any_element(),
                             h::Spinner::new("ac-async-spinner")
                                 .size(h::SpinnerSize::Sm)
-                                .into_any_element(),
+                            .into_any_element(),
                         ]),
-                    ]),
+                    ]), cx),
                 ),
                 (
                     "Custom Indicator",
-                    field_col(vec![h::Autocomplete::new(
+                    specimen_body("ac-custom-indicator", field_col(vec![h::Autocomplete::new(
                         self.demo_text("ac-indicator", "", cx),
                         language_items(),
                     )
@@ -298,11 +343,11 @@ impl Gallery {
                             .child(if is_open { "−" } else { "+" })
                             .into_any_element()
                     })
-                    .into_any_element()]),
+                    .into_any_element()]), cx),
                 ),
                 (
                     "Custom Value", "`Autocomplete.Value` takes a render function that is handed the placeholder and selection state — `is_placeholder`, `selected_items` and `selected_text`. This one draws the selection as tags and hands the default back while nothing is chosen.",
-                    col(vec![
+                    specimen_body("ac-custom-value", col(vec![
                         h::Autocomplete::new(self.demo_text("ac-custom", "", cx), language_items())
                             .label("Languages")
                             .placeholder("Select languages")
@@ -327,7 +372,7 @@ impl Gallery {
                                 .into_any_element()
                             })
                             .into_any_element(),
-                    ]),
+                    ]), cx),
                 ),
             ],
             cx,
@@ -335,7 +380,6 @@ impl Gallery {
     }
 
     pub fn page_combo_box(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
-        let is_open = self.combo_open;
         let cb_picked = self.demo_text_value("cb-picked");
         let cb_typed = self.demo_text_value("cb-typed");
         let cb_multi = self.demo_selection("cb-multi");
@@ -351,30 +395,43 @@ impl Gallery {
             vec![
                 (
                     "Usage", "Values and options use 14px text with 20px lines. Section headers use 12px text with 16px lines and keep their own spacing. The popup flips near window edges and scrolls to keep options reachable in short windows.",
-                    field_col(vec![h::ComboBox::new(
-                        self.combo_state.clone(),
+                    specimen_body("cb-main", field_col(vec![h::ComboBox::new(
+                        self.demo_text("cb-usage", "", cx),
                         language_items(),
                     )
                     .label("Language")
                     .placeholder("Pick or type")
-                    .is_open(is_open)
+                    .is_open(self.demo_overlay("cb-usage-open"))
                     // `radius` is the detached panel's corner; the trigger is
                     // the inner input's box and keeps the field chrome's own.
                     .radius(px(8.))
                     .on_open_change(cx.listener(|this, open: &bool, _, cx| {
-                        this.combo_open = *open;
+                        this.set_demo_flag("cb-usage-open", *open);
                         cx.notify();
                     }))
                     .on_selection_change(cx.listener(|this, _key: &SharedString, _, cx| {
-                        this.combo_open = false;
+                        this.set_demo_flag("cb-usage-open", false);
                         cx.notify();
                     }))
-                    .into_any_element()]),
+                    .into_any_element()]), cx),
+                ),
+                (
+                    "Placement",
+                    "The list can enter above its field; the placement translation follows the physical side resolved by the viewport positioner.",
+                    specimen_body("cb-placement-top", field_col(vec![h::ComboBox::new(
+                        self.demo_text("cb-placement-top", "", cx),
+                        language_items(),
+                    )
+                    .label("Language")
+                    .placeholder("Pick or type")
+                    .placement(h::Placement::Top)
+                    .default_open(true)
+                    .into_any_element()]), cx),
                 ),
                 (
                     "Box Customisation",
                     "The trigger forwards `height`, `padding_x` and `is_bare` to its input, and `row_padding_x` / `row_padding_y` size the rows.",
-                    field_col(vec![h::ComboBox::new(
+                    specimen_body("cb-box-customisation", field_col(vec![h::ComboBox::new(
                         self.demo_text("cb-custom-box", "", cx),
                         language_items(),
                     )
@@ -387,11 +444,11 @@ impl Gallery {
                     .row_padding_y(px(2.))
                     .row_hover_bg(cx.colors().accent.soft())
                     .row_font_family(crate::app::MONO_FONT)
-                    .into_any_element()]),
+                    .into_any_element()]), cx),
                 ),
                 (
                     "Virtualization", "`row_height` makes the list geometry computable, so gpui's `uniform_list` builds only the rows in view. A thousand options, forty pixels each.",
-                    col(vec![
+                    specimen_body("cb-virtualization", col(vec![
                         demo_field(
                             h::ComboBox::new(
                                 self.demo_text("cb-virtual", "", cx),
@@ -402,11 +459,11 @@ impl Gallery {
                             .max_items(1000)
                             .row_height(px(40.)),
                         ),
-                    ]),
+                    ]), cx),
                 ),
                 (
                     "Full Width",
-                    col(vec![gpui::div()
+                    specimen_body("cb-full-width", col(vec![gpui::div()
                         .w(px(400.))
                         .child(
                             h::ComboBox::new(
@@ -417,55 +474,55 @@ impl Gallery {
                             .placeholder("Pick or type")
                             .full_width(true),
                         )
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "With Description",
-                    field_col(vec![h::ComboBox::new(
+                    specimen_body("cb-description", field_col(vec![h::ComboBox::new(
                         self.demo_text("cb-desc", "", cx),
                         language_items(),
                     )
                     .label("Language")
                     .placeholder("Select a language")
                     .description("Pick from the list or type your own")
-                    .into_any_element()]),
+                    .into_any_element()]), cx),
                 ),
                 (
                     "Required",
-                    field_col(vec![h::ComboBox::new(
+                    specimen_body("cb-required", field_col(vec![h::ComboBox::new(
                         self.demo_text("cb-required", "", cx),
                         language_items(),
                     )
                     .label("Language")
                     .placeholder("Select a language")
                     .is_required(true)
-                    .into_any_element()]),
+                    .into_any_element()]), cx),
                 ),
                 (
                     "Disabled",
-                    field_col(vec![h::ComboBox::new(
+                    specimen_body("cb-disabled", field_col(vec![h::ComboBox::new(
                         self.demo_text("cb-disabled", "Rust", cx),
                         language_items(),
                     )
                     .label("Language")
                     .placeholder("Select a language")
                     .is_disabled(true)
-                    .into_any_element()]),
+                    .into_any_element()]), cx),
                 ),
                 (
                     "Read Only",
-                    field_col(vec![h::ComboBox::new(
+                    specimen_body("cb-read-only", field_col(vec![h::ComboBox::new(
                         self.demo_text("cb-readonly", "Rust", cx),
                         language_items(),
                     )
                     .label("Language")
                     .placeholder("Select a language")
                     .is_read_only(true)
-                    .into_any_element()]),
+                    .into_any_element()]), cx),
                 ),
                 (
                     "In Surface",
-                    field_col(vec![h::Surface::new()
+                    specimen_body("cb-in-surface", field_col(vec![h::Surface::new()
                         .padding(px(24.))
                         .child(
                             h::ComboBox::new(self.demo_text("cb-surface", "", cx), language_items())
@@ -474,10 +531,11 @@ impl Gallery {
                                 .variant(FieldVariant::Secondary),
                         )
                         .into_any_element()]),
+                        cx),
                 ),
                 (
                     "With Disabled Options",
-                    field_col(vec![h::ComboBox::new(
+                    specimen_body("cb-disabled-options", field_col(vec![h::ComboBox::new(
                         self.demo_text("cb-disabled-opts", "", cx),
                         language_items(),
                     )
@@ -485,11 +543,11 @@ impl Gallery {
                     .placeholder("Select a language")
                     .disabled_keys([SharedString::from("go")])
                     .default_open(true)
-                    .into_any_element()]),
+                    .into_any_element()]), cx),
                 ),
                 (
                     "With Sections",
-                    field_col(vec![h::ComboBox::new(
+                    specimen_body("cb-sections", field_col(vec![h::ComboBox::new(
                         self.demo_text("cb-sections", "", cx),
                         vec![
                             h::PickerItem::new("rust", "Rust"),
@@ -503,11 +561,11 @@ impl Gallery {
                     .section_before("rust", "Systems")
                     .section_before("typescript", "Scripting")
                     .default_open(true)
-                    .into_any_element()]),
+                    .into_any_element()]), cx),
                 ),
                 (
                     "Controlled",
-                    col(vec![
+                    specimen_body("cb-controlled", col(vec![
                         h::ComboBox::new(self.demo_text("cb-controlled", "", cx), language_items())
                             .label("Language")
                             .placeholder("Select a language")
@@ -533,11 +591,11 @@ impl Gallery {
                             },
                             cx,
                         ),
-                    ]),
+                    ]), cx),
                 ),
                 (
                     "Controlled Input Value",
-                    col(vec![
+                    specimen_body("cb-controlled-input", col(vec![
                         h::ComboBox::new(self.demo_text("cb-input", "", cx), language_items())
                             .label("Language")
                             .placeholder("Select a language")
@@ -547,11 +605,11 @@ impl Gallery {
                             }))
                             .into_any_element(),
                         para(&format!("Typed: {cb_typed}"), cx),
-                    ]),
+                    ]), cx),
                 ),
                 (
                     "Controlled Selection",
-                    field_col(vec![h::ComboBox::new(
+                    specimen_body("cb-controlled-selection", field_col(vec![h::ComboBox::new(
                         self.demo_text("cb-ctl-sel", "", cx),
                         language_items(),
                     )
@@ -563,11 +621,11 @@ impl Gallery {
                         this.set_demo_selection("cb-multi", keys.to_vec());
                         cx.notify();
                     }))
-                    .into_any_element()]),
+                    .into_any_element()]), cx),
                 ),
                 (
                     "Multiple Selection",
-                    field_col(vec![h::ComboBox::new(
+                    specimen_body("cb-multiple-selection", field_col(vec![h::ComboBox::new(
                         self.demo_text("cb-multi-sel", "", cx),
                         language_items(),
                     )
@@ -575,11 +633,11 @@ impl Gallery {
                     .placeholder("Select languages")
                     .selection_mode(SelectionMode::Multiple)
                     .default_open(true)
-                    .into_any_element()]),
+                    .into_any_element()]), cx),
                 ),
                 (
-                    "Value Render Props",
-                    field_col(vec![h::ComboBox::new(
+                    "Value Render Props", "Pick a language with the pointer or keyboard, or clear the input. The value below follows the controlled selection.",
+                    specimen_body("cb-value-render", field_col(vec![h::ComboBox::new(
                         self.demo_text("cb-value", "Rust", cx),
                         language_items(),
                     )
@@ -602,33 +660,58 @@ impl Gallery {
                             value.default_children
                         }
                     })
-                    .into_any_element()]),
+                    .into_any_element()]), cx),
+                ),
+                (
+                    "Long Value Content",
+                    "The default `ComboBox.Value` render-prop content follows HeroUI's wrap-break-word contract and grows for long selected labels.",
+                    specimen_body("cb-long-value", col(vec![
+                        gpui::div()
+                            .w(px(260.))
+                            .child(
+                                h::ComboBox::new(
+                                    self.demo_text("cb-long-value", "", cx),
+                                    vec![
+                                        h::PickerItem::new(
+                                            "long",
+                                            "A project name that is intentionally long enough to wrap",
+                                        ),
+                                        h::PickerItem::new("short", "Short option"),
+                                    ],
+                                )
+                                .label("Project")
+                                .placeholder("Choose one")
+                                .default_value(["long"])
+                                .value_content(|value| value.default_children),
+                            )
+                            .into_any_element(),
+                    ]), cx),
                 ),
                 (
                     "Default Selected Key",
-                    field_col(vec![h::ComboBox::new(
+                    specimen_body("cb-default-selected", field_col(vec![h::ComboBox::new(
                         self.demo_text("cb-default-key", "TypeScript", cx),
                         language_items(),
                     )
                     .label("Language")
                     .placeholder("Search languages...")
                     .default_value(["typescript"])
-                    .into_any_element()]),
+                    .into_any_element()]), cx),
                 ),
                 (
                     "Allows Custom Value",
-                    field_col(vec![h::ComboBox::new(
+                    specimen_body("cb-allows-custom-value", field_col(vec![h::ComboBox::new(
                         self.demo_text("cb-custom", "Zig", cx),
                         language_items(),
                     )
                     .label("Language")
                     .placeholder("Pick or type")
                     .allows_custom_value(true)
-                    .into_any_element()]),
+                    .into_any_element()]), cx),
                 ),
                 (
                     "Asynchronous Loading", "The list is filled from a request. The spinner beside the field is what says one is in flight; the options are the caller's own data. `allows_empty_collection` keeps the panel up with its empty state while a query has no matches instead of collapsing it.",
-                    col(vec![
+                    specimen_body("cb-async-loading", col(vec![
                         row(vec![
                             h::ComboBox::new(self.demo_text("cb-async", "", cx), language_items())
                                 .label("Language")
@@ -643,13 +726,13 @@ impl Gallery {
                                 .into_any_element(),
                             h::Spinner::new("cb-async-spinner")
                                 .size(h::SpinnerSize::Sm)
-                                .into_any_element(),
+                            .into_any_element(),
                         ]),
-                    ]),
+                    ]), cx),
                 ),
                 (
                     "Custom Indicator",
-                    field_col(vec![h::ComboBox::new(
+                    specimen_body("cb-custom-indicator", field_col(vec![h::ComboBox::new(
                         self.demo_text("cb-indicator", "", cx),
                         language_items(),
                     )
@@ -663,11 +746,11 @@ impl Gallery {
                             .child(if is_selected { "\u{2714}" } else { "" })
                             .into_any_element()
                     })
-                    .into_any_element()]),
+                    .into_any_element()]), cx),
                 ),
                 (
                     "Custom Filtering", "`defaultFilter` here is `useFilter`'s `startsWith`, so it matches on the start of the name only.",
-                    col(vec![
+                    specimen_body("cb-custom-filtering", col(vec![
                         h::ComboBox::new(self.demo_text("cb-filter", "", cx), language_items())
                             .label("Language")
                             .placeholder("Select a language")
@@ -676,11 +759,11 @@ impl Gallery {
                             })
                             .default_open(true)
                             .into_any_element(),
-                    ]),
+                    ]), cx),
                 ),
                 (
                     "Menu Trigger",
-                    col(vec![
+                    specimen_body("cb-menu-trigger", col(vec![
                         spec(
                             "Input (opens as you type)",
                             h::ComboBox::new(self.demo_text("cb-mt-input", "", cx), language_items())
@@ -697,11 +780,11 @@ impl Gallery {
                                 .menu_trigger(h::MenuTrigger::Manual),
                             cx,
                         ),
-                    ]),
+                    ]), cx),
                 ),
                 (
                     "Form Value", "Items are keyed `PickerItem`s: the selection is the item's key while the input shows its label, and `form_value` decides what a named field submits. The default (`ComboBoxFormValue::Key`) submits the picked key -- save with a pick and the submitted value is `language=rust`, not `Rust` -- and `allows_custom_value` keeps the typed text.",
-                    col(vec![
+                    specimen_body("cb-form-value", col(vec![
                         {
                             let combo = h::ComboBox::new(
                                 self.demo_text("cb-form", "", cx),
@@ -748,11 +831,11 @@ impl Gallery {
                             .form_value(h::ComboBoxFormValue::Text),
                             cx,
                         ),
-                    ]),
+                    ]), cx),
                 ),
                 (
                     "Validation Behavior",
-                    col(vec![
+                    specimen_body("cb-validation-behavior", col(vec![
                         spec(
                             "Native (blocks the submit)",
                             h::ComboBox::new(self.demo_text("cb-vb-native", "", cx), language_items())
@@ -771,11 +854,11 @@ impl Gallery {
                                 .validation_behavior(h::ValidationBehavior::Allow),
                             cx,
                         ),
-                    ]),
+                    ]), cx),
                 ),
                 (
                     "Custom Validation",
-                    field_col(vec![h::ComboBox::new(
+                    specimen_body("cb-custom-validation", field_col(vec![h::ComboBox::new(
                         self.demo_text("cb-validate", "Zig", cx),
                         language_items(),
                     )
@@ -785,27 +868,27 @@ impl Gallery {
                         (!value.is_empty() && !languages().iter().any(|l| l == value))
                             .then(|| "Pick one of the listed languages".into())
                     })
-                    .into_any_element()]),
+                    .into_any_element()]), cx),
                 ),
                 (
                     "Custom Value",
-                    field_col(vec![h::ComboBox::new(
-                        self.combo_state.clone(),
+                    specimen_body("cb-custom-value", field_col(vec![h::ComboBox::new(
+                        self.demo_text("cb-custom-value", "", cx),
                         language_items(),
                     )
                     .label("Language")
                     .placeholder("Pick or type")
                     .allows_custom_value(true)
-                    .is_open(is_open)
+                    .is_open(self.demo_overlay("cb-custom-open"))
                     .on_open_change(cx.listener(|this, open: &bool, _, cx| {
-                        this.combo_open = *open;
+                        this.set_demo_flag("cb-custom-open", *open);
                         cx.notify();
                     }))
-                    .into_any_element()]),
+                    .into_any_element()]), cx),
                 ),
                 (
                     "Basic Usage", "The plainest combo box: a labeled input over a two-item list, uncontrolled, with the trigger opening the same filtered list.",
-                    field_col(vec![h::ComboBox::new(
+                    specimen_body("cb-basic-usage", field_col(vec![h::ComboBox::new(
                         self.demo_text("cb-basic", "", cx),
                         vec![
                             h::PickerItem::new("cat", "Cat"),
@@ -814,7 +897,7 @@ impl Gallery {
                     )
                     .label("Favorite Animal")
                     .placeholder("Search animals...")
-                    .into_any_element()]),
+                    .into_any_element()]), cx),
                 ),
             ],
             cx,
@@ -831,8 +914,8 @@ impl Gallery {
             crate::pages::Page::Select.import_line(),
             vec![
                 (
-                    "Usage", "Use the arrow keys and Enter or Space to select a language. Selection closes the list and keeps focus on the trigger. Values and options use 14px text with 20px lines. Section headers use 12px text with 16px lines and keep their own spacing. The popup flips near window edges and scrolls to keep options reachable in short windows.",
-                    field_col(vec![h::Select::new("sel-main", language_items())
+                    "Usage", "Use the arrow keys and Enter or Space to select a language. Selection closes the list and keeps focus on the trigger. Enabled options use the pinned 98% press scale over 250ms ease-out-quart inside a stable row slot. Values and options use 14px text with 20px lines. Section headers use 12px text with 16px lines and keep their own spacing. The popup flips near window edges and scrolls to keep options reachable in short windows.",
+                    specimen_body("sel-main", field_col(vec![h::Select::new("sel-main", language_items())
                         .label("Language")
                         .placeholder("Choose one")
                         .value(selected.clone())
@@ -849,11 +932,48 @@ impl Gallery {
                             this.select_open = false;
                             cx.notify();
                         }))
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
+                ),
+                (
+                    "Placement",
+                    "The list can enter above its trigger; the placement translation follows the physical side resolved by the viewport positioner.",
+                    specimen_body("sel-placement-top", field_col(vec![h::Select::new(
+                        "sel-placement-top",
+                        language_items(),
+                    )
+                    .label("Language")
+                    .placeholder("Choose one")
+                    .placement(h::Placement::Top)
+                    .default_open(true)
+                    .into_any_element()]), cx),
+                ),
+                (
+                    "Long Values & Option Focus",
+                    "Selected option labels keep the normal foreground and use a check indicator. Long selected values and natural-height option rows wrap inside the available width instead of being clipped.",
+                    specimen_body("sel-long-values", col(vec![
+                        gpui::div()
+                            .w(px(260.))
+                            .child(
+                                h::Select::new(
+                                    "sel-long-values",
+                                    vec![
+                                        h::PickerItem::new(
+                                            "long",
+                                            "A project name that is intentionally long enough to wrap",
+                                        ),
+                                        h::PickerItem::new("short", "Short option"),
+                                    ],
+                                )
+                                .label("Project")
+                                .default_value(Some("long".into()))
+                                .default_open(true),
+                            )
+                            .into_any_element(),
+                    ]), cx),
                 ),
                 (
                     "With Clear Button", "Clear the selection with the close control or Backspace/Delete on the closed trigger. An empty selection retains the control's layout space.",
-                    field_col(vec![
+                    specimen_body("sel-clear", field_col(vec![
                         h::Select::new("select-clear-single", language_items())
                             .label("Language").default_value(Some("rust".into()))
                             .clear_button(h::SelectClearButton::new()).into_any_element(),
@@ -862,12 +982,12 @@ impl Gallery {
                             .selection_mode(SelectionMode::Multiple)
                             .default_selected_keys(["rust".into(), "go".into()])
                             .clear_button(h::SelectClearButton::new()).into_any_element(),
-                    ]),
+                    ]), cx),
                 ),
                 (
                     "Box Customisation",
                     "`height`, `padding_x` and `is_bare` size the trigger; `row_padding_x` / `row_padding_y` size its option rows. This 28px bare trigger uses 12px trigger and row text, 8px row insets and 4px panel padding.",
-                    field_col(vec![h::Select::new("sel-custom-box", language_items())
+                    specimen_body("sel-box-customisation", field_col(vec![h::Select::new("sel-custom-box", language_items())
                         .label("Compact")
                         .placeholder("Choose one")
                         .height(px(28.))
@@ -882,55 +1002,55 @@ impl Gallery {
                         .row_hover_bg(cx.colors().accent.soft())
                         .row_font_family(crate::app::MONO_FONT)
                         .default_open(true)
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "Virtualization", "`row_height` makes the list geometry computable, so gpui's `uniform_list` builds only the rows in view. A thousand options, forty pixels each. The list sizes to the available height. Options remain reachable with the keyboard and mouse wheel.",
-                    col(vec![
+                    specimen_body("sel-virtualization", col(vec![
                         demo_field(
                             h::Select::new("sel-virtual", virtual_picker_items())
                                 .label("User")
                             .placeholder("Choose one")
-                            .row_height(px(40.)),
+                                .row_height(px(40.)),
                         ),
-                    ]),
+                    ]), cx),
                 ),
                 (
                     "With Description",
-                    field_col(vec![h::Select::new("sel-desc", language_items())
+                    specimen_body("sel-description", field_col(vec![h::Select::new("sel-desc", language_items())
                         .label("Language")
                         .placeholder("Choose one")
                         .description("Used for spell-checking")
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "Required",
-                    field_col(vec![h::Select::new("sel-required", language_items())
+                    specimen_body("sel-required", field_col(vec![h::Select::new("sel-required", language_items())
                         .label("Language")
                         .placeholder("Choose one")
                         .is_required(true)
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "Disabled",
-                    field_col(vec![h::Select::new("sel-disabled", language_items())
+                    specimen_body("sel-disabled", field_col(vec![h::Select::new("sel-disabled", language_items())
                         .label("Language")
                         .placeholder("Choose one")
                         .is_disabled(true)
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "With Disabled Options",
-                    field_col(vec![h::Select::new("sel-disabled-opts", language_items())
+                    specimen_body("sel-disabled-options", field_col(vec![h::Select::new("sel-disabled-opts", language_items())
                         .label("Language")
                         .placeholder("Choose one")
                         .disabled_keys([SharedString::from("typescript"), SharedString::from("go")])
                         .default_open(true)
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "With Sections",
-                    field_col(vec![h::Select::new(
+                    specimen_body("sel-sections", field_col(vec![h::Select::new(
                         "sel-sections",
                         vec![
                             h::PickerItem::new("us", "United States"),
@@ -945,11 +1065,11 @@ impl Gallery {
                     .section_before("us", "North America")
                     .section_before("fr", "Europe")
                     .default_open(true)
-                    .into_any_element()]),
+                    .into_any_element()]), cx),
                 ),
                 (
                     "In Surface",
-                    col(vec![h::Surface::new()
+                    specimen_body("sel-in-surface", col(vec![h::Surface::new()
                         .padding(px(24.))
                         .child(
                             h::Select::new("sel-surface", language_items())
@@ -958,10 +1078,11 @@ impl Gallery {
                                 .variant(FieldVariant::Secondary),
                         )
                         .into_any_element()]),
+                        cx),
                 ),
                 (
                     "Controlled Multiple",
-                    col(vec![
+                    specimen_body("sel-controlled-multiple", col(vec![
                         h::Select::new("sel-ctl-multi", language_items())
                             .label("Languages")
                             .placeholder("Choose any")
@@ -975,11 +1096,11 @@ impl Gallery {
                             ))
                             .into_any_element(),
                         para(&format!("{} selected", sel_multi.len()), cx),
-                    ]),
+                    ]), cx),
                 ),
                 (
                     "Controlled Open State",
-                    col(vec![
+                    specimen_body("sel-open", col(vec![
                         row(vec![
                             h::Button::new("sel-open-btn")
                                 .label(if is_open { "Close" } else { "Open" })
@@ -1001,11 +1122,11 @@ impl Gallery {
                                 cx.notify();
                             }))
                             .into_any_element(),
-                    ]),
+                    ]), cx),
                 ),
                 (
                     "Asynchronous Loading", "The list is filled from a request and a spinner shows while it is in flight. The spinner is composed beside the label, since the options are the caller's own data.",
-                    col(vec![
+                    specimen_body("sel-async-loading", col(vec![
                         row(vec![
                             h::Select::new("sel-async", language_items())
                                 .label("Language")
@@ -1013,13 +1134,13 @@ impl Gallery {
                                 .into_any_element(),
                             h::Spinner::new("sel-async-spinner")
                                 .size(h::SpinnerSize::Sm)
-                                .into_any_element(),
+                            .into_any_element(),
                         ]),
-                    ]),
+                    ]), cx),
                 ),
                 (
                     "Custom Indicator",
-                    field_col(vec![h::Select::new("sel-indicator", language_items())
+                    specimen_body("sel-custom-indicator", field_col(vec![h::Select::new("sel-indicator", language_items())
                         .label("Language")
                         .placeholder("Choose one")
                         .value(selected.clone())
@@ -1037,10 +1158,27 @@ impl Gallery {
                                 .into_any_element()
                         })
                         .into_any_element()]),
+                        cx),
+                ),
+                (
+                    "Custom Trigger Indicator",
+                    specimen_body("sel-trigger-indicator", field_col(vec![
+                        h::Select::new("sel-trigger-indicator", language_items())
+                            .label("Language")
+                            .placeholder("Choose one")
+                            .default_open(true)
+                            .trigger_indicator(|is_open| {
+                                gpui::div()
+                                    .text_size(px(16.))
+                                    .child(if is_open { "−" } else { "+" })
+                                    .into_any_element()
+                            })
+                            .into_any_element(),
+                    ]), cx),
                 ),
                 (
                     "Custom Value",
-                    field_col(vec![h::Select::new("sel-value", language_items())
+                    specimen_body("sel-custom-value", field_col(vec![h::Select::new("sel-value", language_items())
                         .label("Language")
                         .placeholder("Choose one")
                         .value(selected.clone())
@@ -1067,38 +1205,41 @@ impl Gallery {
                             // the placeholder case rather than rebuilding it.
                             None => value.default_children,
                         })
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "Uncontrolled",
-                    field_col(vec![h::Select::new("sel-unc", language_items())
+                    specimen_body("sel-uncontrolled", field_col(vec![h::Select::new("sel-unc", language_items())
                         .label("Language")
                         .placeholder("Choose one")
                         .default_value(Some(SharedString::from("rust")))
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "Variants",
                     field_col(FieldVariant::ALL
                         .iter()
-                        .map(|v| {
-                            h::Select::new(el_id(format!("sel-{v:?}")), language_items())
-                                .label(v.label())
-                                .placeholder("Choose one")
-                                .value(selected.clone())
-                                .on_selection_change(cx.listener(
-                                    |this, key: &Option<SharedString>, _, cx| {
-                                        this.select_lang = key.clone();
-                                        cx.notify();
-                                    },
-                                ))
-                                .variant(*v)
+                        .filter_map(|v| {
+                            let key = format!("sel-variant-{v:?}");
+                            crate::control::specimen_wanted(&key, cx).then(|| {
+                                h::Select::new(el_id(format!("sel-{v:?}")), language_items())
+                                    .label(v.label())
+                                    .placeholder("Choose one")
+                                    .value(selected.clone())
+                                    .on_selection_change(cx.listener(
+                                        |this, key: &Option<SharedString>, _, cx| {
+                                            this.select_lang = key.clone();
+                                            cx.notify();
+                                        },
+                                    ))
+                                    .variant(*v)
+                            })
                         })
                         .els()),
                 ),
                 (
                     "Full Width",
-                    col(vec![gpui::div()
+                    specimen_body("sel-full-width", col(vec![gpui::div()
                         .w(px(400.))
                         .child(
                             h::Select::new("sel-full", language_items())
@@ -1113,21 +1254,21 @@ impl Gallery {
                                 ))
                                 .full_width(true),
                         )
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "Multiple Select",
-                    field_col(vec![h::Select::new("sel-multi", language_items())
+                    specimen_body("sel-multiple-select", field_col(vec![h::Select::new("sel-multi", language_items())
                         .label("Languages")
                         .placeholder("Pick several")
                         .selection_mode(SelectionMode::Multiple)
                         .default_selected_keys([SharedString::from("rust"), SharedString::from("python")])
                         .default_open(true)
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "Controlled", "The selected key lives in the caller: the trigger reads `value` and the caption prints the same state.",
-                    field_col(vec![
+                    specimen_body("sel-controlled", field_col(vec![
                         h::Select::new("sel-controlled", language_items())
                             .label("Language (controlled)")
                             .placeholder("Choose one")
@@ -1153,7 +1294,7 @@ impl Gallery {
                             },
                             cx,
                         ),
-                    ]),
+                    ]), cx),
                 ),
             ],
             cx,

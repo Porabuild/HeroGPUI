@@ -456,9 +456,9 @@ const DRAWER_STYLING: &[StyleDoc] = &[
     StyleDoc {
         class_or_token: ".drawer__dialog[data-placement=\"bottom\"] / [data-placement=\"top\"]",
         value: "w-full max-h-[85vh]; sliding edge radius min(32px, var(--radius-2xl))",
-        description: "The full-width and 85% viewport cap match; the port does not round the sliding-edge corners.",
-        rust: "w_full + max_h(viewport * 0.85)",
-        status: ImplementationStatus::Partial,
+        description: "The full-width and 85% viewport cap match; bottom rounds the two top corners and top rounds the two bottom corners with the pinned capped radius.",
+        rust: "w_full/max_h(viewport * 0.85) + placement-specific rounded_tl/tr or rounded_bl/br",
+        status: ImplementationStatus::Implemented,
     },
     StyleDoc {
         class_or_token: ".drawer__dialog[data-placement=\"left\"] / [data-placement=\"right\"]",
@@ -470,9 +470,9 @@ const DRAWER_STYLING: &[StyleDoc] = &[
     StyleDoc {
         class_or_token: ".drawer__backdrop",
         value: "fixed inset-0 z-50; opacity fade; 250ms cubic-bezier(0.32, 0.72, 0, 1) enter, 200ms exit",
-        description: "The scrim fade exists, but the port reuses the shared modal backdrop motion (150/100ms ease-out) rather than the drawer's own timing.",
-        rust: "anim::Motion::BACKDROP_IN / BACKDROP_OUT",
-        status: ImplementationStatus::Partial,
+        description: "The scrim fades with Drawer’s own 250ms enter and 200ms exit tokens using the pinned out-fluid curve.",
+        rust: "anim::Motion::DRAWER_BACKDROP_IN / DRAWER_BACKDROP_OUT",
+        status: ImplementationStatus::Implemented,
     },
     StyleDoc {
         class_or_token: ".drawer__backdrop--opaque",
@@ -519,8 +519,8 @@ const DRAWER_STYLING: &[StyleDoc] = &[
     StyleDoc {
         class_or_token: ".drawer__body",
         value: "min-h-0 flex-1 text-sm leading-[1.43] text-muted; overflow-y-auto overscroll-contain scrollbar; -m-[3px] my-0 p-[3px]; -webkit-overflow-scrolling: touch",
-        description: "Scrolling body with 14px/20px muted text; the -m/p pair is a focus-ring allowance and the inset is zero. The port adds a 10px gap v3 leaves to authors, and gpui has no overscroll-behavior containment.",
-        rust: "flex_1 min_h(0) + overflow_y_scroll + 14/20px muted",
+        description: "Scrolling body with 14px/20px muted text and the pinned -3px/+3px scrollbar allowance; GPUI has no overscroll-behavior containment.",
+        rust: "flex_1 min_h(0) mx(-3px) p(3px) + overflow_y_scroll + 14/20px muted",
         status: ImplementationStatus::Partial,
     },
     StyleDoc {
@@ -533,16 +533,16 @@ const DRAWER_STYLING: &[StyleDoc] = &[
     StyleDoc {
         class_or_token: ".drawer__handle / [data-slot=\"drawer-handle-bar\"]",
         value: "flex items-center justify-center pb-2; bar h-1 w-9 rounded-xs bg-separator",
-        description: "Drag affordance bar, 4x36px separator with a hairline radius; the port inverts the bar inset to the moving edge for top placement instead of v3's padding swap.",
-        rust: "handle h(px(4.)) w(px(36.)) + hairline_radius + separator",
-        status: ImplementationStatus::Partial,
+        description: "Drag affordance bar, 4x36px separator with a hairline radius; the top placement removes the handle's bottom padding exactly as the pinned override requires.",
+        rust: "handle h(px(4.)) w(px(36.)) + hairline_radius + separator + top pb(0)",
+        status: ImplementationStatus::Implemented,
     },
     StyleDoc {
         class_or_token: ".drawer__dialog--top",
         value: "pb-2; .drawer__handle { pb-0 }",
-        description: "Top-placement inset handling; the port moves the handle's gap to the top edge instead of v3's bottom-padding swap, so the sheet inset stays uniform.",
-        rust: "handle .pt(px(8.)) on DrawerPlacement::Top",
-        status: ImplementationStatus::Partial,
+        description: "Top placement reduces the dialog's bottom padding to 8px and removes the handle's bottom padding, matching the moving-edge sheet geometry.",
+        rust: "panel pb(px(8.)) + handle pb(px(0.)) on DrawerPlacement::Top",
+        status: ImplementationStatus::Implemented,
     },
     StyleDoc {
         class_or_token: ".drawer__close-trigger",
@@ -1165,8 +1165,8 @@ const MODAL_STYLING: &[StyleDoc] = &[
     StyleDoc {
         class_or_token: ".modal__body",
         value: "min-h-0 flex-1; text-sm leading-[1.43] text-muted; -m-[3px] my-0 overflow-visible p-[3px]",
-        description: "14px/20px muted content; the -m/p pair is a focus-ring allowance and the inset is zero. The port adds a 10px gap v3 leaves to authors, and min-h-0/flex-1 have no effect in the port's layout.",
-        rust: "body flex flex_col + gap(px(10.)) + 14/20px muted",
+        description: "14px/20px muted content; `my-0` zeroes only the vertical margins of the -m/p pair, so the 3px padding is a real 3px inset and 6px of body height (the matched-capture panel delta), while the horizontal pair nets zero to spare the focus ring. The port adds a 10px gap v3 leaves to authors, and min-h-0/flex-1 have no effect in the port's layout.",
+        rust: "body flex flex_col + gap(px(10.)) + mx(px(-3.)) + p(px(3.)) + 14/20px muted",
         status: ImplementationStatus::Partial,
     },
     StyleDoc {
@@ -1228,9 +1228,9 @@ const MODAL_STYLING: &[StyleDoc] = &[
     StyleDoc {
         class_or_token: ".modal__container[data-entering=\"true\"] [data-placement=\"top\"] / [data-placement=\"bottom\"]",
         value: "slide-in-from-top-1 / slide-in-from-bottom-1",
-        description: "v3 slides these placements up or down 4px on enter; the port animates the zoom alone, and auto's sm step leaves a desktop with no slide — the same as the port.",
-        rust: "—",
-        status: ImplementationStatus::Partial,
+        description: "Top and bottom carry the pinned four-pixel placement slide during entry; Auto is centered on the desktop breakpoint and Full intentionally keeps its zero-slide rule.",
+        rust: "modal::placement_entry_offset + ZoomBox slide_x/slide_y",
+        status: ImplementationStatus::Implemented,
     },
     StyleDoc {
         class_or_token: ".modal__container--scroll-outside / .modal__backdrop:has(.modal__container--scroll-outside)",
@@ -1278,7 +1278,7 @@ const POPOVER_API: &[ApiDoc] = &[
     ApiDoc { owner: "Popover", prop: "defaultOpen", ty: "boolean", default: "false", description: "Initial uncontrolled open state.", rust_owner: "Popover", rust: "default_open(bool)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "Popover", prop: "onOpenChange", ty: "(isOpen: boolean) => void", default: "—", description: "Reports trigger, Escape, outside-press and explicit close changes.", rust_owner: "Popover", rust: "on_open_change(callback)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "Popover.Content", prop: "children", ty: "React.ReactNode", default: "—", description: "Arbitrary GPUI panel children are accepted, but Content is not a separately composable part.", rust_owner: "Popover", rust: "—", status: ImplementationStatus::Partial },
-    ApiDoc { owner: "Popover.Content", prop: "placement", ty: "Placement", default: "\"bottom\"", description: "Eight cardinal/start/end placements are available; React Aria's full placement union is not represented.", rust_owner: "Popover", rust: "placement(PopoverPlacement)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "Popover.Content", prop: "placement", ty: "Placement", default: "\"bottom\"", description: "The full 22-value React Aria union renders: physical and aligned spellings plus the logical start/end aliases, which share their left/right side's pixels in this LTR-only port.", rust_owner: "Popover", rust: "placement(PopoverPlacement)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "Popover.Content", prop: "offset", ty: "number", default: "8", description: "Distance between trigger and panel.", rust_owner: "Popover", rust: "offset(Pixels)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "Popover.Content", prop: "shouldFlip", ty: "boolean", default: "true", description: "Changes to the opposite orientation when the preferred side would overflow and the opposite side fits better.", rust_owner: "Popover", rust: "should_flip(bool)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "Popover.Content", prop: "className", ty: "string", default: "—", description: "Additional DOM classes have no GPUI analogue.", rust_owner: "Popover", rust: "—", status: ImplementationStatus::Unavailable },
@@ -1302,7 +1302,7 @@ const POPOVER_PARTS: &[PartDoc] = &[
 ];
 
 const POPOVER_STATES: &[StateDoc] = &[
-    StateDoc { state: "Entering", selector: ".popover[data-entering=true]", description: "150ms Smooth fade and zoom from 90%; v3's placement-specific 4px translation is not reproduced.", rust: "overlay_scope Open + entering_zoom(Motion::POPOVER_IN)", status: ImplementationStatus::Partial },
+    StateDoc { state: "Entering", selector: ".popover[data-entering=true]", description: "150ms Smooth fade and zoom from 90% with the pinned 4px translation from the resolved physical placement; GPUI still has no transform-origin primitive.", rust: "overlay_scope Open + placement_entry_offset + entering_zoom(Motion::POPOVER_IN)", status: ImplementationStatus::Partial },
     StateDoc { state: "Exiting", selector: ".popover[data-exiting=true]", description: "Remains mounted for the 100ms Smooth fade and zoom to 95%.", rust: "overlay_scope Exiting + exiting(Motion::LIST_OUT)", status: ImplementationStatus::Implemented },
     StateDoc { state: "Placement", selector: ".popover[data-placement=*]", description: "Eight placements align to the trigger and shouldFlip resolves the fitting orientation; placement attributes and the wider React Aria union are absent.", rust: "PopoverPositioner + Placement", status: ImplementationStatus::Partial },
     StateDoc { state: "Focus visible", selector: ".popover__trigger[data-focus-visible=true]", description: "Keyboard focus and its visible ring remain owned by the caller-provided trigger control.", rust: "trigger child focus treatment", status: ImplementationStatus::Partial },
@@ -1312,7 +1312,7 @@ const POPOVER_STYLING: &[StyleDoc] = &[
     StyleDoc { class_or_token: ".popover surface", value: "bg-overlay p-0 text-sm; min(32px, --radius-3xl); shadow-overlay", description: "Surface colour, 14/20px text, capped radius and overlay shadow match; the monolithic panel combines root and dialog padding.", rust: "overlay colors + text_size(px(14.)) + container_radius + overlay_shadow", status: ImplementationStatus::Partial },
     StyleDoc { class_or_token: ".popover__dialog", value: "p-4 outline-none", description: "Sixteen-pixel inset and a programmatic dialog focus scope.", rust: "px(px(16.)) + py(px(16.)) + panel_focus", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".popover__heading", value: "font-medium", description: "Heading uses the pinned 500 weight.", rust: "FontWeight::MEDIUM", status: ImplementationStatus::Implemented },
-    StyleDoc { class_or_token: ".popover[data-entering=true]", value: "150ms ease-smooth fade-in-0 zoom-in-90 + placement slide 4px", description: "Duration, curve, fade and zoom match; transform origin and placement slide are absent.", rust: "Motion::POPOVER_IN + entering_zoom", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".popover[data-entering=true]", value: "150ms ease-smooth fade-in-0 zoom-in-90 + placement slide 4px", description: "Duration, curve, fade, zoom and resolved placement slide match; transform origin remains a documented GPUI limitation.", rust: "Motion::POPOVER_IN + placement_entry_offset + entering_zoom", status: ImplementationStatus::Partial },
     StyleDoc { class_or_token: ".popover[data-exiting=true]", value: "100ms ease-smooth zoom-out-95 fade-out", description: "Exit duration, curve, fade and zoom match.", rust: "Motion::LIST_OUT + exiting", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".popover [data-slot=popover-overlay-arrow]", value: "12px; fill overlay; placement rotation", description: "Size, built-in curve, fill and flip-aware rotation match. Upstream applies the same placement rotation to a custom child through its data-slot selector, which gpui-pre 0.3.3 cannot do for an arbitrary div element; the port places a custom child unrotated.", rust: "PopoverArrow svg child + PopoverSide::arrow_rotation + arrow_origin", status: ImplementationStatus::Partial },
     StyleDoc { class_or_token: ".popover__trigger", value: "inline-block; 150ms colour/background/shadow transitions; interactive cursor; focus/disabled statuses", description: "The wrapper is interactive and the child owns focus/disabled visuals, but inline-block and these transitions are not reproduced.", rust: "relative flex wrapper + cursor_pointer", status: ImplementationStatus::Partial },
@@ -1351,7 +1351,7 @@ const TOOLTIP_API: &[ApiDoc] = &[
     ApiDoc { owner: "Tooltip.Content", prop: "children", ty: "ReactNode", default: "—", description: "Tooltip body content; the port accepts text rather than arbitrary elements.", rust_owner: "Tooltip", rust: "new(content)", status: ImplementationStatus::Partial },
     ApiDoc { owner: "Tooltip.Content", prop: "showArrow", ty: "boolean", default: "false", description: "Draws the built-in curved arrow.", rust_owner: "Tooltip", rust: "show_arrow(bool)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "Tooltip.Content", prop: "offset", ty: "number", default: "3 (7 with arrow)", description: "Distance from the trigger, including v3's arrow-aware default.", rust_owner: "Tooltip", rust: "offset(Pixels)", status: ImplementationStatus::Implemented },
-    ApiDoc { owner: "Tooltip.Content", prop: "placement", ty: "Placement", default: "\"top\"", description: "The four cardinal placements render; RAC's start/end and edge variants are not represented.", rust_owner: "Tooltip", rust: "placement(TooltipPlacement)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "Tooltip.Content", prop: "placement", ty: "Placement", default: "\"top\"", description: "The full 22-value React Aria union renders through the shared placement vocabulary: physical and aligned spellings plus the logical start/end aliases, which share their left/right side's pixels because GPUI has no RTL layout mode.", rust_owner: "Tooltip", rust: "placement(TooltipPlacement)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "Tooltip.Content", prop: "className", ty: "string", default: "—", description: "CSS class override.", rust_owner: "Tooltip", rust: "—", status: ImplementationStatus::Unavailable },
     ApiDoc { owner: "Tooltip.Content", prop: "render", ty: "DOMRenderFunction", default: "—", description: "DOM render override.", rust_owner: "Tooltip", rust: "—", status: ImplementationStatus::Unavailable },
     ApiDoc { owner: "Tooltip.Trigger", prop: "children", ty: "ReactNode", default: "—", description: "Trigger content is composed as the Tooltip's child, but the port does not expose a separately replaceable trigger part.", rust_owner: "Tooltip", rust: "ParentElement::extend", status: ImplementationStatus::Partial },
@@ -1370,17 +1370,17 @@ const TOOLTIP_PARTS: &[PartDoc] = &[
 
 const TOOLTIP_STATES: &[StateDoc] = &[
     StateDoc { state: "Global sequence", selector: "React Stately tooltip manager", description: "Only one tooltip stays open; the first hover waits for delay, later hovers during max(500ms, closeDelay) cooldown open immediately, and the sequence becomes cold again after cooldown.", rust: "TooltipManager + prepare_tooltip_open + start_tooltip_cooldown", status: ImplementationStatus::Implemented },
-    StateDoc { state: "Entering", selector: "[data-entering=\"true\"]", description: "150ms Smooth fade and zoom from 90%; v3's placement-specific 4px translation is not reproduced.", rust: "overlay_phase Entering + entering_zoom(POPOVER_IN)", status: ImplementationStatus::Partial },
+    StateDoc { state: "Entering", selector: "[data-entering=\"true\"]", description: "150ms Smooth fade and zoom from 90% with the pinned 4px translation for the tooltip side; GPUI still has no transform-origin primitive.", rust: "overlay_phase Entering + TooltipPlacement::entry_offset + entering_zoom(POPOVER_IN)", status: ImplementationStatus::Partial },
     StateDoc { state: "Exiting", selector: "[data-exiting=\"true\"]", description: "100ms Smooth fade and zoom to 95%.", rust: "overlay_phase Exiting + exiting(LIST_OUT)", status: ImplementationStatus::Implemented },
-    StateDoc { state: "Placement", selector: "[data-placement]", description: "Cardinal positioning and arrow rotation; start/end variants and DOM attributes are absent.", rust: "TooltipPlacement match", status: ImplementationStatus::Partial },
+    StateDoc { state: "Placement", selector: "[data-placement]", description: "The 22-value union keeps the panel and arrow on the matching trigger edge: side-plus-alignment spellings pin their named edge, and the logical start/end aliases share their physical left/right spelling without RTL.", rust: "TooltipPlacement match", status: ImplementationStatus::Implemented },
 ];
 
 const TOOLTIP_STYLING: &[StyleDoc] = &[
     StyleDoc { class_or_token: ".tooltip padding/radius", value: "p-2; min(32px, --radius-xl)", description: "Eight-pixel inset and the 12px small radius.", rust: "p(px(8.)) + small_radius", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".tooltip surface", value: "bg-overlay text-xs shadow-overlay", description: "Overlay colours, 12/16px type and overlay shadow, plus the dark-mode overlay hairline.", rust: "overlay colors + 12/16px + overlay_shadow/overlay_hairline", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".tooltip max-w-xs", value: "max-width: 320px", description: "Uses max-content width up to Tailwind's xs cap.", rust: "shaped max-content width clamped to px(320.)", status: ImplementationStatus::Implemented },
-    StyleDoc { class_or_token: ".tooltip break-all", value: "overflow-wrap anywhere", description: "The port restores normal wrapping but GPUI has no break-all mode for a single unbroken token.", rust: "default WhiteSpace::Normal", status: ImplementationStatus::Partial },
-    StyleDoc { class_or_token: ".tooltip[data-entering]", value: "150ms ease-smooth fade-in-0 zoom-in-90 + placement slide 4px", description: "Fade and zoom match; transform origin and placement slide are absent.", rust: "Motion::POPOVER_IN + entering_zoom", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".tooltip break-all", value: "overflow-wrap anywhere", description: "Long URLs and other unbroken tokens receive zero-width break opportunities before the normal GPUI wrapper applies the 320px cap.", rust: "tooltip_text_with_break_opportunities + max_w(px(320.))", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".tooltip[data-entering]", value: "150ms ease-smooth fade-in-0 zoom-in-90 + placement slide 4px", description: "Fade, zoom and four-pixel side translation match; transform origin remains a documented GPUI limitation.", rust: "Motion::POPOVER_IN + TooltipPlacement::entry_offset + entering_zoom", status: ImplementationStatus::Partial },
     StyleDoc { class_or_token: ".tooltip[data-exiting]", value: "100ms ease-smooth zoom-out-95 fade-out", description: "Exit motion matches.", rust: "Motion::LIST_OUT + exiting", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".tooltip [data-slot=\"overlay-arrow\"]", value: "12px curved arrow; fill overlay; stroke border/40", description: "Size, geometry, fill and rotation match; GPUI's single-colour SVG tint cannot add the separate 40% border stroke.", rust: "TOOLTIP_ARROW size(px(12.)) + overlay background + arrow_rotation", status: ImplementationStatus::Partial },
     StyleDoc { class_or_token: ".tooltip__trigger", value: "inline-block; color/background/shadow transitions", description: "The focus wrapper exists, but GPUI has no inline-block display and the three property transitions are not animated.", rust: "wrapper relative flex + hover/focus listeners", status: ImplementationStatus::Partial },
@@ -1388,7 +1388,7 @@ const TOOLTIP_STYLING: &[StyleDoc] = &[
     StyleDoc { class_or_token: "--tooltip-delay", value: "1500ms", description: "Theme default before a hovered tooltip opens.", rust: "layout.tooltip_delay_ms", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: "--tooltip-close-delay", value: "500ms", description: "Theme default before a tooltip closes after hover leaves.", rust: "layout.tooltip_close_delay_ms", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: "content offset", value: "3px; 7px with arrow", description: "Pinned Tooltip.Content default offset logic.", rust: "offset.unwrap_or(show_arrow ? 7 : 3)", status: ImplementationStatus::Implemented },
-    StyleDoc { class_or_token: "placement", value: "top / bottom / left / right", description: "Tip anchoring and arrow rotation for the four cardinals.", rust: "TooltipPlacement match", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: "placement", value: "top / top start / top left / top end / top right / bottom / bottom start / bottom left / bottom end / bottom right / left / left top / left bottom / right / right top / right bottom / start / start top / start bottom / end / end top / end bottom", description: "Tip anchoring and arrow rotation for the full 22-value placement union; motion and the arrow follow the physical side while alignment is positioning-only, and logical start/end aliases share their left/right side in the LTR-only port.", rust: "TooltipPlacement match", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: "reduced motion / shouldSkipAnimation", value: "motion-reduce animate-none / caller skip", description: "Reduced motion and the explicit skip both leave the tip fully visible without geometric animation.", rust: "reduce_motion + should_skip_animation", status: ImplementationStatus::Implemented },
 ];
 
@@ -1427,7 +1427,7 @@ const TOAST_API: &[ApiDoc] = &[
     ApiDoc { owner: "Toast.Provider", prop: "exitDuration", ty: "number", default: "300", description: "Keeps a dismissed card mounted for the exit fade. Duration zero and reduced motion remove it immediately.", rust_owner: "ToastViewport", rust: "exit_duration(Duration)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "Toast.Provider", prop: "hotkey", ty: "string[]", default: "['Alt', 'KeyT']", description: "Focuses the region so the stack expands. ToastHotkey::disabled turns the shortcut off. Extra modifiers must not be held.", rust_owner: "ToastViewport", rust: "hotkey(ToastHotkey)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "Toast.Provider", prop: "scaleFactor", ty: "number", default: "0.05", description: "Geometrically narrows cards by stack depth because GPUI div transforms are unavailable.", rust_owner: "ToastViewport", rust: "scale_factor(f32)", status: ImplementationStatus::Partial },
-    ApiDoc { owner: "Toast.Provider", prop: "width", ty: "number | string", default: "460", description: "Sets a fixed desktop card width in pixels.", rust_owner: "ToastViewport", rust: "width(Pixels)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "Toast.Provider", prop: "width", ty: "number | string", default: "460", description: "Sets the desktop card width in pixels; the rendered width clamps to the live viewport minus both insets on narrow windows.", rust_owner: "ToastViewport", rust: "width(Pixels) + viewport clamp", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "Toast.Provider", prop: "queue", ty: "ToastQueue<T>", default: "—", description: "The port uses one application-global ToastStore rather than accepting a viewport-local queue.", rust_owner: "ToastViewport", rust: "toast::toast_store + application-global store", status: ImplementationStatus::Partial },
     ApiDoc { owner: "Toast.Provider", prop: "children", ty: "ReactNode | RenderFunction", default: "—", description: "The viewport renders built-in cards; queue-item render replacement is unavailable.", rust_owner: "ToastViewport", rust: "built-in ToastCardEl", status: ImplementationStatus::Unavailable },
     ApiDoc { owner: "Toast.Provider", prop: "className", ty: "string", default: "—", description: "Browser classes are unavailable; inset supplies desktop edge geometry.", rust_owner: "ToastViewport", rust: "inset(Pixels)", status: ImplementationStatus::Unavailable },
@@ -1440,7 +1440,7 @@ const TOAST_API: &[ApiDoc] = &[
     ApiDoc { owner: "Toast.Content", prop: "children", ty: "ReactNode", default: "—", description: "Title and optional description are composed in the built-in content column.", rust_owner: "Toast", rust: "new(title) / description(text)", status: ImplementationStatus::Partial },
     ApiDoc { owner: "Toast.Content", prop: "className", ty: "string", default: "—", description: "Browser classes are unavailable.", rust_owner: "Toast", rust: "—", status: ImplementationStatus::Unavailable },
     ApiDoc { owner: "Toast.Indicator", prop: "variant", ty: "ToastVariant", default: "Toast variant", description: "The toast variant chooses the default icon and semantic foreground.", rust_owner: "Toast", rust: "variant(Color)", status: ImplementationStatus::Implemented },
-    ApiDoc { owner: "Toast.Indicator", prop: "children", ty: "ReactNode", default: "variant icon", description: "A caller can replace or suppress the icon by asset path; arbitrary element content is unavailable.", rust_owner: "Toast", rust: "indicator(Option<SharedString>)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "Toast.Indicator", prop: "children", ty: "ReactNode", default: "variant icon", description: "A caller can replace or suppress the icon by asset path, or render fresh GPUI content through the shared indicator box.", rust_owner: "Toast", rust: "indicator(Option<SharedString>) / indicator_content(render)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "Toast.Indicator", prop: "className", ty: "string", default: "—", description: "Browser classes are unavailable.", rust_owner: "Toast", rust: "—", status: ImplementationStatus::Unavailable },
     ApiDoc { owner: "Toast.Title", prop: "children", ty: "ReactNode", default: "—", description: "Required title text is supplied to the constructor.", rust_owner: "Toast", rust: "new(title)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "Toast.Title", prop: "className", ty: "string", default: "—", description: "Browser classes are unavailable.", rust_owner: "Toast", rust: "—", status: ImplementationStatus::Unavailable },
@@ -1463,13 +1463,13 @@ const TOAST_API: &[ApiDoc] = &[
     ApiDoc { owner: "toast Function", prop: "title", ty: "ReactNode", default: "—", description: "Text title is the required Toast constructor argument.", rust_owner: "Toast", rust: "new(title)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "toast Function", prop: "description", ty: "ReactNode", default: "—", description: "Optional description text.", rust_owner: "Toast", rust: "description(text)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "toast Function", prop: "variant", ty: "ToastVariant", default: "default", description: "Plain Toast::new now matches the pinned default variant; semantic variants use the builder or constructors.", rust_owner: "Toast", rust: "variant(Color) / success / error", status: ImplementationStatus::Implemented },
-    ApiDoc { owner: "toast Function", prop: "indicator", ty: "ReactNode", default: "variant icon", description: "Asset-path replacement and null suppression are supported; arbitrary elements are not.", rust_owner: "Toast", rust: "indicator(Option<SharedString>)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "toast Function", prop: "indicator", ty: "ReactNode", default: "variant icon", description: "Asset-path replacement, caller-owned indicator content and null suppression are supported.", rust_owner: "Toast", rust: "indicator(Option<SharedString>) / indicator_content(render)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "toast Function", prop: "actionProps", ty: "ButtonProps", default: "—", description: "Text children and onPress are supported.", rust_owner: "Toast", rust: "action(label, handler)", status: ImplementationStatus::Partial },
     ApiDoc { owner: "toast Function", prop: "isLoading", ty: "boolean", default: "false", description: "Replaces the indicator with a persistent spinner.", rust_owner: "Toast", rust: "is_loading(bool) / loading(title)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "toast Function", prop: "timeout", ty: "number", default: "4000", description: "Duration zero persists; positive durations auto-dismiss through the queue timer.", rust_owner: "Toast", rust: "timeout(Duration) / push(duration)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "toast Function", prop: "onClose", ty: "() => void", default: "—", description: "Reports exactly once for individual timeout, action, close-button, or programmatic dismissal, but not queue clear.", rust_owner: "Toast", rust: "on_close(callback)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "toast Function", prop: "update", ty: "(id, title, options) => key", default: "—", description: "Replaces an existing toast in place. timeout and onClose are inherited unless set; a missing id adds a new toast.", rust_owner: "Toast", rust: "update(id, cx)", status: ImplementationStatus::Implemented },
-    ApiDoc { owner: "toast.promise", prop: "loading", ty: "ReactNode", default: "—", description: "Shown while the future is pending as a persistent loading toast.", rust_owner: "Toast", rust: "promise(future, loading, cx)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "toast.promise", prop: "loading", ty: "ReactNode", default: "—", description: "Shown while the future is pending as a persistent loading toast. The GPUI extension promise_task returns a task the owner can drop to cancel pending work; it leaves queue cleanup to that owner.", rust_owner: "Toast", rust: "promise(future, loading, cx)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "toast.promise", prop: "success", ty: "ReactNode | (data) => ReactNode", default: "—", description: "Ok title replaces the loading toast in place as the success variant and starts the default dismiss clock. Map resolved data into that title before returning Ok.", rust_owner: "Toast", rust: "promise(future, loading, cx)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "toast.promise", prop: "error", ty: "ReactNode | (error) => ReactNode", default: "—", description: "Err title replaces the loading toast in place as the danger variant and starts the default dismiss clock. Map the error into that title before returning Err.", rust_owner: "Toast", rust: "promise(future, loading, cx)", status: ImplementationStatus::Implemented },
 ];
@@ -1492,9 +1492,10 @@ const TOAST_PARTS: &[PartDoc] = &[
     PartDoc {
         name: "Toast.Indicator",
         slot: "toast-indicator",
-        description: "Variant glyph, caller asset, or loading spinner.",
+        description:
+            "Variant glyph, caller asset/content, or loading spinner inside the shared 24px box.",
         rust_owner: "Toast",
-        status: ImplementationStatus::Partial,
+        status: ImplementationStatus::Implemented,
     },
     PartDoc {
         name: "Toast.Content",
@@ -1535,26 +1536,26 @@ const TOAST_PARTS: &[PartDoc] = &[
 
 const TOAST_STATES: &[StateDoc] = &[
     StateDoc { state: "Frontmost", selector: ".toast[data-frontmost=true]", description: "Only depth zero exposes action and close interaction; stacked cards are inert.", rust: "ToastCardEl.frontmost", status: ImplementationStatus::Implemented },
-    StateDoc { state: "Index", selector: ".toast[data-index]", description: "Depth narrows each older card, but the port uses a flex stack rather than pinned absolute height/translate geometry.", rust: "toast_card depth + scale_factor", status: ImplementationStatus::Partial },
+    StateDoc { state: "Index", selector: ".toast[data-index]", description: "Each depth uses the measured card height and configured gap for absolute placement; collapsed depth also reuses the front card's height while its content stays clipped.", rust: "measured_heights + stack_offset + scale_factor", status: ImplementationStatus::Implemented },
     StateDoc { state: "Placement", selector: ".toast[data-placement=*]", description: "All six top/bottom start/center/end anchors are driven.", rust: "ToastPlacement", status: ImplementationStatus::Implemented },
     StateDoc { state: "Hidden", selector: ".toast[data-hidden=true]", description: "Overflow stays queued and timed, mounted at zero opacity and out of flow so it does not move the frontmost close target.", rust: "hidden + hidden_toasts(max)", status: ImplementationStatus::Implemented },
-    StateDoc { state: "Expanded", selector: ".toast[data-expanded=true]", description: "Hover, focus-within, or isExpanded opens the stack when more than one toast is active. Collapsed non-front cards peek at the gap height.", rust: "ToastViewport::is_expanded + pointer/focus within", status: ImplementationStatus::Implemented },
-    StateDoc { state: "Exiting", selector: ".toast[data-exiting=true]", description: "Dismissed cards stay mounted for exitDuration and play LIST_OUT unless reduced motion is on.", rust: "ToastStore::exiting + anim::exiting", status: ImplementationStatus::Implemented },
+    StateDoc { state: "Expanded", selector: ".toast[data-expanded=true]", description: "Hover, focus-within, or isExpanded opens the stack when more than one toast is active; measured card heights and the configured gap determine each absolute offset.", rust: "ToastViewport::is_expanded + measured stack offsets", status: ImplementationStatus::Implemented },
+    StateDoc { state: "Exiting", selector: ".toast[data-exiting=true]", description: "Dismissed frontmost cards stay mounted for exitDuration and translate toward the placement edge over the pinned 350ms ease-out-fluid motion; non-frontmost cards settle through the 200ms stack scale path. Reduced motion removes the exit frame.", rust: "ToastStore::exiting + anim::exiting_to(Motion::TOAST_OUT) / anim::exiting(Motion::TOAST_STACK_OUT)", status: ImplementationStatus::Implemented },
     StateDoc { state: "Loading", selector: "toast option isLoading", description: "A persistent spinner replaces the indicator.", rust: "Toast::is_loading", status: ImplementationStatus::Implemented },
 ];
 
 const TOAST_STYLING: &[StyleDoc] = &[
-    StyleDoc { class_or_token: ".toast-region", value: "fixed z-50 pointer-events-none; responsive width", description: "The root is absolutely placed in the app overlay; z-index, viewport-responsive width, and region focus outline are unavailable.", rust: "absolute ToastViewport", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".toast-region", value: "fixed z-50 pointer-events-none; responsive width", description: "The root is absolutely placed in the app overlay and its cards clamp to the live viewport minus the configured edge insets; z-index and the browser's focus outline remain platform-specific.", rust: "absolute ToastViewport + viewport width clamp", status: ImplementationStatus::Partial },
     StyleDoc { class_or_token: ".toast-region placements", value: "16px window inset at six anchors", description: "Desktop placement and default inset match.", rust: "ToastPlacement + inset(16)", status: ImplementationStatus::Implemented },
-    StyleDoc { class_or_token: ".toast", value: "absolute flex items-start gap-1.5 bg-surface px-4 py-3 shadow-overlay radius min(32px, 3xl)", description: "Card fill, row alignment, six-pixel gap, padding, radius and overlay shadow match; the port does not add a card border, and cards use flex stacking rather than absolute overlap.", rust: "ToastCardEl", status: ImplementationStatus::Partial },
-    StyleDoc { class_or_token: ".toast non-frontmost", value: "pointer-events-none; front height; overflow hidden; close opacity 0", description: "Action and close interaction plus close visibility are suppressed; pinned front-height clipping is unavailable.", rust: "frontmost + disabled action + hidden close", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".toast", value: "absolute flex items-start gap-1.5 bg-surface px-4 py-3 shadow-overlay radius min(32px, 3xl)", description: "Card fill, row alignment, six-pixel gap, padding, radius, overlay shadow, measured height and absolute placement match; the port retains its documented geometric width shrink where GPUI has no div transform.", rust: "ToastCardEl + measured_heights + stack_offset", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".toast non-frontmost", value: "pointer-events-none; front height; overflow hidden; close opacity 0", description: "Non-front cards reuse the measured front height, clip their hidden content, suppress action and close interaction, and expose only the configured stack offset.", rust: "front_height + overflow_hidden + disabled action + hidden close", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".toast__content", value: "flex h-full grow flex-col items-start self-center", description: "The growing column and adjacent title/description rows match; the port uses flex stacking rather than the pinned absolute card stack.", rust: "text_col flex_col flex_1", status: ImplementationStatus::Partial },
-    StyleDoc { class_or_token: ".toast__indicator", value: "shrink-0 center p-1; icon/spinner 16px", description: "Geometry, default glyph mapping, spinner size, and overlay/status foreground rules match.", rust: "indicator / Spinner", status: ImplementationStatus::Implemented },
-    StyleDoc { class_or_token: ".toast__title", value: "14px/20px medium overlay or semantic-soft foreground", description: "Typography and all five pinned variant title colors match.", rust: "title_color + 14/20 MEDIUM", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".toast__indicator", value: "shrink-0 center p-1; icon/spinner 16px", description: "Geometry, default glyph mapping, caller-owned content, spinner size, and overlay/status foreground rules match.", rust: "indicator / indicator_content / Spinner", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".toast__title", value: "14px/20px medium overlay or semantic-soft foreground; natural wrapping", description: "Typography, natural wrapping and all five pinned variant title colors match.", rust: "title_color + 14/20 MEDIUM + whitespace_normal", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".toast__description", value: "14px muted", description: "Size and muted foreground match.", rust: "14px/20px muted", status: ImplementationStatus::Implemented },
-    StyleDoc { class_or_token: ".toast__close-button", value: "absolute -4px end/top; 20px; hover-only opacity; 150ms ease-smooth", description: "Size, border, fill, glyph, focus, and frontmost interaction match; the port keeps it in flow and always visible on the front card.", rust: "frontmost close_btn", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".toast__close-button", value: "absolute -4px end/top; 20px; hover-only opacity; 150ms ease-smooth", description: "Absolute offset, size, border, fill, glyph, focus, frontmost interaction, hover-only reveal and 150ms ease-smooth opacity match; GPUI keeps the physical right edge because the desktop port has no logical direction property.", rust: "absolute top/right close_btn + close-hovered + close-opacity", status: ImplementationStatus::Partial },
     StyleDoc { class_or_token: ".toast__action", value: "mt-2; sm:mt-0", description: "Desktop action composition matches the small secondary Button; mobile top margin is unavailable.", rust: "Button Secondary Sm", status: ImplementationStatus::Partial },
-    StyleDoc { class_or_token: "toast view-transition motion", value: "350ms placement-aware slide and fade enter/exit", description: "The port uses the shared list zoom-in entry and has no toast exit/view-transition animation.", rust: "anim::Motion::LIST_IN", status: ImplementationStatus::Unavailable },
+    StyleDoc { class_or_token: "toast transition motion", value: "350ms ease-out-fluid placement-aware slide/fade enter and frontmost exit; 200ms stack exit", description: "New cards enter from the physical top/bottom placement edge, frontmost dismissal leaves toward that edge, and non-frontmost exits use the pinned 200ms stack scale. The port keeps the independent 150ms opacity track; the browser's CSS view-transition wrapper remains unavailable.", rust: "toast_entering(Motion::TOAST_IN + TOAST_OPACITY_MS) + toast_exiting(Motion::TOAST_OUT + TOAST_OPACITY_MS) + anim::exiting(Motion::TOAST_STACK_OUT)", status: ImplementationStatus::Partial },
 ];
 
 pub(super) const TOAST: ReferenceMetadata = ReferenceMetadata {
@@ -1692,10 +1693,10 @@ const ALERT_DIALOG_API: &[ApiDoc] = &[
         prop: "placement",
         ty: "\"auto\" | \"center\" | \"top\" | \"bottom\"",
         default: "\"auto\"",
-        description: "Dialog position on screen; all four anchor the panel, but v3's ±4px enter slide for top/bottom/auto is not ported — the fade and the zoom are.",
+        description: "Dialog position on screen; all four anchor the panel, and the explicit top/bottom placements carry v3's ±4px entry slide while centered/auto desktop layouts stay still.",
         rust_owner: "AlertDialog",
         rust: "placement(ModalPlacement)",
-        status: ImplementationStatus::Partial,
+        status: ImplementationStatus::Implemented,
     },
     ApiDoc {
         owner: "AlertDialog.Container",
@@ -2014,9 +2015,9 @@ const ALERT_DIALOG_STATES: &[StateDoc] = &[
     StateDoc {
         state: "Entering",
         selector: "[data-entering]",
-        description: "Applied during the opening animation: the scrim fades at 150ms and the panel fades while zooming in from 105% at 250ms — but v3's ±4px placement slide is not ported, because the existing listener-free motion primitives own the whole fade/zoom transition and a second fading layer would double-fade the panel.",
-        rust: "OverlayPhase::Open + Motion::BACKDROP_IN + entering_zoom Motion::PANEL_IN",
-        status: ImplementationStatus::Partial,
+        description: "Applied during the opening animation: the scrim fades at 150ms and the panel fades while zooming in from 105% at 250ms, with the pinned four-pixel top/bottom placement slide in the same transition.",
+        rust: "OverlayPhase::Open + Motion::BACKDROP_IN + placement_entry_offset + entering_zoom Motion::PANEL_IN",
+        status: ImplementationStatus::Implemented,
     },
     StateDoc {
         state: "Exiting",
@@ -2028,9 +2029,9 @@ const ALERT_DIALOG_STATES: &[StateDoc] = &[
     StateDoc {
         state: "Placement",
         selector: "[data-placement=\"*\"]",
-        description: "Auto, top, center and bottom anchor the dialog and choose the container alignment; only top and bottom carry the ±4px enter slide (slide-in-from-top/bottom-1) and that slide is not ported. Auto's slide-in-from-bottom-1 is canceled at sm, so a desktop Auto has no slide — that is upstream's value, not a missing one.",
-        rust: "ModalPlacement anchored match",
-        status: ImplementationStatus::Partial,
+        description: "Auto, top, center and bottom anchor the dialog and choose the container alignment; top and bottom add the pinned ±4px entry slide, while desktop Auto and Center remain zero-offset.",
+        rust: "ModalPlacement anchored match + placement_entry_offset",
+        status: ImplementationStatus::Implemented,
     },
 ];
 
@@ -2094,9 +2095,9 @@ const ALERT_DIALOG_STYLING: &[StyleDoc] = &[
     StyleDoc {
         class_or_token: ".alert-dialog__container[data-entering=\"true\"] [data-placement=\"auto\" / \"top\" / \"bottom\" / \"center\"]",
         value: "slide-in-from-bottom-1 canceled by sm:slide-in-from-bottom-0 / slide-in-from-top-1 / slide-in-from-bottom-1 / slide-in-from-top-0",
-        description: "Only top and bottom slide ±4px on a desktop enter, and that slide is the one motion the port does not carry: the fade and the zoom are ported, but the existing listener-free primitives own the whole transition and layering a second fading translate would double-fade the panel. Auto's slide is canceled at sm and center's is zero, so neither is a missing desktop slide.",
-        rust: "—",
-        status: ImplementationStatus::Partial,
+        description: "The panel carries the pinned four-pixel top/bottom entry slide in the same fade/zoom transition; Auto and Center remain zero-offset on the desktop breakpoint.",
+        rust: "modal::placement_entry_offset + ZoomBox slide_x/slide_y",
+        status: ImplementationStatus::Implemented,
     },
     StyleDoc {
         class_or_token: ".alert-dialog__dialog",

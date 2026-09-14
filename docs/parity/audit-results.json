@@ -1,123 +1,564 @@
 {
+  "schema_version": 2,
   "target": "v3.2.5",
-  "recorded_on": "2026-09-12",
-  "note": "Exit zero is not a full parity verdict: some audits report gaps without failing. See reported_gaps and interaction-sweep.md.",
+  "recorded_on": "2026-09-14T01:48:00.393992+00:00",
+  "inputs_sha256": "4396f45ba8f2cb852093e1601999cfdeda1276a6cb6ab42431f97e81628db110",
+  "inputs_stable_during_run": true,
+  "status": "passed",
+  "note": "Static mapped coverage only; omissions, unreviewed specimens and runtime parity are separate.",
   "audits": [
     {
       "audit": "a11y_audit.py",
       "exit": 0,
-      "reported_gaps": []
+      "status": "passed",
+      "metrics": {
+        "component modules read": [
+          70
+        ],
+        "RenderOnce impls read": [
+          89
+        ],
+        "role calls found": [
+          109
+        ],
+        "components with a role": [
+          51
+        ],
+        "delegating to another": [
+          5
+        ],
+        "no node upstream either": [
+          32
+        ],
+        "pending components": [
+          1
+        ],
+        "pending modules": [
+          0
+        ],
+        "raw gpui a11y calls": [
+          0
+        ],
+        "failures": [
+          0
+        ]
+      },
+      "reported_gaps": [],
+      "output_sha256": "10692c90665ce23e39d2bb7273fd202d9ebe9e4d9b26369c6194d3cdc90df82f",
+      "output": "self-test PASS: the scanner fails a component that states no role, a raw gpui accessibility builder outside a11y.rs, accessibility state on a roleless element, a component in no table, a module in no wave, a stale NO_NODE/PENDING reason, a lost or doubled delegate and a stale table row; it matches `impl` blocks by brace, reads past comments and test modules, and does not mistake the theme's `cx.role(Color::..)` for an accessibility role.\n\ncomponent modules read    : 70\nRenderOnce impls read     : 89\nrole calls found          : 109\ncomponents with a role    : 51\ndelegating to another     : 5\nno node upstream either   : 32\npending components        : 1\npending modules           : 0\nraw gpui a11y calls       : 0\nfailures                  : 0\n"
     },
     {
       "audit": "anatomy_audit.py",
       "exit": 0,
-      "reported_gaps": []
+      "status": "passed",
+      "metrics": {
+        "containment claims": [
+          49
+        ],
+        "composed here": [
+          45
+        ],
+        "recorded won-t": [
+          4,
+          1
+        ],
+        "UNMAPPED": [
+          0
+        ],
+        "NOT COMPOSED": [
+          0
+        ],
+        "documented parts": [
+          152
+        ],
+        "rendered here": [
+          151
+        ],
+        "NOT RENDERED": [
+          0
+        ]
+      },
+      "reported_gaps": [],
+      "output_sha256": "a34ed34539c002206469df04bb4cecca741b1a998706e55f953d486b954d6c19",
+      "output": "~ autocomplete           popover-overlay-arrow        no-arrow-prop\n~ combo-box              popover-overlay-arrow        no-arrow-prop\n~ dropdown               popover-overlay-arrow        no-arrow-prop\n~ select                 popover-overlay-arrow        no-arrow-prop\n~ Kbd                    Kbd.Abbr                     no-a11y-element\n\ncontainment claims : 49\ncomposed here      : 45\nrecorded won-t     : 4\nUNMAPPED           : 0\nNOT COMPOSED       : 0\n\ndocumented parts   : 152\nrendered here      : 151\nrecorded won-t     : 1\nNOT RENDERED       : 0\n"
     },
     {
       "audit": "anim_audit.py",
       "exit": 0,
-      "reported_gaps": []
+      "status": "passed",
+      "metrics": {
+        "v3 animations implemented": [
+          27
+        ],
+        "deliberately not animated": [
+          19
+        ],
+        "MOTION MISMATCHES": [
+          0
+        ],
+        "SWITCH MISMATCHES": [
+          0
+        ],
+        "COLOR AREA MISMATCHES": [
+          0
+        ],
+        "SELECT MISMATCHES": [
+          0
+        ],
+        "AUTOCOMPLETE MISMATCHES": [
+          0
+        ],
+        "TABS MISMATCHES": [
+          0
+        ],
+        "BUTTON MISMATCHES": [
+          0
+        ],
+        "NUMBER FIELD MISMATCHES": [
+          0
+        ],
+        "TOGGLE BUTTON MISMATCHES": [
+          0
+        ],
+        "PAGINATION MISMATCHES": [
+          0
+        ],
+        "DRAWER MISMATCHES": [
+          0
+        ],
+        "PROGRESS CIRCLE MISMATCHES": [
+          0
+        ],
+        "PROGRESS BAR MISMATCHES": [
+          0
+        ],
+        "UNIMPLEMENTED": [
+          0
+        ],
+        "MOTION BAD": [
+          0
+        ]
+      },
+      "reported_gaps": [],
+      "output_sha256": "8ba642d3b01db387fb1d6df263c6c847e1d5eac7e977d99f46134158f3e91901",
+      "output": "v3 animations implemented      : 27\n    @keyframes caret-blink       pub fn caret_blink\n    @keyframes progress-bar-indeterminate pub fn progress_bar_indeterminate_ease\n    @keyframes progress-circle-spin pub fn progress_circle_spin_turn\n    @keyframes skeleton          SkeletonAnimation\n    animate-in                   pub fn entering_zoom\n    animate-out                  pub fn exiting\n    animate-pulse                SkeletonAnimation\n    duration-100                 pub const EXITING_MS\n    duration-150                 pub const ENTERING_MS\n    duration-250                 PANEL_IN\n    ease-out-fluid               Curve::OutFluid\n    ease-out-quad                Curve::OutQuad\n    ease-smooth                  Curve::Smooth\n    fade-in-0                    pub fn entering\n    fade-out                     pub fn exiting\n    motion-reduce                reduce_motion\n    scale(0.95)                  PRESSED_SCALE_DEEP\n    scale(0.96)                  PRESSED_SCALE_FIRM\n    scale(0.97)                  PRESSED_SCALE\n    scale(0.98)                  PRESSED_SCALE_SUBTLE\n    scale: 0.9                   PRESSED_SCALE_RANGE\n    slide-in-from-bottom-4       pub fn entering_from\n    slide-out-to-bottom-2        pub fn exiting_to\n    zoom-in-105                  PANEL_IN\n    zoom-in-90                   pub fn entering_zoom\n    zoom-in-95                   LIST_IN\n    zoom-out-95                  pub fn exiting\n\ndeliberately not animated      : 19\n  docs-example-only          @keyframes bounce, animate-fade-in\n  no-div-transform           transition-[scale, transition-transform\n  no-property-transitions    transition-[box, transition-all, transition-background, transition-height, transition-left, transition-none, transition-opacity, transition-size, transition-width\n  per-instance-classname     data-[entering]:duration-400, data-[entering]:duration-500, data-[entering]:ease-[cubic-bezier(0.16,1,0.3,1)], data-[entering]:ease-[cubic-bezier(0.25,1,0.5,1)], data-[exiting]:ease-[cubic-bezier(0.5,0,0.75,0)], data-[exiting]:ease-[cubic-bezier(0.7,0,0.84,0)]\n\n\nper-overlay motion (v3 CSS vs our Motion constants):\n  alert-dialog   BACKDROP_IN  150ms Out 1            150ms Out 1\n  alert-dialog   PANEL_IN     250ms OutQuad 1.05     250ms OutQuad 1.05\n  autocomplete   FLUID_IN     250ms OutFluid 0.95    250ms OutFluid 0.95\n  color-picker   LIST_IN      150ms Smooth 0.95      150ms Smooth 0.95\n  combo-box      LIST_IN      150ms Smooth 0.95      150ms Smooth 0.95\n  date-picker    LIST_IN      150ms Smooth 0.95      150ms Smooth 0.95\n  dropdown       POPOVER_IN   150ms Smooth 0.9       150ms Smooth 0.9\n  modal          BACKDROP_IN  150ms Out 1            150ms Out 1\n  modal          PANEL_IN     250ms OutQuad 1.05     250ms OutQuad 1.05\n  popover        POPOVER_IN   150ms Smooth 0.9       150ms Smooth 0.9\n  select         LIST_IN      150ms Smooth 0.95      150ms Smooth 0.95\n  tooltip        POPOVER_IN   150ms Smooth 0.9       150ms Smooth 0.9\nMOTION MISMATCHES : 0\n\nswitch motion (v3 CSS vs Switch):\n  switch         track background 250ms Smooth           250ms Smooth\n  switch         thumb margin     300ms OutFluid         300ms OutFluid\n  switch         thumb background 200ms Out              200ms Out\n  switch         reduced motion   transition-none        direct fill\n  switch         animation owner  listener-free fill     child fill\nSWITCH MISMATCHES : 0\n\ncolor area motion (v3 CSS vs ColorArea):\n  color-area     width + height   150ms Out              150ms Out\n  color-area     drag geometry    16px to 20px           animated size\n  color-area     reduced motion   transition-none        direct size\n  color-area     animation owner  listener-free visual   child visual\n  color-area     reversal         current rendered size  preserved\nCOLOR AREA MISMATCHES : 0\n\nselect motion wiring:\n  select         enter path   LIST_IN\n  select         exit path    LIST_OUT\nSELECT MISMATCHES : 0\n\nautocomplete motion wiring:\n  autocomplete   enter path   FLUID_IN\n  autocomplete   exit path    FLUID_OUT\nAUTOCOMPLETE MISMATCHES : 0\n\ntabs motion (v3 CSS vs Tabs):\n  tabs           separator opacity      150ms Smooth               150ms Smooth\n  tabs           indicator geometry     250ms OutFluid             250ms OutFluid\n  tabs           indicator properties   translate width height     all four\n  tabs           reduced motion         transition-none            direct geometry\n  tabs           animation owner        listener-free children     child elements\n  tabs           reversal               current rendered values    preserved\nTABS MISMATCHES : 0\n\nbutton motion (v3 CSS vs Button):\n  button         Sm               0.98                   0.98\n  button         Md               0.97                   0.97\n  button         Lg               0.96                   0.96\nBUTTON MISMATCHES : 0\n\nnumber field motion (v3 CSS vs NumberField):\n  number-field   stepper press    0.97                   0.97\nNUMBER FIELD MISMATCHES : 0\n\ntoggle button motion (v3 CSS vs ToggleButton):\n  toggle-button  Sm               0.98                   0.98\n  toggle-button  Md               0.97                   0.97\n  toggle-button  Lg               0.96                   0.96\n  toggle-button  group            none                   none\nTOGGLE BUTTON MISMATCHES : 0\n\npagination motion (v3 CSS vs Pagination):\n  pagination     Sm               0.98                   0.98\n  pagination     Md               0.97                   0.97\n  pagination     Lg               0.96                   0.96\nPAGINATION MISMATCHES : 0\n\ndrawer motion (v3 CSS vs Drawer):\n  drawer         enter duration   250ms                  250ms\n  drawer         exit lifetime    200ms                  200ms, duration-aware scope\nDRAWER MISMATCHES : 0\n\nprogress circle motion (v3 CSS vs ProgressCircle):\n  progress-circle spin             1000ms linear infinite 1000ms linear repeat\n  progress-circle reduced motion   animate-none           static arc\nPROGRESS CIRCLE MISMATCHES : 0\n\nprogress bar motion (v3 CSS vs ProgressBar):\n  progress-bar   spin             1500ms cubic-bezier    1500ms pinned curve\n  progress-bar   geometry         40%; -100% to 350%     derived full sweep\n  progress-bar   reduced motion   animate-none at 40%    static 40%\n  progress-bar   fill width       300ms ease-out         300ms Out\n  progress-bar   fill reversal    current rendered width preserved\n  progress-bar   instance scope   independent timelines  stable root id\nPROGRESS BAR MISMATCHES : 0\n\nUNIMPLEMENTED : 0\nMOTION BAD    : 0\n"
     },
     {
       "audit": "api_audit.py",
       "exit": 0,
-      "reported_gaps": [
-        "Toast                exitDuration, hotkey, isExpanded, update",
-        "REAL GAPS                   : 4"
-      ]
+      "status": "passed",
+      "metrics": {
+        "documented props considered": [
+          772
+        ],
+        "implemented": [
+          725
+        ],
+        "deliberately not ported": [
+          47
+        ],
+        "REAL GAPS": [
+          0
+        ]
+      },
+      "reported_gaps": [],
+      "output_sha256": "e781c311f7f1bab2b29b248af512848441d0f46c170e3a8c3586404d11d950e2",
+      "output": "\ndocumented props considered : 772\nimplemented                 : 725\ndeliberately not ported     : 47  (see WONT_PORT)\n    no-http                      6\n    not-a-prop                   6\n    no-a11y-attrs                5\n    no-browser-autofill          5\n    single-valued                3\n    gregorian-only-date          2\n    no-browser-image-attrs       2\n    no-dom-portal                2\n    no-drag-source-prop          2\n    no-html-forms                2\n    no-time-zones                2\n    single-line-headings         2\n    no-intl-numbers              1\n    no-loader-row                1\n    no-section-rows              1\n    no-soft-keyboard             1\n    no-view-transitions          1\n    pinned-source-does-not-emit  1\n    single-wrap-mode             1\n    state-entity-seeds-it        1\nREAL GAPS                   : 0\n"
     },
     {
       "audit": "behaviour_audit.py",
       "exit": 0,
-      "reported_gaps": [
-        "MISSING            : 0",
-        "UNMAPPED           : 0"
-      ]
+      "status": "passed",
+      "metrics": {
+        "behaviours claimed": [
+          149
+        ],
+        "implemented": [
+          145
+        ],
+        "not implementable": [
+          4
+        ],
+        "MISSING": [
+          0
+        ],
+        "UNMAPPED": [
+          0
+        ]
+      },
+      "reported_gaps": [],
+      "output_sha256": "790b4c486c69ddb994dd46fd4ff91b07037b28f5baca2cb1d4dafa36a3043c43",
+      "output": "\nbehaviours claimed : 149\nimplemented        : 145\nnot implementable  : 4\n    no-page-scroll         3\n    platform-tab-order     1\nMISSING            : 0\nUNMAPPED           : 0\n"
     },
     {
       "audit": "demo_audit.py",
       "exit": 0,
-      "reported_gaps": []
+      "status": "passed",
+      "metrics": {
+        "pages compared": [
+          71
+        ],
+        "props v3 exercises": [
+          378
+        ],
+        "demonstrated here": [
+          378
+        ],
+        "recorded won-t-demo": [
+          0
+        ],
+        "NOT DEMONSTRATED": [
+          0
+        ]
+      },
+      "reported_gaps": [],
+      "output_sha256": "4784f6c568df9697948521c288e105c51a9771f92aa58f2dbfa08f7f54113132",
+      "output": "\npages compared      : 71\nprops v3 exercises  : 378\ndemonstrated here   : 378\nrecorded won-t-demo : 0\nNOT DEMONSTRATED    : 0  (on 0 pages)\n"
     },
     {
       "audit": "design_audit.py",
       "exit": 0,
-      "reported_gaps": []
+      "status": "passed",
+      "metrics": {
+        "metrics compared": [
+          520
+        ],
+        "unreadable": [
+          0
+        ],
+        "MISMATCHED": [
+          0
+        ],
+        "fills compared": [
+          45
+        ],
+        "fills stale": [
+          0
+        ],
+        "WRONG FILLS": [
+          0
+        ],
+        "TOGGLE STYLE BAD": [
+          0
+        ],
+        "PAGINATION STYLE BAD": [
+          0
+        ],
+        "TABS STYLE BAD": [
+          0
+        ],
+        "COLOR PICKER STYLE BAD": [
+          0
+        ],
+        "TOOLBAR STYLE BAD": [
+          0
+        ],
+        "CARD STYLE BAD": [
+          0
+        ],
+        "SURFACE STYLE BAD": [
+          0
+        ],
+        "KBD/TYPO STYLE BAD": [
+          0
+        ]
+      },
+      "reported_gaps": [],
+      "output_sha256": "c4ddd5219bcf9119140ee0d808c70d226ebb3e9fd0d95f2646f624b6bd11918f",
+      "output": "  v3 rule                metric      v3   ours  ours defined by\n  .close-button          w           24     24  CloseButton width\n  .close-button          radius      12     12  CloseButton -> util::_radius\n  .checkbox__indicator   size        12     12  Checkbox tick size\n  .color-area            radius      16     16  ColorArea -> util::_radius\n  .color-area__thumb     size        16     16  ColorArea thumb\n  .color-area__thumb     border       3      3  ColorArea thumb border\n  .button-group__separator radius       4      4  ButtonGroup separator -> util::_radius\n  .calendar__header      px           2      2  Calendar header px\n  .accordion__body-inner px          16     16  Accordion body px\n  .alert__indicator      p            4      4  Alert indicator padding\n  .textfield             gap          4      4  textfield field column gap\n  .search-field          gap          4      4  search-field field column gap\n  .number-field          gap          4      4  number-field field column gap\n  .time-field            gap          4      4  time-field field column gap\n  .select                gap          4      4  select field column gap\n  .date-picker           gap          4      4  date-picker field column gap\n  .tag-group             gap          4      4  tag-group field column gap\n  .tag-group__list       gap          6      6  TagGroup list gap\n  .separator--vertical   min_h        8      8  Separator vertical minimum\n  .separator             radius       4      4  Separator -> util::_radius\n  .modal__heading        leading     24     24  Modal heading leading\n  .switch__label         leading     24     24  Switch label leading\n  .meter .meter__track   h            8      8  Meter md track\n  .meter .meter__track   radius       4      4  Meter md radius\n  .meter--sm .meter__track h            4      4  Meter sm track\n  .meter--sm .meter__track radius       2      2  Meter sm radius\n  .meter--lg .meter__track h           12     12  Meter lg track\n  .meter--lg .meter__track radius       6      6  Meter lg radius\n  .color-slider[data-orientation=\"horizontal\"] .color-slider__track h           20     20  ColorSlider track thickness\n  .color-slider__thumb   radius      16     16  ColorSlider thumb radius\n  .color-slider__thumb   border       3      3  ColorSlider thumb border\n  .color-area            max_w      224    224  ColorArea maximum width\n  .calendar              max_w      252    252  Calendar maximum width\n  .range-calendar        max_w      252    252  RangeCalendar maximum width\n  .textarea              min_h       38     38  TextArea minimum height\n  [data-slot=\"number-field-decrement-button-icon\"] size        16     16  NumberField stepper icon\n  .toolbar .separator--vertical h_pct       50     50  Toolbar vertical divider length\n  .toolbar .separator--horizontal w_pct       50     50  Toolbar horizontal divider length\n  .toolbar--attached     p            4      4  Toolbar attached padding\n  .toolbar--attached     radius      24     24  Toolbar attached -> util::_radius\n  .tooltip               p            8      8  Tooltip padding\n  .switch-group          gap         24     24  SwitchGroup gap\n  .spinner--sm           size        16     16  Spinner Sm\n  .spinner--lg           size        32     32  Spinner Lg\n  .spinner--xl           size        40     40  Spinner Xl\n  .table__column-resizer px           8      8  Table resizer grab margin\n  .toggle-button         text        14     14  ToggleButton Md text\n  .calendar-year-picker__trigger gap          4      4  Year trigger gap\n  .calendar-year-picker__trigger radius       8      8  Year trigger -> util::_radius\n  .calendar-year-picker__trigger-heading text        14     14  Year heading text\n  .calendar__heading     text        14     14  Calendar heading text\n  .checkbox__content     gap         12     12  Checkbox content gap\n  .accordion__trigger    text        14     14  Accordion trigger text\n  .avatar--sm            size        32     32  Avatar Sm box\n  .avatar--lg            size        48     48  Avatar Lg box\n  .avatar                size        40     40  Avatar Md box\n  .badge--sm             min_w       16     16  Badge Sm box (square)\n  .badge--lg             min_w       32     32  Badge Lg box (square)\n  .badge                 min_w       28     28  Badge Md box (square)\n  .chip--sm              text        12     12  Chip Sm text\n  .chip--md              text        12     12  Chip Md text (again)\n  .alert__title          text        14     14  Alert title text\n  .toggle-button         px          16     16  ToggleButton Md px\n  .toggle-button--sm     px          12     12  ToggleButton Sm px\n  .toggle-button--sm     gap          8      8  ToggleButton Sm gap\n  .toggle-button--sm     text        14     14  ToggleButton Sm text\n  .toggle-button--lg     px          16     16  ToggleButton Lg px\n  .toggle-button         gap          8      8  ToggleButton Md gap\n  .toggle-button         radius      24     24  ToggleButton -> util::_radius\n  .toggle-button--icon-only w           36     36  ToggleButton icon-only box\n  .textarea              px          12     12  TextArea px -> Input\n  .toast__title          text        14     14  Toast title text\n  .toast__description    text        14     14  Toast description text\n  .toast__close-button   size        20     20  Toast close button\n  .date-picker__popover  p           12     12  DatePicker popover padding\n  .date-range-picker__popover p           12     12  DateRangePicker popover padding\n  .color-picker__popover min_w      248    248  ColorPicker popover min width\n  .color-picker__popover px           8      8  ColorPicker popover px\n  .color-picker__popover gap         12     12  ColorPicker popover gap\n  .color-picker__popover radius      20     20  ColorPicker popover radius\n  .input-otp__slot-value text        18     18  InputOTP digit text\n  .input-otp__caret      w            2      2  InputOTP caret width\n  .input-otp__caret      h           16     16  InputOTP caret height\n  .input-otp__caret      radius       4      4  InputOTP caret -> util::_radius\n  .input-otp__slot       radius      12     12  InputOTP slot -> field_radius\n  .input-otp__group      gap          8      8  InputOTP slot gap\n  .search-field__clear-button size        20     20  Clear button box\n  .range-calendar        w          252    252  RangeCalendar width\n  .range-calendar__heading text        14     14  RangeCalendar heading text\n  .table__cell           text        14     14  Table cell text\n  .card                  p           16     16  Card padding\n  .card                  gap         12     12  Card gap\n  .card                  radius      24     24  Card root -> util::_radius\n  .card__content         gap          4      4  Card content gap\n  .card__title           text        14     14  Card title text\n  .card__title           leading     24     24  Card title leading\n  .card__description     text        14     14  Card description text\n  .card__description     leading     20     20  Card description leading\n  .switch__content       text        14     14  Switch content text\n  .switch__label         text        16     16  Switch label text\n  .switch__content       gap         12     12  Switch content gap\n  .dropdown__popover     min_w      220    220  Dropdown menu min width\n  .dropdown__menu        gap          2      2  Dropdown menu gap\n  .dropdown__menu        p            4      4  Dropdown menu padding\n  .dropdown__popover [data-slot=\"dropdown-menu\"] p            6      6  Dropdown contextual menu padding\n  .color-swatch--xs      size        16     16  ColorSwatch Xs\n  .color-swatch--sm      size        24     24  ColorSwatch Sm\n  .color-swatch--lg      size        36     36  ColorSwatch Lg\n  .color-swatch--xl      size        40     40  ColorSwatch Xl\n  .calendar-year-picker__year-grid gap          4      4  Year grid gap\n  .calendar-year-picker__year-grid p            4      4  Year grid padding\n  .calendar-year-picker__year-cell h           32     32  Year cell height\n  .calendar-year-picker__year-cell px          10     10  Year cell px\n  .calendar-year-picker__year-cell text        14     14  Year cell text\n  .autocomplete__trigger min_h       36     36  autocomplete height\n  .search-field__group   h           36     36  search-field height\n  .color-input-group     h           36     36  color-input-group height\n  .autocomplete__trigger radius      12     12  autocomplete radius -> field_radius\n  .search-field__group   radius      12     12  search-field radius -> field_radius\n  .color-input-group     radius      12     12  color-input-group radius -> field_radius\n  .date-input-group      radius      12     12  date-input-group radius -> field_radius\n  .select__trigger       radius      12     12  select radius -> field_radius\n  .autocomplete__trigger text        14     14  .autocomplete__trigger text -> FIELD_TEXT\n  .autocomplete__value   text        14     14  .autocomplete__value text -> FIELD_TEXT\n  .select__trigger       text        14     14  .select__trigger text -> FIELD_TEXT\n  .select__value         text        14     14  .select__value text -> FIELD_TEXT\n  .color-input-group     text        14     14  .color-input-group text -> FIELD_TEXT\n  .date-input-group      text        14     14  .date-input-group text -> FIELD_TEXT\n  .search-field__input   px          12     12  .search-field__input px -> Input\n  .color-input-group__input px          12     12  .color-input-group__input px -> Input\n  .date-input-group__input px          12     12  .date-input-group__input px -> Input\n  .number-field__input   px          12     12  .number-field__input px -> Input\n  .search-field__search-icon size        16     16  SearchField icon -> FIELD_ICON\n  .search-field__search-icon ms          12     12  SearchField icon inset -> Input px\n  .color-input-group__prefix ms          12     12  ColorField prefix inset -> group px\n  .date-input-group__prefix ms          12     12  DateField prefix inset -> group px\n  .avatar--sm            radius      16     16  Avatar Sm -> util::_radius\n  .avatar__fallback      text        14     14  Avatar fallback text\n  .avatar--lg .avatar__fallback text        16     16  Avatar Lg fallback text\n  .alert__description    text        14     14  Alert description text\n  .accordion__indicator  size        16     16  Accordion indicator\n  .color-swatch-picker   gap          8      8  ColorSwatchPicker gap\n  .input-otp__separator  w            6      6  InputOTP separator width\n  .input-otp__separator  h            2      2  InputOTP separator height\n  .input-otp__separator  radius       4      4  InputOTP separator -> util::_radius\n  .calendar__nav-button  size        24     24  Calendar nav button\n  .calendar__nav-button  radius      16     16  Calendar nav -> util::_radius\n  .calendar__nav-button-icon size        16     16  Calendar nav icon\n  .calendar__header-cell text        12     12  Calendar header cell\n  .calendar__cell        text        14     14  Calendar day cell text\n  .calendar__cell        radius      24     24  Calendar day cell (circle == 3xl at 36px)\n  .calendar__cell-indicator size         3      3  Calendar cell indicator\n  .calendar              w          252    252  Calendar width\n  .range-calendar__nav-button size        24     24  RangeCalendar nav button\n  .range-calendar__nav-button radius      12     12  RangeCalendar nav -> util::_radius\n  .range-calendar__nav-button-icon size        16     16  RangeCalendar nav icon\n  .range-calendar__header-cell text        12     12  RangeCalendar header cell\n  .range-calendar        w          252    252  RangeCalendar: seven day cells fill the 252px root\n  .range-calendar__cell[data-selected=\"true\"]:not([data-outside-month=\"true\"]) radius       0      0  RangeCalendar selected track interior stays square\n  .range-calendar__cell[data-selection-start=\"true\"]:not([data-outside-month=\"true\"]) radius      24     24  RangeCalendar cap corner -> 3xl\n  .range-calendar__cell[data-selected=\"true\"]:is(td:first-child > *, [aria-disabled] + td > *) radius       8      8  RangeCalendar row edge -> lg\n  .range-calendar__cell-button radius      24     24  RangeCalendar cap (circle == 3xl at 36px)\n  .calendar__nav-button[data-pressed] scale       95     95  Calendar nav press scale\n  .range-calendar__nav-button[data-pressed] scale       95     95  RangeCalendar nav press scale\n  .tabs__list            p            4      4  Tabs list padding\n  .tabs__tab             h           32     32  Tabs tab height\n  .tabs__tab             px          16     16  Tabs tab px\n  .tabs__tab             text        14     14  Tabs tab text\n  .tabs__tab             radius      24     24  Tabs tab -> util::_radius\n  .tabs__panel           p            8      8  Tabs panel padding\n  .tabs__list-container  radius      20     20  Tabs list container radius\n  .tabs__list[data-orientation=\"vertical\"] gap          4      4  Tabs vertical list gap\n  .tabs__list[data-orientation=\"vertical\"] .tabs__tab min_w       80     80  Tabs vertical tab minimum width\n  .tabs__panel[data-orientation=\"horizontal\"] mt          16     16  Tabs horizontal panel margin\n  .tabs__panel[data-orientation=\"vertical\"] ms          16     16  Tabs vertical panel margin\n  .table__column         px          16     16  Table header px\n  .table__column         py          10     10  Table header py\n  .table__column         text        12     12  Table header text\n  .table__cell           px          16     16  Table cell px\n  .table__cell           py          12     12  Table cell py\n  .table__content        text        14     14  Table text\n  .table__column-resizer h           16     16  Table resizer line height\n  .table__column-resizer radius       4      4  Table resizer -> util::_radius\n  .table__load-more-content gap          8      8  Table load-more gap\n  .table__load-more-content py           8      8  Table load-more py\n  .pagination__content   gap          4      4  Pagination row gap\n  .pagination__link      size        32     32  Pagination cell Md\n  .pagination__link--nav gap          6      6  Pagination nav gap\n  .pagination__link--nav px          10     10  Pagination nav px\n  .chip                  px           8      8  Chip Md px\n  .chip                  py           2      2  Chip Md py\n  .chip                  text        12     12  Chip Md text\n  .chip--sm              px           4      4  Chip Sm px\n  .chip--sm              py           0      0  Chip Sm py\n  .chip--lg              px          12     12  Chip Lg px\n  .chip--lg              py           4      4  Chip Lg py\n  .chip--lg              text        14     14  Chip Lg text\n  .chip__label           px           2      2  Chip label px\n  .chip                  leading     20     20  Chip base leading-5 (all sizes)\n  .chip--sm              leading     20     20  Chip Sm leading\n  .chip--md              leading     20     20  Chip Md leading\n  .chip--lg              leading     20     20  Chip Lg leading\n  .number-field__group   h           36     36  NumberField group height\n  .number-field__decrement-button w           40     40  NumberField stepper width\n  .number-field__group   text        14     14  NumberField group text\n  .input-group           min_h       36     36  InputGroup height\n  .input-group           text        14     14  InputGroup text\n  .input-group__prefix   px          12     12  InputGroup addon px\n  .input-group__input    px          12     12  Input px\n  .badge                 min_h       28     28  Badge Md box\n  .badge--sm             min_h       16     16  Badge Sm box\n  .badge--lg             min_h       32     32  Badge Lg box\n  .badge                 text        12     12  Badge Md text\n  .badge--lg             text        14     14  Badge Lg text\n  .badge                 radius      24     24  Badge Md -> util::_radius\n  .badge--sm             radius      12     12  Badge Sm -> util::_radius\n  .badge--lg             radius      16     16  Badge Lg -> util::_radius\n  .badge                 gap          2      2  Badge gap\n  .badge__label          px           2      2  Badge label px\n  .badge                 leading  16.08  16.08  Badge Md leading\n  .badge--sm             leading   13.4   13.4  Badge Sm leading\n  .badge--lg             leading  20.02  20.02  Badge Lg leading\n  .tag                   gap          4      4  Tag gap\n  .tag--sm               px           8      8  Tag Sm px\n  .tag--sm               py           2      2  Tag Sm py\n  .tag--sm               text        12     12  Tag Sm text\n  .tag--md               px           8      8  Tag Md px\n  .tag--md               py           4      4  Tag Md py\n  .tag--md               text        12     12  Tag Md text\n  .tag--lg               px          10     10  Tag Lg px\n  .tag--lg               py           6      6  Tag Lg py\n  .tag--lg               text        14     14  Tag Lg text\n  .tag--sm               leading     16     16  Tag Sm leading\n  .tag--md               leading     16     16  Tag Md leading\n  .tag--lg               leading     20     20  Tag Lg leading\n  .tag                   radius      12     12  Tag Sm/Md -> util::_radius\n  .tag--lg               radius      16     16  Tag Lg -> util::_radius\n  .tag__remove-button    size        12     12  Tag remove button\n  .modal__dialog         p           24     24  Modal dialog p-6\n  .modal__header         gap         12     12  Modal header gap-3\n  .modal__heading        text        16     16  Modal heading text-base\n  .modal__body           text        14     14  Modal body text-sm\n  .modal__body           leading  20.02     20  Modal body leading-[1.43]\n  .modal__footer         gap          8      8  Modal footer gap-2\n  .alert-dialog__dialog  p           24     24  AlertDialog dialog p-6\n  .alert-dialog__header  gap         12     12  AlertDialog header gap-3\n  .alert-dialog__heading text        16     16  AlertDialog heading text-base\n  .alert-dialog__icon    size        40     40  AlertDialog icon size-10\n  .alert-dialog__icon    radius      24     24  AlertDialog icon rounded-3xl\n  .alert-dialog__footer  gap          8      8  AlertDialog footer gap-2\n  .breadcrumbs__link     text        14     14  Breadcrumbs link text-sm\n  .breadcrumbs__item     gap          2      2  Breadcrumbs item gap-0.5\n  .breadcrumbs__item     px           2      2  Breadcrumbs item px-0.5\n  .breadcrumbs__separator size        12     12  Breadcrumbs separator size-3\n  .drawer__dialog        p           24     24  Drawer dialog p-6\n  .drawer__header        gap         12     12  Drawer header gap-3\n  .drawer__heading       text        16     16  Drawer heading text-base\n  .drawer__body          text        14     14  Drawer body text-sm\n  .drawer__body          leading  20.02     20  Drawer body leading-[1.43]\n  .drawer__footer        gap          8      8  Drawer footer gap-2\n  .button                radius      24     24  Button -> util::_radius\n  .button                h           36     36  Size::control_height Md\n  .button--sm            h           32     32  Size::control_height Sm\n  .button--lg            h           40     40  Size::control_height Lg\n  .button                px          16     16  button_metrics px Md\n  .button--sm            px          12     12  button_metrics px Sm\n  .button--lg            px          16     16  button_metrics px Lg\n  .button                text        14     14  button_metrics text Md\n  .button--sm            text        14     14  button_metrics text Sm\n  .button--lg            text        16     16  button_metrics text Lg\n  .button                gap          8      8  button_metrics gap Md\n  .button--sm            gap          8      8  button_metrics gap Sm\n  .button--lg            gap          8      8  button_metrics gap Lg\n  .button                min_w        0      0  Button min_w (none)\n  .button--icon-only     w           36     36  Size::icon_control_size Md\n  .input                 radius      12     12  util::field_radius\n  .input                 text        14     14  util::FIELD_TEXT\n  .date-input-group      h           36     36  util::FIELD_HEIGHT\n  .spinner               size        24     24  SpinnerSize::Md\n  .avatar                size        40     40  Avatar default size\n  .avatar                radius      24     24  Avatar Md/Lg -> util::_radius\n  .close-button          h           24     24  CloseButton box\n  .kbd                   h           24     24  Kbd height\n  .kbd                   text        14     14  Kbd text\n  .kbd                   leading     20     20  Kbd text-sm line height\n  .typography--h1        text        36     36  Typography h1 size\n  .typography--h1        leading     40     40  Typography h1 leading\n  .typography--h2        text        30     30  Typography h2 size\n  .typography--h2        leading     36     36  Typography h2 leading\n  .typography--h3        text        24     24  Typography h3 size\n  .typography--h3        leading     32     32  Typography h3 leading\n  .typography--h4        text        20     20  Typography h4 size\n  .typography--h4        leading     28     28  Typography h4 leading\n  .typography--h5        text        18     18  Typography h5 size\n  .typography--h5        leading     28     28  Typography h5 leading\n  .typography--h6        text        16     16  Typography h6 size\n  .typography--h6        leading     24     24  Typography h6 leading\n  .typography--body      text        16     16  Typography body size\n  .typography--body      leading     28     28  Typography body leading\n  .typography--body-sm   text        14     14  Typography body-sm size\n  .typography--body-sm   leading     24     24  Typography body-sm leading\n  .typography--body-xs   text        12     12  Typography body-xs size\n  .typography--body-xs   leading     20     20  Typography body-xs leading\n  .typography--code      text        14     14  Typography code size\n  .typography--code      leading     20     20  Typography code leading\n  .typography--code      px           6      6  Typography code px\n  .typography--code      py           2      2  Typography code py\n  .typography--code      radius       6      6  Typography code -> util::_radius\n  .skeleton              radius       4      4  Skeleton -> util::_radius\n  .menu-item             radius      16     16  Menu row -> util::_radius\n  .menu-item             px           8      8  Menu row padding_x\n  .dropdown__popover [data-slot=\"menu-item\"] px          10     10  Dropdown contextual menu row padding_x\n  .toast                 px          16     16  Toast padding_x\n  .toast                 py          12     12  Toast padding_y\n  .tooltip               text        12     12  Tooltip text\n  .chip                  radius      16     16  Chip -> util::_radius\n  .chip                  gap          2      2  Chip gap\n  .popover__dialog       p           16     16  Popover padding\n  .pagination            gap         16     16  Pagination root gap\n  .alert                 gap         16     16  Alert gap\n  .alert                 px          16     16  Alert padding_x\n  .alert                 py          12     12  Alert padding_y\n  .alert                 radius      24     24  Alert -> util::_radius\n  .link                  radius      12     12  Link -> util::_radius\n  .badge                 min_w       28     28  Badge min width Md\n  .kbd                   px           8      8  Kbd padding_x\n  .fieldset              gap         24     24  Fieldset gap\n  .fieldset__field_group gap         16     16  Fieldset group gap\n  .fieldset__actions     pt           4      4  Fieldset actions pt\n  .checkbox__control     size        16     16  Checkbox control\n  .checkbox__control     radius       6      6  Checkbox -> util::_radius\n  [data-slot=\"checkbox-default-indicator--checkmark\"] size        10     10  Checkbox checkmark canvas\n  .radio__control        size        16     16  Radio control\n  .radio__control        radius       8      8  Radio -> util::_radius\n  .radio__content        gap         12     12  Radio row gap\n  .list-box-item         gap         12     12  ListBox row gap\n  .list-box-item         py           6      6  ListBox row padding_y\n  .list-box-item         radius      16     16  ListBox row -> util::_radius\n  .color-swatch          size        32     32  ColorSwatch default\n  .card                  gap         12     12  Card gap\n  .toolbar               gap          8      8  Toolbar default gap\n  .toast                 gap          6      6  Toast gap\n  .tabs                  gap          8      8  Tabs root gap\n  .progress-bar__track   h            8      8  ProgressBar md track\n  .progress-bar__track   radius       4      4  ProgressBar md radius\n  .progress-bar--sm .progress-bar__track h            4      4  ProgressBar sm track\n  .progress-bar--sm .progress-bar__track radius       2      2  ProgressBar sm radius\n  .progress-bar--lg .progress-bar__track h           12     12  ProgressBar lg track\n  .progress-bar--lg .progress-bar__track radius       6      6  ProgressBar lg radius\n  .progress-circle__track size        28     28  ProgressCircle md\n  .progress-circle__track size        28     28  ProgressCircle default\n  .progress-circle--sm .progress-circle__track size        20     20  ProgressCircle sm\n  .progress-circle--lg .progress-circle__track size        36     36  ProgressCircle lg\n  .checkbox__content     gap         12     12  Checkbox row gap\n  [data-slot=\"checkbox\"] mt          16     16  CheckboxGroup option gap\n  &[data-orientation=\"horizontal\"] gap         16     16  RadioGroup horizontal gap\n  .switch__control       w           40     40  Switch md track width\n  .switch__control       h           20     20  Switch md track height\n  .switch--sm .switch__control w           32     32  Switch sm track width\n  .switch--lg .switch__control h           24     24  Switch lg track height\n  .switch__thumb         w           22     22  Switch md thumb width\n  .switch__thumb         h           16     16  Switch md thumb height\n  .switch__thumb         ms           2      2  Switch thumb inset\n  .input-otp__slot       w           38     38  InputOTP slot width\n  .input-otp__slot       h           40     40  InputOTP slot height\n  .input-otp__slot       text        14     14  InputOTP slot text\n  .input-otp             gap          8      8  InputOTP slot gap\n  .select__trigger       min_h       36     36  Select trigger height\n  .select__trigger       radius      12     12  field chrome -> util::_radius\n  .calendar              w          252    252  Calendar width\n  .calendar__cell        text        14     14  Calendar cell text\n  .list-box-item         radius      16     16  Select row -> util::_radius\n  .list-box-item         gap         12     12  ComboBox row gap\n  .toggle-button         h           36     36  ToggleButton md height\n  .toggle-button--sm     h           32     32  ToggleButton sm height\n  .toggle-button--lg     h           40     40  ToggleButton lg height\n  .toggle-button-group--detached gap          4      4  ToggleButtonGroup detached gap\n  .accordion__trigger    px          16     16  Accordion trigger padding_x\n  .accordion__trigger    py          16     16  Accordion trigger padding_y\n  .list-box              p            4      4  ListBox padding default\n  .label                 text        14     14  Label text\n  .description           text        12     12  Description text\n  .error-message         text        12     12  ErrorMessage text\n  .field-error           text        12     12  FieldError text -> ErrorMessage\n  .field-error           px           4      4  FieldError px\n  .fieldset__legend      text        16     16  Fieldset legend text\n  .fieldset__actions     gap          8      8  Fieldset actions gap\n  .header                px           8      8  Section header px\n  .header                text        12     12  Section header text\n  .empty-state           p            8      8  Empty state padding\n  .empty-state           text        14     14  Empty state text\n  .modal__container      p           40     40  Modal container padding\n  .alert-dialog__container p           40     40  AlertDialog container padding\n  .modal__icon           size        40     40  Modal icon box\n  .modal__icon           radius      24     24  Modal icon radius -> control_radius\n  .accordion__body       text        14     14  Accordion body text\n  .accordion__body       leading     20     20  Accordion body leading\n  .accordion__body-inner pt           0      0  Accordion body top inset\n  .checkbox              gap          4      4  Checkbox content/description gap\n  .checkbox > [data-slot=\"description\"] ps          28     28  Checkbox description/error indent\n  .checkbox__content     text        14     14  Checkbox content text\n  .color-field           gap          4      4  ColorField wrapper gap\n  .color-slider          gap          4      4  ColorSlider wrapper gap\n  .date-field            gap          4      4  DateField wrapper gap\n  .time-field            gap          4      4  TimeField wrapper gap\n  .dropdown              gap          4      4  Dropdown wrapper gap\n  .combo-box             gap          4      4  ComboBox wrapper gap\n  .progress-bar          gap          4      4  ProgressBar wrapper gap\n  [data-slot=\"label\"]    text        14     14  ProgressBar label text\n  .progress-bar__output  text        14     14  ProgressBar output text\n  .meter                 gap          4      4  Meter wrapper gap -> ProgressBar\n  .slider                gap          4      4  Slider wrapper gap\n  [data-slot=\"label\"]    text        14     14  Slider label text\n  .slider__output        text        14     14  Slider output text\n  .slider__track         radius      12     12  Slider track -> small_radius\n  .slider[data-orientation=\"horizontal\"] .slider__track h           20     20  Slider horizontal track height\n  .slider[data-orientation=\"vertical\"] .slider__track w           20     20  Slider vertical track width\n  .slider__thumb         radius      12     12  Slider thumb -> small_radius\n  .slider[data-orientation=\"horizontal\"] .slider__thumb w           28     28  Slider horizontal outer thumb width\n  .slider[data-orientation=\"vertical\"] .slider__thumb h           28     28  Slider vertical outer thumb height\n  .slider__thumb::after  radius       8      8  Slider inner thumb -> key_radius\n  .slider[data-orientation=\"horizontal\"] .slider__thumb::after w           24     24  Slider horizontal inner thumb width\n  .slider[data-orientation=\"horizontal\"] .slider__thumb::after h           16     16  Slider horizontal inner thumb height\n  .slider[data-orientation=\"vertical\"] .slider__thumb::after w           16     16  Slider vertical inner thumb width\n  .slider[data-orientation=\"vertical\"] .slider__thumb::after h           24     24  Slider vertical inner thumb height\n  .slider[data-orientation=\"horizontal\"] .slider__track border_x     12     12  Slider horizontal track start/end border inset\n  .slider[data-orientation=\"vertical\"] .slider__track border_y     12     12  Slider vertical track top/bottom border inset\n  .switch                gap          4      4  Switch content/description gap\n  .autocomplete          gap          4      4  Autocomplete wrapper gap\n  .date-range-picker     gap          4      4  DateRangePicker wrapper gap\n  .menu-item             gap         12     12  Menu item gap\n  .menu-item             min_h       36     36  Menu item min height\n  .menu-item             py           6      6  Menu item py\n  .menu-item__indicator  size        16     16  Menu item icon\n  .list-box-item         min_h       36     36  ListBox row min height\n  .list-box-item         px           8      8  ListBox row px\n  .close-button          p            4      4  CloseButton padding\n  .autocomplete__clear-button size        20     20  Autocomplete clear box\n  .autocomplete__clear-button p            4      4  Autocomplete clear padding\n  .autocomplete__clear-button radius      12     12  Autocomplete clear radius -> small_radius\n  .input-group           radius      12     12  input-group radius -> field_radius\n  .textarea              radius      12     12  textarea radius -> field_radius\n  .number-field__group   radius      12     12  number-field radius -> field_radius\n  .date-picker__trigger  radius      12     12  date-picker radius -> field_radius\n  .date-range-picker__trigger radius      12     12  date-range-picker radius -> field_radius\n  .date-picker__popover  radius      20     20  DatePicker popover radius\n  .date-range-picker__popover radius      20     20  DateRangePicker popover radius\n  .input-group__input    text        14     14  input-group text -> FIELD_TEXT\n  .number-field__input   text        14     14  number-field text -> FIELD_TEXT\n  .combo-box__value      text        14     14  combo-box value text -> FIELD_TEXT\n  .color-input-group__input text        14     14  color-input-group text -> FIELD_TEXT\n  .date-input-group__input text        14     14  date-input-group text -> FIELD_TEXT\n  .search-field__group   text        14     14  search-field text -> FIELD_TEXT\n  .search-field__input   text        14     14  search-field input -> FIELD_TEXT\n  .textarea              text        14     14  textarea text -> FIELD_TEXT\n  .input                 px          12     12  Input padding_x\n  .input-group__suffix   px          12     12  InputGroup addon px\n  .popover               text        14     14  Popover text\n  .select__popover       text        14     14  Select popover row text -> FIELD_TEXT\n  .combo-box__popover    text        14     14  ComboBox popover row text -> FIELD_TEXT\n  .autocomplete__popover text        14     14  Autocomplete popover row text -> FIELD_TEXT\n  .dropdown__popover     text        14     14  Dropdown row text\n  .alert-dialog__body    text        14     14  AlertDialog body text\n  .alert-dialog__body    leading  20.02     20  AlertDialog body leading-[1.43]\n  .kbd                   radius       8      8  Kbd radius -> key_radius\n  .avatar--lg            radius      24     24  Avatar Lg -> control_radius\n  .switch__control       radius      12     12  Switch track radius Md\n  .switch__thumb         radius       8      8  Switch thumb radius Md\n  .radio__content        text        14     14  Radio content text\n  .list-box-item__indicator size        16     16  ListBox check size\n  .toggle-button         text        14     14  ToggleButton text Md\n  .toggle-button--sm     text        14     14  ToggleButton text Sm\n  .toggle-button--lg     text        16     16  ToggleButton text Lg\n  .toggle-button-group__separator radius       4      4  ToggleButtonGroup separator -> hairline_radius\n  .tabs__separator       radius       4      4  Tabs separator -> hairline_radius\n  .tabs__indicator       radius      24     24  Tabs selected segment -> control_radius\n  .pagination__summary   gap          8      8  Pagination summary gap\n  .pagination__summary   text        14     14  Pagination summary text\n  .pagination__link      radius      24     24  Pagination link -> control_radius\n  .pagination__ellipsis  size        32     32  Pagination ellipsis cell\n  .pagination__ellipsis  text        14     14  Pagination ellipsis text\n  .calendar__cell-indicator radius       2      2  Calendar cell indicator radius\n  .range-calendar__header px           2      2  RangeCalendar header px\n  .range-calendar__cell  radius      24     24  RangeCalendar cell -> control_radius\n  .color-swatch--circle  radius      16     16  ColorSwatch circle is edge/2\n  .color-swatch--square  radius       6      6  ColorSwatch square -> radius_md\n  .color-swatch-picker__item size        32     32  Swatch picker item box\n  .color-swatch-picker__item radius      16     16  Swatch picker item -> soft_radius\n  .color-swatch-picker__item border       2      2  Swatch picker item border\n  .color-picker__trigger gap         12     12  ColorPicker trigger gap\n  .color-picker__trigger radius       4      4  ColorPicker trigger -> hairline_radius\n  .color-picker__trigger text        14     14  ColorPicker trigger text\n  .color-area__thumb     radius      12     12  ColorArea thumb radius\n  .date-picker__trigger  text        14     14  DatePicker trigger text -> embedded DateField FIELD_TEXT\n  .date-range-picker__trigger text        14     14  DateRangePicker trigger text -> FIELD_TEXT\n  .date-picker__trigger-indicator size        16     16  DatePicker trigger glyph\n  .date-range-picker__trigger-indicator size        16     16  DateRangePicker trigger glyph\n  .date-input-group__segment px           2      2  Date segment px\n  .date-input-group__segment radius       6      6  Date segment -> radius_md\n  .calendar-year-picker__year-cell radius      24     24  Year cell -> control_radius\n  .calendar-year-picker__trigger-indicator text        12     12  Year trigger chevron (single down asset, v3 text-xs)\n  .disclosure__indicator size        16     16  Disclosure indicator\n  .disclosure__body      p            8      8  Disclosure body padding\n  .switch-group__items   gap         16     16  SwitchGroup items gap\n  .table__sortable-column-indicator size        12     12  Table sort chevron\n  .pagination__link      text        14     14  Pagination link -> Size::text_size Md\n  .select__trigger       px          12     12  Select trigger px\n  .autocomplete__trigger px          12     12  Autocomplete trigger px\n  .toast__indicator      p            4      4  Toast indicator padding\n  .table__footer         px          16     16  Table footer px\n  .table__footer         py          10     10  Table footer py\n  .table-root--primary   px           4      4  Table tray px\n  .table-root--primary   radius      20     20  Table tray radius\n  .date-range-picker__range-separator px           4      4  Range separator px\n  .radio                 gap          4      4  Radio content/description gap\n  .radio > [data-slot=\"description\"] ps          28     28  Radio description/error indent\n  .separator__container  gap         12     12  Separator container gap\n  .range-calendar__cell-indicator size         3      3  RangeCalendar cell indicator\n  .range-calendar__cell-indicator radius       2      2  RangeCalendar cell indicator radius\n  .toast__close-button   border       1      1  Toast close button border\n\nmetrics compared : 520\nunreadable       : 0  (a pattern stopped matching -- fix it)\nMISMATCHED       : 0\n\n  v3 rule                                  v3 fill          ours\n  .radio__control                          bg-field         colors.field.background\n  .radio-group--secondary .radio__control  var(--default)   colors.default.color\n  .checkbox__control                       bg-field         herogpui_core::FieldVariant::Primary => cx.colors().field.background\n  .checkbox--secondary .checkbox__control  var(--default)   herogpui_core::FieldVariant::Secondary => cx.colors().default.color\n  .input--secondary                        var(--default)   FieldVariant::Secondary => colors.default.color\n  .input                                   bg-field         FieldVariant::Primary => colors.field.background\n  .textarea                                bg-field         FieldVariant::Primary => colors.field.background\n  .switch                                  var(--default)   colors.default.color\n  .switch__thumb                           bg-white         herogpui_theme::white()\n  .slider__track                           bg-default       default.color\n  .slider__fill                            bg-accent        sem.color\n  .slider__thumb                           bg-accent        sem.color\n  .slider__thumb::after                    bg-accent-foreground sem.foreground\n  .progress-bar__track                     bg-default       let progress_track_color = colors.default.color\n  .progress-bar--default                   var(--default-foreground) let progress_fill_color = if self.color == Color::Default\n  .progress-circle__track-circle           var(--progress-circle-track-stroke) colors.default.color\n  .progress-circle--default                var(--default-foreground) colors.default.foreground\n  .input-otp__slot                         bg-field         colors.field.background\n  .tabs__list-container                    bg-default       colors.default.color\n  .skeleton                                bg-surface-tertiary/70 colors.surface_tertiary.alpha(0.7)\n  .select__popover                         bg-overlay       colors.overlay.background\n  .dropdown__popover                       bg-overlay       colors.overlay.background\n  .popover                                 bg-overlay       colors.overlay.background\n  .tooltip                                 bg-overlay       colors.overlay.background\n  .modal__dialog                           bg-overlay       colors.overlay.background\n  .drawer__dialog                          bg-overlay       colors.overlay.background\n  .toast                                   bg-surface       colors.surface.background\n  .toolbar--attached                       bg-surface       colors.surface.background\n  .alert-dialog__dialog                    bg-overlay       colors.overlay.background\n  .autocomplete__popover                   bg-overlay       colors.overlay.background\n  .combo-box__popover                      bg-overlay       colors.overlay.background\n  .date-picker__popover                    bg-overlay       colors.overlay.background\n  .color-picker__popover                   bg-overlay       colors.overlay.background\n  .card--default                           bg-surface       colors.surface.background\n  .card--secondary                         bg-surface-secondary colors.surface_secondary\n  .card--tertiary                          bg-surface-tertiary colors.surface_tertiary\n  .surface--default                        bg-surface       colors.surface.background\n  .surface--secondary                      bg-surface-secondary colors.surface_secondary\n  .surface--tertiary                       bg-surface-tertiary colors.surface_tertiary\n  .kbd                                     bg-default       colors.default.color\n  .typography--code                        bg-default       colors.default.color\n  .calendar__cell-indicator                bottom-1         .bottom(px(4.))\n  .range-calendar__cell-indicator          bottom-1         .bottom(px(4.))\n  .range-calendar__cell[data-selected=\"true\"]:not([data-outside-month=\"true\"]) bg-accent-soft   \n            track = track.bg(accent.soft());\n  .range-calendar__cell-button             text-foreground  stays transparent with the base foreground text\nfills compared   : 45\nfills stale      : 0  (v3 no longer declares it -- re-read the rule)\nWRONG FILLS      : 0\n\ntoggle button non-numeric styling:\n  no border                ok\n  font-medium              ok\n  default fill             ok\n  selected soft fill       ok\n  selected hover           ok\n  default hover            ok\n  pressed fill             ok\n  group focus offset       ok\nTOGGLE STYLE BAD : 0\n\npagination variant styling:\n  Sm cell                  v3=28.0 ours=28.0\n  Sm nav px                v3=8.0 ours=8.0\n  Md cell                  v3=32.0 ours=32.0\n  Md nav px                v3=10.0 ours=10.0\n  Lg cell                  v3=36.0 ours=36.0\n  Lg nav px                v3=12.0 ours=12.0\n  no link border           ok\n  active default fill      ok\n  default hover            ok\n  hover feeds pressed      ok\nPAGINATION STYLE BAD : 0\n\ntabs non-numeric styling:\n  tab hover opacity        ok\n  shared scroll shadow     ok\n  chevron transparent fill ok\n  chevron hover opacity    ok\nTABS STYLE BAD : 0\n\ncolor picker non-numeric styling:\n  base asymmetric padding      ok\n  animated asymmetric padding  ok\nCOLOR PICKER STYLE BAD : 0\n\ntoolbar non-numeric styling:\n  attached overlay shadow  ok\n  no attached border       ok\n  vertical start alignment ok\nTOOLBAR STYLE BAD : 0\n\ncard non-numeric styling:\n  root stays overflow visible      ok\n  transparent paints no fill       ok\n  transparent has no border        ok\n  transparent carries no shadow    ok\n  other variants read the surface shadow ok\nCARD STYLE BAD : 0\n\nsurface non-numeric styling:\n  strict root (relative text-foreground) ok\n  zero default padding             ok\n  zero default gap                 ok\n  transparent paints nothing       ok\nSURFACE STYLE BAD : 0\n\nkbd/typography non-numeric styling:\n  kbd base has no border                 ok\n  kbd base has no shadow                 ok\n  kbd has no mono family                 ok\n  kbd medium muted text                  ok\n  kbd nowrap                             ok\n  kbd light clears the fill only         ok\n  v3 kbd word-spacing (port limitation)  ok\n  typography default/muted colors        ok\n  typography justify falls back to start ok\n  typography headings semibold           ok\n  typography code is mono                ok\n  typography truncate wired              ok\n  typography prose foreground            ok\n  v3 heading tracking-tight (port limitation) ok\nKBD/TYPO STYLE BAD : 0\n/Users/svecherenko/work/HeroGPUI/.poracode/worktrees/poracode-happy-puma-7d7612a6/.shots/design_audit.py:1441: SyntaxWarning: \"\\.\" is an invalid escape sequence. Such sequences will not work in the future. Did you mean \"\\\\.\"? A raw string is also an option.\n  '`\\.checkbox__content` is `gap-3`\\.\\s+\\.gap\\(px\\((\\d+(?:\\.\\d*)?)\\.\\)\\)', None),\n/Users/svecherenko/work/HeroGPUI/.poracode/worktrees/poracode-happy-puma-7d7612a6/.shots/design_audit.py:1444: SyntaxWarning: \"\\(\" is an invalid escape sequence. Such sequences will not work in the future. Did you mean \"\\\\(\"? A raw string is also an option.\n  'let mut list = gpui::div\\(\\)\\.flex\\(\\)\\.gap\\(px\\((\\d+(?:\\.\\d*)?)\\.\\)\\)', None),\n/Users/svecherenko/work/HeroGPUI/.poracode/worktrees/poracode-happy-puma-7d7612a6/.shots/design_audit.py:1447: SyntaxWarning: \"\\(\" is an invalid escape sequence. Such sequences will not work in the future. Did you mean \"\\\\(\"? A raw string is also an option.\n  'Orientation::Horizontal => gpui::div\\(\\)\\.flex\\(\\)\\.items_center\\(\\)\\.flex_wrap\\(\\)\\.gap\\(px\\((\\d+(?:\\.\\d*)?)\\.\\)\\)', None),\n/Users/svecherenko/work/HeroGPUI/.poracode/worktrees/poracode-happy-puma-7d7612a6/.shots/design_audit.py:1449: SyntaxWarning: \"\\(\" is an invalid escape sequence. Such sequences will not work in the future. Did you mean \"\\\\(\"? A raw string is also an option.\n  'Size::Md => \\(px\\((\\d+(?:\\.\\d*)?)\\.\\), px\\(20\\.\\)', None),\n/Users/svecherenko/work/HeroGPUI/.poracode/worktrees/poracode-happy-puma-7d7612a6/.shots/design_audit.py:1451: SyntaxWarning: \"\\(\" is an invalid escape sequence. Such sequences will not work in the future. Did you mean \"\\\\(\"? A raw string is also an option.\n  'Size::Md => \\(px\\(40\\.\\), px\\((\\d+(?:\\.\\d*)?)\\.\\)', None),\n/Users/svecherenko/work/HeroGPUI/.poracode/worktrees/poracode-happy-puma-7d7612a6/.shots/design_audit.py:1454: SyntaxWarning: \"\\(\" is an invalid escape sequence. Such sequences will not work in the future. Did you mean \"\\\\(\"? A raw string is also an option.\n  'Size::Sm => \\(px\\((\\d+(?:\\.\\d*)?)\\.\\), px\\(16\\.\\)', None),\n/Users/svecherenko/work/HeroGPUI/.poracode/worktrees/poracode-happy-puma-7d7612a6/.shots/design_audit.py:1457: SyntaxWarning: \"\\(\" is an invalid escape sequence. Such sequences will not work in the future. Did you mean \"\\\\(\"? A raw string is also an option.\n  'Size::Lg => \\(px\\(48\\.\\), px\\((\\d+(?:\\.\\d*)?)\\.\\)', None),\n/Users/svecherenko/work/HeroGPUI/.poracode/worktrees/poracode-happy-puma-7d7612a6/.shots/design_audit.py:1459: SyntaxWarning: \"\\(\" is an invalid escape sequence. Such sequences will not work in the future. Did you mean \"\\\\(\"? A raw string is also an option.\n  'Size::Md => \\(px\\(40\\.\\), px\\(20\\.\\), px\\((\\d+(?:\\.\\d*)?)\\.?\\)', None),\n/Users/svecherenko/work/HeroGPUI/.poracode/worktrees/poracode-happy-puma-7d7612a6/.shots/design_audit.py:1461: SyntaxWarning: \"\\(\" is an invalid escape sequence. Such sequences will not work in the future. Did you mean \"\\\\(\"? A raw string is also an option.\n  'Size::Md => \\(px\\(40\\.\\), px\\(20\\.\\), px\\(22\\.\\), px\\((\\d+(?:\\.\\d*)?)\\.\\)', None),\n/Users/svecherenko/work/HeroGPUI/.poracode/worktrees/poracode-happy-puma-7d7612a6/.shots/design_audit.py:1466: SyntaxWarning: \"\\(\" is an invalid escape sequence. Such sequences will not work in the future. Did you mean \"\\\\(\"? A raw string is also an option.\n  'let \\(cell_w, cell_h, text, slot_gap\\) = \\(px\\((\\d+(?:\\.\\d*)?)\\.?\\)', None),\n/Users/svecherenko/work/HeroGPUI/.poracode/worktrees/poracode-happy-puma-7d7612a6/.shots/design_audit.py:1468: SyntaxWarning: \"\\(\" is an invalid escape sequence. Such sequences will not work in the future. Did you mean \"\\\\(\"? A raw string is also an option.\n  'let \\(cell_w, cell_h, text, slot_gap\\) = \\(px\\(38\\.\\), px\\((\\d+(?:\\.\\d*)?)\\.\\)', None),\n/Users/svecherenko/work/HeroGPUI/.poracode/worktrees/poracode-happy-puma-7d7612a6/.shots/design_audit.py:1470: SyntaxWarning: \"\\(\" is an invalid escape sequence. Such sequences will not work in the future. Did you mean \"\\\\(\"? A raw string is also an option.\n  'px\\(38\\.\\), px\\(40\\.\\), px\\((\\d+(?:\\.\\d*)?)\\.\\)', None),\n/Users/svecherenko/work/HeroGPUI/.poracode/worktrees/poracode-happy-puma-7d7612a6/.shots/design_audit.py:1472: SyntaxWarning: \"\\(\" is an invalid escape sequence. Such sequences will not work in the future. Did you mean \"\\\\(\"? A raw string is also an option.\n  'px\\(38\\.\\), px\\(40\\.\\), px\\(14\\.\\), px\\((\\d+(?:\\.\\d*)?)\\.\\)', None),\n/Users/svecherenko/work/HeroGPUI/.poracode/worktrees/poracode-happy-puma-7d7612a6/.shots/design_audit.py:1480: SyntaxWarning: \"\\(\" is an invalid escape sequence. Such sequences will not work in the future. Did you mean \"\\\\(\"? A raw string is also an option.\n  'CALENDAR_WIDTH: gpui::Pixels = px\\((\\d+(?:\\.\\d*)?)\\.\\)', None),\n/Users/svecherenko/work/HeroGPUI/.poracode/worktrees/poracode-happy-puma-7d7612a6/.shots/design_audit.py:1488: SyntaxWarning: \"\\.\" is an invalid escape sequence. Such sequences will not work in the future. Did you mean \"\\\\.\"? A raw string is also an option.\n  '\\.gap\\(px\\((\\d+(?:\\.\\d*)?)\\.\\)\\)\\s+\\.rounded\\(util::soft_radius', None),\n"
     },
     {
       "audit": "element_id_audit.py",
       "exit": 0,
-      "reported_gaps": []
+      "status": "passed",
+      "metrics": {
+        "rust source files walked": [
+          229
+        ],
+        "element id sites read": [
+          814
+        ],
+        "structured helper uses": [
+          532
+        ],
+        "allowlisted constants": [
+          7
+        ],
+        "CONSTANT ids": [
+          0
+        ],
+        "FORMAT-built ids": [
+          0
+        ],
+        "stale allowlist entries": [
+          0
+        ]
+      },
+      "reported_gaps": [],
+      "output_sha256": "0b000452eb7eb227f0ab34462d91891eddc5029541a821fa731c33163a3a17a1",
+      "output": "self-test PASS: the scanner flags a synthetic constant id (`.id(\"textarea\")`, `ElementId::Name(\"nested\")`) and a synthetic formatted id (`.id(format!(..))`, `el_name(format!(..))` and the rustfmt-wrapped `ElementId::Name(\\n format!(..))`), reads past comments and string literals without mistaking prose for code, leaves derived ids and test-module callers alone, gates each constant on a per-file allowlist entry, reports a stale entry, and refuses to call an empty scan a pass.\n\nrust source files walked  : 229\nelement id sites read     : 814\nstructured helper uses    : 532\nallowlisted constants     : 7\nCONSTANT ids              : 0\nFORMAT-built ids          : 0\nstale allowlist entries   : 0\n"
     },
     {
       "audit": "example_audit.py",
       "exit": 0,
-      "reported_gaps": [
-        "! Toast                     11    10  Expanded Stack",
-        "MISSING             : 1  (in 1 pages)"
-      ]
+      "status": "passed",
+      "metrics": {
+        "examples documented": [
+          619
+        ],
+        "demonstrated": [
+          584
+        ],
+        "recorded unportable": [
+          35
+        ],
+        "waiting on a feature": [
+          0
+        ],
+        "MISSING": [
+          0
+        ]
+      },
+      "reported_gaps": [],
+      "output_sha256": "c773fe9dc152687d99bedbf4922b2a701bdacd312c56004c133daecf502a8aaf",
+      "output": "v3 page                   docs  ours  not demonstrated\n  Accordion                  9     9  \n  Alert                      1     1  \n  AlertDialog               13    13  \n  Autocomplete              18    18  \n  Avatar                     6     6  \n  Badge                      7     7  \n  Breadcrumbs                5     5  \n  Button                    13    13  \n  ButtonGroup                8     8  \n  Calendar                  18    18  \n  Card                       6     6  \n  Checkbox                  14    14  \n  CheckboxGroup              9     9  \n  Chip                       4     4  \n  CloseButton                3     3  \n  ColorArea                  6     6  \n  ColorField                12    12  \n  ColorPicker                5     5  \n  ColorSlider                8     8  \n  ColorSwatch                6     6  \n  ColorSwatchPicker          9     9  \n  ComboBox                  25    25  \n  DateField                 14    14  \n  DatePicker                 9     9  \n  DateRangePicker            9     9  \n  Description                3     3  \n  Disclosure                 2     2  \n  DisclosureGroup            2     2  \n  Drawer                     8     8  \n  Dropdown                  18    18  \n  ErrorMessage               1     1  \n  FieldError                 5     5  \n  Fieldset                   2     2  \n  Form                       2     2  \n  Input                      6     6  \n  InputGroup                22    22  \n  InputOTP                  10    10  \n  Kbd                        6     6  \n  Label                      4     4  \n  Link                       5     5  \n  ListBox                   11    11  \n  Meter                      5     5  \n  Modal                     13    13  \n  NumberField               16    16  \n  Pagination                 8     8  \n  Popover                    5     5  \n  ProgressBar                6     6  \n  ProgressCircle             6     6  \n  RadioGroup                11    11  \n  RangeCalendar             19    19  \n  ScrollShadow               6     6  \n  SearchField               14    14  \n  Select                    18    18  \n  Separator                  6     6  \n  Skeleton                   7     7  \n  Slider                    12    12  \n  Spinner                    4     4  \n  Surface                    3     3  \n  Switch                    14    14  \n  Table                     12    12  \n  Tabs                       9     9  \n  TagGroup                  11    11  \n  TextArea                   6     6  \n  TextField                 12    12  \n  TimeField                 12    12  \n  Toast                     11    11  \n  ToggleButton               6     6  \n  ToggleButtonGroup          9     9  \n  Toolbar                    4     4  \n  Tooltip                    5     5  \n  Typography                 5     5  \n\nexamples documented : 619\ndemonstrated        : 584\nrecorded unportable : 35\nwaiting on a feature: 0  ()\nMISSING             : 0  (in 0 pages)\n"
     },
     {
       "audit": "extra_audit.py",
       "exit": 0,
-      "reported_gaps": []
+      "status": "passed",
+      "metrics": {
+        "consistent-with-a-sibling": [
+          97
+        ],
+        "UNEXPLAINED": [
+          0
+        ],
+        "banned v2 public names": [
+          0
+        ],
+        "scoped removed builders": [
+          0
+        ]
+      },
+      "reported_gaps": [],
+      "output_sha256": "cd8cb21741a1a518263ba180853aa471d96e08668d9a3eaeed5c040265d07db1",
+      "output": "documented for a sibling component, not for this one:\n  Accordion          disabled_keys            (v3 documents it on Autocomplete, ComboBox, Dropdown, ListBox)\n  Accordion          indicator                (v3 documents it on Dropdown, ListBox, Table, Toast)\n  Alert              indicator                (v3 documents it on Dropdown, ListBox, Table, Toast)\n  Autocomplete       indicator                (v3 documents it on Dropdown, ListBox, Table, Toast)\n  Autocomplete       is_read_only             (v3 documents it on Calendar, Checkbox, CheckboxGroup, ColorField)\n  Autocomplete       on_change                (v3 documents it on Checkbox, CheckboxGroup, ColorArea, ColorField)\n  Autocomplete       on_selection_change      (v3 documents it on ComboBox, Dropdown, ListBox, Table)\n  Autocomplete       row_height               (v3 documents it on ListBox, Table)\n  Autocomplete       selected_keys            (v3 documents it on Dropdown, ListBox, Select, Table)\n  Autocomplete       should_focus_wrap        (v3 documents it on ComboBox)\n  Calendar           default_value            (v3 documents it on Autocomplete, CheckboxGroup, ColorArea, ColorField)\n  Calendar           on_change                (v3 documents it on Checkbox, CheckboxGroup, ColorArea, ColorField)\n  Checkbox           validation_errors        (v3 documents it on Form, InputOTP, NumberField, SearchField)\n  CheckboxGroup      orientation              (v3 documents it on ButtonGroup, ColorSlider, RadioGroup, ScrollShadow)\n  CheckboxGroup      variant                  (v3 documents it on Accordion, AlertDialog, Autocomplete, Avatar)\n  ColorArea          thumb                    (v3 documents it on Slider)\n  ColorField         validation_errors        (v3 documents it on Form, InputOTP, NumberField, SearchField)\n  ColorPicker        is_disabled              (v3 documents it on Accordion, Autocomplete, Breadcrumbs, Button)\n  ColorPicker        is_open                  (v3 documents it on AlertDialog, Autocomplete, DatePicker, DateRangePicker)\n  ColorPicker        on_open_change           (v3 documents it on AlertDialog, Autocomplete, DatePicker, DateRangePicker)\n  ColorSlider        thumb                    (v3 documents it on Slider)\n  ColorSwatch        is_disabled              (v3 documents it on Accordion, Autocomplete, Breadcrumbs, Button)\n  ColorSwatchPicker  color_name               (v3 documents it on ColorSwatch)\n  ColorSwatchPicker  disabled_keys            (v3 documents it on Autocomplete, ComboBox, Dropdown, ListBox)\n  ColorSwatchPicker  indicator                (v3 documents it on Dropdown, ListBox, Table, Toast)\n  ColorSwatchPicker  item_content             (v3 documents it on Dropdown, ListBox)\n  ComboBox           default_open             (v3 documents it on Autocomplete, DatePicker, DateRangePicker, Dropdown)\n  ComboBox           indicator                (v3 documents it on Dropdown, ListBox, Table, Toast)\n  ComboBox           is_open                  (v3 documents it on AlertDialog, Autocomplete, DatePicker, DateRangePicker)\n  ComboBox           on_change                (v3 documents it on Checkbox, CheckboxGroup, ColorArea, ColorField)\n  ComboBox           on_open_change           (v3 documents it on AlertDialog, Autocomplete, DatePicker, DateRangePicker)\n  ComboBox           row_height               (v3 documents it on ListBox, Table)\n  ComboBox           selected_keys            (v3 documents it on Dropdown, ListBox, Select, Table)\n  ComboBox           variant                  (v3 documents it on Accordion, AlertDialog, Autocomplete, Avatar)\n  DateField          validation_errors        (v3 documents it on Form, InputOTP, NumberField, SearchField)\n  DatePicker         auto_focus               (v3 documents it on ColorField, ComboBox, DateField, InputOTP)\n  DatePicker         first_day_of_week        (v3 documents it on Calendar, RangeCalendar)\n  DatePicker         is_date_unavailable      (v3 documents it on Calendar, DateField, RangeCalendar)\n  DatePicker         is_read_only             (v3 documents it on Calendar, Checkbox, CheckboxGroup, ColorField)\n  DatePicker         is_required              (v3 documents it on Autocomplete, Checkbox, CheckboxGroup, ColorField)\n  DatePicker         placement                (v3 documents it on AlertDialog, Autocomplete, Badge, ColorPicker)\n  DatePicker         validate                 (v3 documents it on Checkbox, ColorField, ComboBox, DateField)\n  DatePicker         validation_behavior      (v3 documents it on Checkbox, ColorField, ComboBox, DateField)\n  DatePicker         validation_errors        (v3 documents it on Form, InputOTP, NumberField, SearchField)\n  DateRangePicker    auto_focus               (v3 documents it on ColorField, ComboBox, DateField, InputOTP)\n  DateRangePicker    first_day_of_week        (v3 documents it on Calendar, RangeCalendar)\n  DateRangePicker    is_date_unavailable      (v3 documents it on Calendar, DateField, RangeCalendar)\n  DateRangePicker    is_read_only             (v3 documents it on Calendar, Checkbox, CheckboxGroup, ColorField)\n  DateRangePicker    is_required              (v3 documents it on Autocomplete, Checkbox, CheckboxGroup, ColorField)\n  DateRangePicker    placement                (v3 documents it on AlertDialog, Autocomplete, Badge, ColorPicker)\n  DateRangePicker    validate                 (v3 documents it on Checkbox, ColorField, ComboBox, DateField)\n  DateRangePicker    validation_behavior      (v3 documents it on Checkbox, ColorField, ComboBox, DateField)\n  DateRangePicker    validation_errors        (v3 documents it on Form, InputOTP, NumberField, SearchField)\n  Disclosure         default_expanded         (v3 documents it on Accordion)\n  Dropdown           disallow_empty_selection (v3 documents it on ToggleButtonGroup)\n  Dropdown           selected_key             (v3 documents it on ComboBox, Tabs)\n  FieldError         is_invalid               (v3 documents it on Autocomplete, Calendar, Checkbox, CheckboxGroup)\n  Input              auto_focus               (v3 documents it on ColorField, ComboBox, DateField, InputOTP)\n  Input              is_invalid               (v3 documents it on Autocomplete, Calendar, Checkbox, CheckboxGroup)\n  Input              on_submit                (v3 documents it on Form, SearchField)\n  Input              validate                 (v3 documents it on Checkbox, ColorField, ComboBox, DateField)\n  Input              validation_behavior      (v3 documents it on Checkbox, ColorField, ComboBox, DateField)\n  Input              validation_errors        (v3 documents it on Form, InputOTP, NumberField, SearchField)\n  InputGroup         is_invalid               (v3 documents it on Autocomplete, Calendar, Checkbox, CheckboxGroup)\n  InputGroup         is_required              (v3 documents it on Autocomplete, Checkbox, CheckboxGroup, ColorField)\n  InputOTP           validate                 (v3 documents it on Checkbox, ColorField, ComboBox, DateField)\n  ListBox            danger                   (v3 documents it on Dropdown)\n  ListBox            selected_key             (v3 documents it on ComboBox, Tabs)\n  ListBox            should_focus_wrap        (v3 documents it on ComboBox)\n  NumberField        is_wheel_disabled        (v3 documents it on ColorField)\n  Pagination         disabled_keys            (v3 documents it on Autocomplete, ComboBox, Dropdown, ListBox)\n  RadioGroup         indicator                (v3 documents it on Dropdown, ListBox, Table, Toast)\n  Select             default_value            (v3 documents it on Autocomplete, CheckboxGroup, ColorArea, ColorField)\n  Select             on_change                (v3 documents it on Checkbox, CheckboxGroup, ColorArea, ColorField)\n  Select             on_selection_change      (v3 documents it on ComboBox, Dropdown, ListBox, Table)\n  Select             row_height               (v3 documents it on ListBox, Table)\n  Select             should_focus_wrap        (v3 documents it on ComboBox)\n  Slider             default_value            (v3 documents it on Autocomplete, CheckboxGroup, ColorArea, ColorField)\n  Slider             disabled_keys            (v3 documents it on Autocomplete, ComboBox, Dropdown, ListBox)\n  Slider             end_name                 (v3 documents it on DateRangePicker)\n  Slider             on_change_end            (v3 documents it on ColorArea, ColorSlider)\n  Slider             start_name               (v3 documents it on DateRangePicker)\n  Switch             validation_errors        (v3 documents it on Form, InputOTP, NumberField, SearchField)\n  Table              disabled_keys            (v3 documents it on Autocomplete, ComboBox, Dropdown, ListBox)\n  Table              expanded_keys            (v3 documents it on Accordion, DisclosureGroup)\n  Table              is_pending               (v3 documents it on Button)\n  Table              on_expanded_change       (v3 documents it on Accordion, Disclosure, DisclosureGroup)\n  Tabs               full_width               (v3 documents it on Autocomplete, Button, ButtonGroup, ColorField)\n  TextArea           is_invalid               (v3 documents it on Autocomplete, Calendar, Checkbox, CheckboxGroup)\n  TextArea           validate                 (v3 documents it on Checkbox, ColorField, ComboBox, DateField)\n  TextArea           validation_behavior      (v3 documents it on Checkbox, ColorField, ComboBox, DateField)\n  TextArea           validation_errors        (v3 documents it on Form, InputOTP, NumberField, SearchField)\n  TextField          on_submit                (v3 documents it on Form, SearchField)\n  TextField          placeholder              (v3 documents it on Autocomplete, ColorField, ComboBox, Input)\n  TextField          variant                  (v3 documents it on Accordion, AlertDialog, Autocomplete, Avatar)\n  TimeField          validation_errors        (v3 documents it on Form, InputOTP, NumberField, SearchField)\n  ToggleButtonGroup  on_change                (v3 documents it on Checkbox, CheckboxGroup, ColorArea, ColorField)\n\nconsistent-with-a-sibling : 97\nUNEXPLAINED               : 0\n(each unexplained name is a v2 leftover to delete, an EXTRA_OK entry, or an ALIAS)\n\nbanned v2 public names    : 0\nscoped removed builders   : 0\n"
     },
     {
       "audit": "fence_audit.py",
       "exit": 0,
-      "reported_gaps": []
+      "status": "passed",
+      "metrics": {
+        "rust files walked": [
+          195
+        ],
+        "doc-comment fences": [
+          22
+        ],
+        "compiled by rustdoc": [
+          18
+        ],
+        "declared non-Rust prose": [
+          4
+        ],
+        "IGNORED (never compiled)": [
+          0
+        ],
+        "unjustified / unknown": [
+          0
+        ],
+        "stale allowlist entries": [
+          0
+        ]
+      },
+      "reported_gaps": [],
+      "output_sha256": "daecd5e7f64fd771922072e261d8e629a12d6a2858fee399613bba356a1fd1ec",
+      "output": "self-test PASS: the scanner reads doc fences and only doc fences, flags ```ignore and every attribute list rustdoc reads as ignore (`rust,ignore`, `ignore-macos`), rejects unknown attributes by name, gates `no_run` on a per-file allowlist, reports a stale allowlist entry, and refuses to call an empty scan a pass.\n\nrust files walked         : 195\ndoc-comment fences        : 22\ncompiled by rustdoc       : 18\ndeclared non-Rust prose   : 4\nIGNORED (never compiled)  : 0\nunjustified / unknown     : 0\nstale allowlist entries   : 0\n"
     },
     {
       "audit": "inert_audit.py",
       "exit": 0,
-      "reported_gaps": []
+      "status": "passed",
+      "metrics": {
+        "controlled components": [
+          36
+        ],
+        "driven instances": [
+          98
+        ],
+        "frozen on purpose": [
+          8
+        ],
+        "FROZEN": [
+          0
+        ],
+        "SHARED KEYS": [
+          0
+        ]
+      },
+      "reported_gaps": [],
+      "output_sha256": "10161f199e023e69cda33848ccae79bd06ef2e4b52fa416ce26c53783b52ef77",
+      "output": "\ncontrolled components : 36\ndriven instances      : 98\nfrozen on purpose     : 8\nFROZEN                : 0\nSHARED KEYS           : 0\n"
     },
     {
       "audit": "package_audit.py",
       "exit": 0,
-      "reported_gaps": []
+      "status": "passed",
+      "metrics": {
+        "source packages": [
+          5
+        ],
+        "PACKAGING ERRORS": [
+          0
+        ]
+      },
+      "reported_gaps": [],
+      "output_sha256": "2e0d3b7e4ba358c6bf5d8e14ff4712dd8c35cfe9d155e0b52cfccd8d7f90a4f2",
+      "output": "source packages      : 5\nlibrary install      : git herogpui (the only dependency)\nfacade features      : components core default profiler serde test-support theme\ngallery install      : cargo install --path gallery --locked\nlicense contract     : Apache-2.0 + NOTICE\nPACKAGING ERRORS     : 0\n"
     },
     {
       "audit": "part_audit.py",
       "exit": 0,
-      "reported_gaps": [
-        "? range-calendar         .range-calendar__grid-body",
-        "? range-calendar         .range-calendar__grid-row",
-        "UNVERIFIED         : 2"
-      ]
+      "status": "passed",
+      "metrics": {
+        "parts v3 declares": [
+          286
+        ],
+        "named in the port": [
+          232
+        ],
+        "recorded won-t-draw": [
+          54
+        ],
+        "UNVERIFIED": [
+          0
+        ]
+      },
+      "reported_gaps": [],
+      "output_sha256": "fc1155d54045c1865c04b5b4054fde8bca3e5fb5ffa995803214a1564ddabe23",
+      "output": "~ alert-dialog           .alert-dialog__trigger                   trigger-is-a-child\n~ dropdown               .dropdown__trigger                       trigger-is-a-child\n~ modal                  .modal__trigger                          trigger-is-a-child\n~ popover                .popover__trigger                        trigger-is-a-child\n~ tooltip                .tooltip__trigger                        trigger-is-a-child\n\nparts v3 declares  : 286\nnamed in the port  : 232\nrecorded won-t-draw: 54\nUNVERIFIED         : 0\n"
     },
     {
       "audit": "reason_audit.py",
       "exit": 0,
-      "reported_gaps": []
+      "status": "passed",
+      "metrics": {},
+      "reported_gaps": [],
+      "output_sha256": "0031e8c1c0cd0c3da02f50d805a5738cfab472bb4c9b8cf7308c3eda5b6a79c0",
+      "output": "==============================================================================\nREASON: constructor-arg\n  ColorArea.value\n      ColorArea              ColorArea                  `string \\| Color` | - | The current color value (controlled) |\n  ColorField.value\n      ColorField             ColorField                 `Color \\| null` | - | Current value (controlled). |\n  ColorPicker.value\n      ColorPicker            ColorPicker                `string \\| Color` | - | The current color value (controlled) |\n  ColorSlider.channel\n      ColorSlider            ColorSlider                `ColorChannel` | - | The color channel that the slider manipulates (hue, saturation, lightness, brightness, al\n  ColorSlider.value\n      ColorSlider            ColorSlider                `string \\| Color` | - | The current color value (controlled) |\n==============================================================================\nREASON: gregorian-only-date\n  Calendar.format\n      Calendar               Year Picker Parts          `DateFormatterOptions` | - | Customize month/year label (e.g. `{month: 'short'}`). |\n  RangeCalendar.format\n      RangeCalendar          Year Picker Parts          `DateFormatterOptions` | - | Customize month/year label (e.g. `{month: 'short'}`). |\n==============================================================================\nREASON: no-a11y-attrs\n  Kbd.title\n      Kbd                    Kbd.Abbr                   `string` | - | Title attribute for accessibility (e.g., \"Command\" for ⌘) |\n  role\n      AlertDialog            AlertDialog.Dialog         `string` | `\"alertdialog\"` | ARIA role |\n      Drawer                 Drawer.Dialog              `string` | `\"dialog\"` | ARIA role |\n      InputGroup             InputGroup                 `'group' \\| 'region' \\| 'presentation'` | `'group'` | Accessibility role for the group. Use 'region' for impor\n      Modal                  Modal.Dialog               `string` | `\"dialog\"` | ARIA role |\n==============================================================================\nREASON: no-browser-autofill\n  autoComplete\n      ComboBox               ComboBox                   `string` | - | Describes the type of autocomplete functionality |\n      DateField              DateField                  `string` | - | Type of autocomplete functionality the input should provide. |\n      Input                  Input                      `string` | - | Autocomplete hint for the browser. |\n      Select                 Select                     `string` | - | Describes the type of autocomplete functionality |\n      TextArea               TextArea                   `string` | - | Autocomplete hint for the browser. |\n==============================================================================\nREASON: no-browser-image-attrs\n  Avatar.crossOrigin\n      Avatar                 Avatar.Image               `'anonymous' \\| 'use-credentials'` | - | CORS setting for the image request |\n  Avatar.loading\n      Avatar                 Avatar.Image               `'eager' \\| 'lazy'` | - | Native lazy loading attribute |\n==============================================================================\nREASON: no-dom-portal\n  UNSTABLE_portalContainer\n      AlertDialog            AlertDialog.Backdrop       `HTMLElement` | - | Custom portal container |\n      Modal                  Modal.Backdrop             `HTMLElement` | - | Custom portal container |\n==============================================================================\nREASON: no-drag-source-prop\n  dropIndicatorThickness\n      ListBox                ListLayout                 `number \\| undefined` | 2 | The thickness of the drop indicator. |\n      Table                  TableLayout                `number \\| undefined` | 2 | The thickness of the drop indicator. |\n==============================================================================\nREASON: no-html-forms\n  form\n      ComboBox               ComboBox                   `string` | - | The id of a `<form>` element to associate the input with |\n  validationDetails\n      InputOTP               InputOTP                   `ValidityState` | - | HTML5 validation details. |\n==============================================================================\nREASON: no-http\n  download\n      Link                   Link                       `boolean \\| string` | - | Prompts file download instead of navigation |\n  encType\n      Form                   Form                       `'application/x-www-form-urlencoded' \\| 'multipart/form-data' \\| 'text/plain'` | - | The encoding type for for\n  method\n      Form                   Form                       `'get' \\| 'post'` | - | The HTTP method to use when submitting the form. |\n  rel\n      Link                   Link                       `string` | - | Relationship between the current and linked documents |\n  target\n      Form                   Form                       `'_self' \\| '_blank' \\| '_parent' \\| '_top'` | - | Where to display the response after submitting the form. |\n      Link                   Link                       `string` | `\"_self\"` | Controls where to open the linked document |\n==============================================================================\nREASON: no-intl-numbers\n  locale\n      NumberField            NumberField                `string` | - | Locale for number formatting. |\n==============================================================================\nREASON: no-loader-row\n  ListBox.loaderHeight\n      ListBox                ListLayout                 `number \\| undefined` | 48 | The fixed height of a loader element in px. This loader is specifically for \"load\n==============================================================================\nREASON: no-section-rows\n  Table.headingHeight\n      Table                  TableLayout                `number \\| undefined` | 48 | The fixed height of a section header in px. |\n==============================================================================\nREASON: no-soft-keyboard\n  inputMode\n      InputOTP               InputOTP                   `'numeric' \\| 'text' \\| 'decimal' \\| 'tel' \\| 'search' \\| 'email' \\| 'url'` | `'numeric'` | Virtual keyboard t\n==============================================================================\nREASON: no-time-zones\n  hideTimeZone\n      DateField              DateField                  `boolean` | `false` | Whether to hide the time zone abbreviation. |\n      TimeField              TimeField                  `boolean` | `false` | Whether to hide the time zone abbreviation. |\n==============================================================================\nREASON: no-view-transitions\n  Toast.wrapUpdate\n      Toast                  ToastQueue                 `(fn: () => void) => void` | - | Function to wrap state updates (e.g. `document.startViewTransition`); by defa\n==============================================================================\nREASON: not-a-prop\n  state\n      Autocomplete           Render Props               `SelectState` | The state of the autocomplete. Use `state.selectedItems` for the selected collection nodes |\n      ColorSlider            Render Props               `ColorSliderState` | The state of the color slider |\n      ComboBox               Render Props               `ComboBoxState` | The state of the ComboBox |\n      Drawer                 Drawer                     `UseOverlayStateReturn` | - | Controlled overlay state |\n      Select                 Render Props               `SelectState` | The state of the select |\n      Slider                 Render Props               `SliderState` | The state of the slider |\n      Switch                 Render Props               `-` | State of the switch. |\n  toast\n      Toast                  Toast                      `QueuedToast<T>` | - | Toast data from queue (required) |\n==============================================================================\nREASON: pinned-source-does-not-emit\n  Dropdown.isIndeterminate\n      Dropdown               Dropdown.ItemIndicator     `boolean` | Whether the item is in an indeterminate state |\n==============================================================================\nREASON: single-line-headings\n  estimatedHeadingHeight\n      ListBox                ListLayout                 `number \\| undefined` | — | The estimated height of a section header, when the height is variable. |\n      Table                  TableLayout                `number \\| undefined` | — | The estimated height of a section header, when the height is variable. |\n==============================================================================\nREASON: single-valued\n  CloseButton.variant\n      CloseButton            CloseButton                `\"default\"` | `\"default\"` | Visual variant of the button |\n  ScrollShadow.variant\n      ScrollShadow           ScrollShadow               `\"fade\"` | `\"fade\"` | The visual shadow effect style |\n  SearchField.type\n      SearchField            Composition Components     `string` | `\"search\"` | Input type (automatically set to \"search\"). |\n==============================================================================\nREASON: single-wrap-mode\n  TextArea.wrap\n      TextArea               TextArea                   `'soft' \\| 'hard'` | - | How text wraps when submitted. |\n==============================================================================\nREASON: state-entity-seeds-it\n  ComboBox.defaultSelectedKey\n      ComboBox               ComboBox                   `Key \\| null` | - | Default selected key (uncontrolled, single selection) |\n"
     },
     {
       "audit": "reference_audit.py",
       "exit": 0,
-      "reported_gaps": []
+      "status": "passed",
+      "metrics": {
+        "component pages": [
+          66
+        ],
+        "metadata pages": [
+          66
+        ],
+        "detailed": [
+          66
+        ],
+        "generic fallback": [
+          0
+        ]
+      },
+      "reported_gaps": [],
+      "output_sha256": "1268dabcc978e9780bca90c80a025124b3528f8f65db23236dd0046c3ac6ef4d",
+      "output": "component pages : 66\nmetadata pages  : 66\ndetailed        : 66/66\ngeneric fallback: 0/66\nmetadata rows   : API=1470, parts=346, states=363, styling=729\ncontract        : HeroUI v3.2.5, checked in; runtime network calls: 0\nPASS\n"
     },
     {
       "audit": "state_audit.py",
-      "exit": 1,
-      "reported_gaps": [
-        "MISSING  Toast                  exiting                toast.rs: /anim::exiting|overlay_phase/",
-        "MISSING  Toast                  expanded               toast.rs: /expanded/",
-        "MISSING  Toast                  hidden                 toast.rs: /is_open|expanded/",
-        "MISSING         : 3",
-        "UNMAPPED        : 0"
-      ]
+      "exit": 0,
+      "status": "passed",
+      "metrics": {
+        "states claimed": [
+          100
+        ],
+        "drawn": [
+          88
+        ],
+        "not drawn here": [
+          12
+        ],
+        "prose states": [
+          212
+        ],
+        "MISSING": [
+          0
+        ],
+        "UNMAPPED": [
+          0
+        ]
+      },
+      "reported_gaps": [],
+      "output_sha256": "1b8c99ccd3ee257b687d4add508e70be6d560caaf5921af6b3106d548c7616d4",
+      "output": "\nstates claimed  : 100\ndrawn           : 88\nnot drawn here  : 12\n    no-disabled-prop       5\n    panel-holds-focus      5\n    not-in-the-stylesheet  3\n    no-drag-and-drop       2\n    no-pending-prop        2\n    field-dims-its-label   1\n    trigger-child-owns-focus 1\nprose states    : 212 claimed, 205 drawn, 7 not drawn here\nMISSING         : 0\nUNMAPPED        : 0\n"
     },
     {
       "audit": "theme_serde_audit.py",
       "exit": 0,
-      "reported_gaps": []
+      "status": "passed",
+      "metrics": {
+        "builder methods read": [
+          32
+        ],
+        "document fields read": [
+          31
+        ],
+        "failures": [
+          0
+        ]
+      },
+      "reported_gaps": [],
+      "output_sha256": "d1884cf30a7b9138a09248e01ad7fb960eb80bc0261c734b6563d1126bd14f38",
+      "output": "self-test PASS: the scanner fails a ThemeBuilder method with no ThemeDocument field, a document key with no builder, and serde turned on by default.\nbuilder methods read    : 32\ndocument fields read    : 31\nfailures                : 0\n"
     },
     {
       "audit": "token_audit.py",
       "exit": 0,
-      "reported_gaps": [
-        "MISSING            : 0"
-      ]
+      "status": "passed",
+      "metrics": {
+        "variables declared": [
+          89
+        ],
+        "exposed": [
+          78
+        ],
+        "not exposed here": [
+          11
+        ],
+        "MISSING": [
+          0
+        ],
+        "values compared": [
+          44
+        ],
+        "lengths compared": [
+          9
+        ],
+        "shadows compared": [
+          3
+        ],
+        "WRONG VALUES": [
+          0
+        ]
+      },
+      "reported_gaps": [],
+      "output_sha256": "06e963180fdd2246503270e547e077818979928079f84d983ab7f620ad539fa7",
+      "output": "\nvariables declared : 89\nexposed            : 78\nnot exposed here   : 11\n    no-styleable-scrollbar   5\n    mixed-into-the-tokens    4\n    cursor-is-per-element    2\nMISSING            : 0\nvalues compared    : 44  (2 derived, checked by semantic.rs tests)\nlengths compared   : 9\nshadows compared   : 3  (3 dark ones are inset or none -- see SHADOW_NOTE)\nWRONG VALUES       : 0\n"
+    },
+    {
+      "audit": "write_only.py",
+      "exit": 0,
+      "status": "passed",
+      "metrics": {},
+      "reported_gaps": [],
+      "output_sha256": "e5e9dc7a055c535dc2b3fcaaade0a0fe3ad82dc659ec3ff4c11fd6e5953b09bb",
+      "output": "no write-only fields\n\nshared field names (counted module-wide -- verify by hand):\nbadge.rs               children             Badge, BadgeAnchor, BadgeLabel\nbadge.rs               sx                   Badge, BadgeAnchor, BadgeLabel\ncard.rs                children             Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle\ncard.rs                sx                   Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle\ncheckbox.rs            description          Checkbox, CheckboxGroup\ncheckbox.rs            error_message        Checkbox, CheckboxGroup\ncheckbox.rs            form_state           Checkbox, CheckboxGroup\ncheckbox.rs            id                   Checkbox, CheckboxGroup\ncheckbox.rs            is_disabled          Checkbox, CheckboxGroup\ncheckbox.rs            is_invalid           Checkbox, CheckboxGroup\ncheckbox.rs            is_read_only         Checkbox, CheckboxGroup\ncheckbox.rs            is_required          Checkbox, CheckboxGroup\ncheckbox.rs            name                 Checkbox, CheckboxGroup\ncheckbox.rs            on_change            Checkbox, CheckboxGroup\ncheckbox.rs            sx                   Checkbox, CheckboxGroup\ncheckbox.rs            value                Checkbox, CheckboxGroup\ncheckbox.rs            variant              Checkbox, CheckboxGroup\nchip.rs                children             Chip, ChipLabel\nchip.rs                sx                   Chip, ChipLabel\ncolor_picker.rs        channel              ColorField, ColorSlider\ncolor_picker.rs        color_space          ColorArea, ColorField, ColorSlider\ncolor_picker.rs        default_value        ColorArea, ColorField, ColorPicker, ColorSlider, ColorSwatchPicker\ncolor_picker.rs        form_state           ColorField, ColorSlider\ncolor_picker.rs        id                   ColorArea, ColorField, ColorPicker, ColorSlider, ColorSwatch, ColorSwatchPicker\ncolor_picker.rs        is_disabled          ColorArea, ColorField, ColorPicker, ColorSlider, ColorSwatch, ColorSwatchPicker\ncolor_picker.rs        label                ColorField, ColorPicker\ncolor_picker.rs        name                 ColorField, ColorSlider\ncolor_picker.rs        on_change            ColorArea, ColorField, ColorPicker, ColorSlider, ColorSwatchPicker\ncolor_picker.rs        on_change_end        ColorArea, ColorSlider\ncolor_picker.rs        shape                ColorSwatch, ColorSwatchPicker\ncolor_picker.rs        size                 ColorSwatch, ColorSwatchPicker\ncolor_picker.rs        sx                   ColorArea, ColorSwatch\ncolor_picker.rs        thumb                ColorArea, ColorSlider\ncolor_picker.rs        value                ColorArea, ColorField, ColorPicker, ColorSlider, ColorSwatchPicker\ndate_picker.rs         auto_focus           DateField, DatePicker, DateRangePicker\ndate_picker.rs         constraints          DateField, DatePicker, DateRangePicker\ndate_picker.rs         content              DateField, DatePicker, DateRangePicker\ndate_picker.rs         default_open         DatePicker, DateRangePicker\ndate_picker.rs         default_value        DateField, DatePicker, DateRangePicker\ndate_picker.rs         form_default         DatePicker, DateRangePicker\ndate_picker.rs         form_is_disabled     DatePicker, DateRangePicker\ndate_picker.rs         form_on_change       DatePicker, DateRangePicker\ndate_picker.rs         is_disabled          DateField, DatePicker, DateRangePicker\ndate_picker.rs         is_invalid           DateField, DatePicker, DateRangePicker\ndate_picker.rs         is_open              DatePicker, DateRangePicker\ndate_picker.rs         is_read_only         DateField, DatePicker, DateRangePicker\ndate_picker.rs         is_required          DateField, DatePicker, DateRangePicker\ndate_picker.rs         label                DateField, DatePicker, DateRangePicker\ndate_picker.rs         locale               DateField, DatePicker, DateRangePicker\ndate_picker.rs         name                 DateField, DatePicker\ndate_picker.rs         on_change            DateField, DatePicker, DateRangePicker\ndate_picker.rs         on_open_change       DatePicker, DateRangePicker\ndate_picker.rs         placement            DatePicker, DateRangePicker\ndate_picker.rs         should_close_on_select DatePicker, DateRangePicker\ndate_picker.rs         state                DateField, DatePicker, DateRangePicker\ndate_picker.rs         sx                   DateField, DatePicker, DateRangePicker\ndate_picker.rs         trigger_indicator    DatePicker, DateRangePicker\ndate_picker.rs         validate             DateField, DatePicker, DateRangePicker\ndate_picker.rs         validation_behavior  DateField, DatePicker, DateRangePicker\ndate_picker.rs         validation_errors    DateField, DatePicker, DateRangePicker\ndate_picker.rs         value                DateField, DatePicker, DateRangePicker\ndisclosure.rs          default_expanded     Disclosure, DisclosureGroup\ndisclosure.rs          id                   Disclosure, DisclosureGroup\ndisclosure.rs          is_disabled          Disclosure, DisclosureGroup\ndisclosure.rs          sx                   Disclosure, DisclosureGroup\ndropdown.rs            default_selected_keys Dropdown, Menu\ndropdown.rs            disabled_keys        Dropdown, Menu\ndropdown.rs            disallow_empty_selection Dropdown, Menu\ndropdown.rs            id                   Dropdown, Menu\ndropdown.rs            indicator            Dropdown, Menu\ndropdown.rs            indicator_content    Dropdown, Menu\ndropdown.rs            item_content         Dropdown, Menu\ndropdown.rs            items                Dropdown, Menu\ndropdown.rs            on_action            Dropdown, Menu\ndropdown.rs            on_selection_change  Dropdown, Menu\ndropdown.rs            radius               Dropdown, Menu\ndropdown.rs            recipes              Dropdown, Menu\ndropdown.rs            row_hover_bg         Dropdown, Menu\ndropdown.rs            selected_keys        Dropdown, Menu\ndropdown.rs            selection_is_controlled Dropdown, Menu\ndropdown.rs            selection_mode       Dropdown, Menu\ndropdown.rs            sx                   Dropdown, Menu\nfield.rs               children             FieldGroup, Fieldset, FieldsetActions\nfield.rs               gap                  FieldGroup, Fieldset, FieldsetActions\nfield.rs               id                   FieldError, Fieldset\nfield.rs               is_invalid           FieldError, Label\nfield.rs               text                 Description, ErrorMessage, FieldError, FieldsetLegend, Label\ninput.rs               auto_focus           Input, SearchField\ninput.rs               content              Input, SearchField\ninput.rs               default_value        Input, SearchField\ninput.rs               description          Input, SearchField\ninput.rs               end_content          Input, SearchField\ninput.rs               full_width           Input, SearchField\ninput.rs               is_disabled          Input, SearchField\ninput.rs               is_invalid           Input, SearchField\ninput.rs               is_read_only         Input, SearchField\ninput.rs               is_required          Input, SearchField\ninput.rs               label                Input, SearchField\ninput.rs               name                 Input, SearchField\ninput.rs               on_change            Input, SearchField\ninput.rs               on_clear             Input, SearchField\ninput.rs               on_submit            Input, SearchField\ninput.rs               placeholder          Input, SearchField\ninput.rs               radius               Input, SearchField\ninput.rs               recipes              Input, SearchField\ninput.rs               state                Input, SearchField\ninput.rs               sx                   Input, SearchField\ninput.rs               text_size            Input, SearchField\ninput.rs               validate             Input, SearchField\ninput.rs               validation_behavior  Input, SearchField\ninput.rs               validation_errors    Input, SearchField\ninput.rs               value                Input, SearchField\ninput.rs               variant              Input, SearchField\ninput.rs               variant_is_set       Input, SearchField\ninput_group.rs         sx                   InputAddon, InputGroup\nprogress.rs            color                ProgressBar, ProgressCircle\nprogress.rs            format               ProgressBar, ProgressCircle\nprogress.rs            id                   ProgressBar, ProgressCircle\nprogress.rs            is_indeterminate     ProgressBar, ProgressCircle\nprogress.rs            max_value            ProgressBar, ProgressCircle\nprogress.rs            min_value            ProgressBar, ProgressCircle\nprogress.rs            show_value           ProgressBar, ProgressCircle\nprogress.rs            sx                   ProgressBar, ProgressCircle\nprogress.rs            value                ProgressBar, ProgressCircle\nprogress.rs            value_content        ProgressBar, ProgressCircle\nswitch.rs              sx                   Switch, SwitchGroup\ntoggle_button.rs       children             ToggleButton, ToggleButtonGroup\ntoggle_button.rs       default_selected     ToggleButton, ToggleButtonGroup\ntoggle_button.rs       id                   ToggleButton, ToggleButtonGroup\ntoggle_button.rs       is_disabled          ToggleButton, ToggleButtonGroup\ntoggle_button.rs       on_change            ToggleButton, ToggleButtonGroup\ntoggle_button.rs       size                 ToggleButton, ToggleButtonGroup\ntoggle_button.rs       sx                   ToggleButton, ToggleButtonGroup\ntypography.rs          children             Prose, Typography\ntypography.rs          sx                   Prose, Typography\n"
     }
   ]
 }

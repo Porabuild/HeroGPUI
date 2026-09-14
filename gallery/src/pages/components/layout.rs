@@ -37,140 +37,174 @@ impl Gallery {
                     "Usage",
                     // v3's card is 400px wide, leads with an icon above the
                     // header and closes on a link in the footer.
-                    row(vec![h::Card::new()
-                        .w(px(400.))
-                        .child(
-                            gpui::svg()
-                                .size(px(24.))
-                                .path(h::icons::KEY)
-                                .text_color(cx.colors().accent.color),
-                        )
-                        .child(
-                            h::CardHeader::new()
-                                .child(h::CardTitle::new().child("Become an Acme Creator!"))
-                                .child(h::CardDescription::new().child(CARD_USAGE_DESCRIPTION),),
-                        )
-                        .child(
-                            h::CardFooter::new().child(
-                                h::Link::new("card-usage-link")
-                                    .label("Creator Hub")
-                                    .href("https://example.com")
-                                    .icon(
-                                        gpui::svg()
-                                            .size(px(12.))
-                                            .path(h::icons::EXTERNAL_LINK)
-                                            .text_color(cx.colors().link),
+                    specimen_body(
+                        "card-main",
+                        row(vec![
+                            h::Card::new()
+                                .w(px(400.))
+                                .child(
+                                    gpui::svg()
+                                        .size(px(24.))
+                                        .path(h::icons::KEY)
+                                        .text_color(cx.colors().accent.color),
+                                )
+                                .child(
+                                    h::CardHeader::new()
+                                        .child(h::CardTitle::new().child("Become an Acme Creator!"))
+                                        .child(
+                                            h::CardDescription::new().child(CARD_USAGE_DESCRIPTION),
+                                        ),
+                                )
+                                .child(
+                                    h::CardFooter::new().child(
+                                        h::Link::new("card-usage-link")
+                                            .label("Creator Hub")
+                                            .href("https://example.com")
+                                            .icon(
+                                                gpui::svg()
+                                                    .size(px(12.))
+                                                    .path(h::icons::EXTERNAL_LINK)
+                                                    .text_color(cx.colors().link),
+                                            ),
                                     ),
-                            ),
-                        )
-                        .into_any_element()]),
+                                )
+                                .into_any_element()
+                        ]),
+                        cx
+                    ),
                 ),
                 (
                     "Variants",
-                    row(h::CardVariant::ALL.iter().map(|v| card(*v)).els()),
+                    specimen_body(
+                        "card-variants",
+                        row(h::CardVariant::ALL.iter().map(|v| card(*v)).els()),
+                        cx
+                    ),
                 ),
                 (
                     "Horizontal Layout",
-                    row(vec![h::Card::new()
-                        .w(px(420.))
-                        .child(
-                            h::CardContent::new().child(
-                                gpui::div()
-                                    .flex()
-                                    .items_center()
-                                    .gap(px(16.))
-                                    .child(
-                                        gpui::div()
-                                            .size(px(72.))
-                                            .flex_shrink_0()
-                                            .rounded(px(12.))
-                                            .bg(cx.colors().default.color),
-                                    )
-                                    .child(
-                                        gpui::div()
-                                            .flex()
-                                            .flex_col()
-                                            .gap(px(4.))
-                                            .child(gpui::div().child("Weekly digest"))
-                                            .child(
-                                                gpui::div()
-                                                    .text_size(px(12.5))
-                                                    .text_color(cx.colors().muted)
-                                                    .child("Every Monday, 9am"),
-                                            ),
-                                    ),
-                            ),
-                        )
-                        .into_any_element()]),
+                    specimen_body(
+                        "card-horizontal",
+                        row(vec![h::Card::new()
+                            .w(px(420.))
+                            .child(
+                                h::CardContent::new().child(
+                                    gpui::div()
+                                        .flex()
+                                        .items_center()
+                                        .gap(px(16.))
+                                        .child(
+                                            gpui::div()
+                                                .size(px(72.))
+                                                .flex_shrink_0()
+                                                .rounded(px(12.))
+                                                .bg(cx.colors().default.color),
+                                        )
+                                        .child(
+                                            gpui::div()
+                                                .flex()
+                                                .flex_col()
+                                                .gap(px(4.))
+                                                .child(gpui::div().child("Weekly digest"))
+                                                .child(
+                                                    gpui::div()
+                                                        .text_size(px(12.5))
+                                                        .text_color(cx.colors().muted)
+                                                        .child("Every Monday, 9am"),
+                                                ),
+                                        ),
+                                ),
+                            )
+                            .into_any_element()]),
+                        cx
+                    ),
                 ),
                 (
                     "With Avatar",
-                    row(vec![h::Card::new()
-                        .w(px(200.))
-                        .child(
-                            gpui::div()
-                                .size(px(56.))
-                                .rounded(h::util::soft_radius(cx))
-                                .bg(cx.colors().default.color),
-                        )
-                        .child(
-                            h::CardHeader::new()
-                                .child(h::CardTitle::new().child("Indie Hackers"))
-                                .child(h::CardDescription::new().child("148 members")),
-                        )
-                        .child(
-                            h::CardFooter::new()
-                                .child(h::Avatar::new("card-martha").name("Martha").size(Size::Sm))
-                                .child("By Martha"),
-                        )
-                        .into_any_element()]),
+                    specimen_body(
+                        "card-avatar",
+                        row(vec![h::Card::new()
+                            .w(px(200.))
+                            .child(
+                                gpui::div()
+                                    .size(px(56.))
+                                    .rounded(h::util::soft_radius(cx))
+                                    .bg(cx.colors().default.color),
+                            )
+                            .child(
+                                h::CardHeader::new()
+                                    .child(h::CardTitle::new().child("Indie Hackers"))
+                                    .child(h::CardDescription::new().child("148 members")),
+                            )
+                            .child(
+                                h::CardFooter::new()
+                                    .child(
+                                        h::Avatar::new("card-martha").name("Martha").size(Size::Sm)
+                                    )
+                                    .child("By Martha"),
+                            )
+                            .into_any_element()]),
+                        cx
+                    ),
                 ),
                 (
                     "With Images",
-                    row(vec![h::Card::new()
-                        .w(px(280.))
-                        .child(
-                            h::CardContent::new().child(
-                                gpui::div()
-                                    .h(px(140.))
-                                    .w_full()
-                                    .rounded(px(12.))
-                                    .bg(cx.colors().default.color),
-                            ),
-                        )
-                        .child(h::CardFooter::new().child("A placeholder for cover art."))
-                        .into_any_element()]),
+                    specimen_body(
+                        "card-images",
+                        row(vec![h::Card::new()
+                            .w(px(280.))
+                            .child(
+                                h::CardContent::new().child(
+                                    gpui::div()
+                                        .h(px(140.))
+                                        .w_full()
+                                        .rounded(px(12.))
+                                        .bg(cx.colors().default.color),
+                                ),
+                            )
+                            .child(h::CardFooter::new().child("A placeholder for cover art."))
+                            .into_any_element()]),
+                        cx
+                    ),
                 ),
                 (
                     "With Form",
-                    row(vec![h::Card::new()
-                        .w(px(320.))
-                        .child(h::CardHeader::new().child(h::CardTitle::new().child("Sign in")))
-                        .child(
-                            h::CardContent::new().child(
-                                gpui::div()
-                                    .flex()
-                                    .flex_col()
-                                    .gap(px(12.))
-                                    .child(
-                                        h::TextField::new(self.demo_text("card-email", "", cx))
-                                            .label("Email")
-                                            .input_type(h::InputType::Email)
-                                            .full_width(),
-                                    )
-                                    .child(
-                                        h::TextField::new(self.demo_text("card-password", "", cx))
+                    specimen_body(
+                        "card-form",
+                        row(vec![h::Card::new()
+                            .w(px(320.))
+                            .child(h::CardHeader::new().child(h::CardTitle::new().child("Sign in")))
+                            .child(
+                                h::CardContent::new().child(
+                                    gpui::div()
+                                        .flex()
+                                        .flex_col()
+                                        .gap(px(12.))
+                                        .child(
+                                            h::TextField::new(self.demo_text("card-email", "", cx))
+                                                .label("Email")
+                                                .input_type(h::InputType::Email)
+                                                .full_width(),
+                                        )
+                                        .child(
+                                            h::TextField::new(self.demo_text(
+                                                "card-password",
+                                                "",
+                                                cx
+                                            ))
                                             .label("Password")
                                             .input_type(h::InputType::Password)
                                             .full_width(),
-                                    ),
-                            ),
-                        )
-                        .child(
-                            h::CardFooter::new()
-                                .child(h::Button::new("card-signin").label("Sign in")),
-                        )
-                        .into_any_element()]),
+                                        ),
+                                ),
+                            )
+                            .child(
+                                h::CardFooter::new()
+                                    .child(h::Button::new("card-signin").label("Sign in")),
+                            )
+                            .into_any_element()]),
+                        cx
+                    ),
                 ),
             ],
             cx,

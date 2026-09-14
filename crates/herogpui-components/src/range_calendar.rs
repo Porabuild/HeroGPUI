@@ -39,6 +39,9 @@ pub struct RangeCalendar {
     constraints: DateConstraints,
     range_date_unavailable: Option<RangeDateUnavailable>,
     is_disabled: bool,
+    /// Retained range-picker exits keep their calendar painted while making
+    /// descendants visual-only until the exit animation finishes.
+    inert: bool,
     is_read_only: bool,
     /// Set by a picker: take the focus as the panel opens. See
     /// [`RangeCalendar::autofocus_grid`].
@@ -163,6 +166,7 @@ impl RangeCalendar {
             range_date_unavailable: None,
             calendar_system: None,
             is_disabled: false,
+            inert: false,
             is_read_only: false,
             autofocus_grid: false,
             is_invalid: false,
@@ -327,6 +331,14 @@ impl RangeCalendar {
 
     pub fn is_disabled(mut self, v: bool) -> Self {
         self.is_disabled = v;
+        self
+    }
+
+    /// Makes the range calendar visual-only for a retained picker exit.
+    /// Unlike `is_disabled`, this preserves normal painting and only removes
+    /// focus, pointer and keyboard activation.
+    pub(crate) fn inert(mut self, v: bool) -> Self {
+        self.inert = v;
         self
     }
 
@@ -609,7 +621,7 @@ impl RangeCalendar {
                 .visible_start
                 .is_some_and(|start| days_from_civil(&date) < days_from_civil(&start));
         let eligible = !disabled && !unavailable;
-        let selectable = eligible && !self.is_read_only;
+        let selectable = eligible && !self.is_read_only && !self.inert;
 
         let is_start = start_day == Some(serial);
         let is_end = end_day == Some(serial);
@@ -773,14 +785,22 @@ impl RangeCalendar {
         // which would shrink the cell as the cursor arrived.
         let mut cell = util::with_focus_ring(
             cell,
-            util::shows_focus_ring(!outside_month && frame.focused == Some(date), cx),
+            util::shows_focus_ring(
+                !self.inert && !outside_month && frame.focused == Some(date),
+                cx,
+            ),
             true,
             Vec::new(),
             cx,
         );
 
         if disabled || unavailable {
-            cell = cell.text_color(colors.muted);
+            cell = cell
+                .text_color(colors.muted)
+                .cursor(gpui::CursorStyle::OperationNotAllowed)
+                // The root owns the dim when the whole range calendar is
+                // disabled, so cells do not compound that opacity.
+                .when(!self.is_disabled, |day| day.opacity(cx.layout().disabled_opacity));
             if disabled && !outside_month {
                 cell = cell.line_through();
             }
@@ -980,8 +1000,10 @@ impl RangeCalendar {
         let total = system.days_in_month(y, m) as usize;
         let rows = self.constraints.rows_in(system, y, m);
 
-        // The pinned cells carry `my-[2px]` margins, so two rows sit 4px
-        // apart vertically while the seven 36px columns touch horizontally.
+        // `.range-calendar__grid-body` and `.range-calendar__grid-row` use
+        // `display: contents` upstream. These flex rows preserve the seven
+        // touching columns; the cells' `my-[2px]` becomes 4px between rows
+        // and 2px at each body edge. The parent adds the first row's `mt-1`.
         let mut grid = div()
             .id(element_id::scoped(&self.id, format!("grid-{y}-{m}")))
             .flex()
@@ -1084,7 +1106,7 @@ impl RangeCalendar {
                         let key = format!("{base}-y{year}");
                         move || key
                     })
-                    .when(!self.is_disabled && is_active, |cell| {
+                    .when(!self.is_disabled && !self.inert && is_active, |cell| {
                         cell.track_focus(year_focus)
                     })
                     .flex_1()
@@ -1099,7 +1121,7 @@ impl RangeCalendar {
                     .rounded(util::control_radius(cx));
                 if is_active {
                     cell = cell.bg(accent.color).text_color(accent.foreground);
-                } else if !self.is_disabled {
+                } else if !self.is_disabled && !self.inert {
                     // `.calendar-year-picker__year-cell:hover` fills
                     // `bg-default text-default-foreground`.
                     let hover_bg = self.year_hover_bg.unwrap_or(colors.default.color);
@@ -1109,7 +1131,7 @@ impl RangeCalendar {
                         .cursor(util::interactive_cursor(cx))
                         .hover(move |s| s.bg(hover_bg).text_color(hover_fg));
                 }
-                if !self.is_disabled {
+                if !self.is_disabled && !self.inert {
                     let st = self.state.clone();
                     let on_open = self.on_year_picker_open_change.clone();
                     let on_focus = self.on_focus_change.clone();
@@ -1245,7 +1267,7 @@ impl RenderOnce for RangeCalendar {
             util::tab_stop_handle(element_id::scoped(&self.id, "year-focus"), window, cx);
         // Inside a picker the grid takes the focus as the panel opens, so the
         // arrows work without hunting for it with Tab.
-        if self.autofocus_grid && !self.is_disabled && !year_picker_open {
+        if self.autofocus_grid && !self.is_disabled && !self.inert && !year_picker_open {
             util::focus_once(
                 window,
                 cx,
@@ -1375,7 +1397,7 @@ impl RenderOnce for RangeCalendar {
         );
         let first_year = years.first().copied().unwrap_or(initial_year);
         let last_year = years.last().copied().unwrap_or(initial_year);
-        if year_picker_open && !*year_was_open.read(cx) && !self.is_disabled {
+        if year_picker_open && !*year_was_open.read(cx) && !self.is_disabled && !self.inert {
             year_cursor.update(cx, |year, _| *year = Some(initial_year));
             window.focus(&year_focus, cx);
         }
@@ -1446,8 +1468,8 @@ impl RenderOnce for RangeCalendar {
         let active_heading_index = (*year_trigger_index.read(cx)).min(columns - 1);
         let active_heading_focus = heading_focuses[active_heading_index].clone();
 
-        let colors = cx.colors();
-        let layout = cx.layout();
+        let colors = cx.colors().clone();
+        let layout = cx.layout().clone();
 
         let nav_target = |dir: i32| {
             calendar_view::page_in(
@@ -1473,11 +1495,16 @@ impl RenderOnce for RangeCalendar {
                        target: Date,
                        key: String,
                        focus: &gpui::FocusHandle,
-                       disabled: bool| {
+                       disabled: bool,
+                       inert: bool,
+                       window: &mut Window,
+                       cx: &mut App| {
             let state = state_for_nav.clone();
             // `.range-calendar__nav-button:hover` fills with `bg-default`.
             let hover_bg = self.nav_hover_bg.unwrap_or(colors.default.color);
             let debug_key = key.clone();
+            let button_id = ElementId::Name(key.clone().into());
+            let radius = util::small_radius(cx);
             let nav_name = if key.contains("-prev") {
                 "Previous"
             } else {
@@ -1497,11 +1524,11 @@ impl RenderOnce for RangeCalendar {
                 scale: crate::anim::PRESSED_SCALE_DEEP,
             };
             let button = div()
-                .id(ElementId::Name(key.into()))
+                .id(button_id.clone())
                 // The debug selector lets the headless tests read the
                 // button's laid-out bounds.
                 .debug_selector(move || debug_key)
-                .when(!disabled, |b| b.track_focus(focus))
+                .when(!disabled && !inert, |b| b.track_focus(focus))
                 .flex()
                 .items_center()
                 .justify_center()
@@ -1521,22 +1548,36 @@ impl RenderOnce for RangeCalendar {
                         .path(icon)
                         .text_color(colors.accent.soft_foreground(colors.foreground)),
                 )
-                .when(!disabled, |b| {
+                .when(!disabled && !inert, |b| {
                     let pressed = b
                         .cursor(util::interactive_cursor(cx))
-                        .hover(move |s| s.bg(hover_bg))
                         .on_click(move |_, _, cx| {
                             state.update(cx, |s, cx| {
                                 s.set_anchor(target);
                                 cx.notify();
                             });
                         });
+                    let pressed = crate::anim::hover_fade_with_duration(
+                        pressed,
+                        element_id::scoped(&button_id, "hover-fade"),
+                        (herogpui_core::with_alpha(colors.default.color, 0.0), hover_bg),
+                        None,
+                        None,
+                        move |fill| fill.rounded(radius),
+                        Some(100),
+                        window,
+                        cx,
+                    );
                     crate::anim::pressed(pressed, press_box, cx)
                 })
                 .when(disabled, |b| b.opacity(layout.disabled_opacity))
                 .when(year_picker_open, |b| b.invisible());
-            util::ring_if_focused(button, focus, true, Vec::new(), window, cx)
-                .a11y_named(a11y::Role::Button, &a11y::Name::labelled(nav_name))
+            let button = if inert {
+                button
+            } else {
+                util::ring_if_focused(button, focus, true, Vec::new(), window, cx)
+            };
+            button.a11y_named(a11y::Role::Button, &a11y::Name::labelled(nav_name))
         };
 
         // A heading is a plain label only when the picker is controlled without
@@ -1544,7 +1585,9 @@ impl RenderOnce for RangeCalendar {
         let heading = |text: String,
                        key: String,
                        focus: &gpui::FocusHandle,
-                       index: usize|
+                       index: usize,
+                       window: &mut Window,
+                       cx: &mut App|
          -> gpui::AnyElement {
             let heading_name = text.clone();
             let label = div()
@@ -1552,6 +1595,8 @@ impl RenderOnce for RangeCalendar {
                 .line_height(px(20.))
                 .font_weight(gpui::FontWeight::MEDIUM)
                 .child(text);
+            let indicator_id =
+                element_id::scoped(&self.id, format!("year-picker-indicator-{index}"));
             match &self.on_year_picker_open_change {
                 // No handler and no state of our own: a plain label.
                 None if year_picker_own.is_none() => label.into_any_element(),
@@ -1561,7 +1606,7 @@ impl RenderOnce for RangeCalendar {
                     let open = year_picker_open;
                     let trigger = div()
                         .id(ElementId::Name(key.into()))
-                        .when(!self.is_disabled, |trigger| trigger.track_focus(focus))
+                        .when(!self.is_disabled && !self.inert, |trigger| trigger.track_focus(focus))
                         .flex()
                         .items_center()
                         // `.calendar-year-picker__trigger` is `gap-1 rounded-lg`
@@ -1571,7 +1616,7 @@ impl RenderOnce for RangeCalendar {
                         .px(px(6.))
                         .py(px(2.))
                         .rounded(util::key_radius(cx))
-                        .when(!self.is_disabled, |trigger| {
+                        .when(!self.is_disabled && !self.inert, |trigger| {
                             trigger
                                 .cursor(util::interactive_cursor(cx))
                                 .on_click(move |_, _, cx| {
@@ -1587,20 +1632,27 @@ impl RenderOnce for RangeCalendar {
                         .when(self.is_disabled, |trigger| {
                             trigger.opacity(layout.disabled_opacity)
                         });
-                    util::ring_if_focused(trigger, focus, true, Vec::new(), window, cx)
+                    let trigger = if self.inert {
+                        trigger
+                    } else {
+                        util::ring_if_focused(trigger, focus, true, Vec::new(), window, cx)
+                    };
+                    trigger
                         .a11y_named(a11y::Role::Button, &a11y::Name::labelled(heading_name))
                         .a11y_expanded(open)
                         .child(label)
-                        .child(
+                        .child(crate::anim::rotating_indicator_with_angle_ease_out(
+                            &indicator_id,
+                            open,
                             gpui::svg()
                                 .size(px(12.))
-                                .path(if open {
-                                    icons::CHEVRON_UP
-                                } else {
-                                    icons::CHEVRON_DOWN
-                                })
+                                .path(icons::CHEVRON_DOWN)
                                 .text_color(colors.muted),
-                        )
+                            crate::anim::YEAR_PICKER_INDICATOR_MS,
+                            crate::anim::YEAR_PICKER_INDICATOR_ANGLE,
+                            window,
+                            cx,
+                        ))
                         .into_any_element()
                 }
                 Some(cb) => {
@@ -1610,7 +1662,7 @@ impl RenderOnce for RangeCalendar {
                     let opener = year_trigger_index.clone();
                     let trigger = div()
                         .id(ElementId::Name(key.into()))
-                        .when(!self.is_disabled, |trigger| trigger.track_focus(focus))
+                        .when(!self.is_disabled && !self.inert, |trigger| trigger.track_focus(focus))
                         .flex()
                         .items_center()
                         // `.calendar-year-picker__trigger` is `gap-1 rounded-lg`
@@ -1620,7 +1672,7 @@ impl RenderOnce for RangeCalendar {
                         .px(px(6.))
                         .py(px(2.))
                         .rounded(util::key_radius(cx))
-                        .when(!self.is_disabled, |trigger| {
+                        .when(!self.is_disabled && !self.inert, |trigger| {
                             trigger
                                 .cursor(util::interactive_cursor(cx))
                                 .on_click(move |_, window, cx| {
@@ -1639,20 +1691,27 @@ impl RenderOnce for RangeCalendar {
                         .when(self.is_disabled, |trigger| {
                             trigger.opacity(layout.disabled_opacity)
                         });
-                    util::ring_if_focused(trigger, focus, true, Vec::new(), window, cx)
+                    let trigger = if self.inert {
+                        trigger
+                    } else {
+                        util::ring_if_focused(trigger, focus, true, Vec::new(), window, cx)
+                    };
+                    trigger
                         .a11y_named(a11y::Role::Button, &a11y::Name::labelled(heading_name))
                         .a11y_expanded(open)
                         .child(label)
-                        .child(
+                        .child(crate::anim::rotating_indicator_with_angle_ease_out(
+                            &indicator_id,
+                            open,
                             gpui::svg()
                                 .size(px(12.))
-                                .path(if open {
-                                    icons::CHEVRON_UP
-                                } else {
-                                    icons::CHEVRON_DOWN
-                                })
+                                .path(icons::CHEVRON_DOWN)
                                 .text_color(colors.muted),
-                        )
+                            crate::anim::YEAR_PICKER_INDICATOR_MS,
+                            crate::anim::YEAR_PICKER_INDICATOR_ANGLE,
+                            window,
+                            cx,
+                        ))
                         .into_any_element()
                 }
             }
@@ -1664,14 +1723,14 @@ impl RenderOnce for RangeCalendar {
             .flex_col()
             .text_color(colors.surface.foreground)
             // readOnly blocks selection, not focus or navigation.
-            .when(!self.is_disabled && !year_picker_open, |el| {
+            .when(!self.is_disabled && !self.inert && !year_picker_open, |el| {
                 el.track_focus(&grid_focus)
             });
 
         // The same keys the Calendar answers, and Enter picks: the first press
         // sets the range's start, the second its end, which is what `pick` does
         // for a click.
-        if !self.is_disabled && !year_picker_open {
+        if !self.is_disabled && !self.inert && !year_picker_open {
             let held = cursor.clone();
             let focus_preview = focus_preview.clone();
             let selection_before_anchor = selection_before_anchor.clone();
@@ -1891,7 +1950,7 @@ impl RenderOnce for RangeCalendar {
             });
         }
 
-        if !self.is_disabled && year_picker_open {
+        if !self.is_disabled && !self.inert && year_picker_open {
             let held = year_cursor;
             let focus = year_focus.clone();
             let years_for_keys = years.clone();
@@ -1955,6 +2014,9 @@ impl RenderOnce for RangeCalendar {
             });
         }
 
+        // `.range-calendar__grid-body > tr:first-child > td` has `mt-1`.
+        // Day view moves that 4px onto the body itself; this header/body gap
+        // owns it for both linear views. Month views use the column gap below.
         let mut body = div().flex().flex_col().gap(px(4.));
         if self.duration.is_month_view() {
             root = root.w(column_width * columns as f32 + px(32.) * (columns - 1) as f32);
@@ -1963,6 +2025,7 @@ impl RenderOnce for RangeCalendar {
             for (i, &(y, m)) in months.iter().enumerate() {
                 let first = i == 0;
                 let last = i + 1 == columns;
+                // First-body-row margin, separate from each cell's 2px margin.
                 let mut col = div().flex().flex_col().gap(px(4.)).w(column_width);
                 // Only the outer columns carry nav buttons; the rest keep a
                 // same-size spacer so every heading lines up.
@@ -1985,6 +2048,9 @@ impl RenderOnce for RangeCalendar {
                                 format!("{base}-prev"),
                                 &prev_focus,
                                 previous_disabled,
+                                self.inert,
+                                window,
+                                cx,
                             )
                                 .into_any_element()
                         } else {
@@ -1995,6 +2061,8 @@ impl RenderOnce for RangeCalendar {
                             format!("{base}-heading{i}"),
                             &heading_focuses[i],
                             i,
+                            window,
+                            cx,
                         ))
                         .child(if last {
                             nav_btn(
@@ -2003,6 +2071,9 @@ impl RenderOnce for RangeCalendar {
                                 format!("{base}-next"),
                                 &next_focus,
                                 next_disabled,
+                                self.inert,
+                                window,
+                                cx,
                             )
                                 .into_any_element()
                         } else {
@@ -2034,12 +2105,17 @@ impl RenderOnce for RangeCalendar {
                         format!("{base}-prev"),
                         &prev_focus,
                         previous_disabled,
+                        self.inert,
+                        window,
+                        cx,
                     ))
                     .child(heading(
                         calendar_view::range_heading(&linear),
                         format!("{base}-heading"),
                         &heading_focuses[0],
                         0,
+                        window,
+                        cx,
                     ))
                     .child(nav_btn(
                         icons::CHEVRON_RIGHT,
@@ -2047,9 +2123,15 @@ impl RenderOnce for RangeCalendar {
                         format!("{base}-next"),
                         &next_focus,
                         next_disabled,
+                        self.inert,
+                        window,
+                        cx,
                     )),
             );
             body = body.child(self.weekday_header(cx));
+            // The linear `.range-calendar__grid-body` / `__grid-row` use the
+            // same cell margins and seven columns as month_grid, including
+            // empty slots at the boundaries of a rolling day view.
             let mut grid = div()
                 .id(element_id::scoped(&self.id, "grid"))
                 .flex()
@@ -2251,6 +2333,54 @@ mod hover_tokens {
         assert!(
             !source.contains("colors.default.soft_hover()"),
             "the year-picker trigger must not invent a hover background"
+        );
+    }
+
+    #[test]
+    fn the_year_picker_indicator_rotates_one_down_chevron() {
+        let source = include_str!("range_calendar.rs")
+            .split("#[cfg(test)]")
+            .next()
+            .expect("the implementation section is always present");
+        assert_eq!(
+            source
+                .matches("crate::anim::rotating_indicator_with_angle_ease_out(")
+                .count(),
+            2,
+            "both heading render paths must share the animated indicator"
+        );
+        assert_eq!(
+            source
+                .matches("crate::anim::YEAR_PICKER_INDICATOR_ANGLE")
+                .count(),
+            2,
+            "the year picker must use the pinned 90-degree angle"
+        );
+        assert_eq!(
+            source.matches(".path(icons::CHEVRON_DOWN)").count(),
+            2,
+            "open and closed states must reuse one down-chevron asset"
+        );
+        assert!(
+            !source.contains("icons::CHEVRON_UP"),
+            "the year picker must rotate one asset instead of swapping glyphs"
+        );
+    }
+
+    #[test]
+    fn the_nav_button_fades_its_hover_fill_without_replacing_press_scale() {
+        let source = include_str!("range_calendar.rs")
+            .split("#[cfg(test)]")
+            .next()
+            .expect("the implementation section is always present");
+        assert!(
+            source.contains("crate::anim::hover_fade_with_duration(")
+                && source.contains("Some(100)"),
+            "the range navigation button must use HeroUI's 100ms hover fill"
+        );
+        assert!(
+            source.contains("crate::anim::pressed(pressed, press_box, cx)"),
+            "the navigation button must retain the separate 0.95 press skin"
         );
     }
 

@@ -176,8 +176,40 @@ impl RenderOnce for ColorPicker {
                 (scroll.clone(), scopes.clone())
             });
 
-        let colors = cx.colors();
-        let layout = cx.layout();
+        // The floating positioner resolves flips during prepaint, after this
+        // render has already chosen the panel's entry direction. Keep the
+        // requested placement and the resolved physical side in keyed state
+        // so a resize, flip, or initially-open mount can rebuild the motion
+        // with the side that is actually on screen.
+        let requested_placement = window.use_keyed_state(
+            element_id::scoped(&self.id, "requested-placement"),
+            cx,
+            |_, _| self.placement,
+        );
+        let resolved_placement = window.use_keyed_state(
+            element_id::scoped(&self.id, "resolved-placement"),
+            cx,
+            |_, _| Rc::new(Cell::new(None::<Placement>)),
+        );
+        let placement_changed = *requested_placement.read(cx) != self.placement;
+        if placement_changed {
+            requested_placement.update(cx, |placement, _| *placement = self.placement);
+            resolved_placement.read(cx).set(None);
+        }
+        let resolved_placement = resolved_placement.read(cx).clone();
+        let entry_placement = resolved_placement.get().unwrap_or(self.placement);
+
+        let anchor_bounds = window
+            .use_keyed_state(element_id::scoped(&self.id, "anchor-bounds"), cx, |_, _| {
+                Rc::new(Cell::new(None::<Bounds<Pixels>>))
+            })
+            .read(cx)
+            .clone();
+        // The trigger's focus-ring tween owns keyed state and therefore needs
+        // a mutable app borrow; keep theme snapshots owned for the panel and
+        // trigger chrome that follow.
+        let colors = cx.colors().clone();
+        let layout = cx.layout().clone();
         let popover_radius = layout.capped(layout.radius_lg() * 2.5);
         let trigger_pressed = Rc::new(Cell::new(false));
 
@@ -229,17 +261,35 @@ impl RenderOnce for ColorPicker {
             }
         }
 
-        // The popover overlays the page rather than pushing it down.
-        let mut root = div().relative().flex().flex_col().gap(px(8.));
         let trigger_name =
             a11y::Name::maybe(self.label.clone()).described(Some(self.value.to_hex()));
+
+        // Resolve the normal focused endpoint on the behavior owner first;
+        // the motion wrapper below replaces that shadow list on every frame,
+        // preserving the same endpoint while interpolating into and out of it.
+        trigger = util::ring_if_focused(trigger, &trigger_focus, true, Vec::new(), window, cx);
+
+        // HeroUI transitions the trigger's focus shadow over 150ms. Keep the
+        // trigger as the stable behavior/a11y owner and animate only its
+        // listener-free visual child so open/close and pointer dismissal do
+        // not lose identity.
+        let trigger_focused = util::shows_focus_ring(trigger_focus.is_focused(window), cx);
+        let trigger_focus_motion = color_focus_ring_motion(
+            &element_id::scoped(&self.id, "trigger"),
+            trigger_focused,
+            window,
+            cx,
+        );
+        let trigger = trigger
+            .a11y_named(a11y::Role::Button, &trigger_name)
+            .a11y_expanded(is_open);
+        let trigger = trigger_focus_motion.render(trigger, Vec::new(), true, cx);
+
+        // The popover overlays the page rather than pushing it down.
+        let mut root = div().relative().flex().flex_col().gap(px(8.));
         if let Some(label) = self.label {
             root = root.child(crate::field::Label::new(label));
         }
-        let trigger = util::ring_if_focused(trigger, &trigger_focus, true, Vec::new(), window, cx)
-            .a11y_named(a11y::Role::Button, &trigger_name)
-            .a11y_expanded(is_open);
-        let anchor_bounds = Rc::new(Cell::new(None));
         root = root.child(crate::popover::PopoverTriggerMeasure::new(
             trigger,
             anchor_bounds.clone(),
@@ -421,12 +471,15 @@ impl RenderOnce for ColorPicker {
                 close(window, cx)
             });
 
+        let (slide_x, slide_y) = color_picker_entry_offset(entry_placement);
         let zoom = crate::anim::ZoomBox {
             width: Some(px(256.)),
             padding_x: Some(px(8.)),
             padding_top: Some(px(8.)),
             padding_bottom: Some(px(12.)),
             radius: Some(popover_radius),
+            slide_x: (slide_x != 0.0).then(|| px(slide_x)),
+            slide_y: (slide_y != 0.0).then(|| px(slide_y)),
             ..Default::default()
         };
 
@@ -447,10 +500,29 @@ impl RenderOnce for ColorPicker {
                 cx,
             )
         };
-        root.child(util::floating(crate::popover::scrollable_popover(
-            anchor_bounds,
-            self.placement,
-            panel,
-        )))
+        root.child(util::floating(
+            crate::popover::scrollable_popover_with_resolved_placement(
+                anchor_bounds,
+                self.placement,
+                Some(resolved_placement),
+                panel,
+            ),
+        ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn trigger_focus_uses_the_shared_color_ring_transition() {
+        let source = include_str!("picker.rs");
+        let render_source = source
+            .split("#[cfg(test)]")
+            .next()
+            .expect("the render implementation must precede this test module");
+        assert!(source.contains("color_focus_ring_motion"));
+        assert!(source.contains("trigger_focused"));
+        assert!(source.contains("trigger_focus_motion.render"));
+        assert!(render_source.contains("util::ring_if_focused(trigger"));
     }
 }

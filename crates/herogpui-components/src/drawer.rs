@@ -369,8 +369,12 @@ impl RenderOnce for Drawer {
                 },
             );
         }
+        // The stylesheet keeps the base handle's bottom padding for the
+        // bottom sheet. The top sheet overrides the dialog's bottom padding
+        // and removes the handle padding, leaving the handle flush with the
+        // moving top edge while preserving the 8px sheet inset below content.
         let handle = match self.placement {
-            DrawerPlacement::Top => handle.pt(px(8.)),
+            DrawerPlacement::Top => handle.pb(px(0.)),
             _ => handle.pb(px(8.)),
         };
         let measured_bounds = panel_bounds.clone();
@@ -385,9 +389,22 @@ impl RenderOnce for Drawer {
             .flex()
             .flex_col()
             .p(px(24.))
+            .when(self.placement == DrawerPlacement::Top, |panel| {
+                panel.pb(px(8.))
+            })
             .bg(colors.overlay.background)
             .text_color(colors.foreground)
             .shadow(cx.layout().overlay_shadow.clone())
+            .when(self.placement == DrawerPlacement::Bottom, |panel| {
+                panel
+                    .rounded_tl(cx.layout().radius_2xl().min(px(32.)))
+                    .rounded_tr(cx.layout().radius_2xl().min(px(32.)))
+            })
+            .when(self.placement == DrawerPlacement::Top, |panel| {
+                panel
+                    .rounded_bl(cx.layout().radius_2xl().min(px(32.)))
+                    .rounded_br(cx.layout().radius_2xl().min(px(32.)))
+            })
             .overflow_hidden()
             // `.drawer__handle` is `flex items-center justify-center pb-2` with
             // an `h-1 w-9 rounded-xs bg-separator` bar: the affordance that says
@@ -418,7 +435,8 @@ impl RenderOnce for Drawer {
                         .flex_col()
                         .flex_1()
                         .min_h(px(0.))
-                        .gap(px(10.))
+                        .mx(px(-3.))
+                        .p(px(3.))
                         // `.drawer__header + .drawer__body` is `mt-2`.
                         .when(has_header, |b| b.mt(px(8.)))
                         .text_size(px(14.))
@@ -713,14 +731,14 @@ impl RenderOnce for Drawer {
                 scrim,
                 "drawer-backdrop-out",
                 crate::anim::ZoomBox::default(),
-                crate::anim::Motion::BACKDROP_OUT,
+                crate::anim::Motion::DRAWER_BACKDROP_OUT,
                 cx,
             )
         } else {
             crate::anim::entering(
                 scrim,
                 "drawer-backdrop-anim",
-                crate::anim::Motion::BACKDROP_IN,
+                crate::anim::Motion::DRAWER_BACKDROP_IN,
                 cx,
             )
         });

@@ -26,21 +26,21 @@ const CONSUMERS: &[Consumer] = &[
     Consumer {
         file: "tabs.rs",
         part: "primary tab hover dim",
-        owner: "tab.hover(move |s| s.opacity(tabs_hover_opacity))",
+        owner: "crate::anim::hover_fade(",
         token: "tabs_hover_opacity",
         removed: Some("opacity(0.7)"),
     },
     Consumer {
         file: "tabs.rs",
         part: "secondary tab hover dim",
-        owner: "tab.hover(move |tab| tab.opacity(tabs_hover_opacity))",
+        owner: "crate::anim::hover_fade(",
         token: "tabs_hover_opacity",
         removed: Some("opacity(0.7)"),
     },
     Consumer {
         file: "tabs.rs",
         part: "scroll-arrow hover dim",
-        owner: "arrow.opacity(tabs_hover_opacity)",
+        owner: "tab_overlay",
         token: "tabs_hover_opacity",
         removed: Some("opacity(0.7)"),
     },
@@ -61,7 +61,7 @@ const CONSUMERS: &[Consumer] = &[
     Consumer {
         file: "anim.rs",
         part: "hover-fade duration",
-        owner: "fn hover_fade_duration",
+        owner: "fn hover_fade_duration_with_override",
         token: "hover_fade_ms",
         removed: Some("Animation::new(Duration::from_millis(TRANSITION_MS))"),
     },

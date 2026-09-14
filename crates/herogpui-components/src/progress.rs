@@ -355,13 +355,20 @@ impl RenderOnce for ProgressBar {
                     .font_weight(gpui::FontWeight::MEDIUM)
                     .text_color(text_color)
                     .child(self.label.clone().unwrap_or_default())
-                    .when(self.show_value, |l| match &self.value_content {
+                    .when(self.show_value, |l| {
                         // `percentage` is 0-100, with 0 standing in for v3's
-                        // undefined indeterminate percentage.
-                        Some(render) => {
-                            l.child(render(percentage, &value_text, self.is_indeterminate))
-                        }
-                        None => l.child(value_text.to_string()),
+                        // undefined indeterminate percentage. The output
+                        // wrapper carries HeroUI's tabular-nums feature while
+                        // leaving the label on the normal font metrics.
+                        let output = match &self.value_content {
+                            Some(render) => render(percentage, &value_text, self.is_indeterminate),
+                            None => value_text.to_string().into_any_element(),
+                        };
+                        l.child(
+                            gpui::div()
+                                .font_features(crate::util::tabular_font_features())
+                                .child(output),
+                        )
                     }),
             );
         }
@@ -378,6 +385,7 @@ impl RenderOnce for ProgressBar {
         // Indeterminate bars sweep a 40% segment; reduced motion leaves that
         // same segment static so the state is still legible.
         let track = if self.is_indeterminate && !ActiveTheme::reduce_motion(cx) {
+            let indeterminate_id = element_id::scoped(&self.id, "indeterminate");
             track
                 .child(
                     gpui::div()
@@ -387,7 +395,7 @@ impl RenderOnce for ProgressBar {
                         .rounded(radius)
                         .bg(progress_fill_color)
                         .with_animation(
-                            "progress-bar-indeterminate",
+                            indeterminate_id,
                             gpui::Animation::new(std::time::Duration::from_millis(
                                 crate::anim::PROGRESS_BAR_INDETERMINATE_MS,
                             ))
@@ -464,6 +472,54 @@ mod tests {
         assert_eq!(motion.generation, 3);
         assert!(close(motion.from, 0.9));
         assert!(close(width.get(), 0.9));
+    }
+
+    #[test]
+    fn indeterminate_circle_rotates_track_and_fill_as_one_surface() {
+        let source = include_str!("progress.rs")
+            .rsplit("/// Circular progress ring")
+            .next()
+            .expect("the ProgressCircle implementation is always present");
+        assert!(source.contains("let progress_visual = gpui::div()"));
+        assert!(source.contains(".child(track).child(arc)"));
+        assert!(source.contains("progress_visual\n                .with_animation("));
+        assert!(source.contains("rotation.set(crate::anim::progress_circle_spin_turn(delta))"));
+    }
+
+    #[test]
+    fn determinate_circle_interpolates_the_retained_arc_fraction() {
+        let source = include_str!("progress.rs")
+            .rsplit("/// Circular progress ring")
+            .next()
+            .expect("the ProgressCircle implementation is always present");
+        assert!(source.contains("PROGRESS_CIRCLE_FILL_MS"));
+        assert!(source.contains("\"fill-fraction\""));
+        assert!(source.contains("let paint_fraction = fraction_motion.value()"));
+        assert!(source.contains("let fraction = paint_fraction.get()"));
+        assert!(source.contains("fraction_motion.animates(reduce_motion)"));
+    }
+
+    #[test]
+    fn progress_output_uses_shared_tabular_numeric_features() {
+        let source = include_str!("progress.rs")
+            .split("/// Circular progress ring")
+            .next()
+            .expect("the ProgressBar implementation is always present");
+        assert!(source.contains("tabular_font_features"));
+        assert!(source.contains("font_features(crate::util::tabular_font_features())"));
+    }
+
+    #[test]
+    fn indeterminate_bar_animation_is_instance_scoped() {
+        let source = include_str!("progress.rs");
+        assert!(
+            source.contains("element_id::scoped(&self.id, \"indeterminate\")"),
+            "each indeterminate bar needs an animation id under its own component id"
+        );
+        assert!(
+            !source.contains("\"progress-bar-indeterminate\""),
+            "a shared literal animation id lets sibling bars collide"
+        );
     }
 }
 
@@ -588,13 +644,17 @@ impl Default for ProgressCircle {
 }
 
 impl RenderOnce for ProgressCircle {
-    fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
-        let colors = cx.colors();
-        let arc_color = if self.color == Color::Default {
-            colors.default.foreground
-        } else {
-            cx.role(self.color).color
-        };
+    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        // A value change moves the SVG stroke-dashoffset over 300ms. The
+        // canvas arc has no retained dash property, so keep the live fraction
+        // in the same keyed tween and let the paint callback read it. This
+        // preserves reversal from the frame actually on screen and lets
+        // reduced motion settle without scheduling a frame.
+        let motion_id = self
+            .id
+            .clone()
+            .unwrap_or_else(|| gpui::ElementId::from("progress-circle"));
+        let reduce_motion = ActiveTheme::reduce_motion(cx);
         // Clamp once at entry, like the bar: a non-percent label formats the
         // clamped value, and the guard keeps `f32::clamp` from panicking on
         // the inverted range `fraction_of` tolerates.
@@ -609,15 +669,31 @@ impl RenderOnce for ProgressCircle {
         } else {
             fraction_of(self.value, self.min_value, self.max_value)
         };
+        let mut fraction_motion =
+            crate::anim::Tween::keyed(&motion_id, "fill-fraction", fraction, window, cx);
+        if self.is_indeterminate {
+            fraction_motion.settle();
+        } else {
+            fraction_motion.snap_if_reduced(reduce_motion);
+        }
+        let animate_fraction = !self.is_indeterminate && fraction_motion.animates(reduce_motion);
+        let paint_fraction = fraction_motion.value();
+        let colors = cx.colors();
+        let arc_color = if self.color == Color::Default {
+            colors.default.foreground
+        } else {
+            cx.role(self.color).color
+        };
         // v3 uses stroke-width 4 in a 36-unit viewBox.
         let stroke_w = self.size_px / 9.;
-        let spins = self.is_indeterminate && !ActiveTheme::reduce_motion(cx);
+        let spins = self.is_indeterminate && !reduce_motion;
         let rotation = std::rc::Rc::new(std::cell::Cell::new(0.0f32));
         let paint_rotation = rotation.clone();
 
         let arc = gpui::canvas(
             move |bounds, _, _| bounds,
             move |bounds, _, window, _| {
+                let fraction = paint_fraction.get();
                 if fraction <= 0.0 {
                     return;
                 }
@@ -661,21 +737,52 @@ impl RenderOnce for ProgressCircle {
             Some(id) => element_id::scoped(id, "spin"),
             None => gpui::ElementId::from("progress-circle-spin"),
         };
-        let arc = if spins {
-            arc.with_animation(
-                spin_id,
-                gpui::Animation::new(std::time::Duration::from_millis(
-                    crate::anim::PROGRESS_CIRCLE_SPIN_MS,
-                ))
-                .repeat(),
-                move |arc, delta| {
-                    rotation.set(crate::anim::progress_circle_spin_turn(delta));
-                    arc
-                },
-            )
-            .into_any_element()
+        let track = gpui::div()
+            .absolute()
+            .inset_0()
+            .rounded_full()
+            .border(stroke_w)
+            .border_color(colors.default.color);
+
+        // HeroUI animates the SVG track wrapper, so the track and the quarter
+        // fill arc rotate as one surface. Rotating only the arc leaves a
+        // stationary ring behind it and makes the indeterminate state visibly
+        // different from the pinned `progress-circle__track` animation.
+        let progress_visual = gpui::div().absolute().inset_0().child(track).child(arc);
+        let progress_visual = if spins {
+            progress_visual
+                .with_animation(
+                    spin_id,
+                    gpui::Animation::new(std::time::Duration::from_millis(
+                        crate::anim::PROGRESS_CIRCLE_SPIN_MS,
+                    ))
+                    .repeat(),
+                    move |visual, delta| {
+                        rotation.set(crate::anim::progress_circle_spin_turn(delta));
+                        visual
+                    },
+                )
+                .into_any_element()
+        } else if animate_fraction {
+            let from = fraction_motion.from();
+            let to = fraction_motion.target();
+            let value = fraction_motion.value();
+            progress_visual
+                .with_animation(
+                    element_id::indexed(&motion_id, "fill-fraction", fraction_motion.generation()),
+                    gpui::Animation::new(std::time::Duration::from_millis(
+                        crate::anim::PROGRESS_CIRCLE_FILL_MS,
+                    ))
+                    .with_easing(crate::anim::ease_out()),
+                    move |visual, delta| {
+                        value.set(from + (to - from) * delta);
+                        visual
+                    },
+                )
+                .into_any_element()
         } else {
-            arc.into_any_element()
+            fraction_motion.settle();
+            progress_visual.into_any_element()
         };
 
         let el = gpui::div()
@@ -684,20 +791,10 @@ impl RenderOnce for ProgressCircle {
             .items_center()
             .justify_center()
             .size(self.size_px)
-            // `.progress-circle__track` and `.progress-circle__track-circle`:
-            // v3 draws two
-            // SVG circles, one full ring and one dashed to the value.
-            .child(
-                gpui::div()
-                    .absolute()
-                    .inset_0()
-                    .rounded_full()
-                    .border(stroke_w)
-                    .border_color(colors.default.color),
-            )
-            // `.progress-circle__fill-circle` -- the arc, stroked to the same
-            // weight as the track it sits on.
-            .child(arc)
+            // `.progress-circle__track` and `.progress-circle__fill-circle`
+            // share one animated SVG wrapper in v3. The canvas-backed port
+            // keeps the same stacking and rotates both layers together.
+            .child(progress_visual)
             .when(self.show_value, |el| {
                 let format = self
                     .format

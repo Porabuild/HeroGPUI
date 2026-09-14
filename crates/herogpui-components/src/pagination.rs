@@ -16,6 +16,14 @@ type OnChange = std::sync::Arc<dyn Fn(&usize, &mut Window, &mut App) + 'static>;
 
 type Link = std::sync::Arc<dyn Fn(usize, bool) -> gpui::AnyElement + 'static>;
 
+/// Tailwind's pinned `sm` breakpoint used by HeroUI's responsive pagination
+/// root. Below it the summary and controls stack in one column.
+const PAGINATION_SM_BREAKPOINT: f32 = 640.;
+
+fn pagination_stacks_for_width(width: gpui::Pixels) -> bool {
+    f32::from(width) < PAGINATION_SM_BREAKPOINT
+}
+
 /// HeroUI Pagination (controlled).
 #[derive(IntoElement)]
 pub struct Pagination {
@@ -178,10 +186,11 @@ impl RenderOnce for Pagination {
             crate::util::tab_stop_handle(element_id::scoped(&base_id, "next-focus"), window, cx);
         let ring_visible = crate::util::focus_visible(cx);
 
-        let colors = cx.colors();
+        let colors = cx.colors().clone();
         let control_hover_bg = self.hover_bg.unwrap_or(colors.default.hover());
-        let layout = cx.layout();
+        let layout = cx.layout().clone();
         let base = base_id;
+        let stacked = pagination_stacks_for_width(window.viewport_size().width);
 
         let self_on_change: Option<OnChange> = self.on_change.clone();
 
@@ -224,6 +233,7 @@ impl RenderOnce for Pagination {
 
         // `.pagination__content` is `gap-1`, not the 16px this used to leave.
         let mut row = gpui::div().flex().items_center().gap(px(4.));
+        row = row.when(stacked, |row| row.self_start());
 
         // v3: "Disabled states properly communicated" — a disabled arrow is
         // `pointer-events-none` and React Aria's press never fires for it, so
@@ -251,6 +261,7 @@ impl RenderOnce for Pagination {
                 &prev_focus,
                 (ring_visible && prev_focus.is_focused(window))
                     .then(|| crate::util::focus_ring_shadows(true, cx)),
+                window,
                 cx,
             )
             .when(prev_enabled, |b| {
@@ -281,10 +292,11 @@ impl RenderOnce for Pagination {
                         // pagination.js`'s `PaginationLink` is an RAC
                         // `Button` — a native `<button>` — carrying
                         // `"aria-current": isActive ? "page" : undefined`.
-                        // The `aria-current` half has no gpui builder and is
-                        // a recorded omission; the number is restated as the
-                        // name because a gpui text child contributes none.
+                        // The local gpui-pre accessibility extension carries
+                        // that current-page state; the number is still
+                        // restated as the name because a text child contributes none.
                         .a11y_named(a11y::Role::Button, &a11y::Name::labelled(n.to_string()))
+                        .when(active, |b| b.a11y_current(a11y::AriaCurrent::Page))
                         .flex()
                         .items_center()
                         .justify_center()
@@ -323,7 +335,22 @@ impl RenderOnce for Pagination {
                         // default-hover fill rides inside the press
                         // refinement, which owns the scale.
                         let pressed_bg = control_hover_bg;
-                        btn = btn.hover(move |s| s.bg(hover_bg));
+                        let idle_bg = if active {
+                            colors.default.color
+                        } else {
+                            herogpui_core::with_alpha(colors.foreground, 0.0)
+                        };
+                        let radius = crate::util::control_radius(cx);
+                        btn = crate::anim::hover_fade(
+                            btn,
+                            element_id::scoped(&base, format!("page-hover-{n}")),
+                            (idle_bg, hover_bg),
+                            None,
+                            None,
+                            move |fill| fill.rounded(radius),
+                            window,
+                            cx,
+                        );
                         btn = crate::anim::pressed_with_background(
                             btn,
                             crate::anim::PressBox {
@@ -418,6 +445,7 @@ impl RenderOnce for Pagination {
                 &next_focus,
                 (ring_visible && next_focus.is_focused(window))
                     .then(|| crate::util::focus_ring_shadows(true, cx)),
+                window,
                 cx,
             )
             .when(next_enabled, |b| {
@@ -436,6 +464,7 @@ impl RenderOnce for Pagination {
         // gap-4` around the summary and the content.
         let el = gpui::div()
             .flex()
+            .when(stacked, |root| root.flex_col())
             .items_center()
             .justify_between()
             .gap(px(16.))
@@ -443,6 +472,7 @@ impl RenderOnce for Pagination {
                 gpui::div()
                     .flex()
                     .items_center()
+                    .when(stacked, |summary| summary.self_start())
                     // `.pagination__summary` is `gap-2 text-sm text-muted`.
                     .gap(px(8.))
                     .text_size(cell_text)
@@ -486,6 +516,7 @@ struct NavStyle {
     radius: gpui::Pixels,
 }
 
+#[allow(clippy::too_many_arguments)] // one parameter per nav-cell style channel
 fn nav_button(
     id: gpui::ElementId,
     icon: gpui::AnyElement,
@@ -494,7 +525,8 @@ fn nav_button(
     focus: &gpui::FocusHandle,
     // The focus ring's shadows, when this button is the one holding the focus.
     ring: Option<Vec<gpui::BoxShadow>>,
-    cx: &App,
+    window: &mut Window,
+    cx: &mut App,
 ) -> gpui::Stateful<gpui::Div> {
     let NavStyle {
         foreground,
@@ -507,6 +539,7 @@ fn nav_button(
         press_scale,
         radius,
     } = style;
+    let hover_id = element_id::scoped(&id, "hover-fade");
     let mut btn = gpui::div()
         .id(id)
         // `PaginationPrevious` / `PaginationNext` are RAC `Button`s too. They
@@ -533,9 +566,18 @@ fn nav_button(
         // after `pressed` land on the slot and fight the skin for width.
         .child(icon);
     if enabled {
-        btn = btn
-            .cursor(crate::util::interactive_cursor(cx))
-            .hover(move |s| s.bg(hover_bg));
+        let radius_for_hover = radius;
+        btn = btn.cursor(crate::util::interactive_cursor(cx));
+        btn = crate::anim::hover_fade(
+            btn,
+            hover_id,
+            (herogpui_core::with_alpha(foreground, 0.0), hover_bg),
+            None,
+            None,
+            move |fill| fill.rounded(radius_for_hover),
+            window,
+            cx,
+        );
         btn = crate::anim::pressed_with_background(
             btn,
             crate::anim::PressBox {
@@ -602,6 +644,28 @@ fn visible_pages(page: usize, total: usize) -> Vec<PageRef> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn pagination_stacks_below_the_pinned_sm_breakpoint() {
+        assert!(pagination_stacks_for_width(px(639.)));
+        assert!(!pagination_stacks_for_width(px(640.)));
+        assert!(!pagination_stacks_for_width(px(1024.)));
+    }
+
+    #[test]
+    fn pagination_root_uses_the_responsive_stack_and_start_alignment() {
+        let source = include_str!("pagination.rs")
+            .split("#[cfg(test)]")
+            .next()
+            .expect("the implementation section is always present");
+        assert!(
+            source.contains("pagination_stacks_for_width(window.viewport_size().width)")
+                && source.contains(".when(stacked, |root| root.flex_col())")
+                && source.contains(".when(stacked, |summary| summary.self_start())")
+                && source.contains(".when(stacked, |row| row.self_start())"),
+            "pagination must stack and align both children below HeroUI's sm breakpoint"
+        );
+    }
 
     /// `visible_pages` is the window `page_focus` is minted from. The bound is
     /// `2 * siblings + 5` with `siblings` fixed at 1, so a large `total` still

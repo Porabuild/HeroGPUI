@@ -724,6 +724,9 @@ impl RenderOnce for AlertDialog {
             if let Some(w) = self.size.max_width() {
                 zoom = zoom.sized(w);
             }
+            let (slide_x, slide_y) = crate::modal::placement_entry_offset(self.placement);
+            zoom.slide_x = (slide_x != 0.0).then(|| px(slide_x));
+            zoom.slide_y = (slide_y != 0.0).then(|| px(slide_y));
             if exiting {
                 crate::anim::exiting(
                     panel,

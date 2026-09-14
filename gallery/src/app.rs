@@ -53,9 +53,15 @@ pub fn toasts_closed(cx: &App) -> usize {
     cx.try_global::<ToastsClosed>().map_or(0, |c| c.0)
 }
 
+pub(crate) fn reset_toast_closed(cx: &mut App) {
+    cx.set_global(ToastsClosed(0));
+}
+
 /// Root view of the gallery window.
 pub struct Gallery {
     pub(crate) page: Page,
+    pub(crate) control_frame: Option<crate::control::FrameAck>,
+    pub(crate) toast_promises: Vec<gpui::Task<()>>,
 
     // -- demo state ---------------------------------------------------------
     pub button_clicks: u32,
@@ -100,10 +106,8 @@ pub struct Gallery {
     pub otp_typed: String,
     pub number: Entity<h::NumberState>,
     pub price: Entity<h::NumberState>,
-    pub calendar: Entity<h::CalendarState>,
     pub cal_picked: Option<h::Date>,
     pub calendar_focus: h::Date,
-    pub date_range: Entity<h::DateRangeState>,
     pub range_calendar_focus: h::Date,
     pub date_picker_open: bool,
     pub range_open: bool,
@@ -128,21 +132,16 @@ pub struct Gallery {
     pub tags: Vec<SharedString>,
     pub tag_selection: HashSet<SharedString>,
     pub checkbox_group: HashSet<SharedString>,
-    pub combo_state: Entity<h::InputState>,
-    pub combo_open: bool,
     pub alert_dialog_open: bool,
     pub picker_color: h::PickerColor,
     pub swatch_selected: h::PickerColor,
-    pub time: Entity<h::TimeState>,
     pub search_state: Entity<h::InputState>,
     pub search_query: String,
-    pub text_field_state: Entity<h::InputState>,
     pub group_amount: Entity<h::InputState>,
     pub cal_year_picker: bool,
     pub table_selection: Vec<SharedString>,
     pub table_sort: Option<h::SortDescriptor>,
     pub dropdown_multi: Vec<SharedString>,
-    pub color_field_state: Entity<h::InputState>,
 
     // -- per-demo state -----------------------------------------------------
     //
@@ -171,6 +170,17 @@ pub struct Gallery {
 }
 
 impl Gallery {
+    fn toast_viewport(&self) -> h::ToastViewport {
+        h::ToastViewport::new()
+            .placement(self.toast_placement)
+            .is_expanded(self.demo_flag("toast-expanded", false))
+    }
+
+    pub(crate) fn track_toast_promise(&mut self, task: gpui::Task<()>) {
+        self.toast_promises.retain(|task| !task.is_ready());
+        self.toast_promises.push(task);
+    }
+
     /// The text state for one demo, created on first use.
     ///
     /// `initial` seeds it the way v3's `defaultValue` does, and only on the
@@ -329,14 +339,8 @@ Enter inserts a newline here, and a long paragraph wraps inside the field instea
             n.set_step(50.0);
             n
         });
-        let calendar = cx.new(|cx| h::CalendarState::new(cx));
-        let date_range = cx.new(|cx| h::DateRangeState::new(cx));
-        let combo_state = cx.new(|cx| h::InputState::new(cx));
         let search_state = cx.new(|cx| h::InputState::new(cx));
-        let text_field_state = cx.new(|cx| h::InputState::new(cx));
         let group_amount = cx.new(|cx| h::InputState::new(cx));
-        let time = cx.new(|cx| h::TimeState::with_value(cx, h::Time::new(9, 30)));
-        let color_field_state = cx.new(|cx| h::InputState::new(cx));
 
         // Re-render the shell whenever toasts change.
         let toasts = h::toast_store(cx);
@@ -352,6 +356,8 @@ Enter inserts a newline here, and a long paragraph wraps inside the field instea
 
         Self {
             page: Page::Introduction,
+            control_frame: None,
+            toast_promises: Vec::new(),
             button_clicks: 0,
             button_upload_pending: false,
             switch_a: true,
@@ -394,10 +400,8 @@ Enter inserts a newline here, and a long paragraph wraps inside the field instea
             otp_typed: String::new(),
             number,
             price,
-            calendar,
             cal_picked: None,
             calendar_focus: h::Date::today(),
-            date_range,
             range_calendar_focus: h::Date::today(),
             date_picker_open: false,
             range_open: std::env::var("HEROGPUI_OPEN_OVERLAYS").is_ok(),
@@ -420,21 +424,16 @@ Enter inserts a newline here, and a long paragraph wraps inside the field instea
                 .collect(),
             tag_selection: HashSet::new(),
             checkbox_group: HashSet::from([SharedString::from("email")]),
-            combo_state,
-            combo_open: false,
             alert_dialog_open: std::env::var("HEROGPUI_OPEN_OVERLAYS").is_ok(),
             picker_color: h::PickerColor::from_hex("#0085F5").unwrap_or_default(),
             swatch_selected: h::PickerColor::from_hex("#0085F5").unwrap_or_default(),
-            time,
             search_state,
             search_query: String::new(),
-            text_field_state,
             group_amount,
             cal_year_picker: std::env::var("HEROGPUI_OPEN_OVERLAYS").is_ok(),
             table_selection: Vec::new(),
             table_sort: None,
             dropdown_multi: Vec::new(),
-            color_field_state,
             demo_text: HashMap::new(),
             demo_number: HashMap::new(),
             demo_time: HashMap::new(),
@@ -455,6 +454,9 @@ Enter inserts a newline here, and a long paragraph wraps inside the field instea
 
 impl Render for Gallery {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<'_, Self>) -> impl IntoElement {
+        if let Some(completion) = self.control_frame.take() {
+            completion.rendered(_window, cx);
+        }
         let colors = cx.colors().clone();
 
         if crate::control::preview_only(cx) {
@@ -465,7 +467,9 @@ impl Render for Gallery {
                 .font_family(FONT_FAMILY)
                 .text_size(px(14.))
                 .line_height(px(20.))
-                .child(self.render_current_page(cx));
+                .relative()
+                .child(self.render_current_page(cx))
+                .child(self.toast_viewport());
         }
 
         // ---- top navbar ----------------------------------------------------
@@ -735,11 +739,7 @@ impl Render for Gallery {
             .child(gpui::div().flex().flex_1().min_h_0().child(sidebar).child(content))
             // Toasts last so they paint above the shell. Modal and Drawer
             // demos live on their own pages.
-            .child(
-                h::ToastViewport::new()
-                    .placement(self.toast_placement)
-                    .is_expanded(self.demo_flag("toast-expanded", false)),
-            )
+            .child(self.toast_viewport())
     }
 }
 
@@ -751,7 +751,8 @@ impl Gallery {
     }
 
     /// `HEROGPUI_OPEN_OVERLAYS`, but settable while the app runs: the control
-    /// file (see `control.rs`) switches it between batch steps.
+    /// file (see `control.rs`) switches it between batch steps, and the web
+    /// bootstrap applies `?overlays=1` through this before the first frame.
     pub fn set_overlays_open(&mut self, open: bool) {
         self.overlays_open = open;
         // The keyed demos read `overlays_open` through `demo_overlay`, but the

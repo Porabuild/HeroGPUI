@@ -108,16 +108,21 @@ replace ordinary test commands with watch mode.
 
 ## CI-shaped verification
 
-`.github/workflows/ci.yml` is authoritative. Its Rust job currently runs:
+`.github/workflows/ci.yml` is authoritative. Its jobs cover:
 
-1. `cargo fmt --all -- --check`
-2. `cargo test -p herogpui-components --locked`
-3. `.shots/lint.ps1`
-4. Fetch parity inputs with `design_audit.py --fetch` and
-   `demo_audit.py --fetch`
-5. Every `.shots/*audit.py`
-6. `cargo install --path gallery --locked --debug --force`; the git GPUI
-   dependency requires source distribution rather than crates.io publishing
+- Formatting, generated gallery/WASM freshness, and website typecheck, lint
+  and production build.
+- Strict parity reports, inventory freshness, reader regressions and web font
+  subset checks. The aggregate runs every `*audit.py` plus `write_only.py` and
+  checks reported gaps as well as exit codes; see [parity](parity.md).
+- Workspace lint inheritance, Clippy, cargo-deny, unused dependencies and
+  each-feature compilation.
+- Workspace tests through `.shots/run-tests.sh` on Linux, macOS and Windows,
+  plus the theme's optional serde feature. Optimized tests run on pushes and
+  manual dispatches. The Windows job also exercises the gallery control-file
+  helpers with `.shots/test-control.ps1`.
+- Rustdoc, gallery CLI installation from source, and a stable wasm32 build
+  followed by the lockfile-matched wasm-bindgen pass.
 
 Do not claim the full gate passed after running only a focused test or one audit.
 For documentation-only changes, verify the documentation directly rather than

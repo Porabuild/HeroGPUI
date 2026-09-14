@@ -11,7 +11,8 @@
 //! test window: a 64px anchor whose top-left sits at (100, 40), via a padded
 //! flex row (v3's `.badge-anchor` is `inline-flex`, which GPUI 0.2.2 lacks —
 //! the wrapper only hugs its child inside a flex parent), with an md badge
-//! overhanging a quarter of its 28px min box (7px) past the anchor's corner.
+//! overhanging a quarter of its resolved box (7px at the 28px min) past the
+//! anchor's corner.
 
 mod harness;
 
@@ -107,8 +108,10 @@ fn an_omitted_label_renders_the_dot_and_any_child_keeps_content(cx: &mut TestApp
         });
         assert_eq!(
             bounds_str(&probe(cx, "badge")),
-            "129.0..171.0 x 33.0..75.0",
-            "a bare 40px child must grow the badge past the 28px min box"
+            "132.5..174.5 x 29.5..71.5",
+            "a bare 40px child must grow the badge past the 28px min box, and \
+             the overhang must follow the grown 42px box (a 10.5px quarter, \
+             the exact CSS arithmetic)"
         );
         assert!(
             cx.debug_bounds("badge-label").is_none(),
@@ -175,8 +178,9 @@ fn a_labelled_badge_holds_its_anchor_corner_at_the_bottom_left(cx: &mut TestAppC
     let badge = probe(cx, "badge");
     assert_eq!(
         bounds_str(&badge),
-        "96.0..116.0 x 92.0..108.0",
-        "the sm bottom-left badge must overhang 4px past the anchor's corner"
+        "95.0..115.0 x 92.0..108.0",
+        "the sm bottom-left badge must overhang a quarter of its own box (5px \
+         across the grown 20px width, 4px down the 16px height)"
     );
     let label = probe(cx, "badge-label");
     assert!(
@@ -233,23 +237,50 @@ fn badge_instances_anchor_to_their_own_anchor(cx: &mut TestAppContext) {
     );
 }
 
-/// v3's placement translate is `±25%` of the badge's own box, but GPUI 0.2.2
-/// has no div-level transform, so the port overhangs a quarter of the *min*
-/// box and a badge grown past it keeps that min-box offset: 7px here, where
-/// upstream would translate a quarter of the grown 36px box (9px). This pins
-/// the honest limitation — the one grown-box geometry the port deliberately
-/// does not match — so it is visible if the framework ever gains transforms.
+/// v3's placement translate is `±25%` of the badge's own box, so a badge
+/// grown past its min box overhangs proportionally more. The port measures
+/// the badge's laid-out box at prepaint and applies the quarter-box translate
+/// there, so the grown 36x28 badge overhangs 9px across and 7px up/down —
+/// not the 7px min-box constant — at every placement.
 #[gpui::test]
-fn a_grown_badge_keeps_the_min_box_overhang(cx: &mut TestAppContext) {
-    let cx = open_host(cx, || {
-        anchored(Badge::new().child(BadgeLabel::new().child(gpui::div().w(px(30.)).h(px(10.)))))
-    });
-
-    let badge = probe(cx, "badge");
-    assert_eq!(
-        bounds_str(&badge),
-        "135.0..171.0 x 33.0..61.0",
-        "the grown badge must keep the 7px min-box overhang, not a quarter of \
-         its grown width"
-    );
+fn a_grown_label_overhangs_a_quarter_of_its_grown_box_at_every_placement(cx: &mut TestAppContext) {
+    // The same 36x28 badge (a 30x10 label child in an md badge) at each
+    // corner; the anchor is always 64px at (100, 40), so the anchor's corners
+    // are (100, 40), (164, 40), (100, 104) and (164, 104).
+    for (placement, expected) in [
+        (
+            BadgePlacement::TopRight,
+            // right 164 + 9, top 40 - 7.
+            "137.0..173.0 x 33.0..61.0",
+        ),
+        (
+            BadgePlacement::TopLeft,
+            // left 100 - 9, top 40 - 7.
+            "91.0..127.0 x 33.0..61.0",
+        ),
+        (
+            BadgePlacement::BottomRight,
+            // right 164 + 9, bottom 104 + 7.
+            "137.0..173.0 x 83.0..111.0",
+        ),
+        (
+            BadgePlacement::BottomLeft,
+            // left 100 - 9, bottom 104 + 7.
+            "91.0..127.0 x 83.0..111.0",
+        ),
+    ] {
+        let cx = open_host(cx, move || {
+            anchored(
+                Badge::new()
+                    .placement(placement)
+                    .child(BadgeLabel::new().child(gpui::div().w(px(30.)).h(px(10.)))),
+            )
+        });
+        assert_eq!(
+            bounds_str(&probe(cx, "badge")),
+            expected,
+            "the grown badge must overhang a quarter of its grown box at \
+             {placement:?}"
+        );
+    }
 }

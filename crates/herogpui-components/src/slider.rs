@@ -3,8 +3,8 @@
 use std::{cell::RefCell, rc::Rc};
 
 use gpui::{
-    prelude::*, px, App, Bounds, IntoElement, MouseDownEvent, MouseMoveEvent, MouseUpEvent,
-    RenderOnce, Styled, Window,
+    prelude::*, px, AnimationExt, App, Bounds, IntoElement, MouseDownEvent, MouseMoveEvent,
+    MouseUpEvent, RenderOnce, Styled, Window,
 };
 use herogpui_core::{element_id, Color, Orientation};
 use herogpui_theme::ActiveTheme;
@@ -18,6 +18,90 @@ type Output = std::sync::Arc<dyn Fn(&[f32], &[String]) -> gpui::AnyElement + 'st
 type OnChangeAll = std::sync::Arc<dyn Fn(&[f32], &mut Window, &mut App) + 'static>;
 
 type OnChange = std::sync::Arc<dyn Fn(&f32, &mut Window, &mut App) + 'static>;
+
+const SLIDER_THUMB_TRANSITION_MS: u64 = 250;
+
+#[derive(Clone)]
+struct SliderThumbMotion {
+    target: f32,
+    generation: usize,
+    from: f32,
+    scale: Rc<std::cell::Cell<f32>>,
+}
+
+struct SliderThumbMotionFrame {
+    id: gpui::ElementId,
+    generation: usize,
+    from: f32,
+    to: f32,
+    scale: Rc<std::cell::Cell<f32>>,
+    animate: bool,
+}
+
+impl SliderThumbMotionFrame {
+    fn render(self, inner: gpui::Div, vertical: bool) -> gpui::AnyElement {
+        let apply_scale = move |inner: gpui::Div, scale: f32| {
+            if vertical {
+                inner.w(px(16. * scale)).h(px(24. * scale))
+            } else {
+                inner.w(px(24. * scale)).h(px(16. * scale))
+            }
+        };
+        if !self.animate {
+            self.scale.set(self.to);
+            return apply_scale(inner, self.to).into_any_element();
+        }
+
+        let scale = self.scale;
+        let from = self.from;
+        let to = self.to;
+        inner
+            .with_animation(
+                element_id::indexed(&self.id, "scale", self.generation),
+                gpui::Animation::new(std::time::Duration::from_millis(SLIDER_THUMB_TRANSITION_MS))
+                    .with_easing(|t| crate::anim::Curve::Out.at(t)),
+                move |inner, delta| {
+                    let next = from + (to - from) * delta;
+                    scale.set(next);
+                    apply_scale(inner, next)
+                },
+            )
+            .into_any_element()
+    }
+}
+
+fn slider_thumb_motion(
+    id: &gpui::ElementId,
+    index: usize,
+    target: f32,
+    window: &mut Window,
+    cx: &mut App,
+) -> SliderThumbMotionFrame {
+    let motion_id = element_id::indexed(id, "thumb-motion", index);
+    let state = window.use_keyed_state(motion_id.clone(), cx, |_, _| SliderThumbMotion {
+        target,
+        generation: 0,
+        from: target,
+        scale: Rc::new(std::cell::Cell::new(target)),
+    });
+    let mut current = state.read(cx).clone();
+    if (current.target - target).abs() > f32::EPSILON {
+        current.from = current.scale.get();
+        current.target = target;
+        current.generation = current.generation.wrapping_add(1);
+        state.update(cx, |stored, _| *stored = current.clone());
+    }
+    SliderThumbMotionFrame {
+        id: motion_id,
+        generation: current.generation,
+        from: current.from,
+        to: target,
+        scale: current.scale,
+        animate: current.generation != 0
+            && (current.from - target).abs() > f32::EPSILON
+            && !ActiveTheme::reduce_motion(cx),
+    }
+}
 
 fn format_value_labels(
     values: &[f32],
@@ -560,8 +644,16 @@ impl RenderOnce for Slider {
             .read(cx)
             .clone()
             .unwrap_or_else(|| thumbs.clone());
-        let restore_form_state = self.form_state.clone();
-        let restore_thumb_states = self.form_thumb_states.clone();
+        // Restore is stored on these fields. Weak references break that cycle,
+        // including the range's first named thumb. Retain each thumb's identity
+        // separately because registered FormFields can outlive the builder.
+        let restore_form_state = Rc::downgrade(&self.form_state);
+        let restore_thumb_states: Vec<_> = self
+            .form_thumb_states
+            .borrow()
+            .iter()
+            .map(Rc::downgrade)
+            .collect();
         let restore_own = own.clone();
         let restore_range_own = range_own.clone();
         let restore_on_change = self.on_change.clone();
@@ -592,13 +684,28 @@ impl RenderOnce for Slider {
                         callback(&value, window, cx);
                     }
                 }
-                sync_form_values(
-                    &restore_form_state,
-                    &restore_thumb_states,
-                    &restore_defaults,
-                    restore_is_disabled,
-                    &restore_disabled_keys,
-                );
+                if let Some((state, value)) =
+                    restore_form_state.upgrade().zip(restore_defaults.first())
+                {
+                    sync_form_value(
+                        &state,
+                        *value,
+                        !restore_is_disabled && !restore_disabled_keys.contains(&0),
+                    );
+                }
+                for (index, (state, value)) in restore_thumb_states
+                    .iter()
+                    .zip(&restore_defaults)
+                    .enumerate()
+                {
+                    if let Some(state) = state.upgrade() {
+                        sync_form_value(
+                            &state,
+                            *value,
+                            !restore_is_disabled && !restore_disabled_keys.contains(&index),
+                        );
+                    }
+                }
             });
         self.form_state.borrow_mut().restore = Some(restore.clone());
         let named_indices: Vec<usize> = self
@@ -663,10 +770,10 @@ impl RenderOnce for Slider {
                 DragState::default()
             });
 
-        let sem = cx.role(Color::Accent);
-        let default = cx.role(Color::Default);
-        let colors = cx.colors();
-        let layout = cx.layout();
+        let sem = *cx.role(Color::Accent);
+        let default = *cx.role(Color::Default);
+        let colors = cx.colors().clone();
+        let layout = cx.layout().clone();
 
         let to_fraction = |v: f32| {
             if self.max > self.min {
@@ -744,7 +851,11 @@ impl RenderOnce for Slider {
                                 .child(default_output(&formatted_values))
                                 .into_any_element(),
                         };
-                        l.child(output)
+                        l.child(
+                            gpui::div()
+                                .font_features(crate::util::tabular_font_features())
+                                .child(output),
+                        )
                     }),
             );
         }
@@ -752,8 +863,17 @@ impl RenderOnce for Slider {
         // A vertical slider swaps the axis: the rail runs top to bottom and
         // the fill grows upward from the zero end.
         let vertical = !self.orientation.is_horizontal();
+        let sx_radius = crate::util::sx_radius(&self.sx);
+        let explicit_sx_corners = [
+            sx_radius.top_left,
+            sx_radius.top_right,
+            sx_radius.bottom_left,
+            sx_radius.bottom_right,
+        ]
+        .iter()
+        .any(Option::is_some);
         let sx_corners = crate::util::fill_unspecified_corners(
-            crate::util::sx_radius(&self.sx),
+            sx_radius,
             cx.theme().components.slider.resolve(&self.recipes).radius,
         );
         let mut track = gpui::div()
@@ -828,6 +948,7 @@ impl RenderOnce for Slider {
                     track_cross,
                     track_radius,
                     &sx_corners,
+                    explicit_sx_corners,
                     sem.color,
                 ));
             }
@@ -943,32 +1064,25 @@ impl RenderOnce for Slider {
                 .flex_shrink_0();
             thumb_el = match &self.thumb {
                 Some(render) => thumb_el.child(render(index, thumbs[index])),
-                None if !small => thumb_el
-                    .rounded(crate::util::small_radius(cx))
-                    .bg(sem.color)
-                    .child(
-                        gpui::div()
-                            .when(vertical, |inner| {
-                                let scale = if dragging_at == Some(index) && !reduce_motion {
-                                    0.9
-                                } else {
-                                    1.0
-                                };
-                                inner.w(px(16. * scale)).h(px(24. * scale))
-                            })
-                            .when(!vertical, |inner| {
-                                let scale = if dragging_at == Some(index) && !reduce_motion {
-                                    0.9
-                                } else {
-                                    1.0
-                                };
-                                inner.w(px(24. * scale)).h(px(16. * scale))
-                            })
-                            .rounded(crate::util::key_radius(cx))
-                            .bg(sem.foreground)
-                            .shadow(layout.field_shadow.clone())
-                            .map(|inner| crate::util::round_sx_corners(inner, &sx_corners)),
-                    ),
+                None if !small => {
+                    let target_scale = if dragging_at == Some(index) && !reduce_motion {
+                        0.9
+                    } else {
+                        1.0
+                    };
+                    let inner = gpui::div()
+                        .rounded(crate::util::key_radius(cx))
+                        .bg(sem.foreground)
+                        .shadow(layout.field_shadow.clone())
+                        .map(|inner| crate::util::round_sx_corners(inner, &sx_corners));
+                    thumb_el
+                        .rounded(crate::util::small_radius(cx))
+                        .bg(sem.color)
+                        .child(
+                            slider_thumb_motion(&self.id, index, target_scale, window, cx)
+                                .render(inner, vertical),
+                        )
+                }
                 // `Sm` is a single-layer round knob in the foreground token;
                 // there is no inner mark to nest.
                 None => thumb_el.rounded_full().bg(colors.foreground),
@@ -1293,6 +1407,7 @@ impl RenderOnce for Slider {
 
 /// Keep cap coverage at the axis inset while letting explicit corners resolve
 /// against the track thickness rather than GPUI's narrower cap-strip box.
+#[allow(clippy::too_many_arguments)] // the axis, corner and colour inputs are all independent
 fn fill_cap(
     vertical: bool,
     at_start: bool,
@@ -1300,47 +1415,73 @@ fn fill_cap(
     cross: gpui::Pixels,
     radius: gpui::Pixels,
     corners: &gpui::Corners<Option<gpui::Pixels>>,
+    explicit_sx_corners: bool,
     color: gpui::Hsla,
 ) -> gpui::Div {
-    let explicit = corners.top_left.is_some()
-        || corners.top_right.is_some()
-        || corners.bottom_left.is_some()
-        || corners.bottom_right.is_some();
-    let length = if explicit { inset.max(cross) } else { inset };
-    let fallback = radius.min(inset.min(cross) / 2.);
+    let explicit = explicit_sx_corners;
+    // Paint a square-cap footprint under the clipped 12px axis strip. The
+    // clip controls coverage; the larger paint box gives GPUI enough length
+    // to preserve the full 10px radius instead of clamping it to 6px.
+    let length = inset.max(cross);
+    // `inset` is the cap's length along the slider axis, not its thickness.
+    // Limiting an ordinary cap by it made the medium 20px rail use a 6px
+    // radius (12px inset / 2), leaving the filled start visibly squarer than
+    // the HeroUI rounded-xl track. The cross-axis half thickness is the
+    // geometric limit; an explicit partial `sx` shape keeps the old 6px
+    // fallback for its unspecified corners so the caller's corner remains
+    // the only custom edge.
+    let fallback = if explicit {
+        radius.min(inset.min(cross) / 2.)
+    } else {
+        radius.min(cross / 2.)
+    };
     let mut clip = gpui::div().absolute().overflow_hidden();
     let mut paint = gpui::div().absolute().bg(color);
     if vertical {
         clip = clip.left(px(0.)).right(px(0.)).h(inset);
         paint = paint.left(px(0.)).right(px(0.)).h(length);
         if at_start {
-            clip = clip.bottom(px(0.));
+            let bottom_left = corners.bottom_left.unwrap_or(fallback);
+            let bottom_right = corners.bottom_right.unwrap_or(fallback);
+            clip = clip
+                .bottom(px(0.))
+                .rounded_bl(bottom_left)
+                .rounded_br(bottom_right);
             paint = paint
                 .bottom(px(0.))
-                .rounded_bl(corners.bottom_left.unwrap_or(fallback))
-                .rounded_br(corners.bottom_right.unwrap_or(fallback));
+                .rounded_bl(bottom_left)
+                .rounded_br(bottom_right);
         } else {
-            clip = clip.top(px(0.));
-            paint = paint
-                .top(px(0.))
-                .rounded_tl(corners.top_left.unwrap_or(fallback))
-                .rounded_tr(corners.top_right.unwrap_or(fallback));
+            let top_left = corners.top_left.unwrap_or(fallback);
+            let top_right = corners.top_right.unwrap_or(fallback);
+            clip = clip.top(px(0.)).rounded_tl(top_left).rounded_tr(top_right);
+            paint = paint.top(px(0.)).rounded_tl(top_left).rounded_tr(top_right);
         }
     } else {
         clip = clip.top(px(0.)).bottom(px(0.)).w(inset);
         paint = paint.top(px(0.)).bottom(px(0.)).w(length);
         if at_start {
-            clip = clip.left(px(0.));
+            let top_left = corners.top_left.unwrap_or(fallback);
+            let bottom_left = corners.bottom_left.unwrap_or(fallback);
+            clip = clip
+                .left(px(0.))
+                .rounded_tl(top_left)
+                .rounded_bl(bottom_left);
             paint = paint
                 .left(px(0.))
-                .rounded_tl(corners.top_left.unwrap_or(fallback))
-                .rounded_bl(corners.bottom_left.unwrap_or(fallback));
+                .rounded_tl(top_left)
+                .rounded_bl(bottom_left);
         } else {
-            clip = clip.right(px(0.));
+            let top_right = corners.top_right.unwrap_or(fallback);
+            let bottom_right = corners.bottom_right.unwrap_or(fallback);
+            clip = clip
+                .right(px(0.))
+                .rounded_tr(top_right)
+                .rounded_br(bottom_right);
             paint = paint
                 .right(px(0.))
-                .rounded_tr(corners.top_right.unwrap_or(fallback))
-                .rounded_br(corners.bottom_right.unwrap_or(fallback));
+                .rounded_tr(top_right)
+                .rounded_br(bottom_right);
         }
     }
     clip.child(paint)
@@ -1641,5 +1782,26 @@ mod tests {
     fn fill_end_requires_the_full_range() {
         assert!(!fill_reaches_end(0.99));
         assert!(fill_reaches_end(1.0));
+    }
+
+    #[test]
+    fn default_thumb_drag_scale_uses_a_keyed_reduced_motion_transition() {
+        let source = include_str!("slider.rs")
+            .split("#[cfg(test)]")
+            .next()
+            .expect("the implementation section is always present");
+        assert!(source.contains("SLIDER_THUMB_TRANSITION_MS: u64 = 250"));
+        assert!(source.contains("let motion_id = element_id::indexed(id, \"thumb-motion\", index)"));
+        assert!(source.contains("Curve::Out.at(t)"));
+        assert!(source.contains("!ActiveTheme::reduce_motion(cx)"));
+    }
+
+    #[test]
+    fn slider_output_uses_shared_tabular_numeric_features() {
+        let source = include_str!("slider.rs")
+            .split("#[cfg(test)]")
+            .next()
+            .expect("the Slider implementation is always present");
+        assert!(source.contains("font_features(crate::util::tabular_font_features())"));
     }
 }

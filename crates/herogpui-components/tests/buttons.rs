@@ -155,6 +155,25 @@ fn flush_frame(cx: &mut VisualTestContext) {
     cx.update(|window, _| window.refresh());
 }
 
+/// How many animation-frame callbacks are pending: one per live animation.
+/// The press ramp registers one while it runs and stops when it settles, the
+/// way `checkbox_motion.rs` observes motion.
+fn pending_frames(cx: &mut VisualTestContext) -> usize {
+    cx.update(|window, cx| window.simulate_next_frame(cx))
+}
+
+/// Drains frames until every in-flight animation has settled, failing if one
+/// never does (a re-arming animation would keep registering callbacks).
+fn settle(cx: &mut VisualTestContext) {
+    for _ in 0..100 {
+        if pending_frames(cx) == 0 {
+            return;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+    panic!("button animations never settled");
+}
+
 // ---------------------------------------------------------------------------
 // Button
 // ---------------------------------------------------------------------------
@@ -1583,11 +1602,14 @@ fn disabled_toggle_button_content_reports_disabled_and_stays_inert(cx: &mut Test
     );
 }
 
-/// v3 presses with `transform: scale(0.97)` about the centre. The port has no
-/// paint transform, so the pressed skin is inset on all four sides of a
-/// stable slot: the content box must shrink on both axes, keep its centre,
-/// and lift its bottom edge — a top-anchored shrink (bottom edge stuck on the
-/// resting line) fails here.
+/// v3 presses with `transform: scale(0.97)` about the centre, riding
+/// `button.css`'s `transition: transform 250ms var(--ease-smooth)`. The port
+/// has no paint transform, so the pressed skin is inset on all four sides of
+/// a stable slot and the inset ramps over the pinned timeline: the first
+/// frame after the mouse down is still at rest, frames keep coming while it
+/// runs, and the settled endpoint shrinks on both axes, keeps its centre,
+/// and lifts its bottom edge — a top-anchored shrink (bottom edge stuck on
+/// the resting line) fails here.
 #[gpui::test]
 fn button_press_collapses_toward_its_centre(cx: &mut TestAppContext) {
     let seen: Rc<RefCell<Option<gpui::Bounds<gpui::Pixels>>>> = Rc::new(RefCell::new(None));
@@ -1619,6 +1641,12 @@ fn button_press_collapses_toward_its_centre(cx: &mut TestAppContext) {
     flush_frame(cx);
     cx.simulate_mouse_down(rest_centre, MouseButton::Left, Modifiers::none());
     flush_frame(cx);
+    assert!(
+        pending_frames(cx) > 0,
+        "a press must start the transform ramp, not snap"
+    );
+
+    settle(cx);
     let pressed = seen
         .borrow()
         .expect("the content probe painted while pressed");
@@ -1646,12 +1674,119 @@ fn button_press_collapses_toward_its_centre(cx: &mut TestAppContext) {
 
     cx.simulate_mouse_up(rest_centre, MouseButton::Left, Modifiers::none());
     flush_frame(cx);
+    assert!(
+        pending_frames(cx) > 0,
+        "the release must ramp back rather than snap"
+    );
+    settle(cx);
     let released = seen
         .borrow()
         .expect("the content probe painted after release");
     assert!(
         (f32::from(released.size.height) - f32::from(rest.size.height)).abs() < 0.01,
         "the button springs back after release, got {released:?}"
+    );
+}
+
+/// Releasing mid-press turns the ramp around: the transform track starts a new
+/// generation from the frame actually on screen rather than restarting from
+/// rest, keeps animating, and settles back at the resting box with the click
+/// intact. The CSS transition being interrupted behaves the same way — it
+/// eases from the current computed value.
+#[gpui::test]
+fn button_release_mid_press_resumes_from_the_painted_frame(cx: &mut TestAppContext) {
+    let seen: Rc<RefCell<Option<gpui::Bounds<gpui::Pixels>>>> = Rc::new(RefCell::new(None));
+    let sink = seen.clone();
+    let cx = open_host(cx, move || {
+        let sink = sink.clone();
+        Button::new("btn-reverse")
+            .child(
+                gpui::canvas(
+                    |_, _, _| {},
+                    move |bounds, _, _, _| {
+                        *sink.borrow_mut() = Some(bounds);
+                    },
+                )
+                .w(px(120.))
+                .h(px(20.)),
+            )
+            .into_any_element()
+    });
+    flush_frame(cx);
+    let rest = seen.borrow().expect("the content probe painted at rest");
+    let centre = point(
+        px(f32::from(rest.origin.x) + f32::from(rest.size.width) / 2.),
+        px(f32::from(rest.origin.y) + f32::from(rest.size.height) / 2.),
+    );
+
+    cx.simulate_mouse_down(centre, MouseButton::Left, Modifiers::none());
+    flush_frame(cx);
+    std::thread::sleep(std::time::Duration::from_millis(60));
+    assert!(
+        pending_frames(cx) > 0,
+        "the press ramp is still running 60ms in"
+    );
+
+    // Turn around mid-flight: a fresh generation mounts and keeps animating.
+    cx.simulate_mouse_up(centre, MouseButton::Left, Modifiers::none());
+    flush_frame(cx);
+    assert!(
+        pending_frames(cx) > 0,
+        "a mid-press release must schedule the return ramp"
+    );
+    settle(cx);
+    let released = seen
+        .borrow()
+        .expect("the content probe painted after release");
+    assert!(
+        (f32::from(released.size.height) - f32::from(rest.size.height)).abs() < 0.01
+            && (f32::from(released.size.width) - f32::from(rest.size.width)).abs() < 0.01,
+        "the interrupted press must settle back at rest, got {released:?}"
+    );
+
+    // And the mechanism is still alive: the next press ramps again.
+    cx.simulate_mouse_down(centre, MouseButton::Left, Modifiers::none());
+    flush_frame(cx);
+    assert!(
+        pending_frames(cx) > 0,
+        "a press after a mid-flight reversal must animate again"
+    );
+    settle(cx);
+}
+
+/// `motion-reduce:transition-none` keeps the pressed property values but
+/// removes the timing: the pressed geometry and fill land on the first frame
+/// and no animation is ever mounted.
+#[gpui::test]
+fn reduced_motion_press_snaps_without_animating(cx: &mut TestAppContext) {
+    harness::still();
+    let presses = events();
+    let recorded = presses.clone();
+    let cx = open_host(cx, move || {
+        let recorded = recorded.clone();
+        Button::new("btn-still")
+            .label("Still")
+            .on_press(move |_, _, _| recorded.borrow_mut().push("press".into()))
+            .into_any_element()
+    });
+    flush_frame(cx);
+
+    let at = point(px(24.), px(18.));
+    cx.simulate_mouse_down(at, MouseButton::Left, Modifiers::none());
+    flush_frame(cx);
+    assert_eq!(
+        pending_frames(cx),
+        0,
+        "reduced motion must snap the press instead of animating it"
+    );
+
+    cx.simulate_mouse_up(at, MouseButton::Left, Modifiers::none());
+    flush_frame(cx);
+    assert_eq!(pending_frames(cx), 0, "the release must snap too");
+    assert_eq!(
+        presses.borrow().as_slice(),
+        ["press"],
+        "reduced motion must not swallow the press"
     );
 }
 
@@ -1672,5 +1807,52 @@ fn toggle_button_reads_the_hover_override_and_the_sx_background() {
     assert!(
         source.contains("self.hover_bg = Some(color.into());"),
         "the hover_bg builder must store the override"
+    );
+}
+
+/// `toggle-button.css` declares the press as a transition with the same
+/// tracks as `button.css`, so a standalone toggle rides the shared ramp;
+/// a grouped member keeps the instant background swap and no scale.
+#[test]
+fn toggle_button_press_rides_the_pinned_ramp() {
+    let source = include_str!("../src/toggle_button.rs");
+    assert!(
+        source.contains("pressed_with_background_ramp("),
+        "a standalone toggle must ride the stylesheet's press ramp"
+    );
+    assert!(
+        source.contains("crate::anim::BUTTON_PRESS"),
+        "the ramp must carry the pinned toggle-button.css transition timing"
+    );
+    assert!(
+        source.contains("el.active(move |style| style.bg(hover_bg))"),
+        "a grouped member suppresses the scale and keeps the instant endpoint"
+    );
+}
+
+#[test]
+fn button_press_uses_the_pinned_background_endpoint() {
+    let source = include_str!("../src/button.rs");
+    assert!(
+        source.contains("button_pressed_background(self.variant, cx)"),
+        "Button presses must resolve the variant's --button-bg-pressed token"
+    );
+    assert!(
+        source.contains("pressed_with_background_ramp("),
+        "the pressed skin must ride the stylesheet's ramp, easing the pressed \
+         endpoint with its scaled box"
+    );
+    assert!(
+        source.contains("crate::anim::BUTTON_PRESS"),
+        "the ramp must carry the pinned button.css transition timing"
+    );
+    assert!(
+        source
+            .contains("fade.map(|(idle, _)| (idle, button_pressed_background(self.variant, cx)))"),
+        "the colour track must ease from the resting fill the hover fade holds"
+    );
+    assert!(
+        !source.contains(".active(|s| s.opacity(0.85))"),
+        "HeroUI's button active state changes background, not whole-button opacity"
     );
 }

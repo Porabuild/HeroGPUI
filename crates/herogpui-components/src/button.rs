@@ -296,6 +296,19 @@ pub fn button_hover_colors(variant: Variant, cx: &App) -> Option<(gpui::Hsla, gp
     }
 }
 
+/// The pinned `--button-bg-pressed` endpoint for each variant. HeroUI changes
+/// the background on press; it does not dim the whole button with opacity.
+fn button_pressed_background(variant: Variant, cx: &App) -> gpui::Hsla {
+    let colors = cx.colors();
+    match variant {
+        Variant::Primary => colors.accent.hover(),
+        Variant::Secondary | Variant::Tertiary => colors.default.hover(),
+        Variant::Outline | Variant::Ghost => colors.default.color,
+        Variant::Danger => colors.danger.hover(),
+        Variant::DangerSoft => colors.danger.soft_hover(),
+    }
+}
+
 /// [`apply_button_variant`], with `hover_bg` off when the caller is going to
 /// animate the background itself.
 fn apply_variant(
@@ -315,7 +328,7 @@ fn apply_variant(
             let el = if hover_bg { el.bg(base.color) } else { el };
             if interactive {
                 el.when(hover_bg, |e| e.hover(move |s| s.bg(base.hover())))
-                    .active(|s| s.opacity(0.85))
+                    .active(move |s| s.bg(base.hover()))
             } else {
                 el
             }
@@ -328,7 +341,7 @@ fn apply_variant(
             let el = if hover_bg { el.bg(base.color) } else { el };
             if interactive {
                 el.when(hover_bg, |e| e.hover(move |s| s.bg(base.hover())))
-                    .active(|s| s.opacity(0.85))
+                    .active(move |s| s.bg(base.hover()))
             } else {
                 el
             }
@@ -343,7 +356,7 @@ fn apply_variant(
             };
             if interactive {
                 el.when(hover_bg, |e| e.hover(move |s| s.bg(base.hover())))
-                    .active(|s| s.opacity(0.85))
+                    .active(move |s| s.bg(base.hover()))
             } else {
                 el
             }
@@ -356,7 +369,7 @@ fn apply_variant(
                 .text_color(base.foreground);
             if interactive {
                 el.when(hover_bg, |e| e.hover(move |s| s.bg(base.color.alpha(0.6))))
-                    .active(|s| s.opacity(0.85))
+                    .active(move |s| s.bg(base.color))
             } else {
                 el
             }
@@ -366,7 +379,7 @@ fn apply_variant(
             let el = el.text_color(base.foreground);
             if interactive {
                 el.when(hover_bg, |e| e.hover(move |s| s.bg(base.color)))
-                    .active(|s| s.opacity(0.85))
+                    .active(move |s| s.bg(base.color))
             } else {
                 el
             }
@@ -377,7 +390,7 @@ fn apply_variant(
             let el = if hover_bg { el.bg(base.color) } else { el };
             if interactive {
                 el.when(hover_bg, |e| e.hover(move |s| s.bg(base.hover())))
-                    .active(|s| s.opacity(0.85))
+                    .active(move |s| s.bg(base.hover()))
             } else {
                 el
             }
@@ -388,7 +401,7 @@ fn apply_variant(
             let el = if hover_bg { el.bg(base.soft()) } else { el };
             if interactive {
                 el.when(hover_bg, |e| e.hover(move |s| s.bg(base.soft_hover())))
-                    .active(|s| s.opacity(0.85))
+                    .active(move |s| s.bg(base.soft_hover()))
             } else {
                 el
             }
@@ -551,12 +564,16 @@ impl RenderOnce for Button {
         // The handle that says whether this button holds the focus.
         // `use_keyed_state` takes `cx` mutably, so it precedes the tokens.
         let focus_handle = util::tab_stop_handle(element_id::scoped(&self.id, "focus"), window, cx);
-        // The hover and press this button will report to a `content` closure.
-        // Only tracked when one is set: the handlers cost a frame of state.
-        let interaction = self
-            .content
-            .as_ref()
-            .map(|_| util::interaction(element_id::scoped(&self.id, "interaction"), window, cx));
+        // One keyed slot owns hover and press state for both render-prop and
+        // plain buttons. The hover fade and press ramp read it, while the
+        // final tracker installs the single event layer on the stable slot.
+        // Keeping the slot for plain buttons also lets their CSS press
+        // transition run without layering a second listener onto the fade.
+        let interaction = Some(util::interaction(
+            element_id::scoped(&self.id, "interaction"),
+            window,
+            cx,
+        ));
         let layout = cx.layout();
         let button_theme = cx.theme().components.button.resolve(&self.recipes);
         if !self.variant_is_set {
@@ -688,6 +705,7 @@ impl RenderOnce for Button {
                 element_id::scoped(&self.id, "fade"),
                 colors,
                 interaction.as_ref(),
+                None,
                 move |fill| {
                     util::round_sx_corners(group_radius_any(fill, edge, radius), &sx_corners)
                 },
@@ -725,36 +743,59 @@ impl RenderOnce for Button {
         }
         el = el.children(self.children);
 
-        // v3's `[data-pressed]` scale. Applied last so the press geometry sits
-        // on top of whatever the variant did to padding.
+        // v3's `[data-pressed]` press ramp. Applied last so the press geometry
+        // sits on top of whatever the variant did to padding.
+        //
+        // `button.css` declares the press as a transition
+        // (`transform 250ms var(--ease-smooth), background-color 100ms
+        // var(--ease-out)`), so the skin rides
+        // `pressed_with_background_ramp`: the colour track eases between the
+        // same resting fill the hover fade holds and the variant's
+        // `--button-bg-pressed` endpoint.
         if interactive && self.group_edge.is_none() {
             let press_scale = match self.size {
                 Size::Sm => crate::anim::PRESSED_SCALE_SUBTLE,
                 Size::Md => crate::anim::PRESSED_SCALE,
                 Size::Lg => crate::anim::PRESSED_SCALE_FIRM,
             };
-            el = crate::anim::pressed(
-                el,
-                crate::anim::PressBox {
-                    // An `sx` pixel size keeps the press footprint at the
-                    // overridden box instead of snapping back to the ladder.
-                    height: sx_size.height.unwrap_or_else(|| self.size.control_height()),
-                    padding_x: (!self.is_icon_only).then_some(metrics.padding_x),
-                    width: sx_size
-                        .width
-                        .or_else(|| self.is_icon_only.then(|| self.size.icon_control_size())),
-                    // v3's `.button` is `w-fit` with no minimum, so a press has
-                    // no floor to scale.
-                    min_width: None,
-                    text_size: metrics.text,
-                    line_height: metrics.line_height,
-                    gap: metrics.gap,
-                    radius,
-                    shrink_x: !self.full_width,
-                    scale: press_scale,
-                },
-                cx,
-            );
+            let press_box = crate::anim::PressBox {
+                // An `sx` pixel size keeps the press footprint at the
+                // overridden box instead of snapping back to the ladder.
+                height: sx_size.height.unwrap_or_else(|| self.size.control_height()),
+                padding_x: (!self.is_icon_only).then_some(metrics.padding_x),
+                width: sx_size
+                    .width
+                    .or_else(|| self.is_icon_only.then(|| self.size.icon_control_size())),
+                // v3's `.button` is `w-fit` with no minimum, so a press has
+                // no floor to scale.
+                min_width: None,
+                text_size: metrics.text,
+                line_height: metrics.line_height,
+                gap: metrics.gap,
+                radius,
+                shrink_x: !self.full_width,
+                scale: press_scale,
+            };
+            if ActiveTheme::reduce_motion(cx) {
+                el = crate::anim::pressed_with_background(
+                    el,
+                    press_box,
+                    button_pressed_background(self.variant, cx),
+                    cx,
+                );
+            } else {
+                let press_endpoints =
+                    fade.map(|(idle, _)| (idle, button_pressed_background(self.variant, cx)));
+                el = crate::anim::pressed_with_background_ramp(
+                    el,
+                    press_box,
+                    press_endpoints,
+                    crate::anim::BUTTON_PRESS,
+                    interaction.as_ref(),
+                    window,
+                    cx,
+                );
+            }
         }
 
         if let Some(on_press) = self.on_press {

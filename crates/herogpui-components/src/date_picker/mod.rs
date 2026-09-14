@@ -26,6 +26,44 @@ use crate::{
 
 pub(super) type OnChange = std::sync::Arc<dyn Fn(&Option<Date>, &mut Window, &mut App) + 'static>;
 
+/// React Aria's default `Popover.offset`, inherited by HeroUI's picker
+/// popovers when no override is supplied.
+pub(super) const PICKER_POPOVER_OFFSET: f32 = 8.0;
+
+/// The four-pixel `slide-in-from-*` offset used by the pinned DatePicker and
+/// DateRangePicker popover styles. Aligned and logical spellings share the
+/// motion of the centered form on the same physical side; the logical
+/// start/end aliases resolve to their left/right sides because HeroGPUI
+/// currently has no RTL layout mode.
+pub(super) fn placement_entry_offset(placement: herogpui_core::Placement) -> (f32, f32) {
+    if placement.is_above() {
+        (0.0, 4.0)
+    } else if placement.is_side() {
+        if placement.is_start_side() {
+            (4.0, 0.0)
+        } else {
+            (-4.0, 0.0)
+        }
+    } else {
+        (0.0, -4.0)
+    }
+}
+
+#[cfg(test)]
+mod placement_tests {
+    use super::placement_entry_offset;
+    use herogpui_core::Placement;
+
+    #[test]
+    fn entry_offsets_follow_the_resolved_placement_side() {
+        assert_eq!(placement_entry_offset(Placement::Top), (0.0, 4.0));
+        assert_eq!(placement_entry_offset(Placement::TopEnd), (0.0, 4.0));
+        assert_eq!(placement_entry_offset(Placement::BottomStart), (0.0, -4.0));
+        assert_eq!(placement_entry_offset(Placement::Left), (4.0, 0.0));
+        assert_eq!(placement_entry_offset(Placement::Right), (-4.0, 0.0));
+    }
+}
+
 pub(super) type DateFieldFormState = Rc<RefCell<crate::form::LiveFormFieldState>>;
 
 thread_local! {
@@ -109,16 +147,18 @@ pub(super) fn install_date_field_restore(
     input_state: Entity<crate::input::InputState>,
     default_text: SharedString,
 ) {
-    let restore_state = form_state.clone();
+    let restore_state = Rc::downgrade(form_state);
     form_state.borrow_mut().restore = Some(std::sync::Arc::new(move |_, cx| {
         let value = default_text.clone();
         input_state.update(cx, |state, cx| {
             state.set_value(value.to_string());
             cx.notify();
         });
-        let mut state = restore_state.borrow_mut();
-        state.value = crate::form::FormValue::Text(value);
-        state.is_invalid = false;
+        if let Some(state) = restore_state.upgrade() {
+            let mut state = state.borrow_mut();
+            state.value = crate::form::FormValue::Text(value);
+            state.is_invalid = false;
+        }
     }));
 }
 

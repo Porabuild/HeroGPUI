@@ -35,8 +35,8 @@ impl Gallery {
             crate::pages::Page::Dropdown.import_line(),
             vec![
                 (
-                    "Usage", "The menu positions against the measured trigger: all eight placements flip to the side with more room when the preferred side cannot fit, keep a 12px cross-axis viewport inset, and cap the scroller to the available height with short menus keeping their natural height.",
-                    col(vec![
+                    "Usage", "The menu positions against the measured trigger: all 22 union placements flip to the side with more room when the preferred side cannot fit, keep a 12px cross-axis viewport inset, and cap the scroller to the available height with short menus keeping their natural height.",
+                    specimen_body("dd-main", col(vec![
                         h::Dropdown::new(
                             "dd-trigger-dd",
                             h::Button::new("dd-trigger")
@@ -58,12 +58,12 @@ impl Gallery {
                         }))
                         .into_any_element(),
                         para(&format!("Last action: {selected}"), cx),
-                    ]),
+                    ]), cx),
                 ),
                 (
                     "Row Hover",
                     "`row_hover_bg` names the fill a hovered menu row takes, in place of `--default`.",
-                    col(vec![h::Dropdown::uncontrolled(
+                    specimen_body("dd-hover", col(vec![h::Dropdown::uncontrolled(
                         "dd-hover-trigger",
                         h::Button::new("dd-hover")
                             .label("Actions")
@@ -71,7 +71,7 @@ impl Gallery {
                         plain(),
                     )
                     .row_hover_bg(cx.colors().accent.soft())
-                    .into_any_element()]),
+                    .into_any_element()]), cx),
                 ),
                 (
                     "Standalone Compact Menu", "An embedded panel with 28px rows, 12px text and caller-owned dismissal. Its submenu inherits presentation and actions.",
@@ -95,7 +95,7 @@ impl Gallery {
                 ),
                 (
                     "With Icons",
-                    col(vec![h::Dropdown::uncontrolled(
+                    specimen_body("dd-disabled", col(vec![h::Dropdown::uncontrolled(
                         "dd-icons-dd",
                         h::Button::new("dd-icons")
                             .label("File")
@@ -109,7 +109,7 @@ impl Gallery {
                         ],
                     )
                     .id("dd-icons-dd")
-                    .into_any_element()]),
+                    .into_any_element()]), cx),
                 ),
                 (
                     "With Descriptions", "Labels use 14px text with 20px lines; descriptions and section headers use 12px text with 16px lines.",
@@ -166,7 +166,7 @@ impl Gallery {
                 ),
                 (
                     "Controlled",
-                    col(vec![
+                    specimen_body("dd-controlled", col(vec![
                         h::Dropdown::new(
                             "dd-controlled-dd",
                             h::Button::new("dd-controlled")
@@ -187,11 +187,11 @@ impl Gallery {
                         }))
                         .into_any_element(),
                         para(&format!("Last action: {selected}"), cx),
-                    ]),
+                    ]), cx),
                 ),
                 (
                     "Controlled Open State",
-                    col(vec![
+                    specimen_body("dd-controlled-open", col(vec![
                         row(vec![
                             h::Button::new("dd-open-btn")
                                 .label(if is_open { "Close menu" } else { "Open menu" })
@@ -217,11 +217,11 @@ impl Gallery {
                             cx.notify();
                         }))
                         .into_any_element(),
-                    ]),
+                    ]), cx),
                 ),
                 (
                     "With Single Selection",
-                    col(vec![h::Dropdown::uncontrolled(
+                    specimen_body("dd-single-selection", col(vec![h::Dropdown::uncontrolled(
                         "dd-single-dd",
                         h::Button::new("dd-single")
                             .label("Sort by")
@@ -235,7 +235,7 @@ impl Gallery {
                     .id("dd-single-dd")
                     .selection_mode(SelectionMode::Single)
                     .default_selected_keys([SharedString::from("date")])
-                    .into_any_element()]),
+                    .into_any_element()]), cx),
                 ),
                 (
                     "Single With Custom Indicator",
@@ -257,7 +257,7 @@ impl Gallery {
                 ),
                 (
                     "Render Props", "The composed Dropdown forwards item and indicator render state into the live menu. Open it and choose rows to watch the selection move.",
-                    col(vec![
+                    specimen_body("dd-render-props", col(vec![
                         h::Dropdown::uncontrolled(
                             "dd-render-props-dd",
                             h::Button::new("dd-render-props")
@@ -290,11 +290,11 @@ impl Gallery {
                                 .into_any_element()
                         })
                         .into_any_element(),
-                    ]),
+                    ]), cx),
                 ),
                 (
                     "With Section Level Selection",
-                    col(vec![h::Dropdown::uncontrolled(
+                    specimen_body("dd-section-selection", col(vec![h::Dropdown::uncontrolled(
                         "dd-section-sel-dd",
                         h::Button::new("dd-section-sel")
                             .label("View")
@@ -315,11 +315,11 @@ impl Gallery {
                         this.dropdown_multi = keys.to_vec();
                         cx.notify();
                     }))
-                    .into_any_element()]),
+                    .into_any_element()]), cx),
                 ),
                 (
                     "With Keyboard Shortcuts",
-                    col(vec![h::Dropdown::uncontrolled(
+                    specimen_body("dd-shortcuts", col(vec![h::Dropdown::uncontrolled(
                         "dd-shortcuts-dd",
                         h::Button::new("dd-shortcuts")
                             .label("Edit")
@@ -331,11 +331,11 @@ impl Gallery {
                         ],
                     )
                     .id("dd-shortcuts-dd")
-                    .into_any_element()]),
+                    .into_any_element()]), cx),
                 ),
                 (
                     "With Submenus", "Submenus position independently against their row end top and flip sides to the side with more room when needed; the parent stays anchored and outside presses still dismiss the whole menu.",
-                    col(vec![h::Dropdown::uncontrolled(
+                    specimen_body("dd-submenus", col(vec![h::Dropdown::uncontrolled(
                         "dd-submenu-dd",
                         h::Button::new("dd-submenu")
                             .label("Share")
@@ -351,11 +351,11 @@ impl Gallery {
                         ],
                     )
                     .id("dd-submenu-dd")
-                    .into_any_element()]),
+                    .into_any_element()]), cx),
                 ),
                 (
                     "With Custom Submenu Indicator", "`Dropdown.SubmenuIndicator` is the chevron on a row that opens another panel; hover the row to open it.",
-                    col(vec![
+                    specimen_body("dd-submenu-indicator", col(vec![
                         h::Dropdown::uncontrolled(
                             "dd-submenu-ind-dd",
                             h::Button::new("dd-submenu-ind")
@@ -371,7 +371,7 @@ impl Gallery {
                         )
                         .id("dd-submenu-ind-dd")
                         .into_any_element(),
-                    ]),
+                    ]), cx),
                 ),
                 (
                     "Custom Trigger",
@@ -390,7 +390,7 @@ impl Gallery {
                 ),
                 (
                     "Long Press Trigger", "Hold the button for half a second.",
-                    col(vec![
+                    specimen_body("dd-long-press", col(vec![
                         h::Dropdown::uncontrolled(
                             "dd-long-dd",
                             h::Button::new("dd-long")
@@ -401,11 +401,11 @@ impl Gallery {
                         .id("dd-long-dd")
                         .trigger(h::DropdownTrigger::LongPress)
                         .into_any_element(),
-                    ]),
+                    ]), cx),
                 ),
                 (
                     "Basic Usage", "The plainest action menu: `on_action` receives the chosen key, and a danger item renders in the danger palette.",
-                    col(vec![
+                    specimen_body("dd-basic", col(vec![
                         h::Dropdown::uncontrolled(
                             "dd-basic-dd",
                             h::Button::new("dd-basic")
@@ -427,11 +427,11 @@ impl Gallery {
                             &format!("Last action: {}", self.dropdown_last_basic),
                             cx,
                         ),
-                    ]),
+                    ]), cx),
                 ),
                 (
                     "Controlled Selection", "The selected keys live in the caller and are fed back through `selected_keys`; the caption reads the same set the menu renders.",
-                    col(vec![
+                    specimen_body("dd-controlled-selection", col(vec![
                         h::Dropdown::new(
                             "dd-controlled-sel-dd",
                             h::Button::new("dd-controlled-sel")
@@ -470,11 +470,11 @@ impl Gallery {
                             ),
                             cx,
                         ),
-                    ]),
+                    ]), cx),
                 ),
                 (
                     "With Multiple Selection",
-                    col(vec![
+                    specimen_body("dd-multiple-selection", col(vec![
                         h::Dropdown::new(
                             "dd-multi-dd",
                             h::Button::new("dd-multi-trigger")
@@ -504,7 +504,7 @@ impl Gallery {
                             &format!("Showing {} columns", self.dropdown_multi.len()),
                             cx,
                         ),
-                    ]),
+                    ]), cx),
                 ),
             ],
             cx,
@@ -528,7 +528,7 @@ impl Gallery {
             vec![
                 (
                     "Usage", "Labels use 14px text with 20px lines; descriptions and section headers use 12px text with 16px lines.",
-                    col(vec![gpui::div()
+                    specimen_body("lb-main", col(vec![gpui::div()
                         .w(px(220.))
                         .child(h::ListBox::new(
                             "lb-usage",
@@ -539,12 +539,12 @@ impl Gallery {
                             ],
                         )
                         .selection_mode(SelectionMode::Single))
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "Row Padding",
-                    "`row_padding_x` / `row_padding_y` resize the option rows; section headings keep their own inset.",
-                    col(vec![gpui::div()
+                    "`row_padding_x` / `row_padding_y` resize the option rows; enabled rows use the pinned 98% ease-out-quart press scale inside a stable footprint, and section headings keep their own inset.",
+                    specimen_body("lb-row-padding", col(vec![gpui::div()
                         .w(px(220.))
                         .child(
                             h::ListBox::new(
@@ -558,11 +558,11 @@ impl Gallery {
                             .row_padding_y(px(2.))
                             .row_hover_bg(cx.colors().accent.soft()),
                         )
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "With Disabled Items",
-                    col(vec![gpui::div()
+                    specimen_body("lb-disabled", col(vec![gpui::div()
                         .w(px(280.))
                         .child(
                             h::ListBox::new(
@@ -576,11 +576,11 @@ impl Gallery {
                             .selection_mode(SelectionMode::None)
                             .disabled_keys([SharedString::from("drafts")]),
                         )
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "With Sections",
-                    col(vec![gpui::div()
+                    specimen_body("lb-sections", col(vec![gpui::div()
                         .w(px(256.))
                         .child(h::ListBox::new(
                             "lb-sections",
@@ -603,11 +603,11 @@ impl Gallery {
                             this.set_demo_text_value("lb-section-action", key.to_string());
                             cx.notify();
                         })))
-                        .into_any_element(), para(&format!("Selected item: {}", self.demo_text_value("lb-section-action")), cx)]),
+                        .into_any_element(), para(&format!("Selected item: {}", self.demo_text_value("lb-section-action")), cx)]), cx),
                 ),
                 (
                     "Multi Select",
-                    col(vec![gpui::div()
+                    specimen_body("lb-multiple", col(vec![gpui::div()
                         .w(px(280.))
                         .child(
                             h::ListBox::new(
@@ -627,11 +627,11 @@ impl Gallery {
                                 },
                             )),
                         )
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "Controlled",
-                    col(vec![
+                    specimen_body("lb-controlled", col(vec![
                         gpui::div()
                             .w(px(280.))
                             .child(
@@ -659,11 +659,11 @@ impl Gallery {
                             )
                             .into_any_element(),
                         para(&format!("{} selected", selection.len()), cx),
-                    ]),
+                    ]), cx),
                 ),
                 (
                     "Disallow Empty Selection", "The inherited selection policy keeps the final selected row selected, including when Escape would otherwise clear the collection.",
-                    col(vec![
+                    specimen_body("lb-disallow-empty", col(vec![
                         gpui::div()
                             .w(px(280.))
                             .child(
@@ -679,11 +679,11 @@ impl Gallery {
                                 .disallow_empty_selection(true),
                             )
                             .into_any_element(),
-                    ]),
+                    ]), cx),
                 ),
                 (
                     "Escape Key Behavior", "Press Escape while this list is focused. The `None` policy preserves the selection and leaves Escape available to an enclosing surface.",
-                    col(vec![
+                    specimen_body("lb-escape", col(vec![
                         gpui::div()
                             .w(px(280.))
                             .child(
@@ -699,11 +699,11 @@ impl Gallery {
                                 .escape_key_behavior(h::EscapeKeyBehavior::None),
                             )
                             .into_any_element(),
-                    ]),
+                    ]), cx),
                 ),
                 (
                     "Virtualization", "`row_height` makes the list geometry computable instead of laid out, so gpui's `uniform_list` builds only the rows in view — one thousand users, fifty pixels each. The fixed-row list caps at `max_h`, shrinks below it in a bounded parent, and PageUp/PageDown move by the visible viewport, including after resize, while skipping disabled stops.",
-                    col(vec![
+                    specimen_body("lb-virtualization", col(vec![
                         gpui::div()
                             .w(px(300.))
                             .child(
@@ -729,11 +729,11 @@ impl Gallery {
                              third row here carries a description, so it is taller.",
                             cx,
                         ),
-                    ]),
+                    ]), cx),
                 ),
                 (
                     "Custom Check Icon", "There is no separate indicator part; a row's `variant` carries the indicator style, so the danger row below shows the same tick in its own colour.",
-                    col(vec![
+                    specimen_body("lb-check-icon", col(vec![
                         gpui::div()
                             .w(px(280.))
                             .child(
@@ -748,11 +748,11 @@ impl Gallery {
                                 .default_selected_keys([SharedString::from("keep")]),
                             )
                             .into_any_element(),
-                    ]),
+                    ]), cx),
                 ),
                 (
                     "Single selection",
-                    col(vec![gpui::div()
+                    specimen_body("lb-single", col(vec![gpui::div()
                         .w(px(280.))
                         .child(
                             h::ListBox::new("lb-single", items.clone())
@@ -765,11 +765,11 @@ impl Gallery {
                                     },
                                 )),
                         )
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "Multiple selection",
-                    col(vec![gpui::div()
+                    specimen_body("lb-multiple-selection", col(vec![gpui::div()
                         .w(px(280.))
                         .child(
                             h::ListBox::new("lb-multi", items)
@@ -782,11 +782,11 @@ impl Gallery {
                                     },
                                 )),
                         )
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "Basic Usage", "The plainest list: single selection over rows that carry a label and a description, uncontrolled.",
-                    col(vec![gpui::div()
+                    specimen_body("lb-basic", col(vec![gpui::div()
                         .w(px(280.))
                         .child(
                             h::ListBox::new(
@@ -800,11 +800,11 @@ impl Gallery {
                             )
                             .selection_mode(SelectionMode::Single),
                         )
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "Controlled Selection", "The selected keys live in the caller and are fed back through `selected_keys`; the caption reads the same set the list renders.",
-                    col(vec![
+                    specimen_body("lb-controlled-selection", col(vec![
                         gpui::div()
                             .w(px(280.))
                             .child(
@@ -827,11 +827,11 @@ impl Gallery {
                             )
                             .into_any_element(),
                         para(&format!("{} selected", self.lb_pair_selection.len()), cx),
-                    ]),
+                    ]), cx),
                 ),
                 (
                     "Custom Indicator", "The pair-page twin of the check-icon example: a row's `variant` restyles its selection indicator, here a danger tick on the delete row.",
-                    col(vec![gpui::div()
+                    specimen_body("lb-custom-indicator", col(vec![gpui::div()
                         .w(px(280.))
                         .child(
                             h::ListBox::new(
@@ -844,7 +844,7 @@ impl Gallery {
                             .selection_mode(SelectionMode::Multiple)
                             .default_selected_keys([SharedString::from("archive")]),
                         )
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
             ],
             cx,
@@ -870,16 +870,16 @@ impl Gallery {
             vec![
                 (
                     "Usage", "`radius(px)` replaces the chip's size-step corner.",
-                    col(vec![h::TagGroup::new("tg-usage", tags())
+                    specimen_body("tg-main", col(vec![h::TagGroup::new("tg-usage", tags())
                         .full_width(true)
                         .label("Skills")
                         .radius(px(2.))
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "Hover Colour",
                     "`hover_bg` names a hovered tag's fill and `remove_hover_bg` the remove button's, which stays a circle.",
-                    col(vec![h::TagGroup::new("tg-hover-bg", tags())
+                    specimen_body("tg-hover", col(vec![h::TagGroup::new("tg-hover-bg", tags())
                         .label("Skills")
                         .selection_mode(SelectionMode::Single)
                         .hover_bg(cx.colors().accent.soft())
@@ -891,11 +891,22 @@ impl Gallery {
                                 cx.notify();
                             },
                         ))
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
+                ),
+                (
+                    "Transitions",
+                    "Enabled tags ease their background between resting and hover over the pinned 100ms smooth transition; selection keeps the same stable chip geometry.",
+                    specimen_body("tg-transitions", col(vec![
+                        h::TagGroup::new("tg-transitions", tags())
+                            .label("Hover or select a skill")
+                            .selection_mode(SelectionMode::Single)
+                            .default_selected_keys([SharedString::from("rust")])
+                            .into_any_element(),
+                    ]), cx),
                 ),
                 (
                     "Disabled",
-                    col(vec![
+                    specimen_body("tg-disabled", col(vec![
                         h::TagGroup::new("tg-disabled", tags())
                             .label("Skills")
                             .is_disabled(true)
@@ -906,11 +917,11 @@ impl Gallery {
                             // than the whole group.
                             .disabled_keys([SharedString::from("rust")])
                             .into_any_element(),
-                    ]),
+                    ]), cx),
                 ),
                 (
                     "Selection Modes",
-                    col(vec![
+                    specimen_body("tg-selection-modes", col(vec![
                         spec(
                             "Single",
                             h::TagGroup::new("tg-single", tags())
@@ -923,11 +934,11 @@ impl Gallery {
                                 .selection_mode(SelectionMode::Multiple),
                             cx,
                         ),
-                    ]),
+                    ]), cx),
                 ),
                 (
                     "Controlled",
-                    col(vec![
+                    specimen_body("tg-controlled", col(vec![
                         h::TagGroup::new("tg-controlled", tags())
                             .selection_mode(SelectionMode::Multiple)
                             .selected_keys(tag_selection.iter().cloned())
@@ -939,11 +950,11 @@ impl Gallery {
                             ))
                             .into_any_element(),
                         para(&format!("{} selected", tag_selection.len()), cx),
-                    ]),
+                    ]), cx),
                 ),
                 (
                     "Disallow Empty Selection",
-                    col(vec![h::TagGroup::new(
+                    specimen_body("tg-disallow-empty", col(vec![h::TagGroup::new(
                         "tg-disallow-empty",
                         vec![h::Tag::new("design", "Design"), h::Tag::new("code", "Code")],
                     )
@@ -951,11 +962,11 @@ impl Gallery {
                     .selection_mode(SelectionMode::Single)
                     .default_selected_keys([SharedString::from("design")])
                     .disallow_empty_selection(true)
-                    .into_any_element()]),
+                    .into_any_element()]), cx),
                 ),
                 (
                     "Escape Key Behavior", "With `None`, Escape preserves the selected tag and bubbles to any enclosing interaction that handles it.",
-                    col(vec![
+                    specimen_body("tg-escape", col(vec![
                         h::TagGroup::new(
                             "tg-escape-none",
                             vec![h::Tag::new("design", "Design"), h::Tag::new("code", "Code")],
@@ -965,18 +976,18 @@ impl Gallery {
                         .default_selected_keys([SharedString::from("design")])
                         .escape_key_behavior(h::EscapeKeyBehavior::None)
                         .into_any_element(),
-                    ]),
+                    ]), cx),
                 ),
                 (
                     "With Error Message",
-                    col(vec![h::TagGroup::new("tg-error", tags())
+                    specimen_body("tg-error", col(vec![h::TagGroup::new("tg-error", tags())
                         .label("Skills")
                         .description("Pick at least one")
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "With List Data",
-                    col(vec![h::TagGroup::new(
+                    specimen_body("tg-list", col(vec![h::TagGroup::new(
                         "tg-list",
                         ["Design", "Research", "Writing", "Support", "Ops"]
                             .into_iter()
@@ -984,11 +995,11 @@ impl Gallery {
                             .collect(),
                     )
                     .label("Teams")
-                    .into_any_element()]),
+                    .into_any_element()]), cx),
                 ),
                 (
                     "With Prefix",
-                    col(vec![h::TagGroup::new(
+                    specimen_body("tg-prefix", col(vec![h::TagGroup::new(
                         "tg-prefix",
                         vec![
                             h::Tag::new("rust", "Rust").icon(h::icons::CHECK),
@@ -996,12 +1007,12 @@ impl Gallery {
                         ],
                     )
                     .label("Verified")
-                    .into_any_element()]),
+                    .into_any_element()]), cx),
                 ),
                 (
                     "With Remove Button",
                     "The 24px remove target extends around the 12px icon without changing tag spacing.",
-                    col(vec![
+                    specimen_body("tg-remove-button", col(vec![
                         spec(
                             "Default remove button",
                             h::TagGroup::new("tg-remove-button", tags())
@@ -1038,11 +1049,11 @@ impl Gallery {
                             },
                             cx,
                         ),
-                    ]),
+                    ]), cx),
                 ),
                 (
                     "Removable",
-                    col(vec![h::TagGroup::new("tg-remove", tags())
+                    specimen_body("tg-removable", col(vec![h::TagGroup::new("tg-remove", tags())
                         .label("Team")
                         .description("Remove a tag to see the group update.")
                         .empty_state("All tags removed")
@@ -1051,11 +1062,11 @@ impl Gallery {
                             this.tag_selection.retain(|key| !keys.contains(key));
                             cx.notify();
                         }))
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "Selectable",
-                    col(vec![h::TagGroup::new("tg-select", tags())
+                    specimen_body("tg-selectable", col(vec![h::TagGroup::new("tg-select", tags())
                         .selection_mode(SelectionMode::Multiple)
                         .selected_keys(selection.iter().cloned())
                         .on_selection_change(cx.listener(
@@ -1064,12 +1075,12 @@ impl Gallery {
                                 cx.notify();
                             },
                         ))
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "Sizes",
                     "Small and medium tags use 16px line boxes; large tags use 20px, independent of inherited text styles.",
-                    col(vec![
+                    specimen_body("tg-sizes", col(vec![
                         h::TagGroup::new("tg-sm", tags())
                             .size(Size::Sm)
                             .into_any_element(),
@@ -1079,16 +1090,16 @@ impl Gallery {
                         h::TagGroup::new("tg-lg", tags())
                             .size(Size::Lg)
                             .into_any_element(),
-                    ]),
+                    ]), cx),
                 ),
                 (
                     "Variants", "The default variant draws each tag as its own bordered pill; the surface variant tints the tag group so it reads inside a panel.",
-                    col(vec![
+                    specimen_body("tg-variants", col(vec![
                         h::TagGroup::new("tg-default", tags()).into_any_element(),
                         h::TagGroup::new("tg-surface", tags())
                             .variant(h::TagVariant::Surface)
                             .into_any_element(),
-                    ]),
+                    ]), cx),
                 ),
             ],
             cx,

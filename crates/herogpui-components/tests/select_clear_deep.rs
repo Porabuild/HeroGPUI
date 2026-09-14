@@ -102,6 +102,67 @@ fn clear_click_preserves_focus_and_layout_and_empty_target_opens(cx: &mut TestAp
     }
 }
 
+/// `&:active, &[data-pressed="true"]` applies `transform: scale(0.93)` to the
+/// whole clear control about its center, and CSS transforms rescale hit
+/// testing without touching layout: the expanded pointer target shrinks from
+/// 24px to 24 * 0.93 = 22.32px while the press lasts, stays centered on the
+/// 20px slot, and restores on release. A release inside the shrunken box
+/// still clears.
+#[gpui::test]
+fn clear_pressed_target_scales_about_the_slot_center(cx: &mut TestAppContext) {
+    use gpui::{Modifiers, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent};
+    still();
+    let recorded = events();
+    let log = recorded.clone();
+    let cx = open_host(cx, move || {
+        let log = log.clone();
+        Select::new("press-scale", vec![PickerItem::new("a", "Alpha")])
+            .default_value(Some("a".into()))
+            .clear_button(SelectClearButton::new())
+            .on_clear(move |_, _| log.borrow_mut().push("clear".into()))
+            .into_any_element()
+    });
+    let rest = cx.debug_bounds("select-clear-0").unwrap();
+    assert_eq!(rest.size.width, px(24.));
+    assert_eq!(rest.size.height, px(24.));
+    cx.simulate_event(MouseDownEvent {
+        button: MouseButton::Left,
+        position: rest.center(),
+        modifiers: Modifiers::none(),
+        click_count: 1,
+        first_mouse: false,
+    });
+    cx.update(|w, _| w.refresh());
+    let pressed = cx.debug_bounds("select-clear-0").unwrap();
+    // Debug bounds are snapped to the device-pixel grid (2x here), so the
+    // unsnapped 22.32px box reports as 22.5px.
+    assert!(
+        (f32::from(pressed.size.width) - f32::from(px(24. * 0.93))).abs() < 0.25,
+        "the pressed pointer target must track the pinned scale, got {pressed:?}"
+    );
+    assert!((f32::from(pressed.size.height) - f32::from(px(24. * 0.93))).abs() < 0.25);
+    assert!(
+        (pressed.center() - rest.center()).magnitude() < px(0.4).into(),
+        "the pressed target must stay centered on the 20px slot: {pressed:?} vs {rest:?}"
+    );
+    cx.simulate_event(MouseMoveEvent {
+        position: rest.center(),
+        pressed_button: Some(MouseButton::Left),
+        modifiers: Modifiers::none(),
+    });
+    cx.simulate_event(MouseUpEvent {
+        button: MouseButton::Left,
+        position: rest.center(),
+        modifiers: Modifiers::none(),
+        click_count: 1,
+    });
+    cx.update(|w, _| w.refresh());
+    assert_eq!(recorded.borrow().as_slice(), ["clear"]);
+    let released = cx.debug_bounds("select-clear-0").unwrap();
+    assert_eq!(released.size.width, px(24.));
+    assert_eq!(released.size.height, px(24.));
+}
+
 #[gpui::test]
 fn clear_shortcut_requires_composition_nonempty_enabled_and_closed(cx: &mut TestAppContext) {
     for composed in [false, true] {

@@ -940,7 +940,7 @@ pub fn doc_page(
     // The filter is a global rather than an env read, so the control file can
     // change it while the app runs (see `control.rs`).
     for (heading, body) in sections {
-        if !crate::control::section_wanted(heading, cx) {
+        if !crate::control::include_section(heading, cx) {
             continue;
         }
         el = el
@@ -994,7 +994,7 @@ pub fn component_doc_page(
     let mut el = doc_page_shell(title, description, import_line, cx);
 
     for (heading, description, body, code) in sections {
-        if !crate::control::section_wanted(heading, cx) {
+        if !crate::control::include_section(heading, cx) {
             continue;
         }
         let code = example_code(import_line, checked_code(code));
@@ -1011,7 +1011,7 @@ pub fn component_doc_page(
     }
 
     for (heading, body) in references {
-        if crate::control::section_wanted(heading, cx) {
+        if crate::control::include_section(heading, cx) {
             el = el.mt(px(4.)).child(section_heading(heading)).child(body);
         }
     }

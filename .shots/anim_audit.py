@@ -200,7 +200,7 @@ def check_motions():
 
 
 def switch_child_fill(src):
-    """The animated track fill and interaction binding must both be wired."""
+    """The animated track fill and row interaction binding must both be wired."""
     return bool(
         re.search(
             r'track\s*=\s*track\s*\.child\(\s*track_motion_frame\.render\(\s*'
@@ -211,9 +211,15 @@ def switch_child_fill(src):
             src,
             re.S,
         )
-        and re.search(
-            r'track\s*=\s*crate::util::track_interaction\(track,\s*&interaction\)',
-            src,
+        and (
+            re.search(
+                r'track\s*=\s*crate::util::track_interaction\(track,\s*&interaction\)',
+                src,
+            )
+            or re.search(
+                r'el\s*=\s*crate::util::track_interaction\(el,\s*&interaction\)',
+                src,
+            )
         )
     )
 
@@ -243,10 +249,14 @@ def check_switch_motion():
         r'margin\s+(\d+)ms\s+var\(--ease-([\w-]+)\)',
         thumb.group(1) if thumb else '',
     )
+    want_thumb_color = re.search(
+        r'background-color\s+(\d+)ms\s+var\(--ease-([\w-]+)\)',
+        thumb.group(1) if thumb else '',
+    )
     got_track_ms = re.search(r'const TRACK_TRANSITION_MS:\s*u64\s*=\s*(\d+)', src)
     got_track_curve = re.search(
-        r'TRACK_TRANSITION_MS\)\)\s*\.with_easing\(\|t\|\s*'
-        r'crate::anim::Curve::(\w+)\.at\(t\)\)',
+        r'"track-background"\s*,\s*TRACK_TRANSITION_MS\s*,\s*'
+        r'crate::anim::Curve::(\w+)',
         src,
         re.S,
     )
@@ -257,10 +267,19 @@ def check_switch_motion():
         src,
         re.S,
     )
-    track_parts = src.split('fn track_motion(', 1)
-    track_source = (
-        track_parts[1].split('/// HeroUI Switch', 1)[0]
-        if len(track_parts) == 2
+    got_thumb_color_ms = re.search(
+        r'"thumb-background"\s*,\s*THUMB_COLOR_TRANSITION_MS\s*,\s*'
+        r'crate::anim::Curve::(\w+)',
+        src,
+        re.S,
+    )
+    got_thumb_color_duration = re.search(
+        r'const THUMB_COLOR_TRANSITION_MS:\s*u64\s*=\s*(\d+)', src
+    )
+    color_parts = src.split('fn color_motion(', 1)
+    color_source = (
+        color_parts[1].split('fn track_motion(', 1)[0]
+        if len(color_parts) == 2
         else ''
     )
     reduced = (
@@ -274,14 +293,15 @@ def check_switch_motion():
         # path: which module spells `reduce_motion` is a gpui/theme
         # detail, and pinning it made this read stale on an API bump
         # while the behaviour it checks had not changed.
-        and re.search(r'let reduce_motion = [^;]*reduce_motion\(', track_source)
-        and 'if reduce_motion' in track_source
-        and 'let animate = !reduce_motion' in track_source
+        and re.search(r'let reduce_motion = [^;]*reduce_motion\(', color_source)
+        and 'if reduce_motion' in color_source
+        and 'let animate = !reduce_motion' in color_source
     )
     child_fill = switch_child_fill(src)
     if (
         want_track is None
         or want_thumb is None
+        or want_thumb_color is None
         or got_track_ms is None
         or got_track_curve is None
         or got_thumb_ms is None
@@ -291,6 +311,7 @@ def check_switch_motion():
         return 1
     want_track_curve = CURVES.get(want_track.group(2))
     want_thumb_curve = CURVES.get(want_thumb.group(2))
+    want_thumb_color_curve = CURVES.get(want_thumb_color.group(2))
     rows = [
         (
             int(want_track.group(1)) == int(got_track_ms.group(1))
@@ -305,6 +326,20 @@ def check_switch_motion():
             'thumb margin',
             '%sms %s' % (want_thumb.group(1), want_thumb_curve),
             '%sms %s' % (got_thumb_ms.group(1), got_thumb_curve.group(1)),
+        ),
+        (
+            got_thumb_color_duration is not None
+            and got_thumb_color_ms is not None
+            and int(want_thumb_color.group(1)) == int(got_thumb_color_duration.group(1))
+            and want_thumb_color_curve == got_thumb_color_ms.group(1),
+            'thumb background',
+            '%sms %s' % (want_thumb_color.group(1), want_thumb_color_curve),
+            (
+                '%sms %s'
+                % (got_thumb_color_duration.group(1), got_thumb_color_ms.group(1))
+                if got_thumb_color_duration is not None and got_thumb_color_ms is not None
+                else 'not wired'
+            ),
         ),
         (reduced, 'reduced motion', 'transition-none', 'direct fill' if reduced else 'missing'),
         (child_fill, 'animation owner', 'listener-free fill', 'child fill' if child_fill else 'track'),
@@ -860,9 +895,9 @@ def check_progress_circle_motion():
     # id) so two circles in one window do not share a timeline. The first
     # argument is therefore `spin_id`, not the v3 keyframe name as a string.
     wired = bool(re.search(
-        r'element_id::scoped\(id, "spin"\)[\s\S]{0,400}?'
+        r'element_id::scoped\(id, "spin"\)[\s\S]{0,1000}?'
         r'with_animation\(\s*spin_id,[\s\S]{0,200}?'
-        r'PROGRESS_CIRCLE_SPIN_MS[\s\S]{0,40}?\.repeat\(\)'
+        r'PROGRESS_CIRCLE_SPIN_MS[\s\S]{0,200}?\.repeat\(\)'
         r'[\s\S]{0,160}?progress_circle_spin_turn',
         progress,
     ))
@@ -913,8 +948,12 @@ def check_progress_bar_motion():
         anim,
         re.S,
     ))
+    # The animation key is scoped below each ProgressBar root.  Keep the
+    # audit tied to that ownership boundary so two indeterminate bars cannot
+    # accidentally share the old global timeline.
     wired = bool(re.search(
-        r'with_animation\(\s*"progress-bar-indeterminate"[\s\S]{0,360}?'
+        r'(?:indeterminate_id\s*=\s*element_id::scoped\(&self\.id,\s*"indeterminate"\)[\s\S]{0,80}?)?'
+        r'with_animation\(\s*(?:indeterminate_id|element_id::scoped\(&self\.id,\s*"indeterminate"\))[\s\S]{0,360}?'
         r'PROGRESS_BAR_INDETERMINATE_MS[\s\S]{0,180}?'
         r'with_easing\(crate::anim::progress_bar_indeterminate_ease\(\)\)'
         r'[\s\S]{0,80}?\.repeat\(\)',
@@ -1053,7 +1092,9 @@ def self_test():
             ('track_motion_frame.render(', 'other_frame.render('),
             ('round_sx_corners(fill, &sx_corners)', 'round_sx_corners(other, &sx_corners)'),
             ('track = crate::util::track_interaction(track, &interaction)',
-             'track = crate::util::track_interaction(other, &interaction)')]:
+             'track = crate::util::track_interaction(other, &interaction)'),
+            ('el = crate::util::track_interaction(el, &interaction)',
+             'el = crate::util::track_interaction(other, &interaction)')]:
         broken = src.replace(old, new)
         if broken == src or switch_child_fill(broken):
             failures.append('the Switch reader must reject broken wiring: ' + old)

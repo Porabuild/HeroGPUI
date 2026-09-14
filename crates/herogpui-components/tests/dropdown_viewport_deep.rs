@@ -505,6 +505,139 @@ fn a_left_placed_menu_near_the_left_edge_flips_right(cx: &mut TestAppContext) {
     assert_settled(cx, "dropdown-menu");
 }
 
+/// The logical start/end aliases must resolve to the same panel box as their
+/// physical left/right spellings: this port has no RTL mode, so `Start` is
+/// `Left` pixel for pixel, `BottomLeft` is `BottomStart`, and `EndTop` is
+/// `RightTop`. Each spelling opens on its own host and the two menu bounds
+/// must be exactly equal.
+#[gpui::test]
+fn logical_aliases_land_where_their_physical_spelling_does(cx: &mut TestAppContext) {
+    for (physical, logical) in [
+        (Placement::BottomStart, Placement::BottomLeft),
+        (Placement::Left, Placement::Start),
+        (Placement::RightTop, Placement::EndTop),
+    ] {
+        let width = 1200.;
+        let cx = host_with_trigger_mid(cx, 40., physical);
+        settle(cx, width, 600.);
+        let trigger = cx.debug_bounds("dd-trigger").unwrap();
+        click(
+            cx,
+            f32::from(trigger.center().x),
+            f32::from(trigger.center().y),
+        );
+        settle(cx, width, 600.);
+        let physical_menu = cx
+            .debug_bounds("dropdown-menu")
+            .expect("the physical spelling must open its menu");
+
+        let cx = host_with_trigger_mid(cx, 40., logical);
+        settle(cx, width, 600.);
+        let trigger = cx.debug_bounds("dd-trigger").unwrap();
+        click(
+            cx,
+            f32::from(trigger.center().x),
+            f32::from(trigger.center().y),
+        );
+        settle(cx, width, 600.);
+        let logical_menu = cx
+            .debug_bounds("dropdown-menu")
+            .expect("the logical alias must open its menu");
+
+        assert_eq!(
+            logical_menu, physical_menu,
+            "{logical:?} must land exactly where {physical:?} does in this \
+             LTR-only port"
+        );
+    }
+}
+
+/// A side panel with a cross-axis alignment pins that edge: `RightBottom` on
+/// a trigger near the window's bottom opens beside it with the panel's
+/// bottom edge flush against the trigger's, still inside the viewport.
+#[gpui::test]
+fn a_side_aligned_menu_pins_the_edge_its_placement_names(cx: &mut TestAppContext) {
+    let height = 600.;
+    let cx = host_with_trigger_low(cx, 480., Placement::RightBottom);
+    settle(cx, 600., height);
+    let trigger = cx.debug_bounds("dd-trigger").unwrap();
+    click(
+        cx,
+        f32::from(trigger.center().x),
+        f32::from(trigger.center().y),
+    );
+    settle(cx, 600., height);
+
+    let trigger = cx.debug_bounds("dd-trigger").unwrap();
+    let menu = cx.debug_bounds("dropdown-menu").unwrap();
+
+    assert!(
+        near(
+            menu.origin.x,
+            f32::from(trigger.origin.x + trigger.size.width + px(GAP))
+        ),
+        "a side menu hangs one gap off the trigger's end edge: menu={menu:?} \
+         trigger={trigger:?}"
+    );
+    assert!(
+        near(
+            menu.origin.y + menu.size.height,
+            f32::from(trigger.origin.y + trigger.size.height)
+        ),
+        "the bottom alignment pins the panel's bottom edge to the trigger's: \
+         menu={menu:?} trigger={trigger:?}"
+    );
+    assert!(
+        f32::from(menu.origin.y) >= INSET - 1.5,
+        "the aligned panel must still clear the start inset, got {menu:?}"
+    );
+    assert_settled(cx, "dropdown-menu");
+}
+
+/// Flipping a side panel changes only the primary side: `LeftBottom` on a
+/// trigger at the window's left edge cannot fit left, so it opens on the
+/// right — still bottom-aligned, still inside the viewport.
+#[gpui::test]
+fn a_left_bottom_menu_at_the_left_edge_flips_right_and_keeps_its_bottom_alignment(
+    cx: &mut TestAppContext,
+) {
+    let cx = host_with_trigger_mid(cx, 0., Placement::LeftBottom);
+    settle(cx, 600., 600.);
+    let trigger = cx.debug_bounds("dd-trigger").unwrap();
+    click(
+        cx,
+        f32::from(trigger.center().x),
+        f32::from(trigger.center().y),
+    );
+    settle(cx, 600., 600.);
+
+    let trigger = cx.debug_bounds("dd-trigger").unwrap();
+    let menu = cx.debug_bounds("dropdown-menu").unwrap();
+
+    assert!(
+        near(
+            menu.origin.x,
+            f32::from(trigger.origin.x + trigger.size.width + px(GAP))
+        ),
+        "a flipped side menu hangs one gap off the trigger's end edge: \
+         menu={menu:?} trigger={trigger:?}"
+    );
+    assert!(
+        near(
+            menu.origin.y + menu.size.height,
+            f32::from(trigger.origin.y + trigger.size.height)
+        ),
+        "the cross-axis alignment survives the flip: menu={menu:?} \
+         trigger={trigger:?}"
+    );
+    assert!(
+        f32::from(menu.origin.y) >= INSET - 1.5
+            && f32::from(menu.origin.y + menu.size.height) <= 600. - INSET + 1.5,
+        "the flipped panel must stay inside the vertical insets, got {menu:?}"
+    );
+    assert_settled(cx, "dropdown-menu");
+}
+
 /// The height contract: a tall menu is capped at the available height past the
 /// gap and inset, stays inside the window, and still lets the pointer reach
 /// its last row through its own scroller.

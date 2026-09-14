@@ -110,7 +110,7 @@ EVIDENCE_OVERRIDE = {
     ('color-area', 'status-focused'):
         r'let thumb_visual = util::with_focus_ring\([\s\S]{0,500}?\bis_focus_visible\b',
     ('color-slider', 'status-focused'):
-        r'let mut thumb = util::with_focus_ring\([\s\S]{0,1200}?\n\s*is_focus_visible,',
+        r'let (?:mut )?thumb(?:_visual)? = util::with_focus_ring\([\s\S]{0,1400}?\n\s*is_focus_visible,',
     ('color-picker', 'status-focused'): r'ring_if_focused\(\s*trigger,',
     ('color-swatch-picker', 'status-focused'): r'swatch_focus',
     # The OTP draws its own flush ring on the active slot, so there is no
@@ -136,6 +136,10 @@ ELSEWHERE = {
     ('drawer', 'status-disabled'): 'close_button.rs',
     ('popover', 'status-disabled'): 'close_button.rs',
     ('menu-item', 'status-disabled'): 'dropdown.rs',
+    # Modal's Active prose is scoped to its composed close control. The
+    # stylesheet state audit needs the same delegation or it searches the
+    # panel module, which intentionally has no press listener of its own.
+    ('modal', 'active'): 'close_button.rs',
     # A `TextArea` *is* an `Input` with a taller box, and a `Disclosure` is a
     # one-item `Accordion`: the state is drawn where the element is.
     ('textarea', 'status-disabled'): 'input.rs',
@@ -162,13 +166,16 @@ ELSEWHERE = {
 # module with both kinds (a field *and* a trigger that rings for itself) passes,
 # and one with only `false` does not.
 REQUIRED = {
-    # The chrome call ends `..., <focus flag>, <radius override>, cx`: the
-    # focus flag is a real expression (never the literal `false`) and the
-    # radius override is `None` or `Some(...)` — the shared helper paints the
-    # caller's resolved radius, so the flag sits one argument further left.
+    # The shared field helper has two spellings: the original
+    # `apply_field_chrome` and the focus-ring-configurable
+    # `apply_field_chrome_with_focus_ring`. A real focus expression is either
+    # the caller's `focused`/`focus_within` variable or a direct
+    # `focus_handle.is_focused(window)` query; a literal `false` is the bug
+    # this audit must reject.
     'status-focused-field':
-        r'apply_field_chrome\((?:[^()]|\([^()]*\))*?,\s*(?!false\b)[a-z_@][^,]*,\s*'
-        r'(?:None|Some\([^()]*\)),\s*cx',
+        r'apply_field_chrome(?:_with_focus_ring)?\([\s\S]{0,260}?'
+        r'(?:\bfocused\b|\bfocus_within\b|\.is_focused\(window\))'
+        r'[\s\S]{0,180}?cx',
 }
 
 # States this port does not draw, with the reason.
@@ -207,8 +214,11 @@ WONT_DO = {
 # `focusvisible`.
 PROSE_EVIDENCE = {
     'disabled': r'is_disabled|disabled_opacity',
-    'hover': r'\.hover\(',
-    'hovered': r'\.hover\(',
+    # An animated hover fill owns the pointer listener and keeps the stable
+    # element's layout path; it is the GPUI equivalent of a CSS `:hover`
+    # transition and does not need a second `.hover(...)` style refinement.
+    'hover': r'\.hover\(|\.group_hover\(|hover_fade(?:_with_duration)?\(',
+    'hovered': r'\.hover\(|\.group_hover\(|hover_fade(?:_with_duration)?\(',
     'focus': r'ring_if_focused|with_focus_ring|is_focused|track_focus',
     # A field's ring is drawn by its chrome, not by a ring call of its own.
     'focusvisible': r'ring_if_focused|with_focus_ring|focus_visible|apply_field_chrome',
@@ -223,7 +233,7 @@ PROSE_EVIDENCE = {
     'active': r'anim::pressed|\.active\(|is_active|active',
     'placement': r'placement',
     'open': r'is_open',
-    'entering': r'anim::entering|entering_zoom|entering_from',
+    'entering': r'anim::entering|entering_zoom|entering_from|toast_entering',
     'exiting': r'anim::exiting|overlay_phase',
     'dragging': r'dragging|on_mouse_move',
     'required': r'is_required',
@@ -247,8 +257,9 @@ PROSE_EVIDENCE = {
 
 PROSE_EVIDENCE_OVERRIDE = {
     # Modal delegates to CloseButton; prose mentioning an "active theme"
-    # must not count as evidence of a pressed style.
-    ('Modal', 'active'): r'\.active\(',
+    # must not count as evidence of a pressed style. CloseButton now uses the
+    # shared animated press ramp instead of a raw `.active` style listener.
+    ('Modal', 'active'): r'pressed_with_background(?:_ramp)?\(',
     # Switch's pressed background now feeds the animated track target from the
     # same interaction slot its render props read, rather than using `.active`.
     ('Switch', 'pressed'): r'interaction_state\.1',
@@ -260,6 +271,9 @@ PROSE_EVIDENCE_OVERRIDE = {
         r'[\s\S]*?^\s*let control_background = easing_bg_layer\(\s*'
         r'&self\.id,\s*"control-bg",\s*control_bg_target,'
         r'[\s\S]*?^\s*boxel = boxel\.child\(control_background\);',
+    # The picker records hover through GPUI's event handler on the stable
+    # interaction slot; it does not use the Div style helper `.hover(...)`.
+    ('ColorSwatchPicker', 'hover'): r'\.on_hover\(',
 }
 
 # Prose states this port does not draw, with the reason.
@@ -371,7 +385,7 @@ def self_test():
     """Known-positive and known-negative proof for component press mappings.
 
     Modal's prose scopes its Active state to the close button, and
-    `close_button.rs` draws the press through `.active`. Modal's override
+    `close_button.rs` draws the press through the shared press ramp. Modal's override
     requires that concrete call rather than the shared pattern's bare word
     "active", which can also appear in comments about the theme. The positives
     pin the mapping to `close_button.rs` and its `.active(` call. The negative is the regression this test
@@ -419,8 +433,8 @@ def self_test():
     expect(PROSE_ELSEWHERE.get(('Modal', 'active')) == 'close_button.rs',
            "Modal's active state is not mapped to close_button.rs")
     close_button = module_source('close_button.rs')
-    expect(bool(re.search(r'\.active\(', close_button)),
-           'close_button.rs no longer draws its press through `.active`')
+    expect(bool(re.search(r'pressed_with_background(?:_ramp)?\(', close_button)),
+           'close_button.rs no longer draws its press through the shared ramp')
     if pattern:
         expect(bool(re.search(pattern, close_button)),
                'close_button.rs no longer matches the active evidence pattern')
@@ -460,7 +474,7 @@ def self_test():
             print('- %s' % failure)
         return 1
     print('self-test PASS: Modal active resolves to close_button.rs and its '
-          '`.active` press; Checkbox pressed requires its indeterminate color '
+          'shared press ramp; Checkbox pressed requires its indeterminate color '
           'branch to reach the animated control background')
     return 0
 

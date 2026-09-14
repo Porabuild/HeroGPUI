@@ -129,6 +129,8 @@ pub struct DateRangePicker {
     is_open: Option<bool>,
     default_open: bool,
     should_close_on_select: bool,
+    /// Popover placement, matching `DateRangePicker.Popover`'s placement prop.
+    placement: herogpui_core::Placement,
     label: Option<SharedString>,
     trigger_indicator: Option<gpui::AnyElement>,
     range_separator: Option<gpui::AnyElement>,
@@ -177,8 +179,8 @@ impl DateRangePicker {
             Rc::new(RefCell::new(None));
         let start_field_state = Rc::new(RefCell::new(None::<Entity<crate::input::InputState>>));
         let end_field_state = Rc::new(RefCell::new(None::<Entity<crate::input::InputState>>));
-        let restore_start = start_form_state.clone();
-        let restore_end = end_form_state.clone();
+        let restore_start = Rc::downgrade(&start_form_state);
+        let restore_end = Rc::downgrade(&end_form_state);
         let restore_is_disabled = form_is_disabled.clone();
         let restore_default = form_default.clone();
         let restore_callback = form_on_change.clone();
@@ -218,8 +220,8 @@ impl DateRangePicker {
                         cx.notify();
                     });
                 }
-                {
-                    let mut state = restore_start.borrow_mut();
+                if let Some(state) = restore_start.upgrade() {
+                    let mut state = state.borrow_mut();
                     state.value = crate::form::FormValue::Text(
                         start
                             .map(|date| date.format_iso())
@@ -229,8 +231,8 @@ impl DateRangePicker {
                     state.is_invalid = false;
                     state.is_successful = !restore_is_disabled.get();
                 }
-                {
-                    let mut state = restore_end.borrow_mut();
+                if let Some(state) = restore_end.upgrade() {
+                    let mut state = state.borrow_mut();
                     state.value = crate::form::FormValue::Text(
                         end.map(|date| date.format_iso()).unwrap_or_default().into(),
                     );
@@ -253,6 +255,7 @@ impl DateRangePicker {
             is_open: None,
             default_open: false,
             should_close_on_select: true,
+            placement: herogpui_core::Placement::Bottom,
             label: None,
             trigger_indicator: None,
             range_separator: None,
@@ -380,6 +383,13 @@ impl DateRangePicker {
     /// The fill the trigger takes on hover, in place of `--field-hover`.
     pub fn trigger_hover_bg(mut self, color: impl Into<gpui::Hsla>) -> Self {
         self.trigger_hover_bg = Some(color.into());
+        self
+    }
+
+    /// `DateRangePicker.Popover.placement` — positions the range calendar
+    /// relative to the trigger. HeroUI defaults to `bottom`.
+    pub fn placement(mut self, placement: herogpui_core::Placement) -> Self {
+        self.placement = placement;
         self
     }
 
@@ -743,12 +753,32 @@ impl RenderOnce for DateRangePicker {
             cx,
             element_id::scoped(&base_id, "overlay"),
             open,
-            // Pickers have no exit animation; remove the calendar immediately
-            // so a chosen cell cannot receive the same press again.
-            false,
+            // HeroUI keeps the popover alive for its 100ms fade/zoom exit.
+            // The calendar callback below is gated by `panel_open` so a
+            // retained cell cannot receive the same press again.
+            true,
         );
         let panel_visible = overlay_phase != crate::util::OverlayPhase::Closed;
         let panel_open = overlay_phase == crate::util::OverlayPhase::Open;
+        // The positioner discovers a viewport flip during prepaint. Keep the
+        // requested and resolved sides in keyed state so the next render's
+        // entry animation follows the physical side that is actually painted.
+        let requested_placement = window.use_keyed_state(
+            element_id::scoped(&base_id, "requested-placement"),
+            cx,
+            |_, _| self.placement,
+        );
+        let resolved_placement = window.use_keyed_state(
+            element_id::scoped(&base_id, "resolved-placement"),
+            cx,
+            |_, _| Rc::new(Cell::new(None::<crate::popover::PopoverPlacement>)),
+        );
+        if *requested_placement.read(cx) != self.placement {
+            requested_placement.update(cx, |placement, _| *placement = self.placement);
+            resolved_placement.read(cx).set(None);
+        }
+        let resolved_placement = resolved_placement.read(cx).clone();
+        let entry_placement = resolved_placement.get().unwrap_or(self.placement);
         let blur_open_own = open_own.clone();
         let blur_open_change = self.on_open_change.clone();
         let blur_scope =
@@ -1039,6 +1069,13 @@ impl RenderOnce for DateRangePicker {
             )
             .child(end_field)
             .child(trigger);
+        let anchor_bounds = window
+            .use_keyed_state(element_id::scoped(&base_id, "anchor-bounds"), cx, |_, _| {
+                Rc::new(Cell::new(None::<gpui::Bounds<Pixels>>))
+            })
+            .read(cx)
+            .clone();
+        let field = crate::popover::PopoverTriggerMeasure::new(field, anchor_bounds.clone());
 
         let mut root = gpui::div()
             .relative()
@@ -1098,14 +1135,19 @@ impl RenderOnce for DateRangePicker {
             let calendar_validate = self.validate.clone();
             let calendar_validation_errors = self.validation_errors.clone();
             let should_close_on_select = self.should_close_on_select;
+            let panel_open_for_change = panel_open;
             let range_state = self.state.clone();
             let mut calendar = crate::range_calendar::RangeCalendar::new(self.state.clone())
                 .constraints(self.constraints.clone())
                 .when_some(self.locale.clone(), |cal, tag| cal.locale(tag))
                 .autofocus_grid(panel_open)
+                .inert(!panel_open)
                 .is_read_only(self.is_read_only)
                 .is_invalid(start_invalid || end_invalid);
             calendar = calendar.on_change(move |_start, _end, window, cx| {
+                if !panel_open_for_change {
+                    return;
+                }
                 let state = range_state.read(cx);
                 let range = state.start.zip(state.end);
                 let custom_error = calendar_validate
@@ -1159,20 +1201,57 @@ impl RenderOnce for DateRangePicker {
                 },
             );
             let outside_close = close.clone();
+            let panel_open_for_dismissal = panel_open;
+            let panel = crate::util::dismiss_on_press_outside_with_token(
+                picker_panel(
+                    cx,
+                    "date-range-picker-popover",
+                    element_id::scoped(&base_id, "popover"),
+                )
+                .child(calendar),
+                dismissal_token,
+                move |window, cx| {
+                    if !panel_open_for_dismissal {
+                        return crate::util::DismissResult::Declined;
+                    }
+                    if trigger_pressed.get() {
+                        return crate::util::DismissResult::Declined;
+                    }
+                    outside_close(window, cx);
+                    crate::util::DismissResult::Handled
+                },
+            );
+            let (slide_x, slide_y) = placement_entry_offset(entry_placement);
+            let zoom = crate::anim::ZoomBox::panel(px(12.), px(20.)).padding_x(px(12.));
+            let zoom = crate::anim::ZoomBox {
+                slide_x: (slide_x != 0.0).then(|| px(slide_x)),
+                slide_y: (slide_y != 0.0).then(|| px(slide_y)),
+                ..zoom
+            };
+            let panel = if overlay_phase == crate::util::OverlayPhase::Exiting {
+                crate::anim::exiting(
+                    panel,
+                    element_id::scoped(&base_id, "panel-out"),
+                    zoom,
+                    crate::anim::Motion::LIST_OUT,
+                    cx,
+                )
+            } else {
+                crate::anim::entering_zoom(
+                    panel,
+                    element_id::scoped(&base_id, "panel"),
+                    zoom,
+                    crate::anim::Motion::LIST_IN,
+                    cx,
+                )
+            };
             root = root.child(crate::util::floating(
-                crate::util::placed_panel(herogpui_core::Placement::BottomStart, px(6.)).child(
-                    crate::util::dismiss_on_press_outside_with_token(
-                        picker_panel(cx),
-                        dismissal_token,
-                        move |window, cx| {
-                            if trigger_pressed.get() {
-                                return crate::util::DismissResult::Declined;
-                            }
-                            outside_close(window, cx);
-                            crate::util::DismissResult::Handled
-                        },
-                    )
-                    .child(calendar),
+                crate::popover::popover_with_resolved_placement(
+                    anchor_bounds,
+                    self.placement,
+                    px(PICKER_POPOVER_OFFSET),
+                    Some(resolved_placement),
+                    panel,
                 ),
             ));
         }

@@ -751,7 +751,7 @@ fn install_time_field_restore(
     if default.is_none() && !controlled {
         return;
     }
-    let restore_form = form_state.clone();
+    let restore_form = Rc::downgrade(form_state);
     form_state.borrow_mut().restore = Some(util::shared(move |window: &mut Window, cx: &mut App| {
         time_state.update(&mut *cx, |state, cx| {
             if controlled {
@@ -761,8 +761,8 @@ fn install_time_field_restore(
             }
             cx.notify();
         });
-        {
-            let mut state = restore_form.borrow_mut();
+        if let Some(state) = restore_form.upgrade() {
+            let mut state = state.borrow_mut();
             state.value = crate::form::FormValue::Text(time_form_text(default, granularity));
             state.is_invalid = false;
         }
@@ -1038,6 +1038,13 @@ impl TimeField {
         self
     }
 
+    /// Shows or hides only the field's visual focus ring. The segmented time
+    /// control remains focusable and editable when set to `false`.
+    pub fn focus_ring(mut self, v: bool) -> Self {
+        self.field.focus_ring = Some(v);
+        self
+    }
+
     /// The fill a hovered stepper arrow takes, in place of `--default`.
     pub fn stepper_hover_bg(mut self, color: impl Into<gpui::Hsla>) -> Self {
         self.stepper_hover_bg = Some(color.into());
@@ -1257,8 +1264,8 @@ impl RenderOnce for TimeField {
             state.sync_segment_order(&regional_time.order);
         });
 
-        let colors = cx.colors();
-        let layout = cx.layout();
+        let colors = cx.colors().clone();
+        let layout = cx.layout().clone();
         let navigable = !self.is_disabled;
         let editable = navigable && !self.is_read_only;
 
@@ -1374,14 +1381,40 @@ impl RenderOnce for TimeField {
             .text_color(colors.field.foreground);
 
         if !field_box.is_bare {
-            group = util::apply_field_chrome(
+            group = util::apply_field_chrome_with_focus_ring(
                 group,
                 self.variant,
                 is_invalid,
                 focus_handle.is_focused(window),
+                field_box.focus_ring.unwrap_or(true),
                 Some(radius),
                 cx,
             );
+
+            let focused = focus_handle.is_focused(window);
+            if !self.is_disabled && !is_invalid && !focused {
+                let idle_bg = match self.variant {
+                    FieldVariant::Primary => colors.field.background,
+                    FieldVariant::Secondary => colors.default.color,
+                };
+                let hover_bg = match self.variant {
+                    FieldVariant::Primary => colors.field.hover(),
+                    FieldVariant::Secondary => colors.default.hover(),
+                };
+                let hover_border = colors.field.border_hover();
+                group = crate::anim::hover_fade_with_duration_and_easing(
+                    group,
+                    element_id::scoped(&base_id, "hover-fade"),
+                    (idle_bg, hover_bg),
+                    None,
+                    Some(hover_border),
+                    move |fill| fill.rounded(radius),
+                    Some(150),
+                    crate::anim::HoverFadeEasing::EaseSmooth,
+                    window,
+                    cx,
+                );
+            }
         }
 
         // v3 drives a time field from the keyboard: the arrows step the focused
@@ -1681,6 +1714,20 @@ impl RenderOnce for TimeField {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn enabled_time_field_hover_uses_the_pinned_smooth_fill_transition() {
+        let source = include_str!("time_field.rs")
+            .split("#[cfg(test)]")
+            .next()
+            .expect("the implementation section is always present");
+        assert!(
+            source.contains("hover_fade_with_duration_and_easing(")
+                && source.contains("Some(150)")
+                && source.contains("HoverFadeEasing::EaseSmooth")
+        );
+        assert!(source.contains("!self.is_disabled && !is_invalid && !focused"));
+    }
 
     #[test]
     fn hour_wraps_at_midnight() {

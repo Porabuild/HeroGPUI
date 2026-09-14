@@ -23,6 +23,14 @@ pub const FIELD_TEXT: Pixels = gpui::px(14.);
 /// Glyph size for an icon inside a form field.
 pub const FIELD_ICON: Pixels = gpui::px(16.);
 
+/// HeroUI's numeric outputs use `tabular-nums` so changing a value does not
+/// move the label row. GPUI exposes the equivalent OpenType feature directly;
+/// keep the construction here so every numeric component uses the same
+/// feature tag and no component falls back to proportional figures.
+pub(crate) fn tabular_font_features() -> gpui::FontFeatures {
+    gpui::FontFeatures(std::sync::Arc::new(vec![("tnum".to_owned(), 1)]))
+}
+
 /// Optional box geometry and chrome overrides shared by the field family.
 ///
 /// `Input` keeps its own copies — its grouped padding rules predate this
@@ -35,6 +43,10 @@ pub(crate) struct FieldBox {
     pub(crate) padding_x: Option<Pixels>,
     pub(crate) is_bare: bool,
     pub(crate) is_bare_is_set: bool,
+    /// Whether the focused field should paint its focus ring. `None` keeps the
+    /// stock treatment; `Some(false)` hides only that visual indicator while
+    /// retaining focus, editing and validation feedback.
+    pub(crate) focus_ring: Option<bool>,
 }
 
 impl FieldBox {
@@ -161,6 +173,31 @@ pub fn apply_field_chrome<T: Styled>(
     radius_override: Option<Pixels>,
     cx: &App,
 ) -> T {
+    apply_field_chrome_with_focus_ring(
+        el,
+        variant,
+        is_invalid,
+        is_focused,
+        true,
+        radius_override,
+        cx,
+    )
+}
+
+/// Applies the v3 field chrome with an explicit focus-ring switch.
+///
+/// `show_focus_ring` changes only the focused visual treatment. The element
+/// remains focusable and editable, and an invalid field still reports its
+/// danger state through the one-pixel border when the focus ring is disabled.
+pub fn apply_field_chrome_with_focus_ring<T: Styled>(
+    el: T,
+    variant: FieldVariant,
+    is_invalid: bool,
+    is_focused: bool,
+    show_focus_ring: bool,
+    radius_override: Option<Pixels>,
+    cx: &App,
+) -> T {
     let colors = cx.colors();
     let layout = cx.layout();
 
@@ -185,7 +222,7 @@ pub fn apply_field_chrome<T: Styled>(
     };
 
     if is_invalid {
-        if is_focused {
+        if is_focused && show_focus_ring {
             shadows.push(gpui::BoxShadow {
                 color: colors.danger.color,
                 offset: gpui::point(gpui::px(0.), gpui::px(0.)),
@@ -198,7 +235,7 @@ pub fn apply_field_chrome<T: Styled>(
                 .border(layout.border_width.max(gpui::px(1.)))
                 .border_color(colors.danger.color);
         }
-    } else if is_focused {
+    } else if is_focused && show_focus_ring {
         shadows.extend(focus_ring_shadows(false, cx));
     } else if layout.field_border_width > gpui::px(0.) {
         el = el
@@ -690,30 +727,39 @@ pub fn shared<F: 'static>(f: F) -> std::sync::Arc<F> {
 /// gpui paints in tree order, so `absolute` alone does not lift a panel above
 /// later siblings.
 pub fn placed_panel(placement: herogpui_core::Placement, offset: Pixels) -> Div {
-    use herogpui_core::{Placement, PlacementAlign};
+    use herogpui_core::PlacementAlign;
 
     let base = gpui::div().absolute();
-    match placement {
-        Placement::Left => base.right_full().top(gpui::px(0.)).mr(offset),
-        Placement::Right => base.left_full().top(gpui::px(0.)).ml(offset),
-        _ => {
-            let base = if placement.is_above() {
-                base.bottom_full().mb(offset)
-            } else {
-                base.top_full().mt(offset)
-            };
-            match placement.align() {
-                PlacementAlign::Start => base.left(gpui::px(0.)),
-                PlacementAlign::End => base.right(gpui::px(0.)),
-                // gpui has no `translate`, so a centred panel is approximated by
-                // stretching to the trigger's width and centring its content.
-                PlacementAlign::Center => base
-                    .left(gpui::px(0.))
-                    .right(gpui::px(0.))
-                    .flex()
-                    .justify_center(),
-            }
-        }
+    if placement.is_side() {
+        // The panel pins to the trigger edge its side names, `offset` pixels
+        // clear of it. The cross-axis alignment pins the panel's top or
+        // bottom edge to the trigger's; a centred side panel keeps the
+        // top-aligned hang this helper has always used.
+        let base = if placement.is_start_side() {
+            base.right_full().mr(offset)
+        } else {
+            base.left_full().ml(offset)
+        };
+        return match placement.align() {
+            PlacementAlign::End => base.bottom(gpui::px(0.)),
+            _ => base.top(gpui::px(0.)),
+        };
+    }
+    let base = if placement.is_above() {
+        base.bottom_full().mb(offset)
+    } else {
+        base.top_full().mt(offset)
+    };
+    match placement.align() {
+        PlacementAlign::Start => base.left(gpui::px(0.)),
+        PlacementAlign::End => base.right(gpui::px(0.)),
+        // gpui has no `translate`, so a centred panel is approximated by
+        // stretching to the trigger's width and centring its content.
+        PlacementAlign::Center => base
+            .left(gpui::px(0.))
+            .right(gpui::px(0.))
+            .flex()
+            .justify_center(),
     }
 }
 
@@ -723,22 +769,24 @@ pub fn placed_panel(placement: herogpui_core::Placement, offset: Pixels) -> Div 
 /// These panels stretch to the trigger's width, so the start and end alignment
 /// variants coincide and only the side differs.
 pub fn placed_field_panel(placement: herogpui_core::Placement, offset: Pixels) -> Div {
-    use herogpui_core::Placement;
-
     let base = gpui::div().absolute();
-    match placement {
-        Placement::Left => base.right_full().top(gpui::px(0.)).mr(offset),
-        Placement::Right => base.left_full().top(gpui::px(0.)).ml(offset),
-        p if p.is_above() => base
-            .bottom_full()
+    if placement.is_side() {
+        return if placement.is_start_side() {
+            base.right_full().top(gpui::px(0.)).mr(offset)
+        } else {
+            base.left_full().top(gpui::px(0.)).ml(offset)
+        };
+    }
+    if placement.is_above() {
+        base.bottom_full()
             .left(gpui::px(0.))
             .right(gpui::px(0.))
-            .mb(offset),
-        _ => base
-            .top_full()
+            .mb(offset)
+    } else {
+        base.top_full()
             .left(gpui::px(0.))
             .right(gpui::px(0.))
-            .mt(offset),
+            .mt(offset)
     }
 }
 
@@ -905,6 +953,32 @@ pub fn overlay_phase(
     key: impl Into<gpui::ElementId>,
     is_open: bool,
 ) -> OverlayPhase {
+    retained_phase(window, cx, key, is_open, true, crate::anim::EXITING_MS)
+}
+
+/// Resolves a collapsible content panel into an open, exiting, or closed
+/// phase. Unlike [`overlay_phase`], this lets a component use the source
+/// component's own transition duration and skip the retained exit entirely
+/// under reduced motion. It does not register an overlay dismissal token.
+pub fn panel_phase(
+    window: &mut gpui::Window,
+    cx: &mut App,
+    key: impl Into<gpui::ElementId>,
+    is_open: bool,
+    keep_exiting: bool,
+    exit_ms: u64,
+) -> OverlayPhase {
+    retained_phase(window, cx, key, is_open, keep_exiting, exit_ms)
+}
+
+fn retained_phase(
+    window: &mut gpui::Window,
+    cx: &mut App,
+    key: impl Into<gpui::ElementId>,
+    is_open: bool,
+    keep_exiting: bool,
+    exit_ms: u64,
+) -> OverlayPhase {
     let key = key.into();
     let held = window.use_keyed_state(key, cx, |_, _| PhaseState::default());
     let current = *held.read(cx);
@@ -917,7 +991,7 @@ pub fn overlay_phase(
             });
         }
         OverlayPhase::Open
-    } else if current.was_open {
+    } else if current.was_open && keep_exiting {
         // Just closed: hold the panel for its exit, then drop it.
         let exit_generation = current.exit_generation.saturating_add(1);
         held.update(cx, |s, _| {
@@ -928,7 +1002,7 @@ pub fn overlay_phase(
         let held = held.clone();
         cx.spawn(async move |cx: &mut gpui::AsyncApp| {
             cx.background_executor()
-                .timer(std::time::Duration::from_millis(crate::anim::EXITING_MS))
+                .timer(std::time::Duration::from_millis(exit_ms))
                 .await;
             cx.update(|cx| {
                 held.update(cx, |s, cx| {
@@ -941,6 +1015,12 @@ pub fn overlay_phase(
         })
         .detach();
         OverlayPhase::Exiting
+    } else if current.was_open {
+        held.update(cx, |s, _| {
+            s.was_open = false;
+            s.exiting = false;
+        });
+        OverlayPhase::Closed
     } else if current.exiting {
         OverlayPhase::Exiting
     } else {
@@ -1610,6 +1690,15 @@ pub fn sx_background(sx: &Option<Box<gpui::StyleRefinement>>) -> Option<Hsla> {
     }
 }
 
+/// The solid border colour an `sx` override set on the root, if any.
+///
+/// Components that paint their border as a child overlay (so an edge control
+/// can paint above it) use this to preserve the same root-level customization
+/// that [`apply_sx`] would otherwise provide directly.
+pub fn sx_border_color(sx: &Option<Box<gpui::StyleRefinement>>) -> Option<Hsla> {
+    sx.as_ref()?.border_color
+}
+
 /// The definite pixel size an `sx` override set on the root, axis by axis.
 ///
 /// Fractions and rems resolve against the parent and the rem size, which a
@@ -1793,6 +1882,14 @@ mod sx_extraction_tests {
     fn no_override_extracts_nothing() {
         assert_eq!(sx_padding(&None), gpui::Edges::all(None));
         assert_eq!(sx_radius(&None), gpui::Corners::default());
+        assert_eq!(sx_border_color(&None), None);
+    }
+
+    #[test]
+    fn border_color_override_is_preserved_for_child_chrome() {
+        let color = gpui::hsla(0.58, 0.7, 0.4, 1.0);
+        let sx = captured(|d| d.border_color(color));
+        assert_eq!(sx_border_color(&sx), Some(color));
     }
 
     #[test]

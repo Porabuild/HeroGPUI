@@ -103,7 +103,7 @@
         "prop": "placement",
         "type": "PopoverPlacement",
         "default": "\"bottom\"",
-        "description": "Placement relative to the measured trigger. All eight placements flip to the side with more room when the preferred side cannot fit, keeping a 12px cross-axis viewport inset with the scroller capped to the available height.",
+        "description": "Placement relative to the measured trigger. All 22 union placements flip to the side with more room when the preferred side cannot fit, keeping a 12px cross-axis viewport inset with the scroller capped to the available height.",
         "rustOwner": "Dropdown",
         "rust": "placement(DropdownPlacement)",
         "status": "implemented"
@@ -609,7 +609,7 @@
       },
       {
         "token": ".dropdown__popover",
-        "description": "Positions against the measured trigger; all eight placements flip to the side with more room when the preferred side cannot fit, keeping a 12px cross-axis viewport inset with the scroller capped to the available height. Overlay surface.",
+        "description": "Positions against the measured trigger; all 22 union placements flip to the side with more room when the preferred side cannot fit, keeping a 12px cross-axis viewport inset with the scroller capped to the available height. Overlay surface.",
         "rust": "floating + scrollable_popover + max_h_full + overlay surface",
         "status": "implemented"
       },
@@ -1153,9 +1153,9 @@
       },
       {
         "token": ".list-box-item pressed",
-        "description": "Pressed geometry matches; the port uses its shared press timeline rather than the exact quart curve.",
-        "rust": "anim::pressed(PRESSED_SCALE_SUBTLE)",
-        "status": "partial"
+        "description": "Enabled options animate to 98% through the pinned quart curve inside a stable row slot, so measurement, focus and pointer ownership do not move during a press.",
+        "rust": "anim::pressed_with_background_ramp(LIST_ITEM_PRESS, PRESSED_SCALE_SUBTLE)",
+        "status": "implemented"
       },
       {
         "token": ".list-box-item hover",
@@ -1165,9 +1165,9 @@
       },
       {
         "token": ".list-box-item__indicator",
-        "description": "Size and default/danger colors match; flex layout places it at the trailing edge without the pinned absolute logical-end positioning.",
-        "rust": "inline trailing 16px indicator",
-        "status": "partial"
+        "description": "Size, end offset, vertical centering and default/danger colors match; the row reserves the pinned 28px end padding for both built-in and custom indicators.",
+        "rust": "absolute trailing 16px indicator + pr(28px)",
+        "status": "implemented"
       },
       {
         "token": ".list-box-item--danger",
@@ -1595,9 +1595,9 @@
       },
       {
         "token": ".tag transitions",
-        "description": "Tag colors and state chrome still change on a frame rather than interpolating.",
-        "rust": "immediate state colors",
-        "status": "unavailable"
+        "description": "Background colors now interpolate through the pinned 100ms ease-smooth track on a stable rounded fill; color, scale, opacity and shadow endpoints that have no portable property animation remain state-swapped.",
+        "rust": "anim::hover_fade_with_duration_and_easing + stable interaction slot",
+        "status": "partial"
       },
       {
         "token": ".tag--sm / --md / --lg",
@@ -1755,9 +1755,9 @@
       {
         "name": "Badge",
         "slot": "badge",
-        "description": "Root indicator on the `.badge` BEM classes: an absolutely positioned min-box square (`min-h-7 min-w-7` by size) with a radius step per size, medium text, a 2px gap, and the unconditional 1px page-background ring; empty children render the dot. The port is a block-level flex (no inline-flex) and approximates v3's corner translate with a fixed inset, so it is Partial.",
+        "description": "Root indicator on the `.badge` BEM classes: an absolutely positioned min-box square (`min-h-7 min-w-7` by size) with a radius step per size, medium text, a 2px gap, and the unconditional 1px page-background ring; empty children render the dot. The corner translate resolves from the badge's laid-out box at prepaint (`PlacedBadge`), so a label grown past the min box overhangs a quarter of its grown box; v3's `inline-flex` blockifies to `flex` under the placement classes' absolute positioning, which is what the port renders.",
         "rustOwner": "Badge",
-        "status": "partial"
+        "status": "implemented"
       },
       {
         "name": "Badge.Anchor",
@@ -1832,27 +1832,27 @@
       },
       {
         "token": ".badge--top-right",
-        "description": "Corner overlay overhanging a quarter of the badge's own box (4px sm, 7px md, 8px lg). gpui-pre 0.3.3 has no div-level transform and a percentage inset would resolve against the containing block, so the port insets the corner by -size/4 — a quarter of the min box; a badge grown past its min box overhangs less than v3's translate would, and only dot and min-box-fitting badges are exact.",
-        "rust": "BadgePlacement::TopRight => top(-size/4) + right(-size/4)",
-        "status": "partial"
+        "description": "Corner overlay overhanging a quarter of the badge's own box (4px sm, 7px md, 8px lg at the min box). gpui-pre 0.3.3 has no div-level transform and a percentage inset would resolve against the containing block, so the corner pin lands in layout on a `PlacedBadge` wrapper and its prepaint measures the badge's laid-out box and offsets it by the quarter-box translate — the exact CSS arithmetic, so a label grown past the min box overhangs proportionally.",
+        "rust": "PlacedBadge => pin top(px(0.)) + right(px(0.)); prepaint offset (+w/4, -h/4) from the laid-out box",
+        "status": "implemented"
       },
       {
         "token": ".badge--top-left",
-        "description": "Same quarter-box overhang at the top-left corner, with the same min-box approximation as top-right.",
-        "rust": "BadgePlacement::TopLeft => top(-size/4) + left(-size/4)",
-        "status": "partial"
+        "description": "Same quarter-box overhang at the top-left corner, resolved from the laid-out box like top-right.",
+        "rust": "PlacedBadge => pin top(px(0.)) + left(px(0.)); prepaint offset (-w/4, -h/4) from the laid-out box",
+        "status": "implemented"
       },
       {
         "token": ".badge--bottom-right",
-        "description": "Same quarter-box overhang at the bottom-right corner, with the same min-box approximation.",
-        "rust": "BadgePlacement::BottomRight => bottom(-size/4) + right(-size/4)",
-        "status": "partial"
+        "description": "Same quarter-box overhang at the bottom-right corner, resolved from the laid-out box like top-right.",
+        "rust": "PlacedBadge => pin bottom(px(0.)) + right(px(0.)); prepaint offset (+w/4, +h/4) from the laid-out box",
+        "status": "implemented"
       },
       {
         "token": ".badge--bottom-left",
-        "description": "Same quarter-box overhang at the bottom-left corner, with the same min-box approximation.",
-        "rust": "BadgePlacement::BottomLeft => bottom(-size/4) + left(-size/4)",
-        "status": "partial"
+        "description": "Same quarter-box overhang at the bottom-left corner, resolved from the laid-out box like top-right.",
+        "rust": "PlacedBadge => pin bottom(px(0.)) + left(px(0.)); prepaint offset (-w/4, +h/4) from the laid-out box",
+        "status": "implemented"
       }
     ]
   },
@@ -2238,9 +2238,9 @@
       },
       {
         "token": ".color-area inner shadow",
-        "description": "The port uses a theme border rather than the pinned translucent inner shadow.",
-        "rust": "border(theme border)",
-        "status": "partial"
+        "description": "The pinned translucent inner edge is layered with the native border so sx border-color customization remains available.",
+        "rust": "color_inner_shadow() + border(theme/sx)",
+        "status": "implemented"
       },
       {
         "token": ".color-area--show-dots::after",
@@ -2256,9 +2256,9 @@
       },
       {
         "token": ".color-area__thumb shadows",
-        "description": "The pinned thumb shadows are not drawn.",
-        "rust": "—",
-        "status": "unavailable"
+        "description": "The thumb carries the pinned outer and inset depth hairlines beneath its white visibility ring.",
+        "rust": "color_thumb_shadows()",
+        "status": "implemented"
       },
       {
         "token": ".color-area__thumb transition",
@@ -2511,7 +2511,7 @@
       {
         "name": "ColorSlider.Track",
         "slot": "color-slider-track",
-        "description": "Gradient and pointer geometry owner; independent child render state is unavailable.",
+        "description": "Gradient spans the thumb travel and meets matching endpoint colors under one rounded clip with the alpha checkerboard. Unblurred inset shadows shade the edges without an extra outline; the thumb stays outside the clip. Independent child render state is unavailable.",
         "rustOwner": "ColorSlider",
         "status": "partial"
       },
@@ -2569,45 +2569,45 @@
       },
       {
         "token": ".color-slider label / output",
-        "description": "Placement, 14px size, explicit 20px line height, medium weight, and disabled label/output opacity split match; GPUI has no tabular-number switch.",
-        "rust": "14px/20px MEDIUM label/output row",
-        "status": "partial"
+        "description": "Placement, 14px size, explicit 20px line height, medium weight, disabled label/output opacity split and tabular numeric output match.",
+        "rust": "14px/20px MEDIUM label/output row + tabular_font_features",
+        "status": "implemented"
       },
       {
         "token": ".color-slider__track horizontal / vertical",
-        "description": "Cross-axis thickness, rounded total footprint, endpoint inset, and pointer travel match; the Rust gradient continues through the rounded caps rather than drawing separate solid endpoint fills.",
-        "rust": "track_h=20 + COLOR_SLIDER_TRACK_INSET_PX",
-        "status": "partial"
+        "description": "Cross-axis thickness, rounded total footprint, endpoint inset, pointer travel, and separate min/max cap fills match in both orientations.",
+        "rust": "track_h=20 + COLOR_SLIDER_TRACK_INSET_PX + start_cap/end_cap",
+        "status": "implemented"
       },
       {
         "token": ".color-slider__track shadows",
-        "description": "A theme border substitutes for the pinned inset edge shadows.",
-        "rust": "theme border",
-        "status": "partial"
+        "description": "Horizontal tracks shade top/bottom and vertical tracks shade left/right with the pinned translucent inset edges; the native border remains for the platform surface.",
+        "rust": "color_track_shadows(vertical) + border",
+        "status": "implemented"
       },
       {
         "token": ".color-slider alpha checkerboard",
-        "description": "The alpha gradient is present but its checkerboard is not drawn.",
-        "rust": "alpha gradient only",
-        "status": "unavailable"
+        "description": "The alpha gradient is composited over the shared 8px checker tile in both orientations.",
+        "rust": "axis-aware transparency_checker(track_h, length) + alpha gradient",
+        "status": "implemented"
       },
       {
         "token": ".color-slider__thumb",
-        "description": "Size, circular radius, border, current-color fill, and disabled default fill match; overlay shadow is absent.",
-        "rust": "16px + rounded(16) + border(3)",
-        "status": "partial"
+        "description": "Size, circular radius, border, current-color fill, disabled default fill, and the two-layer depth shadow match.",
+        "rust": "16px + rounded(16) + border(3) + color_thumb_shadows()",
+        "status": "implemented"
       },
       {
         "token": ".color-slider__thumb transitions",
-        "description": "Thumb position and focus shadow still change on a frame.",
-        "rust": "immediate geometry/ring",
-        "status": "unavailable"
+        "description": "Thumb position and focus-ring shadow opacity interpolate through the pinned 250ms and 150ms ease-out paths; reduced motion settles both directly.",
+        "rust": "color_slider_thumb_motion + color_focus_ring_motion",
+        "status": "implemented"
       },
       {
         "token": ".color-slider__thumb[data-dragging=true]",
-        "description": "Dragging state is exposed, but GPUI provides one pointer cursor for the track rather than a separate grabbing cursor.",
-        "rust": "ColorSliderThumbState",
-        "status": "partial"
+        "description": "The live dragging state switches the thumb from the open-hand grab cursor to closed-hand grabbing while the track keeps its interaction cursor.",
+        "rust": "CursorStyle::OpenHand / ClosedHand",
+        "status": "implemented"
       }
     ]
   },
@@ -2637,7 +2637,7 @@
         "prop": "id",
         "type": "string",
         "default": "—",
-        "description": "Optional GPUI identity. A named swatch reports role=img named by the hex; an unnamed preview produces no AccessKit node.",
+        "description": "Optional GPUI identity. A named swatch reports role=img, using color_name when supplied and hex otherwise; an unnamed preview produces no AccessKit node.",
         "rustOwner": "ColorSwatch",
         "rust": "id(ElementId)",
         "status": "implemented"
@@ -2647,10 +2647,10 @@
         "prop": "colorName",
         "type": "string",
         "default": "—",
-        "description": "A named swatch uses the hex as its accessible name; a separate colorName override is not a builder.",
+        "description": "Overrides the generated accessible color name for a named swatch.",
         "rustOwner": "ColorSwatch",
-        "rust": "id(ElementId) names the hex",
-        "status": "partial"
+        "rust": "color_name(text)",
+        "status": "implemented"
       },
       {
         "owner": "ColorSwatch",
@@ -2697,9 +2697,9 @@
         "prop": "aria-label",
         "type": "string",
         "default": "—",
-        "description": "A named swatch reports role=img named by the hex. There is no separate aria-label builder.",
+        "description": "A named swatch reports role=img; color_name supplies the accessible name in this port.",
         "rustOwner": "ColorSwatch",
-        "rust": "id(ElementId)",
+        "rust": "color_name(text) + id(ElementId)",
         "status": "partial"
       },
       {
@@ -2726,8 +2726,8 @@
     "styling": [
       {
         "token": ".color-swatch",
-        "description": "The default swatch is a clipped 32px circle with the theme border.",
-        "rust": "SizeXl::Md + overflow_hidden + border(layout.border_width)",
+        "description": "The default swatch is a clipped 32px circle with the theme border and HeroUI's translucent inset edge.",
+        "rust": "SizeXl::Md + overflow_hidden + border(layout.border_width) + color_inner_shadow()",
         "status": "implemented"
       },
       {
@@ -2738,9 +2738,9 @@
       },
       {
         "token": "transparency checkerboard",
-        "description": "Translucent colors blend over the secondary surface; the port does not draw the upstream checker pattern.",
-        "rust": "colors.surface_secondary beneath PickerColor",
-        "status": "partial"
+        "description": "The shared 8px checker tile sits under the translucent color layer at every swatch size.",
+        "rust": "transparency_checker(edge, edge) + translucent PickerColor",
+        "status": "implemented"
       }
     ]
   },
@@ -3020,15 +3020,15 @@
       },
       {
         "token": ".color-swatch-picker__item transitions",
-        "description": "Border color and focus shadow still change on a frame.",
-        "rust": "immediate border/ring",
-        "status": "unavailable"
+        "description": "Selection border color and focus-ring shadow opacity interpolate through the pinned 100ms ease-out path; reduced motion settles both directly.",
+        "rust": "selection-border Tween + color_focus_ring_motion",
+        "status": "implemented"
       },
       {
         "token": ".color-swatch-picker__swatch transforms",
-        "description": "Final geometry and selected-over-hover precedence match; interpolation is not implemented.",
-        "rust": "computed inner edge + hover size",
-        "status": "partial"
+        "description": "Built-in swatches interpolate hover and selected scale with selected taking precedence; caller-owned item content remains caller-owned.",
+        "rust": "swatch-scale Tween + swatch_visual_scale",
+        "status": "implemented"
       },
       {
         "token": ".color-swatch-picker__indicator",
@@ -3038,9 +3038,9 @@
       },
       {
         "token": ".color-swatch-picker__indicator transition",
-        "description": "Indicator visibility changes immediately rather than interpolating scale.",
-        "rust": "selected visibility",
-        "status": "unavailable"
+        "description": "The built-in or caller indicator wrapper interpolates its selected scale over the pinned 150ms ease-out path.",
+        "rust": "indicator-scale Tween",
+        "status": "implemented"
       }
     ]
   },
@@ -3147,10 +3147,10 @@
         "prop": "width",
         "type": "number | string",
         "default": "460",
-        "description": "Sets a fixed desktop card width in pixels.",
+        "description": "Sets the desktop card width in pixels; the rendered width clamps to the live viewport minus both insets on narrow windows.",
         "rustOwner": "ToastViewport",
-        "rust": "width(Pixels)",
-        "status": "partial"
+        "rust": "width(Pixels) + viewport clamp",
+        "status": "implemented"
       },
       {
         "owner": "Toast.Provider",
@@ -3277,10 +3277,10 @@
         "prop": "children",
         "type": "ReactNode",
         "default": "variant icon",
-        "description": "A caller can replace or suppress the icon by asset path; arbitrary element content is unavailable.",
+        "description": "A caller can replace or suppress the icon by asset path, or render fresh GPUI content through the shared indicator box.",
         "rustOwner": "Toast",
-        "rust": "indicator(Option<SharedString>)",
-        "status": "partial"
+        "rust": "indicator(Option<SharedString>) / indicator_content(render)",
+        "status": "implemented"
       },
       {
         "owner": "Toast.Indicator",
@@ -3507,10 +3507,10 @@
         "prop": "indicator",
         "type": "ReactNode",
         "default": "variant icon",
-        "description": "Asset-path replacement and null suppression are supported; arbitrary elements are not.",
+        "description": "Asset-path replacement, caller-owned indicator content and null suppression are supported.",
         "rustOwner": "Toast",
-        "rust": "indicator(Option<SharedString>)",
-        "status": "partial"
+        "rust": "indicator(Option<SharedString>) / indicator_content(render)",
+        "status": "implemented"
       },
       {
         "owner": "toast Function",
@@ -3567,7 +3567,7 @@
         "prop": "loading",
         "type": "ReactNode",
         "default": "—",
-        "description": "Shown while the future is pending as a persistent loading toast.",
+        "description": "Shown while the future is pending as a persistent loading toast. The GPUI extension promise_task returns a task the owner can drop to cancel pending work; it leaves queue cleanup to that owner.",
         "rustOwner": "Toast",
         "rust": "promise(future, loading, cx)",
         "status": "implemented"
@@ -3611,9 +3611,9 @@
       {
         "name": "Toast.Indicator",
         "slot": "toast-indicator",
-        "description": "Variant glyph, caller asset, or loading spinner.",
+        "description": "Variant glyph, caller asset/content, or loading spinner inside the shared 24px box.",
         "rustOwner": "Toast",
-        "status": "partial"
+        "status": "implemented"
       },
       {
         "name": "Toast.Content",
@@ -3662,9 +3662,9 @@
       {
         "state": "Index",
         "selector": ".toast[data-index]",
-        "description": "Depth narrows each older card, but the port uses a flex stack rather than pinned absolute height/translate geometry.",
-        "rust": "toast_card depth + scale_factor",
-        "status": "partial"
+        "description": "Each depth uses the measured card height and configured gap for absolute placement; collapsed depth also reuses the front card's height while its content stays clipped.",
+        "rust": "measured_heights + stack_offset + scale_factor",
+        "status": "implemented"
       },
       {
         "state": "Placement",
@@ -3683,15 +3683,15 @@
       {
         "state": "Expanded",
         "selector": ".toast[data-expanded=true]",
-        "description": "Hover, focus-within, or isExpanded opens the stack when more than one toast is active. Collapsed non-front cards peek at the gap height.",
-        "rust": "ToastViewport::is_expanded + pointer/focus within",
+        "description": "Hover, focus-within, or isExpanded opens the stack when more than one toast is active; measured card heights and the configured gap determine each absolute offset.",
+        "rust": "ToastViewport::is_expanded + measured stack offsets",
         "status": "implemented"
       },
       {
         "state": "Exiting",
         "selector": ".toast[data-exiting=true]",
-        "description": "Dismissed cards stay mounted for exitDuration and play LIST_OUT unless reduced motion is on.",
-        "rust": "ToastStore::exiting + anim::exiting",
+        "description": "Dismissed frontmost cards stay mounted for exitDuration and translate toward the placement edge over the pinned 350ms ease-out-fluid motion; non-frontmost cards settle through the 200ms stack scale path. Reduced motion removes the exit frame.",
+        "rust": "ToastStore::exiting + anim::exiting_to(Motion::TOAST_OUT) / anim::exiting(Motion::TOAST_STACK_OUT)",
         "status": "implemented"
       },
       {
@@ -3705,8 +3705,8 @@
     "styling": [
       {
         "token": ".toast-region",
-        "description": "The root is absolutely placed in the app overlay; z-index, viewport-responsive width, and region focus outline are unavailable.",
-        "rust": "absolute ToastViewport",
+        "description": "The root is absolutely placed in the app overlay and its cards clamp to the live viewport minus the configured edge insets; z-index and the browser's focus outline remain platform-specific.",
+        "rust": "absolute ToastViewport + viewport width clamp",
         "status": "partial"
       },
       {
@@ -3717,15 +3717,15 @@
       },
       {
         "token": ".toast",
-        "description": "Card fill, row alignment, six-pixel gap, padding, radius and overlay shadow match; the port does not add a card border, and cards use flex stacking rather than absolute overlap.",
-        "rust": "ToastCardEl",
-        "status": "partial"
+        "description": "Card fill, row alignment, six-pixel gap, padding, radius, overlay shadow, measured height and absolute placement match; the port retains its documented geometric width shrink where GPUI has no div transform.",
+        "rust": "ToastCardEl + measured_heights + stack_offset",
+        "status": "implemented"
       },
       {
         "token": ".toast non-frontmost",
-        "description": "Action and close interaction plus close visibility are suppressed; pinned front-height clipping is unavailable.",
-        "rust": "frontmost + disabled action + hidden close",
-        "status": "partial"
+        "description": "Non-front cards reuse the measured front height, clip their hidden content, suppress action and close interaction, and expose only the configured stack offset.",
+        "rust": "front_height + overflow_hidden + disabled action + hidden close",
+        "status": "implemented"
       },
       {
         "token": ".toast__content",
@@ -3735,14 +3735,14 @@
       },
       {
         "token": ".toast__indicator",
-        "description": "Geometry, default glyph mapping, spinner size, and overlay/status foreground rules match.",
-        "rust": "indicator / Spinner",
+        "description": "Geometry, default glyph mapping, caller-owned content, spinner size, and overlay/status foreground rules match.",
+        "rust": "indicator / indicator_content / Spinner",
         "status": "implemented"
       },
       {
         "token": ".toast__title",
-        "description": "Typography and all five pinned variant title colors match.",
-        "rust": "title_color + 14/20 MEDIUM",
+        "description": "Typography, natural wrapping and all five pinned variant title colors match.",
+        "rust": "title_color + 14/20 MEDIUM + whitespace_normal",
         "status": "implemented"
       },
       {
@@ -3753,8 +3753,8 @@
       },
       {
         "token": ".toast__close-button",
-        "description": "Size, border, fill, glyph, focus, and frontmost interaction match; the port keeps it in flow and always visible on the front card.",
-        "rust": "frontmost close_btn",
+        "description": "Absolute offset, size, border, fill, glyph, focus, frontmost interaction, hover-only reveal and 150ms ease-smooth opacity match; GPUI keeps the physical right edge because the desktop port has no logical direction property.",
+        "rust": "absolute top/right close_btn + close-hovered + close-opacity",
         "status": "partial"
       },
       {
@@ -3764,10 +3764,10 @@
         "status": "partial"
       },
       {
-        "token": "toast view-transition motion",
-        "description": "The port uses the shared list zoom-in entry and has no toast exit/view-transition animation.",
-        "rust": "anim::Motion::LIST_IN",
-        "status": "unavailable"
+        "token": "toast transition motion",
+        "description": "New cards enter from the physical top/bottom placement edge, frontmost dismissal leaves toward that edge, and non-frontmost exits use the pinned 200ms stack scale. The port keeps the independent 150ms opacity track; the browser's CSS view-transition wrapper remains unavailable.",
+        "rust": "toast_entering(Motion::TOAST_IN + TOAST_OPACITY_MS) + toast_exiting(Motion::TOAST_OUT + TOAST_OPACITY_MS) + anim::exiting(Motion::TOAST_STACK_OUT)",
+        "status": "partial"
       }
     ]
   },
@@ -3997,9 +3997,9 @@
       },
       {
         "token": ".color-picker__trigger transitions",
-        "description": "Trigger state colors and rings still change on a frame rather than interpolating.",
-        "rust": "immediate trigger chrome",
-        "status": "unavailable"
+        "description": "The stylesheet declares no default trigger hover fill; the keyboard focus shadow now interpolates through the shared 150ms ease-out color motion and snaps under reduced motion.",
+        "rust": "color_focus_ring_motion + ring_if_focused endpoints",
+        "status": "implemented"
       },
       {
         "token": ".color-picker__trigger focus-visible",
@@ -4033,9 +4033,9 @@
       },
       {
         "token": ".color-picker__popover entering",
-        "description": "Duration, curve, fade, and scale match; the placement-specific four-pixel translation is not animated.",
-        "rust": "anim::entering_zoom(Motion::LIST_IN)",
-        "status": "partial"
+        "description": "Duration, curve, fade, scale, and four-pixel translation animate together; the shared positioner feeds its resolved physical side back into the entry offset after flips and resizes.",
+        "rust": "resolved-placement handle + ZoomBox slide_x/slide_y + anim::entering_zoom(Motion::LIST_IN)",
+        "status": "implemented"
       },
       {
         "token": ".color-picker__popover exiting",
@@ -4105,6 +4105,16 @@
       },
       {
         "owner": "ColorField",
+        "prop": "focusRing",
+        "type": "boolean",
+        "default": "true",
+        "description": "GPUI extension: hides only the editable field's visual focus ring while retaining focus and editing.",
+        "rustOwner": "ColorField",
+        "rust": "focus_ring(bool)",
+        "status": "implemented"
+      },
+      {
+        "owner": "ColorField",
         "prop": "id",
         "type": "string",
         "default": "—",
@@ -4128,20 +4138,20 @@
         "prop": "value",
         "type": "Color | null",
         "default": "—",
-        "description": "Controlled concrete colors wait for owner acceptance; the port cannot represent a controlled null value.",
+        "description": "Controlled color values may be concrete or null; null renders the documented empty field and onChange can return None while text is incomplete.",
         "rustOwner": "ColorField",
-        "rust": "new(id, PickerColor)",
-        "status": "partial"
+        "rust": "new(id, Option<PickerColor>)",
+        "status": "implemented"
       },
       {
         "owner": "ColorField",
         "prop": "defaultValue",
         "type": "Color | null",
         "default": "—",
-        "description": "Seeds picker-owned concrete color state once; a null seed is unavailable.",
+        "description": "Seeds picker-owned state with a concrete color or an explicit null empty value; the outer Rust Option distinguishes omission from null.",
         "rustOwner": "ColorField",
-        "rust": "default_value(PickerColor)",
-        "status": "partial"
+        "rust": "default_value(Option<PickerColor>)",
+        "status": "implemented"
       },
       {
         "owner": "ColorField",
@@ -4178,10 +4188,10 @@
         "prop": "isRequired",
         "type": "boolean",
         "default": "false",
-        "description": "Marks the label and form field required, but the concrete-only value model cannot express v3's empty null value.",
+        "description": "Marks the label and form field required; an empty null value is treated as missing during native submission.",
         "rustOwner": "ColorField",
         "rust": "is_required(bool)",
-        "status": "partial"
+        "status": "implemented"
       },
       {
         "owner": "ColorField",
@@ -4378,7 +4388,7 @@
         "prop": "children",
         "type": "ReactNode",
         "default": "—",
-        "description": "The port always renders the current ColorSwatch and cannot replace the prefix independently.",
+        "description": "The built-in ColorSwatch follows the current color and is omitted for the null empty state; arbitrary replacement remains unavailable.",
         "rustOwner": "ColorField",
         "rust": "built-in ColorSwatch",
         "status": "partial"
@@ -4436,7 +4446,7 @@
       {
         "name": "ColorField.Input",
         "slot": "color-input-group-input",
-        "description": "State-backed text input with parsing, channel keys, wheel editing, and focus; backed by a composed input::InputState.",
+        "description": "State-backed text input with parsing, channel keys, wheel editing, and focus. Each simultaneously rendered editable field needs its own input::InputState identity.",
         "rustOwner": "ColorField",
         "status": "implemented"
       },
@@ -4473,9 +4483,9 @@
       {
         "state": "Required",
         "selector": ".color-field[data-required=true]",
-        "description": "Marks the label and reaches render state; concrete-only color state cannot represent v3's empty null value.",
-        "rust": "is_required",
-        "status": "partial"
+        "description": "Marks the label and reaches render state; a null or empty color fails native required validation.",
+        "rust": "is_required + FormValue::is_empty",
+        "status": "implemented"
       },
       {
         "state": "Disabled",
@@ -4515,9 +4525,9 @@
       {
         "state": "Hovered",
         "selector": ".color-input-group[data-hovered=true]",
-        "description": "The Rust group does not yet apply the pinned hover fill and border interpolation.",
-        "rust": "—",
-        "status": "unavailable"
+        "description": "Enabled, unfocused groups interpolate the field/default hover fill over 150ms and apply the field-hover border endpoint.",
+        "rust": "hover_fade_with_duration_and_easing(150ms, EaseSmooth) + border hover",
+        "status": "implemented"
       }
     ],
     "styling": [
@@ -4547,15 +4557,15 @@
       },
       {
         "token": ".color-input-group transitions",
-        "description": "Field state colors and rings still change on a frame.",
-        "rust": "immediate apply_field_chrome",
-        "status": "unavailable"
+        "description": "Enabled, unfocused groups animate the fill through the pinned ease-smooth transition while the hover border endpoint remains immediate.",
+        "rust": "hover_fade_with_duration_and_easing(150ms, EaseSmooth) + apply_field_chrome",
+        "status": "implemented"
       },
       {
         "token": ".color-input-group hover",
-        "description": "The pinned hover-only group state is not drawn.",
-        "rust": "—",
-        "status": "unavailable"
+        "description": "Enabled, unfocused groups use the field-hover or default-hover endpoint according to the variant.",
+        "rust": "hover_fade_with_duration_and_easing + border_color(field.border_hover)",
+        "status": "implemented"
       },
       {
         "token": ".color-input-group focus-within",
@@ -4565,9 +4575,9 @@
       },
       {
         "token": ".color-input-group invalid",
-        "description": "Danger outline/ring matches; the port keeps the variant fill rather than switching to the field-focus fill.",
-        "rust": "apply_field_chrome(invalid)",
-        "status": "partial"
+        "description": "Danger outline/ring and the field-focus fill match both primary and secondary variants.",
+        "rust": "apply_field_chrome(invalid) + bg(field.focus/default)",
+        "status": "implemented"
       },
       {
         "token": ".color-input-group disabled",
@@ -4595,9 +4605,9 @@
       },
       {
         "token": ".color-input-group--secondary",
-        "description": "Resting fill and shadow match; the absent group hover leaves the hover token undrawn.",
-        "rust": "FieldVariant::Secondary",
-        "status": "partial"
+        "description": "Resting fill and shadow match, and the enabled unfocused group fades to the default-hover endpoint.",
+        "rust": "FieldVariant::Secondary + hover_fade_with_duration_and_easing",
+        "status": "implemented"
       }
     ]
   },
@@ -4632,7 +4642,7 @@
         "prop": "defaultValue",
         "type": "number | number[]",
         "default": "—",
-        "description": "The initial value or values (uncontrolled).",
+        "description": "The initial value or values (uncontrolled). Use this seed for interactive examples that do not store onChange values, including custom number formatting.",
         "rustOwner": "Slider",
         "rust": "default_value(f32) / default_values(values)",
         "status": "implemented"
@@ -5027,7 +5037,7 @@
       {
         "state": "Dragging",
         "selector": ".slider__thumb[data-dragging=\"true\"]",
-        "description": "Pointer drag state updates the value and scales the inner thumb to 90%; gpui applies the scale without CSS's 250ms ramp.",
+        "description": "Pointer drag state updates the value and scales the inner thumb to 90% over the pinned 250ms ease-out ramp; reduced motion settles directly.",
         "rust": "DragState",
         "status": "implemented"
       },
@@ -5070,7 +5080,7 @@
       {
         "token": "[data-slot=\"label\"] / .slider__output",
         "description": "Label and output typography.",
-        "rust": "Slider::render text_size(px(14.)) + line_height(px(20.)) + FontWeight::MEDIUM",
+        "rust": "Slider::render text_size(px(14.)) + line_height(px(20.)) + FontWeight::MEDIUM + tabular_font_features",
         "status": "implemented"
       },
       {
@@ -5093,9 +5103,9 @@
       },
       {
         "token": ".slider__thumb[data-dragging=\"true\"]::after",
-        "description": "Dragging feedback and reduced-motion override.",
-        "rust": "DragState inner geometry scale; instant under gpui",
-        "status": "partial"
+        "description": "Dragging feedback and reduced-motion override. The stable outer hit target keeps its footprint while the inner geometry follows the CSS scale transition.",
+        "rust": "keyed slider_thumb_motion + inner geometry scale + reduce_motion",
+        "status": "implemented"
       },
       {
         "token": ".slider__thumb[data-focus-visible=\"true\"]",
@@ -5125,9 +5135,9 @@
       {
         "owner": "Button",
         "prop": "variant",
-        "type": "'primary' | 'secondary' | 'tertiary' | 'outline' | 'ghost' | 'danger'",
+        "type": "'primary' | 'secondary' | 'tertiary' | 'outline' | 'ghost' | 'danger' | 'danger-soft'",
         "default": "'primary'",
-        "description": "Visual style variant; the pinned stylesheet also defines danger-soft.",
+        "description": "Visual style variant, including a soft danger treatment.",
         "rustOwner": "Button",
         "rust": "variant(Variant)",
         "status": "implemented"
@@ -5293,8 +5303,8 @@
       {
         "state": "Pressed",
         "selector": ".button:active / [data-pressed=\"true\"]",
-        "description": "Size-specific scale and render state for pointer or keyboard press.",
-        "rust": "anim::pressed + InteractiveState::is_pressed",
+        "description": "Size-specific scale, variant pressed-background endpoint and render state for pointer or keyboard press.",
+        "rust": "button_pressed_background + anim::pressed_with_background + InteractiveState::is_pressed",
         "status": "implemented"
       },
       {
@@ -5388,15 +5398,15 @@
       },
       {
         "token": ".button background-color transition",
-        "description": "Hover colors interpolate on a listener-free child fill and reduced motion swaps directly.",
-        "rust": "anim::hover_fade + TRANSITION_MS + Curve::Out",
+        "description": "Hover colors interpolate on a listener-free child fill and reduced motion swaps directly; the pressed fill eases between the same endpoints on the press ramp's own 100ms track.",
+        "rust": "anim::hover_fade + TRANSITION_MS + Curve::Out; pressed_with_background_ramp",
         "status": "implemented"
       },
       {
         "token": ".button transform / box-shadow transitions",
-        "description": "Press geometry and focus shadow reach the correct endpoints, but GPUI applies both without property interpolation.",
-        "rust": "anim::pressed + ring_if_focused",
-        "status": "partial"
+        "description": "The press ramps on the pinned transform timeline: the skin eases its geometry over 250ms ease-smooth, resuming from the painted frame when released mid-press and snapping under reduced motion. The pressed state changes no box-shadow (the ring is focus-only), so that track has no endpoints to interpolate and the focus ring stays immediate.",
+        "rust": "anim::pressed_with_background_ramp + BUTTON_PRESS (Curve::Smooth) + ring_if_focused",
+        "status": "implemented"
       }
     ]
   },
@@ -6668,9 +6678,9 @@
       {
         "state": "Hovered",
         "selector": ".radio [data-slot=\"radio-content\"][data-hovered=\"true\"]",
-        "description": "v3 changes the unselected indicator fill and field border on hover; the port does not reproduce those hover layers.",
-        "rust": "interaction feeds the pressed dot only",
-        "status": "partial"
+        "description": "v3 changes the selected or variant-specific indicator fill on hover and adds the field-border hover layer; selected rest state keeps its accent edge transparent.",
+        "rust": "interaction hovered + selected/variant hover fill + border precedence",
+        "status": "implemented"
       },
       {
         "state": "Focus visible",
@@ -6774,8 +6784,8 @@
       },
       {
         "token": ".radio__control",
-        "description": "Primary selection box and field chrome.",
-        "rust": "16px + key_radius + field background/shadow",
+        "description": "Primary selection box and field chrome; selected rest state clears the configured field border before hover or invalid precedence.",
+        "rust": "16px + key_radius + field background/shadow + selected transparent border",
         "status": "implemented"
       },
       {
@@ -7013,9 +7023,9 @@
       },
       {
         "token": ".close-button transitions",
-        "description": "The port changes hover, press and focus styling on a frame without these interpolation timelines.",
-        "rust": "immediate hover/active/ring styles",
-        "status": "partial"
+        "description": "The press ramps on the pinned transform timeline: the skin eases its geometry over 250ms ease-out-quart inside a stable slot, resuming from the painted frame when released mid-press and snapping to the scaled endpoint under reduced motion. The pressed state changes no colour or shadow (hover eases through anim::hover_fade; the focus ring is immediate), so those tracks have no pressed endpoints to interpolate.",
+        "rust": "anim::pressed_with_background_ramp + CLOSE_BUTTON_PRESS (Curve::OutQuart) + hover_fade + ring_if_focused",
+        "status": "implemented"
       },
       {
         "token": ".close-button:focus-visible",
@@ -7540,9 +7550,9 @@
       },
       {
         "token": ".toggle-button",
-        "description": "v3 transitions press geometry and color; the port applies the geometry in one frame and does not interpolate the color or press ramp.",
-        "rust": "anim::pressed + immediate hover/background",
-        "status": "partial"
+        "description": "The press ramps on the pinned timelines: the skin eases its geometry over 250ms ease-smooth while the fill eases to the pressed endpoint over 100ms ease-out, resuming from the painted frame when released mid-press and snapping under reduced motion. Grouped members suppress the scale and keep the instant endpoint. The pressed state changes no box-shadow, so that track has no endpoints to interpolate.",
+        "rust": "anim::pressed_with_background_ramp + BUTTON_PRESS (Curve::Smooth / Curve::Out)",
+        "status": "implemented"
       },
       {
         "token": ".toggle-button-group",
@@ -8066,14 +8076,14 @@
       },
       {
         "token": ".switch__content",
-        "description": "Clickable control and label row.",
-        "rust": "items_center + gap(px(12.)) + text_size(px(14.))",
-        "status": "partial"
+        "description": "Clickable control and label row; the row owns focus and the switch role.",
+        "rust": "row id + a11y switch + track_interaction + on_click",
+        "status": "implemented"
       },
       {
         "token": ".switch__control",
-        "description": "Track dimensions and radii for sm, md and lg.",
-        "rust": "size match in Switch::render",
+        "description": "Track dimensions, radii and rounded overflow clipping for sm, md and lg.",
+        "rust": "size match + overflow_hidden in Switch::render",
         "status": "implemented"
       },
       {
@@ -8084,8 +8094,8 @@
       },
       {
         "token": ".switch[data-selected] .switch__thumb",
-        "description": "Thumb travels from its current position and reverses without jumping.",
-        "rust": "ThumbMotionFrame + THUMB_TRANSITION_MS",
+        "description": "Thumb travels from its current position and reverses without jumping; its fill eases separately over 200ms.",
+        "rust": "ThumbMotionFrame + THUMB_TRANSITION_MS + THUMB_COLOR_TRANSITION_MS",
         "status": "implemented"
       },
       {
@@ -8459,9 +8469,9 @@
       {
         "state": "Active page",
         "selector": "[data-active=\"true\"], [aria-current=\"page\"]",
-        "description": "Current page with tertiary-button fill.",
-        "rust": "n == page + link(page, active)",
-        "status": "partial"
+        "description": "Current page with tertiary-button fill and AccessKit aria-current=page semantics.",
+        "rust": "n == page + link(page, active) + a11y_current(Page)",
+        "status": "implemented"
       },
       {
         "state": "Hovered",
@@ -8495,21 +8505,21 @@
     "styling": [
       {
         "token": ".pagination",
-        "description": "Responsive root layout.",
-        "rust": "flex row + items_center + justify_between + gap(px(16.))",
-        "status": "partial"
+        "description": "Responsive root layout: below the pinned 640px sm breakpoint the summary and controls stack in one column and align to the start; wider viewports use the horizontal row.",
+        "rust": "pagination_stacks_for_width(window.viewport_size().width) + flex_col/flex_row + self_start",
+        "status": "implemented"
       },
       {
         "token": ".pagination__summary",
-        "description": "Summary text follows the size-specific 12/16, 14/20 and 16/24 font/line-height pairs.",
-        "rust": "flex + gap(px(8.)) + cell_text + cell_leading + muted",
-        "status": "partial"
+        "description": "Summary text follows the size-specific 12/16, 14/20 and 16/24 font/line-height pairs and aligns to the start in the stacked layout.",
+        "rust": "flex + gap(px(8.)) + cell_text + cell_leading + muted + self_start below sm",
+        "status": "implemented"
       },
       {
         "token": ".pagination__content",
-        "description": "Link-row layout.",
-        "rust": "row flex + items_center + gap(px(4.))",
-        "status": "partial"
+        "description": "Link-row layout, aligned to the start beside the summary when the responsive root stacks.",
+        "rust": "row flex + items_center + gap(px(4.)) + self_start below sm",
+        "status": "implemented"
       },
       {
         "token": ".pagination__item",
@@ -8525,8 +8535,8 @@
       },
       {
         "token": ".pagination__link transitions",
-        "description": "Link state interpolation.",
-        "rust": "instant active refinements; press geometry has no timeline",
+        "description": "Background and press scale now interpolate on the pinned timelines; focus-shadow interpolation remains a GPUI limitation.",
+        "rust": "anim::hover_fade + anim::pressed_with_background",
         "status": "partial"
       },
       {
@@ -8779,6 +8789,16 @@
         "rustOwner": "Input",
         "rust": "variant(FieldVariant)",
         "status": "implemented"
+      },
+      {
+        "owner": "Input",
+        "prop": "focusRing",
+        "type": "boolean",
+        "default": "true",
+        "description": "GPUI extension: hides only the visual focus ring while retaining focus, editing and invalid feedback.",
+        "rustOwner": "Input",
+        "rust": "focus_ring(bool)",
+        "status": "implemented"
       }
     ],
     "parts": [
@@ -8867,9 +8887,9 @@
       },
       {
         "token": ".input transitions",
-        "description": "State colours switch directly; GPUI has no property-transition implementation for these three values.",
-        "rust": "direct apply_field_chrome state colours",
-        "status": "partial"
+        "description": "Enabled, unfocused fields interpolate their background through the pinned 150ms ease-smooth transition; the border endpoint remains immediate and reduced motion settles directly.",
+        "rust": "hover_fade_with_duration_and_easing(150ms, EaseSmooth) + apply_field_chrome",
+        "status": "implemented"
       },
       {
         "token": ".input hover/focus/invalid",
@@ -8958,7 +8978,7 @@
         "prop": "id",
         "type": "string",
         "default": "—",
-        "description": "The caller-owned InputState entity supplies stable GPUI identity instead of a DOM id.",
+        "description": "The caller-owned InputState entity supplies stable GPUI identity instead of a DOM id. Simultaneous fields need distinct InputState owners.",
         "rustOwner": "TextField",
         "rust": "new(state)",
         "status": "partial"
@@ -9091,6 +9111,16 @@
         "description": "Focuses the inner input on its first render.",
         "rustOwner": "TextField",
         "rust": "auto_focus(bool)",
+        "status": "implemented"
+      },
+      {
+        "owner": "TextField",
+        "prop": "focusRing",
+        "type": "boolean",
+        "default": "true",
+        "description": "GPUI extension: hides only the inner input's visual focus ring while retaining focus and editing.",
+        "rustOwner": "TextField",
+        "rust": "focus_ring(bool)",
         "status": "implemented"
       },
       {
@@ -9372,6 +9402,16 @@
       },
       {
         "owner": "TextArea",
+        "prop": "focusRing",
+        "type": "boolean",
+        "default": "true",
+        "description": "GPUI extension: hides only the visual focus ring while retaining focus and editing.",
+        "rustOwner": "TextArea",
+        "rust": "focus_ring(bool)",
+        "status": "implemented"
+      },
+      {
+        "owner": "TextArea",
         "prop": "variant",
         "type": "\"primary\" | \"secondary\"",
         "default": "\"primary\"",
@@ -9442,8 +9482,8 @@
       },
       {
         "token": ".textarea min-height",
-        "description": "The documented three-row default uses three 20px lines plus 16px vertical padding.",
-        "rust": "rows_height(3) = 76px",
+        "description": "Rows use one 20px line each plus 16px vertical padding and keep HeroUI's 38px minimum floor for rows(0) and rows(1); the documented three-row default is 76px.",
+        "rust": "rows_height(rows) = max(rows * 20px + 16px, 38px)",
         "status": "implemented"
       },
       {
@@ -9454,9 +9494,9 @@
       },
       {
         "token": ".textarea transitions",
-        "description": "State colours switch directly; GPUI has no property-transition implementation for these values.",
-        "rust": "direct apply_field_chrome state colours",
-        "status": "partial"
+        "description": "TextArea delegates its editable chrome to Input, whose enabled unfocused background interpolates through the pinned 150ms ease-smooth transition and settles under reduced motion.",
+        "rust": "inner Input hover_fade_with_duration_and_easing(150ms, EaseSmooth)",
+        "status": "implemented"
       },
       {
         "token": ".textarea hover/focus/invalid",
@@ -9681,6 +9721,16 @@
         "description": "Focuses the input on its first render.",
         "rustOwner": "SearchField",
         "rust": "auto_focus(bool)",
+        "status": "implemented"
+      },
+      {
+        "owner": "SearchField",
+        "prop": "focusRing",
+        "type": "boolean",
+        "default": "true",
+        "description": "GPUI extension: hides only the input's visual focus ring while retaining focus, editing and clear behavior.",
+        "rustOwner": "SearchField",
+        "rust": "focus_ring(bool)",
         "status": "implemented"
       },
       {
@@ -10245,30 +10295,30 @@
       {
         "state": "Hovered",
         "selector": ".input-otp__slot:hover, [data-hovered=\"true\"]",
-        "description": "Hovered slot surface.",
-        "rust": "cell.hover(background)",
-        "status": "partial"
+        "description": "Hovered slot surface and field-border color follow the active variant while active/filled slots retain their focus background.",
+        "rust": "cell.hover(variant fill + field.border_hover)",
+        "status": "implemented"
       },
       {
         "state": "Active",
         "selector": ".input-otp__slot[data-active=\"true\"]",
-        "description": "Focused slot carrying the fake caret.",
-        "rust": "focused && i == cursor + with_focus_ring",
-        "status": "partial"
+        "description": "Focused slot carries the fake caret and focus background; keyboard modality adds the shared focus ring.",
+        "rust": "focused && i == cursor + active_bg + with_focus_ring",
+        "status": "implemented"
       },
       {
         "state": "Filled",
         "selector": ".input-otp__slot[data-filled=\"true\"]",
-        "description": "Slot containing a character.",
-        "rust": "cell_ch != ' ' value branch",
-        "status": "partial"
+        "description": "Slot containing a character keeps the focus background and animates the portable value entrance.",
+        "rust": "cell_ch != ' ' + active_bg + slot_value_motion",
+        "status": "implemented"
       },
       {
         "state": "Disabled",
         "selector": ".input-otp[data-disabled=\"true\"], .input-otp__slot[data-disabled=\"true\"]",
         "description": "Disabled root and slots.",
         "rust": "is_disabled focus/key gates + row opacity",
-        "status": "partial"
+        "status": "implemented"
       },
       {
         "state": "Invalid",
@@ -10306,55 +10356,55 @@
       {
         "token": ".input-otp__slot",
         "description": "Default slot chrome and typography.",
-        "rust": "field/default background + field shadow + field_radius + 14px semibold",
-        "status": "partial"
+        "rust": "field border/background + field shadow + field_radius + 14px semibold",
+        "status": "implemented"
       },
       {
         "token": ".input-otp__slot transitions",
-        "description": "Animated slot-state interpolation.",
-        "rust": "instant hover/focus/invalid swaps",
-        "status": "partial"
+        "description": "Slot fill, border color and focus ring interpolate between their state endpoints on the pinned curves; an interrupted flip resumes from the painted frame and reduced motion snaps.",
+        "rust": "anim::field_chrome_ramp per slot (Tween bg/border 150ms Smooth + ring 150ms Out)",
+        "status": "implemented"
       },
       {
         "token": ".input-otp__slot:hover",
         "description": "Hovered slot chrome.",
-        "rust": "hover(default.hover background)",
-        "status": "partial"
+        "rust": "hover(variant background + field.border_hover)",
+        "status": "implemented"
       },
       {
         "token": ".input-otp__slot[data-active=\"true\"]",
         "description": "Active slot chrome.",
-        "rust": "with_focus_ring on the cursor slot",
+        "rust": "active_bg + with_focus_ring on the cursor slot",
         "status": "partial"
       },
       {
         "token": ".input-otp__slot[data-filled=\"true\"]",
         "description": "Filled slot background.",
-        "rust": "value drawn without a distinct filled background",
-        "status": "partial"
+        "rust": "active_bg + slot_value_motion",
+        "status": "implemented"
       },
       {
         "token": ".input-otp__slot[data-disabled=\"true\"]",
         "description": "Disabled slot treatment.",
         "rust": "whole-row disabled opacity",
-        "status": "partial"
+        "status": "implemented"
       },
       {
         "token": ".input-otp__slot[data-invalid=\"true\"]",
         "description": "Invalid slot treatment.",
-        "rust": "danger border on non-active slots",
+        "rust": "danger border + field focus background with active precedence",
         "status": "partial"
       },
       {
         "token": ".input-otp__slot-value",
         "description": "Filled character typography and entrance motion.",
-        "rust": "18px/24px text; no tracking or entrance animation",
+        "rust": "18px/24px text + 250ms smooth opacity entrance; GPUI has no public scale/translate builder",
         "status": "partial"
       },
       {
         "token": ".input-otp__caret",
         "description": "Fake caret geometry and motion.",
-        "rust": "2x16px hairline + anim::caret_blink",
+        "rust": "relative slot + absolute 2x16px alignment + anim::caret_blink",
         "status": "partial"
       },
       {
@@ -10424,6 +10474,16 @@
         "description": "The width lands on the outer wrapper as well as the group box: gpui resolves a percentage against the parent, and a content-sized parent stretches nothing.",
         "rustOwner": "InputGroup",
         "rust": "full_width(bool)",
+        "status": "implemented"
+      },
+      {
+        "owner": "InputGroup",
+        "prop": "focusRing",
+        "type": "boolean",
+        "default": "true",
+        "description": "GPUI extension: hides only the group's visual focus ring while retaining the held field's focus and editing behavior.",
+        "rustOwner": "InputGroup",
+        "rust": "focus_ring(bool)",
         "status": "implemented"
       },
       {
@@ -10805,16 +10865,16 @@
       {
         "state": "Focus Within",
         "selector": ".input-group:has([data-slot=\"input-group-input\"]:focus)",
-        "description": "The held field's focus drives the group's status-focused-field ring; the pinned --field-focus fill and border swap stay with the variant fill instead.",
-        "rust": "apply_field_chrome(focus_within)",
-        "status": "partial"
+        "description": "The held field's focus drives the group's status-focused-field ring, field-border-focus endpoint and pinned --field-focus fill.",
+        "rust": "apply_field_chrome(focus_within) + bg(field.focus/default)",
+        "status": "implemented"
       },
       {
         "state": "Invalid",
         "selector": ".input-group[data-invalid=true]",
-        "description": "status-invalid-field draws the danger outline and focused danger ring; the pinned --field-focus fill swap stays with the variant fill.",
-        "rust": "apply_field_chrome(is_invalid)",
-        "status": "partial"
+        "description": "status-invalid-field draws the danger outline and focused danger ring, with the pinned --field-focus fill on both variants.",
+        "rust": "apply_field_chrome(is_invalid) + bg(field.focus/default)",
+        "status": "implemented"
       },
       {
         "state": "Disabled",
@@ -10851,15 +10911,15 @@
       },
       {
         "token": ".input-group focus-within",
-        "description": "The two-pixel focus ring matches; the port keeps the variant fill rather than switching to the field-focus fill.",
-        "rust": "apply_field_chrome(focus_within)",
-        "status": "partial"
+        "description": "The two-pixel focus ring, focus border and field-focus fill match the pinned shell.",
+        "rust": "apply_field_chrome(focus_within) + bg(field.focus/default)",
+        "status": "implemented"
       },
       {
         "token": ".input-group[data-invalid=true]",
-        "description": "Danger outline and focused danger ring match; the field-focus fill swap is not drawn.",
-        "rust": "apply_field_chrome(is_invalid)",
-        "status": "partial"
+        "description": "Danger outline, focused danger ring and field-focus fill match both variants.",
+        "rust": "apply_field_chrome(is_invalid) + bg(field.focus/default)",
+        "status": "implemented"
       },
       {
         "token": ".input-group[data-disabled=true]",
@@ -10875,15 +10935,15 @@
       },
       {
         "token": ".input-group__input[data-slot=\"input-group-textarea\"]",
-        "description": "The rows math matches (one 20px line each over 16px of vertical padding), but the pinned 38px one-row floor does not: rows(1) stands 36px. Browser resizing has no analogue.",
-        "rust": "multiline min_h per rows_height line + 16px, no 38px floor",
+        "description": "The rows math keeps one 20px line over 16px of vertical padding and enforces HeroUI's 38px one-row floor. Browser resizing has no analogue.",
+        "rust": "multiline min_h rows_height(line * 20px + 16px).max(38px)",
         "status": "partial"
       },
       {
         "token": ".input-group__prefix / __suffix",
-        "description": "The 12px inset, placeholder colour and flush edges match; the addons' own side borders are not drawn.",
-        "rust": "InputAddon px(12px) + flex_shrink_0 + placeholder color",
-        "status": "partial"
+        "description": "The 12px inset, placeholder colour, flush edges and prefix/suffix field-border seams match; arbitrary child addons inherit the same wrapper treatment.",
+        "rust": "addon slot wrapper + InputAddon px(12px) + border_r/border_l",
+        "status": "implemented"
       },
       {
         "token": ".input-group:has(textarea) __prefix / __suffix",
@@ -11235,9 +11295,9 @@
       },
       {
         "token": ".tabs__list-container__scroller",
-        "description": "Scrollable viewport follows the configured axis without remapping wheel input from the other axis; fading overflow edges remain unavailable.",
-        "rust": "raw overflow scroller; chevrons are measured but edge fades are absent",
-        "status": "partial"
+        "description": "Scrollable viewport follows the configured axis without remapping wheel input from the other axis; shared edge fades appear only while overflow remains in that direction and the native scrollbar is hidden.",
+        "rust": "ScrollShadow::new(...).size(px(64)).hide_scroll_bar(true) + shared ScrollHandle",
+        "status": "implemented"
       },
       {
         "token": ".tabs__list-container__scroll-prev/next",
@@ -11247,8 +11307,8 @@
       },
       {
         "token": ".tabs__list-container__scroll-prev/next transitions",
-        "description": "Chevron interaction feedback.",
-        "rust": "hover opacity snaps; no property interpolation or programmatic focus ring",
+        "description": "Chevron hover opacity now fades through the shared stable-element motion; focus-visible ownership remains a separate limitation.",
+        "rust": "anim::hover_fade + focus omission",
         "status": "partial"
       },
       {
@@ -11259,20 +11319,20 @@
       },
       {
         "token": ".tabs__list[data-orientation=\"vertical\"]",
-        "description": "Vertical list geometry.",
-        "rust": "flex_col + gap(px(4)) + min_w(px(80))",
+        "description": "Vertical list geometry; its cross-axis min-content floor is released beside a constrained panel while the main-axis column remains scrollable.",
+        "rust": "flex_col + gap(px(4)) + min_w(px(80)) + parent flex_shrink(1)/min_w(0)",
         "status": "implemented"
       },
       {
         "token": ".tabs__tab",
-        "description": "Box metrics and typography match. Constrained vertical labels wrap upstream, but the port keeps labels on one line and can widen the list beside a panel.",
-        "rust": "32px height + 16px padding + control_radius + 14px medium text; whitespace_nowrap",
-        "status": "partial"
+        "description": "The pinned fixed 32px box is matched exactly: the stylesheet ships no truncate, nowrap or overflow utility on the tab, so a constrained label wraps and its overflow lines paint past the pill the way the default overflow does instead of growing the tab. Those lines stay pointer-inert in the port, while browser hit testing follows painted text.",
+        "rust": "fixed h(32px) + 16px padding + control_radius + 14px medium text; min_w(0) + whitespace_normal label slot",
+        "status": "implemented"
       },
       {
         "token": ".tabs__tab transitions",
-        "description": "Property interpolation between tab states.",
-        "rust": "state colors and opacity swap on a frame",
+        "description": "Unselected-tab dimming now fades as a same-colour overlay while the tab element keeps its focus and pointer identity; color and shadow transitions remain immediate.",
+        "rust": "anim::hover_fade overlay + immediate color/shadow endpoints",
         "status": "partial"
       },
       {
@@ -11284,7 +11344,7 @@
       {
         "token": ".tabs__tab:hover",
         "description": "Pointer hover treatment in both variants.",
-        "rust": "hover(.. opacity(0.7))",
+        "rust": "anim::hover_fade + tabs_hover_opacity",
         "status": "implemented"
       },
       {
@@ -11676,7 +11736,7 @@
       {
         "name": "Calendar",
         "slot": "calendar",
-        "description": "Root state, layout and keyboard-navigation owner.",
+        "description": "Root state, layout and keyboard-navigation owner. Simultaneous calendars need distinct CalendarState owners for internal identity and independent navigation.",
         "rustOwner": "Calendar",
         "status": "implemented"
       },
@@ -11760,9 +11820,9 @@
       {
         "name": "Calendar.YearPickerTriggerIndicator",
         "slot": "calendar-year-picker-trigger-indicator",
-        "description": "Chevron showing the year-picker open state.",
+        "description": "One 12px down chevron that rotates 90 degrees over 150ms when the year picker opens.",
         "rustOwner": "Calendar",
-        "status": "partial"
+        "status": "implemented"
       },
       {
         "name": "Calendar.YearPickerGrid",
@@ -11797,16 +11857,16 @@
       {
         "state": "Today",
         "selector": ".calendar__cell[data-today=\"true\"]",
-        "description": "v3 uses an accent-soft fill; the port currently draws an accent outline.",
-        "rust": "is_today border",
-        "status": "partial"
+        "description": "Accent-soft fill and foreground with the accent-soft-hover fill on an unselected hovered today.",
+        "rust": "is_today accent.soft + accent.soft_hover",
+        "status": "implemented"
       },
       {
         "state": "Unavailable",
         "selector": ".calendar__cell[data-unavailable=\"true\"]",
-        "description": "Keyboard-focusable but pointer-inert date with disabled styling.",
-        "rust": "is_unavailable + selectable gate",
-        "status": "partial"
+        "description": "Keyboard-focusable but pointer-inert date with muted, dimmed status-disabled styling and an operation-not-allowed cursor.",
+        "rust": "is_unavailable + disabled_opacity + OperationNotAllowed + selectable gate",
+        "status": "implemented"
       },
       {
         "state": "Outside month",
@@ -11818,16 +11878,16 @@
       {
         "state": "Hovered",
         "selector": ":hover, [data-hovered=\"true\"]",
-        "description": "Default fill on selectable cells; v3's today-specific hover token is missing.",
-        "rust": "hover(default.soft_hover())",
-        "status": "partial"
+        "description": "Default fill on selectable cells and accent-soft-hover on an unselected today.",
+        "rust": "hover(default) + today accent.soft_hover",
+        "status": "implemented"
       },
       {
         "state": "Pressed",
         "selector": ":active, [data-pressed=\"true\"]",
-        "description": "Default fill and 0.95 scale on unselected cells; selected press styling is missing.",
-        "rust": "anim::pressed + active(default)",
-        "status": "partial"
+        "description": "Selectable cells scale to 0.95; selected cells use accent-hover, while today uses the default pressed fill.",
+        "rust": "pressed_with_background + per-state pressed fill",
+        "status": "implemented"
       },
       {
         "state": "Focus visible",
@@ -11904,8 +11964,8 @@
       },
       {
         "token": ".calendar__nav-button",
-        "description": "Geometry, disabled state and focus ring exist; pressed and state transitions are incomplete.",
-        "rust": "24px + soft_radius + hover + ring_if_focused",
+        "description": "Geometry, disabled state and focus ring exist; hover fill now interpolates over 100ms ease-out while press scale remains the pinned deep scale.",
+        "rust": "24px + soft_radius + hover_fade(100ms) + pressed + ring_if_focused",
         "status": "partial"
       },
       {
@@ -11952,15 +12012,15 @@
       },
       {
         "token": ".calendar__cell[data-today=\"true\"]",
-        "description": "The port uses a border rather than v3's soft fill treatment.",
-        "rust": "is_today border_1(marker)",
-        "status": "partial"
+        "description": "Today uses the same soft fill, foreground and hover endpoint as v3.",
+        "rust": "is_today accent.soft + accent.soft_hover",
+        "status": "implemented"
       },
       {
         "token": ".calendar__cell[data-selected=\"true\"]",
-        "description": "The selected fill matches; selected press interpolation and accent-hover are absent.",
-        "rust": "is_sel accent fill",
-        "status": "partial"
+        "description": "Selected fill, foreground and pressed accent-hover endpoint match; the browser transition is represented by GPUI's instantaneous press skin.",
+        "rust": "is_sel accent fill + pressed_with_background(accent.hover)",
+        "status": "implemented"
       },
       {
         "token": ".calendar__cell[data-outside-month=\"true\"]",
@@ -11970,21 +12030,21 @@
       },
       {
         "token": ".calendar__cell[data-unavailable=\"true\"]",
-        "description": "Pointer inertia matches; muted text replaces v3's opacity and not-allowed cursor.",
-        "rust": "unavailable muted + selectable gate",
-        "status": "partial"
+        "description": "Unavailable cells retain keyboard focus while using muted text, disabled opacity, an operation-not-allowed cursor and no line-through.",
+        "rust": "unavailable muted + disabled_opacity + OperationNotAllowed + selectable gate",
+        "status": "implemented"
       },
       {
         "token": ".calendar__cell[data-disabled=\"true\"]",
-        "description": "Out-of-range dates are muted and struck through; unavailable dates are not struck.",
-        "rust": "disabled branch + line_through",
-        "status": "partial"
+        "description": "Out-of-range dates use muted text, disabled opacity, an operation-not-allowed cursor and an in-month line-through; unavailable dates keep the same status skin without the line-through.",
+        "rust": "disabled/unavailable + disabled_opacity + OperationNotAllowed + conditional line_through",
+        "status": "implemented"
       },
       {
         "token": ".calendar__cell-indicator",
-        "description": "Size and selected color match; GPUI uses a 2px inset and accent resting color rather than 4px and muted.",
-        "rust": "absolute bottom(2px) + size(3px) + marker color",
-        "status": "partial"
+        "description": "The 3px dot is centred at the pinned 4px bottom-1 inset and uses the selected cell's accent foreground.",
+        "rust": "absolute bottom(4px) + size(3px) + selected accent.foreground",
+        "status": "implemented"
       },
       {
         "token": ".calendar-year-picker__trigger",
@@ -12000,9 +12060,9 @@
       },
       {
         "token": ".calendar-year-picker__trigger-indicator",
-        "description": "GPUI swaps muted up/down glyphs instead of rotating and interpolating one indicator.",
-        "rust": "12px CHEVRON_UP / CHEVRON_DOWN",
-        "status": "partial"
+        "description": "The single down chevron rotates through the pinned 90-degree angle over 150ms, with reduced motion settling immediately.",
+        "rust": "rotating_indicator_with_angle_ease_out(150ms, YEAR_PICKER_INDICATOR_ANGLE)",
+        "status": "implemented"
       },
       {
         "token": ".calendar:has(.calendar-year-picker__year-grid) > [data-slot=\"calendar-grid\"]",
@@ -12082,6 +12142,16 @@
         "description": "Expands the root and input group to the available width.",
         "rustOwner": "DateField",
         "rust": "full_width(bool)",
+        "status": "implemented"
+      },
+      {
+        "owner": "DateField",
+        "prop": "focusRing",
+        "type": "boolean",
+        "default": "true",
+        "description": "GPUI extension: hides only the segmented field's visual focus ring while retaining focus and editing.",
+        "rustOwner": "DateField",
+        "rust": "focus_ring(bool)",
         "status": "implemented"
       },
       {
@@ -12532,8 +12602,8 @@
       },
       {
         "token": ".date-input-group transitions",
-        "description": "The port reaches each state endpoint without interpolating field properties.",
-        "rust": "immediate hover/focus/invalid styles",
+        "description": "Enabled, unfocused hover background now interpolates over the pinned 150ms ease-smooth curve; border, focus and invalid shadow endpoints remain direct.",
+        "rust": "hover_fade_with_duration_and_easing + apply_field_chrome",
         "status": "partial"
       },
       {
@@ -12839,17 +12909,17 @@
         "prop": "placement",
         "type": "Placement",
         "default": "bottom",
-        "description": "The monolithic picker uses bottom-start placement and does not expose an independent popover builder.",
+        "description": "The full 22-value React Aria union renders through the shared vocabulary with React Aria's default eight-pixel popover offset: physical and aligned spellings plus the logical start/end aliases, which share their left/right side's pixels in this LTR-only port. The centered bottom value matches HeroUI's default.",
         "rustOwner": "DatePicker",
-        "rust": "fixed BottomStart",
-        "status": "partial"
+        "rust": "placement(Placement)",
+        "status": "implemented"
       }
     ],
     "parts": [
       {
         "name": "DatePicker.Root",
         "slot": "date-picker",
-        "description": "Root state owner and focus-within scope with a system-regionally formatted DateField.",
+        "description": "Root state owner and focus-within scope with a system-regionally formatted DateField. Each picker keeps its own CalendarState identity.",
         "rustOwner": "DatePicker",
         "status": "implemented"
       },
@@ -12870,7 +12940,7 @@
       {
         "name": "DatePicker.Popover",
         "slot": "date-picker-popover",
-        "description": "Bottom-start overlay containing the Calendar.",
+        "description": "Calendar overlay positioned by the shared Placement vocabulary.",
         "rustOwner": "DatePicker",
         "status": "partial"
       }
@@ -12953,21 +13023,21 @@
       },
       {
         "token": ".date-picker__popover",
-        "description": "Calendar overlay fill, 12px inset, shadow and pinned 20px radius match.",
-        "rust": "picker_panel",
+        "description": "Calendar overlay fill, 12px inset, shadow, pinned 20px radius and React Aria's default eight-pixel trigger gap match; the panel caps to the available viewport height and scrolls inside the rounded surface.",
+        "rust": "picker_panel + scrollable_popover(offset=8px) + max_h_full + overflow_y_scroll",
         "status": "implemented"
       },
       {
         "token": ".date-picker__popover entering",
-        "description": "The overlay appears immediately; picker entry motion is not implemented.",
-        "rust": "immediate overlay mount",
-        "status": "unavailable"
+        "description": "The picker uses the shared keyed zoom/fade primitive and the resolved physical placement side; the positioner flips to the opposite side when the preferred side lacks room and clamps the origin inside the viewport.",
+        "rust": "anim::entering_zoom + PopoverPositioner",
+        "status": "partial"
       },
       {
         "token": ".date-picker__popover exiting",
-        "description": "The picker deliberately unmounts immediately after selection so the same press cannot hit a retained calendar cell.",
-        "rust": "OverlayPhase without exit retention",
-        "status": "unavailable"
+        "description": "The picker retains its panel for the pinned exit duration while an internal inert calendar state removes stale cell, navigation, year-picker focus and pointer handlers without changing the painted exit.",
+        "rust": "OverlayPhase::Exiting + Calendar::inert + anim::exiting",
+        "status": "partial"
       }
     ]
   },
@@ -13251,17 +13321,17 @@
         "prop": "placement",
         "type": "Placement",
         "default": "bottom",
-        "description": "The monolithic picker uses bottom-start placement and does not expose an independent popover builder.",
+        "description": "The full 22-value React Aria union renders through the shared vocabulary with React Aria's default eight-pixel popover offset: physical and aligned spellings plus the logical start/end aliases, which share their left/right side's pixels in this LTR-only port. The centered bottom value matches HeroUI's default.",
         "rustOwner": "DateRangePicker",
-        "rust": "fixed BottomStart",
-        "status": "partial"
+        "rust": "placement(Placement)",
+        "status": "implemented"
       }
     ],
     "parts": [
       {
         "name": "DateRangePicker.Root",
         "slot": "date-range-picker",
-        "description": "Root state owner and focus-within scope with two system-regionally formatted DateFields.",
+        "description": "Root state owner and focus-within scope with two system-regionally formatted DateFields. Simultaneous pickers need distinct DateRangeState owners.",
         "rustOwner": "DateRangePicker",
         "status": "implemented"
       },
@@ -13289,7 +13359,7 @@
       {
         "name": "DateRangePicker.Popover",
         "slot": "date-range-picker-popover",
-        "description": "Bottom-start overlay containing the RangeCalendar.",
+        "description": "RangeCalendar overlay positioned by the shared Placement vocabulary.",
         "rustOwner": "DateRangePicker",
         "status": "partial"
       }
@@ -13372,21 +13442,21 @@
       },
       {
         "token": ".date-range-picker__popover",
-        "description": "Range calendar overlay fill, 12px inset, shadow and pinned 20px radius match.",
-        "rust": "picker_panel",
+        "description": "Range calendar overlay fill, 12px inset, shadow, pinned 20px radius and React Aria's default eight-pixel trigger gap match; the panel caps to the available viewport height and scrolls inside the rounded surface.",
+        "rust": "picker_panel + scrollable_popover(offset=8px) + max_h_full + overflow_y_scroll",
         "status": "implemented"
       },
       {
         "token": ".date-range-picker__popover entering",
-        "description": "The overlay appears immediately; picker entry motion is not implemented.",
-        "rust": "immediate overlay mount",
-        "status": "unavailable"
+        "description": "The picker uses the shared keyed zoom/fade primitive and the resolved physical placement side; the positioner flips to the opposite side when the preferred side lacks room and clamps the origin inside the viewport.",
+        "rust": "anim::entering_zoom + PopoverPositioner",
+        "status": "partial"
       },
       {
         "token": ".date-range-picker__popover exiting",
-        "description": "The picker unmounts immediately after completion so the same press cannot hit a retained calendar cell.",
-        "rust": "OverlayPhase without exit retention",
-        "status": "unavailable"
+        "description": "The picker retains its panel for the pinned exit duration while an internal inert range-calendar state removes stale cell, navigation, year-picker focus and pointer handlers without changing the painted exit.",
+        "rust": "OverlayPhase::Exiting + RangeCalendar::inert + anim::exiting",
+        "status": "partial"
       }
     ]
   },
@@ -13446,6 +13516,16 @@
         "description": "Expands both the root and number group to the available width.",
         "rustOwner": "NumberField",
         "rust": "full_width(bool)",
+        "status": "implemented"
+      },
+      {
+        "owner": "NumberField",
+        "prop": "focusRing",
+        "type": "boolean",
+        "default": "true",
+        "description": "GPUI extension: hides only the group's visual focus ring while retaining focus, editing and stepper behavior.",
+        "rustOwner": "NumberField",
+        "rust": "focus_ring(bool)",
         "status": "implemented"
       },
       {
@@ -13886,8 +13966,8 @@
       {
         "state": "Hovered",
         "selector": ".number-field__group:hover / buttons[data-hovered=true]",
-        "description": "The enabled unfocused group uses the pinned hover fill and border; button hover intentionally has no additional rule body. Color interpolation is absent.",
-        "rust": "group.hover(field/default hover)",
+        "description": "The enabled unfocused group uses the pinned hover fill and border; the fill interpolates over 150ms ease-smooth while the border endpoint remains immediate. Button hover intentionally has no additional rule body.",
+        "rust": "group hover_fade_with_duration_and_easing(150ms, EaseSmooth) + border hover",
         "status": "partial"
       },
       {
@@ -13920,9 +14000,9 @@
       },
       {
         "token": ".number-field__group transitions",
-        "description": "State colors and focus shadow swap on a frame rather than interpolating.",
-        "rust": "apply_field_chrome",
-        "status": "partial"
+        "description": "Hover, focus and invalid chrome all interpolate between their endpoints: fill and border color ride the pinned smooth curve and the focus/invalid ring rides ease-out, keyed per group, resuming from the painted frame and snapping under reduced motion.",
+        "rust": "anim::field_chrome_ramp (Tween bg/border 150ms Smooth + ring 150ms Out) over the shared field-chrome endpoints",
+        "status": "implemented"
       },
       {
         "token": ".number-field__input",
@@ -13932,8 +14012,8 @@
       },
       {
         "token": ".number-field__increment-button / .number-field__decrement-button",
-        "description": "Default cell and icon metrics match with a 15% placeholder seam.",
-        "rust": "stepper_btn 40x36 + FIELD_ICON",
+        "description": "Default cell and icon metrics match with a 15% placeholder seam, and custom nonzero field borders are carried by each stepper cell.",
+        "rust": "stepper_btn 40x36 + FIELD_ICON + field_border_width",
         "status": "implemented"
       },
       {
@@ -14029,10 +14109,20 @@
       },
       {
         "owner": "TimeField",
+        "prop": "focusRing",
+        "type": "boolean",
+        "default": "true",
+        "description": "GPUI extension: hides only the segmented field's visual focus ring while retaining focus and editing.",
+        "rustOwner": "TimeField",
+        "rust": "focus_ring(bool)",
+        "status": "implemented"
+      },
+      {
+        "owner": "TimeField",
         "prop": "id",
         "type": "string",
         "default": "—",
-        "description": "The bound TimeState entity supplies internal identity rather than a caller DOM id.",
+        "description": "The bound TimeState entity supplies internal identity rather than a caller DOM id. Simultaneous fields need distinct TimeState owners.",
         "rustOwner": "TimeField",
         "rust": "new(state)",
         "status": "partial"
@@ -14458,8 +14548,8 @@
       },
       {
         "token": ".date-input-group transitions",
-        "description": "The port reaches state endpoints without property interpolation.",
-        "rust": "immediate hover/focus/invalid styles",
+        "description": "Enabled, unfocused hover background now interpolates over the pinned 150ms ease-smooth curve; border, focus and invalid shadow endpoints remain direct.",
+        "rust": "hover_fade_with_duration_and_easing + apply_field_chrome",
         "status": "partial"
       },
       {
@@ -14919,9 +15009,9 @@
       {
         "name": "RangeCalendar.YearPickerTriggerIndicator",
         "slot": "calendar-year-picker-trigger-indicator",
-        "description": "Year picker open-state chevron.",
+        "description": "One 12px down chevron that rotates 90 degrees over 150ms when the year picker opens.",
         "rustOwner": "RangeCalendar",
-        "status": "partial"
+        "status": "implemented"
       },
       {
         "name": "RangeCalendar.YearPickerGrid",
@@ -14977,16 +15067,16 @@
       {
         "state": "Today",
         "selector": "[data-today=\"true\"]",
-        "description": "v3 uses an accent-soft fill; the port uses an accent outline.",
-        "rust": "is_today border",
-        "status": "partial"
+        "description": "Accent-soft fill and foreground with the accent-soft-hover fill on an unselected hovered today.",
+        "rust": "is_today accent.soft + accent.soft_hover",
+        "status": "implemented"
       },
       {
         "state": "Unavailable",
         "selector": "[data-unavailable=\"true\"]",
-        "description": "Focusable but pointer-inert date with disabled styling.",
-        "rust": "is_unavailable + selectable gate",
-        "status": "partial"
+        "description": "Focusable but pointer-inert date with muted, dimmed status-disabled styling and an operation-not-allowed cursor.",
+        "rust": "is_unavailable + disabled_opacity + OperationNotAllowed + selectable gate",
+        "status": "implemented"
       },
       {
         "state": "Outside month",
@@ -15065,8 +15155,8 @@
       },
       {
         "token": ".range-calendar__nav-button",
-        "description": "Geometry, hover, disabled and focus exist; press and property interpolation are incomplete.",
-        "rust": "24px + small_radius + hover + focus ring",
+        "description": "Geometry, disabled state and focus ring exist; hover fill now interpolates over 100ms ease-out while press scale remains the pinned deep scale.",
+        "rust": "24px + small_radius + hover_fade(100ms) + pressed + focus ring",
         "status": "partial"
       },
       {
@@ -15125,14 +15215,14 @@
       },
       {
         "token": ".range-calendar__cell[data-today=\"true\"]",
-        "description": "The port uses an outline rather than the soft fill.",
-        "rust": "is_today border_1",
-        "status": "partial"
+        "description": "Today uses the same soft fill, foreground and hover endpoint as v3.",
+        "rust": "is_today accent.soft + accent.soft_hover",
+        "status": "implemented"
       },
       {
         "token": ".range-calendar__cell[data-pressed=\"true\"]",
-        "description": "Scale geometry matches; interpolation and endpoint accent-hover do not.",
-        "rust": "PRESSED_SCALE_RANGE + default active fill",
+        "description": "Scale geometry and endpoint accent-hover match; the browser's 200ms interpolation remains an instantaneous GPUI press skin.",
+        "rust": "PRESSED_SCALE_RANGE + pressed_with_background(accent.hover)",
         "status": "partial"
       },
       {
@@ -15143,21 +15233,21 @@
       },
       {
         "token": ".range-calendar__cell[data-unavailable=\"true\"]",
-        "description": "Pointer inertia matches; muted text approximates the status utility.",
-        "rust": "unavailable muted + selectable gate",
-        "status": "partial"
+        "description": "Unavailable cells retain keyboard focus while using muted text, disabled opacity, an operation-not-allowed cursor and no line-through.",
+        "rust": "unavailable muted + disabled_opacity + OperationNotAllowed + selectable gate",
+        "status": "implemented"
       },
       {
         "token": ".range-calendar__cell[data-disabled=\"true\"]",
-        "description": "In-month line-through and outside exception match; cursor styling is not exposed.",
-        "rust": "disabled + line_through",
-        "status": "partial"
+        "description": "In-month line-through, disabled opacity and operation-not-allowed cursor match; outside-month copies keep their own half-opacity wrapper.",
+        "rust": "disabled + disabled_opacity + OperationNotAllowed + line_through",
+        "status": "implemented"
       },
       {
         "token": ".range-calendar__cell-indicator",
-        "description": "Size and selection color match; the inset is 2px rather than 4px.",
-        "rust": "bottom(2px) + size(3px)",
-        "status": "partial"
+        "description": "The 3px dot is centred at the pinned 4px bottom-1 inset and uses the selected cell's accent foreground.",
+        "rust": "bottom(4px) + size(3px) + selected accent.foreground",
+        "status": "implemented"
       },
       {
         "token": ".calendar-year-picker__trigger",
@@ -15167,9 +15257,9 @@
       },
       {
         "token": ".calendar-year-picker__trigger-indicator",
-        "description": "The port swaps up/down glyphs without rotation interpolation.",
-        "rust": "CHEVRON_UP / CHEVRON_DOWN",
-        "status": "partial"
+        "description": "The single down chevron rotates through the pinned 90-degree angle over 150ms, with reduced motion settling immediately.",
+        "rust": "rotating_indicator_with_angle_ease_out(150ms, YEAR_PICKER_INDICATOR_ANGLE)",
+        "status": "implemented"
       },
       {
         "token": ".range-calendar:has(.calendar-year-picker__year-grid) > [data-slot=\"range-calendar-grid\"]",
@@ -15643,9 +15733,9 @@
       },
       {
         "token": ".drawer__dialog[data-placement=\"bottom\"] / [data-placement=\"top\"]",
-        "description": "The full-width and 85% viewport cap match; the port does not round the sliding-edge corners.",
-        "rust": "w_full + max_h(viewport * 0.85)",
-        "status": "partial"
+        "description": "The full-width and 85% viewport cap match; bottom rounds the two top corners and top rounds the two bottom corners with the pinned capped radius.",
+        "rust": "w_full/max_h(viewport * 0.85) + placement-specific rounded_tl/tr or rounded_bl/br",
+        "status": "implemented"
       },
       {
         "token": ".drawer__dialog[data-placement=\"left\"] / [data-placement=\"right\"]",
@@ -15655,9 +15745,9 @@
       },
       {
         "token": ".drawer__backdrop",
-        "description": "The scrim fade exists, but the port reuses the shared modal backdrop motion (150/100ms ease-out) rather than the drawer's own timing.",
-        "rust": "anim::Motion::BACKDROP_IN / BACKDROP_OUT",
-        "status": "partial"
+        "description": "The scrim fades with Drawer’s own 250ms enter and 200ms exit tokens using the pinned out-fluid curve.",
+        "rust": "anim::Motion::DRAWER_BACKDROP_IN / DRAWER_BACKDROP_OUT",
+        "status": "implemented"
       },
       {
         "token": ".drawer__backdrop--opaque",
@@ -15697,8 +15787,8 @@
       },
       {
         "token": ".drawer__body",
-        "description": "Scrolling body with 14px/20px muted text; the -m/p pair is a focus-ring allowance and the inset is zero. The port adds a 10px gap v3 leaves to authors, and gpui has no overscroll-behavior containment.",
-        "rust": "flex_1 min_h(0) + overflow_y_scroll + 14/20px muted",
+        "description": "Scrolling body with 14px/20px muted text and the pinned -3px/+3px scrollbar allowance; GPUI has no overscroll-behavior containment.",
+        "rust": "flex_1 min_h(0) mx(-3px) p(3px) + overflow_y_scroll + 14/20px muted",
         "status": "partial"
       },
       {
@@ -15709,15 +15799,15 @@
       },
       {
         "token": ".drawer__handle / [data-slot=\"drawer-handle-bar\"]",
-        "description": "Drag affordance bar, 4x36px separator with a hairline radius; the port inverts the bar inset to the moving edge for top placement instead of v3's padding swap.",
-        "rust": "handle h(px(4.)) w(px(36.)) + hairline_radius + separator",
-        "status": "partial"
+        "description": "Drag affordance bar, 4x36px separator with a hairline radius; the top placement removes the handle's bottom padding exactly as the pinned override requires.",
+        "rust": "handle h(px(4.)) w(px(36.)) + hairline_radius + separator + top pb(0)",
+        "status": "implemented"
       },
       {
         "token": ".drawer__dialog--top",
-        "description": "Top-placement inset handling; the port moves the handle's gap to the top edge instead of v3's bottom-padding swap, so the sheet inset stays uniform.",
-        "rust": "handle .pt(px(8.)) on DrawerPlacement::Top",
-        "status": "partial"
+        "description": "Top placement reduces the dialog's bottom padding to 8px and removes the handle's bottom padding, matching the moving-edge sheet geometry.",
+        "rust": "panel pb(px(8.)) + handle pb(px(0.)) on DrawerPlacement::Top",
+        "status": "implemented"
       },
       {
         "token": ".drawer__close-trigger",
@@ -16303,8 +16393,8 @@
       },
       {
         "token": ".modal__body",
-        "description": "14px/20px muted content; the -m/p pair is a focus-ring allowance and the inset is zero. The port adds a 10px gap v3 leaves to authors, and min-h-0/flex-1 have no effect in the port's layout.",
-        "rust": "body flex flex_col + gap(px(10.)) + 14/20px muted",
+        "description": "14px/20px muted content; `my-0` zeroes only the vertical margins of the -m/p pair, so the 3px padding is a real 3px inset and 6px of body height (the matched-capture panel delta), while the horizontal pair nets zero to spare the focus ring. The port adds a 10px gap v3 leaves to authors, and min-h-0/flex-1 have no effect in the port's layout.",
+        "rust": "body flex flex_col + gap(px(10.)) + mx(px(-3.)) + p(px(3.)) + 14/20px muted",
         "status": "partial"
       },
       {
@@ -16357,9 +16447,9 @@
       },
       {
         "token": ".modal__container[data-entering=\"true\"] [data-placement=\"top\"] / [data-placement=\"bottom\"]",
-        "description": "v3 slides these placements up or down 4px on enter; the port animates the zoom alone, and auto's sm step leaves a desktop with no slide — the same as the port.",
-        "rust": "—",
-        "status": "partial"
+        "description": "Top and bottom carry the pinned four-pixel placement slide during entry; Auto is centered on the desktop breakpoint and Full intentionally keeps its zero-slide rule.",
+        "rust": "modal::placement_entry_offset + ZoomBox slide_x/slide_y",
+        "status": "implemented"
       },
       {
         "token": ".modal__container--scroll-outside / .modal__backdrop:has(.modal__container--scroll-outside)",
@@ -16425,7 +16515,7 @@
         "prop": "isOpen",
         "type": "boolean",
         "default": "—",
-        "description": "Controlled open state inherited from the pinned React Aria ComboBox primitive.",
+        "description": "Controlled open state inherited from the pinned React Aria ComboBox primitive. Independent examples keep separate open owners and feed back on_open_change.",
         "rustOwner": "ComboBox",
         "rust": "is_open(bool)",
         "status": "implemented"
@@ -16515,9 +16605,9 @@
         "prop": "onChange",
         "type": "(value: Key | null | Key[]) => void",
         "default": "—",
-        "description": "Selection callback; the single-value builder reports a pick and on_selection_change_all covers the complete Key | null | Key[] union, spelling null as the empty slice — reported only when a previous selection existed.",
+        "description": "Reports the complete Key | null | Key[] union: changed single picks by pointer, Enter or Tab, and every multiple-selection change. Re-picking the current single key is silent. Clearing or committing a custom value reports an empty slice only when a previous selection existed.",
         "rustOwner": "ComboBox",
-        "rust": "on_selection_change(callback) / on_selection_change_all(callback)",
+        "rust": "on_selection_change_all(callback)",
         "status": "implemented"
       },
       {
@@ -16722,6 +16812,16 @@
       },
       {
         "owner": "ComboBox",
+        "prop": "focusRing",
+        "type": "boolean",
+        "default": "true",
+        "description": "GPUI extension: hides only the editable trigger's visual focus ring while retaining focus, editing and popup behavior.",
+        "rustOwner": "ComboBox",
+        "rust": "focus_ring(bool)",
+        "status": "implemented"
+      },
+      {
+        "owner": "ComboBox",
         "prop": "variant",
         "type": "\"primary\" | \"secondary\"",
         "default": "\"primary\"",
@@ -16835,10 +16935,10 @@
         "prop": "placement",
         "type": "\"bottom\" | \"bottom left\" | \"bottom right\" | \"bottom start\" | \"bottom end\" | \"top\" | \"top left\" | \"top right\" | \"top start\" | \"top end\" | \"left\" | \"left top\" | \"left bottom\" | \"start\" | \"start top\" | \"start bottom\" | \"right\" | \"right top\" | \"right bottom\" | \"end\" | \"end top\" | \"end bottom\"",
         "default": "\"bottom\"",
-        "description": "Eight cardinal/start/end placements are available; RAC's full 22-value placement union is not. The panel anchors to the measured field with an 8px gap and flips when the preferred side cannot fit and the opposite side has more room.",
+        "description": "The full 22-value React Aria union renders: physical and aligned spellings plus the logical start/end aliases, which share their left/right side's pixels in this LTR-only port. The panel anchors to the measured field with an 8px gap and flips when the preferred side cannot fit and the opposite side has more room.",
         "rustOwner": "ComboBox",
         "rust": "placement(Placement)",
-        "status": "partial"
+        "status": "implemented"
       },
       {
         "owner": "ComboBox.Popover",
@@ -16955,7 +17055,7 @@
       {
         "name": "ComboBox",
         "slot": "combo-box",
-        "description": "Field root owning input text, selection, filtering, validation, open state and the floating list.",
+        "description": "Field root owning input text, selection, filtering, validation, open state and the floating list. Simultaneous ComboBoxes need distinct InputState owners for internal identity.",
         "rustOwner": "ComboBox",
         "status": "implemented"
       },
@@ -17034,7 +17134,7 @@
       {
         "state": "Read only",
         "selector": ".combo-box[data-readonly=\"true\"]",
-        "description": "The input remains readable while edits, opening and selection changes are gated.",
+        "description": "The input remains readable while user edits, trigger opening and row selection are blocked, including when a caller keeps the popover open.",
         "rust": "is_read_only + interaction gates",
         "status": "implemented"
       },
@@ -17111,16 +17211,16 @@
       {
         "state": "Entering",
         "selector": ".combo-box__popover[data-entering=\"true\"]",
-        "description": "The list fades and grows from 95% over 150ms with the list curve; placement-specific slide translations are not reproduced.",
-        "rust": "anim::entering_zoom + Motion::LIST_IN",
+        "description": "The list fades and grows from 95% over 150ms with the list curve and uses the resolved four-pixel placement slide; GPUI still has no transform-origin primitive.",
+        "rust": "placement_entry_offset + anim::entering_zoom + Motion::LIST_IN",
         "status": "partial"
       },
       {
         "state": "Exiting",
         "selector": ".combo-box__popover[data-exiting=\"true\"]",
-        "description": "v3 fades and shrinks the panel over 100ms; the port removes the panel without a matching exit animation.",
-        "rust": "—",
-        "status": "unavailable"
+        "description": "The retained panel fades and shrinks to 95% over the pinned 100ms Smooth exit; its rows are visual-only and do not block a later pointer target.",
+        "rust": "overlay_scope(true) + anim::exiting(Motion::LIST_OUT)",
+        "status": "implemented"
       }
     ],
     "styling": [
@@ -17156,9 +17256,9 @@
       },
       {
         "token": ".combo-box__value",
-        "description": "Selected-value row typography and placeholder treatment; the port supplies equivalent values only through value_content.",
-        "rust": "value_content(SelectionValue) + FIELD_TEXT + field.foreground",
-        "status": "partial"
+        "description": "Selected-value row typography, placeholder treatment and word wrapping match through the default SelectionValue content; custom renderers retain ownership of their own children.",
+        "rust": "value_content(SelectionValue) + w_full + min_w_0 + whitespace_normal + FIELD_TEXT + field.foreground",
+        "status": "implemented"
       },
       {
         "token": ".combo-box__trigger",
@@ -17174,8 +17274,8 @@
       },
       {
         "token": ".combo-box__trigger [data-slot=\"combo-box-trigger-default-icon\"]",
-        "description": "The port uses a 16px chevron, but it does not rotate the icon from closed to open.",
-        "rust": "svg size(FIELD_ICON) + CHEVRON_DOWN",
+        "description": "The port keeps a 16px down-chevron mounted and rotates it from closed to open over 150ms; reduced motion snaps to the endpoint.",
+        "rust": "rotating_indicator_with_duration(150) + svg size(FIELD_ICON) + CHEVRON_DOWN",
         "status": "partial"
       },
       {
@@ -17186,15 +17286,15 @@
       },
       {
         "token": ".combo-box__popover[data-entering=\"true\"]",
-        "description": "The port matches fade, 95% start, duration and curve through metric animation, but has no placement-specific slide.",
-        "rust": "anim::entering_zoom + Motion::LIST_IN",
+        "description": "Fade, 95% start, duration, curve and the resolved four-pixel placement slide match; GPUI still has no transform-origin primitive.",
+        "rust": "placement_entry_offset + anim::entering_zoom + Motion::LIST_IN",
         "status": "partial"
       },
       {
         "token": ".combo-box__popover[data-exiting=\"true\"]",
-        "description": "The port does not keep this panel in an exit phase with the matching shrink and fade.",
-        "rust": "—",
-        "status": "unavailable"
+        "description": "The retained panel shrinks and fades over the pinned 100ms exit; its interaction and occlusion are disabled while the visual frame finishes.",
+        "rust": "overlay_scope(true) + anim::exiting(Motion::LIST_OUT) + panel_interactive",
+        "status": "implemented"
       },
       {
         "token": ".combo-box__popover [data-slot=\"list-box\"]",
@@ -17204,9 +17304,9 @@
       },
       {
         "token": ".combo-box__popover [data-slot=\"list-box-item\"]",
-        "description": "The local rows have 8px horizontal padding and draw a tick for multiple selections only.",
-        "rust": "row px(px(8.)) + indicator(render)",
-        "status": "partial"
+        "description": "Rows reserve the pinned 28px end padding whenever a marker exists; labels keep normal wrapping in natural and virtual rows, and the multiple-selection tick is absolutely centered in the 16px end slot. A fixed row height remains caller-owned geometry.",
+        "rust": "row px(px(8.)) + whitespace_normal() + absolute indicator slot",
+        "status": "implemented"
       },
       {
         "token": ".combo-box--full-width / .combo-box__input-group--full-width",
@@ -17385,6 +17485,16 @@
       },
       {
         "owner": "Autocomplete",
+        "prop": "focusRing",
+        "type": "boolean",
+        "default": "true",
+        "description": "GPUI extension: hides only the trigger's visual focus ring while retaining focus and popup behavior.",
+        "rustOwner": "Autocomplete",
+        "rust": "focus_ring(bool)",
+        "status": "implemented"
+      },
+      {
+        "owner": "Autocomplete",
         "prop": "variant",
         "type": "\"primary\" | \"secondary\"",
         "default": "\"primary\"",
@@ -17508,10 +17618,10 @@
         "prop": "placement",
         "type": "PopoverPlacement",
         "default": "\"bottom\"",
-        "description": "Eight cardinal/start/end placements are available; RAC's full 22-value placement union is not. The panel anchors to the measured trigger with an 8px gap and flips when the preferred side cannot fit and the opposite side has more room.",
+        "description": "The full 22-value React Aria union renders: physical and aligned spellings plus the logical start/end aliases, which share their left/right side's pixels in this LTR-only port. The panel anchors to the measured trigger with an 8px gap and flips when the preferred side cannot fit and the opposite side has more room.",
         "rustOwner": "Autocomplete",
         "rust": "placement(Placement)",
-        "status": "partial"
+        "status": "implemented"
       },
       {
         "owner": "Autocomplete.Popover",
@@ -17706,8 +17816,8 @@
       {
         "state": "Hovered",
         "selector": ".autocomplete__trigger:hover, .autocomplete__trigger[data-hovered=\"true\"]",
-        "description": "Enabled trigger hover changes its field background while the clear button inside is not itself hovered; the color change is not interpolated.",
-        "rust": "field.hover(background)",
+        "description": "Enabled trigger hover interpolates the field background over 150ms ease-smooth while the clear button inside is not itself hovered; the border endpoint remains immediate.",
+        "rust": "hover_fade_with_duration_and_easing_suppressed(150ms, EaseSmooth) + border hover",
         "status": "partial"
       },
       {
@@ -17755,8 +17865,8 @@
       {
         "state": "Empty selection",
         "selector": ".autocomplete__clear-button[data-empty=\"true\"]",
-        "description": "The always-mounted clear affordance turns invisible and pointer-inert (opacity-0 with pointer-events-none) while the selection is empty.",
-        "rust": "clear_empty + clear_active gates",
+        "description": "The always-mounted clear affordance hides immediately and becomes pointer-inert while empty; a newly visible affordance fades in over 150ms.",
+        "rust": "clear_empty + keyed clear-opacity + clear_active gates",
         "status": "implemented"
       },
       {
@@ -17776,8 +17886,8 @@
       {
         "state": "Entering",
         "selector": ".autocomplete__popover[data-entering=\"true\"]",
-        "description": "The panel fades and grows from 95% over 250ms with ease-out-fluid; placement slide is not reproduced.",
-        "rust": "entering_zoom + Motion::FLUID_IN",
+        "description": "The panel fades and grows from 95% over 250ms with ease-out-fluid and uses the resolved four-pixel placement slide; GPUI still has no transform-origin primitive.",
+        "rust": "placement_entry_offset + entering_zoom + Motion::FLUID_IN",
         "status": "partial"
       },
       {
@@ -17809,8 +17919,8 @@
       },
       {
         "token": ".autocomplete__trigger transitions",
-        "description": "Static hover, focus and invalid colors match, but those trigger-color changes still swap in one frame.",
-        "rust": "apply_field_chrome + field.hover",
+        "description": "Hover background interpolation now follows the pinned 150ms ease-smooth curve and clear-button suppression; border, focus and invalid shadow endpoints remain direct.",
+        "rust": "hover_fade_with_duration_and_easing_suppressed(150ms, EaseSmooth) + apply_field_chrome",
         "status": "partial"
       },
       {
@@ -17821,32 +17931,32 @@
       },
       {
         "token": ".autocomplete__value",
-        "description": "Typography and colors match, while the port truncates long selected text instead of wrapping it.",
-        "rust": "flex_1 + truncate + FIELD_TEXT + field colors",
-        "status": "partial"
+        "description": "Selected and placeholder values keep their 14px/20px typography and wrap long labels inside the available trigger width.",
+        "rust": "flex_1 + min_w_0 + whitespace_normal + FIELD_TEXT + field colors",
+        "status": "implemented"
       },
       {
         "token": ".autocomplete__indicator",
-        "description": "Position and size match; the built-in glyph swaps direction and custom content receives open state, but no rotation interpolation is applied.",
-        "rust": "absolute right(px(8.)) + FIELD_ICON + indicator(render)",
+        "description": "Position and size match; the built-in SVG stays mounted and rotates over 150ms, while custom content receives the open state but remains caller-owned for its transform.",
+        "rust": "absolute right(px(8.)) + rotating_indicator_with_duration(150) + indicator(render)",
         "status": "partial"
       },
       {
         "token": ".autocomplete__clear-button",
-        "description": "Size, radius, padding and hover match; pressed scale and the 150ms visible opacity transition are not reproduced.",
-        "rust": "size(px(20.)) + p(px(4.)) + small_radius + hover",
-        "status": "partial"
+        "description": "The stable 20px target and pressed visual scale remain intact; empty states hide immediately and reappearing clear affordances fade through a keyed listener-free visual child.",
+        "rust": "size(px(20.)) + p(px(4.)) + small_radius + clear-opacity Tween + visual scale",
+        "status": "implemented"
       },
       {
         "token": ".autocomplete__popover",
-        "description": "Anchors to the measured trigger with an 8px gap, flipping to the side with more room when the preferred side cannot fit and keeping a 12px cross-axis viewport inset with the scroller capped to the available height; the search stays visible while the inner list scrolls and shrinks to the available height within the upstream 320px max, and virtual paging follows the visible list height. The reduced placement vocabulary and placement slide remain unported.",
-        "rust": "placement(Placement) + pt(px(8.)) + max_h(px(320.)) + scroll + overlay bg/shadow",
+        "description": "Anchors to the measured trigger with an 8px gap, flipping to the side with more room when the preferred side cannot fit and keeping a 12px cross-axis viewport inset with the scroller capped to the available height; the search stays visible while the inner list scrolls and shrinks to the available height within the upstream 320px max, and virtual paging follows the visible list height. The entry slide follows the resolved physical side.",
+        "rust": "placement(Placement) + placement_entry_offset + pt(px(8.)) + max_h(px(320.)) + scroll + overlay bg/shadow",
         "status": "partial"
       },
       {
         "token": ".autocomplete__popover[data-entering=\"true\"]",
-        "description": "Fade, zoom, duration and curve match; placement-specific one-step translation is not reproduced.",
-        "rust": "entering_zoom + Motion::FLUID_IN",
+        "description": "Fade, zoom, duration, curve and resolved four-pixel placement translation match; transform origin remains a documented GPUI limitation.",
+        "rust": "placement_entry_offset + entering_zoom + Motion::FLUID_IN",
         "status": "partial"
       },
       {
@@ -17869,8 +17979,8 @@
       },
       {
         "token": ".autocomplete__popover [data-slot=\"list-box-item\"]",
-        "description": "Rows use the documented ten-pixel horizontal inset and the shared ListBox item geometry.",
-        "rust": "row px(px(10.)) + FIELD_HEIGHT + soft_radius",
+        "description": "Rows use the documented ten-pixel inset; labels keep normal wrapping in natural and virtual rows, and selected/custom markers use the absolute 16px end slot with 28px reserved padding. A fixed row height remains caller-owned geometry.",
+        "rust": "row px(px(10.)) + whitespace_normal() + absolute indicator slot",
         "status": "implemented"
       },
       {
@@ -18058,7 +18168,7 @@
         "state": "Indeterminate",
         "selector": ":not([aria-valuenow])",
         "description": "A 40% fill sweeps with the pinned 1.5s curve; reduced motion leaves it static.",
-        "rust": "is_indeterminate + progress-bar-indeterminate + reduce_motion",
+        "rust": "is_indeterminate + element_id::scoped(id, \"indeterminate\") + reduce_motion",
         "status": "implemented"
       },
       {
@@ -18078,9 +18188,9 @@
       },
       {
         "token": "[data-slot=label] / .progress-bar__output",
-        "description": "Text size, 20px line height and weight match; GPUI does not request tabular numeral font features on the output alone.",
-        "rust": "text_size(px(14.)) + line_height(px(20.)) + FontWeight::MEDIUM",
-        "status": "partial"
+        "description": "Text size, 20px line height and weight match; the output wrapper requests HeroUI's tabular numeral feature without changing the label metrics.",
+        "rust": "text_size(px(14.)) + line_height(px(20.)) + FontWeight::MEDIUM + tabular_font_features",
+        "status": "implemented"
       },
       {
         "token": ".progress-bar__track",
@@ -18296,8 +18406,8 @@
       {
         "state": "Indeterminate",
         "selector": ":not([aria-valuenow])",
-        "description": "A quarter arc completes one linear turn per second; reduced motion leaves the same arc static.",
-        "rust": "is_indeterminate + progress-circle-spin + reduce_motion",
+        "description": "The track wrapper rotates the quarter arc and its full ring together once per second; reduced motion leaves both layers static.",
+        "rust": "is_indeterminate + progress_visual spin + reduce_motion",
         "status": "implemented"
       },
       {
@@ -18341,9 +18451,9 @@
       },
       {
         "token": ".progress-circle__fill-circle",
-        "description": "Value changes redraw immediately because the local canvas has no retained dash-offset transition.",
-        "rust": "direct fraction repaint",
-        "status": "partial"
+        "description": "Value changes interpolate the retained canvas arc fraction from the painted frame; reduced motion settles directly.",
+        "rust": "Tween::keyed(fill-fraction) + PROGRESS_CIRCLE_FILL_MS + ease_out",
+        "status": "implemented"
       },
       {
         "token": ".progress-circle--default",
@@ -18353,8 +18463,8 @@
       },
       {
         "token": "@keyframes progress-circle-spin",
-        "description": "Indeterminate track rotation and its reduced-motion override.",
-        "rust": "PROGRESS_CIRCLE_SPIN_MS + progress_circle_spin_turn + reduce_motion",
+        "description": "Indeterminate track-wrapper rotation moves the full ring and quarter fill together, with the reduced-motion static endpoint.",
+        "rust": "PROGRESS_CIRCLE_SPIN_MS + progress_circle_spin_turn + progress_visual + reduce_motion",
         "status": "implemented"
       }
     ]
@@ -18601,9 +18711,9 @@
     "styling": [
       {
         "token": ".skeleton",
-        "description": "Theme secondary-surface placeholder clipped to the shared hairline radius.",
-        "rust": "surface_tertiary + hairline_radius + overflow_hidden",
-        "status": "partial"
+        "description": "Theme tertiary-surface placeholder clipped to the shared hairline radius; composed children retain their layout and remain visible under a parent shimmer.",
+        "rust": "surface_tertiary + hairline_radius + overflow_hidden + child composition",
+        "status": "implemented"
       },
       {
         "token": ".skeleton--shimmer",
@@ -18682,8 +18792,8 @@
     "styling": [
       {
         "token": ".spinner",
-        "description": "The default indicator keeps its 24px diameter in flex layouts and rotates while motion is enabled; duration_ms provides the gallery's speed customization point.",
-        "rust": "SpinnerSize::Md + duration_ms(u64) + repeated rotation",
+        "description": "The default indicator keeps its 24px diameter in flex layouts and follows HeroUI's 750ms linear spin token; duration_ms provides the gallery's speed customization point.",
+        "rust": "SpinnerSize::Md + duration_ms(u64) + repeated linear rotation",
         "status": "implemented"
       },
       {
@@ -19055,6 +19165,16 @@
       },
       {
         "owner": "Select",
+        "prop": "focusRing",
+        "type": "boolean",
+        "default": "true",
+        "description": "GPUI extension: hides only the trigger's visual focus ring while retaining focus and list behavior.",
+        "rustOwner": "Select",
+        "rust": "focus_ring(bool)",
+        "status": "implemented"
+      },
+      {
+        "owner": "Select",
         "prop": "variant",
         "type": "\"primary\" | \"secondary\"",
         "default": "\"primary\"",
@@ -19157,21 +19277,21 @@
         "owner": "Select.Indicator",
         "prop": "children",
         "type": "ReactNode",
-        "default": "—",
-        "description": "The similarly named GPUI builder replaces option checkmarks, not the trigger chevron.",
+        "default": "default chevron",
+        "description": "Replaces the trigger chevron and receives the live open state; the built-in SVG rotates over 150ms, while arbitrary caller content remains caller-owned.",
         "rustOwner": "Select",
-        "rust": "indicator(render)",
-        "status": "partial"
+        "rust": "trigger_indicator(render)",
+        "status": "implemented"
       },
       {
         "owner": "Select.Popover",
         "prop": "placement",
         "type": "Placement",
         "default": "\"bottom\"",
-        "description": "Eight cardinal/start/end placements are available; RAC's full 22-value placement union is not. The panel anchors to the measured trigger with an 8px gap and flips when the preferred side cannot fit and the opposite side has more room.",
+        "description": "The full 22-value React Aria union renders: physical and aligned spellings plus the logical start/end aliases, which share their left/right side's pixels in this LTR-only port. The panel anchors to the measured trigger with an 8px gap and flips when the preferred side cannot fit and the opposite side has more room.",
         "rustOwner": "Select",
         "rust": "placement(Placement)",
-        "status": "partial"
+        "status": "implemented"
       },
       {
         "owner": "Select.Popover",
@@ -19266,14 +19386,14 @@
       {
         "name": "Select.Indicator",
         "slot": "select-indicator",
-        "description": "Built-in trigger chevron; the public indicator closure belongs to list options instead.",
+        "description": "Trigger chevron with live open state; the default SVG rotates over 150ms and custom content composes through trigger_indicator.",
         "rustOwner": "Select",
-        "status": "partial"
+        "status": "implemented"
       },
       {
         "name": "Select.Popover",
         "slot": "select-popover",
-        "description": "List surface anchored to the trigger; it can flip within the window and supports a reduced placement vocabulary.",
+        "description": "List surface anchored to the trigger; it can flip within the window and supports the full 22-value placement vocabulary.",
         "rustOwner": "Select",
         "status": "partial"
       }
@@ -19282,8 +19402,8 @@
       {
         "state": "Hovered trigger",
         "selector": ".select__trigger[data-hovered]",
-        "description": "Field background changes on pointer hover.",
-        "rust": "trigger hover style",
+        "description": "Enabled, unfocused trigger hover interpolates the field/default surface over 150ms ease-smooth, suppressing the parent endpoint while a clear button is hovered.",
+        "rust": "hover_fade_with_duration_and_easing_suppressed(150ms, EaseSmooth) + border hover",
         "status": "implemented"
       },
       {
@@ -19317,15 +19437,15 @@
       {
         "state": "Open indicator",
         "selector": ".select__indicator[data-open]",
-        "description": "The glyph swaps direction immediately instead of rotating over 150ms.",
-        "rust": "is_open chevron selection",
-        "status": "partial"
+        "description": "The built-in down-chevron rotates 180 degrees over the pinned 150ms transition; custom content receives the live open boolean.",
+        "rust": "rotating_indicator_with_duration + trigger_indicator",
+        "status": "implemented"
       },
       {
         "state": "Entering",
         "selector": ".select__popover[data-entering]",
-        "description": "150ms Smooth fade and 95% zoom match; placement-specific four-pixel translation is absent.",
-        "rust": "overlay_phase Entering + entering_zoom",
+        "description": "150ms Smooth fade and 95% zoom match with the resolved four-pixel placement translation; transform origin remains a documented GPUI limitation.",
+        "rust": "overlay_phase Entering + placement_entry_offset + entering_zoom",
         "status": "partial"
       },
       {
@@ -19338,22 +19458,29 @@
       {
         "state": "Selected option",
         "selector": ".list-box-item[data-selected]",
-        "description": "Selection is visible, but GPUI adds accent text and weight beyond v3's indicator-only state.",
-        "rust": "selected option style + indicator",
-        "status": "partial"
+        "description": "Selection keeps the option label at the normal foreground and adds the default check indicator, matching v3's indicator-only state.",
+        "rust": "selected option foreground + indicator",
+        "status": "implemented"
       },
       {
         "state": "Focused option",
         "selector": ".list-box-item[data-focused]",
-        "description": "Keyboard focus is visible, but uses a two-pixel border rather than v3's status ring.",
-        "rust": "focused option border",
-        "status": "partial"
+        "description": "Keyboard focus uses the shared status ring overlay without changing the row's content geometry.",
+        "rust": "with_focus_ring(selected row)",
+        "status": "implemented"
       },
       {
         "state": "Disabled option",
         "selector": ".list-box-item[data-disabled]",
         "description": "Disabled rows are dimmed and skipped by navigation and selection.",
         "rust": "disabled_keys",
+        "status": "implemented"
+      },
+      {
+        "state": "Pressed option",
+        "selector": ".list-box-item[data-pressed]",
+        "description": "Enabled options shrink to 98% over 250ms ease-out-quart inside a stable slot; disabled rows remain inert.",
+        "rust": "pressed_with_background_ramp(LIST_ITEM_PRESS)",
         "status": "implemented"
       },
       {
@@ -19367,8 +19494,8 @@
     "styling": [
       {
         "token": ".select__clear-button",
-        "description": "The default visual and glyph shrink on press, with a stable expanded target. Empty controls retain layout, hide immediately and stop intercepting input. Custom child scaling and pressed target shrink remain partial.",
-        "rust": "SelectClearButton + clear slots + Tween opacity",
+        "description": "The pressed scale(0.93) covers the whole control: the visual, glyph and expanded pointer target shrink about the shared center (24px * 0.93) and restore on release, as CSS transform hit testing rescales the target without touching layout. Empty controls retain layout, hide immediately and stop intercepting input. Custom child scaling stays a platform limit: gpui-pre 0.3.3 exposes paint transforms only on Svg (Svg::with_transformation), so a composed child subtree cannot scale with the press.",
+        "rust": "SelectClearButton + clear slots + Tween opacity + pressed target inset",
         "status": "partial"
       },
       {
@@ -19403,8 +19530,8 @@
       },
       {
         "token": ".select__trigger transitions",
-        "description": "Pinned property transitions are immediate in GPUI.",
-        "rust": "static trigger style",
+        "description": "Hover background interpolation now follows the pinned 150ms ease-smooth curve and clear-button suppression; focus and shadow endpoints remain direct.",
+        "rust": "hover_fade_with_duration_and_easing_suppressed(150ms, EaseSmooth) + field chrome",
         "status": "partial"
       },
       {
@@ -19439,9 +19566,9 @@
       },
       {
         "token": ".select__value",
-        "description": "Alignment and size match, but GPUI truncates instead of wrapping long values.",
-        "rust": "flex_1 + text_size(px(14.)) + truncate",
-        "status": "partial"
+        "description": "Selected and placeholder values keep their 14px/20px typography and wrap long words inside the available trigger width.",
+        "rust": "flex_1 + min_w_0 + whitespace_normal + text_size(px(14.))",
+        "status": "implemented"
       },
       {
         "token": ".select__value[data-placeholder]",
@@ -19457,8 +19584,8 @@
       },
       {
         "token": ".select__indicator",
-        "description": "Clear compositions position the chevron absolutely at the end; plain Select keeps its flow-positioned chevron. Both swap glyphs without rotation animation.",
-        "rust": "chevron_down/chevron_up",
+        "description": "The trigger reserves the pinned end slot and positions the chevron absolutely at the end. The built-in SVG stays mounted and rotates from the live frame; arbitrary custom content can render from the open state but remains caller-owned for its transform.",
+        "rust": "relative trigger + pr(28px) + absolute right(px(8.)) + rotating_indicator_with_duration(150)",
         "status": "partial"
       },
       {
@@ -19469,8 +19596,8 @@
       },
       {
         "token": ".select__popover[data-entering]",
-        "description": "Fade and zoom match; transform origin and placement slide are absent.",
-        "rust": "Motion::LIST_IN + entering_zoom",
+        "description": "Fade, zoom and resolved four-pixel placement slide match; transform origin remains a documented GPUI limitation.",
+        "rust": "Motion::LIST_IN + placement_entry_offset + entering_zoom",
         "status": "partial"
       },
       {
@@ -19481,15 +19608,21 @@
       },
       {
         "token": ".select__popover .list-box / .list-box-item",
-        "description": "Six-pixel list inset and ten-pixel option-row horizontal padding.",
-        "rust": "panel p(px(6.)) + option px(px(10.))",
+        "description": "Six-pixel list inset and ten-pixel option-row horizontal padding; labels keep normal wrapping in natural and virtual rows, and selected/custom markers use the pinned absolute 16px end slot with 28px reserved padding. A fixed row height remains caller-owned geometry.",
+        "rust": "panel p(px(6.)) + option px(px(10.)) + whitespace_normal() + absolute indicator slot",
+        "status": "implemented"
+      },
+      {
+        "token": ".select__popover .list-box-item pressed",
+        "description": "Enabled options use the same stable-slot 98% press transition as ListBox, preserving the trailing indicator and natural or virtual row geometry.",
+        "rust": "pressed_with_background_ramp(LIST_ITEM_PRESS, PRESSED_SCALE_SUBTLE)",
         "status": "implemented"
       },
       {
         "token": ".select:not([data-selection-mode=multiple]) indicators",
-        "description": "GPUI has no indicator transition in either selection mode.",
-        "rust": "static indicator",
-        "status": "partial"
+        "description": "Single-select row checkmarks remain static, matching v3's transition-none rule; the trigger chevron has its separate 150ms rotation.",
+        "rust": "row indicator + rotating trigger indicator",
+        "status": "implemented"
       },
       {
         "token": ".select--full-width / .select__trigger--full-width",
@@ -19570,10 +19703,10 @@
         "prop": "placement",
         "type": "Placement",
         "default": "\"bottom\"",
-        "description": "Eight cardinal/start/end placements are available; React Aria's full placement union is not represented.",
+        "description": "The full 22-value React Aria union renders: physical and aligned spellings plus the logical start/end aliases, which share their left/right side's pixels in this LTR-only port.",
         "rustOwner": "Popover",
         "rust": "placement(PopoverPlacement)",
-        "status": "partial"
+        "status": "implemented"
       },
       {
         "owner": "Popover.Content",
@@ -19734,8 +19867,8 @@
       {
         "state": "Entering",
         "selector": ".popover[data-entering=true]",
-        "description": "150ms Smooth fade and zoom from 90%; v3's placement-specific 4px translation is not reproduced.",
-        "rust": "overlay_scope Open + entering_zoom(Motion::POPOVER_IN)",
+        "description": "150ms Smooth fade and zoom from 90% with the pinned 4px translation from the resolved physical placement; GPUI still has no transform-origin primitive.",
+        "rust": "overlay_scope Open + placement_entry_offset + entering_zoom(Motion::POPOVER_IN)",
         "status": "partial"
       },
       {
@@ -19781,8 +19914,8 @@
       },
       {
         "token": ".popover[data-entering=true]",
-        "description": "Duration, curve, fade and zoom match; transform origin and placement slide are absent.",
-        "rust": "Motion::POPOVER_IN + entering_zoom",
+        "description": "Duration, curve, fade, zoom and resolved placement slide match; transform origin remains a documented GPUI limitation.",
+        "rust": "Motion::POPOVER_IN + placement_entry_offset + entering_zoom",
         "status": "partial"
       },
       {
@@ -19920,10 +20053,10 @@
         "prop": "placement",
         "type": "Placement",
         "default": "\"top\"",
-        "description": "The four cardinal placements render; RAC's start/end and edge variants are not represented.",
+        "description": "The full 22-value React Aria union renders through the shared placement vocabulary: physical and aligned spellings plus the logical start/end aliases, which share their left/right side's pixels because GPUI has no RTL layout mode.",
         "rustOwner": "Tooltip",
         "rust": "placement(TooltipPlacement)",
-        "status": "partial"
+        "status": "implemented"
       },
       {
         "owner": "Tooltip.Content",
@@ -20037,8 +20170,8 @@
       {
         "state": "Entering",
         "selector": "[data-entering=\"true\"]",
-        "description": "150ms Smooth fade and zoom from 90%; v3's placement-specific 4px translation is not reproduced.",
-        "rust": "overlay_phase Entering + entering_zoom(POPOVER_IN)",
+        "description": "150ms Smooth fade and zoom from 90% with the pinned 4px translation for the tooltip side; GPUI still has no transform-origin primitive.",
+        "rust": "overlay_phase Entering + TooltipPlacement::entry_offset + entering_zoom(POPOVER_IN)",
         "status": "partial"
       },
       {
@@ -20051,9 +20184,9 @@
       {
         "state": "Placement",
         "selector": "[data-placement]",
-        "description": "Cardinal positioning and arrow rotation; start/end variants and DOM attributes are absent.",
+        "description": "The 22-value union keeps the panel and arrow on the matching trigger edge: side-plus-alignment spellings pin their named edge, and the logical start/end aliases share their physical left/right spelling without RTL.",
         "rust": "TooltipPlacement match",
-        "status": "partial"
+        "status": "implemented"
       }
     ],
     "styling": [
@@ -20077,14 +20210,14 @@
       },
       {
         "token": ".tooltip break-all",
-        "description": "The port restores normal wrapping but GPUI has no break-all mode for a single unbroken token.",
-        "rust": "default WhiteSpace::Normal",
-        "status": "partial"
+        "description": "Long URLs and other unbroken tokens receive zero-width break opportunities before the normal GPUI wrapper applies the 320px cap.",
+        "rust": "tooltip_text_with_break_opportunities + max_w(px(320.))",
+        "status": "implemented"
       },
       {
         "token": ".tooltip[data-entering]",
-        "description": "Fade and zoom match; transform origin and placement slide are absent.",
-        "rust": "Motion::POPOVER_IN + entering_zoom",
+        "description": "Fade, zoom and four-pixel side translation match; transform origin remains a documented GPUI limitation.",
+        "rust": "Motion::POPOVER_IN + TooltipPlacement::entry_offset + entering_zoom",
         "status": "partial"
       },
       {
@@ -20131,7 +20264,7 @@
       },
       {
         "token": "placement",
-        "description": "Tip anchoring and arrow rotation for the four cardinals.",
+        "description": "Tip anchoring and arrow rotation for the full 22-value placement union; motion and the arrow follow the physical side while alignment is positioning-only, and logical start/end aliases share their left/right side in the LTR-only port.",
         "rust": "TooltipPlacement match",
         "status": "implemented"
       },
@@ -20253,10 +20386,10 @@
         "prop": "defaultSelectedKeys",
         "type": "Selection",
         "default": "—",
-        "description": "Uncontrolled selection seed; the port only falls back to an empty set when selected_keys is unset.",
+        "description": "Uncontrolled selection seed; later changes stay in the table's keyed state until selectedKeys is supplied.",
         "rustOwner": "Table",
-        "rust": "—",
-        "status": "unavailable"
+        "rust": "default_selected_keys(keys)",
+        "status": "implemented"
       },
       {
         "owner": "Table.Content",
@@ -20343,10 +20476,10 @@
         "prop": "selectionBehavior",
         "type": "\"toggle\" | \"replace\"",
         "default": "\"toggle\"",
-        "description": "Pinned RAC selection behaviour; the port always uses its own toggle/shift-range path.",
+        "description": "Controls plain multi-selection activation: toggle preserves the set, while replace selects only the activated row and selects on keyboard focus.",
         "rustOwner": "Table",
-        "rust": "—",
-        "status": "unavailable"
+        "rust": "selection_behavior(SelectionBehavior)",
+        "status": "implemented"
       },
       {
         "owner": "Table.Content",
@@ -20363,10 +20496,10 @@
         "prop": "disallowEmptySelection",
         "type": "boolean",
         "default": "false",
-        "description": "Pinned RAC flag that keeps at least one row selected; the port has no such gate.",
+        "description": "Keeps the final selected row when a toggle or Escape would otherwise clear the collection.",
         "rustOwner": "Table",
-        "rust": "—",
-        "status": "unavailable"
+        "rust": "disallow_empty_selection(bool)",
+        "status": "implemented"
       },
       {
         "owner": "Table.Content",
@@ -21067,7 +21200,7 @@
       {
         "name": "Table.Content",
         "slot": "table-content",
-        "description": "Flex column standing in for the HTML table; border-separate table layout is not reproduced.",
+        "description": "Flex column standing in for the HTML table: one measured track triple per column is shared by the header cells, their wrappers and every body row, so a table narrower than its columns overflows the scroll container as one grid. CSS border-separate spacing and the wasm32 measurement path remain out of reach.",
         "rustOwner": "Table",
         "status": "partial"
       },
@@ -21160,23 +21293,23 @@
       {
         "state": "Hovered",
         "selector": ":hover / [data-hovered=\"true\"]",
-        "description": "v3 tints cells with bg-surface/40 (secondary: bg-default/50); the port paints default.soft on the whole interactive row.",
-        "rust": "row.hover(default.soft)",
-        "status": "partial"
+        "description": "v3 tints each cell with bg-surface/40 (secondary: bg-default/50); the port uses a per-row hover group so each cell owns and clips the fill.",
+        "rust": "per-row hover fill applied to each cell (primary or secondary token)",
+        "status": "implemented"
       },
       {
         "state": "Selected",
         "selector": "[data-selected=\"true\"]",
-        "description": "v3 uses bg-surface/10 on cells; the port fills the row with accent.soft so selection still reads when the checkbox is off-screen.",
-        "rust": "row.bg(accent.soft)",
-        "status": "partial"
+        "description": "v3 fills every cell with bg-surface/10; the port paints the same endpoint on the selection and data cells and omits the hover group for selected rows.",
+        "rust": "cell.bg(surface.background.alpha(0.1))",
+        "status": "implemented"
       },
       {
         "state": "Focus visible",
         "selector": ":focus-visible / [data-focus-visible=\"true\"]",
-        "description": "Inset focus ring on the focused row, column header and resizer; one overlay stands in for v3's per-cell split ring. PageUp enters the first header — from the top of a virtual body, paging by viewport mid-body; Down and PageDown return to the first and last enabled body rows.",
-        "rust": "inset_focus_ring",
-        "status": "partial"
+        "description": "Inset focus ring on the focused row, column header and resizer; row focus is split into clipped top/bottom/edge strips per cell so shared edges stay continuous without a leaking overlay. PageUp enters the first header — from the top of a virtual body, paging by viewport mid-body; Down and PageDown return to the first and last enabled body rows.",
+        "rust": "table_cell_focus_ring + inset_focus_ring",
+        "status": "implemented"
       },
       {
         "state": "Disabled row",
@@ -21250,8 +21383,8 @@
       },
       {
         "token": ".table-root--secondary",
-        "description": "Secondary leaves the root flat; first/last header rounding and per-cell hover fills are not reproduced.",
-        "rust": "variant Secondary skips the tray",
+        "description": "Secondary leaves the root flat; standalone header cells receive the pinned surface fill and first/last logical corner radii. Row hover and selection remain row-owned in GPUI.",
+        "rust": "variant Secondary skips the tray + header cell surface/corners",
         "status": "partial"
       },
       {
@@ -21262,39 +21395,39 @@
       },
       {
         "token": ".table__content",
-        "description": "14px type and 20px line height match; the port is a flex column rather than a border-separate table, so column tracks resolve per row and a table narrower than its columns times their widest cell staggers the body against the header.",
-        "rust": "min_w_full flex_col text_size(px(14.)) line_height(px(20.))",
+        "description": "14px type and 20px line height match. The port keeps a flex column, but one measured track triple per column — explicit width, else flex floored by the widest cell across the header and every row — feeds the header cells, their sortable and resizable wrappers, and every body row alike, so a table narrower than its columns keeps one track set and overflows the scroll container as one grid instead of staggering. Residual: CSS border-separate/border-spacing spacing is not reproduced, and the wasm32 build keeps flex tracks fluid because intrinsic measurement is native-only, so a narrow web table can still resolve tracks per row.",
+        "rust": "min_w_full flex_col + one measured min_w track triple shared by header cells, header wrappers and RowCtx rows + overflow past the scroll-x viewport + text_size(px(14.)) line_height(px(20.))",
         "status": "partial"
       },
       {
         "token": ".table__header",
-        "description": "Header rule and secondary fill on primary; the separator is rendered at 50% alpha.",
-        "rust": "border_b_1 + separator.alpha(0.5) + surface_secondary",
-        "status": "partial"
+        "description": "Header rule and primary fill match; secondary applies the surface to each header cell so its rounded first/last corners remain visible.",
+        "rust": "border_b_1 + separator.alpha(0.5) + secondary header cell bg",
+        "status": "implemented"
       },
       {
         "token": ".table__column",
-        "description": "16/10px inset and 12px type with 16px lines match; the port uses medium caller-case labels, but short vertical column separators are not drawn.",
-        "rust": "px(16.) py(10.) text_size(12.) line_height(16.) MEDIUM + label.clone()",
-        "status": "partial"
+        "description": "16/10px inset, 12px type, 16px lines, medium caller-case labels, full-width sortable layout, and the short separator edge match.",
+        "rust": "px(16.) py(10.) text_size(12.) line_height(16.) MEDIUM + justify_between + separator child",
+        "status": "implemented"
       },
       {
         "token": ".table__column::after",
-        "description": "Short column separators are not drawn; only a resizer replaces that edge when allowsResizing is set.",
-        "rust": "—",
-        "status": "unavailable"
+        "description": "A rounded 16px separator child is drawn on every non-final, non-resizable header edge; resizers own their edge when present.",
+        "rust": "absolute right_0 top(px(10.)) h/w + hairline_radius + colors.separator",
+        "status": "implemented"
       },
       {
         "token": ".table__sortable-column-header",
-        "description": "Label and indicator share the header cell with a 4px gap rather than space-between.",
-        "rust": "flex items_center gap(px(4.))",
-        "status": "partial"
+        "description": "Label and indicator occupy the full header width with the pinned end alignment.",
+        "rust": "flex + w_full + justify_between",
+        "status": "implemented"
       },
       {
         "token": ".table__sortable-column-indicator",
-        "description": "12px chevron matches; ascending/descending are separate glyphs rather than a 100ms rotate.",
-        "rust": "svg size(px(12.)) + CHEVRON_UP/DOWN",
-        "status": "partial"
+        "description": "The built-in 12px up chevron rotates to descending through the shared 100ms transition; custom indicators remain caller-owned.",
+        "rust": "anim::rotating_indicator_with_duration(100ms) + CHEVRON_UP",
+        "status": "implemented"
       },
       {
         "token": ".table__body",
@@ -21304,21 +21437,21 @@
       },
       {
         "token": ".table__row",
-        "description": "Rows use the separator at 50% alpha, and the final visible row omits the bottom border.",
-        "rust": "border_b_1 + separator.alpha(0.5) except final visible row",
-        "status": "partial"
+        "description": "Rows use the separator at 50% alpha, and the final visible primary row omits the bottom border; secondary cell separators remain on each cell as in the pinned cascade.",
+        "rust": "border_b_1 + separator.alpha(0.5) except final primary row",
+        "status": "implemented"
       },
       {
         "token": ".table__cell",
-        "description": "16/12px inset matches; cell fill lives on the primary body, not on each cell, and hover/selected paints the row.",
-        "rust": "px(16.) py(12.)",
-        "status": "partial"
+        "description": "16/12px inset matches; primary cells inherit the body surface, secondary cells carry the pinned tertiary bottom separator, and hover/selected fills are painted per cell so their geometry clips correctly.",
+        "rust": "px(16.) py(12.) + cell bg/group_hover + secondary border",
+        "status": "implemented"
       },
       {
         "token": ".table__cell[data-tree-column]",
-        "description": "v3 indents 16px per 1-based level; the port uses 12 + 20 * depth and only when depth > 0.",
-        "rust": "pl(px(12. + 20. * depth))",
-        "status": "partial"
+        "description": "The tree column replaces the regular start padding with 16px for every 1-based row level; root depth zero stays at the regular 16px inset and each nested level advances by one rem.",
+        "rust": "tree_column_padding(depth) => 16px * (depth + 1)",
+        "status": "implemented"
       },
       {
         "token": ".table__footer",
@@ -21346,9 +21479,9 @@
       },
       {
         "token": ".table__row:is(:focus-visible, [data-focus-visible]) cells",
-        "description": "One overlay ring is painted on the row instead of three-sided per-cell shadows.",
-        "rust": "inset_focus_ring on the focused row",
-        "status": "partial"
+        "description": "Each focused cell paints top/bottom strips and only the outer left/right edge, with rounded corners on the first and last cell so shared edges do not double or bleed.",
+        "rust": "table_cell_focus_ring(first, last)",
+        "status": "implemented"
       }
     ]
   },
@@ -21674,7 +21807,7 @@
       {
         "name": "Accordion",
         "slot": "accordion",
-        "description": "Full-width owner of item expansion and presentation.",
+        "description": "Full-width owner of item expansion and presentation. Give simultaneous accordions distinct id values when they reuse item keys.",
         "rustOwner": "Accordion",
         "status": "implemented"
       },
@@ -21709,9 +21842,9 @@
       {
         "name": "Accordion.Panel",
         "slot": "accordion-panel",
-        "description": "Expanded body host; collapsed content leaves the tree.",
+        "description": "Measured body host that keeps closing content mounted through the 200ms exit transition.",
         "rustOwner": "AccordionItem",
-        "status": "partial"
+        "status": "implemented"
       },
       {
         "name": "Accordion.Body",
@@ -21792,8 +21925,8 @@
       },
       {
         "token": ".accordion__indicator",
-        "description": "Size, trailing placement and custom content match; built-in glyphs swap without rotation interpolation.",
-        "rust": "size(16.) flex_shrink_0 + indicator(render)",
+        "description": "The built-in down-chevron rotates to the expanded endpoint with a keyed 250ms default transition; custom indicator content remains caller-owned.",
+        "rust": "anim::rotating_indicator + indicator(render)",
         "status": "partial"
       },
       {
@@ -21816,15 +21949,15 @@
       },
       {
         "token": ".accordion__trigger hover",
-        "description": "Hover is correctly limited to closed triggers; the default variant uses default-soft rather than the exact foreground mix.",
-        "rust": "!is_open hover(default.soft)",
-        "status": "partial"
+        "description": "Hover is limited to closed triggers and interpolates the pinned foreground wash or surface default fill over the stylesheet's 150ms ease-out transition.",
+        "rust": "!is_open + anim::hover_fade(idle, hover)",
+        "status": "implemented"
       },
       {
         "token": ".accordion__panel",
-        "description": "Expanded content is laid out at its endpoint and collapsed content leaves immediately.",
-        "rust": "conditional body child",
-        "status": "partial"
+        "description": "measured natural body height drives the 0↔natural height and opacity transitions; closing content stays mounted until the 200ms exit completes, and reduced motion snaps the endpoint.",
+        "rust": "anim::collapsible_panel + panel_phase + keyed Tween<Pixels/f32>",
+        "status": "implemented"
       },
       {
         "token": ".accordion--surface",
@@ -22120,16 +22253,16 @@
       {
         "name": "Disclosure.Indicator",
         "slot": "disclosure-indicator",
-        "description": "Built-in 16px chevron whose glyph reflects expansion.",
+        "description": "Built-in 16px down-chevron that rotates through 180 degrees as expansion changes.",
         "rustOwner": "Disclosure",
-        "status": "partial"
+        "status": "implemented"
       },
       {
         "name": "Disclosure.Content",
         "slot": "disclosure-content",
-        "description": "Mounted panel container while expanded.",
+        "description": "measured panel container that stays mounted during the 200ms closing transition.",
         "rustOwner": "Disclosure",
-        "status": "partial"
+        "status": "implemented"
       },
       {
         "name": "Disclosure.Body",
@@ -22143,7 +22276,7 @@
       {
         "state": "Expanded",
         "selector": ".disclosure[data-expanded=true]",
-        "description": "Shows the body and uses the expanded indicator glyph.",
+        "description": "Shows the body and rotates the shared down-chevron to its expanded endpoint.",
         "rust": "is_expanded(bool) / expanded_keys",
         "status": "implemented"
       },
@@ -22203,15 +22336,15 @@
       },
       {
         "token": ".disclosure__indicator",
-        "description": "Size and trailing placement match; the port swaps chevron glyphs in one frame instead of rotating one glyph.",
-        "rust": "child(svg size(px(16.)))",
-        "status": "partial"
+        "description": "A single 16px down-chevron rotates through 180 degrees with a keyed 250ms default transition and snaps under reduced motion.",
+        "rust": "anim::rotating_indicator(child(svg size(px(16.))))",
+        "status": "implemented"
       },
       {
         "token": ".disclosure__content",
-        "description": "The port fades entry for 200ms but does not interpolate measured height and removes content immediately on collapse.",
-        "rust": "anim::entering + Motion::DISCLOSURE",
-        "status": "partial"
+        "description": "measured natural body height drives both height and opacity for 200ms; closing content stays mounted until the transition ends, while reduced motion removes it immediately.",
+        "rust": "anim::collapsible_panel + panel_phase + keyed Tween<Pixels/f32>",
+        "status": "implemented"
       },
       {
         "token": ".disclosure__body",
@@ -22720,10 +22853,10 @@
         "prop": "placement",
         "type": "\"auto\" | \"center\" | \"top\" | \"bottom\"",
         "default": "\"auto\"",
-        "description": "Dialog position on screen; all four anchor the panel, but v3's ±4px enter slide for top/bottom/auto is not ported — the fade and the zoom are.",
+        "description": "Dialog position on screen; all four anchor the panel, and the explicit top/bottom placements carry v3's ±4px entry slide while centered/auto desktop layouts stay still.",
         "rustOwner": "AlertDialog",
         "rust": "placement(ModalPlacement)",
-        "status": "partial"
+        "status": "implemented"
       },
       {
         "owner": "AlertDialog.Container",
@@ -23040,9 +23173,9 @@
       {
         "state": "Entering",
         "selector": "[data-entering]",
-        "description": "Applied during the opening animation: the scrim fades at 150ms and the panel fades while zooming in from 105% at 250ms — but v3's ±4px placement slide is not ported, because the existing listener-free motion primitives own the whole fade/zoom transition and a second fading layer would double-fade the panel.",
-        "rust": "OverlayPhase::Open + Motion::BACKDROP_IN + entering_zoom Motion::PANEL_IN",
-        "status": "partial"
+        "description": "Applied during the opening animation: the scrim fades at 150ms and the panel fades while zooming in from 105% at 250ms, with the pinned four-pixel top/bottom placement slide in the same transition.",
+        "rust": "OverlayPhase::Open + Motion::BACKDROP_IN + placement_entry_offset + entering_zoom Motion::PANEL_IN",
+        "status": "implemented"
       },
       {
         "state": "Exiting",
@@ -23054,9 +23187,9 @@
       {
         "state": "Placement",
         "selector": "[data-placement=\"*\"]",
-        "description": "Auto, top, center and bottom anchor the dialog and choose the container alignment; only top and bottom carry the ±4px enter slide (slide-in-from-top/bottom-1) and that slide is not ported. Auto's slide-in-from-bottom-1 is canceled at sm, so a desktop Auto has no slide — that is upstream's value, not a missing one.",
-        "rust": "ModalPlacement anchored match",
-        "status": "partial"
+        "description": "Auto, top, center and bottom anchor the dialog and choose the container alignment; top and bottom add the pinned ±4px entry slide, while desktop Auto and Center remain zero-offset.",
+        "rust": "ModalPlacement anchored match + placement_entry_offset",
+        "status": "implemented"
       }
     ],
     "styling": [
@@ -23110,9 +23243,9 @@
       },
       {
         "token": ".alert-dialog__container[data-entering=\"true\"] [data-placement=\"auto\" / \"top\" / \"bottom\" / \"center\"]",
-        "description": "Only top and bottom slide ±4px on a desktop enter, and that slide is the one motion the port does not carry: the fade and the zoom are ported, but the existing listener-free primitives own the whole transition and layering a second fading translate would double-fade the panel. Auto's slide is canceled at sm and center's is zero, so neither is a missing desktop slide.",
-        "rust": "—",
-        "status": "partial"
+        "description": "The panel carries the pinned four-pixel top/bottom entry slide in the same fade/zoom transition; Auto and Center remain zero-offset on the desktop breakpoint.",
+        "rust": "modal::placement_entry_offset + ZoomBox slide_x/slide_y",
+        "status": "implemented"
       },
       {
         "token": ".alert-dialog__dialog",
@@ -23329,8 +23462,8 @@
       {
         "state": "Current",
         "selector": ".breadcrumbs__link[data-current=\"true\"]",
-        "description": "The last crumb is the current page: it renders in the link token, is not a tab stop, answers no press even with an href, and never takes the disabled fade.",
-        "rust": "is_last -> colors.link + no tab stop + no on_click",
+        "description": "The last crumb is the current page: it renders in the link token, exposes AccessKit aria-current=page, is not a tab stop, answers no press even with an href, and never takes the disabled fade.",
+        "rust": "is_last -> colors.link + a11y_current(Page) + no tab stop + no on_click",
         "status": "implemented"
       },
       {
@@ -24234,10 +24367,10 @@
         "prop": "children",
         "type": "ReactNode",
         "default": "—",
-        "description": "Custom indicator icon, defaulting to the status glyph. The port draws only the pinned per-status glyph (Info for default and accent, check for success, triangle for warning, circle-exclamation for danger); there is no builder to replace it.",
+        "description": "Custom indicator icon, defaulting to the status glyph. The port accepts caller content while retaining the pinned 24px indicator box.",
         "rustOwner": "Alert",
-        "rust": "—",
-        "status": "unavailable"
+        "rust": "indicator(content)",
+        "status": "implemented"
       },
       {
         "owner": "Alert.Indicator",
@@ -24321,9 +24454,9 @@
       {
         "name": "Alert.Indicator",
         "slot": "alert__indicator",
-        "description": "`flex items-center justify-center p-1 select-none` box around the `box-content size-4` status glyph, painted with the status soft-foreground (`text-foreground` on default). The port draws the pinned glyph but offers no custom indicator children.",
+        "description": "`flex items-center justify-center p-1 select-none` box around the `box-content size-4` status glyph or caller-owned indicator content, painted with the status soft-foreground when using the default glyph.",
         "rustOwner": "Alert",
-        "status": "partial"
+        "status": "implemented"
       },
       {
         "name": "Alert.Content",
@@ -25340,6 +25473,16 @@
       },
       {
         "owner": "FieldError",
+        "prop": "id",
+        "type": "ElementId",
+        "default": "—",
+        "description": "GPUI extension: stable identity used to retain the last message and animate the v3 height/opacity transition across validation updates.",
+        "rustOwner": "FieldError",
+        "rust": "FieldError::new().id(id)",
+        "status": "implemented"
+      },
+      {
+        "owner": "FieldError",
         "prop": "className",
         "type": "string",
         "default": "—",
@@ -25367,16 +25510,16 @@
       {
         "name": "ErrorMessage",
         "slot": "errorMessage",
-        "description": "`text-xs wrap-break-word text-danger` on the `.error-message` BEM class, with opacity/height transitions that the port does not animate.",
+        "description": "`text-xs wrap-break-word text-danger` on the `.error-message` BEM class; shared field wrappers retain its body and animate the visibility transition.",
         "rustOwner": "ErrorMessage",
-        "status": "partial"
+        "status": "implemented"
       },
       {
         "name": "FieldError",
         "slot": "field-error",
-        "description": "`.field-error` adds `px-1` and the collapsible `h-0 opacity-0 data-visible:h-auto` behaviour to the error text. The port keeps the 4px horizontal padding around the message but gates visibility from the validation state instead of animating a collapse.",
+        "description": "`.field-error` adds `px-1` and the collapsible `h-0 opacity-0 data-visible:h-auto` behaviour to the error text. The port keeps the 4px horizontal padding, retains the last message during exit, and drives the height and opacity timelines when a stable id is available.",
         "rustOwner": "FieldError",
-        "status": "partial"
+        "status": "implemented"
       }
     ],
     "states": [
@@ -25417,15 +25560,15 @@
       },
       {
         "token": ".error-message",
-        "description": "12px danger text; the port paints it directly without the collapsible height/opacity interpolation.",
-        "rust": "text_size(px(12.)) + line_height(px(16.)) + colors.danger.color",
-        "status": "partial"
+        "description": "12px danger text; shared field wrappers retain its body and interpolate opacity over 150ms ease-out while the row height settles over 350ms ease-smooth.",
+        "rust": "anim::field_error_panel + Motion::FIELD_ERROR_HEIGHT + Motion::FIELD_ERROR_OPACITY",
+        "status": "implemented"
       },
       {
         "token": ".field-error",
-        "description": "The 4px horizontal padding is the only spacing `.field-error` adds over `.error-message`; the animated collapse is replaced by rendering nothing until the field is invalid with a message.",
-        "rust": "px(px(4.)) around ErrorMessage::new(text), rendered only when invalid",
-        "status": "partial"
+        "description": "The 4px horizontal padding is the only spacing `.field-error` adds over `.error-message`; a stable field id retains the body through exit and collapses its measured height to zero after the pinned transition.",
+        "rust": "anim::field_error_panel + px(px(4.)) + panel_phase",
+        "status": "implemented"
       }
     ]
   }

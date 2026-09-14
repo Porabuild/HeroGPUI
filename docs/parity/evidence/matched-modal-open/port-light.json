@@ -1,0 +1,20 @@
+{
+  "dpr": 1,
+  "viewport": {
+    "w": 800,
+    "h": 533
+  },
+  "v": "e2bfda29",
+  "page": "Modal",
+  "section": "Sizes",
+  "specimen": "md-size-md",
+  "click": {
+    "x": 399,
+    "y": 259
+  },
+  "canvas": {
+    "w": 800,
+    "h": 533
+  },
+  "loadingGone": true
+}

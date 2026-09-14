@@ -14,10 +14,12 @@
 //! - Each picker composes editable date segments and a separate 24px trigger.
 //!   The single trigger centres at (124, 18), and the range trigger at
 //!   (300, 18).
-//! - The DatePicker panel hangs from `placed_panel(BottomStart, 6px)`: top =
-//!   36 + 6 = 42, then `picker_panel` padding p-3 (12) brings the calendar to
-//!   y = 54. The 24px header, 16px bottom padding, 24px weekday block and
-//!   4px body offset put the first Calendar cell at y = 122, centre 140.
+//! - The geometry probes below opt into `placement(BottomStart)` so the
+//!   calendar cell coordinates stay stable while the default remains HeroUI's
+//!   centered `bottom`: top =
+//!   36 + 8 = 44, then `picker_panel` padding p-3 (12) brings the calendar to
+//!   y = 56. The 24px header, 16px bottom padding, 24px weekday block and
+//!   4px body offset put the first Calendar cell at y = 124, centre 142.
 //! - Calendar columns: `CALENDAR_WIDTH` (252) split into seven equal
 //!   cells; with the panel's 12px padding, the last column's centre is
 //!   `12 + 6*cell_w + cell_w/2`.
@@ -25,9 +27,10 @@
 //!   and the second at 182; column *c* centres at `12 + 18 + 36c`.
 //! - A bare Calendar's first row centres at 86.
 //!
-//! No exiting overlay is involved: both pickers gate the panel on `is_open`
-//! (no `util::overlay_phase`), so a closed popover leaves the tree on the
-//! next frame and the second-click probe cannot hit an exiting panel.
+//! Closing now retains the popover for the shared 100ms exit animation. The
+//! retained calendar is gated by the resolved overlay phase, so a second
+//! click cannot select a cell or trigger a duplicate outside dismissal while
+//! the panel is leaving.
 
 mod harness;
 
@@ -43,7 +46,7 @@ use harness::{click, events, open_host};
 fn day_coords() -> (f32, f32) {
     let cell_w = f32::from(CALENDAR_WIDTH) / 7.;
     let day_x = 12. + 6. * cell_w + cell_w / 2.;
-    (day_x, 140.)
+    (day_x, 142.)
 }
 
 fn input_state(cx: &mut TestAppContext) -> gpui::Entity<InputState> {
@@ -126,11 +129,12 @@ fn date_picker_closes_when_a_day_is_picked(cx: &mut TestAppContext) {
     let expected = Date::new(today.year, today.month, (7 - lead) as u32);
     let (day_x, day_y) = day_coords();
 
-    let state_for_view = state;
+    let state_for_view = state.clone();
     let cx = open_host(cx, move || {
         let picks = picks.clone();
         let opens = opens.clone();
         DatePicker::new(state_for_view.clone())
+            .placement(herogpui_core::Placement::BottomStart)
             .on_change(move |date, _, _| {
                 let iso = date.map(|d| d.format_iso()).unwrap_or_default();
                 picks.borrow_mut().push(iso);
@@ -161,14 +165,24 @@ fn date_picker_closes_when_a_day_is_picked(cx: &mut TestAppContext) {
         "a single date picker must close as soon as a day is chosen"
     );
 
-    // Closed proof by behaviour, the same probe `pickers.rs` uses: the same
-    // spot is bare page below the trigger now, so the press must reach
-    // nothing. Were the popover still open, a second "day" would record here.
+    // Closed proof by behaviour: the retained exit surface is inert, so the
+    // same probe cannot record a second "day" while it fades away.
     click(cx, day_x, day_y);
     assert_eq!(
         recorded.borrow().as_slice(),
         [expected.format_iso()],
         "the popover must be gone after choosing a day"
+    );
+
+    // The retained exit still paints its header for the 100ms fade, but its
+    // calendar must be inert: a press on the old Previous control cannot page
+    // the shared state while a newer overlay or field receives input.
+    let anchor_before = cx.update(|_, cx| state.read(cx).anchor());
+    click(cx, 24., 68.);
+    let anchor_after = cx.update(|_, cx| state.read(cx).anchor());
+    assert_eq!(
+        anchor_after, anchor_before,
+        "a retained DatePicker exit must not accept navigation input"
     );
 }
 
@@ -190,6 +204,7 @@ fn date_picker_can_remain_open_after_a_day_is_picked(cx: &mut TestAppContext) {
         let picks = picks.clone();
         let opens = opens.clone();
         DatePicker::new(state_for_view.clone())
+            .placement(herogpui_core::Placement::BottomStart)
             .should_close_on_select(false)
             .on_change(move |date, _, _| {
                 picks
@@ -222,6 +237,7 @@ fn date_picker_custom_indicator_preserves_trigger_behavior(cx: &mut TestAppConte
     let cx = open_host(cx, move || {
         let opens = opens.clone();
         DatePicker::new(state_for_view.clone())
+            .placement(herogpui_core::Placement::BottomStart)
             .trigger_indicator(gpui::div().child("custom"))
             .on_open_change(move |open, _, _| {
                 opens.borrow_mut().push(format!("open:{open}"));
@@ -250,6 +266,7 @@ fn date_picker_change_records_the_pick_once(cx: &mut TestAppContext) {
     let cx = open_host(cx, move || {
         let picks = picks.clone();
         DatePicker::new(state_for_view.clone())
+            .placement(herogpui_core::Placement::BottomStart)
             .on_change(move |date, _, _| {
                 let iso = date.map(|d| d.format_iso()).unwrap_or_default();
                 picks.borrow_mut().push(iso);
@@ -266,8 +283,8 @@ fn date_picker_change_records_the_pick_once(cx: &mut TestAppContext) {
         "the change callback must record the chosen day exactly once"
     );
 
-    // The pick closed the popover even though no open handler exists, so the
-    // same coordinates record nothing a second time.
+    // The pick logically closed the popover even though no open handler
+    // exists; its retained exit surface records nothing a second time.
     click(cx, day_x, day_y);
     assert_eq!(
         recorded.borrow().as_slice(),
@@ -292,8 +309,8 @@ fn date_range_picker_stays_open_until_the_end_is_chosen(cx: &mut TestAppContext)
     let ended = Date::new(today.year, today.month, 8);
     // Day 1 starts at column `lead`; day 8 is 40px below it in the same column.
     let day_x = 30. + 36. * lead as f32;
-    let row_one_y = 142.;
-    let row_two_y = 182.;
+    let row_one_y = 144.;
+    let row_two_y = 184.;
 
     let state_for_view = state.clone();
     let cx = open_host(cx, move || {
@@ -301,6 +318,7 @@ fn date_range_picker_stays_open_until_the_end_is_chosen(cx: &mut TestAppContext)
         let opens = opens.clone();
         let state = state_for_view.clone();
         DateRangePicker::new(state.clone())
+            .placement(herogpui_core::Placement::BottomStart)
             .on_open_change(move |open, _, _| {
                 opens.borrow_mut().push(format!("open:{open}"));
             })
@@ -357,12 +375,20 @@ fn date_range_picker_stays_open_until_the_end_is_chosen(cx: &mut TestAppContext)
         assert_eq!(end, Some(ended), "the end must be remembered");
     }
 
-    // Closed proof: a press where the start row was records nothing.
+    // Closed proof: the retained exit surface is inert, so a press where the
+    // start row was records nothing.
     click(cx, day_x, row_one_y);
     assert_eq!(
         changed.borrow().len(),
         1,
         "the popover must be gone after the range is complete"
+    );
+    let anchor_before = cx.update(|_, cx| state.read(cx).anchor());
+    click(cx, 24., 68.);
+    let anchor_after = cx.update(|_, cx| state.read(cx).anchor());
+    assert_eq!(
+        anchor_after, anchor_before,
+        "a retained DateRangePicker exit must not accept navigation input"
     );
 }
 
@@ -379,6 +405,7 @@ fn date_range_picker_can_remain_open_after_completion(cx: &mut TestAppContext) {
     let cx = open_host(cx, move || {
         let opens = opens.clone();
         DateRangePicker::new(state_for_view.clone())
+            .placement(herogpui_core::Placement::BottomStart)
             .should_close_on_select(false)
             .on_open_change(move |open, _, _| {
                 opens.borrow_mut().push(format!("open:{open}"));
@@ -387,8 +414,8 @@ fn date_range_picker_can_remain_open_after_completion(cx: &mut TestAppContext) {
     });
 
     click(cx, 300., 18.);
-    click(cx, day_x, 142.);
-    click(cx, day_x, 182.);
+    click(cx, day_x, 144.);
+    click(cx, day_x, 184.);
     assert_eq!(opened.borrow().as_slice(), ["open:true"]);
 }
 

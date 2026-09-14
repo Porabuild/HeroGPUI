@@ -56,6 +56,13 @@ The inventories deliberately retain different upstream and gallery naming;
 map composition parts explicitly instead of treating unmatched names as absent
 components. Refresh the inventory if its source hashes change.
 
+The generated [coverage report](coverage-report.md) is the maintainer-facing
+work queue for this inventory. It includes status and scope distributions,
+evidence-surface coverage, per-component unresolved ids, measured gaps,
+intentional deviations, platform limits and the explicitly recorded last
+evidence commit. Run `.shots/coverage_report.py --check` before handing the
+queue to another agent; the report is deliberately not a parity verdict.
+
 ## Confirmed source discrepancy
 
 Tag removal: v3.2.5's `packages/styles/components/tag.css` adds `touch-target`

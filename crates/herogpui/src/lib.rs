@@ -162,7 +162,7 @@ pub use ::herogpui_core as core;
 #[cfg(feature = "core")]
 pub use ::herogpui_core::{
     Backdrop, Color, CurrencySign, FieldVariant, NumberFormat, NumberStyle, Orientation, Placement,
-    Prominence, SelectionMode, Size, SizeXl, UnitDisplay, Variant,
+    Prominence, SelectionBehavior, SelectionMode, Size, SizeXl, UnitDisplay, Variant,
 };
 /// The semantic and layout token layer. [`ThemeProvider`] is a GPUI global;
 /// read it through [`ActiveTheme`].
@@ -275,7 +275,8 @@ pub mod prelude {
     #[cfg(feature = "core")]
     pub use herogpui_core::{
         Backdrop, Color, CurrencySign, FieldVariant, NumberFormat, NumberStyle, Orientation,
-        Placement, Prominence, SelectionMode, Size, SizeXl, UnitDisplay, Variant,
+        Placement, Prominence, SelectionBehavior, SelectionMode, Size, SizeXl, UnitDisplay,
+        Variant,
     };
     #[cfg(feature = "theme")]
     pub use herogpui_theme::{

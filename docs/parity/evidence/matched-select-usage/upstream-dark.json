@@ -1,0 +1,68 @@
+{
+  "dpr": 1,
+  "viewport": {
+    "w": 800,
+    "h": 413
+  },
+  "strip": "fixture=select-usage theme=dark stage=640x360 @heroui/react@3.2.5 pnpm-lock.yaml sha256:96fe7abea3effa8a",
+  "stage": {
+    "x": 0,
+    "y": 53,
+    "w": 640,
+    "h": 360,
+    "radius": "0px",
+    "bg": "lab(1.95246 0.20735 -0.760898)",
+    "fontSize": "16px",
+    "color": "lab(94.5775 -0.54577 -6.04904)"
+  },
+  "column": {
+    "x": 192,
+    "y": 203,
+    "w": 256,
+    "h": 60,
+    "radius": "0px",
+    "bg": "rgba(0, 0, 0, 0)",
+    "fontSize": "16px",
+    "color": "lab(94.5775 -0.54577 -6.04904)"
+  },
+  "label": {
+    "x": 192,
+    "y": 203,
+    "w": 65.08,
+    "h": 20,
+    "radius": "0px",
+    "bg": "rgba(0, 0, 0, 0)",
+    "fontSize": "14px",
+    "color": "lab(94.5775 -0.54577 -6.04904)"
+  },
+  "trigger": {
+    "x": 192,
+    "y": 227,
+    "w": 256,
+    "h": 36,
+    "radius": "12px",
+    "bg": "lab(4.10938 0.889979 -3.264)",
+    "fontSize": "14px",
+    "color": "lab(94.5775 -0.54577 -6.04904)"
+  },
+  "value": {
+    "x": 204,
+    "y": 235,
+    "w": 216,
+    "h": 20,
+    "radius": "0px",
+    "bg": "rgba(0, 0, 0, 0)",
+    "fontSize": "14px",
+    "color": "lab(67.8368 -0.185162 -13.7738)"
+  },
+  "indicator": {
+    "x": 424,
+    "y": 237,
+    "w": 16,
+    "h": 16,
+    "radius": "0px",
+    "bg": "rgba(0, 0, 0, 0)",
+    "fontSize": "14px",
+    "color": "lab(67.8368 -0.185162 -13.7738)"
+  }
+}

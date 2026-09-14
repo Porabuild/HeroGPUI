@@ -17,98 +17,126 @@ impl Gallery {
                 (
                     "Usage",
                     // v3: `<ColorArea defaultValue="hsl(30, 100%, 50%)" />`.
-                    col(vec![h::ColorArea::new("ca-usage", value)
-                        .default_value(value)
-                        .into_any_element()]),
+                    specimen_body(
+                        "ca-main",
+                        col(vec![h::ColorArea::new("ca-usage", value)
+                            .default_value(value)
+                            .into_any_element()]),
+                        cx
+                    ),
                 ),
                 (
                     "With Dots",
-                    col(vec![h::ColorArea::new("ca-dots", value)
-                        .show_dots(true)
-                        .into_any_element()]),
+                    specimen_body(
+                        "ca-dots",
+                        col(vec![h::ColorArea::new("ca-dots", value)
+                            .show_dots(true)
+                            .into_any_element()]),
+                        cx
+                    ),
                 ),
                 (
                     "Color Space & Channels",
-                    row(vec![
-                        spec(
-                            "Saturation / Brightness (HSB)",
-                            h::ColorArea::new("ca-hsb", value)
-                                .color_space(h::ColorSpace::Hsb)
-                                .x_channel(h::ColorChannel::Saturation)
-                                .y_channel(h::ColorChannel::Brightness)
-                                .size(px(160.), px(120.)),
-                            cx,
-                        ),
-                        spec(
-                            "Red / Green (RGB)",
-                            h::ColorArea::new("ca-rgb", value)
-                                .color_space(h::ColorSpace::Rgb)
-                                .x_channel(h::ColorChannel::Red)
-                                .y_channel(h::ColorChannel::Green)
-                                .size(px(160.), px(120.)),
-                            cx,
-                        ),
-                    ]),
+                    specimen_body(
+                        "ca-color-channels",
+                        row(vec![
+                            spec(
+                                "Saturation / Brightness (HSB)",
+                                h::ColorArea::new("ca-hsb", value)
+                                    .color_space(h::ColorSpace::Hsb)
+                                    .x_channel(h::ColorChannel::Saturation)
+                                    .y_channel(h::ColorChannel::Brightness)
+                                    .size(px(160.), px(120.)),
+                                cx,
+                            ),
+                            spec(
+                                "Red / Green (RGB)",
+                                h::ColorArea::new("ca-rgb", value)
+                                    .color_space(h::ColorSpace::Rgb)
+                                    .x_channel(h::ColorChannel::Red)
+                                    .y_channel(h::ColorChannel::Green)
+                                    .size(px(160.), px(120.)),
+                                cx,
+                            ),
+                        ]),
+                        cx
+                    ),
                 ),
                 (
                     "Controlled",
-                    col(vec![
-                        h::ColorArea::new("ca-controlled", value)
-                            .size(px(180.), px(120.))
-                            .on_change(cx.listener(|this, c: &h::PickerColor, _, cx| {
-                                this.picker_color = *c;
-                                cx.notify();
-                            }))
-                            .into_any_element(),
-                        row(vec![
-                            h::ColorSwatch::new(value).into_any_element(),
-                            para(&format!("Value: {}", value.to_hex()), cx),
+                    specimen_body(
+                        "ca-controlled",
+                        col(vec![
+                            h::ColorArea::new("ca-controlled", value)
+                                .size(px(180.), px(120.))
+                                .on_change(cx.listener(|this, c: &h::PickerColor, _, cx| {
+                                    this.picker_color = *c;
+                                    cx.notify();
+                                }))
+                                .into_any_element(),
+                            row(vec![
+                                h::ColorSwatch::new(value).into_any_element(),
+                                para(&format!("Value: {}", value.to_hex()), cx),
+                            ]),
                         ]),
-                    ]),
+                        cx
+                    ),
                 ),
                 (
                     "Render Function",
-                    col(vec![h::ColorArea::new("ca-render-state", value)
-                        .default_value(value)
-                        .thumb(|state| {
-                            gpui::div()
-                                .absolute()
-                                .inset_0()
-                                .flex()
-                                .items_center()
-                                .justify_center()
-                                .child(
-                                    gpui::div()
-                                        .size(px(if state.is_dragging { 6. } else { 4. }))
-                                        .rounded_full()
-                                        .bg(if state.is_hovered {
-                                            gpui::black()
-                                        } else {
-                                            gpui::white()
-                                        }),
-                                )
-                                .into_any_element()
-                        })
-                        .into_any_element()]),
+                    specimen_body(
+                        "ca-render",
+                        col(vec![h::ColorArea::new("ca-render-state", value)
+                            .default_value(value)
+                            .thumb(|state| {
+                                gpui::div()
+                                    .absolute()
+                                    .inset_0()
+                                    .flex()
+                                    .items_center()
+                                    .justify_center()
+                                    .child(
+                                        gpui::div()
+                                            .size(px(if state.is_dragging { 6. } else { 4. }))
+                                            .rounded_full()
+                                            .bg(if state.is_hovered {
+                                                gpui::black()
+                                            } else {
+                                                gpui::white()
+                                            }),
+                                    )
+                                    .into_any_element()
+                            })
+                            .into_any_element()]),
+                        cx
+                    ),
                 ),
                 (
                     "Saturation & brightness",
-                    col(vec![
-                        h::ColorArea::new("ca-main", value)
-                            .on_change(cx.listener(|this, c: &h::PickerColor, _, cx| {
-                                this.picker_color = *c;
-                                cx.notify();
-                            }))
-                            .into_any_element(),
-                        para(&format!("Value: {}", value.to_hex()), cx),
-                    ]),
+                    specimen_body(
+                        "ca-saturation-brightness",
+                        col(vec![
+                            h::ColorArea::new("ca-main", value)
+                                .on_change(cx.listener(|this, c: &h::PickerColor, _, cx| {
+                                    this.picker_color = *c;
+                                    cx.notify();
+                                }))
+                                .into_any_element(),
+                            para(&format!("Value: {}", value.to_hex()), cx),
+                        ]),
+                        cx
+                    ),
                 ),
                 (
                     "Disabled",
-                    col(vec![h::ColorArea::new("ca-disabled", value)
-                        .size(px(180.), px(120.))
-                        .is_disabled(true)
-                        .into_any_element()]),
+                    specimen_body(
+                        "ca-disabled",
+                        col(vec![h::ColorArea::new("ca-disabled", value)
+                            .size(px(180.), px(120.))
+                            .is_disabled(true)
+                            .into_any_element()]),
+                        cx
+                    ),
                 ),
             ],
             cx,
@@ -124,28 +152,39 @@ impl Gallery {
             vec![
                 (
                     "Usage",
-                    field_col(vec![h::ColorField::new("cf-usage", value)
+                    specimen_body("cf-main", field_col(vec![h::ColorField::new("cf-usage", value)
                         .state(self.demo_text("cf-usage", "#0085F5", cx))
                         // v3's Usage is uncontrolled: `defaultValue="#0085F5"`.
                         .default_value(value)
                         .label("Color")
                         .radius(px(4.))
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
+                ),
+                (
+                    "Empty Value",
+                    "ColorField accepts an explicit null value. The empty field keeps its label and placeholder, omits the swatch, and can be filled later.",
+                    specimen_body("cf-empty", field_col(vec![h::ColorField::new("cf-empty", None::<h::PickerColor>)
+                        .default_value(None::<h::PickerColor>)
+                        .state(self.demo_text("cf-empty", "", cx))
+                        .label("Brand color")
+                        .placeholder("#000000")
+                        .is_required(true)
+                        .into_any_element()]), cx),
                 ),
                 (
                     "Box Customisation",
                     "`height`, `padding_x` and `is_bare` cover both paths: the editable field here, and the static display box. The bare specimen is the editable path.",
-                    field_col(vec![h::ColorField::new("cf-custom-box", value)
+                    specimen_body("cf-box", field_col(vec![h::ColorField::new("cf-custom-box", value)
                         .state(self.demo_text("cf-custom-box", "#0085F5", cx))
                         .label("Compact editable")
                         .height(px(28.))
                         .padding_x(px(8.))
                         .is_bare(true)
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "Variants",
-                    col(vec![
+                    specimen_body("cf-variants", col(vec![
                         h::ColorField::new("cf-v-primary", value)
                             .state(self.demo_text("cf-v-primary", "#0085F5", cx))
                             .label("Primary")
@@ -155,11 +194,11 @@ impl Gallery {
                             .label("Secondary")
                             .variant(FieldVariant::Secondary)
                             .into_any_element(),
-                    ]),
+                    ]), cx),
                 ),
                 (
                     "On Surface",
-                    col(vec![h::Surface::new()
+                    specimen_body("cf-surface", col(vec![h::Surface::new()
                         .padding(px(24.))
                         .gap(px(16.))
                         .child(
@@ -168,31 +207,31 @@ impl Gallery {
                                 .label("Color")
                                 .variant(FieldVariant::Secondary),
                         )
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "With Description",
-                    field_col(vec![h::ColorField::new("cf-desc", value)
+                    specimen_body("cf-description", field_col(vec![h::ColorField::new("cf-desc", value)
                         .state(self.demo_text("cf-desc", "#0085F5", cx))
                         .label("Brand color")
                         .description("Any CSS hex value")
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "Required Field",
-                    field_col(vec![h::ColorField::new("cf-req", value)
+                    specimen_body("cf-required", field_col(vec![h::ColorField::new("cf-req", value)
                         .state(self.demo_text("cf-req", "", cx))
                         .label("Color")
                         .is_required(true)
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "Disabled State",
-                    field_col(vec![h::ColorField::new("cf-dis", value)
+                    specimen_body("cf-disabled", field_col(vec![h::ColorField::new("cf-dis", value)
                         .state(self.demo_text("cf-dis", "#0085F5", cx))
                         .label("Color")
                         .is_disabled(true)
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "Full Width",
@@ -213,18 +252,18 @@ impl Gallery {
                 ),
                 (
                     "Validation",
-                    field_col(vec![h::ColorField::new("cf-invalid", value)
+                    specimen_body("cf-validation", field_col(vec![h::ColorField::new("cf-invalid", value)
                         .state(self.demo_text("cf-invalid", "not-a-color", cx))
                         .label("Color")
                         .is_required(true)
                         .is_invalid(true)
                         .validation_errors(["Enter a valid hex colour"])
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "Channel Editing",
                     "Edit individual HSL channels:",
-                    col(vec![spec_row(vec![
+                    specimen_body("cf-channel-editing", col(vec![spec_row(vec![
                         h::ColorField::new("cf-ch-hue", value)
                                 .state(self.demo_text("cf-ch-hue", "", cx))
                                 // `colorSpace` names the channel set; `channel`
@@ -246,13 +285,13 @@ impl Gallery {
                             .label("Lightness")
                             .into_any_element(),
                         h::ColorSwatch::new(value).into_any_element(),
-                    ]),]),
+                    ]),]), cx),
                 ),
                 (
                     "Controlled",
-                    col(vec![
+                    specimen_body("cf-controlled", col(vec![
                         h::ColorField::new("cf-ctl", value)
-                            .state(self.color_field_state.clone())
+                            .state(self.demo_text("cf-ctl", "#0085F5", cx))
                             .label("Color")
                             .on_change(cx.listener(
                                 |this, parsed: &Option<h::PickerColor>, _, cx| {
@@ -267,11 +306,11 @@ impl Gallery {
                             h::ColorSwatch::new(value).into_any_element(),
                             para(&format!("Value: {}", value.to_hex()), cx),
                         ]),
-                    ]),
+                    ]), cx),
                 ),
                 (
                     "Render Function",
-                    col(vec![{
+                    specimen_body("cf-render", col(vec![{
                         let state = self.demo_text("cf-render", "#0085F5", cx);
                         let inner = state.clone();
                         h::ColorField::new("cf-render-root", value)
@@ -301,11 +340,11 @@ impl Gallery {
                                     .into_any_element()
                             })
                             .into_any_element()
-                    }]),
+                    }]), cx),
                 ),
                 (
                     "Form Example",
-                    col(vec![{
+                    specimen_body("cf-form", col(vec![{
                         let state = self.demo_text("cf-form", "#0085F5", cx);
                         h::Form::new()
                             .field(h::FormField::text(state.clone()).name("color"))
@@ -318,12 +357,12 @@ impl Gallery {
                             )
                             .child(h::Button::new("cf-form-submit").label("Save"))
                             .into_any_element()
-                    }]),
+                    }]), cx),
                 ),
                 (
                     "Hex value",
-                    field_col(vec![h::ColorField::new("cf-hex", value)
-                        .state(self.color_field_state.clone())
+                    specimen_body("cf-hex", field_col(vec![h::ColorField::new("cf-hex", value)
+                        .state(self.demo_text("cf-hex", "#0085F5", cx))
                         .label("Brand color")
                         .description("Type a hex value such as #0085F5.")
                         .placeholder(value.to_hex())
@@ -335,18 +374,18 @@ impl Gallery {
                             }
                             cx.notify();
                         },))
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "Read-only display",
-                    field_col(vec![h::ColorField::new("cf-display", value)
+                    specimen_body("cf-readonly", field_col(vec![h::ColorField::new("cf-display", value)
                         .label("Current value")
                         .description("Without a text state the field is a display.")
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "Single channel",
-                    row(vec![
+                    specimen_body("cf-single-channel", row(vec![
                         h::ColorField::new("cf-hue", value)
                             .channel(h::ColorChannel::Hue)
                             .label("Hue")
@@ -355,7 +394,7 @@ impl Gallery {
                             .channel(h::ColorChannel::Red)
                             .label("Red")
                             .into_any_element(),
-                    ]),
+                    ]), cx),
                 ),
             ],
             cx,
@@ -372,7 +411,7 @@ impl Gallery {
                 (
                     "Usage",
                     "The panel flips near window edges and scrolls to keep the alpha control reachable in short windows.",
-                    col(vec![h::ColorPicker::new("cp-main", value)
+                    specimen_body("cp-main", col(vec![h::ColorPicker::new("cp-main", value)
                         // v3's Usage is uncontrolled; "Controlled" is separate.
                         .default_value(value)
                         .label("Accent")
@@ -382,11 +421,26 @@ impl Gallery {
                             this.picker_color = *c;
                             cx.notify();
                         }))
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
+                ),
+                (
+                    "Open / Placement",
+                    "A controlled-open picker exercises the initial overlay mount and placement resolver without requiring a trigger press.",
+                    specimen_body("cp-open", col(vec![h::ColorPicker::new("cp-open", value)
+                        .is_open(true)
+                        .placement(h::Placement::BottomStart)
+                        .label("Accent")
+                        .font_family(crate::app::MONO_FONT)
+                        .show_alpha(true)
+                        // Controlled open state intentionally ignores close
+                        // requests so the initial placement stays visible in
+                        // the visual specimen.
+                        .on_open_change(|_, _, _| {})
+                        .into_any_element()]), cx),
                 ),
                 (
                     "Controlled", "The caller owns the color value while the trigger owns its ordinary open state — the same split a dialog trigger composes.",
-                    col(vec![
+                    specimen_body("cp-controlled", col(vec![
                         h::ColorPicker::new("cp-controlled", value)
                             .label("Brand")
                             .on_change(cx.listener(|this, c: &h::PickerColor, _, cx| {
@@ -395,11 +449,11 @@ impl Gallery {
                             },))
                             .into_any_element(),
                         para(&format!("Value: {}", value.to_hex()), cx),
-                    ]),
+                    ]), cx),
                 ),
                 (
                     "With Swatches", "A preset row beside the picker — the default layout.",
-                    col(vec![
+                    specimen_body("cp-swatches", col(vec![
                         h::ColorSwatchPicker::new("cp-presets", palette())
                             .value(value)
                             .on_change(cx.listener(|this, c: &h::PickerColor, _, cx| {
@@ -407,11 +461,11 @@ impl Gallery {
                                 cx.notify();
                             }))
                             .into_any_element(),
-                    ]),
+                    ]), cx),
                 ),
                 (
                     "With Fields",
-                    col(vec![
+                    specimen_body("cp-fields", col(vec![
                         h::ColorField::new("cp-field", value)
                             .state(self.demo_text("cp-field", "#0085F5", cx))
                             .label("Hex")
@@ -433,11 +487,11 @@ impl Gallery {
                                 .label("L")
                                 .into_any_element(),
                         ]),
-                    ]),
+                    ]), cx),
                 ),
                 (
                     "With Sliders",
-                    col(vec![
+                    specimen_body("cp-sliders", col(vec![
                         h::ColorSlider::new("cp-sl-hue", value, h::ColorChannel::Hue)
                             .on_change(cx.listener(|this, c: &h::PickerColor, _, cx| {
                                 this.picker_color = *c;
@@ -450,7 +504,7 @@ impl Gallery {
                                 cx.notify();
                             }))
                             .into_any_element(),
-                    ]),
+                    ]), cx),
                 ),
             ],
             cx,
@@ -474,110 +528,140 @@ impl Gallery {
                     "Usage",
                     // v3's Usage is uncontrolled; "Controlled" is its own
                     // example further down.
-                    col(vec![h::ColorSlider::new(
-                        "cs-usage",
-                        value,
-                        h::ColorChannel::Hue,
-                    )
-                    .default_value(value)
-                    .into_any_element()]),
+                    specimen_body(
+                        "cs-main",
+                        col(vec![h::ColorSlider::new(
+                            "cs-usage",
+                            value,
+                            h::ColorChannel::Hue,
+                        )
+                        .default_value(value)
+                        .into_any_element()]),
+                        cx
+                    ),
                 ),
                 (
                     "Disabled",
-                    col(vec![h::ColorSlider::new(
+                    specimen_body(
                         "cs-disabled",
-                        value,
-                        h::ColorChannel::Hue,
-                    )
-                    .is_disabled(true)
-                    .into_any_element()]),
+                        col(vec![h::ColorSlider::new(
+                            "cs-disabled",
+                            value,
+                            h::ColorChannel::Hue,
+                        )
+                        .is_disabled(true)
+                        .into_any_element()]),
+                        cx
+                    ),
                 ),
                 (
                     "Vertical",
-                    row(vec![h::ColorSlider::new(
+                    specimen_body(
                         "cs-vertical",
-                        value,
-                        h::ColorChannel::Hue,
-                    )
-                    .orientation(Orientation::Vertical)
-                    .length(px(160.))
-                    .into_any_element()]),
+                        row(vec![h::ColorSlider::new(
+                            "cs-vertical",
+                            value,
+                            h::ColorChannel::Hue,
+                        )
+                        .orientation(Orientation::Vertical)
+                        .length(px(160.))
+                        .into_any_element()]),
+                        cx
+                    ),
                 ),
                 (
                     "Controlled",
-                    col(vec![
-                        h::ColorSlider::new("cs-controlled", value, h::ColorChannel::Hue)
-                            .on_change(cx.listener(|this, c: &h::PickerColor, _, cx| {
-                                this.picker_color = *c;
-                                cx.notify();
-                            }))
-                            .into_any_element(),
-                        row(vec![
-                            h::ColorSwatch::new(value).into_any_element(),
-                            para(&format!("Value: {}", value.to_hex()), cx),
+                    specimen_body(
+                        "cs-controlled",
+                        col(vec![
+                            h::ColorSlider::new("cs-controlled", value, h::ColorChannel::Hue)
+                                .on_change(cx.listener(|this, c: &h::PickerColor, _, cx| {
+                                    this.picker_color = *c;
+                                    cx.notify();
+                                }))
+                                .into_any_element(),
+                            row(vec![
+                                h::ColorSwatch::new(value).into_any_element(),
+                                para(&format!("Value: {}", value.to_hex()), cx),
+                            ]),
                         ]),
-                    ]),
+                        cx
+                    ),
                 ),
                 (
                     "Render Function",
-                    col(vec![h::ColorSlider::new(
-                        "cs-render-state",
-                        value,
-                        h::ColorChannel::Hue,
-                    )
-                    .default_value(value)
-                    .thumb(|state| {
-                        gpui::div()
-                            .absolute()
-                            .inset_0()
-                            .flex()
-                            .items_center()
-                            .justify_center()
-                            .child(
-                                gpui::div()
-                                    .size(px(if state.is_dragging { 6. } else { 4. }))
-                                    .rounded_full()
-                                    .bg(if state.is_hovered {
-                                        gpui::black()
-                                    } else {
-                                        gpui::white()
-                                    }),
-                            )
-                            .into_any_element()
-                    })
-                    .into_any_element()]),
+                    specimen_body(
+                        "cs-render",
+                        col(vec![h::ColorSlider::new(
+                            "cs-render-state",
+                            value,
+                            h::ColorChannel::Hue,
+                        )
+                        .default_value(value)
+                        .thumb(|state| {
+                            gpui::div()
+                                .absolute()
+                                .inset_0()
+                                .flex()
+                                .items_center()
+                                .justify_center()
+                                .child(
+                                    gpui::div()
+                                        .size(px(if state.is_dragging { 6. } else { 4. }))
+                                        .rounded_full()
+                                        .bg(if state.is_hovered {
+                                            gpui::black()
+                                        } else {
+                                            gpui::white()
+                                        }),
+                                )
+                                .into_any_element()
+                        })
+                        .into_any_element()]),
+                        cx
+                    ),
                 ),
                 (
                     "Alpha Channel",
-                    col(vec![h::ColorSlider::new(
+                    specimen_body(
                         "cs-alpha",
-                        value,
-                        h::ColorChannel::Alpha,
-                    )
-                    .show_label(true)
-                    .into_any_element()]),
+                        col(vec![h::ColorSlider::new(
+                            "cs-alpha",
+                            value,
+                            h::ColorChannel::Alpha,
+                        )
+                        .show_label(true)
+                        .into_any_element()]),
+                        cx
+                    ),
                 ),
                 (
                     "HSL Channels",
-                    col([
-                        h::ColorChannel::Hue,
-                        h::ColorChannel::Saturation,
-                        h::ColorChannel::Lightness,
-                    ]
-                    .iter()
-                    .map(|ch| {
-                        h::ColorSlider::new(el_id(format!("cs-hsl-{ch:?}")), value, *ch)
-                            .color_space(h::ColorSpace::Hsl)
-                            .show_label(true)
-                    })
-                    .els()),
+                    specimen_body(
+                        "cs-hsl",
+                        col([
+                            h::ColorChannel::Hue,
+                            h::ColorChannel::Saturation,
+                            h::ColorChannel::Lightness,
+                        ]
+                        .iter()
+                        .map(|ch| {
+                            h::ColorSlider::new(el_id(format!("cs-hsl-{ch:?}")), value, *ch)
+                                .color_space(h::ColorSpace::Hsl)
+                                .show_label(true)
+                        })
+                        .els()),
+                        cx
+                    ),
                 ),
                 (
                     "Channels",
-                    col(channels
-                        .iter()
-                        .map(|ch| {
-                            h::ColorSlider::new(el_id(format!("cs-{ch:?}")), value, *ch)
+                    specimen_body(
+                        "cs-channels",
+                        col(channels
+                            .iter()
+                            .map(|ch| {
+                                h::ColorSlider::new(el_id(format!("cs-{ch:?}")), value, *ch)
                                 .on_change(cx.listener(
                                     |this, c: &h::PickerColor, _, cx| {
                                         this.picker_color = *c;
@@ -600,26 +684,31 @@ impl Gallery {
                                         .child(text.to_owned())
                                         .into_any_element()
                                 })
-                        })
-                        .els()),
+                            })
+                            .els()),
+                        cx
+                    ),
                 ),
                 (
                     "RGB Channels",
-                    col([
-                        h::ColorChannel::Red,
-                        h::ColorChannel::Green,
-                        h::ColorChannel::Blue,
-                    ]
-                    .iter()
-                    .map(|ch| {
-                        h::ColorSlider::new(el_id(format!("cs-rgb-{ch:?}")), value, *ch).on_change(
-                            cx.listener(|this, c: &h::PickerColor, _, cx| {
-                                this.picker_color = *c;
-                                cx.notify();
-                            }),
-                        )
-                    })
-                    .els()),
+                    specimen_body(
+                        "cs-rgb",
+                        col([
+                            h::ColorChannel::Red,
+                            h::ColorChannel::Green,
+                            h::ColorChannel::Blue,
+                        ]
+                        .iter()
+                        .map(|ch| {
+                            h::ColorSlider::new(el_id(format!("cs-rgb-{ch:?}")), value, *ch)
+                                .on_change(cx.listener(|this, c: &h::PickerColor, _, cx| {
+                                    this.picker_color = *c;
+                                    cx.notify();
+                                }))
+                        })
+                        .els()),
+                        cx
+                    ),
                 ),
             ],
             cx,
@@ -634,14 +723,14 @@ impl Gallery {
             vec![
                 (
                     "Usage",
-                    row(vec![h::ColorSwatch::new(
+                    specimen_body("csw-main", row(vec![h::ColorSwatch::new(
                         h::PickerColor::from_hex("#0085F5").unwrap_or_default(),
                     )
-                    .into_any_element()]),
+                    .into_any_element()]), cx),
                 ),
                 (
                     "Transparency",
-                    row(vec![
+                    specimen_body("csw-transparency", row(vec![
                         spec(
                             "50% alpha",
                             h::ColorSwatch::new(
@@ -660,11 +749,11 @@ impl Gallery {
                             ),
                             cx,
                         ),
-                    ]),
+                    ]), cx),
                 ),
                 (
                     "Accessibility", "A swatch has an accessible colour name. A desktop GPUI surface has no screen-reader tree, so the name is shown as a caption instead of announced.",
-                    col(vec![
+                    specimen_body("csw-accessibility", col(vec![
                         row(palette()
                             .into_iter()
                             .map(|c| {
@@ -672,11 +761,20 @@ impl Gallery {
                                 spec(&hex, h::ColorSwatch::new(c), cx)
                             })
                             .collect()),
-                    ]),
+                        row(vec![spec(
+                            "Brand blue (color_name)",
+                            h::ColorSwatch::new(
+                                h::PickerColor::from_hex("#0085F5").unwrap_or_default(),
+                            )
+                            .id("csw-brand-blue")
+                            .color_name("Brand blue"),
+                            cx,
+                        )]),
+                    ]), cx),
                 ),
                 (
                     "Sizes",
-                    row(SizeXl::ALL
+                    specimen_body("csw-sizes", row(SizeXl::ALL
                         .iter()
                         .map(|s| {
                             spec(
@@ -685,11 +783,11 @@ impl Gallery {
                                 cx,
                             )
                         })
-                        .collect()),
+                        .collect()), cx),
                 ),
                 (
                     "Shapes",
-                    row(h::SwatchShape::ALL
+                    specimen_body("csw-shapes", row(h::SwatchShape::ALL
                         .iter()
                         .map(|shape| {
                             spec(
@@ -700,18 +798,18 @@ impl Gallery {
                                 cx,
                             )
                         })
-                        .collect()),
+                        .collect()), cx),
                 ),
                 (
                     "Palette",
-                    row(palette()
+                    specimen_body("csw-palette", row(palette()
                         .into_iter()
                         .map(|c| h::ColorSwatch::new(c).size(SizeXl::Lg))
-                        .els()),
+                        .els()), cx),
                 ),
                 (
                     "Alpha",
-                    row(vec![
+                    specimen_body("csw-alpha", row(vec![
                         h::ColorSwatch::new(self.picker_color.with_alpha(1.0))
                             .size(SizeXl::Lg)
                             .into_any_element(),
@@ -721,7 +819,7 @@ impl Gallery {
                         h::ColorSwatch::new(self.picker_color.with_alpha(0.15))
                             .size(SizeXl::Lg)
                             .into_any_element(),
-                    ]),
+                    ]), cx),
                 ),
             ],
             cx,
@@ -737,7 +835,7 @@ impl Gallery {
             vec![
                 (
                     "Usage",
-                    col(vec![
+                    specimen_body("csp-main", col(vec![
                         h::ColorSwatchPicker::new("csp-main", palette())
                             .value(selected)
                             .size(SizeXl::Lg)
@@ -747,11 +845,11 @@ impl Gallery {
                             }))
                             .into_any_element(),
                         para(&format!("Selected: {}", selected.to_hex()), cx),
-                    ]),
+                    ]), cx),
                 ),
                 (
                     "Variants",
-                    col(vec![
+                    specimen_body("csp-variants", col(vec![
                         spec(
                             "Circle (default)",
                             h::ColorSwatchPicker::new("csp-circle", palette())
@@ -777,11 +875,11 @@ impl Gallery {
                                 .shape(h::SwatchShape::Square),
                             cx,
                         ),
-                    ]),
+                    ]), cx),
                 ),
                 (
                     "Sizes",
-                    col(SizeXl::ALL
+                    specimen_body("csp-sizes", col(SizeXl::ALL
                         .iter()
                         .map(|sz| {
                             h::ColorSwatchPicker::new(el_id(format!("csp-{sz:?}")), palette())
@@ -794,18 +892,18 @@ impl Gallery {
                                 ))
                                 .size(*sz)
                         })
-                        .els()),
+                        .els()), cx),
                 ),
                 (
                     "Disabled",
-                    col(vec![h::ColorSwatchPicker::new("csp-disabled", palette())
+                    specimen_body("csp-disabled", col(vec![h::ColorSwatchPicker::new("csp-disabled", palette())
                         .value(selected)
                         .is_disabled(true)
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "Disabled Item", "`ColorSwatchPicker.Item.isDisabled` dims one swatch — unclickable and out of the tab order — while the rest stay pickable: the difference from the whole-picker `isDisabled` above.",
-                    col(vec![
+                    specimen_body("csp-disabled-item", col(vec![
                         h::ColorSwatchPicker::new("csp-disabled-item", palette())
                             .value(selected)
                             .disabled_keys([2])
@@ -814,28 +912,28 @@ impl Gallery {
                                 cx.notify();
                             }))
                             .into_any_element(),
-                    ]),
+                    ]), cx),
                 ),
                 (
                     "Stack Layout",
-                    col(vec![h::ColorSwatchPicker::new("csp-stack", palette())
+                    specimen_body("csp-stack", col(vec![h::ColorSwatchPicker::new("csp-stack", palette())
                         .value(selected)
                         .on_change(cx.listener(|this, c: &h::PickerColor, _, cx| {
                             this.swatch_selected = *c;
                             cx.notify();
                         }))
                         .layout(h::SwatchLayout::Stack)
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "Default Value",
-                    col(vec![h::ColorSwatchPicker::new("csp-default", palette())
+                    specimen_body("csp-default", col(vec![h::ColorSwatchPicker::new("csp-default", palette())
                         .default_value(palette()[2])
-                        .into_any_element()]),
+                        .into_any_element()]), cx),
                 ),
                 (
                     "Controlled",
-                    col(vec![
+                    specimen_body("csp-controlled", col(vec![
                         h::ColorSwatchPicker::new("csp-controlled", palette())
                             .value(selected)
                             .on_change(cx.listener(|this, c: &h::PickerColor, _, cx| {
@@ -844,11 +942,11 @@ impl Gallery {
                             }))
                             .into_any_element(),
                         para(&format!("Selected: {}", selected.to_hex()), cx),
-                    ]),
+                    ]), cx),
                 ),
                 (
                     "Custom Indicator", "`indicator` replaces the built-in selected checkmark. The square picker below uses a heart.",
-                    col(vec![
+                    specimen_body("csp-indicator", col(vec![
                         h::ColorSwatchPicker::new("csp-indicator", palette())
                             .value(selected)
                             .on_change(cx.listener(|this, c: &h::PickerColor, _, cx| {
@@ -865,11 +963,11 @@ impl Gallery {
                                     .into_any_element()
                             })
                             .into_any_element(),
-                    ]),
+                    ]), cx),
                 ),
                 (
                     "Item Render State", "`item_content` receives each item's color plus selected, hovered, pressed, focused, focus-visible, and disabled state. These custom tiles use that state while the picker keeps navigation and selection.",
-                    col(vec![
+                    specimen_body("csp-item-render", col(vec![
                         h::ColorSwatchPicker::new("csp-item-content", palette())
                             .value(selected)
                             .size(SizeXl::Xl)
@@ -894,7 +992,7 @@ impl Gallery {
                                     .into_any_element()
                             })
                             .into_any_element(),
-                    ]),
+                    ]), cx),
                 ),
                 (
                     "Square, stacked",

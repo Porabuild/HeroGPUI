@@ -1,0 +1,16 @@
+{
+  "dpr": 1,
+  "viewport": {
+    "w": 640,
+    "h": 360
+  },
+  "v": "6067b2e3",
+  "page": "Button",
+  "section": "Usage",
+  "specimen": "btn-usage",
+  "theme": "light",
+  "loadingGone": true,
+  "method": "chrome-headless=old CDP Page.captureScreenshot + Emulation.setDeviceMetricsOverride 640x360 dpr1",
+  "artifactSha256": "6067b2e3e8810b32b8fc5af431b4f5a2e1e40825b2bee6aed7fa31fe19e7cfce",
+  "git": "6811eac0"
+}

@@ -84,11 +84,14 @@ wrappers.
 
 **Residual limitation, recorded in `reference_metadata` under
 `.table__content`.** The port is a flex column, not upstream's
-`border-separate` table, so column tracks resolve per row from
-`flex-basis:0; flex-grow:1` with `min-width:auto`. Alignment therefore holds
-only while the table is at least as wide as the sum of its columns' widest
-cells; a narrower table still staggers. Closing that needs shared tracks, which
-is a component change rather than a gallery one.
+`border-separate` table. The native build now computes one measured track
+triple per column (widest cell across header and every row) and feeds it to
+header cells, their wrappers and every body row, so a table narrower than its
+columns overflows the scroll container as one aligned grid; mutation-tested in
+`table_deep`. Two residuals remain: `border-separate`/`border-spacing` spacing
+semantics, and the wasm32 path, where intrinsic measurement is not available
+(a documented web-rerender bounds limit), so narrow web tables keep fluid
+per-row tracks unless a column width is pinned.
 
 ## Stale and orphaned goldens
 

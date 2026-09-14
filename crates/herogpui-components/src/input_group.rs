@@ -9,7 +9,7 @@ use gpui::{
     div, px, AnyElement, App, ElementId, InteractiveElement, IntoElement, MouseButton,
     ParentElement, Pixels, RenderOnce, SharedString, Styled, Window,
 };
-use herogpui_core::FieldVariant;
+use herogpui_core::{element_id, FieldVariant};
 use herogpui_theme::ActiveTheme;
 
 use crate::{
@@ -69,8 +69,8 @@ pub struct InputGroup {
     /// The family the held field is drawn and measured with; unset keeps the
     /// field's own setting.
     font_family: Option<SharedString>,
-    /// The corner radius used by the group's chrome and forwarded to the
-    /// held field.
+    /// The corner radius used by the group's shared chrome. The held field is
+    /// transparent and unrounded so this remains the only visible outline.
     radius: Option<Pixels>,
     is_disabled: bool,
     is_invalid: bool,
@@ -161,6 +161,13 @@ impl InputGroup {
         self
     }
 
+    /// Shows or hides only the group's visual focus ring. The held field
+    /// remains focusable and editable when set to `false`.
+    pub fn focus_ring(mut self, v: bool) -> Self {
+        self.field.focus_ring = Some(v);
+        self
+    }
+
     /// The family the held field is drawn and measured with; unset keeps the
     /// field's own setting.
     pub fn font_family(mut self, family: impl Into<SharedString>) -> Self {
@@ -168,13 +175,14 @@ impl InputGroup {
         self
     }
 
-    /// The corner radius of the group box and of the held field, in place of
-    /// the owning `field_radius` helper. Not a v3 prop; the removed v2
+    /// The corner radius of the group box, in place of the owning
+    /// `field_radius` helper. The held field remains transparent and
+    /// unrounded. Not a v3 prop; the removed v2
     /// `radius` prop is prohibited and this is a per-component repository
     /// extension.
     ///
-    /// The group's chrome uses the resolved radius, and an explicit override
-    /// is also forwarded to the held field.
+    /// The group's chrome uses the resolved radius; the inner field keeps the
+    /// upstream `rounded-none` grouped-input contract.
     pub fn radius(mut self, radius: impl Into<Pixels>) -> Self {
         self.radius = Some(radius.into());
         self
@@ -277,8 +285,11 @@ impl RenderOnce for InputGroup {
             .input
             .as_ref()
             .is_some_and(|input| input.state_focus(cx).is_focused(window));
-        let colors = cx.colors();
-        let layout = cx.layout();
+        // The hover fade owns a keyed animation state, so the render below
+        // needs to borrow the app mutably after reading the theme snapshot.
+        // Keep the values local and stable for the complete field shell.
+        let colors = cx.colors().clone();
+        let layout = cx.layout().clone();
         let is_invalid = self.is_invalid || self.error_message.is_some();
         let (is_disabled, is_textarea) = (self.is_disabled, self.is_textarea);
         let field_box = self.field;
@@ -293,6 +304,11 @@ impl RenderOnce for InputGroup {
             .input
             .as_ref()
             .map(|input| input.state().entity_id().as_u64());
+        // NamedInteger keeps the held field's entity identity in the element
+        // path without flattening it into a formatted string (which can make
+        // two scoped paths collide on a separator). An input-less group uses
+        // the zero seed only for its listener-free fallback surface.
+        let group_id = ElementId::named_usize("input-group", entity.unwrap_or(0) as usize);
 
         // `.input-group` is `inline-flex min-h-9 items-center` with no padding
         // of its own: the prefix, the input and the suffix each carry `px-3`,
@@ -301,6 +317,7 @@ impl RenderOnce for InputGroup {
         // `items-start` with `height: auto`, so the box grows downward around
         // the multi-line field instead of centring it in a row.
         let mut group = div()
+            .id(group_id.clone())
             .flex()
             .flex_row()
             .map(|g| {
@@ -324,14 +341,26 @@ impl RenderOnce for InputGroup {
         if !field_box.is_bare {
             // The held field carries the same value, so the group box and the
             // box it holds keep one corner.
-            group = util::apply_field_chrome(
+            group = util::apply_field_chrome_with_focus_ring(
                 group,
                 self.variant,
                 is_invalid,
                 focus_within,
+                field_box.focus_ring.unwrap_or(true),
                 Some(radius),
                 cx,
             );
+
+            // HeroUI's focus-within and invalid rules both use the field-focus
+            // endpoint.  The shared chrome supplies the ring/border; this
+            // explicit fill keeps the group surface in sync for both variants
+            // (secondary uses its neutral default endpoint).
+            if focus_within || is_invalid {
+                group = group.bg(match self.variant {
+                    FieldVariant::Primary => colors.field.focus(),
+                    FieldVariant::Secondary => colors.default.color,
+                });
+            }
         }
         if self.full_width {
             group = group.w_full();
@@ -353,13 +382,33 @@ impl RenderOnce for InputGroup {
         // change repaints through a re-render, so the suppressed hover never
         // paints over the focused chrome. v3's `status-disabled` is
         // `pointer-events: none` first, so a disabled group hovers never.
-        if !field_box.is_bare && !focus_within && !is_disabled {
+        if !field_box.is_bare && !focus_within && !is_invalid && !is_disabled {
             let hover_bg = match self.variant {
                 FieldVariant::Primary => colors.field.hover(),
                 FieldVariant::Secondary => colors.default.hover(),
             };
             let hover_border = colors.field.border_hover();
-            group = group.hover(move |style| style.bg(hover_bg).border_color(hover_border));
+            // Keep the group identity and focus listeners stable while only
+            // the hover surface interpolates over HeroUI's 150ms ease-smooth
+            // transition. The border endpoint remains an immediate refinement.
+            group = crate::anim::hover_fade_with_duration_and_easing(
+                group,
+                element_id::scoped(&group_id, "hover-fade"),
+                (
+                    match self.variant {
+                        FieldVariant::Primary => colors.field.background,
+                        FieldVariant::Secondary => colors.default.color,
+                    },
+                    hover_bg,
+                ),
+                None,
+                Some(hover_border),
+                |fill| fill.rounded(radius),
+                Some(150),
+                crate::anim::HoverFadeEasing::EaseSmooth,
+                window,
+                cx,
+            );
         }
 
         // v3.2.4 `InputGroupRoot.handleClick`: a click on the group outside
@@ -408,16 +457,32 @@ impl RenderOnce for InputGroup {
         // as a browser's disabled `<input>` does, and skips its own dim
         // because the box above already carries it.
         let addon_slot = |el: AnyElement, name: &'static str| -> AnyElement {
-            // The slot only exists for the pinned `:has(textarea)` rule; the
-            // disabled dim lives on the group box now, so addons sit directly
-            // in the row otherwise.
-            if !is_textarea {
-                return el;
-            }
+            // Prefix/suffix are real slots in v3: their side border belongs to
+            // the slot, not to the input.  A zero-width field border keeps the
+            // stock theme invisible while custom bordered fields retain the
+            // seam. The wrapper also gives arbitrary prefix/suffix children
+            // the same placeholder colour and vertical alignment as InputAddon.
+            let mut slot = div()
+                .flex_shrink_0()
+                .when(!is_textarea, |slot| slot.h_full())
+                .flex()
+                .items_center()
+                .justify_center()
+                .text_color(colors.field.placeholder)
+                .when(name == "prefix", |slot| {
+                    slot.border_r(layout.field_border_width)
+                        .border_color(colors.field.border)
+                })
+                .when(name == "suffix", |slot| {
+                    slot.border_l(layout.field_border_width)
+                        .border_color(colors.field.border)
+                });
             // `:has([data-slot="input-group-textarea"])` top-aligns the
-            // addons and gives each `padding-top: 0.5rem`, so the addon
-            // text starts level with the textarea's first line.
-            let mut slot = div().flex_shrink_0().pt(px(8.));
+            // addons and gives each `padding-top: 0.5rem`, so addon text starts
+            // level with the textarea's first line.
+            if is_textarea {
+                slot = slot.items_start().pt(px(8.));
+            }
             if let Some(entity) = entity {
                 slot = slot.debug_selector(move || format!("input-group-{entity}-{name}"));
             }
@@ -450,6 +515,10 @@ impl RenderOnce for InputGroup {
                 Some(radius) => input.radius(radius),
                 None => input,
             };
+            let input = match field_box.focus_ring {
+                Some(show) => input.focus_ring(show),
+                None => input,
+            };
             group = group.child(input.is_bare(field_box.is_bare));
         }
         if let Some(suffix) = self.suffix {
@@ -476,10 +545,9 @@ impl RenderOnce for InputGroup {
         }
         root = root.child(group);
 
-        if is_invalid {
-            if let Some(message) = self.error_message {
-                root = root.child(crate::field::ErrorMessage::new(message));
-            }
+        let error = is_invalid.then(|| self.error_message.clone()).flatten();
+        if let Some(error) = crate::anim::field_error_panel(&group_id, error, window, cx) {
+            root = root.child(error);
         } else if let Some(description) = self.description {
             root = root.child(crate::field::Description::new(description));
         }
@@ -529,9 +597,54 @@ mod tests {
             .next()
             .expect("the implementation section is always present");
         assert!(
-            source.contains("if !field_box.is_bare && !focus_within && !is_disabled {"),
+            source.contains(
+                "if !field_box.is_bare && !focus_within && !is_invalid && !is_disabled {"
+            ),
             "the hover refinement must be gated off while the group is \
              disabled, not only while the focus is inside"
+        );
+    }
+
+    #[test]
+    fn focus_and_invalid_use_the_pinned_field_focus_fill() {
+        let source = include_str!("input_group.rs")
+            .split("#[cfg(test)]")
+            .next()
+            .expect("the implementation section is always present");
+        assert!(
+            source.contains("if focus_within || is_invalid")
+                && source.contains("FieldVariant::Primary => colors.field.focus()")
+                && source.contains("FieldVariant::Secondary => colors.default.color"),
+            "focus-within and invalid group states must paint the HeroUI field-focus \
+             endpoint for both variants"
+        );
+    }
+
+    #[test]
+    fn group_hover_uses_the_pinned_smooth_transition() {
+        let source = include_str!("input_group.rs")
+            .split("#[cfg(test)]")
+            .next()
+            .expect("the implementation section is always present");
+        assert!(
+            source.contains("hover_fade_with_duration_and_easing")
+                && source.contains("Some(150)")
+                && source.contains("HoverFadeEasing::EaseSmooth"),
+            "InputGroup hover must animate with HeroUI's 150ms ease-smooth \
+             transition"
+        );
+    }
+
+    #[test]
+    fn addon_slots_keep_the_pinned_side_seams() {
+        let source = include_str!("input_group.rs")
+            .split("#[cfg(test)]")
+            .next()
+            .expect("the implementation section is always present");
+        assert!(
+            source.contains("slot.border_r(layout.field_border_width)")
+                && source.contains("slot.border_l(layout.field_border_width)"),
+            "prefix and suffix slots must own their respective field-border seams"
         );
     }
 

@@ -72,7 +72,10 @@ SLOT = {
     # part being rendered; which of the two it is, `design_audit.py` measures.
     'label': r'field::Label|Label::new|\.label\(|label:',
     'description': r'field::Description|Description::new|description',
-    'field-error': r'field::FieldError|FieldError::new|ErrorMessage::new|error_message',
+    # FieldError is usually composed through the shared field module. Switch
+    # opts into the same retained row through the animation helper directly,
+    # so the helper call is the composition evidence for that component.
+    'field-error': r'field::FieldError|FieldError::new|ErrorMessage::new|error_message|field_error_panel',
     'error-message': r'field::ErrorMessage|ErrorMessage::new|error_message',
     'submenu-indicator': r'submenu|CHEVRON_RIGHT',
     'date-picker-trigger': r'trigger',

@@ -83,6 +83,13 @@ pub struct ScrollShadow {
     gap: Pixels,
     children: Vec<AnyElement>,
     hide_scroll_bar: bool,
+    /// Makes the scroll axis fill its parent. Standalone shadows keep their
+    /// intrinsic/max-constrained sizing; composed controls opt into a bounded
+    /// viewport when they own an adjacent panel.
+    fill_axis: bool,
+    /// An owner can provide its existing scroll handle so edge shadows and
+    /// external controls observe the same offset and max range.
+    external_scroll: Option<ScrollHandle>,
     /// The `sx` slot, refined over the root style at the end of render.
     sx: Option<Box<gpui::StyleRefinement>>,
 }
@@ -102,6 +109,8 @@ impl ScrollShadow {
             gap: px(8.),
             children: Vec::new(),
             hide_scroll_bar: false,
+            fill_axis: false,
+            external_scroll: None,
             sx: None,
         }
     }
@@ -110,6 +119,12 @@ impl ScrollShadow {
     /// scrollbar on a overflow div; this is the port of v3's CSS hide.
     pub fn hide_scroll_bar(mut self, v: bool) -> Self {
         self.hide_scroll_bar = v;
+        self
+    }
+
+    /// Reuses a caller-owned scroll handle for composed controls.
+    pub(crate) fn scroll_handle(mut self, handle: ScrollHandle) -> Self {
+        self.external_scroll = Some(handle);
         self
     }
 
@@ -150,6 +165,18 @@ impl ScrollShadow {
         self
     }
 
+    /// Removes the standalone 240px height cap when the caller supplies a
+    /// full-height viewport.
+    pub(crate) fn unbounded_h(mut self) -> Self {
+        self.max_h = None;
+        self
+    }
+
+    pub(crate) fn fill_axis(mut self, value: bool) -> Self {
+        self.fill_axis = value;
+        self
+    }
+
     pub fn max_h(mut self, v: impl Into<Pixels>) -> Self {
         self.max_h = Some(v.into());
         self
@@ -186,12 +213,14 @@ impl RenderOnce for ScrollShadow {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         // Where the content sits, as of the last frame: `use_keyed_state` takes
         // `cx` mutably, so both slots precede the theme borrow.
-        let scroll = window
-            .use_keyed_state(element_id::scoped(&self.id, "scroll"), cx, |_, _| {
-                ScrollHandle::new()
-            })
-            .read(cx)
-            .clone();
+        let scroll = self.external_scroll.clone().unwrap_or_else(|| {
+            window
+                .use_keyed_state(element_id::scoped(&self.id, "scroll"), cx, |_, _| {
+                    ScrollHandle::new()
+                })
+                .read(cx)
+                .clone()
+        });
         let reported = window.use_keyed_state(
             element_id::scoped(&self.id, "shadow-visibility"),
             cx,
@@ -213,6 +242,14 @@ impl RenderOnce for ScrollShadow {
         } else {
             scroller.flex_col().overflow_y_scroll()
         };
+
+        if self.fill_axis {
+            scroller = if horizontal {
+                scroller.w_full().min_w(px(0.))
+            } else {
+                scroller.h_full().min_h(px(0.))
+            };
+        }
 
         if let Some(h) = self.max_h {
             scroller = scroller.max_h(h);

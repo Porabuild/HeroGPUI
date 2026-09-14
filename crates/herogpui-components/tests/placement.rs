@@ -558,19 +558,34 @@ fn drawer_bottom_placement_lands_on_edge_and_drags_shut(cx: &mut TestAppContext)
 // 16px down; the outside point is well clear of both the panel and the
 // 1920-wide trigger strip.
 
-/// The eight placements a popover supports. The panel coordinates that used to
-/// ride along here are gone on purpose: `gpui::anchored` snaps a panel back
-/// inside the window, so a derived position is not where the panel lands, and
-/// nothing in this port carries a `debug_selector` to ask gpui where it did.
-const POP_CASES: [Placement; 8] = [
+/// The full 22-value placement union a popover supports. The panel
+/// coordinates that used to ride along here are gone on purpose:
+/// `gpui::anchored` snaps a panel back inside the window, so a derived
+/// position is not where the panel lands, and nothing in this port carries a
+/// `debug_selector` to ask gpui where it did.
+const POP_CASES: [Placement; 22] = [
     Placement::Bottom,
     Placement::BottomStart,
+    Placement::BottomLeft,
     Placement::BottomEnd,
+    Placement::BottomRight,
     Placement::Top,
     Placement::TopStart,
+    Placement::TopLeft,
     Placement::TopEnd,
+    Placement::TopRight,
     Placement::Left,
+    Placement::LeftTop,
+    Placement::LeftBottom,
     Placement::Right,
+    Placement::RightTop,
+    Placement::RightBottom,
+    Placement::Start,
+    Placement::StartTop,
+    Placement::StartBottom,
+    Placement::End,
+    Placement::EndTop,
+    Placement::EndBottom,
 ];
 
 /// Every placement opens from its trigger and answers Escape.
@@ -580,7 +595,7 @@ const POP_CASES: [Placement; 8] = [
 /// snapping leaves once the derived position would have fallen off the window,
 /// and no element in this port carries a `debug_selector` -- a test cannot ask
 /// gpui where the panel actually landed, so a coordinate assertion would be a
-/// guess dressed as a proof. What is exact, and worth guarding for all eight
+/// guess dressed as a proof. What is exact, and worth guarding for all 22
 /// placements, is the trigger's own geometry (a 100x36 button at the root's
 /// top-left, because `.items_start()` pins it there) and the dismissal.
 #[gpui::test]

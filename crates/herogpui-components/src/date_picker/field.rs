@@ -455,6 +455,8 @@ pub struct DateField {
     bare: bool,
     /// Public chrome-only bare mode: keeps the box geometry, drops the paint.
     is_bare: bool,
+    /// Whether focused state paints the visual focus ring.
+    focus_ring: bool,
     /// The family the segments are drawn with; unset keeps the mono token.
     font_family: Option<SharedString>,
     /// The corner radius, in place of the owning `field_radius` helper.
@@ -629,6 +631,13 @@ impl DateField {
         self
     }
 
+    /// Shows or hides only the segmented field's visual focus ring. The field
+    /// remains focusable and editable when set to `false`.
+    pub fn focus_ring(mut self, v: bool) -> Self {
+        self.focus_ring = v;
+        self
+    }
+
     /// The family the segments are drawn with; unset keeps the mono token.
     pub fn font_family(mut self, family: impl Into<SharedString>) -> Self {
         self.font_family = Some(family.into());
@@ -726,6 +735,7 @@ impl DateField {
             embedded: false,
             bare: false,
             is_bare: false,
+            focus_ring: true,
             font_family: None,
             radius: None,
             height: None,
@@ -1184,7 +1194,7 @@ impl RenderOnce for DateField {
         // native input is `role: 'presentation'` and has no counterpart
         // element here.
         let mut group = gpui::div()
-            .id(base_id)
+            .id(base_id.clone())
             .a11y_named(
                 a11y::Role::Group,
                 &a11y::Name::field(self.label.as_ref(), self.description.as_ref(), &validity),
@@ -1448,14 +1458,40 @@ impl RenderOnce for DateField {
         }
 
         if !self.bare && !self.is_bare {
-            group = crate::util::apply_field_chrome(
+            group = crate::util::apply_field_chrome_with_focus_ring(
                 group,
                 self.variant,
                 is_invalid,
                 focus_handle.is_focused(window),
+                self.focus_ring,
                 Some(radius),
                 cx,
             );
+
+            let focused = focus_handle.is_focused(window);
+            if !self.embedded && !self.is_disabled && !is_invalid && !focused {
+                let idle_bg = match self.variant {
+                    herogpui_core::FieldVariant::Primary => colors.field.background,
+                    herogpui_core::FieldVariant::Secondary => colors.default.color,
+                };
+                let hover_bg = match self.variant {
+                    herogpui_core::FieldVariant::Primary => colors.field.hover(),
+                    herogpui_core::FieldVariant::Secondary => colors.default.hover(),
+                };
+                let hover_border = colors.field.border_hover();
+                group = crate::anim::hover_fade_with_duration_and_easing(
+                    group,
+                    element_id::scoped(&base_id, "hover-fade"),
+                    (idle_bg, hover_bg),
+                    None,
+                    Some(hover_border),
+                    move |fill| fill.rounded(radius),
+                    Some(150),
+                    crate::anim::HoverFadeEasing::EaseSmooth,
+                    window,
+                    cx,
+                );
+            }
         }
         if self.full_width {
             group = group.w_full();
@@ -1622,6 +1658,20 @@ mod tests {
     use std::process::Command;
 
     use super::*;
+
+    #[test]
+    fn enabled_date_field_hover_uses_the_pinned_smooth_fill_transition() {
+        let source = include_str!("field.rs")
+            .split("#[cfg(test)]")
+            .next()
+            .expect("the implementation section is always present");
+        assert!(
+            source.contains("hover_fade_with_duration_and_easing(")
+                && source.contains("Some(150)")
+                && source.contains("HoverFadeEasing::EaseSmooth")
+        );
+        assert!(source.contains("!self.embedded && !self.is_disabled && !is_invalid && !focused"));
+    }
     use crate::time_field::{HourCycle, Time, TimeSegment};
 
     #[test]

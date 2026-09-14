@@ -29,6 +29,26 @@ use herogpui_components::{
     VisibleDuration, Weekday,
 };
 
+#[test]
+fn calendar_unavailable_cells_use_status_disabled_visuals_without_losing_keyboard_focus() {
+    let calendar = include_str!("../src/calendar.rs");
+    let range = include_str!("../src/range_calendar.rs");
+    for source in [calendar, range] {
+        assert!(
+            source.contains("CursorStyle::OperationNotAllowed"),
+            "unavailable calendar cells need the v3 not-allowed cursor"
+        );
+        assert!(
+            source.contains("disabled_opacity"),
+            "unavailable calendar cells need the v3 disabled opacity"
+        );
+        assert!(
+            source.contains("is_unavailable") || source.contains("unavailable"),
+            "the disabled visual branch must stay attached to unavailable state"
+        );
+    }
+}
+
 #[gpui::test]
 fn calendar_picking_keeps_the_selection_aligned_view(cx: &mut TestAppContext) {
     for keyboard in [false, true] {

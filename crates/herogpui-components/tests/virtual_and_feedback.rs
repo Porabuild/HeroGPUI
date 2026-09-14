@@ -1448,11 +1448,11 @@ fn toast_placement_moves_the_viewport(cx: &mut TestAppContext) {
     // x 730..1190; `py-3`-equivalent padding (12px each side) and the 20px
     // line make the card 44px tall. Bottom placement parks its bottom edge
     // 16px off the window's bottom (1080), so the card spans y 1020..1064
-    // and the close button (20px, flush right against the card's 16px
-    // padding) spans x 1154..1174, y 1032..1052 — centre (1164, 1042).
+    // The pinned close control is absolute `-end-1 -top-1`, so it spans
+    // x 1174..1194 and y 1016..1036 — centre (1184, 1026).
     // The top placement's page geometry: the card spans y 16..60 and the
-    // close button y 28..48 — centre (1164, 38).
-    click(cx, 1164., 1042.);
+    // close button y 12..32 — centre (1184, 22).
+    click(cx, 1184., 1026.);
     cx.update(|_window, cx| {
         assert!(
             toast_store(cx).read(cx).toasts().is_empty(),
@@ -1468,7 +1468,7 @@ fn toast_placement_moves_the_viewport(cx: &mut TestAppContext) {
         Toast::new("B").timeout(Duration::ZERO).push(None, cx);
     });
     flush_frame(cx);
-    click(cx, 1164., 1042.);
+    click(cx, 1184., 1026.);
     cx.update(|_window, cx| {
         assert_eq!(
             toast_store(cx).read(cx).toasts().len(),
@@ -1479,7 +1479,7 @@ fn toast_placement_moves_the_viewport(cx: &mut TestAppContext) {
     });
 
     // And the button answers where Top actually put it.
-    click(cx, 1164., 38.);
+    click(cx, 1184., 22.);
     cx.update(|_window, cx| {
         assert!(
             toast_store(cx).read(cx).toasts().is_empty(),

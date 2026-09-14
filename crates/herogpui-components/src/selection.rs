@@ -5,7 +5,7 @@
 //! implementation means they cannot disagree.
 
 use gpui::SharedString;
-use herogpui_core::SelectionMode;
+use herogpui_core::{SelectionBehavior, SelectionMode};
 
 /// What an unmodified Escape press does in a selectable collection.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -83,6 +83,27 @@ pub fn next_selection(
                 next
             }
         }
+    }
+}
+
+/// The selection after an activation with React Stately's
+/// `selectionBehavior` applied.
+///
+/// A single-select collection always uses its single-item toggle rule. In a
+/// multi-select collection, `Toggle` preserves the existing set while
+/// `Replace` selects only the activated key. Callers that received Shift or a
+/// platform non-contiguous modifier should use their range/toggle path before
+/// calling this helper, just as React Aria does.
+pub(crate) fn next_selection_with_behavior(
+    current: &[SharedString],
+    key: &SharedString,
+    mode: SelectionMode,
+    behavior: SelectionBehavior,
+    disallow_empty: bool,
+) -> Vec<SharedString> {
+    match (mode, behavior) {
+        (SelectionMode::Multiple, SelectionBehavior::Replace) => vec![key.clone()],
+        _ => next_selection(current, key, mode, disallow_empty),
     }
 }
 
@@ -206,5 +227,29 @@ mod tests {
             false,
         );
         assert_eq!(next, keys(&["a"]));
+    }
+
+    #[test]
+    fn replace_behavior_collapses_a_multiple_selection() {
+        let next = next_selection_with_behavior(
+            &keys(&["a", "b"]),
+            &SharedString::from("c"),
+            SelectionMode::Multiple,
+            SelectionBehavior::Replace,
+            false,
+        );
+        assert_eq!(next, keys(&["c"]));
+    }
+
+    #[test]
+    fn replace_behavior_keeps_the_activated_key_selected() {
+        let next = next_selection_with_behavior(
+            &keys(&["a", "b"]),
+            &SharedString::from("b"),
+            SelectionMode::Multiple,
+            SelectionBehavior::Replace,
+            false,
+        );
+        assert_eq!(next, keys(&["b"]));
     }
 }

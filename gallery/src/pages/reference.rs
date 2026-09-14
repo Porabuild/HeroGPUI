@@ -2193,7 +2193,7 @@ mod tests {
         }));
         assert!(metadata.styling.iter().any(|entry| {
             entry.class_or_token == ".button transform / box-shadow transitions"
-                && entry.status == reference_metadata::ImplementationStatus::Partial
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
         }));
         assert!(metadata.api.iter().any(|entry| {
             entry.prop == "render"
@@ -2407,14 +2407,14 @@ mod tests {
                 && entry.rust.contains("default.hover()")
                 && !entry.rust.contains("soft_hover")
         }));
-        // The textarea rows math is proven, but the pinned 38px one-row floor
-        // is not drawn — the record must say so rather than claim a match.
+        // The textarea rows math is proven; browser resizing remains the only
+        // partial portion because GPUI has no browser resize affordance.
         assert!(metadata.styling.iter().any(|entry| {
             entry.class_or_token.contains("input-group-textarea")
                 && entry.value.contains("38px")
                 && entry
                     .description
-                    .contains("the pinned 38px one-row floor does not")
+                    .contains("Browser resizing has no analogue")
         }));
         // The documented `InputGroup.TextArea.variant`, shadowed by the
         // group's shared chrome.
@@ -2604,7 +2604,7 @@ impl Widget {
         }));
         assert!(metadata.styling.iter().any(|entry| {
             entry.class_or_token == ".input transitions"
-                && entry.status == reference_metadata::ImplementationStatus::Partial
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
         }));
     }
 
@@ -2642,7 +2642,34 @@ impl Widget {
         }));
         assert!(metadata.styling.iter().any(|entry| {
             entry.class_or_token == ".textarea transitions"
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
+        }));
+    }
+
+    #[test]
+    fn input_otp_metadata_tracks_slot_state_precedence_and_motion_limit() {
+        let metadata = reference_metadata::for_route(
+            "InputOtp",
+            "use herogpui::components::input_otp::{InputOTP, OtpState};",
+        )
+        .expect("Input OTP metadata is registered");
+
+        assert_eq!(metadata.parts.len(), metadata.required_parts.len());
+        for state in ["Hovered", "Active", "Filled", "Disabled"] {
+            assert!(metadata.states.iter().any(|entry| {
+                entry.state == state
+                    && entry.status == reference_metadata::ImplementationStatus::Implemented
+            }));
+        }
+        assert!(metadata.styling.iter().any(|entry| {
+            entry.class_or_token == ".input-otp__slot"
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
+                && entry.rust.contains("field border/background")
+        }));
+        assert!(metadata.styling.iter().any(|entry| {
+            entry.class_or_token == ".input-otp__slot-value"
                 && entry.status == reference_metadata::ImplementationStatus::Partial
+                && entry.rust.contains("opacity entrance")
         }));
     }
 
@@ -2886,6 +2913,12 @@ impl Widget {
             entry.class_or_token == ".color-picker__popover"
                 && entry.status == reference_metadata::ImplementationStatus::Implemented
         }));
+        assert!(metadata.styling.iter().any(|entry| {
+            entry.class_or_token == ".color-picker__popover entering"
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
+                && entry.rust.contains("resolved-placement")
+                && entry.rust.contains("slide_x/slide_y")
+        }));
     }
 
     #[test]
@@ -2911,6 +2944,14 @@ impl Widget {
         }
         assert!(metadata.styling.iter().any(|entry| {
             entry.class_or_token == ".color-area__thumb transition"
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
+        }));
+        assert!(metadata.styling.iter().any(|entry| {
+            entry.class_or_token == ".color-area inner shadow"
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
+        }));
+        assert!(metadata.styling.iter().any(|entry| {
+            entry.class_or_token == ".color-area__thumb shadows"
                 && entry.status == reference_metadata::ImplementationStatus::Implemented
         }));
         assert!(metadata
@@ -2941,7 +2982,23 @@ impl Widget {
         }
         assert!(metadata.styling.iter().any(|entry| {
             entry.class_or_token == ".color-slider__track horizontal / vertical"
-                && entry.status == reference_metadata::ImplementationStatus::Partial
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
+        }));
+        assert!(metadata.styling.iter().any(|entry| {
+            entry.class_or_token == ".color-slider__track shadows"
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
+        }));
+        assert!(metadata.styling.iter().any(|entry| {
+            entry.class_or_token == ".color-slider__thumb"
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
+        }));
+        assert!(metadata.styling.iter().any(|entry| {
+            entry.class_or_token == ".color-slider__thumb transitions"
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
+        }));
+        assert!(metadata.styling.iter().any(|entry| {
+            entry.class_or_token == ".color-slider__thumb[data-dragging=true]"
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
         }));
         assert!(metadata
             .api_source
@@ -2985,6 +3042,18 @@ impl Widget {
             entry.class_or_token == ".color-swatch-picker__item sizes"
                 && entry.status == reference_metadata::ImplementationStatus::Implemented
         }));
+        assert!(metadata.styling.iter().any(|entry| {
+            entry.class_or_token == ".color-swatch-picker__swatch transforms"
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
+        }));
+        assert!(metadata.styling.iter().any(|entry| {
+            entry.class_or_token == ".color-swatch-picker__item transitions"
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
+        }));
+        assert!(metadata.styling.iter().any(|entry| {
+            entry.class_or_token == ".color-swatch-picker__indicator transition"
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
+        }));
         assert!(metadata
             .api_source
             .contains("react-aria-components/src/ColorSwatchPicker.tsx"));
@@ -3017,10 +3086,32 @@ impl Widget {
             entry.state == "Frontmost"
                 && entry.status == reference_metadata::ImplementationStatus::Implemented
         }));
+        assert!(metadata.api.iter().any(|entry| {
+            entry.owner == "Toast.Indicator"
+                && entry.prop == "children"
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
+                && entry.rust.contains("indicator_content")
+        }));
+        assert!(metadata.parts.iter().any(|entry| {
+            entry.name == "Toast.Indicator"
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
+        }));
+        for state in ["Index", "Expanded"] {
+            assert!(metadata.states.iter().any(|entry| {
+                entry.state == state
+                    && entry.status == reference_metadata::ImplementationStatus::Implemented
+            }));
+        }
         assert!(metadata.styling.iter().any(|entry| {
             entry.class_or_token == ".toast__title"
                 && entry.status == reference_metadata::ImplementationStatus::Implemented
         }));
+        for class_or_token in [".toast", ".toast non-frontmost"] {
+            assert!(metadata.styling.iter().any(|entry| {
+                entry.class_or_token == class_or_token
+                    && entry.status == reference_metadata::ImplementationStatus::Implemented
+            }));
+        }
         assert!(metadata
             .api_source
             .contains("react-stately/src/toast/useToastState.ts"));
@@ -3052,7 +3143,7 @@ impl Widget {
             assert!(metadata.api.iter().any(|entry| {
                 entry.owner == "ColorField"
                     && entry.prop == prop
-                    && entry.status == reference_metadata::ImplementationStatus::Partial
+                    && entry.status == reference_metadata::ImplementationStatus::Implemented
             }));
         }
         assert!(metadata.api.iter().any(|entry| {
@@ -3200,12 +3291,18 @@ impl Widget {
                 && entry.status == reference_metadata::ImplementationStatus::Implemented
         }));
         assert!(metadata.styling.iter().any(|entry| {
+            entry.class_or_token == ".tabs__tab"
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
+                && entry.rust.contains("whitespace_normal")
+                && entry.rust.contains("h(32px)")
+        }));
+        assert!(metadata.styling.iter().any(|entry| {
             entry.class_or_token == ".tabs__tab transitions"
                 && entry.status == reference_metadata::ImplementationStatus::Partial
         }));
         assert!(metadata.styling.iter().any(|entry| {
             entry.class_or_token == ".tabs__list-container__scroller"
-                && entry.status == reference_metadata::ImplementationStatus::Partial
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
         }));
         assert!(metadata.styling.iter().any(|entry| {
             entry.class_or_token == ".tabs__panel[data-exiting=\"true\"]"
@@ -3376,8 +3473,14 @@ impl Widget {
         }));
         assert!(metadata.states.iter().any(|entry| {
             entry.state == "Today"
-                && entry.status == reference_metadata::ImplementationStatus::Partial
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
         }));
+        for state in ["Unavailable", "Hovered", "Pressed"] {
+            assert!(metadata.states.iter().any(|entry| {
+                entry.state == state
+                    && entry.status == reference_metadata::ImplementationStatus::Implemented
+            }));
+        }
         assert!(metadata.styling.iter().any(|entry| {
             entry.class_or_token
                 == ".calendar:has(.calendar-year-picker__year-grid) > [data-slot=\"calendar-grid\"]"
@@ -3385,7 +3488,8 @@ impl Widget {
         }));
         assert!(metadata.styling.iter().any(|entry| {
             entry.class_or_token == ".calendar__cell-indicator"
-                && entry.status == reference_metadata::ImplementationStatus::Partial
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
+                && entry.rust.contains("bottom(4px)")
         }));
     }
 
@@ -3532,15 +3636,14 @@ impl Widget {
             entry.class_or_token == "pinned With Chevrons composition"
                 && entry.status == reference_metadata::ImplementationStatus::Implemented
         }));
-        for class_or_token in [
-            ".number-field__group transitions",
-            ".number-field buttons:active",
-        ] {
-            assert!(metadata.styling.iter().any(|entry| {
-                entry.class_or_token == class_or_token
-                    && entry.status == reference_metadata::ImplementationStatus::Partial
-            }));
-        }
+        assert!(metadata.styling.iter().any(|entry| {
+            entry.class_or_token == ".number-field__group transitions"
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
+        }));
+        assert!(metadata.styling.iter().any(|entry| {
+            entry.class_or_token == ".number-field buttons:active"
+                && entry.status == reference_metadata::ImplementationStatus::Partial
+        }));
     }
 
     #[test]
@@ -3607,6 +3710,17 @@ impl Widget {
             entry.state == "Pressed"
                 && entry.status == reference_metadata::ImplementationStatus::Partial
         }));
+        for state in ["Today", "Unavailable"] {
+            assert!(metadata.states.iter().any(|entry| {
+                entry.state == state
+                    && entry.status == reference_metadata::ImplementationStatus::Implemented
+            }));
+        }
+        assert!(metadata.styling.iter().any(|entry| {
+            entry.class_or_token == ".range-calendar__cell-indicator"
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
+                && entry.rust.contains("bottom(4px)")
+        }));
         assert!(metadata.states.iter().any(|entry| {
             entry.state == "Range middle"
                 && entry.selector == "[data-selection-in-range=\"true\"]"
@@ -3643,16 +3757,30 @@ impl Widget {
                 && entry.prop == "isDismissable"
                 && entry.status == reference_metadata::ImplementationStatus::Partial
         }));
-        for class_or_token in [
-            ".drawer__backdrop",
-            ".drawer__body",
-            ".drawer__handle / [data-slot=\"drawer-handle-bar\"]",
-        ] {
-            assert!(metadata.styling.iter().any(|entry| {
-                entry.class_or_token == class_or_token
-                    && entry.status == reference_metadata::ImplementationStatus::Partial
-            }));
-        }
+        assert!(metadata.styling.iter().any(|entry| {
+            entry.class_or_token == ".drawer__backdrop"
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
+                && entry.rust.contains("DRAWER_BACKDROP_IN")
+        }));
+        assert!(metadata.styling.iter().any(|entry| {
+            entry.class_or_token
+                == ".drawer__dialog[data-placement=\"bottom\"] / [data-placement=\"top\"]"
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
+                && entry.rust.contains("rounded_tl/tr")
+        }));
+        assert!(metadata.styling.iter().any(|entry| {
+            entry.class_or_token == ".drawer__body"
+                && entry.status == reference_metadata::ImplementationStatus::Partial
+                && entry.rust.contains("mx(-3px)")
+        }));
+        assert!(metadata.styling.iter().any(|entry| {
+            entry.class_or_token == ".drawer__handle / [data-slot=\"drawer-handle-bar\"]"
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
+        }));
+        assert!(metadata.styling.iter().any(|entry| {
+            entry.class_or_token == ".drawer__dialog--top"
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
+        }));
         assert!(metadata.styling.iter().any(|entry| {
             entry.class_or_token == "useDrawerDrag contract"
                 && entry.status == reference_metadata::ImplementationStatus::Implemented
@@ -3706,6 +3834,38 @@ impl Widget {
                 == ".modal__container--scroll-outside / .modal__backdrop:has(.modal__container--scroll-outside)"
                 && entry.status == reference_metadata::ImplementationStatus::Implemented
         }));
+        assert!(metadata.styling.iter().any(|entry| {
+            entry.class_or_token
+                == ".modal__container[data-entering=\"true\"] [data-placement=\"top\"] / [data-placement=\"bottom\"]"
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
+                && entry.rust.contains("placement_entry_offset")
+        }));
+    }
+
+    #[test]
+    fn alert_dialog_metadata_tracks_placement_entry_motion() {
+        let metadata = reference_metadata::for_route(
+            "AlertDialog",
+            "use herogpui::components::alert_dialog::{AlertDialog, AlertDialogCloseTrigger};",
+        )
+        .expect("AlertDialog metadata is registered");
+
+        assert!(metadata.api.iter().any(|entry| {
+            entry.owner == "AlertDialog.Container"
+                && entry.prop == "placement"
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
+        }));
+        assert!(metadata.states.iter().any(|entry| {
+            entry.state == "Entering"
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
+                && entry.rust.contains("placement_entry_offset")
+        }));
+        assert!(metadata.styling.iter().any(|entry| {
+            entry.class_or_token
+                == ".alert-dialog__container[data-entering=\"true\"] [data-placement=\"auto\" / \"top\" / \"bottom\" / \"center\"]"
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
+                && entry.rust.contains("placement_entry_offset")
+        }));
     }
 
     #[test]
@@ -3736,6 +3896,7 @@ impl Widget {
         }
         for class_or_token in [
             ".tooltip max-w-xs",
+            ".tooltip break-all",
             "--tooltip-delay",
             "--tooltip-close-delay",
         ] {
@@ -3745,7 +3906,6 @@ impl Widget {
             }));
         }
         for class_or_token in [
-            ".tooltip break-all",
             ".tooltip [data-slot=\"overlay-arrow\"]",
             ".tooltip__trigger",
             ".tooltip__trigger focus-visible",
@@ -3755,6 +3915,16 @@ impl Widget {
                     && entry.status == reference_metadata::ImplementationStatus::Partial
             }));
         }
+        assert!(metadata.states.iter().any(|state| {
+            state.state == "Entering"
+                && state.rust.contains("entry_offset")
+                && state.status == reference_metadata::ImplementationStatus::Partial
+        }));
+        assert!(metadata.styling.iter().any(|entry| {
+            entry.class_or_token == ".tooltip[data-entering]"
+                && entry.rust.contains("entry_offset")
+                && entry.status == reference_metadata::ImplementationStatus::Partial
+        }));
     }
 
     #[test]
@@ -3789,6 +3959,16 @@ impl Widget {
         assert!(metadata.parts.iter().any(|part| {
             part.name == "Popover.Arrow"
                 && part.status == reference_metadata::ImplementationStatus::Partial
+        }));
+        assert!(metadata.states.iter().any(|state| {
+            state.state == "Entering"
+                && state.rust.contains("placement_entry_offset")
+                && state.status == reference_metadata::ImplementationStatus::Partial
+        }));
+        assert!(metadata.styling.iter().any(|entry| {
+            entry.class_or_token == ".popover[data-entering=true]"
+                && entry.rust.contains("placement_entry_offset")
+                && entry.status == reference_metadata::ImplementationStatus::Partial
         }));
         // The arrow matches size, curve, fill and flip-aware rotation, but a
         // custom child cannot inherit the placement rotation because GPUI 0.2.2
@@ -3838,24 +4018,34 @@ impl Widget {
                     && entry.status == reference_metadata::ImplementationStatus::Implemented
             }));
         }
-        for (owner, prop) in [
-            ("Select.Indicator", "children"),
-            ("Select.Popover", "placement"),
-        ] {
-            assert!(metadata.api.iter().any(|entry| {
-                entry.owner == owner
-                    && entry.prop == prop
-                    && entry.status == reference_metadata::ImplementationStatus::Partial
-            }));
-        }
-        for class_or_token in [
-            ".select__value",
-            ".select__indicator",
-            ".select__popover[data-entering]",
-        ] {
+        assert!(metadata.api.iter().any(|entry| {
+            entry.owner == "Select.Indicator"
+                && entry.prop == "children"
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
+        }));
+        assert!(metadata.api.iter().any(|entry| {
+            entry.owner == "Select.Popover"
+                && entry.prop == "placement"
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
+        }));
+        for class_or_token in [".select__indicator", ".select__popover[data-entering]"] {
             assert!(metadata.styling.iter().any(|entry| {
                 entry.class_or_token == class_or_token
                     && entry.status == reference_metadata::ImplementationStatus::Partial
+            }));
+        }
+        assert!(metadata.styling.iter().any(|entry| {
+            entry.class_or_token == ".select__popover[data-entering]"
+                && entry.rust.contains("placement_entry_offset")
+        }));
+        assert!(metadata.styling.iter().any(|entry| {
+            entry.class_or_token == ".select__value"
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
+        }));
+        for state in ["Selected option", "Focused option"] {
+            assert!(metadata.states.iter().any(|entry| {
+                entry.state == state
+                    && entry.status == reference_metadata::ImplementationStatus::Implemented
             }));
         }
         assert!(metadata.styling.iter().any(|entry| {
@@ -3911,8 +4101,50 @@ impl Widget {
                 && entry.status == reference_metadata::ImplementationStatus::Partial
         }));
         assert!(metadata.styling.iter().any(|entry| {
+            entry.class_or_token == ".autocomplete__value"
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
+                && entry.rust.contains("whitespace_normal")
+        }));
+        assert!(metadata.styling.iter().any(|entry| {
             entry.class_or_token == ".autocomplete__popover[data-exiting=\"true\"]"
                 && entry.status == reference_metadata::ImplementationStatus::Implemented
+        }));
+        assert!(metadata.styling.iter().any(|entry| {
+            entry.class_or_token == ".autocomplete__popover[data-entering=\"true\"]"
+                && entry.rust.contains("placement_entry_offset")
+                && entry.status == reference_metadata::ImplementationStatus::Partial
+        }));
+    }
+
+    #[test]
+    fn combo_box_metadata_tracks_value_wrapping() {
+        let metadata = reference_metadata::for_route(
+            "ComboBox",
+            "use herogpui::components::combo_box::ComboBox;",
+        )
+        .expect("ComboBox metadata is registered");
+        assert!(metadata.styling.iter().any(|entry| {
+            entry.class_or_token == ".combo-box__value"
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
+                && entry.rust.contains("whitespace_normal")
+        }));
+        assert!(metadata.states.iter().any(|entry| {
+            entry.state == "Exiting"
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
+        }));
+        assert!(metadata.styling.iter().any(|entry| {
+            entry.class_or_token == ".combo-box__popover[data-exiting=\"true\"]"
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
+        }));
+        assert!(metadata.styling.iter().any(|entry| {
+            entry.class_or_token == ".combo-box__popover[data-entering=\"true\"]"
+                && entry.rust.contains("placement_entry_offset")
+                && entry.status == reference_metadata::ImplementationStatus::Partial
+        }));
+        assert!(metadata.styling.iter().any(|entry| {
+            entry.class_or_token
+                == ".combo-box__trigger [data-slot=\"combo-box-trigger-default-icon\"]"
+                && entry.rust.contains("rotating_indicator_with_duration")
         }));
     }
 
@@ -3972,6 +4204,9 @@ impl Widget {
         for prop in [
             "variant",
             "selectionMode",
+            "defaultSelectedKeys",
+            "selectionBehavior",
+            "disallowEmptySelection",
             "onSelectionChange",
             "sortDescriptor",
             "onSortChange",
@@ -4029,8 +4264,6 @@ impl Widget {
         }
         for (owner, prop) in [
             ("Table.Content", "aria-label"),
-            ("Table.Content", "defaultSelectedKeys"),
-            ("Table.Content", "selectionBehavior"),
             ("Table.Content", "dragAndDropHooks"),
             ("Table.Content", "keyboardNavigationBehavior"),
             ("Table.Cell", "colSpan"),
@@ -4060,7 +4293,7 @@ impl Widget {
         }));
         assert!(metadata.states.iter().any(|entry| {
             entry.state == "Selected"
-                && entry.status == reference_metadata::ImplementationStatus::Partial
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
         }));
         assert!(metadata.styling.iter().any(|entry| {
             entry.class_or_token == ".table-root--primary"
@@ -4068,15 +4301,19 @@ impl Widget {
         }));
         assert!(metadata.styling.iter().any(|entry| {
             entry.class_or_token == ".table__column"
-                && entry.status == reference_metadata::ImplementationStatus::Partial
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
         }));
         assert!(metadata.styling.iter().any(|entry| {
             entry.class_or_token == ".table__cell[data-tree-column]"
-                && entry.status == reference_metadata::ImplementationStatus::Partial
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
         }));
         assert!(metadata.styling.iter().any(|entry| {
             entry.class_or_token == ".table__column::after"
-                && entry.status == reference_metadata::ImplementationStatus::Unavailable
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
+        }));
+        assert!(metadata.styling.iter().any(|entry| {
+            entry.class_or_token == ".table__sortable-column-indicator"
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
         }));
         assert!(metadata.styling.iter().any(|entry| {
             entry.class_or_token == ".table__footer"
@@ -4092,7 +4329,7 @@ impl Widget {
     }
 
     #[test]
-    fn accordion_metadata_tracks_item_ownership_custom_indicator_and_style_limits() {
+    fn accordion_metadata_tracks_item_ownership_custom_indicator_and_panel_motion() {
         let metadata = reference_metadata::for_route(
             "Accordion",
             "use herogpui::components::accordion::{Accordion, AccordionItem};",
@@ -4121,7 +4358,8 @@ impl Widget {
         }));
         assert!(metadata.styling.iter().any(|entry| {
             entry.class_or_token == ".accordion__panel"
-                && entry.status == reference_metadata::ImplementationStatus::Partial
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
+                && entry.description.contains("measured")
         }));
     }
 
@@ -4154,6 +4392,20 @@ impl Widget {
             reference_metadata::ImplementationStatus::Partial,
             "the render values are live, but the GPUI control still owns the compound trigger"
         );
+        assert!(metadata.parts.iter().any(|part| {
+            part.name == "Disclosure.Indicator"
+                && part.status == reference_metadata::ImplementationStatus::Implemented
+        }));
+        assert!(metadata.styling.iter().any(|entry| {
+            entry.class_or_token == ".disclosure__indicator"
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
+                && entry.description.contains("rotates")
+        }));
+        assert!(metadata.styling.iter().any(|entry| {
+            entry.class_or_token == ".disclosure__content"
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
+                && entry.description.contains("measured")
+        }));
     }
 
     #[test]

@@ -11,8 +11,8 @@
 //!   ComboBox and Autocomplete open from the field at (60, 18); DatePicker
 //!   composes an editable DateField plus a separate 24px trigger whose centre
 //!   is (124, 18).
-//! - The pickers' panels hang from `placed_field_panel(BottomStart, 6px)`:
-//!   top = trigger bottom + 6 = 42.
+//! - The pickers' panels hang from `placed_field_panel(BottomStart, 8px)`:
+//!   top = trigger bottom + 8 = 44.
 //! - Autocomplete: panel `pt(8)` + search wrapper `py(4)` + 36px field + list
 //!   `p(6)` puts row *i* at y 100+36i, plus up to 6px of entry-zoom padding
 //!   (`ZoomBox::panel(px(6))`); clicking y = 124+36i lands inside every phase
@@ -21,7 +21,7 @@
 //!   padding; clicking y = 64+36i covers it.
 //! - Dropdown: same panel shape as Select (row centres y 64+36i), but both
 //!   menus here are driven by keyboard, so only their triggers are clicked.
-//! - DatePicker: the cell band starts at 42 + 12 (`picker_panel` padding) +
+//! - DatePicker: the cell band starts at 44 + 12 (`picker_panel` padding) +
 //!   24 (nav header) + 8 + 8 (calendar gaps) + one text line of weekday
 //!   header, and cells are 36px tall; the column centres come from
 //!   `CALENDAR_WIDTH` split into seven equal columns. Only the weekday
@@ -29,11 +29,10 @@
 //!   tolerates by ±14px either way.
 //!
 //! Reduce motion is deliberately **not** set for this process. Only the
-//! Dropdown plays its exit through `util::overlay_phase`, and no test here
-//! probes a dropdown after dismissing it; the Autocomplete, ComboBox and
-//! DatePicker panels leave the tree outright when closed (`show_panel` /
-//! `if is_open` gate them, no exit phase), so "is it closed" probes cannot hit
-//! an exiting panel.
+//! Dropdown and DatePicker family retain their panels through
+//! `util::overlay_phase` exits; no test here probes those surfaces after
+//! dismissing them, while the Autocomplete and ComboBox panels leave the tree
+//! outright when closed.
 
 mod harness;
 
@@ -823,9 +822,19 @@ fn autocomplete_item_indicator_receives_row_selection_state(cx: &mut TestAppCont
             .into_any_element()
     });
 
-    assert_eq!(
-        recorded.borrow().as_slice(),
-        [true, false],
+    // The host builder is allowed to render more than once while the
+    // placement state settles. A render prop is therefore called once per
+    // row per frame; assert the first complete row pass and reject any state
+    // value outside the two row selections instead of coupling the contract
+    // to a frame count.
+    let recorded = recorded.borrow();
+    assert!(
+        recorded.len() >= 2
+            && recorded
+                .as_chunks::<2>()
+                .0
+                .iter()
+                .all(|states| states == &[true, false]),
         "the composed item indicator must receive each row's selection state"
     );
 }
@@ -1512,19 +1521,22 @@ fn date_picker_opens_and_picks_a_day(cx: &mut TestAppContext) {
     let lead = DateConstraints::new().lead_cells(today.year, today.month);
     let expected = Date::new(today.year, today.month, (7 - lead) as u32);
 
+    // The coordinate probe opts into bottom-start so the panel origin stays
+    // at the host's left edge; the public default is centered bottom.
     // x: the calendar column is CALENDAR_WIDTH wide (252px = seven cells),
     // each slot is 252/7 wide and the last
     // column's centre sits at 12 + 6*w + w/2 from the panel origin.
-    // y: panel top 42 + padding 12 + header 40 + weekday 24 + body offset 4
-    // + half a 36px cell = 140.
+    // y: panel top 44 + padding 12 + header 40 + weekday 24 + body offset 4
+    // + half a 36px cell = 142.
     let cell_w = f32::from(CALENDAR_WIDTH) / 7.;
     let day_x = 12. + 6. * cell_w + cell_w / 2.;
-    let day_y = 140.;
+    let day_y = 142.;
 
     let state_for_view = state;
     let cx = open_host(cx, move || {
         let picks = picks.clone();
         DatePicker::new(state_for_view.clone())
+            .placement(herogpui_core::Placement::BottomStart)
             .on_change(move |date, _, _| {
                 let iso = date.map(|d| d.format_iso()).unwrap_or_default();
                 picks.borrow_mut().push(iso);

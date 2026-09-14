@@ -1535,6 +1535,24 @@ fn disabled_color_field_is_not_a_successful_form_control(cx: &mut TestAppContext
 }
 
 #[gpui::test]
+fn null_color_field_is_an_empty_required_form_value(cx: &mut TestAppContext) {
+    cx.update(|cx| {
+        let field = ColorField::new("brand-empty", None::<PickerColor>)
+            .default_value(None::<PickerColor>)
+            .name("brand")
+            .is_required(true);
+        let form = Form::new().field(field.form_field().expect("named empty color field"));
+        assert_eq!(submit_text(&form.data(cx), "brand"), "");
+        assert_eq!(
+            form.data(cx)
+                .missing_required(&[gpui::SharedString::from("brand")]),
+            vec![gpui::SharedString::from("brand")],
+            "HeroUI's null Color value must fail native required validation"
+        );
+    });
+}
+
+#[gpui::test]
 fn uncontrolled_color_field_reset_restores_default_before_next_submit(cx: &mut TestAppContext) {
     let submitted = events();
     let state = cx.new(|cx| InputState::with_value(cx, "180"));
@@ -1658,4 +1676,16 @@ fn color_text_metrics_do_not_inherit_host_leading(cx: &mut TestAppContext) {
             px(20.)
         );
     }
+}
+
+/// HeroUI's `colorName` must replace the generated hex accessible name on a
+/// named swatch. The headless platform does not activate AccessKit, so the
+/// source contract is the observable proof for this accessibility-only path.
+#[test]
+fn color_swatch_color_name_overrides_hex_accessible_name() {
+    let source = include_str!("../src/color_picker/swatch.rs");
+    assert!(source.contains("color_name: Option<SharedString>"));
+    assert!(source.contains("pub fn color_name"));
+    assert!(source.contains("SharedString::from(self.color.to_hex())"));
+    assert!(source.contains("a11y::Name::labelled(accessible_name)"));
 }

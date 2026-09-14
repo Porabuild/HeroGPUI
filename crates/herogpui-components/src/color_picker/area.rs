@@ -284,7 +284,7 @@ impl RenderOnce for ColorArea {
             |_, _| false,
         );
         let colors = cx.colors();
-        let border_width = f32::from(cx.layout().border_width);
+        let border_color = util::sx_border_color(&self.sx).unwrap_or(colors.border);
         // `.color-area` is `rounded-2xl`, which is `soft_radius`.
         let radius = util::soft_radius(cx);
         let hue_color = PickerColor::hsb(self.value.hue, 1.0, 1.0).to_hsla();
@@ -308,9 +308,7 @@ impl RenderOnce for ColorArea {
             .relative()
             .w(self.width)
             .h(self.height)
-            .rounded(radius)
-            .border(cx.layout().border_width)
-            .border_color(colors.border);
+            .rounded(radius);
 
         // `.color-area` is `overflow: visible` -- the thumb is meant to hang
         // over the edge, and upstream can allow that because its gradient stack
@@ -392,12 +390,12 @@ impl RenderOnce for ColorArea {
                     recorder_bounds.update(cx, |slot, _| {
                         *slot = Bounds {
                             origin: gpui::point(
-                                f32::from(bounds.origin.x) - border_width,
-                                f32::from(bounds.origin.y) - border_width,
+                                f32::from(bounds.origin.x),
+                                f32::from(bounds.origin.y),
                             ),
                             size: gpui::size(
-                                f32::from(bounds.size.width) + border_width * 2.0,
-                                f32::from(bounds.size.height) + border_width * 2.0,
+                                f32::from(bounds.size.width),
+                                f32::from(bounds.size.height),
                             ),
                         };
                     });
@@ -442,6 +440,21 @@ impl RenderOnce for ColorArea {
 
         area = area.child(layers);
 
+        // GPUI paints an element's border after its children. Keeping the
+        // visible border as a child lets the thumb, which is appended after
+        // this overlay, remain above the border at the edge of the area.
+        // The gradient stack remains clipped by `layers`, while the root
+        // itself stays overflow-visible so a boundary thumb can hang over it.
+        area = area.child(
+            div()
+                .absolute()
+                .inset_0()
+                .rounded(radius)
+                .border(cx.layout().border_width)
+                .border_color(border_color)
+                .shadow(vec![color_inner_shadow()]),
+        );
+
         let is_dragging = !self.is_disabled && *dragging.read(cx);
         let is_focused = !self.is_disabled && area_focus.is_focused(window);
         let is_focus_visible = is_focused && util::focus_visible(cx);
@@ -463,6 +476,7 @@ impl RenderOnce for ColorArea {
                 // `.color-area__thumb` is `border: 3px solid white`.
                 .border(px(3.))
                 .border_color(gpui::white())
+                .shadow(color_thumb_shadows())
                 .bg(self.value.to_hsla()),
             is_focus_visible,
             true,
@@ -953,10 +967,13 @@ pub(super) fn color_slider_form_value(
 /// React Aria ColorField submits the hex text, or the channel number when
 /// `channel` is set (ColorChannelField is a NumberField).
 pub(super) fn color_field_form_value(
-    value: PickerColor,
+    value: Option<PickerColor>,
     channel: Option<ColorChannel>,
     space: ColorSpace,
 ) -> crate::form::FormValue {
+    let Some(value) = value else {
+        return crate::form::FormValue::Text(SharedString::default());
+    };
     match channel {
         None => crate::form::FormValue::Text(value.to_hex().into()),
         Some(channel) => {
@@ -966,10 +983,13 @@ pub(super) fn color_field_form_value(
 }
 
 pub(super) fn color_field_display_text(
-    value: PickerColor,
+    value: Option<PickerColor>,
     channel: Option<ColorChannel>,
     space: ColorSpace,
 ) -> String {
+    let Some(value) = value else {
+        return String::new();
+    };
     match channel {
         None => value.to_hex(),
         Some(channel) => format_color_channel_value(value, channel, space),

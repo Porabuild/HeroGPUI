@@ -279,6 +279,15 @@ fn color_field_forwards_the_override_to_its_editable_input() {
     );
 }
 
+#[test]
+fn grouped_input_uses_the_group_shell_radius_only() {
+    let source = include_str!("../src/input.rs");
+    assert!(
+        source.contains(".when(self.in_group.is_none(), |f| f.rounded(radius))"),
+        "input.rs: an InputGroup child must be rounded-none so the group owns the field outline"
+    );
+}
+
 // The dialog's panel is painted twice — once as the resting box and once as
 // the geometry the entry zoom interpolates — so one hoisted binding has to
 // feed both, the way Select's and Popover's panels do.

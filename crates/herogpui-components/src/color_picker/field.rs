@@ -41,10 +41,13 @@ pub struct ColorField {
     /// `name` — the name this control submits under; read back by
     /// [`Self::form_field`].
     name: Option<SharedString>,
-    /// `defaultValue` — set it to hand this component its own state.
-    default_value: Option<PickerColor>,
+    /// `defaultValue` — set it to hand this component its own state. The
+    /// outer option distinguishes an omitted prop from an explicit `null`
+    /// seed, matching React Aria's `Color | null` contract.
+    default_value: Option<Option<PickerColor>>,
     id: ElementId,
-    value: PickerColor,
+    /// The controlled value. `None` is the documented empty color state.
+    value: Option<PickerColor>,
     channel: Option<ColorChannel>,
     /// `colorSpace` — how a `channel` value is interpreted.
     color_space: ColorSpace,
@@ -103,7 +106,7 @@ impl ColorField {
         self
     }
 
-    pub fn new(id: impl Into<ElementId>, value: PickerColor) -> Self {
+    pub fn new(id: impl Into<ElementId>, value: impl Into<Option<PickerColor>>) -> Self {
         Self {
             content: None,
             suffix: None,
@@ -111,7 +114,7 @@ impl ColorField {
             name: None,
             default_value: None,
             id: id.into(),
-            value,
+            value: value.into(),
             channel: None,
             color_space: ColorSpace::default(),
             validate: None,
@@ -179,7 +182,9 @@ impl ColorField {
         let validity = crate::validation::resolve(
             self.is_invalid,
             &self.validation_errors,
-            self.validate.as_ref().and_then(|f| f(&value)),
+            self.validate
+                .as_ref()
+                .and_then(|f| value.as_ref().and_then(|value| f(value))),
             None,
         );
         sync_color_form_state(
@@ -195,12 +200,14 @@ impl ColorField {
         )
     }
 
-    /// `defaultValue` — the uncontrolled initial colour.
+    /// `defaultValue` — the uncontrolled initial colour. Passing `None`
+    /// explicitly seeds the field empty; omitting this builder keeps the
+    /// component controlled by the value supplied to [`Self::new`].
     ///
     /// Supplying it hands the component its own state: the constructor's
     /// `value` becomes the seed, and a change moves the component's copy.
-    pub fn default_value(mut self, value: PickerColor) -> Self {
-        self.default_value = Some(value);
+    pub fn default_value(mut self, value: impl Into<Option<PickerColor>>) -> Self {
+        self.default_value = Some(value.into());
         self
     }
 
@@ -323,6 +330,13 @@ impl ColorField {
         self
     }
 
+    /// Shows or hides only the field's visual focus ring. The editable color
+    /// field remains focusable and the static display keeps its normal chrome.
+    pub fn focus_ring(mut self, v: bool) -> Self {
+        self.field.focus_ring = Some(v);
+        self
+    }
+
     /// The corner radius, in place of the owning `field_radius` helper. Not a
     /// v3 prop; the removed v2 `radius` prop is prohibited and this is a
     /// per-component repository extension.
@@ -425,7 +439,7 @@ pub(super) fn report_color_field_change(
     channel: ColorChannel,
     color_space: ColorSpace,
     state: &Entity<crate::input::InputState>,
-    own: &Option<Entity<PickerColor>>,
+    own: &Option<Entity<Option<PickerColor>>>,
     on_change: &Option<OnColorFieldChange>,
     window: &mut Window,
     cx: &mut App,
@@ -437,7 +451,7 @@ pub(super) fn report_color_field_change(
     });
     if let Some(held) = own {
         held.update(cx, |value, cx| {
-            *value = next;
+            *value = Some(next);
             cx.notify();
         });
     }
@@ -454,10 +468,7 @@ impl RenderOnce for ColorField {
             window,
             cx,
             element_id::scoped(&self.id, "field-value"),
-            match self.default_value {
-                Some(_) => None,
-                None => Some(self.value),
-            },
+            self.default_value.is_none().then_some(self.value),
             self.default_value.unwrap_or(self.value),
         );
         self.value = resolved;
@@ -465,7 +476,9 @@ impl RenderOnce for ColorField {
         let validity = crate::validation::resolve(
             self.is_invalid,
             &self.validation_errors,
-            self.validate.as_ref().and_then(|f| f(&self.value)),
+            self.validate
+                .as_ref()
+                .and_then(|f| self.value.as_ref().and_then(|value| f(value))),
             None,
         );
         if let Some(render) = self.content.clone() {
@@ -492,7 +505,7 @@ impl RenderOnce for ColorField {
         let form_default = window.use_keyed_state(
             element_id::scoped(&self.id, "field-form-default"),
             cx,
-            |_, _| None::<PickerColor>,
+            |_, _| None::<Option<PickerColor>>,
         );
         if form_default.read(cx).is_none() {
             let initial = self.value;
@@ -512,7 +525,9 @@ impl RenderOnce for ColorField {
         );
         let restore_own = own.clone();
         let restore_on_change = self.on_change.clone();
-        let restore_form_state = self.form_state.clone();
+        // The field stores this callback; owning it back would retain every
+        // rendered InputState after the field is removed.
+        let restore_form_state = Rc::downgrade(&self.form_state);
         let restore_input = self.state.clone();
         let restore_channel = self.channel;
         let restore_space = self.color_space;
@@ -533,21 +548,26 @@ impl RenderOnce for ColorField {
                 });
             }
             if let Some(callback) = &restore_on_change {
-                callback(&Some(restore_default), window, cx);
+                callback(&restore_default, window, cx);
             }
-            sync_color_form_state(
-                &restore_form_state,
-                color_field_form_value(restore_default, restore_channel, restore_space),
-                !restore_is_disabled,
-                false,
-            );
+            if let Some(state) = restore_form_state.upgrade() {
+                sync_color_form_state(
+                    &state,
+                    color_field_form_value(restore_default, restore_channel, restore_space),
+                    !restore_is_disabled,
+                    false,
+                );
+            }
         });
         self.form_state.borrow_mut().restore = Some(restore);
         if let Some(state) = &self.state {
             self.form_state.borrow_mut().focus = Some(state.read(cx).focus_handle.clone());
         }
-        let colors = cx.colors();
-        let layout = cx.layout();
+        // The shared hover tween borrows the window/app mutably while the
+        // final field chrome still needs theme tokens below, so copy the
+        // active snapshots before constructing the element tree.
+        let colors = cx.colors().clone();
+        let layout = cx.layout().clone();
         let text = self.display_text();
 
         // Editable mode: delegate the text handling to Input and parse on every
@@ -560,8 +580,10 @@ impl RenderOnce for ColorField {
                 .is_required(self.is_required)
                 .is_invalid(validity.is_invalid)
                 .validation_errors(self.validation_errors.clone())
-                .auto_focus(self.auto_focus)
-                .start_content(ColorSwatch::new(self.value).size(SizeXl::Xs));
+                .auto_focus(self.auto_focus);
+            if let Some(value) = self.value {
+                input = input.start_content(ColorSwatch::new(value).size(SizeXl::Xs));
+            }
             input = input.with_field_box(self.field);
             // The editable box is the inner field's own, so the radius rides
             // along with the field box, the way its `height` and `padding_x`
@@ -600,7 +622,7 @@ impl RenderOnce for ColorField {
             if self.on_change.is_some() || own.is_some() {
                 let cb = self.on_change.clone();
                 let own = own.clone();
-                let parse_value = self.value;
+                let parse_value = self.value.unwrap_or_default();
                 let parse_channel = self.channel;
                 let parse_space = self.color_space;
                 input = input.on_change(move |text, window, cx| {
@@ -609,7 +631,7 @@ impl RenderOnce for ColorField {
                     // never follow the text.
                     if let (Some(held), Some(c)) = (&own, next) {
                         held.update(cx, |v, cx| {
-                            *v = c;
+                            *v = Some(c);
                             cx.notify();
                         });
                     }
@@ -630,7 +652,7 @@ impl RenderOnce for ColorField {
                 .id(element_id::scoped(&self.id, "channel-events"))
                 .child(rendered);
             if self.on_change.is_some() || own.is_some() {
-                let key_value = self.value;
+                let key_value = self.value.unwrap_or_default();
                 let key_space = self.color_space;
                 let key_state = state.clone();
                 let key_own = own.clone();
@@ -656,7 +678,7 @@ impl RenderOnce for ColorField {
                 });
 
                 if !self.is_wheel_disabled {
-                    let wheel_value = self.value;
+                    let wheel_value = self.value.unwrap_or_default();
                     let wheel_space = self.color_space;
                     let wheel_state = state;
                     let wheel_own = own;
@@ -711,32 +733,80 @@ impl RenderOnce for ColorField {
             .rounded(radius)
             .text_size(util::FIELD_TEXT)
             .line_height(px(20.))
-            .text_color(colors.field.foreground)
-            // `.color-input-group__prefix` is `shrink-0 ms-3` in the
-            // placeholder colour, and v3's example puts the swatch in it;
-            // `.color-input-group__suffix` is its `me-3` twin.
-            .child(ColorSwatch::new(self.value).size(SizeXl::Xs))
-            .child(div().flex_1().child(text))
-            .children(self.suffix.map(|el| {
-                div()
-                    .flex()
-                    .items_center()
-                    .flex_shrink_0()
-                    .text_color(colors.field.placeholder)
-                    .child(el)
-            }));
+            .text_color(colors.field.foreground);
+        // `.color-input-group__prefix` is `shrink-0 ms-3` in the placeholder
+        // colour. An empty ColorField omits the swatch, matching
+        // `ColorSwatch color={value ?? undefined}` in the pinned example.
+        if let Some(value) = self.value {
+            field = field.child(ColorSwatch::new(value).size(SizeXl::Xs));
+        }
+        field = field.child(div().flex_1().child(text));
+        // `.color-input-group__suffix` is `shrink-0 text-field-placeholder
+        // me-3 flex items-center`; the trailing inset is the field box's
+        // resolved padding, since this port renders the value itself.
+        field = field.children(self.suffix.map(|el| {
+            div()
+                .flex()
+                .items_center()
+                .flex_shrink_0()
+                .text_color(colors.field.placeholder)
+                .child(el)
+        }));
 
         if !field_box.is_bare {
-            field = util::apply_field_chrome(
+            let focused = self
+                .state
+                .as_ref()
+                .is_some_and(|s| s.read(cx).focus_handle.is_focused(window));
+            field = util::apply_field_chrome_with_focus_ring(
                 field,
                 self.variant,
                 self.is_invalid,
-                self.state
-                    .as_ref()
-                    .is_some_and(|s| s.read(cx).focus_handle.is_focused(window)),
+                focused,
+                field_box.focus_ring.unwrap_or(true),
                 Some(radius),
                 cx,
             );
+
+            // HeroUI's invalid color-input group keeps the danger chrome and
+            // swaps the surface to the field-focus endpoint. Secondary uses
+            // its neutral default focus endpoint, just like InputGroup.
+            if validity.is_invalid {
+                field = field.bg(match self.variant {
+                    FieldVariant::Primary => colors.field.focus(),
+                    FieldVariant::Secondary => colors.default.color,
+                });
+            }
+
+            if !self.is_disabled && !self.is_invalid && !focused {
+                let idle_bg = match self.variant {
+                    FieldVariant::Primary => colors.field.background,
+                    FieldVariant::Secondary => colors.default.color,
+                };
+                let hover_bg = match self.variant {
+                    FieldVariant::Primary => colors.field.hover(),
+                    // `.color-input-group--secondary` uses the default-hover
+                    // endpoint rather than the field-hover token.
+                    FieldVariant::Secondary => colors.default.hover(),
+                };
+                let hover_border = colors.field.border_hover();
+                // Keep the group identity and focus/scroll listeners stable;
+                // only the visual fill interpolates over HeroUI's 150ms
+                // ease-smooth hover transition. The border endpoint remains
+                // an immediate hover refinement, matching the field family.
+                field = crate::anim::hover_fade_with_duration_and_easing(
+                    field,
+                    element_id::scoped(&self.id, "field-hover-fade"),
+                    (idle_bg, hover_bg),
+                    None,
+                    Some(hover_border),
+                    |fill| fill.rounded(radius),
+                    Some(150),
+                    crate::anim::HoverFadeEasing::EaseSmooth,
+                    window,
+                    cx,
+                );
+            }
         }
 
         // v3's ColorField steps its channel on scroll; `isWheelDisabled` turns
@@ -747,7 +817,7 @@ impl RenderOnce for ColorField {
             self.is_wheel_disabled || self.is_disabled || self.is_read_only,
             self.on_change.clone(),
         ) {
-            let value = self.value;
+            let value = self.value.unwrap_or_default();
             let space = self.color_space;
             field = field.on_scroll_wheel(move |ev: &gpui::ScrollWheelEvent, window, cx| {
                 let dy = match ev.delta {

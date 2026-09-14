@@ -13,7 +13,11 @@
 //!   directly, and otherwise falls back to this page's own query string:
 //!   `?story=<slug>` (the website's catalog slug, e.g. `date-picker`) or
 //!   `?page=<Nav Title>` (the same spelling as the native `HEROGPUI_PAGE`
-//!   value), both resolved through `herogpui_gallery`.
+//!   value), both resolved through `herogpui_gallery`. Component previews also
+//!   accept `?specimen=<stable-key>` alongside their section; the shared
+//!   gallery renderer claims that key and leaves unknown previews blank rather
+//!   than selecting a neighbor. `?overlays=1` starts overlay demos open, the
+//!   web spelling of the native `HEROGPUI_OPEN_OVERLAYS` variable.
 //! - **The `wasm-bindgen`/GPUI web platform wiring** `gpui_web` needs
 //!   (`gpui_platform::web_init`), which does not exist -- and is not
 //!   needed -- on the native target.
@@ -94,6 +98,15 @@ fn theme_from_query() -> Theme {
     }
 }
 
+/// `?overlays=1` (or `?overlays=true`), the web spelling of the native
+/// `HEROGPUI_OPEN_OVERLAYS` environment variable: overlay demos start open so
+/// a capture sees the panel, not just the trigger that opens it. Any other
+/// value -- absent, `0`, a typo -- reads closed, the same way unknown
+/// `?theme=` values fall back to light rather than being rejected.
+fn overlays_from_query() -> bool {
+    control::overlays_requested(query_param("overlays").as_deref())
+}
+
 /// Runs the gallery in the page's `<canvas>`.
 ///
 /// `page`, if given, is looked up by nav title the same way as the native
@@ -108,7 +121,7 @@ fn theme_from_query() -> Theme {
 ///
 /// Anything not covered by the arguments falls back to this page's own
 /// `?story=`/`?page=`/`?theme=` query string, then the introduction page and
-/// light theme.
+/// light theme; `?overlays=1` on that same query starts overlay demos open.
 #[wasm_bindgen]
 pub fn run(page: Option<String>, dark: Option<bool>) {
     // Installs the panic hook and console logger `gpui_web` provides (see
@@ -127,8 +140,10 @@ pub fn run(page: Option<String>, dark: Option<bool>) {
         Some(false) => Theme::light(),
         None => theme_from_query(),
     };
-    let section = query_param("section").unwrap_or_else(|| "Usage".to_owned());
     let preview_only = query_param("preview").as_deref() == Some("component");
+    let specimen = query_param("specimen");
+    let section = query_param("section").unwrap_or_else(|| "Usage".to_owned());
+    let overlays_open = overlays_from_query();
 
     // Single-threaded on purpose: the multi-threaded web platform runs its
     // background executors on web workers over a shared wasm memory, which a
@@ -161,6 +176,7 @@ pub fn run(page: Option<String>, dark: Option<bool>) {
         ThemeProvider::init_with(theme, cx);
         control::init_section_filter(cx);
         control::set_section_filter(&section, cx);
+        control::set_specimen_filter(specimen.as_deref(), cx);
         control::set_preview_only(preview_only, cx);
 
         let window = cx
@@ -176,6 +192,10 @@ pub fn run(page: Option<String>, dark: Option<bool>) {
                     cx.new(move |cx| {
                         let mut g = Gallery::new(cx);
                         g.set_initial_page(page);
+                        // Applied before the first frame, so the constructed
+                        // examples start open exactly as `Gallery::new` seeds
+                        // them under the native `HEROGPUI_OPEN_OVERLAYS`.
+                        g.set_overlays_open(overlays_open);
                         g
                     })
                 },

@@ -18,9 +18,10 @@ pub struct TextArea {
     sx: Option<Box<gpui::StyleRefinement>>,
 }
 
-/// `rows` as a height: one 20px line each, over `.textarea`'s `py-2`.
+/// `rows` as a height: one 20px line each, over `.textarea`'s `py-2`, with
+/// HeroUI's 38px minimum floor for even a one-row textarea.
 fn rows_height(rows: u32) -> gpui::Pixels {
-    px(rows.max(1) as f32 * 20.0 + 16.0)
+    px((rows.max(1) as f32 * 20.0 + 16.0).max(38.0))
 }
 
 impl TextArea {
@@ -101,6 +102,13 @@ impl TextArea {
     /// Drops the field's chrome — see [`crate::input::Input::is_bare`].
     pub fn is_bare(mut self, v: bool) -> Self {
         self.inner = self.inner.is_bare(v);
+        self
+    }
+
+    /// Shows or hides only the inner field's visual focus ring — see
+    /// [`crate::input::Input::focus_ring`].
+    pub fn focus_ring(mut self, v: bool) -> Self {
+        self.inner = self.inner.focus_ring(v);
         self
     }
 
@@ -218,5 +226,18 @@ impl RenderOnce for TextArea {
             .when_some(self.min_w, |e, w| e.min_w(w))
             .child(self.inner);
         crate::util::apply_sx(el, &self.sx)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::rows_height;
+    use gpui::px;
+
+    #[test]
+    fn rows_keep_the_pinned_textarea_minimum() {
+        assert_eq!(rows_height(0), px(38.));
+        assert_eq!(rows_height(1), px(38.));
+        assert_eq!(rows_height(3), px(76.));
     }
 }

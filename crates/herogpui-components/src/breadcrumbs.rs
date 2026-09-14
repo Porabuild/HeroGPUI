@@ -192,8 +192,8 @@ impl RenderOnce for Breadcrumbs {
                     // renders as a `<li>` — role `listitem` — holding a
                     // `<Link>` (`@heroui/react/.../breadcrumbs/breadcrumbs.js`
                     // composes exactly that) and, when it is not the current
-                    // page, the separator. Its `aria-current="page"` half is
-                    // a recorded omission: gpui has no builder for it.
+                    // page, the separator. Its `aria-current="page"` state is
+                    // forwarded by the local gpui-pre accessibility extension.
                     .a11y(a11y::Role::ListItem)
                     .flex()
                     .flex_shrink_0()
@@ -237,6 +237,7 @@ impl RenderOnce for Breadcrumbs {
                     // the explicit role only for a non-anchor element; the
                     // node is a link either way.
                     .a11y_named(a11y::Role::Link, &a11y::Name::labelled(crumb.label.clone()))
+                    .when(is_last, |el| el.a11y_current(a11y::AriaCurrent::Page))
                     .when_some(focus.as_ref(), |el, handle| el.track_focus(handle))
                     .text_size(text_size)
                     // `.breadcrumbs__link` is `text-sm leading-5 font-medium`:

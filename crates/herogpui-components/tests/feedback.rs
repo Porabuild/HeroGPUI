@@ -32,11 +32,11 @@
 //! Geometry is derived from the components' own constants on a 1920x1080 test
 //! window (the test display's bounds). A toast card is `w(460) px(16) py(12)`
 //! with one 20px title line, so it is 44px tall; its close button is the
-//! 20px `size-5` square flush against the card's right padding. Centred
+//! 20px `size-5` square at the pinned `-end-1 -top-1` offset. Centred
 //! placements span x 730..1190; `*End` hugs the right inset (x 1444..1904)
 //! and `*Start` the left (x 16..476); `Top` parks the card at y 16..60 and
-//! `Bottom` at y 1020..1064 — so the close centre is (1164, 1042) centred,
-//! (1878, 1042) / (450, 1042) at the sides, and (1878, 38) at top-right. A
+//! `Bottom` at y 1020..1064 — so the close centre is (1184, 1026) centred,
+//! (1898, 1026) / (470, 1026) at the sides, and (1898, 22) at top-right. A
 //! closable Alert is `w_full px-4 py-3` with a 14px close glyph, centre
 //! (1897, 19) — the coordinate `buttons.rs` already drives for the closable
 //! case, which is why `alert.rs` must only ever render one closable Alert per
@@ -121,9 +121,9 @@ fn toast_start_end_placements_move_the_close_target(cx: &mut TestAppContext) {
 
     // Card geometry at BottomEnd: the region is `bottom(16) right(16)`, so
     // the 460px card spans x 1920-16-460 = 1444..1904 and y 1020..1064; the
-    // close button (20px, flush against the card's 16px right padding) spans
-    // x 1868..1888, y 1032..1052 — centre (1878, 1042).
-    click(cx, 1878., 1042.);
+    // close button (20px, absolute right(-4) top(-4)) spans x 1888..1908,
+    // y 1016..1036 — centre (1898, 1026).
+    click(cx, 1898., 1026.);
     cx.update(|_window, cx| {
         assert!(
             toast_store(cx).read(cx).toasts().is_empty(),
@@ -132,14 +132,14 @@ fn toast_start_end_placements_move_the_close_target(cx: &mut TestAppContext) {
     });
 
     // BottomStart: the region flips to `left(16)`; the card spans x 16..476
-    // and the close button x 440..460, same y. The old bottom-right point is
+    // and the close button x 460..480, same y. The old bottom-right point is
     // now empty background, so the same click must leave the toast alone.
     *placement.borrow_mut() = ToastPlacement::BottomStart;
     cx.update(|_window, cx| {
         Toast::new("B").timeout(Duration::ZERO).push(None, cx);
     });
     flush_frame(cx);
-    click(cx, 1878., 1042.);
+    click(cx, 1898., 1026.);
     cx.update(|_window, cx| {
         assert_eq!(
             toast_store(cx).read(cx).toasts().len(),
@@ -148,7 +148,7 @@ fn toast_start_end_placements_move_the_close_target(cx: &mut TestAppContext) {
              point: the old coordinate now hits nothing"
         );
     });
-    click(cx, 450., 1042.);
+    click(cx, 470., 1026.);
     cx.update(|_window, cx| {
         assert!(
             toast_store(cx).read(cx).toasts().is_empty(),
@@ -157,14 +157,14 @@ fn toast_start_end_placements_move_the_close_target(cx: &mut TestAppContext) {
     });
 
     // TopEnd: `top(16) right(16)` puts the card at y 16..60 and the close
-    // button at y 28..48 — centre (1878, 38). The bottom-left point must now
+    // button at y 12..32 — centre (1898, 22). The bottom-left point must now
     // miss.
     *placement.borrow_mut() = ToastPlacement::TopEnd;
     cx.update(|_window, cx| {
         Toast::new("C").timeout(Duration::ZERO).push(None, cx);
     });
     flush_frame(cx);
-    click(cx, 450., 1042.);
+    click(cx, 470., 1026.);
     cx.update(|_window, cx| {
         assert_eq!(
             toast_store(cx).read(cx).toasts().len(),
@@ -172,12 +172,39 @@ fn toast_start_end_placements_move_the_close_target(cx: &mut TestAppContext) {
             "at TopEnd the card must have left the bottom-left corner"
         );
     });
-    click(cx, 1878., 38.);
+    click(cx, 1898., 22.);
     cx.update(|_window, cx| {
         assert!(
             toast_store(cx).read(cx).toasts().is_empty(),
             "at TopEnd the close button must hug the top-right corner"
         );
+    });
+}
+
+/// A caller-owned indicator render factory must survive queue storage and be
+/// invoked by the mounted card without changing the shared indicator geometry.
+#[gpui::test]
+fn toast_custom_indicator_content_renders_from_the_queue(cx: &mut TestAppContext) {
+    still();
+    let id = cx.update(|cx| {
+        Toast::new("Custom indicator")
+            .timeout(Duration::ZERO)
+            .indicator_content(|_| {
+                gpui::svg()
+                    .size(px(12.))
+                    .path(herogpui_components::icons::INFO_CIRCLE)
+            })
+            .push(None, cx)
+    });
+    let cx = open_host(cx, || ToastViewport::new().into_any_element());
+    cx.update(|_window, cx| {
+        let toast = toast_store(cx)
+            .read(cx)
+            .toasts()
+            .iter()
+            .find(|toast| toast.id == id)
+            .expect("the custom toast remains queued");
+        assert!(toast.indicator_content.is_some());
     });
 }
 
@@ -202,11 +229,10 @@ fn toast_close_click_dismisses_without_running_the_action(cx: &mut TestAppContex
 
     // The card is bottom-centre: 460px wide across x 730..1190. The 32px Sm
     // action button drives the content height, so the card is 12+32+12 = 56px
-    // tall on y 1008..1064; the close button is the 20px square flush against
-    // the right padding, top-aligned (items_start), spanning y 1020..1040 —
-    // centre (1164, 1030). The action button sits between the title column
+    // tall on y 1008..1064; the close button is the 20px square at absolute
+    // top(-4), spanning y 1004..1024 — centre (1184, 1014). The action button sits between the title column
     // and the close, so this click cannot reach it.
-    click(cx, 1164., 1030.);
+    click(cx, 1184., 1014.);
     assert_eq!(
         actions.borrow().as_slice(),
         [] as [&str; 0],
@@ -222,11 +248,10 @@ fn toast_close_click_dismisses_without_running_the_action(cx: &mut TestAppContex
 
 /// v3's `Toast.CloseButton` "accepts all CloseButton props", and `CloseButton`
 /// in this port is a focusable tab stop. The toast's close affordance is a
-/// hand-rolled `div().id(..)` with an `on_click`, never `track_focus` — gpui
-/// builds its tab order from `track_focus` handles, so the close is absent
-/// from the tab order and a keyboard user cannot reach it: the second Tab
-/// wraps back to the action button and Enter runs the *action* instead of
-/// dismissing.
+/// hand-rolled `div().id(..)` with an `on_click`, so it must explicitly attach
+/// its keyed `track_focus` handle: gpui builds the tab order from those
+/// handles. The regression below proves that the close follows the action
+/// button and Enter dismisses the toast instead of running the action.
 #[gpui::test]
 fn toast_close_button_is_keyboard_reachable(cx: &mut TestAppContext) {
     still();
@@ -288,9 +313,9 @@ fn toast_pause_keeps_the_rendered_card_alive_and_dismissable(cx: &mut TestAppCon
     });
 
     // The card is still drawn at the bottom-centre slot, so its close button
-    // still answers at (1164, 1042) — hand dismissal is not governed by the
+    // still answers at (1184, 1026) — hand dismissal is not governed by the
     // clock, and `pauseAll` must not have frozen it.
-    click(cx, 1164., 1042.);
+    click(cx, 1184., 1026.);
     cx.update(|_window, cx| {
         assert!(
             toast_store(cx).read(cx).toasts().is_empty(),
@@ -358,10 +383,10 @@ fn toast_viewport_reveals_the_newest_next_as_toasts_leave(cx: &mut TestAppContex
     });
 
     // The one-card viewport draws only D. Its close button answers at the
-    // bottom-centre point (1164, 1042), and each dismissal slides the next
+    // bottom-centre point (1184, 1026), and each dismissal slides the next
     // queued toast into that exact slot.
     flush_frame(cx);
-    click(cx, 1164., 1042.);
+    click(cx, 1184., 1026.);
     cx.update(|_window, cx| {
         let ids: Vec<u64> = toast_store(cx)
             .read(cx)
@@ -376,7 +401,7 @@ fn toast_viewport_reveals_the_newest_next_as_toasts_leave(cx: &mut TestAppContex
         );
     });
     flush_frame(cx);
-    click(cx, 1164., 1042.);
+    click(cx, 1184., 1026.);
     cx.update(|_window, cx| {
         let ids: Vec<u64> = toast_store(cx)
             .read(cx)
@@ -391,7 +416,7 @@ fn toast_viewport_reveals_the_newest_next_as_toasts_leave(cx: &mut TestAppContex
         );
     });
     flush_frame(cx);
-    click(cx, 1164., 1042.);
+    click(cx, 1184., 1026.);
     cx.update(|_window, cx| {
         assert_eq!(
             toast_store(cx).read(cx).toasts()[0].id,
@@ -400,7 +425,7 @@ fn toast_viewport_reveals_the_newest_next_as_toasts_leave(cx: &mut TestAppContex
         );
     });
     flush_frame(cx);
-    click(cx, 1164., 1042.);
+    click(cx, 1184., 1026.);
     cx.update(|_window, cx| {
         assert!(
             toast_store(cx).read(cx).toasts().is_empty(),
@@ -476,7 +501,7 @@ fn toast_on_close_fires_once_for_each_dismissal_path(cx: &mut TestAppContext) {
     // Hand dismissal of the persistent toast: `dismiss_toast` runs the
     // toast's `onClose` exactly once, synchronously with the click. The timed
     // sibling's clock has not moved, so its handler must not have run.
-    click(cx, 1164., 1042.);
+    click(cx, 1184., 1026.);
     assert_eq!(
         *hand_dismissed.borrow(),
         1,
@@ -524,7 +549,7 @@ fn toast_on_close_fires_once_when_a_timed_toast_is_dismissed_by_hand(cx: &mut Te
     let cx = open_host(cx, || ToastViewport::new().into_any_element());
 
     // The close click dismisses the toast and runs onClose once, synchronously.
-    click(cx, 1164., 1042.);
+    click(cx, 1184., 1026.);
     cx.update(|_window, cx| {
         assert!(
             toast_store(cx).read(cx).toasts().is_empty(),
@@ -593,6 +618,7 @@ fn toast_reused_id_gets_a_fresh_close_lifecycle(cx: &mut TestAppContext) {
                 description: None,
                 closable: true,
                 indicator: None,
+                indicator_content: None,
                 indicator_set: false,
                 is_loading: false,
                 action: None,
@@ -656,6 +682,7 @@ fn toast_store_add_keeps_generated_keys_unique(cx: &mut TestAppContext) {
                 description: None,
                 closable: true,
                 indicator: None,
+                indicator_content: None,
                 indicator_set: false,
                 is_loading: false,
                 action: None,
@@ -1360,9 +1387,9 @@ fn anchored_badge(
 /// an outward overhang of a quarter of the badge's own box: 4px sm, 7px md,
 /// 8px lg. Dot badges make the box exactly the min size, so the overhang is
 /// directly readable: an md dot on a 64px anchor at (100, 40) must span x
-/// 143..171, y 33..61. GPUI 0.2.2 has no div-level transform, so the port
-/// overhangs a quarter of the *min* box; a badge grown past it (a longer
-/// label) keeps that min-box offset — pinned in `badge_parts.rs`.
+/// 143..171, y 33..61. The port applies the translate from the badge's
+/// laid-out box at prepaint, so a badge grown past its min box (a longer
+/// label) overhangs its quarter-box too — pinned in `badge_parts.rs`.
 #[gpui::test]
 fn badge_overhangs_the_anchor_by_a_quarter_of_its_box(cx: &mut TestAppContext) {
     {
