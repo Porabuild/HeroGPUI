@@ -41,7 +41,7 @@ no browser errors were reported. The latest pass also tabbed to the persistent
 `toast-close-reveal` card and confirmed the close control's rounded keyboard
 focus ring and Enter dismissal.
 The synchronized artifact is
-`f17c11729d9962a8038a723b1e07a9aa986e9704c337c80d0e8b3e3e218f0a01`.
+`898bf0269260d8c3d4373827234607398e36b0045cbdb6ef7366aabae742f110`.
 
 The generated [coverage report](coverage-report.md) is now the handoff queue
 for the remaining work. It derives status, scope, evidence-surface and
@@ -59,7 +59,7 @@ claim parity from the current unreviewed section seeds.
   trailing indicators during pointer presses in natural and virtual lists.
   The shared `LIST_ITEM_PRESS` timing, source regressions, gallery prose,
   reference metadata, `llms.txt`, and browser artifact are synchronized at
-  `f17c11729d9962a8038a723b1e07a9aa986e9704c337c80d0e8b3e3e218f0a01`.
+  `898bf0269260d8c3d4373827234607398e36b0045cbdb6ef7366aabae742f110`.
 
 - Calendar and RangeCalendar navigation buttons now interpolate their enabled
   hover fill through the pinned 100ms ease-out transition while preserving the
@@ -607,7 +607,7 @@ claim parity from the current unreviewed section seeds.
   Wrapping Labels specimen shows both horizontal and vertical cases. The exact
   fixed-height CSS endpoint remains a documented Partial styling note. The
   rebuilt WASM artifact is
-  `f17c11729d9962a8038a723b1e07a9aa986e9704c337c80d0e8b3e3e218f0a01`.
+  `898bf0269260d8c3d4373827234607398e36b0045cbdb6ef7366aabae742f110`.
 - Calendar and RangeCalendar day-state styling now follows the pinned calendar
   sheet for today, hover and selected/pressed endpoints. Unavailable and
   out-of-range cells also carry disabled opacity and the operation-not-allowed

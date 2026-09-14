@@ -222,6 +222,40 @@ The priority is to close visible approximations: unscaled fixed-size children du
 
 For each feasible primitive, prove two actual consumers before generalizing it. If the pinned framework prevents an exact result, document the API evidence and smallest possible framework/fork proposal separately. Do not quietly change GPUI pins, add broad unsafe code, or call an approximation exact. A platform-limited contract remains visibly incomplete against full parity.
 
+### 6.3.1 Rounded masks, focus owners and vendored GPUI patches
+
+Rounded geometry is a foundation acceptance criterion. Whenever a component
+paints a rounded background, border, shadow, animated fill, focus ring, track
+cap, thumb, overlay or nested child, inspect the complete ancestor clip chain.
+The painted child must inherit the resolved per-corner radii, and the focus
+ring must be attached to the stable interactive footprint that owns the
+component's id and hit target. A ring or press skin that is larger, square,
+detached from the control, or clipped by a rectangular ancestor is a defect.
+Exercise at least one minimum-size, custom-radius, focused, pressed and
+disabled specimen for every shared field, button, slider, color slider, picker,
+toast and overlay primitive. Include endpoint fills and absolute controls at
+both ends of a track; inspect the corners at native and WASM scale rather than
+accepting a thumbnail that can hide a one-pixel leak.
+
+The pinned `gpui-pre` renderer has the rounded-clip behavior needed for this
+contract, but the workspace carries a small vendored fork. Any renderer change
+must be made in the versioned `crates/gpui_pre*` fork and regenerated into
+`docs/upstream/patches/gpui-pre-0.3.3*.patch` with `.shots/gpui_patches.py
+--write`; `--check` must replay the patch against the published `=0.3.3`
+sources. Never edit the registry copy or rely on an unrecorded local change:
+the next GPUI release will replace that copy. When the pin changes, rebase the
+smallest possible patch, rerun the rounded-mask and focus-ring suites on every
+backend, and keep the old patch and evidence history until the new artifact is
+verified.
+
+The visual text rule is source-driven as well. HeroUI v3.2.5's Select,
+Autocomplete and ComboBox value slots use `wrap-break-word`, and collection
+rows retain normal whitespace; they grow under a real constraint rather than
+ellipsizing by default. Keep truncation as an explicit caller-owned option,
+never as an implicit picker fallback. Long labels, a narrow panel, a custom
+fixed-size child and the selected marker must all be captured together so a
+fix does not trade clipping for an indicator overlap.
+
 ### 6.4 Focus, overlays and accessibility
 
 Verify `tab_stop_handle`, `shows_focus_ring`, `app_focus_root`, `trap_tab`, `overlay_scope`, `panel_focus`, `floating`, and exit lifetime against real dispatch tests. Check topmost dismissal, occlusion, owned outside bounds, trigger restoration, Enter-release reopening, nested menus, and an exiting popup beneath a newly opened dialog.
