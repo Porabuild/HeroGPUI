@@ -84,7 +84,12 @@ try {
             try {
                 try { & $failurePath }
                 catch {
-                    Assert-Control ($_.Exception.InnerException -is [System.IO.IOException]) "$driver must fail because publication was rejected: $_"
+                    # `File::Move` onto the directory this case puts in the way is
+                    # rejected differently per platform: Unix raises IOException,
+                    # Windows an UnauthorizedAccessException, which does not derive
+                    # from it. Both mean the publication was refused.
+                    $inner = $_.Exception.InnerException
+                    Assert-Control (($inner -is [System.IO.IOException]) -or ($inner -is [System.UnauthorizedAccessException])) "$driver must fail because publication was rejected: $_"
                     $rejected = $true
                 }
                 Assert-Control $rejected "$driver must surface publication failure"

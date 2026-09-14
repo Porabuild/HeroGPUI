@@ -16913,7 +16913,7 @@
     "sha256": "99816a71d82bb9d62f9b86bf6f61ec67566cd63e478735f22dd5ba5c97784291"
   },
   "source_snapshot": {
-    "sha256": "d0eadaeedc80d02d21766144cf6475c1ddca48bd9147100dcd2500193fd4ab8a",
+    "sha256": "9d5341ee9a58bde376029d83976a324dce106f0f3c407675de809e4fdeaeb67b",
     "files": {
       ".cargo/config.toml": "656172d7bc0b7cda27bccdffaf87ca34d6c1b3857e3c95f989d9dc164f3395be",
       ".gitattributes": "56aeefb81d13c5858bee5d166f0421d4382e4fd47fc3953fb84032b407a2ef09",
@@ -16961,7 +16961,7 @@
       ".shots/state_audit.py": "b03749803169866d418166817411a439c9aea8432107daec99d95b172d1fd0c5",
       ".shots/strip_size.py": "f3996d1457902f3ff718d0f6d6d0d7e826c4d4435bbc659d01d2569c0141aab3",
       ".shots/subset-fonts.py": "d6ff25dabf3d44b4a739d8f74e1890fe11ea07d4eb984275798775b8bb914b96",
-      ".shots/test-control.ps1": "ac4a00e05ec3703e0dc047ac10eb4c91122c10a45cc46770751707d45278490b",
+      ".shots/test-control.ps1": "2e6c1da119b308cd99847a0067d677a6cffd5f55038e1939912682011e4754be",
       ".shots/test_bundle.py": "a55b0b05459a32274f7ddaa7be4485af2e6ad1225c24679bc2a48ffd0588ddec",
       ".shots/test_coverage_report.py": "ddf0c965f6fd39dbf268bbeae20701bfe13577e507bf6e27c2cdcd12632bb809",
       ".shots/test_inert.py": "931174dd8a73944fe6d70fc4856c59b90dfd408bb1624f5956e56e92b96e97f9",
@@ -17173,7 +17173,7 @@
       "crates/herogpui-components/src/accordion.rs": "a6d788bca196c637f115b8e5a26a985aa82d80ebbbe4a04bf88852499eb7d4aa",
       "crates/herogpui-components/src/alert.rs": "0a251a346e98bcf73e643517f65c12b9a3e2c087686850bb6624c14cfc0c0707",
       "crates/herogpui-components/src/alert_dialog.rs": "f7b5658d06352ce4cbb1e3dc45c2c47efc2f574822cdf94e11ac6be5d72a2632",
-      "crates/herogpui-components/src/anim.rs": "2d63a5c868c435d1597d1762d17594994770629915af095feeb169fb0221f59a",
+      "crates/herogpui-components/src/anim.rs": "93f49523f7648a806cff45dc4b6e2de77d8d8e68577f16f651f4276b59bfe30a",
       "crates/herogpui-components/src/assets.rs": "05ec554aa108a597ac5214b9f329659dca3cd867630dcd095bc93ec6edbe6052",
       "crates/herogpui-components/src/autocomplete.rs": "cd29697adcfa300048ab4b0055e58f818a26dfda0730ec15fcb1993bd11fcc81",
       "crates/herogpui-components/src/avatar.rs": "495e14f4adc68aebba68a0b877e6a6baa89e80d487cb9d6461e0091f08a7f6ac",
@@ -45573,7 +45573,7 @@
       }
     }
   ],
-  "verification_sha256": "e3495cd1826901f8a8b82cd332f3e002a95aa79aba66563a448a3b4dbb6e72f0",
+  "verification_sha256": "50f2585ae0ff7bd26315a5daf79a704cba2d637b523be0e30b73283e2df52053",
   "retired_source_changes": [],
   "retired_upstream_demos": {},
   "upstream_source_snapshot": {

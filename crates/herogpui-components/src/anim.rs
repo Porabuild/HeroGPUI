@@ -7,7 +7,7 @@
 //!
 //! ## Hover slots never request their own frame
 //!
-//! [`hover_fade`] and [`field_chrome_ramp`] keep a copy of the pointer state in
+//! [`hover_fade`] and `field_chrome_ramp` keep a copy of the pointer state in
 //! keyed state, because a colour ramp needs to know which endpoint it is easing
 //! towards and gpui hands that out only through a listener. Those listeners
 //! record the new value and stop; they must never call `cx.notify()`.
@@ -34,7 +34,7 @@
 //! So the rule is **whoever owns the element's `on_hover` owns its gpui hover
 //! style**, and these two helpers own both rather than trusting a caller to
 //! supply the second. [`hover_fade`] takes the immediate `hover_border`
-//! endpoint that its callers used to apply themselves; [`field_chrome_ramp`]
+//! endpoint that its callers used to apply themselves; `field_chrome_ramp`
 //! sets an empty refinement, because every endpoint it has is interpolated and
 //! a style swap would snap the colour. When an `Interaction` slot is passed,
 //! `util::track_interaction` owns the listener and its notify, and that
