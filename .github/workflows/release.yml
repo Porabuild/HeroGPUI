@@ -50,6 +50,17 @@ jobs:
             libxcb-xfixes0-dev \
             libfontconfig-dev \
             libfreetype-dev
+      # The patched GPUI sources are not in the repository -- the five
+      # `[patch.crates-io]` paths under `.vendor/` are built from
+      # `docs/upstream/patches/*.patch` by this command, and cargo aborts at
+      # manifest load without them. Before `Swatinem/rust-cache`, which runs a
+      # `cargo metadata` of its own.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Materialize the patched GPUI sources
+        shell: bash
+        run: python .shots/gpui_patches.py --materialize
       - uses: Swatinem/rust-cache@v2
       - run: cargo test --workspace --locked
 
@@ -93,6 +104,17 @@ jobs:
             libxcb-xfixes0-dev \
             libfontconfig-dev \
             libfreetype-dev
+      # The patched GPUI sources are not in the repository -- the five
+      # `[patch.crates-io]` paths under `.vendor/` are built from
+      # `docs/upstream/patches/*.patch` by this command, and cargo aborts at
+      # manifest load without them. Before `Swatinem/rust-cache`, which runs a
+      # `cargo metadata` of its own.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Materialize the patched GPUI sources
+        shell: bash
+        run: python .shots/gpui_patches.py --materialize
       - uses: Swatinem/rust-cache@v2
       - run: cargo build --locked --release -p herogpui-gallery
       - name: Stage release binary

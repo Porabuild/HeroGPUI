@@ -68,6 +68,9 @@ web/.verify/
 .vercel
 .env*
 
-# Vendored gpui-pre forks are standalone workspaces and may be built in
-# place; their target output is not source.
-crates/gpui_pre*/target/
+# The patched GPUI sources. The repository records the fork as patches under
+# docs/upstream/patches/; `.shots/gpui_patches.py --materialize` rebuilds this
+# tree from the pinned published packages plus those patches, and every cargo
+# command (and rust-analyzer) needs it to exist first. ~153,000 lines of
+# dependency source that is not ours and is never committed.
+/.vendor/

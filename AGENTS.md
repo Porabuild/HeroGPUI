@@ -3,17 +3,44 @@
 HeroGPUI is a native Rust/GPUI port of HeroUI v3.2.5. The repository targets
 Rust 1.98 and the published `gpui-pre` crates pinned in `Cargo.toml`
 and `Cargo.lock` at exactly `=0.3.3` — zed-industries' own prerelease publish
-of the GPUI sources, 0.3.3 being a snapshot of `zed@5b055fa`. Use those
-unpacked sources for API evidence —
-`~/.cargo/registry/src/index.crates.io-*/gpui-pre-0.3.3/` — not a Zed git
-checkout, not the older third-party `gpui-unofficial` republish this replaced,
-and not the unrelated crates.io `gpui` 0.2.2 crate. `gpui-pre`'s version
-numbers are its own; they do not track Zed release tags. The pin is exact
-because `gpui-pre-platform` requires the family at an exact `=` version and the
-vendored `gpui-pre-web` fork's version must satisfy that same requirement or
-`[patch.crates-io]` silently stops applying; 0.3.1 and 0.3.2 additionally must
-not be resolved, because `gpui-pre-macros` 0.3.1 breaks every
+of the GPUI sources, 0.3.3 being a snapshot of `zed@5b055fa`. `gpui-pre`'s
+version numbers are its own; they do not track Zed release tags. The pin is
+exact because `gpui-pre-platform` requires the family at an exact `=` version
+and the patched `gpui-pre-web` fork's version must satisfy that same
+requirement or `[patch.crates-io]` silently stops applying; 0.3.1 and 0.3.2
+additionally must not be resolved, because `gpui-pre-macros` 0.3.1 breaks every
 `debug_assertions`-off build (see `RELEASING.md`).
+
+## Bootstrap the patched GPUI sources before any cargo command
+
+Five of those packages are forked. The repository stores **only the patches**,
+under `docs/upstream/patches/`; the patched sources are not checked in. Before
+the first `cargo` command in a fresh clone — and before pointing
+rust-analyzer at it, because rust-analyzer runs `cargo metadata` — run:
+
+```sh
+python3 .shots/gpui_patches.py --materialize
+```
+
+That copies the pinned published packages out of cargo's registry cache into
+the gitignored `.vendor/` tree and applies each patch, exactly, with no fuzz and
+no offset. It is idempotent: a warm run is a hash comparison that finishes in
+well under a second, so it is safe to put in front of anything. Skipping it is
+not a soft failure — `[patch.crates-io]` names five paths that do not exist yet,
+and cargo aborts at manifest load with `failed to load source for dependency`.
+`crates/herogpui-components/tests/rounded_clip_shaders.rs` also includes the
+renderer's own `shaders.rs` from `.vendor/` by `#[path]`, so even `cargo fmt
+--all` fails without it. Every CI job that touches cargo runs the step first,
+through `.github/actions/rust-env` or its own copy.
+
+Use the pristine unpacked registry sources for API evidence —
+`~/.cargo/registry/src/index.crates.io-*/gpui-pre-0.3.3/` — and `.vendor/` when
+what you need is the patched behaviour. Neither is a Zed git checkout, the older
+third-party `gpui-unofficial` republish this replaced, or the unrelated
+crates.io `gpui` 0.2.2 crate. Never commit anything under `.vendor/`; to change
+the fork, edit the materialized tree and re-record it with
+`python3 .shots/gpui_patches.py --write`, which rewrites the patch and is
+verified by `--check`.
 
 ## Before editing
 
@@ -100,10 +127,12 @@ all. Two facts about how, because both are easy to get wrong:
 - The switch is **not** `default-features = false` on a dependency edge of
   ours. `gpui_platform` depends on `gpui_web` with default features on, so a
   second edge from this workspace is unioned with that one and changes nothing.
-  The only lever is `default` in the vendored fork's own manifest,
-  `crates/gpui_web/Cargo.toml`, which `[patch.crates-io]` substitutes. It is
-  set to `default = []` there, documented at the `[features]` table as the
-  fork's third deviation from upstream.
+  The only lever is `default` in the forked manifest itself, which
+  `[patch.crates-io]` substitutes. It is set to `default = []` by a hunk in
+  `docs/upstream/patches/gpui-pre-web-0.3.3.patch` — the fork's third deviation
+  from upstream — and reaches the build as
+  `.vendor/gpui-pre-web-0.3.3/Cargo.toml`. Lose that hunk and the wasm job
+  needs a nightly pin again.
 - Nothing was using it. `crates/herogpui-web` starts the app with
   `gpui_platform::single_threaded_web()`, and the multi-threaded platform runs
   its background executors on web workers over shared wasm memory, which a
@@ -128,4 +157,5 @@ sources, so after rebuilding it regenerate its manifests in the same change
 with `pnpm run wasm:manifest` from `web/`. They pin the artifact and every
 gallery example body by hash, and `pnpm run extract:check` fails when the two
 have parted company. `docs/upstream/gpui-web-scroll-and-ime.md` covers the one
-remaining fork, the +9/-5 lines in `crates/gpui_web`.
+remaining source fork of that crate, +9/-5 lines in `src/events.rs`, recorded
+in `docs/upstream/patches/gpui-pre-web-0.3.3.patch`.

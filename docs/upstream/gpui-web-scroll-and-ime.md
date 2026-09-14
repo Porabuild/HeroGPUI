@@ -1,16 +1,42 @@
 # Upstream: `gpui_web` shift+wheel horizontal scroll and IME mirror resync after paste
 
-HeroGPUI ships a vendored fork of the published `gpui-pre-web` 0.3.3 crate at
-`crates/gpui_web/`, delivered by `[patch.crates-io]` in the workspace root.
-The fork is **two changes, +9/-5 lines of code** (+26/-5 counting the 17 lines
-of comment that explain them), both in `src/events.rs`,
-both marked `HeroGPUI fork:` at the site and recorded in
-`[package.metadata.herogpui-vendor]`.
+HeroGPUI forks the published `gpui-pre-web` 0.3.3 crate. No fork source is
+checked in: the deviation lives in
+`docs/upstream/patches/gpui-pre-web-0.3.3.patch`, and
+`python3 .shots/gpui_patches.py --materialize` applies it to the pinned
+published package under `.vendor/gpui-pre-web-0.3.3/`, which
+`[patch.crates-io]` in the workspace root points at. **A fresh clone must run
+that command before any cargo command**, including `cargo fmt --all` and the
+`cargo metadata` rust-analyzer runs; the patch paths do not exist until it has,
+and cargo aborts at manifest load with `failed to load source for dependency`.
+
+The source fork is **two changes, +9/-5 lines of code** (+26/-5 counting the 17
+lines of comment that explain them), both in `src/events.rs`, both marked
+`HeroGPUI fork:` at the site and recorded in
+`[package.metadata.herogpui-vendor]` in the patched manifest.
+
+The patch carries three further things that are configuration rather than
+source, and all three have to survive any rebase:
+
+- `default = []` in `[features]`, which drops `multithreaded` and with it
+  `wasm_thread`, whose `#![feature]` attribute forces a nightly toolchain. This
+  is the only place that feature can be switched, because `gpui_platform`'s
+  wasm32 edge enables default features and cargo unions feature sets. Lose the
+  hunk and CI's `wasm` job needs a nightly pin again. `AGENTS.md` has the
+  measurements.
+- an empty `[workspace]` table, so the materialized tree is a workspace root of
+  its own and keeps upstream's lint configuration.
+- the `[package.metadata.herogpui-vendor]` and `[package.metadata.cargo-shear]`
+  tables that document and exempt the fork.
 
 This file exists so the fork can disappear. It carries the isolated patch and a
 ready PR description; once either change lands upstream, drop the corresponding
-hunk from the vendored crate, and once both land, delete `crates/gpui_web/`, the
-`exclude` entry, and the `[patch.crates-io]` table.
+hunk (edit `.vendor/gpui-pre-web-0.3.3/` and re-record with
+`python3 .shots/gpui_patches.py --write`), and once both land, delete
+`docs/upstream/patches/gpui-pre-web-0.3.3.patch`, the `gpui-pre-web` entry in
+`[patch.crates-io]`, and its entry in `.shots/gpui_patches.py`'s `PACKAGES` --
+but only if the `default = []` deviation has become unnecessary too, which it
+has not.
 
 ## Where to send it
 
@@ -38,7 +64,7 @@ handling, selection-change listeners, gesture tuning, virtual-keyboard policy)
 swamps the fourteen touched lines:
 
 ```
-diff -rq crates/gpui_web/src \
+diff -rq .vendor/gpui-pre-web-0.3.3/src \
   ~/.cargo/registry/src/index.crates.io-*/gpui-pre-web-0.3.3/src
 ```
 
@@ -87,7 +113,8 @@ happened.
 
 ## The patch
 
-Against `crates/gpui_web/src/events.rs` at Zed rev `5b055fa`:
+Against `src/events.rs` at Zed rev `5b055fa` (the source half of
+`docs/upstream/patches/gpui-pre-web-0.3.3.patch`):
 
 ```diff
 @@ fn register_wheel(self: &Rc<Self>) -> EventListenerHandle {

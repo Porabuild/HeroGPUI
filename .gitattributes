@@ -8,6 +8,11 @@
 *.py text eol=lf
 *.sh text eol=lf
 *.md text eol=lf
+# The GPUI fork patches are a build input now, not just an audit artifact:
+# `.shots/gpui_patches.py --materialize` applies them before every cargo
+# command on all three CI hosts. `* text=auto` above would hand the Windows
+# runner CRLF copies, so pin them the way every other source file is pinned.
+*.patch text eol=lf
 # Oxfmt checks LF endings, including on Windows checkouts.
 web/**/*.ts text eol=lf
 web/**/*.tsx text eol=lf
