@@ -52,13 +52,22 @@ instead of leaving compatibility aliases, no-op builders, or speculative flags.
   `gallery/src/pages/components/`; checked-in v3.2.5 API metadata lives in
   `gallery/src/pages/reference_metadata/`.
 - `.shots` contains parity audits, headless gallery drivers, reference images,
-  the real lint gate, and `gpui_patches.py`, which materializes the patched
-  GPUI sources into `.vendor/`.
+  the real lint gate, `gpui_patches.py`, which materializes the patched GPUI
+  sources into `.vendor/`, and the two thin wrappers every cargo-running script
+  here calls first: `materialize.sh` and `materialize.ps1`. `setup.sh` is the
+  one post-clone command.
+- `.githooks/` holds the versioned `post-checkout`, `post-merge` and
+  `post-rewrite` hooks, which re-materialize `.vendor/` after every branch
+  switch, pull, merge and rebase. `.shots/setup.sh` (and
+  `gpui_patches.py --materialize` itself) enables them by setting
+  `core.hooksPath`; they are quiet when nothing changed, and they warn and exit
+  0 rather than failing a checkout.
 - `.vendor/` is generated and gitignored: the five forked `gpui-pre*` packages,
   built from the pinned registry sources plus `docs/upstream/patches/*.patch`
-  by `python3 .shots/gpui_patches.py --materialize`. Run that before any cargo
-  command in a fresh clone -- cargo aborts at manifest load without it -- and
-  never commit or hand-edit its contents; re-record with `--write` instead.
+  by `python3 .shots/gpui_patches.py --materialize`. Run `sh .shots/setup.sh`
+  once in a fresh clone -- cargo aborts at manifest load without it, and git
+  will not run repository hooks on `clone` -- after which the hooks keep it
+  current. Never commit or hand-edit its contents; re-record with `--write`.
 - `llms.txt` is the public API reference intended for LLM consumers.
 
 ## Source hierarchy
@@ -116,7 +125,10 @@ replace ordinary test commands with watch mode.
 
 `.github/workflows/ci.yml` is authoritative. Every job that runs cargo first
 runs `python .shots/gpui_patches.py --materialize`, through
-`.github/actions/rust-env` or its own copy of the step. Its jobs cover:
+`.github/actions/rust-env` or its own copy of the step; locally the same
+happens through `.githooks/` and through the `.shots/` entry points themselves,
+so the only time it is a manual step is the first command in a fresh clone.
+Its jobs cover:
 
 - Formatting, generated gallery/WASM freshness, and website typecheck, lint
   and production build.

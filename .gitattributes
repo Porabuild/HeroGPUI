@@ -8,6 +8,12 @@
 *.py text eol=lf
 *.sh text eol=lf
 *.md text eol=lf
+# The git hooks have no extension, so `* text=auto` above would check them out
+# with the platform's native endings -- CRLF on Windows, where Git Bash then
+# refuses the `#!/bin/sh\r` shebang and git reports the hook as failing. They
+# also need the executable bit in the index (mode 100755); git silently ignores
+# a hook it cannot execute.
+.githooks/* text eol=lf
 # The GPUI fork patches are a build input now, not just an audit artifact:
 # `.shots/gpui_patches.py --materialize` applies them before every cargo
 # command on all three CI hosts. `* text=auto` above would hand the Windows

@@ -18,6 +18,13 @@ with "failed to load source for dependency" because a `[patch.crates-io]` path
 does not exist. That is why `--materialize` runs first in every CI job that
 touches cargo, and why a fresh clone must run it before `cargo`, `rustup`
 component tooling, or rust-analyzer.
+
+Nobody should have to remember that twice. `--materialize` therefore also points
+`core.hooksPath` at the versioned `.githooks/` the first time it runs in a work
+tree that has not claimed that setting, and those hooks re-run it after every
+checkout, merge and rebase. `--no-hook-setup` skips the self-enabling (the hooks
+themselves pass it), and `--quiet` prints only the packages that actually
+changed, which is what makes a hook silent on the warm path.
 """
 
 import argparse
@@ -48,6 +55,10 @@ STAMP = ".herogpui-materialized.json"
 # `.cargo-ok`/`.cargo-checksum.json` are cargo's own unpack bookkeeping, so
 # none of them belongs in a materialized tree or in a recorded patch.
 IGNORED = {".cargo-checksum.json", ".cargo-ok", "Cargo.lock", "Cargo.toml.orig", STAMP}
+# Relative on purpose: git resolves a relative `core.hooksPath` against the
+# top-level of whichever work tree the hook runs in, so one setting serves the
+# main checkout and every linked worktree, each finding its own `.githooks/`.
+HOOKS_PATH = ".githooks"
 
 
 def digest(payload):
@@ -379,6 +390,72 @@ def require_materialized(destination, name, version):
         )
 
 
+def git(root, *arguments, run=subprocess.run):
+    return run(["git", *arguments], cwd=root, capture_output=True, text=True)
+
+
+def enable_hooks(root=ROOT, run=subprocess.run, env=None):
+    """Point `core.hooksPath` at the versioned hooks, unless something already claims it.
+
+    Cargo resolves `[patch.crates-io]` at manifest load, so nothing inside the
+    workspace can materialize `.vendor/` late enough to be a build step and
+    early enough to matter; git hooks are the only thing that runs at the moment
+    the tree changes. Git will not run a repository's own hooks on `clone`, so
+    the first materialization in a fresh clone is still manual -- and this makes
+    that one run the last one, by enabling the hooks that do it from then on.
+
+    Returns the configured value when this call is what enabled them, and None
+    when there was nothing to do: a CI runner, no `.githooks/`, not a git work
+    tree, no git on PATH, or a `core.hooksPath` the developer (or their global
+    config) already set, which is theirs and is not overridden.
+
+    The `CI` check is what keeps this out of the gates rather than a flag on
+    every CI call site: a runner checkout is thrown away after one job, so
+    hooks there would be pure log noise, and `.shots/lint.ps1` and
+    `.shots/run-tests.sh` reach this through their own materialization step as
+    well as the workflow's.
+    """
+    # The environment is a parameter, not a global read: this decision is
+    # disabled under `CI`, so a self-test that consulted the ambient
+    # environment could only pass off a runner -- which is exactly how it
+    # first broke.
+    env = os.environ if env is None else env
+    if env.get("CI") or not (root / HOOKS_PATH).is_dir():
+        return None
+    try:
+        inside = git(root, "rev-parse", "--is-inside-work-tree", run=run)
+        if inside.returncode or inside.stdout.strip() != "true":
+            return None
+        # `--get` exits 1 when the key is unset anywhere, which is the only
+        # state that may be claimed here.
+        configured = git(root, "config", "--get", "core.hooksPath", run=run)
+        if not configured.returncode and configured.stdout.strip():
+            return None
+        if git(root, "config", "core.hooksPath", HOOKS_PATH, run=run).returncode:
+            return None
+    except OSError:
+        return None  # no git on PATH: an exported archive, or a build image
+    return HOOKS_PATH
+
+
+def materialize_all(quiet=False):
+    """Materialize every forked package; return the ones this call rebuilt."""
+    manifest, version = workspace_pin()
+    rebuilt = []
+    for name in PACKAGES:
+        destination = patched_path(manifest, name, version)
+        package = f"{name}-{version}"
+        state = materialize(name, version, destination, PATCH_DIR / f"{package}.patch", package)
+        if state != "already materialized":
+            rebuilt.append(package)
+        # `--quiet` is what lets a git hook run on every checkout without adding
+        # a line of noise to output the developer did not ask for: the warm path
+        # has nothing to report, so it reports nothing.
+        if not quiet or state != "already materialized":
+            print(f"{package}: {state} in {destination.relative_to(ROOT).as_posix()}")
+    return rebuilt
+
+
 def self_test():
     with tempfile.TemporaryDirectory(prefix="herogpui-patch-test-") as temporary:
         root = Path(temporary)
@@ -436,7 +513,59 @@ def self_test():
             assert "missing patch" in str(error)
         else:
             raise AssertionError("materialization accepted a missing patch")
+
+        # The hook self-enabling, against a stubbed git so the test never
+        # rewrites the config of the checkout it is running in.
+        class Reply:
+            def __init__(self, returncode=0, stdout=""):
+                self.returncode, self.stdout, self.stderr = returncode, stdout, ""
+
+        calls = []
+
+        def fake_git(replies):
+            def run(command, **_):
+                calls.append(command)
+                return replies.get(tuple(command[1:3]), Reply())
+            return run
+
+        hooked = root / "hooked"
+        (hooked / HOOKS_PATH).mkdir(parents=True)
+        inside = {("rev-parse", "--is-inside-work-tree"): Reply(0, "true\n")}
+
+        # No `.githooks/` at all: nothing to enable, and no git call made.
+        assert enable_hooks(root / "base", fake_git({}), env={}) is None
+        assert not calls, "enable_hooks shelled out for a tree with no .githooks/"
+
+        # Unset anywhere (`--get` exits 1): this call claims it. The empty
+        # environment is the point -- a runner sets `CI`, and inheriting it
+        # made this assertion unreachable on the only machine that gates it.
+        unset = {**inside, ("config", "--get"): Reply(1)}
+        assert enable_hooks(hooked, fake_git(unset), env={}) == HOOKS_PATH
+        assert calls[-1] == ["git", "config", "core.hooksPath", HOOKS_PATH]
+
+        # Already claimed, here or globally: left exactly as the developer set it.
+        calls.clear()
+        claimed = {**inside, ("config", "--get"): Reply(0, ".husky\n")}
+        assert enable_hooks(hooked, fake_git(claimed), env={}) is None
+        assert all(call[:2] != ["git", "config"] or "--get" in call for call in calls), \
+            "enable_hooks overwrote an existing core.hooksPath"
+
+        # Not a work tree, and no git on PATH: both are quiet no-ops.
+        assert enable_hooks(hooked, fake_git({("rev-parse", "--is-inside-work-tree"): Reply(128)}), env={}) is None
+
+        def no_git(*_, **__):
+            raise OSError("git: not found")
+
+        assert enable_hooks(hooked, no_git, env={}) is None
+
+        # A CI runner: the checkout is thrown away after the job, so hooks
+        # there would only be log noise. Injected rather than set on
+        # `os.environ`, so the case reads the same on a runner and off one.
+        calls.clear()
+        assert enable_hooks(hooked, fake_git(unset), env={"CI": "true"}) is None
+        assert not calls, "enable_hooks shelled out on a CI runner"
     print("GPUI patch self-test: materialize, replay, tamper, stale and missing patches all handled")
+    print("GPUI hook self-test: core.hooksPath claimed only when unset, in a work tree, with git present")
 
 
 def main():
@@ -448,19 +577,26 @@ def main():
     mode.add_argument("--check", action="store_true",
                       help="verify each patch reproduces its materialized tree exactly (default)")
     mode.add_argument("--self-test", action="store_true")
+    parser.add_argument("--quiet", action="store_true",
+                        help="with --materialize, report only the packages this run rebuilt")
+    parser.add_argument("--no-hook-setup", action="store_true",
+                        help="with --materialize, do not claim an unset core.hooksPath")
     args = parser.parse_args()
     if args.self_test:
         self_test()
+        return
+    if args.materialize:
+        materialize_all(quiet=args.quiet)
+        if not args.no_hook_setup and (enabled := enable_hooks()):
+            print(f"git hooks enabled: core.hooksPath = {enabled}")
+            print("  post-checkout, post-merge and post-rewrite now rebuild .vendor/ for you;")
+            print("  this was the last time you had to run this by hand. Skip with --no-hook-setup.")
         return
     manifest, version = workspace_pin()
     for name in PACKAGES:
         destination = patched_path(manifest, name, version)
         package = f"{name}-{version}"
         patch = PATCH_DIR / f"{package}.patch"
-        if args.materialize:
-            state = materialize(name, version, destination, patch, package)
-            print(f"{package}: {state} in {destination.relative_to(ROOT).as_posix()}")
-            continue
         require_materialized(destination, name, version)
         base = registry_package(name, version)
         if args.write:

@@ -53,6 +53,7 @@ import tomllib
 import uuid
 import zlib
 
+from gpui_patches import materialize_all
 from interaction_inventory import ROOT, write_json_atomic
 
 DRIVER = ".shots/native_capture.py"
@@ -622,8 +623,13 @@ def main(argv=None):
         motion=args.motion,
     )
     try:
+        # Both branches below shell out to cargo, and cargo resolves
+        # `[patch.crates-io]` at manifest load -- so the gitignored `.vendor/`
+        # forks have to exist before either one runs. A warm call is a hash
+        # comparison over the materialization stamps and prints nothing.
+        materialize_all(quiet=True)
         binary = resolve_binary() if args.skip_build else build_gallery(release=args.release)
-    except DriverError as error:
+    except (DriverError, ValueError, KeyError, OSError) as error:
         print(f"FAIL: {error}", file=sys.stderr)
         return 1
     binary_sha256 = hashlib.sha256(binary.read_bytes()).hexdigest()
