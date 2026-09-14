@@ -20386,10 +20386,10 @@
         "prop": "defaultSelectedKeys",
         "type": "Selection",
         "default": "—",
-        "description": "Uncontrolled selection seed; the port only falls back to an empty set when selected_keys is unset.",
+        "description": "Uncontrolled selection seed; later changes stay in the table's keyed state until selectedKeys is supplied.",
         "rustOwner": "Table",
-        "rust": "—",
-        "status": "unavailable"
+        "rust": "default_selected_keys(keys)",
+        "status": "implemented"
       },
       {
         "owner": "Table.Content",
@@ -20476,10 +20476,10 @@
         "prop": "selectionBehavior",
         "type": "\"toggle\" | \"replace\"",
         "default": "\"toggle\"",
-        "description": "Pinned RAC selection behaviour; the port always uses its own toggle/shift-range path.",
+        "description": "Controls plain multi-selection activation: toggle preserves the set, while replace selects only the activated row and selects on keyboard focus.",
         "rustOwner": "Table",
-        "rust": "—",
-        "status": "unavailable"
+        "rust": "selection_behavior(SelectionBehavior)",
+        "status": "implemented"
       },
       {
         "owner": "Table.Content",
@@ -20496,10 +20496,10 @@
         "prop": "disallowEmptySelection",
         "type": "boolean",
         "default": "false",
-        "description": "Pinned RAC flag that keeps at least one row selected; the port has no such gate.",
+        "description": "Keeps the final selected row when a toggle or Escape would otherwise clear the collection.",
         "rustOwner": "Table",
-        "rust": "—",
-        "status": "unavailable"
+        "rust": "disallow_empty_selection(bool)",
+        "status": "implemented"
       },
       {
         "owner": "Table.Content",

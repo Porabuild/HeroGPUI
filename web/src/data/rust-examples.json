@@ -1112,6 +1112,12 @@
       "code": "stretch_col(vec![\n    build(\"tbl-selection\")\n        .selection_mode(SelectionMode::Multiple)\n        .selected_keys(self.table_selection.clone())\n        .on_selection_change(cx.listener(\n            |this, keys: &[SharedString], _, cx| {\n                this.table_selection = keys.to_vec();\n                cx.notify();\n            },\n        ))\n        .into_any_element(),\n    para(&format!(\"{} selected\", self.table_selection.len()), cx),\n])"
     },
     {
+      "heading": "Selection Behavior",
+      "description": "Replace mode selects the focused row while navigating and makes a plain activation the sole selection; the seeded row cannot be cleared when `disallow_empty_selection` is enabled.",
+      "imports": "use herogpui::prelude::{SelectionBehavior, SelectionMode, Table};\nuse gpui::prelude::*;",
+      "code": "stretch_col(vec![build(\"tbl-selection-replace\")\n    .selection_mode(SelectionMode::Multiple)\n    .selection_behavior(SelectionBehavior::Replace)\n    .default_selected_keys([\"0\"])\n    .disallow_empty_selection(true)\n    .into_any_element()])"
+    },
+    {
       "heading": "Sorting",
       "description": "PageUp moves from the body to the first header — from the top of a virtual body; mid-body it pages by viewport. Enter sorts a sortable header; Down or PageDown returns to the first or last enabled row.",
       "imports": "use herogpui::prelude::{SortDescriptor, SortDirection, Table, TableColumn};\nuse gpui::prelude::*;",

@@ -64,6 +64,22 @@ claim parity from the current unreviewed section seeds.
 
 ## Implemented
 
+- Table selection now follows the pinned React Stately collection contract for
+  `selectionBehavior`, `defaultSelectedKeys`, and `disallowEmptySelection`.
+  Replace mode selects a row when keyboard focus moves, collapses a plain
+  multi-selection activation to the focused key, and still honors Shift ranges
+  and platform non-contiguous modifiers; explicit selection checkboxes retain
+  toggle semantics. The default seed is kept in keyed uncontrolled state, and
+  Escape/final-key toggles are guarded when empty selection is disallowed.
+  `table_deep` covers focus replacement and the empty-selection guard, and the
+  gallery's `Selection Behavior` specimen exercises the live contract. Table
+  `keyboardNavigationBehavior="tab"` remains separate because arbitrary cell
+  children need a tab-cycle seam that pinned GPUI does not provide.
+  Browser table tracks also stay fluid across selection rerenders: the
+  platform's prepaint callback can report a flex child as the whole track, so
+  intrinsic minimum feedback is retained for native GPUI and disabled for the
+  wasm canvas path unless a column has an explicit width.
+
 - ListBox and Select option rows now use the pinned HeroUI pressed contract:
   enabled rows ease to a 98% scale over 250ms with `ease-out-quart` inside a
   stable rounded slot, preserving the measured row width, focus ownership and

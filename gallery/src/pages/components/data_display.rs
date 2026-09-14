@@ -450,6 +450,16 @@ impl Gallery {
                     ]),
                 ),
                 (
+                    "Selection Behavior",
+                    "Replace mode selects the focused row while navigating and makes a plain activation the sole selection; the seeded row cannot be cleared when `disallow_empty_selection` is enabled.",
+                    stretch_col(vec![build("tbl-selection-replace")
+                        .selection_mode(SelectionMode::Multiple)
+                        .selection_behavior(h::SelectionBehavior::Replace)
+                        .default_selected_keys(["0"])
+                        .disallow_empty_selection(true)
+                        .into_any_element()]),
+                ),
+                (
                     "Sorting",
                     "PageUp moves from the body to the first header — from the top of a virtual body; mid-body it pages by viewport. Enter sorts a sortable header; Down or PageDown returns to the first or last enabled row.",
                     stretch_col(vec![

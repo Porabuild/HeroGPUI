@@ -4207,6 +4207,9 @@ impl Widget {
         for prop in [
             "variant",
             "selectionMode",
+            "defaultSelectedKeys",
+            "selectionBehavior",
+            "disallowEmptySelection",
             "onSelectionChange",
             "sortDescriptor",
             "onSortChange",
@@ -4264,8 +4267,6 @@ impl Widget {
         }
         for (owner, prop) in [
             ("Table.Content", "aria-label"),
-            ("Table.Content", "defaultSelectedKeys"),
-            ("Table.Content", "selectionBehavior"),
             ("Table.Content", "dragAndDropHooks"),
             ("Table.Content", "keyboardNavigationBehavior"),
             ("Table.Cell", "colSpan"),

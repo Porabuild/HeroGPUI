@@ -78,7 +78,7 @@ pub mod validation;
 // is enough to build a UI.
 pub use herogpui_core::{
     Backdrop, Color, FieldVariant, Orientation, Placement, PlacementAlign, Prominence,
-    SelectionMode, Size, SizeXl, Variant,
+    SelectionBehavior, SelectionMode, Size, SizeXl, Variant,
 };
 
 pub use accordion::*;

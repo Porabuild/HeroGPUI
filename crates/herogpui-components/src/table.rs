@@ -12,7 +12,7 @@ use gpui::{
     prelude::*, px, AnyElement, App, ClickEvent, InteractiveElement, IntoElement, ParentElement,
     Pixels, RenderOnce, SharedString, Styled, Window,
 };
-use herogpui_core::{element_id, SelectionMode};
+use herogpui_core::{element_id, SelectionBehavior, SelectionMode};
 use herogpui_theme::ActiveTheme;
 
 use crate::{
@@ -390,10 +390,17 @@ enum LoadMoreCollection {
 fn row_intent(
     activation: RowActivation,
     mode: SelectionMode,
+    behavior: SelectionBehavior,
     selection_is_empty: bool,
     has_action: bool,
 ) -> RowIntent {
-    let primary_action = has_action && (mode == SelectionMode::None || selection_is_empty);
+    // React Aria's replace behavior reserves a row's plain pointer activation
+    // for selection whenever the row is selectable; its action becomes a
+    // secondary (double-click/Enter) action. Toggle keeps the existing
+    // single-click action while the collection is empty.
+    let primary_action = has_action
+        && (mode == SelectionMode::None
+            || (behavior == SelectionBehavior::Toggle && selection_is_empty));
     match activation {
         RowActivation::Pointer if primary_action => RowIntent::Action,
         RowActivation::Pointer if mode != SelectionMode::None => RowIntent::Selection,
@@ -636,8 +643,11 @@ pub struct Table {
     virtual_tree_metadata: Option<VirtualTree>,
     variant: TableVariant,
     selection_mode: SelectionMode,
+    selection_behavior: SelectionBehavior,
     selected_keys: Vec<SharedString>,
+    default_selected_keys: Vec<SharedString>,
     disabled_keys: Vec<SharedString>,
+    disallow_empty_selection: bool,
     is_selection_controlled: bool,
     sort_descriptor: Option<SortDescriptor>,
     show_indicator: bool,
@@ -684,8 +694,11 @@ impl Table {
             virtual_tree_metadata: None,
             variant: TableVariant::Primary,
             selection_mode: SelectionMode::None,
+            selection_behavior: SelectionBehavior::Toggle,
             selected_keys: Vec::new(),
+            default_selected_keys: Vec::new(),
             disabled_keys: Vec::new(),
+            disallow_empty_selection: false,
             is_selection_controlled: false,
             sort_descriptor: None,
             show_indicator: true,
@@ -902,6 +915,15 @@ impl Table {
         self
     }
 
+    /// `selectionBehavior` — how a multi-selection changes when a row is
+    /// activated. `Toggle` preserves the current set; `Replace` makes a plain
+    /// activation the sole selected row. Single selection keeps its own
+    /// React Stately toggle/replace rule for both values.
+    pub fn selection_behavior(mut self, behavior: SelectionBehavior) -> Self {
+        self.selection_behavior = behavior;
+        self
+    }
+
     /// The fill a hovered *unselected* interactive row takes, in place of the
     /// variant's hover wash (`bg-surface/40` primary, `bg-default/50`
     /// secondary). A selected row keeps its `bg-surface/10` fill; a disabled
@@ -929,6 +951,23 @@ impl Table {
     ) -> Self {
         self.selected_keys = keys.into_iter().map(Into::into).collect();
         self.is_selection_controlled = true;
+        self
+    }
+
+    /// `defaultSelectedKeys` — the initial uncontrolled selection. Later
+    /// changes are owned by the table until `selected_keys` is supplied.
+    pub fn default_selected_keys(
+        mut self,
+        keys: impl IntoIterator<Item = impl Into<SharedString>>,
+    ) -> Self {
+        self.default_selected_keys = keys.into_iter().map(Into::into).collect();
+        self
+    }
+
+    /// `disallowEmptySelection` — keep the last selected row when a toggle or
+    /// Escape would otherwise clear the collection.
+    pub fn disallow_empty_selection(mut self, disallow: bool) -> Self {
+        self.disallow_empty_selection = disallow;
         self
     }
 
@@ -1229,7 +1268,7 @@ impl RenderOnce for Table {
             element_id::scoped(&base_id, "selected"),
             self.is_selection_controlled
                 .then(|| self.selected_keys.clone()),
-            Vec::new(),
+            self.default_selected_keys.clone(),
         );
         self.selected_keys = selected_keys;
         let needs_selectable_keys = self.selection_mode == SelectionMode::Multiple;
@@ -1725,7 +1764,11 @@ impl RenderOnce for Table {
                 if cb.is_some() || selection_own.is_some() {
                     let selection_own = selection_own.clone();
                     let selection_range = selection_range.clone();
+                    let disallow_empty_selection = self.disallow_empty_selection;
                     box_el = box_el.on_change(move |_next, window, cx| {
+                        if all_selected && disallow_empty_selection {
+                            return;
+                        }
                         // Anything short of everything selects everything.
                         let next: Vec<SharedString> = if all_selected {
                             Vec::new()
@@ -1789,7 +1832,7 @@ impl RenderOnce for Table {
                     colors.muted
                 })
                 .relative();
-            if !column.allows_resizing {
+            if !column.allows_resizing && !cfg!(target_arch = "wasm32") {
                 let measurements = measured_widths.clone();
                 cell = cell.on_children_prepainted(move |bounds, _, cx| {
                     let content = intrinsic_children_width(&bounds);
@@ -2458,7 +2501,14 @@ impl RenderOnce for Table {
             measure_intrinsic: self
                 .columns
                 .iter()
-                .map(|column| !column.allows_resizing)
+                // `on_children_prepainted` reports the browser canvas child
+                // bounds as the full flex track during a web rerender. If we
+                // feed that transient width back as a minimum, the first
+                // column consumes the whole table after a selection update.
+                // Native GPUI reports intrinsic child bounds correctly, so
+                // retain the measurement path there and let web flex tracks
+                // remain fluid unless a caller pins a width.
+                .map(|column| !column.allows_resizing && !cfg!(target_arch = "wasm32"))
                 .collect(),
             widths: self
                 .columns
@@ -2478,9 +2528,11 @@ impl RenderOnce for Table {
             tree_column_has_children,
             selectable,
             selection_mode: self.selection_mode,
+            selection_behavior: self.selection_behavior,
             selected_keys: self.selected_keys.clone(),
             row_keys: visible_collection_keys,
             disabled_keys: self.disabled_keys.clone(),
+            disallow_empty_selection: self.disallow_empty_selection,
             expanded: expanded_keys.clone(),
             on_expanded_change: self.on_expanded_change.clone(),
             on_selection_change: self.on_selection_change.clone(),
@@ -2520,6 +2572,12 @@ impl RenderOnce for Table {
             let selection_range_for_keys = selection_range;
             let selected_now = self.selected_keys.clone();
             let mode = self.selection_mode;
+            let selection_behavior = self.selection_behavior;
+            let disallow_empty_selection = self.disallow_empty_selection;
+            // React Aria's collection hook defaults `selectOnFocus` to true
+            // for `selectionBehavior="replace"`.
+            let select_on_focus =
+                selection_behavior == SelectionBehavior::Replace && mode != SelectionMode::None;
             let plain_rows = self.virtual_rows.is_none();
             let fixed_virtual = self.row_height.is_some() && self.virtual_rows.is_some();
             // Pinned `TableKeyboardDelegate` pages by one visible rectangle, so
@@ -2706,6 +2764,7 @@ impl RenderOnce for Table {
                     }
                     if key_name == "escape"
                         && mode != SelectionMode::None
+                        && !disallow_empty_selection
                         && !selected_now.is_empty()
                     {
                         let next = Vec::new();
@@ -2992,6 +3051,32 @@ impl RenderOnce for Table {
                                         }
                                     }
                                 }
+                            } else if select_on_focus
+                                && !modifiers.shift
+                                && !((cfg!(target_os = "macos") && modifiers.alt)
+                                    || (!cfg!(target_os = "macos") && modifiers.control))
+                            {
+                                if let Some(target) = keys.get(next) {
+                                    let next_selection = vec![target.clone()];
+                                    if !same_selection(&next_selection, &selected_now) {
+                                        if let Some(held) = &selection_own_for_keys {
+                                            held.update(cx, |value, cx| {
+                                                *value = next_selection.clone();
+                                                cx.notify();
+                                            });
+                                        }
+                                        if let Some(cb) = &selection {
+                                            cb(&next_selection, window, cx);
+                                        }
+                                    }
+                                    selection_range_for_keys.update(cx, |range, _| {
+                                        *range = TableSelectionRange {
+                                            anchor: Some(target.clone()),
+                                            current: Some(target.clone()),
+                                            ..TableSelectionRange::default()
+                                        };
+                                    });
+                                }
                             }
                             held.update(cx, |v, cx| {
                                 *v = keys.get(next).cloned();
@@ -3024,6 +3109,7 @@ impl RenderOnce for Table {
                             match row_intent(
                                 activation,
                                 mode,
+                                selection_behavior,
                                 selected_now.is_empty(),
                                 on_row_click.is_some(),
                             ) {
@@ -3050,11 +3136,21 @@ impl RenderOnce for Table {
                                                 key,
                                             )
                                         } else {
-                                            crate::selection::next_selection(
+                                            let non_contiguous = if cfg!(target_os = "macos") {
+                                                modifiers.alt
+                                            } else {
+                                                modifiers.control
+                                            };
+                                            crate::selection::next_selection_with_behavior(
                                                 &selected_now,
                                                 key,
                                                 mode,
-                                                false,
+                                                if non_contiguous {
+                                                    SelectionBehavior::Toggle
+                                                } else {
+                                                    selection_behavior
+                                                },
+                                                disallow_empty_selection,
                                             )
                                         };
                                         let changed = !same_selection(&next, &selected_now);
@@ -3397,9 +3493,11 @@ struct RowCtx {
     tree_column_has_children: bool,
     selectable: bool,
     selection_mode: SelectionMode,
+    selection_behavior: SelectionBehavior,
     selected_keys: Vec<SharedString>,
     row_keys: Vec<SharedString>,
     disabled_keys: Vec<SharedString>,
+    disallow_empty_selection: bool,
     expanded: std::rc::Rc<Vec<SharedString>>,
     on_expanded_change: Option<OnExpandedChange>,
     on_selection_change: Option<OnSelectionChange>,
@@ -3533,11 +3631,20 @@ impl RowCtx {
                 let current = self.selected_keys.clone();
                 let key2 = key.clone();
                 let mode = self.selection_mode;
+                let disallow_empty_selection = self.disallow_empty_selection;
                 let selection_own = self.selection_own.clone();
                 let selection_range = self.selection_range.clone();
                 box_el = box_el.on_change(move |_next, window, cx| {
                     cx.stop_propagation();
-                    let next = crate::selection::next_selection(&current, &key2, mode, false);
+                    // A checkbox is the explicit selection affordance. React
+                    // Aria toggles it even when the surrounding row uses
+                    // `selectionBehavior="replace"`.
+                    let next = crate::selection::next_selection(
+                        &current,
+                        &key2,
+                        mode,
+                        disallow_empty_selection,
+                    );
                     if let Some(held) = &selection_own {
                         held.update(cx, |value, cx| {
                             *value = next.clone();
@@ -3731,6 +3838,8 @@ impl RowCtx {
         let row_action = self.on_row_click.clone();
         let row_selection = self.on_selection_change.clone();
         let selection_own = self.selection_own.clone();
+        let selection_behavior = self.selection_behavior;
+        let disallow_empty_selection = self.disallow_empty_selection;
         if !is_disabled
             && (row_action.is_some()
                 || (self.selectable && (row_selection.is_some() || selection_own.is_some())))
@@ -3768,6 +3877,7 @@ impl RowCtx {
                     match row_intent(
                         RowActivation::Pointer,
                         mode,
+                        selection_behavior,
                         current.is_empty(),
                         row_action.is_some(),
                     ) {
@@ -3790,7 +3900,23 @@ impl RowCtx {
                                     &key,
                                 )
                             } else {
-                                crate::selection::next_selection(&current, &key, mode, false)
+                                let modifiers = ev.modifiers();
+                                let non_contiguous = if cfg!(target_os = "macos") {
+                                    modifiers.alt
+                                } else {
+                                    modifiers.control
+                                };
+                                crate::selection::next_selection_with_behavior(
+                                    &current,
+                                    &key,
+                                    mode,
+                                    if non_contiguous {
+                                        SelectionBehavior::Toggle
+                                    } else {
+                                        selection_behavior
+                                    },
+                                    disallow_empty_selection,
+                                )
                             };
                             let changed = !same_selection(&next, &current);
                             if changed {

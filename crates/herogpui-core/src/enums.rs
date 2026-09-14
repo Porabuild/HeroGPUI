@@ -309,6 +309,33 @@ pub enum SelectionMode {
     Multiple,
 }
 
+/// How a multi-select collection changes selection when an item is activated.
+///
+/// This is React Stately's `selectionBehavior` prop. `Toggle` preserves the
+/// existing selection and toggles the activated key; `Replace` makes a plain
+/// pointer or keyboard activation the sole selection. Single-selection
+/// collections always retain their own replace/toggle semantics regardless of
+/// this value.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum SelectionBehavior {
+    /// Add or remove the activated key while preserving other selected keys.
+    #[default]
+    Toggle,
+    /// Replace the current multi-selection with the activated key.
+    Replace,
+}
+
+impl SelectionBehavior {
+    pub const ALL: [SelectionBehavior; 2] = [SelectionBehavior::Toggle, SelectionBehavior::Replace];
+
+    pub fn label(self) -> &'static str {
+        match self {
+            SelectionBehavior::Toggle => "Toggle",
+            SelectionBehavior::Replace => "Replace",
+        }
+    }
+}
+
 /// `placement` — where a floating panel sits relative to its trigger.
 ///
 /// The full React Aria union v3 forwards: both physical spellings

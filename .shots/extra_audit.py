@@ -479,6 +479,10 @@ EXTRA_OK_SCOPED = {
     'Autocomplete.focus_ring': 'no-classname',
     'ComboBox.focus_ring': 'no-classname',
     'Select.trigger_indicator': 'composition',
+    # The v3 prop is `selectionBehavior` (camelCase); the Rust builder keeps
+    # the repository's snake_case spelling and is documented in Table's
+    # reference metadata and llms.txt.
+    'Table.selection_behavior': 'documented-in-reference',
     # v3 composes Disclosure children; the monolithic GPUI group names each
     # disclosure and its body in one builder call.
     'DisclosureGroup.item': 'composition',

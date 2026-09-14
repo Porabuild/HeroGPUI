@@ -7,7 +7,7 @@ use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 use gpui::{prelude::*, px, SharedString, TestAppContext, VisualTestContext};
-use herogpui_components::{SelectionMode, Table, TableColumn, TableRow};
+use herogpui_components::{SelectionBehavior, SelectionMode, Table, TableColumn, TableRow};
 
 use harness::{click, events, open_host, press};
 
@@ -736,6 +736,149 @@ fn table_single_mode_keyboard_replaces_then_clears(cx: &mut TestAppContext) {
     );
 }
 
+/// React Aria's `selectionBehavior="replace"` selects the focused row while
+/// navigating, and a plain activation replaces a multi-selection instead of
+/// toggling membership.
+#[gpui::test]
+fn table_replace_behavior_selects_on_focus_and_collapses_selection(cx: &mut TestAppContext) {
+    let held = Rc::new(RefCell::new(vec![
+        SharedString::from("alpha"),
+        SharedString::from("beta"),
+    ]));
+    let held_for_view = held;
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let held = held_for_view.clone();
+        let selected = held.borrow().clone();
+        let recorded = for_view.clone();
+        Table::new(vec![])
+            .id("table-replace-behavior")
+            .columns(vec![TableColumn::new("Name").default_width(px(160.))])
+            .selection_mode(SelectionMode::Multiple)
+            .selection_behavior(SelectionBehavior::Replace)
+            .selected_keys(selected)
+            .keyed_row("alpha", vec![gpui::div().child("Alpha").into_any_element()])
+            .keyed_row("beta", vec![gpui::div().child("Beta").into_any_element()])
+            .keyed_row("gamma", vec![gpui::div().child("Gamma").into_any_element()])
+            .on_selection_change(move |keys, window, _| {
+                *held.borrow_mut() = keys.to_vec();
+                recorded.borrow_mut().push(
+                    keys.iter()
+                        .map(ToString::to_string)
+                        .collect::<Vec<_>>()
+                        .join(","),
+                );
+                window.refresh();
+            })
+            .into_any_element()
+    });
+
+    press(cx, "tab down");
+    flush_frame(cx);
+    press(cx, "down");
+    flush_frame(cx);
+    press(cx, "space");
+
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["alpha", "beta"],
+        "replace mode selects on focus and keeps a re-activated row selected"
+    );
+}
+
+#[gpui::test]
+fn table_selection_rerender_preserves_all_column_tracks(cx: &mut TestAppContext) {
+    let cx = open_host(cx, || {
+        gpui::div()
+            .w(px(600.))
+            .child(
+                Table::new(vec!["Name".into(), "Role".into(), "Status".into()])
+                    .id("table-selection-rerender-tracks")
+                    .selection_mode(SelectionMode::Multiple)
+                    .selection_behavior(SelectionBehavior::Replace)
+                    .default_selected_keys(["0"])
+                    .keyed_row(
+                        "0",
+                        vec![
+                            gpui::div().child("Tony Reichert").into_any_element(),
+                            gpui::div().child("CEO").into_any_element(),
+                            gpui::div().child("Active").into_any_element(),
+                        ],
+                    )
+                    .keyed_row(
+                        "1",
+                        vec![
+                            gpui::div().child("Zoey Lang").into_any_element(),
+                            gpui::div().child("Tech Lead").into_any_element(),
+                            gpui::div().child("Paused").into_any_element(),
+                        ],
+                    )
+                    .into_any_element(),
+            )
+            .into_any_element()
+    });
+
+    for _ in 0..3 {
+        flush_frame(cx);
+    }
+    press(cx, "tab down down");
+    for _ in 0..3 {
+        flush_frame(cx);
+    }
+
+    for (column, selector) in [
+        "table-header-track-0",
+        "table-header-track-1",
+        "table-header-track-2",
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let bounds = cx
+            .debug_bounds(selector)
+            .expect("every table header track remains painted after selection");
+        assert!(
+            bounds.size.width > px(40.),
+            "selection rerender collapsed table header track {column}: {bounds:?}"
+        );
+    }
+}
+
+/// `disallowEmptySelection` applies to both Escape and the explicit row
+/// selection toggle, matching React Stately's `clearSelection` and
+/// `toggleSelection` guards.
+#[gpui::test]
+fn table_disallow_empty_selection_keeps_the_last_row(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        Table::new(vec![])
+            .id("table-disallow-empty")
+            .columns(vec![TableColumn::new("Name").default_width(px(160.))])
+            .selection_mode(SelectionMode::Multiple)
+            .disallow_empty_selection(true)
+            .selected_keys([SharedString::from("alpha")])
+            .keyed_row("alpha", vec![gpui::div().child("Alpha").into_any_element()])
+            .on_selection_change(move |keys, _, _| {
+                recorded.borrow_mut().push(
+                    keys.iter()
+                        .map(ToString::to_string)
+                        .collect::<Vec<_>>()
+                        .join(","),
+                );
+            })
+            .into_any_element()
+    });
+
+    press(cx, "tab escape");
+    assert!(
+        recorded.borrow().is_empty(),
+        "Escape must not clear a non-empty selection when empty selection is disallowed"
+    );
+}
+
 /// React Aria's inherited `useGrid` contract defaults Escape to clearing a
 /// non-empty selection. The table body owns the roving stop, so the clear is
 /// reported through the same controlled selection callback as a row press.
@@ -920,6 +1063,43 @@ fn table_header_select_all_resets_the_shift_range(cx: &mut TestAppContext) {
         recorded.borrow().as_slice(),
         ["alpha", "alpha,beta,gamma", "beta"],
         "header select-all must not leave the previous row anchor active"
+    );
+}
+
+#[gpui::test]
+fn table_header_select_all_respects_disallow_empty_selection(cx: &mut TestAppContext) {
+    let held = Rc::new(RefCell::new(vec![
+        SharedString::from("alpha"),
+        SharedString::from("beta"),
+    ]));
+    let held_for_view = held;
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let selected = held_for_view.borrow().clone();
+        let held = held_for_view.clone();
+        let recorded = for_view.clone();
+        Table::new(vec![])
+            .id("table-header-all-disallow-empty")
+            .columns(vec![TableColumn::new("Name").default_width(px(160.))])
+            .selection_mode(SelectionMode::Multiple)
+            .selected_keys(selected)
+            .disallow_empty_selection(true)
+            .keyed_row("alpha", vec![gpui::div().child("Alpha").into_any_element()])
+            .keyed_row("beta", vec![gpui::div().child("Beta").into_any_element()])
+            .on_selection_change(move |keys, window, _| {
+                *held.borrow_mut() = keys.to_vec();
+                recorded.borrow_mut().push(keys.len().to_string());
+                window.refresh();
+            })
+            .into_any_element()
+    });
+
+    flush_frame(cx);
+    click(cx, 22., 18.);
+    assert!(
+        recorded.borrow().is_empty(),
+        "select-all must not clear every key when empty selection is disallowed"
     );
 }
 
