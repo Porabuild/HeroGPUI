@@ -34,6 +34,7 @@ use gpui::{
     VisualTestContext,
 };
 use herogpui_components::{Button, Dropdown, MenuItem, Placement};
+use herogpui_theme::{set_theme, ComponentTheme, ComponentThemes, MenuStyle, Theme};
 
 use harness::{click, open_host};
 
@@ -47,11 +48,69 @@ fn near(a: Pixels, b: f32) -> bool {
     (f32::from(a) - b).abs() < 1.5
 }
 
+/// Opens one host window with the Dropdown menu's entry zoom turned off.
+///
+/// Every assertion in this file is about the positioner -- where the panel
+/// lands and how big the viewport lets it be -- and none of it is about
+/// motion. The entry zoom has to go because it *moves the panel's layout box*:
+/// `Motion::POPOVER_IN` reproduces v3's `zoom-in-90` by growing the panel's own
+/// vertical padding from 90% to 100% over 150ms (`anim::ZoomBox::panel`), so
+/// the menu is genuinely a different height on every frame while it runs.
+///
+/// That would merely be noisy if the harness could step it, but it cannot:
+/// gpui drives a oneshot `Animation` from `scheduler::Instant` -- the real
+/// wall clock -- and neither `run_until_parked` nor
+/// `executor().advance_clock` moves it. [`settle`] therefore never settles the
+/// zoom; it just samples it wherever the wall clock happens to be, which is
+/// why the fixed-point assertions below used to depend on how fast the machine
+/// running them was. On this repository's `Tests (Cargo.toml profile)` runner
+/// one sample landed at 157px and the next at 158px, and the run went red on
+/// code that had not changed.
+///
+/// `Dropdown` composes its `Menu` internally and never sets the instance flag,
+/// so the switch is the public `MenuStyle` theme default, which is exactly the
+/// path an application would use to opt out of the motion.
+fn open_menu_host(
+    cx: &mut TestAppContext,
+    content: impl Fn() -> gpui::AnyElement + 'static,
+) -> &mut VisualTestContext {
+    let cx = open_host(cx, content);
+    stop_entry_motion(cx);
+    cx
+}
+
+/// The stock theme with the Menu's entry zoom switched off, and nothing else
+/// touched: every other `MenuStyle` field stays `None`, so the component's own
+/// defaults still resolve.
+fn motionless_menu_theme() -> Theme {
+    Theme::builder("no-entry-motion", Theme::light())
+        .components(ComponentThemes::default().menu(ComponentTheme::new(
+            MenuStyle::default().animate_entry(false),
+        )))
+        .build()
+}
+
+/// Switches the entry zoom off on an already-open window. Applying it while a
+/// panel is on screen is deliberate in
+/// [`the_entry_zoom_lands_on_the_motionless_layout`]: it is how that test
+/// compares the converged layout with the motionless one without rebuilding
+/// the window under it.
+fn stop_entry_motion(cx: &mut VisualTestContext) {
+    cx.update(|window, cx| {
+        set_theme(motionless_menu_theme(), cx);
+        window.refresh();
+    });
+    cx.run_until_parked();
+}
+
 /// Sizes the window, then lets the measured position settle.
 ///
 /// The correction is measured rather than predicted, so the frame that first
 /// lays the menu out is the one that reports its size. These extra frames
 /// prove the position is stable rather than papering over a wobble.
+///
+/// They can only prove it because [`open_menu_host`] took the entry zoom out:
+/// these frames cost no wall-clock time the animation would notice.
 fn settle(cx: &mut VisualTestContext, width: f32, height: f32) {
     cx.simulate_resize(size(px(width), px(height)));
     for _ in 0..4 {
@@ -60,13 +119,32 @@ fn settle(cx: &mut VisualTestContext, width: f32, height: f32) {
     }
 }
 
+/// The real-time gap every fixed-point sample in this file is taken across.
+///
+/// The gap is the whole point. gpui drives a oneshot `Animation` from
+/// `scheduler::Instant` -- the wall clock -- so a surface that is still
+/// animating reports a different geometry on every real millisecond, while
+/// three back-to-back frames of it can look perfectly stable because no
+/// measurable time passed between them. Sampling across a gap is what turns
+/// "nothing changed" into "nothing moves on its own", which is the property
+/// these assertions are actually for. 30ms is a tenth of the longest overlay
+/// entry in `anim::Motion`, so anything still running is well clear of a
+/// rounded pixel by the third sample.
+const FIXED_POINT_GAP: std::time::Duration = std::time::Duration::from_millis(30);
+
+/// One frame, taken `FIXED_POINT_GAP` of real time after the last one.
+fn refresh_after_a_gap(cx: &mut VisualTestContext) {
+    std::thread::sleep(FIXED_POINT_GAP);
+    cx.update(|window, _| window.refresh());
+    cx.run_until_parked();
+}
+
 /// The position must be a fixed point: refreshing without input changes
 /// nothing, or the panel would visibly oscillate.
 fn assert_settled(cx: &mut VisualTestContext, selector: &'static str) {
     let bounds = cx.debug_bounds(selector).unwrap();
     for _ in 0..3 {
-        cx.update(|window, _| window.refresh());
-        cx.run_until_parked();
+        refresh_after_a_gap(cx);
         assert_eq!(cx.debug_bounds(selector).unwrap(), bounds);
     }
 }
@@ -113,32 +191,35 @@ fn plain_items(count: usize) -> Vec<MenuItem> {
 
 /// A trigger pushed to the right of a `pad`-wide spacer, so the menu it opens
 /// would hang off the window's right edge.
+fn trigger_at(pad: f32, placement: Placement) -> gpui::AnyElement {
+    gpui::div()
+        .flex()
+        .flex_row()
+        .items_start()
+        .child(gpui::div().w(px(pad)).h(px(1.)))
+        .child(
+            gpui::div()
+                .debug_selector(|| "dd-trigger".to_owned())
+                .child(
+                    Dropdown::uncontrolled(
+                        "ddv",
+                        Button::new("ddv-trigger").label("Merge"),
+                        describing_items(),
+                    )
+                    .id("dd-viewport")
+                    .placement(placement),
+                ),
+        )
+        .into_any_element()
+}
+
+/// That trigger in a motionless host window.
 fn host_with_trigger_at(
     cx: &mut TestAppContext,
     pad: f32,
     placement: Placement,
 ) -> &mut VisualTestContext {
-    open_host(cx, move || {
-        gpui::div()
-            .flex()
-            .flex_row()
-            .items_start()
-            .child(gpui::div().w(px(pad)).h(px(1.)))
-            .child(
-                gpui::div()
-                    .debug_selector(|| "dd-trigger".to_owned())
-                    .child(
-                        Dropdown::uncontrolled(
-                            "ddv",
-                            Button::new("ddv-trigger").label("Merge"),
-                            describing_items(),
-                        )
-                        .id("dd-viewport")
-                        .placement(placement),
-                    ),
-            )
-            .into_any_element()
-    })
+    open_menu_host(cx, move || trigger_at(pad, placement))
 }
 
 /// A trigger pushed down by a tall spacer, so a bottom-placed menu cannot fit
@@ -148,7 +229,7 @@ fn host_with_trigger_low(
     spacer: f32,
     placement: Placement,
 ) -> &mut VisualTestContext {
-    open_host(cx, move || {
+    open_menu_host(cx, move || {
         gpui::div()
             .flex()
             .flex_col()
@@ -178,7 +259,7 @@ fn host_with_trigger_mid(
     pad: f32,
     placement: Placement,
 ) -> &mut VisualTestContext {
-    open_host(cx, move || {
+    open_menu_host(cx, move || {
         gpui::div()
             .flex()
             .flex_col()
@@ -296,11 +377,67 @@ fn a_centered_menu_tracks_the_viewport_when_resized(cx: &mut TestAppContext) {
             ));
         }
         for _ in 0..3 {
-            cx.update(|window, _| window.refresh());
-            cx.run_until_parked();
+            refresh_after_a_gap(cx);
             assert_eq!(cx.debug_bounds("dropdown-menu").unwrap(), menu);
         }
     }
+}
+
+/// The other side of the trade [`open_menu_host`] makes: this one keeps the
+/// entry zoom, lets it finish, and pins the two properties the rest of the
+/// file then relies on -- that a finished zoom is a fixed point, and that it
+/// lands on *exactly* the motionless layout rather than near it.
+///
+/// Both matter. The zoom grows the panel's own vertical padding, so a curve
+/// that stopped a hair short of 1.0, or an animator that left any residual,
+/// would park the menu a fraction of a pixel away from its natural size
+/// forever -- and a fraction of a pixel is all it takes to round to a
+/// different height, which is the whole failure this file's idempotence
+/// assertions exist to catch.
+///
+/// It sleeps because the clock the zoom reads is the real one: gpui measures a
+/// oneshot `Animation` with `scheduler::Instant::elapsed`, which both
+/// `run_until_parked` and `executor().advance_clock` leave alone. The wait is
+/// one-sided -- past the duration the animation is done for good -- so a
+/// slower machine only makes it more settled, never less.
+#[gpui::test]
+fn the_entry_zoom_lands_on_the_motionless_layout(cx: &mut TestAppContext) {
+    // `anim::Motion::POPOVER_IN` runs for 150ms; the rest is margin for a
+    // runner that stalls between the sleep and the frame after it.
+    const PAST_POPOVER_IN: std::time::Duration = std::time::Duration::from_millis(500);
+
+    // Deliberately *not* `open_menu_host`: this window keeps the stock theme,
+    // so the menu animates in exactly as it does for a real user.
+    let cx = open_host(cx, move || trigger_at(420., Placement::Bottom));
+    settle(cx, 1200., 600.);
+    click(cx, 460., 18.);
+    settle(cx, 1200., 600.);
+
+    std::thread::sleep(PAST_POPOVER_IN);
+    cx.update(|window, _| window.refresh());
+    cx.run_until_parked();
+    let converged = cx
+        .debug_bounds("dropdown-menu")
+        .expect("the open menu must be laid out");
+
+    for _ in 0..3 {
+        refresh_after_a_gap(cx);
+        assert_eq!(
+            cx.debug_bounds("dropdown-menu").unwrap(),
+            converged,
+            "a finished entry zoom must leave the panel at a fixed point"
+        );
+    }
+
+    // Now take the zoom out from under the settled panel. Nothing may move:
+    // at rest the animated padding *is* the panel's natural padding, so the
+    // two layouts are the same layout.
+    stop_entry_motion(cx);
+    assert_eq!(
+        cx.debug_bounds("dropdown-menu").unwrap(),
+        converged,
+        "the entry zoom must land on the panel's natural geometry, not near it"
+    );
 }
 
 /// An end-aligned menu is pinned by its *right* edge, so it overflows the
@@ -646,7 +783,7 @@ fn a_tall_menu_caps_to_the_available_height_and_wheels_to_its_last_row(cx: &mut 
     let height = 420.;
     let actions = harness::events();
     let recorded = actions.clone();
-    let cx = open_host(cx, move || {
+    let cx = open_menu_host(cx, move || {
         let recorded = recorded.clone();
         gpui::div()
             .flex()
@@ -745,7 +882,7 @@ fn a_tall_menu_caps_to_the_available_height_and_wheels_to_its_last_row(cx: &mut 
 /// A short menu keeps its natural height: the cap is a maximum, not a size.
 #[gpui::test]
 fn a_short_menu_keeps_its_natural_height(cx: &mut TestAppContext) {
-    let cx = open_host(cx, move || {
+    let cx = open_menu_host(cx, move || {
         gpui::div()
             .flex()
             .flex_row()
@@ -784,7 +921,7 @@ fn an_open_submenu_is_its_own_popover_and_stays_inside(cx: &mut TestAppContext) 
     let width = 620.;
     let actions = harness::events();
     let recorded = actions.clone();
-    let cx = open_host(cx, move || {
+    let cx = open_menu_host(cx, move || {
         let recorded = recorded.clone();
         gpui::div()
             .flex()
@@ -882,7 +1019,7 @@ fn a_tall_submenu_near_a_low_row_caps_and_wheels_to_its_last_child(cx: &mut Test
     let (width, height) = (600., 500.);
     let actions = harness::events();
     let recorded = actions.clone();
-    let cx = open_host(cx, move || {
+    let cx = open_menu_host(cx, move || {
         let recorded = recorded.clone();
         let mut items = plain_items(8);
         items.push(
@@ -982,7 +1119,7 @@ fn a_click_in_the_submenu_gap_dismisses_without_action(cx: &mut TestAppContext) 
     let recorded = actions.clone();
     let opens = harness::events();
     let opened = opens.clone();
-    let cx = open_host(cx, move || {
+    let cx = open_menu_host(cx, move || {
         let recorded = recorded.clone();
         let opened = opened.clone();
         gpui::div()
@@ -1070,7 +1207,7 @@ fn a_click_outside_with_a_submenu_open_dismisses_without_action(cx: &mut TestApp
     let recorded = actions.clone();
     let opens = harness::events();
     let opened = opens.clone();
-    let cx = open_host(cx, move || {
+    let cx = open_menu_host(cx, move || {
         let recorded = recorded.clone();
         let opened = opened.clone();
         gpui::div()
