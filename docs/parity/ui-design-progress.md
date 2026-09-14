@@ -43,6 +43,17 @@ focus ring and Enter dismissal.
 The synchronized artifact is
 `898bf0269260d8c3d4373827234607398e36b0045cbdb6ef7366aabae742f110`.
 
+The follow-up visual audit on 2026-09-13 rechecked the user-reported failure
+shapes against that cache-busted artifact: ColorSlider's Hue strip and Slider's
+blue fill stay inside the rounded track at both endpoints; the Toast close
+control's keyboard ring follows its 20px rounded target; InputGroup Usage uses
+the pinned 12px `rounded-field` shell; and Select's long selected value and
+natural-height option row wrap without truncation or marker overlap. The
+rounded-mask, close-button, Select.ClearButton and focused browser checks all
+pass. These captures do not close the inventory's remaining unobserved state
+queue; they confirm the shared root clipping/focus fixes are present in the
+current artifact.
+
 The generated [coverage report](coverage-report.md) is now the handoff queue
 for the remaining work. It derives status, scope, evidence-surface and
 per-component unresolved records from the inventory, and keeps the known Tabs
