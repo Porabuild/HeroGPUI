@@ -229,6 +229,17 @@ Harness rules:
   and remeasure after error content changes layout.
 - Prove a closed surface by clicking where its row used to be and asserting no
   callback, not merely by checking an open-change callback.
+- gpui drives a oneshot `Animation` from `scheduler::Instant`, the **real**
+  clock. Neither `run_until_parked` nor `executor().advance_clock` moves it, so
+  a surface whose entry motion changes its layout box — an `anim::ZoomBox` that
+  grows a panel's own padding, for instance — keeps resizing for the whole
+  duration, and back-to-back frames only look stable because no measurable time
+  passed between them. Assert geometry with the motion switched off (the
+  component's `animate_entry`, or its theme default where the composing
+  component owns the instance) and sample any fixed point across a real-time
+  gap. `harness::still()` is *not* the lever here: reduced motion also removes
+  `anim::pressed`'s slot, which changes the intrinsic width of the surrounding
+  layout.
 
 An intentionally failing test is useful only after its expectation is checked
 against the exact upstream contract. Correct the expectation when it encodes
