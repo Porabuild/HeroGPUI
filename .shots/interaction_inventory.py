@@ -38,6 +38,7 @@ INPUT_FILES = (
     'web/public/gallery/herogpui_web_bg.wasm', 'web/public/gallery/herogpui_web.js',
     'web/public/gallery/index.html', 'crates/herogpui-web/index.html',
     '.shots/heroui-bundle.txt.gz', '.shots/heroui-css-v3.2.5.tar.gz',
+    '.shots/heroui-demos-v3.2.5.tar.gz',
 )
 
 

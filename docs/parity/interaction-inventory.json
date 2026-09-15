@@ -16913,10 +16913,10 @@
     "sha256": "99816a71d82bb9d62f9b86bf6f61ec67566cd63e478735f22dd5ba5c97784291"
   },
   "source_snapshot": {
-    "sha256": "ec373a2aa991362a4a93c321769ed47a7b6e6773e94cd002ea115276e37ad7ff",
+    "sha256": "475a9ab7be2ebd86d12550c9560d3a1777d2d66141888226879d34264fda651e",
     "files": {
       ".cargo/config.toml": "656172d7bc0b7cda27bccdffaf87ca34d6c1b3857e3c95f989d9dc164f3395be",
-      ".gitattributes": "77b98c2399fed202e770babce5b84b8c24e1e2b5e4ac94c5f1ce3ba1981d446f",
+      ".gitattributes": "837d21e23758d2bd79598fddd8afdaf7465f6cf9000f92b50701d5350924a549",
       ".shots/a11y_audit.py": "e632b5c7459733ad54b8db1c3b5df16248abd0d3e1523b28ab0a0b6098c5823b",
       ".shots/anatomy_audit.py": "09860c4f2a130a95a5a48b9d1845c3cc833b409f67b8797d69749b407a3cbc55",
       ".shots/anim_audit.py": "4139622e471ff6882955a015b8c8f3a1785e50c7458827fb461afdeba89c561f",
@@ -16930,7 +16930,7 @@
       ".shots/component_source.py": "af820abb428e9496a36e6218c52c92230567a9933a2095325c4e725d573f674a",
       ".shots/control.ps1": "07938e548829ff70a06b0841139e645a2c50d2a4f2627388722ae2efdda8f4b4",
       ".shots/coverage_report.py": "cea7970da1737b67b75f15bdcce5b00cb9b9b92c38c7b55fbbe778f6eae80e18",
-      ".shots/demo_audit.py": "9a0d4336cd3a590de2ddab811fdba28d60cccb9fdc36eff83febedda2fad0bec",
+      ".shots/demo_audit.py": "d4c413f02e7083b4ff0ad88c52d6bd8d7c7eb175fc03b01eba045c7d418a8a37",
       ".shots/design_audit.py": "798fef177b81c976cd100a5907170c8dc48da63d51fbea4651c6546b43553bf8",
       ".shots/drive.ps1": "4d5bbaaa05f116cbbef5b9dbd764772318b04a97fb4fd3ed558fc34c6d76791f",
       ".shots/element_id_audit.py": "f404a9b02402af219f52e582f6e3909690050ecdfd5362b7cff59e72abe0a8fc",
@@ -16943,8 +16943,9 @@
       ".shots/gpui_patches.py": "f71a462bece9214949d927b579614b076fdc7c975eb2069ff54863f2b17bffec",
       ".shots/heroui-bundle.txt.gz": "5bc0ad0f6129d3344b7720d4e8f2dc4f36e56e3c4b73f95387206410a4e3c41a",
       ".shots/heroui-css-v3.2.5.tar.gz": "16b270c1e29b44669647225982e3edd71fc905cb35fa11d1d231e7fcba88fcd0",
+      ".shots/heroui-demos-v3.2.5.tar.gz": "0c7dfa90deb44c3541c2df305e8bbb259be57b7d3abf090910e0307af99a0bcc",
       ".shots/inert_audit.py": "0e1a13d2d25f2b1166946493a55a7ee97971d1c7a139fe6e699b4e623ede9c0a",
-      ".shots/interaction_inventory.py": "f788d547763d200446d5567a3215a665fb96d8419fa1db46219a54e4b52735c9",
+      ".shots/interaction_inventory.py": "a9f31c9e3995e7050f0ef5814f7eb0ae99a657cee65c7f9fdbf9f5be10e4a50a",
       ".shots/lint.ps1": "0c850718fb70ec785d6edf2cd332043ee861ed8583354b6c3a503f365f378db3",
       ".shots/materialize.ps1": "b348c7695e528c20721f56458c8a239775b86a7c47529aaff4ce8dfb4d468f10",
       ".shots/materialize.sh": "446d4a98878b74f747a46b829a741dca8a05c5215d30958c1273dba1458f39f1",
@@ -16970,7 +16971,7 @@
       ".shots/test_inert.py": "931174dd8a73944fe6d70fc4856c59b90dfd408bb1624f5956e56e92b96e97f9",
       ".shots/test_interaction_inventory.py": "9c8c716e9b6ef19b4d6301fc67dd0f9956232b7379f546bec79e4a8f320c78ae",
       ".shots/test_native_capture.py": "372ada08c533d4e0917b8639d2fb1d6bcd802d0eed24aef3de7ed700709a479d",
-      ".shots/test_parity_report.py": "15543b6b073ee5149a3794d1765ee0a06387abd1cc8f7567e33342246d77f99b",
+      ".shots/test_parity_report.py": "d73db4665e4182d7eba8d8deaf69e9e3b3c73db62e939f9abfacb3c3c1d67c68",
       ".shots/theme_serde_audit.py": "acf971f8405e8f71727435ab5e2eb30f40b04157adc8972e8e027aa9c6bb8184",
       ".shots/token_audit.py": "31756481a9ebd5bff76e143681b23f091ab5db5a8ca5c1732d8112e9d19e2309",
       ".shots/write_only.py": "ebfacd961c597d8fd625fb9a29f24efaff245dfad9b1032649537fca25f8954a",
@@ -45383,7 +45384,7 @@
       }
     }
   ],
-  "verification_sha256": "7e9338983d2c4fb9e3dd40779e6c102dcf4d3219f8a6d8bd83f7db803e665ef8",
+  "verification_sha256": "55d25156d791efd58f13c1bfd1c70e99167b50a3b97f2cc0a134c25ebf2d5cc0",
   "retired_source_changes": [],
   "retired_upstream_demos": {},
   "upstream_source_snapshot": {

@@ -78,9 +78,10 @@ jobs:
           pnpm run build
 
   # The parity contract. These read the pinned v3.2.5 bundle checked in at
-  # .shots/heroui-bundle.txt.gz and the checked-in CSS archive. Demo source
-  # fallbacks fetch from the pinned tag on a cold cache; no Rust build is
-  # needed. A parity regression and a compile error report separately.
+  # .shots/heroui-bundle.txt.gz, the checked-in CSS archive, and the checked-in
+  # ComponentPreview demo archive. A cold runner never fetches upstream; no
+  # Rust build is needed. A parity regression and a compile error report
+  # separately.
   parity:
     name: HeroUI v3.2.5 parity audits
     runs-on: ubuntu-24.04

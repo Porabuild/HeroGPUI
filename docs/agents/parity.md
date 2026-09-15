@@ -64,14 +64,15 @@ an all-green mapped subset is not proof that every upstream metric is covered.
 
 ## Running the audit set
 
-The documentation and CSS inputs are checked in.
+The documentation, CSS, and ComponentPreview inputs are checked in.
 `.shots/heroui-bundle.txt.gz` is the docs bundle the prop and prose audits read;
 `.shots/heroui-css-v3.2.5.tar.gz` contains the component stylesheets the design,
-motion and anatomy audits read. Both unpack themselves on first use.
-Some `ComponentPreview` source bodies are absent from the rendered bundle;
-`demo_audit.py` fetches those files from the pinned tag on a cold cache. Their
-cache keys include the normalized tagged URL. Routine runs reuse that cache;
-`--fetch` deliberately refreshes it. TLS certificate verification stays enabled.
+motion and anatomy audits read; `.shots/heroui-demos-v3.2.5.tar.gz` holds the
+preview sources `demo_audit.py` falls back to when the rendered bundle omits
+them. All three unpack themselves on first use. Cache keys include the
+normalized tagged URL. `--fetch` is the only network path and deliberately
+refreshes the cache; `--pack` rewrites the checked-in archive afterwards. TLS
+certificate verification stays enabled.
 
 For a strict aggregate verdict and a fresh evidence snapshot, run:
 
@@ -145,6 +146,7 @@ pin, refresh the archive and `PINNED_RELEASE` together and re-run the set:
 ```powershell
 curl -sL https://heroui.com/react/llms-full.txt | gzip -9 > .shots/heroui-bundle.txt.gz
 python .shots/design_audit.py --fetch   # then re-pack heroui-css-v3.2.5.tar.gz
+python .shots/demo_audit.py --fetch --pack
 ```
 
 Run focused scripts while iterating. Run the set when a broad parity claim,
