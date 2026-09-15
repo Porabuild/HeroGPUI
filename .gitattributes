@@ -25,6 +25,9 @@ web/**/*.tsx text eol=lf
 web/**/*.mjs text eol=lf
 web/**/*.json text eol=lf
 web/**/*.css text eol=lf
+# The pinned HeroUI demo-source archive is a build input for the parity job.
+# `* text=auto` must not rewrite it on Windows the way it would a text file.
+.shots/heroui-demos-v3.2.5.tar.gz binary
 # Hash-pinned files: checked out byte-identical so SHA-256 pins match on
 # every OS. `* text=auto` would convert these to CRLF on Windows.
 web/public/gallery/*.js -text

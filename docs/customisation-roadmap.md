@@ -35,8 +35,8 @@ starting each phase; line numbers are not durable contracts.
 - Generated website data must accompany the API/gallery change. Batching the
   artifact is valid within one mergeable integration change, not by merging
   independently incomplete PRs and promising to synchronise them later.
-- `demo_audit.py` fetches preview sources on a cache miss or `--fetch`; it is
-  neither unconditionally online nor guaranteed offline on a clean machine.
+- `demo_audit.py` unpacks `.shots/heroui-demos-v3.2.5.tar.gz` on a routine run
+  and only fetches on `--fetch`. A clean machine stays offline.
   The current CI test command uses `.shots/run-tests.sh`; the lint script's
   actual Clippy invocation does not include `--all-features`.
 
@@ -402,9 +402,9 @@ behavior changes when choosing the artifact rebuild batch as well.
   guide. The checked-in rebuild/capture scripts contain Windows-specific
   paths/APIs; PowerShell alone does not make those drivers usable on macOS.
   Report platform limits and the actual native/web verification used.
-- Ordinary bundle/CSS audits use pinned local inputs. `demo_audit.py` additionally
-  needs cached preview sources or network; `--fetch` deliberately refreshes
-  them. Record which mode ran instead of calling the whole set offline.
+- Ordinary bundle/CSS/demo audits use pinned local inputs. `--fetch` is the
+  only network path and deliberately refreshes preview sources; `--pack`
+  rewrites the checked-in archive afterwards. Record which mode ran.
 - Documentation-only edits require link/path/command verification, not Rust
   compilation. Report checks actually run and distinguish plan review from
   implementation verification.

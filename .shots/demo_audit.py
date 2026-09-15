@@ -37,13 +37,16 @@ spelling falls through to be checked against the implementation.
 
     python .shots/demo_audit.py            # the report
     python .shots/demo_audit.py Tabs       # one page, verbosely
-    python .shots/demo_audit.py --fetch    # refresh cached preview sources
+    python .shots/demo_audit.py --fetch    # refresh preview sources from the pin
+    python .shots/demo_audit.py --pack     # rewrite the checked-in demo archive
 """
 import hashlib
 import io
 import os
 import re
 import sys
+import tarfile
+import time
 import urllib.request
 from urllib.parse import urlsplit, urlunsplit
 
@@ -71,8 +74,23 @@ IGNORE = {
 # with the reason. Keyed `Component.prop`.
 WONT_DEMO_PROPS = {}
 
-PREVIEW_CACHE = os.path.join(os.environ.get('TEMP', '/tmp'),
-                             'herogpui-demo-audit')
+# Same reason the docs bundle and CSS archive are checked in: a cold CI runner
+# has no /tmp cache, and one reset from raw.githubusercontent.com used to fail
+# the whole parity job. Routine runs unpack this pin. `--fetch` is the only
+# network path; `--pack` rewrites the archive after a deliberate refresh.
+DEMO_ARCHIVE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                            'heroui-demos-%s.tar.gz' % PINNED_RELEASE)
+if os.path.isfile(DEMO_ARCHIVE):
+    with open(DEMO_ARCHIVE, 'rb') as _archive:
+        _demo_digest = hashlib.sha256(_archive.read()).hexdigest()[:16]
+else:
+    _demo_digest = 'missing'
+PREVIEW_CACHE = os.path.join(
+    os.environ.get('TEMP', '/tmp'),
+    'heroui-demos-%s-%s' % (PINNED_RELEASE, _demo_digest),
+)
+FETCH_ATTEMPTS = 3
+_CACHE_MEMBER = re.compile(r'[0-9a-f]{64}\.txt\Z')
 
 
 def pinned_source_url(url):
@@ -90,6 +108,60 @@ def pinned_source_url(url):
 def preview_cache_path(url):
     name = hashlib.sha256(pinned_source_url(url).encode('utf-8')).hexdigest() + '.txt'
     return os.path.join(PREVIEW_CACHE, name)
+
+
+def demo_cache():
+    """Restore the vendored ComponentPreview sources. Returns whether they exist."""
+    if os.path.isdir(PREVIEW_CACHE) and any(
+            _CACHE_MEMBER.fullmatch(name) for name in os.listdir(PREVIEW_CACHE)):
+        return True
+    if not os.path.isfile(DEMO_ARCHIVE):
+        return False
+    os.makedirs(PREVIEW_CACHE, exist_ok=True)
+    with tarfile.open(DEMO_ARCHIVE, 'r:gz') as archive:
+        for member in archive.getmembers():
+            name = os.path.basename(member.name)
+            if not member.isfile() or not _CACHE_MEMBER.fullmatch(name):
+                raise RuntimeError('unexpected demo archive member: %s' % member.name)
+            member.name = name
+            archive.extract(member, PREVIEW_CACHE)
+    return True
+
+
+def pack_demo_archive(paths=None):
+    """Rewrite the checked-in archive from the current cache, or from `paths`."""
+    if paths is None:
+        if not demo_cache():
+            raise RuntimeError('no demo cache to pack; run --fetch first')
+        paths = sorted(
+            os.path.join(PREVIEW_CACHE, name)
+            for name in os.listdir(PREVIEW_CACHE)
+            if _CACHE_MEMBER.fullmatch(name)
+        )
+    if not paths:
+        raise RuntimeError('no demo sources to pack')
+    staging = DEMO_ARCHIVE + '.part'
+    with tarfile.open(staging, 'w:gz') as archive:
+        for path in paths:
+            name = os.path.basename(path)
+            if not _CACHE_MEMBER.fullmatch(name):
+                raise RuntimeError('refusing to pack %s' % name)
+            archive.add(path, arcname=name)
+    os.replace(staging, DEMO_ARCHIVE)
+
+
+def _http_get(url):
+    """Read one URL, retrying resets that used to fail the CI parity job."""
+    last_error = None
+    for index in range(FETCH_ATTEMPTS):
+        try:
+            with urllib.request.urlopen(url, timeout=20) as response:
+                return response.read().decode('utf-8')
+        except Exception as error:
+            last_error = error
+            if index + 1 < FETCH_ATTEMPTS:
+                time.sleep(0.5 * (2 ** index))
+    raise last_error
 
 
 def camel_to_snake(name):
@@ -188,22 +260,33 @@ def props_used(chunk):
 
 
 def fetch_text(url, refresh=False):
-    """Read one v3 source file, cached so the full gate stays fast."""
+    """Read one pinned v3 source file.
+
+    Routine runs unpack the checked-in archive and never open a socket.
+    ``refresh`` (``--fetch``) is the only path that talks to the network.
+    """
     url = pinned_source_url(url)
-    os.makedirs(PREVIEW_CACHE, exist_ok=True)
     path = preview_cache_path(url)
-    if refresh or not os.path.exists(path):
-        try:
-            with urllib.request.urlopen(url, timeout=20) as response:
-                text = response.read().decode('utf-8')
-        except Exception as error:
-            if not refresh and os.path.exists(path):
-                return io.open(path, encoding='utf-8', errors='replace').read()
-            raise RuntimeError('cannot read v3 demo source %s: %s' %
-                               (url, error)) from error
-        with io.open(path, 'w', encoding='utf-8', newline='\n') as cached:
-            cached.write(text)
-    return io.open(path, encoding='utf-8', errors='replace').read()
+    if not refresh:
+        if not demo_cache():
+            raise RuntimeError(
+                'cannot read v3 demo source %s: pinned demo archive is missing; '
+                'run `python .shots/demo_audit.py --fetch --pack`' % url)
+        if os.path.exists(path):
+            with io.open(path, encoding='utf-8', errors='replace') as cached:
+                return cached.read()
+        raise RuntimeError(
+            'cannot read v3 demo source %s: not in the pinned demo archive; '
+            'run `python .shots/demo_audit.py --fetch --pack`' % url)
+    try:
+        text = _http_get(url)
+    except Exception as error:
+        raise RuntimeError('cannot read v3 demo source %s: %s' %
+                           (url, error)) from error
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with io.open(path, 'w', encoding='utf-8', newline='\n') as cached:
+        cached.write(text)
+    return text
 
 
 def bundle_page(page):
@@ -380,7 +463,8 @@ def our_pages():
 def main():
     check_jsx_parser()
     refresh = '--fetch' in sys.argv[1:]
-    pages = [arg for arg in sys.argv[1:] if arg != '--fetch']
+    pack = '--pack' in sys.argv[1:]
+    pages = [arg for arg in sys.argv[1:] if arg not in ('--fetch', '--pack')]
     only = pages[0] if pages else None
     v3 = v3_pages()
     ours = our_pages()
@@ -460,6 +544,9 @@ def main():
     print('recorded won-t-demo : %d' % excused)
     print('NOT DEMONSTRATED    : %d  (on %d pages)'
           % (sum(len(m) for _, m in rows), len(rows)))
+    if pack:
+        pack_demo_archive()
+        print('packed %s' % DEMO_ARCHIVE)
 
 
 if __name__ == '__main__':
