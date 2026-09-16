@@ -121,7 +121,7 @@ EVIDENCE_OVERRIDE = {
 # The code that implements each state.
 EVIDENCE = {
     'status-focused': r'ring_if_focused|ring_overlay_if_focused|with_focus_ring|focus_ring_shadows|focus_ring_overlay|util::focusable',
-    'status-focused-field': r'apply_field_chrome|focus_ring_shadows\(false',
+    'status-focused-field': r'apply_field_chrome|field_ring_carrier|with_field_ring_overlay|focus_ring_shadows\(false',
     'status-disabled': r'disabled_opacity',
     'status-pending': r'is_pending',
     'status-invalid-field': r'is_invalid|validity',
@@ -159,24 +159,141 @@ ELSEWHERE = {
     ('disclosure', 'status-focused'): 'accordion.rs',
 }
 
-# For a state whose evidence is a *call*, the argument matters as much as the
-# call: `apply_field_chrome(.., is_invalid, false, cx)` draws no ring at all, and
-# eight fields shipped that way. So the pattern demands at least one call in the
-# module whose focus argument is something other than the literal `false` -- a
-# module with both kinds (a field *and* a trigger that rings for itself) passes,
-# and one with only `false` does not.
-REQUIRED = {
-    # The shared field helper has two spellings: the original
-    # `apply_field_chrome` and the focus-ring-configurable
-    # `apply_field_chrome_with_focus_ring`. A real focus expression is either
-    # the caller's `focused`/`focus_within` variable or a direct
-    # `focus_handle.is_focused(window)` query; a literal `false` is the bug
-    # this audit must reject.
-    'status-focused-field':
-        r'apply_field_chrome(?:_with_focus_ring)?\([\s\S]{0,260}?'
-        r'(?:\bfocused\b|\bfocus_within\b|\.is_focused\(window\))'
-        r'[\s\S]{0,180}?cx',
+# `apply_field_chrome(.., is_invalid, false, cx)` draws no ring at all, and
+# eight fields shipped that way. So the check below demands at least one
+# ringing call in the module whose focus argument is something other than the
+# literal `false` -- a module with both kinds (a field *and* a trigger that
+# rings for itself) passes, and one with only `false` does not.
+# A real focus expression: the caller's `focused`/`focus_within` variable or a
+# direct `focus_handle.is_focused(window)` query. A literal `false` -- the bug
+# this audit exists for -- is none of these.
+_FOCUS_ARG = re.compile(
+    r'\A(?:[\w.:]*\bfocused\b|[\w.:]*\bfocus_within\b'
+    r'|[\w.:]*\.is_focused\(window\))\Z')
+
+# The focus flag's position in each helper's argument list. Checking by
+# position rather than by proximity is what keeps a neighbouring `is_invalid`
+# or `show_focus_ring` argument from standing in for the focus flag: every one
+# of these calls has several boolean arguments, and only one of them is the
+# one this audit is about.
+#
+# `apply_field_chrome`   (el, variant, is_invalid, is_focused, radius, cx)
+# `..._with_focus_ring`  (el, variant, is_invalid, is_focused, show_ring,
+#                         radius, cx)
+# `..._overlay`          -- same shape; the ring is an overlay child, not a
+#                        blurred shadow
+# `..._ringless`         -- same shape; paints no ring at all, on purpose
+# `field_ring_color`     (is_invalid, is_focused, show_ring, cx)
+_FOCUS_POSITION = {
+    'apply_field_chrome': 3,
+    'apply_field_chrome_with_focus_ring': 3,
+    'apply_field_chrome_overlay': 3,
+    'apply_field_chrome_ringless': 3,
+    'field_ring_color': 1,
 }
+
+# The chrome spellings that paint the ring themselves. `..._ringless` is
+# deliberately absent: it paints no ring, so on its own it is evidence of the
+# opposite.
+_RINGING_CHROME = ('apply_field_chrome', 'apply_field_chrome_with_focus_ring',
+                   'apply_field_chrome_overlay')
+
+# Where a shell that clips hangs the ring it did not paint.
+_RING_HUNG = re.compile(r'\b(?:field_ring_carrier|with_field_ring_overlay)\(')
+
+
+def call_arguments(code, name):
+    """Every call to `name` in `code`, as a list of top-level argument texts.
+
+    The argument list is split on commas outside brackets, so a nested call or
+    a closure argument counts as one argument and the positions stay true. An
+    unbalanced call (the file was truncated, or the name appeared in a string)
+    yields nothing rather than a guess.
+    """
+    calls = []
+    for match in re.finditer(r'\b' + re.escape(name) + r'\s*\(', code):
+        depth = 0
+        start = match.end()
+        for index in range(match.end() - 1, len(code)):
+            char = code[index]
+            if char in '([{':
+                depth += 1
+            elif char in ')]}':
+                depth -= 1
+                if depth == 0:
+                    calls.append(split_arguments(code[start:index]))
+                    break
+        else:
+            continue
+    return calls
+
+
+def split_arguments(text):
+    """`text` split on the commas that are not inside brackets."""
+    parts, depth, current = [], 0, []
+    for char in text:
+        if char in '([{':
+            depth += 1
+        elif char in ')]}':
+            depth -= 1
+        if char == ',' and depth == 0:
+            parts.append(''.join(current))
+            current = []
+            continue
+        current.append(char)
+    if ''.join(current).strip():
+        parts.append(''.join(current))
+    return [' '.join(part.split()) for part in parts]
+
+
+def takes_focus_flag(code, name):
+    """Whether any call to `name` in `code` passes a real focus expression.
+
+    The flag is read at its documented position. A call that is too short to
+    have one is not evidence.
+    """
+    position = _FOCUS_POSITION[name]
+    for arguments in call_arguments(code, name):
+        if len(arguments) > position and _FOCUS_ARG.match(arguments[position]):
+            return True
+    return False
+
+
+def field_focus_is_wired(code):
+    """Whether `code` rings a field for a real focus state.
+
+    Either a ring-painting chrome call reads a real focus flag, or the
+    ringless pairing does.
+
+    The clipping shells -- the multi-line `Input`, the `NumberField` group,
+    the `DateField` group -- are `overflow-hidden` around their content, so a
+    ring drawn in their margin is the first thing the clip cuts. They call
+    `apply_field_chrome_ringless`, which paints *no* ring by design, and hand
+    the ring to a non-clipping carrier. Accepting the ringless call on its own
+    would therefore accept a field that never rings at all, so all three
+    halves are required: the ringless chrome reads the focus flag,
+    `field_ring_color` resolves the ring from a focus flag too, and the ring
+    is actually hung by `field_ring_carrier` or `with_field_ring_overlay`.
+    """
+    if any(takes_focus_flag(code, name) for name in _RINGING_CHROME):
+        return True
+    return (takes_focus_flag(code, 'apply_field_chrome_ringless')
+            and takes_focus_flag(code, 'field_ring_color')
+            and bool(_RING_HUNG.search(code)))
+
+
+# `apply_field_chrome(.., is_invalid, false, cx)` draws no ring at all, and
+# eight fields shipped that way. So the check below demands at least one
+# ringing call in the module whose focus argument is something other than the
+# literal `false` -- a module with both kinds (a field *and* a trigger that
+# rings for itself) passes, and one with only `false` does not.
+#
+# For a state whose evidence is a *call*, the argument matters as much as the
+# call. The value is a predicate over the module source.
+REQUIRED = {
+    'status-focused-field': field_focus_is_wired,
+}
+
 
 # States this port does not draw, with the reason.
 WONT_DO = {
@@ -399,21 +516,58 @@ def self_test():
         if not condition:
             failures.append(message)
 
-    focus_pattern = REQUIRED['status-focused-field']
+    wired = REQUIRED['status-focused-field']
     for radius in ['None', 'Some(radius)']:
-        focused = ('apply_field_chrome(field, variant, invalid,\n'
-                   '    focused, ' + radius + ', cx)')
-        unfocused = focused.replace('    focused,', '    false,')
-        expect(bool(re.search(focus_pattern, focused, re.S)),
-               'field focus must read the flag before ' + radius)
-        expect(not re.search(focus_pattern, unfocused, re.S),
-               'a radius argument must not disguise a literal false focus flag')
-        expect(bool(re.search(focus_pattern, unfocused + ';\n' + focused, re.S)),
-               'an unfocused sibling must not hide a real focused call')
-        expect(not re.search(focus_pattern,
-                             'apply_field_chrome(field, variant, focused, false, '
-                             + radius + ', cx)', re.S),
-               'the invalid flag must not stand in for the focus argument')
+        for helper in ['apply_field_chrome',
+                       'apply_field_chrome_with_focus_ring',
+                       'apply_field_chrome_overlay']:
+            focused = (helper + '(field, variant, invalid,\n'
+                       '    focused, ' + radius + ', cx)')
+            unfocused = focused.replace('    focused,', '    false,')
+            expect(wired(focused),
+                   helper + ' focus must read the flag before ' + radius)
+            expect(not wired(unfocused),
+                   'a radius argument must not disguise a literal false focus '
+                   'flag in ' + helper)
+            expect(wired(unfocused + ';\n' + focused),
+                   'an unfocused sibling must not hide a real focused ' + helper)
+            expect(not wired(helper + '(field, variant, focused, false, '
+                             + radius + ', cx)'),
+                   'the invalid flag must not stand in for the focus argument '
+                   'of ' + helper)
+
+    # The ringless pairing: a clipping shell takes the chrome without a ring
+    # and hangs the ring on a non-clipping carrier. All three halves are
+    # load-bearing, so each is removed in turn and must fail.
+    ringless = ('let ring = crate::util::field_ring_color(is_invalid, focused,\n'
+                '    show_focus_ring, cx);\n'
+                'field = crate::util::apply_field_chrome_ringless(field,\n'
+                '    self.variant, is_invalid, focused, show_focus_ring,\n'
+                '    Some(radius), cx);\n'
+                'field = crate::util::with_field_ring_overlay(field, ring,\n'
+                '    radius, cx);\n')
+    expect(wired(ringless),
+           'the ringless chrome plus a focus-resolved ring hung on an overlay '
+           'must count as a wired field focus')
+    expect(wired(ringless.replace('with_field_ring_overlay(field, ring,',
+                                  'field_ring_carrier(field, ring,')),
+           'the carrier spelling of the hung ring must count too')
+    expect(not wired(ringless.replace('is_invalid, focused, show_focus_ring,\n'
+                                      '    Some(radius), cx);',
+                                      'is_invalid, false, show_focus_ring,\n'
+                                      '    Some(radius), cx);')),
+           'ringless chrome with a literal false focus flag must not pass')
+    expect(not wired(ringless.replace('field_ring_color(is_invalid, focused,',
+                                      'field_ring_color(is_invalid, false,')),
+           'a ring resolved from a literal false must not pass')
+    expect(not wired(re.sub(r'field = crate::util::with_field_ring_overlay'
+                            r'[\s\S]*', '', ringless)),
+           'ringless chrome whose ring is never hung must not pass: the '
+           'ringless helper paints no ring by design')
+    expect(not wired('field = crate::util::apply_field_chrome_ringless(field,\n'
+                     '    self.variant, is_invalid, focused, show_focus_ring,\n'
+                     '    Some(radius), cx);\n'),
+           'the ringless call alone must never stand for a focus state')
 
     def module_source(module):
         path = SRC + module
@@ -473,9 +627,14 @@ def self_test():
         for failure in failures:
             print('- %s' % failure)
         return 1
-    print('self-test PASS: Modal active resolves to close_button.rs and its '
-          'shared press ramp; Checkbox pressed requires its indeterminate color '
-          'branch to reach the animated control background')
+    print('self-test PASS: the field-focus reader takes every chrome spelling '
+          '(plain, with_focus_ring, overlay) at its documented argument '
+          'position, rejects a literal false and a neighbouring flag standing '
+          'in for it, and accepts the ringless shells only when the ring they '
+          'do not paint is resolved from a focus flag and hung on a carrier; '
+          'Modal active resolves to close_button.rs and its shared press ramp; '
+          'Checkbox pressed requires its indeterminate color branch to reach '
+          'the animated control background')
     return 0
 
 
@@ -528,7 +687,7 @@ def main():
                 missing.append('%-22s %-22s (no EVIDENCE for this state)' % (sheet, status))
                 continue
             required = None if key in EVIDENCE_OVERRIDE else REQUIRED.get(status)
-            if required and not re.search(required, code, re.S):
+            if required and not required(code):
                 missing.append('%-22s %-22s %s: called, but never with a focus flag'
                                % (sheet, status, module))
                 continue

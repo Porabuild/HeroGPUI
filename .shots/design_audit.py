@@ -164,6 +164,77 @@ def helper_px(name):
     return None
 
 
+# The two override forms a hoisted radius binding may take. `bound_radius_px`
+# accepts exactly these: both keep the per-component `radius` override winning
+# over the shared `util::*_radius` helper, which is the property the radius
+# rows exist to prove. A bare `let r = crate::util::x_radius(cx);` is *not*
+# accepted -- that is the un-overridden helper read the anchored rows reject.
+_BOUND_RADIUS_INITS = (
+    # `self.radius.unwrap_or_else(|| crate::util::x_radius(cx))`
+    r'self\s*\.radius\s*\.unwrap_or_else\(\|\| crate::util::(\w+_radius)\(cx\)\)',
+    # `match self.radius { Some(r) => r, None => crate::util::x_radius(cx), }`
+    r'match self\.radius \{\s*Some\((\w+)\) => \1\s*,\s*'
+    r'None => crate::util::(\w+_radius)\(cx\)\s*,?\s*\}',
+)
+
+
+def _let_initialiser(src, name):
+    """The initialiser of the single `let <name> = ...;` statement in `src`.
+
+    `None` when the binding is absent or declared more than once: a reader that
+    silently picked the first of two bindings would be guessing which one the
+    `.rounded(..)` call meant. The statement ends at the first `;` outside any
+    bracket, so a `match` arm list is followed rather than truncated.
+    """
+    starts = [m.end() for m in
+              re.finditer(r'\blet\s+' + re.escape(name) + r'\s*=\s*', src)]
+    if len(starts) != 1:
+        return None
+    depth = 0
+    for index in range(starts[0], len(src)):
+        char = src[index]
+        if char in '({[':
+            depth += 1
+        elif char in ')}]':
+            depth -= 1
+            if depth < 0:
+                return None
+        elif char == ';' and depth == 0:
+            return src[starts[0]:index]
+    return None
+
+
+def bound_radius_px(path):
+    """A transform that follows a hoisted radius binding to its helper.
+
+    Skeleton and Link hoist the resolved radius into a local so the shimmer
+    band and the focus ring can share the same value, then style with
+    `.rounded(<binding>)`. The helper name is therefore one step away from the
+    call. This follows that single step -- `let <binding> = <override form>;`
+    in the same file, where the captured group is the binding the row's regex
+    read out of the `.rounded(..)` call -- and resolves the helper it names.
+
+    The step is deliberately one deep and deliberately narrow: only the two
+    override forms in `_BOUND_RADIUS_INITS` resolve, so a binding that drops
+    the override, names a helper indirectly, or is declared twice stays
+    unreadable rather than passing on a guess.
+    """
+
+    def read(binding):
+        src = mask_comments(mask_literals(read_path(path)))
+        init = _let_initialiser(src, binding)
+        if init is None:
+            return None
+        init = ' '.join(init.split())
+        for pattern in _BOUND_RADIUS_INITS:
+            match = re.fullmatch(pattern, init)
+            if match:
+                return helper_px(match.groups()[-1])
+        return None
+
+    return read
+
+
 def size_md_metrics(src, owner, count):
     """Read only the owning production `metrics` method's direct Md arm."""
     src = mask_literals(strip_cfg_test(src))
@@ -1309,9 +1380,11 @@ CHECKS = [
     ('typography', '.typography--code', 'radius', 'Typography code -> util::_radius', SRC + 'typography.rs',
      r'\.rounded\(\s*self\.radius\s*\.unwrap_or_else\(\|\| crate::util::(mark_radius)\(cx\)\)',
      helper_px),
+    # The base fill and the shimmer band share one hoisted radius, so the
+    # helper is one `let` away from the `.rounded(..)` call: read the binding
+    # here and let `bound_radius_px` follow it.
     ('skeleton', '.skeleton', 'radius', 'Skeleton -> util::_radius', SRC + 'skeleton.rs',
-     r'\.rounded\(\s*self\.radius\s*\.unwrap_or_else\(\|\| crate::util::(\w+_radius)\(cx\)\)',
-     helper_px),
+     r'\.rounded\((\w+_radius)\)', bound_radius_px(SRC + 'skeleton.rs')),
     # Anchor the menu metrics to the row's own construction chain. A fixed
     # window was outrun when the row gained a bounds-recording canvas.
     ('menu-item', '.menu-item', 'radius', 'Menu row -> util::_radius', SRC + 'dropdown.rs',
@@ -1346,9 +1419,9 @@ CHECKS = [
     ('alert', '.alert', 'radius', 'Alert -> util::_radius', SRC + 'alert.rs',
      r'let radius = self\s*\.radius\s*\.unwrap_or_else\(\|\| crate::util::(\w+_radius)\(cx\)\);',
      helper_px),
+    # Same hoist: the box and its focus ring round to one binding.
     ('link', '.link', 'radius', 'Link -> util::_radius', SRC + 'link.rs',
-     r'\.rounded\(\s*self\.radius\s*\.unwrap_or_else\(\|\| crate::util::(\w+_radius)\(cx\)\)',
-     helper_px),
+     r'\.rounded\((\w+_radius)\)', bound_radius_px(SRC + 'link.rs')),
     ('badge', '.badge', 'min_w', 'Badge min width Md', SRC + 'badge.rs',
      'Size::Md => \\(\\s*px\\((\\d+(?:\\.\\d*)?)\\)', None),
     ('kbd', '.kbd', 'px', 'Kbd padding_x', SRC + 'kbd.rs',
@@ -4415,6 +4488,66 @@ def self_test():
         '.rounded(crate::util::hairline_radius(cx))'
     ) is None,
         'the skeleton radius reader must reject the un-overridden helper literal')
+
+    # The hoisted spelling: Skeleton and Link resolve the radius into a local
+    # so the shimmer band and the focus ring share it, and round to the
+    # binding. The row regex reads the binding out of `.rounded(..)`;
+    # `bound_radius_px` follows the single `let` step to the helper. Both ends
+    # are pinned here, positively and negatively.
+    binding = r'\.rounded\((\w+_radius)\)'
+    expect(re.search(binding, '.rounded(base_radius)').group(1) == 'base_radius',
+           'the hoisted radius row must read the binding out of `.rounded(..)`')
+    expect(re.search(binding, '.rounded(px(4.))') is None,
+           'the hoisted radius row must not read a literal as a binding')
+
+    def follow(source, name='base_radius'):
+        """`bound_radius_px` against an in-memory fixture."""
+        saved = globals()['read_path']
+
+        def patched(path, *args, **kwargs):
+            # Only the fixture is substituted: `helper_px` still resolves the
+            # helper name against the repository's real `util.rs`.
+            if path == 'fixture.rs':
+                return source
+            return saved(path, *args, **kwargs)
+
+        globals()['read_path'] = patched
+        try:
+            return bound_radius_px('fixture.rs')(name)
+        finally:
+            globals()['read_path'] = saved
+
+    match_form = ('let base_radius = match self.radius {\n'
+                  '    Some(radius) => radius,\n'
+                  '    None => crate::util::hairline_radius(cx),\n'
+                  '};\n')
+    unwrap_form = ('let link_radius = self.radius'
+                   '.unwrap_or_else(|| crate::util::small_radius(cx));\n')
+    expect(follow(match_form) == helper_px('hairline_radius'),
+           'the hoisted radius reader must follow the `match self.radius` form')
+    expect(follow(unwrap_form, 'link_radius') == helper_px('small_radius'),
+           'the hoisted radius reader must follow the `unwrap_or_else` form')
+    expect(helper_px('hairline_radius') != helper_px('small_radius'),
+           'the two hoisted fixtures must resolve to different pixel values, '
+           'or neither positive proves the helper name was read')
+    # Known negatives: the step stays one deep, the override must survive it,
+    # and an ambiguous binding is unreadable rather than a guess.
+    expect(follow('let base_radius = crate::util::hairline_radius(cx);\n') is None,
+           'a hoisted binding that drops the `radius` override must stay '
+           'unreadable')
+    expect(follow('let base_radius = other_radius;\n'
+                  'let other_radius = self.radius'
+                  '.unwrap_or_else(|| crate::util::small_radius(cx));\n') is None,
+           'the hoisted radius reader must not follow a second binding step')
+    expect(follow(match_form + match_form) is None,
+           'a twice-declared radius binding must stay unreadable')
+    expect(follow(match_form, 'missing_radius') is None,
+           'an absent radius binding must stay unreadable')
+    expect(follow('let base_radius = match self.radius {\n'
+                  '    Some(radius) => crate::util::hairline_radius(cx),\n'
+                  '    None => radius,\n'
+                  '};\n') is None,
+           'a `match self.radius` whose arms are swapped must stay unreadable')
     expect(re.search(
         r'let radius = self\s*\.radius\s*\.unwrap_or_else\(\|\| crate::util::(\w+_radius)\(cx\)\);',
         'let radius = self.radius.unwrap_or_else(|| crate::util::field_radius(cx));'
