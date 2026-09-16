@@ -446,7 +446,7 @@ pub fn field_ring_carrier(
 ///
 /// Same chrome, except that the focused ring -- and the focused *invalid*
 /// ring, which is the same geometry in `danger` -- is painted by
-/// [`ring_overlay_in`] rather than by a blurred spread shadow. For a field
+/// `ring_overlay_in` rather than by a blurred spread shadow. For a field
 /// shell that does not clip its children; the ones that do put the same
 /// overlay on a non-clipping wrapper instead and take
 /// [`apply_field_chrome_ringless`] themselves.

@@ -44,9 +44,13 @@ pub(super) const CHECKER_DARK: u32 = 0xf7f7f7;
 /// multicolor checker SVG -- but a single tint works: the light cells stay a
 /// rounded div background (an element's own `bg` always follows its radius)
 /// while the dark cells become one SVG under a `clipPath` curve, tinted dark
-/// through `text_color`. Pair with a light rounded base, e.g.
+/// through `text_color`. Pair with a light rounded base -- a sketch of the
+/// layering, not a compilable example: this helper is `pub(super)`, so
+/// rustdoc never builds a fence here whatever the fence claims, and
+/// `.shots/fence_audit.py` exists to stop a block claiming a check that does
+/// not happen.
 ///
-/// ```ignore
+/// ```text
 /// div().absolute().inset_0().rounded(radius).bg(LIGHT)
 ///     .child(transparency_checker_cells(width, height, radius, 1.0))
 /// ```
