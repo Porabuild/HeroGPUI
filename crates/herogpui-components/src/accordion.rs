@@ -321,14 +321,19 @@ impl RenderOnce for Accordion {
         // flush with the page. Only `.accordion--surface` paints a background
         // and rounds the group. This used to give both variants a rounded white
         // card, so `variant` made no visible difference.
+        let surface = self.variant == AccordionVariant::Surface;
+        // Hoisted so first/last hover fills below can share the resolved
+        // value (see the fade call): vanilla GPUI clips `overflow_hidden()`
+        // to the rectangle.
+        let surface_radius = match self.radius {
+            Some(radius) => radius,
+            None => crate::util::container_radius(cx),
+        };
         let mut container = match self.variant {
             AccordionVariant::Default => gpui::div(),
             AccordionVariant::Surface => gpui::div()
                 .bg(colors.surface.background)
-                .rounded(
-                    self.radius
-                        .unwrap_or_else(|| crate::util::container_radius(cx)),
-                )
+                .rounded(surface_radius)
                 .overflow_hidden(),
         };
 
@@ -370,6 +375,12 @@ impl RenderOnce for Accordion {
                 .px(px(16.))
                 .py(px(16.));
 
+            // Edge rows own the card corners (the container never scrolls,
+            // so data-first/last are always the visible first/last): at rest
+            // no overlay exists yet and the header's own background paints
+            // the corners, so both the element below and the fade overlay
+            // share these flags.
+            let (first, last) = (i == 0, i + 1 == count);
             if item_disabled {
                 header = header.opacity(layout.disabled_opacity);
             } else if !is_open {
@@ -394,13 +405,26 @@ impl RenderOnce for Accordion {
                     AccordionVariant::Default => herogpui_core::with_alpha(colors.foreground, 0.0),
                     AccordionVariant::Surface => colors.surface.background,
                 };
+                // Vanilla GPUI clips `overflow_hidden()` to the rectangle, so
+                // the fade overlay paints its own corners: the first header
+                // owns the group's top pair, and a closed last header owns
+                // the bottom pair (an open last item's panel continues below
+                // it, and open rows never hover). The Default variant paints
+                // no card, so its fills stay square like everything else.
                 header = crate::anim::hover_fade_with_duration(
                     header.cursor(crate::util::interactive_cursor(cx)),
                     element_id::scoped(&element_id::scoped(&id, item.key.clone()), "hover-fade"),
                     (idle_bg, hover_bg),
                     None,
                     None,
-                    |fill| fill,
+                    |fill| {
+                        fill.when(surface && first, |fill| {
+                            fill.rounded_tl(surface_radius).rounded_tr(surface_radius)
+                        })
+                        .when(surface && last, |fill| {
+                            fill.rounded_bl(surface_radius).rounded_br(surface_radius)
+                        })
+                    },
                     Some(crate::anim::ACCORDION_TRIGGER_HOVER_MS),
                     window,
                     cx,
@@ -408,6 +432,17 @@ impl RenderOnce for Accordion {
             } else {
                 header = crate::util::cursor_interactive(header, cx);
             }
+            // The header's own resting background paints square: round the
+            // element itself, not just the hover overlay above (which only
+            // exists after the first hover crossing). The first header always
+            // owns the top pair; a closed last header owns the bottom pair.
+            header = header
+                .when(surface && first, |header| {
+                    header.rounded_tl(surface_radius).rounded_tr(surface_radius)
+                })
+                .when(surface && last && !is_open, |header| {
+                    header.rounded_bl(surface_radius).rounded_br(surface_radius)
+                });
 
             let mut title_col = gpui::div().flex().flex_col();
             title_col = title_col.child(

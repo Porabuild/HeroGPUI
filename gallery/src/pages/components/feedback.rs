@@ -382,15 +382,14 @@ impl Gallery {
                         .flex()
                         .items_center()
                         .gap(px(12.))
-                        // v3 rounds this one with `rounded-full`. Clipping it in
-                        // the wrapper is the same result without inventing a
-                        // per-instance radius prop v3 does not have.
+                        // v3 rounds this one with `rounded-full`. A clipping
+                        // wrapper does not round it on vanilla GPUI (the clip
+                        // is rectangular), so the skeleton carries the radius
+                        // itself: half its size is `rounded-full`.
                         .child(
                             gpui::div()
-                                .rounded_full()
-                                .overflow_hidden()
                                 .flex_shrink_0()
-                                .child(h::Skeleton::new().w(px(40.)).h(px(40.))),
+                                .child(h::Skeleton::new().w(px(40.)).h(px(40.)).radius(px(20.))),
                         )
                         .child(
                             gpui::div()

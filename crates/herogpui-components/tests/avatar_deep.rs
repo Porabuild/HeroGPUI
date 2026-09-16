@@ -663,8 +663,14 @@ fn changing_custom_loader_ok_to_error_to_ok_does_not_keep_stale_latches(cx: &mut
     );
 }
 
+/// A source that completes while mounted reports even if the avatar switches
+/// sources before the reporting task drains: `Avatar.Image.onLoad` fires on
+/// the first observed success, and tiny sources decode synchronously, so the
+/// observation belongs to the mounted source. (The stale path — a pending
+/// source unmounted before its completion arrives — stays suppressed by the
+/// generation guard, pinned deterministically in `avatar::outcome_guard`.)
 #[gpui::test]
-fn changing_custom_loader_before_completion_ignores_the_stale_callback(cx: &mut TestAppContext) {
+fn immediately_completing_loader_reports_while_mounted(cx: &mut TestAppContext) {
     let seen = events();
     let use_b = Rc::new(Cell::new(false));
     let source_a = staged_source(2, TINY_PNG);
@@ -696,8 +702,8 @@ fn changing_custom_loader_before_completion_ignores_the_stale_callback(cx: &mut 
     cx.run_until_parked();
     assert_eq!(
         seen.borrow().as_slice(),
-        ["error:B"],
-        "a completion queued for A must not report after the avatar switches to B"
+        ["load:A", "error:B"],
+        "A completed while mounted so its load reports; B then fails on its own turn"
     );
 }
 

@@ -748,6 +748,10 @@ impl RenderOnce for NumberField {
         // spin button.
         let a11y_name =
             crate::a11y::Name::field(self.label.as_ref(), self.description.as_ref(), &validity);
+        // The group's settled state ring, parked for the non-clipping carrier
+        // at the tail of this render; see the chrome call below.
+        let mut settled_ring = None;
+        let mut carries_ring = false;
         let mut group = gpui::div()
             .id(element_id::scoped(&base_id, "group"))
             .a11y_named(crate::a11y::Role::Group, &a11y_name)
@@ -763,7 +767,14 @@ impl RenderOnce for NumberField {
             // outline or ring, the keyboard focus ring.
             let focused = focus_handle.is_focused(window);
             let show_focus_ring = field_box.focus_ring.unwrap_or(true);
-            group = crate::util::apply_field_chrome_with_focus_ring(
+            carries_ring = true;
+            // `.number-field__group` is `overflow-hidden` around the input and
+            // the steppers, so the settled ring cannot be one of its children:
+            // the group takes the chrome without it and the ring hangs on
+            // `util::field_ring_carrier` below, outside the clip.
+            settled_ring =
+                crate::util::field_ring_color(validity.is_invalid, focused, show_focus_ring, cx);
+            group = crate::util::apply_field_chrome_ringless(
                 group,
                 self.variant,
                 validity.is_invalid,
@@ -829,7 +840,8 @@ impl RenderOnce for NumberField {
                     ring: None,
                 }
             });
-            group = crate::anim::field_chrome_ramp(
+            let ramp_owns_ring;
+            (group, ramp_owns_ring) = crate::anim::field_chrome_ramp(
                 group,
                 &element_id::scoped(&base_id, "group"),
                 idle,
@@ -846,6 +858,12 @@ impl RenderOnce for NumberField {
                 window,
                 cx,
             );
+            // Past its first flip the ramp's own layer is the state ring, and
+            // painting the carrier's overlay as well would draw two.
+            if ramp_owns_ring {
+                settled_ring = None;
+                carries_ring = false;
+            }
         }
         if self.full_width {
             group = group.w_full();
@@ -1087,7 +1105,12 @@ impl RenderOnce for NumberField {
                     .is_disabled(self.is_disabled),
             );
         }
-        el = el.child(group);
+        el = el.child(if carries_ring {
+            crate::util::field_ring_carrier(group, settled_ring, group_radius, cx)
+                .into_any_element()
+        } else {
+            group.into_any_element()
+        });
         // Every message, space-joined in upstream order — React Aria's
         // `FieldError` default — not just the first. The shared feedback row
         // retains the last message while its height and opacity settle out.

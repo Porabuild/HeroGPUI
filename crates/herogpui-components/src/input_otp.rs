@@ -852,16 +852,22 @@ impl RenderOnce for InputOTP {
                 .bg(idle.bg)
                 .border(idle.border_width)
                 .border_color(idle.border);
-            cell = crate::util::with_focus_ring(
+            // The instant ring the first frame casts is an overlay child,
+            // concentric with the slot's own `radius`; the flush geometry takes
+            // no offset gap, so the band sits straight on the slot edge.
+            cell = crate::util::with_focus_ring_overlay(
                 cell,
                 focus_ring.is_some(),
                 false,
+                radius,
                 base_shadows.clone(),
                 cx,
             );
             // The ramp owns the slot's border and ring past its first flip,
             // so the instant ones it painted above stop being cast there.
-            cell = crate::anim::field_chrome_ramp(
+            // The cell is not `overflow-hidden`, so the flag the ramp returns
+            // (whether it is painting the state ring) has no reader here.
+            (cell, _) = crate::anim::field_chrome_ramp(
                 cell,
                 &slot_id,
                 idle,

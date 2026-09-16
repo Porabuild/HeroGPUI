@@ -1096,14 +1096,23 @@ impl RenderOnce for Tabs {
                                 }
                             });
                     }
-                    // `.tab:focus-visible` is `status-focused`.
-                    let mut tab = crate::util::with_focus_ring(
+                    // `.tab:focus-visible` is `status-focused`. The ring is an
+                    // overlay child rather than a spread shadow so its corner
+                    // stays concentric with the tab's own `control_radius`; a
+                    // shadow would keep the tab's radius at a band two pixels
+                    // further out and blur the edge. The tab is the element
+                    // that both carries the rounding and shows the list's
+                    // focus, and `anim::hover_fade` below refines that same
+                    // element rather than wrapping it, so the overlay rides
+                    // along untouched.
+                    let mut tab = crate::util::with_focus_ring_overlay(
                         tab,
                         focused
                             && list_focus.is_focused(window)
                             && crate::util::focus_visible(cx)
                             && !disabled,
                         true,
+                        crate::util::control_radius(cx),
                         Vec::new(),
                         cx,
                     );
@@ -1279,14 +1288,22 @@ impl RenderOnce for Tabs {
                                 }
                             });
                     }
-                    // `.tab:focus-visible` is `status-focused`.
-                    let mut tab = crate::util::with_focus_ring(
+                    // `.tab:focus-visible` is `status-focused`, painted as an
+                    // overlay child. A secondary tab is `rounded-none`, so the
+                    // ring's own corner is the square one the zero radius
+                    // implies; the overlay is still the crisper of the two,
+                    // since the shadow variant needs a non-zero blur. As in
+                    // the primary branch the tab carries both the rounding and
+                    // the list's focus, and `anim::hover_fade` refines it in
+                    // place rather than wrapping it.
+                    let mut tab = crate::util::with_focus_ring_overlay(
                         tab,
                         focused
                             && list_focus.is_focused(window)
                             && crate::util::focus_visible(cx)
                             && !disabled,
                         true,
+                        px(0.),
                         Vec::new(),
                         cx,
                     );

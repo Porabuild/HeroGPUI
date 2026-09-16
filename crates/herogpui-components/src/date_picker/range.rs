@@ -977,13 +977,18 @@ impl RenderOnce for DateRangePicker {
             .px(px(12.))
             .text_size(crate::util::FIELD_TEXT);
 
-        field = crate::util::apply_field_chrome(
+        // The range wrapper clips nothing, so its focused ring -- and the
+        // focused-invalid danger ring, the same geometry in `danger` -- paints
+        // as an overlay child: crisp and concentric where the spread shadow was
+        // blurred and stuck at the element's own radius.
+        field = crate::util::apply_field_chrome_overlay(
             field,
             herogpui_core::FieldVariant::Primary,
             start_invalid || end_invalid,
             start_focus.is_focused(window)
                 || end_focus.is_focused(window)
                 || trigger_focus.is_focused(window),
+            true,
             None,
             cx,
         );

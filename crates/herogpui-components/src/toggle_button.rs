@@ -350,7 +350,12 @@ impl RenderOnce for ToggleButton {
             .flex()
             .items_center()
             .justify_center()
-            .overflow_hidden()
+            // `.toggle-button` is not `overflow-hidden` -- `Button`, whose box
+            // this one mirrors, is not either. The clip that used to be here
+            // only kept the hover fade's fill inside the rounded box on the
+            // patched renderer; the fill carries the same `group_radius_any`
+            // corners as the box now, and dropping the clip is what lets the
+            // focus ring below be the overlay, which hangs outside the box.
             .whitespace_nowrap()
             .flex_shrink_0()
             .font_weight(gpui::FontWeight::MEDIUM)
@@ -531,14 +536,32 @@ impl RenderOnce for ToggleButton {
         if self.is_disabled {
             return crate::util::apply_sx(el, &self.sx);
         }
-        let el = crate::util::ring_if_focused(
-            el.track_focus(&focus_handle),
-            &focus_handle,
-            !is_grouped,
-            Vec::new(),
-            window,
-            cx,
-        );
+        // The ring is the overlay form wherever the four corners resolve to
+        // one radius, as `Button` does it: an overlay is crisp and concentric
+        // where a spread shadow keeps the element's own corner. A grouped
+        // `Start` or `End` member rounds only its outer edge and an `sx`
+        // refinement can break the symmetry of any member, and the overlay's
+        // outer band is built from a scalar, so those keep the shadow ring,
+        // which dilates whatever per-corner shape the element already has.
+        let el = match crate::button::uniform_ring_radius(self.group_edge, radius, &sx_corners) {
+            Some(ring_radius) => crate::util::ring_overlay_if_focused(
+                el.track_focus(&focus_handle),
+                &focus_handle,
+                !is_grouped,
+                ring_radius,
+                Vec::new(),
+                window,
+                cx,
+            ),
+            None => crate::util::ring_if_focused(
+                el.track_focus(&focus_handle),
+                &focus_handle,
+                !is_grouped,
+                Vec::new(),
+                window,
+                cx,
+            ),
+        };
         crate::util::apply_sx(el, &self.sx)
     }
 }

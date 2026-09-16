@@ -783,13 +783,22 @@ impl RangeCalendar {
 
         // `.range-calendar__cell` takes `status-focused` -- a ring, not a border,
         // which would shrink the cell as the cursor arrived.
-        let mut cell = util::with_focus_ring(
+        // An overlay ring rather than a spread shadow: the shadow inherits the
+        // element's own radius (a squarer arc than the `r + gap + 2` CSS draws)
+        // and only paints with a blur. The asymmetric `rounded-ss-3xl` run caps
+        // belong to the `track` underneath, not to this node -- the cell itself
+        // is a uniform circle, or unrounded in mid-range, where the press slot
+        // resolves the fallback `cell_size / 2` anyway -- so one radius says it
+        // all. `cell` is that press slot once selectable: the resting footprint
+        // holding the id, focus and corners while the skin takes the scale.
+        let mut cell = util::with_focus_ring_overlay(
             cell,
             util::shows_focus_ring(
                 !self.inert && !outside_month && frame.focused == Some(date),
                 cx,
             ),
             true,
+            frame.cell_size / 2.,
             Vec::new(),
             cx,
         );
@@ -1165,7 +1174,15 @@ impl RangeCalendar {
                     });
                 }
                 if is_active {
-                    cell = util::ring_if_focused(cell, year_focus, false, Vec::new(), window, cx);
+                    cell = util::ring_overlay_if_focused(
+                        cell,
+                        year_focus,
+                        false,
+                        util::control_radius(cx),
+                        Vec::new(),
+                        window,
+                        cx,
+                    );
                 }
                 cell = cell
                     .a11y_named(a11y::Role::Button, &a11y::Name::labelled(year.to_string()))
@@ -1575,7 +1592,10 @@ impl RenderOnce for RangeCalendar {
             let button = if inert {
                 button
             } else {
-                util::ring_if_focused(button, focus, true, Vec::new(), window, cx)
+                // The ring goes on the press slot `pressed` returned, which is
+                // the node carrying `rounded(small_radius)` and the focus; the
+                // skin inside only carries the 0.95 scale.
+                util::ring_overlay_if_focused(button, focus, true, radius, Vec::new(), window, cx)
             };
             button.a11y_named(a11y::Role::Button, &a11y::Name::labelled(nav_name))
         };
@@ -1635,7 +1655,15 @@ impl RenderOnce for RangeCalendar {
                     let trigger = if self.inert {
                         trigger
                     } else {
-                        util::ring_if_focused(trigger, focus, true, Vec::new(), window, cx)
+                        util::ring_overlay_if_focused(
+                            trigger,
+                            focus,
+                            true,
+                            util::key_radius(cx),
+                            Vec::new(),
+                            window,
+                            cx,
+                        )
                     };
                     trigger
                         .a11y_named(a11y::Role::Button, &a11y::Name::labelled(heading_name))
@@ -1694,7 +1722,15 @@ impl RenderOnce for RangeCalendar {
                     let trigger = if self.inert {
                         trigger
                     } else {
-                        util::ring_if_focused(trigger, focus, true, Vec::new(), window, cx)
+                        util::ring_overlay_if_focused(
+                            trigger,
+                            focus,
+                            true,
+                            util::key_radius(cx),
+                            Vec::new(),
+                            window,
+                            cx,
+                        )
                     };
                     trigger
                         .a11y_named(a11y::Role::Button, &a11y::Name::labelled(heading_name))

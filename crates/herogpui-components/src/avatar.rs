@@ -274,6 +274,19 @@ fn source_identity(
 /// What the source reports this frame: `Some(Ok)` loaded, `Some(Err)` failed,
 /// `None` still pending. `use_asset` (not `get_asset`) is the call that also
 /// arranges a redraw once a resource load settles.
+/// Whether an observed load/error completion may report.
+///
+/// A completion observed while its source is mounted must still lose when the
+/// source changed before the reporting task runs: switching sources bumps
+/// [`AvatarImageState::generation`], so a task carrying the older generation
+/// is stale. The `already` half keeps `on_load`/`on_error` firing exactly
+/// once. Pure so the stale-callback contract has deterministic unit coverage
+/// independent of executor timing (a synchronously-decoding source reports
+/// while still mounted; a pending one must not report after unmount).
+fn first_completion(already: bool, state_generation: u32, observed_generation: u32) -> bool {
+    !already && state_generation == observed_generation
+}
+
 fn observe_load(
     source: &ImageSource,
     window: &mut Window,
@@ -436,11 +449,11 @@ impl RenderOnce for Avatar {
                             .spawn(cx, async move |cx| {
                                 let first = weak
                                     .update(cx, |s, _| {
-                                        if s.loaded || s.generation != generation {
-                                            false
-                                        } else {
+                                        if first_completion(s.loaded, s.generation, generation) {
                                             s.loaded = true;
                                             true
+                                        } else {
+                                            false
                                         }
                                     })
                                     .unwrap_or(false);
@@ -464,11 +477,11 @@ impl RenderOnce for Avatar {
                             .spawn(cx, async move |cx| {
                                 let first = weak
                                     .update(cx, |s, _| {
-                                        if s.errored || s.generation != generation {
-                                            false
-                                        } else {
+                                        if first_completion(s.errored, s.generation, generation) {
                                             s.errored = true;
                                             true
+                                        } else {
+                                            false
                                         }
                                     })
                                     .unwrap_or(false);
@@ -605,5 +618,28 @@ mod fill_tokens {
             !source.contains("(fb_role.color, fb_role.foreground)"),
             "the base avatar never paints a solid role fill"
         );
+    }
+}
+
+// The stale-callback guard, pinned without executor timing: a completion
+// observed while its source is mounted reports exactly once, and a source
+// switch before the reporting task runs suppresses it.
+#[cfg(test)]
+mod outcome_guard {
+    use super::first_completion;
+
+    #[test]
+    fn fresh_completion_reports() {
+        assert!(first_completion(false, 0, 0));
+    }
+
+    #[test]
+    fn source_switch_before_report_suppresses() {
+        assert!(!first_completion(false, 1, 0));
+    }
+
+    #[test]
+    fn second_completion_never_reports() {
+        assert!(!first_completion(true, 1, 1));
     }
 }

@@ -1381,7 +1381,10 @@ impl RenderOnce for TimeField {
             .text_color(colors.field.foreground);
 
         if !field_box.is_bare {
-            group = util::apply_field_chrome_with_focus_ring(
+            // The segment group clips nothing of its own, so both rings the
+            // field chrome can draw move from the blurred spread shadow into
+            // an overlay child at the group's resolved radius.
+            group = util::apply_field_chrome_overlay(
                 group,
                 self.variant,
                 is_invalid,

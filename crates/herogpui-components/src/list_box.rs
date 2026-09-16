@@ -1374,11 +1374,19 @@ impl ListBox {
                 // `.list-box-item` takes `status-focused` on the row the keyboard
                 // is on. A ring rather than a border: a border would move the
                 // row's content by two pixels as the cursor arrived. Pointer
-                // hover seats the cursor without painting the ring.
-                let row = util::with_focus_ring(
+                // hover seats the cursor without painting the ring. The ring is
+                // an overlay child so its corner stays concentric with the
+                // row's `soft_radius`; the shadow variant would keep the row's
+                // own radius two pixels further out and blur the edge. The
+                // overlay reaches four pixels past the row, which is exactly
+                // the list's `p-1` plus its border band, so the enclosing
+                // `overflow_hidden` list does not cut it -- and clips the
+                // shadow spread to the same box anyway.
+                let row = util::with_focus_ring_overlay(
                     row,
                     util::shows_focus_ring(cursor_at == Some(index), cx),
                     true,
+                    util::soft_radius(cx),
                     Vec::new(),
                     cx,
                 );

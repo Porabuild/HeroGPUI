@@ -677,8 +677,11 @@ impl RenderOnce for Switch {
             .rounded(track_r)
             .map(|track| crate::util::round_sx_corners(track, &sx_corners))
             // HeroUI clips the animated fill, thumb shadow and custom icon to
-            // the rounded control perimeter. This shared renderer mask keeps
-            // those descendants inside the track at every corner radius.
+            // the rounded control perimeter. Vanilla GPUI clips
+            // `overflow_hidden()` to the track's rectangle, so each descendant
+            // layer carries the track radius itself (see
+            // `util::inner_fill_radius`); the track clip remains as the
+            // backstop for anything those layers do not cover.
             .overflow_hidden()
             .bg(track_bg)
             .flex()
@@ -767,9 +770,31 @@ impl RenderOnce for Switch {
             .child(thumb_color_frame.render(thumb_el));
         track = track.child(thumb_motion.render(thumb_slot, thumb_travel));
 
-        if !self.is_disabled {
+        // The track's clip is load-bearing -- it is what keeps the checked
+        // thumb's three-layer shadow and a custom thumb icon inside the
+        // rounded perimeter -- so the focus ring, which hangs outside the box,
+        // cannot be one of its children. A carrier that takes the same box
+        // without clipping hosts it instead; the track keeps the id, the
+        // cursor and every listener, and the overlay only needs the focused
+        // flag. An `sx` refinement that breaks the corner symmetry has no one
+        // radius the overlay's scalar bands could take, so it keeps the spread
+        // shadow, which dilates the element's own per-corner shape.
+        let ring_radius = crate::button::uniform_ring_radius(None, track_r, &sx_corners);
+        if !self.is_disabled && ring_radius.is_none() {
             track =
                 crate::util::ring_if_focused(track, &focus_handle, true, Vec::new(), window, cx);
+        }
+        let mut track = gpui::div().relative().child(track);
+        if let (false, Some(ring_radius)) = (self.is_disabled, ring_radius) {
+            track = crate::util::ring_overlay_if_focused(
+                track,
+                &focus_handle,
+                true,
+                ring_radius,
+                Vec::new(),
+                window,
+                cx,
+            );
         }
 
         // `.switch__content` is `gap-3`. v3 gets the label's side from the order

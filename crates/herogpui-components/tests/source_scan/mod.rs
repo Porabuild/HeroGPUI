@@ -20,9 +20,10 @@ pub fn component_src(relative: &str) -> String {
 }
 
 /// Asserts `source` has exactly one shared field-chrome call and that it sits
-/// inside `guard` (the complete `if ... {` line). The optional focus-ring
-/// variant is counted alongside the stock helper because both share the same
-/// chrome call site.
+/// inside `guard` (the complete `if ... {` line). Every focus-ring variant --
+/// the shadow one, the overlay one, and the ringless one a clipping shell
+/// takes while its carrier paints the ring -- is counted alongside the stock
+/// helper because they all share the same chrome call site.
 ///
 /// Counting appearances alone would pass if the call moved outside the guard;
 /// scoping to the guarded block binds the call to the condition the builder
@@ -31,7 +32,9 @@ pub fn assert_chrome_call_is_under(source: &str, guard: &str) {
     let calls = source.matches("apply_field_chrome(").count()
         + source
             .matches("apply_field_chrome_with_focus_ring(")
-            .count();
+            .count()
+        + source.matches("apply_field_chrome_overlay(").count()
+        + source.matches("apply_field_chrome_ringless(").count();
     assert_eq!(
         calls, 1,
         "the component must have exactly one chrome call site, found {calls}"
@@ -43,7 +46,9 @@ pub fn assert_chrome_call_is_under(source: &str, guard: &str) {
     let body_len = guard_body_len(&source[body_at..]);
     assert!(
         source[body_at..body_at + body_len].contains("apply_field_chrome(")
-            || source[body_at..body_at + body_len].contains("apply_field_chrome_with_focus_ring("),
+            || source[body_at..body_at + body_len].contains("apply_field_chrome_with_focus_ring(")
+            || source[body_at..body_at + body_len].contains("apply_field_chrome_overlay(")
+            || source[body_at..body_at + body_len].contains("apply_field_chrome_ringless("),
         "the only chrome call must sit inside the `{guard}` guard"
     );
 }

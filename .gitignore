@@ -68,9 +68,8 @@ web/.verify/
 .vercel
 .env*
 
-# The patched GPUI sources. The repository records the fork as patches under
-# docs/upstream/patches/; `.shots/gpui_patches.py --materialize` rebuilds this
-# tree from the pinned published packages plus those patches, and every cargo
-# command (and rust-analyzer) needs it to exist first. ~153,000 lines of
-# dependency source that is not ours and is never committed.
+# Retired: an earlier revision materialized patched GPUI sources here from
+# docs/upstream/patches/ plus the pinned published packages. The fork
+# mechanism is gone (see docs/upstream/retired-patches/); the entry stays so
+# a stale tree from an older branch is never committed by accident.
 /.vendor/

@@ -2576,7 +2576,7 @@
       {
         "token": ".color-slider__track horizontal / vertical",
         "description": "Cross-axis thickness, rounded total footprint, endpoint inset, pointer travel, and separate min/max cap fills match in both orientations.",
-        "rust": "track_h=20 + COLOR_SLIDER_TRACK_INSET_PX + start_cap/end_cap",
+        "rust": "track_h=20 + COLOR_SLIDER_TRACK_INSET_PX end zones as gradient stop percentages",
         "status": "implemented"
       },
       {

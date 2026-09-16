@@ -243,6 +243,21 @@ impl RenderOnce for ScrollShadow {
             scroller.flex_col().overflow_y_scroll()
         };
 
+        // A mouse wheel reports only `deltaY`, and the web platform forwards
+        // the raw axes, so shift+wheel never reaches a horizontal scroller
+        // there (native platforms translate it themselves). Until that lands
+        // upstream, drive the handle's x offset from the vertical delta here;
+        // see `util::shift_wheel_scroll_x`. `restrict_scroll_to_axis` already
+        // drops the vertical component from `track_scroll`, so the two do not
+        // double-scroll. Native builds keep flowing through `track_scroll`
+        // untouched: the helper is a web-only no-op elsewhere.
+        if horizontal {
+            let wheel_scroll = scroll.clone();
+            scroller = scroller.on_scroll_wheel(move |event, _window, _cx| {
+                crate::util::shift_wheel_scroll_x(&wheel_scroll, event);
+            });
+        }
+
         if self.fill_axis {
             scroller = if horizontal {
                 scroller.w_full().min_w(px(0.))

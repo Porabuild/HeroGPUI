@@ -1,7 +1,7 @@
 """A component that reports no role reports nothing at all.
 
 gpui only puts an element in the AccessKit tree when it has *both* a
-`GlobalElementId` and a role (`gpui-pre-0.3.3/src/window/a11y.rs`: "Nodes
+`GlobalElementId` and a role (`gpui-pre-0.3.5/src/window/a11y.rs`: "Nodes
 without `GlobalElementId`s cannot produce an AccessKit `NodeId`, and so are not
 included in the accessibility tree"; `Interactivity::a11y_role` then filters out
 everything with no `override_role`). `element_id_audit.py` guards the first

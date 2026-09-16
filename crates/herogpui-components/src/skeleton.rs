@@ -112,12 +112,16 @@ impl RenderOnce for Skeleton {
                 .unwrap_or(cx.layout().skeleton_animation)
         };
 
+        // Hoisted so the shimmer band below can share the resolved value:
+        // vanilla GPUI clips `overflow_hidden()` to the rectangle, so the
+        // band carries this same radius (see `util::inner_fill_radius`).
+        let base_radius = match self.radius {
+            Some(radius) => radius,
+            None => crate::util::hairline_radius(cx),
+        };
         let base = div()
             .bg(base_color)
-            .rounded(
-                self.radius
-                    .unwrap_or_else(|| crate::util::hairline_radius(cx)),
-            )
+            .rounded(base_radius)
             .overflow_hidden()
             .when_some(self.w, |el, w| el.w(w))
             .when_some(
@@ -150,11 +154,17 @@ impl RenderOnce for Skeleton {
             // size.
             SkeletonAnimation::Shimmer => {
                 let highlight = colors.background;
+                // The band sweeps edge to edge, so at each end of its travel
+                // it paints square pixels through the base's rounded corners
+                // (vanilla GPUI clips `overflow_hidden()` to the rectangle).
+                // Rounding the band to the base radius reproduces the CSS
+                // clip v3 gets from `overflow: hidden` + `border-radius`.
                 let band = div()
                     .absolute()
                     .top_0()
                     .bottom_0()
                     .w(gpui::relative(0.35))
+                    .rounded(base_radius)
                     .bg(gpui::linear_gradient(
                         90.0,
                         gpui::linear_color_stop(highlight.alpha(0.0), 0.0),

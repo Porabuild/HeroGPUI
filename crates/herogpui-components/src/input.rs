@@ -2211,13 +2211,23 @@ impl RenderOnce for Input {
             // it still dims itself.
             .when(self.is_disabled && !self.group_dim, |e| e.opacity(disabled_opacity));
 
+        // The multi-line field's ring, parked until its content is in place;
+        // see the chrome call below.
+        let mut carrier_ring = None;
+
         // Inside an `InputGroup` the group is the field: v3's
         // `.input-group__input` is `rounded-none border-0 bg-transparent
         // shadow-none`.
         // `is_bare` takes the same exit: one chrome call site, skipped by
         // either reason.
         if self.in_group.is_none() && !self.is_bare {
-            field = crate::util::apply_field_chrome_with_focus_ring(
+            // Both spellings of the field take the same overlay ring. The
+            // single-line box does not clip, so the ring is its own child;
+            // the multi-line box clips its wrapped text (`overflow_hidden`
+            // above) and would cut a child ring, so its ring hangs on the
+            // non-clipping carrier added once the content is in place.
+            let ring = crate::util::field_ring_color(is_invalid, focused, show_focus_ring, cx);
+            field = crate::util::apply_field_chrome_ringless(
                 field,
                 self.variant,
                 is_invalid,
@@ -2226,6 +2236,11 @@ impl RenderOnce for Input {
                 Some(radius),
                 cx,
             );
+            if multiline {
+                carrier_ring = Some(ring);
+            } else {
+                field = crate::util::with_field_ring_overlay(field, ring, radius, cx);
+            }
 
             if !self.is_disabled && !is_invalid && !focused && theme_background.is_none() {
                 let idle_bg = match self.variant {
@@ -2577,10 +2592,15 @@ impl RenderOnce for Input {
                     }
                 })
                 .child(clear_content);
-            clear = crate::util::ring_if_focused(
+            // The clear affordance both carries `clear_radius` and takes the
+            // focus, so the overlay ring goes straight on it and tracks the
+            // same corner. Only the button migrates: the field around it
+            // clips its children in the multi-line case and stays on shadows.
+            clear = crate::util::ring_overlay_if_focused(
                 clear,
                 &clear_focus_handle,
                 true,
+                clear_radius,
                 Vec::new(),
                 window,
                 cx,
@@ -2836,6 +2856,16 @@ impl RenderOnce for Input {
             .into_any_element()
         } else {
             field.into_any_element()
+        };
+
+        // The multi-line box clips its wrapped text, so its focus ring rides
+        // `util::field_ring_carrier`. The measured anchor bounds stay on the
+        // field row inside it.
+        let field_element: gpui::AnyElement = match carrier_ring {
+            Some(ring) => {
+                crate::util::field_ring_carrier(field_element, ring, radius, cx).into_any_element()
+            }
+            None => field_element,
         };
 
         // Inside a group the surrounding component owns the label, the

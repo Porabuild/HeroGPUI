@@ -1,3 +1,12 @@
+> **Retired (2026-09-15):** the workspace builds on vanilla registry `gpui-pre`
+> 0.3.5 with no `[patch.crates-io]` overrides. This document now serves two
+> purposes: the component-level replacements (`a11y.rs`,
+> `util::shift_wheel_scroll_x`, `util::inner_fill_radius`) and the upstream-PR
+> effort, whose source material is the 0.3.3 patch set under
+> `docs/upstream/retired-patches/`. Verified still missing from vanilla 0.3.5.
+> Procedural passages below that say to materialize, re-record, or rebase a
+> live fork describe the retired workflow, not current practice.
+
 # Upstream: `gpui_web` shift+wheel horizontal scroll and IME mirror resync after paste
 
 HeroGPUI forks the published `gpui-pre-web` 0.3.3 crate. No fork source is

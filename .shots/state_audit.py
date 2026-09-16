@@ -108,10 +108,10 @@ EVIDENCE_OVERRIDE = {
     # Five of v3's sheets map to `color_picker.rs`, so a module-wide search
     # cannot tell which of its controls rings. Each names its own handle.
     ('color-area', 'status-focused'):
-        r'let thumb_visual = util::with_focus_ring\([\s\S]{0,500}?\bis_focus_visible\b',
+        r'let thumb_visual = util::with_focus_ring(?:_overlay)?\([\s\S]{0,500}?\bis_focus_visible\b',
     ('color-slider', 'status-focused'):
-        r'let (?:mut )?thumb(?:_visual)? = util::with_focus_ring\([\s\S]{0,1400}?\n\s*is_focus_visible,',
-    ('color-picker', 'status-focused'): r'ring_if_focused\(\s*trigger,',
+        r'let (?:mut )?thumb(?:_visual)? = util::with_focus_ring(?:_overlay)?\([\s\S]{0,1400}?\n\s*is_focus_visible,',
+    ('color-picker', 'status-focused'): r'ring(?:_overlay)?_if_focused\(\s*trigger,',
     ('color-swatch-picker', 'status-focused'): r'swatch_focus',
     # The OTP draws its own flush ring on the active slot, so there is no
     # `apply_field_chrome` to find.
@@ -120,7 +120,7 @@ EVIDENCE_OVERRIDE = {
 
 # The code that implements each state.
 EVIDENCE = {
-    'status-focused': r'ring_if_focused|with_focus_ring|focus_ring_shadows|util::focusable',
+    'status-focused': r'ring_if_focused|ring_overlay_if_focused|with_focus_ring|focus_ring_shadows|focus_ring_overlay|util::focusable',
     'status-focused-field': r'apply_field_chrome|focus_ring_shadows\(false',
     'status-disabled': r'disabled_opacity',
     'status-pending': r'is_pending',

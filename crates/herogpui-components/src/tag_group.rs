@@ -794,10 +794,18 @@ impl RenderOnce for TagGroup {
                                 cx.notify();
                             });
                         });
-                    remove_visual = crate::util::ring_if_focused(
+                    // The ring rides the 12px glyph rather than the 24px
+                    // touch target that owns the focus handle: the glyph is
+                    // the element carrying `rounded_full`, and the ring is
+                    // concentric only with the shape it is drawn around. A
+                    // ring on the touch target would circle a footprint the
+                    // pinned sheet never paints. `rounded_full` on a 12px box
+                    // resolves to a 6px radius.
+                    remove_visual = crate::util::ring_overlay_if_focused(
                         remove_visual,
                         remove_focus,
                         true,
+                        px(6.),
                         Vec::new(),
                         window,
                         cx,
@@ -1102,10 +1110,11 @@ impl RenderOnce for TagGroup {
             }
 
             // `.tag:focus-visible` is `status-focused`.
-            let chip = crate::util::with_focus_ring(
+            let chip = crate::util::with_focus_ring_overlay(
                 chip,
                 !disabled && ring_visible && cursor_index == Some(index) && owns_focus,
                 true,
+                tag_radius,
                 Vec::new(),
                 cx,
             );

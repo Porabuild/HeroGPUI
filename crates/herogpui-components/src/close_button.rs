@@ -307,10 +307,15 @@ impl RenderOnce for CloseButton {
         // focus tracking land on the press slot — the element the ramp
         // returned — so keyboard activation and pointer activation answer on
         // the same element and the ring draws around the resting footprint.
-        let el = crate::util::ring_if_focused(
+        // The press slot is both the element the ramp rounded to `radius` and
+        // the one that takes the focus, so the overlay goes there: it stays
+        // concentric with the resting footprint while the skin inside it
+        // scales under a press.
+        let el = crate::util::ring_overlay_if_focused(
             el.track_focus(&focus_handle),
             &focus_handle,
             true,
+            radius,
             Vec::new(),
             window,
             cx,

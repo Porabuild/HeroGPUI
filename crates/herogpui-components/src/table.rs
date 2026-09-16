@@ -2523,6 +2523,49 @@ impl RenderOnce for Table {
         // one row builder for both paths is what keeps a virtual table drawing
         // the same row as a short one.
         let table_id = self.id.clone();
+        // Which of the row run's edges coincide with a curved edge of the box
+        // that clips it. A virtual body only meets its box at an edge it is
+        // actually scrolled to; an unresolved scroll state answers "no",
+        // which keeps a square fill rather than a wrongly rounded one.
+        let (round_top, round_bottom) = {
+            let (touches_top, touches_bottom) = if self.row_height.is_some()
+                && self.virtual_rows.is_some()
+            {
+                let at_top = {
+                    let scroll = virtual_scroll_now.0.borrow();
+                    scroll.base_handle.offset().y >= px(-0.5)
+                };
+                // `is_scrolled_to_end` answers `None` when the list does
+                // not scroll at all, and then every row is on screen.
+                (
+                    at_top,
+                    virtual_scroll_now.is_scrolled_to_end().unwrap_or(true),
+                )
+            } else if let Some(state) = &virtual_list_state {
+                let top = state.logical_scroll_top();
+                let viewport = state.viewport_bounds();
+                (
+                    top.item_ix == 0 && top.offset_in_item <= px(0.5),
+                    virtual_visible_count == 0
+                        || state
+                            .bounds_for_item(virtual_visible_count - 1)
+                            .is_some_and(|bounds| bounds.bottom() <= viewport.bottom() + px(0.5)),
+                )
+            } else {
+                // Plain rows have no scroller of their own, so the run's
+                // edges are the box's edges.
+                (true, true)
+            };
+            edge_corner_rounding(
+                secondary,
+                self.footer.is_some(),
+                touches_top,
+                touches_bottom,
+                cx.layout().radius_2xl().min(px(32.)),
+                self.radius
+                    .unwrap_or_else(|| crate::util::container_radius(cx)),
+            )
+        };
         let ctx = std::rc::Rc::new(RowCtx {
             id: base_id.clone(),
             measured_widths,
@@ -2574,6 +2617,8 @@ impl RenderOnce for Table {
             row_hover_bg: self.row_hover_bg,
             hover_group_prefix: table_id.clone(),
             virtualized: virtual_projection.is_some(),
+            round_top,
+            round_bottom,
             is_tree,
         });
 
@@ -3509,6 +3554,37 @@ impl RenderOnce for Table {
 
 /// Everything one body row needs, so both the plain and the virtualized path can
 /// draw it from the same code.
+/// Which corners of a body row's full-bleed fill must be rounded so the fill
+/// does not square the curved edge it sits against.
+///
+/// Vanilla GPUI clips an `overflow_hidden()` child to its parent's rectangle
+/// rather than to the parent's rounded corners, so the fill has to carry the
+/// curve itself. Which box owns that curve differs by variant: the primary
+/// variant's rows sit in the rounded `.table__body` block, while the
+/// secondary variant is flat and the wrapper's own corners are the only
+/// curve — and there the header sits above the rows, so the top corners are
+/// never the rows', and a footer takes the bottom ones when one is present.
+fn edge_corner_rounding(
+    secondary: bool,
+    has_footer: bool,
+    touches_top: bool,
+    touches_bottom: bool,
+    body_radius: Pixels,
+    wrapper_radius: Pixels,
+) -> (Option<Pixels>, Option<Pixels>) {
+    if secondary {
+        (
+            None,
+            (touches_bottom && !has_footer).then_some(wrapper_radius),
+        )
+    } else {
+        (
+            touches_top.then_some(body_radius),
+            touches_bottom.then_some(body_radius),
+        )
+    }
+}
+
 struct RowCtx {
     /// The table's id, so one table's row ids cannot collide with another's.
     /// Every row part is scoped off it.
@@ -3553,6 +3629,12 @@ struct RowCtx {
     /// Whether the collection is windowed, which is the guard upstream puts
     /// `aria-rowindex` behind (`.../grid/useGridRow.mjs`).
     virtualized: bool,
+    /// The radius the first row's outer cells must round their fill to, when
+    /// the top of the row run really is the curved edge of its box. `None`
+    /// leaves the fill square, which is what a scrolled virtual body needs.
+    round_top: Option<Pixels>,
+    /// The same for the last row's outer cells and the bottom edge.
+    round_bottom: Option<Pixels>,
     /// Whether the collection is a tree, which is what makes
     /// `useTableRow.mjs` add `aria-level` and `aria-expanded` to a row.
     is_tree: bool,
@@ -3633,6 +3715,12 @@ impl RowCtx {
         }
 
         let data_count = row_data.cells.len();
+        // The row's fill is painted per cell, so the outer cells of the first
+        // and last rows carry the box's curve on the edge they touch.
+        let round_top = (i == 0).then_some(self.round_top).flatten();
+        let round_bottom = (i + 1 == self.row_keys.len())
+            .then_some(self.round_bottom)
+            .flatten();
 
         if self.selectable {
             let mut cell = gpui::div()
@@ -3651,6 +3739,12 @@ impl RowCtx {
                 .when_some(selected_bg, |cell, bg| cell.bg(bg))
                 .when_some(hover_bg, |cell, bg| {
                     cell.group_hover(hover_group.clone(), move |s| s.bg(bg))
+                })
+                .when_some(round_top, |cell, r| cell.rounded_tl(r))
+                .when_some(round_bottom, |cell, r| cell.rounded_bl(r))
+                .when(data_count == 0, |cell| {
+                    cell.when_some(round_top, |cell, r| cell.rounded_tr(r))
+                        .when_some(round_bottom, |cell, r| cell.rounded_br(r))
                 })
                 .on_mouse_down(gpui::MouseButton::Left, |_, _, cx| {
                     cx.stop_propagation();
@@ -3740,6 +3834,14 @@ impl RowCtx {
                 .when_some(selected_bg, |cell, bg| cell.bg(bg))
                 .when_some(hover_bg, |cell, bg| {
                     cell.group_hover(hover_group.clone(), move |s| s.bg(bg))
+                })
+                .when(!self.selectable && c == 0, |cell| {
+                    cell.when_some(round_top, |cell, r| cell.rounded_tl(r))
+                        .when_some(round_bottom, |cell, r| cell.rounded_bl(r))
+                })
+                .when(c + 1 == data_count, |cell| {
+                    cell.when_some(round_top, |cell, r| cell.rounded_tr(r))
+                        .when_some(round_bottom, |cell, r| cell.rounded_br(r))
                 });
             if self.measure_intrinsic.get(c).copied().unwrap_or(false) {
                 let measurements = self.measured_widths.clone();
@@ -4347,6 +4449,84 @@ mod tests {
                 && source.contains("rotating_indicator_with_duration")
                 && source.contains(".path(icons::CHEVRON_UP)"),
             "table headers must draw the pinned separator and use the shared 100ms rotation"
+        );
+    }
+
+    /// The primary variant's rows sit in the rounded `.table__body`, whose
+    /// top and bottom curves both bound the row run.
+    #[test]
+    fn primary_row_fills_round_to_the_body_on_the_edges_they_touch() {
+        let body = px(16.);
+        let wrapper = px(24.);
+        assert_eq!(
+            edge_corner_rounding(false, false, true, true, body, wrapper),
+            (Some(body), Some(body))
+        );
+        // A footer sits below the body, so it never takes the body's curve.
+        assert_eq!(
+            edge_corner_rounding(false, true, true, true, body, wrapper),
+            (Some(body), Some(body))
+        );
+        // A virtual body scrolled off either edge is cut straight there.
+        assert_eq!(
+            edge_corner_rounding(false, false, false, true, body, wrapper),
+            (None, Some(body))
+        );
+        assert_eq!(
+            edge_corner_rounding(false, false, true, false, body, wrapper),
+            (Some(body), None)
+        );
+        assert_eq!(
+            edge_corner_rounding(false, false, false, false, body, wrapper),
+            (None, None)
+        );
+    }
+
+    /// The secondary variant is flat, so the wrapper's corners are the only
+    /// curve -- and the header always stands between them and the first row.
+    #[test]
+    fn secondary_row_fills_round_only_to_the_wrapper_bottom() {
+        let body = px(16.);
+        let wrapper = px(24.);
+        assert_eq!(
+            edge_corner_rounding(true, false, true, true, body, wrapper),
+            (None, Some(wrapper))
+        );
+        // A footer takes the wrapper's bottom edge instead.
+        assert_eq!(
+            edge_corner_rounding(true, true, true, true, body, wrapper),
+            (None, None)
+        );
+        assert_eq!(
+            edge_corner_rounding(true, false, true, false, body, wrapper),
+            (None, None)
+        );
+    }
+
+    /// The decision is taken once per render and threaded through `RowCtx`,
+    /// and only the first and last rows' outer cells may consume it.
+    #[test]
+    fn only_the_outer_cells_of_the_edge_rows_round_their_fill() {
+        let source = include_str!("table.rs")
+            .split("#[cfg(test)]")
+            .next()
+            .expect("the implementation section is always present");
+        assert!(
+            source.contains("let round_top = (i == 0).then_some(self.round_top).flatten();")
+                && source.contains("let round_bottom = (i + 1 == self.row_keys.len())"),
+            "only the first and last body rows may round their cell fills"
+        );
+        assert!(
+            source.contains(".when(!self.selectable && c == 0, |cell| {")
+                && source.contains(".when(c + 1 == data_count, |cell| {")
+                && source.contains(".when_some(round_top, |cell, r| cell.rounded_tl(r))")
+                && source.contains(".when_some(round_bottom, |cell, r| cell.rounded_br(r))"),
+            "the row's leading and trailing cells must carry the box's corners"
+        );
+        assert!(
+            source.contains("virtual_scroll_now.is_scrolled_to_end().unwrap_or(true)")
+                && source.contains("top.item_ix == 0 && top.offset_in_item <= px(0.5)"),
+            "a virtual body must only round the edges it is scrolled to"
         );
     }
 

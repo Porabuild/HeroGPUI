@@ -1457,8 +1457,19 @@ impl RenderOnce for DateField {
                 });
         }
 
+        // `.date-input-group` is `overflow-hidden` around its segments, so a
+        // ring drawn in its margin would be cut: the group takes the chrome
+        // without the ring and `util::field_ring_carrier` below hangs the ring
+        // outside the clip.
+        let mut carrier_ring = None;
         if !self.bare && !self.is_bare {
-            group = crate::util::apply_field_chrome_with_focus_ring(
+            carrier_ring = Some(crate::util::field_ring_color(
+                is_invalid,
+                focus_handle.is_focused(window),
+                self.focus_ring,
+                cx,
+            ));
+            group = crate::util::apply_field_chrome_ringless(
                 group,
                 self.variant,
                 is_invalid,
@@ -1613,10 +1624,21 @@ impl RenderOnce for DateField {
             if self.is_disabled {
                 group = group.opacity(cx.layout().disabled_opacity);
             }
-            return crate::util::apply_sx(group, &self.sx).into_any_element();
+            let group = crate::util::apply_sx(group, &self.sx);
+            return match carrier_ring {
+                Some(ring) => {
+                    crate::util::field_ring_carrier(group, ring, radius, cx).into_any_element()
+                }
+                None => group.into_any_element(),
+            };
         }
 
-        let row = group;
+        let row: gpui::AnyElement = match carrier_ring {
+            Some(ring) => {
+                crate::util::field_ring_carrier(group, ring, radius, cx).into_any_element()
+            }
+            None => group.into_any_element(),
+        };
 
         // -- label / description / error wrapper ------------------------------
         let mut el = gpui::div().flex().flex_col().gap(px(4.));

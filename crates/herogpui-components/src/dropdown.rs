@@ -1190,11 +1190,16 @@ impl RenderOnce for Menu {
                     // `.menu-item` takes `status-focused` on the row the keyboard
                     // is on -- a ring, not a border, which would shift the row.
                     // Pointer hover seats the cursor for the next arrow; it
-                    // must not paint the ring.
-                    row = crate::util::with_focus_ring(
+                    // must not paint the ring. The ring rides as an overlay
+                    // child so its corner is concentric with the row's
+                    // `soft_radius`, which a spread shadow cannot be: the
+                    // shadow keeps the row's own radius at a band two pixels
+                    // wider, and needs a blur to paint at all.
+                    row = crate::util::with_focus_ring_overlay(
                         row,
                         crate::util::shows_focus_ring(cursor_at == Some(i), cx),
                         true,
+                        crate::util::soft_radius(cx),
                         Vec::new(),
                         cx,
                     );

@@ -17,7 +17,7 @@ Freeze the execution baseline to:
 
 - HeroUI tag `v3.2.5`, commit `5f13f6ed355bdbd5d5f69e5944685438a3591793`.
 - React Aria `3.52.0`, React Stately `3.50.0`, React Aria Components `1.21.0`, with additional inherited packages resolved from that tag's lockfile.
-- Rust and the entire `gpui-pre` family exactly as pinned by this workspace; currently Rust 1.98 and `gpui-pre =0.3.3`.
+- Rust and the entire `gpui-pre` family as pinned by this workspace; currently Rust 1.98 and `gpui-pre 0.3.5` (caret, registry-vanilla with no forks).
 - HeroUI **React** as the design reference. HeroUI Native, HeroUI Pro, v2 examples, and unreleased main-branch changes do not define this contract.
 
 At execution start, check the release index again. If a newer stable release exists, first make a release-delta worksheet and deliberately refresh all affected pins, source archives, metadata, and inherited behavior references as one baseline change. Do not silently mix releases or chase new releases halfway through a component batch. The user's request for the latest HeroUI permits planning that migration; it does not make an unreviewed moving target useful evidence.
@@ -68,7 +68,7 @@ Maintain these constraints:
 
 - Preserve unrelated changes; start and finish each slice with `git status --short` and the relevant diff.
 - Read implementation, callers, tests, tagged HeroUI source, and exact dependency behavior before editing.
-- Use unpacked `~/.cargo/registry/src/index.crates.io-*/gpui-pre-0.3.3/` as GPUI API evidence. Historical references to a Zed checkout or `gpui` 0.2.2 are not current evidence.
+- Use unpacked `~/.cargo/registry/src/index.crates.io-*/gpui-pre-0.3.5/` as GPUI API evidence. Historical references to a Zed checkout or `gpui` 0.2.2 are not current evidence.
 - Keep controlled values caller-owned, uncontrolled seeds stable, per-instance state keyed, ids unique, and callbacks exact-once.
 - Preserve the recorded focus decision: Escape does not itself enable focus rings; keyboard-control modality enables them, pointer input clears them. Document this intentional deviation when comparing React Aria.
 - Preserve supported native customization. Do not remove `sx`, radius, or size extensions merely because they are not upstream props. Keep them separately documented and owner-scoped in `extra_audit.py`; the default specimen must still match upstream.
@@ -237,17 +237,14 @@ toast and overlay primitive. Include endpoint fills and absolute controls at
 both ends of a track; inspect the corners at native and WASM scale rather than
 accepting a thumbnail that can hide a one-pixel leak.
 
-The pinned `gpui-pre` renderer has the rounded-clip behavior needed for this
-contract, but the workspace carries a small fork of it, recorded only as
-patches. Any renderer change must be made in the materialized
-`.vendor/gpui-pre*-0.3.3` tree (`.shots/gpui_patches.py --materialize` builds
-it) and regenerated into `docs/upstream/patches/gpui-pre-0.3.3*.patch` with
-`.shots/gpui_patches.py --write`; `--check` must replay the patch against the
-published `=0.3.3` sources. Never edit the registry copy or rely on an unrecorded local change:
-the next GPUI release will replace that copy. When the pin changes, rebase the
-smallest possible patch, rerun the rounded-mask and focus-ring suites on every
-backend, and keep the old patch and evidence history until the new artifact is
-verified.
+Vanilla `gpui-pre` clips `overflow_hidden()` to the parent rectangle even when
+the parent is rounded: keep rounded fills on the child side with
+`util::inner_fill_radius` (each clipped fill carries its clip parent's
+radius), and never rely on the clip mask for corner geometry. The retired
+renderer fork that fixed this for every component at once lives under
+`docs/upstream/retired-patches/` as upstream-PR material only; it is not
+wired into any build. Never edit the registry copy or rely on an unrecorded
+local change: the next GPUI release will replace that copy.
 
 The visual text rule is source-driven as well. HeroUI v3.2.5's Select,
 Autocomplete and ComboBox value slots use `wrap-break-word`, and collection

@@ -15,11 +15,6 @@ param(
     [string]$OutDir = "E:\work\HeroGPUI\.shots"
 )
 
-# The patched GPUI sources are not checked in, and cargo resolves
-# `[patch.crates-io]` at manifest load, so nothing later can bootstrap them.
-# Warm runs are a hash comparison and print nothing.
-& (Join-Path $PSScriptRoot 'materialize.ps1')
-
 $metadata = cargo metadata --no-deps --format-version 1 | ConvertFrom-Json
 $workspaceVersion = ($metadata.packages | Where-Object name -eq "herogpui-gallery").version
 $currentVersionPage = "v$workspaceVersion"
