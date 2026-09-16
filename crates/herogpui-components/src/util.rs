@@ -320,53 +320,18 @@ pub fn apply_field_chrome_with_focus_ring<T: Styled>(
     }
 }
 
-/// `apply_field_chrome_overlay` or `apply_field_chrome_with_focus_ring`,
-/// chosen by whether the element clips its children: a clipping field would
-/// cut an overhanging overlay ring, so it keeps the shadow ring, which is
-/// painted outside the clip. One call site for callers whose clipping is
-/// conditional (the single- vs multi-line Input).
-#[allow(clippy::too_many_arguments)]
-pub fn apply_field_chrome_for<T: Styled + ParentElement>(
-    el: T,
-    clips_children: bool,
-    variant: FieldVariant,
-    is_invalid: bool,
-    is_focused: bool,
-    show_focus_ring: bool,
-    radius_override: Option<Pixels>,
-    cx: &App,
-) -> T {
-    if clips_children {
-        apply_field_chrome_with_focus_ring(
-            el,
-            variant,
-            is_invalid,
-            is_focused,
-            show_focus_ring,
-            radius_override,
-            cx,
-        )
-    } else {
-        apply_field_chrome_overlay(
-            el,
-            variant,
-            is_invalid,
-            is_focused,
-            show_focus_ring,
-            radius_override,
-            cx,
-        )
-    }
-}
-
-/// [`apply_field_chrome_with_focus_ring`] with the ring as an overlay child.
+/// [`apply_field_chrome_with_focus_ring`] without the state ring, for a shell
+/// whose ring is painted by a non-clipping wrapper around it.
 ///
-/// Same chrome, except that the focused ring -- and the focused *invalid*
-/// ring, which is the same geometry in `danger` -- is painted by
-/// [`ring_overlay_in`] rather than by a blurred spread shadow. Only for a
-/// field wrapper that does not clip its children; the ones that do
-/// (`Input`, `NumberField`, `DateField`) stay on the shadow variant.
-pub fn apply_field_chrome_overlay<T: Styled + ParentElement>(
+/// A field that clips its children -- `Input` while multi-line, and the
+/// `NumberField` and `DateField` groups, whose shells are `overflow-hidden`
+/// around segments and steppers -- cannot host the overlay ring itself: the
+/// ring hangs outside the box and the clip is the first thing to cut it.
+/// Those shells keep the fill, border and shadow here and hand the ring to
+/// their wrapper through [`field_ring_color`] and [`with_field_ring_overlay`].
+/// The focused (and focused-invalid) states paint no border at all, exactly as
+/// they do when the ring is a child: the ring replaces the chrome border.
+pub fn apply_field_chrome_ringless<T: Styled>(
     el: T,
     variant: FieldVariant,
     is_invalid: bool,
@@ -390,30 +355,122 @@ pub fn apply_field_chrome_overlay<T: Styled + ParentElement>(
         Vec::new()
     };
 
-    let mut ring = None;
-    if is_invalid {
-        if is_focused && show_focus_ring {
-            ring = Some(colors.danger.color);
-        } else {
+    // The ring, wherever it is painted, replaces the chrome border; the
+    // else-if chain the shadow and overlay spellings share is the same one.
+    if field_ring_color(is_invalid, is_focused, show_focus_ring, cx).is_none() {
+        if is_invalid {
             el = el
                 .border(layout.border_width.max(gpui::px(1.)))
                 .border_color(colors.danger.color);
+        } else if layout.field_border_width > gpui::px(0.) {
+            el = el
+                .border(layout.field_border_width)
+                .border_color(colors.field.border);
         }
-    } else if is_focused && show_focus_ring {
-        ring = Some(colors.focus);
-    } else if layout.field_border_width > gpui::px(0.) {
-        el = el
-            .border(layout.field_border_width)
-            .border_color(colors.field.border);
     }
 
-    if !shadows.is_empty() {
-        el = el.shadow(shadows);
+    if shadows.is_empty() {
+        el
+    } else {
+        el.shadow(shadows)
     }
+}
+
+/// The colour of the state ring a field shell shows, or `None` for a state
+/// that shows none.
+///
+/// `status-focused-field` is `ring-2 ring-focus`; `status-invalid-field`'s
+/// focused form is the same geometry in `danger`. One place resolves which,
+/// so a shell that paints its ring on a wrapper cannot drift from one that
+/// paints it as its own child.
+pub fn field_ring_color(
+    is_invalid: bool,
+    is_focused: bool,
+    show_focus_ring: bool,
+    cx: &App,
+) -> Option<Hsla> {
+    if !(is_focused && show_focus_ring) {
+        return None;
+    }
+    Some(if is_invalid {
+        cx.colors().danger.color
+    } else {
+        cx.colors().focus
+    })
+}
+
+/// Hangs the ring [`field_ring_color`] resolved on an element, as an overlay
+/// child drawn at `radius`.
+pub fn with_field_ring_overlay<T: ParentElement>(
+    el: T,
+    ring: Option<Hsla>,
+    radius: Pixels,
+    cx: &App,
+) -> T {
     match ring {
         Some(color) => el.child(ring_overlay_in(radius, false, color, cx)),
         None => el,
     }
+}
+
+/// A non-clipping carrier for a field shell that clips, so its state ring has
+/// somewhere to hang.
+///
+/// The shells that need one -- the multi-line `Input`, the `NumberField` and
+/// `DateField` groups -- are `overflow-hidden` around text, segments or
+/// steppers, and an overlay ring drawn in the margin is the first thing such a
+/// clip cuts. The carrier takes the shell's place in the tree and the shell
+/// becomes its only child, so the ring hangs outside the shell's box but
+/// inside nothing. It carries no id, no listeners and no chrome: hit-testing,
+/// the focus path and the shell's own paint are unchanged.
+///
+/// Column flow, because that is what the shell sat in: a flex column stretches
+/// its children across its width, so the shell keeps the width it had as a
+/// direct child of the field's label-to-error column, and the carrier's height
+/// is the shell's.
+pub fn field_ring_carrier(
+    shell: impl gpui::IntoElement,
+    ring: Option<Hsla>,
+    radius: Pixels,
+    cx: &App,
+) -> Div {
+    with_field_ring_overlay(
+        gpui::div().relative().flex().flex_col().child(shell),
+        ring,
+        radius,
+        cx,
+    )
+}
+
+/// [`apply_field_chrome_with_focus_ring`] with the ring as an overlay child.
+///
+/// Same chrome, except that the focused ring -- and the focused *invalid*
+/// ring, which is the same geometry in `danger` -- is painted by
+/// [`ring_overlay_in`] rather than by a blurred spread shadow. For a field
+/// shell that does not clip its children; the ones that do put the same
+/// overlay on a non-clipping wrapper instead and take
+/// [`apply_field_chrome_ringless`] themselves.
+pub fn apply_field_chrome_overlay<T: Styled + ParentElement>(
+    el: T,
+    variant: FieldVariant,
+    is_invalid: bool,
+    is_focused: bool,
+    show_focus_ring: bool,
+    radius_override: Option<Pixels>,
+    cx: &App,
+) -> T {
+    let radius = radius_override.unwrap_or_else(|| field_radius(cx));
+    let ring = field_ring_color(is_invalid, is_focused, show_focus_ring, cx);
+    let el = apply_field_chrome_ringless(
+        el,
+        variant,
+        is_invalid,
+        is_focused,
+        show_focus_ring,
+        Some(radius),
+        cx,
+    );
+    with_field_ring_overlay(el, ring, radius, cx)
 }
 
 /// Paints a filled 16-segment disc — the round cap and join completion both
@@ -1659,6 +1716,9 @@ const RING_WIDTH: Pixels = gpui::px(2.);
 /// this drew no ring at all. One pixel is the smallest blur that draws, and it
 /// softens the ring's outer edge by about a pixel: the closest this gpui gets to
 /// a crisp `ring-2`.
+///
+/// [`focus_ring_overlay`] is the default spelling now; this one remains for the
+/// cases its scalar bands cannot draw, listed there.
 pub fn focus_ring_shadows(offset: bool, cx: &App) -> Vec<gpui::BoxShadow> {
     let colors = cx.colors();
     let layout = cx.layout();
@@ -1716,9 +1776,16 @@ pub fn focus_ring_shadows(offset: bool, cx: &App) -> Vec<gpui::BoxShadow> {
 /// `Interactivity::should_insert_hitbox` checks, so it inserts no hitbox and
 /// cannot shadow a sibling's hover.
 ///
-/// Only for an element that does not clip its children -- a ring drawn outside
-/// the box is the first thing an `overflow_hidden` parent cuts off. Those sites
-/// stay on [`focus_ring_shadows`].
+/// A ring drawn outside the box is the first thing an `overflow_hidden` parent
+/// cuts off, so an element that clips does not host the overlay itself: it
+/// becomes the only child of a non-clipping carrier (see
+/// [`field_ring_carrier`], and the `Switch` track's) and the overlay hangs
+/// there instead. What is left on [`focus_ring_shadows`] is the shape it
+/// cannot draw: a control whose four corners do not resolve to one radius --
+/// a grouped `Button` or `ToggleButton` `Start`/`End` member, or any member an
+/// `sx` refinement makes asymmetric -- since the overlay's bands are built
+/// from a scalar, plus the two rings that are interpolated frame by frame
+/// (`anim::field_chrome_ramp`'s tracked ring and the colour picker's thumb).
 pub fn focus_ring_overlay(radius: Pixels, offset: bool, cx: &App) -> Div {
     ring_overlay_in(radius, offset, cx.colors().focus, cx)
 }

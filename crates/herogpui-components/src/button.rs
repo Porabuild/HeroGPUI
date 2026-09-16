@@ -562,14 +562,14 @@ fn group_radius(
 /// The one radius a focus-ring overlay can be drawn at, when there is one.
 ///
 /// `util::focus_ring_overlay` builds its bands from a scalar radius, so it can
-/// only stand in for the shadow ring on a button whose four corners resolve to
-/// the same value. That is the ungrouped button, a lone member (`Only`), and a
+/// only stand in for the shadow ring on a button -- or a `ToggleButton`, which
+/// groups the same way -- whose four corners resolve to the same value. That is the ungrouped button, a lone member (`Only`), and a
 /// `Middle` member, whose corners are all square; a `Start` or `End` member
 /// rounds one side and keeps the other flush against its neighbour, and an `sx`
 /// refinement can break the symmetry of any of them. Those cases return `None`
 /// and keep the spread-shadow ring, which dilates whatever per-corner shape the
 /// element already has.
-fn uniform_ring_radius(
+pub(crate) fn uniform_ring_radius(
     edge: Option<(GroupEdge, bool)>,
     radius: Pixels,
     sx_corners: &gpui::Corners<Option<Pixels>>,

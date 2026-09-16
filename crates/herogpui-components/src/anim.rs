@@ -1808,6 +1808,12 @@ pub(crate) struct FieldChrome {
 /// whose own `overflow-hidden` would clip an outset ring painted by a child
 /// to the shell's box — the layer then paints after the subtree, the same
 /// way every floating surface does.
+///
+/// Returns the refined shell and whether the ramp is painting the state ring
+/// this frame. It is not, on a shell whose ring has never been part of a
+/// tracked state -- a pristine shell, or one that never takes a ring -- and
+/// then whatever ring the caller painted is the state. A caller whose ring is
+/// an overlay on a wrapper reads the flag to decide whether to paint one.
 #[allow(clippy::too_many_arguments)] // one parameter per chrome track, ring and shell option
 pub(crate) fn field_chrome_ramp<E>(
     mut el: E,
@@ -1819,7 +1825,7 @@ pub(crate) fn field_chrome_ramp<E>(
     ring_escapes_clip: bool,
     window: &mut Window,
     cx: &mut App,
-) -> E
+) -> (E, bool)
 where
     E: InteractiveElement + Styled + ParentElement,
 {
@@ -1878,7 +1884,7 @@ where
     // mounts, and the shell keeps every property it was given.
     let pristine = bg.generation() == 0 && border.generation() == 0 && ring.generation() == 0;
     if pristine {
-        return el;
+        return (el, false);
     }
 
     // The containing block the layers stretch across. The shell's own paint
@@ -2010,10 +2016,11 @@ where
         some => some,
     };
     el = el.child(fill).child(border_layer);
+    let ring_painted = ring_layer.is_some();
     if let Some(ring_layer) = ring_layer {
         el = el.child(ring_layer);
     }
-    el
+    (el, ring_painted)
 }
 
 /// v3's `@keyframes caret-blink`: opaque at 0/70/100%, transparent at 20/50%.

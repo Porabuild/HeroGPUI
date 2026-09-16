@@ -162,6 +162,12 @@ a per-tooltip close delay extends it),
 immediately). All four plus `tooltip_delay_ms` / `tooltip_close_delay_ms` are
 settable through `ThemeBuilder` and the sparse `ThemeDocument` JSON.
 
+`ThemeBuilder::vibrant_palette(bool)` / the `"vibrant_palette"` JSON key port
+HeroUI's opt-in `[data-vibrant-palette="true"]` block: off by default, on it
+reweights the accent / success / warning / danger `*-soft-foreground` mixes to
+92% role over 8% page foreground in both appearances, leaving
+`--default-soft-foreground` and every other token alone.
+
 ```rust
 div().bg(cx.colors().surface.background)
 div().bg(cx.colors().accent.soft())
@@ -193,7 +199,8 @@ use herogpui::ThemeDocument;
 let brand = ThemeDocument::theme_from_json(r#"{
     "id": "brand",
     "base": "dark",
-    "accent": "oklch(0.55 0.23 295)"
+    "accent": "oklch(0.55 0.23 295)",
+    "vibrant_palette": true
 }"#).unwrap();
 ```
 

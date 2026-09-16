@@ -290,6 +290,17 @@ impl ThemeBuilder {
         self
     }
 
+    /// HeroUI's opt-in `[data-vibrant-palette="true"]` block
+    /// (variables.css:317-330): the accent, success, warning and danger
+    /// `*-soft-foreground` mixes become `92%` role over `8%` page foreground in
+    /// both appearances, for more saturated soft text with less contrast.
+    /// `--default-soft-foreground` is not in that block and is left alone.
+    /// Off by default, like the attribute.
+    pub fn vibrant_palette(mut self, vibrant: bool) -> Self {
+        self.theme.colors.set_vibrant_palette(vibrant);
+        self
+    }
+
     /// Sets `--accent` and `--accent-foreground`, deriving the foreground for
     /// readability when it is not supplied.
     pub fn accent(self, color: Hsla) -> Self {
@@ -450,5 +461,72 @@ mod tests {
                 .soft_foreground(theme.colors.foreground),
             theme.colors.default.foreground
         );
+    }
+
+    #[test]
+    fn the_vibrant_palette_reweights_only_the_soft_foregrounds() {
+        // variables.css:317-330 lists accent, danger, warning and success in
+        // both the light and the dark block, at 92% role / 8% foreground.
+        for base in [Theme::light(), Theme::dark()] {
+            let plain = Theme::builder("plain", base.clone()).build();
+            let vibrant = Theme::builder("vibrant", base.clone())
+                .vibrant_palette(true)
+                .build();
+            assert!(!plain.colors.vibrant_palette());
+            assert!(vibrant.colors.vibrant_palette());
+
+            for role in ["accent", "success", "warning", "danger"] {
+                let r = vibrant.colors.role(role);
+                assert_eq!(
+                    r.soft_foreground(vibrant.colors.foreground),
+                    mix_oklab(r.color, vibrant.colors.foreground, 0.08),
+                    "{role} soft-foreground is not the 92/8 vibrant mix"
+                );
+                assert_ne!(
+                    r.soft_foreground(vibrant.colors.foreground),
+                    plain
+                        .colors
+                        .role(role)
+                        .soft_foreground(plain.colors.foreground),
+                    "{role} soft-foreground did not move"
+                );
+            }
+
+            // `default` is absent from both vibrant blocks: it still resolves
+            // to `--default-foreground`.
+            assert_eq!(
+                vibrant
+                    .colors
+                    .default
+                    .soft_foreground(vibrant.colors.foreground),
+                plain.colors.default.foreground
+            );
+
+            // Nothing else derived moves.
+            for role in ["default", "accent", "success", "warning", "danger"] {
+                let (a, b) = (plain.colors.role(role), vibrant.colors.role(role));
+                assert_eq!(a.color, b.color, "{role} base moved");
+                assert_eq!(a.foreground, b.foreground, "{role} foreground moved");
+                assert_eq!(a.hover(), b.hover(), "{role} hover moved");
+                assert_eq!(a.soft(), b.soft(), "{role} soft moved");
+                assert_eq!(a.soft_hover(), b.soft_hover(), "{role} soft-hover moved");
+            }
+            assert_eq!(plain.colors.foreground, vibrant.colors.foreground);
+            assert_eq!(plain.colors.background, vibrant.colors.background);
+            assert_eq!(plain.colors.focus, vibrant.colors.focus);
+            assert_eq!(plain.colors.surface.hover(), vibrant.colors.surface.hover());
+            assert_eq!(plain.colors.field.hover(), vibrant.colors.field.hover());
+
+            // The flag is an opt-in that can be turned back off.
+            let off = Theme::builder("off", base)
+                .vibrant_palette(true)
+                .vibrant_palette(false)
+                .build();
+            assert!(!off.colors.vibrant_palette());
+            assert_eq!(
+                off.colors.accent.soft_foreground(off.colors.foreground),
+                plain.colors.accent.soft_foreground(plain.colors.foreground)
+            );
+        }
     }
 }

@@ -69,13 +69,24 @@ correct outer curve (a blurred inset shadow was tried and rejected: its falloff
 points inward and tinted four pixels of the control). Nested absolute
 children sit against the parent's padding box, so the bands and the offset
 gap band are measured from the carrier's edge. No layout change;
-`with_focus_ring_overlay`, `ring_overlay_if_focused`,
-`apply_field_chrome_overlay` and `apply_field_chrome_for` as the drop-in
-counterparts of the shadow helpers. Elements that clip their own children
-keep the shadow ring, because an overhanging child would be cut: Switch,
-ToggleButton, Checkbox, NumberField, DateField, the multi-line Input, and
-the ColorPicker trigger (whose ring is animated by `color_focus_ring_motion`);
-grouped Buttons with asymmetric corners stay on shadows too. The
+`with_focus_ring_overlay`, `ring_overlay_if_focused` and
+`apply_field_chrome_overlay` as the drop-in counterparts of the shadow
+helpers. Every control now draws the overlay ring. Checkbox and ToggleButton
+dropped an `overflow-hidden` that only existed for the patched renderer --
+each clipped child already carries the box's own radius, and `Button`, whose
+box ToggleButton mirrors, never had one. The four shells whose clip is
+load-bearing keep it and host the ring on a non-clipping carrier that takes
+their place in the tree: the Switch track (thumb shadow and custom icon),
+and the NumberField group, DateField group and multi-line Input
+(`util::field_ring_carrier`, with `util::apply_field_chrome_ringless` on the
+shell itself so the ring is painted exactly once). What is left on the
+shadow ring is only the shape the overlay's scalar bands cannot draw:
+controls whose four corners do not resolve to one radius -- a grouped Button
+or ToggleButton `Start`/`End` member, or any member an `sx` refinement makes
+asymmetric (`button::uniform_ring_radius` picks) -- plus the two rings
+interpolated frame by frame, the ColorPicker trigger's
+(`color_focus_ring_motion`) and `anim::field_chrome_ramp`'s tracked ring,
+which the NumberField group hands over to past its first flip. The
 checkerboard keeps exact corners
 through a different route: GPUI's `Svg` paints through an alpha mask, so the
 light cells stay a rounded div background while the dark cells are one
@@ -90,7 +101,11 @@ binaries (`rounded_clip_*`, `rounded_content_mask`) are deleted; `color_geometry
 is vanilla-clean and stays. The `wasm` CI job builds on nightly
 (`wasm_thread` rides upstream's `multithreaded` default); everything native
 stays on pinned stable. Entries below describing the fork as live are
-history; this paragraph is the current state.
+history; this paragraph is the current state. Theming also gained HeroUI's
+opt-in vibrant palette (`[data-vibrant-palette="true"]`, variables.css:317-330)
+as `ThemeBuilder::vibrant_palette` and the `"vibrant_palette"` `ThemeDocument`
+key, reweighting the accent/success/warning/danger `*-soft-foreground` mixes to
+92/8 in both appearances.
 
 Batch 0 is in progress. Inventory/report tooling, CI integration, the first
 Slider gallery fixes, the ComboBox callback correction and the gallery

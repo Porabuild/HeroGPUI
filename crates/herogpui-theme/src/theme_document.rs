@@ -96,6 +96,10 @@ pub struct ThemeDocument {
     pub field_placeholder: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub field_border: Option<String>,
+    /// HeroUI's `[data-vibrant-palette="true"]`: reweights the accent,
+    /// success, warning and danger `*-soft-foreground` mixes to 92/8.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub vibrant_palette: Option<bool>,
 }
 
 /// A background / foreground pair, matching the two-argument builder methods.
@@ -242,6 +246,9 @@ impl ThemeDocument {
         }
         if let Some(ms) = self.tooltip_delay_ms {
             builder = builder.tooltip_delay_ms(ms);
+        }
+        if let Some(vibrant) = self.vibrant_palette {
+            builder = builder.vibrant_palette(vibrant);
         }
         if let Some(ms) = self.tooltip_close_delay_ms {
             builder = builder.tooltip_close_delay_ms(ms);
@@ -598,6 +605,29 @@ mod tests {
         )
         .unwrap();
         assert!((clamped.layout.tabs_hover_opacity - 1.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn the_vibrant_palette_key_round_trips_and_reaches_the_builder() {
+        let json = r#"{ "id": "x", "base": "light", "vibrant_palette": true }"#;
+        let theme = ThemeDocument::theme_from_json(json).unwrap();
+        assert!(theme.colors.vibrant_palette());
+
+        let round_tripped = ThemeDocument::from_json(json).unwrap().to_json().unwrap();
+        assert!(round_tripped.contains("vibrant_palette"));
+        let again = ThemeDocument::theme_from_json(&round_tripped).unwrap();
+        assert!(again.colors.vibrant_palette());
+
+        // Absent means off, like a document without the attribute.
+        let plain = ThemeDocument::theme_from_json(r#"{ "id": "x", "base": "dark" }"#).unwrap();
+        assert!(!plain.colors.vibrant_palette());
+        assert!(
+            !ThemeDocument::from_json(r#"{ "id": "x", "base": "dark" }"#)
+                .unwrap()
+                .to_json()
+                .unwrap()
+                .contains("vibrant_palette")
+        );
     }
 
     #[test]

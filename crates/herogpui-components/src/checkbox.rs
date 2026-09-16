@@ -904,8 +904,13 @@ impl RenderOnce for Checkbox {
             .size(box_px)
             .rounded(control_radius)
             // `.checkbox__control` is `overflow-hidden`, clipping both layers
-            // below to the control's corners.
-            .overflow_hidden()
+            // below to the control's corners. The clip is not spelled here:
+            // vanilla gpui clips to the box's *rectangle*, so both layers
+            // carry `control_radius` themselves anyway (the resting fill
+            // through `easing_bg_layer`, the checked fill through
+            // `fill_layer`, which is additionally inset by its scale), and the
+            // mark is centred well inside. Dropping it is what lets the focus
+            // ring be the overlay below, which hangs outside the box.
             .flex_shrink_0()
             // The control itself keeps its resting background in every state:
             // the accent a selected or indeterminate box paints rides the
@@ -990,10 +995,11 @@ impl RenderOnce for Checkbox {
             );
         }
 
-        let boxel = crate::util::with_focus_ring(
+        let boxel = crate::util::with_focus_ring_overlay(
             boxel,
             !self.is_disabled && focus_handle.is_focused(window) && crate::util::focus_visible(cx),
             true,
+            control_radius,
             box_shadow,
             cx,
         );

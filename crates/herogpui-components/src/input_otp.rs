@@ -865,7 +865,9 @@ impl RenderOnce for InputOTP {
             );
             // The ramp owns the slot's border and ring past its first flip,
             // so the instant ones it painted above stop being cast there.
-            cell = crate::anim::field_chrome_ramp(
+            // The cell is not `overflow-hidden`, so the flag the ramp returns
+            // (whether it is painting the state ring) has no reader here.
+            (cell, _) = crate::anim::field_chrome_ramp(
                 cell,
                 &slot_id,
                 idle,

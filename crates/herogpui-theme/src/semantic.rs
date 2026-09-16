@@ -60,6 +60,12 @@ pub struct RoleColor {
     soft_hover_mix: f32,
     /// How `*-soft-foreground` resolves.
     soft_foreground: SoftForeground,
+    /// `[data-vibrant-palette="true"]` (variables.css:317-330): the opt-in
+    /// palette reweights every mixing role's `*-soft-foreground` to
+    /// `92%` role over `8%` page foreground, in both appearances. Roles that
+    /// resolve to [`SoftForeground::RoleForeground`] (`default`) are untouched,
+    /// exactly as upstream leaves `--default-soft-foreground` alone.
+    vibrant_palette: bool,
 }
 
 impl RoleColor {
@@ -74,6 +80,7 @@ impl RoleColor {
                 color: 70.0,
                 foreground: 30.0,
             },
+            vibrant_palette: false,
         }
     }
 
@@ -96,6 +103,19 @@ impl RoleColor {
     pub fn with_soft_foreground_mix(mut self, color: f32, foreground: f32) -> Self {
         self.soft_foreground = SoftForeground::Mix { color, foreground };
         self
+    }
+
+    /// Opts this role into `[data-vibrant-palette="true"]`. Set through
+    /// [`crate::ThemeBuilder::vibrant_palette`], which fans the flag out over
+    /// every role at once, the way the attribute selector does.
+    pub fn with_vibrant_palette(mut self, vibrant: bool) -> Self {
+        self.vibrant_palette = vibrant;
+        self
+    }
+
+    /// Whether this role resolves its soft foreground with the vibrant weights.
+    pub fn is_vibrant_palette(&self) -> bool {
+        self.vibrant_palette
     }
 
     /// `--default-soft-foreground: var(--default-foreground)`
@@ -127,6 +147,11 @@ impl RoleColor {
     pub fn soft_foreground(&self, page_foreground: Hsla) -> Hsla {
         match self.soft_foreground {
             SoftForeground::RoleForeground => self.foreground,
+            // variables.css:318-321 (light) / :326-329 (dark): the vibrant
+            // palette replaces the per-role weights with one 92/8 mix.
+            SoftForeground::Mix { .. } if self.vibrant_palette => {
+                mix_oklab(self.color, page_foreground, 8.0 / 100.0)
+            }
             SoftForeground::Mix { color, foreground } => {
                 // `mix_oklab`'s `t` is the weight of its *second* argument, so
                 // the page foreground's normalised share goes here — passing the
@@ -258,6 +283,24 @@ pub struct ThemeColors {
 }
 
 impl ThemeColors {
+    /// Whether `[data-vibrant-palette="true"]` is on (variables.css:317-330).
+    ///
+    /// The flag lives on each [`RoleColor`]; the mixing roles are set together
+    /// by [`crate::ThemeBuilder::vibrant_palette`], so `accent` answers for all.
+    pub fn vibrant_palette(&self) -> bool {
+        self.accent.is_vibrant_palette()
+    }
+
+    /// Fans `[data-vibrant-palette="true"]` out over the roles the selector
+    /// lists: accent, success, warning and danger. `default` is absent from
+    /// both blocks upstream and keeps `--default-soft-foreground`.
+    pub fn set_vibrant_palette(&mut self, vibrant: bool) {
+        self.accent = self.accent.with_vibrant_palette(vibrant);
+        self.success = self.success.with_vibrant_palette(vibrant);
+        self.warning = self.warning.with_vibrant_palette(vibrant);
+        self.danger = self.danger.with_vibrant_palette(vibrant);
+    }
+
     // -- derived backgrounds ------------------------------------------------
 
     /// `color-mix(in oklab, var(--background) 96%, var(--foreground) 4%)`
