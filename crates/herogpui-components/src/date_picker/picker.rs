@@ -624,8 +624,17 @@ impl RenderOnce for DatePicker {
                     .size(px(16.))
                     .child(trigger_indicator),
             );
-        trigger =
-            crate::util::ring_if_focused(trigger, &trigger_focus, true, Vec::new(), window, cx);
+        // The trigger is a bare 24px square with no `rounded()` of its own, so
+        // the overlay ring is a plain square band at radius zero.
+        trigger = crate::util::ring_overlay_if_focused(
+            trigger,
+            &trigger_focus,
+            true,
+            px(0.),
+            Vec::new(),
+            window,
+            cx,
+        );
         // `useDatePicker` derives the trigger from `useOverlayTrigger`, so
         // it is a button with `aria-expanded`. `aria-haspopup` has no gpui
         // builder (see `crate::a11y`).

@@ -31,25 +31,77 @@ use crate::{
 /// so the shared color controls compose the same tile from clipped child
 /// squares. Keeping this helper here makes swatches and alpha sliders use one
 /// palette and one phase at every size and orientation.
-pub(super) fn transparency_checker(width: Pixels, height: Pixels) -> gpui::Div {
-    const CELL: f32 = 8.0;
-    let columns = (f32::from(width) / CELL).ceil().max(1.0) as usize;
-    let rows = (f32::from(height) / CELL).ceil().max(1.0) as usize;
-    let light = gpui::rgb(0xefefef);
-    let dark = gpui::rgb(0xf7f7f7);
-    let mut grid = div().absolute().inset_0().flex().flex_col();
+pub(super) const CHECKER_CELL: f32 = 8.0;
+pub(super) const CHECKER_LIGHT: u32 = 0xefefef;
+pub(super) const CHECKER_DARK: u32 = 0xf7f7f7;
+
+/// The dark half of the checkerboard as one clipped monochrome silhouette.
+///
+/// Vanilla GPUI clips `overflow_hidden()` to the rectangle, so the square
+/// cells of [`transparency_checker`] bleed through rounded corners wherever
+/// a translucent fill reveals them. GPUI's `Svg` paints through an alpha
+/// mask (`Window::paint_svg` → `render_alpha_mask`), which rules out a
+/// multicolor checker SVG -- but a single tint works: the light cells stay a
+/// rounded div background (an element's own `bg` always follows its radius)
+/// while the dark cells become one SVG under a `clipPath` curve, tinted dark
+/// through `text_color`. Pair with a light rounded base, e.g.
+///
+/// ```ignore
+/// div().absolute().inset_0().rounded(radius).bg(LIGHT)
+///     .child(transparency_checker_cells(width, height, radius, 1.0))
+/// ```
+///
+/// A multicolor SVG (one document, two grays, one clip) renders as a single
+/// silhouette instead -- verified against `gpui-pre` 0.3.5 sources -- so the
+/// two layers are structural, not stylistic.
+pub(super) fn transparency_checker_cells(
+    width: Pixels,
+    height: Pixels,
+    radius: Pixels,
+    opacity: f32,
+) -> gpui::Svg {
+    use std::fmt::Write as _;
+    const CELL: f32 = CHECKER_CELL;
+    let w = f32::from(width);
+    let h = f32::from(height);
+    let r = f32::from(radius);
+    let columns = (w / CELL).ceil().max(1.0) as usize;
+    let rows = (h / CELL).ceil().max(1.0) as usize;
+    // Same phase as [`transparency_checker`]: dark where row+column is odd.
+    let mut cells = String::new();
     for row in 0..rows {
-        let mut line = div().flex().h(px(CELL));
         for column in 0..columns {
-            line = line.child(div().size(px(CELL)).bg(if (row + column) % 2 == 0 {
-                light
-            } else {
-                dark
-            }));
+            if (row + column) % 2 == 0 {
+                continue;
+            }
+            let _ = write!(
+                cells,
+                "<rect x=\"{:.2}\" y=\"{:.2}\" width=\"{CELL:.2}\" height=\"{CELL:.2}\"/>",
+                column as f32 * CELL,
+                row as f32 * CELL,
+            );
         }
-        grid = grid.child(line);
     }
-    grid
+    let doc = format!(
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{w:.2}\" height=\"{h:.2}\" \
+         viewBox=\"0 0 {w:.2} {h:.2}\">\
+         <defs><clipPath id=\"c\"><rect width=\"{w:.2}\" height=\"{h:.2}\" rx=\"{r:.2}\"/></clipPath></defs>\
+         <g clip-path=\"url(#c)\" fill=\"#000000\">{cells}</g></svg>"
+    );
+    let bytes = doc.into_bytes();
+    // Explicit size like every icon svg (zero bounds paint nothing), and the
+    // dark tint: `Svg::data` only paints with a text color set, which becomes
+    // the silhouette fill. An ancestor's `opacity()` does not reach the
+    // silhouette (only quads inherit it), so a dimmed owner passes its
+    // opacity here and the tint carries it instead.
+    gpui::svg()
+        .data(&bytes)
+        .absolute()
+        .top_0()
+        .left_0()
+        .w(width)
+        .h(height)
+        .text_color(gpui::rgb(CHECKER_DARK).alpha(opacity.clamp(0.0, 1.0)))
 }
 
 /// HeroUI's color surfaces use a one-pixel translucent inset edge rather than
@@ -761,10 +813,99 @@ mod tests {
         for pair in stops.windows(2).take(5) {
             assert_ne!(pair[0], pair[1]);
         }
-        assert!((hue_band_offset(0, false) - 0.0).abs() < f32::EPSILON);
-        assert!((hue_band_offset(5, false) - 5.0 / 6.0).abs() < f32::EPSILON);
-        assert!((hue_band_offset(0, true) - 5.0 / 6.0).abs() < f32::EPSILON);
-        assert!((hue_band_offset(5, true) - 0.0).abs() < f32::EPSILON);
+        assert!((hue_band_offset(0, false, 0.0) - 0.0).abs() < f32::EPSILON);
+        assert!((hue_band_offset(5, false, 0.0) - 5.0 / 6.0).abs() < f32::EPSILON);
+        assert!((hue_band_offset(0, true, 0.0) - 5.0 / 6.0).abs() < f32::EPSILON);
+        assert!((hue_band_offset(5, true, 0.0) - 0.0).abs() < f32::EPSILON);
+        for index in 0..6 {
+            assert!((hue_band_extent(index, 0.0) - 1.0 / 6.0).abs() < 1e-6);
+        }
+    }
+
+    #[test]
+    fn inset_hue_bands_stretch_only_the_two_end_bands() {
+        // A 240px slider with 10px caps.
+        let inset = 10.0 / 240.0;
+        let width = (1.0 - inset * 2.0) / 6.0;
+        // The end bands reach the box edges; the interior ones keep their
+        // travel width, so the ramp is unchanged over the thumb's travel.
+        assert!((hue_band_offset(0, false, inset) - 0.0).abs() < 1e-6);
+        assert!((hue_band_extent(0, inset) - (width + inset)).abs() < 1e-6);
+        assert!((hue_band_extent(5, inset) - (width + inset)).abs() < 1e-6);
+        for index in 1..5 {
+            assert!((hue_band_extent(index, inset) - width).abs() < 1e-6);
+            assert!(
+                (hue_band_offset(index, false, inset) - (inset + index as f32 * width)).abs()
+                    < 1e-6
+            );
+        }
+        // Vertical mirrors: band 0 is flush with the bottom, band 5 the top.
+        assert!((hue_band_offset(5, true, inset) - 0.0).abs() < 1e-6);
+        assert!(
+            (hue_band_offset(0, true, inset) - (1.0 - width - inset)).abs() < 1e-6,
+            "band 0 must end at the bottom edge"
+        );
+        let total: f32 = (0..6).map(|i| hue_band_extent(i, inset)).sum();
+        assert!((total - 1.0).abs() < 1e-5, "the bands must tile the box");
+    }
+
+    #[test]
+    fn corner_arc_inset_is_zero_outside_the_corner_and_full_at_the_edge() {
+        let r = 16.0;
+        assert!((corner_arc_inset(0.0, r) - r).abs() < 1e-6);
+        assert!((corner_arc_inset(r, r) - 0.0).abs() < f32::EPSILON);
+        assert!((corner_arc_inset(r + 5.0, r) - 0.0).abs() < f32::EPSILON);
+        assert!((corner_arc_inset(1.0, 0.0) - 0.0).abs() < f32::EPSILON);
+        let mut previous = f32::INFINITY;
+        for step in 0..=32 {
+            let d = r * step as f32 / 32.0;
+            let inset = corner_arc_inset(d, r);
+            assert!(inset <= previous + 1e-6, "must decrease with distance");
+            assert!((0.0..=r).contains(&inset));
+            // Strictly inside the arc: the point (d, inset) is on the circle
+            // centred at (r, r), so the strip never crosses the curve.
+            let dx = r - d;
+            let dy = r - inset;
+            assert!((dx * dx + dy * dy).sqrt() <= r + 1e-3);
+            previous = inset;
+        }
+        assert!((previous - 0.0).abs() < 1e-5);
+    }
+
+    #[test]
+    fn the_slider_ramp_is_one_full_length_element_over_nothing_but_the_checkerboard() {
+        let source = include_str!("slider.rs");
+        // The stop-percentage design replaced the end bases, the alpha end
+        // piece and the short-track fallback caps: with `opacity()` applied
+        // per element, anything under the ramp shows through when disabled.
+        for gone in [
+            "END_BASE_PX",
+            "wide_ends",
+            "wide_opaque_ends",
+            "start_cap",
+            "end_cap",
+        ] {
+            assert!(
+                !source.contains(gone),
+                "`{gone}` must not come back: it paints under or over the ramp"
+            );
+        }
+        // Exactly one child is added to the clip besides the ramp, and it is
+        // the alpha checkerboard.
+        let painted: Vec<&str> = source
+            .lines()
+            .map(str::trim)
+            .filter(|line| line.starts_with("layers = layers"))
+            .collect();
+        assert_eq!(
+            painted,
+            vec!["layers = layers", "layers = layers.child(ramp);"],
+            "only the checkerboard and the ramp may be painted into the clip"
+        );
+        // The ramp is full-length, so its r10 corners are never clamped.
+        assert!(source.contains("let ramp = div().absolute().inset_0().rounded(track_r);"));
+        assert!(source.contains("gpui::linear_color_stop(start_color, inset)"));
+        assert!(source.contains("gpui::linear_color_stop(end_color, 1.0 - inset)"));
     }
 
     #[test]

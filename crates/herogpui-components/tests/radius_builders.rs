@@ -88,7 +88,7 @@ fn radius_builders_override_their_helper_defaults() {
             "skeleton.rs",
             include_str!("../src/skeleton.rs"),
             "self.radius = Some(radius.into());",
-            ".unwrap_or_else(|| crate::util::hairline_radius(cx)),",
+            "None => crate::util::hairline_radius(cx),",
         ),
         (
             "progress.rs",
@@ -166,7 +166,7 @@ fn radius_builders_override_their_helper_defaults() {
             "accordion.rs",
             include_str!("../src/accordion.rs"),
             "self.radius = Some(radius.into());",
-            ".unwrap_or_else(|| crate::util::container_radius(cx)),",
+            "None => crate::util::container_radius(cx),",
         ),
         (
             "close_button.rs",
@@ -178,7 +178,7 @@ fn radius_builders_override_their_helper_defaults() {
             "link.rs",
             include_str!("../src/link.rs"),
             "self.radius = Some(radius.into());",
-            ".unwrap_or_else(|| crate::util::small_radius(cx)),",
+            "let link_radius = self.radius.unwrap_or_else(|| crate::util::small_radius(cx));",
         ),
         (
             "checkbox.rs",

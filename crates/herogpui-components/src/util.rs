@@ -143,6 +143,76 @@ pub fn container_radius(cx: &App) -> Pixels {
     layout.capped(layout.radius_3xl())
 }
 
+/// Corner radius for a fill painted *inside* a rounded `overflow_hidden` clip
+/// parent on vanilla GPUI.
+///
+/// Upstream clips `overflow_hidden()` to the parent's rectangle even when the
+/// parent is rounded, so a square child fill or image squares off the
+/// parent's corners (the retired renderer fork in
+/// `docs/upstream/retired-patches/` fixed this for every component at once).
+/// Until that lands upstream, each clipped fill carries the same radius as
+/// its clip parent: the fill's own rounded corners hide the square bleed.
+/// Subtract the border width when the parent draws one, the way a CSS
+/// `border-radius` shrinks inward; clamps at zero so a hairline radius never
+/// goes negative.
+///
+/// Where a whole stack of fills shares one clip (the color area, the color
+/// slider track, checkerboards), each layer repeats the radius: GPUI's `Svg`
+/// element is not an alternative here, it renders through an alpha mask
+/// (`Window::paint_svg` → `render_alpha_mask`), so a multicolor gradient SVG
+/// can only ever paint a monochrome silhouette.
+pub fn inner_fill_radius(outer: Pixels, border: Pixels) -> Pixels {
+    (outer - border).max(gpui::px(0.))
+}
+
+/// Shift+wheel horizontal scroll for mouse wheels on the web platform.
+///
+/// A mouse wheel reports only `deltaY`; every desktop platform reads
+/// shift+wheel as the horizontal axis, and GPUI's native platforms deliver it
+/// that way. The web platform forwards the raw axes instead, so a
+/// horizontally scrollable region — the `Tabs` strip, a wide `Table` — cannot
+/// be wheel-scrolled there at all, with no fallback. Until the platform fix
+/// lands upstream (see `docs/upstream/retired-patches/`), horizontal
+/// scrollers call this from `on_scroll_wheel`: when shift is held and the
+/// event carries no horizontal component, the vertical delta drives the
+/// handle's x offset instead, matching the platform sign convention (offsets
+/// go negative as content scrolls down/right).
+///
+/// Web-only by construction (`cfg(target_family = "wasm")`): native platforms
+/// already translate, so their events keep flowing through `track_scroll`
+/// untouched. A `Lines` delta (Firefox mouse wheels) converts at 16px/line.
+pub fn shift_wheel_scroll_x(handle: &gpui::ScrollHandle, event: &gpui::ScrollWheelEvent) {
+    #[cfg(target_family = "wasm")]
+    {
+        if !event.modifiers.shift {
+            return;
+        }
+        let vertical = match event.delta {
+            gpui::ScrollDelta::Pixels(delta) => {
+                if delta.x != gpui::px(0.) {
+                    return;
+                }
+                delta.y
+            }
+            gpui::ScrollDelta::Lines(delta) => {
+                if delta.x != 0.0 {
+                    return;
+                }
+                gpui::px(delta.y * 16.0)
+            }
+        };
+        if vertical == gpui::px(0.) {
+            return;
+        }
+        let at = handle.offset();
+        handle.set_offset(gpui::point(at.x + vertical, at.y));
+    }
+    #[cfg(not(target_family = "wasm"))]
+    {
+        let _ = (handle, event);
+    }
+}
+
 /// Background for a [`Prominence`] level. `Transparent` yields `None`.
 pub fn prominence_bg(prominence: Prominence, cx: &App) -> Option<Hsla> {
     let colors = cx.colors();
@@ -247,6 +317,102 @@ pub fn apply_field_chrome_with_focus_ring<T: Styled>(
         el
     } else {
         el.shadow(shadows)
+    }
+}
+
+/// `apply_field_chrome_overlay` or `apply_field_chrome_with_focus_ring`,
+/// chosen by whether the element clips its children: a clipping field would
+/// cut an overhanging overlay ring, so it keeps the shadow ring, which is
+/// painted outside the clip. One call site for callers whose clipping is
+/// conditional (the single- vs multi-line Input).
+#[allow(clippy::too_many_arguments)]
+pub fn apply_field_chrome_for<T: Styled + ParentElement>(
+    el: T,
+    clips_children: bool,
+    variant: FieldVariant,
+    is_invalid: bool,
+    is_focused: bool,
+    show_focus_ring: bool,
+    radius_override: Option<Pixels>,
+    cx: &App,
+) -> T {
+    if clips_children {
+        apply_field_chrome_with_focus_ring(
+            el,
+            variant,
+            is_invalid,
+            is_focused,
+            show_focus_ring,
+            radius_override,
+            cx,
+        )
+    } else {
+        apply_field_chrome_overlay(
+            el,
+            variant,
+            is_invalid,
+            is_focused,
+            show_focus_ring,
+            radius_override,
+            cx,
+        )
+    }
+}
+
+/// [`apply_field_chrome_with_focus_ring`] with the ring as an overlay child.
+///
+/// Same chrome, except that the focused ring -- and the focused *invalid*
+/// ring, which is the same geometry in `danger` -- is painted by
+/// [`ring_overlay_in`] rather than by a blurred spread shadow. Only for a
+/// field wrapper that does not clip its children; the ones that do
+/// (`Input`, `NumberField`, `DateField`) stay on the shadow variant.
+pub fn apply_field_chrome_overlay<T: Styled + ParentElement>(
+    el: T,
+    variant: FieldVariant,
+    is_invalid: bool,
+    is_focused: bool,
+    show_focus_ring: bool,
+    radius_override: Option<Pixels>,
+    cx: &App,
+) -> T {
+    let colors = cx.colors();
+    let layout = cx.layout();
+
+    let radius = radius_override.unwrap_or_else(|| field_radius(cx));
+    let mut el = el.rounded(radius).bg(match variant {
+        FieldVariant::Primary => colors.field.background,
+        FieldVariant::Secondary => colors.default.color,
+    });
+
+    let shadows = if variant == FieldVariant::Primary {
+        layout.field_shadow.clone()
+    } else {
+        Vec::new()
+    };
+
+    let mut ring = None;
+    if is_invalid {
+        if is_focused && show_focus_ring {
+            ring = Some(colors.danger.color);
+        } else {
+            el = el
+                .border(layout.border_width.max(gpui::px(1.)))
+                .border_color(colors.danger.color);
+        }
+    } else if is_focused && show_focus_ring {
+        ring = Some(colors.focus);
+    } else if layout.field_border_width > gpui::px(0.) {
+        el = el
+            .border(layout.field_border_width)
+            .border_color(colors.field.border);
+    }
+
+    if !shadows.is_empty() {
+        el = el.shadow(shadows);
+    }
+    match ring {
+        Some(color) => el.child(ring_overlay_in(radius, false, color, cx)),
+        None => el,
     }
 }
 
@@ -1474,6 +1640,10 @@ pub fn tab_stop_handle(
         .clone()
 }
 
+/// v3's `ring-2`: the focus ring's own thickness, shared by the shadow and
+/// the overlay spellings of it.
+const RING_WIDTH: Pixels = gpui::px(2.);
+
 /// The shadows that draw v3's focus ring.
 ///
 /// `status-focused` is `ring-2 ring-focus` over a `ring-offset-2` in the
@@ -1492,7 +1662,7 @@ pub fn tab_stop_handle(
 pub fn focus_ring_shadows(offset: bool, cx: &App) -> Vec<gpui::BoxShadow> {
     let colors = cx.colors();
     let layout = cx.layout();
-    let ring = gpui::px(2.);
+    let ring = RING_WIDTH;
     let blur = gpui::px(1.);
     let gap = if offset {
         layout.ring_offset_width
@@ -1516,6 +1686,190 @@ pub fn focus_ring_shadows(offset: bool, cx: &App) -> Vec<gpui::BoxShadow> {
         });
     }
     shadows
+}
+
+/// The `status-focused` ring as geometry rather than shadow.
+///
+/// [`focus_ring_shadows`] is a faithful *offset* of the ring, but vanilla gpui
+/// gets two things wrong about it that no shadow parameter can fix:
+///
+/// 1. A spread shadow dilates the element's box while keeping the element's
+///    corner *radius*, so the ring's outer corner stays as tight as the
+///    element's and reads squarer than CSS, where the outer radius of a ring is
+///    `r + gap + ring`.
+/// 2. The shadow shader is a Gaussian integral over `3 * blur_radius`, so a
+///    blur of zero paints nothing at all and the ring has to carry a one-pixel
+///    blur. Tailwind's `ring-2` is a crisp `0 0 0 2px`.
+///
+/// Borders have neither problem: gpui paints them through the same signed
+/// distance field as a background, crisply antialiased, and with the radius the
+/// element asks for. So the ring is painted as an absolutely positioned,
+/// *bordered* child instead. Taffy lays an absolute child out against its
+/// parent's box without the parent needing `.relative()`, and a negative
+/// `inset` pushes the child outside that box, which is what puts the ring in the
+/// margin where a shadow would have been. Concentric by construction: the outer
+/// div's border sits between radius `radius + gap + ring` and `radius + gap`,
+/// and the gap div's between `radius + gap` and `radius`.
+///
+/// The overlay takes neither pointer events nor focus: it has no id, no
+/// listeners, no `occlude()`, and no mouse cursor, which is exactly the set
+/// `Interactivity::should_insert_hitbox` checks, so it inserts no hitbox and
+/// cannot shadow a sibling's hover.
+///
+/// Only for an element that does not clip its children -- a ring drawn outside
+/// the box is the first thing an `overflow_hidden` parent cuts off. Those sites
+/// stay on [`focus_ring_shadows`].
+pub fn focus_ring_overlay(radius: Pixels, offset: bool, cx: &App) -> Div {
+    ring_overlay_in(radius, offset, cx.colors().focus, cx)
+}
+
+/// [`focus_ring_overlay`] in an explicit colour, for the field family's
+/// `status-invalid-field` ring, which is the same geometry in `danger`.
+pub(crate) fn ring_overlay_in(radius: Pixels, offset: bool, color: Hsla, cx: &App) -> Div {
+    let gap = if offset {
+        cx.layout().ring_offset_width
+    } else {
+        gpui::px(0.)
+    };
+    let outer = ring_overlay_band(radius, gap, color);
+    if gap > gpui::px(0.) {
+        outer.child(ring_overlay_gap(radius, gap, cx.colors().background))
+    } else {
+        outer
+    }
+}
+
+/// How far the ring's blur reaches past its outer edge, in logical pixels.
+const RING_BLUR_REACH: Pixels = gpui::px(3.);
+/// The Gaussian's standard deviation, in logical pixels, tuned against the
+/// fork build's ring profile read one device pixel at a time at 2x.
+const RING_BLUR_SIGMA: f32 = 0.7;
+/// How far the stroke extends *under* the mask, so the blur of its inner
+/// edge happens where the mask hides it and the ring meets the gap at full
+/// strength, as the fork's did.
+const RING_UNDERLAP: f32 = 1.5;
+
+/// The accent band: v3's `ring-2`, `gap` outside the control.
+///
+/// v3's ring is a crisp `0 0 0 2px` box shadow; the retired fork drew it with
+/// a one-pixel blur (the shader's minimum, see [`focus_ring_shadows`]) and
+/// that soft profile is the look this port keeps. Vanilla gpui cannot draw
+/// it as a shadow with the right corners (a spread shadow keeps the element's
+/// radius), and bordered bands stipple along the arc, so the band is an SVG:
+/// a `stroke-width: 2` rounded rectangle under `feGaussianBlur`, masked to
+/// the outside of the gap so the inner edge stays crisp against the control,
+/// rasterised by resvg at device resolution and tinted through gpui's
+/// monochrome sprite path (`Window::paint_svg`, the same alpha-mask route
+/// the checkerboard cells take). The document is built at paint time from
+/// the canvas bounds, so the ring fits any control size; the cache key
+/// carries size and radius, so distinct geometries never share a raster.
+fn ring_overlay_band(radius: Pixels, gap: Pixels, color: Hsla) -> Div {
+    let reach = RING_WIDTH + RING_BLUR_REACH;
+    let corner = radius + gap;
+    let canvas = gpui::canvas(
+        |_, _, _| (),
+        move |bounds, _, window, cx| {
+            let w = f32::from(bounds.size.width);
+            let h = f32::from(bounds.size.height);
+            if w <= 0. || h <= 0. {
+                return;
+            }
+            let ring = f32::from(RING_WIDTH);
+            let inner = f32::from(reach);
+            let rg = f32::from(corner);
+            let stroke_w = ring + RING_UNDERLAP;
+            let stroke_at = f32::from(RING_BLUR_REACH) + stroke_w / 2.;
+            let svg = format!(
+                concat!(
+                    "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{w:.2}\" height=\"{h:.2}\" ",
+                    "viewBox=\"0 0 {w:.2} {h:.2}\"><defs>",
+                    "<filter id=\"b\" x=\"-50%\" y=\"-50%\" width=\"200%\" height=\"200%\">",
+                    "<feGaussianBlur stdDeviation=\"{sigma:.3}\"/></filter>",
+                    "<mask id=\"m\"><rect width=\"{w:.2}\" height=\"{h:.2}\" fill=\"#fff\"/>",
+                    "<rect x=\"{inner:.2}\" y=\"{inner:.2}\" width=\"{iw:.2}\" height=\"{ih:.2}\" rx=\"{rg:.2}\" fill=\"#000\"/>",
+                    "</mask></defs><g mask=\"url(#m)\">",
+                    "<rect x=\"{sx:.2}\" y=\"{sx:.2}\" width=\"{sw:.2}\" height=\"{sh:.2}\" rx=\"{srx:.2}\" ",
+                    "fill=\"none\" stroke=\"#000\" stroke-width=\"{ring:.2}\" filter=\"url(#b)\"/></g></svg>"
+                ),
+                w = w,
+                h = h,
+                sigma = RING_BLUR_SIGMA,
+                inner = inner,
+                iw = (w - 2. * inner).max(0.),
+                ih = (h - 2. * inner).max(0.),
+                rg = rg,
+                sx = stroke_at,
+                sw = (w - 2. * stroke_at).max(0.),
+                sh = (h - 2. * stroke_at).max(0.),
+                srx = (rg + ring - stroke_w / 2.).max(0.),
+                ring = stroke_w,
+            );
+            let key: gpui::SharedString =
+                format!("herogpui://focus-ring/{w:.1}x{h:.1}/r{rg:.1}").into();
+            let _ = window.paint_svg(
+                bounds,
+                key,
+                Some(svg.as_bytes()),
+                gpui::TransformationMatrix::unit(),
+                color,
+                cx,
+            );
+        },
+    )
+    .absolute()
+    .inset(-reach);
+    gpui::div()
+        .absolute()
+        .inset(-gap)
+        .rounded(corner)
+        .child(canvas)
+}
+
+/// The `ring-offset` band, in the background colour, which is what separates
+/// the accent from the control: it fills the carrier's box, `gap` wide from
+/// the control's edge outward.
+fn ring_overlay_gap(radius: Pixels, gap: Pixels, background: Hsla) -> Div {
+    gpui::div()
+        .absolute()
+        .inset(gpui::px(0.))
+        .rounded(radius + gap)
+        .border(gap)
+        .border_color(background)
+}
+
+/// [`with_focus_ring`] for an element that can host the ring as a child.
+///
+/// `base` is still applied as the element's shadow list whether or not it is
+/// focused, because `shadow()` replaces rather than adds; only the *ring* moves
+/// from the shadow list into an overlay child. The overlay is appended last so
+/// it paints above the element's own content.
+pub fn with_focus_ring_overlay<T: Styled + ParentElement>(
+    el: T,
+    focused: bool,
+    offset: bool,
+    radius: Pixels,
+    base: Vec<gpui::BoxShadow>,
+    cx: &App,
+) -> T {
+    let el = if base.is_empty() { el } else { el.shadow(base) };
+    if !focused {
+        return el;
+    }
+    el.child(focus_ring_overlay(radius, offset, cx))
+}
+
+/// [`ring_if_focused`] painted as an overlay child instead of a shadow.
+pub fn ring_overlay_if_focused<T: Styled + ParentElement>(
+    el: T,
+    handle: &gpui::FocusHandle,
+    offset: bool,
+    radius: Pixels,
+    base: Vec<gpui::BoxShadow>,
+    window: &gpui::Window,
+    cx: &App,
+) -> T {
+    let focused = shows_focus_ring(handle.is_focused(window), cx);
+    with_focus_ring_overlay(el, focused, offset, radius, base, cx)
 }
 
 /// Keeps Tab inside `scope`, which is v3's `Tab` cycles elements.
@@ -2095,6 +2449,71 @@ mod overlay_stack_tests {
                 prune_overlay_stack(stack, cx);
                 assert!(stack.entries.is_empty());
             });
+        });
+    }
+}
+
+#[cfg(test)]
+mod focus_ring_overlay_tests {
+    use super::*;
+    use gpui::{px, AbsoluteLength, Length, Styled};
+
+    fn inset(el: &mut Div) -> Length {
+        el.style().inset.top.unwrap()
+    }
+
+    fn radius(el: &mut Div) -> AbsoluteLength {
+        el.style().corner_radii.top_left.unwrap()
+    }
+
+    fn border(el: &mut Div) -> AbsoluteLength {
+        el.style().border_widths.top.unwrap()
+    }
+
+    /// Without the offset the carrier is the control's own box: the blurred
+    /// band canvas inside it reaches `2 + blur` outward from that edge.
+    #[test]
+    fn unoffset_ring_carrier_is_the_control_box() {
+        let mut carrier = ring_overlay_band(px(8.), px(0.), gpui::red());
+        assert_eq!(inset(&mut carrier), Length::Definite(px(0.).into()));
+        assert_eq!(radius(&mut carrier), AbsoluteLength::Pixels(px(8.)));
+        assert!(carrier.style().border_widths.top.is_none());
+        assert!(
+            carrier.style().box_shadow.is_none(),
+            "the band is an svg, not a shadow"
+        );
+    }
+
+    /// With the offset the carrier moves out by the gap, and the gap band
+    /// fills it as a `gap`-wide border in the background colour, bridging the
+    /// element's radius `r` to the band's inner radius `r + gap`.
+    #[test]
+    fn offset_ring_pushes_the_carrier_out_and_paints_the_gap() {
+        let gap = px(2.);
+        let mut carrier = ring_overlay_band(px(8.), gap, gpui::red());
+        assert_eq!(inset(&mut carrier), Length::Definite(px(-2.).into()));
+        assert_eq!(radius(&mut carrier), AbsoluteLength::Pixels(px(10.)));
+
+        let mut inner = ring_overlay_gap(px(8.), gap, gpui::blue());
+        assert_eq!(inset(&mut inner), Length::Definite(px(0.).into()));
+        assert_eq!(radius(&mut inner), AbsoluteLength::Pixels(px(10.)));
+        assert_eq!(border(&mut inner), AbsoluteLength::Pixels(gap));
+    }
+
+    /// The gap the offset ring leaves is the theme's `ring_offset_width`, not a
+    /// literal, and the unoffset ring leaves none.
+    #[gpui::test]
+    fn the_offset_gap_comes_from_the_layout_theme(cx: &mut gpui::TestAppContext) {
+        cx.update(|cx| {
+            herogpui_theme::ThemeProvider::init(cx);
+            let gap = cx.layout().ring_offset_width;
+            let mut ring = focus_ring_overlay(px(8.), true, cx);
+            assert_eq!(inset(&mut ring), Length::Definite((-gap).into()));
+            assert_eq!(radius(&mut ring), AbsoluteLength::Pixels(px(8.) + gap));
+
+            let mut flat = focus_ring_overlay(px(8.), false, cx);
+            assert_eq!(inset(&mut flat), Length::Definite(px(0.).into()));
+            assert_eq!(radius(&mut flat), AbsoluteLength::Pixels(px(8.)));
         });
     }
 }

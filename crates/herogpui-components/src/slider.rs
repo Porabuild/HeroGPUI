@@ -1030,6 +1030,18 @@ impl RenderOnce for Slider {
         // `state.getThumbValueLabel(index)` — the same formatted string the
         // output row shows.
         let thumb_labels = format_value_labels(&thumbs, self.format.as_ref());
+        // The corner the overlay focus ring has to stay concentric with, which
+        // is whatever the branches below leave on the thumb wrapper: `Sm` is a
+        // `rounded_full` pill, so its corner is half the cross axis; the other
+        // sizes are a `small_radius` rounded rect; and a caller-rendered thumb
+        // gets no rounding of its own. An `sx` radius override replaces all
+        // three, and only its top-left is readable as one radius -- an
+        // asymmetric override leaves the ring on the uniform corner.
+        let thumb_radius = sx_corners.top_left.unwrap_or(match (&self.thumb, small) {
+            (Some(_), _) => px(0.),
+            (None, true) => thumb_cross / 2.,
+            (None, false) => crate::util::small_radius(cx),
+        });
         for (index, f) in fractions.iter().copied().enumerate() {
             // Each thumb is an `<input type="range">` upstream: role `slider`,
             // with the thumb's own clamped min/max, the step and the
@@ -1094,10 +1106,16 @@ impl RenderOnce for Slider {
             // guard also covers a stop stranded by `disabled_keys` changing
             // between frames.
             if index == active_at.min(fractions.len().saturating_sub(1)) && thumb_enabled[index] {
-                thumb_el = crate::util::ring_if_focused(
+                // The ring rides on `thumb_el` rather than on the scaled
+                // inner mark: the wrapper is the element the roving focus
+                // lands on, and it is the one whose corner `thumb_radius`
+                // describes. The inner mark shrinks under a drag, so a ring
+                // there would breathe with the press.
+                thumb_el = crate::util::ring_overlay_if_focused(
                     thumb_el,
                     &focus_handle,
                     true,
+                    thumb_radius,
                     Vec::new(),
                     window,
                     cx,

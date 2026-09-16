@@ -52,88 +52,44 @@ def main():
             errors.append(f"{name}: must come from crates.io, not git or a path")
         if dependency.get("package") != packages[name]:
             errors.append(f"{name}: must rename the {packages[name]} package")
-        # The pin is exact on purpose. `gpui-pre-platform` requires the rest of
-        # the family at an exact `=` version, and the materialized
-        # `gpui-pre-web` fork's version has to satisfy that same requirement or
-        # `[patch.crates-io]` stops applying with no error at all. A caret let a
-        # bare `cargo update` walk off the pin once already.
-        if not dependency.get("version", "").startswith("="):
-            errors.append(f"{name}: version must be an exact `=` pin")
+        # The pin is a caret, like gpui-kit uses: with no `[patch.crates-io]`
+        # overrides there is no fork version to stay in lockstep with, so
+        # compatible `0.3.x` releases resolve normally. An exact `=` pin is
+        # rejected here so a stale pin cannot silently hold the workspace
+        # behind the registry.
+        if not dependency.get("version", "").startswith("^") and not dependency.get("version", "").startswith("0."):
+            errors.append(f"{name}: version must be a caret-compatible `0.3.x` requirement")
     if not requirement:
         errors.append("GPUI must pin a published gpui-pre version")
     if platform.get("version") != requirement:
         errors.append("GPUI and gpui_platform versions differ")
-    version = requirement.lstrip("=")
+    version = requirement.lstrip("=^~")
     locked = manifest(ROOT / "Cargo.lock")["package"]
-    # The published family remains the dependency contract of every package,
-    # while the workspace's `[patch.crates-io]` block substitutes the
-    # materialized, version-identical renderer forks from `.vendor/`. The
-    # lockfile is therefore intentionally path-resolved for the five patched
-    # members.
-    patched_gpui = {
-        "gpui-pre",
-        "gpui-pre-apple",
-        "gpui-pre-wgpu",
-        "gpui-pre-windows",
-        "gpui-pre-web",
-    }
+    # Every `gpui-pre*` member must resolve to the crates.io registry with a
+    # source line. A path- or git-resolved entry means a `[patch]` override
+    # crept back in somewhere, which would reintroduce the setup step for
+    # every downstream user; a missing source used to mean the retired
+    # `.vendor/` substitution, which no longer exists.
+    for entry in locked:
+        if not entry["name"].startswith("gpui-pre"):
+            continue
+        if not (entry.get("source") or "").startswith("registry+"):
+            errors.append(f"{entry['name']}: lockfile source is not the crates.io registry")
     for name in packages.values():
         entries = [entry for entry in locked if entry["name"] == name]
         if len(entries) != 1:
             errors.append(f"{name}: lockfile does not resolve to exactly one version")
             continue
         entry = entries[0]
-        if name in patched_gpui:
-            if entry.get("source"):
-                errors.append(f"{name}: patched lockfile entry unexpectedly has a source")
-        elif not (entry.get("source") or "").startswith("registry+"):
-            errors.append(f"{name}: lockfile source is not the crates.io registry")
         if version and entry.get("version") != version:
             errors.append(f"{name}: lockfile version is not the pinned {version}")
     if any((entry.get("source") or "").startswith("git+") for entry in locked):
         errors.append("lockfile still contains a git source; the crates cannot be published")
-
-    # No fork source is checked in: the deviation is recorded as a patch under
-    # docs/upstream/patches/ and `.shots/gpui_patches.py --materialize` applies
-    # it to the pinned published source under the gitignored `.vendor/`. So the
-    # version agreement this audit guards is spelled in two committed places --
-    # the `[patch.crates-io]` path and the patch filename -- and both have to
-    # carry the pin. Cargo drops a `[patch.crates-io]` override silently when
-    # the substitute's version no longer satisfies what `gpui-pre-platform`
-    # asks for; the `gpui-pre-web` fork's two `events.rs` hunks and its
-    # `default = []` feature deviation would just disappear from the browser
-    # build, and nothing else would report it. `--check` verifies the patch
-    # content; this verifies the wiring, with no Rust build and no `.vendor/`
-    # tree, so it still runs in the parity job.
-    overrides = workspace.get("patch", {}).get("crates-io", {})
-    for name in sorted(patched_gpui):
-        entry = overrides.get(name)
-        if not isinstance(entry, dict) or not entry.get("path"):
-            errors.append(f"{name}: no [patch.crates-io] path override")
-            continue
-        if entry.get("git"):
-            errors.append(f"{name}: [patch.crates-io] must not use a git source")
-        expected_path = f".vendor/{name}-{version}"
-        if version and entry["path"] != expected_path:
-            errors.append(
-                f"{name}: [patch.crates-io] path is {entry['path']!r}, not {expected_path!r}; "
-                "the override would apply the wrong version or none at all"
-            )
-        patch_file = ROOT / "docs/upstream/patches" / f"{name}-{version}.patch"
-        if version and not patch_file.is_file():
-            errors.append(
-                f"{name}: docs/upstream/patches/{name}-{version}.patch is missing; "
-                "nothing can materialize the fork"
-            )
-    web_entries = [entry for entry in locked if entry["name"] == "gpui-pre-web"]
-    if len(web_entries) != 1:
-        errors.append("gpui-pre-web: lockfile does not resolve to exactly one version")
-    elif web_entries[0].get("source"):
-        errors.append(
-            "gpui-pre-web: lockfile carries a source, so the materialized fork is not patched in"
-        )
-    elif version and web_entries[0].get("version") != version:
-        errors.append(f"gpui-pre-web: lockfile version is not the pinned {version}")
+    # No `[patch]` table at all: any override, path or git, would silently
+    # change what downstream users build (their own `[patch]` is ignored for
+    # published dependencies) or break fresh clones.
+    if "patch" in workspace:
+        errors.append("workspace carries a [patch] table; vanilla registry GPUI only")
     for name in ("herogpui-core", "herogpui-theme", "herogpui-components", "herogpui"):
         dependency = internal.get(name, {})
         if not dependency.get("version") or not dependency.get("path"):

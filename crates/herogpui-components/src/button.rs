@@ -559,6 +559,39 @@ fn group_radius(
     }
 }
 
+/// The one radius a focus-ring overlay can be drawn at, when there is one.
+///
+/// `util::focus_ring_overlay` builds its bands from a scalar radius, so it can
+/// only stand in for the shadow ring on a button whose four corners resolve to
+/// the same value. That is the ungrouped button, a lone member (`Only`), and a
+/// `Middle` member, whose corners are all square; a `Start` or `End` member
+/// rounds one side and keeps the other flush against its neighbour, and an `sx`
+/// refinement can break the symmetry of any of them. Those cases return `None`
+/// and keep the spread-shadow ring, which dilates whatever per-corner shape the
+/// element already has.
+fn uniform_ring_radius(
+    edge: Option<(GroupEdge, bool)>,
+    radius: Pixels,
+    sx_corners: &gpui::Corners<Option<Pixels>>,
+) -> Option<Pixels> {
+    let base = match edge {
+        None | Some((GroupEdge::Only, _)) => radius,
+        Some((GroupEdge::Middle, _)) => gpui::px(0.),
+        Some((GroupEdge::Start | GroupEdge::End, _)) => return None,
+    };
+    let resolved = [
+        sx_corners.top_left,
+        sx_corners.top_right,
+        sx_corners.bottom_right,
+        sx_corners.bottom_left,
+    ]
+    .map(|corner| corner.unwrap_or(base));
+    resolved
+        .iter()
+        .all(|corner| *corner == resolved[0])
+        .then_some(resolved[0])
+}
+
 impl RenderOnce for Button {
     fn render(mut self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         // The handle that says whether this button holds the focus.
@@ -827,15 +860,35 @@ impl RenderOnce for Button {
         // same element, and the ring draws around the resting footprint. The
         // pending/disabled dimming covers the label, which lives above the
         // skin.
+        //
+        // The ring is the overlay form wherever the button's four corners
+        // resolve to one radius, because an overlay is crisp and concentric
+        // where a spread shadow keeps the element's own corner. A grouped
+        // member that rounds only the corners on its outer edge has no single
+        // radius an overlay could take -- one bordered div carries one
+        // `rounded()` per corner but the overlay's outer band is built from a
+        // scalar -- so those stay on the shadow ring, which dilates whatever
+        // per-corner shape the element already has.
         if focusable {
-            el = util::ring_if_focused(
-                el.track_focus(&focus_handle),
-                &focus_handle,
-                true,
-                Vec::new(),
-                window,
-                cx,
-            );
+            el = match uniform_ring_radius(self.group_edge, radius, &sx_corners) {
+                Some(ring_radius) => util::ring_overlay_if_focused(
+                    el.track_focus(&focus_handle),
+                    &focus_handle,
+                    true,
+                    ring_radius,
+                    Vec::new(),
+                    window,
+                    cx,
+                ),
+                None => util::ring_if_focused(
+                    el.track_focus(&focus_handle),
+                    &focus_handle,
+                    true,
+                    Vec::new(),
+                    window,
+                    cx,
+                ),
+            };
         }
 
         if self.is_disabled || self.is_pending {

@@ -341,7 +341,11 @@ impl RenderOnce for InputGroup {
         if !field_box.is_bare {
             // The held field carries the same value, so the group box and the
             // box it holds keep one corner.
-            group = util::apply_field_chrome_with_focus_ring(
+            // The group box is a plain flex row that never clips, so the
+            // ring rides as an overlay child and keeps a corner concentric
+            // with the box's own rather than the squarer one a spread
+            // shadow re-uses.
+            group = util::apply_field_chrome_overlay(
                 group,
                 self.variant,
                 is_invalid,

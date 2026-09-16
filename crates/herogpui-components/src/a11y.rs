@@ -74,10 +74,8 @@
 //! | `aria-live` / `aria-atomic` / `aria-relevant` | `useTagGroup`'s grid (`'aria-live': isFocusWithin ? 'polite' : 'off'`) | gpui exposes no live-region builder at all, the same reason the toast's inner `role="alert"` node is omitted. |
 //! | `aria-colspan` | `useGridCell` | No gpui builder; this port's table has no spanning cells to describe either. |
 //!
-//! `aria-current="page"` is the deliberate exception: the local gpui-pre
-//! 0.3.3 fork adds the missing builder backed by AccessKit 0.24, and
-//! Breadcrumbs/Pagination now forward current-page semantics to their active
-//! nodes.
+//! | `aria-colspan` | `useGridCell` | No gpui builder; this port's table has no spanning cells to describe either. |
+//! | `aria-current="page"` | `Pagination`'s active page, `Breadcrumbs`' last crumb | No gpui builder on vanilla `gpui-pre`: AccessKit 0.24 defines the state but gpui publishes no setter and no node propagation for it. The active page keeps its pressed/disabled visual state and its name; only the current-page announcement is missing. Carried before as a local renderer fork (`docs/upstream/retired-patches/`), now an upstream PR item instead. |
 //!
 //! Every one of these is a "gpui has no equivalent" omission in the sense
 //! `docs/agents/parity.md` requires: checked against the pinned gpui source,
@@ -485,10 +483,14 @@ pub trait A11y: StatefulInteractiveElement + Sized {
 
     /// The current page/step/location value for navigation landmarks.
     ///
-    /// This uses the local gpui-pre accessibility extension, which forwards
-    /// AccessKit 0.24's `AriaCurrent` state to platform accessibility trees.
-    fn a11y_current(self, current: AriaCurrent) -> Self {
-        self.aria_current(current)
+    /// Deliberately unwritten: vanilla `gpui-pre` publishes no `aria_current`
+    /// builder and no AccessKit node propagation for it (see the omissions
+    /// table at the top of this module). The method is kept as a no-op anchor
+    /// so call sites and the upstream-PR re-application have one place to
+    /// touch: when gpui gains the builder, restore the forwarding line and
+    /// remove the `aria-current` row from the omissions table.
+    fn a11y_current(self, _current: AriaCurrent) -> Self {
+        self
     }
 
     /// `aria-posinset` / `aria-setsize`, from a **zero-based** index.

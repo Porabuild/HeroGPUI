@@ -108,12 +108,32 @@ impl RenderOnce for ColorSwatch {
             SwatchShape::Square => cx.layout().radius_md(),
         };
 
+        // The fill stack sits inside the border, so it is `border_width`
+        // smaller on every side than `edge`: a silhouette sized to `edge`
+        // would overhang the corner by the border width. Every layer keeps
+        // the swatch's own radius, as CSS paints the background under the
+        // border with the outer curve, so the layers' curves coincide and no
+        // corner sliver of one shows past another.
+        let border = layout.border_width;
+        let inner = px((f32::from(edge) - 2.0 * f32::from(border)).max(0.0));
+        // `.color-swatch` always has the checker background in CSS, and its
+        // light base stays here too: the colour fill's antialiased edge
+        // blends over it exactly as the CSS layers do. The dark-cell
+        // silhouette is only painted when the colour is translucent: an
+        // opaque colour never lets it through in CSS (the swatch's `opacity`
+        // dims the group as one), while here every layer dims on its own.
+        let translucent = self.color.to_hsla().a < 1.0;
+        let checker_opacity = if self.is_disabled {
+            layout.disabled_opacity
+        } else {
+            1.0
+        };
         let el = div()
             .size(edge)
             .rounded(radius)
             .flex_shrink_0()
             .overflow_hidden()
-            .border(layout.border_width)
+            .border(border)
             .border_color(colors.border)
             .when(self.is_disabled, |el| el.opacity(layout.disabled_opacity))
             .child(
@@ -123,7 +143,19 @@ impl RenderOnce for ColorSwatch {
                     .size_full()
                     .rounded(radius)
                     .overflow_hidden()
-                    .child(transparency_checker(edge, edge))
+                    // Light cells are the base's own background (always
+                    // radius-true); dark cells are one clipped silhouette
+                    // (see `transparency_checker_cells`), so translucent
+                    // colors keep exact corners on vanilla GPUI.
+                    .bg(gpui::rgb(CHECKER_LIGHT))
+                    .when(translucent, |base| {
+                        base.child(transparency_checker_cells(
+                            inner,
+                            inner,
+                            radius,
+                            checker_opacity,
+                        ))
+                    })
                     .child(
                         div()
                             .absolute()

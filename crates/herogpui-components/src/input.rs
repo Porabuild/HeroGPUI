@@ -2217,8 +2217,13 @@ impl RenderOnce for Input {
         // `is_bare` takes the same exit: one chrome call site, skipped by
         // either reason.
         if self.in_group.is_none() && !self.is_bare {
-            field = crate::util::apply_field_chrome_with_focus_ring(
+            // The single-line field does not clip its children, so its ring
+            // is the crisp bordered overlay; the multi-line field clips
+            // (`overflow_hidden` above) and keeps the shadow ring, which is
+            // painted outside the clip.
+            field = crate::util::apply_field_chrome_for(
                 field,
+                multiline,
                 self.variant,
                 is_invalid,
                 focused,
@@ -2577,10 +2582,15 @@ impl RenderOnce for Input {
                     }
                 })
                 .child(clear_content);
-            clear = crate::util::ring_if_focused(
+            // The clear affordance both carries `clear_radius` and takes the
+            // focus, so the overlay ring goes straight on it and tracks the
+            // same corner. Only the button migrates: the field around it
+            // clips its children in the multi-line case and stays on shadows.
+            clear = crate::util::ring_overlay_if_focused(
                 clear,
                 &clear_focus_handle,
                 true,
+                clear_radius,
                 Vec::new(),
                 window,
                 cx,

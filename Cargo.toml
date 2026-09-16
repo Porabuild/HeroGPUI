@@ -9,13 +9,9 @@ members = [
     "gallery",
 ]
 
-# `.vendor/` is where `.shots/gpui_patches.py --materialize` writes the patched
-# GPUI sources; it is gitignored and holds no HeroGPUI code. Each materialized
-# manifest declares its own `[workspace]` table, so excluding the root here is
-# belt and braces -- but it is also the line that says the omission from
-# `members` is deliberate, and it keeps a stray `cargo metadata` from walking
-# ~153,000 lines of dependency source it has no business in.
-exclude = [".vendor"]
+# No `exclude` table: the workspace has no generated source trees. (An earlier
+# revision materialized patched GPUI sources into a gitignored `.vendor/`
+# root; that mechanism is retired -- see `docs/upstream/retired-patches/`.)
 
 [workspace.package]
 version = "0.1.0"
@@ -29,33 +25,29 @@ categories = ["gui"]
 
 [workspace.dependencies]
 # GPUI comes from `gpui-pre`, zed-industries' own prerelease publish of the
-# GPUI sources (0.3.3 is described upstream as a "gpui-pre snapshot of
-# zed@5b055fa"). Zed does not publish `gpui` under that name from its release
-# branch, and a crate with a git dependency can never be published to
-# crates.io, so a Zed git rev would make `herogpui` structurally unpublishable.
-# `gpui-pre` is a registry publish from the same organisation, which removes
-# the reason the third-party `gpui-unofficial` republish was used before.
+# GPUI sources (`0.3.5` snapshots `zed@d89e9c2`). Zed does not publish `gpui`
+# under that name from its release branch, and a crate with a git dependency
+# can never be published to crates.io, so a Zed git rev would make `herogpui`
+# structurally unpublishable. `gpui-pre` is a registry publish from the same
+# organisation, which removes the reason the third-party `gpui-unofficial`
+# republish was used before.
+#
+# The pin is a caret, like gpui-kit uses: with no `[patch.crates-io]`
+# overrides there is no fork version to stay in lockstep with, so compatible
+# `0.3.x` releases resolve normally. Deliberately no patched renderer,
+# accessibility, or web-platform forks -- see `docs/upstream/retired-patches/`
+# for what was carried before and why it moved into component-level
+# workarounds plus upstream PRs instead. A downstream application therefore
+# needs nothing but `herogpui` itself: no materialization step, no hooks.
 #
 # `gpui_web` is deliberately absent. It reaches the graph only as
 # `gpui_platform`'s wasm32 dependency, which enables its default features; a
 # second, `default-features = false` edge from this workspace would be unioned
-# with that one and change nothing. The `multithreaded` feature is therefore
-# switched in the forked manifest itself -- a `default = []` hunk in
-# `docs/upstream/patches/gpui-pre-web-0.3.3.patch`, materialized into
-# `.vendor/gpui-pre-web-0.3.3/Cargo.toml`, which `[patch.crates-io]` at the
-# bottom of this file substitutes for the published crate.
-#
-# Both pins are exact (`=0.3.3`) rather than caret. `gpui-pre-platform` depends
-# on the rest of the family at an exact `=` version of its own, so a caret here
-# buys no flexibility while letting a bare `cargo update` walk the workspace to
-# a version the recorded `gpui-pre-web` patch no longer matches -- at which
-# point `[patch.crates-io]` silently stops applying. 0.3.1 and 0.3.2 must not be
-# resolved in any case: `gpui-pre-macros` leaves the inner
-# `__gpui_pre_derive_inspector_reflection` helper ungated in 0.3.1 while its
-# body calls into a `#[cfg(any(feature = "inspector", debug_assertions))]`
-# module, so every release-profile build fails with `error[E0433]`.
-gpui = { package = "gpui-pre", version = "=0.3.3" }
-gpui_platform = { package = "gpui-pre-platform", version = "=0.3.3", features = ["font-kit", "x11", "wayland", "runtime_shaders"] }
+# with that one and change nothing. The wasm gallery therefore builds with
+# upstream's default web platform (see `docs/upstream/gpui-web-scroll-and-ime.md`
+# for the known limitations this accepts).
+gpui = { package = "gpui-pre", version = "0.3.5" }
+gpui_platform = { package = "gpui-pre-platform", version = "0.3.5", features = ["font-kit", "x11", "wayland", "runtime_shaders"] }
 icu_calendar = { version = "=2.2.1", default-features = false, features = ["compiled_data"] }
 icu_datetime = { version = "=2.2.0", default-features = false, features = ["compiled_data"] }
 icu_locale_core = "=2.2.0"
@@ -155,38 +147,9 @@ lto = "fat"
 codegen-units = 1
 strip = "symbols"
 
-# `gpui_platform` depends on `gpui-pre-web` only under
-# `cfg(target_family = "wasm")`, so on wasm32 the web platform arrives with no
-# help from us -- and this override is the only way to reach it.
-# It must be keyed `crates-io`: the whole graph is registry dependencies, and a
-# `[patch."https://github.com/zed-industries/zed"]` key (what the old separate
-# wasm checkout used, when GPUI came from a Zed git rev) matches no source in
-# that graph and applies *nothing*, with no error. Prove it is live with
-# `cargo tree -i gpui-pre-web --target wasm32-unknown-unknown`, which must
-# print the `.vendor/gpui-pre-web-0.3.3` path source.
-#
-# These five paths do not exist in a fresh clone. The repository records the
-# fork as patches under `docs/upstream/patches/` and nothing else;
-# `.shots/gpui_patches.py --materialize` copies the pinned published sources
-# out of cargo's registry cache into `.vendor/` and applies them. Cargo cannot
-# do that for us and it fails hard, not softly, when the path is absent --
-# "failed to load source for dependency" at manifest load, before any build --
-# so the materialization step runs first in every CI job that touches cargo,
-# and a fresh clone (including one rust-analyzer is about to index) must run it
-# before the first cargo command. These are `path` entries and not `git` ones
-# on purpose: cargo refuses to publish a crate whose workspace carries a git
-# dependency, which is the whole reason GPUI comes from the registry at all
-# (see RELEASING.md).
-[patch.crates-io]
-# The published gpui-pre 0.3.3 clips `overflow_hidden()` to a rectangle even
-# when the element has rounded corners. Materializing the exact upstream
-# snapshot plus our patch lets the shared content mask carry those corners
-# through the renderer; every component then gets the same fix automatically.
-# The fork delta and the rebase procedure are recorded in
-# docs/upstream/gpui-rounded-content-mask.md, and the `gpui-pre-web` fork in
-# docs/upstream/gpui-web-scroll-and-ime.md.
-gpui-pre = { path = ".vendor/gpui-pre-0.3.3" }
-gpui-pre-apple = { path = ".vendor/gpui-pre-apple-0.3.3" }
-gpui-pre-wgpu = { path = ".vendor/gpui-pre-wgpu-0.3.3" }
-gpui-pre-windows = { path = ".vendor/gpui-pre-windows-0.3.3" }
-gpui-pre-web = { path = ".vendor/gpui-pre-web-0.3.3" }
+# No `[patch.crates-io]` table: HeroGPUI builds on the published `gpui-pre`
+# family as-is, so a downstream crate needs only `herogpui` and `cargo`
+# works in a fresh clone with no setup step. The retired renderer,
+# accessibility, and web-platform deviations live under
+# `docs/upstream/retired-patches/` for the upstream-PR effort only; they are
+# not wired into any build.

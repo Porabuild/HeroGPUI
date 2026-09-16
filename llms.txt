@@ -32,7 +32,7 @@ herogpui = { git = "https://github.com/Porabuild/HeroGPUI" }
 ```
 
 One dependency, and only one. Not on crates.io yet. `herogpui` is a facade over the GPUI crate
-family: it depends on `gpui-pre` `=0.3.3` and `gpui-pre-platform` `=0.3.3` and
+family: it depends on `gpui-pre` `0.3.5` and `gpui-pre-platform` `0.3.5` and
 re-exports them, so `use herogpui::*;` is GPUI and `herogpui::application()`
 opens the platform. Do not emit `gpui` or `gpui_platform` as dependencies of a
 consuming crate, and never emit the unrelated crates.io `gpui` 0.2.2 crate.
@@ -453,9 +453,10 @@ one does not, because a constant id would fold two instances into one.
 `Separator` is the remaining pending row — AccessKit 0.24 has no
 `Role::Separator`.
 
-The local `gpui-pre` 0.3.3 fork supplies the missing `aria-current` builder
-backed by AccessKit 0.24; Breadcrumbs and Pagination use it for their current
-page nodes.
+Vanilla `gpui-pre` publishes no `aria-current` builder, so Breadcrumbs and
+Pagination state the current page through styling and naming only; the
+announcement waits on an upstream addition (tracked with the retired patches
+under `docs/upstream/retired-patches/`).
 
 ## Component API pattern
 
@@ -663,7 +664,7 @@ week_start, month_headings, linear_cells, range_heading, year_page}`.
 - **SearchField** — Input with a magnifier and clear action; labels use 14px/20px and helper/error text uses 12px/16px via the shared Input wrapper. `recipe("name")`, `text_size(px)`, `radius(px)`, `on_clear`, `is_required`, `is_read_only`, `is_invalid`
 - **NumberField** — `format_options(NumberFormat)`, `NumberState {value,min,max,step,input}`, `hide_steppers`, `on_change(&f64)`
   - Group text and text slots use 14px text with a 20px line height, independent of parent leading.
-- **InputOTP** — `OtpState::with_length(cx, n)`, `separator`, `slot_hover_bg(color)`, `radius(px)`, `on_complete(&str)`. Slots carry the theme field border, variant hover fill/border, active/filled focus background, invalid danger outline, and an absolutely positioned fake caret; filled digits use the portable 250ms opacity portion of HeroUI's entrance motion. Custom slot content inherits 14px/20px text; the built-in digits use 18px/24px text. `radius` is the same per-component repository extension as `Button::radius`, not the removed v2 prop, and every slot in the row takes it in place of the field radius; the caret and the group separator keep their own smaller radius. GPUI 0.3.3 has no public scale/translate builder for the remaining character entrance transform.
+- **InputOTP** — `OtpState::with_length(cx, n)`, `separator`, `slot_hover_bg(color)`, `radius(px)`, `on_complete(&str)`. Slots carry the theme field border, variant hover fill/border, active/filled focus background, invalid danger outline, and an absolutely positioned fake caret; filled digits use the portable 250ms opacity portion of HeroUI's entrance motion. Custom slot content inherits 14px/20px text; the built-in digits use 18px/24px text. `radius` is the same per-component repository extension as `Button::radius`, not the removed v2 prop, and every slot in the row takes it in place of the field radius; the caret and the group separator keep their own smaller radius. GPUI 0.3.5 has no public scale/translate builder for the remaining character entrance transform.
 - **InputGroup** — `id()`, `variant`, `label`, `description`, `error_message` + children; `InputAddon::new("$")`. A named group reports `role="group"`. Prefix and suffix text uses 14px text with 20px lines alongside the input. `height(px)` replaces the 36px single-line group box and follows through to the held field (a textarea group stays content-sized), `padding_x(px)` replaces the held field's `px-3` on sides without an addon, `font_family(name)` threads a family through to the held field's shaping and caret measurement, `radius(px)` supplies the group shell's corner radius while the transparent held input stays `rounded-none`, and `is_bare(true)` drops the group's background, border, shadow, focus ring and hover fill while keeping the field editable. Focus-within and invalid states use the pinned field-focus fill; hover uses the 150ms ease-smooth fill transition, and prefix/suffix slots own their field-border seams. `radius` is the same per-component repository extension as `Button::radius`, not the removed v2 prop.
 - **Checkbox** — `is_selected`, `is_indeterminate`, `hover_bg(color)`, `size(CheckboxSize::{Sm,Md})`, `radius(px)`, `is_disabled`, `is_read_only`, `is_required`, `is_invalid`, `variant(FieldVariant)`, `label(el)`, `on_change(&bool)`. `size` is additive, not a v3 prop: `Md` is the pinned 16px control / 12px indicator / 14px label; `Sm` is a 14px control with a 10px indicator and 12px label text. Label content uses medium text with 14px/20px metrics at Md and 12px/16px at Sm, independent of surrounding line height. Descriptions and errors stay aligned under the label: 28px inset at Md, 26px at Sm. Toggling animates: the accent fill scales and fades in while the check stroke draws (fill 100/200ms, draw 150ms after 15ms, undraw 200ms), a mid-flight reversal resumes from the rendered frame, and reduced motion snaps. A caller-drawn `indicator` replaces the stroke but keeps the fill motion. `radius` is the same per-component repository extension as `Button::radius`, not the removed v2 prop: it replaces the control's default `rounded-md` only, so `is_round` keeps its documented circle either way, and the control's animated fill layers follow the resolved value.
 - **CheckboxGroup** — `CheckboxGroup::new(id, options).label().value(keys).orientation().variant().is_read_only().error_message().on_change(HashSet)`, `CheckboxOption::new(key,label).description()`. Option labels use 14px/20px medium text; descriptions use 12px/16px regular text.

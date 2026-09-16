@@ -1721,10 +1721,14 @@ impl RenderOnce for ToastCardEl {
                 let close_focus = close_focus
                     .as_ref()
                     .expect("a frontmost closable toast created its close handle");
-                close_btn = crate::util::ring_if_focused(
+                // The overlay goes on the same stable 20px hit target that
+                // carries `rounded(radius)` and the focus handle, not on the
+                // animated child surface below it.
+                close_btn = crate::util::ring_overlay_if_focused(
                     close_btn.track_focus(close_focus),
                     close_focus,
                     true,
+                    radius,
                     Vec::new(),
                     window,
                     cx,

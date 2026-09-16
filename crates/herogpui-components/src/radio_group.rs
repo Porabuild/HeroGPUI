@@ -670,10 +670,17 @@ impl RenderOnce for RadioGroup {
             let focused = i == cursor_index
                 && group_focus.is_focused(window)
                 && crate::util::focus_visible(cx);
-            let circle_el = crate::util::with_focus_ring(
+            // The ring is an overlay child on the control itself, not on the
+            // press skin `anim::pressed_with_background` builds below: the
+            // control is the element that carries `control_radius` and the one
+            // v3 rings, and the press refinement lands on that same element, so
+            // the overlay scales with it. Concentric by construction, where the
+            // spread shadow repeated the control's radius two pixels out.
+            let circle_el = crate::util::with_focus_ring_overlay(
                 circle_el,
                 focused && !row_disabled,
                 true,
+                control_radius,
                 control_shadow.clone().unwrap_or_default(),
                 cx,
             );

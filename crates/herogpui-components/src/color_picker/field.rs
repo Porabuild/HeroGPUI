@@ -758,7 +758,10 @@ impl RenderOnce for ColorField {
                 .state
                 .as_ref()
                 .is_some_and(|s| s.read(cx).focus_handle.is_focused(window));
-            field = util::apply_field_chrome_with_focus_ring(
+            // The colour field box does not clip its children, so its focus
+            // and invalid rings are painted as concentric overlay children
+            // rather than as blurred spread shadows.
+            field = util::apply_field_chrome_overlay(
                 field,
                 self.variant,
                 self.is_invalid,

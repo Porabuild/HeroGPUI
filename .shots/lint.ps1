@@ -13,15 +13,8 @@ $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 Push-Location $root
 try {
-    # The patched GPUI sources are not checked in, and cargo resolves
-    # `[patch.crates-io]` at manifest load, so nothing later can bootstrap them.
-    # Warm runs are a hash comparison and print nothing.
-    & (Join-Path $PSScriptRoot 'materialize.ps1')
-
     # 1. Every member crate must opt in, or the policy is not what it looks like.
-    # Only HeroGPUI's own crates live under crates/ now: the patched GPUI
-    # forks are materialized into .vendor/, keep upstream's lint
-    # configuration, and are never walked here.
+    # Only HeroGPUI's own crates live under crates/ and gallery/.
     $members = Get-ChildItem -Path (Join-Path $root 'crates') -Directory |
         ForEach-Object { Join-Path $_.FullName 'Cargo.toml' }
     $members += (Join-Path $root 'gallery/Cargo.toml')

@@ -1089,7 +1089,18 @@ impl RenderOnce for Select {
             field = util::apply_field_chrome(field, self.variant, self.is_invalid, false, None, cx);
         }
         if !field_box.is_bare && field_box.focus_ring.unwrap_or(true) && !self.is_disabled {
-            field = util::ring_if_focused(field, &focus_handle, true, Vec::new(), window, cx);
+            // The trigger hosts the ring as an overlay child: concentric with
+            // its own `trigger_radius`, where a spread shadow would keep the
+            // trigger's radius on a band two pixels further out and blur it.
+            field = util::ring_overlay_if_focused(
+                field,
+                &focus_handle,
+                true,
+                trigger_radius,
+                Vec::new(),
+                window,
+                cx,
+            );
         }
 
         if !field_box.is_bare && (self.is_invalid || (trigger_focused && util::focus_visible(cx))) {
@@ -2057,10 +2068,15 @@ impl RenderOnce for Select {
 
                 // `status-focused` is an overlay shadow in v3. A border
                 // changes the row's content geometry when the cursor moves.
-                item = util::with_focus_ring(
+                // The ring goes on `item` rather than on anything the press
+                // ramp below produces: `anim::pressed_with_background_ramp`
+                // refines this same element, and `item` is the one that both
+                // carries `soft_radius` and holds the cursor the ring reports.
+                item = util::with_focus_ring_overlay(
                     item,
                     util::shows_focus_ring(cursor_at == Some(i), cx),
                     true,
+                    util::soft_radius(cx),
                     Vec::new(),
                     cx,
                 );

@@ -1840,3 +1840,100 @@ fn table_header_and_cells_keep_pinned_line_heights(cx: &mut TestAppContext) {
         }
     }
 }
+
+/// Vanilla GPUI clips `overflow_hidden()` to the rectangle, so the edge rows'
+/// cell fills carry the box's rounded corners themselves. The corner radii are
+/// not readable from the paint harness, so the decision itself is unit tested
+/// next to `edge_corner_rounding` in `table.rs`; these guard the render paths
+/// that consume it -- a secondary table with and without a footer, and a
+/// primary table with a caller-supplied hover fill -- still stacking their
+/// rows flush, with the outer cells keeping the shared column track.
+fn rounding_rows(table: Table) -> Table {
+    table
+        .row(vec![
+            gpui::div().child("first").into_any_element(),
+            gpui::div().child("one").into_any_element(),
+        ])
+        .row(vec![
+            gpui::div().child("middle").into_any_element(),
+            gpui::div().child("two").into_any_element(),
+        ])
+        .row(vec![
+            gpui::div().child("last").into_any_element(),
+            gpui::div().child("three").into_any_element(),
+        ])
+}
+
+fn assert_rounding_rows_stack(cx: &mut VisualTestContext) {
+    flush_frame(cx);
+    for column in [0, 1] {
+        let selectors: [&'static str; 3] = match column {
+            0 => [
+                "table-row-track-0-0",
+                "table-row-track-1-0",
+                "table-row-track-2-0",
+            ],
+            _ => [
+                "table-row-track-0-1",
+                "table-row-track-1-1",
+                "table-row-track-2-1",
+            ],
+        };
+        let [first, middle, last] = selectors.map(|selector| {
+            cx.debug_bounds(selector)
+                .unwrap_or_else(|| panic!("{selector} paints"))
+        });
+        assert_eq!(first.origin.x, last.origin.x);
+        assert_eq!(first.size.width, last.size.width);
+        assert!(first.bottom() <= middle.top() + px(0.5));
+        assert!(middle.bottom() <= last.top() + px(0.5));
+    }
+}
+
+#[gpui::test]
+fn secondary_table_rows_stack_when_the_last_row_rounds_the_wrapper(cx: &mut TestAppContext) {
+    let cx = open_host(cx, || {
+        gpui::div()
+            .w(px(640.))
+            .child(rounding_rows(
+                Table::new(vec!["Name".into(), "Value".into()])
+                    .id("table-round-secondary")
+                    .variant(herogpui_components::TableVariant::Secondary),
+            ))
+            .into_any_element()
+    });
+    assert_rounding_rows_stack(cx);
+}
+
+#[gpui::test]
+fn secondary_table_with_a_footer_keeps_its_rows_square(cx: &mut TestAppContext) {
+    let cx = open_host(cx, || {
+        gpui::div()
+            .w(px(640.))
+            .child(
+                rounding_rows(
+                    Table::new(vec!["Name".into(), "Value".into()])
+                        .id("table-round-secondary-footer")
+                        .variant(herogpui_components::TableVariant::Secondary),
+                )
+                .footer(gpui::div().child("total")),
+            )
+            .into_any_element()
+    });
+    assert_rounding_rows_stack(cx);
+}
+
+#[gpui::test]
+fn primary_table_rows_stack_when_the_edge_rows_round_the_body(cx: &mut TestAppContext) {
+    let cx = open_host(cx, || {
+        gpui::div()
+            .w(px(640.))
+            .child(rounding_rows(
+                Table::new(vec!["Name".into(), "Value".into()])
+                    .id("table-round-primary")
+                    .row_hover_bg(gpui::rgb(0x336699)),
+            ))
+            .into_any_element()
+    });
+    assert_rounding_rows_stack(cx);
+}

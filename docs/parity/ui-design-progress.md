@@ -7,6 +7,91 @@ Updated 2026-09-14. The [plan](ui-design-plan.md) and
 
 ## Current frontier
 
+2026-09-15: the GPUI forks are retired and the workspace builds on vanilla
+registry `gpui-pre` 0.3.5, so a downstream crate needs only `herogpui` and a
+fresh clone runs `cargo` with no setup step. The 0.3.3 patches live under
+`docs/upstream/retired-patches/` as upstream-PR material only. Replacements:
+`aria-current` is a documented omission (`a11y.rs`, kept as a no-op anchor
+for re-application), shift+wheel reaches horizontal `ScrollShadow` scrollers
+through `util::shift_wheel_scroll_x` (the Table's anonymous x-scroller and
+the IME-mirror resync stay web limitations), and clipped fills carry their
+clip parent's radius (`util::inner_fill_radius`, applied to the skeleton
+shimmer band, the color-slider ramp, the swatch-picker color fill, the area
+half-overlays and hue/channel edge strips, and the accordion Surface card's
+first/last headers, both at rest and under the hover fade). Slider end zones
+paint as 30px solid bases with the true outer curve under the ramp (a 10px
+cap tops out at r5 by clamp while the track curve is r10). The alpha channel
+cannot stack a solid under its translucent ramp, so its opaque end is a 30px
+sibling piece that continues the same alpha gradient where the ramp stops;
+its transparent start needs no cap because the clipped checkerboard draws the
+curve. GPUI applies opacity per element, so a disabled slider showed those bases
+through the translucent ramp; the ramp is therefore one full-length element
+whose constant 10px end zones come from gradient stop percentages (the shader
+remaps `t` between the two stops and clamps), with nothing painted under it
+but the alpha checkerboard. The sampled RGB ColorArea grid paints 2.5px
+strips, too narrow to carry the 16px radius (clamped to half the shortest
+side): a `2 * radius` base strip on each edge now owns the corner curve, and
+strips inside the corner zone are shortened to stay within the arc while
+their gradients keep the full-height mapping via overshooting stop
+percentages. ColorSwatch sizes its checker silhouette to the box inside its
+border (an `edge`-sized silhouette overhung the corner by the border width,
+visible only on dark backdrops), paints the dark cells only for translucent
+colours (CSS dims the swatch as one group, so an opaque colour never lets the
+checker through; here each layer dims alone), and passes a disabled owner's
+opacity into the silhouette tint because an ancestor `opacity()` reaches
+quads but not `Svg` paints. A full sweep of all 634 gallery specimens in both
+themes against the fork build shows every colour, skeleton and accordion
+specimen at zero differing pixels in light; in dark the translucent swatches
+differ by a one-pixel checker phase (the cells now start inside the border)
+and the alpha slider by ~40 antialiased end pixels. The ColorPicker popover
+keeps a small residual at two corners: the area thumb (top right) and the
+first swatch (bottom left) overhang into the panel's corner wedge, where the
+rectangular clip shows them and the fork's curve cut them (~40 pixels per
+corner at 2x, backdrop-dependent, so no cover can hide it). Table edge rows
+now round their hover/selection fills to the curve they touch: the first and
+last row's outer cells take the body radius (primary) or the wrapper radius
+(secondary, last row only, and only without a footer), gated on the
+virtualised scroll position so a mid-list row never rounds
+(`edge_corner_rounding`). The focus ring is no longer a blurred spread
+shadow on most controls: vanilla keeps the element radius on a spread shadow
+(a squarer outer corner than CSS's `r + gap + 2`) and its shadow shader
+paints nothing at blur 0, so `util::focus_ring_overlay` draws the
+`status-focused` ring as absolutely positioned children on a box dilated by
+`gap`: the band is an SVG painted from a canvas at paint time -- a
+`stroke-width: 2` rounded rectangle under `feGaussianBlur` (sigma 0.7px),
+masked to the outside of the gap so the inner edge stays crisp, rasterised
+by resvg at device resolution and tinted through `Window::paint_svg`'s
+alpha-mask route (the checkerboard's), with size and radius in the cache
+key. Its radial profile matches the fork's blurred ring within ~10 levels
+per device pixel at 2x -- full strength at the control, a smooth outward
+fade, a smooth arc (bordered bands stippled along the curve) -- with the
+correct outer curve (a blurred inset shadow was tried and rejected: its falloff
+points inward and tinted four pixels of the control). Nested absolute
+children sit against the parent's padding box, so the bands and the offset
+gap band are measured from the carrier's edge. No layout change;
+`with_focus_ring_overlay`, `ring_overlay_if_focused`,
+`apply_field_chrome_overlay` and `apply_field_chrome_for` as the drop-in
+counterparts of the shadow helpers. Elements that clip their own children
+keep the shadow ring, because an overhanging child would be cut: Switch,
+ToggleButton, Checkbox, NumberField, DateField, the multi-line Input, and
+the ColorPicker trigger (whose ring is animated by `color_focus_ring_motion`);
+grouped Buttons with asymmetric corners stay on shadows too. The
+checkerboard keeps exact corners
+through a different route: GPUI's `Svg` paints through an alpha mask, so the
+light cells stay a rounded div background while the dark cells are one
+clipped monochrome silhouette (`transparency_checker_cells`) -- verified
+pixel-identical against the fork build. A multicolor gradient SVG is not an
+option (`Window::paint_svg` → `render_alpha_mask` only ever paints a
+silhouette); that dead end is recorded so nobody retries it. Remaining
+residuals: focus-ring spread (~0.6px at the
+corner diagonal, centralized in `focus_ring_shadows`), and the Table's
+anonymous x-scroller plus the IME-mirror resync on web. The fork-only test
+binaries (`rounded_clip_*`, `rounded_content_mask`) are deleted; `color_geometry_deep`
+is vanilla-clean and stays. The `wasm` CI job builds on nightly
+(`wasm_thread` rides upstream's `multithreaded` default); everything native
+stays on pinned stable. Entries below describing the fork as live are
+history; this paragraph is the current state.
+
 Batch 0 is in progress. Inventory/report tooling, CI integration, the first
 Slider gallery fixes, the ComboBox callback correction and the gallery
 frame/reset control protocol are implemented. Form-state retention and duplicate

@@ -6,48 +6,26 @@ CLI, the native gallery binaries, and the Git tag.
 This flow only became real once the workspace stopped depending on a Zed GPUI
 git revision: cargo refuses to publish any crate that carries a git dependency,
 so every `cargo publish` below would have failed outright. GPUI now comes from
-the published `gpui-pre` crates named in `[workspace.dependencies]`, and
-that registry dependency is what makes the steps below executable. Reintroducing
-a git dependency anywhere in the workspace re-breaks publishing. The five
-`[patch.crates-io]` overrides are deliberately `path` entries into `.vendor/`
-for that reason, and must stay `path` entries: a `git` override would put a git
-dependency back in the graph and make every crate below unpublishable again.
+the published `gpui-pre` crates named in `[workspace.dependencies]`, with no
+`[patch.crates-io]` overrides of any kind, and that registry dependency is
+what makes the steps below executable. Reintroducing a git dependency — or a
+`[patch]` override, which downstream builds silently ignore — re-breaks the
+single-dependency installation contract (see `.shots/package_audit.py`, which
+gates both).
 
-## Materialize the patched GPUI sources first
+## No materialization step
 
-No step in this document works in a fresh clone until the patched GPUI sources
-exist. The repository carries only the patches, under `docs/upstream/patches/`,
-and `[patch.crates-io]` points at five `.vendor/` paths that are gitignored:
+There is none. An earlier revision carried the GPUI deviations as patches
+under `docs/upstream/retired-patches/`; that mechanism is retired (see `docs/upstream/retired-patches/`), and every
+step below runs on a fresh clone with plain `cargo`.
 
-```sh
-python3 .shots/gpui_patches.py --materialize
-```
-
-Without it, cargo stops at manifest load with `failed to load source for
-dependency` — `cargo package`, `cargo publish` and `cargo publish --dry-run`
-included. It is idempotent, so run it whenever in doubt. `.vendor/` is a build
-input, never a release artifact: the published crates depend on the registry
-`gpui-pre` family, and the patch overrides are a workspace-local development
-substitution that `cargo publish` does not carry into a `.crate`.
-
-## Why the GPUI pin is exact
+## Why the GPUI pin is a caret
 
 `[workspace.dependencies]` pins `gpui-pre` and `gpui-pre-platform` at
-`=0.3.3`, and the recorded `gpui-pre-web` patch carries the same version in its
-filename and in the `[patch.crates-io]` path it materializes to. Do not relax
-either to a caret. `gpui-pre-platform` requires the rest of the family at an
-exact `=` version of its own, so the caret bought no flexibility while letting a
-bare `cargo update` walk the workspace onto a version the fork no longer matched
-— at which point `[patch.crates-io]` stops applying with no error and the fork's
-`events.rs` hunks silently leave the browser build.
-
-0.3.1 and 0.3.2 must not be resolved. `gpui-pre-macros` 0.3.1 leaves the inner
-`__gpui_pre_derive_inspector_reflection` helper ungated while its body calls
-into a `#[cfg(any(feature = "inspector", debug_assertions))]` module, so every
-`debug_assertions`-off build — `cargo build --release -p herogpui-gallery` in
-`.github/workflows/release.yml`, and the `wasm-release` artifact build in CI's
-`wasm` job — failed with `error[E0433]`. 0.3.2 fixes the gate but is superseded;
-0.3.3 is the pinned version and builds both profiles clean.
+`0.3.5`, caret-style like gpui-kit uses. With no fork version to stay in
+lockstep with, compatible `0.3.x` releases resolve normally; `package_audit.py`
+fails the release if the lockfile drifts off the pinned version without the
+manifest moving with it.
 
 ## One-time setup
 
@@ -76,8 +54,7 @@ credentials and none of these steps are required.
 
 1. Update `[workspace.package].version` and all four version requirements
    under `[workspace.dependencies]` to the same SemVer value.
-2. Run the complete local gate from `AGENTS.md` (which starts with the
-   materialization above), plus:
+2. Run the complete local gate from `AGENTS.md`, plus:
 
    ```powershell
    cargo package -p herogpui-core --allow-dirty --no-verify --list

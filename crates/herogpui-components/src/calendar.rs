@@ -970,13 +970,22 @@ impl Calendar {
         // `.calendar__cell` takes `status-focused`, independently of selection,
         // so it shows on an unselected date too. A ring rather than a border:
         // a border shrinks the 36px circle as the cursor lands on it.
-        let circle = crate::util::with_focus_ring(
+        // The ring rides as an overlay child rather than a spread shadow: a
+        // shadow keeps the element's own corner radius, which on a 36px circle
+        // reads as a visibly squarer arc than the `r + gap + 2` CSS draws, and
+        // the shadow shader needs a blur to paint at all. `circle` here is the
+        // press *slot* once the cell is selectable -- the stable footprint that
+        // keeps the id, the focus and the resting corners while the skin inside
+        // carries the 0.95 scale -- so that is the node the ring belongs on, and
+        // the overlay's absolute box adds nothing to the slot's width.
+        let circle = crate::util::with_focus_ring_overlay(
             circle,
             crate::util::shows_focus_ring(
                 !self.inert && !outside_month && frame.focused == Some(date),
                 cx,
             ),
             true,
+            frame.cell_size / 2.,
             Vec::new(),
             cx,
         );
@@ -1309,10 +1318,11 @@ impl Calendar {
                 }
 
                 if is_active {
-                    cell = crate::util::ring_if_focused(
+                    cell = crate::util::ring_overlay_if_focused(
                         cell,
                         year_focus,
                         false,
+                        crate::util::control_radius(cx),
                         Vec::new(),
                         window,
                         cx,
@@ -1722,7 +1732,19 @@ impl RenderOnce for Calendar {
             let button = if inert {
                 button
             } else {
-                crate::util::ring_if_focused(button, focus, true, Vec::new(), window, cx)
+                // `button` is the press slot once the nav button is live, and
+                // the slot is what carries both `rounded(soft_radius)` and the
+                // focus; the scaled skin inside must not own the ring or it
+                // would shrink with the press.
+                crate::util::ring_overlay_if_focused(
+                    button,
+                    focus,
+                    true,
+                    radius,
+                    Vec::new(),
+                    window,
+                    cx,
+                )
             };
             button.a11y_named(a11y::Role::Button, &a11y::Name::labelled(nav_name))
         };
@@ -1782,7 +1804,15 @@ impl RenderOnce for Calendar {
                     let trigger = if self.inert {
                         trigger
                     } else {
-                        crate::util::ring_if_focused(trigger, focus, true, Vec::new(), window, cx)
+                        crate::util::ring_overlay_if_focused(
+                            trigger,
+                            focus,
+                            true,
+                            crate::util::key_radius(cx),
+                            Vec::new(),
+                            window,
+                            cx,
+                        )
                     };
                     trigger
                         .a11y_named(a11y::Role::Button, &a11y::Name::labelled(heading_name))
@@ -1841,7 +1871,15 @@ impl RenderOnce for Calendar {
                     let trigger = if self.inert {
                         trigger
                     } else {
-                        crate::util::ring_if_focused(trigger, focus, true, Vec::new(), window, cx)
+                        crate::util::ring_overlay_if_focused(
+                            trigger,
+                            focus,
+                            true,
+                            crate::util::key_radius(cx),
+                            Vec::new(),
+                            window,
+                            cx,
+                        )
                     };
                     trigger
                         .a11y_named(a11y::Role::Button, &a11y::Name::labelled(heading_name))

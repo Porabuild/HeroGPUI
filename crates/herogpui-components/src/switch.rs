@@ -677,8 +677,11 @@ impl RenderOnce for Switch {
             .rounded(track_r)
             .map(|track| crate::util::round_sx_corners(track, &sx_corners))
             // HeroUI clips the animated fill, thumb shadow and custom icon to
-            // the rounded control perimeter. This shared renderer mask keeps
-            // those descendants inside the track at every corner radius.
+            // the rounded control perimeter. Vanilla GPUI clips
+            // `overflow_hidden()` to the track's rectangle, so each descendant
+            // layer carries the track radius itself (see
+            // `util::inner_fill_radius`); the track clip remains as the
+            // backstop for anything those layers do not cover.
             .overflow_hidden()
             .bg(track_bg)
             .flex()

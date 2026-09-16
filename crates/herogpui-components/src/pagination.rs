@@ -259,8 +259,7 @@ impl RenderOnce for Pagination {
                     radius: crate::util::control_radius(cx),
                 },
                 &prev_focus,
-                (ring_visible && prev_focus.is_focused(window))
-                    .then(|| crate::util::focus_ring_shadows(true, cx)),
+                ring_visible && prev_focus.is_focused(window),
                 window,
                 cx,
             )
@@ -292,9 +291,10 @@ impl RenderOnce for Pagination {
                         // pagination.js`'s `PaginationLink` is an RAC
                         // `Button` — a native `<button>` — carrying
                         // `"aria-current": isActive ? "page" : undefined`.
-                        // The local gpui-pre accessibility extension carries
-                        // that current-page state; the number is still
-                        // restated as the name because a text child contributes none.
+                        // Vanilla gpui publishes no setter for that state, so
+                        // `a11y_current` is currently a documented no-op (see
+                        // `a11y.rs`); the number is still restated as the name
+                        // because a text child contributes none.
                         .a11y_named(a11y::Role::Button, &a11y::Name::labelled(n.to_string()))
                         .when(active, |b| b.a11y_current(a11y::AriaCurrent::Page))
                         .flex()
@@ -391,13 +391,14 @@ impl RenderOnce for Pagination {
                         }
                     }
                     // `.pagination__item:focus-visible` is `status-focused`.
-                    let btn = crate::util::with_focus_ring(
+                    let btn = crate::util::with_focus_ring_overlay(
                         btn,
                         ring_visible
                             && page_focus
                                 .iter()
                                 .any(|(p, handle)| *p == n && handle.is_focused(window)),
                         true,
+                        crate::util::control_radius(cx),
                         Vec::new(),
                         cx,
                     );
@@ -443,8 +444,7 @@ impl RenderOnce for Pagination {
                     radius: crate::util::control_radius(cx),
                 },
                 &next_focus,
-                (ring_visible && next_focus.is_focused(window))
-                    .then(|| crate::util::focus_ring_shadows(true, cx)),
+                ring_visible && next_focus.is_focused(window),
                 window,
                 cx,
             )
@@ -523,8 +523,9 @@ fn nav_button(
     enabled: bool,
     style: NavStyle,
     focus: &gpui::FocusHandle,
-    // The focus ring's shadows, when this button is the one holding the focus.
-    ring: Option<Vec<gpui::BoxShadow>>,
+    // Whether this button is the one holding a keyboard-visible focus, and so
+    // the one that draws `status-focused`.
+    ring: bool,
     window: &mut Window,
     cx: &mut App,
 ) -> gpui::Stateful<gpui::Div> {
@@ -549,7 +550,6 @@ fn nav_button(
         // them no better, because inventing "Previous page" would be text
         // v3.2.4 does not have.
         .a11y(a11y::Role::Button)
-        .when_some(ring, |b, shadows| b.shadow(shadows))
         .flex()
         .items_center()
         .justify_center()
@@ -606,7 +606,12 @@ fn nav_button(
     if enabled {
         btn = btn.track_focus(focus);
     }
-    btn
+    // The ring goes on the element the press wrap returns -- the stable slot
+    // that keeps the resting footprint, carries `radius` and owns the focus --
+    // and not on the skin inside it, which shrinks under a press. A disabled
+    // arrow is no tab stop, so `ring` is never set for one and the branch
+    // resolves to the bare button.
+    crate::util::with_focus_ring_overlay(btn, ring, true, radius, Vec::new(), cx)
 }
 
 enum PageRef {

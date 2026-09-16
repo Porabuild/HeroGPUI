@@ -287,7 +287,6 @@ impl RenderOnce for ColorArea {
         let border_color = util::sx_border_color(&self.sx).unwrap_or(colors.border);
         // `.color-area` is `rounded-2xl`, which is `soft_radius`.
         let radius = util::soft_radius(cx);
-        let hue_color = PickerColor::hsb(self.value.hue, 1.0, 1.0).to_hsla();
 
         let (x_min, x_max) = self.x_channel.range();
         let (y_min, y_max) = self.y_channel.range();
@@ -318,97 +317,92 @@ impl RenderOnce for ColorArea {
         // on the area: clipping the area cut the thumb in half at every edge.
         let mut layers = div().absolute().inset_0().rounded(radius).overflow_hidden();
 
-        layers = if self.x_channel == ColorChannel::Hue || self.y_channel == ColorChannel::Hue {
-            layers.child(color_area_hue_layers(
-                self.value,
-                color_space,
-                self.x_channel,
-                self.y_channel,
-            ))
-        } else {
-            match (color_space, self.x_channel, self.y_channel) {
-                (ColorSpace::Hsb, ColorChannel::Saturation, ColorChannel::Brightness) => layers
-                    .bg(gpui::linear_gradient(
-                        90.0,
-                        gpui::linear_color_stop(gpui::white(), 0.0),
-                        gpui::linear_color_stop(hue_color, 1.0),
-                    ))
-                    .child(div().absolute().inset_0().bg(gpui::linear_gradient(
-                        180.0,
-                        gpui::linear_color_stop(gpui::transparent_black(), 0.0),
-                        gpui::linear_color_stop(gpui::black(), 1.0),
-                    ))),
-                (ColorSpace::Hsl, ColorChannel::Saturation, ColorChannel::Lightness) => {
-                    let gray = self.value.with_hsl_channels(0.0, 0.5).to_hsla();
-                    let hue = self.value.with_hsl_channels(1.0, 0.5).to_hsla();
-                    layers
-                        .bg(gpui::linear_gradient(
-                            90.0,
-                            gpui::linear_color_stop(gray, 0.0),
-                            gpui::linear_color_stop(hue, 1.0),
-                        ))
-                        .child(
-                            div()
-                                .absolute()
-                                .top_0()
-                                .left_0()
-                                .right_0()
-                                .h(px(f32::from(self.height) / 2.0))
-                                .bg(gpui::linear_gradient(
-                                    180.0,
-                                    gpui::linear_color_stop(gpui::white(), 0.0),
-                                    gpui::linear_color_stop(gpui::transparent_white(), 1.0),
-                                )),
-                        )
-                        .child(
-                            div()
-                                .absolute()
-                                .bottom_0()
-                                .left_0()
-                                .right_0()
-                                .h(px(f32::from(self.height) / 2.0))
-                                .bg(gpui::linear_gradient(
-                                    180.0,
-                                    gpui::linear_color_stop(gpui::transparent_black(), 0.0),
-                                    gpui::linear_color_stop(gpui::black(), 1.0),
-                                )),
-                        )
-                }
-                _ => layers.child(color_area_channel_grid(
+        // The gradient stack stays div fills, each carrying the area radius
+        // itself: GPUI's `Svg` element renders through an alpha mask, so a
+        // multicolor gradient SVG can only ever paint a monochrome
+        // silhouette (`window.rs`: `render_alpha_mask`). The single-curve
+        // alternative does not exist on vanilla; the per-layer radii below
+        // coincide because every layer shares one box and one radius value.
+        layers =
+            if self.x_channel == ColorChannel::Hue || self.y_channel == ColorChannel::Hue {
+                layers.child(color_area_hue_layers(
                     self.value,
                     color_space,
                     self.x_channel,
                     self.y_channel,
-                )),
-            }
-        };
-
-        let recorder_bounds = bounds_slot.clone();
-        area = area.child(
-            gpui::canvas(
-                move |bounds: Bounds<Pixels>, _, cx| {
-                    recorder_bounds.update(cx, |slot, _| {
-                        *slot = Bounds {
-                            origin: gpui::point(
-                                f32::from(bounds.origin.x),
-                                f32::from(bounds.origin.y),
+                    radius,
+                ))
+            } else {
+                match (color_space, self.x_channel, self.y_channel) {
+                    (ColorSpace::Hsb, ColorChannel::Saturation, ColorChannel::Brightness) => layers
+                        .bg(gpui::linear_gradient(
+                            90.0,
+                            gpui::linear_color_stop(gpui::white(), 0.0),
+                            gpui::linear_color_stop(
+                                PickerColor::hsb(self.value.hue, 1.0, 1.0).to_hsla(),
+                                1.0,
                             ),
-                            size: gpui::size(
-                                f32::from(bounds.size.width),
-                                f32::from(bounds.size.height),
+                        ))
+                        .child(div().absolute().inset_0().rounded(radius).bg(
+                            gpui::linear_gradient(
+                                180.0,
+                                gpui::linear_color_stop(gpui::transparent_black(), 0.0),
+                                gpui::linear_color_stop(gpui::black(), 1.0),
                             ),
-                        };
-                    });
-                    bounds
-                },
-                |_, _, _, _| {},
-            )
-            .absolute()
-            .inset_0(),
-        );
+                        )),
+                    (ColorSpace::Hsl, ColorChannel::Saturation, ColorChannel::Lightness) => {
+                        let gray = self.value.with_hsl_channels(0.0, 0.5).to_hsla();
+                        let hue = self.value.with_hsl_channels(1.0, 0.5).to_hsla();
+                        layers
+                            .bg(gpui::linear_gradient(
+                                90.0,
+                                gpui::linear_color_stop(gray, 0.0),
+                                gpui::linear_color_stop(hue, 1.0),
+                            ))
+                            .child(
+                                div()
+                                    .absolute()
+                                    .top_0()
+                                    .left_0()
+                                    .right_0()
+                                    .rounded(radius)
+                                    .h(px(f32::from(self.height) / 2.0))
+                                    .bg(gpui::linear_gradient(
+                                        180.0,
+                                        gpui::linear_color_stop(gpui::white(), 0.0),
+                                        gpui::linear_color_stop(gpui::transparent_white(), 1.0),
+                                    )),
+                            )
+                            .child(
+                                div()
+                                    .absolute()
+                                    .bottom_0()
+                                    .left_0()
+                                    .right_0()
+                                    .rounded(radius)
+                                    .h(px(f32::from(self.height) / 2.0))
+                                    .bg(gpui::linear_gradient(
+                                        180.0,
+                                        gpui::linear_color_stop(gpui::transparent_black(), 0.0),
+                                        gpui::linear_color_stop(gpui::black(), 1.0),
+                                    )),
+                            )
+                    }
+                    _ => layers.child(color_area_channel_grid(
+                        self.value,
+                        color_space,
+                        self.x_channel,
+                        self.y_channel,
+                        radius,
+                        self.width,
+                        self.height,
+                    )),
+                }
+            };
 
         // `showDots` — the dot-grid overlay. gpui has no repeating background,
-        // so the grid is drawn as rows of small translucent dots.
+        // so the grid is drawn as rows of small translucent dots. Dots sit on
+        // 8px cell centers, clear of the corner curve.
         if self.show_dots {
             const STEP: f32 = 8.0;
             let cols = (f32::from(self.width) / STEP).floor().max(1.0) as usize;
@@ -437,6 +431,30 @@ impl RenderOnce for ColorArea {
             }
             layers = layers.child(grid);
         }
+
+        let recorder_bounds = bounds_slot.clone();
+        area = area.child(
+            gpui::canvas(
+                move |bounds: Bounds<Pixels>, _, cx| {
+                    recorder_bounds.update(cx, |slot, _| {
+                        *slot = Bounds {
+                            origin: gpui::point(
+                                f32::from(bounds.origin.x),
+                                f32::from(bounds.origin.y),
+                            ),
+                            size: gpui::size(
+                                f32::from(bounds.size.width),
+                                f32::from(bounds.size.height),
+                            ),
+                        };
+                    });
+                    bounds
+                },
+                |_, _, _, _| {},
+            )
+            .absolute()
+            .inset_0(),
+        );
 
         area = area.child(layers);
 
@@ -468,7 +486,11 @@ impl RenderOnce for ColorArea {
         };
         let thumb_content = self.thumb.as_ref().map(|render| render(thumb_state));
         let thumb_motion = color_area_thumb_motion(&self.id, is_dragging, window, cx);
-        let thumb_visual = util::with_focus_ring(
+        // The ring goes on the visual child, not on the 20px hover wrapper:
+        // this is the element that carries the thumb's `rounded()` and whose
+        // circle the ring has to stay concentric with. The wrapper is square
+        // and larger, so a ring on it would read as a box around the knob.
+        let thumb_visual = util::with_focus_ring_overlay(
             div()
                 // `.color-area__thumb` is `rounded-xl`, which is circular at
                 // both the idle and dragging sizes.
@@ -480,6 +502,7 @@ impl RenderOnce for ColorArea {
                 .bg(self.value.to_hsla()),
             is_focus_visible,
             true,
+            px(12.),
             Vec::new(),
             cx,
         );
@@ -726,11 +749,16 @@ pub(super) fn finish_area_drag(
     }
 }
 
+/// The hue-axis gradient stack: hue bands plus the other channel's overlay.
+///
+/// Each painted layer carries the area radius itself: vanilla GPUI clips
+/// `overflow_hidden()` to the rectangle (see `util::inner_fill_radius`).
 pub(super) fn color_area_hue_layers(
     value: PickerColor,
     color_space: ColorSpace,
     x_channel: ColorChannel,
     y_channel: ColorChannel,
+    radius: Pixels,
 ) -> gpui::Div {
     let hue_is_vertical = y_channel == ColorChannel::Hue;
     let other = if x_channel == ColorChannel::Hue {
@@ -751,60 +779,96 @@ pub(super) fn color_area_hue_layers(
         _ => PickerColor::hsb(0.0, 1.0, 1.0),
     };
 
-    let mut layers =
-        div()
-            .absolute()
-            .inset_0()
-            .child(hue_gradient(base, color_space, hue_is_vertical));
+    let mut layers = div().absolute().inset_0().child(hue_gradient(
+        base,
+        color_space,
+        hue_is_vertical,
+        radius,
+        0.0,
+    ));
     layers = match other {
         ColorChannel::Saturation => {
             let start = base
                 .with_channel_in(other, color_space, other.range().0)
                 .to_hsla();
-            layers.child(div().absolute().inset_0().bg(gpui::linear_gradient(
-                if other_is_vertical { 0.0 } else { 90.0 },
-                gpui::linear_color_stop(start, 0.0),
-                gpui::linear_color_stop(start.alpha(0.0), 1.0),
-            )))
+            layers.child(
+                div()
+                    .absolute()
+                    .inset_0()
+                    .rounded(radius)
+                    .bg(gpui::linear_gradient(
+                        if other_is_vertical { 0.0 } else { 90.0 },
+                        gpui::linear_color_stop(start, 0.0),
+                        gpui::linear_color_stop(start.alpha(0.0), 1.0),
+                    )),
+            )
         }
-        ColorChannel::Brightness => {
-            layers.child(div().absolute().inset_0().bg(gpui::linear_gradient(
+        ColorChannel::Brightness => layers.child(div().absolute().inset_0().rounded(radius).bg(
+            gpui::linear_gradient(
                 if other_is_vertical { 0.0 } else { 90.0 },
                 gpui::linear_color_stop(gpui::black(), 0.0),
                 gpui::linear_color_stop(gpui::transparent_black(), 1.0),
-            )))
-        }
+            ),
+        )),
         ColorChannel::Lightness => layers.child(three_stop_gradient(
             other_is_vertical,
             gpui::black(),
             gpui::transparent_black(),
             gpui::white(),
+            radius,
+            0.0,
         )),
         _ => layers,
     };
     layers
 }
 
+/// Six hue bands laid across the box.
+///
+/// `inset` is the fraction of the box at each end that must hold a constant
+/// colour (0.0 for `ColorArea`, `cap / length` for `ColorSlider`). The bands
+/// travel over `[inset, 1 - inset]`, but the first and last bands are
+/// *stretched* out to the box edges and compensate with stop percentages, so
+/// the end zones are flat colour without any extra element: GPUI's shader
+/// remaps `t` by `(t - stop0) / (stop1 - stop0)` and clamps to `[0, 1]`, which
+/// holds the end colour over the stretched part. Painting a separate cap
+/// instead would break under `opacity()` (GPUI applies opacity per element,
+/// not per group) and could not carry the r10 curve anyway, because GPUI
+/// clamps a corner radius to half the element's shortest side.
+///
+/// The first and last bands own the exterior corners: vanilla GPUI clips
+/// `overflow_hidden()` to the rectangle (see `util::inner_fill_radius`), so
+/// each paints its outer pair. Interior bands stay square under their
+/// neighbours. Band 0 is the bottom sixth (vertical) or the left sixth
+/// (horizontal).
 pub(super) fn hue_gradient(
     value: PickerColor,
     color_space: ColorSpace,
     vertical: bool,
+    radius: Pixels,
+    inset: f32,
 ) -> gpui::Div {
     let stops = hue_stop_colors(value, color_space);
     let mut gradient = div().absolute().inset_0();
     for index in 0..6 {
+        let (first, last) = (index == 0, index == 5);
+        let offset = hue_band_offset(index, vertical, inset);
+        let extent = hue_band_extent(index, inset);
+        let (from, to) = hue_band_stop_percentages(index, inset);
         gradient = if vertical {
             gradient.child(
                 div()
                     .absolute()
                     .left_0()
                     .right_0()
-                    .top(gpui::relative(hue_band_offset(index, true)))
-                    .h(gpui::relative(1.0 / 6.0))
+                    .top(gpui::relative(offset))
+                    .h(gpui::relative(extent))
+                    .when(first, |band| band.rounded_bl(radius).rounded_br(radius))
+                    .when(last, |band| band.rounded_tl(radius).rounded_tr(radius))
                     .bg(gpui::linear_gradient(
                         0.0,
-                        gpui::linear_color_stop(stops[index], 0.0),
-                        gpui::linear_color_stop(stops[index + 1], 1.0),
+                        gpui::linear_color_stop(stops[index], from),
+                        gpui::linear_color_stop(stops[index + 1], to),
                     )),
             )
         } else {
@@ -813,12 +877,14 @@ pub(super) fn hue_gradient(
                     .absolute()
                     .top_0()
                     .bottom_0()
-                    .left(gpui::relative(hue_band_offset(index, false)))
-                    .w(gpui::relative(1.0 / 6.0))
+                    .left(gpui::relative(offset))
+                    .w(gpui::relative(extent))
+                    .when(first, |band| band.rounded_tl(radius).rounded_bl(radius))
+                    .when(last, |band| band.rounded_tr(radius).rounded_br(radius))
                     .bg(gpui::linear_gradient(
                         90.0,
-                        gpui::linear_color_stop(stops[index], 0.0),
-                        gpui::linear_color_stop(stops[index + 1], 1.0),
+                        gpui::linear_color_stop(stops[index], from),
+                        gpui::linear_color_stop(stops[index + 1], to),
                     )),
             )
         };
@@ -826,11 +892,53 @@ pub(super) fn hue_gradient(
     gradient
 }
 
-pub(super) fn hue_band_offset(index: usize, vertical: bool) -> f32 {
-    if vertical {
-        (5 - index) as f32 / 6.0
+/// Fraction of the box spanned by hue band `index` under `inset`.
+pub(super) fn hue_band_extent(index: usize, inset: f32) -> f32 {
+    let (start, end) = hue_band_span(index, inset);
+    end - start
+}
+
+/// `[start, end]` of hue band `index` measured from the band-0 end of the box.
+fn hue_band_span(index: usize, inset: f32) -> (f32, f32) {
+    let inset = inset.clamp(0.0, 0.45);
+    let width = (1.0 - inset * 2.0) / 6.0;
+    let start = if index == 0 {
+        0.0
     } else {
-        index as f32 / 6.0
+        inset + index as f32 * width
+    };
+    let end = if index == 5 {
+        1.0
+    } else {
+        inset + (index + 1) as f32 * width
+    };
+    (start, end)
+}
+
+/// Gradient stop percentages for hue band `index`. The stretched end bands
+/// keep their travel unchanged and hold their outer colour over the inset.
+fn hue_band_stop_percentages(index: usize, inset: f32) -> (f32, f32) {
+    let inset = inset.clamp(0.0, 0.45);
+    let width = (1.0 - inset * 2.0) / 6.0;
+    let total = width + inset;
+    if total <= 0.0 {
+        return (0.0, 1.0);
+    }
+    match index {
+        0 => (inset / total, 1.0),
+        5 => (0.0, width / total),
+        _ => (0.0, 1.0),
+    }
+}
+
+/// CSS-side offset of hue band `index`: `top` when vertical (band 0 is the
+/// bottom band, so the axis is mirrored), `left` when horizontal.
+pub(super) fn hue_band_offset(index: usize, vertical: bool, inset: f32) -> f32 {
+    let (start, end) = hue_band_span(index, inset);
+    if vertical {
+        1.0 - end
+    } else {
+        start
     }
 }
 
@@ -842,18 +950,57 @@ pub(super) fn hue_stop_colors(value: PickerColor, color_space: ColorSpace) -> [H
     })
 }
 
+/// Vertical distance a strip must give up at horizontal distance `d` from a
+/// rounded edge so it stays strictly inside a corner of radius `r`.
+///
+/// `r - sqrt(r^2 - (r - d)^2)`: the full radius at the very edge, zero once
+/// the strip clears the corner zone, monotone decreasing in between.
+pub(super) fn corner_arc_inset(d: f32, r: f32) -> f32 {
+    if r <= 0.0 || d >= r {
+        return 0.0;
+    }
+    let d = d.max(0.0);
+    let leg = r - d;
+    r - (r * r - leg * leg).max(0.0).sqrt()
+}
+
+/// Sampled channel grid: 64 vertical strips, each its own bottom-to-top
+/// gradient.
+///
+/// The exterior corners cannot ride on the edge strips. A strip is
+/// `width / 64` wide -- 2.5px on the default 160px area -- and GPUI clamps a
+/// corner radius to half the element's shortest side, so a strip's own radius
+/// collapses to about a pixel and all four corners render square. Instead a
+/// base strip `2 * radius` wide sits at each edge, sampled at that edge's `x`
+/// and wide enough to escape the clamp, and the 64 sampled strips paint over
+/// it. Strips inside a corner zone are pulled in vertically by
+/// `corner_arc_inset` at their outermost `x`, so they never poke past the arc;
+/// the base shows through those slivers, at most a couple of samples' worth of
+/// colour away from the strip it backs.
 pub(super) fn color_area_channel_grid(
     value: PickerColor,
     color_space: ColorSpace,
     x_channel: ColorChannel,
     y_channel: ColorChannel,
+    radius: Pixels,
+    width: Pixels,
+    height: Pixels,
 ) -> gpui::Div {
     const STRIPS: usize = 64;
     let (x_min, x_max) = x_channel.range();
     let (y_min, y_max) = y_channel.range();
-    let mut grid = div().absolute().inset_0().flex().flex_row();
-    for index in 0..STRIPS {
-        let x = index as f32 / (STRIPS - 1) as f32;
+    let width_px = f32::from(width).max(1.0);
+    let height_px = f32::from(height).max(1.0);
+    let radius_px = f32::from(radius)
+        .max(0.0)
+        .min(width_px / 2.0)
+        .min(height_px / 2.0);
+    // `inset_px` is how far the strip is shortened at each end. Its gradient
+    // must still map bottom-to-top over the FULL area height, so the stops
+    // are pushed past the shortened box: the shader remaps
+    // `t = (t - p0) / (p1 - p0)` and clamps, which lands `t = 0` at
+    // `inset / height` and `t = 1` at `1 - inset / height`.
+    let ramp_at = |x: f32, inset_px: f32| {
         let at_x = value.with_channel_in(x_channel, color_space, x_min + x * (x_max - x_min));
         let bottom = at_x
             .with_channel_in(y_channel, color_space, y_min)
@@ -861,11 +1008,63 @@ pub(super) fn color_area_channel_grid(
         let top = at_x
             .with_channel_in(y_channel, color_space, y_max)
             .to_hsla();
-        grid = grid.child(div().h_full().flex_1().bg(gpui::linear_gradient(
+        let visible = (height_px - 2.0 * inset_px).max(1.0);
+        let overshoot = inset_px / visible;
+        gpui::linear_gradient(
             0.0,
-            gpui::linear_color_stop(bottom, 0.0),
-            gpui::linear_color_stop(top, 1.0),
-        )));
+            gpui::linear_color_stop(bottom, -overshoot),
+            gpui::linear_color_stop(top, 1.0 + overshoot),
+        )
+    };
+
+    let base_w = px((radius_px * 2.0).min(width_px));
+    // The base only ever shows in the corner slivers, which lie within
+    // `radius` of the edge, so sample it at the middle of that zone rather
+    // than at the edge itself: the colour error across the sliver halves.
+    let base_sample = (radius_px / 2.0 / width_px).min(0.5);
+    let mut grid = div()
+        .absolute()
+        .inset_0()
+        .child(
+            div()
+                .absolute()
+                .top_0()
+                .bottom_0()
+                .left_0()
+                .w(base_w)
+                .rounded_tl(radius)
+                .rounded_bl(radius)
+                .bg(ramp_at(base_sample, 0.0)),
+        )
+        .child(
+            div()
+                .absolute()
+                .top_0()
+                .bottom_0()
+                .right_0()
+                .w(base_w)
+                .rounded_tr(radius)
+                .rounded_br(radius)
+                .bg(ramp_at(1.0 - base_sample, 0.0)),
+        );
+
+    let strip_w = width_px / STRIPS as f32;
+    for index in 0..STRIPS {
+        let x = index as f32 / (STRIPS - 1) as f32;
+        let left = index as f32 * strip_w;
+        // The outermost x of the strip is its own outer edge.
+        let distance = left.min(width_px - (left + strip_w));
+        let inset_px = corner_arc_inset(distance, radius_px);
+        let inset = px(inset_px);
+        grid = grid.child(
+            div()
+                .absolute()
+                .left(px(left))
+                .w(px(strip_w))
+                .top(inset)
+                .bottom(inset)
+                .bg(ramp_at(x, inset_px)),
+        );
     }
     grid
 }

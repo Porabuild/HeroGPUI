@@ -19,33 +19,12 @@ inputs:
 runs:
   using: composite
   steps:
-    # The patched GPUI sources are not in the repository; five
-    # `[patch.crates-io]` entries point into the gitignored `.vendor/` tree that
-    # `.shots/gpui_patches.py --materialize` builds from the pinned published
-    # packages plus `docs/upstream/patches/*.patch`. Cargo fails at manifest
-    # load when a patch path is missing ("failed to load source for
-    # dependency"), so this has to happen before the first cargo command in the
-    # job -- which is why it lives in the shared action rather than in each
-    # job, where one omission would break a whole leg.
-    #
-    # It also has to happen before `Swatinem/rust-cache` below: that action runs
-    # `cargo metadata` of its own to key the cache, and that call is a cargo
-    # command like any other. The cost is that a cold job downloads the five
-    # `.crate` files before the registry cache is restored; they are small next
-    # to the dependency graph the cache is actually for, and a warm `.vendor/`
-    # check is a hash comparison that finishes in under a tenth of a second.
-    #
-    # `setup-python` rather than the runner's default interpreter: `python3` is
-    # not on PATH on the Windows runners, and pinning the version keeps the
-    # three OS legs on one interpreter.
-    - uses: actions/setup-python@v5
-      with:
-        python-version: "3.12"
-
-    - name: Materialize the patched GPUI sources
-      shell: bash
-      run: python .shots/gpui_patches.py --materialize
-
+    # No setup step before cargo: HeroGPUI builds on the published `gpui-pre`
+    # family as-is, with no `[patch.crates-io]` overrides and no generated
+    # source trees, so a fresh checkout compiles with plain `cargo`. (An
+    # earlier revision materialized patched GPUI sources into a gitignored
+    # `.vendor/` root here; that mechanism is retired — see
+    # `docs/upstream/retired-patches/`.)
     - name: Disable Windows Defender and configure exclusions
       # Windows-only. GitHub Actions Windows runners run Defender by default.
       # Scanning every .rlib, .rmeta, .exe, and cache tar extraction causes

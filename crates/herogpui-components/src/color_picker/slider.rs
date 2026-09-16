@@ -317,13 +317,42 @@ impl ColorSlider {
     }
 }
 
+/// Two gradient halves, `start -> middle` then `middle -> end`.
+///
+/// `inset` is the fraction of the box at each end that must hold a constant
+/// colour (0.0 for `ColorArea`, `cap / length` for `ColorSlider`). The halves
+/// travel over `[inset, 1 - inset]`, but each is *stretched* out to its box
+/// edge and compensates with stop percentages, so the end zones are flat
+/// colour without any extra element: GPUI's shader remaps `t` by
+/// `(t - stop0) / (stop1 - stop0)` and clamps to `[0, 1]`, which holds the end
+/// colour over the stretched part. A separate cap element would break under
+/// `opacity()` (GPUI applies opacity per element, not per group) and could not
+/// carry the r10 curve anyway, because GPUI clamps a corner radius to half the
+/// element's shortest side.
+///
+/// Each half carries the clip radius on its exterior corners: vanilla GPUI
+/// clips `overflow_hidden()` to the rectangle (see `util::inner_fill_radius`).
+/// Interior corners meet mid-gradient where rounding would show, so only the
+/// outer pair rounds.
 pub(super) fn three_stop_gradient(
     vertical: bool,
     start: Hsla,
     middle: Hsla,
     end: Hsla,
+    radius: Pixels,
+    inset: f32,
 ) -> gpui::Div {
+    let inset = inset.clamp(0.0, 0.45);
+    let half = (1.0 - inset * 2.0) / 2.0;
+    let extent = gpui::relative(half + inset);
+    let total = half + inset;
+    let (near_from, far_to) = if total > 0.0 {
+        (inset / total, half / total)
+    } else {
+        (0.0, 1.0)
+    };
     if vertical {
+        // Band 0 (`start`) is the bottom half.
         div()
             .absolute()
             .inset_0()
@@ -333,11 +362,13 @@ pub(super) fn three_stop_gradient(
                     .top_0()
                     .left_0()
                     .right_0()
-                    .h(gpui::relative(0.5))
+                    .rounded_tl(radius)
+                    .rounded_tr(radius)
+                    .h(extent)
                     .bg(gpui::linear_gradient(
                         0.0,
                         gpui::linear_color_stop(middle, 0.0),
-                        gpui::linear_color_stop(end, 1.0),
+                        gpui::linear_color_stop(end, far_to),
                     )),
             )
             .child(
@@ -346,10 +377,12 @@ pub(super) fn three_stop_gradient(
                     .bottom_0()
                     .left_0()
                     .right_0()
-                    .h(gpui::relative(0.5))
+                    .rounded_bl(radius)
+                    .rounded_br(radius)
+                    .h(extent)
                     .bg(gpui::linear_gradient(
                         0.0,
-                        gpui::linear_color_stop(start, 0.0),
+                        gpui::linear_color_stop(start, near_from),
                         gpui::linear_color_stop(middle, 1.0),
                     )),
             )
@@ -363,10 +396,12 @@ pub(super) fn three_stop_gradient(
                     .top_0()
                     .bottom_0()
                     .left_0()
-                    .w(gpui::relative(0.5))
+                    .rounded_tl(radius)
+                    .rounded_bl(radius)
+                    .w(extent)
                     .bg(gpui::linear_gradient(
                         90.0,
-                        gpui::linear_color_stop(start, 0.0),
+                        gpui::linear_color_stop(start, near_from),
                         gpui::linear_color_stop(middle, 1.0),
                     )),
             )
@@ -376,11 +411,13 @@ pub(super) fn three_stop_gradient(
                     .top_0()
                     .bottom_0()
                     .right_0()
-                    .w(gpui::relative(0.5))
+                    .rounded_tr(radius)
+                    .rounded_br(radius)
+                    .w(extent)
                     .bg(gpui::linear_gradient(
                         90.0,
                         gpui::linear_color_stop(middle, 0.0),
-                        gpui::linear_color_stop(end, 1.0),
+                        gpui::linear_color_stop(end, far_to),
                     )),
             )
     }
@@ -520,67 +557,84 @@ impl RenderOnce for ColorSlider {
             .inset_0(),
         );
 
-        // Clip the complete painted track once, as ColorArea does. A 10px-wide
-        // cap's own radius is clamped to 5px by GPUI, so clipping each cap
-        // separately cannot preserve the track's 10px curve. Edge shadows and
-        // the thumb remain siblings outside this clip.
+        // Clip the complete painted track once, as ColorArea does. Edge
+        // shadows and the thumb remain siblings outside this clip.
+        let track_r = px(COLOR_SLIDER_TRACK_INSET_PX);
         let mut layers = div()
             .absolute()
             .inset_0()
-            .rounded(px(COLOR_SLIDER_TRACK_INSET_PX))
+            .rounded(track_r)
             .overflow_hidden();
 
         if self.channel == ColorChannel::Alpha {
-            let checker = if vertical {
-                transparency_checker(track_h, self.length)
+            // Light cells ride the rounded base; dark cells are one clipped
+            // silhouette (see `transparency_checker_cells`), so the
+            // translucent end keeps exact corners on vanilla GPUI.
+            let (checker_w, checker_h) = if vertical {
+                (track_h, self.length)
             } else {
-                transparency_checker(self.length, track_h)
+                (self.length, track_h)
             };
-            layers = layers.child(checker);
+            layers = layers
+                .bg(gpui::rgb(CHECKER_LIGHT))
+                .child(transparency_checker_cells(
+                    checker_w,
+                    checker_h,
+                    track_r,
+                    if self.is_disabled {
+                        cx.layout().disabled_opacity
+                    } else {
+                        1.0
+                    },
+                ));
         }
 
-        // The ramp spans the thumb's travel. Extending it underneath the
-        // constant-color caps skips values at each join and creates a jump.
-        let cap = px(COLOR_SLIDER_TRACK_INSET_PX);
+        // The ramp is one full-length element, and the 10px constant-colour
+        // end zones come from gradient stop *percentages* rather than from cap
+        // elements painted over or under it. Two vanilla-GPUI facts force that:
+        //
+        // * `opacity()` is applied per element, not per group, so a disabled
+        //   track's translucent ramp would let anything underneath show
+        //   through as solid blocks at the ends; and
+        // * a corner radius is clamped to half the element's shortest side, so
+        //   a 10px-wide cap tops out at r5 and cannot paint the track's r10
+        //   curve. A full-length ramp's box is `length x 20`, where r10 is
+        //   never clamped.
+        //
+        // GPUI's shader remaps `t` by `(t - stop0) / (stop1 - stop0)` and
+        // clamps to `[0, 1]` (`shaders.metal`, "Adjust t based on the stop
+        // percentages"), so a start stop at `f = cap / length` holds the start
+        // colour over the first `cap` pixels and an end stop at `1 - f` holds
+        // the end colour over the last `cap` pixels, while the travel in
+        // between is unchanged. Nothing but the alpha checkerboard is painted
+        // under the ramp, and nothing at all over it.
         let (start_color, end_color) = self.gradient_ends();
-        let ramp = div()
-            .absolute()
-            .inset_0()
-            .when(vertical, |ramp| ramp.top(cap).bottom(cap))
-            .when(!vertical, |ramp| ramp.left(cap).right(cap));
+        let inset =
+            (COLOR_SLIDER_TRACK_INSET_PX / f32::from(self.length).max(1.0)).clamp(0.0, 0.45);
+        let ramp = div().absolute().inset_0().rounded(track_r);
         let ramp = if self.channel == ColorChannel::Lightness {
             let (start, middle, end) =
                 lightness_gradient_colors(self.display_color(), self.color_space, min, max);
-            ramp.child(three_stop_gradient(vertical, start, middle, end))
+            ramp.child(three_stop_gradient(
+                vertical, start, middle, end, track_r, inset,
+            ))
         } else if self.channel == ColorChannel::Hue {
             ramp.child(hue_gradient(
                 self.display_color(),
                 self.color_space,
                 vertical,
+                track_r,
+                inset,
             ))
         } else {
             ramp.bg(gpui::linear_gradient(
                 if vertical { 0.0 } else { 90.0 },
-                gpui::linear_color_stop(start_color, 0.0),
-                gpui::linear_color_stop(end_color, 1.0),
+                gpui::linear_color_stop(start_color, inset),
+                gpui::linear_color_stop(end_color, 1.0 - inset),
             ))
         };
         layers = layers.child(ramp);
 
-        // Alpha's transparent start cap leaves the shared checkerboard visible.
-        let start_cap = if vertical {
-            div().absolute().left_0().right_0().bottom_0().h(cap)
-        } else {
-            div().absolute().top_0().bottom_0().left_0().w(cap)
-        };
-        let end_cap = if vertical {
-            div().absolute().left_0().right_0().top_0().h(cap)
-        } else {
-            div().absolute().top_0().bottom_0().right_0().w(cap)
-        };
-        layers = layers
-            .child(start_cap.bg(start_color))
-            .child(end_cap.bg(end_color));
         track = track.child(layers);
 
         // HeroUI uses inset edge shadows, without a solid track border. A

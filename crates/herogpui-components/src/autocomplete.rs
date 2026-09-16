@@ -1040,7 +1040,19 @@ impl RenderOnce for Autocomplete {
             // above is not told about the focus.
             if field_box.focus_ring.unwrap_or(true) {
                 if let Some(handle) = &focus_handle {
-                    field = util::ring_if_focused(field, handle, true, Vec::new(), window, cx);
+                    // Overlay rather than spread shadow: the ring's corner is
+                    // then concentric with `trigger_radius` instead of
+                    // repeating the trigger's own radius four pixels out, and
+                    // its edge is crisp instead of blurred.
+                    field = util::ring_overlay_if_focused(
+                        field,
+                        handle,
+                        true,
+                        trigger_radius,
+                        Vec::new(),
+                        window,
+                        cx,
+                    );
                 }
             }
         }

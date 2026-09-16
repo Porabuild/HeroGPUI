@@ -852,10 +852,14 @@ impl RenderOnce for InputOTP {
                 .bg(idle.bg)
                 .border(idle.border_width)
                 .border_color(idle.border);
-            cell = crate::util::with_focus_ring(
+            // The instant ring the first frame casts is an overlay child,
+            // concentric with the slot's own `radius`; the flush geometry takes
+            // no offset gap, so the band sits straight on the slot edge.
+            cell = crate::util::with_focus_ring_overlay(
                 cell,
                 focus_ring.is_some(),
                 false,
+                radius,
                 base_shadows.clone(),
                 cx,
             );

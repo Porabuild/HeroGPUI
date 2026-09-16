@@ -192,8 +192,10 @@ impl RenderOnce for Breadcrumbs {
                     // renders as a `<li>` — role `listitem` — holding a
                     // `<Link>` (`@heroui/react/.../breadcrumbs/breadcrumbs.js`
                     // composes exactly that) and, when it is not the current
-                    // page, the separator. Its `aria-current="page"` state is
-                    // forwarded by the local gpui-pre accessibility extension.
+                    // page, the separator. Its `aria-current="page"` state has no
+                    // gpui builder on vanilla (see `a11y.rs`); the last crumb
+                    // is still styled and named as current, only the
+                    // announcement is missing until that lands upstream.
                     .a11y(a11y::Role::ListItem)
                     .flex()
                     .flex_shrink_0()
@@ -280,8 +282,17 @@ impl RenderOnce for Breadcrumbs {
                 // `on_navigate`.
                 if is_link {
                     let focus = focus.as_ref().expect("a link crumb is a tab stop");
-                    label_el =
-                        crate::util::ring_if_focused(label_el, focus, true, Vec::new(), window, cx);
+                    // The crumb rounds nothing of its own, so the ring is
+                    // drawn around a square box.
+                    label_el = crate::util::ring_overlay_if_focused(
+                        label_el,
+                        focus,
+                        true,
+                        px(0.),
+                        Vec::new(),
+                        window,
+                        cx,
+                    );
                 }
 
                 row.child(label_el)

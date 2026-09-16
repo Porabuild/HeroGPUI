@@ -359,7 +359,10 @@ impl RenderOnce for ColorSwatchPicker {
                     // The checkerboard that shows through a translucent
                     // colour, as on a plain `ColorSwatch`.
                     .bg(cx.colors().surface_secondary)
-                    .child(div().size_full().bg(color));
+                    // Vanilla GPUI clips `overflow_hidden()` to the
+                    // rectangle, so the color fill carries the visual
+                    // radius itself or it squares off the corners.
+                    .child(div().size_full().rounded(px(base_radius * scale.target())).bg(color));
                 let visual = if scale.animates(reduced_motion) {
                     let from = scale.from();
                     let value = scale.value();

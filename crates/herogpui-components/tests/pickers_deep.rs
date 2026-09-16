@@ -5604,7 +5604,7 @@ fn select_option_visuals_follow_the_pinned_indicator_only_contract() {
         "selected Select rows must keep the normal foreground"
     );
     assert!(
-        source.contains("util::with_focus_ring("),
+        source.contains("util::with_focus_ring_overlay("),
         "focused Select rows must use the shared status-ring overlay"
     );
     assert!(

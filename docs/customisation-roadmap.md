@@ -7,7 +7,7 @@ that the proposed APIs or tests already exist.
 Authority: [workflow](agents/workflow.md), [component guide](agents/components.md),
 [parity policy](agents/parity.md), and the root [AGENTS.md](../AGENTS.md).
 Upstream evidence comes from the checked-in HeroUI **v3.2.4** bundle/CSS and
-the unpacked **gpui-pre 0.3.3** registry sources. Recheck source symbols when
+the unpacked **gpui-pre 0.3.5** registry sources. Recheck source symbols when
 starting each phase; line numbers are not durable contracts.
 
 ## Corrections to the previous proposal
@@ -426,8 +426,8 @@ behavior changes when choosing the artifact rebuild batch as well.
 | Artifact check coverage | [manifest tests](../web/scripts/extract-rust-examples.test.mjs), [website commands](../web/package.json) |
 | Current verification and network behavior | [CI](../.github/workflows/ci.yml), [lint](../.shots/lint.ps1), [demo audit](../.shots/demo_audit.py) |
 
-GPUI evidence: `gpui-pre-0.3.3/src/style.rs` (`corner_radii`),
-`src/geometry.rs` (`AbsoluteLength`), and
-`src/elements/div.rs` (`compute_style_internal`) in the unpacked Cargo
-registry. Pagination CSS was checked directly in the pinned CSS archive,
+GPUI evidence: re-derive from the unpacked `gpui-pre-0.3.5` registry sources
+(the earlier `gpui-pre-0.3.3/src/style.rs` `corner_radii` reference was
+retired-fork API and no longer exists on vanilla), plus `src/geometry.rs`
+(`AbsoluteLength`) and `src/elements/div.rs` (`compute_style_internal`). Pagination CSS was checked directly in the pinned CSS archive,
 including the size-specific pressed-scale rules.

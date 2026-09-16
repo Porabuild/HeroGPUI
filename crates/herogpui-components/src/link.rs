@@ -232,6 +232,10 @@ impl RenderOnce for Link {
             }
         }
 
+        // The resting corner is resolved once: the box rounds to it and the
+        // focus ring overlay has to be concentric with that same shape.
+        let link_radius = self.radius.unwrap_or_else(|| crate::util::small_radius(cx));
+
         // RAC's `Link` renders a native `<a>`, whose role is `link`;
         // `useLink` only adds the explicit role when the element is not an
         // anchor. The rendered text carries no element id and so contributes
@@ -247,15 +251,13 @@ impl RenderOnce for Link {
             // contract, and the text colour never changes state.
             .text_color(link_color)
             .font_weight(gpui::FontWeight::MEDIUM)
-            .rounded(
-                self.radius
-                    .unwrap_or_else(|| crate::util::small_radius(cx)),
-            );
+            .rounded(link_radius);
         if interactive {
-            el = crate::util::ring_if_focused(
+            el = crate::util::ring_overlay_if_focused(
                 el.track_focus(&focus),
                 &focus,
                 true,
+                link_radius,
                 Vec::new(),
                 window,
                 cx,
