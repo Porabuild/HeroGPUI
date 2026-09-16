@@ -34,7 +34,7 @@ const staleDarkShots = [];
 const REFERENCE = resolve(webRoot, "src", "data", "reference.json");
 const OUT = resolve(webRoot, "src", "data", "catalog.json");
 
-const VERSION = "0.1.0";
+const VERSION = "0.9.0";
 const SKIPPED_CATEGORIES = new Set(["Overview", "Releases", "Getting started"]);
 
 /// `Button Group` -> `buttongroup-v3.png`; dark variant appends `-dark`.
