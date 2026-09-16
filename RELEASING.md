@@ -36,19 +36,22 @@ manifest moving with it.
 4. Reserve the five crates.io names. They were unclaimed when checked on
    2026-08-27, but registry ownership is first-come.
 
-`release.yml` has no publish job, so steps 1 to 4 are all the workflow needs.
-The registry credentials below are for a future publish job; until that job
-exists, a maintainer publishes from a local machine with their own crates.io
-credentials and none of these steps are required.
+`release.yml` builds the gallery binaries, creates the immutable GitHub
+Release, and then publishes the five crates to crates.io over OIDC trusted
+publishing (`publish-crates` job, `release` environment). No registry token
+is stored in GitHub.
 
-5. For the first automated publish only, add a short-lived `CRATES_IO_TOKEN`
-   secret to the `release` environment, scoped to publishing these package
-   names.
-6. After that first publish succeeds, configure trusted publishers for all
-   five crates to the `Porabuild/HeroGPUI` repository, `release.yml`
-   workflow, and `release` environment.
-7. Only after every trusted publisher is configured, delete the bootstrap
-   secret. Later automated releases use OIDC and need no registry secrets.
+5. The first release of every crate is published by hand (see the checklist
+   below), because crates.io only lets an existing crate declare a trusted
+   publisher. 0.9.0 was published that way on 2026-09-16.
+6. On crates.io, for each of `herogpui`, `herogpui-core`, `herogpui-theme`,
+   `herogpui-components` and `herogpui-gallery`: Settings -> Trusted
+   Publishing -> GitHub, repository `Porabuild/HeroGPUI`, workflow
+   `release.yml`, environment `release`.
+7. From then on a pushed `vX.Y.Z` tag publishes automatically. The job skips
+   any version the registry already has, so a re-run after a partial
+   publish continues where it stopped, and a hand publish before the tag
+   is harmless.
 
 ## Release checklist
 
@@ -69,7 +72,9 @@ credentials and none of these steps are required.
 4. The release workflow builds every supported gallery binary, attests them,
    and creates the immutable GitHub Release with those binaries plus
    `LICENSE` and `NOTICE`. It does not publish to crates.io.
-5. Publish the crates by hand, in dependency order, from the tagged commit:
+5. The workflow's `publish-crates` job publishes the crates. To publish by
+   hand instead (first release of a crate, or a workflow outage), from the
+   tagged commit and in dependency order:
 
    ```powershell
    cargo publish -p herogpui-core --locked
