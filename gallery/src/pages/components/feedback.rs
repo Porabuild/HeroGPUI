@@ -544,6 +544,35 @@ impl Gallery {
                         })
                         .collect()),
                 ),
+                (
+                    "Pixel Sizes",
+                    "For the in-between diameters the size steps do not cover.",
+                    row(vec![
+                        specimen_body("spinner-px-12", spec("12px", h::Spinner::new("sp-px-12").size_px(px(12.)), cx), cx),
+                        specimen_body("spinner-px-14", spec("14px", h::Spinner::new("sp-px-14").size_px(px(14.)), cx), cx),
+                        specimen_body("spinner-px-20", spec("20px", h::Spinner::new("sp-px-20").size_px(px(20.)), cx), cx),
+                    ]),
+                ),
+                (
+                    "Custom Glyph",
+                    "A caller element replaces the arc; the spinner keeps the box, the resolved color, the rotation and the loading status.",
+                    row(vec![
+                        specimen_body("spinner-glyph-loader", spec(
+                        "Loader2",
+                        h::Spinner::new("sp-glyph-loader")
+                            .size_px(px(20.))
+                            .glyph(gpui::svg().size(px(16.)).path(h::icons::LOADER_2)),
+                        cx,
+                        ), cx),
+                        specimen_body("spinner-glyph-lg", spec(
+                        "Lg + Loader2",
+                        h::Spinner::new("sp-glyph-lg")
+                            .size(h::SpinnerSize::Lg)
+                            .glyph(gpui::svg().size(px(24.)).path(h::icons::LOADER_2)),
+                        cx,
+                        ), cx),
+                    ]),
+                ),
             ],
             cx,
         )

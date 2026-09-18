@@ -968,7 +968,7 @@ const SPINNER_API: &[ApiDoc] = &[
         prop: "className",
         ty: "string",
         default: "—",
-        description: "Browser CSS classes and animation utilities are unavailable.",
+        description: "Browser CSS classes and animation utilities are unavailable; the size-utility, glyph and speed customizations read through `size_px`, `glyph` and `duration_ms` instead.",
         rust_owner: "Spinner",
         rust: "—",
         status: ImplementationStatus::Unavailable,
@@ -978,7 +978,8 @@ const SPINNER_API: &[ApiDoc] = &[
 const SPINNER_PARTS: &[PartDoc] = &[PartDoc {
     name: "Spinner",
     slot: "spinner",
-    description: "Rotating arc indicator with semantic color and fixed size.",
+    description:
+        "Rotating indicator (the HeroUI arc or a caller glyph) with semantic color and fixed size.",
     rust_owner: "Spinner",
     status: ImplementationStatus::Implemented,
 }];
@@ -994,6 +995,8 @@ const SPINNER_STATES: &[StateDoc] = &[StateDoc {
 const SPINNER_STYLING: &[StyleDoc] = &[
     StyleDoc { class_or_token: ".spinner", value: "size-6 animate-spin-fast (750ms linear)", description: "The default indicator keeps its 24px diameter in flex layouts and follows HeroUI's 750ms linear spin token; duration_ms provides the gallery's speed customization point.", rust: "SpinnerSize::Md + duration_ms(u64) + repeated linear rotation", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".spinner--sm / --md / --lg / --xl", value: "16px / 24px / 32px / 40px", description: "All four documented diameters map directly.", rust: "SpinnerSize::px", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: "size-3.5 / size-5 / … (Tailwind size utilities)", value: "arbitrary pixel diameter", description: "v3 names in-between diameters with size utility classes; the port takes the pixels directly, and the explicit override wins over the size step in either builder order.", rust: "size_px(impl Into<Pixels>)", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: "spinner glyph (children)", value: "caller-owned rotating glyph", description: "The arc mark is fixed upstream; the port swaps in a caller element while the spinner keeps the box, applies the resolved color to the glyph, and keeps the rotation and the reduced-motion suppression. Pass the svg() element itself: gpui transforms only svgs.", rust: "glyph(impl IntoElement)", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".spinner--current / semantic colors", value: "currentColor or semantic role", description: "GPUI SVGs require current text color to be resolved by the caller; semantic roles resolve from the active theme.", rust: "current_color(Hsla) / color(Color)", status: ImplementationStatus::Partial },
 ];
 

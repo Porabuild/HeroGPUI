@@ -967,6 +967,39 @@ impl Gallery {
                     .into_any_element(),]), cx),
                 ),
                 (
+                    "Icon-Only Segmented Control",
+                    "The capture-toolbar shape: `trigger` renders an element instead of the label text — `label` stays the accessible name — and `radius`, `list_bg`, `indicator_bg` and `indicator_shadow` restyle the tray and its pill. The icon carries no accessible name of its own and svg does not inherit the tab's text colour, so it is set explicitly.",
+                    specimen_body("tabs-icon-segmented", col(vec![h::Tabs::new(
+                        "tabs-icon-segmented",
+                        vec![
+                            h::TabItem::new("light", "Light").trigger(
+                                gpui::svg()
+                                    .size(px(16.))
+                                    .path(h::icons::SUN)
+                                    .text_color(cx.colors().foreground),
+                            ),
+                            h::TabItem::new("dark", "Dark").trigger(
+                                gpui::svg()
+                                    .size(px(16.))
+                                    .path(h::icons::MOON)
+                                    .text_color(cx.colors().foreground),
+                            ),
+                            h::TabItem::new("system", "System").trigger(
+                                gpui::svg()
+                                    .size(px(16.))
+                                    .path(h::icons::GEAR)
+                                    .text_color(cx.colors().foreground),
+                            ),
+                        ],
+                        "light",
+                    )
+                    .radius(px(24.))
+                    .list_bg(cx.colors().muted.alpha(0.10))
+                    .indicator_bg(cx.colors().muted.alpha(0.25))
+                    .indicator_shadow(false)
+                    .into_any_element()]), cx),
+                ),
+                (
                     "Secondary Variant",
                     specimen_body("tabs-secondary", col(vec![h::Tabs::new(
                         "tabs-secondary",

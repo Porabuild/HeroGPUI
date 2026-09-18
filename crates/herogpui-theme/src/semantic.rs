@@ -54,6 +54,14 @@ pub struct RoleColor {
     /// Weight of `foreground` in the `*-hover` mix. `0.10` for the status and
     /// accent roles, `0.04` for `default`.
     pub hover_mix: f32,
+    /// An explicit `*-hover`, in place of the `hover_mix` derivation.
+    ///
+    /// Upstream derives every hover shade by mixing the role toward its own
+    /// foreground, which moves a dark accent lighter and a light one darker.
+    /// A design system whose hover moves the other way — or to an unrelated
+    /// value — has no weight that expresses it, so it can name the colour
+    /// instead. Set through [`RoleColor::with_hover`].
+    hover_override: Option<Hsla>,
     /// Share of the role color in `*-soft`, over transparent.
     soft_mix: f32,
     /// Share of the role color in `*-soft-hover`.
@@ -74,6 +82,7 @@ impl RoleColor {
             color,
             foreground,
             hover_mix: 0.10,
+            hover_override: None,
             soft_mix: 0.15,
             soft_hover_mix: 0.20,
             soft_foreground: SoftForeground::Mix {
@@ -85,9 +94,33 @@ impl RoleColor {
     }
 
     /// `default` mixes only 4% of its foreground on hover.
+    ///
+    /// Ignored once [`RoleColor::with_hover`] has named the shade outright.
     pub fn with_hover_mix(mut self, hover_mix: f32) -> Self {
         self.hover_mix = hover_mix;
         self
+    }
+
+    /// Replaces the derived `*-hover` shade with an explicit colour.
+    ///
+    /// This is the role-level hook: every component that hovers this role —
+    /// a `Variant::Primary` button, a select trigger, a menu row — reads
+    /// [`RoleColor::hover`], so naming it here makes the whole surface correct
+    /// by construction rather than one call site at a time. It is the
+    /// alternative to registering a named component recipe carrying a
+    /// [`crate::ComponentColor::Literal`] and converting each site to it,
+    /// which leaves any newly written site on the derived shade.
+    ///
+    /// Leaves `*-soft-hover` alone: that shade is an alpha of the role over
+    /// transparent and does not mix the foreground in.
+    pub fn with_hover(mut self, hover: Hsla) -> Self {
+        self.hover_override = Some(hover);
+        self
+    }
+
+    /// The explicit `*-hover`, when one was named.
+    pub fn hover_override(&self) -> Option<Hsla> {
+        self.hover_override
     }
 
     /// Sets the shares of the role color in `--role-soft` and
@@ -125,8 +158,11 @@ impl RoleColor {
     }
 
     /// `--color-accent-hover: color-mix(in oklab, var(--accent) 90%, var(--accent-foreground) 10%)`
+    ///
+    /// [`RoleColor::with_hover`] replaces this derivation with a named colour.
     pub fn hover(&self) -> Hsla {
-        mix_oklab(self.color, self.foreground, self.hover_mix)
+        self.hover_override
+            .unwrap_or_else(|| mix_oklab(self.color, self.foreground, self.hover_mix))
     }
 
     /// `--color-accent-soft: color-mix(in oklab, var(--accent) 15%, transparent)`
@@ -506,6 +542,38 @@ mod tests {
             (r.g * 255.0).round() as u8,
             (r.b * 255.0).round() as u8,
         )
+    }
+
+    #[test]
+    fn an_explicit_role_hover_replaces_the_derived_mix() {
+        let stock = ThemeColors::light();
+        let derived = stock.accent.hover();
+        // Upstream mixes the role toward its own foreground, so a hover named
+        // in the other direction has no `hover_mix` that expresses it.
+        let named = gpui::hsla(0.6, 0.9, 0.3, 1.0);
+        let role = stock.accent.with_hover(named);
+        assert_ne!(rgb8(derived), rgb8(named), "the fixture must differ");
+        assert_eq!(rgb8(role.hover()), rgb8(named));
+        assert_eq!(role.hover_override(), Some(named));
+        // Only `*-hover` moves: the soft shades are alphas of the role over
+        // transparent and never mix the foreground in.
+        assert_eq!(rgb8(role.soft()), rgb8(stock.accent.soft()));
+        assert_eq!(rgb8(role.soft_hover()), rgb8(stock.accent.soft_hover()));
+        assert_eq!(rgb8(role.color), rgb8(stock.accent.color));
+    }
+
+    #[test]
+    fn a_named_role_hover_outranks_the_hover_mix_whichever_order_they_are_set() {
+        let base = ThemeColors::light().accent;
+        let named = gpui::hsla(0.1, 0.8, 0.4, 1.0);
+        assert_eq!(
+            rgb8(base.with_hover(named).with_hover_mix(0.5).hover()),
+            rgb8(named)
+        );
+        assert_eq!(
+            rgb8(base.with_hover_mix(0.5).with_hover(named).hover()),
+            rgb8(named)
+        );
     }
 
     #[test]

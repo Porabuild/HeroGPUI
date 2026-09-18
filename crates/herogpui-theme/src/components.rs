@@ -159,6 +159,14 @@ component_style! {
         variant: FieldVariant,
         height: Pixels,
         padding_x: Pixels,
+        /// Vertical padding on the trigger, in place of v3's `py-2`.
+        ///
+        /// The trigger is `min-h` based, so a single-line value keeps the
+        /// resolved height (36px of `line-height: 20px` plus 8px each side)
+        /// while a value that wraps to two lines grows the trigger the way
+        /// upstream's `py-2` does. Unset leaves the trigger unpadded, which is
+        /// the pre-0.10.0 geometry.
+        padding_y: Pixels,
         trigger_text_size: Pixels,
         row_height: Pixels,
         row_padding_x: Pixels,
@@ -186,6 +194,19 @@ component_style! {
         row_hover_bg: ComponentColor,
         row_hover_foreground: ComponentColor,
         radius: Pixels,
+        /// An absolute horizontal inset on each edge of a
+        /// `MenuItem::Separator`, in place of v3's proportional
+        /// `ms-[3%] w-[94%]`.
+        ///
+        /// Unset keeps that proportional rule. Set, the inset is the same
+        /// number of pixels at any panel width — AppKit's own menu separator
+        /// is inset 15pt on each side inside wider panel bounds.
+        separator_inset: Pixels,
+        /// Thickness of a `MenuItem::Separator`.
+        ///
+        /// Unset keeps `LayoutTheme::border_width`, the hairline every other
+        /// rule in the port uses.
+        separator_thickness: Pixels,
         animate_entry: bool,
     }
 }
@@ -224,6 +245,14 @@ pub struct ButtonStyle {
 }
 
 impl ButtonStyle {
+    /// The variant this recipe selects.
+    ///
+    /// Ignored on any button whose call site named a variant of its own: the
+    /// instance is the more specific source. A recipe that must survive
+    /// `.variant(..)` should say what it wants outright —
+    /// [`ButtonStyle::hover_bg`], [`ButtonStyle::background`] and their
+    /// neighbours all apply whatever variant ends up in force — rather than
+    /// express it by selecting a variant whose derived shades happen to match.
     pub fn variant(mut self, variant: Variant) -> Self {
         self.variant = Some(variant);
         self

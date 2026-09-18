@@ -140,6 +140,11 @@ pub struct Roles {
 pub struct RoleOverride {
     pub color: String,
     pub foreground: String,
+    /// An explicit `*-hover` for the role, in place of the mix-toward-
+    /// foreground derivation — the JSON spelling of
+    /// [`ThemeBuilder::role_hover`]. Unset keeps the derived shade.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hover: Option<String>,
 }
 
 /// Why a document could not become a [`Theme`].
@@ -363,11 +368,20 @@ fn apply_role(
     role: Option<&RoleOverride>,
 ) -> Result<ThemeBuilder, ThemeDocumentError> {
     match role {
-        Some(role) => Ok(builder.role(
-            name,
-            parse_color(&format!("roles.{name}.color"), &role.color)?,
-            parse_color(&format!("roles.{name}.foreground"), &role.foreground)?,
-        )),
+        Some(role) => {
+            let builder = builder.role(
+                name,
+                parse_color(&format!("roles.{name}.color"), &role.color)?,
+                parse_color(&format!("roles.{name}.foreground"), &role.foreground)?,
+            );
+            match &role.hover {
+                Some(hover) => {
+                    Ok(builder
+                        .role_hover(name, parse_color(&format!("roles.{name}.hover"), hover)?))
+                }
+                None => Ok(builder),
+            }
+        }
         None => Ok(builder),
     }
 }
@@ -627,6 +641,53 @@ mod tests {
                 .to_json()
                 .unwrap()
                 .contains("vibrant_palette")
+        );
+    }
+
+    #[test]
+    fn a_role_hover_override_round_trips_and_reaches_the_builder() {
+        let json = r##"{
+                "id": "x",
+                "base": "light",
+                "roles": { "accent": { "color": "#006FEE", "foreground": "#fff", "hover": "#0058BE" } }
+            }"##;
+        let theme = ThemeDocument::theme_from_json(json).unwrap();
+        let via_builder = Theme::builder("x", Theme::light())
+            .role(
+                "accent",
+                parse_color("c", "#006FEE").unwrap(),
+                parse_color("f", "#fff").unwrap(),
+            )
+            .role_hover("accent", parse_color("h", "#0058BE").unwrap())
+            .build();
+        assert_eq!(
+            theme.colors.accent.hover(),
+            via_builder.colors.accent.hover()
+        );
+        assert_eq!(
+            theme.colors.accent.hover_override(),
+            via_builder.colors.accent.hover_override()
+        );
+
+        let round_tripped = ThemeDocument::from_json(json).unwrap().to_json().unwrap();
+        assert!(round_tripped.contains("hover"));
+        let again = ThemeDocument::theme_from_json(&round_tripped).unwrap();
+        assert_eq!(again.colors.accent.hover_override().is_some(), true);
+
+        // Absent means the derived shade, like a role without the key.
+        let plain = ThemeDocument::theme_from_json(
+            r##"{ "id": "x", "base": "light", "roles": { "accent": { "color": "#006FEE", "foreground": "#fff" } } }"##,
+        )
+        .unwrap();
+        assert_eq!(plain.colors.accent.hover_override(), None);
+        assert!(
+            !ThemeDocument::from_json(
+                r##"{ "id": "x", "base": "light", "roles": { "accent": { "color": "#006FEE", "foreground": "#fff" } } }"##,
+            )
+            .unwrap()
+            .to_json()
+            .unwrap()
+            .contains("hover")
         );
     }
 

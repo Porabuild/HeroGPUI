@@ -195,6 +195,55 @@ impl Gallery {
                         .into_any_element()]),
                 ),
                 (
+                    "Pixel Geometry", "`width`, `min_width`, `height` and `padding_x` set the box in place of the size ladder. An explicit pixel `width` beats `full_width`, and the pressed skin keeps the fixed box.",
+                    specimen_body("btn-pixel-geometry", row(vec![gpui::div()
+                        .flex()
+                        .items_start()
+                        .gap(px(12.))
+                        .child(
+                            h::Button::new("btn-geom-sized")
+                                .label("200 x 56")
+                                .width(px(200.))
+                                .height(px(56.)),
+                        )
+                        .child(
+                            h::Button::new("btn-geom-roomy")
+                                .label("Roomy")
+                                .padding_x(px(32.)),
+                        )
+                        .child(
+                            h::Button::new("btn-geom-min")
+                                .label("Min 160")
+                                .min_width(px(160.)),
+                        )
+                        .into_any_element()]), cx),
+                ),
+                (
+                    "Text Metrics", "`text_size` and `font_weight` restyle the label in place of the size step's `text-sm font-medium`; a Tailwind step keeps its paired leading.",
+                    specimen_body("btn-text-metrics", row(vec![
+                        h::Button::new("btn-metrics-large")
+                            .label("18px SemiBold")
+                            .text_size(px(18.))
+                            .font_weight(gpui::FontWeight::SEMIBOLD)
+                            .into_any_element(),
+                        h::Button::new("btn-metrics-small")
+                            .label("12px medium")
+                            .text_size(px(12.))
+                            .into_any_element(),
+                    ]), cx),
+                ),
+                (
+                    "Flex Fill", "`grow` is v3's `flex-1` plus `min-w-0`: the growing buttons share the row's free width and compress below their content width when the row is tight, while the fixed one keeps its own.",
+                    specimen_body("btn-flex-fill", row(vec![gpui::div()
+                        .flex()
+                        .w(px(400.))
+                        .gap(px(8.))
+                        .child(h::Button::new("btn-grow-fill").label("Fill").grow(true))
+                        .child(h::Button::new("btn-grow-share").label("Shares too").grow(true))
+                        .child(h::Button::new("btn-grow-fixed").label("Fixed"))
+                        .into_any_element()]), cx),
+                ),
+                (
                     "Disabled State",
                     row(Variant::ALL
                         .iter()

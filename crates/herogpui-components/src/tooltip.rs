@@ -270,6 +270,9 @@ pub struct Tooltip {
     delay: Option<u64>,
     close_delay: Option<u64>,
     trigger: TooltipTrigger,
+    /// A caller-drawn tip body, in place of the measured single line.
+    #[allow(clippy::type_complexity)]
+    body: Option<Box<dyn Fn(&mut Window, &mut App) -> AnyElement + 'static>>,
     children: Vec<AnyElement>,
     /// The corner radius, in place of the owning `small_radius` helper.
     radius: Option<Pixels>,
@@ -290,6 +293,7 @@ impl Tooltip {
             delay: None,
             close_delay: None,
             trigger: TooltipTrigger::default(),
+            body: None,
             children: Vec::new(),
             radius: None,
             sx: None,
@@ -302,6 +306,40 @@ impl Tooltip {
     /// id when two tooltips on one screen share the same content.
     pub fn id(mut self, id: impl Into<ElementId>) -> Self {
         self.id = Some(id.into());
+        self
+    }
+
+    /// Draws the tip's body yourself, in place of the text handed to
+    /// [`Tooltip::new`].
+    ///
+    /// v3's `Tooltip` takes children, so a tip is free to compose a small
+    /// table, a key/value list or a swatch legend. This port shapes the tip's
+    /// single line to reproduce CSS `max-content` capped at 320px, which only
+    /// a string can go through; an element body skips that measurement and
+    /// takes its own intrinsic width under the same 320px cap instead.
+    ///
+    /// The string from [`Tooltip::new`] is still required and still used: it
+    /// remains the tip's accessible name and the default hover key, so a rich
+    /// tip cannot ship without something a screen reader can read. Pass the
+    /// text the body conveys.
+    ///
+    /// The closure runs only while the tip is on screen, never for a closed
+    /// tooltip, and it runs again on each frame of the reveal.
+    ///
+    /// ```
+    /// # use herogpui_components::tooltip::Tooltip;
+    /// # use gpui::{div, IntoElement, ParentElement};
+    /// Tooltip::new("Tokens: name, kind, scope")
+    ///     .body(|_, _| {
+    ///         div()
+    ///             .child("name — the identifier")
+    ///             .child("kind — the token class")
+    ///             .into_any_element()
+    ///     })
+    ///     .child(div().child("tokens"));
+    /// ```
+    pub fn body(mut self, render: impl Fn(&mut Window, &mut App) -> AnyElement + 'static) -> Self {
+        self.body = Some(Box::new(render));
         self
     }
 
@@ -386,7 +424,7 @@ impl ParentElement for Tooltip {
 }
 
 impl RenderOnce for Tooltip {
-    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(mut self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         if self.is_disabled {
             // A disabled tooltip renders its trigger and nothing else.
             return util::apply_sx(gpui::div().flex().children(self.children), &self.sx)
@@ -585,6 +623,9 @@ impl RenderOnce for Tooltip {
         // only built while it is visible: `shape_line` is the most expensive
         // call in this render, and a closed tooltip has no surface to size.
         if phase != util::OverlayPhase::Closed {
+            // The caller's body is built first: it takes `cx` mutably, and the
+            // theme reads below hold it borrowed for the rest of this block.
+            let body = self.body.take().map(|render| render(window, cx));
             let colors = cx.colors();
             let layout = cx.layout();
             // v3 pushes the tip further out when the arrow needs room.
@@ -599,89 +640,121 @@ impl RenderOnce for Tooltip {
             // making even "With an arrow" one word wide, so shape the single line
             // and pin the same max-content result explicitly.
             let content = self.content.clone();
-            let raw_run = gpui::TextRun {
-                len: content.len(),
-                font: window.text_style().font(),
-                color: gpui::black(),
-                background_color: None,
-                underline: None,
-                strikethrough: None,
-            };
-            let hairline_width = if layout.overlay_hairline.is_some() {
-                layout.border_width * 2.
-            } else {
-                px(0.)
-            };
-            // `overflow-wrap: anywhere` only takes effect when the natural
-            // line would exceed the 320px cap.  Inserting a zero-width break
-            // after every character unconditionally makes short placements
-            // such as the `Left` tooltip wrap its final letter because GPUI's
-            // line wrapper treats the opportunity as a legal split even when
-            // the unbroken word would fit.  Measure the natural text first,
-            // then add opportunities only for content that actually needs the
-            // cap.
-            let raw_line =
-                window
-                    .text_system()
-                    .shape_line(content.clone(), px(12.), &[raw_run], None);
-            let natural_width = raw_line.width + px(16.) + hairline_width;
-            let (display, needs_breaks) = tooltip_display_content(content.as_ref(), natural_width);
-            let display_content: SharedString = display.into();
-            let run = gpui::TextRun {
-                len: display_content.len(),
-                font: window.text_style().font(),
-                color: gpui::black(),
-                background_color: None,
-                underline: None,
-                strikethrough: None,
-            };
-            let line = if display_content == content {
-                raw_line
-            } else {
-                window
-                    .text_system()
-                    .shape_line(display_content.clone(), px(12.), &[run], None)
-            };
-            let intrinsic_width = line.width + px(16.) + hairline_width;
-            let tooltip_width = if intrinsic_width < px(320.) {
-                intrinsic_width
-            } else {
-                px(320.)
-            };
+            // A caller-drawn body replaces the measured line, and with it the
+            // whole `max-content` reconstruction the string path performs: an
+            // element resolves its own intrinsic width the way CSS would, so
+            // the tip only has to impose the same 320px cap on it. The string
+            // stays the tip's accessible name in both shapes.
+            let mut tip = match body {
+                Some(body) => {
+                    gpui::div()
+                        .id(element_id::scoped(&key, "tip"))
+                        .a11y_named(a11y::Role::Tooltip, &a11y::Name::labelled(content))
+                        .relative()
+                        // `.tooltip` is `p-2` all round.
+                        .p(px(8.))
+                        .max_w(px(320.))
+                        .rounded(radius)
+                        .bg(colors.overlay.background)
+                        .text_color(colors.overlay.foreground)
+                        .text_size(px(12.))
+                        .line_height(px(16.))
+                        .when_some(layout.overlay_hairline, |el, hairline| {
+                            el.border(layout.border_width).border_color(hairline)
+                        })
+                        .shadow(layout.overlay_shadow.clone())
+                        .child(body)
+                }
+                None => {
+                    let raw_run = gpui::TextRun {
+                        len: content.len(),
+                        font: window.text_style().font(),
+                        color: gpui::black(),
+                        background_color: None,
+                        underline: None,
+                        strikethrough: None,
+                    };
+                    let hairline_width = if layout.overlay_hairline.is_some() {
+                        layout.border_width * 2.
+                    } else {
+                        px(0.)
+                    };
+                    // `overflow-wrap: anywhere` only takes effect when the natural
+                    // line would exceed the 320px cap.  Inserting a zero-width break
+                    // after every character unconditionally makes short placements
+                    // such as the `Left` tooltip wrap its final letter because GPUI's
+                    // line wrapper treats the opportunity as a legal split even when
+                    // the unbroken word would fit.  Measure the natural text first,
+                    // then add opportunities only for content that actually needs the
+                    // cap.
+                    let raw_line =
+                        window
+                            .text_system()
+                            .shape_line(content.clone(), px(12.), &[raw_run], None);
+                    let natural_width = raw_line.width + px(16.) + hairline_width;
+                    let (display, needs_breaks) =
+                        tooltip_display_content(content.as_ref(), natural_width);
+                    let display_content: SharedString = display.into();
+                    let run = gpui::TextRun {
+                        len: display_content.len(),
+                        font: window.text_style().font(),
+                        color: gpui::black(),
+                        background_color: None,
+                        underline: None,
+                        strikethrough: None,
+                    };
+                    let line = if display_content == content {
+                        raw_line
+                    } else {
+                        window.text_system().shape_line(
+                            display_content.clone(),
+                            px(12.),
+                            &[run],
+                            None,
+                        )
+                    };
+                    let intrinsic_width = line.width + px(16.) + hairline_width;
+                    let tooltip_width = if intrinsic_width < px(320.) {
+                        intrinsic_width
+                    } else {
+                        px(320.)
+                    };
 
-            let mut tip = gpui::div()
-                // `tooltip/tooltip.js` renders the RAC `Tooltip`, and
-                // `react-aria/dist/private/tooltip/useTooltip.js` is a single
-                // `role: 'tooltip'`. Upstream leaves the tip unnamed and
-                // points the *trigger*'s `aria-describedby` at it; with no id
-                // graph the port names the tip with its own content instead,
-                // which is the text that describedby would have resolved to.
-                .id(element_id::scoped(&key, "tip"))
-                .a11y_named(a11y::Role::Tooltip, &a11y::Name::labelled(content))
-                // The placement anchor lives on an outer absolute wrapper
-                // below. Keeping the painted surface relative lets the entry
-                // slide use top/left without replacing that anchor.
-                .relative()
-                // `.tooltip` is `p-2` all round, not a wider-than-tall pill.
-                .p(px(8.))
-                .w(tooltip_width)
-                .rounded(radius)
-                .bg(colors.overlay.background)
-                .text_color(colors.overlay.foreground)
-                .text_size(px(12.))
-                .line_height(px(16.))
-                // GPUI's normal wrapper can round a max-content width down by
-                // a glyph fraction and split the last letter of a short
-                // placement label (for example, `Left`).  Short tooltips have
-                // already been measured to fit, so keep that line intact;
-                // long capped content still uses normal wrapping at the
-                // inserted zero-width opportunities above.
-                .when(!needs_breaks, |el| el.whitespace_nowrap())
-                .when_some(layout.overlay_hairline, |el, hairline| {
-                    el.border(layout.border_width).border_color(hairline)
-                })
-                .shadow(layout.overlay_shadow.clone())
-                .child(display_content);
+                    gpui::div()
+                    // `tooltip/tooltip.js` renders the RAC `Tooltip`, and
+                    // `react-aria/dist/private/tooltip/useTooltip.js` is a single
+                    // `role: 'tooltip'`. Upstream leaves the tip unnamed and
+                    // points the *trigger*'s `aria-describedby` at it; with no id
+                    // graph the port names the tip with its own content instead,
+                    // which is the text that describedby would have resolved to.
+                    .id(element_id::scoped(&key, "tip"))
+                    .a11y_named(a11y::Role::Tooltip, &a11y::Name::labelled(content))
+                    // The placement anchor lives on an outer absolute wrapper
+                    // below. Keeping the painted surface relative lets the entry
+                    // slide use top/left without replacing that anchor.
+                    .relative()
+                    // `.tooltip` is `p-2` all round, not a wider-than-tall pill.
+                    .p(px(8.))
+                    .w(tooltip_width)
+                    .rounded(radius)
+                    .bg(colors.overlay.background)
+                    .text_color(colors.overlay.foreground)
+                    .text_size(px(12.))
+                    .line_height(px(16.))
+                    // GPUI's normal wrapper can round a max-content width down by
+                    // a glyph fraction and split the last letter of a short
+                    // placement label (for example, `Left`).  Short tooltips have
+                    // already been measured to fit, so keep that line intact;
+                    // long capped content still uses normal wrapping at the
+                    // inserted zero-width opportunities above.
+                    .when(!needs_breaks, |el| el.whitespace_nowrap())
+                    .when_some(layout.overlay_hairline, |el, hairline| {
+                        el.border(layout.border_width).border_color(hairline)
+                    })
+                    .shadow(layout.overlay_shadow.clone())
+                    .child(display_content)
+                }
+            };
 
             if self.show_arrow {
                 // The arrow leaf pins to the tip's resolved side; the

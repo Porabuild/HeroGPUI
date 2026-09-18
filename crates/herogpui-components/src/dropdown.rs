@@ -17,6 +17,12 @@ pub enum MenuItem {
     /// Section caption (`<MenuSection>` title).
     SectionLabel(SharedString),
     Separator,
+    /// A menu row.
+    ///
+    /// `#[non_exhaustive]`: build one through [`MenuItem::new`] and its
+    /// builders, which cover every field, so a later row capability is an
+    /// additive change rather than a break for literal construction.
+    #[non_exhaustive]
     Item {
         key: SharedString,
         label: SharedString,
@@ -28,6 +34,9 @@ pub enum MenuItem {
         /// `Dropdown.SubmenuTrigger` — the rows this item opens. The row grows a
         /// trailing indicator and the panel appears beside it.
         submenu: Vec<MenuItem>,
+        /// Whether the row's own content owns the interaction, in place of the
+        /// row acting as one button. See [`MenuItem::is_interactive`].
+        is_interactive: bool,
     },
 }
 
@@ -41,6 +50,7 @@ impl MenuItem {
             is_danger: false,
             description: None,
             submenu: Vec::new(),
+            is_interactive: false,
         }
     }
 
@@ -48,6 +58,37 @@ impl MenuItem {
     pub fn description(mut self, text: impl Into<SharedString>) -> Self {
         if let MenuItem::Item { description, .. } = &mut self {
             *description = Some(text.into());
+        }
+        self
+    }
+
+    /// Hands the row's interaction to the element `Menu::item_content` draws
+    /// for it, in place of the row behaving as one button.
+    ///
+    /// HeroUI composes rows that carry an inline secondary control — a small
+    /// select, a stepper — on the trailing edge, where pressing that control
+    /// must not also pick the row and close the menu. A stock row attaches an
+    /// unconditional click that reports the action and dismisses, plus the
+    /// `[data-pressed]` 98% scale over the whole row, so a hosted control is
+    /// unusable inside one. Setting this drops all three, and Enter and Space
+    /// stop activating the row, leaving the hosted element to answer the
+    /// pointer and the keyboard itself.
+    ///
+    /// What it keeps: the row stays a keyboard stop with its hover fill,
+    /// highlight and focus ring, and it keeps its `menuitem` role and
+    /// accessible name, so arrowing through the menu is unchanged.
+    ///
+    /// Nothing else is needed to host a popup-opening control such as a
+    /// [`crate::select::Select`]. Such a control registers its own panel on the
+    /// shared overlay stack, which makes it topmost, and the menu's
+    /// outside-press and Escape dismissals are already gated on being topmost —
+    /// so they stand down for as long as the inner panel is open.
+    ///
+    /// Ignored together with [`MenuItem::submenu`]: a submenu trigger already
+    /// opts out of the row click, and its flyout is the interaction.
+    pub fn is_interactive(mut self, interactive: bool) -> Self {
+        if let MenuItem::Item { is_interactive, .. } = &mut self {
+            *is_interactive = interactive;
         }
         self
     }
@@ -159,6 +200,8 @@ pub struct Menu {
     row_gap: Option<Pixels>,
     panel_padding: Option<Pixels>,
     panel_gap: Option<Pixels>,
+    separator_inset: Option<Pixels>,
+    separator_thickness: Option<Pixels>,
     animate_entry: bool,
     animate_entry_is_set: bool,
     focus_handle: Option<gpui::FocusHandle>,
@@ -217,6 +260,8 @@ impl Menu {
             row_gap: None,
             panel_padding: None,
             panel_gap: None,
+            separator_inset: None,
+            separator_thickness: None,
             animate_entry: true,
             animate_entry_is_set: false,
             focus_handle: None,
@@ -310,6 +355,26 @@ impl Menu {
     /// `row_gap` independently controls spacing inside each item.
     pub fn panel_gap(mut self, gap: impl Into<Pixels>) -> Self {
         self.panel_gap = Some(gap.into());
+        self
+    }
+
+    /// An absolute horizontal inset on each edge of a
+    /// [`MenuItem::Separator`], including submenus.
+    ///
+    /// Unset, the rule takes v3's own `ms-[3%] w-[94%]`: a proportional inset,
+    /// centred in the panel's content box. Set, that is replaced by the same
+    /// number of pixels on each edge whatever the panel's width — which is what
+    /// a panel sitting beside a platform menu needs, AppKit's own separator
+    /// being inset 15pt on each side inside wider panel bounds.
+    pub fn separator_inset(mut self, inset: impl Into<Pixels>) -> Self {
+        self.separator_inset = Some(inset.into());
+        self
+    }
+
+    /// Thickness of a [`MenuItem::Separator`], including submenus. Unset keeps
+    /// the theme's hairline border width.
+    pub fn separator_thickness(mut self, thickness: impl Into<Pixels>) -> Self {
+        self.separator_thickness = Some(thickness.into());
         self
     }
 
@@ -708,6 +773,20 @@ impl RenderOnce for Menu {
                 _ => false,
             })
             .collect();
+        // Whether each row hands its interaction to its own content. Enter and
+        // Space must leave such a row alone: the hosted control answers them.
+        let item_is_interactive: Vec<bool> = self
+            .items
+            .iter()
+            .map(|item| match item {
+                MenuItem::Item {
+                    is_interactive,
+                    submenu,
+                    ..
+                } => *is_interactive && submenu.is_empty(),
+                _ => false,
+            })
+            .collect();
         let item_bounds = self
             .items
             .iter()
@@ -752,6 +831,8 @@ impl RenderOnce for Menu {
         self.row_text_size = self.row_text_size.or(menu_theme.row_text_size);
         self.row_gap = self.row_gap.or(menu_theme.row_gap);
         self.radius = self.radius.or(menu_theme.radius);
+        self.separator_inset = self.separator_inset.or(menu_theme.separator_inset);
+        self.separator_thickness = self.separator_thickness.or(menu_theme.separator_thickness);
         if !self.animate_entry_is_set {
             if let Some(animate) = menu_theme.animate_entry {
                 self.animate_entry = animate;
@@ -781,6 +862,10 @@ impl RenderOnce for Menu {
         });
         let row_text_size = self.row_text_size.unwrap_or(px(14.));
         let row_gap = self.row_gap.unwrap_or(px(12.));
+        let separator_inset = self.separator_inset;
+        let separator_thickness = self
+            .separator_thickness
+            .unwrap_or_else(|| cx.layout().border_width);
         let panel_padding =
             self.panel_padding
                 .unwrap_or(if dropdown_composition { px(6.) } else { px(4.) });
@@ -863,6 +948,7 @@ impl RenderOnce for Menu {
             let selected_now = self.selected_keys.clone();
             let keys = item_keys;
             let has_submenu = item_has_submenu;
+            let is_interactive_for_keys = item_is_interactive;
             let submenu_open_for_keys = submenu_state.clone();
             let submenu_focus_for_keys = submenu_focus.clone();
             let submenu_base_for_keys = base_id.clone();
@@ -946,6 +1032,12 @@ impl RenderOnce for Menu {
                         let Some(item_key) = keys.get(i).cloned() else {
                             return;
                         };
+                        // An interactive row is not a button: the element its
+                        // `item_content` drew owns Enter and Space, exactly as
+                        // it owns the pointer.
+                        if is_interactive_for_keys.get(i).copied().unwrap_or(false) {
+                            return;
+                        }
                         if let Some(slot) = interaction_for_keys.get(i) {
                             crate::util::begin_keyboard_press(slot, event, window, cx);
                         }
@@ -1030,13 +1122,30 @@ impl RenderOnce for Menu {
         for (i, item) in self.items.into_iter().enumerate() {
             match item {
                 MenuItem::Separator => {
-                    panel = panel.child(
-                        gpui::div()
-                            .w_full()
+                    // `menu.css:8-11` and `dropdown.css:127-130` both inset the
+                    // rule: `[data-slot="separator"] { @apply ms-[3%] w-[94%] }`,
+                    // centred inside the panel's content box. `list_box.rs`
+                    // already ports the identical rule; this panel used to draw
+                    // the band full bleed.
+                    //
+                    // `separator_inset` replaces the proportional inset with an
+                    // absolute one on each edge, for a panel that has to sit
+                    // beside a platform menu whose own rule is a fixed inset
+                    // rather than a share of the width.
+                    panel = panel.child(match separator_inset {
+                        Some(inset) => gpui::div().w_full().my(px(4.)).px(inset).child(
+                            gpui::div()
+                                .w_full()
+                                .h(separator_thickness)
+                                .bg(colors.separator),
+                        ),
+                        None => gpui::div()
                             .my(px(4.))
-                            .h(cx.layout().border_width)
+                            .mx(gpui::relative(0.03))
+                            .w(gpui::relative(0.94))
+                            .h(separator_thickness)
                             .bg(colors.separator),
-                    );
+                    });
                 }
                 MenuItem::SectionLabel(label) => {
                     panel = panel.child(
@@ -1059,6 +1168,7 @@ impl RenderOnce for Menu {
                     is_danger,
                     description,
                     submenu,
+                    is_interactive,
                 } => {
                     // Either the single controlled key or membership of the
                     // selection set marks an item.
@@ -1066,6 +1176,9 @@ impl RenderOnce for Menu {
                         || self.selected_keys.contains(&key);
                     let is_item_disabled = self.disabled_keys.contains(&key);
                     let has_submenu = !submenu.is_empty();
+                    // A submenu trigger already skips the row click; the flag
+                    // only has meaning on a plain row.
+                    let row_is_interactive = is_interactive && !has_submenu;
                     let open_key =
                         element_id::scoped(&element_id::scoped(&base_id, "sub"), key.clone());
                     let highlighted = !is_item_disabled
@@ -1369,7 +1482,10 @@ impl RenderOnce for Menu {
                     // wrap comes after every visual child: children added
                     // after `pressed` land on the slot and fight the skin for
                     // width. The row is `w-full`, so its slot is too.
-                    if !is_item_disabled {
+                    // The 98% press scale shrinks every child, a hosted
+                    // control included, and it is keyed off a row press the
+                    // interactive row no longer claims.
+                    if !is_item_disabled && !row_is_interactive {
                         row = crate::anim::pressed(
                             row,
                             crate::anim::PressBox {
@@ -1388,7 +1504,7 @@ impl RenderOnce for Menu {
                         );
                     }
 
-                    if !is_item_disabled && !has_submenu {
+                    if !is_item_disabled && !has_submenu && !row_is_interactive {
                         let on_action = self.on_action.clone();
                         let on_selection_change = self.on_selection_change.clone();
                         let selection_own = selection_own.clone();
@@ -1607,6 +1723,8 @@ impl RenderOnce for Menu {
             sub.row_gap = self.row_gap;
             sub.panel_padding = self.panel_padding;
             sub.panel_gap = self.panel_gap;
+            sub.separator_inset = self.separator_inset;
+            sub.separator_thickness = self.separator_thickness;
             sub.animate_entry = self.animate_entry;
             sub.row_hover_bg = self.row_hover_bg;
             sub.row_hover_foreground = self.row_hover_foreground;

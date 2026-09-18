@@ -2,11 +2,17 @@
 //!
 //! `size` is `sm | md | lg | xl` and `color` is
 //! `current | accent | success | warning | danger`, where `current` inherits
-//! the surrounding text color (used inside a pending `Button`).
+//! the surrounding text color (used inside a pending `Button`). A caller can
+//! also name the diameter in pixels (`size_px`) or replace the arc with its
+//! own glyph (`glyph`); both keep the rotation, the reduced-motion
+//! suppression and the `role="status"` root.
 
 use std::time::Duration;
 
-use gpui::{prelude::*, px, svg, Animation, AnimationExt, App, IntoElement, RenderOnce, Window};
+use gpui::{
+    prelude::*, px, svg, Animation, AnimationExt, AnyElement, App, IntoElement, RenderOnce, Svg,
+    Window,
+};
 use herogpui_core::Color;
 use herogpui_theme::ActiveTheme;
 
@@ -65,6 +71,9 @@ impl From<herogpui_core::Size> for SpinnerSize {
 pub struct Spinner {
     id: gpui::ElementId,
     size: SpinnerSize,
+    /// Explicit diameter from [`Spinner::size_px`], winning over `size` when
+    /// set.
+    size_px: Option<gpui::Pixels>,
     color: Color,
     /// Set by `color="current"`: the resolved colour of the surrounding text.
     current_color: Option<gpui::Hsla>,
@@ -72,6 +81,8 @@ pub struct Spinner {
     /// token is 750ms; the local setter also gives the gallery a deterministic
     /// equivalent of its speed utility examples.
     duration_ms: u64,
+    /// Caller glyph replacing the arc, from [`Spinner::glyph`].
+    glyph: Option<AnyElement>,
     /// The `sx` slot, refined over the root style at the end of render.
     sx: Option<Box<gpui::StyleRefinement>>,
 }
@@ -81,9 +92,11 @@ impl Spinner {
         Self {
             id: id.into(),
             size: SpinnerSize::default(),
+            size_px: None,
             color: Color::Accent,
             current_color: None,
             duration_ms: 750,
+            glyph: None,
             sx: None,
         }
     }
@@ -96,6 +109,30 @@ impl Spinner {
 
     pub fn size(mut self, size: impl Into<SpinnerSize>) -> Self {
         self.size = size.into();
+        self
+    }
+
+    /// Overrides the diameter `size` derives. HeroUI names the arc's box with
+    /// Tailwind size utilities, so a caller needing an in-between diameter
+    /// (12, 14, 20px…) names it in pixels instead. The explicit diameter wins
+    /// whether it is set before or after [`Spinner::size`].
+    pub fn size_px(mut self, diameter: impl Into<gpui::Pixels>) -> Self {
+        self.size_px = Some(diameter.into());
+        self
+    }
+
+    /// Replaces the arc glyph with a caller element. The spinner keeps owning
+    /// the box and the motion: the resolved diameter sizes the container the
+    /// glyph centers in, the resolved colour (`color`/`current_color`) is
+    /// applied to the glyph the same way the arc's svg is coloured, and the
+    /// same repeated rotation — with the same reduced-motion suppression and
+    /// the same `role="status"` root — wraps the caller's element.
+    ///
+    /// Pass the `svg()` element itself rather than a div wrapper: gpui can
+    /// transform only svgs, so an svg nested deeper would sit still inside
+    /// the animated container.
+    pub fn glyph(mut self, glyph: impl IntoElement) -> Self {
+        self.glyph = Some(glyph.into_any_element());
         self
     }
 
@@ -120,6 +157,39 @@ impl Spinner {
         self.sx = Some(crate::util::capture_sx(style));
         self
     }
+
+    /// The rendered diameter: the explicit [`Spinner::size_px`] override when
+    /// set, the documented [`SpinnerSize`] step otherwise.
+    fn diameter(&self) -> gpui::Pixels {
+        self.size_px.unwrap_or_else(|| self.size.px())
+    }
+}
+
+/// The rotation's normalized turn fraction, clamped against the easing's
+/// non-finite edge.
+fn spin_fraction(delta: f32) -> f32 {
+    if delta.is_finite() {
+        delta.clamp(0.0, 1.0)
+    } else {
+        0.0
+    }
+}
+
+/// Rotates the caller's svg glyph to `t` of a full turn. gpui can transform
+/// only svgs (`Svg::with_transformation` is an inherent method), so any other
+/// glyph is returned unchanged and the animation keeps scheduling its frames
+/// on wall time exactly as for the arc.
+fn rotate_glyph(glyph: AnyElement, t: f32) -> AnyElement {
+    let mut glyph = glyph;
+    let Some(shell) = glyph.downcast_mut::<Svg>() else {
+        return glyph;
+    };
+    // No API hands the svg back out by value and the transformation field is
+    // private, so swap a fresh svg into the shell and keep the caller's.
+    let caller = std::mem::replace(shell, svg());
+    caller
+        .with_transformation(gpui::Transformation::rotate(gpui::percentage(t)))
+        .into_any_element()
 }
 
 impl RenderOnce for Spinner {
@@ -128,32 +198,65 @@ impl RenderOnce for Spinner {
             Color::Default => cx.colors().muted,
             other => cx.role(other).color,
         });
+        let diameter = self.diameter();
 
-        let spinner = svg()
-            .size(self.size.px())
-            .flex_shrink_0()
-            .path(icons::SPINNER)
-            .text_color(color);
-        let glyph = if ActiveTheme::reduce_motion(cx) {
-            crate::util::apply_sx(spinner, &self.sx).into_any_element()
-        } else {
-            // `with_animation` hands back an `AnimationElement`, which has no
-            // style of its own to refine, so the slot lands on the svg the
-            // rotation wraps.
-            crate::util::apply_sx(spinner, &self.sx)
-                .with_animation(
-                    self.id.clone(),
-                    Animation::new(Duration::from_millis(self.duration_ms)).repeat(),
-                    |svg, delta| {
-                        let t = if delta.is_finite() {
-                            delta.clamp(0.0, 1.0)
-                        } else {
-                            0.0
-                        };
-                        svg.with_transformation(gpui::Transformation::rotate(gpui::percentage(t)))
-                    },
-                )
-                .into_any_element()
+        let glyph = match self.glyph {
+            None => {
+                let spinner = svg()
+                    .size(diameter)
+                    .flex_shrink_0()
+                    .path(icons::SPINNER)
+                    .text_color(color);
+                if ActiveTheme::reduce_motion(cx) {
+                    crate::util::apply_sx(spinner, &self.sx).into_any_element()
+                } else {
+                    // `with_animation` hands back an `AnimationElement`, which has no
+                    // style of its own to refine, so the slot lands on the svg the
+                    // rotation wraps.
+                    crate::util::apply_sx(spinner, &self.sx)
+                        .with_animation(
+                            self.id.clone(),
+                            Animation::new(Duration::from_millis(self.duration_ms)).repeat(),
+                            |svg, delta| {
+                                svg.with_transformation(gpui::Transformation::rotate(
+                                    gpui::percentage(spin_fraction(delta)),
+                                ))
+                            },
+                        )
+                        .into_any_element()
+                }
+            }
+            Some(mut custom) => {
+                // gpui svgs do not inherit the container's `text_color`, so
+                // the resolved colour reaches a caller svg the same way it
+                // reaches the arc: on the svg's own style. Every other glyph
+                // (text, divs) inherits it from the container below.
+                if let Some(svg) = custom.downcast_mut::<Svg>() {
+                    svg.style().text.color = Some(color);
+                }
+                let spinning = if ActiveTheme::reduce_motion(cx) {
+                    custom
+                } else {
+                    custom
+                        .with_animation(
+                            self.id.clone(),
+                            Animation::new(Duration::from_millis(self.duration_ms)).repeat(),
+                            |glyph, delta| rotate_glyph(glyph, spin_fraction(delta)),
+                        )
+                        .into_any_element()
+                };
+                let container = gpui::div()
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .size(diameter)
+                    .flex_shrink_0()
+                    .text_color(color)
+                    .child(spinning);
+                // The slot lands on the spinner-owned container, the same
+                // "box around the glyph" the arc's svg occupies.
+                crate::util::apply_sx(container, &self.sx).into_any_element()
+            }
         };
 
         // The node sits on a box *around* the glyph rather than on the glyph

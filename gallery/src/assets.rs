@@ -61,6 +61,7 @@ assets! {
     "herogpui/icons/trash.svg" => "herogpui/icons/trash.svg",
     "herogpui/icons/gear.svg" => "herogpui/icons/gear.svg",
     "herogpui/icons/spinner.svg" => "herogpui/icons/spinner.svg",
+    "herogpui/icons/loader_2.svg" => "herogpui/icons/loader_2.svg",
     "herogpui/icons/tooltip_arrow.svg" => "herogpui/icons/tooltip_arrow.svg",
     "herogpui/icons/alert_triangle.svg" => "herogpui/icons/alert_triangle.svg",
     "herogpui/icons/info_circle.svg" => "herogpui/icons/info_circle.svg",

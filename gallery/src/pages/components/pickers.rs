@@ -1161,6 +1161,39 @@ impl Gallery {
                         cx),
                 ),
                 (
+                    "Row Leading Content",
+                    "`item_leading` draws an element before each option's label — v3's `ListBox.Item` render function. The closure takes the row's key and whether it is selected, and returns `None` for a row that takes none.",
+                    specimen_body("sel-item-leading", field_col(vec![
+                        h::Select::new("sel-leading", swatch_picker_items())
+                            .label("Accent")
+                            .placeholder("Choose one")
+                            .default_open(true)
+                            .item_leading(|key, _| {
+                                Some(
+                                    gpui::div()
+                                        .size(px(14.))
+                                        .rounded(px(4.))
+                                        .bg(swatch_colour(key))
+                                        .into_any_element(),
+                                )
+                            })
+                            .into_any_element(),
+                    ]), cx),
+                ),
+                (
+                    "Wrapping Trigger",
+                    "The trigger is a `min-h` box, so `padding_y` leaves a single-line value at 36px and only grows a value that has wrapped — v3's `py-2`. The narrow field below forces the wrap.",
+                    specimen_body("sel-padding-y", col(vec![
+                        gpui::div().w(px(180.)).child(
+                            h::Select::new("sel-wrap", layout_picker_items())
+                                .label("Layout")
+                                .default_value(Some("side".into()))
+                                .padding_y(px(8.))
+                                .full_width(true),
+                        ).into_any_element(),
+                    ]), cx),
+                ),
+                (
                     "Custom Trigger Indicator",
                     specimen_body("sel-trigger-indicator", field_col(vec![
                         h::Select::new("sel-trigger-indicator", language_items())

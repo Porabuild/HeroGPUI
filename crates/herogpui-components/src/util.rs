@@ -41,6 +41,13 @@ pub(crate) fn tabular_font_features() -> gpui::FontFeatures {
 pub(crate) struct FieldBox {
     pub(crate) height: Option<Pixels>,
     pub(crate) padding_x: Option<Pixels>,
+    /// Vertical padding, in place of the family's unpadded `min-h` box.
+    ///
+    /// Only meaningful where the box's content can grow past one line — v3's
+    /// select trigger carries `py-2` for exactly that reason, and the rest of
+    /// the family holds a single-line editor whose height `height` already
+    /// names. `None` reproduces the stock unpadded box everywhere.
+    pub(crate) padding_y: Option<Pixels>,
     pub(crate) is_bare: bool,
     pub(crate) is_bare_is_set: bool,
     /// Whether the focused field should paint its focus ring. `None` keeps the

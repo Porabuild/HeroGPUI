@@ -4165,6 +4165,16 @@
       },
       {
         "owner": "ColorField",
+        "prop": "onBlur",
+        "type": "(FocusEvent) => void",
+        "default": "—",
+        "description": "Focus loss commits the field like React Aria's onBlur commit: unparseable text restores the formatted last-committed value while valid text and an emptied field are untouched. The hook fires ahead of that built-in revert, the way React Aria chains the caller's onBlur ahead of commit.",
+        "rustOwner": "ColorField",
+        "rust": "on_blur(callback)",
+        "status": "implemented"
+      },
+      {
+        "owner": "ColorField",
         "prop": "colorSpace",
         "type": "ColorSpace",
         "default": "—",
@@ -11204,7 +11214,7 @@
       {
         "name": "Tabs.Tab",
         "slot": "tabs-tab",
-        "description": "One keyed, selectable tab segment.",
+        "description": "One keyed, selectable tab segment; `TabItem::trigger` replaces the label text with an icon element while `label` stays the accessible name.",
         "rustOwner": "TabItem",
         "status": "implemented"
       },
@@ -11289,8 +11299,8 @@
       },
       {
         "token": ".tabs__list-container",
-        "description": "Primary list tray.",
-        "rust": "relative + default fill + radius_lg * 2.5",
+        "description": "Primary list tray. The reference capture toolbar restyles it as an icon-only segmented-control tray with a muted fill and a rounded-3xl corner.",
+        "rust": "relative + default fill (list_bg override) + radius_lg * 2.5 (radius override)",
         "status": "implemented"
       },
       {
@@ -11385,8 +11395,8 @@
       },
       {
         "token": ".tabs__indicator",
-        "description": "Primary selected-segment surface.",
-        "rust": "measured absolute child + segment fill + control_radius + surface shadow",
+        "description": "Primary selected-segment surface. The reference capture toolbar tints it muted, rounds it rounded-3xl with the tray and drops the shadow.",
+        "rust": "measured absolute child + segment fill (indicator_bg override) + control_radius (radius override) + surface shadow (indicator_shadow gate)",
         "status": "implemented"
       },
       {
@@ -11404,7 +11414,7 @@
       {
         "token": ".tabs--secondary .tabs__indicator",
         "description": "Secondary selection line.",
-        "rust": "accent indicator without radius or shadow",
+        "rust": "accent indicator (indicator_bg override, fallback border included) without radius or shadow",
         "status": "implemented"
       },
       {
@@ -18765,7 +18775,7 @@
         "prop": "className",
         "type": "string",
         "default": "—",
-        "description": "Browser CSS classes and animation utilities are unavailable.",
+        "description": "Browser CSS classes and animation utilities are unavailable; the size-utility, glyph and speed customizations read through `size_px`, `glyph` and `duration_ms` instead.",
         "rustOwner": "Spinner",
         "rust": "—",
         "status": "unavailable"
@@ -18775,7 +18785,7 @@
       {
         "name": "Spinner",
         "slot": "spinner",
-        "description": "Rotating arc indicator with semantic color and fixed size.",
+        "description": "Rotating indicator (the HeroUI arc or a caller glyph) with semantic color and fixed size.",
         "rustOwner": "Spinner",
         "status": "implemented"
       }
@@ -18800,6 +18810,18 @@
         "token": ".spinner--sm / --md / --lg / --xl",
         "description": "All four documented diameters map directly.",
         "rust": "SpinnerSize::px",
+        "status": "implemented"
+      },
+      {
+        "token": "size-3.5 / size-5 / … (Tailwind size utilities)",
+        "description": "v3 names in-between diameters with size utility classes; the port takes the pixels directly, and the explicit override wins over the size step in either builder order.",
+        "rust": "size_px(impl Into<Pixels>)",
+        "status": "implemented"
+      },
+      {
+        "token": "spinner glyph (children)",
+        "description": "The arc mark is fixed upstream; the port swaps in a caller element while the spinner keeps the box, applies the resolved color to the glyph, and keeps the rotation and the reduced-motion suppression. Pass the svg() element itself: gpui transforms only svgs.",
+        "rust": "glyph(impl IntoElement)",
         "status": "implemented"
       },
       {

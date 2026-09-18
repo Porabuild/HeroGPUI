@@ -94,6 +94,68 @@ impl Gallery {
                     ]),
                 ),
                 (
+                    "Inset Separator", "`separator_inset` and `separator_thickness` (on `Menu`, or on `MenuStyle` for a whole theme) give the rule a per-edge inset inside wider panel bounds and an explicit thickness. Unset, the rule keeps v3's proportional inset: 94% of the panel width, centred. The values below are AppKit's own menu separator: 15pt in on each side, 1pt thick.",
+                    col(vec![
+                        h::Button::new("dd-inset-show").label("Show menu")
+                            .on_press(cx.listener(|this, _, _, cx| { this.set_demo_flag("dd-inset", true); cx.notify(); })).into_any_element(),
+                        if self.demo_flag("dd-inset", false) {
+                            h::Menu::new("dd-inset", vec![
+                                h::MenuItem::new("cut", "Cut"),
+                                h::MenuItem::new("copy", "Copy"),
+                                h::MenuItem::Separator,
+                                h::MenuItem::new("paste", "Paste"),
+                            ])
+                                .panel_min_width(px(200.)).panel_max_width(px(200.))
+                                .separator_inset(px(15.))
+                                .separator_thickness(px(1.))
+                                .animate_entry(false)
+                                .on_dismiss(cx.listener(|this, _: &bool, _, cx| { this.set_demo_flag("dd-inset", false); cx.notify(); }))
+                                .into_any_element()
+                        } else { gpui::div().into_any_element() },
+                    ]),
+                ),
+                (
+                    "Row With An Inline Control", "`MenuItem::is_interactive(true)` hands the row's interaction to the element `item_content` draws for it, so a trailing secondary control answers the press instead of the row picking and closing the menu. The row stays a keyboard stop; Enter and Space belong to the control. A popup the control opens needs no extra wiring — it becomes the topmost overlay, and the menu's own dismissals stand down while it is up.",
+                    col(vec![
+                        h::Button::new("dd-inline-show").label("Show menu")
+                            .on_press(cx.listener(|this, _, _, cx| { this.set_demo_flag("dd-inline", true); cx.notify(); })).into_any_element(),
+                        if self.demo_flag("dd-inline", false) {
+                            h::Menu::new("dd-inline", vec![
+                                h::MenuItem::new("reload", "Reload"),
+                                h::MenuItem::new("layout", "Layout").is_interactive(true),
+                            ])
+                                .panel_min_width(px(260.)).panel_max_width(px(260.))
+                                .animate_entry(false)
+                                .item_content(|key, _| match key.as_ref() {
+                                    "layout" => gpui::div()
+                                        .flex()
+                                        .items_center()
+                                        .justify_between()
+                                        .gap(px(8.))
+                                        .w_full()
+                                        .child("Layout")
+                                        .child(
+                                            h::Select::new(
+                                                "dd-inline-layout",
+                                                vec![
+                                                    h::PickerItem::new("side", "Side by side"),
+                                                    h::PickerItem::new("stack", "Stacked"),
+                                                ],
+                                            )
+                                            .default_value(Some("side".into()))
+                                            .height(px(24.))
+                                            .padding_x(px(6.))
+                                            .trigger_text_size(px(12.)),
+                                        )
+                                        .into_any_element(),
+                                    other => gpui::div().child(other.to_owned()).into_any_element(),
+                                })
+                                .on_dismiss(cx.listener(|this, _: &bool, _, cx| { this.set_demo_flag("dd-inline", false); cx.notify(); }))
+                                .into_any_element()
+                        } else { gpui::div().into_any_element() },
+                    ]),
+                ),
+                (
                     "With Icons",
                     specimen_body("dd-disabled", col(vec![h::Dropdown::uncontrolled(
                         "dd-icons-dd",

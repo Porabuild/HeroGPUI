@@ -8,6 +8,9 @@
     "Loading",
     "Loading State",
     "Full Width",
+    "Pixel Geometry",
+    "Text Metrics",
+    "Flex Fill",
     "Disabled State",
     "Social Buttons",
     "Adding custom variants",
@@ -56,6 +59,8 @@
     "Usage",
     "Row Hover",
     "Standalone Compact Menu",
+    "Inset Separator",
+    "Row With An Inline Control",
     "With Icons",
     "With Descriptions",
     "With Disabled Items",
@@ -135,6 +140,7 @@
     "Render Function",
     "Form Example",
     "Hex value",
+    "Blur Behaviour",
     "Read-only display",
     "Single channel"
   ],
@@ -396,7 +402,9 @@
     "Usage",
     "Speed",
     "Colors",
-    "Sizes"
+    "Sizes",
+    "Pixel Sizes",
+    "Custom Glyph"
   ],
   "checkbox": [
     "Usage",
@@ -669,6 +677,7 @@
     "Overflow",
     "Disabled Tab",
     "With Separator",
+    "Icon-Only Segmented Control",
     "Secondary Variant",
     "Secondary Variant Vertical",
     "Primary"
@@ -737,6 +746,7 @@
   ],
   "tooltip": [
     "With Arrow",
+    "Rich Content",
     "Custom Triggers",
     "Usage",
     "Placement",
@@ -814,6 +824,8 @@
     "Controlled Open State",
     "Asynchronous Loading",
     "Custom Indicator",
+    "Row Leading Content",
+    "Wrapping Trigger",
     "Custom Trigger Indicator",
     "Custom Value",
     "Uncontrolled",

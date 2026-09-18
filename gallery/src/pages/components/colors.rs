@@ -377,6 +377,27 @@ impl Gallery {
                         .into_any_element()]), cx),
                 ),
                 (
+                    "Blur Behaviour",
+                    "React Aria commits a colour field on blur: when focus leaves, text that does not parse to a colour restores the last committed value, valid text is left alone, and an emptied field stays empty. `on_blur` hooks the focus loss itself and fires ahead of that revert.",
+                    specimen_body("cf-blur", field_col(vec![{
+                        let blurs = self.demo_text("cf-blur-log", "not blurred yet", cx);
+                        h::ColorField::new("cf-blur", value)
+                            .state(self.demo_text("cf-blur", "#0085F5", cx))
+                            .default_value(value)
+                            .label("Color")
+                            .on_blur(move |_, cx| {
+                                blurs.update(cx, |state, cx| {
+                                    state.set_value("blur: focus left the field");
+                                    cx.notify();
+                                });
+                            })
+                            .into_any_element()
+                    },
+                    h::Input::new(self.demo_text("cf-blur-log", "not blurred yet", cx))
+                        .is_read_only(true)
+                        .into_any_element()]), cx),
+                ),
+                (
                     "Read-only display",
                     specimen_body("cf-readonly", field_col(vec![h::ColorField::new("cf-display", value)
                         .label("Current value")

@@ -260,6 +260,8 @@ pub struct Select {
     /// `ListBox.ItemIndicator` — draws the tick. The closure is handed whether
     /// the row is selected.
     indicator: Option<Box<dyn Fn(bool) -> gpui::AnyElement + 'static>>,
+    #[allow(clippy::type_complexity)]
+    item_leading: Option<Box<dyn Fn(&SharedString, bool) -> Option<gpui::AnyElement> + 'static>>,
     /// `Select.Indicator` — draws the trigger indicator. The closure is handed
     /// whether the popover is open; arbitrary caller content is kept as-is,
     /// while the built-in SVG follows the pinned 150ms rotation.
@@ -348,6 +350,31 @@ impl Select {
         self
     }
 
+    /// Draws a leading element on each option row, before its label.
+    ///
+    /// v3's `ListBox.Item` takes its children as a render function, so an
+    /// option is free to compose an avatar, an icon or a colour swatch beside
+    /// its text. [`crate::picker_item::PickerItem`] carries only a key and a
+    /// label — it is shared with the combo box, the autocomplete, the tag
+    /// filter and the swatch picker, and holds no element — so the per-row
+    /// element is supplied here instead, where the select already owns
+    /// [`Select::indicator`].
+    ///
+    /// The closure receives the row's key and whether it is selected, and
+    /// returns `None` for a row that takes no leading element. The element
+    /// sits in the row's normal `gap-3` flow, before the label, and the
+    /// trailing indicator slot is untouched.
+    ///
+    /// This draws the *rows*. A swatch on the closed trigger is
+    /// [`Select::value_content`], which is a separate slot upstream too.
+    pub fn item_leading(
+        mut self,
+        render: impl Fn(&SharedString, bool) -> Option<gpui::AnyElement> + 'static,
+    ) -> Self {
+        self.item_leading = Some(Box::new(render));
+        self
+    }
+
     /// `Select.Indicator` — draw the trigger indicator yourself.
     ///
     /// The closure receives the current open state, which is the GPUI analog
@@ -402,6 +429,23 @@ impl Select {
     /// Replaces the trigger's `px-3` horizontal padding.
     pub fn padding_x(mut self, p: impl Into<Pixels>) -> Self {
         self.field.padding_x = Some(p.into());
+        self
+    }
+
+    /// Adds vertical padding to the trigger, in place of v3's `py-2`.
+    ///
+    /// The trigger is a `min-h` box, so this changes nothing for a value that
+    /// fits on one line: `px(8.)` on the stock 20px line advance resolves to
+    /// the same 36px the minimum already imposes. A value that wraps to two
+    /// lines then grows the trigger the way upstream's `py-2` does, instead of
+    /// keeping the 36px floor and pressing the two lines against its edges.
+    ///
+    /// Unset leaves the trigger unpadded, which is the pre-0.10.0 geometry.
+    /// It is the select that carries this rather than the whole field family:
+    /// the other members hold a single-line editor, whose box
+    /// [`Select::height`]'s counterparts already name outright.
+    pub fn padding_y(mut self, p: impl Into<Pixels>) -> Self {
+        self.field.padding_y = Some(p.into());
         self
     }
 
@@ -519,6 +563,7 @@ impl Select {
             row_padding_y: None,
             row_hover_bg: None,
             row_font_family: None,
+            item_leading: None,
             radius: None,
             field: util::FieldBox::default(),
             sections: Vec::new(),
@@ -1023,6 +1068,7 @@ impl RenderOnce for Select {
         }
         self.field.height = self.field.height.or(select_theme.height);
         self.field.padding_x = self.field.padding_x.or(select_theme.padding_x);
+        self.field.padding_y = self.field.padding_y.or(select_theme.padding_y);
         if !self.field.is_bare_is_set {
             if let Some(is_bare) = select_theme.is_bare {
                 self.field.is_bare = is_bare;
@@ -1071,6 +1117,7 @@ impl RenderOnce for Select {
             .min_h(h)
             .when_some(field_box.height, |el, h| el.h(h))
             .px(field_box.resolved_padding_x())
+            .when_some(field_box.padding_y, |el, p| el.py(p))
             // HeroUI's trigger reserves `pe-7` for its always-present
             // `.select__indicator`, whether or not a clear button is composed.
             // The indicator is taken out of flex flow below, so the value and
@@ -1771,6 +1818,20 @@ impl RenderOnce for Select {
                     if let Some(cb) = &on_open_change {
                         cb(&next_open, window, cx);
                     }
+                    // A pointer press the trigger consumed must not also
+                    // activate whatever encloses it: gpui bubbles a click to
+                    // every ancestor listener, so a select embedded in a
+                    // clickable row -- a menu row hosting an inline select,
+                    // a pressable card -- opened its popup and fired the
+                    // enclosing handler from one press, which typically
+                    // dismissed the surface the popup had just opened over.
+                    // Only the pointer is stopped: a keyboard activation is
+                    // synthesized on the focused element, so there is no
+                    // ancestor press to suppress, and stopping it would take
+                    // the key away from a parent's own bindings.
+                    if !keyboard {
+                        cx.stop_propagation();
+                    }
                 });
         }
 
@@ -1957,6 +2018,10 @@ impl RenderOnce for Select {
             let focus_rows = focus_handle;
             let indicator: Option<Rc<dyn Fn(bool) -> gpui::AnyElement>> =
                 self.indicator.take().map(Rc::from);
+            #[allow(clippy::type_complexity)]
+            let item_leading: Option<
+                Rc<dyn Fn(&SharedString, bool) -> Option<gpui::AnyElement>>,
+            > = self.item_leading.take().map(Rc::from);
             let on_change_all = self.on_selection_change_all.clone();
             let on_change_one = self.on_selection_change.clone();
             let value_own = value_own;
@@ -2086,6 +2151,16 @@ impl RenderOnce for Select {
                 // caller owns the fixed row geometry when `row_height` is
                 // supplied, just as the upstream Virtualizer owns its
                 // `rowHeight` layout.
+                // `ListBox.Item`'s render function draws whatever precedes the
+                // text. It goes in before the label so the row's `gap-3` sets
+                // it off, and it is `flex_none` so a long label cannot squeeze
+                // a swatch or avatar out of its own size.
+                if let Some(render) = &item_leading {
+                    if let Some(content) = render(&row_key, is_sel) {
+                        item = item
+                            .child(gpui::div().flex_none().flex().items_center().child(content));
+                    }
+                }
                 let label = gpui::div().flex_1().min_w_0().whitespace_normal();
                 item = item.child(label.child(opt.label().to_string()));
 
@@ -2170,6 +2245,21 @@ impl RenderOnce for Select {
                             let cursor_click = cursor_rows.clone();
                             let picked_key = row_key;
                             item = item.on_click(move |ev, window, cx| {
+                                // A pointer pick must not also activate whatever
+                                // encloses the select: gpui bubbles a click to
+                                // every ancestor listener, so a select hosted in
+                                // a clickable row -- an `is_interactive` menu
+                                // row, a pressable card -- fired the enclosing
+                                // handler from the same press that picked an
+                                // option. Only the pointer is stopped, matching
+                                // the trigger: a keyboard activation is
+                                // synthesized on the focused element, so there
+                                // is no ancestor press to suppress, and stopping
+                                // it would take the key away from a parent's own
+                                // bindings.
+                                if !matches!(ev, gpui::ClickEvent::Keyboard(_)) {
+                                    cx.stop_propagation();
+                                }
                                 // Pinned `useSelectableItem` seats the cursor
                                 // on pointer press, so a Shift+Arrow, page, or
                                 // Enter that follows starts from the clicked
@@ -2243,7 +2333,14 @@ impl RenderOnce for Select {
                         let open_own = open_own.clone();
                         let form_state_pick = form_state_rows.clone();
                         let picked_key = row_key;
-                        item = item.on_click(move |_, window, cx| {
+                        item = item.on_click(move |ev, window, cx| {
+                            // The same stop as the multi pick above: the pick
+                            // that closes the list must not fire the clickable
+                            // ancestor a hosted select sits in. Keyboard stays
+                            // live for the reason recorded there.
+                            if !matches!(ev, gpui::ClickEvent::Keyboard(_)) {
+                                cx.stop_propagation();
+                            }
                             // Uncontrolled: take the selection and close, or
                             // choosing an option would do nothing.
                             if let Some(held) = &value_own {

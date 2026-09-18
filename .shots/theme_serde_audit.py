@@ -39,7 +39,10 @@ DOCUMENT_ONLY = {'base'}
 # Builder methods that are not JSON keys.
 # `components` is a typed Rust subtree (`ComponentThemes` + recipes), not a
 # CSS-variable-style sparse JSON token.
-BUILDER_ONLY = {'build', 'components'}
+# `role_hover`/`accent_hover` are the imperative spellings of the per-role
+# `hover` key on a `roles` entry (`roles.accent.hover`); a JSON document
+# carries the value there, not under a key of its own.
+BUILDER_ONLY = {'build', 'components', 'role_hover', 'accent_hover'}
 
 PUB_FN = re.compile(r'pub fn ([A-Za-z_][A-Za-z0-9_]*)\s*\(')
 # A field of ThemeDocument: `pub name:` at struct indent, skipping serde attrs.

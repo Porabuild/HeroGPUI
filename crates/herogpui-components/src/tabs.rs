@@ -358,6 +358,10 @@ pub enum KeyboardActivation {
 pub struct TabItem {
     pub key: SharedString,
     pub label: SharedString,
+    /// Replacement content for the segment trigger itself; the label text is
+    /// not rendered when it is set. `label` stays the tab's accessible name —
+    /// an svg or icon div child carries no accessible name of its own.
+    pub trigger: Option<AnyElement>,
     pub content: Option<AnyElement>,
     /// `Tabs.Tab.isDisabled` — removes this tab from activation and the roving
     /// keyboard stops without disabling its siblings.
@@ -373,10 +377,25 @@ impl TabItem {
         Self {
             key: key.into(),
             label: label.into(),
+            trigger: None,
             content: None,
             is_disabled: false,
             separator: false,
         }
+    }
+
+    /// Renders this element as the segment trigger instead of the label text.
+    ///
+    /// This is how the icon-only segmented controls in the reference
+    /// application are built: every trigger stays the same tab box with its
+    /// id, hit area, hover, focus ring and keyboard activation, while the
+    /// content becomes an icon. The trigger is presentational — keep it a
+    /// plain `svg()` or `div()` so presses keep reaching the tab — and
+    /// `svg()` does not inherit the tab's `text_color`, so set it explicitly.
+    /// `label` is still the accessible name; an icon child carries none.
+    pub fn trigger(mut self, el: impl IntoElement) -> Self {
+        self.trigger = Some(el.into_any_element());
+        self
     }
 
     pub fn content(mut self, el: impl IntoElement) -> Self {
@@ -469,6 +488,16 @@ pub struct Tabs {
     orientation: Orientation,
     keyboard_activation: KeyboardActivation,
     on_selection_change: Option<OnChange>,
+    /// Corner radius override for the list container and the indicator.
+    radius: Option<gpui::Pixels>,
+    /// List container fill override; the primary tray is `bg-default` by
+    /// default and the secondary tray is transparent.
+    list_bg: Option<gpui::Hsla>,
+    /// Indicator fill override; the primary segment token and the secondary
+    /// accent line are the defaults.
+    indicator_bg: Option<gpui::Hsla>,
+    /// Gates the indicator's `shadow-surface`; the default keeps it.
+    indicator_shadow: bool,
     /// The `sx` slot, refined over the root style at the end of render.
     sx: Option<Box<gpui::StyleRefinement>>,
 }
@@ -532,6 +561,10 @@ impl Tabs {
             orientation: Orientation::Horizontal,
             keyboard_activation: KeyboardActivation::Automatic,
             on_selection_change: None,
+            radius: None,
+            list_bg: None,
+            indicator_bg: None,
+            indicator_shadow: true,
             sx: None,
         }
     }
@@ -566,6 +599,50 @@ impl Tabs {
         self
     }
 
+    /// Overrides the corner radius of the list container and the sliding
+    /// indicator: both take this exact value instead of the derived container
+    /// radius and the `control_radius` pill. The reference capture toolbar
+    /// sets `rounded-3xl` on both to read as one segmented control. The tab
+    /// boxes, their hover fades and their focus rings keep the pinned radius.
+    ///
+    /// Not a v3 prop; it stands in for the `className` the reference passes
+    /// to `Tabs.ListContainer` and `Tabs.Indicator`.
+    pub fn radius(mut self, radius: impl Into<gpui::Pixels>) -> Self {
+        self.radius = Some(radius.into());
+        self
+    }
+
+    /// Overrides the list container's fill. The primary tray is `bg-default`
+    /// and the secondary tray transparent by default; the reference
+    /// segmented control tints the tray with `bg-muted-foreground/10`.
+    ///
+    /// Not a v3 prop; it stands in for the `className` the reference passes
+    /// to `Tabs.ListContainer`.
+    pub fn list_bg(mut self, color: impl Into<gpui::Hsla>) -> Self {
+        self.list_bg = Some(color.into());
+        self
+    }
+
+    /// Overrides the indicator's fill in both variants — the primary segment
+    /// token and the secondary accent line. The reference segmented control
+    /// tints the indicator with `bg-muted-foreground/25`.
+    ///
+    /// Not a v3 prop; it stands in for the `className` the reference passes
+    /// to `Tabs.Indicator`.
+    pub fn indicator_bg(mut self, color: impl Into<gpui::Hsla>) -> Self {
+        self.indicator_bg = Some(color.into());
+        self
+    }
+
+    /// `false` drops the indicator's surface shadow, and the pre-measurement
+    /// active-tab fallback's, so an overridden indicator reads flat the way
+    /// the reference's `shadow-none` does. The default keeps the pinned
+    /// `shadow-surface`.
+    pub fn indicator_shadow(mut self, v: bool) -> Self {
+        self.indicator_shadow = v;
+        self
+    }
+
     /// `onSelectionChange` — reports the key of the tab the press moves to.
     pub fn on_selection_change(
         mut self,
@@ -586,7 +663,7 @@ impl Tabs {
 }
 
 impl RenderOnce for Tabs {
-    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(mut self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let base = self.id.clone();
         // Only the `debug_selector` below still needs the id as a string, and
         // it keeps that string's exact original spelling.
@@ -713,6 +790,12 @@ impl RenderOnce for Tabs {
         // width. A vertical list's tabs are already `w_full`.
         let stretch = self.full_width && !vertical;
         let secondary = self.variant == TabsVariant::Secondary;
+        // The instance overrides refine the theme's resolved values; the
+        // reference segmented control uses all of them at once.
+        let radius_override = self.radius;
+        let list_bg = self.list_bg;
+        let indicator_bg = self.indicator_bg;
+        let indicator_shadow = self.indicator_shadow;
         let (tab_h, tab_padding_x, tab_text) = self.size.metrics();
         let geometry = window.use_keyed_state(element_id::scoped(&base, "geometry"), cx, |_, _| {
             TabsGeometry::default()
@@ -783,12 +866,18 @@ impl RenderOnce for Tabs {
         // `tabs_hover_opacity`. GPUI cannot animate an element's opacity
         // without moving its listener path, so a same-colour overlay is faded
         // over the finished content while the stable tab/arrow element keeps
-        // focus and pointer ownership.
-        let tab_overlay = if secondary {
-            colors.background.alpha(1.0 - tabs_hover_opacity)
+        // focus and pointer ownership. The overlay's colour is the resolved
+        // tray fill — a state fill fades from the resting background, which
+        // `list_bg` overrides and a root `sx` background refines last, the
+        // same resting value `scrollbar.rs` resolves — not the stock token
+        // those overrides replaced.
+        let sx_background = crate::util::sx_background(&self.sx);
+        let tray = if secondary {
+            sx_background.or(list_bg).unwrap_or(colors.background)
         } else {
-            colors.default.color.alpha(1.0 - tabs_hover_opacity)
+            sx_background.or(list_bg).unwrap_or(colors.default.color)
         };
+        let tab_overlay = tray.alpha(1.0 - tabs_hover_opacity);
         let key_stops: Vec<usize> = self
             .items
             .iter()
@@ -853,16 +942,22 @@ impl RenderOnce for Tabs {
             let mut indicator = gpui::div()
                 .absolute()
                 .debug_selector(|| format!("{base_id}-indicator"));
-            indicator = if secondary {
-                indicator.bg(colors.accent.color)
-            } else {
+            indicator = if !secondary {
                 indicator
                     .rounded(crate::util::control_radius(cx))
-                    .bg(colors.segment.background)
-                    .when(!layout.surface_shadow.is_empty(), |indicator| {
-                        indicator.shadow(layout.surface_shadow.clone())
+                    .when_some(radius_override, |indicator, radius| {
+                        indicator.rounded(radius)
                     })
+                    .bg(indicator_bg.unwrap_or(colors.segment.background))
+                    .when(
+                        indicator_shadow && !layout.surface_shadow.is_empty(),
+                        |indicator| indicator.shadow(layout.surface_shadow.clone()),
+                    )
+            } else {
+                indicator.bg(indicator_bg.unwrap_or(colors.accent.color))
             };
+            // The overrides refine the resolved defaults; `sx` corners refine
+            // the result independently of the chosen radius.
             indicator = crate::util::round_sx_corners(indicator, &sx_corners);
             list = list.child(frame.render(indicator));
         }
@@ -910,7 +1005,9 @@ impl RenderOnce for Tabs {
                 // `.tabs__list` is `p-1` and nothing else: the tabs sit
                 // shoulder to shoulder, with no gap between them.
                 list = list.p(px(4.));
-                for (index, item) in self.items.iter().enumerate() {
+                // `trigger` is single-use, so the loop consumes it out of each
+                // item; the panel below reads `content` the same way.
+                for (index, item) in self.items.iter_mut().enumerate() {
                     let active = item.key == selected_key;
                     let focused = item.key == focused_key;
                     let disabled = self.is_disabled || item.is_disabled;
@@ -993,11 +1090,16 @@ impl RenderOnce for Tabs {
                         tab = tab
                             .text_color(colors.segment.foreground)
                             .font_weight(gpui::FontWeight::MEDIUM)
+                            // Before the indicator has measured geometry this
+                            // active tab paints its fill itself, so it reads
+                            // through the same overrides the indicator will.
                             .when(!indicator_ready, |tab| {
-                                tab.bg(colors.segment.background)
-                                    .when(!layout.surface_shadow.is_empty(), |tab| {
-                                        tab.shadow(layout.surface_shadow.clone())
-                                    })
+                                tab.bg(indicator_bg.unwrap_or(colors.segment.background))
+                                    .when(
+                                        indicator_shadow
+                                            && !layout.surface_shadow.is_empty(),
+                                        |tab| tab.shadow(layout.surface_shadow.clone()),
+                                    )
                             });
                     } else {
                         tab = tab.text_color(colors.muted);
@@ -1116,7 +1218,13 @@ impl RenderOnce for Tabs {
                         Vec::new(),
                         cx,
                     );
-                    tab = tab.child(tab_label(item.label.clone()));
+                    // The trigger element replaces the label text when one is
+                    // set; `label` keeps naming the tab through the
+                    // `a11y_named` restatement above either way.
+                    tab = match item.trigger.take() {
+                        Some(trigger) => tab.child(trigger),
+                        None => tab.child(tab_label(item.label.clone())),
+                    };
                     if !active && !disabled {
                         let radius = crate::util::control_radius(cx);
                         tab = crate::anim::hover_fade(
@@ -1136,7 +1244,9 @@ impl RenderOnce for Tabs {
             TabsVariant::Secondary => {
                 // `.tabs--secondary` gives the container a trailing-axis
                 // border: bottom when horizontal, start when vertical.
-                for (index, item) in self.items.iter().enumerate() {
+                // `trigger` is single-use, so the loop consumes it out of each
+                // item, as in the primary branch.
+                for (index, item) in self.items.iter_mut().enumerate() {
                     let active = item.key == selected_key;
                     let focused = item.key == focused_key;
                     let disabled = self.is_disabled || item.is_disabled;
@@ -1186,8 +1296,10 @@ impl RenderOnce for Tabs {
                     tab = if active {
                         tab.text_color(colors.foreground)
                             .font_weight(gpui::FontWeight::MEDIUM)
+                            // Same pre-measurement fallback as the primary
+                            // branch: the underline honors `indicator_bg`.
                             .when(!indicator_ready, |tab| {
-                                tab.border_color(colors.accent.color)
+                                tab.border_color(indicator_bg.unwrap_or(colors.accent.color))
                             })
                     } else {
                         tab.text_color(colors.muted).when(!indicator_ready, |tab| {
@@ -1307,7 +1419,12 @@ impl RenderOnce for Tabs {
                         Vec::new(),
                         cx,
                     );
-                    tab = tab.child(tab_label(item.label.clone()));
+                    // As in the primary branch: the trigger element replaces
+                    // the label text; `label` keeps naming the tab.
+                    tab = match item.trigger.take() {
+                        Some(trigger) => tab.child(trigger),
+                        None => tab.child(tab_label(item.label.clone())),
+                    };
                     if !active && !disabled {
                         let radius = crate::util::control_radius(cx);
                         tab = crate::anim::hover_fade(
@@ -1419,14 +1536,20 @@ impl RenderOnce for Tabs {
                 arrow.absolute().occlude()
             };
         let container_radius = layout.radius_lg() * 2.5;
+        // `list_bg` and `radius` refine the resolved tray fill and corner on
+        // both variants; the reference segmented control sets all three of
+        // fill, radius and indicator treatment this way.
         let container = gpui::div()
             .relative()
             .when(!secondary, |c| {
-                c.bg(colors.default.color)
+                c.bg(list_bg.unwrap_or(colors.default.color))
                     .rounded(container_radius.min(px(32.)))
+                    .when_some(radius_override, |c, radius| c.rounded(radius))
             })
             .when(secondary, |c| {
                 c.border_color(colors.border)
+                    .when_some(list_bg, |c, bg| c.bg(bg))
+                    .when_some(radius_override, |c, radius| c.rounded(radius))
                     .when(vertical, |c| c.border_l_1())
                     .when(!vertical, |c| c.border_b_1())
             })

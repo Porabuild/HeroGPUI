@@ -79,6 +79,38 @@ const INVENTORY: &[Part] = &[
         "crate::anim::hover_fade(",
         "util::sx_background",
     ),
+    // Wired: the thumb paints the bar's only fill, so the `sx` background is
+    // its resting colour and the hover endpoint is resolved against it; the
+    // track box reads the cross-axis `sx` size, and the thumb's corners read
+    // the `sx` radii over the derived default.
+    Part::wired(
+        "scrollbar.rs",
+        "thumb resting and hover fill endpoints",
+        "crate::util::fade_endpoints(",
+        "util::sx_background",
+    ),
+    Part::wired(
+        "scrollbar.rs",
+        "track box thickness",
+        "let thickness = if horizontal {",
+        "util::sx_pixel_size",
+    ),
+    Part::wired(
+        "scrollbar.rs",
+        "thumb corner radii",
+        "crate::util::fill_unspecified_corners(",
+        "util::sx_radius",
+    ),
+    // Wired: the unselected-tab hover wash fades from the resolved tray fill,
+    // so a root `sx` background — refining the tray last — is part of the
+    // resting value the overlay colour is derived from, the same resting
+    // value `scrollbar.rs` resolves for its thumb.
+    Part::wired(
+        "tabs.rs",
+        "unselected-tab hover wash base",
+        "let tab_overlay = tray.alpha(",
+        "util::sx_background",
+    ),
     // Pending conversions. Resolve each part's state precedence when wiring.
     Part::pending(
         "switch.rs",

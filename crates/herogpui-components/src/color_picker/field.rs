@@ -64,6 +64,10 @@ pub struct ColorField {
     /// read-only display of `value`.
     state: Option<Entity<crate::input::InputState>>,
     on_change: Option<OnColorFieldChange>,
+    /// `onBlur` — focus left the editable field. Fired just before the
+    /// built-in revert-on-blur, the way React Aria chains the caller's
+    /// `onBlur` ahead of its `commit` on the same event.
+    on_blur: Option<Arc<dyn Fn(&mut Window, &mut App) + 'static>>,
     label: Option<SharedString>,
     description: Option<SharedString>,
     variant: FieldVariant,
@@ -124,6 +128,7 @@ impl ColorField {
             placeholder: None,
             state: None,
             on_change: None,
+            on_blur: None,
             label: None,
             description: None,
             variant: FieldVariant::Primary,
@@ -270,6 +275,18 @@ impl ColorField {
         f: impl Fn(&Option<PickerColor>, &mut Window, &mut App) + 'static,
     ) -> Self {
         self.on_change = Some(Arc::new(f));
+        self
+    }
+
+    /// `onBlur` — the editable field lost focus.
+    ///
+    /// React Aria chains the caller's `onBlur` with its own blur `commit` on
+    /// one event, caller first, so this hook runs ahead of the built-in
+    /// revert-on-blur and still sees the raw text. The revert itself is built
+    /// in and needs no hook. Only meaningful in the editable mode; see
+    /// [`ColorField::state`].
+    pub fn on_blur(mut self, f: impl Fn(&mut Window, &mut App) + 'static) -> Self {
+        self.on_blur = Some(Arc::new(f));
         self
     }
 
@@ -573,6 +590,106 @@ impl RenderOnce for ColorField {
         // Editable mode: delegate the text handling to Input and parse on every
         // keystroke, so `onChange` reports exactly what v3's does.
         if let Some(state) = self.state.clone() {
+            // React Aria also commits on blur: `useColorField` merges
+            // `onBlur: commit` into the input's props, and a channel field
+            // inherits NumberField's blur commit. `commit` restores text that
+            // no longer parses to the formatted last-committed value, leaves
+            // valid text alone, and keeps an emptied field empty (its
+            // committed null). The revert itself runs in the blur path —
+            // event handlers may mutate keyed state; render must not — so the
+            // only render-time work below is observing that a blur happened.
+            // GPUI blanks focus-event paths for inactive windows, including
+            // its headless test platform, so the observation has two legs,
+            // the same split `util::on_focus_leave` makes: a
+            // `Window::on_focus_out` on the input's own focus handle serves
+            // active windows, and a render-time edge catches the focus move
+            // to another tab stop everywhere else and defers the same revert
+            // out of render. Both consume the same flag, so one blur reverts
+            // exactly once.
+            let blur_focus = state.read(cx).focus_handle.clone();
+            let blur_seen = window.use_keyed_state(
+                element_id::scoped(&self.id, "field-blur-seen"),
+                cx,
+                |_, _| false,
+            );
+            let blur_subscription = window.use_keyed_state(
+                element_id::scoped(&self.id, "field-blur-subscription"),
+                cx,
+                |_, _| None::<gpui::Subscription>,
+            );
+            let revert: Rc<dyn Fn(&mut Window, &mut App)> = {
+                let hook = self.on_blur.clone();
+                let seen = blur_seen.clone();
+                let input = state.downgrade();
+                let committed = self.value;
+                let channel = self.channel;
+                let space = self.color_space;
+                Rc::new(move |window, cx| {
+                    seen.update(cx, |seen, _| *seen = false);
+                    // React Aria chains the caller's `onBlur` ahead of its
+                    // `commit`, so the hook still sees the raw text.
+                    if let Some(hook) = &hook {
+                        hook(window, cx);
+                    }
+                    let Some(input) = input.upgrade() else {
+                        return;
+                    };
+                    let text = input.read(cx).value().to_owned();
+                    // An emptied field is React Aria's committed null: the
+                    // text stays empty instead of restoring the old colour.
+                    if text.is_empty()
+                        || parse_color_field(committed.unwrap_or_default(), channel, space, &text)
+                            .is_some()
+                    {
+                        return;
+                    }
+                    let restored = color_field_display_text(committed, channel, space);
+                    input.update(cx, |state, cx| {
+                        state.set_value(restored);
+                        cx.notify();
+                    });
+                })
+            };
+            if !self.is_disabled {
+                // The event listener is frame-scoped: every render re-arms it
+                // with the `revert` built from this frame's committed value.
+                // Arming once would pin the first render's seed onto every
+                // later blur while the keyed colour advances per keystroke;
+                // storing the fresh subscription drops the stale one. The
+                // listener also clears the slot when it fires — the same
+                // one-shot transition `util::on_focus_leave` draws — so a
+                // blur owns its revert exactly once and the next frame
+                // re-arms.
+                let disarmer = blur_subscription.downgrade();
+                let listener = window.on_focus_out(&blur_focus, cx, {
+                    let revert = Rc::clone(&revert);
+                    move |_, window, cx| {
+                        if let Some(disarmer) = disarmer.upgrade() {
+                            disarmer.update(cx, |slot, _| *slot = None);
+                        }
+                        revert(window, cx);
+                    }
+                });
+                blur_subscription.update(cx, |slot, _| *slot = Some(listener));
+                if blur_focus.is_focused(window) {
+                    blur_seen.update(cx, |seen, _| *seen = true);
+                } else if *blur_seen.read(cx)
+                    && window.focused(cx).is_some_and(|focused| focused.tab_stop)
+                {
+                    // The inactive-window leg: the armed event never fires
+                    // there, so this frame's render observed the departure.
+                    // Consuming the flag here is what keeps exactly one
+                    // deferred revert per blur, and the revert itself runs
+                    // out of render, the way the event leg above does.
+                    blur_seen.update(cx, |seen, _| *seen = false);
+                    window.defer(cx, {
+                        let revert = Rc::clone(&revert);
+                        move |window, cx| revert(window, cx)
+                    });
+                }
+            } else if blur_subscription.read(cx).is_some() {
+                blur_subscription.update(cx, |slot, _| *slot = None);
+            }
             let mut input = Input::new(state.clone())
                 .variant(self.variant)
                 .is_disabled(self.is_disabled)

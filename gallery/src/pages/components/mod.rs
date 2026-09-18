@@ -398,6 +398,41 @@ pub(super) fn language_items() -> Vec<h::PickerItem> {
         .collect()
 }
 
+/// Named colours, for the `Select::item_leading` demo: a colour-picking select
+/// is the case v3 composes a swatch per row for.
+pub(super) fn swatch_picker_items() -> Vec<h::PickerItem> {
+    [
+        ("rose", "Rose"),
+        ("amber", "Amber"),
+        ("teal", "Teal"),
+        ("violet", "Violet"),
+    ]
+    .into_iter()
+    .map(|(key, label)| h::PickerItem::new(key, label))
+    .collect()
+}
+
+/// The swatch each [`swatch_picker_items`] key paints.
+pub(super) fn swatch_colour(key: &str) -> gpui::Hsla {
+    match key {
+        "rose" => herogpui_core::oklch(0.65, 0.2, 15.),
+        "amber" => herogpui_core::oklch(0.8, 0.16, 75.),
+        "teal" => herogpui_core::oklch(0.7, 0.12, 190.),
+        _ => herogpui_core::oklch(0.6, 0.2, 295.),
+    }
+}
+
+/// A two-line-capable layout label, for the `Select::padding_y` demo.
+pub(super) fn layout_picker_items() -> Vec<h::PickerItem> {
+    [
+        ("side", "Side by side with the preview pane"),
+        ("stack", "Stacked above the preview pane"),
+    ]
+    .into_iter()
+    .map(|(key, label)| h::PickerItem::new(key, label))
+    .collect()
+}
+
 /// A thousand list rows, for the virtualization demos.
 pub(super) fn virtual_users() -> Vec<h::ListBoxItem> {
     (0..1000)
@@ -803,13 +838,13 @@ mod example_quality {
     #[test]
     fn gallery_sections_are_preserved_while_reordering() {
         for (name, count) in [
-            ("select", 23),
+            ("select", 25),
             ("autocomplete", 21),
             ("combo_box", 29),
             ("slider", 17),
             ("date_field", 15),
             ("alert_dialog", 12),
-            ("dropdown", 21),
+            ("dropdown", 23),
             ("popover", 6),
             ("number_field", 17),
             ("text_area", 6),

@@ -522,6 +522,17 @@ EXTRA_OK_SCOPED = {
     'Calendar.year_hover_bg': 'no-classname',
     'RangeCalendar.nav_hover_bg': 'no-classname',
     'RangeCalendar.year_hover_bg': 'no-classname',
+    # The reference capture toolbar builds its icon-only segmented control on
+    # Tabs: the icon children v3 composes into `Tabs.Tab` become
+    # `TabItem::trigger` (the label stays the accessible name), and the
+    # `className` the toolbar passes to `Tabs.ListContainer`/`Tabs.Indicator`
+    # becomes the named part overrides below. gpui has no `className`, so
+    # each painted part needs its own builder.
+    'Tabs.trigger': 'no-classname',
+    'Tabs.radius': 'repository-radius-extension',
+    'Tabs.list_bg': 'no-classname',
+    'Tabs.indicator_bg': 'no-classname',
+    'Tabs.indicator_shadow': 'no-classname',
     'TimeField.font_family': 'no-classname',
     'DateField.font_family': 'no-classname',
     'ColorPicker.font_family': 'no-classname',
@@ -724,6 +735,48 @@ EXTRA_OK_SCOPED = {
     # v3 changes the spin rate with an animation utility class
     # (`animate-[spin_1.5s_linear_infinite]`), which is its "Speed" example.
     'Spinner.duration_ms': 'no-classname',
+    # v3 names in-between spinner diameters with Tailwind size utilities
+    # (`size-3.5` at 14px, `size-5` at 20px), not with a prop; the port takes
+    # the pixels directly and lets the override win over the size step.
+    'Spinner.size_px': 'no-classname',
+    # v3's Spinner always draws the HeroUI arc (no children, no icon prop);
+    # callers that spin a different mark replaced the whole component. The
+    # port keeps the arc as the default and exposes the rotating glyph, still
+    # under the same box, color, motion and status role.
+    'Spinner.glyph': 'no-classname',
+    # --- 0.10.0 capability extensions (consumer parity asks) ---------------
+    # Per-instance pixel geometry and text metrics: v3 sizes a button through
+    # the `--size` ladder and className utilities; the port names the box and
+    # the label directly instead of an `sx` workaround.
+    'Button.width': 'no-classname',
+    'Button.min_width': 'no-classname',
+    'Button.height': 'no-classname',
+    'Button.padding_x': 'no-classname',
+    'Button.text_size': 'no-classname',
+    'Button.font_weight': 'no-classname',
+    'Button.grow': 'no-classname',
+    # v3 sizes the menu separator with proportional utilities
+    # (`ms-[3%] w-[94%]`); the port lets a theme pin both in pixels for a
+    # panel that sits beside a native menu whose own rule is inset.
+    'Dropdown.separator_inset': 'no-classname',
+    'Dropdown.separator_thickness': 'no-classname',
+    # v3 has no row that hosts a live control; the closest shape is composing
+    # arbitrary children into a row, which is className-level freedom the
+    # builder API has to name explicitly.
+    'Dropdown.is_interactive': 'no-classname',
+    # v3's trigger carries `py-2`; the port exposes the vertical padding so a
+    # wrapped value can grow a `min-h` trigger the way the utility does.
+    'Select.padding_y': 'no-classname',
+    # v3 composes per-option leading content (icons, swatches) through item
+    # children; the port takes one per-row factory closure instead.
+    'Select.item_leading': 'no-classname',
+    # v3's tooltip body is the composed children of the trigger's aria
+    # relation; the port keeps the string as the accessible name and lets a
+    # closure replace only the visual.
+    'Tooltip.body': 'no-classname',
+    # React Aria's useColorField chains the caller's onBlur ahead of its
+    # commit-on-blur; the port exposes that same hook.
+    'ColorField.on_blur': 'react-aria-inherited',
     # `SearchField.SearchIcon` is a composed part; replacing it is v3's
     # "Custom Icons" example.
     'SearchField.search_icon': 'composition',

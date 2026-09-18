@@ -308,6 +308,35 @@ impl ThemeBuilder {
         self.role("accent", color, fg)
     }
 
+    /// Names a role's `*-hover` shade outright, in place of the derived mix.
+    ///
+    /// Upstream mixes a role toward its own foreground for hover, so a design
+    /// system whose hover moves the other way has no weight that expresses it.
+    /// Naming it here reaches every component that hovers the role, so
+    /// `Variant::Primary` is correct by construction rather than by converting
+    /// call sites to a named recipe carrying a
+    /// [`crate::ComponentColor::Literal`]. `*-soft-hover` is unaffected.
+    ///
+    /// The name matches [`ThemeBuilder::role`]: `default`, `success`,
+    /// `warning`, `danger`, and anything else is `accent`.
+    pub fn role_hover(mut self, name: &str, hover: Hsla) -> Self {
+        let role = match name {
+            "default" => &mut self.theme.colors.default,
+            "success" => &mut self.theme.colors.success,
+            "warning" => &mut self.theme.colors.warning,
+            "danger" => &mut self.theme.colors.danger,
+            _ => &mut self.theme.colors.accent,
+        };
+        *role = role.with_hover(hover);
+        self
+    }
+
+    /// [`ThemeBuilder::role_hover`] for `accent`, the role `Variant::Primary`
+    /// and the focus ring resolve.
+    pub fn accent_hover(self, hover: Hsla) -> Self {
+        self.role_hover("accent", hover)
+    }
+
     // -- fields -------------------------------------------------------------
 
     pub fn field(mut self, background: Hsla, foreground: Hsla) -> Self {

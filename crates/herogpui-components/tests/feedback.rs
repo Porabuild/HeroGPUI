@@ -1228,6 +1228,155 @@ fn spinner_keeps_its_diameter_when_a_flex_parent_is_smaller(cx: &mut TestAppCont
     }
 }
 
+/// Wraps one spinner in a content-hugging flex row carrying a debug selector,
+/// so the spinner's own box is readable through `debug_bounds` without adding
+/// debug furniture to the component's rendered tree.
+fn boxed_spinner(selector: &'static str, spinner: Spinner) -> AnyElement {
+    gpui::div()
+        .flex()
+        .debug_selector(move || selector.to_owned())
+        .child(spinner)
+        .into_any_element()
+}
+
+/// `size_px` overrides the diameter the size step derives: the box renders at
+/// the named pixels, the explicit override wins in either builder order, and
+/// a spinner without the override keeps the documented 24px default.
+#[gpui::test]
+fn spinner_size_px_overrides_the_derived_diameter(cx: &mut TestAppContext) {
+    let cx = open_host(cx, || {
+        gpui::div()
+            .flex()
+            .flex_col()
+            .items_start()
+            .gap(px(8.))
+            .child(boxed_spinner(
+                "spin-px-14",
+                Spinner::new("spin-px-14-spinner").size_px(px(14.)),
+            ))
+            .child(boxed_spinner(
+                "spin-px-after-size",
+                Spinner::new("spin-px-after-size-spinner")
+                    .size(SpinnerSize::Xl)
+                    .size_px(px(14.)),
+            ))
+            .child(boxed_spinner(
+                "spin-px-before-size",
+                Spinner::new("spin-px-before-size-spinner")
+                    .size_px(px(14.))
+                    .size(SpinnerSize::Xl),
+            ))
+            .child(boxed_spinner(
+                "spin-default",
+                Spinner::new("spin-default-spinner"),
+            ))
+            .into_any_element()
+    });
+    for (selector, expected) in [
+        ("spin-px-14", 14.),
+        ("spin-px-after-size", 14.),
+        ("spin-px-before-size", 14.),
+        ("spin-default", 24.),
+    ] {
+        let bounds = cx
+            .debug_bounds(selector)
+            .unwrap_or_else(|| panic!("{selector} box must paint"));
+        assert_eq!(bounds.size.width, px(expected), "{selector} width");
+        assert_eq!(bounds.size.height, px(expected), "{selector} height");
+    }
+}
+
+/// `glyph` renders the caller's element in place of the arc, laid out centered
+/// inside the spinner-owned diameter box, and the rotation machinery is
+/// unchanged: with motion on the spinner still schedules animation frames and
+/// `duration_ms` still feeds the same repeated animation.
+#[gpui::test]
+fn spinner_glyph_replaces_the_arc_and_keeps_spinning(cx: &mut TestAppContext) {
+    let cx = open_host(cx, || {
+        gpui::div()
+            .flex()
+            .child(
+                boxed_spinner(
+                    "spin-glyph",
+                    Spinner::new("spin-glyph-spinner")
+                        .size_px(px(14.))
+                        .duration_ms(1500)
+                        .glyph(
+                            gpui::svg()
+                                .size(px(10.))
+                                .path(herogpui_components::icons::PLUS)
+                                .debug_selector(|| "spin-glyph-svg".into()),
+                        ),
+                )
+                .into_any_element(),
+            )
+            .into_any_element()
+    });
+    let box_bounds = cx
+        .debug_bounds("spin-glyph")
+        .expect("spinner box must paint");
+    assert_eq!(
+        box_bounds.size.width,
+        px(14.),
+        "the box keeps size_px's diameter"
+    );
+    let glyph_bounds = cx
+        .debug_bounds("spin-glyph-svg")
+        .expect("the caller glyph must render in place of the arc");
+    assert_eq!(
+        glyph_bounds.size.width,
+        px(10.),
+        "the glyph keeps its own 10px layout box"
+    );
+    assert_eq!(
+        glyph_bounds.origin.x - box_bounds.origin.x,
+        px(2.),
+        "the glyph is centered in the diameter box"
+    );
+    assert!(
+        cx.update(|window, cx| window.simulate_next_frame(cx)) > 0,
+        "a glyph spinner must keep scheduling rotation frames"
+    );
+}
+
+/// The glyph variant keeps the reduce-motion suppression too: the caller
+/// element replaces the arc but nothing schedules frames, and with no
+/// `size_px` the container still takes the documented 24px diameter.
+#[gpui::test]
+fn spinner_glyph_stops_scheduling_when_motion_is_disabled(cx: &mut TestAppContext) {
+    still();
+    let cx = open_host(cx, || {
+        gpui::div()
+            .flex()
+            .child(
+                boxed_spinner(
+                    "spin-glyph-still",
+                    Spinner::new("spin-glyph-still-spinner").glyph(
+                        gpui::div()
+                            .size(px(12.))
+                            .bg(gpui::black())
+                            .debug_selector(|| "spin-glyph-still-div".into()),
+                    ),
+                )
+                .into_any_element(),
+            )
+            .into_any_element()
+    });
+    let box_bounds = cx
+        .debug_bounds("spin-glyph-still")
+        .expect("spinner box must paint");
+    assert_eq!(box_bounds.size.width, px(24.), "the default diameter holds");
+    let glyph_bounds = cx
+        .debug_bounds("spin-glyph-still-div")
+        .expect("the caller glyph must render in place of the arc");
+    assert_eq!(glyph_bounds.size.width, px(12.));
+    assert_eq!(
+        cx.update(|window, cx| window.simulate_next_frame(cx)),
+        0,
+        "reduced motion must leave a glyph spinner static"
+    );
+}
+
 /// Skeleton's v3 table is `animationType` plus `className` — no callback and
 /// no state, so the only behavioural claim is renderability: the default
 /// (deferred to the `--skeleton-animation` token), `none`, `pulse` and

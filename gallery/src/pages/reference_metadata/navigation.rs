@@ -705,7 +705,7 @@ const TABS_PARTS: &[PartDoc] = &[
     PartDoc {
         name: "Tabs.Tab",
         slot: "tabs-tab",
-        description: "One keyed, selectable tab segment.",
+        description: "One keyed, selectable tab segment; `TabItem::trigger` replaces the label text with an icon element while `label` stays the accessible name.",
         rust_owner: "TabItem",
         status: ImplementationStatus::Implemented,
     },
@@ -795,8 +795,8 @@ const TABS_STYLING: &[StyleDoc] = &[
     StyleDoc {
         class_or_token: ".tabs__list-container",
         value: "relative bg-default; radius calc(var(--radius) * 2.5)",
-        description: "Primary list tray.",
-        rust: "relative + default fill + radius_lg * 2.5",
+        description: "Primary list tray. The reference capture toolbar restyles it as an icon-only segmented-control tray with a muted fill and a rounded-3xl corner.",
+        rust: "relative + default fill (list_bg override) + radius_lg * 2.5 (radius override)",
         status: ImplementationStatus::Implemented,
     },
     StyleDoc {
@@ -907,8 +907,8 @@ const TABS_STYLING: &[StyleDoc] = &[
     StyleDoc {
         class_or_token: ".tabs__indicator",
         value: "absolute rounded-3xl bg-segment shadow-surface",
-        description: "Primary selected-segment surface.",
-        rust: "measured absolute child + segment fill + control_radius + surface shadow",
+        description: "Primary selected-segment surface. The reference capture toolbar tints it muted, rounds it rounded-3xl with the tray and drops the shadow.",
+        rust: "measured absolute child + segment fill (indicator_bg override) + control_radius (radius override) + surface shadow (indicator_shadow gate)",
         status: ImplementationStatus::Implemented,
     },
     StyleDoc {
@@ -929,7 +929,7 @@ const TABS_STYLING: &[StyleDoc] = &[
         class_or_token: ".tabs--secondary .tabs__indicator",
         value: "rounded-none bg-accent shadow-none",
         description: "Secondary selection line.",
-        rust: "accent indicator without radius or shadow",
+        rust: "accent indicator (indicator_bg override, fallback border included) without radius or shadow",
         status: ImplementationStatus::Implemented,
     },
     StyleDoc {

@@ -22,6 +22,7 @@ use gpui::{
 use herogpui_components::{
     Button, KeyboardActivation, Orientation, TabItem, Tabs, TabsAlign, TabsVariant,
 };
+use herogpui_theme::ActiveTheme;
 
 use harness::{click, events, open_host, press};
 
@@ -1521,4 +1522,272 @@ fn tabs_full_width_does_not_overflow_the_scroller(cx: &mut TestAppContext) {
         natural > 240.,
         "the fixture must be one that overflows when content-sized: {natural}"
     );
+}
+
+/// The icon-only segmented control the reference capture toolbar builds: every
+/// trigger renders an element instead of the label text, and the list overrides
+/// its container and indicator paint. The observable half — geometry, hit
+/// testing and keyboard activation — must survive the paint overrides and the
+/// element triggers; fills, shadows and corner radii have no headless readback,
+/// so the source contract below pins their wiring and the gallery example is
+/// the visual proof.
+#[gpui::test]
+fn tabs_icon_triggers_render_activate_and_measure(cx: &mut TestAppContext) {
+    harness::still();
+    let recorded = events();
+    let selected = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = recorded.clone();
+        let icon = |name: &'static str| {
+            gpui::div()
+                .size(px(16.))
+                .debug_selector(move || name.to_owned())
+        };
+        Tabs::new(
+            "tb-icon-trigger",
+            vec![
+                TabItem::new("grid", "Grid").trigger(icon("icon-grid")),
+                TabItem::new("eye", "Preview").trigger(icon("icon-eye")),
+                TabItem::new("gear", "Settings").trigger(icon("icon-gear")),
+            ],
+            "grid",
+        )
+        .radius(px(24.))
+        .list_bg(gpui::rgb(0x101010))
+        .indicator_bg(gpui::rgb(0x202020))
+        .indicator_shadow(false)
+        .on_selection_change(move |key, _, _| recorded.borrow_mut().push(key.to_string()))
+        .into_any_element()
+    });
+
+    // A 16px icon inside the pinned 32px-high box with 16px side padding: one
+    // 48px segment. The label text must not render beside the icon, or the tab
+    // box — and with it the indicator — would grow past it.
+    for _ in 0..4 {
+        flush_frame(cx);
+    }
+    let grid = cx
+        .debug_bounds("icon-grid")
+        .expect("the icon trigger element must render inside its tab");
+    assert!(
+        (f32::from(grid.size.width) - 16.).abs() < f32::EPSILON
+            && (f32::from(grid.size.height) - 16.).abs() < f32::EPSILON,
+        "the trigger element must render at its own size, got {grid:?}"
+    );
+    assert!(
+        (f32::from(grid.origin.x) - 20.).abs() < 1.,
+        "the icon must sit inside the tab's 16px side padding, got {grid:?}"
+    );
+
+    let indicator = cx
+        .debug_bounds("Name(\"tb-icon-trigger\")-indicator")
+        .expect("the selected icon segment's indicator must be painted");
+    assert!(
+        (f32::from(indicator.size.width) - 48.).abs() < 1.,
+        "the indicator must measure the icon segment's tab box (16px icon + 2 x 16px padding), \
+         not the absent label, got {indicator:?}"
+    );
+    assert!(
+        (f32::from(indicator.size.height) - 32.).abs() < f32::EPSILON,
+        "the indicator must keep the pinned tab height, got {indicator:?}"
+    );
+    assert!(
+        (f32::from(indicator.origin.x) - 4.).abs() < 1.,
+        "the first segment starts at the list's 4px inset, got {indicator:?}"
+    );
+
+    // The trigger is presentational: the press reaches the tab through it,
+    // along the same pointer path a text label takes.
+    click(cx, 4. + 48. + 24., 20.);
+    assert_eq!(
+        selected.borrow().as_slice(),
+        ["eye"],
+        "clicking an icon-only segment must select its tab"
+    );
+    flush_frame(cx);
+    let eye = cx
+        .debug_bounds("Name(\"tb-icon-trigger\")-indicator")
+        .expect("the indicator must remain painted after the selection");
+    assert!(
+        (f32::from(eye.origin.x) - 52.).abs() < 1.,
+        "reduced motion must snap the indicator onto the pressed icon segment, got {eye:?}"
+    );
+
+    // And the roving keyboard still activates icon-only tabs with no label
+    // text anywhere in the list.
+    press(cx, "tab");
+    press(cx, "right");
+    assert_eq!(
+        selected.borrow().as_slice(),
+        ["eye", "gear"],
+        "arrow keys must keep activating icon-only tabs"
+    );
+    flush_frame(cx);
+    let gear = cx
+        .debug_bounds("Name(\"tb-icon-trigger\")-indicator")
+        .expect("the indicator must follow the keyboard selection");
+    let gear_icon = cx
+        .debug_bounds("icon-gear")
+        .expect("the third icon renders");
+    let icon_center = f32::from(gear_icon.origin.x) + f32::from(gear_icon.size.width) / 2.;
+    assert!(
+        f32::from(gear.origin.x) < icon_center
+            && icon_center < f32::from(gear.origin.x + gear.size.width),
+        "the indicator must cover the focused icon segment: {gear:?} vs {gear_icon:?}"
+    );
+}
+
+/// `indicator_bg` recolors the secondary accent line without disturbing its
+/// measured 2px geometry or the variant's activation path. The color itself
+/// has no headless readback; the source contract below pins the wiring.
+#[gpui::test]
+fn tabs_secondary_indicator_bg_keeps_underline_geometry_and_activation(cx: &mut TestAppContext) {
+    harness::still();
+    let recorded = events();
+    let selected = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = recorded.clone();
+        Tabs::new(
+            "tb-secondary-indicator-bg",
+            vec![
+                TabItem::new("first", "First"),
+                TabItem::new("second", "Second"),
+            ],
+            "first",
+        )
+        .variant(TabsVariant::Secondary)
+        .indicator_bg(gpui::rgb(0x00aa44))
+        .on_selection_change(move |key, _, _| recorded.borrow_mut().push(key.to_string()))
+        .into_any_element()
+    });
+
+    let boxes = measure_tabs(cx, "Name(\"tb-secondary-indicator-bg\")-indicator", 2);
+    assert_eq!(
+        selected.borrow().as_slice(),
+        ["second"],
+        "the recolored secondary indicator must not change activation"
+    );
+    for (index, bounds) in boxes.iter().enumerate() {
+        assert!(
+            (f32::from(bounds.size.height) - 2.).abs() < f32::EPSILON,
+            "secondary tab {index} keeps its 2px underline with the override, got {bounds:?}"
+        );
+    }
+    assert!(
+        boxes[1].origin.x > boxes[0].origin.x,
+        "the recolored underline must still slide to the selected tab"
+    );
+}
+
+/// With `list_bg` set, the unselected-tab hover wash fades to the resolved
+/// tray fill — the override dimmed to `tabs_hover_opacity` — and not to the
+/// stock tray token: a state fill fades from the resting background. The wash
+/// is a painted quad, so the assertion goes through the same
+/// `Window::painted_quads` seam the scrollbar tests use.
+#[gpui::test]
+fn tabs_hover_wash_fades_from_the_list_bg_override(cx: &mut TestAppContext) {
+    harness::still();
+    let override_bg = gpui::rgb(0x1a1a2e);
+    let cx = open_host(cx, move || {
+        Tabs::new(
+            "tb-wash",
+            vec![TabItem::new("a", "A"), TabItem::new("b", "B")],
+            "a",
+        )
+        .list_bg(override_bg)
+        .into_any_element()
+    });
+    // Drive the roving selection through both tabs: the indicator laid over
+    // each selected tab reports that tab's box, the only handle a headless
+    // test has on an unselected tab's position.
+    let boxes = measure_tabs(cx, "Name(\"tb-wash\")-indicator", 2);
+    press(cx, "left");
+    flush_frame(cx);
+
+    let (override_wash, stock_wash) = cx.update(|_, cx| {
+        let opacity = cx.layout().tabs_hover_opacity;
+        (
+            gpui::Hsla::from(override_bg).alpha(1.0 - opacity),
+            cx.colors().default.color.alpha(1.0 - opacity),
+        )
+    });
+    // The pointer is parked off-window until now; move onto the second tab,
+    // unselected since the `left` above handed selection back to the first.
+    let unselected = &boxes[1];
+    let center = point(
+        px(f32::from(unselected.origin.x) + f32::from(unselected.size.width) / 2.),
+        px(f32::from(unselected.origin.y) + f32::from(unselected.size.height) / 2.),
+    );
+    cx.simulate_mouse_move(center, None, Modifiers::none());
+    flush_frame(cx);
+    let solids = cx.update(|window, _| {
+        window
+            .painted_quads()
+            .into_iter()
+            .filter_map(|quad| quad.background.as_solid())
+            .collect::<Vec<_>>()
+    });
+    assert!(
+        solids.contains(&override_wash),
+        "the hover wash must fade to the list_bg override dimmed by the token \
+         opacity, painted solid fills: {solids:?}"
+    );
+    assert!(
+        !solids.contains(&stock_wash),
+        "the stock tray token must not wash over an overridden tray, painted \
+         solid fills: {solids:?}"
+    );
+}
+
+/// The paint knobs have no headless readback — shadows, fills and corner radii
+/// are not observable from the test platform — so their contract is the
+/// wiring: each override refines the part it names after the resolved theme
+/// default, the fallbacks that paint the indicator's look before geometry
+/// arrives read the same overrides, and every field seeds to today's value.
+#[test]
+fn tabs_paint_overrides_are_wired_at_their_parts() {
+    let source = include_str!("../src/tabs.rs");
+    // The indicator keeps its pinned default expressions and refines them per
+    // instance (theme value first, configuration after).
+    assert!(
+        source.contains(".rounded(crate::util::control_radius(cx))"),
+        "the indicator's default radius call is the design-audit fixture anchor"
+    );
+    assert!(source.contains(".when_some(radius_override, |indicator, radius| {"));
+    assert!(source.contains("indicator_bg.unwrap_or(colors.accent.color)"));
+    assert!(source.contains("indicator_bg.unwrap_or(colors.segment.background)"));
+    assert!(source.contains("indicator_shadow && !layout.surface_shadow.is_empty()"));
+    // The pre-measurement active-tab fallback paints the same look and must
+    // read through the same overrides, or the first frame flashes them.
+    assert!(source.contains("tab.bg(indicator_bg.unwrap_or(colors.segment.background))"));
+    assert!(source.contains("tab.border_color(indicator_bg.unwrap_or(colors.accent.color))"));
+    // The list container keeps its pinned default expressions too.
+    assert!(source.contains("let container_radius = layout.radius_lg() * 2.5;"));
+    assert!(source.contains("list_bg.unwrap_or(colors.default.color)"));
+    assert!(source.contains(".when_some(list_bg, |c, bg| c.bg(bg))"));
+    assert!(source.contains(".when_some(radius_override, |c, radius| c.rounded(radius))"));
+    // Unused builders leave the component byte-identical to today.
+    assert!(source.contains("radius: None"));
+    assert!(source.contains("list_bg: None"));
+    assert!(source.contains("indicator_bg: None"));
+    assert!(source.contains("indicator_shadow: true"));
+}
+
+/// An element trigger — an svg icon, most commonly — carries no accessible
+/// name of its own, so `label` must keep naming the tab through the
+/// `a11y_named` restatement on the tab element itself. The headless platform
+/// cannot read the AccessKit tree (`a11y_deep.rs` pins why), so the source is
+/// the observable proof, exactly as for the other a11y-only paths.
+#[test]
+fn tabs_trigger_keeps_the_label_as_the_accessible_name() {
+    let source = include_str!("../src/tabs.rs");
+    // Both variants name the tab from `label` on the interactive tab box,
+    // independent of which child it renders.
+    assert!(
+        source.contains("a11y_named(a11y::Role::Tab, &a11y::Name::labelled(item.label.clone()))"),
+        "the tab element must restate `label` as its accessible name"
+    );
+    // The trigger replaces the rendered child only.
+    assert!(source.contains("Some(trigger) => tab.child(trigger)"));
+    assert!(source.contains("None => tab.child(tab_label(item.label.clone()))"));
 }

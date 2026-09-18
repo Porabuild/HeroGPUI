@@ -1975,6 +1975,41 @@ impl Gallery {
                     ]),
                 ),
                 (
+                    "Rich Content", "`body` draws the tip yourself, in place of the measured single line. The string handed to `Tooltip::new` is still required: it stays the tip's accessible name, so a rich tip cannot ship unnamed.",
+                    row(vec![
+                        h::Tooltip::new("name is the identifier, kind is the token class, scope is where it resolves")
+                            .delay(0)
+                            .body(|_, cx| {
+                                let muted = cx.colors().muted;
+                                let row = |name: &str, meaning: &str| {
+                                    gpui::div()
+                                        .flex()
+                                        .gap(px(8.))
+                                        .child(gpui::div().w(px(44.)).child(name.to_owned()))
+                                        .child(
+                                            gpui::div()
+                                                .text_color(muted)
+                                                .child(meaning.to_owned()),
+                                        )
+                                };
+                                gpui::div()
+                                    .flex()
+                                    .flex_col()
+                                    .gap(px(2.))
+                                    .child(row("name", "the identifier"))
+                                    .child(row("kind", "the token class"))
+                                    .child(row("scope", "where it resolves"))
+                                    .into_any_element()
+                            })
+                            .child(
+                                h::Button::new("tt-rich")
+                                    .label("Naming tokens")
+                                    .variant(Variant::Secondary),
+                            )
+                            .into_any_element(),
+                    ]),
+                ),
+                (
                     "Custom Triggers",
                     row(vec![
                         h::Tooltip::new("Jane Doe")

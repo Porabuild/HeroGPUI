@@ -74,6 +74,20 @@ pub struct Button {
     /// The corner radius, in place of `--radius-3xl` (capped). Group edges and
     /// the press scale still apply.
     radius: Option<Pixels>,
+    /// Set by [`Button::width`]: the fixed pixel width.
+    width: Option<Pixels>,
+    /// Set by [`Button::min_width`]: the width floor.
+    min_width: Option<Pixels>,
+    /// Set by [`Button::height`]: the fixed pixel height.
+    height: Option<Pixels>,
+    /// Set by [`Button::padding_x`]: the horizontal inset.
+    padding_x: Option<Pixels>,
+    /// Set by [`Button::text_size`]: the label's font size.
+    text_size: Option<Pixels>,
+    /// Set by [`Button::font_weight`]: the label's font weight.
+    font_weight: Option<gpui::FontWeight>,
+    /// Set by [`Button::grow`]: `flex-1` plus `min-w-0`.
+    grow: bool,
     recipes: Vec<SharedString>,
 }
 
@@ -99,6 +113,13 @@ impl Button {
             sx: None,
             hover_bg: None,
             radius: None,
+            width: None,
+            min_width: None,
+            height: None,
+            padding_x: None,
+            text_size: None,
+            font_weight: None,
+            grow: false,
             recipes: Vec::new(),
         }
     }
@@ -123,6 +144,21 @@ impl Button {
         self
     }
 
+    /// The visual style.
+    ///
+    /// Setting this at the call site suppresses
+    /// [`herogpui_theme::ButtonStyle::variant`] from
+    /// every recipe on the button — the instance is the more specific source,
+    /// so it wins, the same way [`Button::hover_bg`] outranks a recipe's
+    /// `hover_bg`. The surprise is what goes with the variant: each one
+    /// derives its own hover shade, so
+    /// `.variant(Variant::Primary).recipe("accented")` keeps *primary's* hover
+    /// even when the recipe was written to change it through its variant. A
+    /// recipe that must change the hover names it with
+    /// [`herogpui_theme::ButtonStyle::hover_bg`], which is honoured whatever variant is in
+    /// force; a hover that should follow a whole role everywhere belongs on
+    /// the role instead, through
+    /// [`herogpui_theme::ThemeBuilder::role_hover`].
     pub fn variant(mut self, variant: Variant) -> Self {
         self.variant = variant;
         self.variant_is_set = true;
@@ -135,6 +171,8 @@ impl Button {
         self
     }
 
+    /// Fills the parent with `w-full`. An explicit [`Button::width`] is the
+    /// more specific source and wins when both are set.
     pub fn full_width(mut self, v: bool) -> Self {
         self.full_width = v;
         self.full_width_is_set = true;
@@ -143,6 +181,95 @@ impl Button {
 
     pub fn is_icon_only(mut self, v: bool) -> Self {
         self.is_icon_only = v;
+        self
+    }
+
+    /// The button's fixed pixel width, in place of the content-fit ladder.
+    ///
+    /// Beats [`Button::full_width`] when both are set: `full_width` fills the
+    /// parent, a pixel width fixes the box, and the pixel width is the more
+    /// specific source. It also replaces the icon-only square. The pressed
+    /// skin keeps the fixed box instead of snapping back to the ladder, and a
+    /// matching `sx` width still refines the root last.
+    ///
+    /// Not a v3 prop; a per-component repository extension like
+    /// [`Button::radius`].
+    pub fn width(mut self, w: impl Into<Pixels>) -> Self {
+        self.width = Some(w.into());
+        self
+    }
+
+    /// The button's width floor, under the content-fit ladder, an explicit
+    /// [`Button::width`] and `grow`'s zero floor alike.
+    ///
+    /// Not a v3 prop; a per-component repository extension like
+    /// [`Button::radius`].
+    pub fn min_width(mut self, w: impl Into<Pixels>) -> Self {
+        self.min_width = Some(w.into());
+        self
+    }
+
+    /// The button's fixed pixel height, in place of the size ladder's control
+    /// height. Beats what [`Button::size`] derives; a matching `sx` height
+    /// still refines the root last, and the pressed skin keeps the fixed box.
+    ///
+    /// Not a v3 prop; a per-component repository extension like
+    /// [`Button::radius`].
+    pub fn height(mut self, h: impl Into<Pixels>) -> Self {
+        self.height = Some(h.into());
+        self
+    }
+
+    /// The button's horizontal inset, in place of the size ladder's `px-4`
+    /// (`px-3` on `--sm`). Beats what [`Button::size`] derives and feeds the
+    /// pressed skin's inset geometry; a matching `sx` padding still refines
+    /// the root last.
+    ///
+    /// Not a v3 prop; a per-component repository extension like
+    /// [`Button::radius`].
+    pub fn padding_x(mut self, p: impl Into<Pixels>) -> Self {
+        self.padding_x = Some(p.into());
+        self
+    }
+
+    /// The label's font size; unset keeps the size ladder's pair (`text-sm`,
+    /// stepping to `text-base` on `--lg`). Beats what [`Button::size`]
+    /// derives. A Tailwind step keeps its paired leading through
+    /// `util::leading_for`; other sizes keep the size step's leading, the
+    /// same convention [`crate::chip::Chip::text_size`] records.
+    ///
+    /// Not a v3 prop; a per-component repository extension like
+    /// [`Button::radius`].
+    pub fn text_size(mut self, size: impl Into<Pixels>) -> Self {
+        self.text_size = Some(size.into());
+        self
+    }
+
+    /// The label's font weight, in place of `.button`'s `font-medium`. Beats
+    /// what [`Button::size`] derives; a matching `sx` weight still refines the
+    /// root last.
+    ///
+    /// Not a v3 prop; a per-component repository extension like
+    /// [`Button::radius`].
+    pub fn font_weight(mut self, weight: gpui::FontWeight) -> Self {
+        self.font_weight = Some(weight);
+        self
+    }
+
+    /// Fills the row's free width: v3's `flex-1` plus `min-w-0`, the pair a
+    /// caller otherwise has to reach for `sx` to spell. The button shares the
+    /// free width of its flex parent instead of overflowing it, and may
+    /// compress below its own content width — exactly what the `min-w-0` half
+    /// is for.
+    ///
+    /// Coexists with [`Button::full_width`]: `full_width` pins the box to
+    /// 100% of the parent, `grow` shares whatever is left over after the
+    /// siblings.
+    ///
+    /// Not a v3 prop; a per-component repository extension like
+    /// [`Button::radius`].
+    pub fn grow(mut self, v: bool) -> Self {
+        self.grow = v;
         self
     }
 
@@ -676,7 +803,24 @@ impl RenderOnce for Button {
             .then(|| button_hover_colors(self.variant, cx))
             .and_then(|variant| util::fade_endpoints(variant, sx_background, self.hover_bg));
 
-        let metrics = button_metrics(self.size);
+        // The size ladder is the default; the instance text and padding
+        // builders replace their rung. An overridden size re-pairs its leading
+        // through `util::leading_for` when the value is a Tailwind step, and
+        // keeps the ladder's leading otherwise — the convention Chip's
+        // `text_size` records.
+        let derived = button_metrics(self.size);
+        let metrics = ButtonMetrics {
+            text: self.text_size.unwrap_or(derived.text),
+            line_height: self
+                .text_size
+                .and_then(util::leading_for)
+                .unwrap_or(derived.line_height),
+            padding_x: self.padding_x.unwrap_or(derived.padding_x),
+            gap: derived.gap,
+        };
+        // The resolved resting height: an instance builder beats the size
+        // ladder, and the matching `sx` height still refines the root last.
+        let height = self.height.unwrap_or_else(|| self.size.control_height());
         // RAC's `Button` renders a native `<button>`, so upstream's role is
         // implicit and its accessible name comes from the rendered children.
         // A gpui text child carries no id, so it contributes no node and no
@@ -695,12 +839,12 @@ impl RenderOnce for Button {
             // an automatic minimum size of zero, which let the label collapse
             // instead of overflowing.
             .whitespace_nowrap()
-            .font_weight(gpui::FontWeight::MEDIUM)
+            .font_weight(self.font_weight.unwrap_or(gpui::FontWeight::MEDIUM))
             .map(|e| group_radius(e, self.group_edge, radius))
             .map(|e| util::round_sx_corners(e, &sx_corners))
             .text_size(metrics.text)
             .line_height(metrics.line_height)
-            .h(self.size.control_height());
+            .h(height);
 
         el = if self.is_icon_only {
             el.w(self.size.icon_control_size())
@@ -708,8 +852,24 @@ impl RenderOnce for Button {
             el.px(metrics.padding_x).gap(metrics.gap)
         };
 
-        if self.full_width {
+        // An explicit pixel width is the more specific source: it wins over
+        // `full_width` and the icon-only square alike.
+        if let Some(width) = self.width {
+            el = el.w(width);
+        } else if self.full_width {
             el = el.w_full();
+        }
+
+        if self.grow {
+            // `flex-1` plus `min-w-0` on the skin: inside a press slot it must
+            // fill that slot, and without one it is the row item itself. The
+            // same pair goes onto the slot further down, so the caller's row
+            // stretches whichever element it actually lays out.
+            el = el.flex_1().min_w(gpui::px(0.));
+        }
+
+        if let Some(min_width) = self.min_width {
+            el = el.min_w(min_width);
         }
 
         el = apply_variant(el, self.variant, interactive, fade.is_none(), cx);
@@ -793,14 +953,20 @@ impl RenderOnce for Button {
             };
             let press_box = crate::anim::PressBox {
                 // An `sx` pixel size keeps the press footprint at the
-                // overridden box instead of snapping back to the ladder.
-                height: sx_size.height.unwrap_or_else(|| self.size.control_height()),
+                // overridden box instead of snapping back to the ladder; an
+                // instance builder sits between the two.
+                height: sx_size
+                    .height
+                    .or(self.height)
+                    .unwrap_or_else(|| self.size.control_height()),
                 padding_x: (!self.is_icon_only).then_some(metrics.padding_x),
                 width: sx_size
                     .width
+                    .or(self.width)
                     .or_else(|| self.is_icon_only.then(|| self.size.icon_control_size())),
                 // v3's `.button` is `w-fit` with no minimum, so a press has
-                // no floor to scale.
+                // no floor to scale; a caller's `min_width` rides on the skin
+                // itself, which the press refinement never strips.
                 min_width: None,
                 text_size: metrics.text,
                 line_height: metrics.line_height,
@@ -829,6 +995,14 @@ impl RenderOnce for Button {
                     cx,
                 );
             }
+        }
+
+        // When the press wrapper is present, `el` is now the stable press
+        // slot — the element the caller's row actually lays out — so the
+        // stretch pair lands here too. (On paths without a wrapper this
+        // re-states what the skin above already carries.)
+        if self.grow {
+            el = el.flex_1().min_w(gpui::px(0.));
         }
 
         if let Some(on_press) = self.on_press {

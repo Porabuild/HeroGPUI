@@ -117,6 +117,27 @@
 // `use core::prelude::v1::test;`) to keep the built-in `#[test]`.
 pub use ::gpui::*;
 
+// `gpui::*` does not carry `FluentBuilder`: GPUI puts it in `gpui::prelude`
+// and re-exports only `FutureExt` and `Timeout` out of the same module. Its
+// blanket `impl<T: IntoElement> FluentBuilder for T` therefore already covers
+// every component here, but `.when(..)`, `.when_some(..)` and `.map(..)` were
+// unreachable after `use herogpui::*;`, and a call site had to spell out an
+// if/else duplicating the whole builder chain instead. Re-exported by name so
+// the root glob and `herogpui::prelude` agree on what a builder can do.
+/// ```
+/// // The root glob alone must carry the conditional builders, or a call site
+/// // has to duplicate the whole chain in an if/else.
+/// use herogpui::*;
+///
+/// fn shortcut_button(is_recording: bool) -> Button {
+///     Button::new("shortcut")
+///         .label("Set shortcut")
+///         .when(is_recording, |button| button.variant(Variant::Danger))
+///         .when_some(None::<gpui::Pixels>, Button::radius)
+/// }
+/// ```
+pub use ::gpui::prelude::FluentBuilder;
+
 // The crate name, so code written with `gpui::…` paths still resolves when
 // GPUI is reached only through this facade. It is not decoration: *every*
 // derive macro in GPUI's `gpui_macros` surface -- `Action`, `IntoElement`,
