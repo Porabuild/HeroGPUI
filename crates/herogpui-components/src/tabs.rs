@@ -370,6 +370,15 @@ pub struct TabItem {
     /// segments opt-in per tab in 3.0.0-beta.12, replacing the automatic
     /// pseudo-element and the `hideSeparator` prop it deleted.
     pub separator: bool,
+    /// Fixed segment width; `None` keeps the content-hugging box. Set with
+    /// [`TabItem::width`].
+    pub width: Option<gpui::Pixels>,
+    /// Fixed segment height; `None` keeps the size step's tab height. Set
+    /// with [`TabItem::height`].
+    pub height: Option<gpui::Pixels>,
+    /// Fixed horizontal padding; `None` keeps the size step's tab padding.
+    /// Set with [`TabItem::padding_x`].
+    pub padding_x: Option<gpui::Pixels>,
 }
 
 impl TabItem {
@@ -381,6 +390,9 @@ impl TabItem {
             content: None,
             is_disabled: false,
             separator: false,
+            width: None,
+            height: None,
+            padding_x: None,
         }
     }
 
@@ -413,6 +425,48 @@ impl TabItem {
         self.separator = true;
         self
     }
+
+    /// Fixes the segment's width in both variants, beating the box the tab
+    /// would otherwise hug its content into. This is the reference capture
+    /// toolbar's `TabsTrigger className="size-8"`: a square 32px segment
+    /// whose icon is narrower than the box. The sliding indicator measures
+    /// the fixed box, so its geometry follows the override exactly.
+    ///
+    /// An explicit width also wins over [`Tabs::full_width`] for this tab
+    /// alone — its siblings still divide the remaining width equally — and
+    /// replaces the vertical list's 80px minimum, which would otherwise
+    /// clamp a narrow segment back up.
+    ///
+    /// Not a v3 prop; it stands in for the `className` a caller passes to
+    /// `Tabs.Tab`.
+    pub fn width(mut self, w: impl Into<gpui::Pixels>) -> Self {
+        self.width = Some(w.into());
+        self
+    }
+
+    /// Fixes the segment's height in both variants, replacing the size
+    /// step's tab height (32px on the pinned `Md`, 28px on `Sm`) instead of
+    /// flooring it. The box stays fixed, so a wrapped label keeps painting
+    /// its extra lines past it exactly as it does at the pinned height.
+    ///
+    /// Not a v3 prop; it stands in for the `className` a caller passes to
+    /// `Tabs.Tab`.
+    pub fn height(mut self, h: impl Into<gpui::Pixels>) -> Self {
+        self.height = Some(h.into());
+        self
+    }
+
+    /// Replaces the size step's horizontal padding (`px-4` on the pinned
+    /// `Md` box, `px-3` on `Sm`). `0` means no horizontal padding — the
+    /// fixed icon segment whose whole box is already sized by
+    /// [`TabItem::width`] and [`TabItem::height`].
+    ///
+    /// Not a v3 prop; it stands in for the `className` a caller passes to
+    /// `Tabs.Tab`.
+    pub fn padding_x(mut self, p: impl Into<gpui::Pixels>) -> Self {
+        self.padding_x = Some(p.into());
+        self
+    }
 }
 
 type OnChange = std::sync::Arc<dyn Fn(&SharedString, &mut Window, &mut App) + 'static>;
@@ -432,9 +486,10 @@ struct TabFocusState {
 /// | Label text / line height | 12 / 16 | 14 / 20 |
 ///
 /// Both steps have zero vertical tab padding; the whole tab box is its hitbox.
-/// Primary tabs and their full-box indicator keep `control_radius`, with 4px
-/// list padding. Secondary tabs stay square with a 2px accent indicator and
-/// no list padding. The content panel keeps 8px padding. Horizontal tabs adjoin
+/// Primary tabs and their full-box indicator keep `control_radius`, with a 4px
+/// list padding that [`Tabs::list_padding`] overrides. Secondary tabs stay
+/// square with a 2px accent indicator and no list padding. The content panel
+/// keeps 8px padding. Horizontal tabs adjoin
 /// and can scroll; `full_width` divides the available width equally. Vertical
 /// lists retain a 4px gap and each tab's 80px minimum width. Explicit `sx`
 /// pixel corners refine the indicator independently of its default shape.
@@ -498,6 +553,10 @@ pub struct Tabs {
     indicator_bg: Option<gpui::Hsla>,
     /// Gates the indicator's `shadow-surface`; the default keeps it.
     indicator_shadow: bool,
+    /// The primary tray's uniform inset override; the pinned default is 4px.
+    list_padding: Option<gpui::Pixels>,
+    /// Gates the unselected-tab hover wash; the default keeps it.
+    hover_fill: bool,
     /// The `sx` slot, refined over the root style at the end of render.
     sx: Option<Box<gpui::StyleRefinement>>,
 }
@@ -565,6 +624,8 @@ impl Tabs {
             list_bg: None,
             indicator_bg: None,
             indicator_shadow: true,
+            list_padding: None,
+            hover_fill: true,
             sx: None,
         }
     }
@@ -640,6 +701,46 @@ impl Tabs {
     /// `shadow-surface`.
     pub fn indicator_shadow(mut self, v: bool) -> Self {
         self.indicator_shadow = v;
+        self
+    }
+
+    /// Overrides the primary tray's inset on every side. The pinned default
+    /// is the `p-1` the stylesheet puts on `.tabs__list`; the reference
+    /// capture toolbar removes it with `Tabs.List className="p-0"` so its
+    /// fixed 32px segments tile the tray edge to edge.
+    ///
+    /// Primary only: the Secondary tray has no inset of its own — v3's
+    /// secondary block already replaces the list's `p-1` with `p-0` — so
+    /// there is nothing for this to override there and the builder is
+    /// ignored in that variant.
+    ///
+    /// Not a v3 prop; it stands in for the `className` a caller passes to
+    /// `Tabs.List`.
+    pub fn list_padding(mut self, padding: impl Into<gpui::Pixels>) -> Self {
+        self.list_padding = Some(padding.into());
+        self
+    }
+
+    /// `false` drops the unselected-tab hover wash and replaces it with a
+    /// text-colour change: a hovered unselected tab keeps its resting fill
+    /// and its label moves to the theme foreground, while the selected
+    /// fill, the indicator, the focus rings and every tab's activation stay
+    /// exactly as they are. The wash is the port's translation of the
+    /// stylesheet's `opacity-70` dim on a hovered unselected tab — the same
+    /// tray-dimmed overlay for `list_bg` and a root `sx` background alike —
+    /// so with it off, none is painted regardless of what the tray resolves
+    /// to. The overflow chevrons keep their own hover dim. The default
+    /// keeps the wash.
+    ///
+    /// A `trigger` svg still needs its own `text_color`: gpui svgs do not
+    /// inherit the tab's, so this hover cannot recolour an icon the caller
+    /// painted explicitly. Unset the svg colour only when the rest colour
+    /// is acceptable; otherwise the caller owns both rest and hover.
+    ///
+    /// Not a v3 prop; v3's hover dim is stylesheet work, and turning it off
+    /// there is className work on the tab too.
+    pub fn hover_fill(mut self, v: bool) -> Self {
+        self.hover_fill = v;
         self
     }
 
@@ -796,6 +897,8 @@ impl RenderOnce for Tabs {
         let list_bg = self.list_bg;
         let indicator_bg = self.indicator_bg;
         let indicator_shadow = self.indicator_shadow;
+        let hover_fill = self.hover_fill;
+        let list_padding = self.list_padding;
         let (tab_h, tab_padding_x, tab_text) = self.size.metrics();
         let geometry = window.use_keyed_state(element_id::scoped(&base, "geometry"), cx, |_, _| {
             TabsGeometry::default()
@@ -878,6 +981,7 @@ impl RenderOnce for Tabs {
             sx_background.or(list_bg).unwrap_or(colors.default.color)
         };
         let tab_overlay = tray.alpha(1.0 - tabs_hover_opacity);
+        let hover_fg = colors.foreground;
         let key_stops: Vec<usize> = self
             .items
             .iter()
@@ -1005,6 +1109,9 @@ impl RenderOnce for Tabs {
                 // `.tabs__list` is `p-1` and nothing else: the tabs sit
                 // shoulder to shoulder, with no gap between them.
                 list = list.p(px(4.));
+                // `list_padding` refines the pinned inset; Primary only, the
+                // secondary tray has no inset of its own to override.
+                list = list.when_some(list_padding, |list, inset| list.p(inset));
                 // `trigger` is single-use, so the loop consumes it out of each
                 // item; the panel below reads `content` the same way.
                 for (index, item) in self.items.iter_mut().enumerate() {
@@ -1036,15 +1143,22 @@ impl RenderOnce for Tabs {
                         // wrapped line too, giving the same rendering. Those
                         // lines stay pointer-inert here, while a browser
                         // hit-tests painted text as the tab.
-                        .h(tab_h)
-                        .px(tab_padding_x)
-                        .when(vertical, |t| t.w_full().min_w(VERTICAL_TAB_MIN_WIDTH))
+                        .h(item.height.unwrap_or(tab_h))
+                        .px(item.padding_x.unwrap_or(tab_padding_x))
+                        // A fixed per-tab width beats every stretch source:
+                        // the vertical list's `w_full` and its 80px minimum,
+                        // and `full_width`'s equal shares below, whose
+                        // `flex_1` basis of zero would ignore the width.
+                        .when(vertical && item.width.is_none(), |t| {
+                            t.w_full().min_w(VERTICAL_TAB_MIN_WIDTH)
+                        })
+                        .when_some(item.width, |t, w| t.w(w))
                         // Stretched tabs take an equal share: `flex_1` zeroes
                         // the flex basis and `min_w(0)` releases the label's
                         // min-content floor, so every share is the same and
                         // none of them widens the row.
-                        .when(stretch, |t| t.flex_1().min_w(px(0.)))
-                        .when(!stretch, |t| t.flex_shrink_0())
+                        .when(stretch && item.width.is_none(), |t| t.flex_1().min_w(px(0.)))
+                        .when(!stretch || item.width.is_some(), |t| t.flex_shrink_0())
                         .flex()
                         .items_center()
                         .map(|tab| self.align.apply(tab))
@@ -1226,17 +1340,21 @@ impl RenderOnce for Tabs {
                         None => tab.child(tab_label(item.label.clone())),
                     };
                     if !active && !disabled {
-                        let radius = crate::util::control_radius(cx);
-                        tab = crate::anim::hover_fade(
-                            tab,
-                            element_id::scoped(&base, format!("tab-hover-{}", item.key)),
-                            (colors.default.color.alpha(0.0), tab_overlay),
-                            None,
-                            None,
-                            move |fill| fill.rounded(radius),
-                            window,
-                            cx,
-                        );
+                        if hover_fill {
+                            let radius = crate::util::control_radius(cx);
+                            tab = crate::anim::hover_fade(
+                                tab,
+                                element_id::scoped(&base, format!("tab-hover-{}", item.key)),
+                                (colors.default.color.alpha(0.0), tab_overlay),
+                                None,
+                                None,
+                                move |fill| fill.rounded(radius),
+                                window,
+                                cx,
+                            );
+                        } else {
+                            tab = tab.hover(move |style| style.text_color(hover_fg));
+                        }
                     }
                     list = list.child(tab);
                 }
@@ -1270,15 +1388,22 @@ impl RenderOnce for Tabs {
                         // `rounded-none`, with the indicator as a 2px bar
                         // along the bottom; wrapped label lines paint past it
                         // as in the primary variant.
-                        .h(tab_h)
-                        .px(tab_padding_x)
-                        .when(vertical, |t| t.w_full().min_w(VERTICAL_TAB_MIN_WIDTH))
+                        .h(item.height.unwrap_or(tab_h))
+                        .px(item.padding_x.unwrap_or(tab_padding_x))
+                        // The same fixed-width precedence as the primary
+                        // branch: a per-tab width beats the vertical `w_full`
+                        // and its 80px minimum, and beats the stretch share
+                        // whose `flex_1` basis of zero would ignore it.
+                        .when(vertical && item.width.is_none(), |t| {
+                            t.w_full().min_w(VERTICAL_TAB_MIN_WIDTH)
+                        })
+                        .when_some(item.width, |t, w| t.w(w))
                         // Stretched tabs take an equal share: `flex_1` zeroes
                         // the flex basis and `min_w(0)` releases the label's
                         // min-content floor, so every share is the same and
                         // none of them widens the row.
-                        .when(stretch, |t| t.flex_1().min_w(px(0.)))
-                        .when(!stretch, |t| t.flex_shrink_0())
+                        .when(stretch && item.width.is_none(), |t| t.flex_1().min_w(px(0.)))
+                        .when(!stretch || item.width.is_some(), |t| t.flex_shrink_0())
                         .flex()
                         .items_center()
                         .map(|tab| self.align.apply(tab))
@@ -1426,17 +1551,21 @@ impl RenderOnce for Tabs {
                         None => tab.child(tab_label(item.label.clone())),
                     };
                     if !active && !disabled {
-                        let radius = crate::util::control_radius(cx);
-                        tab = crate::anim::hover_fade(
-                            tab,
-                            element_id::scoped(&base, format!("tab-hover-{}", item.key)),
-                            (colors.background.alpha(0.0), tab_overlay),
-                            None,
-                            None,
-                            move |fill| fill.rounded(radius),
-                            window,
-                            cx,
-                        );
+                        if hover_fill {
+                            let radius = crate::util::control_radius(cx);
+                            tab = crate::anim::hover_fade(
+                                tab,
+                                element_id::scoped(&base, format!("tab-hover-{}", item.key)),
+                                (colors.background.alpha(0.0), tab_overlay),
+                                None,
+                                None,
+                                move |fill| fill.rounded(radius),
+                                window,
+                                cx,
+                            );
+                        } else {
+                            tab = tab.hover(move |style| style.text_color(hover_fg));
+                        }
                     }
                     list = list.child(tab);
                 }

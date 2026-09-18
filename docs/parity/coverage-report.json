@@ -2,18 +2,18 @@
   "schema_version": 1,
   "target": "v3.2.5",
   "target_commit": "5f13f6ed355bdbd5d5f69e5944685438a3591793",
-  "inventory_recorded_on": "2026-09-17",
-  "inventory_verification_sha256": "87be11cb9b8220dc48e5c644a7fc0f5968e7f1fab0c189281875d2c1be726004",
-  "source_snapshot_sha256": "6388234da7f88d998027be9c3360f8af71fd3729412af0f73a72e3a2ae78818e",
+  "inventory_recorded_on": "2026-09-18",
+  "inventory_verification_sha256": "d33f5be181f014d180f7e8cdd559c0bc90ec9a1fe121ecf68880976090156a93",
+  "source_snapshot_sha256": "2a2557e62da40ac0e532e9cd1bd14d6d07b893df26cbafd166c914bb43a319bb",
   "last_evidence_commit": null,
   "last_evidence_commit_recorded": false,
   "totals": {
-    "specimens": 738,
+    "specimens": 739,
     "verified": 0,
-    "outstanding": 738,
-    "unobserved": 738,
+    "outstanding": 739,
+    "unobserved": 739,
     "components": 67,
-    "gallery_sections": 731
+    "gallery_sections": 732
   },
   "status_counts": {
     "implemented-unverified": 7,
@@ -22,35 +22,35 @@
     "not-applicable": 0,
     "platform-limited": 0,
     "specified": 0,
-    "unreviewed": 731,
+    "unreviewed": 732,
     "verified": 0
   },
   "scope_counts": {
     "component-state": 4,
     "cross-component": 1,
-    "gallery-section": 731,
+    "gallery-section": 732,
     "platform-harness": 2
   },
   "evidence_counts": {
     "upstream": {
       "specimens_with_evidence": 5,
-      "specimens_missing_evidence": 733
+      "specimens_missing_evidence": 734
     },
     "native": {
       "specimens_with_evidence": 1,
-      "specimens_missing_evidence": 737
+      "specimens_missing_evidence": 738
     },
     "wasm": {
       "specimens_with_evidence": 1,
-      "specimens_missing_evidence": 737
+      "specimens_missing_evidence": 738
     },
     "tests": {
       "specimens_with_evidence": 5,
-      "specimens_missing_evidence": 733
+      "specimens_missing_evidence": 734
     },
     "all_surfaces": {
       "specimens_with_evidence": 1,
-      "specimens_missing_evidence": 737
+      "specimens_missing_evidence": 738
     }
   },
   "unobserved_statuses": [
@@ -4445,6 +4445,13 @@
       "state": "section-seed"
     },
     {
+      "id": "gallery/tabs/icon-only-toolbar-segments",
+      "component": "Tabs",
+      "scope": "gallery-section",
+      "status": "unreviewed",
+      "state": "section-seed"
+    },
+    {
       "id": "gallery/tabs/overflow",
       "component": "Tabs",
       "scope": "gallery-section",
@@ -6883,7 +6890,7 @@
     },
     {
       "component": "Tabs",
-      "specimens": 14,
+      "specimens": 15,
       "statuses": {
         "implemented-unverified": 1,
         "intentional-deviation": 0,
@@ -6891,16 +6898,17 @@
         "not-applicable": 0,
         "platform-limited": 0,
         "specified": 0,
-        "unreviewed": 13,
+        "unreviewed": 14,
         "verified": 0
       },
       "verified": 0,
-      "outstanding": 14,
+      "outstanding": 15,
       "unresolved_ids": [
         "gallery/tabs/alignment",
         "gallery/tabs/disabled-tab",
         "gallery/tabs/full-width",
         "gallery/tabs/icon-only-segmented-control",
+        "gallery/tabs/icon-only-toolbar-segments",
         "gallery/tabs/overflow",
         "gallery/tabs/primary",
         "gallery/tabs/secondary-variant",

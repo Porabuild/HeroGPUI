@@ -1637,6 +1637,402 @@ fn tabs_icon_triggers_render_activate_and_measure(cx: &mut TestAppContext) {
     );
 }
 
+/// The 0.10.1 per-segment box overrides: `width`, `height` and `padding_x`
+/// each beat what the size step derives, stay scoped to the tab that carries
+/// them, and leave their siblings on the pinned metrics — in both variants.
+/// Primary's full-box indicator reports each segment's exact box; Secondary's
+/// underline only tracks widths, so its fixed segment carries an `h_full`
+/// probe to read the overridden height.
+#[gpui::test]
+fn tabs_segment_box_overrides_beat_the_size_step_in_both_variants(cx: &mut TestAppContext) {
+    harness::still();
+    let cx = open_host(cx, move || {
+        Tabs::new(
+            "tb-segment-box",
+            vec![
+                TabItem::new("fixed", "A")
+                    .width(px(64.))
+                    .height(px(36.))
+                    .padding_x(px(0.)),
+                TabItem::new("stock", "Second"),
+                // No width: with the padding gone the box hugs the label
+                // exactly, which is what `padding_x(0)` means on its own.
+                TabItem::new("flush", "Third").padding_x(px(0.)),
+            ],
+            "fixed",
+        )
+        .into_any_element()
+    });
+    let boxes = measure_tabs(cx, "Name(\"tb-segment-box\")-indicator", 3);
+    assert_eq!(
+        boxes[0].size.width,
+        px(64.),
+        "the fixed width must beat the content-hugging box, got {boxes:?}"
+    );
+    assert_eq!(
+        boxes[0].size.height,
+        px(36.),
+        "the fixed height must beat the size step's tab height, got {boxes:?}"
+    );
+    let stock = cx.update(|window, _| text_width(window.text_system(), "Second")) + 32.;
+    assert!(
+        (f32::from(boxes[1].size.width) - stock).abs() < 1.,
+        "an unoverridden sibling must keep the pinned box, expected {stock}, got {:?}",
+        boxes[1]
+    );
+    assert_eq!(boxes[1].size.height, px(32.), "sibling height");
+    let flush = cx.update(|window, _| text_width(window.text_system(), "Third"));
+    assert!(
+        (f32::from(boxes[2].size.width) - flush).abs() < 1.,
+        "padding_x(0) must leave the label hugging the box with no horizontal \
+         padding, expected {flush}, got {:?}",
+        boxes[2]
+    );
+    assert_eq!(boxes[2].size.height, px(32.), "flush height");
+
+    harness::still();
+    let cx = open_host(cx, move || {
+        Tabs::new(
+            "tb-segment-box-underline",
+            vec![
+                // The probe stretches to its segment's full height, the only
+                // per-tab readback the underline variant offers.
+                TabItem::new("fixed", "A")
+                    .width(px(64.))
+                    .height(px(36.))
+                    .padding_x(px(0.))
+                    .trigger(
+                        gpui::div()
+                            .h_full()
+                            .w(px(2.))
+                            .debug_selector(|| "segment-probe".to_owned()),
+                    ),
+                TabItem::new("stock", "Second"),
+                TabItem::new("flush", "Third").padding_x(px(0.)),
+            ],
+            "fixed",
+        )
+        .variant(TabsVariant::Secondary)
+        .into_any_element()
+    });
+    let boxes = measure_tabs(cx, "Name(\"tb-segment-box-underline\")-indicator", 3);
+    assert_eq!(
+        boxes[0].size.width,
+        px(64.),
+        "the fixed width must beat the content-hugging box, got {boxes:?}"
+    );
+    let stock = cx.update(|window, _| text_width(window.text_system(), "Second")) + 32.;
+    assert!(
+        (f32::from(boxes[1].size.width) - stock).abs() < 1.,
+        "an unoverridden sibling must keep the pinned box, expected {stock}, got {:?}",
+        boxes[1]
+    );
+    let flush = cx.update(|window, _| text_width(window.text_system(), "Third"));
+    assert!(
+        (f32::from(boxes[2].size.width) - flush).abs() < 1.,
+        "padding_x(0) must leave the label hugging the box, expected {flush}, got {:?}",
+        boxes[2]
+    );
+    let probe = cx
+        .debug_bounds("segment-probe")
+        .expect("the fixed segment must render its height probe");
+    assert_eq!(
+        probe.size.height,
+        px(36.),
+        "the fixed height must beat the size step's tab height, got {probe:?}"
+    );
+}
+
+/// An explicit per-tab width wins over `full_width`'s equal shares for that
+/// tab alone: the fixed segment keeps its 64px, its siblings divide the rest
+/// equally, and the shares still tile the container edge to edge.
+#[gpui::test]
+fn tabs_explicit_width_wins_over_full_width_shares(cx: &mut TestAppContext) {
+    harness::still();
+    let cx = open_host(cx, move || {
+        gpui::div()
+            .w(px(300.))
+            .child(
+                Tabs::new(
+                    "tb-width-vs-stretch",
+                    vec![
+                        TabItem::new("fixed", "F").width(px(64.)),
+                        TabItem::new("second", "Second"),
+                        TabItem::new("third", "Third"),
+                    ],
+                    "fixed",
+                )
+                // Secondary again: no tray inset, so the shares tile the
+                // container exactly.
+                .variant(TabsVariant::Secondary)
+                .full_width(true),
+            )
+            .into_any_element()
+    });
+
+    let boxes = measure_tabs(cx, "Name(\"tb-width-vs-stretch\")-indicator", 3);
+    assert_eq!(
+        boxes[0].size.width,
+        px(64.),
+        "the fixed segment must keep its width under full_width, got {boxes:?}"
+    );
+    let share1 = f32::from(boxes[1].size.width);
+    let share2 = f32::from(boxes[2].size.width);
+    assert!(
+        (share1 - share2).abs() < 1.,
+        "the unstretched siblings must divide the rest equally: {share1} vs {share2}"
+    );
+    assert!(
+        (share1 - (300. - 64.) / 2.).abs() < 1.,
+        "the siblings must split what the fixed segment leaves: {share1}"
+    );
+    let span = f32::from(boxes[2].origin.x + boxes[2].size.width) - f32::from(boxes[0].origin.x);
+    assert!(
+        (span - 300.).abs() < 1.,
+        "the fixed segment and the shares must still tile the container, spanning {span}"
+    );
+}
+
+/// In a vertical list an explicit width replaces both the cross-axis stretch
+/// and the 80px minimum that would clamp a narrow segment back up.
+#[gpui::test]
+fn tabs_explicit_width_replaces_the_vertical_minimum(cx: &mut TestAppContext) {
+    harness::still();
+    let cx = open_host(cx, move || {
+        Tabs::new(
+            "tb-vertical-width",
+            vec![TabItem::new("only", "Only").width(px(48.))],
+            "only",
+        )
+        .orientation(Orientation::Vertical)
+        .into_any_element()
+    });
+
+    let boxes = measure_tabs(cx, "Name(\"tb-vertical-width\")-indicator", 1);
+    assert_eq!(
+        boxes[0].size.width,
+        px(48.),
+        "the explicit width must beat the 80px vertical floor, got {boxes:?}"
+    );
+    assert_eq!(
+        boxes[0].size.height,
+        px(32.),
+        "the height keeps the size step"
+    );
+}
+
+/// The consumer's reference toolbar box: icon triggers in fixed 32px segments
+/// with no side padding, a flush tray with no inset, and no hover wash. The
+/// indicator must measure the fixed box exactly, animate onto the next
+/// segment when the selection moves, and the fixed zero-padding boxes must
+/// still answer the pointer.
+#[gpui::test]
+fn tabs_icon_toolbar_fixed_segments_measure_slide_and_activate(cx: &mut TestAppContext) {
+    let recorded = events();
+    let selected = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = recorded.clone();
+        let icon = |name: &'static str| {
+            gpui::div()
+                .size(px(16.))
+                .debug_selector(move || name.to_owned())
+        };
+        Tabs::new(
+            "tb-icon-toolbar",
+            vec![
+                TabItem::new("eye", "Preview")
+                    .trigger(icon("toolbar-eye"))
+                    .width(px(32.))
+                    .height(px(32.))
+                    .padding_x(px(0.)),
+                TabItem::new("copy", "Copy")
+                    .trigger(icon("toolbar-copy"))
+                    .width(px(32.))
+                    .height(px(32.))
+                    .padding_x(px(0.)),
+            ],
+            "eye",
+        )
+        .list_padding(px(0.))
+        .hover_fill(false)
+        .on_selection_change(move |key, _, _| recorded.borrow_mut().push(key.to_string()))
+        .into_any_element()
+    });
+
+    for _ in 0..4 {
+        flush_frame(cx);
+    }
+    let first = cx
+        .debug_bounds("Name(\"tb-icon-toolbar\")-indicator")
+        .expect("the selected segment's indicator must be painted");
+    assert_eq!(
+        first.origin.x,
+        px(0.),
+        "list_padding(0) must leave no tray inset ahead of the first segment"
+    );
+    assert_eq!(
+        first.size.width,
+        px(32.),
+        "the indicator must measure the fixed 32px segment, not the 16px icon"
+    );
+    assert_eq!(first.size.height, px(32.), "the fixed height must hold");
+    let eye = cx
+        .debug_bounds("toolbar-eye")
+        .expect("the icon trigger must render inside its fixed segment");
+    assert!(
+        (f32::from(eye.origin.x) - 8.).abs() < 1.,
+        "the 16px icon must center inside the padding-less 32px segment, got {eye:?}"
+    );
+
+    // The two fixed segments tile 64x32 with nothing between or around them,
+    // so the second segment's center is exactly one box past the first.
+    click(cx, 32. + 16., 16.);
+    assert_eq!(
+        selected.borrow().as_slice(),
+        ["copy"],
+        "the fixed zero-padding segment must take the press at its own center"
+    );
+    flush_frame(cx);
+    let moving = cx
+        .debug_bounds("Name(\"tb-icon-toolbar\")-indicator")
+        .expect("the indicator must remain painted while moving");
+    assert!(
+        f32::from(moving.origin.x) < f32::from(first.origin.x + first.size.width) - 1.,
+        "the indicator must animate rather than snap between fixed boxes"
+    );
+    std::thread::sleep(Duration::from_millis(300));
+    flush_frame(cx);
+    let second = cx
+        .debug_bounds("Name(\"tb-icon-toolbar\")-indicator")
+        .expect("the indicator must remain painted after settling");
+    assert_eq!(
+        second.origin.x,
+        px(32.),
+        "after the transition the indicator must sit exactly on the second segment"
+    );
+    assert_eq!(
+        second.size.width,
+        px(32.),
+        "the fixed width must hold there"
+    );
+}
+
+/// Walks the roving selection across both tabs, hands it back to the first,
+/// then parks the pointer over the now-unselected second tab and returns the
+/// solid fills painted that frame — the seam the list_bg wash test uses.
+fn hovered_unselected_tab_solids(
+    cx: &mut TestAppContext,
+    id: &'static str,
+    selector: &'static str,
+    list_bg: bool,
+    hover_fill: Option<bool>,
+) -> Vec<gpui::Hsla> {
+    harness::still();
+    let cx = open_host(cx, move || {
+        let mut tabs = Tabs::new(
+            id,
+            vec![TabItem::new("a", "A"), TabItem::new("b", "B")],
+            "a",
+        );
+        if list_bg {
+            tabs = tabs.list_bg(gpui::rgb(0x1a1a2e));
+        }
+        if let Some(fill) = hover_fill {
+            tabs = tabs.hover_fill(fill);
+        }
+        tabs.into_any_element()
+    });
+    let boxes = measure_tabs(cx, selector, 2);
+    press(cx, "left");
+    flush_frame(cx);
+    let unselected = &boxes[1];
+    let center = point(
+        px(f32::from(unselected.origin.x) + f32::from(unselected.size.width) / 2.),
+        px(f32::from(unselected.origin.y) + f32::from(unselected.size.height) / 2.),
+    );
+    cx.simulate_mouse_move(center, None, Modifiers::none());
+    flush_frame(cx);
+    cx.update(|window, _| {
+        window
+            .painted_quads()
+            .into_iter()
+            .filter_map(|quad| quad.background.as_solid())
+            .collect::<Vec<_>>()
+    })
+}
+
+/// `hover_fill(false)` stops painting the unselected-tab hover wash and
+/// replaces it with a text-colour hover: a hovered unselected tab keeps its
+/// resting fill (including over an overridden tray) while its label colour
+/// moves to the theme foreground. The default and an explicit `true` keep
+/// painting the wash. Text colour itself has no painted-quad readback, so
+/// the colour path is pinned in `tabs_toolbar_overrides_default_to_today`.
+#[gpui::test]
+fn tabs_hover_fill_false_removes_the_wash(cx: &mut TestAppContext) {
+    let stock_wash = |cx: &mut TestAppContext| {
+        cx.update(|cx| {
+            cx.colors()
+                .default
+                .color
+                .alpha(1.0 - cx.layout().tabs_hover_opacity)
+        })
+    };
+
+    let default_solids = hovered_unselected_tab_solids(
+        cx,
+        "tb-wash-default",
+        "Name(\"tb-wash-default\")-indicator",
+        false,
+        None,
+    );
+    assert!(
+        default_solids.contains(&stock_wash(cx)),
+        "the default must keep painting the hover wash, painted: {default_solids:?}"
+    );
+
+    let on_solids = hovered_unselected_tab_solids(
+        cx,
+        "tb-wash-on",
+        "Name(\"tb-wash-on\")-indicator",
+        false,
+        Some(true),
+    );
+    assert!(
+        on_solids.contains(&stock_wash(cx)),
+        "hover_fill(true) is today's rendering, painted: {on_solids:?}"
+    );
+
+    let off_solids = hovered_unselected_tab_solids(
+        cx,
+        "tb-wash-off",
+        "Name(\"tb-wash-off\")-indicator",
+        false,
+        Some(false),
+    );
+    assert!(
+        !off_solids.contains(&stock_wash(cx)),
+        "hover_fill(false) must not paint the wash, painted: {off_solids:?}"
+    );
+
+    // And the composition: with the wash off, no tray fill is dimmed over the
+    // tab regardless of what the tray resolves to.
+    let override_bg = gpui::rgb(0x1a1a2e);
+    let composed_solids = hovered_unselected_tab_solids(
+        cx,
+        "tb-wash-composed",
+        "Name(\"tb-wash-composed\")-indicator",
+        true,
+        Some(false),
+    );
+    let override_wash =
+        cx.update(|cx| gpui::Hsla::from(override_bg).alpha(1.0 - cx.layout().tabs_hover_opacity));
+    assert!(
+        !composed_solids.contains(&override_wash) && !composed_solids.contains(&stock_wash(cx)),
+        "hover_fill(false) must wash nothing over an overridden tray either, \
+         painted: {composed_solids:?}"
+    );
+}
+
 /// `indicator_bg` recolors the secondary accent line without disturbing its
 /// measured 2px geometry or the variant's activation path. The color itself
 /// has no headless readback; the source contract below pins the wiring.
@@ -1790,4 +2186,36 @@ fn tabs_trigger_keeps_the_label_as_the_accessible_name() {
     // The trigger replaces the rendered child only.
     assert!(source.contains("Some(trigger) => tab.child(trigger)"));
     assert!(source.contains("None => tab.child(tab_label(item.label.clone()))"));
+}
+
+/// The 0.10.1 builders are additive: unset, every new field seeds to the
+/// value that predates it, the pinned tray inset stays the base the
+/// `list_padding` override refines, both variants gate the same
+/// unselected-tab wash on the one flag, and `hover_fill(false)` wires the
+/// text-colour hover in both variants in place of that wash.
+#[test]
+fn tabs_toolbar_overrides_default_to_today() {
+    let source = include_str!("../src/tabs.rs");
+    assert!(source.contains("width: None"));
+    assert!(source.contains("height: None"));
+    assert!(source.contains("padding_x: None"));
+    assert!(source.contains("list_padding: None"));
+    assert!(source.contains("hover_fill: true"));
+    // The overrides refine the size step and the pinned inset at their parts.
+    assert!(source.contains("item.height.unwrap_or(tab_h)"));
+    assert!(source.contains("item.padding_x.unwrap_or(tab_padding_x)"));
+    assert!(source.contains("list = list.p(px(4.))"));
+    assert!(source.contains("list = list.when_some(list_padding, |list, inset| list.p(inset))"));
+    assert_eq!(
+        source.matches("if hover_fill {").count(),
+        2,
+        "both variants must gate the wash on the same flag"
+    );
+    assert_eq!(
+        source
+            .matches("tab.hover(move |style| style.text_color(hover_fg))")
+            .count(),
+        2,
+        "hover_fill(false) must recolour unselected labels in both variants"
+    );
 }

@@ -1,6 +1,6 @@
 {
   "schema_version": 3,
-  "recorded_on": "2026-09-17",
+  "recorded_on": "2026-09-18",
   "upstream": {
     "repository": "https://github.com/heroui-inc/heroui",
     "baseline_tag": "v3.2.4",
@@ -10,7 +10,7 @@
   },
   "gallery_source": {
     "path": "web/src/data/rust-examples.json",
-    "sha256": "23f7becb5e478e54c387376ed8c819d650398111c34b003eac714d1ee761d622"
+    "sha256": "d716ff69a7e5b17f445f74c8b92218608a14105593ddf368eee1131abaa2c7f6"
   },
   "scope_note": "Inventory only, not parity evidence. Expand each demo into its individual rendered variants and state paths before verification. Include upstream stories, documented props, CSS modifiers and inherited React Aria semantics; demos alone are not exhaustive. Gallery and upstream keys are separate inventories, not an asserted one-to-one mapping.",
   "source_changes": [
@@ -11691,6 +11691,12 @@
         "status": "unreviewed"
       },
       {
+        "heading": "Icon-Only Toolbar Segments",
+        "code_sha256": "bccbb5b5dd451deefb2a319f4921083f0b6c555ad5ba8e4968346cd841e22a08",
+        "content_sha256": "4ab8fc504b65f4c5e4d6bd167d26fae65193fc4f1d3216bd5f9ffa6b44a30060",
+        "status": "unreviewed"
+      },
+      {
         "heading": "Secondary Variant",
         "code_sha256": "978d828dde08c937522e8fb26e2696c116479feff8b38dcb4f9c6a7821bebc66",
         "content_sha256": "8ddb15ac02ecdbe96d931381edb1bc2ff2d09a7ff8f8e05b823ba5ef76652a75",
@@ -16984,14 +16990,14 @@
   ],
   "reference_source": {
     "path": "web/src/data/reference.json",
-    "sha256": "6a7348ad5df769577b703adc99116afa7848a39d4e89480eb0cb3a0f0b0ef6d5"
+    "sha256": "093d6be8900642f6263150c53c72b34e5866af323c5a15d65caa486548a52143"
   },
   "catalog_source": {
     "path": "web/src/data/catalog.json",
     "sha256": "96a4b0c757742fe63dabb930793c8adec49cb8b70d48afeed79bc3354dbd2129"
   },
   "source_snapshot": {
-    "sha256": "6388234da7f88d998027be9c3360f8af71fd3729412af0f73a72e3a2ae78818e",
+    "sha256": "2a2557e62da40ac0e532e9cd1bd14d6d07b893df26cbafd166c914bb43a319bb",
     "files": {
       ".cargo/config.toml": "656172d7bc0b7cda27bccdffaf87ca34d6c1b3857e3c95f989d9dc164f3395be",
       ".gitattributes": "837d21e23758d2bd79598fddd8afdaf7465f6cf9000f92b50701d5350924a549",
@@ -17014,7 +17020,7 @@
       ".shots/element_id_audit.py": "f404a9b02402af219f52e582f6e3909690050ecdfd5362b7cff59e72abe0a8fc",
       ".shots/example_audit.py": "65b66c01ff33376814b75e691a4409b4cba952b998f6635f5fcd61e126327c56",
       ".shots/example_src.py": "3122b251a0b2ea3ead9ccb9ee0fd2bfbdba7e3ed0f3ed5b170402b3299a6de20",
-      ".shots/extra_audit.py": "33bd794b9ae9aee84e64370c9f8de3d889239ba7fc34c0c6e72070c25bbdd92e",
+      ".shots/extra_audit.py": "fc2c99c69fff56953179f1232298a326fa0d05b1e37870deff5e7d48698e0b58",
       ".shots/fence_audit.py": "e8a10fda9d37ea78cd3bb6b88a91254c10264a6d1b5ca35f4000e12c2eb3c210",
       ".shots/gallery_pages.py": "ef8a6ed2b106aa8176ffc71a95dc3b70416ec65df2bc5bf85284764aafc3c2e9",
       ".shots/gap_context.py": "a28ea267adc7259bc29b0e59fe98e850f62e5b65b52c44096ccd9b417afa7ed1",
@@ -17049,8 +17055,8 @@
       ".shots/theme_serde_audit.py": "392a1968af4a65218e63ba8f06405684182bfcb1497d772489a0e14dd581b08f",
       ".shots/token_audit.py": "31756481a9ebd5bff76e143681b23f091ab5db5a8ca5c1732d8112e9d19e2309",
       ".shots/write_only.py": "ebfacd961c597d8fd625fb9a29f24efaff245dfad9b1032649537fca25f8954a",
-      "Cargo.lock": "b2cab8f70cc2da42c4c39c4db55a8cebe75f35aa2bbfdf2d5952ae9007d57a8d",
-      "Cargo.toml": "9cae1fd395ee10f9dc61b9bfa1dd426dd593026040e821efada8e3dce0516e25",
+      "Cargo.lock": "c70058c5f01b11f7b48d0f67250a3e1225b0b2387eb4bef9cf5d27b5f22b7ae5",
+      "Cargo.toml": "7eb9e4cad82ffb99e08b24f5335f3b2c4fae9b9c7d701b9c5a77cfcd58b3415f",
       "crates/herogpui/Cargo.toml": "c131d54d8120e997aaa61f0fcb46a14e885d44f1b20ff67b5e22554a2dd005c4",
       "crates/herogpui/src/lib.rs": "3f6e5dfcefcf6fd7b0262e6caa43e65367b0080d99a98a05e7dbd60f1d39074c",
       "crates/herogpui-components/Cargo.toml": "bdac640edf5f485d82e91e1b0043ebbadadf6127c002d6602154f3b34a540e2a",
@@ -17123,7 +17129,7 @@
       "crates/herogpui-components/src/surface.rs": "e16b524216ed05dcdcf9083d212503a92831d30306cd4ad35cb0457fd9e6ce12",
       "crates/herogpui-components/src/switch.rs": "78c641f78786ccc70e59c2fabe30fcb0a436d978af35707a7884d5834b8befd0",
       "crates/herogpui-components/src/table.rs": "da06e6a62579fb8ef4fb453374c07cfad7a95fe6dd8927bec73186807f0a44c3",
-      "crates/herogpui-components/src/tabs.rs": "172931f011bb355aebea480e65e7bc50cdf8a056d400bc246526266038df2b30",
+      "crates/herogpui-components/src/tabs.rs": "33af86b5e007976b7af75b73b367ede4d2fffc4dec9f2d62247b552ac2e24c4e",
       "crates/herogpui-components/src/tag_group.rs": "cfa4fe3aaf90f4b2e519a61416478571187e8acae22ae12643a2f8d8ce7abe71",
       "crates/herogpui-components/src/textarea.rs": "c5cf0d4108b8f1d626b630dd26420a8e0ce6c5ccc5c1c73bc1795570672ac2c9",
       "crates/herogpui-components/src/time_field.rs": "4e3d7de1009aa914bd2faa7cec4bfdcfa0531d40455767ed889d03a065d119b2",
@@ -17223,7 +17229,7 @@
       "crates/herogpui-components/tests/table_and_drag.rs": "8de18e6049945c0d1dfde3c024470fdf2aa772237e97f3e80ef6d31926dca117",
       "crates/herogpui-components/tests/table_deep.rs": "3f7b66d5a4b956bffcfce187d995f4727677998bbcdebe458914a08ba079dc62",
       "crates/herogpui-components/tests/table_tabs_accordion.rs": "25f396b0e993acea970b4c702b4251952409e25b8dd669cf7bc4f4d29fa99954",
-      "crates/herogpui-components/tests/tabs_deep.rs": "0e64192fa3db95aec38ac9b7efa55130313cbcd55c540f24221fad5f85b3a777",
+      "crates/herogpui-components/tests/tabs_deep.rs": "6217baf01a305fa1d362c9e41e6e73b7f603d7a0fc3294fc7319db39e79d3172",
       "crates/herogpui-components/tests/tag_geometry_deep.rs": "744a89f6688ac9bab13af962bd14ce07683a6e454e7232cedead104cfede2948",
       "crates/herogpui-components/tests/text_fields.rs": "0f6cf382646fb2948059d023d6c04af4b3c20fa70a94dba31876db801501788e",
       "crates/herogpui-components/tests/text_size_knobs.rs": "3a5f71d9f51156d09dd0ee728ee64bba9106cfba675ae01797334bb4c9b78130",
@@ -17324,7 +17330,7 @@
       "gallery/src/pages/components/layout.rs": "54dad94888ac5b1d0394c18a1dc50f7c31fe072a4a3bb2d4219f7c4fe368e47a",
       "gallery/src/pages/components/media.rs": "8348fbd3d64b86b8a9b7dc885304115d134179339b1929c71821377da0762031",
       "gallery/src/pages/components/mod.rs": "cd9efb31c0db2e21a3a7311acc2c45c8ccbe30cadde1cbefbb28be8184415f4a",
-      "gallery/src/pages/components/navigation.rs": "e4d1ac0c2e44f2a449c7bbf7e331af90b1a12c9fe6ff179bca5cf1d9db8b1004",
+      "gallery/src/pages/components/navigation.rs": "53fa826a436747fcd05fe4e33802ad0acbc4119071a8572e75f4f5d9ae13c64f",
       "gallery/src/pages/components/overlays.rs": "cd4ad2d642acec94e23dbe4ac3682290108f73cff15707a894b99b236b800e9d",
       "gallery/src/pages/components/pickers.rs": "e1e622cece3818a92474a4ef7823ae42bef3fb20db2b7056481c2fdd218455a2",
       "gallery/src/pages/components/typography.rs": "186f11dff09b163a24f96dbb505d522b0956067e985fec76fd9b3c4fb9417e84",
@@ -17345,7 +17351,7 @@
       "gallery/src/pages/reference_metadata/layout.rs": "a06cc0fd17c14f3663a04acdfea66f0e3430d10d559b7b02f6e9ab1edc698d75",
       "gallery/src/pages/reference_metadata/media.rs": "e90bdfa93c8c5def9778f840dd9317270fcbb8d8d8a4c209564039ae365ddc55",
       "gallery/src/pages/reference_metadata/mod.rs": "c4ae096ae75738aac5a6ba999cbecdb0982711b34c01745cd59d0f6f79c35573",
-      "gallery/src/pages/reference_metadata/navigation.rs": "746939af1403edd7966485933406154e72471c136f7e1dd7ade6d50180e33895",
+      "gallery/src/pages/reference_metadata/navigation.rs": "b59f3bbd97038982919d6310a1900b6ffe77d19de82486ec3ec7f01869591233",
       "gallery/src/pages/reference_metadata/overlays.rs": "b356a6f7a329be5036e1b22e7438ea10efa41313316c194cd6a6ef660c59f8b6",
       "gallery/src/pages/reference_metadata/pickers.rs": "9506ee606110be7269d32a5de6e402688668e4cd9321fbad014ba366046434d6",
       "gallery/src/pages/reference_metadata/typography.rs": "6b4881cee2357b059e909833e062700f85ee193b6c8380abe43b6f31f07e8e3e",
@@ -17355,8 +17361,8 @@
       "web/next.config.ts": "8243be70ab8f3848186b392a444bc5a94b316247ed6a45423bb805142a363366",
       "web/package.json": "6e0cc52fa71b65f0247dd3f0fa26f5e585a3d03464377d0a3f3e42ea35032bd4",
       "web/pnpm-lock.yaml": "96fe7abea3effa8a05ed3257ba867cca25c6889f0e01942607b8d145f95b19ef",
-      "web/public/gallery/herogpui_web.js": "a520d4042aeee9bf8d2010d86c5a581599b6253bf8d0bf25d4f93a049d44f3a3",
-      "web/public/gallery/herogpui_web_bg.wasm": "02dd4e80ce21f11a38e24fa5a651d01ba5fb1fbd7342bd6b785749ccf1f3c515",
+      "web/public/gallery/herogpui_web.js": "08a8c7cd54f68777decf2b460a231de1bc589dc96e3b332ac6eeef837be0197c",
+      "web/public/gallery/herogpui_web_bg.wasm": "ceafde48057bcf476caf138e63bd9e5d99550eb6d4dadd43c347e50657abf1b7",
       "web/public/gallery/index.html": "c6f0306d77a438cce3e9f0b529d424ff04498e49a79229acaaec27d334ce613e",
       "web/scripts/build-data.mjs": "2e96401c71097e1346f11a2bcb70057f30d36e041c60e440ec6096cfa51ed62f",
       "web/scripts/copy-shots.mjs": "a9c2d89d85f6c69580c8675d54c832e2e4961d4ef80b850cea3e56fb9fb83592",
@@ -17445,11 +17451,11 @@
       "web/src/components/ui/static-table.tsx": "e863e7b9ea6d94ab1a89169e9f03959d3e1dd5ac9649e8d6ec686a043e1f1b25",
       "web/src/components/ui/status-chip.tsx": "82470f67a7da45b9b3aefe23d3d7c330cc39199f673e8b66f3055c6c0e57abd3",
       "web/src/data/catalog.json": "96a4b0c757742fe63dabb930793c8adec49cb8b70d48afeed79bc3354dbd2129",
-      "web/src/data/reference.json": "6a7348ad5df769577b703adc99116afa7848a39d4e89480eb0cb3a0f0b0ef6d5",
+      "web/src/data/reference.json": "093d6be8900642f6263150c53c72b34e5866af323c5a15d65caa486548a52143",
       "web/src/data/releases.json": "9a34382981682ca00c615857e28ab8f8d9a150d0444d50cce988b8264170e548",
-      "web/src/data/rust-examples.json": "23f7becb5e478e54c387376ed8c819d650398111c34b003eac714d1ee761d622",
-      "web/src/data/wasm-parity.json": "076afb0e60039439410d465f85a5563844a3e21a15f5cc11de920e925a333b5a",
-      "web/src/data/wasm-sections.json": "c83519e33aa830e3df9663abae663df6949a5749ccc79612f8058fd5cfec935f",
+      "web/src/data/rust-examples.json": "d716ff69a7e5b17f445f74c8b92218608a14105593ddf368eee1131abaa2c7f6",
+      "web/src/data/wasm-parity.json": "a83e5194de733a171a166131bcfc223feea8a37bf4eafeddfb78dff56f1f4553",
+      "web/src/data/wasm-sections.json": "2b814aa66f9290c3c02a311ab577ed5b4a30947ba6921ad02f309710d45b350a",
       "web/src/lib/catalog.ts": "7a23ef3cf67e272a66fafcea30230b884bdfb419438d698213e9b4eec20e05b1",
       "web/src/lib/docs-nav.ts": "fe95a3b6f59ccd33d27194922f133291b047a7eb5d8348978cb6dc603ea7db48",
       "web/src/lib/gpui-docs.ts": "c57d7e31dec4055d0a5f741c46e12e5c5b9f81e3de0e98c8fedec76f594cab6d",
@@ -42089,6 +42095,43 @@
       }
     },
     {
+      "id": "gallery/tabs/icon-only-toolbar-segments",
+      "component": "Tabs",
+      "scope": "gallery-section",
+      "status": "unreviewed",
+      "upstream": {
+        "tag": "v3.2.5",
+        "source": null,
+        "selector": null,
+        "demoSection": "Icon-Only Toolbar Segments"
+      },
+      "port": {
+        "module": "tabs",
+        "galleryPage": "Tabs",
+        "gallerySection": "Icon-Only Toolbar Segments",
+        "specimenKey": "tabs-icon-toolbar"
+      },
+      "configuration": {},
+      "state": "section-seed",
+      "setup": [],
+      "assertions": [
+        "Expand this section into concrete variant/state specimens before verification."
+      ],
+      "evidence": {
+        "upstream": [],
+        "native": [],
+        "wasm": [],
+        "tests": []
+      },
+      "source": {
+        "gallery": "web/src/data/rust-examples.json",
+        "reference": "web/src/data/reference.json",
+        "codeSha256": "bccbb5b5dd451deefb2a319f4921083f0b6c555ad5ba8e4968346cd841e22a08",
+        "contentSha256": "4ab8fc504b65f4c5e4d6bd167d26fae65193fc4f1d3216bd5f9ffa6b44a30060",
+        "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/apps/docs/content/docs/en/react/components/(navigation)/tabs.mdx"
+      }
+    },
+    {
       "id": "gallery/tabs/secondary-variant",
       "component": "Tabs",
       "scope": "gallery-section",
@@ -45943,7 +45986,7 @@
       }
     }
   ],
-  "verification_sha256": "87be11cb9b8220dc48e5c644a7fc0f5968e7f1fab0c189281875d2c1be726004",
+  "verification_sha256": "d33f5be181f014d180f7e8cdd559c0bc90ec9a1fe121ecf68880976090156a93",
   "retired_source_changes": [],
   "retired_upstream_demos": {},
   "upstream_source_snapshot": {

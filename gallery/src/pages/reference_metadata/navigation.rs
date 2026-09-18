@@ -824,7 +824,7 @@ const TABS_STYLING: &[StyleDoc] = &[
         class_or_token: ".tabs__list",
         value: "inline-flex p-1; horizontal w-max min-w-full",
         description: "Primary list sizing and inset.",
-        rust: "flex_shrink_0 + p(px(4)) + horizontal min width",
+        rust: "flex_shrink_0 + p(px(4)) (list_padding override) + horizontal min width",
         status: ImplementationStatus::Implemented,
     },
     StyleDoc {
@@ -838,7 +838,7 @@ const TABS_STYLING: &[StyleDoc] = &[
         class_or_token: ".tabs__tab",
         value: "relative flex h-8 w-full rounded-3xl px-4 text-sm font-medium text-muted",
         description: "The pinned fixed 32px box is matched exactly: the stylesheet ships no truncate, nowrap or overflow utility on the tab, so a constrained label wraps and its overflow lines paint past the pill the way the default overflow does instead of growing the tab. Those lines stay pointer-inert in the port, while browser hit testing follows painted text.",
-        rust: "fixed h(32px) + 16px padding + control_radius + 14px medium text; min_w(0) + whitespace_normal label slot",
+        rust: "fixed h(32px) (height override) + 16px padding (padding_x override) + width(px) fixed-width segment + control_radius + 14px medium text; min_w(0) + whitespace_normal label slot",
         status: ImplementationStatus::Implemented,
     },
     StyleDoc {
@@ -859,7 +859,7 @@ const TABS_STYLING: &[StyleDoc] = &[
         class_or_token: ".tabs__tab:hover",
         value: "unselected enabled opacity-70",
         description: "Pointer hover treatment in both variants.",
-        rust: "anim::hover_fade + tabs_hover_opacity",
+        rust: "anim::hover_fade + tabs_hover_opacity (hover_fill(false) drops the wash; unselected labels go to foreground)",
         status: ImplementationStatus::Implemented,
     },
     StyleDoc {

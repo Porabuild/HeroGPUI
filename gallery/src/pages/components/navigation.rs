@@ -1000,6 +1000,49 @@ impl Gallery {
                     .into_any_element()]), cx),
                 ),
                 (
+                    "Icon-Only Toolbar Segments",
+                    "The fixed-box toolbar shape: `width`, `height` and `padding_x` fix every icon segment at 32px with no side padding — v3 spells that `TabsTrigger className=\"size-8 p-0\"` — while `list_padding(0)` removes the primary tray's inset the way `Tabs.List className=\"p-0\"` does, and `hover_fill(false)` drops the unselected-tab wash so the pointer only changes the label colour, not the fill.",
+                    specimen_body("tabs-icon-toolbar", col(vec![h::Tabs::new(
+                        "tabs-icon-toolbar",
+                        vec![
+                            h::TabItem::new("preview", "Preview")
+                                .width(px(32.))
+                                .height(px(32.))
+                                .padding_x(px(0.))
+                                .trigger(
+                                    gpui::svg()
+                                        .size(px(16.))
+                                        .path(h::icons::EYE)
+                                        .text_color(cx.colors().foreground),
+                                ),
+                            h::TabItem::new("duplicate", "Duplicate")
+                                .width(px(32.))
+                                .height(px(32.))
+                                .padding_x(px(0.))
+                                .trigger(
+                                    gpui::svg()
+                                        .size(px(16.))
+                                        .path(h::icons::COPY)
+                                        .text_color(cx.colors().foreground),
+                                ),
+                            h::TabItem::new("discard", "Discard")
+                                .width(px(32.))
+                                .height(px(32.))
+                                .padding_x(px(0.))
+                                .trigger(
+                                    gpui::svg()
+                                        .size(px(16.))
+                                        .path(h::icons::TRASH)
+                                        .text_color(cx.colors().foreground),
+                                ),
+                        ],
+                        "preview",
+                    )
+                    .list_padding(px(0.))
+                    .hover_fill(false)
+                    .into_any_element()]), cx),
+                ),
+                (
                     "Secondary Variant",
                     specimen_body("tabs-secondary", col(vec![h::Tabs::new(
                         "tabs-secondary",

@@ -533,6 +533,20 @@ EXTRA_OK_SCOPED = {
     'Tabs.list_bg': 'no-classname',
     'Tabs.indicator_bg': 'no-classname',
     'Tabs.indicator_shadow': 'no-classname',
+    # The 0.10.1 fixed-box toolbar seam on the same control: the reference
+    # toolbar fixes every icon-only segment with
+    # `TabsTrigger className="size-8 p-0"` and drops the tray inset with
+    # `TabsList className="p-0"`. gpui has no className, so each tab names
+    # its own box and the list names its inset, and the hover switch turns
+    # off the unselected-tab wash the port paints for the stylesheet's
+    # `opacity-70` dim, replacing it with a text-colour hover to the
+    # foreground. The TabItem builders scope under `Tabs` exactly as
+    # `Tabs.trigger` does: `TabItem` is the port's `Tabs.Tab` part struct.
+    'Tabs.width': 'no-classname',
+    'Tabs.height': 'no-classname',
+    'Tabs.padding_x': 'no-classname',
+    'Tabs.list_padding': 'no-classname',
+    'Tabs.hover_fill': 'no-classname',
     'TimeField.font_family': 'no-classname',
     'DateField.font_family': 'no-classname',
     'ColorPicker.font_family': 'no-classname',

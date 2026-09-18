@@ -2,8 +2,8 @@
 # HeroGPUI parity coverage report
 
 Target: `v3.2.5` (`5f13f6ed355bdbd5d5f69e5944685438a3591793`)
-Inventory date: `2026-09-17`
-Inventory verification: `87be11cb9b8220dc48e5c644a7fc0f5968e7f1fab0c189281875d2c1be726004`
+Inventory date: `2026-09-18`
+Inventory verification: `d33f5be181f014d180f7e8cdd559c0bc90ec9a1fe121ecf68880976090156a93`
 Last evidence commit: `(none recorded)`
 
 This is a maintainer work-queue summary. It does not turn gallery section headings, static audits, or successful builds into parity evidence.
@@ -12,12 +12,12 @@ This is a maintainer work-queue summary. It does not turn gallery section headin
 
 | Metric | Count |
 | --- | --- |
-| Specimens | 738 |
+| Specimens | 739 |
 | Verified | 0 |
-| Outstanding | 738 |
-| Unobserved/unreviewed | 738 |
+| Outstanding | 739 |
+| Unobserved/unreviewed | 739 |
 | Components | 67 |
-| Gallery sections | 731 |
+| Gallery sections | 732 |
 
 ## Status distribution
 
@@ -29,18 +29,18 @@ This is a maintainer work-queue summary. It does not turn gallery section headin
 | not-applicable | 0 |
 | platform-limited | 0 |
 | specified | 0 |
-| unreviewed | 731 |
+| unreviewed | 732 |
 | verified | 0 |
 
 ## Evidence surfaces
 
 | Surface | With evidence | Missing evidence |
 | --- | --- | --- |
-| upstream | 5 | 733 |
-| native | 1 | 737 |
-| wasm | 1 | 737 |
-| tests | 5 | 733 |
-| all_surfaces | 1 | 737 |
+| upstream | 5 | 734 |
+| native | 1 | 738 |
+| wasm | 1 | 738 |
+| tests | 5 | 734 |
+| all_surfaces | 1 | 738 |
 
 ## Component queue
 
@@ -103,7 +103,7 @@ This is a maintainer work-queue summary. It does not turn gallery section headin
 | Surface | 3 | 0 | 3 |
 | Switch | 13 | 0 | 13 |
 | Table | 17 | 0 | 17 |
-| Tabs | 14 | 0 | 14 |
+| Tabs | 15 | 0 | 15 |
 | Tag Group | 17 | 0 | 17 |
 | Text Area | 6 | 0 | 6 |
 | Text Field | 12 | 0 | 12 |
@@ -119,6 +119,6 @@ This is a maintainer work-queue summary. It does not turn gallery section headin
 - Measured gaps: **0**
 - Intentional deviations: **0**
 - Platform limits: **0**
-- Unresolved specimen records: **738**
+- Unresolved specimen records: **739**
 
 The JSON file contains the complete unresolved id list and per-component detail. Add a concrete evidence record before changing a specimen to `verified`; record intentional deviations and platform limits with user-facing notes.

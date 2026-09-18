@@ -1,7 +1,7 @@
 {
   "version": 2,
-  "artifactSha256": "02dd4e80ce21f11a38e24fa5a651d01ba5fb1fbd7342bd6b785749ccf1f3c515",
-  "glueSha256": "a520d4042aeee9bf8d2010d86c5a581599b6253bf8d0bf25d4f93a049d44f3a3",
+  "artifactSha256": "ceafde48057bcf476caf138e63bd9e5d99550eb6d4dadd43c347e50657abf1b7",
+  "glueSha256": "08a8c7cd54f68777decf2b460a231de1bc589dc96e3b332ac6eeef837be0197c",
   "examples": {
     "accordion/Controlled": {
       "codeSha256": "ac39d58e626756503af3f2fedbcf0a3a791b32096093d62ca5c6aab77146d75b",
@@ -2498,6 +2498,10 @@
     "tabs/Icon-Only Segmented Control": {
       "codeSha256": "81c9076c8f61088a5d66709f53dd9478134a7ef423e4ba055c67ccc0e5d7e592",
       "descriptionSha256": "9b838a1c960b14b6ee02da772dc36691010e8c5aa41392802ff5966bd3c9ff75"
+    },
+    "tabs/Icon-Only Toolbar Segments": {
+      "codeSha256": "ea7b918bbec1bd2afd424425aae4b92c994cb9117d328026593b5b8130105b92",
+      "descriptionSha256": "f461ef36bfe384faad3a33b660af3ba4e2d843e5cd5c78b757e6e4791ce5e9fd"
     },
     "tabs/Overflow": {
       "codeSha256": "e4f317667886a3c00a4db9c83b52e2cebeec4c9b7b4bac3e1db351cca82c864c",
