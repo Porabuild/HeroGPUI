@@ -672,7 +672,7 @@ mod tests {
         let round_tripped = ThemeDocument::from_json(json).unwrap().to_json().unwrap();
         assert!(round_tripped.contains("hover"));
         let again = ThemeDocument::theme_from_json(&round_tripped).unwrap();
-        assert_eq!(again.colors.accent.hover_override().is_some(), true);
+        assert!(again.colors.accent.hover_override().is_some());
 
         // Absent means the derived shade, like a role without the key.
         let plain = ThemeDocument::theme_from_json(

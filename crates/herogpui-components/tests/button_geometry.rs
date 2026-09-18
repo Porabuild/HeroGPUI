@@ -135,9 +135,8 @@ fn default_geometry_stays_the_size_ladder(cx: &mut TestAppContext) {
         origin_x(&width_sink),
         MD_PADDING_X + label_w
     );
-    assert_eq!(
-        origin_y(&after_sink) - origin_y(&before_sink) - MARKER_H,
-        36.,
+    assert!(
+        (origin_y(&after_sink) - origin_y(&before_sink) - MARKER_H - 36.).abs() < f32::EPSILON,
         "an untouched button keeps `Size::Md`'s 36px control height"
     );
 }
@@ -185,19 +184,16 @@ fn width_fixes_the_box_and_beats_full_width(cx: &mut TestAppContext) {
     flush_frame(cx);
     flush_frame(cx);
 
-    assert_eq!(
-        origin_x(&plain_sink),
-        200.,
+    assert!(
+        (origin_x(&plain_sink) - 200.).abs() < f32::EPSILON,
         "an explicit pixel width fixes the box at 200px"
     );
-    assert_eq!(
-        origin_x(&both_sink),
-        200.,
+    assert!(
+        (origin_x(&both_sink) - 200.).abs() < f32::EPSILON,
         "the explicit pixel width must win over full_width"
     );
-    assert_eq!(
-        origin_x(&full_sink),
-        1920.,
+    assert!(
+        (origin_x(&full_sink) - 1920.).abs() < f32::EPSILON,
         "full_width alone must still fill the full-width row"
     );
 }
@@ -231,9 +227,8 @@ fn min_width_floors_the_box(cx: &mut TestAppContext) {
 
     let label_w =
         cx.update(|window, _| text_width(window.text_system(), "Hi", 14.0, FontWeight::MEDIUM));
-    assert_eq!(
-        origin_x(&floored_sink),
-        150.,
+    assert!(
+        (origin_x(&floored_sink) - 150.).abs() < f32::EPSILON,
         "the floor must hold under a label narrower than it"
     );
     assert!(
@@ -311,19 +306,16 @@ fn height_and_padding_x_beat_the_size_ladder(cx: &mut TestAppContext) {
     flush_frame(cx);
     flush_frame(cx);
 
-    assert_eq!(
-        origin_y(&tall_after) - origin_y(&tall_before) - MARKER_H,
-        56.,
+    assert!(
+        (origin_y(&tall_after) - origin_y(&tall_before) - MARKER_H - 56.).abs() < f32::EPSILON,
         "an explicit height must beat the Lg ladder's 40px"
     );
-    assert_eq!(
-        origin_y(&short_after) - origin_y(&short_before) - MARKER_H,
-        24.,
+    assert!(
+        (origin_y(&short_after) - origin_y(&short_before) - MARKER_H - 24.).abs() < f32::EPSILON,
         "an explicit height beats the 36px Md ladder"
     );
-    assert_eq!(
-        origin_y(&ladder_after) - origin_y(&ladder_before) - MARKER_H,
-        40.,
+    assert!(
+        (origin_y(&ladder_after) - origin_y(&ladder_before) - MARKER_H - 40.).abs() < f32::EPSILON,
         "the Lg ladder stays the fallback when no height is set"
     );
     let x_w =
@@ -492,14 +484,12 @@ fn grow_fills_the_row_free_width_and_can_compress(cx: &mut TestAppContext) {
             FontWeight::MEDIUM,
         )
     });
-    assert_eq!(
-        origin_x(&fill_sink),
-        290.,
+    assert!(
+        (origin_x(&fill_sink) - 290.).abs() < f32::EPSILON,
         "the grown button must take the row's free width"
     );
-    assert_eq!(
-        origin_x(&squeezed_sink),
-        70.,
+    assert!(
+        (origin_x(&squeezed_sink) - 70.).abs() < f32::EPSILON,
         "the grown button must compress below its content width"
     );
     assert!(
@@ -512,9 +502,8 @@ fn grow_fills_the_row_free_width_and_can_compress(cx: &mut TestAppContext) {
         origin_x(&hug_sink),
         MD_PADDING_X + long_w
     );
-    assert_eq!(
-        origin_x(&disabled_sink),
-        290.,
+    assert!(
+        (origin_x(&disabled_sink) - 290.).abs() < f32::EPSILON,
         "a disabled grown button fills its row without a press wrapper"
     );
 }
@@ -554,14 +543,12 @@ fn sx_refines_over_the_instance_values(cx: &mut TestAppContext) {
     flush_frame(cx);
     flush_frame(cx);
 
-    assert_eq!(
-        origin_y(&height_sink),
-        80.,
+    assert!(
+        (origin_y(&height_sink) - 80.).abs() < f32::EPSILON,
         "the sx height must refine over the instance 56px"
     );
-    assert_eq!(
-        origin_x(&width_sink),
-        120.,
+    assert!(
+        (origin_x(&width_sink) - 120.).abs() < f32::EPSILON,
         "the sx width must refine over the instance 200px"
     );
 }

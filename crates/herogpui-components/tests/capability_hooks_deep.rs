@@ -81,7 +81,10 @@ fn a_stock_menu_separator_takes_v3s_proportional_inset(cx: &mut TestAppContext) 
     let cx = open_host(cx, separator_menu("stock-separator"));
     let (width, height) = separator_band(cx);
     let border = cx.update(|_, cx| cx.layout().border_width);
-    assert_eq!(width, 188., "94% of a 200pt panel, centred by a 3% margin");
+    assert!(
+        (width - 188.).abs() < f32::EPSILON,
+        "94% of a 200pt panel, centred by a 3% margin"
+    );
     assert!(
         (height - f32::from(border)).abs() < 0.05,
         "the stock rule is the theme hairline, got {height}"
@@ -104,11 +107,11 @@ fn a_theme_can_inset_and_thicken_the_menu_separator(cx: &mut TestAppContext) {
         ),
     );
     let (width, height) = separator_band(cx);
-    assert_eq!(
-        width, 170.,
+    assert!(
+        (width - 170.).abs() < f32::EPSILON,
         "an absolute inset replaces the proportional one: 15pt off each side of a 200pt panel"
     );
-    assert_eq!(height, 1.);
+    assert!((height - 1.).abs() < f32::EPSILON);
 }
 
 #[gpui::test]
@@ -132,8 +135,8 @@ fn a_menu_instance_can_inset_the_separator_without_a_theme(cx: &mut TestAppConte
         .into_any_element()
     });
     let (width, height) = separator_band(cx);
-    assert_eq!(width, 160.);
-    assert_eq!(height, 2.);
+    assert!((width - 160.).abs() < f32::EPSILON);
+    assert!((height - 2.).abs() < f32::EPSILON);
 }
 
 // -- Ask 2: select trigger vertical padding --------------------------------
@@ -179,14 +182,12 @@ fn select_padding_y_leaves_a_single_line_trigger_at_36(cx: &mut TestAppContext) 
             )
             .into_any_element()
     });
-    assert_eq!(
-        trigger_height(cx, "stock"),
-        36.,
+    assert!(
+        (trigger_height(cx, "stock") - 36.).abs() < f32::EPSILON,
         "the stock single-line trigger is min-h-9"
     );
-    assert_eq!(
-        trigger_height(cx, "padded"),
-        36.,
+    assert!(
+        (trigger_height(cx, "padded") - 36.).abs() < f32::EPSILON,
         "py-2 over a 20px line advance still resolves to the 36px minimum"
     );
 }
@@ -215,9 +216,8 @@ fn select_padding_y_grows_a_wrapped_trigger(cx: &mut TestAppContext) {
         stock > 36.,
         "the fixture must actually wrap; got {stock} for the stock trigger"
     );
-    assert_eq!(
-        padded - stock,
-        16.,
+    assert!(
+        (padded - stock - 16.).abs() < f32::EPSILON,
         "padding_y adds its 8px to each edge of the wrapped trigger"
     );
 }
@@ -242,7 +242,7 @@ fn select_padding_y_can_come_from_the_theme(cx: &mut TestAppContext) {
             SelectStyle::default().padding_y(px(8.)),
         ))),
     );
-    assert_eq!(trigger_height(cx, "themed") - stock, 16.);
+    assert!((trigger_height(cx, "themed") - stock - 16.).abs() < f32::EPSILON);
 }
 
 #[gpui::test]
@@ -269,8 +269,8 @@ fn a_select_instance_padding_y_wins_over_the_theme(cx: &mut TestAppContext) {
     };
     apply_theme(cx, Theme::light());
     let stock = trigger_height(cx, "instance");
-    assert_eq!(
-        themed_out, stock,
+    assert!(
+        (themed_out - stock).abs() < f32::EPSILON,
         "the instance's 4px must survive a theme asking for 20px"
     );
 }
@@ -299,7 +299,7 @@ fn select_item_leading_draws_one_element_per_open_row(cx: &mut TestAppContext) {
     });
     let red = cx.debug_bounds("swatch-red").expect("a swatch per row");
     let sky = cx.debug_bounds("swatch-sky").expect("a swatch per row");
-    assert_eq!(f32::from(red.size.width), 12.);
+    assert!((f32::from(red.size.width) - 12.).abs() < f32::EPSILON);
     assert!(
         sky.origin.y > red.origin.y,
         "each row draws its own leading element"
@@ -360,14 +360,12 @@ fn a_tooltip_body_replaces_the_measured_single_line(cx: &mut TestAppContext) {
     let body = cx
         .debug_bounds("rich-body")
         .expect("the tip must draw the caller's body");
-    assert_eq!(
-        f32::from(body.size.height),
-        60.,
+    assert!(
+        (f32::from(body.size.height) - 60.).abs() < f32::EPSILON,
         "the element keeps its own intrinsic height, unmeasured"
     );
-    assert_eq!(
-        f32::from(body.size.width),
-        180.,
+    assert!(
+        (f32::from(body.size.width) - 180.).abs() < f32::EPSILON,
         "and its own width, under the same 320px cap the string path uses"
     );
 }
@@ -590,13 +588,13 @@ fn a_select_option_pick_does_not_activate_the_element_around_it(cx: &mut TestApp
                 .default_open(true)
                 .full_width(true)
                 .on_open_change(move |open, _, _| {
-                    opens.borrow_mut().push(format!("open:{open}"))
+                    opens.borrow_mut().push(format!("open:{open}"));
                 })
                 .on_selection_change(move |value, _, _| {
                     picks.borrow_mut().push(format!(
                         "pick:{}",
-                        value.as_ref().map(|key| key.as_ref()).unwrap_or("")
-                    ))
+                        value.as_ref().map_or("", |key| key.as_ref())
+                    ));
                 }),
             )
             .into_any_element()
@@ -750,11 +748,14 @@ fn a_submenus_separator_inherits_the_instance_inset_and_thickness(cx: &mut TestA
         "the submenu must be open before its band is measured"
     );
     let (width, height) = separator_band(cx);
-    assert_eq!(
-        width, 160.,
+    assert!(
+        (width - 160.).abs() < f32::EPSILON,
         "the submenu's band inherits the 20pt inset on each side of its 200pt panel"
     );
-    assert_eq!(height, 2., "and the instance's 2pt thickness");
+    assert!(
+        (height - 2.).abs() < f32::EPSILON,
+        "and the instance's 2pt thickness"
+    );
 }
 
 /// A theme-level `role_hover("accent", ..)` names the `*-hover` shade outright,

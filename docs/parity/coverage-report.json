@@ -3,17 +3,17 @@
   "target": "v3.2.5",
   "target_commit": "5f13f6ed355bdbd5d5f69e5944685438a3591793",
   "inventory_recorded_on": "2026-09-17",
-  "inventory_verification_sha256": "b7c599529a2722fb9e324e25707bcbf9eaaa5a57dcd68332a863323c5939ed6a",
-  "source_snapshot_sha256": "9e41fa05b53b0560d21a375c541427c471eabbb4b1802258a03ccba8fdfc68b9",
+  "inventory_verification_sha256": "87be11cb9b8220dc48e5c644a7fc0f5968e7f1fab0c189281875d2c1be726004",
+  "source_snapshot_sha256": "6388234da7f88d998027be9c3360f8af71fd3729412af0f73a72e3a2ae78818e",
   "last_evidence_commit": null,
   "last_evidence_commit_recorded": false,
   "totals": {
-    "specimens": 726,
+    "specimens": 738,
     "verified": 0,
-    "outstanding": 726,
-    "unobserved": 726,
+    "outstanding": 738,
+    "unobserved": 738,
     "components": 67,
-    "gallery_sections": 719
+    "gallery_sections": 731
   },
   "status_counts": {
     "implemented-unverified": 7,
@@ -22,35 +22,35 @@
     "not-applicable": 0,
     "platform-limited": 0,
     "specified": 0,
-    "unreviewed": 719,
+    "unreviewed": 731,
     "verified": 0
   },
   "scope_counts": {
     "component-state": 4,
     "cross-component": 1,
-    "gallery-section": 719,
+    "gallery-section": 731,
     "platform-harness": 2
   },
   "evidence_counts": {
     "upstream": {
       "specimens_with_evidence": 5,
-      "specimens_missing_evidence": 721
+      "specimens_missing_evidence": 733
     },
     "native": {
       "specimens_with_evidence": 1,
-      "specimens_missing_evidence": 725
+      "specimens_missing_evidence": 737
     },
     "wasm": {
       "specimens_with_evidence": 1,
-      "specimens_missing_evidence": 725
+      "specimens_missing_evidence": 737
     },
     "tests": {
       "specimens_with_evidence": 5,
-      "specimens_missing_evidence": 721
+      "specimens_missing_evidence": 733
     },
     "all_surfaces": {
       "specimens_with_evidence": 1,
-      "specimens_missing_evidence": 725
+      "specimens_missing_evidence": 737
     }
   },
   "unobserved_statuses": [
@@ -630,6 +630,13 @@
       "state": "section-seed"
     },
     {
+      "id": "gallery/button/flex-fill",
+      "component": "Button",
+      "scope": "gallery-section",
+      "status": "unreviewed",
+      "state": "section-seed"
+    },
+    {
       "id": "gallery/button/full-width",
       "component": "Button",
       "scope": "gallery-section",
@@ -658,6 +665,13 @@
       "state": "section-seed"
     },
     {
+      "id": "gallery/button/pixel-geometry",
+      "component": "Button",
+      "scope": "gallery-section",
+      "status": "unreviewed",
+      "state": "section-seed"
+    },
+    {
       "id": "gallery/button/press-handler",
       "component": "Button",
       "scope": "gallery-section",
@@ -680,6 +694,13 @@
     },
     {
       "id": "gallery/button/sx-slot",
+      "component": "Button",
+      "scope": "gallery-section",
+      "status": "unreviewed",
+      "state": "section-seed"
+    },
+    {
+      "id": "gallery/button/text-metrics",
       "component": "Button",
       "scope": "gallery-section",
       "status": "unreviewed",
@@ -1199,6 +1220,13 @@
     {
       "id": "gallery/color-area/with-dots",
       "component": "Color Area",
+      "scope": "gallery-section",
+      "status": "unreviewed",
+      "state": "section-seed"
+    },
+    {
+      "id": "gallery/color-field/blur-behaviour",
+      "component": "Color Field",
       "scope": "gallery-section",
       "status": "unreviewed",
       "state": "section-seed"
@@ -2135,6 +2163,13 @@
       "state": "section-seed"
     },
     {
+      "id": "gallery/dropdown/inset-separator",
+      "component": "Dropdown",
+      "scope": "gallery-section",
+      "status": "unreviewed",
+      "state": "section-seed"
+    },
+    {
       "id": "gallery/dropdown/long-press-trigger",
       "component": "Dropdown",
       "scope": "gallery-section",
@@ -2150,6 +2185,13 @@
     },
     {
       "id": "gallery/dropdown/row-hover",
+      "component": "Dropdown",
+      "scope": "gallery-section",
+      "status": "unreviewed",
+      "state": "section-seed"
+    },
+    {
+      "id": "gallery/dropdown/row-with-an-inline-control",
       "component": "Dropdown",
       "scope": "gallery-section",
       "status": "unreviewed",
@@ -3822,6 +3864,13 @@
       "state": "section-seed"
     },
     {
+      "id": "gallery/select/row-leading-content",
+      "component": "Select",
+      "scope": "gallery-section",
+      "status": "unreviewed",
+      "state": "section-seed"
+    },
+    {
       "id": "gallery/select/uncontrolled",
       "component": "Select",
       "scope": "gallery-section",
@@ -3872,6 +3921,13 @@
     },
     {
       "id": "gallery/select/with-sections",
+      "component": "Select",
+      "scope": "gallery-section",
+      "status": "unreviewed",
+      "state": "section-seed"
+    },
+    {
+      "id": "gallery/select/wrapping-trigger",
       "component": "Select",
       "scope": "gallery-section",
       "status": "unreviewed",
@@ -4089,6 +4145,20 @@
     },
     {
       "id": "gallery/spinner/colors",
+      "component": "Spinner",
+      "scope": "gallery-section",
+      "status": "unreviewed",
+      "state": "section-seed"
+    },
+    {
+      "id": "gallery/spinner/custom-glyph",
+      "component": "Spinner",
+      "scope": "gallery-section",
+      "status": "unreviewed",
+      "state": "section-seed"
+    },
+    {
+      "id": "gallery/spinner/pixel-sizes",
       "component": "Spinner",
       "scope": "gallery-section",
       "status": "unreviewed",
@@ -4362,6 +4432,13 @@
     },
     {
       "id": "gallery/tabs/full-width",
+      "component": "Tabs",
+      "scope": "gallery-section",
+      "status": "unreviewed",
+      "state": "section-seed"
+    },
+    {
+      "id": "gallery/tabs/icon-only-segmented-control",
       "component": "Tabs",
       "scope": "gallery-section",
       "status": "unreviewed",
@@ -5047,6 +5124,13 @@
       "state": "section-seed"
     },
     {
+      "id": "gallery/tooltip/rich-content",
+      "component": "Tooltip",
+      "scope": "gallery-section",
+      "status": "unreviewed",
+      "state": "section-seed"
+    },
+    {
       "id": "gallery/tooltip/usage",
       "component": "Tooltip",
       "scope": "gallery-section",
@@ -5341,7 +5425,7 @@
     },
     {
       "component": "Button",
-      "specimens": 16,
+      "specimens": 19,
       "statuses": {
         "implemented-unverified": 2,
         "intentional-deviation": 0,
@@ -5349,25 +5433,28 @@
         "not-applicable": 0,
         "platform-limited": 0,
         "specified": 0,
-        "unreviewed": 14,
+        "unreviewed": 17,
         "verified": 0
       },
       "verified": 0,
-      "outstanding": 16,
+      "outstanding": 19,
       "unresolved_ids": [
         "button/usage/press-motion",
         "button/usage/rest-geometry",
         "gallery/button/adding-custom-variants",
         "gallery/button/custom-hover-fill",
         "gallery/button/disabled-state",
+        "gallery/button/flex-fill",
         "gallery/button/full-width",
         "gallery/button/icon-only",
         "gallery/button/loading",
         "gallery/button/loading-state",
+        "gallery/button/pixel-geometry",
         "gallery/button/press-handler",
         "gallery/button/sizes",
         "gallery/button/social-buttons",
         "gallery/button/sx-slot",
+        "gallery/button/text-metrics",
         "gallery/button/usage",
         "gallery/button/variants",
         "gallery/button/with-icons"
@@ -5599,7 +5686,7 @@
     },
     {
       "component": "Color Field",
-      "specimens": 17,
+      "specimens": 18,
       "statuses": {
         "implemented-unverified": 0,
         "intentional-deviation": 0,
@@ -5607,12 +5694,13 @@
         "not-applicable": 0,
         "platform-limited": 0,
         "specified": 0,
-        "unreviewed": 17,
+        "unreviewed": 18,
         "verified": 0
       },
       "verified": 0,
-      "outstanding": 17,
+      "outstanding": 18,
       "unresolved_ids": [
+        "gallery/color-field/blur-behaviour",
         "gallery/color-field/box-customisation",
         "gallery/color-field/channel-editing",
         "gallery/color-field/controlled",
@@ -5925,7 +6013,7 @@
     },
     {
       "component": "Dropdown",
-      "specimens": 21,
+      "specimens": 23,
       "statuses": {
         "implemented-unverified": 0,
         "intentional-deviation": 0,
@@ -5933,20 +6021,22 @@
         "not-applicable": 0,
         "platform-limited": 0,
         "specified": 0,
-        "unreviewed": 21,
+        "unreviewed": 23,
         "verified": 0
       },
       "verified": 0,
-      "outstanding": 21,
+      "outstanding": 23,
       "unresolved_ids": [
         "gallery/dropdown/basic-usage",
         "gallery/dropdown/controlled",
         "gallery/dropdown/controlled-open-state",
         "gallery/dropdown/controlled-selection",
         "gallery/dropdown/custom-trigger",
+        "gallery/dropdown/inset-separator",
         "gallery/dropdown/long-press-trigger",
         "gallery/dropdown/render-props",
         "gallery/dropdown/row-hover",
+        "gallery/dropdown/row-with-an-inline-control",
         "gallery/dropdown/single-with-custom-indicator",
         "gallery/dropdown/standalone-compact-menu",
         "gallery/dropdown/usage",
@@ -6535,7 +6625,7 @@
     },
     {
       "component": "Select",
-      "specimens": 24,
+      "specimens": 26,
       "statuses": {
         "implemented-unverified": 1,
         "intentional-deviation": 0,
@@ -6543,11 +6633,11 @@
         "not-applicable": 0,
         "platform-limited": 0,
         "specified": 0,
-        "unreviewed": 23,
+        "unreviewed": 25,
         "verified": 0
       },
       "verified": 0,
-      "outstanding": 24,
+      "outstanding": 26,
       "unresolved_ids": [
         "gallery/select/asynchronous-loading",
         "gallery/select/box-customisation",
@@ -6564,6 +6654,7 @@
         "gallery/select/multiple-select",
         "gallery/select/placement",
         "gallery/select/required",
+        "gallery/select/row-leading-content",
         "gallery/select/uncontrolled",
         "gallery/select/usage",
         "gallery/select/variants",
@@ -6572,6 +6663,7 @@
         "gallery/select/with-description",
         "gallery/select/with-disabled-options",
         "gallery/select/with-sections",
+        "gallery/select/wrapping-trigger",
         "select/clear/custom-child-scaling"
       ]
     },
@@ -6680,7 +6772,7 @@
     },
     {
       "component": "Spinner",
-      "specimens": 4,
+      "specimens": 6,
       "statuses": {
         "implemented-unverified": 0,
         "intentional-deviation": 0,
@@ -6688,13 +6780,15 @@
         "not-applicable": 0,
         "platform-limited": 0,
         "specified": 0,
-        "unreviewed": 4,
+        "unreviewed": 6,
         "verified": 0
       },
       "verified": 0,
-      "outstanding": 4,
+      "outstanding": 6,
       "unresolved_ids": [
         "gallery/spinner/colors",
+        "gallery/spinner/custom-glyph",
+        "gallery/spinner/pixel-sizes",
         "gallery/spinner/sizes",
         "gallery/spinner/speed",
         "gallery/spinner/usage"
@@ -6789,7 +6883,7 @@
     },
     {
       "component": "Tabs",
-      "specimens": 13,
+      "specimens": 14,
       "statuses": {
         "implemented-unverified": 1,
         "intentional-deviation": 0,
@@ -6797,15 +6891,16 @@
         "not-applicable": 0,
         "platform-limited": 0,
         "specified": 0,
-        "unreviewed": 12,
+        "unreviewed": 13,
         "verified": 0
       },
       "verified": 0,
-      "outstanding": 13,
+      "outstanding": 14,
       "unresolved_ids": [
         "gallery/tabs/alignment",
         "gallery/tabs/disabled-tab",
         "gallery/tabs/full-width",
+        "gallery/tabs/icon-only-segmented-control",
         "gallery/tabs/overflow",
         "gallery/tabs/primary",
         "gallery/tabs/secondary-variant",
@@ -7031,7 +7126,7 @@
     },
     {
       "component": "Tooltip",
-      "specimens": 6,
+      "specimens": 7,
       "statuses": {
         "implemented-unverified": 0,
         "intentional-deviation": 0,
@@ -7039,16 +7134,17 @@
         "not-applicable": 0,
         "platform-limited": 0,
         "specified": 0,
-        "unreviewed": 6,
+        "unreviewed": 7,
         "verified": 0
       },
       "verified": 0,
-      "outstanding": 6,
+      "outstanding": 7,
       "unresolved_ids": [
         "gallery/tooltip/custom-triggers",
         "gallery/tooltip/delay",
         "gallery/tooltip/long-content",
         "gallery/tooltip/placement",
+        "gallery/tooltip/rich-content",
         "gallery/tooltip/usage",
         "gallery/tooltip/with-arrow"
       ]
