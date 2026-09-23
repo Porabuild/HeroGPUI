@@ -51,8 +51,8 @@ has not.
 
 Both changes are Zed's code. The PR goes to
 [zed-industries/zed](https://github.com/zed-industries/zed) against
-`crates/gpui_web/src/events.rs`. `gpui-pre` is zed-industries' own snapshot
-publish of that tree and carries no independent history to patch, so the
+`crates/gpui_web/src/events.rs`. `gpui-pre` is a snapshot publish of that tree
+by crates.io user huacnlee (Jason Lee, the gpui-kit maintainer) and carries no independent history to patch, so the
 snapshot's `zed-rev` is the revision to open the PR against.
 
 Verified still needed at Zed rev `5b055fa` — the revision

@@ -14,7 +14,7 @@ const CREATE = `cargo new hello-herogpui --bin
 cd hello-herogpui`;
 
 const CARGO_TOML = `[dependencies]
-herogpui = { git = "https://github.com/Porabuild/HeroGPUI" }`;
+herogpui = "0.10"`;
 
 const MAIN_RS = `use herogpui::*;
 
