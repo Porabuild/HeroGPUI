@@ -556,7 +556,7 @@ impl Render for Gallery {
                             .text_size(px(11.))
                             .font_weight(gpui::FontWeight::MEDIUM)
                             .text_color(colors.accent.color)
-                            .child("v0.1.0"),
+                            .child(concat!("v", env!("CARGO_PKG_VERSION"))),
                     ),
             )
             .child(

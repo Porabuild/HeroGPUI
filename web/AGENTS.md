@@ -24,10 +24,20 @@ description, then the bordered example. Keep explanatory prose outside the
 example surface on both sites; component-owned labels, helper text, values, and
 composed content remain inside the demonstrated component.
 
-Keep each component on one page: `Usage` (one lazy GPUI/WASM instance that
-switches among every generated example, description, and matching code),
+Keep each component on one page: `Usage` (one lazy GPUI/WASM instance, then
+every generated example as its own anchored heading with description and
+code; "Show live" or a `#rust-<example>` link switches the one instance),
 compact `Anatomy`, `Customization`, `API reference` (Props, Parts and slots,
-then States), and `Related components`.
+then States, each marking Partial rows and listing Not ported entries), and
+`Related components`.
+
+The shown Rust is public-API code: `scripts/extract-rust-examples.mjs` lifts
+the page `let`s and gallery helper definitions an example needs, rewrites
+gallery-only paths, and refuses any snippet that still names one.
+`gallery/build.rs` compiles every snippet in `rust-examples.json` as a test
+module, so `cargo test -p herogpui-gallery` fails on an example a reader
+could not paste. Versions shown on the site come from `Cargo.toml` and
+`Cargo.lock` (`catalog.json`), and releases from `CHANGELOG.md`.
 Never substitute a checked-in screenshot or embed the full gallery shell on a
 component page. The preview query and message bridge must select and construct
 only one requested example at a time. New gallery pages must add checked-in
@@ -36,14 +46,16 @@ reference metadata so the website does not ship an examples-only component page.
 `public/gallery/herogpui_web*` is compiled from this repository's own
 workspace: `crates/herogpui-web` links the `herogpui-gallery` library and
 builds for `wasm32-unknown-unknown`, so the embed runs the same
-`gallery/src/pages/components/` the native gallery does. See the root
-`AGENTS.md` for the build command; it builds on `rust-toolchain.toml`'s pinned
-stable, with no `RUSTUP_TOOLCHAIN` override and no `RUSTFLAGS`.
+`gallery/src/pages/components/` the native gallery does. The build needs
+`cargo +nightly` (upstream's `multithreaded` default pulls a `#![feature]`
+crate) and no `RUSTFLAGS`; the full recipe is in `DEPLOYMENT.md` section 6
+and the CI `wasm` job.
 
 After rebuilding that artifact, regenerate `src/data/wasm-sections.json` and
 `src/data/wasm-parity.json` with `pnpm run wasm:manifest` in the same change.
 `wasm-sections.json` tells the component page which headings get a live embed;
-`wasm-parity.json` pins the artifact, the glue and every example body by hash,
-which is the only thing standing between a committed 19 MB binary and a page
-whose code block and embed disagree. `pnpm run extract:check` fails when they
-have parted company, so a rebuild without a regeneration does not merge.
+`wasm-parity.json` pins the artifact, the glue, every example body and every
+wasm build input (Rust sources, manifests, lockfile) by hash, which is the only
+thing standing between a committed 19 MB binary and a page whose code block and
+embed disagree. `pnpm run extract:check` fails when they have parted company,
+so a Rust change without a rebuild and regeneration does not merge.

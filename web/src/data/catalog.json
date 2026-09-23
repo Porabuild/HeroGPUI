@@ -1,5 +1,6 @@
 {
-  "version": "0.9.0",
+  "version": "0.11.0",
+  "gpuiVersion": "0.3.5",
   "categories": [
     {
       "name": "Buttons",

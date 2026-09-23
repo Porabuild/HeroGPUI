@@ -187,9 +187,11 @@ export function stepOver(src, i) {
     return i + 1;
   }
   if (c === "r") {
+    // Only a raw string is a literal. Any other `r` is an ordinary character
+    // -- returning `i + 1` here used to swallow the first letter of every
+    // identifier starting with `r`, so `row(` was never seen as a call.
     const r = readRawStringLiteral(src, i);
-    if (r) return r.end;
-    return i + 1;
+    return r ? r.end : null;
   }
   if (c === "'") {
     const ch = readCharLiteral(src, i);

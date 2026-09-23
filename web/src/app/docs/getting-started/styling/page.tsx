@@ -57,7 +57,7 @@ interface MappingRow {
 const STYLE_ROUTES: MappingRow[] = [
   {
     route: "Shared look",
-    rust: "ThemeBuilder::components / .recipe(\"name\")",
+    rust: 'ThemeBuilder::components / .recipe("name")',
     detail:
       "Put height, padding, radius and semantic colours on the theme. Instance sx is for placement, width and flex.",
   },

@@ -4,7 +4,8 @@ export type PortStatus = "implemented" | "partial" | "unavailable";
 
 /**
  * Status of one API row against upstream HeroUI. `unavailable` renders as
- * "Not available" — a HeroUI prop with no HeroGPUI equivalent by design.
+ * "Not ported" — a HeroUI prop with no HeroGPUI equivalent by design, with a
+ * documented reason; not a failure.
  */
 export function StatusChip({ status }: { status: PortStatus }) {
   switch (status) {
@@ -23,7 +24,7 @@ export function StatusChip({ status }: { status: PortStatus }) {
     case "unavailable":
       return (
         <Chip className="docs-status-chip" color="default" size="sm" variant="soft">
-          Not available
+          Not ported
         </Chip>
       );
   }

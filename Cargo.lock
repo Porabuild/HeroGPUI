@@ -2689,6 +2689,7 @@ dependencies = [
  "herogpui-core",
  "herogpui-theme",
  "prettyplease",
+ "serde_json",
  "syn 2.0.119",
 ]
 

@@ -1,7 +1,7 @@
 import { cn } from "@heroui/react";
 import { Fragment, type ReactNode } from "react";
 import { StaticTable } from "@/components/ui/static-table";
-import type { PortStatus } from "@/components/ui/status-chip";
+import { StatusChip, type PortStatus } from "@/components/ui/status-chip";
 import { gpuiPropRows } from "@/lib/gpui-docs";
 
 /** One row of the extracted API contract. Displayed as the Rust builder. */
@@ -74,7 +74,10 @@ export function PropsTable({ rows, label, className }: PropsTableProps) {
       label={label}
       rows={visible.map((row) => ({
         cells: [
-          <Mono key="builder">{row.builder}</Mono>,
+          <span className="inline-flex flex-wrap items-center gap-2" key="builder">
+            <Mono>{row.builder}</Mono>
+            {row.status === "partial" ? <StatusChip status="partial" /> : null}
+          </span>,
           <Mono key="values">{row.values}</Mono>,
           <Mono key="default">{row.default}</Mono>,
           <span className="text-sm text-muted" key="description">

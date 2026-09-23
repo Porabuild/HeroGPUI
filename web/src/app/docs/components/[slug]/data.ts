@@ -47,6 +47,10 @@ export interface RustExample {
   description?: string;
   code: string;
   imports?: string;
+  /** Where the code runs; see scripts/extract-rust-examples.mjs `withContext`. */
+  context?: "app" | "view" | "statements";
+  /** Definitions of the gallery helpers the code calls, lifted verbatim. */
+  helpers?: string;
 }
 
 export interface ComponentReference {
@@ -209,6 +213,11 @@ export function getRustExamples(slug: string): RustExample[] {
           description: typeof row.description === "string" ? row.description : undefined,
           code: asString(row.code),
           imports: typeof row.imports === "string" ? row.imports : undefined,
+          context:
+            row.context === "view" || row.context === "statements" || row.context === "app"
+              ? row.context
+              : undefined,
+          helpers: typeof row.helpers === "string" && row.helpers !== "" ? row.helpers : undefined,
         }
       : null,
   );

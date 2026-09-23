@@ -71,16 +71,16 @@ pipeline. Re-run it by hand when the Rust sources they read change:
 | Command | Reads | Produces |
 |---|---|---|
 | `node scripts/extract-reference.mjs` | `gallery/src/pages/reference_metadata/` | `src/data/reference.json` — per-component API/parts/states/styling tables with implementation status |
-| `node scripts/extract-catalog.mjs` | `gallery/src/pages/mod.rs` (`Page` enum), `.shots/`, `reference.json` | `src/data/catalog.json` — the 66 component pages grouped into the 15 categories |
-| `node scripts/extract-rust-examples.mjs` | `gallery/src/pages/components/` | `src/data/rust-examples.json` — the per-component Rust snippets the pages display |
+| `node scripts/extract-catalog.mjs` | `gallery/src/pages/mod.rs` (`Page` enum), `.shots/`, `reference.json`, `../Cargo.toml`, `../Cargo.lock` | `src/data/catalog.json` — the component pages grouped into categories, plus the workspace and GPUI versions the site shows |
+| `node scripts/extract-rust-examples.mjs` | `gallery/src/pages/components/` | `src/data/rust-examples.json` — the per-component Rust snippets the pages display, public-API only; `gallery/build.rs` compiles each one under `cargo test -p herogpui-gallery` |
 | `node scripts/copy-shots.mjs` | `.shots/*.png` | `public/shots/` — the GPUI screenshots |
-| `node scripts/extract-releases.mjs` | the GitHub Releases API for `Porabuild/HeroGPUI` | `src/data/releases.json` — the `/docs/releases` notes |
+| `node scripts/extract-releases.mjs` | `../CHANGELOG.md` | `src/data/releases.json` — the `/docs/releases` notes, one per dated version |
 | `node scripts/build-data.mjs` | — | runs the four offline extractors in dependency order with one summary |
-| `node scripts/extract-wasm-sections.mjs` (`pnpm run wasm:manifest`) | `gallery/src/pages/components/` — the same native source the desktop gallery builds from — plus the shipped artifact hash | `src/data/wasm-sections.json` + `src/data/wasm-parity.json` — the examples compiled into the wasm artifact, so the live selector never advertises one the artifact lacks, and the artifact hash used to cache-bust the embed |
+| `node scripts/extract-wasm-sections.mjs` (`pnpm run wasm:manifest`) | `gallery/src/pages/components/` — the same native source the desktop gallery builds from — plus the shipped artifact and every wasm build input | `src/data/wasm-sections.json` + `src/data/wasm-parity.json` — the examples compiled into the wasm artifact, the artifact hash used as the embed's immutable cache key, and an inputs hash that fails `--check` when Rust sources change without a rebuild |
 | `node scripts/sync-porabuild-brand.mjs` (`pnpm run brand:sync`) | the sibling `@porabuild/brand` package | `src/styles/porabuild/` — the vendored brand layer (never hand-edit; re-sync instead) |
 
-The releases step reads the GitHub Releases API and is run manually; set
-`GITHUB_TOKEN` to raise the rate limit. Check it with
-`node scripts/extract-releases.mjs --check`. The `/llms.txt`
+`pnpm run extract` runs the reference, catalog, snippet and releases steps;
+`pnpm run extract:check` (CI) checks all of them plus the wasm manifest,
+without network. The `/llms.txt`
 route handler is not generated — it serves the repository root's `llms.txt`,
 read once at build time.

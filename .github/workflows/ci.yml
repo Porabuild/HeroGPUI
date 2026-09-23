@@ -44,7 +44,8 @@ jobs:
       - name: Install Node
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          # Production (Vercel) runs Node 24.x; build on the same major.
+          node-version: 24
           cache: pnpm
           cache-dependency-path: web/pnpm-lock.yaml
 
@@ -58,8 +59,12 @@ jobs:
       - name: Format check
         run: cargo fmt --all -- --check
 
-      # extract:check compares the generated component data against the Rust
-      # gallery, so this job is the one that needs both checkouts.
+      # extract:check compares every generated dataset (reference, catalog and
+      # versions, Rust snippets, releases from CHANGELOG.md) and the wasm
+      # manifest -- artifact bytes, example bodies and a hash of every wasm
+      # build input -- against the checkout, with no network. That the
+      # snippets compile is the `test` job's: gallery/build.rs turns each one
+      # into a test-only module of herogpui-gallery.
       - name: Component gallery sync
         working-directory: web
         run: pnpm run extract:check

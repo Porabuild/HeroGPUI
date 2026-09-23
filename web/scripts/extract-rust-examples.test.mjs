@@ -9,9 +9,13 @@ import {
   documentationParity,
   humanizeGalleryIds,
   normalizeCollapsedItem,
+  namedCalls,
   parseInvocation,
+  privateReference,
+  replaceLayoutHelpers,
   separateExampleDescription,
 } from "./extract-rust-examples.mjs";
+import { neededBindings, pageBindings, referencedNames } from "./lib/snippet-context.mjs";
 import { MANIFEST_VERSION, buildManifest, parseExampleSource } from "./extract-wasm-sections.mjs";
 import { readGalleryComponentSource } from "./lib/gallery-source.mjs";
 
@@ -22,14 +26,14 @@ test("corner styling in sx brings the GPUI Styled trait into generated snippets"
       'Button::new("example").radius(px(8.)).sx(|el| el.rounded_' + corner + "(px(0.)))",
       [],
     );
-    assert.ok(imports.includes("use gpui::prelude::*;"), corner);
+    assert.ok(imports.includes("use herogpui::gpui::prelude::*;"), corner);
   }
   assert.ok(
     !addImports(
       "use herogpui::prelude::Button;",
       'Button::new("example").radius(px(8.))',
       [],
-    ).includes("use gpui::prelude::*;"),
+    ).includes("use herogpui::gpui::prelude::*;"),
     "an inherent radius builder alone does not require Styled",
   );
 });
@@ -262,4 +266,52 @@ test("normalizeCollapsedItem keeps standard method-chain indentation", () => {
     .label("Date")
     .is_disabled(true)`,
   );
+});
+
+test("identifiers starting with r are seen by the scanner", () => {
+  // `stepOver` used to swallow every `r` while probing for a raw string, so
+  // `row(` was never a call and the layout helper leaked into the site.
+  assert.equal(namedCalls("row(vec![a])", new Set(["row"])).length, 1);
+  assert.ok(referencedNames('radius + r#"raw"#').has("radius"));
+});
+
+test("layout helpers expand to public GPUI, keep their type, and drop collectors", () => {
+  const { code } = replaceLayoutHelpers("row(Size::ALL.iter().map(|s| Button::new(s)).els())");
+  assert.ok(code.startsWith("gpui::div()"));
+  assert.ok(code.includes(".children(Size::ALL.iter().map(|s| Button::new(s)))"));
+  assert.ok(code.trimEnd().endsWith(".into_any_element()"));
+  // A method of the same name is not the helper.
+  assert.equal(replaceLayoutHelpers("table.row(x)").changed, false);
+});
+
+test("page bindings a snippet reads are lifted, transitively and in order", () => {
+  const src = `impl Gallery {
+    pub fn page_x(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
+        fn helper() -> usize { 1 }
+        let base = helper();
+        let clicks = base + self.count;
+        let unused = 3;
+        component_doc_page!("X", "", "", vec![("A", Button::new("a").label(format!("{clicks}")))], cx)
+    }
+}`;
+  const bindings = pageBindings(src, src.indexOf("component_doc_page!"));
+  const lifted = neededBindings('Button::new("a").label(format!("{clicks}"))', bindings);
+  assert.deepEqual(
+    lifted.map((binding) => binding.names),
+    [["helper"], ["base"], ["clicks"]],
+  );
+});
+
+test("shown code may not name gallery-only items", () => {
+  assert.equal(
+    privateReference({ code: "crate::control::specimen_wanted(k, cx)" }),
+    "crate::control::specimen_wanted",
+  );
+  assert.equal(privateReference({ code: "herogpui_core::oklch(1., 0., 0.)" }), "herogpui_core");
+  assert.equal(privateReference({ code: "fn f(cx: &mut Context<'_, Gallery>) {}" }), "Gallery");
+  assert.equal(
+    privateReference({ code: "fn f(cx: &mut Context<'_, Gallery>) {}", context: "view" }),
+    null,
+  );
+  assert.equal(privateReference({ code: "herogpui::core::oklch(1., 0., 0.)" }), null);
 });

@@ -464,12 +464,15 @@ pub(super) fn virtual_users_described() -> Vec<h::ListBoxItem> {
 }
 
 /// The `ToastViewport` mount every application needs once.
-pub(super) const TOAST_SETUP: &str = r#"// Once, in the shell:
-div()
+pub(super) const TOAST_SETUP: &str = r#"// Once, in the shell: a viewport beside the page content.
+let page = div().child("Page content");
+let shell = div()
     .child(page)
-    .child(ToastViewport::new()
-        .placement(ToastPlacement::BottomEnd)
-        .max_visible_toasts(2))
+    .child(
+        ToastViewport::new()
+            .placement(ToastPlacement::BottomEnd)
+            .max_visible_toasts(2),
+    );
 
 // Anywhere, afterwards:
 Toast::new("Saved")
