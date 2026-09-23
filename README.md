@@ -31,20 +31,21 @@ impl Render for MyApp {
 Prerequisites: Rust 1.98 and the platform tooling GPUI needs (Xcode on macOS;
 Wayland/X11 dev packages on Linux; nothing extra on Windows).
 
-`herogpui` is not on crates.io yet. Depend on the git repository:
+`herogpui` is published on crates.io. Add it with `cargo add herogpui`, or:
 
 ```toml
 [dependencies]
-herogpui = { git = "https://github.com/Porabuild/HeroGPUI" }
+herogpui = "0.10"
 ```
 
-That is the whole list. A path dependency works the same way against a local checkout. `herogpui` is a facade: it depends on the matching
+That is the whole list. A git or path dependency on this repository works the same way. `herogpui` is a facade: it depends on the matching
 `gpui-pre` and `gpui-pre-platform` crates and re-exports them, so
 `use herogpui::*;` **is** GPUI and `herogpui::application()` opens the
 platform. Do not add `gpui` or `gpui_platform` to your own `Cargo.toml` — a
 second copy of GPUI is how versions drift apart. (Zed does not publish `gpui`
-under that name, which is why GPUI arrives as `gpui-pre`, zed-industries' own
-prerelease publish of the same sources. The unrelated crates.io `gpui` 0.2.2
+under that name, which is why GPUI arrives as `gpui-pre`, a prerelease publish of the Zed GPUI
+sources by crates.io user huacnlee (Jason Lee, the gpui-kit maintainer).
+HeroGPUI pins it exactly (`=0.3.5`). The unrelated crates.io `gpui` 0.2.2
 crate is a different library.)
 
 Each layer is also reachable by name, and each is a Cargo feature:
@@ -133,25 +134,14 @@ HeroUI spelling wins, and GPUI's keep the `gpui::` path (`gpui::Size`).
 A desktop gallery ships with the library and documents every component:
 
 ```bash
-sh .shots/setup.sh              # once per clone, before any cargo command
 cargo run -p herogpui-gallery   # open the component gallery
 cargo install --path gallery --locked  # install the gallery CLI from this checkout
+cargo install herogpui-gallery  # or install the published gallery CLI
 ```
 
-HeroGPUI patches five published `gpui-pre` packages and checks in only the
-patches, under `docs/upstream/patches/`. The first line above applies them to
-the pinned registry sources under the gitignored `.vendor/`, which
-`[patch.crates-io]` points at. It is idempotent and near-instant when warm, but
-it is not optional: without it cargo stops at `failed to load source for
-dependency` before it builds anything. Consumers of the published crates are
-unaffected -- this is a workspace-local development substitution.
-
-That line is the only manual step, and running it is what removes the need to
-run it again: it points `core.hooksPath` at the repository's `.githooks/`, and
-those hooks re-apply the patches after every checkout, pull, merge and rebase.
-It cannot be automated away entirely, because git deliberately never runs a
-repository's own hooks on `clone` -- so a brand-new clone runs it once, and
-nothing after that does.
+There is no setup step: a fresh clone builds with plain `cargo` against the
+published `gpui-pre` crates, with no `[patch.crates-io]` overrides, vendored
+sources or git hooks.
 
 `HEROGPUI_PAGE` and `HEROGPUI_THEME` select the page and appearance;
 `HEROGPUI_WINDOW_SIZE` sets the window size.

@@ -290,9 +290,8 @@ defaults: Root Directory `web`, Install Command
 
 ## Remaining items
 
-1. **The registry release is not published.** The `herogpui` crates return
-   404 on crates.io, and the install snippets show the git/path dependency.
-   Not a deployment blocker.
+1. **The registry release is published.** The `herogpui` crates are on
+   crates.io (0.9.0 onward), and the install snippets show `herogpui = "0.10"`.
 2. **The Vercel project's git connection is not verified since 2026-08-30.**
    The deploy was CLI-based; if the git integration (Pull Request previews,
    deploy-on-push) is still not set up, deploys remain manual, exactly as in

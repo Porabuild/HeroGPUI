@@ -2,11 +2,13 @@
 
 HeroGPUI is a native Rust/GPUI port of HeroUI v3.2.5. The repository targets
 Rust 1.98 and the published `gpui-pre` crates pinned in `Cargo.toml`
-and `Cargo.lock` at `0.3.5` — zed-industries' own prerelease publish
-of the GPUI sources, 0.3.5 being a snapshot of `zed@d89e9c2`. `gpui-pre`'s
+and `Cargo.lock` at exactly `=0.3.5` — a prerelease publish of the Zed GPUI sources by
+crates.io user huacnlee (Jason Lee, the gpui-kit maintainer), 0.3.5 being a
+snapshot of `zed@d89e9c2`. `gpui-pre`'s
 version numbers are its own; they do not track Zed release tags. The pin is
-a caret, like gpui-kit uses: with no patched forks there is no fork version
-to stay in lockstep with.
+exact (`=0.3.5`), as gpui-kit's is: `gpui-pre` is a 0.x prerelease snapshot,
+so a caret would let any `0.3.x` snapshot of different Zed sources resolve in
+a downstream build. `.shots/package_audit.py` rejects a non-`=` requirement.
 
 ## No setup step: vanilla registry GPUI
 

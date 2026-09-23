@@ -28,16 +28,17 @@ The previous major version used different names, and they do not exist here:
 
 ```toml
 [dependencies]
-herogpui = { git = "https://github.com/Porabuild/HeroGPUI" }
+herogpui = "0.10"
 ```
 
-One dependency, and only one. Not on crates.io yet. `herogpui` is a facade over the GPUI crate
+One dependency, and only one, published on crates.io (`cargo add herogpui`). `herogpui` is a facade over the GPUI crate
 family: it depends on `gpui-pre` `0.3.5` and `gpui-pre-platform` `0.3.5` and
 re-exports them, so `use herogpui::*;` is GPUI and `herogpui::application()`
 opens the platform. Do not emit `gpui` or `gpui_platform` as dependencies of a
 consuming crate, and never emit the unrelated crates.io `gpui` 0.2.2 crate.
-(Zed does not publish `gpui` under that name; `gpui-pre` is zed-industries'
-own prerelease publish of the same sources.)
+(Zed does not publish `gpui` under that name; `gpui-pre` is a prerelease
+publish of the Zed GPUI sources by crates.io user huacnlee, the gpui-kit
+maintainer. HeroGPUI pins it exactly at `=0.3.5`.)
 
 Paths and the Cargo features that carry them:
 

@@ -19,13 +19,15 @@ There is none. An earlier revision carried the GPUI deviations as patches
 under `docs/upstream/retired-patches/`; that mechanism is retired (see `docs/upstream/retired-patches/`), and every
 step below runs on a fresh clone with plain `cargo`.
 
-## Why the GPUI pin is a caret
+## Why the GPUI pin is exact
 
 `[workspace.dependencies]` pins `gpui-pre` and `gpui-pre-platform` at
-`0.3.5`, caret-style like gpui-kit uses. With no fork version to stay in
-lockstep with, compatible `0.3.x` releases resolve normally; `package_audit.py`
-fails the release if the lockfile drifts off the pinned version without the
-manifest moving with it.
+`=0.3.5`, exactly as gpui-kit does. `gpui-pre` is a prerelease publish of the
+Zed GPUI sources by crates.io user huacnlee (Jason Lee, the gpui-kit
+maintainer), and each 0.3.x is a snapshot of different Zed sources, so a
+caret would let a downstream build resolve GPUI code no HeroGPUI release was
+tested against. `package_audit.py` rejects a non-`=` requirement and fails the
+release if the lockfile drifts off the pinned version.
 
 ## One-time setup
 
