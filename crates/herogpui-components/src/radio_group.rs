@@ -75,6 +75,7 @@ impl From<&str> for RadioOption {
 
 /// Field state handed to the root `Radio` and `Radio.Indicator` renderers.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct RadioOptionState {
     pub is_selected: bool,
     pub is_disabled: bool,

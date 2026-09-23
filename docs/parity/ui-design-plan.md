@@ -13,10 +13,12 @@ Bring the Rust components, native gallery, live WASM previews, reference documen
 
 The [official release index](https://heroui.com/en/docs/react/releases) lists **HeroUI React v3.2.5**, released September 8, 2026, as the latest stable release when this plan was prepared. Its [release notes](https://heroui.com/en/docs/react/releases/v3-2-5) identify the recent Select, Tabs, Toast, overlay, and collection changes. The repository already targets that version. This is primarily a completion and correction project, not a dependency upgrade.
 
+Update 2026-09-22: the pin moved to **HeroUI React v3.2.6** (released September 17, 2026). The baseline below records the new target; [the interaction sweep](interaction-sweep.md) logs the upgrade.
+
 Freeze the execution baseline to:
 
-- HeroUI tag `v3.2.5`, commit `5f13f6ed355bdbd5d5f69e5944685438a3591793`.
-- React Aria `3.52.0`, React Stately `3.50.0`, React Aria Components `1.21.0`, with additional inherited packages resolved from that tag's lockfile.
+- HeroUI tag `v3.2.6`, commit `e385ac202b2cdb94b1bf6fa76d32c31c8259cc5e`.
+- React Aria `3.52.1`, React Stately `3.50.0`, React Aria Components `1.21.1`, with additional inherited packages resolved from that tag's lockfile.
 - Rust and the entire `gpui-pre` family as pinned by this workspace; currently Rust 1.98 and `gpui-pre 0.3.5` (caret, registry-vanilla with no forks).
 - HeroUI **React** as the design reference. HeroUI Native, HeroUI Pro, v2 examples, and unreleased main-branch changes do not define this contract.
 
@@ -30,7 +32,7 @@ These are source and recorded-evidence findings, not a new full runtime audit.
 
 | Finding | Consequence for execution |
 |---|---|
-| Components and the website already pin v3.2.5. | Do not spend the first batch repeating the version migration. |
+| Components and the website already pin v3.2.6. | Do not spend the first batch repeating the version migration. |
 | [interaction-sweep.md](interaction-sweep.md) records work on Tag removal, Tabs alignment, Select clearing, Toast APIs, and focus modality. | Read the follow-ups before assigning a feature as missing. Preserve their regression cases. |
 | [interaction-inventory.json](interaction-inventory.json) stores gallery and upstream demo inventories, but its recorded gallery dataset hash differs from the current `rust-examples.json`. | Refresh the inventory and expand sections into specimens before using it as a work queue. |
 | [audit-results.json](audit-results.json) still lists Toast APIs and the Expanded Stack example as missing; the current implementation and gallery contain them. | Re-run the owning audits and repair evidence freshness. Do not implement duplicate Toast APIs based on this snapshot. |
@@ -89,7 +91,7 @@ A specimen needs:
   "component": "Select",
   "part": "Select.Trigger",
   "upstream": {
-    "tag": "v3.2.5",
+    "tag": "v3.2.6",
     "source": "packages/react/src/components/select/select.tsx",
     "selector": "the exact owning selector",
     "sourceSha256": "computed during inventory refresh"
@@ -246,7 +248,7 @@ renderer fork that fixed this for every component at once lives under
 wired into any build. Never edit the registry copy or rely on an unrecorded
 local change: the next GPUI release will replace that copy.
 
-The visual text rule is source-driven as well. HeroUI v3.2.5's Select,
+The visual text rule is source-driven as well. HeroUI v3.2.6's Select,
 Autocomplete and ComboBox value slots use `wrap-break-word`, and collection
 rows retain normal whitespace; they grow under a real constraint rather than
 ellipsizing by default. Keep truncation as an explicit caller-owned option,

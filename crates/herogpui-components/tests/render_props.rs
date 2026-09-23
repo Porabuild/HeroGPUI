@@ -69,10 +69,10 @@ use gpui::{
 };
 use herogpui_components::{
     calendar::{Date, CALENDAR_WIDTH},
-    util::InteractiveState,
     Button, Calendar, CalendarCellState, CalendarState, DateConstraints, DateRangeState, Dropdown,
-    ListBox, ListBoxItem, Menu, MenuItem, RadioGroup, RadioOption, RadioOptionState, RangeCalendar,
-    RangeCalendarCellState, SelectionMode, Tag, TagGroup, VisibleDuration, Weekday,
+    InteractiveState, ListBox, ListBoxItem, Menu, MenuItem, RadioGroup, RadioOption,
+    RadioOptionState, RangeCalendar, RangeCalendarCellState, SelectionMode, Tag, TagGroup,
+    VisibleDuration, Weekday,
 };
 
 use harness::{click, events, open_host, press};
@@ -308,7 +308,7 @@ fn list_box_item_content_tracks_selection_and_cursor(cx: &mut TestAppContext) {
             .into_any_element()
     });
     cx.update(|window, _| window.activate_window());
-    cx.update(|_, cx| herogpui_components::util::set_focus_visible(true, cx));
+    cx.update(|_, cx| herogpui_components::extend::set_focus_visible(true, cx));
     flush_frame(cx);
 
     // The list is the window's one tab stop: Tab focuses the first enabled row,
@@ -1091,7 +1091,7 @@ fn tag_group_tag_content_tracks_hover_press_and_selection(cx: &mut TestAppContex
             .into_any_element()
     });
     cx.update(|window, _| window.activate_window());
-    cx.update(|_, cx| herogpui_components::util::set_focus_visible(true, cx));
+    cx.update(|_, cx| herogpui_components::extend::set_focus_visible(true, cx));
     flush_frame(cx);
 
     // Move the pointer onto chip 0: the slot hears the hover, and the forced

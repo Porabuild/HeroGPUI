@@ -80,7 +80,7 @@ fn slider_host<'a>(
 #[gpui::test]
 fn stock_slider_geometry_is_unchanged(cx: &mut TestAppContext) {
     let cx = slider_host(cx, None);
-    let key_radius = cx.update(|_, cx| f32::from(herogpui_components::util::key_radius(cx)));
+    let key_radius = cx.update(|_, cx| f32::from(herogpui_components::extend::key_radius(cx)));
     assert_corners(
         md_inner_mark(cx),
         [key_radius.min(8.); 4],
@@ -117,7 +117,7 @@ fn stock_menu_row_interval_is_unchanged(cx: &mut TestAppContext) {
 #[gpui::test]
 fn missing_recipe_is_a_noop(cx: &mut TestAppContext) {
     let cx = slider_host(cx, Some("missing"));
-    let key_radius = cx.update(|_, cx| f32::from(herogpui_components::util::key_radius(cx)));
+    let key_radius = cx.update(|_, cx| f32::from(herogpui_components::extend::key_radius(cx)));
     assert_corners(
         md_inner_mark(cx),
         [key_radius.min(8.); 4],
@@ -133,7 +133,7 @@ fn slider_theme_defaults_recipes_and_instance_sx_follow_precedence(cx: &mut Test
             .child(Slider::new("theme-default", 100.))
             .into_any_element()
     });
-    let key_radius = cx.update(|_, cx| f32::from(herogpui_components::util::key_radius(cx)));
+    let key_radius = cx.update(|_, cx| f32::from(herogpui_components::extend::key_radius(cx)));
     assert_corners(
         md_inner_mark(cx),
         [key_radius.min(8.); 4],

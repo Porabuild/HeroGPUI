@@ -4,10 +4,11 @@ import { SITE } from "@/lib/nav";
 import { getCatalog } from "@/lib/catalog";
 import { CtaLink } from "@/components/landing/cta-link";
 import { HeroWasmShowcase } from "@/components/landing/hero-wasm-showcase";
+import { getWasmArtifactVersion } from "@/app/docs/components/[slug]/data";
 import { Link } from "@heroui/react";
 
 const INSTALL_TOML = `[dependencies]
-herogpui = "0.10"`;
+herogpui = "${SITE.crateRequirement}"`;
 
 /**
  * Above the fold: Porabuild positioning, the two CTAs, Cargo.toml snippet,
@@ -76,7 +77,7 @@ export function Hero() {
         </div>
 
         {/* Live WebAssembly specimen gallery instead of static white screenshot */}
-        <HeroWasmShowcase />
+        <HeroWasmShowcase wasmVersion={getWasmArtifactVersion()} />
       </div>
 
       {/* Poratake spec rail: hairline rows of the library's hard numbers. */}

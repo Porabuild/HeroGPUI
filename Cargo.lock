@@ -2646,7 +2646,7 @@ checksum = "fc0fef456e4baa96da950455cd02c081ca953b141298e41db3fc7e36b1da849c"
 
 [[package]]
 name = "herogpui"
-version = "0.10.2"
+version = "0.11.0"
 dependencies = [
  "gpui-pre",
  "gpui-pre-platform",
@@ -2657,7 +2657,7 @@ dependencies = [
 
 [[package]]
 name = "herogpui-components"
-version = "0.10.2"
+version = "0.11.0"
 dependencies = [
  "gpui-pre",
  "herogpui-core",
@@ -2667,19 +2667,41 @@ dependencies = [
  "icu_locale_core",
  "jiff",
  "locale_config",
+ "unicode-segmentation",
  "web-time",
 ]
 
 [[package]]
 name = "herogpui-core"
-version = "0.10.2"
+version = "0.11.0"
 dependencies = [
  "gpui-pre",
 ]
 
 [[package]]
+name = "herogpui-example-form"
+version = "0.11.0"
+dependencies = [
+ "herogpui",
+]
+
+[[package]]
+name = "herogpui-example-hello-button"
+version = "0.11.0"
+dependencies = [
+ "herogpui",
+]
+
+[[package]]
+name = "herogpui-example-theme-switch"
+version = "0.11.0"
+dependencies = [
+ "herogpui",
+]
+
+[[package]]
 name = "herogpui-gallery"
-version = "0.10.2"
+version = "0.11.0"
 dependencies = [
  "gpui-pre",
  "gpui-pre-platform",
@@ -2688,12 +2710,13 @@ dependencies = [
  "herogpui-core",
  "herogpui-theme",
  "prettyplease",
+ "serde_json",
  "syn 2.0.119",
 ]
 
 [[package]]
 name = "herogpui-theme"
-version = "0.10.2"
+version = "0.11.0"
 dependencies = [
  "gpui-pre",
  "herogpui-core",
@@ -2703,7 +2726,7 @@ dependencies = [
 
 [[package]]
 name = "herogpui-web"
-version = "0.10.2"
+version = "0.11.0"
 dependencies = [
  "gpui-pre",
  "gpui-pre-platform",

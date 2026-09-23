@@ -740,7 +740,7 @@ impl RenderOnce for TagGroup {
                     // — plus an `aria-labelledby` pointing at the button and
                     // the row together, which needs the id graph gpui does
                     // not have. The button itself is an RAC `Button`.
-                    .a11y_named(a11y::Role::Button, &a11y::Name::labelled("Remove"))
+                    .a11y_named(a11y::Role::Button, &a11y::Name::labelled(crate::i18n::ui_string(crate::i18n::UiString::Remove, cx)))
                     .group("tag-remove")
                     .flex()
                     .items_center()

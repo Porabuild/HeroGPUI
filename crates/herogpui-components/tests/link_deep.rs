@@ -28,7 +28,7 @@ use gpui::{
     Modifiers, MouseButton, TestAppContext, VisualTestContext,
 };
 use harness::{click, events, open_host, press};
-use herogpui_components::{util::InteractiveState, Link};
+use herogpui_components::{InteractiveState, Link};
 
 // ---------------------------------------------------------------------------
 // Shared plumbing

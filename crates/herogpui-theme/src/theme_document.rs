@@ -439,11 +439,16 @@ fn parse_component(
 ) -> Result<f32, ThemeDocumentError> {
     let percent = part.ends_with('%');
     let number = part.trim_end_matches('%');
-    let value: f32 = number.parse().map_err(|_| ThemeDocumentError::Color {
-        field: field.to_owned(),
-        value: raw.to_owned(),
-        detail: format!("cannot parse {part:?} as a number"),
-    })?;
+    // `f32::from_str` also accepts `NaN` and `inf`; neither is a colour.
+    let value: f32 = number
+        .parse()
+        .ok()
+        .filter(|v: &f32| v.is_finite())
+        .ok_or_else(|| ThemeDocumentError::Color {
+            field: field.to_owned(),
+            value: raw.to_owned(),
+            detail: format!("cannot parse {part:?} as a finite number"),
+        })?;
     if percent || (lightness && value > 1.0) {
         Ok(value / 100.0)
     } else {
@@ -496,6 +501,26 @@ fn parse_hex(field: &str, raw: &str, hex: &str) -> Result<Hsla, ThemeDocumentErr
 mod tests {
     use super::*;
     use herogpui_core::{oklch, with_alpha};
+
+    /// `f32::from_str` accepts `NaN`, `inf` and `infinity`; a theme file is
+    /// untrusted input, so a non-finite component is a parse error rather
+    /// than a colour that poisons every blend derived from it.
+    #[test]
+    fn non_finite_color_components_are_rejected() {
+        for raw in [
+            "oklch(NaN 0.1 250)",
+            "oklch(0.5 inf 250)",
+            "oklch(0.5 0.1 -infinity)",
+            "oklch(0.5 0.1 250 / nan)",
+        ] {
+            let json = format!(r#"{{ "id": "x", "base": "light", "accent": "{raw}" }}"#);
+            let err = ThemeDocument::theme_from_json(&json).unwrap_err();
+            assert!(
+                matches!(err, ThemeDocumentError::Color { .. }),
+                "{raw}: {err}"
+            );
+        }
+    }
 
     #[test]
     fn an_empty_document_is_the_named_base_with_a_new_id() {

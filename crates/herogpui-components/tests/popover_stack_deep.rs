@@ -6,7 +6,7 @@ use std::{cell::Cell, cell::RefCell, rc::Rc, time::Duration};
 
 use gpui::{canvas, point, prelude::*, px, AnyElement, Modifiers, MouseButton, TestAppContext};
 use harness::{click, events, open_host, press};
-use herogpui_components::{util, Button, Popover, Tooltip, TooltipHover};
+use herogpui_components::{__private, Button, Popover, Tooltip, TooltipHover};
 
 fn still() {
     harness::still();
@@ -45,7 +45,7 @@ fn popover_body_text_does_not_inherit_host_line_height(cx: &mut TestAppContext) 
 fn legacy_phase_probe(key: &'static str, open: bool, seen: harness::Events) -> AnyElement {
     canvas(
         move |_, window, cx| {
-            let phase = util::overlay_phase(window, cx, key, open);
+            let phase = __private::overlay_phase(window, cx, key, open);
             seen.borrow_mut().push(format!("{phase:?}"));
         },
         |_, _, _, _| {},
@@ -57,7 +57,7 @@ fn legacy_phase_probe(key: &'static str, open: bool, seen: harness::Events) -> A
 fn explicit_phase_probe(key: &'static str, open: bool, seen: harness::Events) -> AnyElement {
     canvas(
         move |_, window, cx| {
-            let (phase, _) = util::overlay_scope(window, cx, key, open, true);
+            let (phase, _) = __private::overlay_scope(window, cx, key, open, true);
             seen.borrow_mut().push(format!("{phase:?}"));
         },
         |_, _, _, _| {},
@@ -74,7 +74,8 @@ fn custom_exit_phase_probe(
 ) -> AnyElement {
     canvas(
         move |_, window, cx| {
-            let (phase, _) = util::overlay_scope_with_exit(window, cx, key, open, true, exit_ms);
+            let (phase, _) =
+                __private::overlay_scope_with_exit(window, cx, key, open, true, exit_ms);
             seen.borrow_mut().push(format!("{phase:?}"));
         },
         |_, _, _, _| {},
@@ -208,21 +209,21 @@ struct DecliningOutsideSurface {
 
 impl RenderOnce for DecliningOutsideSurface {
     fn render(self, window: &mut gpui::Window, cx: &mut gpui::App) -> impl IntoElement {
-        let (_, token) = util::overlay_scope(
+        let (_, token) = __private::overlay_scope(
             window,
             cx,
             gpui::ElementId::Name("declining-outside-surface".into()),
             true,
             false,
         );
-        let panel = util::dismiss_on_press_outside_with_token(
+        let panel = __private::dismiss_on_press_outside_with_token(
             gpui::div()
                 .id("declining-outside-panel")
                 .absolute()
                 .left(px(100.))
                 .size(px(100.)),
             token,
-            |_, _| util::DismissResult::Declined,
+            |_, _| __private::DismissResult::Declined,
         );
         gpui::div()
             .relative()

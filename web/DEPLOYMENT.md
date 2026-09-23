@@ -131,9 +131,14 @@ Run through these on the production URL:
   trailing slash).
 - `porabuild.com/herogpui/llms.txt` serves `text/plain` — the repo's
   llms.txt, prerendered at build time.
-- A component page (`/herogpui/docs/components/button`) lazily mounts one live
-  GPUI/WASM canvas. Switching the example dropdown updates that same canvas,
-  description and Rust code without creating another iframe.
+- A component page (`/herogpui/docs/components/button`) lists every example
+  (heading, description, code) and lazily mounts one live GPUI/WASM canvas.
+  "Show live" on an example, or a `#rust-<example>` link, switches that same
+  canvas without creating another iframe.
+- The landing page does not fetch the wasm until "Run the live demo" (or a
+  specimen tab) is pressed; toggling the site theme does not restart it.
+- `curl -sI "https://porabuild.com/herogpui/gallery/herogpui_web_bg.wasm?v=<12 hex>"`
+  (the `v` of any embed URL) answers `cache-control: public, max-age=31536000, immutable`.
 - Navigate Docs → Components → a component page: internal navigation stays
   inside the `/herogpui` prefix (it is one zone, so these are soft
   navigations).
@@ -145,124 +150,113 @@ Run through these on the production URL:
 
 Component pages embed the real HeroGPUI gallery — the Rust application
 compiled to wasm — in an iframe (`GalleryFrame`,
-`src/components/preview/gallery-frame.tsx`). Three files make that work;
-they live in `public/gallery/` and are served by the same deployment:
+`src/components/preview/gallery-frame.tsx`; URLs and messages in
+`src/lib/gallery-embed.ts`). Three files make that work; they live in
+`public/gallery/` and are served by the same deployment:
 
 | file | what it is |
 |---|---|
-| `index.html` | the hosting page (loading spinner, error UI, boot script; checked in alongside the bindgen output) |
+| `index.html` | the hosting page (loading spinner, error UI, boot script, message bridge); a copy of `crates/herogpui-web/index.html` |
 | `herogpui_web.js` | `wasm-bindgen` glue |
-| `herogpui_web_bg.wasm` | the application, ~29.0 MiB raw / ~12.5 MiB gzipped (measured locally on the checked-in file) |
+| `herogpui_web_bg.wasm` | the application, ~18 MiB raw / ~5.4 MB brotli |
 
-Keep this as one browser-cached module. The component page defers this
-shared download until its preview nears the viewport and keeps one instance
-alive while examples switch, so navigating the catalogue downloads the
-runtime once instead of once per page.
+Keep this as one browser-cached module. A component page defers the download
+until its preview nears the viewport; the landing page defers it until the
+reader presses "Run the live demo". Either way one instance stays alive:
+examples, components (`story`) and the theme switch over the message bridge
+(`herogpui:preview-section`, `herogpui:set-theme`; the instance answers
+`herogpui:ready` once booted), never by reloading the frame.
+
+**Caching.** Every embed URL carries `?v=<first 12 hex of the artifact
+SHA-256>` (from `src/data/wasm-parity.json`), and `index.html` forwards it
+onto the glue and the `.wasm`. A new build is therefore a new URL, so
+`next.config.ts` serves versioned requests of those two files with
+`Cache-Control: public, max-age=31536000, immutable`; an unversioned request
+(a direct gallery link) keeps the default revalidating policy.
 
 `next.config.ts` maps `/gallery` onto `/gallery/index.html` (public/ has no
-directory-index resolution), so `/gallery` is the default. The checked-in
-artifact therefore renders without environment configuration.
+directory-index resolution), so `/gallery` is the default.
 `NEXT_PUBLIC_GALLERY_URL` is an optional build-time override for hosting the
 artifact at another path or origin; changing it takes effect on the next
 deployment.
 
-The three files are **tracked in git** (alongside `public/shots/`): remote
-builds run `next build` alone — no Rust toolchain, no capture rig — so the
-artifact and the screenshots must ship in the tree. The wasm binary only
-changes when the wasm build is regenerated; rebuilding it means running
-the commands below and committing the result.
+The three files are **tracked in git**: remote builds run `next build` alone
+— no Rust toolchain — so the artifact must ship in the tree. See "Why the
+artifact is committed" below.
 
-Because the artifact lives under the same origin, the embedded component
-follows the site's live light/dark toggle (`GalleryFrame` also passes
-`?theme=` at boot for the first paint). Component previews use
-`?story=button&preview=component&section=Usage&theme=dark`: `story` selects the
-component and `section` selects its one example. Preview mode omits the gallery
-shell and does not construct unrelated examples. The shared wasm binary is
-still downloaded once, lazily when the preview nears the viewport, and then
-cached across component-page navigation. The host then switches examples over
-the `herogpui:preview-section` message bridge, so one page keeps one wasm
-application alive rather than creating an iframe per example.
-
-Known issue fixed: the embed used to point at the bare `/gallery/?story=…`
-form. Production answers that with `308 → /gallery?story=…` (Next strips the
-trailing slash), and the gallery page then imported `./herogpui_web.js`
-relative to `/gallery`, which resolved to `/herogpui_web.js` and 404'd — the
-preview spinner spun forever. The iframe now targets the real file path
-`/gallery/index.html?story=…`, and `index.html` resolves its module through
-an `assetUrl()` helper (strip a trailing `index.html`, ensure a trailing
-slash, then resolve) so both URL forms boot. The `/gallery` rewrite in
-`next.config.ts` is kept for direct deep links.
+Component previews use
+`/gallery/index.html?preview=component&story=button&section=Usage&theme=dark&v=…`:
+`story` selects the component and `section` its example. Preview mode omits
+the gallery shell and does not construct unrelated examples. Point at the
+real file path, not the bare `/gallery/?story=…` form: production answers that
+with `308 → /gallery?story=…` (Next strips the trailing slash), and
+`index.html` resolves its module through an `assetUrl()` helper so both URL
+forms boot.
 
 ### Rebuilding the artifact (Rust side)
 
-The artifact is compiled from this repository's own workspace: `crates/herogpui-web`
-is a normal member of the root `Cargo.toml` workspace, linking the same
-`gallery/src/lib.rs` gallery shell the desktop build uses. There is no second
-checkout and no adaptation table to keep in sync — component sources need no
-wasm-specific code at all. From the repository root:
+The artifact is compiled from this repository's own workspace:
+`crates/herogpui-web` is a normal member of the root `Cargo.toml` workspace,
+linking the same `gallery/src/lib.rs` gallery shell the desktop build uses.
+The recipe is the one the CI `wasm` job runs (`.github/workflows/ci.yml`);
+from the repository root:
 
-```powershell
-rustup target add wasm32-unknown-unknown
-cargo build --target wasm32-unknown-unknown --profile wasm-release -p herogpui-web
-wasm-bindgen --target web --no-typescript --out-dir web\public\gallery `
-  target\wasm32-unknown-unknown\wasm-release\herogpui_web.wasm
+```bash
+rustup toolchain install nightly --profile minimal -t wasm32-unknown-unknown
+cargo +nightly build --locked --target wasm32-unknown-unknown --profile wasm-release -p herogpui-web
+wasm-bindgen --target web --no-typescript --out-dir web/public/gallery \
+  target/wasm32-unknown-unknown/wasm-release/herogpui_web.wasm
+cp crates/herogpui-web/index.html web/public/gallery/index.html
+cd web && pnpm run wasm:manifest
 ```
 
-No `RUSTUP_TOOLCHAIN` override: this builds on `rust-toolchain.toml`'s pinned
-stable. It used to need nightly, because `wasm_thread` — pulled in by the GPUI
-web platform's `multithreaded` feature — opens its `lib.rs` with
-`#![feature(stdarch_wasm_atomic_wait)]`, which stable rejects with
-`error[E0554]`. That feature is now off in the forked `gpui-pre-web` manifest's
-`default` list (the only place it can be switched) -- a `default = []` hunk in
-`docs/upstream/patches/gpui-pre-web-0.3.3.patch`, which
-`python3 .shots/gpui_patches.py --materialize` applies into
-`.vendor/gpui-pre-web-0.3.3/Cargo.toml` before the build. Run that command
-first; nothing here compiles without it. Nothing was using the feature:
-the app starts with `single_threaded_web()`, and web workers over shared wasm
-memory need a cross-origin-isolated context that GitHub Pages does not give.
-Never set a `RUSTFLAGS` environment variable for this build:
-`.cargo/config.toml`'s `[target.wasm32-unknown-unknown]` table already sets
-`rustflags = []`, and a `RUSTFLAGS` env var replaces rather than appends to it.
+- **`+nightly` is required.** Vanilla `gpui-pre-web` enables its
+  `multithreaded` feature by default, which pulls in `wasm_thread`, whose
+  `lib.rs` opens with `#![feature]`; stable fails with `error[E0554]`. No
+  downstream `default-features = false` edge can turn that default off (cargo
+  unions feature sets). Everything native stays on `rust-toolchain.toml`'s
+  pinned stable. There is no patch or materialization step: the retired fork
+  lives under `docs/upstream/retired-patches/` for the upstream-PR effort only.
+- **The multi-threaded platform is unused.** The app starts with
+  `gpui_platform::single_threaded_web()`; web workers over shared wasm memory
+  need a cross-origin-isolated context this deployment does not provide.
+- **Never set `RUSTFLAGS`.** `.cargo/config.toml`'s
+  `[target.wasm32-unknown-unknown]` table sets `rustflags = []` deliberately
+  (a plain, non-shared-memory wasm that renders without COOP/COEP headers on
+  any ancestor page), and the environment variable replaces that list.
+- **`wasm-bindgen` CLI = the crate in `Cargo.lock`** (0.2.127 when written); a
+  mismatched CLI refuses the binary with a descriptor-schema error.
+- **The app is started with `run_embedded`** and its `ApplicationHandle`
+  stored (`crates/herogpui-web/src/lib.rs`); plain `run` tears the canvas down
+  when the launch callback returns.
 
-Copy `index.html` from `crates/herogpui-web/` alongside (the bindgen output
-only produces the two `herogpui_web.*` files). The `wasm-bindgen` CLI version
-must match the `wasm-bindgen` crate in `Cargo.lock` exactly (0.2.127 when
-written) — a mismatched CLI refuses the binary.
-Then, from `web/`, regenerate the manifest with `pnpm run wasm:manifest`,
-which writes both `wasm-sections.json` (the example headings compiled into
-the artifact) and `wasm-parity.json` (the artifact hash used to cache-bust the
-live embed) from the single native gallery source
-(`gallery/src/pages/components/`) — there is only one tree now, so there is
-no native/wasm drift to reconcile.
+`pnpm run wasm:manifest` writes `src/data/wasm-sections.json` (the example
+headings compiled into the artifact) and `src/data/wasm-parity.json`, which
+pins the artifact and glue bytes, every example body, and a hash of every
+wasm build input (the component/theme/core/facade/web/gallery sources, the
+workspace manifests and the lockfile). `pnpm run extract:check` (CI's `web`
+job) recomputes all of it, so a Rust change that invalidates the committed
+artifact fails CI until the artifact is rebuilt. The CI `wasm` job also builds
+the artifact and runs `wasm-bindgen` on every PR.
 
-A `wasm` job in `.github/workflows/ci.yml` builds this artifact and runs
-`wasm-bindgen` on every PR, and it is in the final `ci` gate's `needs:` list,
-so a broken build fails CI rather than only surfacing at a manual rebuild.
+### Why the artifact is committed
 
-Two load-bearing details on the Rust side, both verified empirically:
-
-- **This repository's `.cargo/config.toml` pins `rustflags = []` for the wasm
-  target — deliberately.** This mirrors `longbridge/gpui-component`'s own
-  `story-web` config and produces a *plain* (non-shared-memory) wasm. The
-  alternative — the shared-memory/atomics build copied from `gpui_web`'s
-  `hello_web` example — imports a `SharedArrayBuffer`-backed memory, which
-  browsers only grant inside a cross-origin-isolated context, and that
-  requirement inherits to *every ancestor page*: the docs site, and the
-  porabuild.com page mounting it. Verified: the shared-memory build never
-  renders under plain hosting (canvas stuck at 1×1); the plain build
-  renders with no isolation headers anywhere. Do not reintroduce the
-  atomics flags.
-- **The app must be started with `run_embedded` and its
-  `ApplicationHandle` stored** (`crates/herogpui-web/src/lib.rs`). Plain
-  `run` lets the whole application — canvas included — tear down the
-  moment the launch callback returns; that was the original "canvas never
-  paints" bug.
+The artifact stays in git for now. Building it only in CI and deploying from
+CI would need a deploy workflow with Vercel credentials (none are configured
+in this repository), and the project's current deploys are CLI deploys from a
+checkout; removing the file from the tree before a CI deploy exists would
+publish component pages with no live preview. The drift guard above keeps the
+committed file honest meanwhile. Moving it out is a follow-up: a workflow that
+builds it (the `wasm` job already does), uploads it as an artifact, and runs
+`vercel build` + `vercel deploy --prebuilt` with `VERCEL_TOKEN`,
+`VERCEL_ORG_ID` and `VERCEL_PROJECT_ID` secrets, validating the manifest
+against the freshly built bytes. History is not rewritten.
 
 ### Verifying the embed
 
-1. `pnpm dev` with `NEXT_PUBLIC_GALLERY_URL=/gallery` (or `.env.local`),
-   open a component page, and let the preview scroll into view: the
-   "HeroGPUI / WebAssembly" frame boots the gallery.
+1. `pnpm dev`, open a component page, and let the preview scroll into view:
+   the "HeroGPUI / WebAssembly" frame boots the gallery. "Show live" on a
+   later example switches it without a reload.
 2. Toggle the site theme: the embedded gallery follows live.
 3. `http://localhost:3000/gallery/index.html?story=<slug>` directly: the gallery
    fills the tab, deep-linked to that component.
@@ -291,7 +285,7 @@ defaults: Root Directory `web`, Install Command
 ## Remaining items
 
 1. **The registry release is published.** The `herogpui` crates are on
-   crates.io (0.9.0 onward), and the install snippets show `herogpui = "0.10"`.
+   crates.io (0.9.0 onward), and the install snippets show `herogpui = "0.11"`.
 2. **The Vercel project's git connection is not verified since 2026-08-30.**
    The deploy was CLI-based; if the git integration (Pull Request previews,
    deploy-on-push) is still not set up, deploys remain manual, exactly as in
@@ -306,8 +300,8 @@ defaults: Root Directory `web`, Install Command
 Deliberately not created. Everything Vercel needs for this project — Root
 Directory, framework preset, install/build commands, Node version,
 environment variables — is settable in the dashboard, and the settings that
-truly affect behaviour in code are already in `next.config.ts` (security
-headers) or the environment (`basePath`). The multi-zone mount lives in the
+truly affect behaviour in code are already in `next.config.ts` (security and
+artifact cache headers) or the environment (`basePath`). The multi-zone mount lives in the
 **parent** project's `next.config.ts`, which no `vercel.json` here could
 express. A `vercel.json` would only duplicate dashboard state that can
 drift from it. If the team later wants the project settings version-controlled,

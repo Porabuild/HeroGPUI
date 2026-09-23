@@ -2096,7 +2096,7 @@ fn input_height_replaces_the_field_height_and_defaults_to_it(cx: &mut TestAppCon
     assert!(
         near(
             default_box.size.height,
-            f32::from(herogpui_components::util::FIELD_HEIGHT)
+            f32::from(herogpui_components::extend::FIELD_HEIGHT)
         ),
         "an untouched field must stay `util::FIELD_HEIGHT` tall, got {default_box:?}"
     );
@@ -2106,7 +2106,7 @@ fn input_height_replaces_the_field_height_and_defaults_to_it(cx: &mut TestAppCon
     );
     assert!(
         default_box.size.height - short_box.size.height
-            == herogpui_components::util::FIELD_HEIGHT - px(SHORT),
+            == herogpui_components::extend::FIELD_HEIGHT - px(SHORT),
         "the only difference between the two boxes must be the requested \
          height delta: default={default_box:?} short={short_box:?}"
     );
@@ -2366,7 +2366,7 @@ fn time_field_box_builders_match_the_input_contract(cx: &mut TestAppContext) {
     assert!(
         near(
             default_box.size.height,
-            f32::from(herogpui_components::util::FIELD_HEIGHT)
+            f32::from(herogpui_components::extend::FIELD_HEIGHT)
         ),
         "an untouched TimeField must stay `util::FIELD_HEIGHT` tall, got {default_box:?}"
     );
@@ -2457,7 +2457,7 @@ fn date_field_box_builders_match_the_input_contract(cx: &mut TestAppContext) {
     assert!(
         near(
             px(default_offset),
-            (f32::from(herogpui_components::util::FIELD_HEIGHT) - 10.) / 2.
+            (f32::from(herogpui_components::extend::FIELD_HEIGHT) - 10.) / 2.
         ),
         "an untouched DateField must stay `util::FIELD_HEIGHT` tall, got {default_probe:?}"
     );
@@ -2521,7 +2521,7 @@ fn number_field_height_replaces_the_group_and_inner_field(cx: &mut TestAppContex
     assert!(
         near(
             default_box.size.height,
-            f32::from(herogpui_components::util::FIELD_HEIGHT)
+            f32::from(herogpui_components::extend::FIELD_HEIGHT)
         ),
         "an untouched NumberField must stay `util::FIELD_HEIGHT` tall, got {default_box:?}"
     );
@@ -2531,7 +2531,7 @@ fn number_field_height_replaces_the_group_and_inner_field(cx: &mut TestAppContex
     );
     assert!(
         default_box.size.height - short_box.size.height
-            == herogpui_components::util::FIELD_HEIGHT - px(SHORT),
+            == herogpui_components::extend::FIELD_HEIGHT - px(SHORT),
         "the only difference between the two groups must be the requested \
          height delta: default={default_box:?} short={short_box:?}"
     );
@@ -2593,7 +2593,7 @@ fn color_field_box_builders_cover_both_render_paths(cx: &mut TestAppContext) {
     assert!(
         near(
             static_box.size.height,
-            f32::from(herogpui_components::util::FIELD_HEIGHT)
+            f32::from(herogpui_components::extend::FIELD_HEIGHT)
         ),
         "an untouched static ColorField must stay `util::FIELD_HEIGHT` tall, \
          got {static_box:?}"
@@ -2617,7 +2617,7 @@ fn color_field_box_builders_cover_both_render_paths(cx: &mut TestAppContext) {
     assert!(
         near(
             edit_default.size.height,
-            f32::from(herogpui_components::util::FIELD_HEIGHT)
+            f32::from(herogpui_components::extend::FIELD_HEIGHT)
         ),
         "the editable ColorField must inherit the stock Input height, got \
          {edit_default:?}"
@@ -2680,7 +2680,7 @@ fn search_field_box_builders_reach_the_inner_field(cx: &mut TestAppContext) {
     assert!(
         near(
             default_box.size.height,
-            f32::from(herogpui_components::util::FIELD_HEIGHT)
+            f32::from(herogpui_components::extend::FIELD_HEIGHT)
         ),
         "an untouched SearchField must stay `util::FIELD_HEIGHT` tall, got {default_box:?}"
     );
@@ -2789,7 +2789,7 @@ fn input_group_height_replaces_the_group_and_inner_field(cx: &mut TestAppContext
     assert!(
         near(
             default.size.height,
-            f32::from(herogpui_components::util::FIELD_HEIGHT)
+            f32::from(herogpui_components::extend::FIELD_HEIGHT)
         ),
         "an untouched group must keep the 36px floor, got {default:?}"
     );

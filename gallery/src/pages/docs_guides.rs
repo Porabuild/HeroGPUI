@@ -145,7 +145,7 @@ impl Gallery {
                         ),
                         mapping(
                             "A bigger corner",
-                            "Radius: `util::soft_radius(cx)` and its siblings, one per radius \
+                            "Radius: `extend::soft_radius(cx)` and its siblings, one per radius \
                              step. There is no single control radius; each component names its \
                              own.",
                             cx,
@@ -386,7 +386,7 @@ impl Gallery {
                     stack(vec![para(
                         "The tokens, the colour maths and the motion curves are public. A \
                           component built outside this crate can read `cx.colors()`, ask \
-                          `util::field_radius(cx)` for its corners and animate on \
+                          `extend::field_radius(cx)` for its corners and animate on \
                           `Motion::LIST_IN`, and it will match everything shipped here.",
                         cx,
                     )]),
@@ -495,7 +495,7 @@ herogpui             // umbrella re-export
 
 // Read a token without touching a component:
 let accent = cx.role(Color::Accent).color;
-let radius = herogpui::components::util::field_radius(cx);"#;
+let radius = herogpui::extend::field_radius(cx);"#;
 
 const DP_CUSTOM: &str = r#"// Override one base token; every derived value follows.
 let violet = Theme::builder("violet", Theme::light())

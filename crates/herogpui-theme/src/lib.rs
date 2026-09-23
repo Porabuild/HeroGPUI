@@ -12,6 +12,8 @@ mod semantic;
 mod theme;
 #[cfg(feature = "serde")]
 mod theme_document;
+#[cfg(feature = "serde")]
+mod theme_registry;
 
 pub use components::*;
 pub use layout::*;
@@ -21,4 +23,8 @@ pub use theme::*;
 #[cfg(feature = "serde")]
 pub use theme_document::{
     ColorPair, RoleOverride, Roles, SurfaceLevels, ThemeDocument, ThemeDocumentError,
+};
+#[cfg(feature = "serde")]
+pub use theme_registry::{
+    load_themes_dir, presets, register_theme_json, ThemeLoadError, THEME_SCHEMA,
 };

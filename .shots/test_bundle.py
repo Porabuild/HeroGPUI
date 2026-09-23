@@ -21,7 +21,7 @@ class BundleTests(unittest.TestCase):
         self.addCleanup(self.env.stop)
 
     def archive(self, body):
-        with tarfile.open(self.root / 'heroui-css-v3.2.5.tar.gz', 'w:gz') as archive:
+        with tarfile.open(self.root / 'heroui-css-v3.2.6.tar.gz', 'w:gz') as archive:
             entry = tarfile.TarInfo('tag.css')
             entry.size = len(body)
             archive.addfile(entry, io.BytesIO(body))
@@ -56,7 +56,7 @@ class BundleTests(unittest.TestCase):
         path = self.root / 'docs.txt'
         with patch.dict(os.environ):
             os.environ.pop('HEROUI_BUNDLE_UNPINNED', None)
-            for release in ('v3.2.4', 'v3.2.5'):
+            for release in ('v3.2.5', 'v3.2.6'):
                 path.write_text('## Latest Release\n\n### ' + release)
                 if release == module.PINNED_RELEASE:
                     self.assertEqual(module._verify(str(path)), str(path))

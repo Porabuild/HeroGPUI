@@ -1,6 +1,6 @@
 """The pinned HeroUI documentation bundle every prop and prose audit reads.
 
-The repository ports HeroUI v3.2.5. `heroui.com/react/llms-full.txt` serves the
+The repository ports HeroUI v3.2.6. `heroui.com/react/llms-full.txt` serves the
 `v3` *branch*, not that tag, so reading it live measures the port against
 whatever upstream shipped most recently. Nine audits did exactly that: the day
 HeroUI publishes v3.3, they would quietly start reporting gaps against a
@@ -28,7 +28,7 @@ import shutil
 import sys
 import tarfile
 
-PINNED_RELEASE = 'v3.2.5'
+PINNED_RELEASE = 'v3.2.6'
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 ARCHIVE = os.path.join(_HERE, 'heroui-bundle.txt.gz')
@@ -91,11 +91,11 @@ def read():
     return io.open(resolve(), encoding='utf-8', errors='replace').read()
 
 
-# The v3.2.5 component stylesheets, vendored the same way and for the same
+# The v3.2.6 component stylesheets, vendored the same way and for the same
 # reason: design_audit, anim_audit and anatomy_audit all read them, and an
 # empty cache does not read as "no findings" in any of the three -- anim_audit
 # reported 22 phantom motion mismatches against one.
-CSS_ARCHIVE = os.path.join(_HERE, 'heroui-css-v3.2.5.tar.gz')
+CSS_ARCHIVE = os.path.join(_HERE, 'heroui-css-v3.2.6.tar.gz')
 # Separate releases and archive revisions, including different worktrees.
 # An existing unversioned cache must never satisfy a newly pinned contract.
 if os.path.isfile(CSS_ARCHIVE):

@@ -14,10 +14,8 @@
 # also need the executable bit in the index (mode 100755); git silently ignores
 # a hook it cannot execute.
 .githooks/* text eol=lf
-# The GPUI fork patches are a build input now, not just an audit artifact:
-# `.shots/gpui_patches.py --materialize` applies them before every cargo
-# command on all three CI hosts. `* text=auto` above would hand the Windows
-# runner CRLF copies, so pin them the way every other source file is pinned.
+# The retired GPUI fork patches (docs/upstream/retired-patches/) are kept for
+# the upstream-PR effort; LF keeps them applicable from any checkout.
 *.patch text eol=lf
 # Oxfmt checks LF endings, including on Windows checkouts.
 web/**/*.ts text eol=lf
@@ -27,7 +25,7 @@ web/**/*.json text eol=lf
 web/**/*.css text eol=lf
 # The pinned HeroUI demo-source archive is a build input for the parity job.
 # `* text=auto` must not rewrite it on Windows the way it would a text file.
-.shots/heroui-demos-v3.2.5.tar.gz binary
+.shots/heroui-demos-v3.2.6.tar.gz binary
 # Hash-pinned files: checked out byte-identical so SHA-256 pins match on
 # every OS. `* text=auto` would convert these to CRLF on Windows.
 web/public/gallery/*.js -text

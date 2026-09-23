@@ -962,7 +962,7 @@ fn tabs_keyboard_entry_scrolls_selected_tab_into_view(cx: &mut TestAppContext) {
 
     flush_frame(cx);
     flush_frame(cx);
-    cx.update(|_, cx| herogpui_components::util::set_focus_visible(true, cx));
+    cx.update(|_, cx| herogpui_components::extend::set_focus_visible(true, cx));
     press(cx, "tab");
     flush_frame(cx);
 

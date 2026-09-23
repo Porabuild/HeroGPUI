@@ -19,7 +19,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from component_source import list_modules, read_module, read_path
 from bundle import resolve as _resolve_bundle
 
-# The pinned v3.2.5 bundle. See .shots/bundle.py: reading upstream live would
+# The pinned v3.2.6 bundle. See .shots/bundle.py: reading upstream live would
 # measure this port against whatever HeroUI shipped most recently.
 BUNDLE = _resolve_bundle()
 SRC = 'crates/herogpui-components/src/'
@@ -493,6 +493,7 @@ WONT_PORT = {
 # same module (CheckboxGroup beside Checkbox, DatePicker beside DateField) does
 # not, or a gap on one would be hidden by the other.
 COMPANIONS = {
+    'AvatarGroup': ['AvatarGroupCount'],
     'Breadcrumbs': ['Crumb'],
     'Toast': ['ToastViewport', 'ToastStore'],
     'ListBox': ['ListBoxItem'],
@@ -577,6 +578,7 @@ PART_STRUCTS = {
     'Autocomplete.Popover': ['Autocomplete'],
     'Avatar.Fallback': ['Avatar'],
     'Avatar.Image': ['Avatar'],
+    'AvatarGroup.Count': ['AvatarGroupCount'],
     'Breadcrumbs.Item': ['Crumb'],
     'Calendar.Cell': ['Calendar'],
     # The Year Picker parts are drawn by the monolithic calendar, and the root
@@ -696,7 +698,7 @@ FILES = {
     'NumberField': 'number_field.rs', 'RadioGroup': 'radio_group.rs',
     'SearchField': 'input.rs', 'TextArea': 'textarea.rs', 'TextField': 'input.rs',
     'Card': 'card.rs', 'Separator': 'separator.rs', 'Surface': 'surface.rs',
-    'Toolbar': 'toolbar.rs', 'Avatar': 'avatar.rs', 'Accordion': 'accordion.rs',
+    'Toolbar': 'toolbar.rs', 'Avatar': 'avatar.rs', 'AvatarGroup': 'avatar_group.rs', 'Accordion': 'accordion.rs',
     'Breadcrumbs': 'breadcrumbs.rs', 'Disclosure': 'disclosure.rs',
     'DisclosureGroup': 'disclosure.rs', 'Link': 'link.rs',
     'Pagination': 'pagination.rs', 'Tabs': 'tabs.rs', 'AlertDialog': 'alert_dialog.rs',

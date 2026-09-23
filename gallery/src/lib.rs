@@ -13,6 +13,8 @@ pub mod assets;
 pub mod control;
 mod highlight;
 pub mod pages;
+#[cfg(test)]
+mod snippet_check;
 
 use crate::pages::Page;
 

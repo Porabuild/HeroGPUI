@@ -31,7 +31,8 @@ use std::rc::Rc;
 
 use gpui::{prelude::*, px, TestAppContext};
 use herogpui_components::{
-    util::FIELD_HEIGHT, Button, ListBox, ListBoxItem, Menu, MenuItem, SelectionMode, Tag, TagGroup,
+    extend::FIELD_HEIGHT, Button, ListBox, ListBoxItem, Menu, MenuItem, SelectionMode, Tag,
+    TagGroup,
 };
 
 use harness::{click, events, open_host, press};

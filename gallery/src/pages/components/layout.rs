@@ -128,7 +128,7 @@ impl Gallery {
                             .child(
                                 gpui::div()
                                     .size(px(56.))
-                                    .rounded(h::util::soft_radius(cx))
+                                    .rounded(h::extend::soft_radius(cx))
                                     .bg(cx.colors().default.color),
                             )
                             .child(
@@ -241,8 +241,43 @@ impl Gallery {
                 ),
                 (
                     "With Content",
-                    col(vec![h::Separator::new()
-                        .child(gpui::div().text_size(px(12.)).child("OR"))
+                    // v3's separator is childless: the example separates
+                    // content blocks with a `my-4` rule between them.
+                    col(vec![gpui::div()
+                        .max_w(px(448.))
+                        .children(
+                            [
+                                ("Set Up Notifications", "Receive account activity updates"),
+                                (
+                                    "Set up Browser Extension",
+                                    "Connect your browser to your account",
+                                ),
+                                ("Mint Collectible", "Create your first collectible"),
+                            ]
+                            .into_iter()
+                            .enumerate()
+                            .map(|(index, (title, subtitle))| {
+                                gpui::div()
+                                    .child(
+                                        gpui::div()
+                                            .flex()
+                                            .flex_col()
+                                            .child(
+                                                gpui::div()
+                                                    .text_size(px(14.))
+                                                    .font_weight(gpui::FontWeight::MEDIUM)
+                                                    .child(title),
+                                            )
+                                            .child(
+                                                gpui::div()
+                                                    .text_size(px(14.))
+                                                    .text_color(cx.colors().muted)
+                                                    .child(subtitle),
+                                            ),
+                                    )
+                                    .when(index < 2, |el| el.child(h::Separator::new().my(px(16.))))
+                            }),
+                        )
                         .into_any_element()]),
                 ),
                 (

@@ -4,8 +4,8 @@
 //! including when composed inside a clipped or positioned container.
 
 use gpui::{
-    prelude::*, px, AnyElement, App, ClickEvent, IntoElement, ParentElement, Pixels, RenderOnce,
-    SharedString, Styled, Window,
+    prelude::*, px, AnyElement, App, IntoElement, ParentElement, Pixels, RenderOnce, SharedString,
+    Styled, Window,
 };
 use herogpui_core::{element_id, Backdrop};
 use herogpui_theme::ActiveTheme;
@@ -99,7 +99,27 @@ pub enum ModalScroll {
     Outside,
 }
 
-pub type OnClose = std::sync::Arc<dyn Fn(&ClickEvent, &mut Window, &mut App) + 'static>;
+/// Why an overlay dialog asked to close — the payload of [`Modal::on_close`]
+/// and `Drawer::on_close`.
+///
+/// Every dismissal path reports its own reason, so a caller can, say, confirm
+/// unsaved changes on a backdrop press but not on an explicit close button.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum DismissReason {
+    /// A composed close trigger (`ModalCloseTrigger`, `DrawerCloseTrigger`)
+    /// was pressed, by pointer or keyboard.
+    CloseButton,
+    /// Escape was pressed while the dialog was the topmost overlay.
+    Escape,
+    /// A press landed outside the panel, on the backdrop.
+    Backdrop,
+    /// A drawer was dragged past its dismissal threshold.
+    Drag,
+}
+
+/// The dismissal callback shape shared by the dialog family.
+pub type OnClose = std::sync::Arc<dyn Fn(&DismissReason, &mut Window, &mut App) + 'static>;
 
 /// `onOpenChange` — every overlay reports dismissal through this shape.
 pub type OnOpenChange = std::sync::Arc<dyn Fn(&bool, &mut Window, &mut App) + 'static>;
@@ -297,7 +317,9 @@ macro_rules! close_trigger_part {
                         let button = crate::close_button::CloseButton::new(
                             herogpui_core::element_id::indexed(&owner, $button_part, self.slot),
                         )
-                        .on_press(move |ev, window, cx| on_dismiss(ev, window, cx));
+                        .on_press(move |_, window, cx| {
+                            on_dismiss(&crate::modal::DismissReason::CloseButton, window, cx)
+                        });
                         if children.is_empty() {
                             button.into_any_element()
                         } else {
@@ -508,8 +530,8 @@ impl Modal {
 
     /// Enables the dismissal paths (`onClose`): the composed close trigger,
     /// Escape and the backdrop all report through it, alongside
-    /// [`Modal::on_open_change`].
-    pub fn on_close(mut self, f: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static) -> Self {
+    /// [`Modal::on_open_change`]. The [`DismissReason`] says which path fired.
+    pub fn on_close(mut self, f: impl Fn(&DismissReason, &mut Window, &mut App) + 'static) -> Self {
         self.on_close = Some(std::sync::Arc::new(f));
         self
     }
@@ -562,9 +584,9 @@ impl RenderOnce for Modal {
         let dismiss: Option<OnClose> = match (self.on_close.clone(), self.on_open_change.clone()) {
             (None, None) => None,
             (close, open_change) => Some(crate::util::shared(
-                move |ev: &ClickEvent, window: &mut Window, cx: &mut App| {
+                move |reason: &DismissReason, window: &mut Window, cx: &mut App| {
                     if let Some(f) = &close {
-                        f(ev, window, cx);
+                        f(reason, window, cx);
                     }
                     if let Some(f) = &open_change {
                         f(&false, window, cx);
@@ -572,9 +594,6 @@ impl RenderOnce for Modal {
                 },
             )),
         };
-        // `ClickEvent::default()` is the Keyboard variant, so a caller
-        // inspecting the event sees a keyboard activation, which is what this
-        // is.
         let keyboard_dismiss = if self.is_keyboard_dismiss_disabled {
             None
         } else {
@@ -791,7 +810,7 @@ impl RenderOnce for Modal {
                     panel,
                     dismissal_token.clone(),
                     move |window, cx| {
-                        on_close(&ClickEvent::default(), window, cx);
+                        on_close(&DismissReason::Backdrop, window, cx);
                         crate::util::DismissResult::Handled
                     },
                 )
@@ -860,7 +879,7 @@ impl RenderOnce for Modal {
                 overlay,
                 dismissal_token,
                 move |window, cx| {
-                    on_escape(&ClickEvent::default(), window, cx);
+                    on_escape(&DismissReason::Escape, window, cx);
                     crate::util::DismissResult::Handled
                 },
             );

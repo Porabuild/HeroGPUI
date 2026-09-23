@@ -57,7 +57,7 @@ artifact at another path or origin.
 ## Known open items
 
 - The crates are published on crates.io; the install instructions show
-  `herogpui = "0.10"`.
+  `herogpui = "0.11"`.
 - Vercel git connection (preview deploys, deploy-on-push) and the
   parent-zone rewrite commit in `Porabuild/website` are not verified since
   the 2026-08-30 CLI deploy; see `DEPLOYMENT.md` "Remaining items".

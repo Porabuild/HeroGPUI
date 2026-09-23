@@ -382,7 +382,7 @@ fn apply(
             }
             if request.reset {
                 window.blur(cx);
-                herogpui_components::util::set_focus_visible(false, cx);
+                herogpui_components::extend::set_focus_visible(false, cx);
                 gallery.toast_promises.clear();
                 Gallery::reset_shared_demo_state(cx);
                 window.replace_root(cx, |_, cx| {
@@ -853,7 +853,7 @@ mod tests {
             crate::app::bump_toast_closed(cx);
             herogpui_components::Toast::new("Old toast").push(None, cx);
             herogpui_components::Toast::new("Another old toast").push(None, cx);
-            herogpui_components::util::set_focus_visible(true, cx);
+            herogpui_components::extend::set_focus_visible(true, cx);
             window
                 .update(cx, |gallery, window, cx| {
                     assert_eq!(gallery.toasts.read(cx).visible_toasts(10).len(), 2);
@@ -879,7 +879,7 @@ mod tests {
             assert!(gallery.input_name.read(cx).value().is_empty());
             assert_eq!(crate::app::toasts_closed(cx), 0);
             assert!(gallery.toasts.read(cx).visible_toasts(10).is_empty());
-            assert!(!herogpui_components::util::focus_visible(cx));
+            assert!(!herogpui_components::extend::focus_visible(cx));
         });
         // Even a late callback which keeps the old owner alive cannot change
         // the replacement. A field-only reset would share that owner.

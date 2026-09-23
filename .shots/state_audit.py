@@ -45,7 +45,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from component_source import list_modules, module_exists, read_module, read_path
 from bundle import resolve as _resolve_bundle
 
-# The pinned v3.2.5 bundle. See .shots/bundle.py: reading upstream live would
+# The pinned v3.2.6 bundle. See .shots/bundle.py: reading upstream live would
 # measure this port against whatever HeroUI shipped most recently.
 BUNDLE = _resolve_bundle()
 SRC = 'crates/herogpui-components/src/'

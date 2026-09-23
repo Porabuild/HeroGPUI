@@ -18,6 +18,7 @@ use crate::a11y::{self, A11y as _};
 
 /// The values HeroUI passes to a Disclosure children render function.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct DisclosureRenderState {
     pub is_expanded: bool,
     pub is_disabled: bool,

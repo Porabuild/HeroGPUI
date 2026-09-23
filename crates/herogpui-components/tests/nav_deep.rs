@@ -69,11 +69,10 @@
 //!   system (`Window::text_system().shape_line`) at the link's own weight —
 //!   `.breadcrumbs__link` is `font-medium`, so MEDIUM — because a click
 //!   target's x depends on the label's advance width in the renderer's font.
-//!   The label line is `leading-5` = 20px, so its centre y is 10. Each item
-//!   row is `px-0.5` (2px) around a `px-0.5` (2px) link plus `gap-0.5` (2px)
-//!   and a 12px separator slot, so a row is `w_label + 22` wide, a label
-//!   starts 4px into its row, and rows sit flush (the root has no gap and no
-//!   wrap).
+//!   The label line is `leading-5` = 20px, so its centre y is 10. Since
+//!   v3.2.6 an item row is the unpadded link plus `gap-1` (4px) and a 12px
+//!   separator slot, so a row is `w_label + 16` wide, a label starts flush in
+//!   its row, and the root gaps rows by `gap-1.5` (6px) without wrapping.
 //! - Pagination: `size-md` cells are 32px squares at y 0..32 (centre y 16); a
 //!   nav button is `px-2.5` (10px each side) around a 14px glyph = 34px; the
 //!   row gaps items by `gap-1` (4px). Prev spans x 0..34 (centre 17), page
@@ -1138,15 +1137,15 @@ fn breadcrumbs_disabled_answers_no_click(cx: &mut TestAppContext) {
 
     // v3: `isDisabled` "disables all links". The labels are measured with the
     // window's own text system at the link's MEDIUM weight; a label centres
-    // at (4 + w/2, 10) inside its row (2px row padding + 2px link padding on
-    // a 20px line) and the second row starts at w_build + 22 (2px paddings +
-    // 2px gap + 12px separator). Neither may record.
+    // at (w/2, 10) inside its unpadded row on a 20px line, and the second row
+    // starts at w_build + 22 (4px gap + 12px separator + 6px root gap).
+    // Neither may record.
     let w_build =
         cx.update(|window, _| text_width(window.text_system(), "Build", 14.0, FontWeight::MEDIUM));
     let w_deploy =
         cx.update(|window, _| text_width(window.text_system(), "Deploy", 14.0, FontWeight::MEDIUM));
-    click(cx, 4. + w_build / 2., 10.);
-    click(cx, w_build + 26. + w_deploy / 2., 10.);
+    click(cx, w_build / 2., 10.);
+    click(cx, w_build + 22. + w_deploy / 2., 10.);
     assert!(
         recorded.borrow().is_empty(),
         "a disabled breadcrumb must not answer a press on any non-last crumb"
@@ -1265,7 +1264,7 @@ fn breadcrumbs_plain_crumb_is_a_focusable_link_that_fires_nothing(cx: &mut TestA
     press(cx, "tab");
     cx.update(|_, cx| {
         assert!(
-            herogpui_components::util::focus_visible(cx),
+            herogpui_components::extend::focus_visible(cx),
             "a plain span-link crumb must take keyboard focus like any other \
              link"
         );
@@ -1355,13 +1354,13 @@ fn breadcrumbs_href_crumb_opens_its_url_without_a_callback(cx: &mut TestAppConte
         cx.update(|window, _| text_width(window.text_system(), "Build", 14.0, FontWeight::MEDIUM));
     let w_deploy =
         cx.update(|window, _| text_width(window.text_system(), "Deploy", 14.0, FontWeight::MEDIUM));
-    click(cx, 4. + w_build / 2., 10.);
+    click(cx, w_build / 2., 10.);
     assert_eq!(
         cx.opened_url().as_deref(),
         Some("#/build"),
         "an href crumb must open its URL on press even without on_navigate"
     );
-    click(cx, w_build + 26. + w_deploy / 2., 10.);
+    click(cx, w_build + 22. + w_deploy / 2., 10.);
     assert_eq!(
         cx.opened_url().as_deref(),
         Some("#/deploy"),
@@ -1431,16 +1430,16 @@ fn breadcrumbs_last_crumb_is_current_even_with_an_href(cx: &mut TestAppContext) 
 
     // Clicking the third (current, href-carrying) crumb must record nothing.
     // The labels are measured at the link's MEDIUM weight: the third label
-    // starts 4px into the third row, and rows two and three each begin one
-    // `w + 22` row later (2px paddings + 2px gap + 12px separator).
+    // starts flush in the third row, and rows two and three each begin
+    // `w + 22` later (4px gap + 12px separator + 6px root gap).
     let w_build =
         cx.update(|window, _| text_width(window.text_system(), "Build", 14.0, FontWeight::MEDIUM));
     let w_deploy =
         cx.update(|window, _| text_width(window.text_system(), "Deploy", 14.0, FontWeight::MEDIUM));
     let w_live =
         cx.update(|window, _| text_width(window.text_system(), "Live", 14.0, FontWeight::MEDIUM));
-    click(cx, 4. + w_build / 2., 10.);
-    click(cx, w_build + 22. + w_deploy + 22. + 4. + w_live / 2., 10.);
+    click(cx, w_build / 2., 10.);
+    click(cx, w_build + 22. + w_deploy + 22. + w_live / 2., 10.);
     assert_eq!(
         recorded.borrow().as_slice(),
         ["0:Build"],
@@ -1454,11 +1453,12 @@ fn breadcrumbs_last_crumb_is_current_even_with_an_href(cx: &mut TestAppContext) 
     );
 }
 
-/// v3's stylesheet, verbatim: `.breadcrumbs` is `flex items-center` (no wrap),
-/// `.breadcrumbs__item` is `flex shrink-0 items-center justify-center gap-0.5
-/// px-0.5`, and `.breadcrumbs__link` is `px-0.5 text-sm leading-5 font-medium`.
-/// With a 12px separator slot a row is therefore `w_label + 22` wide, labels
-/// start 4px into their rows, rows sit flush, and every row shares one line.
+/// v3.2.6's stylesheet, verbatim: `.breadcrumbs` is `flex items-center
+/// gap-1.5` (no wrap), `.breadcrumbs__item` is `flex shrink-0 items-center
+/// justify-center gap-1` with no padding, and `.breadcrumbs__link` is
+/// `text-sm leading-5 font-medium` with no padding either. With a 12px
+/// separator slot a row is therefore `w_label + 16` wide, labels start flush
+/// in their rows, rows sit 6px apart, and every row shares one line.
 #[gpui::test]
 fn breadcrumbs_row_geometry_matches_v3_metrics(cx: &mut TestAppContext) {
     let cx = open_host(cx, || {
@@ -1487,22 +1487,22 @@ fn breadcrumbs_row_geometry_matches_v3_metrics(cx: &mut TestAppContext) {
         .expect("the current item row must be laid out");
 
     assert!(
-        (f32::from(first.size.width) - (w_build + 22.)).abs() < 1.,
-        "a row must be its 2px link padding around the label plus 2px gap, \
-         12px separator and 2px row paddings: {:?} vs {}",
+        (f32::from(first.size.width) - (w_build + 16.)).abs() < 1.,
+        "a row must be the unpadded label plus the 4px gap and 12px \
+         separator: {:?} vs {}",
         first.size.width,
-        w_build + 22.
+        w_build + 16.
     );
     assert!(
-        (f32::from(second.size.width) - (w_deploy + 22.)).abs() < 1.,
+        (f32::from(second.size.width) - (w_deploy + 16.)).abs() < 1.,
         "each row must scale with its own label"
     );
     assert!(
-        (f32::from(second.origin.x) - (f32::from(first.origin.x) + f32::from(first.size.width)))
+        (f32::from(second.origin.x)
+            - (f32::from(first.origin.x) + f32::from(first.size.width) + 6.))
             .abs()
             < 1.,
-        "the root must gap rows by nothing: the 2px item paddings are the \
-         whole spacing between labels"
+        "the root must gap rows by `gap-1.5`, 6px"
     );
     assert_eq!(
         second.origin.y, current.origin.y,
@@ -1512,7 +1512,7 @@ fn breadcrumbs_row_geometry_matches_v3_metrics(cx: &mut TestAppContext) {
 
 /// `flex_shrink_0` on `.breadcrumbs__item` and no `flex-wrap` on the root mean
 /// a narrow parent must never compress or fold the trail: rows keep their full
-/// `w_label + 22` width and overflow the parent instead.
+/// `w_label + 16` width and overflow the parent instead.
 #[gpui::test]
 fn breadcrumbs_rows_do_not_shrink_or_wrap_in_a_narrow_parent(cx: &mut TestAppContext) {
     let cx = open_host(cx, || {
@@ -1542,14 +1542,14 @@ fn breadcrumbs_rows_do_not_shrink_or_wrap_in_a_narrow_parent(cx: &mut TestAppCon
         .expect("the second row must be laid out");
 
     assert!(
-        (f32::from(first.size.width) - (w_build + 22.)).abs() < 1.,
+        (f32::from(first.size.width) - (w_build + 16.)).abs() < 1.,
         "a row wider than its parent must keep its full width, not shrink: \
          {:?} vs {}",
         first.size.width,
-        w_build + 22.
+        w_build + 16.
     );
     assert!(
-        (f32::from(second.size.width) - (w_deploy + 22.)).abs() < 1.,
+        (f32::from(second.size.width) - (w_deploy + 16.)).abs() < 1.,
         "no row may compress to fit the parent"
     );
     assert_eq!(
@@ -1561,7 +1561,7 @@ fn breadcrumbs_rows_do_not_shrink_or_wrap_in_a_narrow_parent(cx: &mut TestAppCon
 /// v3's `separator?: ReactNode` accepts any node; the port narrows it to a
 /// per-index render closure whose output paints inside the 12px, muted
 /// `breadcrumbs__separator` slot under a stable per-instance id. A narrower
-/// custom node must still leave the row `w_label + 22` wide (the slot fixes
+/// custom node must still leave the row `w_label + 16` wide (the slot fixes
 /// the geometry, not the content), the last crumb must get no separator, and
 /// the custom separator must not disturb the link presses.
 #[gpui::test]
@@ -1608,7 +1608,7 @@ fn breadcrumbs_custom_separator_renders_per_item_in_the_slot(cx: &mut TestAppCon
         slot.size
     );
     assert!(
-        (f32::from(first.size.width) - (w_build + 22.)).abs() < 1.,
+        (f32::from(first.size.width) - (w_build + 16.)).abs() < 1.,
         "the slot fixes a row's geometry regardless of the custom content"
     );
     assert!(
@@ -1620,16 +1620,16 @@ fn breadcrumbs_custom_separator_renders_per_item_in_the_slot(cx: &mut TestAppCon
         "the current (last) crumb must get no separator"
     );
 
-    click(cx, 4. + w_build / 2., 10.);
+    click(cx, w_build / 2., 10.);
     assert_eq!(
         cx.opened_url().as_deref(),
         Some("#/build"),
         "a custom separator must not intercept the crumb's press"
     );
-    // The first slot centres at w_build + 14: 2px row padding, the label's
-    // full `w + 4` link, the 2px gap, then half the 12px slot. The click must
-    // reach the custom node the closure built for index 0.
-    click(cx, w_build + 14., 10.);
+    // The first slot centres at w_build + 10: the unpadded label, the 4px
+    // gap, then half the 12px slot. The click must reach the custom node the
+    // closure built for index 0.
+    click(cx, w_build + 10., 10.);
     assert_eq!(
         recorded.borrow().as_slice(),
         ["separator-0"],
@@ -1664,11 +1664,11 @@ fn breadcrumbs_focus_ring_inputs_track_the_input_modality(cx: &mut TestAppContex
 
     let w_build =
         cx.update(|window, _| text_width(window.text_system(), "Build", 14.0, FontWeight::MEDIUM));
-    click(cx, 4. + w_build / 2., 10.);
+    click(cx, w_build / 2., 10.);
     assert_eq!(recorded.borrow().as_slice(), ["0:Build"]);
     cx.update(|_, cx| {
         assert!(
-            !herogpui_components::util::focus_visible(cx),
+            !herogpui_components::extend::focus_visible(cx),
             "a mouse press must not arm the focus-visible ring"
         );
     });
@@ -1676,7 +1676,7 @@ fn breadcrumbs_focus_ring_inputs_track_the_input_modality(cx: &mut TestAppContex
     press(cx, "tab");
     cx.update(|_, cx| {
         assert!(
-            herogpui_components::util::focus_visible(cx),
+            herogpui_components::extend::focus_visible(cx),
             "keyboard focus must arm the ring the focused link draws"
         );
     });

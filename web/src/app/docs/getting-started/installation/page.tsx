@@ -12,7 +12,7 @@ export const metadata: Metadata = {
 };
 
 const CARGO_TOML = `[dependencies]
-herogpui = "0.10"`;
+herogpui = "${SITE.crateRequirement}"`;
 
 const MAIN_RS = `use herogpui::*;
 
@@ -75,8 +75,8 @@ export default function InstallationPage() {
 
       <h2 id="add-the-dependency">Add the dependency</h2>
       <p>
-        <code>herogpui</code> is published on crates.io. Add it as your one dependency — it is a facade
-        over the GPUI crate family, so <code>use herogpui::*;</code> <em>is</em> GPUI and{" "}
+        <code>herogpui</code> is published on crates.io. Add it as your one dependency — it is a
+        facade over the GPUI crate family, so <code>use herogpui::*;</code> <em>is</em> GPUI and{" "}
         <code>herogpui::application()</code> opens the platform:
       </p>
       <div className="mt-4">
@@ -87,8 +87,9 @@ export default function InstallationPage() {
         <code>Cargo.toml</code> — a second copy of GPUI is how versions drift apart. This release
         carries GPUI <code>{SITE.gpuiVersion}</code>. Zed does not publish <code>gpui</code> under
         that name, so GPUI arrives as <code>gpui-pre</code>, a prerelease publish of the Zed GPUI
-        sources by crates.io user huacnlee (the gpui-kit maintainer), pinned exactly; the unrelated crates.io <code>gpui</code> 0.2.2 crate is a
-        different library and will not compile against this one.
+        sources by crates.io user huacnlee (the gpui-kit maintainer), pinned exactly; the unrelated
+        crates.io <code>gpui</code> 0.2.2 crate is a different library and will not compile against
+        this one.
       </p>
       <p className="mt-4">
         Each layer is a Cargo feature and a named path: <code>herogpui::components</code> (the{" "}

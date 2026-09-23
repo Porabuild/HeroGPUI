@@ -7,6 +7,9 @@ members = [
     "crates/herogpui",
     "crates/herogpui-web",
     "gallery",
+    "examples/hello-button",
+    "examples/form",
+    "examples/theme-switch",
 ]
 
 # No `exclude` table: the workspace has no generated source trees. (An earlier
@@ -14,7 +17,7 @@ members = [
 # root; that mechanism is retired -- see `docs/upstream/retired-patches/`.)
 
 [workspace.package]
-version = "0.10.2"
+version = "0.11.0"
 edition = "2024"
 rust-version = "1.98"
 license = "Apache-2.0"
@@ -63,13 +66,17 @@ icu_locale_core = "=2.2.0"
 jiff = { version = "0.2", features = ["js"] }
 locale_config = "=0.3.0"
 web-time = "=1.1.0"
+# Extended grapheme cluster boundaries for caret motion and deletion in the
+# text fields, so Backspace never splits an emoji or a combining sequence.
+# Already in the graph through GPUI; MIT OR Apache-2.0.
+unicode-segmentation = "1.13"
 prettyplease = "0.2.37"
 syn = { version = "2.0.119", features = ["full", "parsing"] }
-herogpui-core = { version = "0.10.2", path = "crates/herogpui-core" }
-herogpui-theme = { version = "0.10.2", path = "crates/herogpui-theme" }
-herogpui-components = { version = "0.10.2", path = "crates/herogpui-components" }
-herogpui = { version = "0.10.2", path = "crates/herogpui" }
-herogpui-gallery = { version = "0.10.2", path = "gallery" }
+herogpui-core = { version = "0.11.0", path = "crates/herogpui-core" }
+herogpui-theme = { version = "0.11.0", path = "crates/herogpui-theme" }
+herogpui-components = { version = "0.11.0", path = "crates/herogpui-components" }
+herogpui = { version = "0.11.0", path = "crates/herogpui" }
+herogpui-gallery = { version = "0.11.0", path = "gallery" }
 
 # Lint policy lives here so every crate gets the same one via
 # `lints.workspace = true`; a crate that forgets that line is the only way to

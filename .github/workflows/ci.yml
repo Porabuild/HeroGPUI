@@ -44,7 +44,8 @@ jobs:
       - name: Install Node
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          # Production (Vercel) runs Node 24.x; build on the same major.
+          node-version: 24
           cache: pnpm
           cache-dependency-path: web/pnpm-lock.yaml
 
@@ -58,8 +59,12 @@ jobs:
       - name: Format check
         run: cargo fmt --all -- --check
 
-      # extract:check compares the generated component data against the Rust
-      # gallery, so this job is the one that needs both checkouts.
+      # extract:check compares every generated dataset (reference, catalog and
+      # versions, Rust snippets, releases from CHANGELOG.md) and the wasm
+      # manifest -- artifact bytes, example bodies and a hash of every wasm
+      # build input -- against the checkout, with no network. That the
+      # snippets compile is the `test` job's: gallery/build.rs turns each one
+      # into a test-only module of herogpui-gallery.
       - name: Component gallery sync
         working-directory: web
         run: pnpm run extract:check
@@ -71,13 +76,13 @@ jobs:
           pnpm run lint
           pnpm run build
 
-  # The parity contract. These read the pinned v3.2.5 bundle checked in at
+  # The parity contract. These read the pinned v3.2.6 bundle checked in at
   # .shots/heroui-bundle.txt.gz, the checked-in CSS archive, and the checked-in
   # ComponentPreview demo archive. A cold runner never fetches upstream; no
   # Rust build is needed. A parity regression and a compile error report
   # separately.
   parity:
-    name: HeroUI v3.2.5 parity audits
+    name: HeroUI v3.2.6 parity audits
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v6
@@ -341,7 +346,7 @@ jobs:
       # is retired — see `docs/upstream/retired-patches/`. Nothing in the
       # gallery uses the multi-threaded platform: `crates/herogpui-web`
       # starts the app with `single_threaded_web()`, and web workers need
-      # cross-origin isolation that GitHub Pages does not provide. If a
+      # cross-origin isolation the Vercel-hosted site does not provide. If a
       # future `gpui-pre-web` drops the default, move this job back to the
       # pinned stable toolchain and delete the `+nightly` below.
       - name: Install nightly with the wasm32 target
@@ -370,7 +375,7 @@ jobs:
       # No `RUSTFLAGS` here, deliberately. `.cargo/config.toml`'s
       # `[target.wasm32-unknown-unknown]` table sets `rustflags = []` (the
       # shared-memory build was abandoned for `single_threaded_web()` under
-      # plain GitHub Pages hosting, which sends no COOP/COEP headers), and a
+      # the Vercel-hosted site, which sends no COOP/COEP headers), and a
       # `RUSTFLAGS` environment variable *replaces* a config file's rustflags
       # rather than appending to them. Setting it here — even to the same
       # value — would silently diverge from that table the moment either side

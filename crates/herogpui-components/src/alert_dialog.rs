@@ -84,7 +84,7 @@ type OnAction = Arc<dyn Fn(&ClickEvent, &mut Window, &mut App) + 'static>;
 /// dialog's close action. Without an `on_open_change` — or composed outside
 /// an [`AlertDialog`] — the part draws nothing.
 pub struct AlertDialogCloseTrigger {
-    on_dismiss: Option<OnAction>,
+    on_dismiss: Option<crate::modal::OnClose>,
     /// The id of the dialog this trigger was pulled out of; see
     /// [`crate::modal::CloseTriggerPart::wire`].
     owner: Option<gpui::ElementId>,
@@ -381,12 +381,18 @@ impl RenderOnce for AlertDialog {
         // the close slot), the `ModalOverlay`'s outside-press dismissal and
         // its Escape dismissal are all plain closes with no action of their
         // own. `isDismissable` only gates the scrim.
-        let close_action: Option<OnAction> =
-            self.on_open_change.clone().map(|open_change| -> OnAction {
-                util::shared(move |_ev: &ClickEvent, window: &mut Window, cx: &mut App| {
-                    open_change(&false, window, cx);
-                })
-            });
+        let close_action: Option<crate::modal::OnClose> =
+            self.on_open_change
+                .clone()
+                .map(|open_change| -> crate::modal::OnClose {
+                    util::shared(
+                        move |_: &crate::modal::DismissReason,
+                              window: &mut Window,
+                              cx: &mut App| {
+                            open_change(&false, window, cx);
+                        },
+                    )
+                });
 
         // v3 composes the close trigger as a child part. Pull every composed
         // `AlertDialogCloseTrigger` out of the dialog's children and the
@@ -638,7 +644,7 @@ impl RenderOnce for AlertDialog {
         // only fires for a press on the dimmed region around the panel.
         // `is_dismissible` is the whole gate — the close slot above is not —
         // and the exit phase gets none: the dialog is already closing.
-        let dismiss: Option<OnAction> = if self.is_dismissible {
+        let dismiss: Option<crate::modal::OnClose> = if self.is_dismissible {
             close_action.clone()
         } else {
             None
@@ -648,7 +654,7 @@ impl RenderOnce for AlertDialog {
                 panel,
                 dismissal_token.clone(),
                 move |window, cx| {
-                    on_dismiss(&ClickEvent::default(), window, cx);
+                    on_dismiss(&crate::modal::DismissReason::Backdrop, window, cx);
                     util::DismissResult::Handled
                 },
             ),
@@ -657,7 +663,7 @@ impl RenderOnce for AlertDialog {
 
         // Escape is the `ModalOverlay`'s own dismissal, so it is a plain
         // close too: `onOpenChange(false)`, never `onCancel`.
-        let keyboard_dismiss: Option<OnAction> = if self.is_keyboard_dismiss_disabled {
+        let keyboard_dismiss: Option<crate::modal::OnClose> = if self.is_keyboard_dismiss_disabled {
             None
         } else {
             close_action.clone()
@@ -748,7 +754,7 @@ impl RenderOnce for AlertDialog {
         if let Some(on_escape) = keyboard_dismiss {
             overlay =
                 util::dismiss_on_escape_with_token(overlay, dismissal_token, move |window, cx| {
-                    on_escape(&ClickEvent::default(), window, cx);
+                    on_escape(&crate::modal::DismissReason::Escape, window, cx);
                     util::DismissResult::Handled
                 });
         }

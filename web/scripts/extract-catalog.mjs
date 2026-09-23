@@ -22,6 +22,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { parseGalleryPages } from "./lib/gallery-pages.mjs";
 import { slugify } from "./lib/rust.mjs";
+import { workspaceVersions } from "./lib/workspace-versions.mjs";
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const webRoot = resolve(scriptDir, "..");
@@ -34,7 +35,6 @@ const staleDarkShots = [];
 const REFERENCE = resolve(webRoot, "src", "data", "reference.json");
 const OUT = resolve(webRoot, "src", "data", "catalog.json");
 
-const VERSION = "0.9.0";
 const SKIPPED_CATEGORIES = new Set(["Overview", "Releases", "Getting started"]);
 
 /// `Button Group` -> `buttongroup-v3.png`; dark variant appends `-dark`.
@@ -82,7 +82,7 @@ function shotField(title, dark, kind = "page") {
   return `/shots/${file}`;
 }
 
-export function run() {
+export function run({ check = false } = {}) {
   const pages = parseGalleryPages(readFileSync(MOD_SOURCE, "utf8"));
 
   let reference = null;
@@ -125,14 +125,32 @@ export function run() {
     categories.get(page.category).components.push(slug);
   }
 
+  const { version, gpuiVersion } = workspaceVersions(repoRoot);
   const catalog = {
-    version: VERSION,
+    version,
+    gpuiVersion,
     categories: [...categories.values()],
     components,
   };
 
-  mkdirSync(dirname(OUT), { recursive: true });
-  writeFileSync(OUT, JSON.stringify(catalog, null, 2) + "\n");
+  const output = JSON.stringify(catalog, null, 2) + "\n";
+  if (check) {
+    const current = existsSync(OUT) ? readFileSync(OUT, "utf8") : "";
+    if (current !== output) {
+      console.error("ERROR: catalog.json is stale; run `pnpm run extract`");
+      process.exitCode = 1;
+    }
+    // package.json cannot be generated without rewriting a file pnpm owns, so
+    // its version is checked against the workspace instead.
+    const pkg = JSON.parse(readFileSync(resolve(webRoot, "package.json"), "utf8"));
+    if (pkg.version !== version) {
+      console.error(`ERROR: web/package.json version ${pkg.version} != Cargo.toml ${version}`);
+      process.exitCode = 1;
+    }
+  } else {
+    mkdirSync(dirname(OUT), { recursive: true });
+    writeFileSync(OUT, output);
+  }
 
   if (staleDarkShots.length > 0) {
     console.warn(
@@ -156,5 +174,5 @@ export function run() {
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
-  run();
+  run({ check: process.argv.includes("--check") });
 }

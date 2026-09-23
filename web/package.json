@@ -1,6 +1,6 @@
 {
   "name": "herogpui-web",
-  "version": "0.9.0",
+  "version": "0.11.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -13,15 +13,15 @@
     "format": "oxfmt --write .",
     "format:check": "oxfmt --check .",
     "check": "pnpm run typecheck && pnpm run lint && pnpm run format:check",
-    "extract": "node scripts/extract-reference.mjs && node scripts/extract-rust-examples.mjs",
-    "extract:check": "node --test scripts/extract-rust-examples.test.mjs scripts/gallery-wheel.test.mjs && node scripts/extract-reference.mjs --check && node scripts/extract-rust-examples.mjs --check",
+    "extract": "node scripts/extract-reference.mjs && node scripts/extract-catalog.mjs && node scripts/extract-rust-examples.mjs && node scripts/extract-releases.mjs",
+    "extract:check": "node --test scripts/extract-rust-examples.test.mjs scripts/gallery-wheel.test.mjs && node scripts/extract-reference.mjs --check && node scripts/extract-catalog.mjs --check && node scripts/extract-rust-examples.mjs --check && node scripts/extract-releases.mjs --check && node scripts/extract-wasm-sections.mjs --check",
     "wasm:manifest": "node scripts/extract-wasm-sections.mjs",
     "brand:sync": "node scripts/sync-porabuild-brand.mjs",
     "brand:check": "node scripts/sync-porabuild-brand.mjs --check"
   },
   "dependencies": {
-    "@heroui/react": "3.2.5",
-    "@react-aria/i18n": "^3.13.1",
+    "@heroui/react": "3.2.6",
+    "@internationalized/date": "^3.12.4",
     "@react-aria/ssr": "^3.10.1",
     "@react-aria/utils": "^3.34.1",
     "lucide-react": "1.31.0",
@@ -29,8 +29,8 @@
     "overlayscrollbars": "^2.16.0",
     "overlayscrollbars-react": "^0.5.6",
     "react": "19.2.8",
-    "react-aria": "3.52.0",
-    "react-aria-components": "1.21.0",
+    "react-aria": "3.52.1",
+    "react-aria-components": "1.21.1",
     "react-dom": "19.2.8",
     "shiki": "^3.0.0",
     "tailwind-variants": "^3.3.1"

@@ -131,23 +131,41 @@
       }
 
       let wasmSetPreviewSection;
+      let wasmSetPreviewStory;
       let wasmSetTheme;
-      let pendingPreviewSection;
+      // The latest selection/theme asked for before the module finished
+      // booting; applied once it has.
+      let pendingPreview;
+      let pendingDark;
 
+      function applyPreview(preview) {
+        if (preview.story) {
+          wasmSetPreviewStory(preview.story, preview.section);
+        } else {
+          wasmSetPreviewSection(preview.section);
+        }
+      }
+
+      // The host drives one live instance over this bridge:
+      //   { type: 'herogpui:preview-section', section, story? }  switch example
+      //     (and component, when `story` is given) without rebooting wasm;
+      //   { type: 'herogpui:set-theme', dark }  follow the host's appearance,
+      //     which a cross-origin host cannot otherwise share.
       window.addEventListener('message', (event) => {
         if (event.source !== window.parent) return;
         const message = event.data;
-        if (
-          !message ||
-          message.type !== 'herogpui:preview-section' ||
-          typeof message.section !== 'string'
-        ) {
-          return;
-        }
-        if (wasmSetPreviewSection) {
-          wasmSetPreviewSection(message.section);
-        } else {
-          pendingPreviewSection = message.section;
+        if (!message || typeof message.type !== 'string') return;
+        if (message.type === 'herogpui:preview-section' && typeof message.section === 'string') {
+          const preview = {
+            section: message.section,
+            story: typeof message.story === 'string' ? message.story : undefined,
+          };
+          if (wasmSetPreviewSection) applyPreview(preview);
+          else pendingPreview = preview;
+        } else if (message.type === 'herogpui:set-theme' && typeof message.dark === 'boolean') {
+          if (wasmSetTheme) wasmSetTheme(message.dark);
+          else pendingDark = message.dark;
+          reflectTheme(message.dark);
         }
       });
 
@@ -193,35 +211,48 @@
           // Dynamic import: the URL form serving this page varies (see
           // assetUrl), so the module URL is computed at boot time.
           const wasmUrl = assetUrl('herogpui_web_bg.wasm');
-          const { default: init, run, set_preview_section, set_theme } = await import(
-            assetUrl('herogpui_web.js')
-          );
+          const {
+            default: init,
+            run,
+            set_preview_section,
+            set_preview_story,
+            set_theme,
+          } = await import(assetUrl('herogpui_web.js'));
           await init({ module_or_path: wasmUrl });
           wasmSetPreviewSection = set_preview_section;
+          wasmSetPreviewStory = set_preview_story;
           wasmSetTheme = set_theme;
           // `undefined` lets the wasm side resolve the page from the query
           // string (?story=<slug> or ?page=<Nav Title>). Component docs also
           // pass ?preview=component&section=<heading> so GPUI constructs only
           // that example without the gallery shell.
-          run(undefined, parentDark() ?? queryDark());
-          if (pendingPreviewSection) {
-            wasmSetPreviewSection(pendingPreviewSection);
-            pendingPreviewSection = undefined;
+          run(undefined, pendingDark ?? parentDark() ?? queryDark());
+          if (pendingPreview) {
+            applyPreview(pendingPreview);
+            pendingPreview = undefined;
           }
           followParentTheme();
           loading?.remove();
+          // Tell the host the instance is live, so it can drop its own
+          // loading state without polling this document.
+          if (window.parent !== window) {
+            window.parent.postMessage({ type: 'herogpui:ready' }, '*');
+          }
         } catch (error) {
           console.error('Failed to initialize HeroGPUI:', error);
           if (loading) {
-            loading.innerHTML = `
-              <div class="error">
-                <h2>Failed to load the gallery</h2>
-                <p>${error.message || error}</p>
-                <p style="margin-top: 10px; font-size: 14px;">
-                  Please check the console for more details.
-                </p>
-              </div>
-            `;
+            // Built with text nodes: the error message is not markup.
+            const box = document.createElement('div');
+            box.className = 'error';
+            const title = document.createElement('h2');
+            title.textContent = 'Failed to load the gallery';
+            const detail = document.createElement('p');
+            detail.textContent = String(error?.message || error);
+            const hint = document.createElement('p');
+            hint.style.cssText = 'margin-top: 10px; font-size: 14px;';
+            hint.textContent = 'Please check the console for more details.';
+            box.append(title, detail, hint);
+            loading.replaceChildren(box);
           }
         }
       }

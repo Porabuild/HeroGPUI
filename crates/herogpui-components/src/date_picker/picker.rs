@@ -4,6 +4,7 @@ use super::*;
 
 /// The complete state passed to [`DatePicker::content`].
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct DatePickerRenderState {
     /// The picker cannot receive focus, edit its field, or open its calendar.
     pub is_disabled: bool,

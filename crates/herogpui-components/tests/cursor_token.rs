@@ -11,7 +11,7 @@
 use std::path::{Path, PathBuf};
 
 use gpui::{div, CursorStyle, Styled, TestAppContext};
-use herogpui_components::util::{cursor_interactive, interactive_cursor};
+use herogpui_components::extend::{cursor_interactive, interactive_cursor};
 use herogpui_theme::{set_theme, ActiveTheme, Theme, ThemeProvider};
 
 /// Style readback through the exact helper the components call: a theme built

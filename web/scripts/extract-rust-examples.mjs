@@ -19,6 +19,13 @@ import { parseGalleryPageImports, parseGalleryPages } from "./lib/gallery-pages.
 import { readGalleryComponentSource } from "./lib/gallery-source.mjs";
 import { parseUseStatement, splitUseStatements } from "./lib/imports.mjs";
 import {
+  dedent,
+  helperItems,
+  neededBindings,
+  neededHelpers,
+  pageBindings,
+} from "./lib/snippet-context.mjs";
+import {
   readIdent,
   readStringLiteral,
   scanDelimited,
@@ -32,11 +39,13 @@ const scriptDir = dirname(fileURLToPath(import.meta.url));
 const webRoot = resolve(scriptDir, "..");
 const repoRoot = resolve(webRoot, "..");
 const MOD_SOURCE = resolve(repoRoot, "gallery", "src", "pages", "mod.rs");
+const COMPONENTS_MOD = resolve(repoRoot, "gallery", "src", "pages", "components", "mod.rs");
+const APP_SOURCE = resolve(repoRoot, "gallery", "src", "app.rs");
 const CATALOG = resolve(webRoot, "src", "data", "catalog.json");
 const REFERENCE = resolve(webRoot, "src", "data", "reference.json");
 const OUT = resolve(webRoot, "src", "data", "rust-examples.json");
 
-const LAYOUT_HELPERS = new Set(["row", "col", "field_col", "spec_row"]);
+const LAYOUT_HELPERS = new Set(["row", "col", "field_col", "spec_row", "stretch_col", "wide_col"]);
 const SPEC_HELPERS = new Set(["spec", "spec_block"]);
 const CORE_IMPORTS = [
   "Backdrop",
@@ -49,6 +58,36 @@ const CORE_IMPORTS = [
   "Size",
   "SizeXl",
   "Variant",
+];
+// GPUI items snippets name unqualified; imported from `herogpui::gpui`.
+const GPUI_NAMES = [
+  "AnyElement",
+  "App",
+  "Context",
+  "ElementId",
+  "Entity",
+  "FocusHandle",
+  "Hsla",
+  "Pixels",
+  "SharedString",
+  "Window",
+  "div",
+  "hsla",
+  "px",
+  "relative",
+  "rems",
+  "rgb",
+  "rgba",
+  "svg",
+];
+const STD_IMPORTS = [
+  ["Duration", "use std::time::Duration;"],
+  ["HashMap", "use std::collections::HashMap;"],
+  ["HashSet", "use std::collections::HashSet;"],
+  ["Cell", "use std::cell::Cell;"],
+  ["RefCell", "use std::cell::RefCell;"],
+  ["Rc", "use std::rc::Rc;"],
+  ["Arc", "use std::sync::Arc;"],
 ];
 const CONTEXT_HELPERS = [
   "avatar_box",
@@ -347,10 +386,16 @@ function normalizeIndent(code, baseIndent) {
   return normalized.join("\n").trim();
 }
 
-function callAt(src, start, name) {
+function callAt(src, start, name, free = false) {
   if (!src.startsWith(name, start)) return null;
   if (start > 0 && /[A-Za-z0-9_]/.test(src[start - 1])) return null;
   if (/[A-Za-z0-9_]/.test(src[start + name.length] ?? "")) return null;
+  // For a free helper, a method (`.row(`), a path segment (`Table::row(`)
+  // or the helper's own definition (`fn row(`) is not a call of it.
+  if (free) {
+    const before = src.slice(0, start).trimEnd();
+    if (before.endsWith(".") || before.endsWith("::") || /\bfn$/.test(before)) return null;
+  }
   let open = skipTrivia(src, start + name.length);
   if (src[open] !== "(") return null;
   const group = scanDelimited(src, open);
@@ -358,7 +403,7 @@ function callAt(src, start, name) {
   return { start, end: group.end, group };
 }
 
-export function namedCalls(src, names) {
+export function namedCalls(src, names, { free = false } = {}) {
   const calls = [];
   let i = 0;
   while (i < src.length) {
@@ -369,7 +414,7 @@ export function namedCalls(src, names) {
     }
     const ident = readIdent(src, i);
     if (ident && names.has(ident.name)) {
-      const call = callAt(src, i, ident.name);
+      const call = callAt(src, i, ident.name, free);
       if (call) calls.push({ ...call, name: ident.name });
       i = ident.end;
       continue;
@@ -433,7 +478,7 @@ function replaceCalls(src, names, replacementFor) {
   let code = src;
   let changed = false;
   for (let pass = 0; pass < 20; pass += 1) {
-    const calls = namedCalls(code, names);
+    const calls = namedCalls(code, names, { free: true });
     const candidates = calls
       .map((call) => {
         const replacement = replacementFor(call, code, callArgs(code, call));
@@ -543,21 +588,37 @@ function specContent(src, arg) {
 function removeSpecHelpers(code) {
   return replaceCalls(code, SPEC_HELPERS, (_call, src, args) => {
     if (args.length !== 3) return null;
-    return specContent(src, args[1]);
+    // The helper returns `AnyElement`; keep that type for `vec!` siblings.
+    const content = specContent(src, args[1]);
+    return /\.into_any_element\(\)\s*$/.test(content)
+      ? content
+      : `${content}\n    .into_any_element()`;
   });
 }
 
 function publicLayout(name, arg) {
-  const styles =
-    name === "row" || name === "spec_row"
-      ? [".flex()", ".flex_wrap()", ".w_full()", ".items_start()", ".gap(px(12.))"]
-      : name === "field_col"
-        ? [".flex()", ".flex_col()", ".w(px(256.))", ".gap(px(12.))"]
-        : [".flex()", ".flex_col()", ".items_start()", ".gap(px(12.))"];
+  // Exactly the builders of the gallery helpers in
+  // gallery/src/pages/components/mod.rs (minus the `into_any_element`).
+  const styles = {
+    row: [".flex()", ".flex_wrap()", ".items_center()", ".justify_center()", ".gap(px(12.))"],
+    spec_row: [".flex()", ".flex_wrap()", ".items_center()", ".justify_center()", ".gap(px(12.))"],
+    col: [".flex()", ".flex_col()", ".items_start()", ".justify_center()", ".gap(px(12.))"],
+    field_col: [".flex()", ".flex_col()", ".w(px(256.))", ".gap(px(12.))"],
+    stretch_col: [".flex()", ".flex_col()", ".w_full()", ".gap(px(12.))"],
+    wide_col: [".flex()", ".flex_col()", ".w_full()", ".max_w(px(576.))", ".gap(px(16.))"],
+  }[name];
+  // The helpers take a `Vec<AnyElement>`, so their argument often ends in a
+  // collection step; `children` takes any iterator, and an untyped
+  // `.collect()` would no longer know its target.
+  const children = arg.replace(/\s*\.(?:els\(\)|collect(?:::<Vec<[^>]*>>)?\(\))$/, "");
+  // Rule: the helper returns `AnyElement`; so does the expansion, so a
+  // sibling in the same `vec!` keeps one element type. A snippet's terminal
+  // conversion is stripped again afterwards.
   return [
     "gpui::div()",
     ...styles.map((style) => `    ${style}`),
-    `    .children(${indentNested(arg)})`,
+    `    .children(${indentNested(children)})`,
+    "    .into_any_element()",
   ].join("\n");
 }
 
@@ -581,6 +642,7 @@ function replaceSizingHelpers(code) {
         "    .flex()",
         "    .flex_col()",
         `    .child(${indentNested(args[0].text)})`,
+        "    .into_any_element()",
       ].join("\n");
     }
     if (call.name === "fixed_demo" && args.length === 2) {
@@ -591,6 +653,7 @@ function replaceSizingHelpers(code) {
         "gpui::div()",
         `    .w(px(${args[0].text}))`,
         `    .child(${indentNested(args[1].text)})`,
+        "    .into_any_element()",
       ].join("\n");
     }
     return null;
@@ -607,8 +670,62 @@ function replaceIconHelpers(code) {
       "    .size(px(16.))",
       `    .path(${args[0].text})`,
       `    .text_color(${args[1].text}.colors().foreground)`,
+      "    .into_any_element()",
     ].join("\n");
   });
+}
+
+/// Rule: `specimen_body(key, body, cx)` and `specimen_wanted(key, cx)` only
+/// let the capture harness address one example; the reader's code is the body
+/// alone. `specimen_wanted(&key, cx).then(|| body)` becomes `Some(body)`, which
+/// keeps the surrounding `filter_map` well typed.
+function removeSpecimenHelpers(code) {
+  code = replaceCalls(code, new Set(["specimen_body"]), (_call, src, args) =>
+    args.length === 3
+      ? normalizeIndent(
+          args[1].text,
+          sourceLineIndent(src, args[1].start + src.slice(args[1].start).search(/\S/)),
+        )
+      : null,
+  ).code;
+  // A helper's early-return guard (`if !specimen_wanted(key, cx) { return
+  // ...; }`) is dropped with its statement; any other use reads as `true`.
+  const guard = /^[ \t]*if !crate::control::specimen_wanted\(/m;
+  for (let m = code.match(guard); m; m = code.match(guard)) {
+    const open = code.indexOf("{", m.index + m[0].length);
+    const block = open === -1 ? null : scanDelimited(code, open);
+    if (!block) break;
+    let end = block.end;
+    if (code[end] === "\n") end += 1;
+    code = code.slice(0, m.index) + code.slice(end);
+  }
+  const marker = "crate::control::specimen_wanted(";
+  for (let at = code.indexOf(marker); at !== -1; at = code.indexOf(marker)) {
+    const open = at + marker.length - 1;
+    const group = scanGroup(code, open);
+    if (!group) break;
+    const then = skipTrivia(code, group.end);
+    if (!code.startsWith(".then(", then)) break;
+    const thenGroup = scanGroup(code, then + ".then".length);
+    if (!thenGroup) break;
+    const closure = code.slice(then + ".then(".length, thenGroup.end - 1).trim();
+    if (!closure.startsWith("||")) break;
+    const body = closure.slice(2).trim();
+    code = code.slice(0, at) + `Some(${body})` + code.slice(thenGroup.end);
+  }
+  return code;
+}
+
+/// Rule: gallery paths become public ones. The component crates are reached
+/// through the facade's re-exports (`herogpui::core`, `herogpui::theme`,
+/// `herogpui::components`), and a gallery item named by path (`crate::app::X`)
+/// is lifted into the snippet's helpers under its bare name.
+function publicPaths(code) {
+  return code
+    .replace(/(?<![\w:])herogpui_core::/g, "herogpui::core::")
+    .replace(/(?<![\w:])herogpui_theme::/g, "herogpui::theme::")
+    .replace(/(?<![\w:])herogpui_components::/g, "herogpui::components::")
+    .replace(/(?<![\w:])crate::(?:app|pages::components|pages)::(?=[A-Za-z_])/g, "");
 }
 
 /// Rule: `el_id` only materialises a name for the gallery helper; its argument
@@ -746,18 +863,92 @@ function cleanExample(rawCode, baseIndent, pageSlug) {
     }
     const spec = topLevelCall(code, SPEC_HELPERS);
     if (spec && spec.args.length === 3) code = specContent(code, spec.args[1]);
+    code = removeSpecimenHelpers(code);
+    code = publicPaths(code);
     code = removeSpecHelpers(code).code;
     code = removeElementIdHelpers(code).code;
     code = replaceIconHelpers(code).code;
     code = replaceSizingHelpers(code).code;
     code = replaceLayoutHelpers(code).code;
-    code = replaceOutsideToken(code, ".els()", "");
+    // Rule: `.els()` is the gallery's `Vec<AnyElement>` collector; outside a
+    // layout helper (which drops it) it is spelled out in public API.
+    code = replaceOutsideToken(
+      code,
+      ".els()",
+      ".map(IntoElement::into_any_element).collect::<Vec<_>>()",
+    );
     code = replaceAliases(code);
     code = humanizeGalleryIds(code, pageSlug).code;
     code = stripTerminalAnyElement(code);
     if (code === before) break;
   }
   return { code: code.trim(), aliases };
+}
+
+/// Rule: a snippet carries what it reads from its page function (`let`
+/// bindings, local `fn`s) above the expression, and the gallery helper
+/// definitions it calls in a separate `helpers` block, so the shown code
+/// compiles on its own. `context` is `"view"` when the code reads view state
+/// (`self`, `cx.listener`, a `this` closure argument) and so belongs inside a
+/// `Render` impl whose `cx` is a `Context<Self>`; otherwise it is `"app"`: a
+/// function of `window: &mut Window, cx: &mut App`.
+/// Rule: a section that shows a code block (`code_block(CONST, cx)`) is
+/// documentation of statements, not a rendered element; its snippet is the
+/// block's own text, compiled as statements (`context: "statements"`).
+function codeBlockSection(code, helpers) {
+  const match = code.trim().match(/^code_block\(\s*([A-Z_][A-Z0-9_]*)\s*,\s*cx\s*,?\s*\)$/);
+  if (!match) return null;
+  const text = helpers.get(match[1]);
+  const literal = text?.match(/r#"([\s\S]*?)"#/);
+  return literal ? literal[1] : null;
+}
+
+function withContext(example, bindings, galleryHelpers, slug) {
+  const statements = codeBlockSection(example.code, galleryHelpers);
+  if (statements !== null) {
+    // Plain text has no `h::` prefix to mark component names; every
+    // `Type::` path that is not std or GPUI is a prelude item.
+    const aliases = new Set(
+      [...statements.matchAll(/\b([A-Z][A-Za-z0-9]*)::/g)]
+        .map((m) => m[1])
+        .filter((name) => !STD_IMPORTS.some(([std]) => std === name) && !GPUI_NAMES.includes(name)),
+    );
+    return { code: statements, helpers: "", aliases, context: "statements" };
+  }
+  const aliases = new Set(example.aliases);
+  const lets = neededBindings(example.code, bindings).map((binding) => {
+    const cleaned = cleanExample(dedent(binding.text, binding.indent), 0, slug);
+    for (const alias of cleaned.aliases) aliases.add(alias);
+    return cleaned.code;
+  });
+  const code = lets.length ? `${lets.join("\n")}\n\n${example.code}` : example.code;
+  // `Gallery` is the view a "view" snippet runs in, not a helper to lift.
+  const helperText = neededHelpers(code, galleryHelpers, new Set(["Gallery"]))
+    .map((text) => {
+      const cleaned = cleanExample(text, 0, slug);
+      for (const alias of cleaned.aliases) aliases.add(alias);
+      return cleaned.code;
+    })
+    .join("\n\n");
+  const all = `${code}\n${helperText}`;
+  const context = /\bself\b|\bthis\b|cx\.listener|cx\.entity\(\)|\bSelf\b|\bGallery\b/.test(all)
+    ? "view"
+    : "app";
+  return { code, helpers: helperText, aliases, context };
+}
+
+/// Rule: the shown code may name only the public `herogpui` API (and std).
+/// The compile gate cannot see this on its own: it builds inside the gallery
+/// crate, where `crate::`, the component crates and bare `gpui` all resolve.
+/// A "view" snippet may name `Gallery`, the view type its state lives in.
+export function privateReference({ code, helpers = "", context }) {
+  const text = `${code}\n${helpers}`;
+  const match = text.match(
+    /\b(?:crate|super)::[\w:]*|\bherogpui_(?:components|core|theme|gallery)\b|(?<![\w:])(?:gpui_platform|prettyplease|syn)::|\bspecimen_(?:body|wanted)\b/,
+  );
+  if (match) return match[0];
+  if (context !== "view" && /\bGallery\b/.test(text)) return "Gallery";
+  return null;
 }
 
 function canonicalImports() {
@@ -858,7 +1049,7 @@ function resolveImportPaths(canonical, code, aliases) {
   if (
     !path.has("ActiveTheme") &&
     !globs.includes("herogpui::prelude") &&
-    /\.colors\(\)/.test(code)
+    /\b(?:cx|window|app)\.(?:colors|role|theme)\(\)?/.test(code)
   ) {
     path.set("ActiveTheme", "herogpui::prelude");
   }
@@ -885,19 +1076,34 @@ export function addImports(canonical, code, aliases) {
     );
   }
 
+  // Rule: GPUI is reached through the facade (`herogpui::gpui`), because an
+  // application that depends on `herogpui` alone has no `gpui` crate of its
+  // own to name.
   const gpuiLines = [];
+  if (/\bgpui::/.test(code)) gpuiLines.push("use herogpui::gpui;");
   if (
     /\bgpui::/.test(code) ||
     /\.(?:child|children|flex|flex_col|flex_wrap|items_start|gap|when|on_press|on_click|into_any_element|size|w|h|px|text_color|rounded(?:_[a-z0-9]+)*|path)\s*\(/.test(
       code,
     )
   ) {
-    gpuiLines.push("use gpui::prelude::*;");
+    gpuiLines.push("use herogpui::gpui::prelude::*;");
   }
-  if (/\bpx\s*\(/.test(code)) gpuiLines.push("use gpui::px;");
+  const gpuiNames = GPUI_NAMES.filter(
+    (name) => !path.has(name) && new RegExp(`(?<![\\w:.])${name}\\b(?!\\s*!)`).test(code),
+  );
+  if (gpuiNames.length) {
+    gpuiLines.push(
+      gpuiNames.length > 1
+        ? `use herogpui::gpui::{${gpuiNames.sort().join(", ")}};`
+        : `use herogpui::gpui::${gpuiNames[0]};`,
+    );
+  }
 
   const otherLines = [];
-  if (/\bDuration\s*::/.test(code)) otherLines.push("use std::time::Duration;");
+  for (const [name, line] of STD_IMPORTS) {
+    if (new RegExp(`(?<![\\w:.])${name}\\b`).test(code)) otherLines.push(line);
+  }
 
   // Rule: stable order — herogpui first, then gpui, then anything else;
   // alphabetical within each group (a glob's `path::*` sorts like any other
@@ -919,6 +1125,15 @@ export function run({ check = false } = {}) {
   let unbalanced = 0;
   const implicitDescriptions = [];
   const retainedHelpers = new Map();
+  // Gallery helper items a snippet may call: the component-page helpers and
+  // the shared page helpers (`para`), each keyed by name.
+  const galleryHelpers = new Map([
+    ...helperItems(readFileSync(APP_SOURCE, "utf8")),
+    ...helperItems(readFileSync(MOD_SOURCE, "utf8")),
+    ...helperItems(src),
+    ...helperItems(readFileSync(COMPONENTS_MOD, "utf8")),
+  ]);
+  for (const [name, text] of galleryHelpers) galleryHelpers.set(name, publicPaths(text));
 
   let i = 0;
   while (i < src.length) {
@@ -943,6 +1158,7 @@ export function run({ check = false } = {}) {
         continue;
       }
       skippedSections += result.skipped;
+      const bindings = pageBindings(src, i);
       const slug = slugify(result.title);
       if (!pages.has(slug)) pages.set(slug, []);
       // A page body may legitimately skip a section with a non-literal
@@ -966,12 +1182,20 @@ export function run({ check = false } = {}) {
         if (!section.description && separated.description) {
           implicitDescriptions.push(`${slug}/${section.heading}`);
         }
-        const cleaned = cleanExample(separated.code, section.baseIndent, slug);
+        const example = cleanExample(separated.code, section.baseIndent, slug);
+        const cleaned = withContext(example, bindings, galleryHelpers, slug);
         if (!isBalanced(cleaned.code)) {
           unbalanced += 1;
           console.error(
             `WARNING: ${result.title} / "${section.heading}": extracted code is not balanced; keeping it but review`,
           );
+        }
+        const leak = privateReference(cleaned);
+        if (leak) {
+          console.error(
+            `ERROR: ${slug}/${section.heading}: shown code names gallery-only \`${leak}\``,
+          );
+          process.exitCode = 1;
         }
         const helpers = CONTEXT_HELPERS.filter((helper) =>
           new RegExp(`\\b${helper}\\s*\\(`).test(cleaned.code),
@@ -983,8 +1207,14 @@ export function run({ check = false } = {}) {
         pages.get(slug).push({
           heading: section.heading,
           ...(separated.description ? { description: separated.description } : {}),
-          imports: addImports(importsByPage.get(slug) ?? "", cleaned.code, cleaned.aliases),
+          imports: addImports(
+            importsByPage.get(slug) ?? "",
+            [cleaned.code, cleaned.helpers].join("\n"),
+            cleaned.aliases,
+          ),
+          context: cleaned.context,
           code: cleaned.code,
+          ...(cleaned.helpers ? { helpers: cleaned.helpers } : {}),
         });
         totalSnippets += 1;
       }

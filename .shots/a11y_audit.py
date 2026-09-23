@@ -155,7 +155,7 @@ WAVE = ('waves 1-5 — form controls, overlays and disclosure, '
 #
 # References name files under `web/node_modules`. The original role review
 # used react-aria 3.51.0, react-aria-components 1.20.0,
-# and @heroui/react 3.2.4. The active v3.2.5 target and dependency versions
+# and @heroui/react 3.2.4. The active v3.2.6 target and dependency versions
 # are in `docs/agents/parity.md`; these role mappings still require the
 # per-component inherited-behavior review during that migration.
 # --------------------------------------------------------------------------
@@ -546,6 +546,12 @@ DELEGATES = {
          'gpui cannot inject props into an element it was handed, and a '
          'second node wrapped around the caller\'s button would report the '
          'trigger twice.'),
+    ('context_menu.rs', 'ContextMenu'):
+        ('Menu', 'Menu::new',
+         'HeroGPUI extension with no HeroUI v3 upstream. It is the Dropdown '
+         'composition with a secondary-press trigger: the panel is the same '
+         '`Menu` (`role="menu"` and its rows), and the area is the caller\'s '
+         'element, which reports its own node if it has one.'),
 }
 
 
@@ -633,8 +639,17 @@ NO_NODE = {
         '`avatar/avatar.js` composes `@radix-ui/react-avatar`, not a RAC '
         'primitive, and neither the HeroUI wrapper nor the Radix package '
         'writes a `role` or any `aria-*` anywhere. An avatar is a picture '
-        'beside the name it belongs to, and the name is the node. v3 ships '
-        'no `AvatarGroup`, so there is no group contract to port either.',
+        'beside the name it belongs to, and the name is the node.',
+    ('avatar_group.rs', 'AvatarGroup'):
+        '`avatar-group/avatar-group.tsx` (v3.2.6) renders `dom.div` with '
+        '`data-slot="avatar-group"` and no `role` or `aria-*`; its docs say '
+        '"No default `role=\"group\"`" and leave `role`/`aria-label` to the '
+        'caller as plain DOM props. The group is layout; each avatar keeps '
+        'its own (roleless) contract.',
+    ('avatar_group.rs', 'AvatarGroupCount'):
+        '`AvatarGroupCount` is an `Avatar` + `Avatar.Fallback` with '
+        '`data-slot="avatar-group-count"`: the same roleless Radix avatar, '
+        'its `+N` text beside the avatars it summarises.',
     ('badge.rs', 'BadgeAnchor'):
         '`badge/badge.js` renders every one of its parts as a plain '
         '`dom.span` with a `data-slot` and no `role` or `aria-*`; the anchor '
@@ -717,6 +732,11 @@ NO_NODE = {
         'the whole of it, and reading a role off the tag would be reasoning '
         'from HTML-AAM rather than from the pinned source. See '
         '`card.rs`\'s `CardTitle` for the same decision stated at length.',
+    ('virtual_list.rs', 'VirtualList'):
+        'HeroGPUI extension with no HeroUI v3 upstream. It is a scroll '
+        'container over caller-built rows, which carry their own nodes; a '
+        '`list` role here would claim `listitem` children it does not own. '
+        'A semantic list belongs on `ListBox`, which has one.',
     ('typography.rs', 'Prose'):
         '`Prose` is a separate export in that same file and a plain `"div"` '
         'with no `elementType`, no `role` and no `aria-*`: it is the '

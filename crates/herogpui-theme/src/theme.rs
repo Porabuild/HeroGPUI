@@ -36,6 +36,7 @@ impl From<WindowAppearance> for Appearance {
 
 /// A complete HeroUI v3 theme: semantic colors plus layout tokens.
 #[derive(Clone, Debug)]
+#[non_exhaustive]
 pub struct Theme {
     pub id: SharedString,
     pub appearance: Appearance,

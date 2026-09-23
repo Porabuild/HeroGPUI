@@ -16,11 +16,11 @@ starting each phase; line numbers are not durable contracts.
   `extra_audit.py` mentions `RadioGroup::size` as a historical failure, but its
   current explicit ban tables do not mechanically ban that method. An
   informational sibling match is not policy permission.
-- `anim::hover_fade` and `util::apply_field_chrome` are public functions;
-  `hover_fade` is also re-exported at the crate root. Replacing their signatures
-  is not additive. Read the duration
-  from the theme inside the existing fade helper; retain the chrome helper's
-  signature.
+- `anim::hover_fade` is public (as `anim::hover_fade`; since 0.11.0 it is no
+  longer re-exported at the crate root), so replacing its signature is not
+  additive: read the duration from the theme inside the existing fade helper.
+  `util::apply_field_chrome` became crate-private in 0.11.0 and may change
+  freely.
 - `ZoomBox::panel` takes **resting vertical padding**, not a zoom offset.
   Padding builders must update both the real panel and its animation geometry.
 - The proposed file-level hover grep cannot prove that a particular painted
@@ -35,7 +35,7 @@ starting each phase; line numbers are not durable contracts.
 - Generated website data must accompany the API/gallery change. Batching the
   artifact is valid within one mergeable integration change, not by merging
   independently incomplete PRs and promising to synchronise them later.
-- `demo_audit.py` unpacks `.shots/heroui-demos-v3.2.5.tar.gz` on a routine run
+- `demo_audit.py` unpacks `.shots/heroui-demos-v3.2.6.tar.gz` on a routine run
   and only fetches on `--fetch`. A clean machine stays offline.
   The current CI test command uses `.shots/run-tests.sh`; the lint script's
   actual Clippy invocation does not include `--all-features`.
@@ -431,3 +431,33 @@ GPUI evidence: re-derive from the unpacked `gpui-pre-0.3.5` registry sources
 retired-fork API and no longer exists on vanilla), plus `src/geometry.rs`
 (`AbsoluteLength`) and `src/elements/div.rs` (`compute_style_internal`). Pagination CSS was checked directly in the pinned CSS archive,
 including the size-specific pressed-scale rules.
+
+## gpui-kit adoptions: done in 0.11.0 and next
+
+Source: `tmp/review/gpui-kit-comparison.md` §4. Landed in 0.11.0 (Phase 4):
+`CONTRIBUTING.md` and the pull request template, the `examples/` crates, the
+`Disableable`/`Sizable`/`Selectable` traits, the `i18n` chrome-string
+catalogue, theme files with a checked-in schema and presets, the
+`herogpui::test` kit, `VirtualList` and `ContextMenu`.
+
+Deliberately not done, and next in this order:
+
+1. **`Styled` on components** (comparison §4 #3, L). Replaces per-prop box
+   builders with GPUI's full style surface backed by the existing `sx`
+   refinement. Needs the per-part ownership rules above first, because a root
+   `Styled` call must not silently restyle child parts.
+2. **Public icon crate** (§4 #8, M). A `herogpui-icons` crate with a named
+   enum and a default subset; today's `icons.rs` constants stay internal.
+3. **Resizable panels / split view** (§3 P1). An extension component; needs
+   keyed drag state and pointer capture per `docs/agents/components.md`.
+4. **Tree view** (§3 P1). Can reuse `Table`'s tree rows and `list_nav`.
+5. **VirtualList adoption inside `ListBox`/`ComboBox`/`Table`.** Their
+   fixed-height `uniform_list` paths are audited for exact geometry
+   (PageUp/PageDown by viewport, load-more sentinels); moving them onto the
+   variable-height primitive is a behaviour change to review separately.
+6. **Theme hot reload** (`watch_dir`) and a gallery theme picker over the
+   presets; **i18n** for more locales (non-Latin locales also need the web
+   font subsets extended) and for the remaining hard-coded strings (NumberField
+   stepper names, ColorPicker channel names, DateField segment names).
+7. **Keyboard opening for `ContextMenu`** (Shift+F10 / the Menu key) once the
+   area can own a focus handle without joining the tab order.

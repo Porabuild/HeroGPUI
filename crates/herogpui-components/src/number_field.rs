@@ -246,6 +246,7 @@ type OnChange = Arc<dyn Fn(&f64, &mut Window, &mut App) + 'static>;
 
 /// Values HeroUI supplies to a NumberField root render function.
 #[derive(Clone, Copy, Debug)]
+#[non_exhaustive]
 pub struct NumberFieldRenderState {
     pub is_disabled: bool,
     pub is_invalid: bool,

@@ -190,7 +190,8 @@ change to drift back toward it.
 **Delete on sight**, anywhere in the repository or the site:
 
 - Component names that no longer exist: `Navbar`, `Image`, `User`, `Spacer`,
-  `Code`, `Snippet`, `AvatarGroup`, `Divider`.
+  `Code`, `Snippet`, `Divider`. (`AvatarGroup` returned in v3.2.6 as a v3
+  compound; it is not a v2 leftover.)
 - The old variant vocabulary: `solid`, `bordered`, `light`, `flat`, `faded`,
   `shadow` as button variants. The current set is `Primary`, `Secondary`,
   `Tertiary`, `Outline`, `Ghost`, `Danger`, `DangerSoft`.

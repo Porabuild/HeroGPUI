@@ -355,6 +355,7 @@ pub enum KeyboardActivation {
 }
 
 /// One tab: key + label + panel content.
+#[non_exhaustive]
 pub struct TabItem {
     pub key: SharedString,
     pub label: SharedString,
