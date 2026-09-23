@@ -63,6 +63,10 @@ icu_locale_core = "=2.2.0"
 jiff = { version = "0.2", features = ["js"] }
 locale_config = "=0.3.0"
 web-time = "=1.1.0"
+# Extended grapheme cluster boundaries for caret motion and deletion in the
+# text fields, so Backspace never splits an emoji or a combining sequence.
+# Already in the graph through GPUI; MIT OR Apache-2.0.
+unicode-segmentation = "1.13"
 prettyplease = "0.2.37"
 syn = { version = "2.0.119", features = ["full", "parsing"] }
 herogpui-core = { version = "0.11.0", path = "crates/herogpui-core" }

@@ -2667,6 +2667,7 @@ dependencies = [
  "icu_locale_core",
  "jiff",
  "locale_config",
+ "unicode-segmentation",
  "web-time",
 ]
 

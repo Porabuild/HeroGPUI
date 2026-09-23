@@ -20,6 +20,7 @@ pub enum SkeletonAnimation {
 
 /// Spacing, radius, border and shadow tokens shared by all components.
 #[derive(Clone, Debug)]
+#[non_exhaustive]
 pub struct LayoutTheme {
     /// `--spacing: 0.25rem`
     pub spacing: Pixels,

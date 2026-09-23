@@ -7,6 +7,7 @@ use super::*;
 
 /// State handed to `ColorSlider.Thumb`'s render function.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[non_exhaustive]
 pub struct ColorSliderThumbState {
     /// React Aria's ColorThumb render color excludes the alpha channel.
     pub color: PickerColor,

@@ -1,7 +1,7 @@
 {
   "version": 2,
-  "artifactSha256": "db900943001b6b3732201e2d39947bc59fd3c47a72c57709fefcdf00e0c5a4fe",
-  "glueSha256": "9c26a1489b31538a6386712b6eafd4fffef09079eb2c4375eba95a5d6bcf3f8b",
+  "artifactSha256": "22a7000ddc3e966d561d34f59fffa0c4ff09893ea21f58685f44346bb04d0d1f",
+  "glueSha256": "73b84bcbd318176944142c50207677848b955092390703f1e1abb68eb9399ca9",
   "examples": {
     "accordion/Controlled": {
       "codeSha256": "ac39d58e626756503af3f2fedbcf0a3a791b32096093d62ca5c6aab77146d75b",
@@ -496,7 +496,7 @@
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "card/With Avatar": {
-      "codeSha256": "9c82ac202615e3462f042fcb6f2644916a73ed316ed6f37997f6848c2402bb36",
+      "codeSha256": "36befb0266ba25444fc4778b6782989893cbd7097bbcbf4d4237f10486ebd583",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "card/With Form": {

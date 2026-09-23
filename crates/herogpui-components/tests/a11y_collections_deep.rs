@@ -49,8 +49,8 @@ use std::collections::HashSet;
 
 use gpui::{prelude::*, px, SharedString, TestAppContext};
 use herogpui_components::{
-    util::FIELD_HEIGHT, Autocomplete, Breadcrumbs, Button, Crumb, InputState, ListBox, ListBoxItem,
-    Pagination, PickerItem, TabItem, Table, TableColumn, Tabs, Tag, TagGroup, Toolbar,
+    extend::FIELD_HEIGHT, Autocomplete, Breadcrumbs, Button, Crumb, InputState, ListBox,
+    ListBoxItem, Pagination, PickerItem, TabItem, Table, TableColumn, Tabs, Tag, TagGroup, Toolbar,
 };
 use herogpui_core::SelectionMode;
 

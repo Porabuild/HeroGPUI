@@ -13,12 +13,13 @@
 //!
 //! | Path                        | Crate                 | Feature                    |
 //! | --------------------------- | --------------------- | -------------------------- |
-//! | `herogpui::*`               | `gpui`                | always                     |
+//! | `herogpui::*`, [`gpui`]     | `gpui`                | always                     |
 //! | [`platform`], [`application`] | `gpui_platform`     | always                     |
 //! | `web`                       | `gpui_platform`       | always, `cfg(wasm)` only   |
 //! | [`core`]                    | `herogpui-core`       | `core` (via `theme`)       |
 //! | [`theme`]                   | `herogpui-theme`      | `theme` (via `components`) |
 //! | [`components`], `herogpui::*` | `herogpui-components` | `components` (**on**)    |
+//! | [`anim`], [`extend`]        | `herogpui-components` | `components` (**on**)      |
 //!
 //! Two features carry no layer of their own and only forward to GPUI:
 //!
@@ -149,7 +150,9 @@ pub use ::gpui::prelude::FluentBuilder;
 // is what makes those expansions resolve. `herogpui::*` is the documented way;
 // a caller who imports selectively instead needs `use herogpui::gpui;` beside
 // it before deriving.
-#[doc(hidden)]
+/// GPUI itself, by name: `herogpui::gpui::Size`, `herogpui::gpui::div`, and
+/// so on. This is the stable spelling for a GPUI item — it also names the
+/// eight GPUI types the HeroUI vocabulary shadows at this crate's root.
 pub use ::gpui;
 pub use ::gpui_platform as platform;
 pub use ::gpui_platform::application;

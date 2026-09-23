@@ -7,6 +7,7 @@ use super::*;
 
 /// State handed to `ColorArea.Thumb`'s render function.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[non_exhaustive]
 pub struct ColorAreaThumbState {
     pub color: PickerColor,
     pub is_dragging: bool,

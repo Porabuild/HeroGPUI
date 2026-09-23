@@ -14,6 +14,7 @@ use crate::anim::Tween;
 
 /// Field state handed to Checkbox's children and indicator render functions.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct CheckboxState {
     pub is_selected: bool,
     pub is_indeterminate: bool,

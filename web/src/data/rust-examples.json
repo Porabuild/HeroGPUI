@@ -2749,8 +2749,8 @@
     },
     {
       "heading": "With Avatar",
-      "imports": "use herogpui::prelude::{ActiveTheme, Avatar, Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle, Size, util};\nuse gpui::prelude::*;\nuse gpui::px;",
-      "code": "specimen_body(\n    \"card-avatar\",\n    row(vec![Card::new()\n        .w(px(200.))\n        .child(\n            gpui::div()\n                .size(px(56.))\n                .rounded(util::soft_radius(cx))\n                .bg(cx.colors().default.color),\n        )\n        .child(\n            CardHeader::new()\n                .child(CardTitle::new().child(\"Indie Hackers\"))\n                .child(CardDescription::new().child(\"148 members\")),\n        )\n        .child(\n            CardFooter::new()\n                .child(\n                    Avatar::new(\"card-martha\").name(\"Martha\").size(Size::Sm)\n                )\n                .child(\"By Martha\"),\n        )\n        .into_any_element()]),\n    cx\n)"
+      "imports": "use herogpui::prelude::{ActiveTheme, Avatar, Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle, Size, extend};\nuse gpui::prelude::*;\nuse gpui::px;",
+      "code": "specimen_body(\n    \"card-avatar\",\n    row(vec![Card::new()\n        .w(px(200.))\n        .child(\n            gpui::div()\n                .size(px(56.))\n                .rounded(extend::soft_radius(cx))\n                .bg(cx.colors().default.color),\n        )\n        .child(\n            CardHeader::new()\n                .child(CardTitle::new().child(\"Indie Hackers\"))\n                .child(CardDescription::new().child(\"148 members\")),\n        )\n        .child(\n            CardFooter::new()\n                .child(\n                    Avatar::new(\"card-martha\").name(\"Martha\").size(Size::Sm)\n                )\n                .child(\"By Martha\"),\n        )\n        .into_any_element()]),\n    cx\n)"
     },
     {
       "heading": "With Images",

@@ -23,6 +23,49 @@ changed no theme tokens, so `herogpui-theme` is unchanged.
   and 3.2.6, and 3.2.6 deleted the never-applied `.separator__container`,
   `__line` and `__content` rules the mode was modelled on. Place separators
   between blocks instead, as v3's "With Content" example does.
+- Public API hardening:
+  - `herogpui_components::util` is private. The helpers supported for custom
+    widgets move to the new `extend` module (`herogpui::extend`): the radius
+    scale (`control_radius`, `soft_radius`, `small_radius`, `mark_radius`,
+    `key_radius`, `hairline_radius`, `micro_radius`, `field_radius`,
+    `container_radius`), `FIELD_HEIGHT`/`FIELD_TEXT`/`FIELD_ICON`,
+    `cursor_interactive`/`interactive_cursor`, `focus_visible`/
+    `set_focus_visible`, `inner_fill_radius`, `shift_wheel_scroll_x` and
+    `app_focus_root`. The render-prop payloads `FieldFocus`, `SelectionValue`
+    and `InteractiveState` are re-exported at the crate root. Every other
+    former `util` item (field chrome, overlay stack, focus-ring plumbing,
+    `sx` extraction) is no longer public; the unused `prominence_bg`,
+    `placed_panel`, `placed_field_panel` and `focusable` are deleted.
+  - `pub use anim::*` is gone: motion tokens and wrappers are reached as
+    `herogpui::anim::…` (`herogpui_components::anim::…`) instead of at the
+    crate root.
+  - `#[non_exhaustive]` on `Theme`, `ThemeColors`, `FieldColors`,
+    `LayoutTheme`, `ComponentThemes`, `ComponentTheme`, `ButtonStyle`,
+    `SliderStyle`, `SwitchStyle`, `SelectStyle`, `MenuStyle`,
+    `TextFieldStyle`, `TabItem`, and every render-prop payload
+    (`InteractiveState`, `FieldFocus`, `SelectionValue`,
+    `AccordionItemState`, `CalendarCellState`, `RangeCalendarCellState`,
+    `CheckboxState`, `SwitchState`, `RadioOptionState`,
+    `ColorAreaThumbState`, `ColorSliderThumbState`,
+    `ColorSwatchPickerItemState`, `ColorFieldRenderState`,
+    `DateFieldRenderState`, `DatePickerRenderState`,
+    `DateRangePickerRenderState`, `DisclosureRenderState`,
+    `TextFieldRenderState`, `SearchFieldRenderState`,
+    `NumberFieldRenderState`, `TimeFieldRenderState`). Outside the crates
+    they can no longer be built with a struct literal (not even with
+    `..Default::default()`); use their constructors, builders or `Default`
+    and assign fields.
+  - `use_theme` and `ThemeProvider::set_active` return
+    `Result<(), UnknownThemeError>`. An unregistered id (ids are
+    case-sensitive) is refused and leaves the active theme and every window
+    untouched; it previously installed the id and panicked on the next frame.
+  - `Modal::on_close` and `Drawer::on_close` receive `&DismissReason`
+    (`CloseButton`, `Escape`, `Backdrop`, `Drag`) instead of a `&ClickEvent`,
+    which Escape and backdrop dismissal used to fabricate with
+    `ClickEvent::default()`. `modal::OnClose` changes accordingly.
+- `herogpui::gpui` is now documented (it was `#[doc(hidden)]`) as the stable
+  path to GPUI items, including the eight the HeroUI vocabulary shadows at
+  the root. The root `use herogpui::*;` still carries all of GPUI.
 
 ### Added
 
@@ -39,6 +82,11 @@ changed no theme tokens, so `herogpui-theme` is unchanged.
 
 ### Changed
 
+- Internal: `Calendar` and `RangeCalendar` share one keyboard controller
+  (`calendar_keys`) for grid navigation, visible-window paging and the year
+  picker; `Table::render` is split into named part renderers (header cells,
+  resize handle, virtual projection, body rows, row keyboard, load-more).
+  Behavior is unchanged.
 - Avatar: small fallback text is 12px/16px (`.avatar--sm .avatar__fallback`
   is `text-xs` in 3.2.6).
 - Breadcrumbs: the root gaps items by 6px (`gap-1.5`), an item gaps its link
@@ -54,6 +102,12 @@ changed no theme tokens, so `herogpui-theme` is unchanged.
 
 ### Fixed
 
+- Text editing (`Input`, `TextField`, `SearchField`, `TextArea`):
+  Backspace, Delete and Left/Right (with or without Shift) step by extended
+  grapheme cluster, so an emoji with a modifier, a ZWJ sequence, a flag or a
+  letter with combining marks is one caret stop and one deletion instead of
+  being split. Adds the `unicode-segmentation` dependency (MIT OR Apache-2.0,
+  already in the graph through GPUI).
 - Switch: the built-in label uses the shared `.label` style, 14px/20px medium.
   It previously painted 16px/24px from a `.switch__label` rule that v3 never
   applied (3.2.6 deleted it); this corrects a latent error, not a 3.2.6

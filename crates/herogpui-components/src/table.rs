@@ -1273,114 +1273,7 @@ impl RenderOnce for Table {
         );
         self.selected_keys = selected_keys;
         let needs_selectable_keys = self.selection_mode == SelectionMode::Multiple;
-        let virtual_projection: Option<std::sync::Arc<VirtualProjection>> = self
-            .virtual_rows
-            .as_ref()
-            .map(|(count, identity, key_for_row, _)| {
-                let cache = window.use_keyed_state(
-                    element_id::scoped(&base_id, "virtual-projection"),
-                    cx,
-                    |_, _| None::<std::sync::Arc<VirtualProjection>>,
-                );
-                let cached = cache.read(cx).clone();
-                let tree = self.virtual_tree_metadata.is_some();
-                match cached {
-                    Some(cached)
-                        if cached.count == *count
-                            && cached.identity == *identity
-                            && cached.tree == tree
-                            && (!tree
-                                || (cached.expanded.len() == self.expanded_keys.len()
-                                    && self
-                                        .expanded_keys
-                                        .iter()
-                                        .all(|key| cached.expanded.contains(key)))) =>
-                    {
-                        if !needs_selectable_keys
-                            || cached
-                                .selectable_disabled_keys
-                                .as_ref()
-                                .is_some_and(|disabled| {
-                                    disabled.as_slice() == self.disabled_keys.as_slice()
-                                })
-                        {
-                            cached
-                        } else {
-                            let projection = std::sync::Arc::new(VirtualProjection {
-                                count: cached.count,
-                                identity: cached.identity.clone(),
-                                expanded: std::sync::Arc::clone(&cached.expanded),
-                                tree: cached.tree,
-                                full_keys: std::sync::Arc::clone(&cached.full_keys),
-                                visible: std::sync::Arc::clone(&cached.visible),
-                                selectable_collection_keys: Some(filtered_selectable_keys(
-                                    cached.full_keys.as_slice(),
-                                    &self.disabled_keys,
-                                )),
-                                selectable_disabled_keys: Some(std::sync::Arc::new(
-                                    self.disabled_keys.clone(),
-                                )),
-                            });
-                            cache.update(cx, |slot, _| {
-                                *slot = Some(std::sync::Arc::clone(&projection));
-                            });
-                            projection
-                        }
-                    }
-                    _ => {
-                        let mut full_keys = Vec::with_capacity(*count);
-                        let mut visible = Vec::with_capacity(*count);
-                        if let Some(project) = &self.virtual_tree_metadata {
-                            let mut visible_by_key =
-                                std::collections::HashMap::with_capacity(*count);
-                            for source_index in 0..*count {
-                                let key = key_for_row(source_index);
-                                let metadata = project(source_index);
-                                let is_visible =
-                                    metadata.parent_key.as_ref().is_none_or(|parent| {
-                                        visible_by_key.get(parent).copied().unwrap_or(false)
-                                            && self.expanded_keys.contains(parent)
-                                    });
-                                visible_by_key.insert(key.clone(), is_visible);
-                                full_keys.push(key.clone());
-                                if is_visible {
-                                    visible.push((source_index, key, metadata));
-                                }
-                            }
-                        } else {
-                            for source_index in 0..*count {
-                                let key = key_for_row(source_index);
-                                full_keys.push(key.clone());
-                                visible.push((source_index, key, VirtualTreeMetadata::default()));
-                            }
-                        }
-                        let full_keys = std::sync::Arc::new(full_keys);
-                        let selectable_collection_keys = needs_selectable_keys.then(|| {
-                            filtered_selectable_keys(full_keys.as_slice(), &self.disabled_keys)
-                        });
-                        let selectable_disabled_keys = needs_selectable_keys
-                            .then(|| std::sync::Arc::new(self.disabled_keys.clone()));
-                        let projection = std::sync::Arc::new(VirtualProjection {
-                            count: *count,
-                            identity: identity.clone(),
-                            expanded: if tree {
-                                std::sync::Arc::new(self.expanded_keys.iter().cloned().collect())
-                            } else {
-                                std::sync::Arc::default()
-                            },
-                            tree,
-                            full_keys,
-                            visible: std::sync::Arc::new(visible),
-                            selectable_collection_keys,
-                            selectable_disabled_keys,
-                        });
-                        cache.update(cx, |slot, _| {
-                            *slot = Some(std::sync::Arc::clone(&projection));
-                        });
-                        projection
-                    }
-                }
-            });
+        let virtual_projection = self.virtual_projection(&base_id, window, cx);
         let virtual_visible_count = virtual_projection
             .as_ref()
             .map_or(0, |projection| projection.visible.len());
@@ -1391,31 +1284,8 @@ impl RenderOnce for Table {
                 .map(|(_, key, _)| key.clone())
                 .collect::<Vec<_>>()
         });
-        let virtual_row_heights = match (
-            &self.virtual_rows,
-            self.estimated_row_height,
-            &virtual_visible_keys,
-        ) {
-            (Some((_, identity, _, _)), Some(_), Some(keys)) if self.row_height.is_none() => {
-                let count = keys.len();
-                let state = window.use_keyed_state(
-                    element_id::scoped(
-                        &element_id::scoped(&base_id, "row-heights"),
-                        identity.clone(),
-                    ),
-                    cx,
-                    |_, _| (Vec::<SharedString>::new(), Vec::<Option<Pixels>>::new()),
-                );
-                if state.read(cx).0.as_slice() != keys.as_slice() {
-                    let stored_keys = keys.clone();
-                    state.update(cx, |stored, _| {
-                        *stored = (stored_keys, vec![None; count]);
-                    });
-                }
-                Some(state)
-            }
-            _ => None,
-        };
+        let virtual_row_heights =
+            self.virtual_row_heights(&base_id, virtual_visible_keys.as_ref(), window, cx);
         let virtual_scroll = window.use_keyed_state(
             element_id::scoped(&base_id, "virtual-scroll"),
             cx,
@@ -1424,32 +1294,8 @@ impl RenderOnce for Table {
         let virtual_scroll_now = virtual_scroll.read(cx).clone();
         let load_more_virtual_scroll = (self.row_height.is_some() && self.virtual_rows.is_some())
             .then(|| virtual_scroll_now.clone());
-        let virtual_list_state = match (
-            self.row_height,
-            self.estimated_row_height,
-            &self.virtual_rows,
-        ) {
-            (None, Some(estimate), Some((_, identity, _, _))) => {
-                let count = virtual_visible_count;
-                let overdraw = self.max_h.unwrap_or(px(400.)).max(estimate * 3.);
-                let state = window
-                    .use_keyed_state(
-                        element_id::scoped(
-                            &element_id::scoped(&base_id, "list-state"),
-                            identity.clone(),
-                        ),
-                        cx,
-                        move |_, _| gpui::ListState::new(count, gpui::ListAlignment::Top, overdraw),
-                    )
-                    .read(cx)
-                    .clone();
-                if state.item_count() != count {
-                    state.reset(count);
-                }
-                Some(state)
-            }
-            _ => None,
-        };
+        let virtual_list_state =
+            self.virtual_list_state(&base_id, virtual_visible_count, window, cx);
         let load_more_variable_scroll = virtual_list_state
             .clone()
             .zip(self.estimated_row_height)
@@ -1465,41 +1311,15 @@ impl RenderOnce for Table {
         // Only a sortable header is a *tab stop*, though -- it has to be, so
         // Enter and Space can sort it -- which keeps every table's Tab order
         // exactly as it was while giving the keyboard somewhere to land.
-        let header_focus: Vec<gpui::FocusHandle> = self
-            .columns
-            .iter()
-            .enumerate()
-            .map(|(i, column)| {
-                let id = element_id::scoped(&element_id::indexed(&base_id, "sort", i), "focus");
-                if column.allows_sorting && sortable {
-                    crate::util::tab_stop_handle(id, window, cx)
-                } else {
-                    window
-                        .use_keyed_state(id, cx, |_, cx| cx.focus_handle())
-                        .read(cx)
-                        .clone()
-                }
-            })
-            .collect();
+        let header_focus: Vec<gpui::FocusHandle> =
+            self.header_focus_handles(&base_id, sortable, window, cx);
         let ring_visible = crate::util::focus_visible(cx);
         let header_focused: Vec<bool> = header_focus
             .iter()
             .map(|h| h.is_focused(window) && ring_visible)
             .collect();
-        let resize_focus: Vec<Option<gpui::FocusHandle>> = self
-            .columns
-            .iter()
-            .enumerate()
-            .map(|(i, column)| {
-                column.allows_resizing.then(|| {
-                    crate::util::tab_stop_handle(
-                        element_id::scoped(&element_id::indexed(&base_id, "resize", i), "focus"),
-                        window,
-                        cx,
-                    )
-                })
-            })
-            .collect();
+        let resize_focus: Vec<Option<gpui::FocusHandle>> =
+            self.resize_focus_handles(&base_id, window, cx);
         let resize_focused: Vec<bool> = resize_focus
             .iter()
             .map(|h| h.as_ref().is_some_and(|h| h.is_focused(window)) && ring_visible)
@@ -1517,36 +1337,8 @@ impl RenderOnce for Table {
         }
 
         let resizable = self.columns.iter().any(|c| c.allows_resizing);
-        let resize_limits: Vec<(f32, f32)> = self
-            .columns
-            .iter()
-            .map(|column| {
-                (
-                    column.min_width.map_or(DEFAULT_COLUMN_MIN_WIDTH, f32::from),
-                    column.max_width.map_or(f32::MAX, f32::from),
-                )
-            })
-            .collect();
-        let effective_widths: Vec<Option<Pixels>> = self
-            .columns
-            .iter()
-            .enumerate()
-            .map(|(column_index, column)| {
-                let width = column.width.or_else(|| {
-                    resized_now
-                        .get(column_index)
-                        .copied()
-                        .flatten()
-                        .or(column.default_width)
-                });
-                if column.allows_resizing {
-                    let (min, max) = resize_limits[column_index];
-                    width.map(|width| px(f32::from(width).floor().min(max).max(min)))
-                } else {
-                    width
-                }
-            })
-            .collect();
+        let resize_limits = column_resize_limits(&self.columns);
+        let effective_widths = effective_column_widths(&self.columns, &resized_now, &resize_limits);
         // The one column-track computation. Upstream draws a `border-separate`
         // table, so the header's `<th>` cells resolve tracks every row shares;
         // this port stands in for that with one `(width, min, max)` triple per
@@ -1558,34 +1350,12 @@ impl RenderOnce for Table {
         // resolve its own track and stagger the header off the body. A table
         // narrower than the tracks then overflows `scroll-x` as one grid
         // instead of squeezing each row separately.
-        let layout_width_bounds: Vec<(Option<Pixels>, Option<Pixels>)> = self
-            .columns
-            .iter()
-            .enumerate()
-            .map(|(column_index, column)| {
-                let measured = measured_widths_now.get(column_index).copied().flatten();
-                if column.allows_resizing {
-                    if effective_widths[column_index].is_some() {
-                        (None, None)
-                    } else {
-                        let min = measured.map_or(resize_limits[column_index].0, |width| {
-                            resize_limits[column_index].0.max(f32::from(width))
-                        });
-                        (Some(px(min)), column.max_width)
-                    }
-                } else {
-                    let min = match (column.min_width, measured) {
-                        (Some(configured), Some(content)) => {
-                            Some(px(f32::from(configured).max(f32::from(content))))
-                        }
-                        (Some(configured), None) => Some(configured),
-                        (None, Some(content)) => Some(content),
-                        (None, None) => None,
-                    };
-                    (min, column.max_width)
-                }
-            })
-            .collect();
+        let layout_width_bounds = layout_width_bounds(
+            &self.columns,
+            &measured_widths_now,
+            &effective_widths,
+            &resize_limits,
+        );
         let resize_columns = std::sync::Arc::new(self.columns.clone());
         let resize_measurements = std::sync::Arc::new(measured_widths_now.clone());
         let colors = cx.colors().clone();
@@ -1737,558 +1507,47 @@ impl RenderOnce for Table {
             .when(!secondary, |h| h.bg(colors.surface_secondary));
 
         if selectable {
-            // The select-all box only makes sense for a multiple selection; a
-            // single-selection table keeps the column for alignment.
-            let mut cell = gpui::div()
-                .id(element_id::scoped(&base_id, "select-all-cell"))
-                // The selection column is a real column of the collection
-                // upstream, so its header is a `role: 'columnheader'` like any
-                // other (`useTableColumnHeader.mjs`), holding the select-all
-                // checkbox `useTableSelectAllCheckbox` names.
-                .a11y(a11y::Role::ColumnHeader)
-                .a11y_column_index(0)
-                .flex()
-                .items_center()
-                .justify_center()
-                .relative()
-                .w(px(44.))
-                .py(px(10.));
-            if secondary {
-                let radius = cx.layout().radius_2xl().min(px(32.));
-                cell = cell
-                    .bg(colors.surface_secondary)
-                    .rounded_tl(radius)
-                    .rounded_bl(radius);
-            }
-            if self.selection_mode == SelectionMode::Multiple {
-                // The `Mod+A` keydown handler reads the same set, so it gets a
-                // clone rather than the variable itself.
-                let all = selectable_collection_keys
-                    .as_ref()
-                    .expect("multiple Tables have selectable keys")
-                    .clone();
-                let (all_selected, indeterminate) =
-                    select_all_flags(all.as_slice(), &self.selected_keys);
-                let mut box_el = Checkbox::new(element_id::scoped(&base_id, "select-all"))
-                    .is_selected(all_selected)
-                    .is_indeterminate(indeterminate);
-                let cb = self.on_selection_change.clone();
-                if cb.is_some() || selection_own.is_some() {
-                    let selection_own = selection_own.clone();
-                    let selection_range = selection_range.clone();
-                    let disallow_empty_selection = self.disallow_empty_selection;
-                    box_el = box_el.on_change(move |_next, window, cx| {
-                        if all_selected && disallow_empty_selection {
-                            return;
-                        }
-                        // Anything short of everything selects everything.
-                        let next: Vec<SharedString> = if all_selected {
-                            Vec::new()
-                        } else {
-                            all.as_slice().to_vec()
-                        };
-                        if let Some(held) = &selection_own {
-                            held.update(cx, |value, cx| {
-                                *value = next.clone();
-                                cx.notify();
-                            });
-                        }
-                        if let Some(cb) = &cb {
-                            cb(&next, window, cx);
-                        }
-                        selection_range.update(cx, |range, _| {
-                            *range = if all_selected {
-                                TableSelectionRange::default()
-                            } else {
-                                TableSelectionRange {
-                                    is_all: true,
-                                    ..TableSelectionRange::default()
-                                }
-                            };
-                        });
-                    });
-                }
-                cell = cell.child(box_el);
-            }
-            header = header.child(cell);
+            header = header.child(self.select_all_header_cell(
+                &base_id,
+                &colors,
+                secondary,
+                &selectable_collection_keys,
+                &selection_own,
+                &selection_range,
+                cx,
+            ));
         }
 
+        let header_parts = HeaderParts {
+            base_id: &base_id,
+            colors: &colors,
+            secondary,
+            selectable,
+            effective_widths: &effective_widths,
+            layout_width_bounds: &layout_width_bounds,
+            measured_widths: &measured_widths,
+            measured_widths_now: &measured_widths_now,
+            header_focus: &header_focus,
+            header_focused: &header_focused,
+            resize_focus: &resize_focus,
+            resize_focused: &resize_focused,
+            resized: &resized,
+            dragging: &dragging,
+            drag_now,
+            keyboard_resizing: &keyboard_resizing,
+            keyboard_resize_now,
+            resize_limits: &resize_limits,
+            resize_columns: &resize_columns,
+            resize_measurements: &resize_measurements,
+        };
         for (column_index, column) in self.columns.iter().enumerate() {
-            let sorted = self
-                .sort_descriptor
-                .as_ref()
-                .filter(|d| d.column == column.label);
-            // A resized column keeps the width the drag left it at.
-            let effective = effective_widths[column_index];
-            let (layout_min, layout_max) = layout_width_bounds[column_index];
-            let first_header = column_index == 0 && !selectable;
-            let last_header = column_index + 1 == self.columns.len();
-            let mut cell = gpui::div()
-                .when(effective.is_none(), flex_cell)
-                .when_some(effective, |c, w| c.w(w))
-                .when_some(layout_min, |c, w| c.min_w(w))
-                .when_some(layout_max, |c, w| c.max_w(w))
-                .flex()
-                .items_center()
-                .gap(px(4.))
-                // `.table__column` is `px-4 py-2.5 text-xs`.
-                .px(px(16.))
-                .py(px(10.))
-                .text_size(px(12.))
-                .line_height(px(16.))
-                .font_weight(gpui::FontWeight::MEDIUM)
-                .when(column.allows_sorting, |c| c.w_full().justify_between())
-                .text_color(if sorted.is_some() {
-                    colors.foreground
-                } else {
-                    colors.muted
-                })
-                .relative();
-            if !column.allows_resizing && !cfg!(target_arch = "wasm32") {
-                let measurements = measured_widths.clone();
-                cell = cell.on_children_prepainted(move |bounds, _, cx| {
-                    let content = intrinsic_children_width(&bounds);
-                    if content <= 0. {
-                        return;
-                    }
-                    let next = px(content + 32.);
-                    measurements.update(cx, |values, cx| {
-                        if values.len() <= column_index {
-                            values.resize(column_index + 1, None);
-                        }
-                        if values[column_index].is_none_or(|current| next > current) {
-                            values[column_index] = Some(next);
-                            cx.notify();
-                        }
-                    });
-                });
-            }
-            cell = cell.child(column.label.clone());
-            let header_selector = format!("table-header-track-{column_index}");
-            cell = cell.debug_selector(move || header_selector);
-
-            if secondary {
-                let radius = cx.layout().radius_2xl().min(px(32.));
-                cell = cell.bg(colors.surface_secondary);
-                if first_header {
-                    cell = cell.rounded_tl(radius).rounded_bl(radius);
-                }
-                if last_header {
-                    cell = cell.rounded_tr(radius).rounded_br(radius);
-                }
-            }
-
-            if let Some(descriptor) = sorted {
-                if self.show_indicator {
-                    // `indicator` is v3's render prop on
-                    // `Table.SortableColumnHeader`: it receives the direction
-                    // the column is sorted in and replaces the chevron.
-                    cell = cell.child(match &self.indicator {
-                        Some(render) => render(descriptor.direction),
-                        None => {
-                            let indicator_id = element_id::indexed(
-                                &element_id::scoped(&base_id, "sort-indicator"),
-                                "column",
-                                column_index,
-                            );
-                            crate::anim::rotating_indicator_with_duration(
-                                &indicator_id,
-                                descriptor.direction == SortDirection::Descending,
-                                gpui::svg()
-                                    .size(px(12.))
-                                    .path(icons::CHEVRON_UP)
-                                    // svg() never inherits text colour.
-                                    .text_color(colors.foreground),
-                                100,
-                                window,
-                                cx,
-                            )
-                        }
-                    });
-                }
-            }
-
-            if !last_header && !column.allows_resizing {
-                cell = cell.child(
-                    gpui::div()
-                        .absolute()
-                        .right_0()
-                        .top(px(10.))
-                        .h(px(16.))
-                        .w(px(1.))
-                        .rounded(crate::util::hairline_radius(cx))
-                        .bg(colors.separator),
-                );
-            }
-
-            // A sortable header wraps the cell in a click target, which is a
-            // different element type, so both branches unify to AnyElement.
-            let cell = match (column.allows_sorting, self.on_sort_change.clone()) {
-                (true, Some(cb)) => {
-                    let next =
-                        SortDescriptor::next(self.sort_descriptor.as_ref(), column.label.clone());
-                    // `.table__column[data-allows-sorting]:hover` recolours the
-                    // header text to `--foreground`; it paints no background.
-                    // A group name is a plain string, not an `ElementId`, so it
-                    // cannot carry structure -- but it still has to start from
-                    // this table's own id, or two tables share the group.
-                    let sort_group: SharedString =
-                        format!("{}-sort-hover-{}", self.id, column.label).into();
-                    let header_cell = gpui::div()
-                        .id(element_id::scoped(
-                            &element_id::scoped(&base_id, "sort"),
-                            column.label.clone(),
-                        ))
-                        // `useTableColumnHeader.mjs` is `role: 'columnheader'`
-                        // with `'aria-colindex'` from the grid cell props
-                        // underneath it and `'aria-sort'` on a sortable
-                        // column. The sort direction has no gpui builder —
-                        // upstream itself drops it on Android Talkback and
-                        // duplicates it into `aria-describedby` instead — so
-                        // it is a recorded omission in `crate::a11y`.
-                        .a11y_named(
-                            a11y::Role::ColumnHeader,
-                            &a11y::Name::labelled(column.label.clone()),
-                        )
-                        .a11y_column_index(column_index + usize::from(selectable))
-                        .group(sort_group.clone())
-                        // The wrapper owns the column's track, so it reads the
-                        // same triple the body cell read: a fixed width when
-                        // one wins, otherwise the shared flex floor. Leaving
-                        // the wrapper an unconditional equal-growth track
-                        // ignored the width entirely and resolved the header's
-                        // tracks separately from the body's.
-                        .when(effective.is_none(), |wrapper| {
-                            wrapper.flex_basis(px(0.)).flex_grow(1.).flex_shrink(1.)
-                        })
-                        .when_some(effective, |wrapper, w| wrapper.w(w))
-                        .when_some(layout_min, |wrapper, w| wrapper.min_w(w))
-                        .when_some(layout_max, |wrapper, w| wrapper.max_w(w))
-                        .flex()
-                        .cursor(crate::util::interactive_cursor(cx))
-                        // The focus is what makes Enter and Space sort: gpui
-                        // fires a *focused* element's click listeners for them.
-                        .track_focus(&header_focus[column_index])
-                        .on_click(move |_, window, cx| cb(&next.clone(), window, cx))
-                        .child(cell.group_hover(sort_group, |s| s.text_color(colors.foreground)));
-                    // `.table__column` rings *inside* itself: the next column
-                    // is flush against this one, and a ring drawn outside bled
-                    // through the transparent cell and filled it.
-                    header_cell
-                        .relative()
-                        .when(header_focused[column_index], |c| {
-                            c.child(crate::util::inset_focus_ring(cx))
-                        })
-                        .into_any_element()
-                }
-                // Not sortable, so nothing to press -- but still focusable, so
-                // PageUp has a header to land on, and it rings when it does.
-                _ => cell
-                    .id(element_id::indexed(&base_id, "header", column_index))
-                    // The same `role: 'columnheader'`; a column that does not
-                    // sort simply has no `aria-sort` upstream either
-                    // (`ariaSort` stays `undefined` unless `allowsSorting`).
-                    .a11y_named(
-                        a11y::Role::ColumnHeader,
-                        &a11y::Name::labelled(column.label.clone()),
-                    )
-                    .a11y_column_index(column_index + usize::from(selectable))
-                    .track_focus(&header_focus[column_index])
-                    .relative()
-                    .when(header_focused[column_index], |c| {
-                        c.child(crate::util::inset_focus_ring(cx))
-                    })
-                    .into_any_element(),
-            };
-
-            // `allowsResizing` puts a handle on the column's trailing edge. The
-            // wrapper is what keeps the handle inside the column's box.
-            // `.table__resizable-container` is the box that keeps the handle
-            // inside the column, which is what this wrapper is.
-            let cell = if column.allows_resizing {
-                let held = dragging.clone();
-                let start_width = effective
-                    .or_else(|| measured_widths_now.get(column_index).copied().flatten())
-                    .unwrap_or(px(160.));
-                let keyboard = keyboard_resizing.clone();
-                let keyboard_out = keyboard.clone();
-                let keyboard_for_pointer = keyboard.clone();
-                let widths = resized.clone();
-                let widths_for_pointer = widths.clone();
-                let widths_for_outside = widths.clone();
-                let (min_width, max_width) = resize_limits[column_index];
-                let controlled = column.width.is_some();
-                let focus_for_mouse = resize_focus[column_index]
-                    .as_ref()
-                    .expect("resizable columns have a focus handle")
-                    .clone();
-                // As with the sort hover group: a string, but this table's own.
-                let resizer_group: SharedString =
-                    format!("{}-resizer-{column_index}", self.id).into();
-                let accent_color = colors.accent.color;
-                let focus_color = colors.focus;
-                let is_resizing = drag_now.is_some_and(|(index, _, _)| index == column_index)
-                    || keyboard_resize_now == Some(column_index);
-                let measured = measured_widths.clone();
-                let columns_for_pointer = resize_columns.clone();
-                let columns_for_outside = resize_columns.clone();
-                let columns_for_keys = resize_columns.clone();
-                let measurements_for_pointer = resize_measurements.clone();
-                let measurements_for_outside = resize_measurements.clone();
-                let measurements_for_keys = resize_measurements.clone();
-                let resize_start_for_pointer = self.on_resize_start.clone();
-                let resize_start_for_keys = self.on_resize_start.clone();
-                let resize_for_keys = self.on_resize.clone();
-                let resize_end_for_pointer = self.on_resize_end.clone();
-                let resize_end_for_outside = self.on_resize_end.clone();
-                let resize_end_for_keys = self.on_resize_end.clone();
-                gpui::div()
-                    .relative()
-                    .when(effective.is_none(), flex_cell)
-                    .when_some(effective, |c, w| c.w(w))
-                    // The wrapper owns the column's track, so it carries the
-                    // shared bounds instead of leaning on the inner cell's
-                    // automatic minimum (see `layout_width_bounds`).
-                    .when_some(layout_min, |wrapper, w| wrapper.min_w(w))
-                    .when_some(layout_max, |wrapper, w| wrapper.max_w(w))
-                    .when(effective.is_none(), |wrapper| {
-                        wrapper.child(
-                            gpui::canvas(
-                                move |bounds: gpui::Bounds<Pixels>, _, cx| {
-                                    let width = px(f32::from(bounds.size.width).floor());
-                                    measured.update(cx, |values, cx| {
-                                        if values.len() <= column_index {
-                                            values.resize(column_index + 1, None);
-                                        }
-                                        if values[column_index] != Some(width) {
-                                            values[column_index] = Some(width);
-                                            cx.notify();
-                                        }
-                                    });
-                                    bounds
-                                },
-                                |_, _, _, _| {},
-                            )
-                            .absolute()
-                            .inset_0(),
-                        )
-                    })
-                    .child(cell)
-                    .child(
-                        gpui::div()
-                            .id(element_id::indexed(&base_id, "resize", column_index))
-                            .track_focus(
-                                resize_focus[column_index]
-                                    .as_ref()
-                                    .expect("resizable columns have a focus handle"),
-                            )
-                            .group(resizer_group.clone())
-                            .absolute()
-                            .top(px(0.))
-                            // `px-2` around a `w-px` line, `box-content`: an
-                            // 8px grab margin either side of the column edge.
-                            .right(px(-8.))
-                            .w(px(17.))
-                            .h_full()
-                            .flex()
-                            .items_center()
-                            .justify_center()
-                            .child(
-                                // `h-4 w-px rounded-sm bg-separator`, and
-                                // `h-full w-0.5 bg-accent` while hovered.
-                                gpui::div()
-                                    .w(px(1.))
-                                    .h(px(16.))
-                                    .rounded(crate::util::hairline_radius(cx))
-                                    .bg(colors.separator)
-                                    .group_hover(resizer_group.clone(), |s| {
-                                        s.w(px(2.)).h_full().bg(accent_color)
-                                    })
-                                    .when(is_resizing, |s| {
-                                        s.w(px(2.)).h_full().bg(accent_color)
-                                    })
-                                    .when(resize_focused[column_index], |s| {
-                                        s.w(px(2.)).h_full().bg(focus_color)
-                                    }),
-                            )
-                            .cursor(gpui::CursorStyle::ResizeLeftRight)
-                            .on_mouse_down(gpui::MouseButton::Left, move |ev, window, cx| {
-                                window.focus(&focus_for_mouse, cx);
-                                if let Some(active_column) = *keyboard_for_pointer.read(cx) {
-                                    let current = final_column_widths(
-                                        &columns_for_pointer,
-                                        widths_for_pointer.read(cx),
-                                        &measurements_for_pointer,
-                                        active_column,
-                                    );
-                                    keyboard_for_pointer.update(cx, |active, _| *active = None);
-                                    clear_controlled_resize_proposal(
-                                        &columns_for_pointer,
-                                        &widths_for_pointer,
-                                        active_column,
-                                        cx,
-                                    );
-                                    if let Some(callback) = &resize_end_for_pointer {
-                                        callback(&current, window, cx);
-                                    }
-                                }
-                                clear_controlled_resize_proposal(
-                                    &columns_for_pointer,
-                                    &widths_for_pointer,
-                                    column_index,
-                                    cx,
-                                );
-                                if let Some(callback) = &resize_start_for_pointer {
-                                    let current = resolved_column_widths(
-                                        &columns_for_pointer,
-                                        widths_for_pointer.read(cx),
-                                        &measurements_for_pointer,
-                                        None,
-                                    );
-                                    callback(&current, window, cx);
-                                }
-                                let x = f32::from(ev.position.x);
-                                held.update(cx, |v, _| {
-                                    *v = Some((column_index, x, f32::from(start_width)));
-                                });
-                            })
-                            .on_mouse_down_out(move |_, window, cx| {
-                                if *keyboard_out.read(cx) == Some(column_index) {
-                                    let current = final_column_widths(
-                                        &columns_for_outside,
-                                        widths_for_outside.read(cx),
-                                        &measurements_for_outside,
-                                        column_index,
-                                    );
-                                    keyboard_out.update(cx, |active, cx| {
-                                        *active = None;
-                                        cx.notify();
-                                    });
-                                    clear_controlled_resize_proposal(
-                                        &columns_for_outside,
-                                        &widths_for_outside,
-                                        column_index,
-                                        cx,
-                                    );
-                                    if let Some(callback) = &resize_end_for_outside {
-                                        callback(&current, window, cx);
-                                    }
-                                }
-                            })
-                            .on_key_down(move |event, window, cx| {
-                                let key = event.keystroke.key.as_str();
-                                let editing = *keyboard.read(cx) == Some(column_index);
-                                match key {
-                                    "enter" => {
-                                        if editing {
-                                            let current = final_column_widths(
-                                                &columns_for_keys,
-                                                widths.read(cx),
-                                                &measurements_for_keys,
-                                                column_index,
-                                            );
-                                            keyboard.update(cx, |active, cx| {
-                                                *active = None;
-                                                cx.notify();
-                                            });
-                                            clear_controlled_resize_proposal(
-                                                &columns_for_keys,
-                                                &widths,
-                                                column_index,
-                                                cx,
-                                            );
-                                            if let Some(callback) = &resize_end_for_keys {
-                                                callback(&current, window, cx);
-                                            }
-                                        } else {
-                                            clear_controlled_resize_proposal(
-                                                &columns_for_keys,
-                                                &widths,
-                                                column_index,
-                                                cx,
-                                            );
-                                            let current = resolved_column_widths(
-                                                &columns_for_keys,
-                                                widths.read(cx),
-                                                &measurements_for_keys,
-                                                None,
-                                            );
-                                            keyboard.update(cx, |active, cx| {
-                                                *active = Some(column_index);
-                                                cx.notify();
-                                            });
-                                            if let Some(callback) = &resize_start_for_keys {
-                                                callback(&current, window, cx);
-                                            }
-                                        }
-                                        cx.stop_propagation();
-                                    }
-                                    "escape" | "space" | "tab" if editing => {
-                                        let current = final_column_widths(
-                                            &columns_for_keys,
-                                            widths.read(cx),
-                                            &measurements_for_keys,
-                                            column_index,
-                                        );
-                                        keyboard.update(cx, |active, cx| {
-                                            *active = None;
-                                            cx.notify();
-                                        });
-                                        clear_controlled_resize_proposal(
-                                            &columns_for_keys,
-                                            &widths,
-                                            column_index,
-                                            cx,
-                                        );
-                                        if let Some(callback) = &resize_end_for_keys {
-                                            callback(&current, window, cx);
-                                        }
-                                        cx.stop_propagation();
-                                    }
-                                    "right" | "up" | "left" | "down" if editing => {
-                                        let delta = if matches!(key, "right" | "up") {
-                                            10.
-                                        } else {
-                                            -10.
-                                        };
-                                        let mut proposed = start_width;
-                                        widths.update(cx, |values, cx| {
-                                            if values.len() <= column_index {
-                                                values.resize(column_index + 1, None);
-                                            }
-                                            let current = if controlled {
-                                                start_width
-                                            } else {
-                                                values[column_index].unwrap_or(start_width)
-                                            };
-                                            let next = (f32::from(current) + delta)
-                                                .floor()
-                                                .min(max_width)
-                                                .max(min_width);
-                                            proposed = px(next);
-                                            values[column_index] = Some(proposed);
-                                            cx.notify();
-                                        });
-                                        if let Some(callback) = &resize_for_keys {
-                                            let current = resolved_column_widths(
-                                                &columns_for_keys,
-                                                widths.read(cx),
-                                                &measurements_for_keys,
-                                                Some((column_index, proposed)),
-                                            );
-                                            callback(&current, window, cx);
-                                        }
-                                        cx.stop_propagation();
-                                    }
-                                    _ => {}
-                                }
-                            }),
-                    )
-                    .into_any_element()
-            } else {
-                cell
-            };
-            header = header.child(cell);
+            header = header.child(self.column_header_cell(
+                &header_parts,
+                column_index,
+                column,
+                window,
+                cx,
+            ));
         }
         table = table.child(header);
 
@@ -2309,135 +1568,18 @@ impl RenderOnce for Table {
                 .overflow_hidden();
         }
 
-        // The drag itself: the pointer can leave the table, so paint-time
-        // window listeners own the move and release until the drag ends.
         if resizable {
-            let held = dragging.clone();
-            let held_up = dragging;
-            let widths = resized;
-            let widths_up = widths.clone();
-            let columns_for_move = resize_columns.clone();
-            let columns_for_up = resize_columns;
-            let measurements_for_move = resize_measurements.clone();
-            let measurements_for_up = resize_measurements;
-            let resize_callback = self.on_resize.clone();
-            let resize_end_callback = self.on_resize_end.clone();
-            table = table.relative().child(
-                gpui::canvas(
-                    |bounds, _, _| bounds,
-                    move |_, _, window, _| {
-                        let held = held.clone();
-                        let widths = widths.clone();
-                        let columns_for_move = columns_for_move.clone();
-                        let measurements_for_move = measurements_for_move.clone();
-                        let resize_callback = resize_callback.clone();
-                        window.on_mouse_event(
-                            move |event: &gpui::MouseMoveEvent, phase, window, cx| {
-                                if phase != gpui::DispatchPhase::Capture
-                                    || event.pressed_button != Some(gpui::MouseButton::Left)
-                                {
-                                    return;
-                                }
-                                let Some((column, from_x, from_w)) = *held.read(cx) else {
-                                    return;
-                                };
-                                let raw = (from_w + f32::from(event.position.x) - from_x).floor();
-                                let min = columns_for_move[column]
-                                    .min_width
-                                    .map_or(DEFAULT_COLUMN_MIN_WIDTH, f32::from);
-                                let max = columns_for_move[column]
-                                    .max_width
-                                    .map_or(f32::MAX, f32::from);
-                                let proposed = px(raw.min(max).max(min));
-                                widths.update(cx, |values, cx| {
-                                    if values.len() <= column {
-                                        values.resize(column + 1, None);
-                                    }
-                                    values[column] = Some(proposed);
-                                    cx.notify();
-                                });
-                                if let Some(callback) = &resize_callback {
-                                    let current = resolved_column_widths(
-                                        &columns_for_move,
-                                        widths.read(cx),
-                                        &measurements_for_move,
-                                        Some((column, proposed)),
-                                    );
-                                    callback(&current, window, cx);
-                                }
-                            },
-                        );
-
-                        let held_up = held_up.clone();
-                        let widths_up = widths_up.clone();
-                        let columns_for_up = columns_for_up.clone();
-                        let measurements_for_up = measurements_for_up.clone();
-                        let resize_end_callback = resize_end_callback.clone();
-                        window.on_mouse_event(
-                            move |event: &gpui::MouseUpEvent, phase, window, cx| {
-                                if phase != gpui::DispatchPhase::Capture
-                                    || event.button != gpui::MouseButton::Left
-                                {
-                                    return;
-                                }
-                                let drag = *held_up.read(cx);
-                                if let Some((column, _, _)) = drag {
-                                    let current = final_column_widths(
-                                        &columns_for_up,
-                                        widths_up.read(cx),
-                                        &measurements_for_up,
-                                        column,
-                                    );
-                                    held_up.update(cx, |value, cx| {
-                                        *value = None;
-                                        cx.notify();
-                                    });
-                                    clear_controlled_resize_proposal(
-                                        &columns_for_up,
-                                        &widths_up,
-                                        column,
-                                        cx,
-                                    );
-                                    if let Some(callback) = &resize_end_callback {
-                                        callback(&current, window, cx);
-                                    }
-                                }
-                            },
-                        );
-                    },
-                )
-                .absolute()
-                .inset_0(),
+            table = self.column_resize_drag(
+                table,
+                dragging,
+                resized,
+                resize_columns,
+                resize_measurements,
             );
         }
         // ---- rows --------------------------------------------------------
-        // Depth-first, and only through the parents that are open: a nested row
-        // is not rendered at all until its parent is expanded.
-        let mut flat: Vec<(TableRow, usize, bool, SharedString, Option<SharedString>)> = Vec::new();
-        fn flatten(
-            rows: Vec<TableRow>,
-            depth: usize,
-            path: &str,
-            parent: Option<&SharedString>,
-            expanded: &[SharedString],
-            out: &mut Vec<(TableRow, usize, bool, SharedString, Option<SharedString>)>,
-        ) {
-            for (index, mut row) in rows.into_iter().enumerate() {
-                let key = match &row.key {
-                    Some(k) => k.clone(),
-                    None if path.is_empty() => SharedString::from(index.to_string()),
-                    None => SharedString::from(format!("{path}-{index}")),
-                };
-                let children = std::mem::take(&mut row.children);
-                let has_children = !children.is_empty();
-                let is_open = expanded.contains(&key);
-                out.push((row, depth, has_children, key.clone(), parent.cloned()));
-                if has_children && is_open {
-                    flatten(children, depth + 1, key.as_ref(), Some(&key), expanded, out);
-                }
-            }
-        }
-        flatten(
+        let mut flat: Vec<FlatRow> = Vec::new();
+        flatten_rows(
             std::mem::take(&mut self.rows),
             0,
             "",
@@ -2523,49 +1665,13 @@ impl RenderOnce for Table {
         // one row builder for both paths is what keeps a virtual table drawing
         // the same row as a short one.
         let table_id = self.id.clone();
-        // Which of the row run's edges coincide with a curved edge of the box
-        // that clips it. A virtual body only meets its box at an edge it is
-        // actually scrolled to; an unresolved scroll state answers "no",
-        // which keeps a square fill rather than a wrongly rounded one.
-        let (round_top, round_bottom) = {
-            let (touches_top, touches_bottom) = if self.row_height.is_some()
-                && self.virtual_rows.is_some()
-            {
-                let at_top = {
-                    let scroll = virtual_scroll_now.0.borrow();
-                    scroll.base_handle.offset().y >= px(-0.5)
-                };
-                // `is_scrolled_to_end` answers `None` when the list does
-                // not scroll at all, and then every row is on screen.
-                (
-                    at_top,
-                    virtual_scroll_now.is_scrolled_to_end().unwrap_or(true),
-                )
-            } else if let Some(state) = &virtual_list_state {
-                let top = state.logical_scroll_top();
-                let viewport = state.viewport_bounds();
-                (
-                    top.item_ix == 0 && top.offset_in_item <= px(0.5),
-                    virtual_visible_count == 0
-                        || state
-                            .bounds_for_item(virtual_visible_count - 1)
-                            .is_some_and(|bounds| bounds.bottom() <= viewport.bottom() + px(0.5)),
-                )
-            } else {
-                // Plain rows have no scroller of their own, so the run's
-                // edges are the box's edges.
-                (true, true)
-            };
-            edge_corner_rounding(
-                secondary,
-                self.footer.is_some(),
-                touches_top,
-                touches_bottom,
-                cx.layout().radius_2xl().min(px(32.)),
-                self.radius
-                    .unwrap_or_else(|| crate::util::container_radius(cx)),
-            )
-        };
+        let (round_top, round_bottom) = self.row_edge_rounding(
+            secondary,
+            &virtual_scroll_now,
+            virtual_list_state.as_ref(),
+            virtual_visible_count,
+            cx,
+        );
         let ctx = std::rc::Rc::new(RowCtx {
             id: base_id.clone(),
             measured_widths,
@@ -2622,225 +1728,1472 @@ impl RenderOnce for Table {
             is_tree,
         });
 
-        // v3 gives a table a roving row focus: the arrows walk it, Home and End
-        // jump, and Enter activates the row -- the same resolver every list here
-        // uses, over the rows that exist.
+        wrapper = self.row_keyboard(
+            wrapper,
+            RowKeyboard {
+                ctx: &ctx,
+                expanded_keys,
+                header_focus,
+                row_cursor,
+                selectable_collection_keys,
+                selection_own,
+                selection_range,
+                table_focus,
+                tree_rows,
+                typeahead_labels,
+                typeahead,
+                virtual_list_state: &virtual_list_state,
+                virtual_row_heights: &virtual_row_heights,
+                virtual_scroll_now: &virtual_scroll_now,
+                virtual_text_value,
+                virtual_typeahead_indices,
+            },
+        );
+
+        let row_count = if self.virtual_rows.is_some()
+            && (self.row_height.is_some() || self.estimated_row_height.is_some())
         {
-            let stops: Vec<usize> = ctx
-                .row_keys
-                .iter()
-                .enumerate()
-                .filter_map(|(index, key)| (!self.disabled_keys.contains(key)).then_some(index))
-                .collect();
-            let held = row_cursor;
-            let typeahead = typeahead;
-            let labels = typeahead_labels;
-            let virtual_indices = virtual_typeahead_indices;
-            let virtual_text = virtual_text_value;
-            let on_row_click = self.on_row_click.clone();
-            let keys = ctx.row_keys.clone();
-            let table_focus_for_keys = table_focus;
-            let selection = self.on_selection_change.clone();
-            let selection_own_for_keys = selection_own;
-            let selection_range_for_keys = selection_range;
-            let selected_now = self.selected_keys.clone();
-            let mode = self.selection_mode;
-            let selection_behavior = self.selection_behavior;
-            let disallow_empty_selection = self.disallow_empty_selection;
-            // React Aria's collection hook defaults `selectOnFocus` to true
-            // for `selectionBehavior="replace"`.
-            let select_on_focus =
-                selection_behavior == SelectionBehavior::Replace && mode != SelectionMode::None;
-            let plain_rows = self.virtual_rows.is_none();
-            let fixed_virtual = self.row_height.is_some() && self.virtual_rows.is_some();
-            // Pinned `TableKeyboardDelegate` pages by one visible rectangle, so
-            // the step reads the virtual body's own laid-out viewport -- the
-            // pinned handle's `base_handle.bounds()` -- and not the configured
-            // `max_h` cap: a bounded parent (or a resized window) shows fewer
-            // rows than the cap allows. A zero viewport answers nothing, which
-            // the shared resolver turns into no movement.
-            let fixed_row_height = self.row_height.filter(|_| fixed_virtual);
-            let fixed_scroll = virtual_scroll_now.clone();
-            let variable_scroll = virtual_list_state.clone();
-            let variable_heights = virtual_row_heights.clone();
-            let variable_estimate = self.estimated_row_height;
-            let expanded = expanded_keys;
-            let on_expanded = self.on_expanded_change.clone();
-            if !keys.is_empty() {
-                let typeahead_navigation = std::rc::Rc::new(TableTypeaheadNavigation {
-                    state: typeahead,
-                    labels,
-                    virtual_indices,
-                    virtual_text,
-                    stops: stops.clone(),
-                    keys: keys.clone(),
-                    cursor: held.clone(),
-                    fixed_virtual,
-                    fixed_scroll: fixed_scroll.clone(),
-                    variable_scroll: variable_scroll.clone(),
-                });
-                let capture_typeahead = typeahead_navigation.clone();
-                let capture_typeahead_up = typeahead_navigation.clone();
-                let capture_focus = table_focus_for_keys.clone();
-                let capture_focus_up = table_focus_for_keys.clone();
-                wrapper = wrapper.capture_key_down(move |event, window, cx| {
-                    if !capture_focus.contains_focused(window, cx) {
-                        return;
+            virtual_visible_count
+        } else {
+            flat.len()
+        };
+        let virtual_projection = virtual_projection
+            .map(|projection| std::sync::Arc::clone(&projection.visible))
+            .unwrap_or_default();
+
+        body = self.body_rows(
+            body,
+            BodyRows {
+                base_id: &base_id,
+                table_id: &table_id,
+                ctx: &ctx,
+                flat,
+                row_count,
+                virtual_projection,
+                virtual_list_state,
+                virtual_row_heights,
+                virtual_scroll_now: &virtual_scroll_now,
+            },
+            cx,
+        );
+
+        // ---- empty state -------------------------------------------------
+        if row_count == 0 {
+            if let Some(content) = self.empty_state.take() {
+                body = body.child(
+                    gpui::div()
+                        .flex()
+                        .items_center()
+                        .justify_center()
+                        .w_full()
+                        .py(px(28.))
+                        .text_color(muted)
+                        .child(content),
+                );
+            }
+        }
+
+        table = table.child(body);
+
+        // ---- load-more sentinel ------------------------------------------
+        if self.is_pending || self.on_load_more.is_some() {
+            table = self.load_more(
+                table,
+                LoadMore {
+                    base_id: &base_id,
+                    state: load_more_state,
+                    collection: load_more_collection,
+                    virtual_scroll: load_more_virtual_scroll,
+                    variable_scroll: load_more_variable_scroll,
+                    muted,
+                },
+            );
+        }
+
+        if let Some(footer) = self.footer {
+            // `.table__footer` is `flex items-center px-4 py-2.5`.
+            table = table.child(
+                gpui::div()
+                    .flex()
+                    .items_center()
+                    .w_full()
+                    .px(px(16.))
+                    .py(px(10.))
+                    .child(footer),
+            );
+        }
+
+        // `.table__scroll-container` is `overflow-x-auto` around the content: a
+        // column whose cross axis leaves the content column at its
+        // max-content width, so a table wider than its box is free to exceed
+        // the scroller and scroll *on* it, while `min_w_full` still fills a
+        // narrow box. A row flex here would shrink that child to the viewport
+        // unless it carried `flex_shrink_0`, which would also forbid the
+        // column's vertical shrink inside a bounded parent; the column
+        // direction shrinks the content vertically while never touching its
+        // width. `min_h_0` is what permits that shrink: the scroller only
+        // scrolls horizontally, so its visible y-overflow would otherwise keep
+        // the content-based minimum and never yield.
+        // The headless probe name for the scroll viewport's bounds, so a test
+        // can read the grid's overflow against it.
+        let scroll_selector = format!("{table_id}-scroll-x");
+        let el = wrapper.child(
+            gpui::div()
+                .id(element_id::scoped(&base_id, "scroll-x"))
+                .debug_selector(move || scroll_selector)
+                .flex()
+                .flex_col()
+                .items_start()
+                .w_full()
+                .min_h_0()
+                .overflow_x_scroll()
+                .restrict_scroll_to_axis()
+                .child(table),
+        );
+        crate::util::apply_sx(el, &self.sx)
+    }
+}
+
+/// Each column's `(min, max)` resize bounds, in pixels.
+fn column_resize_limits(columns: &[TableColumn]) -> Vec<(f32, f32)> {
+    columns
+        .iter()
+        .map(|column| {
+            (
+                column.min_width.map_or(DEFAULT_COLUMN_MIN_WIDTH, f32::from),
+                column.max_width.map_or(f32::MAX, f32::from),
+            )
+        })
+        .collect()
+}
+
+/// The width each column renders at: a controlled width, else the width a
+/// resize left it at, else its default — clamped to its resize bounds when it
+/// resizes. `None` is a flexible track.
+fn effective_column_widths(
+    columns: &[TableColumn],
+    resized_now: &[Option<Pixels>],
+    resize_limits: &[(f32, f32)],
+) -> Vec<Option<Pixels>> {
+    columns
+        .iter()
+        .enumerate()
+        .map(|(column_index, column)| {
+            let width = column.width.or_else(|| {
+                resized_now
+                    .get(column_index)
+                    .copied()
+                    .flatten()
+                    .or(column.default_width)
+            });
+            if column.allows_resizing {
+                let (min, max) = resize_limits[column_index];
+                width.map(|width| px(f32::from(width).floor().min(max).max(min)))
+            } else {
+                width
+            }
+        })
+        .collect()
+}
+
+/// The `(min, max)` track bounds each column's header and body cells share;
+/// see the comment at its call site in `Table::render`.
+fn layout_width_bounds(
+    columns: &[TableColumn],
+    measured_widths_now: &[Option<Pixels>],
+    effective_widths: &[Option<Pixels>],
+    resize_limits: &[(f32, f32)],
+) -> Vec<(Option<Pixels>, Option<Pixels>)> {
+    columns
+        .iter()
+        .enumerate()
+        .map(|(column_index, column)| {
+            let measured = measured_widths_now.get(column_index).copied().flatten();
+            if column.allows_resizing {
+                if effective_widths[column_index].is_some() {
+                    (None, None)
+                } else {
+                    let min = measured.map_or(resize_limits[column_index].0, |width| {
+                        resize_limits[column_index].0.max(f32::from(width))
+                    });
+                    (Some(px(min)), column.max_width)
+                }
+            } else {
+                let min = match (column.min_width, measured) {
+                    (Some(configured), Some(content)) => {
+                        Some(px(f32::from(configured).max(f32::from(content))))
                     }
-                    let key_name = event.keystroke.key.as_str();
-                    let typed = event.keystroke.key_char.as_deref().unwrap_or(key_name);
-                    let modifiers = &event.keystroke.modifiers;
-                    let now = web_time::Instant::now();
-                    let is_space = key_name == "space" || typed == " ";
-                    if is_space
-                        && capture_typeahead.state.read(cx).is_active(now)
-                        && !modifiers.control
-                        && !modifiers.platform
-                        && !modifiers.alt
+                    (Some(configured), None) => Some(configured),
+                    (None, Some(content)) => Some(content),
+                    (None, None) => None,
+                };
+                (min, column.max_width)
+            }
+        })
+        .collect()
+}
+
+/// The per-render column state every header cell reads; see
+/// [`Table::column_header_cell`].
+#[derive(Clone, Copy)]
+struct HeaderParts<'a> {
+    base_id: &'a gpui::ElementId,
+    colors: &'a herogpui_theme::ThemeColors,
+    secondary: bool,
+    selectable: bool,
+    effective_widths: &'a [Option<Pixels>],
+    layout_width_bounds: &'a [(Option<Pixels>, Option<Pixels>)],
+    measured_widths: &'a gpui::Entity<Vec<Option<Pixels>>>,
+    measured_widths_now: &'a [Option<Pixels>],
+    header_focus: &'a [gpui::FocusHandle],
+    header_focused: &'a [bool],
+    resize_focus: &'a [Option<gpui::FocusHandle>],
+    resize_focused: &'a [bool],
+    resized: &'a gpui::Entity<Vec<Option<Pixels>>>,
+    dragging: &'a gpui::Entity<Option<(usize, f32, f32)>>,
+    drag_now: Option<(usize, f32, f32)>,
+    keyboard_resizing: &'a gpui::Entity<Option<usize>>,
+    keyboard_resize_now: Option<usize>,
+    resize_limits: &'a [(f32, f32)],
+    resize_columns: &'a std::sync::Arc<Vec<TableColumn>>,
+    resize_measurements: &'a std::sync::Arc<Vec<Option<Pixels>>>,
+}
+
+/// One plain body row after flattening: the row, its depth, whether it has
+/// children, its key and its parent's key.
+type FlatRow = (TableRow, usize, bool, SharedString, Option<SharedString>);
+
+/// Depth-first, and only through the parents that are open: a nested row is
+/// not rendered at all until its parent is expanded.
+fn flatten_rows(
+    rows: Vec<TableRow>,
+    depth: usize,
+    path: &str,
+    parent: Option<&SharedString>,
+    expanded: &[SharedString],
+    out: &mut Vec<FlatRow>,
+) {
+    for (index, mut row) in rows.into_iter().enumerate() {
+        let key = match &row.key {
+            Some(k) => k.clone(),
+            None if path.is_empty() => SharedString::from(index.to_string()),
+            None => SharedString::from(format!("{path}-{index}")),
+        };
+        let children = std::mem::take(&mut row.children);
+        let has_children = !children.is_empty();
+        let is_open = expanded.contains(&key);
+        out.push((row, depth, has_children, key.clone(), parent.cloned()));
+        if has_children && is_open {
+            flatten_rows(children, depth + 1, key.as_ref(), Some(&key), expanded, out);
+        }
+    }
+}
+
+/// What [`Table::row_keyboard`] reads from the rest of the render.
+struct RowKeyboard<'a> {
+    ctx: &'a RowCtx,
+    expanded_keys: std::rc::Rc<Vec<SharedString>>,
+    header_focus: Vec<gpui::FocusHandle>,
+    row_cursor: gpui::Entity<Option<SharedString>>,
+    selectable_collection_keys: Option<std::sync::Arc<Vec<SharedString>>>,
+    selection_own: Option<gpui::Entity<Vec<SharedString>>>,
+    selection_range: gpui::Entity<TableSelectionRange>,
+    table_focus: gpui::FocusHandle,
+    tree_rows: Vec<(bool, Option<SharedString>)>,
+    typeahead_labels: Vec<String>,
+    typeahead: gpui::Entity<TableTypeahead>,
+    virtual_list_state: &'a Option<gpui::ListState>,
+    virtual_row_heights: &'a Option<gpui::Entity<(Vec<SharedString>, Vec<Option<Pixels>>)>>,
+    virtual_scroll_now: &'a gpui::UniformListScrollHandle,
+    virtual_text_value: Option<VirtualRowText>,
+    virtual_typeahead_indices: Option<Vec<usize>>,
+}
+
+/// What [`Table::body_rows`] reads from the rest of the render.
+struct BodyRows<'a> {
+    base_id: &'a gpui::ElementId,
+    table_id: &'a SharedString,
+    ctx: &'a std::rc::Rc<RowCtx>,
+    flat: Vec<FlatRow>,
+    row_count: usize,
+    virtual_projection: std::sync::Arc<Vec<(usize, SharedString, VirtualTreeMetadata)>>,
+    virtual_list_state: Option<gpui::ListState>,
+    virtual_row_heights: Option<gpui::Entity<(Vec<SharedString>, Vec<Option<Pixels>>)>>,
+    virtual_scroll_now: &'a gpui::UniformListScrollHandle,
+}
+
+/// What [`Table::load_more`] reads from the rest of the render.
+struct LoadMore<'a> {
+    base_id: &'a gpui::ElementId,
+    state: gpui::Entity<(bool, Option<LoadMoreCollection>)>,
+    collection: LoadMoreCollection,
+    virtual_scroll: Option<gpui::UniformListScrollHandle>,
+    variable_scroll: Option<(gpui::ListState, usize, Pixels)>,
+    muted: gpui::Hsla,
+}
+
+// ---- Table::render part renderers ----
+impl Table {
+    /// The visible window onto `virtual_rows`: every key, the rows a tree's
+    /// open parents expose, and (for multiple selection) the enabled keys.
+    /// Cached in the window's keyed store until the collection, the expanded
+    /// set or the disabled keys change.
+    fn virtual_projection(
+        &self,
+        base_id: &gpui::ElementId,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> Option<std::sync::Arc<VirtualProjection>> {
+        let needs_selectable_keys = self.selection_mode == SelectionMode::Multiple;
+        self.virtual_rows
+            .as_ref()
+            .map(|(count, identity, key_for_row, _)| {
+                let cache = window.use_keyed_state(
+                    element_id::scoped(base_id, "virtual-projection"),
+                    cx,
+                    |_, _| None::<std::sync::Arc<VirtualProjection>>,
+                );
+                let cached = cache.read(cx).clone();
+                let tree = self.virtual_tree_metadata.is_some();
+                match cached {
+                    Some(cached)
+                        if cached.count == *count
+                            && cached.identity == *identity
+                            && cached.tree == tree
+                            && (!tree
+                                || (cached.expanded.len() == self.expanded_keys.len()
+                                    && self
+                                        .expanded_keys
+                                        .iter()
+                                        .all(|key| cached.expanded.contains(key)))) =>
                     {
-                        cx.stop_propagation();
-                        capture_typeahead.push(" ", now, false, cx);
-                    }
-                });
-                wrapper = wrapper.capture_key_up(move |event, window, cx| {
-                    if !capture_focus_up.contains_focused(window, cx) {
-                        return;
-                    }
-                    let key_name = event.keystroke.key.as_str();
-                    let typed = event.keystroke.key_char.as_deref().unwrap_or(key_name);
-                    let modifiers = &event.keystroke.modifiers;
-                    let is_space = key_name == "space" || typed == " ";
-                    if is_space
-                        && capture_typeahead_up
-                            .state
-                            .read(cx)
-                            .is_active(web_time::Instant::now())
-                        && !modifiers.control
-                        && !modifiers.platform
-                        && !modifiers.alt
-                    {
-                        cx.stop_propagation();
-                    }
-                });
-                let key_typeahead = typeahead_navigation;
-                // The header PageUp hands the focus to. Cloned out because the
-                // handler outlives this frame's `header_focus`.
-                let page_up_header = header_focus.first().cloned();
-                let headers_for_keys = header_focus;
-                wrapper = wrapper.on_key_down(move |event, window, cx| {
-                    if !table_focus_for_keys.contains_focused(window, cx) {
-                        return;
-                    }
-                    let from = held
-                        .read(cx)
-                        .as_ref()
-                        .and_then(|key| keys.iter().position(|row| row == key))
-                        .filter(|index| stops.contains(index));
-                    // Pinned React Aria `useTableRow`: horizontal keys belong
-                    // to the focused tree row before the list resolver sees
-                    // them. Right opens; Left closes or returns to the parent.
-                    let key_name = event.keystroke.key.as_str();
-                    let typed = event.keystroke.key_char.as_deref().unwrap_or(key_name);
-                    let modifiers = &event.keystroke.modifiers;
-                    let now = web_time::Instant::now();
-                    let is_space = key_name == "space" || typed == " ";
-                    let is_character = {
-                        let mut chars = key_name.chars();
-                        chars.next().is_some() && chars.next().is_none() && !is_space
-                    };
-                    let is_typeahead =
-                        is_character && !modifiers.control && !modifiers.platform && !modifiers.alt;
-                    if is_typeahead {
-                        if key_typeahead.push(typed, now, true, cx) {
-                            cx.stop_propagation();
-                        }
-                        return;
-                    }
-                    // Pinned React Aria 3.51 `useSelectableCollection` binds
-                    // `Mod+A` -- the platform Mod, Control here -- to
-                    // `selectAll`, and only when the selection mode is
-                    // multiple. The shortcut matches its modifiers exactly,
-                    // so any extra modifier lets the event fall through.
-                    if key_name == "a"
-                        && event.keystroke.modifiers.secondary()
-                        && !event.keystroke.modifiers.shift
-                        && !event.keystroke.modifiers.alt
-                        && !event.keystroke.modifiers.function
-                        && if cfg!(target_os = "macos") {
-                            !event.keystroke.modifiers.control
+                        if !needs_selectable_keys
+                            || cached
+                                .selectable_disabled_keys
+                                .as_ref()
+                                .is_some_and(|disabled| {
+                                    disabled.as_slice() == self.disabled_keys.as_slice()
+                                })
+                        {
+                            cached
                         } else {
-                            !event.keystroke.modifiers.platform
-                        }
-                        && mode == SelectionMode::Multiple
-                    {
-                        let selectable_collection_keys = selectable_collection_keys
-                            .as_ref()
-                            .expect("multiple Tables have selectable keys");
-                        let selectable_collection_keys = selectable_collection_keys.clone();
-                        let selectable_collection_keys = selectable_collection_keys.as_slice();
-                        let (all_selected, _) =
-                            select_all_flags(selectable_collection_keys, &selected_now);
-                        let materializes_all =
-                            same_selection(selectable_collection_keys, &selected_now);
-                        let already_all = all_selected
-                            || (selection_range_for_keys.read(cx).is_all && materializes_all);
-                        // Pinned React Stately's `selectAll` is idempotent once
-                        // the whole selectable collection is already selected.
-                        if !already_all {
-                            let next = selectable_collection_keys.to_vec();
-                            if let Some(held) = &selection_own_for_keys {
-                                held.update(cx, |value, cx| {
-                                    *value = next.clone();
-                                    cx.notify();
-                                });
-                            }
-                            if let Some(cb) = &selection {
-                                cb(&next, window, cx);
-                            }
-                            selection_range_for_keys.update(cx, |range, _| {
-                                *range = TableSelectionRange {
-                                    is_all: true,
-                                    ..TableSelectionRange::default()
-                                };
+                            let projection = std::sync::Arc::new(VirtualProjection {
+                                count: cached.count,
+                                identity: cached.identity.clone(),
+                                expanded: std::sync::Arc::clone(&cached.expanded),
+                                tree: cached.tree,
+                                full_keys: std::sync::Arc::clone(&cached.full_keys),
+                                visible: std::sync::Arc::clone(&cached.visible),
+                                selectable_collection_keys: Some(filtered_selectable_keys(
+                                    cached.full_keys.as_slice(),
+                                    &self.disabled_keys,
+                                )),
+                                selectable_disabled_keys: Some(std::sync::Arc::new(
+                                    self.disabled_keys.clone(),
+                                )),
                             });
+                            cache.update(cx, |slot, _| {
+                                *slot = Some(std::sync::Arc::clone(&projection));
+                            });
+                            projection
                         }
-                        cx.stop_propagation();
+                    }
+                    _ => {
+                        let mut full_keys = Vec::with_capacity(*count);
+                        let mut visible = Vec::with_capacity(*count);
+                        if let Some(project) = &self.virtual_tree_metadata {
+                            let mut visible_by_key =
+                                std::collections::HashMap::with_capacity(*count);
+                            for source_index in 0..*count {
+                                let key = key_for_row(source_index);
+                                let metadata = project(source_index);
+                                let is_visible =
+                                    metadata.parent_key.as_ref().is_none_or(|parent| {
+                                        visible_by_key.get(parent).copied().unwrap_or(false)
+                                            && self.expanded_keys.contains(parent)
+                                    });
+                                visible_by_key.insert(key.clone(), is_visible);
+                                full_keys.push(key.clone());
+                                if is_visible {
+                                    visible.push((source_index, key, metadata));
+                                }
+                            }
+                        } else {
+                            for source_index in 0..*count {
+                                let key = key_for_row(source_index);
+                                full_keys.push(key.clone());
+                                visible.push((source_index, key, VirtualTreeMetadata::default()));
+                            }
+                        }
+                        let full_keys = std::sync::Arc::new(full_keys);
+                        let selectable_collection_keys = needs_selectable_keys.then(|| {
+                            filtered_selectable_keys(full_keys.as_slice(), &self.disabled_keys)
+                        });
+                        let selectable_disabled_keys = needs_selectable_keys
+                            .then(|| std::sync::Arc::new(self.disabled_keys.clone()));
+                        let projection = std::sync::Arc::new(VirtualProjection {
+                            count: *count,
+                            identity: identity.clone(),
+                            expanded: if tree {
+                                std::sync::Arc::new(self.expanded_keys.iter().cloned().collect())
+                            } else {
+                                std::sync::Arc::default()
+                            },
+                            tree,
+                            full_keys,
+                            visible: std::sync::Arc::new(visible),
+                            selectable_collection_keys,
+                            selectable_disabled_keys,
+                        });
+                        cache.update(cx, |slot, _| {
+                            *slot = Some(std::sync::Arc::clone(&projection));
+                        });
+                        projection
+                    }
+                }
+            })
+    }
+
+    /// The measured heights of an `estimatedRowHeight` virtual body, keyed by
+    /// the visible keys so a changed window starts unmeasured.
+    fn virtual_row_heights(
+        &self,
+        base_id: &gpui::ElementId,
+        virtual_visible_keys: Option<&Vec<SharedString>>,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> Option<gpui::Entity<(Vec<SharedString>, Vec<Option<Pixels>>)>> {
+        match (
+            &self.virtual_rows,
+            self.estimated_row_height,
+            virtual_visible_keys,
+        ) {
+            (Some((_, identity, _, _)), Some(_), Some(keys)) if self.row_height.is_none() => {
+                let count = keys.len();
+                let state = window.use_keyed_state(
+                    element_id::scoped(
+                        &element_id::scoped(base_id, "row-heights"),
+                        identity.clone(),
+                    ),
+                    cx,
+                    |_, _| (Vec::<SharedString>::new(), Vec::<Option<Pixels>>::new()),
+                );
+                if state.read(cx).0.as_slice() != keys.as_slice() {
+                    let stored_keys = keys.clone();
+                    state.update(cx, |stored, _| {
+                        *stored = (stored_keys, vec![None; count]);
+                    });
+                }
+                Some(state)
+            }
+            _ => None,
+        }
+    }
+
+    /// The intrusive `gpui::list` state of an `estimatedRowHeight` virtual
+    /// body, reset whenever the visible row count changes.
+    fn virtual_list_state(
+        &self,
+        base_id: &gpui::ElementId,
+        virtual_visible_count: usize,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> Option<gpui::ListState> {
+        match (
+            self.row_height,
+            self.estimated_row_height,
+            &self.virtual_rows,
+        ) {
+            (None, Some(estimate), Some((_, identity, _, _))) => {
+                let count = virtual_visible_count;
+                let overdraw = self.max_h.unwrap_or(px(400.)).max(estimate * 3.);
+                let state = window
+                    .use_keyed_state(
+                        element_id::scoped(
+                            &element_id::scoped(base_id, "list-state"),
+                            identity.clone(),
+                        ),
+                        cx,
+                        move |_, _| gpui::ListState::new(count, gpui::ListAlignment::Top, overdraw),
+                    )
+                    .read(cx)
+                    .clone();
+                if state.item_count() != count {
+                    state.reset(count);
+                }
+                Some(state)
+            }
+            _ => None,
+        }
+    }
+
+    /// One focus handle per column header. Only a sortable header is a tab
+    /// stop (Enter and Space sort it); the rest are focusable so PageUp has a
+    /// header to land on.
+    fn header_focus_handles(
+        &self,
+        base_id: &gpui::ElementId,
+        sortable: bool,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> Vec<gpui::FocusHandle> {
+        self.columns
+            .iter()
+            .enumerate()
+            .map(|(i, column)| {
+                let id = element_id::scoped(&element_id::indexed(base_id, "sort", i), "focus");
+                if column.allows_sorting && sortable {
+                    crate::util::tab_stop_handle(id, window, cx)
+                } else {
+                    window
+                        .use_keyed_state(id, cx, |_, cx| cx.focus_handle())
+                        .read(cx)
+                        .clone()
+                }
+            })
+            .collect()
+    }
+
+    /// The tab stop on each resizable column's handle; `None` for a column
+    /// that does not resize.
+    fn resize_focus_handles(
+        &self,
+        base_id: &gpui::ElementId,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> Vec<Option<gpui::FocusHandle>> {
+        self.columns
+            .iter()
+            .enumerate()
+            .map(|(i, column)| {
+                column.allows_resizing.then(|| {
+                    crate::util::tab_stop_handle(
+                        element_id::scoped(&element_id::indexed(base_id, "resize", i), "focus"),
+                        window,
+                        cx,
+                    )
+                })
+            })
+            .collect()
+    }
+
+    /// The selection column's header: v3's `columnheader` holding the
+    /// select-all checkbox for a multiple selection, an empty aligned cell
+    /// otherwise.
+    #[allow(clippy::too_many_arguments)]
+    fn select_all_header_cell(
+        &self,
+        base_id: &gpui::ElementId,
+        colors: &herogpui_theme::ThemeColors,
+        secondary: bool,
+        selectable_collection_keys: &Option<std::sync::Arc<Vec<SharedString>>>,
+        selection_own: &Option<gpui::Entity<Vec<SharedString>>>,
+        selection_range: &gpui::Entity<TableSelectionRange>,
+        cx: &mut App,
+    ) -> gpui::Stateful<gpui::Div> {
+        // The select-all box only makes sense for a multiple selection; a
+        // single-selection table keeps the column for alignment.
+        let mut cell = gpui::div()
+            .id(element_id::scoped(base_id, "select-all-cell"))
+            // The selection column is a real column of the collection
+            // upstream, so its header is a `role: 'columnheader'` like any
+            // other (`useTableColumnHeader.mjs`), holding the select-all
+            // checkbox `useTableSelectAllCheckbox` names.
+            .a11y(a11y::Role::ColumnHeader)
+            .a11y_column_index(0)
+            .flex()
+            .items_center()
+            .justify_center()
+            .relative()
+            .w(px(44.))
+            .py(px(10.));
+        if secondary {
+            let radius = cx.layout().radius_2xl().min(px(32.));
+            cell = cell
+                .bg(colors.surface_secondary)
+                .rounded_tl(radius)
+                .rounded_bl(radius);
+        }
+        if self.selection_mode == SelectionMode::Multiple {
+            // The `Mod+A` keydown handler reads the same set, so it gets a
+            // clone rather than the variable itself.
+            let all = selectable_collection_keys
+                .as_ref()
+                .expect("multiple Tables have selectable keys")
+                .clone();
+            let (all_selected, indeterminate) =
+                select_all_flags(all.as_slice(), &self.selected_keys);
+            let mut box_el = Checkbox::new(element_id::scoped(base_id, "select-all"))
+                .is_selected(all_selected)
+                .is_indeterminate(indeterminate);
+            let cb = self.on_selection_change.clone();
+            if cb.is_some() || selection_own.is_some() {
+                let selection_own = selection_own.clone();
+                let selection_range = selection_range.clone();
+                let disallow_empty_selection = self.disallow_empty_selection;
+                box_el = box_el.on_change(move |_next, window, cx| {
+                    if all_selected && disallow_empty_selection {
                         return;
                     }
-                    // Other collection keys belong only to the body's roving
-                    // focus stop. A nested cell action must keep its own Enter
-                    // and Space handling even though Mod+A bubbles to the root.
-                    // Pinned TableKeyboardDelegate crosses header<->body in
-                    // both plain and virtual tables: Down/PageDown from a
-                    // focused header enters the body.
-                    if headers_for_keys
-                        .iter()
-                        .any(|header| header.is_focused(window))
-                    {
-                        let next = match key_name {
-                            "down" => stops.first(),
-                            "pagedown" => stops.last(),
-                            _ => None,
+                    // Anything short of everything selects everything.
+                    let next: Vec<SharedString> = if all_selected {
+                        Vec::new()
+                    } else {
+                        all.as_slice().to_vec()
+                    };
+                    if let Some(held) = &selection_own {
+                        held.update(cx, |value, cx| {
+                            *value = next.clone();
+                            cx.notify();
+                        });
+                    }
+                    if let Some(cb) = &cb {
+                        cb(&next, window, cx);
+                    }
+                    selection_range.update(cx, |range, _| {
+                        *range = if all_selected {
+                            TableSelectionRange::default()
+                        } else {
+                            TableSelectionRange {
+                                is_all: true,
+                                ..TableSelectionRange::default()
+                            }
                         };
-                        if let Some(next) = next {
-                            held.update(cx, |value, cx| {
-                                *value = Some(keys[*next].clone());
+                    });
+                });
+            }
+            cell = cell.child(box_el);
+        }
+        cell
+    }
+
+    /// One column's header cell: the `.table__column` label with its sort
+    /// indicator and separator, wrapped in a sort target when the column
+    /// sorts, and in the resize container when it resizes.
+    fn column_header_cell(
+        &self,
+        hx: &HeaderParts<'_>,
+        column_index: usize,
+        column: &TableColumn,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> AnyElement {
+        let HeaderParts {
+            base_id,
+            colors,
+            secondary,
+            selectable,
+            effective_widths,
+            layout_width_bounds,
+            measured_widths,
+            header_focus,
+            header_focused,
+            ..
+        } = *hx;
+        let sorted = self
+            .sort_descriptor
+            .as_ref()
+            .filter(|d| d.column == column.label);
+        // A resized column keeps the width the drag left it at.
+        let effective = effective_widths[column_index];
+        let (layout_min, layout_max) = layout_width_bounds[column_index];
+        let first_header = column_index == 0 && !selectable;
+        let last_header = column_index + 1 == self.columns.len();
+        let mut cell = gpui::div()
+            .when(effective.is_none(), flex_cell)
+            .when_some(effective, |c, w| c.w(w))
+            .when_some(layout_min, |c, w| c.min_w(w))
+            .when_some(layout_max, |c, w| c.max_w(w))
+            .flex()
+            .items_center()
+            .gap(px(4.))
+            // `.table__column` is `px-4 py-2.5 text-xs`.
+            .px(px(16.))
+            .py(px(10.))
+            .text_size(px(12.))
+            .line_height(px(16.))
+            .font_weight(gpui::FontWeight::MEDIUM)
+            .when(column.allows_sorting, |c| c.w_full().justify_between())
+            .text_color(if sorted.is_some() {
+                colors.foreground
+            } else {
+                colors.muted
+            })
+            .relative();
+        if !column.allows_resizing && !cfg!(target_arch = "wasm32") {
+            let measurements = measured_widths.clone();
+            cell = cell.on_children_prepainted(move |bounds, _, cx| {
+                let content = intrinsic_children_width(&bounds);
+                if content <= 0. {
+                    return;
+                }
+                let next = px(content + 32.);
+                measurements.update(cx, |values, cx| {
+                    if values.len() <= column_index {
+                        values.resize(column_index + 1, None);
+                    }
+                    if values[column_index].is_none_or(|current| next > current) {
+                        values[column_index] = Some(next);
+                        cx.notify();
+                    }
+                });
+            });
+        }
+        cell = cell.child(column.label.clone());
+        let header_selector = format!("table-header-track-{column_index}");
+        cell = cell.debug_selector(move || header_selector);
+
+        if secondary {
+            let radius = cx.layout().radius_2xl().min(px(32.));
+            cell = cell.bg(colors.surface_secondary);
+            if first_header {
+                cell = cell.rounded_tl(radius).rounded_bl(radius);
+            }
+            if last_header {
+                cell = cell.rounded_tr(radius).rounded_br(radius);
+            }
+        }
+
+        if let Some(descriptor) = sorted {
+            if self.show_indicator {
+                // `indicator` is v3's render prop on
+                // `Table.SortableColumnHeader`: it receives the direction
+                // the column is sorted in and replaces the chevron.
+                cell = cell.child(match &self.indicator {
+                    Some(render) => render(descriptor.direction),
+                    None => {
+                        let indicator_id = element_id::indexed(
+                            &element_id::scoped(base_id, "sort-indicator"),
+                            "column",
+                            column_index,
+                        );
+                        crate::anim::rotating_indicator_with_duration(
+                            &indicator_id,
+                            descriptor.direction == SortDirection::Descending,
+                            gpui::svg()
+                                .size(px(12.))
+                                .path(icons::CHEVRON_UP)
+                                // svg() never inherits text colour.
+                                .text_color(colors.foreground),
+                            100,
+                            window,
+                            cx,
+                        )
+                    }
+                });
+            }
+        }
+
+        if !last_header && !column.allows_resizing {
+            cell = cell.child(
+                gpui::div()
+                    .absolute()
+                    .right_0()
+                    .top(px(10.))
+                    .h(px(16.))
+                    .w(px(1.))
+                    .rounded(crate::util::hairline_radius(cx))
+                    .bg(colors.separator),
+            );
+        }
+
+        // A sortable header wraps the cell in a click target, which is a
+        // different element type, so both branches unify to AnyElement.
+        let cell = match (column.allows_sorting, self.on_sort_change.clone()) {
+            (true, Some(cb)) => {
+                let next =
+                    SortDescriptor::next(self.sort_descriptor.as_ref(), column.label.clone());
+                // `.table__column[data-allows-sorting]:hover` recolours the
+                // header text to `--foreground`; it paints no background.
+                // A group name is a plain string, not an `ElementId`, so it
+                // cannot carry structure -- but it still has to start from
+                // this table's own id, or two tables share the group.
+                let sort_group: SharedString =
+                    format!("{}-sort-hover-{}", self.id, column.label).into();
+                let header_cell = gpui::div()
+                    .id(element_id::scoped(
+                        &element_id::scoped(base_id, "sort"),
+                        column.label.clone(),
+                    ))
+                    // `useTableColumnHeader.mjs` is `role: 'columnheader'`
+                    // with `'aria-colindex'` from the grid cell props
+                    // underneath it and `'aria-sort'` on a sortable
+                    // column. The sort direction has no gpui builder —
+                    // upstream itself drops it on Android Talkback and
+                    // duplicates it into `aria-describedby` instead — so
+                    // it is a recorded omission in `crate::a11y`.
+                    .a11y_named(
+                        a11y::Role::ColumnHeader,
+                        &a11y::Name::labelled(column.label.clone()),
+                    )
+                    .a11y_column_index(column_index + usize::from(selectable))
+                    .group(sort_group.clone())
+                    // The wrapper owns the column's track, so it reads the
+                    // same triple the body cell read: a fixed width when
+                    // one wins, otherwise the shared flex floor. Leaving
+                    // the wrapper an unconditional equal-growth track
+                    // ignored the width entirely and resolved the header's
+                    // tracks separately from the body's.
+                    .when(effective.is_none(), |wrapper| {
+                        wrapper.flex_basis(px(0.)).flex_grow(1.).flex_shrink(1.)
+                    })
+                    .when_some(effective, |wrapper, w| wrapper.w(w))
+                    .when_some(layout_min, |wrapper, w| wrapper.min_w(w))
+                    .when_some(layout_max, |wrapper, w| wrapper.max_w(w))
+                    .flex()
+                    .cursor(crate::util::interactive_cursor(cx))
+                    // The focus is what makes Enter and Space sort: gpui
+                    // fires a *focused* element's click listeners for them.
+                    .track_focus(&header_focus[column_index])
+                    .on_click(move |_, window, cx| cb(&next.clone(), window, cx))
+                    .child(cell.group_hover(sort_group, |s| s.text_color(colors.foreground)));
+                // `.table__column` rings *inside* itself: the next column
+                // is flush against this one, and a ring drawn outside bled
+                // through the transparent cell and filled it.
+                header_cell
+                    .relative()
+                    .when(header_focused[column_index], |c| {
+                        c.child(crate::util::inset_focus_ring(cx))
+                    })
+                    .into_any_element()
+            }
+            // Not sortable, so nothing to press -- but still focusable, so
+            // PageUp has a header to land on, and it rings when it does.
+            _ => cell
+                .id(element_id::indexed(base_id, "header", column_index))
+                // The same `role: 'columnheader'`; a column that does not
+                // sort simply has no `aria-sort` upstream either
+                // (`ariaSort` stays `undefined` unless `allowsSorting`).
+                .a11y_named(
+                    a11y::Role::ColumnHeader,
+                    &a11y::Name::labelled(column.label.clone()),
+                )
+                .a11y_column_index(column_index + usize::from(selectable))
+                .track_focus(&header_focus[column_index])
+                .relative()
+                .when(header_focused[column_index], |c| {
+                    c.child(crate::util::inset_focus_ring(cx))
+                })
+                .into_any_element(),
+        };
+
+        // `allowsResizing` puts a handle on the column's trailing edge. The
+        // wrapper is what keeps the handle inside the column's box.
+        // `.table__resizable-container` is the box that keeps the handle
+        // inside the column, which is what this wrapper is.
+        if column.allows_resizing {
+            self.resizable_column_header(hx, column_index, column, cell, cx)
+        } else {
+            cell
+        }
+    }
+
+    /// `.table__resizable-container`: the box that keeps a resizable
+    /// column's handle inside the column, with the handle's pointer drag
+    /// start, outside-press exit and keyboard resizing.
+    fn resizable_column_header(
+        &self,
+        hx: &HeaderParts<'_>,
+        column_index: usize,
+        column: &TableColumn,
+        cell: AnyElement,
+        cx: &mut App,
+    ) -> AnyElement {
+        let HeaderParts {
+            base_id,
+            colors,
+            effective_widths,
+            layout_width_bounds,
+            measured_widths,
+            measured_widths_now,
+            resize_focus,
+            resize_focused,
+            resized,
+            dragging,
+            drag_now,
+            keyboard_resizing,
+            keyboard_resize_now,
+            resize_limits,
+            resize_columns,
+            resize_measurements,
+            ..
+        } = *hx;
+        let effective = effective_widths[column_index];
+        let (layout_min, layout_max) = layout_width_bounds[column_index];
+        let held = dragging.clone();
+        let start_width = effective
+            .or_else(|| measured_widths_now.get(column_index).copied().flatten())
+            .unwrap_or(px(160.));
+        let keyboard = keyboard_resizing.clone();
+        let keyboard_out = keyboard.clone();
+        let keyboard_for_pointer = keyboard.clone();
+        let widths = resized.clone();
+        let widths_for_pointer = widths.clone();
+        let widths_for_outside = widths.clone();
+        let (min_width, max_width) = resize_limits[column_index];
+        let controlled = column.width.is_some();
+        let focus_for_mouse = resize_focus[column_index]
+            .as_ref()
+            .expect("resizable columns have a focus handle")
+            .clone();
+        // As with the sort hover group: a string, but this table's own.
+        let resizer_group: SharedString = format!("{}-resizer-{column_index}", self.id).into();
+        let accent_color = colors.accent.color;
+        let focus_color = colors.focus;
+        let is_resizing = drag_now.is_some_and(|(index, _, _)| index == column_index)
+            || keyboard_resize_now == Some(column_index);
+        let measured = measured_widths.clone();
+        let columns_for_pointer = resize_columns.clone();
+        let columns_for_outside = resize_columns.clone();
+        let columns_for_keys = resize_columns.clone();
+        let measurements_for_pointer = resize_measurements.clone();
+        let measurements_for_outside = resize_measurements.clone();
+        let measurements_for_keys = resize_measurements.clone();
+        let resize_start_for_pointer = self.on_resize_start.clone();
+        let resize_start_for_keys = self.on_resize_start.clone();
+        let resize_for_keys = self.on_resize.clone();
+        let resize_end_for_pointer = self.on_resize_end.clone();
+        let resize_end_for_outside = self.on_resize_end.clone();
+        let resize_end_for_keys = self.on_resize_end.clone();
+        gpui::div()
+            .relative()
+            .when(effective.is_none(), flex_cell)
+            .when_some(effective, |c, w| c.w(w))
+            // The wrapper owns the column's track, so it carries the
+            // shared bounds instead of leaning on the inner cell's
+            // automatic minimum (see `layout_width_bounds`).
+            .when_some(layout_min, |wrapper, w| wrapper.min_w(w))
+            .when_some(layout_max, |wrapper, w| wrapper.max_w(w))
+            .when(effective.is_none(), |wrapper| {
+                wrapper.child(
+                    gpui::canvas(
+                        move |bounds: gpui::Bounds<Pixels>, _, cx| {
+                            let width = px(f32::from(bounds.size.width).floor());
+                            measured.update(cx, |values, cx| {
+                                if values.len() <= column_index {
+                                    values.resize(column_index + 1, None);
+                                }
+                                if values[column_index] != Some(width) {
+                                    values[column_index] = Some(width);
+                                    cx.notify();
+                                }
+                            });
+                            bounds
+                        },
+                        |_, _, _, _| {},
+                    )
+                    .absolute()
+                    .inset_0(),
+                )
+            })
+            .child(cell)
+            .child(
+                gpui::div()
+                    .id(element_id::indexed(base_id, "resize", column_index))
+                    .track_focus(
+                        resize_focus[column_index]
+                            .as_ref()
+                            .expect("resizable columns have a focus handle"),
+                    )
+                    .group(resizer_group.clone())
+                    .absolute()
+                    .top(px(0.))
+                    // `px-2` around a `w-px` line, `box-content`: an
+                    // 8px grab margin either side of the column edge.
+                    .right(px(-8.))
+                    .w(px(17.))
+                    .h_full()
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .child(
+                        // `h-4 w-px rounded-sm bg-separator`, and
+                        // `h-full w-0.5 bg-accent` while hovered.
+                        gpui::div()
+                            .w(px(1.))
+                            .h(px(16.))
+                            .rounded(crate::util::hairline_radius(cx))
+                            .bg(colors.separator)
+                            .group_hover(resizer_group, |s| {
+                                s.w(px(2.)).h_full().bg(accent_color)
+                            })
+                            .when(is_resizing, |s| {
+                                s.w(px(2.)).h_full().bg(accent_color)
+                            })
+                            .when(resize_focused[column_index], |s| {
+                                s.w(px(2.)).h_full().bg(focus_color)
+                            }),
+                    )
+                    .cursor(gpui::CursorStyle::ResizeLeftRight)
+                    .on_mouse_down(gpui::MouseButton::Left, move |ev, window, cx| {
+                        window.focus(&focus_for_mouse, cx);
+                        if let Some(active_column) = *keyboard_for_pointer.read(cx) {
+                            let current = final_column_widths(
+                                &columns_for_pointer,
+                                widths_for_pointer.read(cx),
+                                &measurements_for_pointer,
+                                active_column,
+                            );
+                            keyboard_for_pointer.update(cx, |active, _| *active = None);
+                            clear_controlled_resize_proposal(
+                                &columns_for_pointer,
+                                &widths_for_pointer,
+                                active_column,
+                                cx,
+                            );
+                            if let Some(callback) = &resize_end_for_pointer {
+                                callback(&current, window, cx);
+                            }
+                        }
+                        clear_controlled_resize_proposal(
+                            &columns_for_pointer,
+                            &widths_for_pointer,
+                            column_index,
+                            cx,
+                        );
+                        if let Some(callback) = &resize_start_for_pointer {
+                            let current = resolved_column_widths(
+                                &columns_for_pointer,
+                                widths_for_pointer.read(cx),
+                                &measurements_for_pointer,
+                                None,
+                            );
+                            callback(&current, window, cx);
+                        }
+                        let x = f32::from(ev.position.x);
+                        held.update(cx, |v, _| {
+                            *v = Some((column_index, x, f32::from(start_width)));
+                        });
+                    })
+                    .on_mouse_down_out(move |_, window, cx| {
+                        if *keyboard_out.read(cx) == Some(column_index) {
+                            let current = final_column_widths(
+                                &columns_for_outside,
+                                widths_for_outside.read(cx),
+                                &measurements_for_outside,
+                                column_index,
+                            );
+                            keyboard_out.update(cx, |active, cx| {
+                                *active = None;
                                 cx.notify();
                             });
-                            window.focus(&table_focus_for_keys, cx);
-                            cx.stop_propagation();
+                            clear_controlled_resize_proposal(
+                                &columns_for_outside,
+                                &widths_for_outside,
+                                column_index,
+                                cx,
+                            );
+                            if let Some(callback) = &resize_end_for_outside {
+                                callback(&current, window, cx);
+                            }
                         }
-                        return;
+                    })
+                    .on_key_down(move |event, window, cx| {
+                        let key = event.keystroke.key.as_str();
+                        let editing = *keyboard.read(cx) == Some(column_index);
+                        match key {
+                            "enter" => {
+                                if editing {
+                                    let current = final_column_widths(
+                                        &columns_for_keys,
+                                        widths.read(cx),
+                                        &measurements_for_keys,
+                                        column_index,
+                                    );
+                                    keyboard.update(cx, |active, cx| {
+                                        *active = None;
+                                        cx.notify();
+                                    });
+                                    clear_controlled_resize_proposal(
+                                        &columns_for_keys,
+                                        &widths,
+                                        column_index,
+                                        cx,
+                                    );
+                                    if let Some(callback) = &resize_end_for_keys {
+                                        callback(&current, window, cx);
+                                    }
+                                } else {
+                                    clear_controlled_resize_proposal(
+                                        &columns_for_keys,
+                                        &widths,
+                                        column_index,
+                                        cx,
+                                    );
+                                    let current = resolved_column_widths(
+                                        &columns_for_keys,
+                                        widths.read(cx),
+                                        &measurements_for_keys,
+                                        None,
+                                    );
+                                    keyboard.update(cx, |active, cx| {
+                                        *active = Some(column_index);
+                                        cx.notify();
+                                    });
+                                    if let Some(callback) = &resize_start_for_keys {
+                                        callback(&current, window, cx);
+                                    }
+                                }
+                                cx.stop_propagation();
+                            }
+                            "escape" | "space" | "tab" if editing => {
+                                let current = final_column_widths(
+                                    &columns_for_keys,
+                                    widths.read(cx),
+                                    &measurements_for_keys,
+                                    column_index,
+                                );
+                                keyboard.update(cx, |active, cx| {
+                                    *active = None;
+                                    cx.notify();
+                                });
+                                clear_controlled_resize_proposal(
+                                    &columns_for_keys,
+                                    &widths,
+                                    column_index,
+                                    cx,
+                                );
+                                if let Some(callback) = &resize_end_for_keys {
+                                    callback(&current, window, cx);
+                                }
+                                cx.stop_propagation();
+                            }
+                            "right" | "up" | "left" | "down" if editing => {
+                                let delta = if matches!(key, "right" | "up") {
+                                    10.
+                                } else {
+                                    -10.
+                                };
+                                let mut proposed = start_width;
+                                widths.update(cx, |values, cx| {
+                                    if values.len() <= column_index {
+                                        values.resize(column_index + 1, None);
+                                    }
+                                    let current = if controlled {
+                                        start_width
+                                    } else {
+                                        values[column_index].unwrap_or(start_width)
+                                    };
+                                    let next = (f32::from(current) + delta)
+                                        .floor()
+                                        .min(max_width)
+                                        .max(min_width);
+                                    proposed = px(next);
+                                    values[column_index] = Some(proposed);
+                                    cx.notify();
+                                });
+                                if let Some(callback) = &resize_for_keys {
+                                    let current = resolved_column_widths(
+                                        &columns_for_keys,
+                                        widths.read(cx),
+                                        &measurements_for_keys,
+                                        Some((column_index, proposed)),
+                                    );
+                                    callback(&current, window, cx);
+                                }
+                                cx.stop_propagation();
+                            }
+                            _ => {}
+                        }
+                    }),
+            )
+            .into_any_element()
+    }
+
+    /// The drag itself: the pointer can leave the table, so paint-time
+    /// window listeners own the move and release until the drag ends.
+    fn column_resize_drag(
+        &self,
+        mut table: gpui::Stateful<gpui::Div>,
+        dragging: gpui::Entity<Option<(usize, f32, f32)>>,
+        resized: gpui::Entity<Vec<Option<Pixels>>>,
+        resize_columns: std::sync::Arc<Vec<TableColumn>>,
+        resize_measurements: std::sync::Arc<Vec<Option<Pixels>>>,
+    ) -> gpui::Stateful<gpui::Div> {
+        let held = dragging.clone();
+        let held_up = dragging;
+        let widths = resized;
+        let widths_up = widths.clone();
+        let columns_for_move = resize_columns.clone();
+        let columns_for_up = resize_columns;
+        let measurements_for_move = resize_measurements.clone();
+        let measurements_for_up = resize_measurements;
+        let resize_callback = self.on_resize.clone();
+        let resize_end_callback = self.on_resize_end.clone();
+        table = table.relative().child(
+            gpui::canvas(
+                |bounds, _, _| bounds,
+                move |_, _, window, _| {
+                    let held = held.clone();
+                    let widths = widths.clone();
+                    let columns_for_move = columns_for_move.clone();
+                    let measurements_for_move = measurements_for_move.clone();
+                    let resize_callback = resize_callback.clone();
+                    window.on_mouse_event(
+                        move |event: &gpui::MouseMoveEvent, phase, window, cx| {
+                            if phase != gpui::DispatchPhase::Capture
+                                || event.pressed_button != Some(gpui::MouseButton::Left)
+                            {
+                                return;
+                            }
+                            let Some((column, from_x, from_w)) = *held.read(cx) else {
+                                return;
+                            };
+                            let raw = (from_w + f32::from(event.position.x) - from_x).floor();
+                            let min = columns_for_move[column]
+                                .min_width
+                                .map_or(DEFAULT_COLUMN_MIN_WIDTH, f32::from);
+                            let max = columns_for_move[column]
+                                .max_width
+                                .map_or(f32::MAX, f32::from);
+                            let proposed = px(raw.min(max).max(min));
+                            widths.update(cx, |values, cx| {
+                                if values.len() <= column {
+                                    values.resize(column + 1, None);
+                                }
+                                values[column] = Some(proposed);
+                                cx.notify();
+                            });
+                            if let Some(callback) = &resize_callback {
+                                let current = resolved_column_widths(
+                                    &columns_for_move,
+                                    widths.read(cx),
+                                    &measurements_for_move,
+                                    Some((column, proposed)),
+                                );
+                                callback(&current, window, cx);
+                            }
+                        },
+                    );
+
+                    let held_up = held_up.clone();
+                    let widths_up = widths_up.clone();
+                    let columns_for_up = columns_for_up.clone();
+                    let measurements_for_up = measurements_for_up.clone();
+                    let resize_end_callback = resize_end_callback.clone();
+                    window.on_mouse_event(move |event: &gpui::MouseUpEvent, phase, window, cx| {
+                        if phase != gpui::DispatchPhase::Capture
+                            || event.button != gpui::MouseButton::Left
+                        {
+                            return;
+                        }
+                        let drag = *held_up.read(cx);
+                        if let Some((column, _, _)) = drag {
+                            let current = final_column_widths(
+                                &columns_for_up,
+                                widths_up.read(cx),
+                                &measurements_for_up,
+                                column,
+                            );
+                            held_up.update(cx, |value, cx| {
+                                *value = None;
+                                cx.notify();
+                            });
+                            clear_controlled_resize_proposal(
+                                &columns_for_up,
+                                &widths_up,
+                                column,
+                                cx,
+                            );
+                            if let Some(callback) = &resize_end_callback {
+                                callback(&current, window, cx);
+                            }
+                        }
+                    });
+                },
+            )
+            .absolute()
+            .inset_0(),
+        );
+        table
+    }
+
+    /// v3 gives a table a roving row focus: the arrows walk it, Home and End
+    /// jump, Page Up/Down page (PageUp leaves for the header), Enter
+    /// activates the row, Space and `Mod+A` select, a tree row opens and
+    /// closes, and typing jumps by typeahead -- the same resolver every list
+    /// here uses, over the rows that exist.
+    fn row_keyboard(&self, mut wrapper: gpui::Div, keys: RowKeyboard<'_>) -> gpui::Div {
+        let RowKeyboard {
+            ctx,
+            expanded_keys,
+            header_focus,
+            row_cursor,
+            selectable_collection_keys,
+            selection_own,
+            selection_range,
+            table_focus,
+            tree_rows,
+            typeahead_labels,
+            typeahead,
+            virtual_list_state,
+            virtual_row_heights,
+            virtual_scroll_now,
+            virtual_text_value,
+            virtual_typeahead_indices,
+        } = keys;
+        let stops: Vec<usize> = ctx
+            .row_keys
+            .iter()
+            .enumerate()
+            .filter_map(|(index, key)| (!self.disabled_keys.contains(key)).then_some(index))
+            .collect();
+        let held = row_cursor;
+        let typeahead = typeahead;
+        let labels = typeahead_labels;
+        let virtual_indices = virtual_typeahead_indices;
+        let virtual_text = virtual_text_value;
+        let on_row_click = self.on_row_click.clone();
+        let keys = ctx.row_keys.clone();
+        let table_focus_for_keys = table_focus;
+        let selection = self.on_selection_change.clone();
+        let selection_own_for_keys = selection_own;
+        let selection_range_for_keys = selection_range;
+        let selected_now = self.selected_keys.clone();
+        let mode = self.selection_mode;
+        let selection_behavior = self.selection_behavior;
+        let disallow_empty_selection = self.disallow_empty_selection;
+        // React Aria's collection hook defaults `selectOnFocus` to true
+        // for `selectionBehavior="replace"`.
+        let select_on_focus =
+            selection_behavior == SelectionBehavior::Replace && mode != SelectionMode::None;
+        let plain_rows = self.virtual_rows.is_none();
+        let fixed_virtual = self.row_height.is_some() && self.virtual_rows.is_some();
+        // Pinned `TableKeyboardDelegate` pages by one visible rectangle, so
+        // the step reads the virtual body's own laid-out viewport -- the
+        // pinned handle's `base_handle.bounds()` -- and not the configured
+        // `max_h` cap: a bounded parent (or a resized window) shows fewer
+        // rows than the cap allows. A zero viewport answers nothing, which
+        // the shared resolver turns into no movement.
+        let fixed_row_height = self.row_height.filter(|_| fixed_virtual);
+        let fixed_scroll = virtual_scroll_now.clone();
+        let variable_scroll = virtual_list_state.clone();
+        let variable_heights = virtual_row_heights.clone();
+        let variable_estimate = self.estimated_row_height;
+        let expanded = expanded_keys;
+        let on_expanded = self.on_expanded_change.clone();
+        if !keys.is_empty() {
+            let typeahead_navigation = std::rc::Rc::new(TableTypeaheadNavigation {
+                state: typeahead,
+                labels,
+                virtual_indices,
+                virtual_text,
+                stops: stops.clone(),
+                keys: keys.clone(),
+                cursor: held.clone(),
+                fixed_virtual,
+                fixed_scroll: fixed_scroll.clone(),
+                variable_scroll: variable_scroll.clone(),
+            });
+            let capture_typeahead = typeahead_navigation.clone();
+            let capture_typeahead_up = typeahead_navigation.clone();
+            let capture_focus = table_focus_for_keys.clone();
+            let capture_focus_up = table_focus_for_keys.clone();
+            wrapper = wrapper.capture_key_down(move |event, window, cx| {
+                if !capture_focus.contains_focused(window, cx) {
+                    return;
+                }
+                let key_name = event.keystroke.key.as_str();
+                let typed = event.keystroke.key_char.as_deref().unwrap_or(key_name);
+                let modifiers = &event.keystroke.modifiers;
+                let now = web_time::Instant::now();
+                let is_space = key_name == "space" || typed == " ";
+                if is_space
+                    && capture_typeahead.state.read(cx).is_active(now)
+                    && !modifiers.control
+                    && !modifiers.platform
+                    && !modifiers.alt
+                {
+                    cx.stop_propagation();
+                    capture_typeahead.push(" ", now, false, cx);
+                }
+            });
+            wrapper = wrapper.capture_key_up(move |event, window, cx| {
+                if !capture_focus_up.contains_focused(window, cx) {
+                    return;
+                }
+                let key_name = event.keystroke.key.as_str();
+                let typed = event.keystroke.key_char.as_deref().unwrap_or(key_name);
+                let modifiers = &event.keystroke.modifiers;
+                let is_space = key_name == "space" || typed == " ";
+                if is_space
+                    && capture_typeahead_up
+                        .state
+                        .read(cx)
+                        .is_active(web_time::Instant::now())
+                    && !modifiers.control
+                    && !modifiers.platform
+                    && !modifiers.alt
+                {
+                    cx.stop_propagation();
+                }
+            });
+            let key_typeahead = typeahead_navigation;
+            // The header PageUp hands the focus to. Cloned out because the
+            // handler outlives this frame's `header_focus`.
+            let page_up_header = header_focus.first().cloned();
+            let headers_for_keys = header_focus;
+            wrapper = wrapper.on_key_down(move |event, window, cx| {
+                if !table_focus_for_keys.contains_focused(window, cx) {
+                    return;
+                }
+                let from = held
+                    .read(cx)
+                    .as_ref()
+                    .and_then(|key| keys.iter().position(|row| row == key))
+                    .filter(|index| stops.contains(index));
+                // Pinned React Aria `useTableRow`: horizontal keys belong
+                // to the focused tree row before the list resolver sees
+                // them. Right opens; Left closes or returns to the parent.
+                let key_name = event.keystroke.key.as_str();
+                let typed = event.keystroke.key_char.as_deref().unwrap_or(key_name);
+                let modifiers = &event.keystroke.modifiers;
+                let now = web_time::Instant::now();
+                let is_space = key_name == "space" || typed == " ";
+                let is_character = {
+                    let mut chars = key_name.chars();
+                    chars.next().is_some() && chars.next().is_none() && !is_space
+                };
+                let is_typeahead =
+                    is_character && !modifiers.control && !modifiers.platform && !modifiers.alt;
+                if is_typeahead {
+                    if key_typeahead.push(typed, now, true, cx) {
+                        cx.stop_propagation();
                     }
-                    if !table_focus_for_keys.is_focused(window) {
-                        return;
+                    return;
+                }
+                // Pinned React Aria 3.51 `useSelectableCollection` binds
+                // `Mod+A` -- the platform Mod, Control here -- to
+                // `selectAll`, and only when the selection mode is
+                // multiple. The shortcut matches its modifiers exactly,
+                // so any extra modifier lets the event fall through.
+                if key_name == "a"
+                    && event.keystroke.modifiers.secondary()
+                    && !event.keystroke.modifiers.shift
+                    && !event.keystroke.modifiers.alt
+                    && !event.keystroke.modifiers.function
+                    && if cfg!(target_os = "macos") {
+                        !event.keystroke.modifiers.control
+                    } else {
+                        !event.keystroke.modifiers.platform
                     }
-                    if key_name == "escape"
-                        && mode != SelectionMode::None
-                        && !disallow_empty_selection
-                        && !selected_now.is_empty()
-                    {
-                        let next = Vec::new();
+                    && mode == SelectionMode::Multiple
+                {
+                    let selectable_collection_keys = selectable_collection_keys
+                        .as_ref()
+                        .expect("multiple Tables have selectable keys");
+                    let selectable_collection_keys = selectable_collection_keys.clone();
+                    let selectable_collection_keys = selectable_collection_keys.as_slice();
+                    let (all_selected, _) =
+                        select_all_flags(selectable_collection_keys, &selected_now);
+                    let materializes_all =
+                        same_selection(selectable_collection_keys, &selected_now);
+                    let already_all = all_selected
+                        || (selection_range_for_keys.read(cx).is_all && materializes_all);
+                    // Pinned React Stately's `selectAll` is idempotent once
+                    // the whole selectable collection is already selected.
+                    if !already_all {
+                        let next = selectable_collection_keys.to_vec();
                         if let Some(held) = &selection_own_for_keys {
                             held.update(cx, |value, cx| {
                                 *value = next.clone();
@@ -2851,443 +3204,493 @@ impl RenderOnce for Table {
                             cb(&next, window, cx);
                         }
                         selection_range_for_keys.update(cx, |range, _| {
-                            *range = TableSelectionRange::default();
+                            *range = TableSelectionRange {
+                                is_all: true,
+                                ..TableSelectionRange::default()
+                            };
                         });
-                        cx.stop_propagation();
-                        return;
                     }
-                    if let Some(index) = from {
-                        let focused_key = &keys[index];
-                        if let Some((has_children, parent)) = tree_rows.get(index) {
-                            if key_name == "right"
-                                && *has_children
-                                && !expanded.contains(focused_key)
-                            {
+                    cx.stop_propagation();
+                    return;
+                }
+                // Other collection keys belong only to the body's roving
+                // focus stop. A nested cell action must keep its own Enter
+                // and Space handling even though Mod+A bubbles to the root.
+                // Pinned TableKeyboardDelegate crosses header<->body in
+                // both plain and virtual tables: Down/PageDown from a
+                // focused header enters the body.
+                if headers_for_keys
+                    .iter()
+                    .any(|header| header.is_focused(window))
+                {
+                    let next = match key_name {
+                        "down" => stops.first(),
+                        "pagedown" => stops.last(),
+                        _ => None,
+                    };
+                    if let Some(next) = next {
+                        held.update(cx, |value, cx| {
+                            *value = Some(keys[*next].clone());
+                            cx.notify();
+                        });
+                        window.focus(&table_focus_for_keys, cx);
+                        cx.stop_propagation();
+                    }
+                    return;
+                }
+                if !table_focus_for_keys.is_focused(window) {
+                    return;
+                }
+                if key_name == "escape"
+                    && mode != SelectionMode::None
+                    && !disallow_empty_selection
+                    && !selected_now.is_empty()
+                {
+                    let next = Vec::new();
+                    if let Some(held) = &selection_own_for_keys {
+                        held.update(cx, |value, cx| {
+                            *value = next.clone();
+                            cx.notify();
+                        });
+                    }
+                    if let Some(cb) = &selection {
+                        cb(&next, window, cx);
+                    }
+                    selection_range_for_keys.update(cx, |range, _| {
+                        *range = TableSelectionRange::default();
+                    });
+                    cx.stop_propagation();
+                    return;
+                }
+                if let Some(index) = from {
+                    let focused_key = &keys[index];
+                    if let Some((has_children, parent)) = tree_rows.get(index) {
+                        if key_name == "right" && *has_children && !expanded.contains(focused_key) {
+                            if let Some(cb) = &on_expanded {
+                                let mut next = expanded.as_ref().clone();
+                                next.push(focused_key.clone());
+                                cb(&next, window, cx);
+                            }
+                            crate::util::set_focus_visible(true, cx);
+                            cx.stop_propagation();
+                            return;
+                        } else if key_name == "left" {
+                            if *has_children && expanded.contains(focused_key) {
                                 if let Some(cb) = &on_expanded {
                                     let mut next = expanded.as_ref().clone();
-                                    next.push(focused_key.clone());
+                                    next.retain(|key| key != focused_key);
                                     cb(&next, window, cx);
                                 }
                                 crate::util::set_focus_visible(true, cx);
                                 cx.stop_propagation();
                                 return;
-                            } else if key_name == "left" {
-                                if *has_children && expanded.contains(focused_key) {
-                                    if let Some(cb) = &on_expanded {
-                                        let mut next = expanded.as_ref().clone();
-                                        next.retain(|key| key != focused_key);
-                                        cb(&next, window, cx);
+                            } else if let Some(parent) = parent {
+                                if let Some(parent_index) =
+                                    keys.iter().position(|key| key == parent)
+                                {
+                                    held.update(cx, |value, cx| {
+                                        *value = Some(parent.clone());
+                                        cx.notify();
+                                    });
+                                    if fixed_virtual {
+                                        fixed_scroll.scroll_to_item(
+                                            parent_index,
+                                            gpui::ScrollStrategy::Center,
+                                        );
+                                    } else if let Some(state) = &variable_scroll {
+                                        state.scroll_to(gpui::ListOffset {
+                                            item_ix: parent_index,
+                                            offset_in_item: px(0.),
+                                        });
                                     }
                                     crate::util::set_focus_visible(true, cx);
                                     cx.stop_propagation();
                                     return;
-                                } else if let Some(parent) = parent {
-                                    if let Some(parent_index) =
-                                        keys.iter().position(|key| key == parent)
-                                    {
-                                        held.update(cx, |value, cx| {
-                                            *value = Some(parent.clone());
-                                            cx.notify();
-                                        });
-                                        if fixed_virtual {
-                                            fixed_scroll.scroll_to_item(
-                                                parent_index,
-                                                gpui::ScrollStrategy::Center,
-                                            );
-                                        } else if let Some(state) = &variable_scroll {
-                                            state.scroll_to(gpui::ListOffset {
-                                                item_ix: parent_index,
-                                                offset_in_item: px(0.),
-                                            });
-                                        }
-                                        crate::util::set_focus_visible(true, cx);
-                                        cx.stop_propagation();
-                                        return;
-                                    }
                                 }
                             }
                         }
                     }
-                    let page_by_step = |from: usize, step: usize| match key_name {
+                }
+                let page_by_step = |from: usize, step: usize| match key_name {
+                    "pagedown" => {
+                        let boundary = from.saturating_add(step).min(keys.len() - 1);
+                        stops
+                            .iter()
+                            .copied()
+                            .find(|stop| *stop >= boundary)
+                            .or_else(|| stops.last().copied())
+                    }
+                    "pageup" => {
+                        let boundary = from.saturating_sub(step);
+                        stops
+                            .iter()
+                            .rev()
+                            .copied()
+                            .find(|stop| *stop <= boundary)
+                            .or_else(|| stops.first().copied())
+                    }
+                    _ => None,
+                };
+                let fixed_page_move = from.and_then(|from| {
+                    let row_height = fixed_row_height?;
+                    let viewport_height =
+                        f32::from(fixed_scroll.0.borrow().base_handle.bounds().size.height);
+                    if viewport_height <= 0. {
+                        return None;
+                    }
+                    let step = ((viewport_height / f32::from(row_height)).ceil() as usize)
+                        .saturating_sub(1);
+                    page_by_step(from, step)
+                });
+                let variable_page_move = from.and_then(|from| {
+                    let viewport_height = variable_scroll.as_ref()?.viewport_bounds().size.height;
+                    let heights = variable_heights.as_ref()?.read(cx);
+                    let estimate = variable_estimate?;
+                    let height_at =
+                        |index: usize| heights.1.get(index).copied().flatten().unwrap_or(estimate);
+                    let mut distance = height_at(from);
+                    let mut target = from;
+                    match key_name {
                         "pagedown" => {
-                            let boundary = from.saturating_add(step).min(keys.len() - 1);
-                            stops
-                                .iter()
-                                .copied()
-                                .find(|stop| *stop >= boundary)
-                                .or_else(|| stops.last().copied())
+                            if distance >= viewport_height {
+                                return Some(target);
+                            }
+                            for next in stops.iter().copied().filter(|next| *next > from) {
+                                for index in target + 1..=next {
+                                    distance += height_at(index);
+                                }
+                                target = next;
+                                if distance >= viewport_height {
+                                    break;
+                                }
+                            }
+                            Some(target)
                         }
                         "pageup" => {
-                            let boundary = from.saturating_sub(step);
-                            stops
+                            if distance >= viewport_height {
+                                return Some(target);
+                            }
+                            for previous in stops
                                 .iter()
                                 .rev()
                                 .copied()
-                                .find(|stop| *stop <= boundary)
-                                .or_else(|| stops.first().copied())
+                                .filter(|previous| *previous < from)
+                            {
+                                for index in previous..target {
+                                    distance += height_at(index);
+                                }
+                                target = previous;
+                                if distance >= viewport_height {
+                                    break;
+                                }
+                            }
+                            Some(target)
                         }
                         _ => None,
+                    }
+                });
+                let is_variable_page = fixed_page_move.is_none() && variable_page_move.is_some();
+                // Pinned TableKeyboardDelegate sends PageDown to the last
+                // enabled row, and PageUp out of the body entirely, into
+                // the first column header. The header is focusable whether
+                // or not it sorts, so this leaves the body rather than
+                // stopping at its first row. Virtual tables page by
+                // viewport first; only when the upward page move has
+                // nowhere to go (the cursor is already the first enabled
+                // stop, or the computed page target equals it) does
+                // PageUp enter the header. The cursor stays seated so
+                // Down from the header returns to the first enabled row.
+                if plain_rows && key_name == "pageup" {
+                    if let Some(header) = &page_up_header {
+                        window.focus(header, cx);
+                        cx.stop_propagation();
+                        return;
+                    }
+                } else if !plain_rows && key_name == "pageup" {
+                    let at_top = match from {
+                        Some(position) => {
+                            stops.first().is_some_and(|first| *first == position)
+                                || fixed_page_move.is_some_and(|target| Some(target) == from)
+                                || variable_page_move.is_some_and(|target| Some(target) == from)
+                        }
+                        None => false,
                     };
-                    let fixed_page_move = from.and_then(|from| {
-                        let row_height = fixed_row_height?;
-                        let viewport_height =
-                            f32::from(fixed_scroll.0.borrow().base_handle.bounds().size.height);
-                        if viewport_height <= 0. {
-                            return None;
-                        }
-                        let step = ((viewport_height / f32::from(row_height)).ceil() as usize)
-                            .saturating_sub(1);
-                        page_by_step(from, step)
-                    });
-                    let variable_page_move = from.and_then(|from| {
-                        let viewport_height =
-                            variable_scroll.as_ref()?.viewport_bounds().size.height;
-                        let heights = variable_heights.as_ref()?.read(cx);
-                        let estimate = variable_estimate?;
-                        let height_at = |index: usize| {
-                            heights.1.get(index).copied().flatten().unwrap_or(estimate)
-                        };
-                        let mut distance = height_at(from);
-                        let mut target = from;
-                        match key_name {
-                            "pagedown" => {
-                                if distance >= viewport_height {
-                                    return Some(target);
-                                }
-                                for next in stops.iter().copied().filter(|next| *next > from) {
-                                    for index in target + 1..=next {
-                                        distance += height_at(index);
-                                    }
-                                    target = next;
-                                    if distance >= viewport_height {
-                                        break;
-                                    }
-                                }
-                                Some(target)
-                            }
-                            "pageup" => {
-                                if distance >= viewport_height {
-                                    return Some(target);
-                                }
-                                for previous in stops
-                                    .iter()
-                                    .rev()
-                                    .copied()
-                                    .filter(|previous| *previous < from)
-                                {
-                                    for index in previous..target {
-                                        distance += height_at(index);
-                                    }
-                                    target = previous;
-                                    if distance >= viewport_height {
-                                        break;
-                                    }
-                                }
-                                Some(target)
-                            }
-                            _ => None,
-                        }
-                    });
-                    let is_variable_page =
-                        fixed_page_move.is_none() && variable_page_move.is_some();
-                    // Pinned TableKeyboardDelegate sends PageDown to the last
-                    // enabled row, and PageUp out of the body entirely, into
-                    // the first column header. The header is focusable whether
-                    // or not it sorts, so this leaves the body rather than
-                    // stopping at its first row. Virtual tables page by
-                    // viewport first; only when the upward page move has
-                    // nowhere to go (the cursor is already the first enabled
-                    // stop, or the computed page target equals it) does
-                    // PageUp enter the header. The cursor stays seated so
-                    // Down from the header returns to the first enabled row.
-                    if plain_rows && key_name == "pageup" {
+                    if at_top {
                         if let Some(header) = &page_up_header {
                             window.focus(header, cx);
                             cx.stop_propagation();
                             return;
                         }
-                    } else if !plain_rows && key_name == "pageup" {
-                        let at_top = match from {
-                            Some(position) => {
-                                stops.first().is_some_and(|first| *first == position)
-                                    || fixed_page_move.is_some_and(|target| Some(target) == from)
-                                    || variable_page_move.is_some_and(|target| Some(target) == from)
-                            }
-                            None => false,
-                        };
-                        if at_top {
-                            if let Some(header) = &page_up_header {
-                                window.focus(header, cx);
-                                cx.stop_propagation();
-                                return;
-                            }
-                        }
                     }
-                    let plain_page_move =
-                        from.filter(|_| plain_rows).and_then(|_| match key_name {
-                            "pagedown" => stops.last().copied(),
-                            _ => None,
-                        });
-                    let page_move = fixed_page_move
-                        .or(variable_page_move)
-                        .or(plain_page_move)
-                        .filter(|next| Some(*next) != from);
-                    // The pinned registrations install no Home/End handler
-                    // for an unregistered chord -- Cmd- or Ctrl-bearing on
-                    // macOS, Alt- or platform-bearing elsewhere -- so the
-                    // whole event stays inert: no focus move, no selection,
-                    // no preventDefault, and no first-press settle either.
-                    if matches!(key_name, "home" | "end")
-                        && !home_end_registered(*modifiers, cfg!(target_os = "macos"))
-                    {
-                        return;
-                    }
-                    let initial_home_end_extends = shift_home_end_extends(
-                        "home",
-                        modifiers.control,
-                        cfg!(target_os = "macos"),
-                    );
-                    let initial_shift_settle = from.is_none()
-                        && modifiers.shift
-                        && (key_name == "up"
-                            || (matches!(key_name, "home" | "end") && !initial_home_end_extends)
-                            || (key_name == "down" && stops.len() < 2));
-                    let navigation = if from.is_none() && modifiers.shift && key_name == "down" {
-                        stops
-                            .get(1)
-                            .or_else(|| stops.first())
-                            .copied()
-                            .map_or(crate::list_nav::Move::Ignore, crate::list_nav::Move::To)
-                    } else if initial_shift_settle {
-                        (if key_name == "end" {
-                            stops.last()
-                        } else {
-                            stops.first()
-                        })
+                }
+                let plain_page_move = from.filter(|_| plain_rows).and_then(|_| match key_name {
+                    "pagedown" => stops.last().copied(),
+                    _ => None,
+                });
+                let page_move = fixed_page_move
+                    .or(variable_page_move)
+                    .or(plain_page_move)
+                    .filter(|next| Some(*next) != from);
+                // The pinned registrations install no Home/End handler
+                // for an unregistered chord -- Cmd- or Ctrl-bearing on
+                // macOS, Alt- or platform-bearing elsewhere -- so the
+                // whole event stays inert: no focus move, no selection,
+                // no preventDefault, and no first-press settle either.
+                if matches!(key_name, "home" | "end")
+                    && !home_end_registered(*modifiers, cfg!(target_os = "macos"))
+                {
+                    return;
+                }
+                let initial_home_end_extends =
+                    shift_home_end_extends("home", modifiers.control, cfg!(target_os = "macos"));
+                let initial_shift_settle = from.is_none()
+                    && modifiers.shift
+                    && (key_name == "up"
+                        || (matches!(key_name, "home" | "end") && !initial_home_end_extends)
+                        || (key_name == "down" && stops.len() < 2));
+                let navigation = if from.is_none() && modifiers.shift && key_name == "down" {
+                    stops
+                        .get(1)
+                        .or_else(|| stops.first())
                         .copied()
                         .map_or(crate::list_nav::Move::Ignore, crate::list_nav::Move::To)
+                } else if initial_shift_settle {
+                    (if key_name == "end" {
+                        stops.last()
                     } else {
-                        page_move.map_or_else(
-                            || crate::list_nav::resolve(&stops, from, key_name, false),
-                            crate::list_nav::Move::To,
-                        )
-                    };
-                    match navigation {
-                        crate::list_nav::Move::To(next) => {
-                            // Pinned `useSelectableCollection`: Shift extends a
-                            // multiple selection from the anchor with no other
-                            // chord, so plain Shift navigation is exact.
-                            let exact_shift_navigation = if cfg!(target_os = "macos") {
-                                !modifiers.control && !modifiers.platform && !modifiers.function
-                            } else {
-                                !modifiers.alt && !modifiers.platform && !modifiers.function
-                            };
-                            let extends_selection = modifiers.shift
-                                && mode == SelectionMode::Multiple
-                                && exact_shift_navigation
-                                && !initial_shift_settle
-                                && Some(next) != from
-                                && shift_home_end_extends(
-                                    key_name,
-                                    modifiers.control,
-                                    cfg!(target_os = "macos"),
+                        stops.first()
+                    })
+                    .copied()
+                    .map_or(crate::list_nav::Move::Ignore, crate::list_nav::Move::To)
+                } else {
+                    page_move.map_or_else(
+                        || crate::list_nav::resolve(&stops, from, key_name, false),
+                        crate::list_nav::Move::To,
+                    )
+                };
+                match navigation {
+                    crate::list_nav::Move::To(next) => {
+                        // Pinned `useSelectableCollection`: Shift extends a
+                        // multiple selection from the anchor with no other
+                        // chord, so plain Shift navigation is exact.
+                        let exact_shift_navigation = if cfg!(target_os = "macos") {
+                            !modifiers.control && !modifiers.platform && !modifiers.function
+                        } else {
+                            !modifiers.alt && !modifiers.platform && !modifiers.function
+                        };
+                        let extends_selection = modifiers.shift
+                            && mode == SelectionMode::Multiple
+                            && exact_shift_navigation
+                            && !initial_shift_settle
+                            && Some(next) != from
+                            && shift_home_end_extends(
+                                key_name,
+                                modifiers.control,
+                                cfg!(target_os = "macos"),
+                            );
+                        if extends_selection {
+                            if let Some(target) = keys.get(next) {
+                                let range = selection_range_for_keys.read(cx).clone();
+                                let next_selection = extend_selection_range(
+                                    &selected_now,
+                                    &keys,
+                                    selectable_collection_keys
+                                        .as_ref()
+                                        .expect("multiple Tables have selectable keys")
+                                        .as_slice(),
+                                    &range,
+                                    target,
                                 );
-                            if extends_selection {
-                                if let Some(target) = keys.get(next) {
-                                    let range = selection_range_for_keys.read(cx).clone();
-                                    let next_selection = extend_selection_range(
-                                        &selected_now,
-                                        &keys,
-                                        selectable_collection_keys
-                                            .as_ref()
-                                            .expect("multiple Tables have selectable keys")
-                                            .as_slice(),
-                                        &range,
-                                        target,
-                                    );
-                                    selection_range_for_keys.update(cx, |range, _| {
-                                        if range.anchor.is_none() {
-                                            range.anchor = Some(target.clone());
-                                        }
-                                        range.current = Some(target.clone());
-                                        range.is_all = false;
-                                    });
-                                    if !same_selection(&next_selection, &selected_now) {
-                                        if let Some(held) = &selection_own_for_keys {
-                                            held.update(cx, |value, cx| {
-                                                *value = next_selection.clone();
-                                                cx.notify();
-                                            });
-                                        }
-                                        if let Some(cb) = &selection {
-                                            cb(&next_selection, window, cx);
-                                        }
+                                selection_range_for_keys.update(cx, |range, _| {
+                                    if range.anchor.is_none() {
+                                        range.anchor = Some(target.clone());
                                     }
-                                }
-                            } else if select_on_focus
-                                && !modifiers.shift
-                                && !((cfg!(target_os = "macos") && modifiers.alt)
-                                    || (!cfg!(target_os = "macos") && modifiers.control))
-                            {
-                                if let Some(target) = keys.get(next) {
-                                    let next_selection = vec![target.clone()];
-                                    if !same_selection(&next_selection, &selected_now) {
-                                        if let Some(held) = &selection_own_for_keys {
-                                            held.update(cx, |value, cx| {
-                                                *value = next_selection.clone();
-                                                cx.notify();
-                                            });
-                                        }
-                                        if let Some(cb) = &selection {
-                                            cb(&next_selection, window, cx);
-                                        }
+                                    range.current = Some(target.clone());
+                                    range.is_all = false;
+                                });
+                                if !same_selection(&next_selection, &selected_now) {
+                                    if let Some(held) = &selection_own_for_keys {
+                                        held.update(cx, |value, cx| {
+                                            *value = next_selection.clone();
+                                            cx.notify();
+                                        });
                                     }
-                                    selection_range_for_keys.update(cx, |range, _| {
-                                        *range = TableSelectionRange {
-                                            anchor: Some(target.clone()),
-                                            current: Some(target.clone()),
-                                            ..TableSelectionRange::default()
-                                        };
-                                    });
+                                    if let Some(cb) = &selection {
+                                        cb(&next_selection, window, cx);
+                                    }
                                 }
                             }
-                            held.update(cx, |v, cx| {
-                                *v = keys.get(next).cloned();
-                                cx.notify();
-                            });
-                            if fixed_virtual {
-                                fixed_scroll.scroll_to_item(next, gpui::ScrollStrategy::Center);
-                            } else if let Some(state) = &variable_scroll {
-                                if is_variable_page {
-                                    state.scroll_to_reveal_item(next);
-                                } else {
-                                    // Unmeasured rows have no cached height, so
-                                    // `scroll_to_reveal_item` cannot locate a far
-                                    // target. Jump by logical index; the next
-                                    // layout measures that row at the viewport.
-                                    state.scroll_to(gpui::ListOffset {
-                                        item_ix: next,
-                                        offset_in_item: px(0.),
-                                    });
+                        } else if select_on_focus
+                            && !modifiers.shift
+                            && !((cfg!(target_os = "macos") && modifiers.alt)
+                                || (!cfg!(target_os = "macos") && modifiers.control))
+                        {
+                            if let Some(target) = keys.get(next) {
+                                let next_selection = vec![target.clone()];
+                                if !same_selection(&next_selection, &selected_now) {
+                                    if let Some(held) = &selection_own_for_keys {
+                                        held.update(cx, |value, cx| {
+                                            *value = next_selection.clone();
+                                            cx.notify();
+                                        });
+                                    }
+                                    if let Some(cb) = &selection {
+                                        cb(&next_selection, window, cx);
+                                    }
                                 }
+                                selection_range_for_keys.update(cx, |range, _| {
+                                    *range = TableSelectionRange {
+                                        anchor: Some(target.clone()),
+                                        current: Some(target.clone()),
+                                        ..TableSelectionRange::default()
+                                    };
+                                });
                             }
                         }
-                        crate::list_nav::Move::Activate => {
-                            let Some(index) = from else { return };
-                            let activation = if event.keystroke.key == "enter" {
-                                RowActivation::Enter
+                        held.update(cx, |v, cx| {
+                            *v = keys.get(next).cloned();
+                            cx.notify();
+                        });
+                        if fixed_virtual {
+                            fixed_scroll.scroll_to_item(next, gpui::ScrollStrategy::Center);
+                        } else if let Some(state) = &variable_scroll {
+                            if is_variable_page {
+                                state.scroll_to_reveal_item(next);
                             } else {
-                                RowActivation::Space
-                            };
-                            match row_intent(
-                                activation,
-                                mode,
-                                selection_behavior,
-                                selected_now.is_empty(),
-                                on_row_click.is_some(),
-                            ) {
-                                RowIntent::Action => {
-                                    if let Some(cb) = &on_row_click {
-                                        cb(&index, &ClickEvent::default(), window, cx);
-                                    }
-                                }
-                                RowIntent::Selection => {
-                                    if let Some(key) = keys.get(index) {
-                                        let was_selected = selected_now.contains(key);
-                                        let extends_selection =
-                                            modifiers.shift && mode == SelectionMode::Multiple;
-                                        let next = if extends_selection {
-                                            let range = selection_range_for_keys.read(cx).clone();
-                                            extend_selection_range(
-                                                &selected_now,
-                                                &keys,
-                                                selectable_collection_keys
-                                                    .as_ref()
-                                                    .expect("multiple Tables have selectable keys")
-                                                    .as_slice(),
-                                                &range,
-                                                key,
-                                            )
-                                        } else {
-                                            let non_contiguous = if cfg!(target_os = "macos") {
-                                                modifiers.alt
-                                            } else {
-                                                modifiers.control
-                                            };
-                                            crate::selection::next_selection_with_behavior(
-                                                &selected_now,
-                                                key,
-                                                mode,
-                                                if non_contiguous {
-                                                    SelectionBehavior::Toggle
-                                                } else {
-                                                    selection_behavior
-                                                },
-                                                disallow_empty_selection,
-                                            )
-                                        };
-                                        let changed = !same_selection(&next, &selected_now);
-                                        if changed {
-                                            if let Some(held) = &selection_own_for_keys {
-                                                held.update(cx, |value, cx| {
-                                                    *value = next.clone();
-                                                    cx.notify();
-                                                });
-                                            }
-                                            if let Some(cb) = &selection {
-                                                cb(&next, window, cx);
-                                            }
-                                        }
-                                        if extends_selection && changed {
-                                            selection_range_for_keys.update(cx, |range, _| {
-                                                if range.anchor.is_none() {
-                                                    range.anchor = Some(key.clone());
-                                                }
-                                                range.current = Some(key.clone());
-                                                range.is_all = false;
-                                            });
-                                        } else if !extends_selection
-                                            && mode == SelectionMode::Multiple
-                                            && !was_selected
-                                        {
-                                            selection_range_for_keys.update(cx, |range, _| {
-                                                range.anchor = Some(key.clone());
-                                                range.current = Some(key.clone());
-                                                range.is_all = false;
-                                            });
-                                        } else if !extends_selection
-                                            && mode == SelectionMode::Multiple
-                                        {
-                                            selection_range_for_keys.update(cx, |range, _| {
-                                                if range.is_all {
-                                                    *range = TableSelectionRange::default();
-                                                }
-                                            });
-                                        }
-                                    }
-                                }
-                                RowIntent::None => {}
+                                // Unmeasured rows have no cached height, so
+                                // `scroll_to_reveal_item` cannot locate a far
+                                // target. Jump by logical index; the next
+                                // layout measures that row at the viewport.
+                                state.scroll_to(gpui::ListOffset {
+                                    item_ix: next,
+                                    offset_in_item: px(0.),
+                                });
                             }
                         }
-                        crate::list_nav::Move::Ignore => {}
                     }
-                });
-            }
+                    crate::list_nav::Move::Activate => {
+                        let Some(index) = from else { return };
+                        let activation = if event.keystroke.key == "enter" {
+                            RowActivation::Enter
+                        } else {
+                            RowActivation::Space
+                        };
+                        match row_intent(
+                            activation,
+                            mode,
+                            selection_behavior,
+                            selected_now.is_empty(),
+                            on_row_click.is_some(),
+                        ) {
+                            RowIntent::Action => {
+                                if let Some(cb) = &on_row_click {
+                                    cb(&index, &ClickEvent::default(), window, cx);
+                                }
+                            }
+                            RowIntent::Selection => {
+                                if let Some(key) = keys.get(index) {
+                                    let was_selected = selected_now.contains(key);
+                                    let extends_selection =
+                                        modifiers.shift && mode == SelectionMode::Multiple;
+                                    let next = if extends_selection {
+                                        let range = selection_range_for_keys.read(cx).clone();
+                                        extend_selection_range(
+                                            &selected_now,
+                                            &keys,
+                                            selectable_collection_keys
+                                                .as_ref()
+                                                .expect("multiple Tables have selectable keys")
+                                                .as_slice(),
+                                            &range,
+                                            key,
+                                        )
+                                    } else {
+                                        let non_contiguous = if cfg!(target_os = "macos") {
+                                            modifiers.alt
+                                        } else {
+                                            modifiers.control
+                                        };
+                                        crate::selection::next_selection_with_behavior(
+                                            &selected_now,
+                                            key,
+                                            mode,
+                                            if non_contiguous {
+                                                SelectionBehavior::Toggle
+                                            } else {
+                                                selection_behavior
+                                            },
+                                            disallow_empty_selection,
+                                        )
+                                    };
+                                    let changed = !same_selection(&next, &selected_now);
+                                    if changed {
+                                        if let Some(held) = &selection_own_for_keys {
+                                            held.update(cx, |value, cx| {
+                                                *value = next.clone();
+                                                cx.notify();
+                                            });
+                                        }
+                                        if let Some(cb) = &selection {
+                                            cb(&next, window, cx);
+                                        }
+                                    }
+                                    if extends_selection && changed {
+                                        selection_range_for_keys.update(cx, |range, _| {
+                                            if range.anchor.is_none() {
+                                                range.anchor = Some(key.clone());
+                                            }
+                                            range.current = Some(key.clone());
+                                            range.is_all = false;
+                                        });
+                                    } else if !extends_selection
+                                        && mode == SelectionMode::Multiple
+                                        && !was_selected
+                                    {
+                                        selection_range_for_keys.update(cx, |range, _| {
+                                            range.anchor = Some(key.clone());
+                                            range.current = Some(key.clone());
+                                            range.is_all = false;
+                                        });
+                                    } else if !extends_selection && mode == SelectionMode::Multiple
+                                    {
+                                        selection_range_for_keys.update(cx, |range, _| {
+                                            if range.is_all {
+                                                *range = TableSelectionRange::default();
+                                            }
+                                        });
+                                    }
+                                }
+                            }
+                            RowIntent::None => {}
+                        }
+                    }
+                    crate::list_nav::Move::Ignore => {}
+                }
+            });
         }
+        wrapper
+    }
 
-        let row_count = if self.virtual_rows.is_some()
-            && (self.row_height.is_some() || self.estimated_row_height.is_some())
-        {
-            virtual_visible_count
-        } else {
-            flat.len()
-        };
-        let virtual_projection = std::rc::Rc::new(
-            virtual_projection
-                .map(|projection| std::sync::Arc::clone(&projection.visible))
-                .unwrap_or_default(),
-        );
-
+    /// Fills `.table__body`: a `uniform_list` for fixed-height virtual rows, a
+    /// measured `gpui::list` for `estimatedRowHeight`, or every flattened
+    /// plain row.
+    fn body_rows(
+        &self,
+        mut body: gpui::Stateful<gpui::Div>,
+        rows_in: BodyRows<'_>,
+        cx: &mut App,
+    ) -> gpui::Stateful<gpui::Div> {
+        let BodyRows {
+            base_id,
+            table_id,
+            ctx,
+            flat,
+            row_count,
+            virtual_projection,
+            virtual_list_state,
+            virtual_row_heights,
+            virtual_scroll_now,
+        } = rows_in;
         // `estimatedRowHeight` takes the variable-height path: gpui's `list`
         // measures each row it builds, and its state is intrusive, so it lives in
         // the window's keyed store and resets when the count changes.
@@ -3310,7 +3713,7 @@ impl RenderOnce for Table {
             let rows_selector = format!("{table_id}-virtual-rows");
             body = body.child(
                 gpui::uniform_list(
-                    element_id::scoped(&base_id, "virtual-rows"),
+                    element_id::scoped(base_id, "virtual-rows"),
                     row_count,
                     move |range, _window, cx| {
                         range
@@ -3330,7 +3733,7 @@ impl RenderOnce for Table {
                             .collect::<Vec<_>>()
                     },
                 )
-                .track_scroll(&virtual_scroll_now)
+                .track_scroll(virtual_scroll_now)
                 .h(height)
                 .min_h_0()
                 .w_full()
@@ -3391,164 +3794,168 @@ impl RenderOnce for Table {
             }
         }
 
-        // ---- empty state -------------------------------------------------
-        if row_count == 0 {
-            if let Some(content) = self.empty_state {
-                body = body.child(
-                    gpui::div()
-                        .flex()
-                        .items_center()
-                        .justify_center()
-                        .w_full()
-                        .py(px(28.))
-                        .text_color(muted)
-                        .child(content),
-                );
-            }
-        }
+        body
+    }
 
-        table = table.child(body);
-
-        // ---- load-more sentinel ------------------------------------------
-        if self.is_pending || self.on_load_more.is_some() {
-            if let Some(cb) = self.on_load_more.clone() {
-                let state = load_more_state;
-                let scroll_offset = self.load_more_offset;
-                let virtual_scroll = load_more_virtual_scroll;
-                let variable_scroll = load_more_variable_scroll;
-                table = table.child(
-                    gpui::canvas(
-                        move |bounds, window, cx| {
-                            // Plain rows place this canvas at the real content
-                            // end, so ancestor masks provide its viewport
-                            // intersection. Virtual rows keep that end inside
-                            // their own scroll state instead.
-                            let mask = window.content_mask().bounds;
-                            let in_view = bounds.right() >= mask.left()
-                                && bounds.left() <= mask.right()
-                                && bounds.bottom() >= mask.top()
-                                && bounds.top() <= mask.bottom() + mask.size.height * scroll_offset;
-                            let virtual_end_is_near = if let Some(handle) = &virtual_scroll {
-                                let scroll = handle.0.borrow();
-                                scroll.last_item_size.is_some_and(|size| {
-                                    let remaining = size.contents.height
-                                        + scroll.base_handle.offset().y
-                                        - size.item.height;
-                                    remaining <= size.item.height * scroll_offset
-                                })
-                            } else if let Some((state, count, estimate)) = &variable_scroll {
-                                let viewport = state.viewport_bounds();
-                                let viewport_height = viewport.size.height;
-                                let top = state.logical_scroll_top();
-                                // Unmeasured ListState rows have zero height,
-                                // so project the unseen tail from the caller's
-                                // layout estimate instead.
-                                let remaining = *estimate * count.saturating_sub(top.item_ix)
-                                    - top.offset_in_item
-                                    - viewport_height;
-                                let margin = viewport_height * scroll_offset;
-                                let measured_end_is_near = *count == 0
-                                    || state.bounds_for_item(count.saturating_sub(1)).is_some_and(
-                                        |bounds| bounds.bottom() <= viewport.bottom() + margin,
-                                    );
-                                measured_end_is_near || (scroll_offset > 0. && remaining <= margin)
-                            } else {
-                                true
-                            };
-                            let visible = if virtual_scroll.is_some() || variable_scroll.is_some() {
-                                virtual_end_is_near
-                            } else {
-                                in_view
-                            };
-                            let previous = state.read(cx).clone();
-                            let collection_changed = previous
-                                .1
-                                .as_ref()
-                                .is_none_or(|identity| identity != &load_more_collection);
-                            let should_load = visible && (!previous.0 || collection_changed);
-                            if previous.0 != visible || should_load {
-                                state.update(cx, |value, cx| {
-                                    value.0 = visible;
-                                    if should_load {
-                                        value.1 = Some(load_more_collection.clone());
-                                    }
-                                    cx.notify();
-                                });
-                            }
-                            if should_load {
-                                cb(window, cx);
-                            }
-                        },
-                        |_, _, _, _| {},
-                    )
-                    .size(px(1.)),
-                );
-            }
-
-            if self.is_pending {
-                let sentinel = gpui::div()
-                .id(element_id::scoped(&base_id, "load-more"))
-                .flex()
-                .items_center()
-                .justify_center()
-                .gap(px(8.))
-                .w_full()
-                // `.table__load-more-content` is `gap-2 py-2`; `loaderHeight`
-                // fixes the row's height instead when the caller sets it.
-                .py(px(8.))
-                .when_some(self.loader_height, |el, h| el.h(h))
-                .text_size(px(13.))
-                .text_color(muted)
-                    .child(
-                        crate::spinner::Spinner::new(element_id::scoped(&base_id, "load-spinner"))
-                            .size(herogpui_core::Size::Sm),
-                    )
-                    .child("Loading\u{2026}");
-                table = table.child(sentinel);
-            }
-        }
-
-        if let Some(footer) = self.footer {
-            // `.table__footer` is `flex items-center px-4 py-2.5`.
+    /// The load-more sentinel: a 1px canvas that reports `onLoadMore` when
+    /// the end of the collection nears the viewport, and the pending row
+    /// (`.table__load-more-content`) while `is_pending`.
+    fn load_more(
+        &self,
+        mut table: gpui::Stateful<gpui::Div>,
+        load_more: LoadMore<'_>,
+    ) -> gpui::Stateful<gpui::Div> {
+        let LoadMore {
+            base_id,
+            state,
+            collection: load_more_collection,
+            virtual_scroll,
+            variable_scroll,
+            muted,
+        } = load_more;
+        if let Some(cb) = self.on_load_more.clone() {
+            let scroll_offset = self.load_more_offset;
             table = table.child(
-                gpui::div()
-                    .flex()
-                    .items_center()
-                    .w_full()
-                    .px(px(16.))
-                    .py(px(10.))
-                    .child(footer),
+                gpui::canvas(
+                    move |bounds, window, cx| {
+                        // Plain rows place this canvas at the real content
+                        // end, so ancestor masks provide its viewport
+                        // intersection. Virtual rows keep that end inside
+                        // their own scroll state instead.
+                        let mask = window.content_mask().bounds;
+                        let in_view = bounds.right() >= mask.left()
+                            && bounds.left() <= mask.right()
+                            && bounds.bottom() >= mask.top()
+                            && bounds.top() <= mask.bottom() + mask.size.height * scroll_offset;
+                        let virtual_end_is_near = if let Some(handle) = &virtual_scroll {
+                            let scroll = handle.0.borrow();
+                            scroll.last_item_size.is_some_and(|size| {
+                                let remaining = size.contents.height
+                                    + scroll.base_handle.offset().y
+                                    - size.item.height;
+                                remaining <= size.item.height * scroll_offset
+                            })
+                        } else if let Some((state, count, estimate)) = &variable_scroll {
+                            let viewport = state.viewport_bounds();
+                            let viewport_height = viewport.size.height;
+                            let top = state.logical_scroll_top();
+                            // Unmeasured ListState rows have zero height,
+                            // so project the unseen tail from the caller's
+                            // layout estimate instead.
+                            let remaining = *estimate * count.saturating_sub(top.item_ix)
+                                - top.offset_in_item
+                                - viewport_height;
+                            let margin = viewport_height * scroll_offset;
+                            let measured_end_is_near = *count == 0
+                                || state.bounds_for_item(count.saturating_sub(1)).is_some_and(
+                                    |bounds| bounds.bottom() <= viewport.bottom() + margin,
+                                );
+                            measured_end_is_near || (scroll_offset > 0. && remaining <= margin)
+                        } else {
+                            true
+                        };
+                        let visible = if virtual_scroll.is_some() || variable_scroll.is_some() {
+                            virtual_end_is_near
+                        } else {
+                            in_view
+                        };
+                        let previous = state.read(cx).clone();
+                        let collection_changed = previous
+                            .1
+                            .as_ref()
+                            .is_none_or(|identity| identity != &load_more_collection);
+                        let should_load = visible && (!previous.0 || collection_changed);
+                        if previous.0 != visible || should_load {
+                            state.update(cx, |value, cx| {
+                                value.0 = visible;
+                                if should_load {
+                                    value.1 = Some(load_more_collection.clone());
+                                }
+                                cx.notify();
+                            });
+                        }
+                        if should_load {
+                            cb(window, cx);
+                        }
+                    },
+                    |_, _, _, _| {},
+                )
+                .size(px(1.)),
             );
         }
 
-        // `.table__scroll-container` is `overflow-x-auto` around the content: a
-        // column whose cross axis leaves the content column at its
-        // max-content width, so a table wider than its box is free to exceed
-        // the scroller and scroll *on* it, while `min_w_full` still fills a
-        // narrow box. A row flex here would shrink that child to the viewport
-        // unless it carried `flex_shrink_0`, which would also forbid the
-        // column's vertical shrink inside a bounded parent; the column
-        // direction shrinks the content vertically while never touching its
-        // width. `min_h_0` is what permits that shrink: the scroller only
-        // scrolls horizontally, so its visible y-overflow would otherwise keep
-        // the content-based minimum and never yield.
-        // The headless probe name for the scroll viewport's bounds, so a test
-        // can read the grid's overflow against it.
-        let scroll_selector = format!("{table_id}-scroll-x");
-        let el = wrapper.child(
-            gpui::div()
-                .id(element_id::scoped(&base_id, "scroll-x"))
-                .debug_selector(move || scroll_selector)
-                .flex()
-                .flex_col()
-                .items_start()
-                .w_full()
-                .min_h_0()
-                .overflow_x_scroll()
-                .restrict_scroll_to_axis()
-                .child(table),
-        );
-        crate::util::apply_sx(el, &self.sx)
+        if self.is_pending {
+            let sentinel = gpui::div()
+            .id(element_id::scoped(base_id, "load-more"))
+            .flex()
+            .items_center()
+            .justify_center()
+            .gap(px(8.))
+            .w_full()
+            // `.table__load-more-content` is `gap-2 py-2`; `loaderHeight`
+            // fixes the row's height instead when the caller sets it.
+            .py(px(8.))
+            .when_some(self.loader_height, |el, h| el.h(h))
+            .text_size(px(13.))
+            .text_color(muted)
+                .child(
+                    crate::spinner::Spinner::new(element_id::scoped(base_id, "load-spinner"))
+                        .size(herogpui_core::Size::Sm),
+                )
+                .child("Loading\u{2026}");
+            table = table.child(sentinel);
+        }
+        table
+    }
+
+    /// Which of the row run's edges coincide with a curved edge of the box
+    /// that clips it. A virtual body only meets its box at an edge it is
+    /// actually scrolled to; an unresolved scroll state answers "no", which
+    /// keeps a square fill rather than a wrongly rounded one.
+    fn row_edge_rounding(
+        &self,
+        secondary: bool,
+        virtual_scroll_now: &gpui::UniformListScrollHandle,
+        virtual_list_state: Option<&gpui::ListState>,
+        virtual_visible_count: usize,
+        cx: &App,
+    ) -> (Option<Pixels>, Option<Pixels>) {
+        let (touches_top, touches_bottom) =
+            if self.row_height.is_some() && self.virtual_rows.is_some() {
+                let at_top = {
+                    let scroll = virtual_scroll_now.0.borrow();
+                    scroll.base_handle.offset().y >= px(-0.5)
+                };
+                // `is_scrolled_to_end` answers `None` when the list does
+                // not scroll at all, and then every row is on screen.
+                (
+                    at_top,
+                    virtual_scroll_now.is_scrolled_to_end().unwrap_or(true),
+                )
+            } else if let Some(state) = virtual_list_state {
+                let top = state.logical_scroll_top();
+                let viewport = state.viewport_bounds();
+                (
+                    top.item_ix == 0 && top.offset_in_item <= px(0.5),
+                    virtual_visible_count == 0
+                        || state
+                            .bounds_for_item(virtual_visible_count - 1)
+                            .is_some_and(|bounds| bounds.bottom() <= viewport.bottom() + px(0.5)),
+                )
+            } else {
+                // Plain rows have no scroller of their own, so the run's
+                // edges are the box's edges.
+                (true, true)
+            };
+        edge_corner_rounding(
+            secondary,
+            self.footer.is_some(),
+            touches_top,
+            touches_bottom,
+            cx.layout().radius_2xl().min(px(32.)),
+            self.radius
+                .unwrap_or_else(|| crate::util::container_radius(cx)),
+        )
     }
 }
 
@@ -4431,7 +4838,7 @@ mod tests {
             .next()
             .expect("the implementation section is always present");
         assert!(
-            source.contains("cell = cell\n                    .bg(colors.surface_secondary)")
+            source.contains("cell = cell\n                .bg(colors.surface_secondary)")
                 && source.contains("colors.separator_tertiary().alpha(0.5)"),
             "secondary tables must paint the header surface and per-cell tertiary separators"
         );

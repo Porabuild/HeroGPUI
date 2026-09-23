@@ -842,14 +842,17 @@ EVIDENCE = {
     # arrows without the user having to find its tab stop first.
     ('DatePicker', 'panel-focus'): ('date_picker.rs', r'autofocus_grid\(panel_open\)'),
     ('DateRangePicker', 'panel-focus'): ('date_picker.rs', r'autofocus_grid\(panel_open\)'),
-    ('Calendar', 'calendar-paging'): ('calendar.rs', r'calendar_view::focus_section'),
-    ('RangeCalendar', 'calendar-paging'): ('range_calendar.rs', r'calendar_view::focus_section'),
+    # Both calendars resolve their grid keys through the shared
+    # `calendar_keys::DayGrid`; DELEGATED_EVIDENCE below also requires each
+    # component to route its key presses through it.
+    ('Calendar', 'calendar-paging'): ('calendar_keys.rs', r'calendar_view::focus_section'),
+    ('RangeCalendar', 'calendar-paging'): ('calendar_keys.rs', r'calendar_view::focus_section'),
     ('Calendar', 'calendar-section-bounds'): (
-        'calendar.rs',
+        'calendar_keys.rs',
         r'(?s)(?=.*calendar_view::section_start)(?=.*calendar_view::section_end)',
     ),
     ('RangeCalendar', 'calendar-section-bounds'): (
-        'range_calendar.rs',
+        'calendar_keys.rs',
         r'(?s)(?=.*calendar_view::section_start)(?=.*calendar_view::section_end)',
     ),
     ('Select', 'scroll-into-view'): ('select.rs', r'scroll_to_item'),
@@ -978,7 +981,7 @@ EVIDENCE = {
         r'(?=.*fn shift_home_end_extends\(key_name: &str, control: bool, macos: bool\) -> bool \{)'
         r'(?=.*!matches!\(key_name, "home" \| "end"\) \|\| \(!macos && control\))'
         r'(?=.*shift_home_end_extends\(\s*key_name,\s*modifiers\.control,\s*cfg!\(target_os = "macos"\),?\s*\))'
-        r'(?=.*let initial_home_end_extends = shift_home_end_extends\(\s*"home",\s*modifiers\.control,\s*cfg!\(target_os = "macos"\),?\s*\);)'
+        r'(?=.*let initial_home_end_extends =\s*shift_home_end_extends\(\s*"home",\s*modifiers\.control,\s*cfg!\(target_os = "macos"\),?\s*\);)'
         r'(?=.*range\.current = Some\(target\.clone\(\)\);)'
         r'(?=.*range\.is_all = false;)'
         r'(?=.*ev\.modifiers\(\)\.shift && mode == SelectionMode::Multiple)',
@@ -1217,9 +1220,34 @@ def table_resize_keys_evidence(source):
     ))
 
 
+# (component, claim) -> (component module, pattern) for evidence that lives in
+# a shared module: the shared module must carry the EVIDENCE pattern *and* the
+# component's own (non-test) source must delegate its key presses to it, so a
+# component that stops calling the shared code still fails.
+_DAY_GRID_DELEGATION = r'grid\.key_target\(key, at, shift\)'
+DELEGATED_EVIDENCE = {
+    ('Calendar', 'calendar-paging'): ('calendar.rs', _DAY_GRID_DELEGATION),
+    ('RangeCalendar', 'calendar-paging'): ('range_calendar.rs', _DAY_GRID_DELEGATION),
+    ('Calendar', 'calendar-section-bounds'): ('calendar.rs', _DAY_GRID_DELEGATION),
+    ('RangeCalendar', 'calendar-section-bounds'): ('range_calendar.rs', _DAY_GRID_DELEGATION),
+}
+
+
+def delegation_matches(key, component_source=None):
+    module, pattern = DELEGATED_EVIDENCE[key]
+    if component_source is None:
+        path = SRC + module
+        if not module_exists(path):
+            return False
+        component_source = read_path(path, errors='replace')
+    return bool(re.search(pattern, mask_literals(strip_cfg_test(component_source))))
+
+
 def evidence_matches(key, evidence, source):
     if key == ('Table', 'resize-keys'):
         return table_resize_keys_evidence(source)
+    if key in DELEGATED_EVIDENCE and not delegation_matches(key):
+        return False
     if key in {('TextField', 'text-keys'), ('Form', 'server-errors-suppress')}:
         source = mask_literals(strip_cfg_test(source))
     return re.search(evidence, source)
@@ -1252,6 +1280,21 @@ def main():
                 print('AUDIT READER ERROR: %s accepts %s' % (key, label))
                 return 1
 
+    for key, (module, _) in DELEGATED_EVIDENCE.items():
+        component_source = read_path(SRC + module, errors='replace')
+        if not delegation_matches(key, component_source):
+            print('AUDIT READER ERROR: %s delegation not found in %s' % (key, module))
+            return 1
+        token = 'grid.key_target(key, at, shift)'
+        for label, mutant in (
+            ('removed delegation', component_source.replace(token, 'REMOVED_DELEGATION')),
+            ('test-only delegation', component_source.replace(token, 'REMOVED_DELEGATION')
+             + '\n#[cfg(test)]\nmod fixture {\n    fn f() { ' + token + '; }\n}\n'),
+        ):
+            if delegation_matches(key, mutant):
+                print('AUDIT READER ERROR: %s accepts %s' % (key, label))
+                return 1
+
     table_source = read_path(SRC + 'table.rs', errors='replace')
     for label, token, replacement in (
         ('outside-click exit', '.on_mouse_down_out(', 'REMOVED_RESIZE_EVIDENCE'),
@@ -1277,24 +1320,24 @@ def main():
         ),
         (
             'Enter propagation stop',
-            'cx.stop_propagation();\n                                    }\n'
-            '                                    "escape" | "space" | "tab" if editing',
-            'REMOVED_RESIZE_EVIDENCE;\n                                    }\n'
-            '                                    "escape" | "space" | "tab" if editing',
+            'cx.stop_propagation();\n                            }\n'
+            '                            "escape" | "space" | "tab" if editing',
+            'REMOVED_RESIZE_EVIDENCE;\n                            }\n'
+            '                            "escape" | "space" | "tab" if editing',
         ),
         (
             'exit-key propagation stop',
-            'cx.stop_propagation();\n                                    }\n'
-            '                                    "right" | "up" | "left" | "down" if editing',
-            'REMOVED_RESIZE_EVIDENCE;\n                                    }\n'
-            '                                    "right" | "up" | "left" | "down" if editing',
+            'cx.stop_propagation();\n                            }\n'
+            '                            "right" | "up" | "left" | "down" if editing',
+            'REMOVED_RESIZE_EVIDENCE;\n                            }\n'
+            '                            "right" | "up" | "left" | "down" if editing',
         ),
         (
             'arrow propagation stop',
-            'cx.stop_propagation();\n                                    }\n'
-            '                                    _ => {}',
-            'REMOVED_RESIZE_EVIDENCE;\n                                    }\n'
-            '                                    _ => {}',
+            'cx.stop_propagation();\n                            }\n'
+            '                            _ => {}',
+            'REMOVED_RESIZE_EVIDENCE;\n                            }\n'
+            '                            _ => {}',
         ),
     ):
         if token not in table_source:

@@ -79,7 +79,7 @@ const STYLE_ROUTES: MappingRow[] = [
   },
   {
     route: "Radius",
-    rust: "util::soft_radius(cx)",
+    rust: "extend::soft_radius(cx)",
     detail:
       "One helper per radius step — see the table below. Each component names its own radius.",
   },
@@ -92,29 +92,29 @@ const STYLE_ROUTES: MappingRow[] = [
 
 const RADII: { rust: string; value: string; usedBy: string }[] = [
   {
-    rust: "util::control_radius(cx)",
+    rust: "extend::control_radius(cx)",
     value: "3xl (24px)",
     usedBy: "button, toggle button, avatar",
   },
   {
-    rust: "util::soft_radius(cx)",
+    rust: "extend::soft_radius(cx)",
     value: "2xl (16px)",
     usedBy: "chip, menu and list rows, colour area",
   },
   {
-    rust: "util::small_radius(cx)",
+    rust: "extend::small_radius(cx)",
     value: "xl (12px)",
     usedBy: "close button, tag, link, tooltip",
   },
-  { rust: "util::key_radius(cx)", value: "lg (8px)", usedBy: "Kbd" },
+  { rust: "extend::key_radius(cx)", value: "lg (8px)", usedBy: "Kbd" },
   {
-    rust: "util::hairline_radius(cx)",
+    rust: "extend::hairline_radius(cx)",
     value: "sm (4px)",
     usedBy: "separator, skeleton",
   },
-  { rust: "util::field_radius(cx)", value: "12px", usedBy: "every form field" },
+  { rust: "extend::field_radius(cx)", value: "12px", usedBy: "every form field" },
   {
-    rust: "util::container_radius(cx)",
+    rust: "extend::container_radius(cx)",
     value: "min(32px, 3xl)",
     usedBy:
       "cards, the table and every floating panel. Surface carries none — `.surface` declares no radius.",

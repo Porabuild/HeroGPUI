@@ -42,6 +42,7 @@ pub enum SwatchLayout {
 
 /// State handed to `ColorSwatchPicker.Item`'s render function.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[non_exhaustive]
 pub struct ColorSwatchPickerItemState {
     pub color: PickerColor,
     pub is_hovered: bool,

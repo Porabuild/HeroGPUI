@@ -16,11 +16,11 @@ starting each phase; line numbers are not durable contracts.
   `extra_audit.py` mentions `RadioGroup::size` as a historical failure, but its
   current explicit ban tables do not mechanically ban that method. An
   informational sibling match is not policy permission.
-- `anim::hover_fade` and `util::apply_field_chrome` are public functions;
-  `hover_fade` is also re-exported at the crate root. Replacing their signatures
-  is not additive. Read the duration
-  from the theme inside the existing fade helper; retain the chrome helper's
-  signature.
+- `anim::hover_fade` is public (as `anim::hover_fade`; since 0.11.0 it is no
+  longer re-exported at the crate root), so replacing its signature is not
+  additive: read the duration from the theme inside the existing fade helper.
+  `util::apply_field_chrome` became crate-private in 0.11.0 and may change
+  freely.
 - `ZoomBox::panel` takes **resting vertical padding**, not a zoom offset.
   Padding builders must update both the real panel and its animation geometry.
 - The proposed file-level hover grep cannot prove that a particular painted

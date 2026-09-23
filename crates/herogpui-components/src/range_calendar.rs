@@ -16,6 +16,7 @@ use herogpui_theme::ActiveTheme;
 use crate::{
     a11y::{self, A11y as _},
     calendar::{add_days, days_from_civil, month_year_heading, Date},
+    calendar_keys,
     calendar_view::{self, PageBehavior, SelectionAlignment, VisibleDuration},
     date_constraints::{DateConstraints, Weekday},
     date_picker::DateRangeState,
@@ -88,6 +89,7 @@ pub struct RangeCalendar {
 /// What `RangeCalendar.Cell`'s render function is handed -- v3's render props
 /// for the cell, one field each.
 #[derive(Clone, Debug)]
+#[non_exhaustive]
 pub struct RangeCalendarCellState {
     /// The date this cell draws.
     pub date: Date,
@@ -1788,6 +1790,15 @@ impl RenderOnce for RangeCalendar {
             let system = self.system().clone();
             let duration = self.duration;
             let page_behavior = self.page_behavior;
+            let grid = calendar_keys::DayGrid {
+                system: system.clone(),
+                duration,
+                page_behavior,
+                first_day,
+                anchor,
+                visible_start,
+                visible_end,
+            };
             root = root.on_key_down(move |event, window, cx| {
                 let header_focused = prev_control.is_focused(window)
                     || next_control.is_focused(window)
@@ -1892,30 +1903,8 @@ impl RenderOnce for RangeCalendar {
                     }
                     return;
                 }
-                let next = match key {
-                    "left" => add_days(&at, -1),
-                    "right" => add_days(&at, 1),
-                    "up" => add_days(&at, -7),
-                    "down" => add_days(&at, 7),
-                    "pageup" => calendar_view::focus_section_in(
-                        &system,
-                        duration,
-                        page_behavior,
-                        at,
-                        -1,
-                        shift,
-                    ),
-                    "pagedown" => calendar_view::focus_section_in(
-                        &system,
-                        duration,
-                        page_behavior,
-                        at,
-                        1,
-                        shift,
-                    ),
-                    "home" => calendar_view::section_start_in(&system, duration, visible_start, at),
-                    "end" => calendar_view::section_end_in(&system, duration, visible_end, at),
-                    _ => return,
+                let Some(next) = grid.key_target(key, at, shift) else {
+                    return;
                 };
                 let next = constraints.constrain(next);
                 if controlled_focus.is_none() {
@@ -1928,55 +1917,10 @@ impl RenderOnce for RangeCalendar {
                     // leaves it. Day views page the whole window directly.
                     state.update(cx, |s, cx| {
                         s.hovered = None;
-                        if matches!(key, "pageup" | "pagedown") {
-                            let dir = if key == "pageup" { -1 } else { 1 };
-                            let next_anchor = match duration {
-                                VisibleDuration::Days(_) => calendar_view::focus_section_in(
-                                    &system,
-                                    duration,
-                                    page_behavior,
-                                    anchor,
-                                    dir,
-                                    shift,
-                                ),
-                                _ if days_from_civil(&next) < days_from_civil(&visible_start) => {
-                                    calendar_view::aligned_anchor_in(
-                                        &system,
-                                        duration,
-                                        SelectionAlignment::End,
-                                        first_day,
-                                        next,
-                                    )
-                                }
-                                _ if days_from_civil(&next) > days_from_civil(&visible_end) => {
-                                    calendar_view::aligned_anchor_in(
-                                        &system,
-                                        duration,
-                                        SelectionAlignment::Start,
-                                        first_day,
-                                        next,
-                                    )
-                                }
-                                _ => anchor,
-                            };
-                            if next_anchor != anchor {
-                                s.set_anchor(next_anchor);
-                                cx.notify();
-                            }
-                        } else {
-                            let next_anchor = calendar_view::anchor_following_focus_in(
-                                &system,
-                                duration,
-                                first_day,
-                                anchor,
-                                visible_start,
-                                visible_end,
-                                next,
-                            );
-                            if next_anchor != anchor {
-                                s.set_anchor(next_anchor);
-                                cx.notify();
-                            }
+                        let next_anchor = grid.anchor_after_key(key, next, shift);
+                        if next_anchor != anchor {
+                            s.set_anchor(next_anchor);
+                            cx.notify();
                         }
                     });
                 }
@@ -1996,58 +1940,22 @@ impl RenderOnce for RangeCalendar {
             let system = self.system().clone();
             let controlled_year = focused_value.map(|date| system.from_gregorian(date).0);
             let back_to_trigger = active_heading_focus.clone();
-            root = root.on_key_down(move |event, window, cx| {
-                if !focus.is_focused(window) {
-                    return;
-                }
-                let key = event.keystroke.key.as_str();
-                if key == "escape" {
-                    if let Some(held) = &own {
-                        held.update(cx, |open, cx| {
-                            *open = false;
-                            cx.notify();
-                        });
-                    }
-                    if let Some(cb) = &on_open {
-                        cb(&false, window, cx);
-                    }
-                    window.focus(&back_to_trigger, cx);
-                    cx.stop_propagation();
-                    return;
-                }
-
-                let current = controlled_year.or(*held.read(cx)).unwrap_or(active_year);
-                let index = years_for_keys
-                    .iter()
-                    .position(|year| *year == current)
-                    .unwrap_or(0);
-                let next_index = match key {
-                    "left" => index.checked_sub(1),
-                    "right" => (index + 1 < years_for_keys.len()).then_some(index + 1),
-                    "up" => index.checked_sub(3),
-                    "down" => (index + 3 < years_for_keys.len()).then_some(index + 3),
-                    "home" => Some(0),
-                    "end" => years_for_keys.len().checked_sub(1),
-                    _ => return,
-                };
-                if let Some(next_index) = next_index {
-                    let next = years_for_keys[next_index];
-                    if controlled_year.is_none() {
-                        held.update(cx, |year, cx| {
-                            *year = Some(next);
-                            cx.notify();
-                        });
-                    }
-                    if let Some(cb) = &on_focus {
-                        cb(
-                            &system.add_years(anchor, next - system.from_gregorian(anchor).0),
-                            window,
-                            cx,
-                        );
-                    }
-                }
-                cx.stop_propagation();
-            });
+            root = calendar_keys::on_year_picker_keys(
+                root,
+                calendar_keys::YearPickerKeys {
+                    held,
+                    focus,
+                    years: years_for_keys,
+                    own,
+                    on_open,
+                    on_focus,
+                    system,
+                    controlled_year,
+                    back_to_trigger,
+                    active_year,
+                    anchor,
+                },
+            );
         }
 
         // `.range-calendar__grid-body > tr:first-child > td` has `mt-1`.

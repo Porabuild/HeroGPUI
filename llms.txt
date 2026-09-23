@@ -119,7 +119,9 @@ div().bg(cx.colors().background).text_color(cx.colors().foreground).font_family(
 ```
 
 Toggle: `herogpui::theme::toggle_light_dark(cx);` or `use_theme("dark", cx)` or
-`set_theme(custom, cx)`.
+`set_theme(custom, cx)`. `use_theme` returns `Result<(), UnknownThemeError>`:
+an id no registered theme carries (ids are case-sensitive) is refused, the
+active theme stays as it was, and nothing repaints — it never panics.
 
 Follow the OS instead: `theme::follow_system_appearance(window, cx)` — call it
 once per window from its root-view constructor. It applies the current OS
@@ -287,11 +289,12 @@ Color math (`herogpui-core`): `oklch(l, c, h)`, `oklcha(..)`,
 
 ## Prop vocabularies
 
-**Corner radii.** v3 names a different step per component, so `util` has one
-helper each rather than a single "control" radius: `control_radius` (3xl, 24px —
-button, toggle button, avatar), `soft_radius` (2xl, 16 — chip, menu and list
-rows, colour area), `small_radius` (xl, 12 — close button, tag, link, tooltip),
-`key_radius` (lg, 8 — `Kbd`), `hairline_radius` (sm, 4 — separator, skeleton),
+**Corner radii.** v3 names a different step per component, so
+`herogpui::extend` has one helper each rather than a single "control" radius:
+`control_radius` (3xl, 24px — button, toggle button, avatar), `soft_radius`
+(2xl, 16 — chip, menu and list rows, colour area), `small_radius` (xl, 12 —
+close button, tag, link, tooltip), `key_radius` (lg, 8 — `Kbd`), `mark_radius`
+(md — checkbox), `micro_radius` (xs — small progress track), `hairline_radius` (sm, 4 — separator, skeleton),
 `field_radius` (12 — every form field) and `container_radius` (`min(32px, 3xl)` —
 cards, the table and every floating panel; Surface carries none, upstream
 `.surface` declares no radius). `.shots/design_audit.py` diffs these
@@ -339,10 +342,10 @@ both physical (`"bottom left"`) and logical (`"bottom start"`) spellings, plus
 the logical edge aliases (`"start"`, `"end top"`, …). This port has no RTL
 mode, so each logical spelling resolves to the same pixels as its
 left/right twin. Motion and arrows follow the physical side; alignment is
-positioning-only. Position a panel with `util::placed_panel(placement,
-offset)` — or `util::placed_field_panel` for a trigger-width one — and always
-hand the result to `util::floating`, since gpui paints in tree order and
-`absolute` alone does not lift a panel above later siblings.
+positioning-only. The built-in overlays position their own panels; the
+positioning helpers are crate-internal. A custom floating panel must go
+through GPUI's `deferred(..)`, since gpui paints in tree order and `absolute`
+alone does not lift a panel above later siblings.
 
 
 ## Render props
@@ -525,6 +528,18 @@ TextField::new(name.clone()).label("Name").is_required(true)
 Callbacks: `Fn(&ClickEvent/&str/f32/usize/bool/Option<Date>, &mut Window, &mut App)`.
 Fields cloned into closures must be `Arc`.
 
+Public surface (0.11): the component builders and their payload types live at
+the crate root; `anim` (motion tokens and wrappers) is a module path, not
+re-exported at the root; `extend` holds the helpers supported for custom
+widgets (the radius scale, `FIELD_*` metrics, `cursor_interactive`,
+`focus_visible`/`set_focus_visible`, `inner_fill_radius`,
+`shift_wheel_scroll_x`, `app_focus_root`); the old `util` module is private.
+Theme structs (`Theme`, `ThemeColors`, `LayoutTheme`, `ComponentThemes`, the
+`*Style` recipes), `TabItem`, and every render-prop payload (`*RenderState`,
+`*CellState`, `InteractiveState`, `FieldFocus`, `SelectionValue`, …) are
+`#[non_exhaustive]`: build them with their constructors, builders or
+`Default`, then set fields — never with a struct literal.
+
 Entity-backed controls derive internal identity from their state entity. Keep a
 distinct `InputState`, `CalendarState`, `DateRangeState` or `TimeState` for each
 simultaneously rendered control, and retain that entity across repaints.
@@ -541,7 +556,7 @@ and website group the same components into 66 pages.
 v3 keeps `size` on nineteen components (Button, ButtonGroup, ToggleButton*,
 Chip, TagGroup, Badge, Avatar, Switch, Meter, ProgressBar, ProgressCircle,
 Spinner, Pagination, Modal, AlertDialog, ScrollShadow, ColorSwatch*) and gives
-every form field one height instead — `util::FIELD_HEIGHT` / `FIELD_TEXT` /
+every form field one height instead — `extend::FIELD_HEIGHT` / `FIELD_TEXT` /
 `FIELD_ICON`. `color` survives only on Avatar, Badge, Chip, ColorSwatch*, Meter,
 ProgressBar, ProgressCircle, Spinner and Typography; elsewhere `variant` (or
 `status`, on Alert) is the whole visual vocabulary. `CloseButton` has neither.
@@ -727,10 +742,10 @@ Modal, Drawer, and AlertDialog cover the window even inside clipped or positione
   - a composed footer retires the built-in pair: the caller's own `Button`s own their close wiring and the danger/pending spellings (`variant(Variant::Danger)`, `is_pending(true)`), the way v3 composes `slot="close"` buttons.
   - `is_dismissible` and `is_keyboard_dismiss_disabled` default to v3's values (backdrop dismissal off, Escape off), so opting in is explicit. `status` renders the alert glyph in that role's colour and only when set.
   - placement is anchored like Modal's, but v3's ±4px enter slide for top/bottom/auto is not ported — the fade and the zoom are.
-- **Drawer** — `placement(DrawerPlacement)`, `size(px)`, `title`, `backdrop(Backdrop)`, `is_dismissible`, `is_keyboard_dismiss_disabled`, `footer_child`, `on_close`, `on_open_change(&bool)`; `.child(DrawerCloseTrigger::new())` composes v3's `Drawer.CloseTrigger` X
-- **Modal** — `is_open`, `title`, `size(ModalSize::{Xs,Sm,Md,Lg,Cover,Full})`, `backdrop(Backdrop)`, `placement(ModalPlacement::{Auto,Center,Top,Bottom})`, `scroll(ModalScroll::{Inside,Outside})`, `radius(px)`, `is_dismissible`, `is_keyboard_dismiss_disabled`, `footer_child`, `on_close`, `on_open_change(&bool)`; `.child(ModalCloseTrigger::new())` composes v3's `Modal.CloseTrigger` X — the part draws only where composed, like v3
+- **Drawer** — `placement(DrawerPlacement)`, `size(px)`, `title`, `backdrop(Backdrop)`, `is_dismissible`, `is_keyboard_dismiss_disabled`, `footer_child`, `on_close(&DismissReason)`, `on_open_change(&bool)`; `.child(DrawerCloseTrigger::new())` composes v3's `Drawer.CloseTrigger` X
+- **Modal** — `is_open`, `title`, `size(ModalSize::{Xs,Sm,Md,Lg,Cover,Full})`, `backdrop(Backdrop)`, `placement(ModalPlacement::{Auto,Center,Top,Bottom})`, `scroll(ModalScroll::{Inside,Outside})`, `radius(px)`, `is_dismissible`, `is_keyboard_dismiss_disabled`, `footer_child`, `on_close(&DismissReason)`, `on_open_change(&bool)`; `.child(ModalCloseTrigger::new())` composes v3's `Modal.CloseTrigger` X — the part draws only where composed, like v3
   - `Inside` scrolling retains a 40px outer margin, including with long content; `Full` fills the viewport. `radius` is the same per-component repository extension as `Button::radius`; it replaces the default panel radius but `Full` paints no radius either way, so its zoom stays a plain fade.
-  - every dismissal path reports through **both** `on_close` and `on_open_change(false)`, so either callback alone is sufficient.
+  - every dismissal path reports through **both** `on_close` and `on_open_change(false)`, so either callback alone is sufficient. `on_close` receives a `#[non_exhaustive]` `DismissReason` — `CloseButton`, `Escape`, `Backdrop`, or (Drawer) `Drag` — naming the path that fired.
   - Escape closes it unless `is_keyboard_dismiss_disabled`. The overlay takes a focus handle and claims focus while nothing inside holds it; keys bubble from the focused descendant, so a text field inside keeps working. Drawer and AlertDialog behave the same way (AlertDialog defaults keyboard dismissal *off*, as v3 does).
 - **Popover** — `Popover::new(trigger).is_open().placement(Placement).offset(px).should_flip(bool).padding(px).radius(px).title().show_close_button().on_open_change(&bool)`; panel text defaults to 14px with a 20px line height independently of host leading; `.child(PopoverArrow::new())` composes v3's `Popover.Arrow` part — the built-in 12px curve, or a custom child element at the resolved position but without the rotation (upstream rotates it through its `data-slot` placement CSS; The pinned GPUI transforms only `svg()` elements at construction). `radius` is the same per-component repository extension as `Button::radius`, and the panel's entry zoom interpolates the override, so the animation never parts company with the painted shape.
   - `should_flip` routes through gpui's `anchored().snap_to_window()`, which slides the panel back inside the viewport rather than mirroring it to the opposite side.
@@ -774,8 +789,8 @@ Pinned GPUI notes: `f32::from(px)` for `Pixels`, no `select_none`, `on_click`
 and `.active()` need `.id()`, `svg()` never inherits text color, `Arc` for
 shared callbacks, `.into_any_element()` for branch unification. Theme tokens are
 already `Hsla` — never wrap them in `Hsla::from`. Divs are `Display::Block`, so
-put controls in a flex parent or they stretch. Floating panels need
-`util::floating` (`deferred`) to paint above later siblings. See `AGENTS.md`.
+put controls in a flex parent or they stretch. Floating panels need GPUI's
+`deferred(..)` to paint above later siblings. See `AGENTS.md`.
 
 ## Animation
 
@@ -795,8 +810,8 @@ is the gpui equivalent and the single place the timings live.
 - `anim::exiting(el, id, ZoomBox, cx)` / `exiting_to(..)` — v3's
   `[data-exiting]`: `animate-out zoom-out-95 fade-out duration-150`, and the
   drawer's `slide-out-to-*`. A `RenderOnce` component leaves the tree the moment
-  `isOpen` goes false, so `util::overlay_phase` holds it for `EXITING_MS` first:
-  it returns `Closed` / `Open` / `Exiting`, and the caller picks the animation.
+  `isOpen` goes false, so each overlay holds itself for `EXITING_MS` first
+  (`Closed` / `Open` / `Exiting`) and picks the animation.
 - `anim::hover_fade(el, id, idle, hovered, hover_border, window, cx)` — v3's
   `transition-colors`. gpui has no property transitions, so the element keeps its
   own hover flag and generation counter and each change eases the fill in OKLab.

@@ -4,8 +4,8 @@
 //! positioned container, like [`Modal`](crate::modal::Modal).
 
 use gpui::{
-    prelude::*, px, AnyElement, App, Bounds, ClickEvent, IntoElement, ParentElement, RenderOnce,
-    SharedString, Styled, Window,
+    prelude::*, px, AnyElement, App, Bounds, IntoElement, ParentElement, RenderOnce, SharedString,
+    Styled, Window,
 };
 use herogpui_theme::ActiveTheme;
 use web_time::Instant;
@@ -13,7 +13,7 @@ use web_time::Instant;
 use herogpui_core::{element_id, Backdrop};
 
 use crate::a11y::{self, A11y as _};
-use crate::modal::{OnClose, OnOpenChange};
+use crate::modal::{DismissReason, OnClose, OnOpenChange};
 
 /// Which edge the drawer is anchored to (`placement`).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -177,7 +177,11 @@ impl Drawer {
         self
     }
 
-    pub fn on_close(mut self, f: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static) -> Self {
+    /// Enables the dismissal paths: the composed close trigger, Escape, the
+    /// backdrop and a drag past the threshold all report through it,
+    /// alongside [`Drawer::on_open_change`]. The [`DismissReason`] says which
+    /// path fired.
+    pub fn on_close(mut self, f: impl Fn(&DismissReason, &mut Window, &mut App) + 'static) -> Self {
         self.on_close = Some(std::sync::Arc::new(f));
         self
     }
@@ -258,9 +262,9 @@ impl RenderOnce for Drawer {
         let dismiss: Option<OnClose> = match (self.on_close.clone(), self.on_open_change.clone()) {
             (None, None) => None,
             (close, open_change) => Some(crate::util::shared(
-                move |ev: &ClickEvent, window: &mut Window, cx: &mut App| {
+                move |reason: &DismissReason, window: &mut Window, cx: &mut App| {
                     if let Some(f) = &close {
-                        f(ev, window, cx);
+                        f(reason, window, cx);
                     }
                     if let Some(f) = &open_change {
                         f(&false, window, cx);
@@ -570,7 +574,7 @@ impl RenderOnce for Drawer {
                     anchored,
                     dismissal_token.clone(),
                     move |window, cx| {
-                        on_close(&ClickEvent::default(), window, cx);
+                        on_close(&DismissReason::Backdrop, window, cx);
                         crate::util::DismissResult::Handled
                     },
                 )
@@ -589,9 +593,6 @@ impl RenderOnce for Drawer {
             Backdrop::Transparent => gpui::transparent_black(),
         };
 
-        // `ClickEvent::default()` is the Keyboard variant, so a caller
-        // inspecting the event sees a keyboard activation, which is what this
-        // is.
         let keyboard_dismiss = if self.is_keyboard_dismiss_disabled {
             None
         } else {
@@ -608,7 +609,7 @@ impl RenderOnce for Drawer {
                 overlay,
                 dismissal_token,
                 move |window, cx| {
-                    on_escape(&ClickEvent::default(), window, cx);
+                    on_escape(&DismissReason::Escape, window, cx);
                     crate::util::DismissResult::Handled
                 },
             );
@@ -705,7 +706,7 @@ impl RenderOnce for Drawer {
                                 || state.velocity > DRAG_VELOCITY)
                         {
                             if let Some(f) = &release {
-                                f(&ClickEvent::default(), window, cx);
+                                f(&DismissReason::Drag, window, cx);
                             }
                         }
                     });

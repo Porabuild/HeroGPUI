@@ -460,7 +460,7 @@ impl Render for Gallery {
         let colors = cx.colors().clone();
 
         if crate::control::preview_only(cx) {
-            return h::util::app_focus_root(gpui::div(), _window, cx)
+            return h::extend::app_focus_root(gpui::div(), _window, cx)
                 .size_full()
                 .bg(colors.background)
                 .text_color(colors.foreground)
@@ -725,7 +725,7 @@ impl Render for Gallery {
         // The shell records keyboard-versus-pointer input, which is what a focus
         // ring reads, and moves the focus on Tab -- in a browser the platform
         // does both.
-        h::util::app_focus_root(gpui::div(), _window, cx)
+        h::extend::app_focus_root(gpui::div(), _window, cx)
             .size_full()
             .flex()
             .flex_col()

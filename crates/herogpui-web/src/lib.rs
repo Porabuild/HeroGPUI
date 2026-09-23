@@ -231,9 +231,8 @@ pub fn set_theme(dark: bool) {
     APPLICATION.with(|application| {
         if let Some(handle) = application.borrow().as_ref() {
             handle.update(|cx| {
-                cx.global_mut::<ThemeProvider>()
-                    .set_active(if dark { "dark" } else { "light" });
-                cx.refresh_windows();
+                // Both ids are pre-registered, so activation cannot fail.
+                let _ = herogpui_theme::use_theme(if dark { "dark" } else { "light" }, cx);
             });
         }
     });

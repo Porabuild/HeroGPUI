@@ -51,7 +51,7 @@ use gpui::{
     prelude::*, px, Font, FontFeatures, FontStyle, FontWeight, TestAppContext, VisualTestContext,
 };
 use herogpui_components::{
-    util::FIELD_HEIGHT, Accordion, AccordionItem, Breadcrumbs, Crumb, ListBox, ListBoxItem,
+    extend::FIELD_HEIGHT, Accordion, AccordionItem, Breadcrumbs, Crumb, ListBox, ListBoxItem,
     Pagination, SelectionMode, TabItem, Tabs, Tag, TagGroup,
 };
 

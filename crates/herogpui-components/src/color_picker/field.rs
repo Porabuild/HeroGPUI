@@ -7,6 +7,7 @@ use super::*;
 
 /// The complete state passed to [`ColorField::content`].
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct ColorFieldRenderState {
     /// The field cannot receive focus or input.
     pub is_disabled: bool,

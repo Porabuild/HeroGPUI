@@ -128,7 +128,7 @@ impl Gallery {
                             .child(
                                 gpui::div()
                                     .size(px(56.))
-                                    .rounded(h::util::soft_radius(cx))
+                                    .rounded(h::extend::soft_radius(cx))
                                     .bg(cx.colors().default.color),
                             )
                             .child(

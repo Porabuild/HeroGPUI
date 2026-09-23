@@ -364,6 +364,35 @@ fn delete_selection(state: &mut InputState) -> bool {
     }
 }
 
+/// The char index of the extended grapheme cluster boundary before `cursor`
+/// (a char index), so caret motion and deletion never split an emoji, a flag,
+/// a ZWJ sequence or a base letter from its combining marks.
+fn prev_grapheme(value: &str, cursor: usize) -> usize {
+    if cursor == 0 {
+        return 0;
+    }
+    let byte = char_to_byte(value, cursor);
+    let mut graphemes = unicode_segmentation::GraphemeCursor::new(byte, value.len(), true);
+    match graphemes.prev_boundary(value, 0) {
+        Ok(Some(prev)) => byte_to_char(value, prev),
+        _ => cursor - 1,
+    }
+}
+
+/// The char index of the extended grapheme cluster boundary after `cursor`;
+/// see [`prev_grapheme`].
+fn next_grapheme(value: &str, cursor: usize) -> usize {
+    let byte = char_to_byte(value, cursor);
+    if byte >= value.len() {
+        return cursor;
+    }
+    let mut graphemes = unicode_segmentation::GraphemeCursor::new(byte, value.len(), true);
+    match graphemes.next_boundary(value, 0) {
+        Ok(Some(next)) => byte_to_char(value, next),
+        _ => cursor + 1,
+    }
+}
+
 fn backspace(state: &mut InputState) -> bool {
     if delete_selection(state) {
         return true;
@@ -372,9 +401,10 @@ fn backspace(state: &mut InputState) -> bool {
         return false;
     }
     let byte_idx = char_to_byte(&state.value, state.cursor);
-    let prev = char_to_byte(&state.value, state.cursor - 1);
+    let prev_char = prev_grapheme(&state.value, state.cursor);
+    let prev = char_to_byte(&state.value, prev_char);
     state.value.replace_range(prev..byte_idx, "");
-    state.cursor -= 1;
+    state.cursor = prev_char;
     true
 }
 
@@ -387,7 +417,7 @@ fn delete(state: &mut InputState) -> bool {
         return false;
     }
     let byte_idx = char_to_byte(&state.value, state.cursor);
-    let next = char_to_byte(&state.value, state.cursor + 1);
+    let next = char_to_byte(&state.value, next_grapheme(&state.value, state.cursor));
     state.value.replace_range(byte_idx..next, "");
     true
 }
@@ -398,7 +428,7 @@ fn move_left(state: &mut InputState, extend: bool) {
     } else if state.anchor.is_none() {
         state.anchor = Some(state.cursor);
     }
-    state.cursor = state.cursor.saturating_sub(1);
+    state.cursor = prev_grapheme(&state.value, state.cursor);
 }
 
 fn move_right(state: &mut InputState, extend: bool) {
@@ -407,9 +437,7 @@ fn move_right(state: &mut InputState, extend: bool) {
     } else if state.anchor.is_none() {
         state.anchor = Some(state.cursor);
     }
-    if state.cursor < state.value.chars().count() {
-        state.cursor += 1;
-    }
+    state.cursor = next_grapheme(&state.value, state.cursor);
 }
 
 fn move_home(state: &mut InputState, extend: bool) {
@@ -656,6 +684,11 @@ fn move_vertical(state: &mut InputState, down: bool, extend: bool) {
 
 fn char_to_byte(s: &str, char_idx: usize) -> usize {
     s.char_indices().nth(char_idx).map_or(s.len(), |(b, _)| b)
+}
+
+/// The char index of a byte offset that sits on a char boundary.
+fn byte_to_char(s: &str, byte: usize) -> usize {
+    s[..byte.min(s.len())].chars().count()
 }
 
 /// A validation outcome for the current value.
@@ -2937,6 +2970,7 @@ impl RenderOnce for Input {
 
 /// The complete state passed to [`TextField::content`].
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct TextFieldRenderState {
     /// The field cannot receive focus or input.
     pub is_disabled: bool,
@@ -3179,6 +3213,7 @@ impl RenderOnce for TextField {
 
 /// The complete state passed to [`SearchField::content`].
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct SearchFieldRenderState {
     /// The field cannot receive focus or input.
     pub is_disabled: bool,
@@ -3584,6 +3619,48 @@ impl RenderOnce for SearchField {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Backspace, Delete and the arrow keys step by extended grapheme
+    /// cluster: an emoji with a skin-tone modifier, a ZWJ family, a flag and
+    /// a decomposed accent are each one caret stop and one deletion.
+    #[gpui::test]
+    fn editing_steps_by_grapheme_cluster(cx: &mut gpui::TestAppContext) {
+        // "e" + COMBINING ACUTE, thumbs-up + skin tone, family ZWJ sequence,
+        // the Ukrainian flag (two regional indicators).
+        let value = "ae\u{301}b\u{1F44D}\u{1F3FD}\u{1F468}\u{200D}\u{1F469}\u{200D}\u{1F467}\u{1F1FA}\u{1F1E6}";
+        let state = cx.new(|cx| InputState::with_value(cx, value));
+        cx.update(|cx| {
+            state.update(cx, |s, _| {
+                let len = s.value.chars().count();
+                s.cursor = len;
+                // One Backspace removes the whole flag.
+                assert!(backspace(s));
+                assert_eq!(s.value, value.trim_end_matches(['\u{1F1FA}', '\u{1F1E6}']));
+                // One Left skips the whole ZWJ family; Delete removes it.
+                move_left(s, false);
+                assert!(delete(s));
+                assert_eq!(s.value, "ae\u{301}b\u{1F44D}\u{1F3FD}");
+                // Backspace takes the thumbs-up and its modifier together.
+                move_right(s, false);
+                assert!(backspace(s));
+                assert_eq!(s.value, "ae\u{301}b");
+                // Left from the end lands before "b", then before "é" as one
+                // stop; Right returns past the combining mark, never inside.
+                move_left(s, false);
+                move_left(s, false);
+                assert_eq!(s.cursor, 1);
+                move_right(s, false);
+                assert_eq!(s.cursor, 3);
+                // Backspace removes the base letter and its accent at once.
+                assert!(backspace(s));
+                assert_eq!(s.value, "ab");
+                assert_eq!(s.cursor, 1);
+                // Shift+Right extends the selection by one cluster.
+                move_right(s, true);
+                assert_eq!(s.selection(), Some((1, 2)));
+            });
+        });
+    }
 
     #[gpui::test]
     fn platform_multi_character_insert_keeps_all_characters(cx: &mut gpui::TestAppContext) {

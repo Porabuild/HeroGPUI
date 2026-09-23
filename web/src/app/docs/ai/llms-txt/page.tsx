@@ -45,7 +45,7 @@ const SECTION_DESCRIPTIONS: Record<string, string> = {
   Theming:
     "The OKLCH token vocabulary: base tokens (`background`, `muted`, `border`, `focus`, `link`, …), containers (`surface`, `overlay`, `segment`), roles (`accent`, `success`, `warning`, `danger` with derived `soft()`/`soft_hover()`), fields, layout tokens (the radius scale, spacing, shadows, tooltip delays), the custom theme builder, and the color-math helpers.",
   "Prop vocabularies":
-    "The enum tables for `Variant`, `FieldVariant`, `Prominence`, `Backdrop`, `Color`, `Size`, `SelectionMode`, `Placement`, and related types, with their values and users. It also covers radius helpers, desktop control heights, `NumberFormat`, and floating panels through `util::floating`.",
+    "The enum tables for `Variant`, `FieldVariant`, `Prominence`, `Backdrop`, `Color`, `Size`, `SelectionMode`, `Placement`, and related types, with their values and users. It also covers radius helpers, desktop control heights, `NumberFormat`, and floating panels through GPUI's `deferred`.",
   "Render props":
     "How render props are spelled in Rust: closures that receive the values the component already computes — `Table::indicator`, `Pagination::link`, `InputOTP::slot`, `Dropdown::item_content`, `Slider::thumb`, `TimeField::segment`, `DateField::segment`.",
   "Controlled and uncontrolled":
@@ -61,7 +61,7 @@ const SECTION_DESCRIPTIONS: Record<string, string> = {
   Gallery:
     "How to run and capture the documentation app: `cargo run -p herogpui-gallery`, the `HEROGPUI_PAGE` / `HEROGPUI_THEME` environment controls, and the screenshot scripts used as the visual-regression source.",
   "Code style":
-    "Pinned-GPUI notes that produce wrong code silently: `f32::from(px)` for `Pixels`, no div transforms, `svg()` never inherits text color, block-by-default divs, and `util::floating` for paint order.",
+    "Pinned-GPUI notes that produce wrong code silently: `f32::from(px)` for `Pixels`, no div transforms, `svg()` never inherits text color, block-by-default divs, and `deferred` for paint order.",
   Animation:
     "The `anim` module that maps data-attribute motion onto GPUI: enter/exit/press helpers, the `Motion` timing and easing curves transcribed from the theme's `--ease-*` tokens, reduced-motion gating, and geometric press and zoom techniques.",
   License: "Apache-2.0 for HeroGPUI and HeroUI, with the Copyright 2025 NextUI Inc. attribution.",

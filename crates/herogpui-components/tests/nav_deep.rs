@@ -1264,7 +1264,7 @@ fn breadcrumbs_plain_crumb_is_a_focusable_link_that_fires_nothing(cx: &mut TestA
     press(cx, "tab");
     cx.update(|_, cx| {
         assert!(
-            herogpui_components::util::focus_visible(cx),
+            herogpui_components::extend::focus_visible(cx),
             "a plain span-link crumb must take keyboard focus like any other \
              link"
         );
@@ -1668,7 +1668,7 @@ fn breadcrumbs_focus_ring_inputs_track_the_input_modality(cx: &mut TestAppContex
     assert_eq!(recorded.borrow().as_slice(), ["0:Build"]);
     cx.update(|_, cx| {
         assert!(
-            !herogpui_components::util::focus_visible(cx),
+            !herogpui_components::extend::focus_visible(cx),
             "a mouse press must not arm the focus-visible ring"
         );
     });
@@ -1676,7 +1676,7 @@ fn breadcrumbs_focus_ring_inputs_track_the_input_modality(cx: &mut TestAppContex
     press(cx, "tab");
     cx.update(|_, cx| {
         assert!(
-            herogpui_components::util::focus_visible(cx),
+            herogpui_components::extend::focus_visible(cx),
             "keyboard focus must arm the ring the focused link draws"
         );
     });

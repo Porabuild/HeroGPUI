@@ -88,6 +88,7 @@ impl DateRangeState {
 
 /// State passed to DateRangePicker's v3 children render function.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct DateRangePickerRenderState {
     /// The whole picker is unavailable.
     pub is_disabled: bool,

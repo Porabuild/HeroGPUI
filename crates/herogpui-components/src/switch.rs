@@ -17,6 +17,7 @@ use crate::a11y::{self, A11y as _};
 
 /// State handed to Switch's children render function.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct SwitchState {
     pub is_selected: bool,
     pub is_hovered: bool,

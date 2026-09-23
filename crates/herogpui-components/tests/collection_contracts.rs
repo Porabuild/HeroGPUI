@@ -1551,7 +1551,7 @@ fn tag_group_body_pointer_seats_cursor_and_focus(cx: &mut TestAppContext) {
         .into_any_element()
     });
     cx.update(|window, _| window.activate_window());
-    cx.update(|_, cx| herogpui_components::util::set_focus_visible(true, cx));
+    cx.update(|_, cx| herogpui_components::extend::set_focus_visible(true, cx));
     flush_frame(cx);
 
     // Alpha's body centre: the 12px remove button spans x 52..64, so x=28 is

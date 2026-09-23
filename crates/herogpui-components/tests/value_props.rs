@@ -49,13 +49,13 @@ use gpui::{
     point, prelude::*, px, Modifiers, MouseButton, SharedString, TestAppContext, VisualTestContext,
 };
 use herogpui_components::{
-    util, Autocomplete, CalendarState, CloseButton, ColorChannel, ColorField,
+    extend, Autocomplete, CalendarState, CloseButton, ColorChannel, ColorField,
     ColorFieldRenderState, ColorSlider, ComboBox, Date, DateField, DateFieldRenderState,
-    DatePicker, DateRangePicker, DateRangeState, Input, InputState, Meter, NumberField,
-    NumberFieldRenderState, NumberFormat, NumberState, PickerColor, PickerItem, ProgressBar,
-    ProgressCircle, SearchField, SearchFieldRenderState, Select, SelectionMode, Slider, Switch,
-    TextField, TextFieldRenderState, TimeField, TimeFieldRenderState, TimeState,
-    ValidationBehavior,
+    DatePicker, DateRangePicker, DateRangeState, FieldFocus, Input, InputState, InteractiveState,
+    Meter, NumberField, NumberFieldRenderState, NumberFormat, NumberState, PickerColor, PickerItem,
+    ProgressBar, ProgressCircle, SearchField, SearchFieldRenderState, Select, SelectionMode,
+    SelectionValue, Slider, Switch, TextField, TextFieldRenderState, TimeField,
+    TimeFieldRenderState, TimeState, ValidationBehavior,
 };
 
 use harness::{click, events, open_host, press};
@@ -111,7 +111,7 @@ fn select_value_content_hands_placeholder_then_pick(cx: &mut TestAppContext) {
                 PickerItem::new("gamma", "Gamma"),
             ],
         )
-        .value_content(move |v: util::SelectionValue<'_>| {
+        .value_content(move |v: SelectionValue<'_>| {
             let items = v
                 .selected_items
                 .iter()
@@ -174,7 +174,7 @@ fn select_value_content_unresolved_key_seed_reports_placeholder(cx: &mut TestApp
             ],
         )
         .value(Some("missing".into()))
-        .value_content(move |v: util::SelectionValue<'_>| {
+        .value_content(move |v: SelectionValue<'_>| {
             let items = v
                 .selected_items
                 .iter()
@@ -221,7 +221,7 @@ fn select_value_content_filters_unresolved_multiple_keys(cx: &mut TestAppContext
         )
         .selection_mode(SelectionMode::Multiple)
         .selected_keys(["alpha".into(), "missing".into()])
-        .value_content(move |v: util::SelectionValue<'_>| {
+        .value_content(move |v: SelectionValue<'_>| {
             let items = v
                 .selected_items
                 .iter()
@@ -281,7 +281,7 @@ fn select_value_content_multiple_lists_every_item(cx: &mut TestAppContext) {
             // the caller must render it back in for the next frame to differ.
             window.refresh();
         })
-        .value_content(move |v: util::SelectionValue<'_>| {
+        .value_content(move |v: SelectionValue<'_>| {
             let items = v
                 .selected_items
                 .iter()
@@ -356,7 +356,7 @@ fn autocomplete_value_content_hands_placeholder_then_pick(cx: &mut TestAppContex
     let cx = open_host(cx, move || {
         let record = record.clone();
         Autocomplete::new(state_for_view.clone(), keyed(&["Alpha", "Rust", "Go"]))
-            .value_content(move |v: util::SelectionValue<'_>| {
+            .value_content(move |v: SelectionValue<'_>| {
                 let items = v
                     .selected_items
                     .iter()
@@ -431,7 +431,7 @@ fn combo_box_value_content_hands_placeholder_then_pick(cx: &mut TestAppContext) 
             .on_selection_change_all(move |keys, _, _| {
                 changes.borrow_mut().push(keys.len().to_string());
             })
-            .value_content(move |v: util::SelectionValue<'_>| {
+            .value_content(move |v: SelectionValue<'_>| {
                 let items = v
                     .selected_items
                     .iter()
@@ -511,7 +511,7 @@ fn combo_box_controlled_value_content_waits_for_clear_owner(cx: &mut TestAppCont
             .on_selection_change_all(move |keys, _, _| {
                 changes.borrow_mut().push(keys.len().to_string());
             })
-            .value_content(move |v: util::SelectionValue<'_>| {
+            .value_content(move |v: SelectionValue<'_>| {
                 record
                     .borrow_mut()
                     .push(format!("{}|{}", v.is_placeholder, v.selected_text));
@@ -1003,7 +1003,7 @@ fn close_button_content_render_prop_sees_pointer_cycle(cx: &mut TestAppContext) 
         let record = record.clone();
         let pressed = pressed.clone();
         CloseButton::new("cb-vc-pointer")
-            .content(move |state: util::InteractiveState| {
+            .content(move |state: InteractiveState| {
                 *record.borrow_mut() = (state.is_hovered, state.is_pressed);
                 gpui::div()
                     .w(px(16.))
@@ -1070,7 +1070,7 @@ fn disabled_close_button_content_never_reports_hover_or_press(cx: &mut TestAppCo
         let record = record.clone();
         CloseButton::new("cb-vc-disabled")
             .is_disabled(true)
-            .content(move |state: util::InteractiveState| {
+            .content(move |state: InteractiveState| {
                 *record.borrow_mut() = (state.is_hovered, state.is_pressed, state.is_disabled);
                 gpui::div()
                     .w(px(16.))
@@ -1104,7 +1104,7 @@ fn disabling_close_button_clears_render_prop_hover_and_press(cx: &mut TestAppCon
         let record = record.clone();
         CloseButton::new("cb-vc-disable-transition")
             .is_disabled(*disabled_for_view.borrow())
-            .content(move |state: util::InteractiveState| {
+            .content(move |state: InteractiveState| {
                 *record.borrow_mut() = (state.is_hovered, state.is_pressed, state.is_disabled);
                 gpui::div()
                     .w(px(16.))
@@ -1155,7 +1155,7 @@ fn disabling_close_button_clears_render_prop_focus(cx: &mut TestAppContext) {
         let record = record.clone();
         CloseButton::new("cb-vc-disable-focus")
             .is_disabled(*disabled_for_view.borrow())
-            .content(move |state: util::InteractiveState| {
+            .content(move |state: InteractiveState| {
                 *record.borrow_mut() =
                     (state.is_focused, state.is_focus_visible, state.is_disabled);
                 gpui::div()
@@ -1188,7 +1188,7 @@ fn close_button_content_sees_focus_and_keyboard_flag(cx: &mut TestAppContext) {
     let cx = open_host(cx, move || {
         let record = record.clone();
         CloseButton::new("cb-vc-keys")
-            .content(move |state: util::InteractiveState| {
+            .content(move |state: InteractiveState| {
                 *record.borrow_mut() = (state.is_focused, state.is_focus_visible);
                 gpui::div()
                     .w(px(16.))
@@ -1268,7 +1268,7 @@ where
     );
 
     if drive == FocusDrive::Click {
-        cx.update(|_, cx| util::set_focus_visible(true, cx));
+        cx.update(|_, cx| extend::set_focus_visible(true, cx));
         flush_frame(cx);
         assert_eq!(
             *seen.borrow().last().unwrap(),
@@ -1278,7 +1278,7 @@ where
     }
 
     // The flag is a request: dropping it drops the ring, not the focus.
-    cx.update(|_, cx| util::set_focus_visible(false, cx));
+    cx.update(|_, cx| extend::set_focus_visible(false, cx));
     flush_frame(cx);
     assert_eq!(
         *seen.borrow().last().unwrap(),
@@ -1295,7 +1295,7 @@ fn input_content_hands_focus_state(cx: &mut TestAppContext) {
         Input::new(for_view.clone())
             .content({
                 let value = for_view.clone();
-                move |focus: util::FieldFocus| {
+                move |focus: FieldFocus| {
                     record.borrow_mut().push((
                         focus.is_focused,
                         focus.is_focus_within,

@@ -8,10 +8,10 @@ mod harness;
 
 use gpui::{prelude::*, px, TestAppContext};
 use harness::{click, events, open_host, press, still};
-use herogpui_components::{util, Button, Dropdown, MenuItem, PickerItem, Select};
+use herogpui_components::{extend, Button, Dropdown, MenuItem, PickerItem, Select};
 
 fn ring_on(cx: &mut gpui::VisualTestContext) -> bool {
-    cx.update(|_, cx| util::focus_visible(cx))
+    cx.update(|_, cx| extend::focus_visible(cx))
 }
 
 fn last_open(log: &harness::Events) -> Option<String> {
