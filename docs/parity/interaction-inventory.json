@@ -17677,7 +17677,7 @@
     "sha256": "b6d57f27359aa8c4c5d4f70ef21ede9f4446722b7a0c0685170fff8e90b9f5e5"
   },
   "source_snapshot": {
-    "sha256": "06d04e4587f3fdd92ac47b68c7be8941137dd24385c9013fe34f29b1e1b0a3a6",
+    "sha256": "b086c6987a039a6f23b468c481ca29583855668808a0ba30f35a04f5af6adfc1",
     "files": {
       ".cargo/config.toml": "656172d7bc0b7cda27bccdffaf87ca34d6c1b3857e3c95f989d9dc164f3395be",
       ".gitattributes": "6c6b77be7e79ab0868208e5e97187f9f7b9f204cff9f32390ff63ec245c138ec",
@@ -17942,17 +17942,17 @@
       "crates/herogpui-theme/src/theme_document.rs": "fce1fd236aec3219a659882618ee400d8cb9dc3fc33855c86a4e8b8520348265",
       "crates/herogpui-web/Cargo.toml": "2bac3a0ae904ad60050582d88e72300cf629111f94a80ed040a8a123a9ac7bf0",
       "crates/herogpui-web/fonts/Inter-Bold.source.ttf": "4fc8963c16cf3d35f8423a6297d3a43686f5b0966df88bee0b3e0f9dd842026d",
-      "crates/herogpui-web/fonts/Inter-Bold.ttf": "0835a1c1fb681ea2ad59bf9908298cc466767dc512c4b58cd850307a04f91de8",
+      "crates/herogpui-web/fonts/Inter-Bold.ttf": "a21b35f3bc9adb8631465ad84ae02d9a1b953d2005071f77faafe6e4807d5127",
       "crates/herogpui-web/fonts/Inter-Medium.source.ttf": "66e39fae014af7bdf4d43752f1a468945e6287bcaab8e4316a2c4c914c834b1c",
-      "crates/herogpui-web/fonts/Inter-Medium.ttf": "eb04eeab3b916b89d5392aced0e4162e433fb36ee7f39a93e86b733acceb8756",
+      "crates/herogpui-web/fonts/Inter-Medium.ttf": "0fd1cc0ff0355f406a256f48553f39198ec81085035b43dcca7075c895f6ef61",
       "crates/herogpui-web/fonts/Inter-Regular.source.ttf": "c5de106eb3ffd7790cde68809043884c14380ce0bdb6560e812b75e1981fc61c",
-      "crates/herogpui-web/fonts/Inter-Regular.ttf": "6155717877f664f324bf977ecc014338f51d42da31afbff292cd482902fcb386",
+      "crates/herogpui-web/fonts/Inter-Regular.ttf": "c76c9e44ac35fe8d9d2c08a9a6c1ea5b618b8f2a5a3b6a11186bdd2642e895f6",
       "crates/herogpui-web/fonts/Inter-Semibold.source.ttf": "442ac7bf532d439826e2a0a49d1d75c11dc14e7cf7bab78c6091f55259203139",
-      "crates/herogpui-web/fonts/Inter-Semibold.ttf": "73eb12ae3bf934fe313965e23efa57636d5bdc1ab400a74da6b5a4254e96e4e8",
+      "crates/herogpui-web/fonts/Inter-Semibold.ttf": "1aea5e86bf3e8e980ac269c26119eae6e36d2e08cc5a39b1cecf55ad40796f98",
       "crates/herogpui-web/fonts/JetBrainsMono-Regular.source.ttf": "a0bf60ef0f83c5ed4d7a75d45838548b1f6873372dfac88f71804491898d138f",
-      "crates/herogpui-web/fonts/JetBrainsMono-Regular.ttf": "add6ddd7e204ed77f3f0e5cf6197dbaf5995789231ca921680db4af71bcf4723",
+      "crates/herogpui-web/fonts/JetBrainsMono-Regular.ttf": "1d54a241e1bed0fc357dc7cd4699dde7e6796e1414029a6f5d374b68938c313c",
       "crates/herogpui-web/fonts/NotoEmoji-Regular.source.ttf": "1ada997ccb67bf2404828e25528e5257d6db10c80287e77684abf6737a5d198f",
-      "crates/herogpui-web/fonts/NotoEmoji-Regular.ttf": "ffa1cafb9f7e47060198896c78e05560241306490a3b5d031536338721ffb4ec",
+      "crates/herogpui-web/fonts/NotoEmoji-Regular.ttf": "7929324bd37c9b42eb145a4519967dffbea14531f397b63f4176c9dc8e79331a",
       "crates/herogpui-web/fonts/NotoSansSC-Regular.source.ttf": "81d701e92ebd7a7b1972137d62b4d35bf43c4d8ba281218021ef37d709974ad9",
       "crates/herogpui-web/fonts/NotoSansSC-Regular.ttf": "159eee9789ea5b1ac2235bf3736f71ae9f7e308ac7be49fcbd060457510d67ad",
       "crates/herogpui-web/fonts/OFL.txt": "e86fa5b1ecff43a8fce569aac52c92cb0505c15fe117ad1dd18fef57a51709e9",
@@ -75425,7 +75425,7 @@
       ]
     }
   ],
-  "verification_sha256": "3ac5d07880d36c17f7ac8c7bfdc227f0fc6104a220ea57eb8853ea395c2fce29",
+  "verification_sha256": "9d2a346c37feacf4a512ec288a334a160eaf4265e55364f50ed7f8de37f6b645",
   "retired_source_changes": [
     {
       "path": "packages/react/src/components/autocomplete/autocomplete.stories.tsx",
