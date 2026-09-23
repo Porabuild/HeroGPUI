@@ -29,7 +29,8 @@
 //!     }
 //!
 //!     fn jump_to_end(&self) {
-//!         self.list.scroll_to_item(self.rows.len() - 1, VirtualListScroll::Reveal);
+//!         // Clamped to the last row; an empty list stays put.
+//!         self.list.scroll_to_item(usize::MAX, VirtualListScroll::Reveal);
 //!     }
 //!
 //!     fn view(&self) -> VirtualList {

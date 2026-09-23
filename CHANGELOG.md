@@ -15,6 +15,10 @@ The parity target moves from HeroUI v3.2.5 to **HeroUI v3.2.6** (tag
 3.52.1, React Aria Components 1.21.1 and React Stately 3.50.0. HeroUI 3.2.6
 changed no theme tokens, so `herogpui-theme` is unchanged.
 
+Upgrading from 0.10: see the
+[migration guide](https://github.com/Porabuild/HeroGPUI/blob/master/docs/migration-0.11.md)
+for each breaking change with before/after code.
+
 ### Breaking
 
 - `Separator` no longer implements `ParentElement`: the content mode
@@ -131,6 +135,9 @@ changed no theme tokens, so `herogpui-theme` is unchanged.
 
 ### Fixed
 
+- Theme documents (`serde` feature) reject a non-finite `oklch()` component
+  (`NaN`, `inf`) with `ThemeDocumentError::Color`; `f32` parsing accepted
+  them, so a theme file could register colours that are not numbers.
 - Text editing (`Input`, `TextField`, `SearchField`, `TextArea`):
   Backspace, Delete and Left/Right (with or without Shift) step by extended
   grapheme cluster, so an emoji with a modifier, a ZWJ sequence, a flag or a
