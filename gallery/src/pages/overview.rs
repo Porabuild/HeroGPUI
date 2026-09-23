@@ -1010,7 +1010,7 @@ fn preview_kind(page: Page) -> PreviewKind {
         | Page::TextArea
         | Page::TextField => PreviewKind::Forms,
         Page::Card | Page::Separator | Page::Surface | Page::Toolbar => PreviewKind::Layout,
-        Page::Avatar => PreviewKind::Media,
+        Page::Avatar | Page::AvatarGroup => PreviewKind::Media,
         Page::Accordion
         | Page::Breadcrumbs
         | Page::Disclosure

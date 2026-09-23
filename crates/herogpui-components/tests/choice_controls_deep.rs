@@ -105,6 +105,30 @@ fn switch_label_row_toggles_once(cx: &mut TestAppContext) {
     );
 }
 
+/// The built-in label is the shared `Label` part, `.label` = `text-sm
+/// font-medium`: a caller label inherits a 20px line box, not the 24px of the
+/// never-applied `.switch__label` `text-base` rule v3.2.6 deleted.
+#[gpui::test]
+fn switch_label_inherits_the_shared_label_line_box(cx: &mut TestAppContext) {
+    let cx = open_host(cx, || {
+        Switch::new("label-line-box")
+            .label(
+                gpui::div()
+                    .debug_selector(|| "switch-label-probe".to_owned())
+                    .child("Notifications"),
+            )
+            .into_any_element()
+    });
+    let label = cx
+        .debug_bounds("switch-label-probe")
+        .expect("the switch label must be laid out");
+    assert!(
+        (f32::from(label.size.height) - 20.).abs() < 0.5,
+        "the switch label must use `.label`'s 14px/20px line box: {:?}",
+        label.size
+    );
+}
+
 #[gpui::test]
 fn switch_read_only_stays_focusable_but_ignores_space(cx: &mut TestAppContext) {
     let changes = events();
@@ -1871,7 +1895,6 @@ fn choice_content_keeps_twenty_pixel_lines(cx: &mut TestAppContext) {
                     .height,
                 px(match kind {
                     3 => 56.,
-                    4 => 48.,
                     _ => 40.,
                 }),
                 "pinned label/description lines; kind={kind}, host={leading:?}"

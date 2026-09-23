@@ -19,14 +19,14 @@ class InventoryTests(unittest.TestCase):
         self.root = Path(self.temp.name)
         self.examples = {'button': [{'heading': 'Usage', 'code': 'Button::new("a")', 'description': 'One'}]}
         for path, data in ((inventory.EXAMPLES, self.examples),
-                           (inventory.REFERENCE, {'button': {'version': '3.2.5'}}),
+                           (inventory.REFERENCE, {'button': {'version': '3.2.6'}}),
                            (inventory.CATALOG, {'components': {'button': {}}})):
             self.write_json(path, data)
         self.snapshot = {'sha256': 'initial', 'files': {'button.rs': 'first'}}
         self.mock = patch.object(inventory, 'source_snapshot', side_effect=lambda root: deepcopy(self.snapshot))
         self.mock.start()
         self.addCleanup(self.mock.stop)
-        self.old = {'schema_version': 1, 'gallery_sections': {}, 'upstream': {'target_tag': 'v3.2.5'}}
+        self.old = {'schema_version': 1, 'gallery_sections': {}, 'upstream': {'target_tag': 'v3.2.6'}}
 
     def write_json(self, path, data):
         path = self.root / path
@@ -120,7 +120,7 @@ class InventoryTests(unittest.TestCase):
                 self.current()
 
     def test_wrong_reference_version_fails(self):
-        self.write_json(inventory.REFERENCE, {'button': {'version': '3.2.4'}})
+        self.write_json(inventory.REFERENCE, {'button': {'version': '3.2.5'}})
         with self.assertRaisesRegex(ValueError, 'version'):
             self.current()
 
@@ -199,7 +199,7 @@ class InventoryTests(unittest.TestCase):
 
     def upstream_fixture(self):
         directories = [self.root / name for name in ('target', 'baseline')]
-        for directory, version in zip(directories, ('3.2.5', '3.2.4')):
+        for directory, version in zip(directories, ('3.2.6', '3.2.5')):
             package = directory / 'packages/react/package.json'
             package.parent.mkdir(parents=True)
             package.write_text(json.dumps({'version': version}))
@@ -211,7 +211,7 @@ class InventoryTests(unittest.TestCase):
         demo.parent.mkdir(parents=True)
         demo.write_text('default example')
         current = self.current()
-        current['upstream']['baseline_tag'] = 'v3.2.4'
+        current['upstream']['baseline_tag'] = 'v3.2.5'
         current['source_change_roots'] = ['packages/react/src']
         current['source_changes'] = []
         current['upstream_demos'] = {}
@@ -233,7 +233,7 @@ class InventoryTests(unittest.TestCase):
         current, target, baseline = self.upstream_fixture()
         current['source_changes'][0]['evidence'] = 'source review'
         current['upstream_demos']['button'][0]['evidence'] = 'demo review'
-        (target / 'packages/react/src/button.tsx').write_text('3.2.4')
+        (target / 'packages/react/src/button.tsx').write_text('3.2.5')
         (target / 'apps/docs/src/demos/en/button/basic.tsx').unlink()
         (target / 'apps/docs/src/demos/en/button/replacement.tsx').write_text('replacement')
         changed = inventory.refresh_upstream(current, target, baseline)

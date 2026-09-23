@@ -180,8 +180,8 @@ impl RenderOnce for Breadcrumbs {
             .enumerate()
             .map(|(i, crumb)| {
                 // `.breadcrumbs__item` is `flex shrink-0 items-center
-                // justify-center gap-0.5 px-0.5`: a 2px gap between link and
-                // separator, 2px of horizontal padding, and content that never
+                // justify-center gap-1`: a 4px gap between link and separator,
+                // no padding (v3.2.6 dropped `px-0.5`), and content that never
                 // compresses when the bar outgrows its parent.
                 let is_last = i == item_count - 1;
                 let row_base = base.clone();
@@ -201,8 +201,7 @@ impl RenderOnce for Breadcrumbs {
                     .flex_shrink_0()
                     .items_center()
                     .justify_center()
-                    .gap(px(2.))
-                    .px(px(2.))
+                    .gap(px(4.))
                     .debug_selector(move || format!("{row_base}-item-{i}"));
 
                 // v3's Accessibility section claims "Keyboard navigation
@@ -248,11 +247,11 @@ impl RenderOnce for Breadcrumbs {
                     .line_height(crate::util::leading_for(text_size).unwrap_or(px(20.)))
                     .font_weight(FontWeight::MEDIUM)
                     .text_color(if is_last { current_color } else { muted })
-                    // `px-0.5` pads the link itself. Hover underline comes from
-                    // both `.breadcrumbs__link:hover` and the shared `.link`
-                    // class — plain CSS `:hover`, so it applies to every
-                    // enabled crumb including the inert span link.
-                    .px(px(2.))
+                    // v3.2.6 dropped the link's `px-0.5`: the link carries no
+                    // padding of its own. Hover underline comes from both
+                    // `.breadcrumbs__link:hover` and the shared `.link` class —
+                    // plain CSS `:hover`, so it applies to every enabled crumb
+                    // including the inert span link.
                     .when(is_link, |el| el.cursor(crate::util::interactive_cursor(cx)))
                     .when(is_link, |el| el.hover(|s| s.underline()))
                     // `[data-current]` carries `opacity-100` so the current
@@ -341,8 +340,13 @@ impl RenderOnce for Breadcrumbs {
             })
             .collect();
 
-        // `.breadcrumbs` is `flex items-center`: one line, no wrap.
-        let mut el = gpui::div().flex().items_center().children(crumbs);
+        // `.breadcrumbs` is `flex items-center gap-1.5`: one line, no wrap,
+        // 6px between items.
+        let mut el = gpui::div()
+            .flex()
+            .items_center()
+            .gap(px(6.))
+            .children(crumbs);
         if self.full_width {
             el = el.w_full();
         }

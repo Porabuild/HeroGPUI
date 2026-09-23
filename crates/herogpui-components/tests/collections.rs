@@ -32,10 +32,11 @@
 //!   (10px each side) around a 14px glyph, so 34px wide; the row gaps items by
 //!   4px. Prev spans x 0..34, then page *n*'s cell starts at 38+36(n-1), and the
 //!   next button starts at 146 (three cells later) and centres at 163; y = 16.
-//! - Breadcrumbs: each crumb row is `px-0.5` (2px) around a `px-0.5` (2px)
-//!   measured label plus `gap-0.5` (2px) and a 12px separator slot, so the
-//!   second label starts at w_0 + 26 and a label centres 4px into its row; the
-//!   label line is `leading-5` = 20px, so the centre y is 10.
+//! - Breadcrumbs (v3.2.6): each crumb row is the unpadded measured label plus
+//!   `gap-1` (4px) and a 12px separator slot, and the root gaps rows by
+//!   `gap-1.5` (6px), so the second label starts at w_0 + 22 and a label
+//!   starts flush in its row; the label line is `leading-5` = 20px, so the
+//!   centre y is 10.
 //!
 //! Each instance gets its own element id; two components sharing an id share
 //! their keyed state, which AGENTS.md documents as a silent failure.
@@ -928,21 +929,21 @@ fn breadcrumbs_item_press_reports(cx: &mut TestAppContext) {
     });
 
     // The labels are measured with the window's own text system at the link's
-    // MEDIUM weight. The first label starts 4px into its row (2px row padding
-    // + 2px link padding) on a 20px line, so its centre is (4 + w/2, 10). Each
-    // non-last row is 2px paddings + 2px gap + a 12px separator wider than its
-    // label, so the second label centres at (w_build + 26 + w_deploy/2, 10).
+    // MEDIUM weight. The first label starts flush in its unpadded row on a
+    // 20px line, so its centre is (w/2, 10). Each non-last row is a 4px gap +
+    // a 12px separator wider than its label and the root gaps rows by 6px, so
+    // the second label centres at (w_build + 22 + w_deploy/2, 10).
     let w_build =
         cx.update(|window, _| text_width(window.text_system(), "Build", 14.0, FontWeight::MEDIUM));
     let w_deploy =
         cx.update(|window, _| text_width(window.text_system(), "Deploy", 14.0, FontWeight::MEDIUM));
-    click(cx, 4. + w_build / 2., 10.);
+    click(cx, w_build / 2., 10.);
     assert_eq!(
         navigated.borrow().as_slice(),
         ["0:Build"],
         "clicking the first crumb must report its index and label"
     );
-    click(cx, w_build + 26. + w_deploy / 2., 10.);
+    click(cx, w_build + 22. + w_deploy / 2., 10.);
     assert_eq!(
         navigated.borrow().as_slice(),
         ["0:Build", "1:Deploy"],

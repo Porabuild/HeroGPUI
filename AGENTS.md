@@ -1,6 +1,6 @@
 # HeroGPUI agent guide
 
-HeroGPUI is a native Rust/GPUI port of HeroUI v3.2.5. The repository targets
+HeroGPUI is a native Rust/GPUI port of HeroUI v3.2.6. The repository targets
 Rust 1.98 and the published `gpui-pre` crates pinned in `Cargo.toml`
 and `Cargo.lock` at exactly `=0.3.5` — a prerelease publish of the Zed GPUI sources by
 crates.io user huacnlee (Jason Lee, the gpui-kit maintainer), 0.3.5 being a
@@ -33,7 +33,7 @@ replaced, nor the unrelated crates.io `gpui` 0.2.2 crate.
    work in this frequently dirty checkout.
 2. Read the target implementation, its callers, and its focused tests before
    changing it. Keep fixes narrow.
-3. Use HeroUI v3.2.5 and its pinned React Aria/Stately versions for parity work.
+3. Use HeroUI v3.2.6 and its pinned React Aria/Stately versions for parity work.
    Do not infer behavior from HeroUI v2, latest docs, or a newer GPUI checkout.
 4. Read the task guide below before acting. Scoped `AGENTS.md` files under
    `.shots/`, `crates/herogpui-components/`, and `gallery/` add local rules.

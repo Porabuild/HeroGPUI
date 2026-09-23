@@ -615,8 +615,16 @@
     "Sizes",
     "Colors",
     "Variants",
-    "Avatar Group",
     "Custom Image Component"
+  ],
+  "avatar-group": [
+    "Usage",
+    "Max",
+    "With Count",
+    "Sizes",
+    "Grid",
+    "Overlap",
+    "Custom Styles"
   ],
   "accordion": [
     "Usage",

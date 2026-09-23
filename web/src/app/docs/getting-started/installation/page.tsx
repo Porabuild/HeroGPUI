@@ -12,7 +12,7 @@ export const metadata: Metadata = {
 };
 
 const CARGO_TOML = `[dependencies]
-herogpui = "0.10"`;
+herogpui = "0.11"`;
 
 const MAIN_RS = `use herogpui::*;
 

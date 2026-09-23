@@ -7,7 +7,7 @@ import { HeroWasmShowcase } from "@/components/landing/hero-wasm-showcase";
 import { Link } from "@heroui/react";
 
 const INSTALL_TOML = `[dependencies]
-herogpui = "0.10"`;
+herogpui = "0.11"`;
 
 /**
  * Above the fold: Porabuild positioning, the two CTAs, Cargo.toml snippet,

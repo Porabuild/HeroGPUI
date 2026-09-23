@@ -155,7 +155,7 @@ WAVE = ('waves 1-5 — form controls, overlays and disclosure, '
 #
 # References name files under `web/node_modules`. The original role review
 # used react-aria 3.51.0, react-aria-components 1.20.0,
-# and @heroui/react 3.2.4. The active v3.2.5 target and dependency versions
+# and @heroui/react 3.2.4. The active v3.2.6 target and dependency versions
 # are in `docs/agents/parity.md`; these role mappings still require the
 # per-component inherited-behavior review during that migration.
 # --------------------------------------------------------------------------
@@ -633,8 +633,17 @@ NO_NODE = {
         '`avatar/avatar.js` composes `@radix-ui/react-avatar`, not a RAC '
         'primitive, and neither the HeroUI wrapper nor the Radix package '
         'writes a `role` or any `aria-*` anywhere. An avatar is a picture '
-        'beside the name it belongs to, and the name is the node. v3 ships '
-        'no `AvatarGroup`, so there is no group contract to port either.',
+        'beside the name it belongs to, and the name is the node.',
+    ('avatar_group.rs', 'AvatarGroup'):
+        '`avatar-group/avatar-group.tsx` (v3.2.6) renders `dom.div` with '
+        '`data-slot="avatar-group"` and no `role` or `aria-*`; its docs say '
+        '"No default `role=\"group\"`" and leave `role`/`aria-label` to the '
+        'caller as plain DOM props. The group is layout; each avatar keeps '
+        'its own (roleless) contract.',
+    ('avatar_group.rs', 'AvatarGroupCount'):
+        '`AvatarGroupCount` is an `Avatar` + `Avatar.Fallback` with '
+        '`data-slot="avatar-group-count"`: the same roleless Radix avatar, '
+        'its `+N` text beside the avatars it summarises.',
     ('badge.rs', 'BadgeAnchor'):
         '`badge/badge.js` renders every one of its parts as a plain '
         '`dom.span` with a `data-slot` and no `role` or `aria-*`; the anchor '

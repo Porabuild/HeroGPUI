@@ -35,7 +35,7 @@ starting each phase; line numbers are not durable contracts.
 - Generated website data must accompany the API/gallery change. Batching the
   artifact is valid within one mergeable integration change, not by merging
   independently incomplete PRs and promising to synchronise them later.
-- `demo_audit.py` unpacks `.shots/heroui-demos-v3.2.5.tar.gz` on a routine run
+- `demo_audit.py` unpacks `.shots/heroui-demos-v3.2.6.tar.gz` on a routine run
   and only fetches on `--fetch`. A clean machine stays offline.
   The current CI test command uses `.shots/run-tests.sh`; the lint script's
   actual Clippy invocation does not include `--all-features`.

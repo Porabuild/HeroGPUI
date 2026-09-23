@@ -35,7 +35,7 @@ Wayland/X11 dev packages on Linux; nothing extra on Windows).
 
 ```toml
 [dependencies]
-herogpui = "0.10"
+herogpui = "0.11"
 ```
 
 That is the whole list. A git or path dependency on this repository works the same way. `herogpui` is a facade: it depends on the matching

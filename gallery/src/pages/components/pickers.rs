@@ -3,6 +3,15 @@
 
 use super::*;
 
+/// v3.2.6's "Custom Value" currencies: `(id, code, name, symbol)`.
+const CURRENCIES: [(&str, &str, &str, &str); 5] = [
+    ("usd", "USD", "US Dollar", "$"),
+    ("eur", "EUR", "Euro", "€"),
+    ("gbp", "GBP", "British Pound", "£"),
+    ("jpy", "JPY", "Japanese Yen", "¥"),
+    ("chf", "CHF", "Swiss Franc", "₣"),
+];
+
 impl Gallery {
     // Pickers
     // -----------------------------------------------------------------------
@@ -12,6 +21,7 @@ impl Gallery {
         let ac_typed = self.demo_text_value("ac-typed");
         let ac_multi = self.demo_selection("ac-multi");
         let ac_open = self.demo_flag("ac-open", false);
+        let ac_muted = cx.colors().muted;
         component_doc_page!(
             "Autocomplete",
             crate::pages::Page::Autocomplete.description(),
@@ -346,32 +356,55 @@ impl Gallery {
                     .into_any_element()]), cx),
                 ),
                 (
-                    "Custom Value", "`Autocomplete.Value` takes a render function that is handed the placeholder and selection state — `is_placeholder`, `selected_items` and `selected_text`. This one draws the selection as tags and hands the default back while nothing is chosen.",
+                    "Custom Value", "`Autocomplete.Value` takes a render function that is handed the placeholder and selection state — `is_placeholder`, `selected_keys`, `selected_items` and `selected_text`. This one draws the chosen currency as its symbol, code and muted name, and hands the default back while nothing is chosen. The port's rows carry one text run, so each currency row shows its code and name together, the text v3 filters on.",
                     specimen_body("ac-custom-value", col(vec![
-                        h::Autocomplete::new(self.demo_text("ac-custom", "", cx), language_items())
-                            .label("Languages")
-                            .placeholder("Select languages")
-                            .selection_mode(SelectionMode::Multiple)
-                            .default_value(["rust", "go"])
-                            .value_content(|value| {
-                                if value.is_placeholder {
-                                    return value.default_children;
-                                }
-                                // v3's own example draws the selection as a
-                                // `TagGroup` of `Tag`s, which is what a
-                                // multiple-selection trigger looks like there.
-                                h::TagGroup::new(
-                                    "ac-custom-tags",
-                                    value
-                                        .selected_items
-                                        .iter()
-                                        .map(|item| h::Tag::new(item.clone(), item.clone()))
-                                        .collect(),
+                        h::Autocomplete::new(
+                            self.demo_text("ac-custom", "", cx),
+                            CURRENCIES
+                                .iter()
+                                .map(|(key, code, name, _)| {
+                                    h::PickerItem::new(*key, format!("{code} {name}"))
+                                })
+                                .collect(),
+                        )
+                        .label("Currency")
+                        .placeholder("Select a currency")
+                        .selection_mode(SelectionMode::Single)
+                        .default_value(["usd"])
+                        .value_content(move |value| {
+                            let selected = value
+                                .selected_keys
+                                .and_then(|keys| keys.first())
+                                .and_then(|key| {
+                                    CURRENCIES.iter().find(|(id, ..)| *id == key.as_ref())
+                                });
+                            let Some((_, code, name, symbol)) = selected.filter(|_| !value.is_placeholder) else {
+                                return value.default_children;
+                            };
+                            // `flex min-w-0 items-center gap-1.5`: the
+                            // symbol in medium weight, the code, then the
+                            // muted, truncating name.
+                            gpui::div()
+                                .flex()
+                                .min_w_0()
+                                .items_center()
+                                .gap(px(6.))
+                                .child(
+                                    gpui::div()
+                                        .font_weight(gpui::FontWeight::MEDIUM)
+                                        .child(*symbol),
                                 )
-                                .size(Size::Sm)
+                                .child(*code)
+                                .child(
+                                    gpui::div()
+                                        .min_w_0()
+                                        .truncate()
+                                        .text_color(ac_muted)
+                                        .child(*name),
+                                )
                                 .into_any_element()
-                            })
-                            .into_any_element(),
+                        })
+                        .into_any_element(),
                     ]), cx),
                 ),
             ],

@@ -46,7 +46,6 @@ import api_audit as A  # noqa: E402  (reuses its parsing, tables and bundle)
 # anything v3 documents.
 BANNED_V2 = {
     # Components and composition parts v3 dropped; the v3 spelling follows.
-    'AvatarGroup': 'v2 component (v3 composes Avatar children)',
     'Divider': 'v2 component (v3: Separator)',
     'DateInput': 'v2 component (v3: DateField)',
     'NumberInput': 'v2 component (v3: NumberField)',
@@ -54,7 +53,6 @@ BANNED_V2 = {
     'Navbar': 'v2 component (not in v3)',
     'CardBody': 'v2 part (v3 composes Card children)',
     # The same names as Rust builders, constructors or modules.
-    'avatar_group': 'v2 component builder (v3 composes Avatar children)',
     'divider': 'v2 component builder (v3: separator)',
     'date_input': 'v2 component builder (v3: date_field)',
     'number_input': 'v2 component builder (v3: number_field)',
@@ -88,6 +86,15 @@ BANNED_V2 = {
 # and stays, while v3 composes icons and the label as ordered `ParentElement`
 # children with no slot builders at all.
 SCOPED_BANNED = {
+    # v3.2.6 brought `AvatarGroup` back with a different contract: v2's
+    # `total` and `renderCount` are gone ("Prefer `Count` over the removed v2
+    # `total` prop"), replaced by an explicit `AvatarGroup.Count` child.
+    'crates/herogpui-components/src/avatar_group.rs': (
+        ('total',
+         'removed v2 AvatarGroup prop (v3: render an explicit AvatarGroup.Count)'),
+        ('render_count',
+         'removed v2 AvatarGroup prop (v3: AvatarGroup.Count children)'),
+    ),
     'crates/herogpui-components/src/badge.rs': (
         ('content',
          'removed Badge builder (v3 composes the badge content as ParentElement children)'),
@@ -565,6 +572,16 @@ EXTRA_OK_SCOPED = {
     'Kbd.radius': 'repository-radius-extension',
     'ToggleButton.radius': 'repository-radius-extension',
     'Avatar.radius': 'repository-radius-extension',
+    # AvatarGroup (v3.2.6): typed direct children are how the group fills
+    # the props an `Avatar` omitted -- gpui cannot reach into type-erased
+    # `ParentElement` children -- so non-avatar children and the explicit
+    # `AvatarGroup.Count` child get their own composition builders.
+    'AvatarGroup.child_element': 'composition',
+    'AvatarGroup.count': 'composition',
+    # The `--avatar-group-overlap` / `--avatar-group-seam` custom properties
+    # v3's Custom Styles example sets through `className`.
+    'AvatarGroup.overlap_distance': 'no-classname',
+    'AvatarGroup.seam': 'no-classname',
     'Tooltip.radius': 'repository-radius-extension',
     'Modal.radius': 'repository-radius-extension',
     'Alert.radius': 'repository-radius-extension',
@@ -1039,7 +1056,7 @@ def self_test():
     prose = (
         '//! Separator — port of `@heroui/separator` (v3, formerly `Divider`).\n'
         '/// v2 spelled this `<Card isPressable>`; v3 composes a button inside Card.\n'
-        '/* legacy note: AvatarGroup is gone; compose Avatar children */\n'
+        '/* legacy note: NumberInput is gone; compose NumberField */\n'
         'let note = "replaced the v2 Navbar with Toolbar";\n'
         '// https://example.com/Divider still works as a plain URL\n'
     )
@@ -1065,7 +1082,7 @@ def self_test():
         'let note = "pub struct Divider { body: u8 }";\n'
         'let raw = r#"pub fn navbar() -> u8 { 0 }"#;\n'
         'let raw_deep = r##"pub mod card_body;"##;\n'
-        'let bytes = b"pub struct AvatarGroup;";\n'
+        'let bytes = b"pub struct NumberInput;";\n'
         'let raw_bytes = br#"pub fn is_striped() {}"#;\n'
         'let escaped = "pub fn \\\"divider\\\"() {}";\n'
         'let quoted = \'"\';\n'
@@ -1118,7 +1135,7 @@ def self_test():
         'pub async fn navbar() -> u8 { 0 }\n'
         'pub const fn card_body() -> u8 { 0 }\n'
         'pub unsafe fn is_striped() -> bool { false }\n'
-        'pub extern "C" fn avatar_group() {}\n'
+        'pub extern "C" fn is_bordered() {}\n'
         'pub async unsafe extern "C" fn divider() {}\n'
         'pub unsafe const fn circular_progress() {}\n'
         'pub\nfn date_input() {}\n'
@@ -1126,7 +1143,7 @@ def self_test():
     )
     mod_hits = banned_in_text(modified)
     mod_names = {name for _, _, name, _ in mod_hits}
-    expect({'navbar', 'card_body', 'is_striped', 'avatar_group', 'divider',
+    expect({'navbar', 'card_body', 'is_striped', 'is_bordered', 'divider',
             'circular_progress', 'date_input', 'number_input'} <= mod_names,
            'a modified pub fn slipped the ban scan: %r (hit %r)'
            % (mod_names, mod_hits))
@@ -1137,10 +1154,10 @@ def self_test():
            "name's own line: %r" % (mod_hits,))
 
     reintroduced = (
-        'pub struct AvatarGroup { avatars: Vec<Avatar> }\n'
+        'pub struct NumberInput { value: f64 }\n'
         'pub enum CardBody { V1 }\n'
         'pub type CircularProgress = u8;\n'
-        'impl AvatarGroup {\n'
+        'impl NumberInput {\n'
         '    pub fn is_striped(mut self, v: bool) -> Self { self }\n'
         '}\n'
         'pub fn card_body() -> impl IntoElement { todo!() }\n'
@@ -1151,7 +1168,7 @@ def self_test():
     )
     hits = banned_in_text(reintroduced)
     names = {name for _, _, name, _ in hits}
-    expect({'AvatarGroup', 'CardBody', 'CircularProgress', 'is_striped',
+    expect({'NumberInput', 'CardBody', 'CircularProgress', 'is_striped',
             'card_body', 'divider', 'navbar', 'date_input', 'Divider'} <= names,
            'reintroduced public names missed: %r (hit %r)' % (names, hits))
 
@@ -1182,8 +1199,10 @@ def self_test():
            'ordinary lifetime syntax was read as a char literal: %r'
            % (banned_in_text(lifetimes),))
 
-    expect('AvatarGroup' in BANNED_V2 and 'Divider' in BANNED_V2,
+    expect('NumberInput' in BANNED_V2 and 'Divider' in BANNED_V2,
            'the minimum component bans are missing')
+    expect('AvatarGroup' not in BANNED_V2 and 'avatar_group' not in BANNED_V2,
+           'AvatarGroup is a v3.2.6 component again and must not be banned')
     expect('is_destructive' in BANNED_V2 and 'hide_close_button' in BANNED_V2,
            'the removed v2 prop bans are missing')
     expect('isDestructive' not in A.ALIAS and 'isExternal' not in A.ALIAS,
@@ -1223,10 +1242,28 @@ def self_test():
            and {'content', 'start_content'} == {name for name, _ in chip_banned},
            'the scoped builder bans are missing')
     expect(sorted(SCOPED_BANNED) == [
+        'crates/herogpui-components/src/avatar_group.rs',
         'crates/herogpui-components/src/badge.rs',
         'crates/herogpui-components/src/button.rs',
         'crates/herogpui-components/src/chip.rs',
-    ], 'the scoped ban does not cover exactly the badge, button and chip modules')
+    ], 'the scoped ban does not cover exactly the avatar_group, badge, button '
+       'and chip modules')
+
+    # Known-negative for the AvatarGroup scope: v2's `total`/`renderCount`
+    # builders are flagged inside `avatar_group.rs`, while the global ban
+    # leaves `total` alone (Pagination and others may spell it legitimately).
+    group_banned = SCOPED_BANNED['crates/herogpui-components/src/avatar_group.rs']
+    group_hits = scoped_banned_in_text(
+        'impl AvatarGroup {\n'
+        '    pub fn total(mut self, total: usize) -> Self { self }\n'
+        '    pub\nfn render_count(mut self, f: F) -> Self { self }\n'
+        '}\n',
+        group_banned)
+    expect({name for _, _, name, _ in group_hits} == {'total', 'render_count'},
+           'a reintroduced v2 AvatarGroup.total/renderCount escaped the scoped '
+           'ban: %r' % (group_hits,))
+    expect(banned_in_text('pub fn total(mut self, total: usize) -> Self { self }\n') == [],
+           'the global ban flagged `total`, which is only scoped to AvatarGroup')
 
     # Known-negative for the Button scope: reintroduced `start_content` and
     # `end_content` builders in `button.rs` are flagged (the removed v2 slot

@@ -1,19 +1,19 @@
 {
   "schema_version": 1,
-  "target": "v3.2.5",
-  "target_commit": "5f13f6ed355bdbd5d5f69e5944685438a3591793",
+  "target": "v3.2.6",
+  "target_commit": "e385ac202b2cdb94b1bf6fa76d32c31c8259cc5e",
   "inventory_recorded_on": "2026-09-22",
-  "inventory_verification_sha256": "c3057e7ba0dbac41a294322ae3b35594c163f316de6470406322857c7eacb175",
-  "source_snapshot_sha256": "fe520961b3c2ef7398bbad0d8947181ac6f981ea3a22dfe98a9f167c69fcb9b1",
+  "inventory_verification_sha256": "513594041d4df6b61345f521068ee66f11c9af4d67ea3cba4b31544314be6fa8",
+  "source_snapshot_sha256": "4deb820d36e12d27d9bd5cfeb0a7c9256ced0a231ab1fdf04d43b2a1e9e31871",
   "last_evidence_commit": null,
   "last_evidence_commit_recorded": false,
   "totals": {
-    "specimens": 739,
+    "specimens": 745,
     "verified": 0,
-    "outstanding": 739,
-    "unobserved": 739,
-    "components": 67,
-    "gallery_sections": 732
+    "outstanding": 745,
+    "unobserved": 745,
+    "components": 68,
+    "gallery_sections": 738
   },
   "status_counts": {
     "implemented-unverified": 7,
@@ -22,35 +22,35 @@
     "not-applicable": 0,
     "platform-limited": 0,
     "specified": 0,
-    "unreviewed": 732,
+    "unreviewed": 738,
     "verified": 0
   },
   "scope_counts": {
     "component-state": 4,
     "cross-component": 1,
-    "gallery-section": 732,
+    "gallery-section": 738,
     "platform-harness": 2
   },
   "evidence_counts": {
     "upstream": {
       "specimens_with_evidence": 5,
-      "specimens_missing_evidence": 734
+      "specimens_missing_evidence": 740
     },
     "native": {
       "specimens_with_evidence": 1,
-      "specimens_missing_evidence": 738
+      "specimens_missing_evidence": 744
     },
     "wasm": {
       "specimens_with_evidence": 1,
-      "specimens_missing_evidence": 738
+      "specimens_missing_evidence": 744
     },
     "tests": {
       "specimens_with_evidence": 5,
-      "specimens_missing_evidence": 734
+      "specimens_missing_evidence": 740
     },
     "all_surfaces": {
       "specimens_with_evidence": 1,
-      "specimens_missing_evidence": 738
+      "specimens_missing_evidence": 744
     }
   },
   "unobserved_statuses": [
@@ -413,8 +413,50 @@
       "state": "section-seed"
     },
     {
-      "id": "gallery/avatar/avatar-group",
-      "component": "Avatar",
+      "id": "gallery/avatar-group/custom-styles",
+      "component": "AvatarGroup",
+      "scope": "gallery-section",
+      "status": "unreviewed",
+      "state": "section-seed"
+    },
+    {
+      "id": "gallery/avatar-group/grid",
+      "component": "AvatarGroup",
+      "scope": "gallery-section",
+      "status": "unreviewed",
+      "state": "section-seed"
+    },
+    {
+      "id": "gallery/avatar-group/max",
+      "component": "AvatarGroup",
+      "scope": "gallery-section",
+      "status": "unreviewed",
+      "state": "section-seed"
+    },
+    {
+      "id": "gallery/avatar-group/overlap",
+      "component": "AvatarGroup",
+      "scope": "gallery-section",
+      "status": "unreviewed",
+      "state": "section-seed"
+    },
+    {
+      "id": "gallery/avatar-group/sizes",
+      "component": "AvatarGroup",
+      "scope": "gallery-section",
+      "status": "unreviewed",
+      "state": "section-seed"
+    },
+    {
+      "id": "gallery/avatar-group/usage",
+      "component": "AvatarGroup",
+      "scope": "gallery-section",
+      "status": "unreviewed",
+      "state": "section-seed"
+    },
+    {
+      "id": "gallery/avatar-group/with-count",
+      "component": "AvatarGroup",
       "scope": "gallery-section",
       "status": "unreviewed",
       "state": "section-seed"
@@ -5359,6 +5401,30 @@
     },
     {
       "component": "Avatar",
+      "specimens": 6,
+      "statuses": {
+        "implemented-unverified": 0,
+        "intentional-deviation": 0,
+        "measured-gap": 0,
+        "not-applicable": 0,
+        "platform-limited": 0,
+        "specified": 0,
+        "unreviewed": 6,
+        "verified": 0
+      },
+      "verified": 0,
+      "outstanding": 6,
+      "unresolved_ids": [
+        "gallery/avatar/colors",
+        "gallery/avatar/custom-image-component",
+        "gallery/avatar/fallback-content",
+        "gallery/avatar/sizes",
+        "gallery/avatar/usage",
+        "gallery/avatar/variants"
+      ]
+    },
+    {
+      "component": "AvatarGroup",
       "specimens": 7,
       "statuses": {
         "implemented-unverified": 0,
@@ -5373,13 +5439,13 @@
       "verified": 0,
       "outstanding": 7,
       "unresolved_ids": [
-        "gallery/avatar/avatar-group",
-        "gallery/avatar/colors",
-        "gallery/avatar/custom-image-component",
-        "gallery/avatar/fallback-content",
-        "gallery/avatar/sizes",
-        "gallery/avatar/usage",
-        "gallery/avatar/variants"
+        "gallery/avatar-group/custom-styles",
+        "gallery/avatar-group/grid",
+        "gallery/avatar-group/max",
+        "gallery/avatar-group/overlap",
+        "gallery/avatar-group/sizes",
+        "gallery/avatar-group/usage",
+        "gallery/avatar-group/with-count"
       ]
     },
     {

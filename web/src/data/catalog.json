@@ -106,7 +106,8 @@
       "name": "Media",
       "slug": "media",
       "components": [
-        "avatar"
+        "avatar",
+        "avatar-group"
       ]
     },
     {
@@ -780,6 +781,19 @@
       "shotDark": null,
       "tile": "/shots/avatar-tile-v3.png",
       "tileDark": "/shots/avatar-tile-dark-v3.png",
+      "demos": [],
+      "hasReference": true
+    },
+    "avatar-group": {
+      "slug": "avatar-group",
+      "title": "AvatarGroup",
+      "description": "Display a stacked or grid group of avatars with overflow counting.",
+      "category": "Media",
+      "importLine": "use herogpui::components::avatar_group::AvatarGroup;",
+      "shot": null,
+      "shotDark": null,
+      "tile": null,
+      "tileDark": null,
       "demos": [],
       "hasReference": true
     },

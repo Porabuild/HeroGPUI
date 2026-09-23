@@ -8,6 +8,57 @@ version covers `herogpui`, `herogpui-core`, `herogpui-theme`,
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-09-22
+
+The parity target moves from HeroUI v3.2.5 to **HeroUI v3.2.6** (tag
+`v3.2.6`, commit `e385ac20`). Inherited behavior now follows React Aria
+3.52.1, React Aria Components 1.21.1 and React Stately 3.50.0. HeroUI 3.2.6
+changed no theme tokens, so `herogpui-theme` is unchanged.
+
+### Breaking
+
+- `Separator` no longer implements `ParentElement`: the content mode
+  (`Separator::new().child("OR")`, a line, the content, a line) is removed.
+  v3's `separator.tsx` renders a childless React Aria separator at both 3.2.5
+  and 3.2.6, and 3.2.6 deleted the never-applied `.separator__container`,
+  `__line` and `__content` rules the mode was modelled on. Place separators
+  between blocks instead, as v3's "With Content" example does.
+
+### Added
+
+- `AvatarGroup` and `AvatarGroupCount`, the v3.2.6 compound: `size`, `color`
+  and `variant` flow to direct `Avatar` children that omit them, `max`
+  truncates and appends an automatic `+N` count, an explicit count is never
+  truncated and suppresses the automatic one, `is_grid` wraps with a 12px gap,
+  and `overlap(AvatarGroupOverlap::{Clip,Ring})` selects the stacked seam.
+  Upstream's `clip` crescent is a CSS alpha mask that pinned GPUI cannot draw;
+  the port paints the seam in the surface colour instead (documented platform
+  limitation).
+- An AvatarGroup gallery page and reference metadata; the Avatar page's
+  hand-built "Avatar Group" section moves there.
+
+### Changed
+
+- Avatar: small fallback text is 12px/16px (`.avatar--sm .avatar__fallback`
+  is `text-xs` in 3.2.6).
+- Breadcrumbs: the root gaps items by 6px (`gap-1.5`), an item gaps its link
+  and separator by 4px (`gap-1`), and neither the item nor the link carries
+  padding any more.
+- Autocomplete gallery "Custom Value" example follows v3.2.6's currency
+  specimen: symbol, code and muted name in the trigger.
+- The pinned docs bundle, CSS and demo archives, reference metadata source
+  links, audits, inventory and guides move to v3.2.6. The web site pins
+  `@heroui/react` 3.2.6, `react-aria` 3.52.1 and `react-aria-components`
+  1.21.1, adds `@internationalized/date` (now a HeroUI peer) and drops the
+  unused `@react-aria/i18n`.
+
+### Fixed
+
+- Switch: the built-in label uses the shared `.label` style, 14px/20px medium.
+  It previously painted 16px/24px from a `.switch__label` rule that v3 never
+  applied (3.2.6 deleted it); this corrects a latent error, not a 3.2.6
+  behavior change.
+
 ## [0.10.2] - 2026-09-22
 
 ### Security
@@ -77,7 +128,8 @@ version covers `herogpui`, `herogpui-core`, `herogpui-theme`,
   `herogpui-components` and the `herogpui-gallery` CLI, built on the
   published `gpui-pre` 0.3.5 crates with no GPUI fork.
 
-[Unreleased]: https://github.com/Porabuild/HeroGPUI/compare/v0.10.2...HEAD
+[Unreleased]: https://github.com/Porabuild/HeroGPUI/compare/v0.11.0...HEAD
+[0.11.0]: https://github.com/Porabuild/HeroGPUI/compare/v0.10.2...v0.11.0
 [0.10.2]: https://github.com/Porabuild/HeroGPUI/compare/v0.10.1...v0.10.2
 [0.10.1]: https://github.com/Porabuild/HeroGPUI/compare/v0.10.0...v0.10.1
 [0.10.0]: https://github.com/Porabuild/HeroGPUI/compare/v0.9.0...v0.10.0
