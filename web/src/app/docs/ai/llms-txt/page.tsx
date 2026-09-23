@@ -58,6 +58,8 @@ const SECTION_DESCRIPTIONS: Record<string, string> = {
     "The shape every component shares: `#[derive(IntoElement)]` builders implementing `RenderOnce`, caller-owned state entities (`InputState`, `CalendarState`, `TimeState`, …), and callback signatures with `Arc` for closures that capture shared fields.",
   Components:
     "The bulk of the file: per-category API rundowns across sixteen subsections (Buttons, Collections, Colors, Controls, Data Display, Date and Time, Feedback, the calendar view model (`calendar_view`), Forms, Layout, Media, Navigation, Overlays, Pickers, Typography, Utilities), naming every documented builder, part, and its Rust spelling. A few related components share one entry, including ToggleButton/ToggleButtonGroup, Disclosure/DisclosureGroup, and the Label/Description/ErrorMessage/FieldError slots.",
+  "HeroGPUI extensions":
+    "The repository extensions that are not HeroUI v3 APIs: the shared `Disableable` / `Sizable` / `Selectable` builder traits, the `i18n` chrome-string catalogue (`set_locale`, `ui_string`), theme files with a JSON Schema and presets (`serde` feature), the `herogpui::test` kit (`test-support` feature), `VirtualList`, and `ContextMenu`.",
   Gallery:
     "How to run and capture the documentation app: `cargo run -p herogpui-gallery`, the `HEROGPUI_PAGE` / `HEROGPUI_THEME` environment controls, and the screenshot scripts used as the visual-regression source.",
   "Code style":

@@ -79,6 +79,35 @@ changed no theme tokens, so `herogpui-theme` is unchanged.
   limitation).
 - An AvatarGroup gallery page and reference metadata; the Avatar page's
   hand-built "Avatar Group" section moves there.
+- HeroGPUI extensions (not HeroUI v3 APIs), adopted from gpui-kit patterns:
+  - Shared builder traits `Disableable` (`is_disabled`), `Sizable`
+    (`size`, with the component's own scale as `Sizable::Size`) and
+    `Selectable` (`is_selected`), implemented by delegating to the existing
+    inherent builders, which stay the documented API.
+  - `herogpui_components::i18n`: a component chrome string catalogue with
+    `set_locale`, `locale`, `ui_string`, `set_ui_string` and `lookup`. The
+    Select/Autocomplete placeholder, Autocomplete's empty state, and the
+    CloseButton, Spinner, calendar Previous/Next, Tag remove and Breadcrumbs
+    names resolve through it. Built-in translations for de-DE, es-ES, fr-FR,
+    it-IT, nl-NL, pl-PL, pt-BR and sv-SE come from the pinned React Aria
+    dictionaries; en-US output is unchanged when no locale is set.
+  - Theme files (`serde` feature): `register_theme_json`, `load_themes_dir`,
+    `ThemeLoadError`, a checked-in JSON Schema (`THEME_SCHEMA`,
+    `crates/herogpui-theme/theme.schema.json`) and four preset themes
+    (`presets::PRESETS`, `presets::register_presets`: ocean, forest,
+    midnight, rose). `ThemeProvider::insert` registers without activating;
+    `ThemeProvider::theme_ids` lists the registry.
+  - `herogpui::test` (`test-support` feature): `open_window` and the
+    `TestWindowExt` helpers (`find`, `expect`, `click`, `click_at`, `hover`,
+    `press`, `type_text`, `scroll`, `settle`) for downstream UI tests.
+  - `VirtualList` / `VirtualListHandle` / `VirtualListScroll`: a
+    variable-row-height virtual list with `scroll_to_item`, `splice` and
+    `set_item_count`, with a "Virtual List" section on the ListBox page.
+  - `ContextMenu`: the Dropdown `Menu` opened by a secondary press at the
+    pointer, with a "Context Menu" section on the Dropdown page.
+- `examples/` workspace crates (`hello-button`, `form`, `theme-switch`),
+  `CONTRIBUTING.md` with a required `## Public API` pull request section, and
+  `.github/pull_request_template.md`.
 
 ### Changed
 

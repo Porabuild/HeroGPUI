@@ -1681,11 +1681,14 @@ impl RenderOnce for Calendar {
             let radius = crate::util::soft_radius(cx);
             // `useCalendarBase` names these `previous` / `next` from the
             // pinned en-US strings.
-            let nav_name = if key.contains("-prev") {
-                "Previous"
-            } else {
-                "Next"
-            };
+            let nav_name = crate::i18n::ui_string(
+                if key.contains("-prev") {
+                    crate::i18n::UiString::Previous
+                } else {
+                    crate::i18n::UiString::Next
+                },
+                cx,
+            );
             // The icon joins the skin before the press wrap: children added
             // after `pressed` land on the slot and fight the skin for width.
             let button = gpui::div()

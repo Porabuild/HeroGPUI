@@ -774,6 +774,54 @@ The browser gallery bundles distinct Inter faces for Normal, Medium, Semibold an
   - The `sx` slot refines the track root: an `sx` background is the thumb's resting fill (it also paints the transparent gutter, so `thumb_color` is the seam that moves only the thumb), a definite cross-axis `w`/`h` is the track thickness the default radius derives from, and per-corner radii shape the thumb. Hover feedback is an immediate swap, not a transition — the thumb is painted from the handle at paint time, outside gpui's style hover system.
   - Wheel input scrolls only along the configured orientation.
 
+## HeroGPUI extensions
+
+Not HeroUI v3 APIs; each is labelled as an extension in its rustdoc and kept
+out of `reference_metadata`.
+
+- **Shared builder traits** — `Disableable::is_disabled(bool)`,
+  `Sizable::size(Self::Size)` and `Selectable::is_selected(bool)`, for generic
+  code over components (`fn f<T: Disableable + Sizable<Size = Size>>(t: T)`).
+  Every impl delegates to the inherent builder of the same name, which stays
+  the documented API. `Sizable::Size` is the component's own scale (`Size`,
+  `ModalSize`, `CheckboxSize`, `SpinnerSize`, ...).
+- **i18n** — `i18n::set_locale("de-DE", cx)`, `i18n::locale(cx)`,
+  `i18n::ui_string(UiString::Close, cx)`, `i18n::set_ui_string("fr",
+  UiString::Loading, "Chargement", cx)`, `i18n::lookup(locale, key)`. Keys:
+  `SelectPlaceholder`, `NoResults`, `Close`, `Loading`, `Previous`, `Next`,
+  `Remove`, `Breadcrumbs`, `Search`. Resolution: exact override, then an
+  override for the bare language, then the built-in table (exact tag, then
+  language), then en-US. Built-in: en-US, de-DE, es-ES, fr-FR, it-IT, nl-NL,
+  pl-PL, pt-BR, sv-SE (from the pinned React Aria dictionaries; `NoResults`,
+  `Loading` and `Search` are HeroUI's English-only strings). Dates and
+  numbers keep their own per-component ICU4X `.locale(..)`.
+- **Theme files** (`serde` feature) — `register_theme_json(json, cx)`
+  registers a `ThemeDocument` without activating it; `load_themes_dir(dir,
+  cx)` does that for every `*.json` in a directory (name order);
+  `presets::register_presets(cx)` adds `ocean`, `forest`, `midnight` and
+  `rose`; switch with `use_theme(id, cx)`. `THEME_SCHEMA` is the JSON Schema
+  (`crates/herogpui-theme/theme.schema.json`). `ThemeProvider::insert` and
+  `ThemeProvider::theme_ids` are the registry primitives.
+- **Test kit** (`test-support` feature) — `herogpui::test::open_window(cx,
+  |_, _| View)` returns `(Entity<View>, &mut VisualTestContext)`;
+  `TestWindowExt` adds `find(selector)`, `expect(selector)`,
+  `click(selector)`, `click_at(point)`, `hover`, `press("tab enter")` (with
+  the key-up GPUI activates on), `type_text`, `scroll` and `settle`.
+  Elements are addressed by `.debug_selector(..)`. With `use herogpui::*;`
+  in a test file, add `use ::core::prelude::v1::test;` so `#[gpui::test]`
+  expands to the built-in test attribute.
+- **VirtualList** — `VirtualList::new(id, &handle, |ix, window, cx|
+  row.into_any_element()).height(px)` over a caller-owned
+  `VirtualListHandle::new(count)`. Rows may differ in height and are measured
+  as they are built. `handle.scroll_to_item(ix, VirtualListScroll::{Reveal,
+  Top})`, `set_item_count(n)`, `splice(range, count)`, `remeasure()`,
+  `scroll_by(px)`, `first_visible_item()`, `bounds_for_item(ix)`. Reveal on a
+  row not laid out in the last frame falls back to Top.
+- **ContextMenu** — `ContextMenu::new(id, area, items).on_action(|key, w,
+  cx| ..).on_open_change(..).disabled_keys([..]).is_disabled(bool)`. A
+  secondary (right) press in the area opens the Dropdown `Menu` panel at the
+  pointer; an item, Escape or an outside press closes it.
+
 ## Gallery
 
 `cargo run -p herogpui-gallery` — 1280×820 window, centred. `HEROGPUI_PAGE`

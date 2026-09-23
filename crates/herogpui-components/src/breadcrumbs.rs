@@ -361,9 +361,13 @@ impl RenderOnce for Breadcrumbs {
         // (`react-aria/dist/private/intl/breadcrumbs/en-US.mjs`). The port has
         // no locale plumbing, so the pinned en-US string is inlined, as the
         // toast region's would be.
-        let el = el
-            .id(base_id)
-            .a11y_named(a11y::Role::List, &a11y::Name::labelled("Breadcrumbs"));
+        let el = el.id(base_id).a11y_named(
+            a11y::Role::List,
+            &a11y::Name::labelled(crate::i18n::ui_string(
+                crate::i18n::UiString::Breadcrumbs,
+                cx,
+            )),
+        );
         crate::util::apply_sx(el, &self.sx)
     }
 }

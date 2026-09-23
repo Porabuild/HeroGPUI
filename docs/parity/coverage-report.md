@@ -3,7 +3,7 @@
 
 Target: `v3.2.6` (`e385ac202b2cdb94b1bf6fa76d32c31c8259cc5e`)
 Inventory date: `2026-09-23`
-Inventory verification: `ec80122c59c1b47160e7637dc24f5630647f99fc0f31103b5e4ab221c2af4f23`
+Inventory verification: `61d8f3628fc14fb539e70be01e512c5763d7ac89dbe215811af251560354c54d`
 Last evidence commit: `(none recorded)`
 
 This is a maintainer work-queue summary. It does not turn gallery section headings, static audits, or successful builds into parity evidence.
@@ -12,12 +12,12 @@ This is a maintainer work-queue summary. It does not turn gallery section headin
 
 | Metric | Count |
 | --- | --- |
-| Specimens | 745 |
+| Specimens | 747 |
 | Verified | 0 |
-| Outstanding | 745 |
-| Unobserved/unreviewed | 745 |
+| Outstanding | 747 |
+| Unobserved/unreviewed | 747 |
 | Components | 68 |
-| Gallery sections | 738 |
+| Gallery sections | 740 |
 
 ## Status distribution
 
@@ -29,18 +29,18 @@ This is a maintainer work-queue summary. It does not turn gallery section headin
 | not-applicable | 0 |
 | platform-limited | 0 |
 | specified | 0 |
-| unreviewed | 738 |
+| unreviewed | 740 |
 | verified | 0 |
 
 ## Evidence surfaces
 
 | Surface | With evidence | Missing evidence |
 | --- | --- | --- |
-| upstream | 5 | 740 |
-| native | 1 | 744 |
-| wasm | 1 | 744 |
-| tests | 5 | 740 |
-| all_surfaces | 1 | 744 |
+| upstream | 5 | 742 |
+| native | 1 | 746 |
+| wasm | 1 | 746 |
+| tests | 5 | 742 |
+| all_surfaces | 1 | 746 |
 
 ## Component queue
 
@@ -74,7 +74,7 @@ This is a maintainer work-queue summary. It does not turn gallery section headin
 | Date Range Picker | 10 | 0 | 10 |
 | Disclosure | 6 | 0 | 6 |
 | Drawer | 8 | 0 | 8 |
-| Dropdown | 23 | 0 | 23 |
+| Dropdown | 24 | 0 | 24 |
 | Fieldset | 2 | 0 | 2 |
 | Form | 2 | 0 | 2 |
 | Input | 9 | 0 | 9 |
@@ -83,7 +83,7 @@ This is a maintainer work-queue summary. It does not turn gallery section headin
 | Kbd | 6 | 0 | 6 |
 | Label & Messages | 13 | 0 | 13 |
 | Link | 5 | 0 | 5 |
-| List Box | 15 | 0 | 15 |
+| List Box | 16 | 0 | 16 |
 | Meter | 5 | 0 | 5 |
 | Modal | 13 | 0 | 13 |
 | Number Field | 17 | 0 | 17 |
@@ -120,6 +120,6 @@ This is a maintainer work-queue summary. It does not turn gallery section headin
 - Measured gaps: **0**
 - Intentional deviations: **0**
 - Platform limits: **0**
-- Unresolved specimen records: **745**
+- Unresolved specimen records: **747**
 
 The JSON file contains the complete unresolved id list and per-component detail. Add a concrete evidence record before changing a specimen to `verified`; record intentional deviations and platform limits with user-facing notes.

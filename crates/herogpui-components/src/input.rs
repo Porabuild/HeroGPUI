@@ -3255,6 +3255,9 @@ pub struct SearchField {
     validation_behavior: Option<crate::form::ValidationBehavior>,
     label: Option<SharedString>,
     placeholder: SharedString,
+    /// Whether `placeholder` came from the caller; otherwise render uses
+    /// the localized default (`i18n::UiString::Search`).
+    placeholder_is_set: bool,
     description: Option<SharedString>,
     variant: FieldVariant,
     variant_is_set: bool,
@@ -3311,6 +3314,7 @@ impl SearchField {
             validation_behavior: None,
             label: None,
             placeholder: "Search".into(),
+            placeholder_is_set: false,
             description: None,
             variant: FieldVariant::Primary,
             variant_is_set: false,
@@ -3343,6 +3347,7 @@ impl SearchField {
 
     pub fn placeholder(mut self, text: impl Into<SharedString>) -> Self {
         self.placeholder = text.into();
+        self.placeholder_is_set = true;
         self
     }
 
@@ -3545,7 +3550,11 @@ impl RenderOnce for SearchField {
                     })
                 })
             })
-            .placeholder(self.placeholder)
+            .placeholder(if self.placeholder_is_set {
+                self.placeholder
+            } else {
+                crate::i18n::ui_string(crate::i18n::UiString::Search, cx)
+            })
             .when_some(self.name, |i, n| i.name(n))
             .when_some(self.value, |i, v| i.value(v))
             .when_some(self.default_value, |i, v| i.default_value(v))

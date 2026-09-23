@@ -546,6 +546,12 @@ DELEGATES = {
          'gpui cannot inject props into an element it was handed, and a '
          'second node wrapped around the caller\'s button would report the '
          'trigger twice.'),
+    ('context_menu.rs', 'ContextMenu'):
+        ('Menu', 'Menu::new',
+         'HeroGPUI extension with no HeroUI v3 upstream. It is the Dropdown '
+         'composition with a secondary-press trigger: the panel is the same '
+         '`Menu` (`role="menu"` and its rows), and the area is the caller\'s '
+         'element, which reports its own node if it has one.'),
 }
 
 
@@ -726,6 +732,11 @@ NO_NODE = {
         'the whole of it, and reading a role off the tag would be reasoning '
         'from HTML-AAM rather than from the pinned source. See '
         '`card.rs`\'s `CardTitle` for the same decision stated at length.',
+    ('virtual_list.rs', 'VirtualList'):
+        'HeroGPUI extension with no HeroUI v3 upstream. It is a scroll '
+        'container over caller-built rows, which carry their own nodes; a '
+        '`list` role here would claim `listitem` children it does not own. '
+        'A semantic list belongs on `ListBox`, which has one.',
     ('typography.rs', 'Prose'):
         '`Prose` is a separate export in that same file and a plain `"div"` '
         'with no `elementType`, no `role` and no `aria-*`: it is the '

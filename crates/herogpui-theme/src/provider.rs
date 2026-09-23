@@ -104,6 +104,20 @@ impl ThemeProvider {
         self.themes.insert(theme.id.clone(), theme);
     }
 
+    /// Registers a theme without activating it, replacing any theme with
+    /// the same id. The active theme is unchanged (re-inserting the active
+    /// id swaps its tokens in place).
+    pub fn insert(&mut self, theme: Theme) {
+        self.themes.insert(theme.id.clone(), theme);
+    }
+
+    /// The ids of every registered theme, sorted.
+    pub fn theme_ids(&self) -> Vec<SharedString> {
+        let mut ids: Vec<_> = self.themes.keys().cloned().collect();
+        ids.sort();
+        ids
+    }
+
     /// Activates a previously registered theme by id.
     ///
     /// An id that was never registered is refused: the active theme stays as

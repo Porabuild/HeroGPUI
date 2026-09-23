@@ -1134,7 +1134,7 @@ impl RenderOnce for Autocomplete {
             .placeholder
             .clone()
             // v3's own default for this prop.
-            .unwrap_or_else(|| SharedString::from("Select an item"));
+            .unwrap_or_else(|| crate::i18n::ui_string(crate::i18n::UiString::SelectPlaceholder, cx));
         // `.autocomplete__value` is `flex-1 text-start text-sm
         // wrap-break-word`, and `text-field-placeholder` while nothing is
         // chosen. Keep the value slot's min-content floor released so a
@@ -2110,7 +2110,8 @@ impl RenderOnce for Autocomplete {
                         .text_size(util::FIELD_TEXT)
                         .line_height(px(20.))
                         .text_color(empty_fg)
-                        .child("No results found"),
+                        // "No results found" in en-US.
+                        .child(crate::i18n::ui_string(crate::i18n::UiString::NoResults, cx)),
                 );
             }
 

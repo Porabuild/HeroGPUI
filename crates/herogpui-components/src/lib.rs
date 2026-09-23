@@ -26,6 +26,7 @@ pub mod chip;
 pub mod close_button;
 pub mod color_picker;
 pub mod combo_box;
+pub mod context_menu;
 pub mod date_constraints;
 pub mod date_picker;
 pub mod disclosure;
@@ -36,6 +37,7 @@ pub mod filter;
 pub mod form;
 #[cfg(feature = "gallery-source")]
 pub mod gallery_source;
+pub mod i18n;
 pub mod icons;
 pub mod input;
 pub mod input_group;
@@ -73,9 +75,11 @@ pub mod toast;
 pub mod toggle_button;
 pub mod toolbar;
 pub mod tooltip;
+pub mod traits;
 pub mod typography;
 pub(crate) mod util;
 pub mod validation;
+pub mod virtual_list;
 
 // The shared v3 prop vocabularies, re-exported so `herogpui::components::*`
 // is enough to build a UI.
@@ -103,6 +107,7 @@ pub use chip::*;
 pub use close_button::*;
 pub use color_picker::*;
 pub use combo_box::*;
+pub use context_menu::*;
 pub use date_constraints::*;
 pub use date_picker::*;
 pub use disclosure::*;
@@ -150,9 +155,11 @@ pub use toast::*;
 pub use toggle_button::*;
 pub use toolbar::*;
 pub use tooltip::*;
+pub use traits::{Disableable, Selectable, Sizable};
 pub use typography::*;
 pub use util::{app_focus_root, FieldFocus, InteractiveState, SelectionValue};
 pub use validation::*;
+pub use virtual_list::*;
 
 /// The helpers HeroGPUI supports for building custom widgets that match the
 /// components: v3's radius scale read from the active theme, the field

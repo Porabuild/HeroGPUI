@@ -1524,11 +1524,14 @@ impl RenderOnce for RangeCalendar {
             let debug_key = key.clone();
             let button_id = ElementId::Name(key.clone().into());
             let radius = util::small_radius(cx);
-            let nav_name = if key.contains("-prev") {
-                "Previous"
-            } else {
-                "Next"
-            };
+            let nav_name = crate::i18n::ui_string(
+                if key.contains("-prev") {
+                    crate::i18n::UiString::Previous
+                } else {
+                    crate::i18n::UiString::Next
+                },
+                cx,
+            );
             // `.range-calendar__nav-button:active` scales the box to 0.95.
             let press_box = crate::anim::PressBox {
                 height: px(24.),

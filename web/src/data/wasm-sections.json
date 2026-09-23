@@ -78,7 +78,8 @@
     "Long Press Trigger",
     "Basic Usage",
     "Controlled Selection",
-    "With Multiple Selection"
+    "With Multiple Selection",
+    "Context Menu"
   ],
   "list-box": [
     "Usage",
@@ -90,6 +91,7 @@
     "Disallow Empty Selection",
     "Escape Key Behavior",
     "Virtualization",
+    "Virtual List",
     "Custom Check Icon",
     "Single selection",
     "Multiple selection",

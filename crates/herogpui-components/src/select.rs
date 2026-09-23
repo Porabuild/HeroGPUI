@@ -231,6 +231,9 @@ pub struct Select {
     placement: Placement,
     label: Option<SharedString>,
     placeholder: SharedString,
+    /// Whether `placeholder` came from the caller; otherwise render swaps
+    /// in the localized default (`i18n::UiString::SelectPlaceholder`).
+    placeholder_is_set: bool,
     description: Option<SharedString>,
     variant: FieldVariant,
     variant_is_set: bool,
@@ -549,6 +552,7 @@ impl Select {
             placement: Placement::BottomStart,
             label: None,
             placeholder: "Select an item".into(),
+            placeholder_is_set: false,
             description: None,
             variant: FieldVariant::Primary,
             variant_is_set: false,
@@ -710,6 +714,7 @@ impl Select {
 
     pub fn placeholder(mut self, p: impl Into<SharedString>) -> Self {
         self.placeholder = p.into();
+        self.placeholder_is_set = true;
         self
     }
 
@@ -775,6 +780,9 @@ impl Select {
 
 impl RenderOnce for Select {
     fn render(mut self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        if !self.placeholder_is_set {
+            self.placeholder = crate::i18n::ui_string(crate::i18n::UiString::SelectPlaceholder, cx);
+        }
         // `controlled` takes `cx` mutably, so it precedes the theme tokens.
         let (is_open, open_own) = util::controlled(
             window,

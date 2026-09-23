@@ -117,7 +117,8 @@ both are easy to get wrong:
   `gpui_platform::single_threaded_web()`, and the multi-threaded platform runs
   its background executors on web workers over shared wasm memory, which a
   browser grants only in a cross-origin-isolated context — and the gallery is
-  served from plain GitHub Pages, which sends no COOP/COEP headers. Verified in
+  served by the Vercel-hosted website (`web/DEPLOYMENT.md`), whose
+  `web/next.config.ts` sends no COOP/COEP headers. Verified in
   a browser at `gpui-pre` 0.3.3: the stable `wasm-release` artifact boots,
   renders, presses, focuses, takes keyboard input and resolves a
   `background_executor().timer()`, indistinguishably from the

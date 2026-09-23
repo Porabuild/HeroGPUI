@@ -346,7 +346,7 @@ jobs:
       # is retired — see `docs/upstream/retired-patches/`. Nothing in the
       # gallery uses the multi-threaded platform: `crates/herogpui-web`
       # starts the app with `single_threaded_web()`, and web workers need
-      # cross-origin isolation that GitHub Pages does not provide. If a
+      # cross-origin isolation the Vercel-hosted site does not provide. If a
       # future `gpui-pre-web` drops the default, move this job back to the
       # pinned stable toolchain and delete the `+nightly` below.
       - name: Install nightly with the wasm32 target
@@ -375,7 +375,7 @@ jobs:
       # No `RUSTFLAGS` here, deliberately. `.cargo/config.toml`'s
       # `[target.wasm32-unknown-unknown]` table sets `rustflags = []` (the
       # shared-memory build was abandoned for `single_threaded_web()` under
-      # plain GitHub Pages hosting, which sends no COOP/COEP headers), and a
+      # the Vercel-hosted site, which sends no COOP/COEP headers), and a
       # `RUSTFLAGS` environment variable *replaces* a config file's rustflags
       # rather than appending to them. Setting it here — even to the same
       # value — would silently diverge from that table the moment either side

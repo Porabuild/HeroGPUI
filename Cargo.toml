@@ -7,6 +7,9 @@ members = [
     "crates/herogpui",
     "crates/herogpui-web",
     "gallery",
+    "examples/hello-button",
+    "examples/form",
+    "examples/theme-switch",
 ]
 
 # No `exclude` table: the workspace has no generated source trees. (An earlier

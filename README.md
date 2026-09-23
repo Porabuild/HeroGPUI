@@ -129,6 +129,18 @@ when GPUI is reached only through a facade. Eight names — `ColorSpace`,
 `TextAlign` — exist in both GPUI and HeroUI v3; at `herogpui`'s root the
 HeroUI spelling wins, and GPUI's keep the `gpui::` path (`gpui::Size`).
 
+## Examples
+
+Small runnable crates under `examples/` use only the `herogpui` facade:
+
+```bash
+cargo run -p herogpui-example-hello-button  # one button, one counter
+cargo run -p herogpui-example-form          # validated Form with TextFields
+cargo run -p herogpui-example-theme-switch  # runtime light/dark switching
+```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution rules.
+
 ## Gallery
 
 A desktop gallery ships with the library and documents every component:

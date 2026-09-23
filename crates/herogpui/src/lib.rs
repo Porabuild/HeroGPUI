@@ -25,9 +25,9 @@
 //!
 //! | Feature        | Forwards to                                          |
 //! | -------------- | ---------------------------------------------------- |
-//! | `test-support` | `gpui/test-support`, `gpui_platform/test-support`     |
+//! | `test-support` | `gpui/test-support`, `gpui_platform/test-support`; adds `herogpui::test` |
 //! | `profiler`     | `gpui/profiler`                                      |
-//! | `serde`        | `herogpui-theme/serde` (`ThemeDocument`)              |
+//! | `serde`        | `herogpui-theme/serde` (`ThemeDocument`, theme files) |
 //!
 //! There is no separate assets or icons feature: the SVG icons HeroGPUI's own
 //! component chrome draws are `&'static str` constants inside
@@ -203,7 +203,10 @@ pub use ::herogpui_theme::{
     SwitchStyle, TextFieldStyle, Theme, ThemeProvider,
 };
 #[cfg(feature = "serde")]
-pub use ::herogpui_theme::{ThemeDocument, ThemeDocumentError};
+pub use ::herogpui_theme::{
+    load_themes_dir, presets, register_theme_json, ThemeDocument, ThemeDocumentError,
+    ThemeLoadError, THEME_SCHEMA,
+};
 
 /// GPUI's web platform entry points, on `wasm32` only.
 ///
@@ -286,6 +289,11 @@ pub fn init(cx: &mut App) {
     #[cfg(feature = "theme")]
     ::herogpui_theme::ThemeProvider::init(cx);
 }
+
+/// Headless UI test helpers for downstream applications: open a themed
+/// test window, find elements by debug selector, click, press and type.
+#[cfg(feature = "test-support")]
+pub mod test;
 
 /// Convenience prelude re-exporting the most-used items.
 ///

@@ -2679,6 +2679,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "herogpui-example-form"
+version = "0.11.0"
+dependencies = [
+ "herogpui",
+]
+
+[[package]]
+name = "herogpui-example-hello-button"
+version = "0.11.0"
+dependencies = [
+ "herogpui",
+]
+
+[[package]]
+name = "herogpui-example-theme-switch"
+version = "0.11.0"
+dependencies = [
+ "herogpui",
+]
+
+[[package]]
 name = "herogpui-gallery"
 version = "0.11.0"
 dependencies = [

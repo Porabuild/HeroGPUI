@@ -8,7 +8,7 @@ linker = "rust-lld"
 # `-C target-feature=+atomics,+bulk-memory,+mutable-globals` and `-Z build-std`
 # so GPUI's background executors could run on web workers over a shared wasm
 # memory. That was abandoned: shared memory needs COOP/COEP response headers,
-# which plain GitHub Pages hosting does not send, so `crates/herogpui-web`
+# which the Vercel-hosted website (`web/DEPLOYMENT.md`) does not send, so `crates/herogpui-web`
 # calls `gpui_platform::single_threaded_web()` instead and needs no atomics.
 #
 # Stating the empty list here is what keeps it from creeping back. A
