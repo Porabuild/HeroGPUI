@@ -28,35 +28,17 @@ jobs:
           test "$version" = "$cargo_version"
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
-  test:
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v6
-      - name: Install Linux build dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            clang \
-            pkg-config \
-            libvulkan-dev \
-            libwayland-dev \
-            libxkbcommon-dev \
-            libxkbcommon-x11-dev \
-            libx11-dev \
-            libxcb1-dev \
-            libx11-xcb-dev \
-            libxcb-render0-dev \
-            libxcb-shape0-dev \
-            libxcb-xfixes0-dev \
-            libfontconfig-dev \
-            libfreetype-dev
-      # No setup step before cargo: the workspace builds on the published
-      # `gpui-pre` family with no `[patch.crates-io]` overrides.
-      - uses: Swatinem/rust-cache@v2
-      - run: cargo test --workspace --locked
+  # The full CI workflow -- fmt, clippy, audits, the three-OS test matrix via
+  # .shots/run-tests.sh, docs, install, the -O1/-O3 suite and the wasm build --
+  # run on the tagged commit itself. Nothing below is built, released or
+  # published unless its aggregating `ci` job succeeds.
+  ci:
+    uses: ./.github/workflows/ci.yml
+    permissions:
+      contents: read
 
   build-gallery:
-    needs: [plan, test]
+    needs: [plan, ci]
     strategy:
       fail-fast: false
       matrix:
@@ -160,7 +142,7 @@ jobs:
     # Runs after the GitHub Release so a failed upload never leaves a tag
     # without binaries, and skips versions the registry already has so a
     # re-run after a partial publish continues where it stopped.
-    needs: [plan, test, github-release]
+    needs: [plan, ci, github-release]
     runs-on: ubuntu-24.04
     environment: release
     permissions:

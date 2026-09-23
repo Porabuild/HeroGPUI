@@ -1,6 +1,7 @@
 """Audit source distribution and the installable gallery CLI contract."""
 
 from pathlib import Path
+import re
 import sys
 import tomllib
 
@@ -40,8 +41,8 @@ def main():
             errors.append(f"workspace.package.{key} must be {value!r}")
 
     # GPUI must stay a registry dependency. A git dependency anywhere in the
-    # workspace makes every crate unpublishable, which is why zed-industries'
-    # published `gpui-pre` packages are used instead of a Zed git revision.
+    # workspace makes every crate unpublishable, which is why the published
+    # `gpui-pre` packages (huacnlee's publish of the Zed GPUI sources) are used instead of a Zed git revision.
     internal = workspace["workspace"]["dependencies"]
     gpui = internal.get("gpui", {})
     platform = internal.get("gpui_platform", {})
@@ -52,13 +53,12 @@ def main():
             errors.append(f"{name}: must come from crates.io, not git or a path")
         if dependency.get("package") != packages[name]:
             errors.append(f"{name}: must rename the {packages[name]} package")
-        # The pin is a caret, like gpui-kit uses: with no `[patch.crates-io]`
-        # overrides there is no fork version to stay in lockstep with, so
-        # compatible `0.3.x` releases resolve normally. An exact `=` pin is
-        # rejected here so a stale pin cannot silently hold the workspace
-        # behind the registry.
-        if not dependency.get("version", "").startswith("^") and not dependency.get("version", "").startswith("0."):
-            errors.append(f"{name}: version must be a caret-compatible `0.3.x` requirement")
+        # The pin is exact, as gpui-kit's is: each `gpui-pre` 0.3.x is a
+        # snapshot of different Zed sources, so a caret (or any range) would
+        # let a downstream build resolve GPUI code no release was tested on.
+        pin = dependency.get("version", "")
+        if not re.fullmatch(r"=\d+\.\d+\.\d+", pin):
+            errors.append(f"{name}: version must be an exact `=X.Y.Z` pin, got {pin!r}")
     if not requirement:
         errors.append("GPUI must pin a published gpui-pre version")
     if platform.get("version") != requirement:
@@ -151,6 +151,11 @@ def main():
         errors.append("CI does not exercise Cargo installation of the gallery CLI")
     if "cargo build --locked --release -p herogpui-gallery" not in release:
         errors.append("release workflow does not build the gallery binary")
+    # Nothing ships unless the full CI gate passed for the tagged commit.
+    if "workflow_call:" not in ci or "uses: ./.github/workflows/ci.yml" not in release:
+        errors.append("release workflow does not run the full CI workflow before publishing")
+    if "needs: [plan, ci, github-release]" not in release:
+        errors.append("publish-crates does not depend on the CI gate")
 
     # The facade contract: `herogpui` must carry GPUI itself, so a consumer's
     # dependency list is one line. Both GPUI crates are therefore mandatory --
@@ -195,18 +200,14 @@ def main():
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     if "cargo install --path gallery --locked" not in readme:
         errors.append("README does not document cargo install --path gallery --locked")
-    # The facade is not on crates.io. `cargo add herogpui` resolves a
-    # different crate or fails; the documented install is a git dependency
-    # on this repository, still the only line a consumer adds.
-    git_dep = 'herogpui = { git = "https://github.com/Porabuild/HeroGPUI" }'
-    if git_dep not in readme:
-        errors.append(f"README does not document `{git_dep}`")
-    if "not on crates.io" not in readme:
-        errors.append("README does not say herogpui is not on crates.io")
-    if "cargo add herogpui" in readme:
-        errors.append(
-            "README teaches `cargo add herogpui`; the crate is not on crates.io"
-        )
+    # The facade is on crates.io; the documented install is the registry
+    # dependency at the current minor version, the only line a consumer adds.
+    major, minor = workspace["workspace"]["package"]["version"].split(".")[:2]
+    registry_dep = f'herogpui = "{major}.{minor}"'
+    if registry_dep not in readme:
+        errors.append(f"README does not document `{registry_dep}`")
+    if "not on crates.io" in readme:
+        errors.append("README still says herogpui is not on crates.io")
     # One dependency is a claim a reader can check, so check it. A README that
     # tells a consumer to add GPUI directly -- a `cargo add gpui-...` line, or a
     # `gpui`/`gpui_platform` line inside a `[dependencies]` block -- has
@@ -232,7 +233,7 @@ def main():
                 )
 
     print(f"source packages      : {len(PACKAGES)}")
-    print("library install      : git herogpui (the only dependency)")
+    print(f"library install      : {registry_dep} (the only dependency)")
     print(f"facade features      : {' '.join(sorted(facade_features))}")
     print("gallery install      : cargo install --path gallery --locked")
     print("license contract     : Apache-2.0 + NOTICE")

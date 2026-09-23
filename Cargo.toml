@@ -14,7 +14,7 @@ members = [
 # root; that mechanism is retired -- see `docs/upstream/retired-patches/`.)
 
 [workspace.package]
-version = "0.10.1"
+version = "0.10.2"
 edition = "2024"
 rust-version = "1.98"
 license = "Apache-2.0"
@@ -24,17 +24,18 @@ keywords = ["gpui", "gui", "components", "heroui", "desktop"]
 categories = ["gui"]
 
 [workspace.dependencies]
-# GPUI comes from `gpui-pre`, zed-industries' own prerelease publish of the
-# GPUI sources (`0.3.5` snapshots `zed@d89e9c2`). Zed does not publish `gpui`
+# GPUI comes from `gpui-pre`, a prerelease publish of the Zed GPUI sources by
+# crates.io user huacnlee (Jason Lee, the gpui-kit maintainer); `0.3.5`
+# snapshots `zed@d89e9c2`. Zed does not publish `gpui`
 # under that name from its release branch, and a crate with a git dependency
 # can never be published to crates.io, so a Zed git rev would make `herogpui`
-# structurally unpublishable. `gpui-pre` is a registry publish from the same
-# organisation, which removes the reason the third-party `gpui-unofficial`
-# republish was used before.
+# structurally unpublishable. `gpui-pre` is a registry publish of the same
+# sources that replaced the older `gpui-unofficial` republish.
 #
-# The pin is a caret, like gpui-kit uses: with no `[patch.crates-io]`
-# overrides there is no fork version to stay in lockstep with, so compatible
-# `0.3.x` releases resolve normally. Deliberately no patched renderer,
+# The pin is exact (`=`), as gpui-kit's is: each `gpui-pre` 0.3.x is a
+# snapshot of different Zed sources, so a caret would let a downstream build
+# resolve GPUI code this workspace never tested. `.shots/package_audit.py`
+# rejects a non-`=` requirement. Deliberately no patched renderer,
 # accessibility, or web-platform forks -- see `docs/upstream/retired-patches/`
 # for what was carried before and why it moved into component-level
 # workarounds plus upstream PRs instead. A downstream application therefore
@@ -46,8 +47,8 @@ categories = ["gui"]
 # with that one and change nothing. The wasm gallery therefore builds with
 # upstream's default web platform (see `docs/upstream/gpui-web-scroll-and-ime.md`
 # for the known limitations this accepts).
-gpui = { package = "gpui-pre", version = "0.3.5" }
-gpui_platform = { package = "gpui-pre-platform", version = "0.3.5", features = ["font-kit", "x11", "wayland", "runtime_shaders"] }
+gpui = { package = "gpui-pre", version = "=0.3.5" }
+gpui_platform = { package = "gpui-pre-platform", version = "=0.3.5", features = ["font-kit", "x11", "wayland", "runtime_shaders"] }
 icu_calendar = { version = "=2.2.1", default-features = false, features = ["compiled_data"] }
 icu_datetime = { version = "=2.2.0", default-features = false, features = ["compiled_data"] }
 icu_locale_core = "=2.2.0"
@@ -64,11 +65,11 @@ locale_config = "=0.3.0"
 web-time = "=1.1.0"
 prettyplease = "0.2.37"
 syn = { version = "2.0.119", features = ["full", "parsing"] }
-herogpui-core = { version = "0.10.1", path = "crates/herogpui-core" }
-herogpui-theme = { version = "0.10.1", path = "crates/herogpui-theme" }
-herogpui-components = { version = "0.10.1", path = "crates/herogpui-components" }
-herogpui = { version = "0.10.1", path = "crates/herogpui" }
-herogpui-gallery = { version = "0.10.1", path = "gallery" }
+herogpui-core = { version = "0.10.2", path = "crates/herogpui-core" }
+herogpui-theme = { version = "0.10.2", path = "crates/herogpui-theme" }
+herogpui-components = { version = "0.10.2", path = "crates/herogpui-components" }
+herogpui = { version = "0.10.2", path = "crates/herogpui" }
+herogpui-gallery = { version = "0.10.2", path = "gallery" }
 
 # Lint policy lives here so every crate gets the same one via
 # `lints.workspace = true`; a crate that forgets that line is the only way to

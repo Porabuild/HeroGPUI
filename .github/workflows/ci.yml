@@ -5,6 +5,10 @@ on:
   push:
     branches: [master]
   workflow_dispatch:
+  # release.yml calls this whole workflow on the tagged commit, so nothing is
+  # published unless the full gate (every job `ci` below aggregates) passes
+  # for exactly that commit.
+  workflow_call:
 
 # A new push to the same PR/ref cancels the superseded run instead of queueing
 # behind it.

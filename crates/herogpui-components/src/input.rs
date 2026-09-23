@@ -2678,7 +2678,13 @@ impl RenderOnce for Input {
                     }
                 } else if cmd && (key == "c" || key == "x") {
                     // Paste was here without a copy: a field you can paste into
-                    // and not copy out of is half a clipboard.
+                    // and not copy out of is half a clipboard. A masked field
+                    // is the exception: browsers refuse copy and cut on
+                    // `type="password"` (the value never reaches the clipboard
+                    // and cut deletes nothing), and so does this.
+                    if input_type.masks() {
+                        return;
+                    }
                     let selected = {
                         let st = state_entity.read(cx);
                         slice_selection(&st.value, st.selection())

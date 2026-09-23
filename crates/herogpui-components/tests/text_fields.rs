@@ -54,8 +54,8 @@ use gpui::{
 };
 use herogpui_components::{
     Button, ColorField, Date, DateField, FieldGroup, Fieldset, FieldsetLegend, Input, InputAddon,
-    InputGroup, InputOTP, InputState, NumberField, NumberState, OtpPattern, OtpState, PickerColor,
-    SearchField, TextArea, TextField, Time, TimeField, TimeState,
+    InputGroup, InputOTP, InputState, InputType, NumberField, NumberState, OtpPattern, OtpState,
+    PickerColor, SearchField, TextArea, TextField, Time, TimeField, TimeState,
 };
 
 use harness::{click, events, open_host, press, probe as inset_probe};
@@ -241,6 +241,79 @@ fn input_max_length_blocks_rejected_edits_without_change(cx: &mut TestAppContext
         value, "abc",
         "the owned InputState must stop at the configured maximum length"
     );
+}
+
+#[gpui::test]
+fn password_input_copy_and_cut_never_reach_the_clipboard(cx: &mut TestAppContext) {
+    let changes = events();
+    let recorded = changes.clone();
+    let state = cx.new(|cx| InputState::new(cx));
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        let changes = changes.clone();
+        Input::new(state_for_view.clone())
+            .input_type(InputType::Password)
+            .on_change(move |text, _, _| changes.borrow_mut().push(text.to_owned()))
+            .into_any_element()
+    });
+
+    click(cx, 60., 18.);
+    cx.simulate_input("hunter2");
+    cx.write_to_clipboard(gpui::ClipboardItem::new_string("sentinel".to_owned()));
+    press(cx, "ctrl-a");
+    press(cx, "ctrl-c");
+    press(cx, "cmd-c");
+    press(cx, "ctrl-x");
+    press(cx, "cmd-x");
+
+    let clipboard = cx.read_from_clipboard().and_then(|item| item.text());
+    assert_eq!(
+        clipboard.as_deref(),
+        Some("sentinel"),
+        "copy and cut on a masked field must leave the clipboard untouched"
+    );
+    let value = cx.update(|_, cx| state.read(cx).value().to_owned());
+    assert_eq!(
+        value, "hunter2",
+        "cut on a masked field must not delete the value"
+    );
+    assert_eq!(
+        recorded.borrow().last().map(String::as_str),
+        Some("hunter2"),
+        "cut on a masked field must not emit a change"
+    );
+}
+
+#[gpui::test]
+fn plain_input_copy_and_cut_still_use_the_clipboard(cx: &mut TestAppContext) {
+    let state = cx.new(|cx| InputState::new(cx));
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        Input::new(state_for_view.clone()).into_any_element()
+    });
+
+    click(cx, 60., 18.);
+    cx.simulate_input("hello");
+    press(cx, "ctrl-a");
+    press(cx, "ctrl-c");
+    let copied = cx.read_from_clipboard().and_then(|item| item.text());
+    assert_eq!(
+        copied.as_deref(),
+        Some("hello"),
+        "copy must write the selection"
+    );
+
+    cx.write_to_clipboard(gpui::ClipboardItem::new_string(String::new()));
+    press(cx, "ctrl-a");
+    press(cx, "ctrl-x");
+    let cut = cx.read_from_clipboard().and_then(|item| item.text());
+    assert_eq!(
+        cut.as_deref(),
+        Some("hello"),
+        "cut must write the selection"
+    );
+    let value = cx.update(|_, cx| state.read(cx).value().to_owned());
+    assert_eq!(value, "", "cut must delete the selection");
 }
 
 // ---------------------------------------------------------------------------
