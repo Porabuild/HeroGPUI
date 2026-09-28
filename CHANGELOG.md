@@ -28,6 +28,14 @@ for each breaking change with before/after code.
 
 - `Color::from_token` and `impl FromStr for Color` (`UnknownColorError`):
   parse a role name from configuration, failing on an unknown name.
+- Theme hot reload (HeroGPUI extension; new opt-in `watch` feature on
+  `herogpui-theme` and `herogpui`, implies `serde`): `watch_themes_dir(dir,
+  on_reload, cx)` polls a theme directory every `THEME_WATCH_INTERVAL`
+  (500ms) and re-registers changed and new `*.json` files, so an edit to the
+  active theme applies live; `ThemeReload` reports the reloaded ids and parse
+  errors, and dropping the returned `ThemeWatcher` stops it. Polling on
+  GPUI's executors keeps it dependency-free. The native gallery enables it
+  for `HEROGPUI_THEME_DIR=<dir>`.
 
 ## [0.12.0] - 2026-09-28
 

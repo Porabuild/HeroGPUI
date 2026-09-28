@@ -14,6 +14,8 @@ mod theme;
 mod theme_document;
 #[cfg(feature = "serde")]
 mod theme_registry;
+#[cfg(feature = "watch")]
+mod theme_watch;
 
 pub use components::*;
 pub use layout::*;
@@ -28,3 +30,5 @@ pub use theme_document::{
 pub use theme_registry::{
     load_themes_dir, presets, register_theme_json, ThemeLoadError, THEME_SCHEMA,
 };
+#[cfg(feature = "watch")]
+pub use theme_watch::{watch_themes_dir, ThemeReload, ThemeWatcher, THEME_WATCH_INTERVAL};

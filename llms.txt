@@ -809,6 +809,17 @@ out of `reference_metadata`.
   `rose`; switch with `use_theme(id, cx)`. `THEME_SCHEMA` is the JSON Schema
   (`crates/herogpui-theme/theme.schema.json`). `ThemeProvider::insert` and
   `ThemeProvider::theme_ids` are the registry primitives.
+- **Theme hot reload** (`watch` feature, implies `serde`; native only) —
+  `watch_themes_dir(dir, |reload: &ThemeReload, cx| .., cx) -> Result<ThemeWatcher, ThemeLoadError>`
+  polls `dir` every `THEME_WATCH_INTERVAL` (500ms) on GPUI's executors and
+  re-registers each `*.json` whose contents changed, plus new files; an edit
+  to the active theme's file swaps its tokens in place and repaints. Files
+  present at the call count as loaded (call `load_themes_dir` first). A file
+  that fails to parse keeps its last good theme and appears once in
+  `ThemeReload::errors`; `ThemeReload::reloaded` lists the re-registered ids.
+  Dropping the `#[must_use]` `ThemeWatcher` stops the watch. Polling, not an
+  OS notification crate, so the feature adds no dependency. The native
+  gallery watches `HEROGPUI_THEME_DIR=<dir>` (activating its first theme).
 - **Test kit** (`test-support` feature) — `herogpui::test::open_window(cx,
   |_, _| View)` returns `(Entity<View>, &mut VisualTestContext)`;
   `TestWindowExt` adds `find(selector)`, `expect(selector)`,
@@ -890,7 +901,8 @@ out of `reference_metadata`.
 `cargo run -p herogpui-gallery` — 1280×820 window, centred. `HEROGPUI_PAGE`
 selects the page by nav title, `HEROGPUI_THEME=dark` selects the appearance,
 `HEROGPUI_WINDOW_SIZE=1200x2000` sets the window size,
-`HEROGPUI_UNFOCUSED=1` opens without taking focus, and
+`HEROGPUI_UNFOCUSED=1` opens without taking focus,
+`HEROGPUI_THEME_DIR=<dir>` loads and live-reloads the theme files there, and
 `HEROGPUI_REDUCE_MOTION=1` turns on the reduced-motion preference at startup
 (the gallery calls `theme::set_reduce_motion`; see `gallery/src/main.rs`). The navbar's theme picker switches live between
 the light and dark bases and every `presets::PRESETS` theme. Screenshots are the visual regression source.

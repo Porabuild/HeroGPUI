@@ -64,6 +64,40 @@ fn reduce_motion_requested(value: Option<&str>) -> bool {
     value.is_some_and(|v| v != "0" && !v.eq_ignore_ascii_case("false"))
 }
 
+/// Keeps the `HEROGPUI_THEME_DIR` watcher alive for the life of the app.
+struct ThemeDirWatch(#[allow(dead_code)] herogpui_theme::ThemeWatcher);
+
+impl gpui::Global for ThemeDirWatch {}
+
+/// `HEROGPUI_THEME_DIR=<dir>`: registers every theme file there, activates
+/// the first, and reloads edits live (`herogpui-theme`'s `watch` feature), so
+/// a theme can be tuned against every gallery page without a rebuild.
+fn watch_theme_dir(cx: &mut App) {
+    let Ok(dir) = std::env::var("HEROGPUI_THEME_DIR") else {
+        return;
+    };
+    match herogpui_theme::load_themes_dir(&dir, cx) {
+        Ok(ids) => {
+            if let Some(first) = ids.first() {
+                let _ = herogpui_theme::use_theme(first.clone(), cx);
+            }
+        }
+        Err(err) => eprintln!("HEROGPUI_THEME_DIR: {err}"),
+    }
+    match herogpui_theme::watch_themes_dir(
+        &dir,
+        |reload, _| {
+            for err in &reload.errors {
+                eprintln!("HEROGPUI_THEME_DIR: {err}");
+            }
+        },
+        cx,
+    ) {
+        Ok(watcher) => cx.set_global(ThemeDirWatch(watcher)),
+        Err(err) => eprintln!("HEROGPUI_THEME_DIR: {err}"),
+    }
+}
+
 fn main() {
     let page = initial_page();
     let theme = initial_theme();
@@ -77,6 +111,7 @@ fn main() {
             if reduce_motion {
                 herogpui_theme::set_reduce_motion(true, cx);
             }
+            watch_theme_dir(cx);
             control::init_section_filter(cx);
             control::init_specimen_filter(cx);
             control::set_preview_only(

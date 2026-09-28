@@ -37,6 +37,10 @@ profiler = ["gpui/profiler"]
 # Off by default so a consumer that never serializes a theme does not grow
 # a JSON stack.
 serde = ["theme", "herogpui-theme/serde"]
+# Theme hot reload (`watch_themes_dir`), on top of `serde`: polls a theme
+# directory and re-registers changed files. For a native development
+# workflow; off by default and meant to stay off on wasm32.
+watch = ["serde", "herogpui-theme/watch"]
 
 [dependencies]
 gpui.workspace = true

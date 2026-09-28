@@ -90,25 +90,39 @@ pub fn load_themes_dir(
         let path = path.to_path_buf();
         move |source| ThemeLoadError::Io { path, source }
     };
-    let mut files: Vec<PathBuf> = std::fs::read_dir(dir)
-        .map_err(io(dir))?
+    let files = theme_files(dir).map_err(io(dir))?;
+    let mut ids = Vec::with_capacity(files.len());
+    for path in files {
+        let json = std::fs::read_to_string(&path).map_err(io(&path))?;
+        ids.push(register_theme_file(&path, &json, cx)?);
+    }
+    Ok(ids)
+}
+
+/// The theme files of `dir` (`*.json`, not recursive), sorted by name.
+pub(crate) fn theme_files(dir: &Path) -> std::io::Result<Vec<PathBuf>> {
+    let mut files: Vec<PathBuf> = std::fs::read_dir(dir)?
         .filter_map(|entry| entry.ok().map(|e| e.path()))
         .filter(|path| path.is_file() && path.extension().is_some_and(|e| e == "json"))
         .collect();
     files.sort();
-    let mut ids = Vec::with_capacity(files.len());
-    for path in files {
-        let json = std::fs::read_to_string(&path).map_err(io(&path))?;
-        let id = register_theme_json(&json, cx).map_err(|err| match err {
-            ThemeLoadError::Document { source, .. } => ThemeLoadError::Document {
-                path: Some(path.clone()),
-                source,
-            },
-            other => other,
-        })?;
-        ids.push(id);
-    }
-    Ok(ids)
+    Ok(files)
+}
+
+/// [`register_theme_json`] for the contents of `path`, naming the file in
+/// the error.
+pub(crate) fn register_theme_file(
+    path: &Path,
+    json: &str,
+    cx: &mut App,
+) -> Result<SharedString, ThemeLoadError> {
+    register_theme_json(json, cx).map_err(|err| match err {
+        ThemeLoadError::Document { source, .. } => ThemeLoadError::Document {
+            path: Some(path.to_path_buf()),
+            source,
+        },
+        other => other,
+    })
 }
 
 /// Built-in preset themes, shipped as [`ThemeDocument`] JSON under

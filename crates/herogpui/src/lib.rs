@@ -21,13 +21,14 @@
 //! | [`components`], `herogpui::*` | `herogpui-components` | `components` (**on**)    |
 //! | [`anim`], [`extend`]        | `herogpui-components` | `components` (**on**)      |
 //!
-//! Two features carry no layer of their own and only forward to GPUI:
+//! The remaining features carry no layer of their own and only forward:
 //!
 //! | Feature        | Forwards to                                          |
 //! | -------------- | ---------------------------------------------------- |
 //! | `test-support` | `gpui/test-support`, `gpui_platform/test-support`; adds `herogpui::test` |
 //! | `profiler`     | `gpui/profiler`                                      |
 //! | `serde`        | `herogpui-theme/serde` (`ThemeDocument`, theme files) |
+//! | `watch`        | `herogpui-theme/watch` (`watch_themes_dir`, theme hot reload; implies `serde`) |
 //!
 //! There is no separate assets or icons feature: the SVG icons HeroGPUI's own
 //! component chrome draws (the [`components::icons`] paths) and the public
@@ -208,6 +209,8 @@ pub use ::herogpui_theme::{
     load_themes_dir, presets, register_theme_json, ThemeDocument, ThemeDocumentError,
     ThemeLoadError, THEME_SCHEMA,
 };
+#[cfg(feature = "watch")]
+pub use ::herogpui_theme::{watch_themes_dir, ThemeReload, ThemeWatcher, THEME_WATCH_INTERVAL};
 
 /// GPUI's web platform entry points, on `wasm32` only.
 ///
