@@ -1,6 +1,8 @@
 //! HeroGPUI components — a faithful Rust/GPUI port of the HeroUI v3 component
 //! library. One module per `@heroui/*` package.
 #![allow(clippy::type_complexity)]
+// Every public item is documented; `clippy -D warnings` keeps it that way.
+#![warn(missing_docs)]
 
 pub mod a11y;
 pub mod accordion;

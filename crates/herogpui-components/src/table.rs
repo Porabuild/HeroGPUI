@@ -44,8 +44,10 @@ pub enum TableVariant {
 }
 
 impl TableVariant {
+    /// Every table variant, in display order.
     pub const ALL: [TableVariant; 2] = [TableVariant::Primary, TableVariant::Secondary];
 
+    /// The variant's display name.
     pub fn label(self) -> &'static str {
         match self {
             TableVariant::Primary => "Primary",
@@ -57,7 +59,9 @@ impl TableVariant {
 /// `sortDirection` on `Table.SortableColumnHeader`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SortDirection {
+    /// Sort from lowest to highest.
     Ascending,
+    /// Sort from highest to lowest.
     Descending,
 }
 
@@ -76,11 +80,14 @@ type Indicator = std::sync::Arc<dyn Fn(SortDirection) -> AnyElement + 'static>;
 /// `sortDescriptor` — which column is sorted, and which way.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SortDescriptor {
+    /// Key of the sorted column.
     pub column: SharedString,
+    /// Direction of the sort.
     pub direction: SortDirection,
 }
 
 impl SortDescriptor {
+    /// Creates a descriptor for `column` sorted in `direction`.
     pub fn new(column: impl Into<SharedString>, direction: SortDirection) -> Self {
         Self {
             column: column.into(),
@@ -128,6 +135,7 @@ pub struct TableColumn {
 }
 
 impl TableColumn {
+    /// Creates a column with the given header label.
     pub fn new(label: impl Into<SharedString>) -> Self {
         Self {
             label: label.into(),
@@ -218,12 +226,16 @@ pub struct TableRow {
 /// indices without eagerly constructing any cells.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct VirtualTreeMetadata {
+    /// Nesting depth of the item; zero for a root.
     pub depth: usize,
+    /// Key of the item's parent, or `None` for a root.
     pub parent_key: Option<SharedString>,
+    /// Whether the item has children.
     pub has_children: bool,
 }
 
 impl TableRow {
+    /// Creates a row from its cells, with no key, text value or children.
     pub fn new(cells: Vec<AnyElement>) -> Self {
         Self {
             key: None,
@@ -674,6 +686,7 @@ pub struct Table {
 }
 
 impl Table {
+    /// Creates a table with the given column labels.
     pub fn new(columns: Vec<SharedString>) -> Self {
         Self {
             id: SharedString::from("table"),
@@ -751,6 +764,7 @@ impl Table {
         self
     }
 
+    /// Sets the table's visual variant.
     pub fn variant(mut self, variant: TableVariant) -> Self {
         self.variant = variant;
         self
@@ -899,6 +913,7 @@ impl Table {
         self
     }
 
+    /// Appends a row built from the given cells.
     pub fn row(mut self, cells: Vec<AnyElement>) -> Self {
         self.rows.push(TableRow::new(cells));
         self
@@ -1079,6 +1094,7 @@ impl Table {
         self
     }
 
+    /// Called with the row index and click event when a row is clicked.
     pub fn on_row_click(
         mut self,
         f: impl Fn(&usize, &ClickEvent, &mut Window, &mut App) + 'static,

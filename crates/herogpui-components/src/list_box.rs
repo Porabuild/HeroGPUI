@@ -25,6 +25,7 @@ use crate::{
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum ListBoxItemVariant {
     #[default]
+    /// The standard appearance.
     Default,
     /// Destructive action — danger text, danger-soft hover.
     Danger,
@@ -35,14 +36,19 @@ pub enum ListBoxItemVariant {
 pub enum ListBoxItem {
     /// A selectable option.
     Option {
+        /// Unique key identifying the option.
         key: SharedString,
+        /// Text shown for the option.
         label: SharedString,
+        /// Optional secondary line beneath the label.
         description: Option<SharedString>,
         /// Asset path of a leading icon.
         icon: Option<SharedString>,
         /// Trailing shortcut hint.
         shortcut: Option<SharedString>,
+        /// Visual variant of the option.
         variant: ListBoxItemVariant,
+        /// Whether the option is disabled.
         is_disabled: bool,
     },
     /// A non-interactive section header.
@@ -52,6 +58,7 @@ pub enum ListBoxItem {
 }
 
 impl ListBoxItem {
+    /// Creates an option with the given key and label.
     pub fn new(key: impl Into<SharedString>, label: impl Into<SharedString>) -> Self {
         Self::Option {
             key: key.into(),
@@ -64,10 +71,12 @@ impl ListBoxItem {
         }
     }
 
+    /// Creates a non-interactive section header.
     pub fn section(label: impl Into<SharedString>) -> Self {
         Self::Section(label.into())
     }
 
+    /// Creates a horizontal separator between groups.
     pub fn separator() -> Self {
         Self::Separator
     }
@@ -80,6 +89,7 @@ impl ListBoxItem {
         self
     }
 
+    /// Sets the leading icon asset path. Ignored for headers and separators.
     pub fn icon(mut self, path: impl Into<SharedString>) -> Self {
         if let Self::Option { icon, .. } = &mut self {
             *icon = Some(path.into());
@@ -87,6 +97,7 @@ impl ListBoxItem {
         self
     }
 
+    /// Sets the trailing shortcut hint. Ignored for headers and separators.
     pub fn shortcut(mut self, text: impl Into<SharedString>) -> Self {
         if let Self::Option { shortcut, .. } = &mut self {
             *shortcut = Some(text.into());
@@ -94,6 +105,7 @@ impl ListBoxItem {
         self
     }
 
+    /// Sets the option's visual variant. Ignored for headers and separators.
     pub fn variant(mut self, v: ListBoxItemVariant) -> Self {
         if let Self::Option { variant, .. } = &mut self {
             *variant = v;
@@ -106,6 +118,7 @@ impl ListBoxItem {
         self.variant(ListBoxItemVariant::Danger)
     }
 
+    /// Disables the option (v3 `isDisabled`). Ignored for headers and separators.
     pub fn is_disabled(mut self, v: bool) -> Self {
         if let Self::Option { is_disabled, .. } = &mut self {
             *is_disabled = v;
@@ -248,6 +261,7 @@ pub struct ListBox {
 }
 
 impl ListBox {
+    /// Creates a non-selecting list with the given id and items.
     pub fn new(id: impl Into<ElementId>, items: Vec<ListBoxItem>) -> Self {
         Self {
             id: id.into(),
@@ -283,11 +297,13 @@ impl ListBox {
         }
     }
 
+    /// Sets the selection mode (v3 `selectionMode`).
     pub fn selection_mode(mut self, mode: SelectionMode) -> Self {
         self.selection_mode = mode;
         self
     }
 
+    /// Sets the controlled selection (v3 `selectedKeys`) from item keys.
     pub fn selected_keys(mut self, keys: impl IntoIterator<Item = SharedString>) -> Self {
         self.selected_keys = keys.into_iter().collect();
         self.is_controlled = true;
@@ -320,23 +336,25 @@ impl ListBox {
         self
     }
 
+    /// Disables the given item keys (v3 `disabledKeys`).
     pub fn disabled_keys(mut self, keys: impl IntoIterator<Item = SharedString>) -> Self {
         self.disabled_keys = keys.into_iter().collect();
         self
     }
 
+    /// Sets the visual variant applied to the list's options.
     pub fn variant(mut self, variant: ListBoxItemVariant) -> Self {
         self.variant = variant;
         self
     }
 
-    /// Caps the list height and scrolls beyond it.
     /// `shouldFocusWrap` — whether the arrow keys wrap at the ends of the list.
     pub fn should_focus_wrap(mut self, v: bool) -> Self {
         self.should_focus_wrap = v;
         self
     }
 
+    /// Caps the list height and scrolls beyond it.
     pub fn max_h(mut self, h: impl Into<gpui::Pixels>) -> Self {
         self.max_h = Some(h.into());
         self
@@ -423,6 +441,7 @@ impl ListBox {
         self
     }
 
+    /// Renders a custom indicator for each option; the closure receives whether the option is selected.
     pub fn indicator(mut self, render: impl Fn(bool) -> gpui::AnyElement + 'static) -> Self {
         self.indicator = Some(Arc::new(render));
         self

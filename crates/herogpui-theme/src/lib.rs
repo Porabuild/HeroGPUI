@@ -5,6 +5,8 @@
 //! (radius, border width, shadows), and a global [`ThemeProvider`] with an
 //! [`ActiveTheme`] accessor trait.
 
+#![warn(missing_docs)]
+
 mod components;
 mod layout;
 mod provider;

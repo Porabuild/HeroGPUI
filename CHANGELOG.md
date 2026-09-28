@@ -33,6 +33,10 @@ for each breaking change with before/after code.
 
 ### Added
 
+- Every public item in `herogpui`, `herogpui-core`, `herogpui-theme` and
+  `herogpui-components` is documented, and those crates now
+  `#![warn(missing_docs)]`, so CI's `clippy -D warnings` keeps it that way.
+
 - `Color::from_token` and `impl FromStr for Color` (`UnknownColorError`):
   parse a role name from configuration, failing on an unknown name.
 - i18n: four more built-in locales, ja-JP, zh-CN, ko-KR and ru-RU, and 21

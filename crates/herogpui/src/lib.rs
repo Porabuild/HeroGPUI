@@ -114,6 +114,8 @@
 //! assert_eq!(Size::default(), Size::Md);
 //! ```
 
+#![warn(missing_docs)]
+
 // Everything in GPUI itself, so `use herogpui::*;` is enough to get started.
 // With the `test-support` feature the glob also carries GPUI's `test`
 // attribute macro, so a test module has to import explicitly (or add

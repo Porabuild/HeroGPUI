@@ -319,6 +319,7 @@ impl ComboBox {
         self
     }
 
+    /// `defaultSelectedKeys` — the uncontrolled initial selection, as item keys.
     pub fn default_value(
         mut self,
         keys: impl IntoIterator<Item = impl Into<SharedString>>,
@@ -392,6 +393,7 @@ impl ComboBox {
         self
     }
 
+    /// Focuses the input when the combo box mounts.
     pub fn auto_focus(mut self, v: bool) -> Self {
         self.auto_focus = v;
         self
@@ -483,6 +485,7 @@ impl ComboBox {
         )
     }
 
+    /// Makes the field read-only (v3 `isReadOnly`).
     pub fn is_read_only(mut self, v: bool) -> Self {
         self.is_read_only = v;
         self
@@ -522,6 +525,7 @@ impl ComboBox {
         self.on_selection_change(handler)
     }
 
+    /// Creates a combo box over the given input state and items.
     pub fn new(state: Entity<InputState>, items: Vec<PickerItem>) -> Self {
         let form_state = combo_box_form_state(state.entity_id().as_u64());
         Self {
@@ -584,6 +588,7 @@ impl ComboBox {
         self
     }
 
+    /// Sets the controlled open state (v3 `isOpen`).
     pub fn is_open(mut self, v: bool) -> Self {
         self.is_open = Some(v);
         self
@@ -597,31 +602,37 @@ impl ComboBox {
         self
     }
 
+    /// Sets the field label.
     pub fn label(mut self, text: impl Into<SharedString>) -> Self {
         self.label = Some(text.into());
         self
     }
 
+    /// Sets the input placeholder text.
     pub fn placeholder(mut self, text: impl Into<SharedString>) -> Self {
         self.placeholder = Some(text.into());
         self
     }
 
+    /// Sets the description shown beneath the field.
     pub fn description(mut self, text: impl Into<SharedString>) -> Self {
         self.description = Some(text.into());
         self
     }
 
+    /// Sets the error message shown when the field is invalid.
     pub fn error_message(mut self, text: impl Into<SharedString>) -> Self {
         self.error_message = Some(text.into());
         self
     }
 
+    /// Sets the field's visual variant.
     pub fn variant(mut self, variant: FieldVariant) -> Self {
         self.variant = variant;
         self
     }
 
+    /// Sets when the list opens (v3 `menuTrigger`); the default is on focus.
     pub fn menu_trigger(mut self, trigger: MenuTrigger) -> Self {
         self.menu_trigger = trigger;
         self
@@ -645,11 +656,13 @@ impl ComboBox {
         self
     }
 
+    /// Caps the number of items shown in the list (minimum 1; default 8).
     pub fn max_items(mut self, n: usize) -> Self {
         self.max_items = n.max(1);
         self
     }
 
+    /// Makes the combo box fill its container's width.
     pub fn full_width(mut self, v: bool) -> Self {
         self.full_width = v;
         self
@@ -731,16 +744,19 @@ impl ComboBox {
         self
     }
 
+    /// Disables the combo box (v3 `isDisabled`).
     pub fn is_disabled(mut self, v: bool) -> Self {
         self.is_disabled = v;
         self
     }
 
+    /// Marks the field invalid (v3 `isInvalid`).
     pub fn is_invalid(mut self, v: bool) -> Self {
         self.is_invalid = v;
         self
     }
 
+    /// Marks the field required (v3 `isRequired`).
     pub fn is_required(mut self, v: bool) -> Self {
         self.is_required = v;
         self
@@ -759,6 +775,7 @@ impl ComboBox {
         self
     }
 
+    /// Called with the new open state when the list opens or closes (v3 `onOpenChange`).
     pub fn on_open_change(
         mut self,
         handler: impl Fn(&bool, &mut Window, &mut App) + 'static,
