@@ -220,3 +220,187 @@ pub fn type_date(cx: &mut VisualTestContext, date: Date) {
         }
     }
 }
+
+// ---------------------------------------------------------------------------
+// Painted-scene and inherited-style readback
+// ---------------------------------------------------------------------------
+//
+// What the headless platform *can* read back, and what these helpers wrap:
+//
+// - `Window::painted_quads` (gpui `test-support`): every quad of the last
+//   frame, with its solid fill, border colour and widths, corner radii and the
+//   content mask it is clipped to. Quads are in scaled pixels; `Painted`
+//   converts to logical ones. Deferred overlays (popovers, menus, dialogs)
+//   paint into the same frame, so an open surface is in the same list.
+// - The inherited `TextStyle` at any point of a component's tree, through a
+//   canvas probe placed in a caller-owned slot: font family, weight, size,
+//   line height and colour are what the text under that slot will draw with.
+//
+// What it cannot: shadows, paths and sprites (SVG icons, the focus ring's
+// rasterised band, glyphs) are not exposed by the pinned GPUI, and the
+// `NoopTextSystem` resolves every font to one id, so the *family* only shows
+// through the inherited style, never through glyph metrics.
+
+/// Redraws the window and parks the executor a few times, so keyed state
+/// written during one frame is painted by the next.
+pub fn settle(cx: &mut VisualTestContext) {
+    for _ in 0..3 {
+        cx.update(|window, _| window.refresh());
+        cx.run_until_parked();
+    }
+}
+
+/// Sleeps `ms` of real time, then settles: gpui's `Animation` runs on the
+/// real clock, which `advance_clock` does not move.
+pub fn wait_real(cx: &mut VisualTestContext, ms: u64) {
+    std::thread::sleep(std::time::Duration::from_millis(ms));
+    settle(cx);
+}
+
+/// The quads of the last painted frame, with the frame's scale factor.
+pub struct Painted {
+    pub quads: Vec<gpui::Quad>,
+    pub scale: f32,
+}
+
+/// Settles and reads the painted quads.
+pub fn painted(cx: &mut VisualTestContext) -> Painted {
+    settle(cx);
+    cx.update(|window, _| Painted {
+        quads: window.painted_quads(),
+        scale: window.scale_factor(),
+    })
+}
+
+impl Painted {
+    /// A quad's bounds in logical pixels.
+    pub fn bounds(&self, quad: &gpui::Quad) -> gpui::Bounds<gpui::Pixels> {
+        let b = quad.bounds;
+        gpui::Bounds {
+            origin: point(px(b.origin.x.0 / self.scale), px(b.origin.y.0 / self.scale)),
+            size: gpui::size(
+                px(b.size.width.0 / self.scale),
+                px(b.size.height.0 / self.scale),
+            ),
+        }
+    }
+
+    /// The content mask a quad is clipped to, in logical pixels.
+    pub fn mask(&self, quad: &gpui::Quad) -> gpui::Bounds<gpui::Pixels> {
+        let b = quad.content_mask.bounds;
+        gpui::Bounds {
+            origin: point(px(b.origin.x.0 / self.scale), px(b.origin.y.0 / self.scale)),
+            size: gpui::size(
+                px(b.size.width.0 / self.scale),
+                px(b.size.height.0 / self.scale),
+            ),
+        }
+    }
+
+    /// Whether the quad's own box reaches outside the mask it is clipped to.
+    pub fn is_clipped(&self, quad: &gpui::Quad) -> bool {
+        let b = self.bounds(quad);
+        let m = self.mask(quad);
+        let (bx, by) = (f32::from(b.origin.x), f32::from(b.origin.y));
+        let (mx, my) = (f32::from(m.origin.x), f32::from(m.origin.y));
+        bx < mx - 0.5
+            || by < my - 0.5
+            || bx + f32::from(b.size.width) > mx + f32::from(m.size.width) + 0.5
+            || by + f32::from(b.size.height) > my + f32::from(m.size.height) + 0.5
+    }
+
+    /// Top-left, top-right, bottom-right, bottom-left radii, logical pixels.
+    pub fn corners(&self, quad: &gpui::Quad) -> [f32; 4] {
+        let c = quad.corner_radii;
+        [c.top_left, c.top_right, c.bottom_right, c.bottom_left].map(|r| r.0 / self.scale)
+    }
+
+    /// Top, right, bottom, left border widths, logical pixels.
+    pub fn borders(&self, quad: &gpui::Quad) -> [f32; 4] {
+        let e = quad.border_widths;
+        [e.top, e.right, e.bottom, e.left].map(|w| w.0 / self.scale)
+    }
+
+    /// All four corners at `value`, after the clamp to half the shorter side
+    /// the painter applies to an oversized radius (a pill).
+    pub fn is_uniform(&self, quad: &gpui::Quad, value: f32) -> bool {
+        let b = self.bounds(quad);
+        let value = value.min(f32::from(b.size.width).min(f32::from(b.size.height)) / 2.);
+        self.corners(quad)
+            .iter()
+            .all(|corner| (corner - value).abs() < 0.05)
+    }
+
+    /// The quads whose four corners are `value`.
+    pub fn rounded(&self, value: f32) -> Vec<&gpui::Quad> {
+        self.quads
+            .iter()
+            .filter(|q| self.is_uniform(q, value))
+            .collect()
+    }
+
+    /// The quads filled with exactly `color`.
+    pub fn filled(&self, color: gpui::Hsla) -> Vec<&gpui::Quad> {
+        self.quads
+            .iter()
+            .filter(|q| q.background.as_solid() == Some(color))
+            .collect()
+    }
+
+    /// Every solid fill, in paint order.
+    pub fn solids(&self) -> Vec<gpui::Hsla> {
+        self.quads
+            .iter()
+            .filter_map(|q| q.background.as_solid())
+            .collect()
+    }
+
+    /// The quads whose logical bounds contain `bounds` (within half a pixel).
+    pub fn around(&self, bounds: gpui::Bounds<gpui::Pixels>) -> Vec<&gpui::Quad> {
+        self.quads
+            .iter()
+            .filter(|q| contains(self.bounds(q), bounds))
+            .collect()
+    }
+}
+
+/// Whether `outer` contains `inner`, within half a logical pixel.
+pub fn contains(outer: gpui::Bounds<gpui::Pixels>, inner: gpui::Bounds<gpui::Pixels>) -> bool {
+    let (ox, oy) = (f32::from(outer.origin.x), f32::from(outer.origin.y));
+    let (ix, iy) = (f32::from(inner.origin.x), f32::from(inner.origin.y));
+    ix >= ox - 0.5
+        && iy >= oy - 0.5
+        && ix + f32::from(inner.size.width) <= ox + f32::from(outer.size.width) + 0.5
+        && iy + f32::from(inner.size.height) <= oy + f32::from(outer.size.height) + 0.5
+}
+
+/// What a [`style_probe`] saw: the text style inherited at its position.
+pub type StyleSink = Rc<RefCell<Option<gpui::TextStyle>>>;
+
+/// An empty [`StyleSink`].
+pub fn style_sink() -> StyleSink {
+    Rc::new(RefCell::new(None))
+}
+
+/// A 1px canvas that records the text style its ancestors composed at its
+/// position. Put it in a caller-owned slot (children, content, a render
+/// closure) and it reads what text in that slot would be drawn with.
+pub fn style_probe(sink: &StyleSink) -> AnyElement {
+    let sink = sink.clone();
+    canvas(
+        move |_, window, _| {
+            *sink.borrow_mut() = Some(window.text_style());
+        },
+        |_, _, _, _| {},
+    )
+    .w(px(1.))
+    .h(px(1.))
+    .into_any_element()
+}
+
+/// The recorded style, panicking with `what` when the probe never painted.
+pub fn seen_style(sink: &StyleSink, what: &str) -> gpui::TextStyle {
+    sink.borrow()
+        .clone()
+        .unwrap_or_else(|| panic!("{what}: the style probe was never laid out"))
+}
