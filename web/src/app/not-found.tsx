@@ -1,11 +1,10 @@
 import { Link } from "@heroui/react";
 import { Navbar } from "@/components/site/navbar";
 import { SiteFooter } from "@/components/site/footer";
-import { getCatalog } from "@/lib/catalog";
-import { buildSearchItems } from "@/lib/docs-nav";
+import { siteSearchItems } from "@/lib/search-api";
 
 export default function NotFound() {
-  const searchItems = buildSearchItems(getCatalog());
+  const searchItems = siteSearchItems();
 
   return (
     <div className="flex min-h-dvh flex-col">

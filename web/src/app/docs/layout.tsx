@@ -6,7 +6,7 @@ import { SidebarMobile, SidebarRail } from "@/components/site/sidebar";
 import { SiteFooter } from "@/components/site/footer";
 import { Toc } from "@/components/site/toc";
 import { getCatalog, getComponentSidebarGroups } from "@/lib/catalog";
-import { buildSearchItems } from "@/lib/docs-nav";
+import { siteSearchItems } from "@/lib/search-api";
 
 /**
  * Three-column documentation shell: sidebar (rail on desktop, drawer on
@@ -16,7 +16,7 @@ import { buildSearchItems } from "@/lib/docs-nav";
 export default function DocsLayout({ children }: { children: ReactNode }) {
   const catalog = getCatalog();
   const groups = getComponentSidebarGroups(catalog);
-  const searchItems = buildSearchItems(catalog);
+  const searchItems = siteSearchItems();
 
   return (
     <div className="flex min-h-dvh flex-col">
