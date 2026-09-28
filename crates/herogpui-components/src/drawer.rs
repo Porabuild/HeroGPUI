@@ -18,9 +18,13 @@ use crate::modal::{DismissReason, OnClose, OnOpenChange};
 /// Which edge the drawer is anchored to (`placement`).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum DrawerPlacement {
+    /// Anchored to the left edge.
     Left,
+    /// Anchored to the right edge.
     Right,
+    /// Anchored to the top edge.
     Top,
+    /// Anchored to the bottom edge.
     #[default]
     Bottom,
 }
@@ -69,6 +73,7 @@ pub struct DrawerCloseTrigger {
 }
 
 impl DrawerCloseTrigger {
+    /// Creates a close trigger with no children.
     pub fn new() -> Self {
         Self {
             on_dismiss: None,
@@ -112,6 +117,7 @@ impl Drawer {
         self
     }
 
+    /// Creates a closed drawer.
     pub fn new() -> Self {
         Self {
             id: gpui::ElementId::Name("drawer".into()),
@@ -129,11 +135,13 @@ impl Drawer {
         }
     }
 
+    /// Sets whether the drawer is open (v3 `isOpen`).
     pub fn is_open(mut self, v: bool) -> Self {
         self.is_open = v;
         self
     }
 
+    /// Sets the edge the drawer is anchored to (v3 `placement`).
     pub fn placement(mut self, p: DrawerPlacement) -> Self {
         self.placement = p;
         self
@@ -158,16 +166,19 @@ impl Drawer {
         self
     }
 
+    /// Sets whether the backdrop and dragging can dismiss the drawer.
     pub fn is_dismissible(mut self, v: bool) -> Self {
         self.is_dismissible = v;
         self
     }
 
+    /// Sets the title text.
     pub fn title(mut self, t: impl Into<SharedString>) -> Self {
         self.title = Some(t.into());
         self
     }
 
+    /// Appends an element to the footer.
     pub fn footer_child(mut self, el: impl IntoElement) -> Self {
         let mut element = el.into_any_element();
         let interactive = element

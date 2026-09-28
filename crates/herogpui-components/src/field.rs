@@ -36,6 +36,7 @@ pub struct Label {
 }
 
 impl Label {
+    /// Creates a label with the given text.
     pub fn new(text: impl Into<SharedString>) -> Self {
         Self {
             text: text.into(),
@@ -57,16 +58,19 @@ impl Label {
         self
     }
 
+    /// Sets the required state (v3 `isRequired`).
     pub fn is_required(mut self, v: bool) -> Self {
         self.is_required = v;
         self
     }
 
+    /// Sets the disabled state (v3 `isDisabled`).
     pub fn is_disabled(mut self, v: bool) -> Self {
         self.is_disabled = v;
         self
     }
 
+    /// Sets the invalid state (v3 `isInvalid`).
     pub fn is_invalid(mut self, v: bool) -> Self {
         self.is_invalid = v;
         self
@@ -120,6 +124,7 @@ pub struct Description {
 }
 
 impl Description {
+    /// Creates a description with the given text.
     pub fn new(text: impl Into<SharedString>) -> Self {
         Self { text: text.into() }
     }
@@ -142,6 +147,7 @@ pub struct ErrorMessage {
 }
 
 impl ErrorMessage {
+    /// Creates an error message with the given text.
     pub fn new(text: impl Into<SharedString>) -> Self {
         Self { text: text.into() }
     }
@@ -173,6 +179,7 @@ pub struct FieldError {
 }
 
 impl FieldError {
+    /// Creates an empty field error.
     pub fn new() -> Self {
         Self {
             text: None,
@@ -239,6 +246,7 @@ pub struct Fieldset {
 }
 
 impl Fieldset {
+    /// Creates an empty fieldset.
     pub fn new() -> Self {
         Self {
             gap: px(24.),
@@ -254,6 +262,7 @@ impl Fieldset {
         self
     }
 
+    /// Sets the gap between children.
     pub fn gap(mut self, gap: impl Into<Pixels>) -> Self {
         self.gap = gap.into();
         self
@@ -299,6 +308,7 @@ pub struct FieldsetLegend {
 }
 
 impl FieldsetLegend {
+    /// Creates a legend with the given text.
     pub fn new(text: impl Into<SharedString>) -> Self {
         Self { text: text.into() }
     }
@@ -324,6 +334,7 @@ pub struct FieldGroup {
 }
 
 impl FieldGroup {
+    /// Creates an empty field group.
     pub fn new() -> Self {
         Self {
             gap: px(16.),
@@ -331,6 +342,7 @@ impl FieldGroup {
         }
     }
 
+    /// Sets the gap between children.
     pub fn gap(mut self, gap: impl Into<Pixels>) -> Self {
         self.gap = gap.into();
         self
@@ -370,6 +382,7 @@ pub struct FieldsetActions {
 }
 
 impl FieldsetActions {
+    /// Creates an empty actions row.
     pub fn new() -> Self {
         Self {
             gap: px(8.),
@@ -377,6 +390,7 @@ impl FieldsetActions {
         }
     }
 
+    /// Sets the gap between children.
     pub fn gap(mut self, gap: impl Into<Pixels>) -> Self {
         self.gap = gap.into();
         self

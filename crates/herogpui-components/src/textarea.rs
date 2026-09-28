@@ -80,11 +80,13 @@ impl TextArea {
         self
     }
 
+    /// Sets the field variant (v3 `variant`).
     pub fn variant(mut self, variant: herogpui_core::FieldVariant) -> Self {
         self.inner = self.inner.variant(variant);
         self
     }
 
+    /// Fills the parent's width.
     pub fn full_width(mut self) -> Self {
         self.inner = self.inner.full_width();
         self
@@ -129,21 +131,25 @@ impl TextArea {
         self
     }
 
+    /// Sets the disabled state (v3 `isDisabled`).
     pub fn is_disabled(mut self, v: bool) -> Self {
         self.inner = self.inner.is_disabled(v);
         self
     }
 
+    /// Sets the read-only state (v3 `isReadOnly`).
     pub fn is_read_only(mut self, v: bool) -> Self {
         self.inner = self.inner.is_read_only(v);
         self
     }
 
+    /// Sets the required state (v3 `isRequired`).
     pub fn is_required(mut self, v: bool) -> Self {
         self.inner = self.inner.is_required(v);
         self
     }
 
+    /// Sets the invalid state (v3 `isInvalid`).
     pub fn is_invalid(mut self, v: bool) -> Self {
         self.inner = self.inner.is_invalid(v);
         self
@@ -164,11 +170,13 @@ impl TextArea {
         self
     }
 
+    /// Sets the error message text.
     pub fn error_message(mut self, text: impl Into<SharedString>) -> Self {
         self.inner = self.inner.error_message(text);
         self
     }
 
+    /// Sets the handler called with the new text on change.
     pub fn on_change(mut self, handler: impl Fn(&str, &mut Window, &mut App) + 'static) -> Self {
         self.inner = self.inner.on_change(handler);
         self
@@ -185,16 +193,19 @@ impl TextArea {
         }
     }
 
+    /// Sets the label.
     pub fn label(mut self, l: impl Into<SharedString>) -> Self {
         self.inner = self.inner.label(l);
         self
     }
 
+    /// Sets the placeholder text.
     pub fn placeholder(mut self, p: impl Into<SharedString>) -> Self {
         self.inner = self.inner.placeholder(p);
         self
     }
 
+    /// Sets the description.
     pub fn description(mut self, d: impl Into<SharedString>) -> Self {
         self.inner = self.inner.description(d);
         self

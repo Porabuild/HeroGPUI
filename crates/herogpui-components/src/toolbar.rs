@@ -90,6 +90,7 @@ pub struct Toolbar {
 }
 
 impl Toolbar {
+    /// Creates a horizontal toolbar.
     pub fn new() -> Self {
         Self {
             id: None,
@@ -110,6 +111,7 @@ impl Toolbar {
         self
     }
 
+    /// Sets the toolbar orientation.
     pub fn orientation(mut self, orientation: Orientation) -> Self {
         self.orientation = orientation;
         self
@@ -122,6 +124,7 @@ impl Toolbar {
         self
     }
 
+    /// Sets the gap between children.
     pub fn gap(mut self, gap: impl Into<Pixels>) -> Self {
         self.gap = Some(gap.into());
         self

@@ -79,8 +79,10 @@ pub enum AvatarVariant {
 }
 
 impl AvatarVariant {
+    /// Every avatar variant, in declaration order.
     pub const ALL: [AvatarVariant; 2] = [AvatarVariant::Default, AvatarVariant::Soft];
 
+    /// A human-readable label for this variant.
     pub fn label(self) -> &'static str {
         match self {
             AvatarVariant::Default => "Default",
@@ -185,11 +187,13 @@ impl Avatar {
         self
     }
 
+    /// Sets the name the avatar represents.
     pub fn name(mut self, name: impl Into<SharedString>) -> Self {
         self.name = name.into();
         self
     }
 
+    /// Sets the avatar variant.
     pub fn variant(mut self, variant: AvatarVariant) -> Self {
         self.variant = variant;
         self.explicit.variant = true;
@@ -253,6 +257,7 @@ impl Avatar {
         self
     }
 
+    /// Sets the avatar size.
     pub fn size(mut self, size: herogpui_core::Size) -> Self {
         self.size_px = match size {
             herogpui_core::Size::Sm => px(32.),
@@ -267,6 +272,7 @@ impl Avatar {
         self
     }
 
+    /// Sets the color role.
     pub fn color(mut self, c: Color) -> Self {
         self.color = c;
         self.explicit.color = true;

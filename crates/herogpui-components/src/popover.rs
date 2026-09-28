@@ -136,6 +136,7 @@ impl Default for PopoverArrow {
 }
 
 impl PopoverArrow {
+    /// Creates an empty arrow.
     pub fn new() -> Self {
         Self {
             resolved: std::rc::Rc::new(std::cell::Cell::new(None)),
@@ -849,6 +850,7 @@ pub struct Popover {
 }
 
 impl Popover {
+    /// Creates a popover around the given trigger.
     pub fn new(trigger: impl IntoElement) -> Self {
         Self {
             id: gpui::ElementId::Name("popover".into()),
@@ -877,6 +879,7 @@ impl Popover {
         self
     }
 
+    /// Sets whether the popover is open, making it controlled.
     pub fn is_open(mut self, v: bool) -> Self {
         self.is_open = Some(v);
         self
@@ -919,6 +922,7 @@ impl Popover {
         self
     }
 
+    /// Sets where the popover sits relative to its trigger.
     pub fn placement(mut self, p: PopoverPlacement) -> Self {
         self.placement = p;
         self
@@ -930,6 +934,7 @@ impl Popover {
         self
     }
 
+    /// Sets whether the popover shows a close button.
     pub fn show_close_button(mut self, v: bool) -> Self {
         self.show_close_button = v;
         self

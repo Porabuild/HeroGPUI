@@ -64,9 +64,12 @@ pub enum PageBehavior {
 /// first render.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum SelectionAlignment {
+    /// The selection sits at the start of the visible range.
     Start,
     #[default]
+    /// The selection sits at the centre of the visible range.
     Center,
+    /// The selection sits at the end of the visible range.
     End,
 }
 

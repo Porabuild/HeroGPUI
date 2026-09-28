@@ -51,8 +51,10 @@ pub enum AvatarGroupOverlap {
 }
 
 impl AvatarGroupOverlap {
+    /// Every overlap style, in declaration order.
     pub const ALL: [AvatarGroupOverlap; 2] = [AvatarGroupOverlap::Clip, AvatarGroupOverlap::Ring];
 
+    /// A human-readable label for this overlap style.
     pub fn label(self) -> &'static str {
         match self {
             AvatarGroupOverlap::Clip => "Clip",
@@ -81,6 +83,7 @@ pub struct AvatarGroupCount {
 }
 
 impl AvatarGroupCount {
+    /// Creates a count item with the given id.
     pub fn new(id: impl Into<ElementId>) -> Self {
         Self {
             id: id.into(),

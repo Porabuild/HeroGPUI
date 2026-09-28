@@ -85,6 +85,7 @@ pub struct Link {
 }
 
 impl Link {
+    /// Creates a link with the given id.
     pub fn new(id: impl Into<ElementId>) -> Self {
         Self {
             id: id.into(),
@@ -117,16 +118,19 @@ impl Link {
         self
     }
 
+    /// Sets the text label.
     pub fn label(mut self, label: impl Into<SharedString>) -> Self {
         self.label = Some(label.into());
         self
     }
 
+    /// Sets the link target.
     pub fn href(mut self, href: impl Into<String>) -> Self {
         self.href = Some(href.into());
         self
     }
 
+    /// Sets whether the link is disabled.
     pub fn is_disabled(mut self, v: bool) -> Self {
         self.is_disabled = v;
         self

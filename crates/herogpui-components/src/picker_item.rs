@@ -18,6 +18,7 @@ pub struct PickerItem {
 }
 
 impl PickerItem {
+    /// Creates an item with the given key and label.
     pub fn new(key: impl Into<SharedString>, label: impl Into<SharedString>) -> Self {
         Self {
             key: key.into(),

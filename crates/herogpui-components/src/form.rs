@@ -74,8 +74,11 @@ use crate::{input::InputState, number_field::NumberState, validation::Validation
 /// One field's value in a submission.
 #[derive(Clone, Debug, PartialEq)]
 pub enum FormValue {
+    /// A text value.
     Text(SharedString),
+    /// A numeric value.
     Number(f64),
+    /// A boolean flag.
     Flag(bool),
     /// A multi-selection: `CheckboxGroup`, a multiple `Select`, `TagGroup`.
     Keys(Vec<SharedString>),
@@ -118,6 +121,7 @@ pub struct FormData {
 }
 
 impl FormData {
+    /// The value of the field with the given name, if present.
     pub fn get(&self, name: &str) -> Option<&FormValue> {
         self.entries.iter().find(|(n, _)| n == name).map(|(_, v)| v)
     }
@@ -141,14 +145,17 @@ impl FormData {
             .collect()
     }
 
+    /// Iterates over the field names and values.
     pub fn iter(&self) -> impl Iterator<Item = (&SharedString, &FormValue)> {
         self.entries.iter().map(|(n, v)| (n, v))
     }
 
+    /// The number of entries.
     pub fn len(&self) -> usize {
         self.entries.len()
     }
 
+    /// Whether there are no entries.
     pub fn is_empty(&self) -> bool {
         self.entries.is_empty()
     }
@@ -890,6 +897,7 @@ pub struct Form {
 }
 
 impl Form {
+    /// Creates an empty form.
     pub fn new() -> Self {
         Self {
             validation_errors: ValidationErrors::new(),

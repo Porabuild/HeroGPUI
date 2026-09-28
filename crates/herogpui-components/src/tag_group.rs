@@ -30,8 +30,10 @@ pub enum TagVariant {
 }
 
 impl TagVariant {
+    /// Every variant, in display order.
     pub const ALL: [TagVariant; 2] = [TagVariant::Default, TagVariant::Surface];
 
+    /// The display name of this variant.
     pub fn label(self) -> &'static str {
         match self {
             TagVariant::Default => "Default",
@@ -51,6 +53,7 @@ pub struct Tag {
 }
 
 impl Tag {
+    /// Creates a tag from a key and a label.
     pub fn new(key: impl Into<SharedString>, label: impl Into<SharedString>) -> Self {
         Self {
             key: key.into(),
@@ -61,6 +64,7 @@ impl Tag {
         }
     }
 
+    /// Sets the icon asset path shown in the tag.
     pub fn icon(mut self, path: impl Into<SharedString>) -> Self {
         self.icon = Some(path.into());
         self
@@ -72,11 +76,13 @@ impl Tag {
         self
     }
 
+    /// Sets whether the tag is disabled (v3 `isDisabled`).
     pub fn is_disabled(mut self, v: bool) -> Self {
         self.is_disabled = v;
         self
     }
 
+    /// Returns the tag's key.
     pub fn key(&self) -> &SharedString {
         &self.key
     }
@@ -219,6 +225,7 @@ pub struct TagGroup {
 }
 
 impl TagGroup {
+    /// Creates a tag group from an element id and its tags.
     pub fn new(id: impl Into<ElementId>, tags: Vec<Tag>) -> Self {
         Self {
             id: id.into(),
@@ -247,21 +254,25 @@ impl TagGroup {
         }
     }
 
+    /// Sets the group label.
     pub fn label(mut self, text: impl Into<SharedString>) -> Self {
         self.label = Some(text.into());
         self
     }
 
+    /// Sets the group description.
     pub fn description(mut self, text: impl Into<SharedString>) -> Self {
         self.description = Some(text.into());
         self
     }
 
+    /// Sets the selection mode (v3 `selectionMode`).
     pub fn selection_mode(mut self, mode: SelectionMode) -> Self {
         self.selection_mode = mode;
         self
     }
 
+    /// Sets the selected keys (v3 `selectedKeys`), making the selection controlled.
     pub fn selected_keys(mut self, keys: impl IntoIterator<Item = SharedString>) -> Self {
         self.selected_keys = keys.into_iter().collect();
         self.is_controlled = true;
@@ -286,16 +297,19 @@ impl TagGroup {
         self
     }
 
+    /// Sets the keys of tags that are disabled (v3 `disabledKeys`).
     pub fn disabled_keys(mut self, keys: impl IntoIterator<Item = SharedString>) -> Self {
         self.disabled_keys = keys.into_iter().collect();
         self
     }
 
+    /// Sets whether the whole group is disabled.
     pub fn is_disabled(mut self, v: bool) -> Self {
         self.is_disabled = v;
         self
     }
 
+    /// Sets the size (v3 `size`).
     pub fn size(mut self, size: Size) -> Self {
         self.size = size;
         self
@@ -325,6 +339,7 @@ impl TagGroup {
         self
     }
 
+    /// Sets the visual variant (v3 `variant`).
     pub fn variant(mut self, variant: TagVariant) -> Self {
         self.variant = variant;
         self
@@ -367,6 +382,7 @@ impl TagGroup {
         self
     }
 
+    /// Sets the handler called with the new set of selected keys (v3 `onSelectionChange`).
     pub fn on_selection_change(
         mut self,
         handler: impl Fn(&HashSet<SharedString>, &mut Window, &mut App) + 'static,

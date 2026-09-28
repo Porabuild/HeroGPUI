@@ -42,6 +42,7 @@ pub struct Surface {
 }
 
 impl Surface {
+    /// Creates a surface.
     pub fn new() -> Self {
         Self {
             variant: SurfaceVariant::default(),
@@ -52,6 +53,7 @@ impl Surface {
         }
     }
 
+    /// Sets the surface variant.
     pub fn variant(mut self, variant: SurfaceVariant) -> Self {
         self.variant = variant;
         self

@@ -25,6 +25,7 @@ pub enum Sensitivity {
 }
 
 impl Sensitivity {
+    /// Every sensitivity, in declaration order.
     pub const ALL: [Sensitivity; 4] = [
         Sensitivity::Base,
         Sensitivity::Accent,
@@ -32,6 +33,7 @@ impl Sensitivity {
         Sensitivity::Variant,
     ];
 
+    /// A human-readable label for this sensitivity.
     pub fn label(self) -> &'static str {
         match self {
             Sensitivity::Base => "base",
@@ -57,6 +59,7 @@ pub struct Filter {
 }
 
 impl Filter {
+    /// Creates a filter with the given sensitivity.
     pub fn new(sensitivity: Sensitivity) -> Self {
         Self { sensitivity }
     }

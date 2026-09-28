@@ -22,14 +22,19 @@ use crate::icons;
 /// Spinner diameter (`size` prop).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum SpinnerSize {
+    /// Small.
     Sm,
     #[default]
+    /// Medium.
     Md,
+    /// Large.
     Lg,
+    /// Extra large.
     Xl,
 }
 
 impl SpinnerSize {
+    /// Every spinner size, in declaration order.
     pub const ALL: [SpinnerSize; 4] = [
         SpinnerSize::Sm,
         SpinnerSize::Md,
@@ -37,6 +42,7 @@ impl SpinnerSize {
         SpinnerSize::Xl,
     ];
 
+    /// The spinner's diameter in pixels.
     pub fn px(self) -> gpui::Pixels {
         match self {
             SpinnerSize::Sm => px(16.0),
@@ -46,6 +52,7 @@ impl SpinnerSize {
         }
     }
 
+    /// A human-readable label for this size.
     pub fn label(self) -> &'static str {
         match self {
             SpinnerSize::Sm => "Sm",
@@ -88,6 +95,7 @@ pub struct Spinner {
 }
 
 impl Spinner {
+    /// Creates a spinner with the given id.
     pub fn new(id: impl Into<gpui::ElementId>) -> Self {
         Self {
             id: id.into(),
@@ -107,6 +115,7 @@ impl Spinner {
         self
     }
 
+    /// Sets the spinner size.
     pub fn size(mut self, size: impl Into<SpinnerSize>) -> Self {
         self.size = size.into();
         self
@@ -136,6 +145,7 @@ impl Spinner {
         self
     }
 
+    /// Sets the color role.
     pub fn color(mut self, color: Color) -> Self {
         self.color = color;
         self.current_color = None;

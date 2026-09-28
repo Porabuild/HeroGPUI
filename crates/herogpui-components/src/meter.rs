@@ -52,6 +52,7 @@ impl Meter {
         self
     }
 
+    /// Creates a meter with the given id and value.
     pub fn new(id: impl Into<gpui::ElementId>, value: f32) -> Self {
         Self {
             id: id.into(),
@@ -70,11 +71,13 @@ impl Meter {
         }
     }
 
+    /// Sets the minimum value of the range.
     pub fn min_value(mut self, v: f32) -> Self {
         self.min_value = v;
         self
     }
 
+    /// Sets the maximum value of the range.
     pub fn max_value(mut self, v: f32) -> Self {
         self.max_value = v;
         self
@@ -102,11 +105,13 @@ impl Meter {
         self
     }
 
+    /// Sets the meter size.
     pub fn size(mut self, s: Size) -> Self {
         self.size = s;
         self
     }
 
+    /// Sets the color role.
     pub fn color(mut self, c: Color) -> Self {
         self.color = c;
         self
@@ -123,6 +128,7 @@ impl Meter {
         self
     }
 
+    /// Sets the label text.
     pub fn label(mut self, l: impl Into<SharedString>) -> Self {
         self.label = Some(l.into());
         self

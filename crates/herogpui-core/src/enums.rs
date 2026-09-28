@@ -17,14 +17,20 @@
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum Color {
     #[default]
+    /// The neutral role.
     Default,
+    /// The brand role (v2 `primary`).
     Accent,
+    /// The success role.
     Success,
+    /// The warning role.
     Warning,
+    /// The danger role.
     Danger,
 }
 
 impl Color {
+    /// Every color role, in declaration order.
     pub const ALL: [Color; 5] = [
         Color::Default,
         Color::Accent,
@@ -44,6 +50,7 @@ impl Color {
         }
     }
 
+    /// A human-readable label for this role, e.g. `"Accent"`.
     pub fn label(self) -> &'static str {
         match self {
             Color::Default => "Default",
@@ -116,6 +123,7 @@ pub enum Variant {
 }
 
 impl Variant {
+    /// Every button variant, in declaration order.
     pub const ALL: [Variant; 7] = [
         Variant::Primary,
         Variant::Secondary,
@@ -129,6 +137,7 @@ impl Variant {
     /// Every Button variant can be inherited by `ButtonGroup` members.
     pub const GROUP: [Variant; 7] = Self::ALL;
 
+    /// A human-readable label for this variant.
     pub fn label(self) -> &'static str {
         match self {
             Variant::Primary => "Primary",
@@ -147,13 +156,17 @@ impl Variant {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum FieldVariant {
     #[default]
+    /// Carries the field shadow.
     Primary,
+    /// Flat low-emphasis style, for use inside a `Surface`.
     Secondary,
 }
 
 impl FieldVariant {
+    /// Every field variant, in declaration order.
     pub const ALL: [FieldVariant; 2] = [FieldVariant::Primary, FieldVariant::Secondary];
 
+    /// A human-readable label for this variant.
     pub fn label(self) -> &'static str {
         match self {
             FieldVariant::Primary => "Primary",
@@ -180,6 +193,7 @@ pub enum Prominence {
 }
 
 impl Prominence {
+    /// Every prominence level, in declaration order.
     pub const ALL: [Prominence; 4] = [
         Prominence::Transparent,
         Prominence::Default,
@@ -187,6 +201,7 @@ impl Prominence {
         Prominence::Tertiary,
     ];
 
+    /// A human-readable label for this prominence.
     pub fn label(self) -> &'static str {
         match self {
             Prominence::Transparent => "Transparent",
@@ -201,14 +216,19 @@ impl Prominence {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum Backdrop {
     #[default]
+    /// A solid, opaque scrim.
     Opaque,
+    /// A blurred scrim.
     Blur,
+    /// No visible scrim.
     Transparent,
 }
 
 impl Backdrop {
+    /// Every backdrop style, in declaration order.
     pub const ALL: [Backdrop; 3] = [Backdrop::Opaque, Backdrop::Blur, Backdrop::Transparent];
 
+    /// A human-readable label for this backdrop.
     pub fn label(self) -> &'static str {
         match self {
             Backdrop::Opaque => "Opaque",
@@ -221,13 +241,17 @@ impl Backdrop {
 /// The `sm | md | lg` scale used by most components.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum Size {
+    /// Small.
     Sm,
     #[default]
+    /// Medium.
     Md,
+    /// Large.
     Lg,
 }
 
 impl Size {
+    /// Every size, in declaration order.
     pub const ALL: [Size; 3] = [Size::Sm, Size::Md, Size::Lg];
 
     /// Control height: sm 32px, md 36px, lg 40px.
@@ -263,6 +287,7 @@ impl Size {
         }
     }
 
+    /// A human-readable label for this size, e.g. `"Small"`.
     pub fn label(self) -> &'static str {
         match self {
             Size::Sm => "Small",
@@ -276,15 +301,21 @@ impl Size {
 /// `ColorSwatchPicker`.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum SizeXl {
+    /// Extra small.
     Xs,
+    /// Small.
     Sm,
     #[default]
+    /// Medium.
     Md,
+    /// Large.
     Lg,
+    /// Extra large.
     Xl,
 }
 
 impl SizeXl {
+    /// Every size, in declaration order.
     pub const ALL: [SizeXl; 5] = [SizeXl::Xs, SizeXl::Sm, SizeXl::Md, SizeXl::Lg, SizeXl::Xl];
 
     /// A colour swatch's edge: `size-4 / 6 / 8 / 9 / 10` from
@@ -304,6 +335,7 @@ impl SizeXl {
         }
     }
 
+    /// A human-readable label for this size.
     pub fn label(self) -> &'static str {
         match self {
             SizeXl::Xs => "Xs",
@@ -319,17 +351,22 @@ impl SizeXl {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum Orientation {
     #[default]
+    /// Laid out along the horizontal axis.
     Horizontal,
+    /// Laid out along the vertical axis.
     Vertical,
 }
 
 impl Orientation {
+    /// Every orientation, in declaration order.
     pub const ALL: [Orientation; 2] = [Orientation::Horizontal, Orientation::Vertical];
 
+    /// Whether this is `Horizontal`.
     pub fn is_horizontal(self) -> bool {
         matches!(self, Orientation::Horizontal)
     }
 
+    /// A human-readable label for this orientation.
     pub fn label(self) -> &'static str {
         match self {
             Orientation::Horizontal => "Horizontal",
@@ -341,9 +378,12 @@ impl Orientation {
 /// How many items a collection lets the user select.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum SelectionMode {
+    /// No item can be selected.
     None,
     #[default]
+    /// At most one item can be selected.
     Single,
+    /// Any number of items can be selected.
     Multiple,
 }
 
@@ -364,8 +404,10 @@ pub enum SelectionBehavior {
 }
 
 impl SelectionBehavior {
+    /// Every selection behavior, in declaration order.
     pub const ALL: [SelectionBehavior; 2] = [SelectionBehavior::Toggle, SelectionBehavior::Replace];
 
+    /// A human-readable label for this behavior.
     pub fn label(self) -> &'static str {
         match self {
             SelectionBehavior::Toggle => "Toggle",
@@ -447,12 +489,16 @@ pub enum Placement {
 /// the trigger's horizontal axis, for the side placements its vertical one.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PlacementAlign {
+    /// Aligned to the start edge.
     Start,
+    /// Centred on the trigger.
     Center,
+    /// Aligned to the end edge.
     End,
 }
 
 impl Placement {
+    /// Every placement, in declaration order.
     pub const ALL: [Placement; 22] = [
         Placement::Bottom,
         Placement::BottomStart,
@@ -478,6 +524,7 @@ impl Placement {
         Placement::EndBottom,
     ];
 
+    /// A human-readable label for this placement.
     pub fn label(self) -> &'static str {
         match self {
             Placement::Bottom => "Bottom",

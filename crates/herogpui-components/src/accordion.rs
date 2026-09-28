@@ -12,31 +12,45 @@ use herogpui_theme::ActiveTheme;
 use crate::a11y::{self, A11y as _};
 use crate::icons;
 
+/// The state of one accordion item, handed to its indicator render function.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct AccordionItemState {
+    /// Whether the item is expanded.
     pub is_expanded: bool,
+    /// Whether the item is disabled.
     pub is_disabled: bool,
 }
 
+/// Render function for a custom expand indicator, given the item's state.
 pub type AccordionIndicatorContent =
     std::sync::Arc<dyn Fn(AccordionItemState, &mut Window, &mut App) -> AnyElement + 'static>;
+/// Callback invoked with the item's new expanded state.
 pub type AccordionItemExpandedChange =
     std::sync::Arc<dyn Fn(&bool, &mut Window, &mut App) + 'static>;
 
 /// One accordion entry.
 pub struct AccordionItem {
+    /// Unique key identifying the item.
     pub key: SharedString,
+    /// The trigger title.
     pub title: SharedString,
+    /// Optional secondary text shown with the title.
     pub subtitle: Option<SharedString>,
+    /// The panel content shown when the item is expanded.
     pub content: AnyElement,
+    /// Whether the item is disabled.
     pub is_disabled: bool,
+    /// Whether the item starts expanded.
     pub default_expanded: bool,
+    /// Optional custom expand indicator.
     pub indicator: Option<AccordionIndicatorContent>,
+    /// Callback invoked with the new expanded state when the item toggles.
     pub on_expanded_change: Option<AccordionItemExpandedChange>,
 }
 
 impl AccordionItem {
+    /// Creates an item with the given key and title.
     pub fn new(key: impl Into<SharedString>, title: impl Into<SharedString>) -> Self {
         Self {
             key: key.into(),
@@ -50,26 +64,31 @@ impl AccordionItem {
         }
     }
 
+    /// Sets the subtitle shown with the title.
     pub fn subtitle(mut self, s: impl Into<SharedString>) -> Self {
         self.subtitle = Some(s.into());
         self
     }
 
+    /// Sets the panel content.
     pub fn content(mut self, el: impl IntoElement) -> Self {
         self.content = el.into_any_element();
         self
     }
 
+    /// Sets whether the item is disabled.
     pub fn is_disabled(mut self, v: bool) -> Self {
         self.is_disabled = v;
         self
     }
 
+    /// Sets whether the item starts expanded.
     pub fn default_expanded(mut self, v: bool) -> Self {
         self.default_expanded = v;
         self
     }
 
+    /// Sets a custom expand indicator render function.
     pub fn indicator(
         mut self,
         render: impl Fn(AccordionItemState, &mut Window, &mut App) -> AnyElement + 'static,
@@ -78,6 +97,7 @@ impl AccordionItem {
         self
     }
 
+    /// Sets the callback invoked with the item's new expanded state.
     pub fn on_expanded_change(
         mut self,
         handler: impl Fn(&bool, &mut Window, &mut App) + 'static,
@@ -98,8 +118,10 @@ pub enum AccordionVariant {
 }
 
 impl AccordionVariant {
+    /// Every variant, in declaration order.
     pub const ALL: [AccordionVariant; 2] = [AccordionVariant::Default, AccordionVariant::Surface];
 
+    /// The variant's display name.
     pub fn label(self) -> &'static str {
         match self {
             AccordionVariant::Default => "Default",
@@ -158,6 +180,7 @@ impl Accordion {
         self
     }
 
+    /// Creates an accordion from the given items.
     pub fn new(items: Vec<AccordionItem>) -> Self {
         Self {
             items,
@@ -205,6 +228,7 @@ impl Accordion {
         self
     }
 
+    /// Sets the expanded keys (controlled).
     pub fn expanded_keys(mut self, keys: HashSet<SharedString>) -> Self {
         self.expanded_keys = Some(keys);
         self
@@ -226,6 +250,7 @@ impl Accordion {
         self
     }
 
+    /// Sets the card variant.
     pub fn variant(mut self, v: AccordionVariant) -> Self {
         self.variant = v;
         self

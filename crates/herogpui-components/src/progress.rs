@@ -143,6 +143,7 @@ impl ProgressBar {
         self
     }
 
+    /// Creates a progress bar with the given element id.
     pub fn new(id: impl Into<gpui::ElementId>) -> Self {
         Self {
             id: id.into(),
@@ -171,16 +172,19 @@ impl ProgressBar {
         self
     }
 
+    /// Sets the current value (v3 `value`).
     pub fn value(mut self, v: f32) -> Self {
         self.value = v;
         self
     }
 
+    /// Sets the minimum value (v3 `minValue`).
     pub fn min_value(mut self, v: f32) -> Self {
         self.min_value = v;
         self
     }
 
+    /// Sets the maximum value (v3 `maxValue`).
     pub fn max_value(mut self, v: f32) -> Self {
         self.max_value = v;
         self
@@ -215,11 +219,13 @@ impl ProgressBar {
         self
     }
 
+    /// Sets the size (v3 `size`).
     pub fn size(mut self, s: Size) -> Self {
         self.size = s;
         self
     }
 
+    /// Sets the color (v3 `color`).
     pub fn color(mut self, c: Color) -> Self {
         self.color = c;
         self
@@ -249,6 +255,7 @@ impl ProgressBar {
         self
     }
 
+    /// Sets whether the value label is shown.
     pub fn show_value_label(mut self, v: bool) -> Self {
         self.show_value = v;
         self
@@ -544,6 +551,7 @@ pub struct ProgressCircle {
 }
 
 impl ProgressCircle {
+    /// Creates a progress circle.
     pub fn new() -> Self {
         Self {
             value: 0.0,
@@ -578,16 +586,19 @@ impl ProgressCircle {
         self
     }
 
+    /// Sets the current value (v3 `value`).
     pub fn value(mut self, v: f32) -> Self {
         self.value = v;
         self
     }
 
+    /// Sets the minimum value (v3 `minValue`).
     pub fn min_value(mut self, v: f32) -> Self {
         self.min_value = v;
         self
     }
 
+    /// Sets the maximum value (v3 `maxValue`).
     pub fn max_value(mut self, v: f32) -> Self {
         self.max_value = v;
         self
@@ -599,6 +610,7 @@ impl ProgressCircle {
         self
     }
 
+    /// Sets the color (v3 `color`).
     pub fn color(mut self, c: Color) -> Self {
         self.color = c;
         self
@@ -625,6 +637,7 @@ impl ProgressCircle {
         self
     }
 
+    /// Sets whether the value label is shown.
     pub fn show_value_label(mut self, v: bool) -> Self {
         self.show_value = v;
         self

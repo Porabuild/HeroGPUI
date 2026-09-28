@@ -77,6 +77,7 @@ pub struct Scrollbar {
 }
 
 impl Scrollbar {
+    /// Creates a scrollbar for the given scroll handle.
     pub fn new(id: impl Into<ElementId>, handle: ScrollHandle) -> Self {
         Self {
             id: id.into(),
@@ -92,6 +93,7 @@ impl Scrollbar {
         }
     }
 
+    /// Sets the scrollbar orientation.
     pub fn orientation(mut self, orientation: Orientation) -> Self {
         self.orientation = orientation;
         self

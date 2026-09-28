@@ -63,12 +63,19 @@ fn system_weekday_labels() -> &'static [String; 7] {
 /// The first column of a month grid (`firstDayOfWeek`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Weekday {
+    /// Sunday.
     Sun,
+    /// Monday.
     Mon,
+    /// Tuesday.
     Tue,
+    /// Wednesday.
     Wed,
+    /// Thursday.
     Thu,
+    /// Friday.
     Fri,
+    /// Saturday.
     Sat,
 }
 
@@ -167,15 +174,20 @@ pub type DateUnavailable = Arc<dyn Fn(Date) -> bool + 'static>;
 /// Shared date constraints.
 #[derive(Clone, Default)]
 pub struct DateConstraints {
+    /// Earliest selectable date (`minValue`).
     pub min_value: Option<Date>,
+    /// Latest selectable date (`maxValue`).
     pub max_value: Option<Date>,
+    /// Predicate marking dates as unavailable (`isDateUnavailable`).
     pub is_date_unavailable: Option<DateUnavailable>,
+    /// First column of the month grid (`firstDayOfWeek`).
     pub first_day_of_week: Weekday,
     /// `weeksInMonth` — forces the grid to this many rows.
     pub weeks_in_month: Option<usize>,
 }
 
 impl DateConstraints {
+    /// Creates constraints with no bounds.
     pub fn new() -> Self {
         Self::default()
     }

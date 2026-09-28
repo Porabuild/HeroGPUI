@@ -15,20 +15,26 @@ use crate::{
 /// BreadcrumbSeparator style (`separator`).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum BreadcrumbSeparator {
+    /// A slash separator.
     Slash,
+    /// A chevron separator.
     #[default]
     Chevron,
+    /// A dash separator.
     Dash,
 }
 
 /// One breadcrumb item.
 #[derive(Clone)]
 pub struct Crumb {
+    /// Visible text of the item.
     pub label: SharedString,
+    /// Optional link target of the item.
     pub href: Option<String>,
 }
 
 impl Crumb {
+    /// Creates an item with the given label.
     pub fn new(label: impl Into<SharedString>) -> Self {
         Self {
             label: label.into(),
@@ -36,6 +42,7 @@ impl Crumb {
         }
     }
 
+    /// Sets the link target.
     pub fn href(mut self, href: impl Into<String>) -> Self {
         self.href = Some(href.into());
         self
@@ -70,11 +77,13 @@ pub struct Breadcrumbs {
 }
 
 impl Breadcrumbs {
+    /// Sets the disabled state (v3 `isDisabled`).
     pub fn is_disabled(mut self, v: bool) -> Self {
         self.is_disabled = v;
         self
     }
 
+    /// Creates breadcrumbs from the given items.
     pub fn new(items: Vec<Crumb>) -> Self {
         Self {
             id: None,
@@ -89,11 +98,13 @@ impl Breadcrumbs {
         }
     }
 
+    /// Sets the element id.
     pub fn id(mut self, id: impl Into<gpui::ElementId>) -> Self {
         self.id = Some(id.into());
         self
     }
 
+    /// Sets the separator style (v3 `separator`).
     pub fn separator(mut self, s: BreadcrumbSeparator) -> Self {
         self.separator = s;
         self

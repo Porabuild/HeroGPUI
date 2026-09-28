@@ -21,6 +21,7 @@ pub enum CardVariant {
 }
 
 impl CardVariant {
+    /// Every card variant, in declaration order.
     pub const ALL: [CardVariant; 4] = [
         CardVariant::Transparent,
         CardVariant::Default,
@@ -28,6 +29,7 @@ impl CardVariant {
         CardVariant::Tertiary,
     ];
 
+    /// A human-readable label for this variant.
     pub fn label(self) -> &'static str {
         match self {
             CardVariant::Transparent => "Transparent",
@@ -51,6 +53,7 @@ pub struct Card {
 }
 
 impl Card {
+    /// Creates an empty card.
     pub fn new() -> Self {
         Self {
             variant: CardVariant::Default,
@@ -61,6 +64,7 @@ impl Card {
         }
     }
 
+    /// Sets the card variant.
     pub fn variant(mut self, variant: CardVariant) -> Self {
         self.variant = variant;
         self
@@ -152,6 +156,7 @@ pub struct CardHeader {
 }
 
 impl CardHeader {
+    /// Creates an empty instance.
     pub fn new() -> Self {
         Self {
             children: Vec::new(),
@@ -200,6 +205,7 @@ pub struct CardTitle {
 }
 
 impl CardTitle {
+    /// Creates an empty instance.
     pub fn new() -> Self {
         Self {
             children: Vec::new(),
@@ -252,6 +258,7 @@ pub struct CardDescription {
 }
 
 impl CardDescription {
+    /// Creates an empty instance.
     pub fn new() -> Self {
         Self {
             children: Vec::new(),
@@ -303,6 +310,7 @@ pub struct CardContent {
 }
 
 impl CardContent {
+    /// Creates an empty instance.
     pub fn new() -> Self {
         Self {
             children: Vec::new(),
@@ -356,6 +364,7 @@ pub struct CardFooter {
 }
 
 impl CardFooter {
+    /// Creates an empty instance.
     pub fn new() -> Self {
         Self {
             children: Vec::new(),

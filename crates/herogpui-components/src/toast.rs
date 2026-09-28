@@ -40,14 +40,20 @@ pub const DEFAULT_TOAST_HOTKEY: ToastHotkey = ToastHotkey::ALT_T;
 /// entries against `event.code`. An empty key disables the shortcut.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ToastHotkey {
+    /// Whether Alt must be held.
     pub alt: bool,
+    /// Whether Shift must be held.
     pub shift: bool,
+    /// Whether Control must be held.
     pub control: bool,
+    /// Whether the platform key (Command or Windows key) must be held.
     pub platform: bool,
+    /// The key to match; empty disables the shortcut.
     pub key: SharedString,
 }
 
 impl ToastHotkey {
+    /// Alt+T, the pinned default.
     pub const ALT_T: Self = Self {
         alt: true,
         shift: false,
@@ -82,16 +88,23 @@ impl ToastHotkey {
 /// Where the toast region sits (`placement` on `Toast.Provider`).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum ToastPlacement {
+    /// Top-left of the window.
     TopStart,
+    /// Top centre of the window.
     Top,
+    /// Top-right of the window.
     TopEnd,
+    /// Bottom-left of the window.
     BottomStart,
+    /// Bottom centre of the window (the default).
     #[default]
     Bottom,
+    /// Bottom-right of the window.
     BottomEnd,
 }
 
 impl ToastPlacement {
+    /// Every placement, in declaration order.
     pub const ALL: [ToastPlacement; 6] = [
         ToastPlacement::TopStart,
         ToastPlacement::Top,
@@ -105,6 +118,7 @@ impl ToastPlacement {
         matches!(self, Self::TopStart | Self::Top | Self::TopEnd)
     }
 
+    /// The placement's display name.
     pub fn label(self) -> &'static str {
         match self {
             ToastPlacement::TopStart => "Top start",
@@ -217,10 +231,15 @@ pub type ToastIndicatorContent = Rc<dyn Fn(&mut App) -> AnyElement + 'static>;
 /// One toast's data.
 #[derive(Clone)]
 pub struct ToastData {
+    /// Unique id assigned by the store.
     pub id: u64,
+    /// The toast's colour variant.
     pub color: Color,
+    /// The title text.
     pub title: SharedString,
+    /// The optional description text.
     pub description: Option<SharedString>,
+    /// Whether the toast shows a close button.
     pub closable: bool,
     /// `indicator` — the glyph before the text.
     ///
@@ -231,6 +250,7 @@ pub struct ToastData {
     /// Optional caller-owned indicator render factory. This takes precedence
     /// over the path/default glyph while preserving the shared indicator box.
     pub indicator_content: Option<ToastIndicatorContent>,
+    /// Whether `indicator` was set explicitly, so that an empty `indicator` means hidden rather than default.
     pub indicator_set: bool,
     /// `isLoading` — a spinner stands in for the indicator.
     pub is_loading: bool,
@@ -315,6 +335,7 @@ impl ToastStore {
         cx.observe(store, move |_, cx| f(cx))
     }
 
+    /// The active toasts, newest first.
     pub fn toasts(&self) -> &[ToastData] {
         &self.toasts
     }
@@ -335,6 +356,7 @@ impl ToastStore {
         self.paused = false;
     }
 
+    /// Whether all timers were paused explicitly (`pauseAll`).
     pub fn is_paused(&self) -> bool {
         self.paused
     }
@@ -344,6 +366,7 @@ impl ToastStore {
         self.paused || self.interaction_paused
     }
 
+    /// Whether timers are paused by hover or focus within the region.
     pub fn is_interaction_paused(&self) -> bool {
         self.interaction_paused
     }
@@ -544,6 +567,7 @@ pub struct Toast {
 }
 
 impl Toast {
+    /// Creates a toast with the given title.
     pub fn new(title: impl Into<SharedString>) -> Self {
         Self {
             color: Color::Default,
@@ -580,6 +604,7 @@ impl Toast {
         Self::new(title).is_loading(true).timeout(Duration::ZERO)
     }
 
+    /// Sets the description text.
     pub fn description(mut self, d: impl Into<SharedString>) -> Self {
         self.description = Some(d.into());
         self
@@ -649,6 +674,7 @@ impl Toast {
         self
     }
 
+    /// Sets whether the toast shows a close button.
     pub fn closable(mut self, v: bool) -> Self {
         self.closable = v;
         self
@@ -948,6 +974,7 @@ pub struct ToastViewport {
 }
 
 impl ToastViewport {
+    /// Creates a viewport with the default placement, gap, width and inset.
     pub fn new() -> Self {
         Self {
             placement: ToastPlacement::default(),
@@ -972,11 +999,13 @@ impl ToastViewport {
         self
     }
 
+    /// Sets where the toast region sits.
     pub fn placement(mut self, placement: ToastPlacement) -> Self {
         self.placement = placement;
         self
     }
 
+    /// Sets the gap between expanded toasts.
     pub fn gap(mut self, gap: impl Into<Pixels>) -> Self {
         self.gap = gap.into();
         self
@@ -993,6 +1022,7 @@ impl ToastViewport {
         self
     }
 
+    /// Sets how many toasts are visible at once (at least 1).
     pub fn max_visible_toasts(mut self, n: usize) -> Self {
         self.max_visible_toasts = n.max(1);
         self
@@ -1020,6 +1050,7 @@ impl ToastViewport {
         self
     }
 
+    /// Sets the width of each toast.
     pub fn width(mut self, width: impl Into<Pixels>) -> Self {
         self.width = width.into();
         self
