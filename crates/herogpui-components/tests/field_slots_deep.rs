@@ -16,7 +16,7 @@
 //! - `.label--required` adds the `*` mark (`after:ms-0.5 after:text-danger`).
 //! - `.fieldset` is `flex flex-col gap-6 shrink grow basis-0`; its legend is
 //!   a 24px line, `.fieldset__actions` is `gap-2 pt-1`, and
-//!   `.fieldset__field_group` is `w-full`.
+//!   `.fieldset__field-group` is `w-full`.
 //!
 //! Geometry is derived from the components' own constants, not guessed:
 //! `Description`/`ErrorMessage`/`FieldError` are 16px lines (text-xs,

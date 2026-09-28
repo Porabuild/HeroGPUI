@@ -49,9 +49,6 @@ pub struct Separator {
     /// `.toolbar`'s own descendant rules, which halve whichever separator
     /// crosses the bar's flow and centre it. See [`Separator::in_toolbar`].
     in_toolbar: bool,
-    /// v3 composes content *inside* a separator (`<Separator>OR</Separator>`),
-    /// which turns it into `.separator__container`: a line, the content, a line.
-    content: Vec<AnyElement>,
     id: Option<ElementId>,
     /// The `sx` slot, refined over the root style at the end of render.
     sx: Option<Box<gpui::StyleRefinement>>,
@@ -65,7 +62,6 @@ impl Separator {
             inset_y: gpui::px(0.),
             inset_x: gpui::px(0.),
             in_toolbar: false,
-            content: Vec::new(),
             id: None,
             sx: None,
         }
@@ -130,12 +126,6 @@ impl Separator {
     }
 }
 
-impl ParentElement for Separator {
-    fn extend(&mut self, elements: impl IntoIterator<Item = AnyElement>) {
-        self.content.extend(elements);
-    }
-}
-
 impl Default for Separator {
     fn default() -> Self {
         Self::new()
@@ -152,53 +142,11 @@ impl RenderOnce for Separator {
             SeparatorVariant::Tertiary => colors.separator_tertiary(),
         };
 
-        let horizontal = self.orientation == Orientation::Horizontal;
+        // `separator.tsx` renders a childless RAC `Separator`: v3 has no
+        // content-bearing mode (v3.2.6 deleted the never-applied
+        // `.separator__container` / `__line` / `__content` rules), so the
+        // "With Content" example places separators *between* blocks.
         let radius = crate::util::hairline_radius(cx);
-        let line = move || {
-            let el = div().flex_shrink_0().rounded(radius).bg(color);
-            if horizontal {
-                // `.separator__line` is `shrink-0 grow`, so a line beside
-                // content takes the space the content leaves.
-                el.h(weight).flex_grow(1.)
-            } else {
-                // `.separator--vertical` is `min-h-2`: a vertical rule between
-                // two inline items still draws when its row is shorter.
-                el.w(weight).min_h(gpui::px(8.)).flex_grow(1.)
-            }
-        };
-
-        if !self.content.is_empty() {
-            // `.separator__container` is `flex items-center gap-3`, row when
-            // horizontal and a centred column when vertical.
-            let mut el = div()
-                .my(self.inset_y)
-                .mx(self.inset_x)
-                .flex()
-                .items_center()
-                .gap(gpui::px(12.));
-            el = if horizontal {
-                el.w_full().flex_row()
-            } else {
-                el.h_full().flex_col().justify_center()
-            };
-            let el = el
-                .child(line())
-                .child(
-                    // `.separator__content` is a centred, non-wrapping run of
-                    // `--muted` text.
-                    div()
-                        .flex()
-                        .items_center()
-                        .justify_center()
-                        .flex_shrink_0()
-                        .text_center()
-                        .whitespace_nowrap()
-                        .text_color(colors.muted)
-                        .children(self.content),
-                )
-                .child(line());
-            return finish_separator(crate::util::apply_sx(el, &self.sx), self.id);
-        }
 
         if self.in_toolbar {
             // `.toolbar` halves the rule that crosses its flow and centres it:
@@ -246,6 +194,8 @@ impl RenderOnce for Separator {
 
         let el = match self.orientation {
             Orientation::Horizontal => el.w_full().h(weight),
+            // `.separator--vertical` is `min-h-2`: a vertical rule between
+            // two inline items still draws when its row is shorter.
             Orientation::Vertical => el.h_full().min_h(gpui::px(8.)).w(weight),
         };
         finish_separator(crate::util::apply_sx(el, &self.sx), self.id)

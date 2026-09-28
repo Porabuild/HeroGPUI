@@ -33,7 +33,7 @@ use gpui::{
     canvas, point, prelude::*, px, AnyElement, Context, KeyUpEvent, Keystroke, Modifiers, Render,
     TestAppContext, VisualTestContext, Window,
 };
-use herogpui_components::{util, Date, DateSegment, Tooltip, TooltipHover};
+use herogpui_components::{extend, Date, DateSegment, Tooltip, TooltipHover};
 use herogpui_theme::{set_reduce_motion, ThemeProvider};
 
 thread_local! {
@@ -96,7 +96,7 @@ pub struct Host {
 impl Render for Host {
     fn render(&mut self, window: &mut Window, cx: &mut Context<'_, Self>) -> impl IntoElement {
         let root = gpui::div().size_full().child((self.content)());
-        util::app_focus_root(root, window, cx)
+        extend::app_focus_root(root, window, cx)
     }
 }
 

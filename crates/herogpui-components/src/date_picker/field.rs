@@ -382,6 +382,7 @@ pub(super) type FieldSegmentRender =
 
 /// State supplied to v3's DateField children render function.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct DateFieldRenderState {
     /// Whether the field is disabled.
     pub is_disabled: bool,

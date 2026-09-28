@@ -1,0 +1,228 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "HeroGPUI ThemeDocument",
+  "description": "A sparse HeroGPUI theme override document (herogpui-theme `ThemeDocument`, `serde` feature). Every key except `base` maps onto one ThemeBuilder method; unset tokens derive from the base theme. Checked in; `tests/theme_registry.rs` fails when it drifts from the struct.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "base"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The theme id passed to use_theme."
+    },
+    "base": {
+      "$ref": "#/$defs/appearance",
+      "description": "The built-in theme the overrides extend."
+    },
+    "appearance": {
+      "$ref": "#/$defs/appearance"
+    },
+    "radius": {
+      "type": "number"
+    },
+    "field_radius": {
+      "type": "number"
+    },
+    "border_width": {
+      "type": "number"
+    },
+    "disabled_opacity": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "cursor_interactive": {
+      "enum": [
+        "Arrow",
+        "IBeam",
+        "Crosshair",
+        "ClosedHand",
+        "OpenHand",
+        "PointingHand",
+        "ResizeLeft",
+        "ResizeRight",
+        "ResizeLeftRight",
+        "ResizeUp",
+        "ResizeDown",
+        "ResizeUpDown",
+        "ResizeUpLeftDownRight",
+        "ResizeUpRightDownLeft",
+        "ResizeColumn",
+        "ResizeRow",
+        "IBeamCursorForVerticalLayout",
+        "OperationNotAllowed",
+        "DragLink",
+        "DragCopy",
+        "ContextualMenu"
+      ]
+    },
+    "tabs_hover_opacity": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "tooltip_cooldown_ms": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "long_press_ms": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "hover_fade_ms": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "tooltip_delay_ms": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "tooltip_close_delay_ms": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "background": {
+      "$ref": "#/$defs/color"
+    },
+    "foreground": {
+      "$ref": "#/$defs/color"
+    },
+    "muted": {
+      "$ref": "#/$defs/color"
+    },
+    "border": {
+      "$ref": "#/$defs/color"
+    },
+    "separator": {
+      "$ref": "#/$defs/color"
+    },
+    "focus": {
+      "$ref": "#/$defs/color"
+    },
+    "link": {
+      "$ref": "#/$defs/color"
+    },
+    "backdrop": {
+      "$ref": "#/$defs/color"
+    },
+    "surface": {
+      "$ref": "#/$defs/colorPair"
+    },
+    "surface_levels": {
+      "$ref": "#/$defs/surfaceLevels"
+    },
+    "overlay": {
+      "$ref": "#/$defs/colorPair"
+    },
+    "segment": {
+      "$ref": "#/$defs/colorPair"
+    },
+    "accent": {
+      "$ref": "#/$defs/color"
+    },
+    "roles": {
+      "$ref": "#/$defs/roles"
+    },
+    "field": {
+      "$ref": "#/$defs/colorPair"
+    },
+    "field_placeholder": {
+      "$ref": "#/$defs/color"
+    },
+    "field_border": {
+      "$ref": "#/$defs/color"
+    },
+    "vibrant_palette": {
+      "type": "boolean"
+    }
+  },
+  "$defs": {
+    "appearance": {
+      "enum": [
+        "light",
+        "dark"
+      ]
+    },
+    "color": {
+      "type": "string",
+      "pattern": "^\\s*(#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})|oklcha?\\(.*\\))\\s*$",
+      "description": "CSS oklch()/oklcha() or #RGB/#RRGGBB/#RRGGBBAA."
+    },
+    "colorPair": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "background",
+        "foreground"
+      ],
+      "properties": {
+        "background": {
+          "$ref": "#/$defs/color"
+        },
+        "foreground": {
+          "$ref": "#/$defs/color"
+        }
+      }
+    },
+    "surfaceLevels": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "secondary",
+        "tertiary"
+      ],
+      "properties": {
+        "secondary": {
+          "$ref": "#/$defs/color"
+        },
+        "tertiary": {
+          "$ref": "#/$defs/color"
+        }
+      }
+    },
+    "role": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "color",
+        "foreground"
+      ],
+      "properties": {
+        "color": {
+          "$ref": "#/$defs/color"
+        },
+        "foreground": {
+          "$ref": "#/$defs/color"
+        },
+        "hover": {
+          "$ref": "#/$defs/color"
+        }
+      }
+    },
+    "roles": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "default": {
+          "$ref": "#/$defs/role"
+        },
+        "accent": {
+          "$ref": "#/$defs/role"
+        },
+        "success": {
+          "$ref": "#/$defs/role"
+        },
+        "warning": {
+          "$ref": "#/$defs/role"
+        },
+        "danger": {
+          "$ref": "#/$defs/role"
+        }
+      }
+    }
+  }
+}

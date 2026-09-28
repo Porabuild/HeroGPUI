@@ -37,8 +37,8 @@ INPUT_FILES = (
     'gallery/Cargo.toml', 'web/pnpm-lock.yaml', 'web/package.json', 'web/next.config.ts',
     'web/public/gallery/herogpui_web_bg.wasm', 'web/public/gallery/herogpui_web.js',
     'web/public/gallery/index.html', 'crates/herogpui-web/index.html',
-    '.shots/heroui-bundle.txt.gz', '.shots/heroui-css-v3.2.5.tar.gz',
-    '.shots/heroui-demos-v3.2.5.tar.gz',
+    '.shots/heroui-bundle.txt.gz', '.shots/heroui-css-v3.2.6.tar.gz',
+    '.shots/heroui-demos-v3.2.6.tar.gz',
 )
 
 

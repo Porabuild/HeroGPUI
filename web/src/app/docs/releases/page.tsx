@@ -8,15 +8,16 @@ import { ReleaseBody } from "./markdown";
 
 export const metadata: Metadata = {
   title: "Releases",
-  description: "Release notes for HeroGPUI, published on GitHub.",
+  description: "Release notes for every HeroGPUI version, from the repository changelog.",
 };
 
 const RELEASES_URL = "https://github.com/Porabuild/HeroGPUI/releases";
 
 /*
- * `releases.json` is generated from the GitHub Releases API by
- * scripts/extract-releases.mjs. Bodies are release-note markdown, stored
- * verbatim; the page renders them with the local `./markdown` renderer.
+ * `releases.json` is generated from the repository's CHANGELOG.md by
+ * scripts/extract-releases.mjs (no network; `pnpm run extract:check` gates
+ * it). Bodies are the changelog section markdown; the page renders them with
+ * the local `./markdown` renderer.
  */
 
 interface Release {
@@ -123,10 +124,14 @@ export default function ReleasesPage() {
 
   return (
     <>
-      <PageHeader title="Releases" description="Release notes for HeroGPUI, published on GitHub." />
+      <PageHeader
+        title="Releases"
+        description="Release notes for every HeroGPUI version, from the repository changelog."
+      />
 
       <p>
-        Releases are published on GitHub and listed here. Read them at{" "}
+        These notes are generated from <code>CHANGELOG.md</code>. Each version is also published as
+        a GitHub Release with the gallery binaries at{" "}
         <Link href={RELEASES_URL} rel="noreferrer" target="_blank">
           github.com/Porabuild/HeroGPUI/releases
         </Link>
@@ -134,9 +139,9 @@ export default function ReleasesPage() {
       </p>
 
       {releases.length === 0 ? (
-        <Callout kind="note" title="No GitHub releases are listed here yet">
-          This page is filled from the GitHub Releases API. Until a <code>vX.Y.Z</code> tag is
-          published, read notes on{" "}
+        <Callout kind="note" title="No releases are listed here yet">
+          This page is filled from <code>CHANGELOG.md</code>. Until a dated version section is
+          added, read notes on{" "}
           <Link href={RELEASES_URL} rel="noreferrer" target="_blank">
             github.com/Porabuild/HeroGPUI/releases
           </Link>{" "}

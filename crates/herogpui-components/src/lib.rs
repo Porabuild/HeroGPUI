@@ -6,15 +6,18 @@ pub mod a11y;
 pub mod accordion;
 pub mod alert;
 pub mod alert_dialog;
+// Reached by path (`herogpui::anim::…`); not re-exported at the root.
 pub mod anim;
 pub mod assets;
 pub mod autocomplete;
 pub mod avatar;
+pub mod avatar_group;
 pub mod badge;
 pub mod breadcrumbs;
 pub mod button;
 pub mod button_group;
 pub mod calendar;
+mod calendar_keys;
 pub mod calendar_system;
 pub mod calendar_view;
 pub mod card;
@@ -23,6 +26,7 @@ pub mod chip;
 pub mod close_button;
 pub mod color_picker;
 pub mod combo_box;
+pub mod context_menu;
 pub mod date_constraints;
 pub mod date_picker;
 pub mod disclosure;
@@ -33,6 +37,7 @@ pub mod filter;
 pub mod form;
 #[cfg(feature = "gallery-source")]
 pub mod gallery_source;
+pub mod i18n;
 pub mod icons;
 pub mod input;
 pub mod input_group;
@@ -70,9 +75,11 @@ pub mod toast;
 pub mod toggle_button;
 pub mod toolbar;
 pub mod tooltip;
+pub mod traits;
 pub mod typography;
-pub mod util;
+pub(crate) mod util;
 pub mod validation;
+pub mod virtual_list;
 
 // The shared v3 prop vocabularies, re-exported so `herogpui::components::*`
 // is enough to build a UI.
@@ -84,10 +91,10 @@ pub use herogpui_core::{
 pub use accordion::*;
 pub use alert::*;
 pub use alert_dialog::*;
-pub use anim::*;
 pub use assets::*;
 pub use autocomplete::*;
 pub use avatar::*;
+pub use avatar_group::*;
 pub use badge::*;
 pub use breadcrumbs::*;
 pub use button::*;
@@ -100,6 +107,7 @@ pub use chip::*;
 pub use close_button::*;
 pub use color_picker::*;
 pub use combo_box::*;
+pub use context_menu::*;
 pub use date_constraints::*;
 pub use date_picker::*;
 pub use disclosure::*;
@@ -147,6 +155,34 @@ pub use toast::*;
 pub use toggle_button::*;
 pub use toolbar::*;
 pub use tooltip::*;
+pub use traits::{Disableable, Selectable, Sizable};
 pub use typography::*;
-pub use util::app_focus_root;
+pub use util::{app_focus_root, FieldFocus, InteractiveState, SelectionValue};
 pub use validation::*;
+pub use virtual_list::*;
+
+/// The helpers HeroGPUI supports for building custom widgets that match the
+/// components: v3's radius scale read from the active theme, the field
+/// metrics, the interactive cursor, the focus-visible modality, and the
+/// vanilla-GPUI workarounds the components themselves use.
+///
+/// Everything else the components share stays private to this crate, so its
+/// signatures can change without a breaking release.
+pub mod extend {
+    pub use crate::util::{
+        app_focus_root, container_radius, control_radius, cursor_interactive, field_radius,
+        focus_visible, hairline_radius, inner_fill_radius, interactive_cursor, key_radius,
+        mark_radius, micro_radius, set_focus_visible, shift_wheel_scroll_x, small_radius,
+        soft_radius, FIELD_HEIGHT, FIELD_ICON, FIELD_TEXT,
+    };
+}
+
+/// Overlay-stack primitives exercised by this crate's own behavior tests.
+/// Not public API: no semver guarantee, and it may change in any release.
+#[doc(hidden)]
+pub mod __private {
+    pub use crate::util::{
+        dismiss_on_press_outside_with_token, overlay_phase, overlay_scope, overlay_scope_with_exit,
+        DismissResult, OverlayPhase, OverlayToken,
+    };
+}

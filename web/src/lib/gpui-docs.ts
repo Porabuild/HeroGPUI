@@ -1,4 +1,6 @@
 interface ApiRow {
+  owner?: string;
+  prop?: string;
   type: string;
   default?: string | null;
   description: string;
@@ -22,9 +24,10 @@ interface StateRow {
 
 /**
  * Display helpers that turn the checked-in HeroUI-shaped reference metadata
- * into the Rust/GPUI API a reader of these docs actually calls. Unavailable
- * web-only rows are dropped; remaining text is rewritten so CSS, React, and
- * HeroUI names are not the primary vocabulary.
+ * into the Rust/GPUI API a reader of these docs actually calls. Rows marked
+ * `unavailable` are not ported by design; they leave the Rust tables and are
+ * listed separately as "Not ported" (`notPortedRows`). Remaining text is
+ * rewritten so CSS, React, and HeroUI names are not the primary vocabulary.
  */
 
 const PLACEHOLDER = /^(?:—|-|–)$/;
@@ -261,7 +264,15 @@ export function uniqueBy<T>(rows: T[], key: (row: T) => string): T[] {
   });
 }
 
+/** `implemented` or `partial`: the port status a visible row carries. */
+export type RowStatus = "implemented" | "partial";
+
+function rowStatus(status: string): RowStatus {
+  return status === "partial" ? "partial" : "implemented";
+}
+
 export interface GpuiPropRow {
+  status: RowStatus;
   builder: string;
   type: string;
   /** The values the builder accepts, in Rust spelling. */
@@ -278,6 +289,7 @@ export function gpuiPropRows(rows: ApiRow[]): GpuiPropRow[] {
         const builder = row.rust!.trim();
         const type = builderType(builder, row.type);
         return {
+          status: rowStatus(row.status),
           builder,
           type,
           values: acceptedStyleValues(row.type, type),
@@ -291,6 +303,7 @@ export function gpuiPropRows(rows: ApiRow[]): GpuiPropRow[] {
 }
 
 export interface GpuiPartRow {
+  status: RowStatus;
   part: string;
   description: string;
 }
@@ -300,6 +313,7 @@ export function gpuiPartRows(rows: PartRow[]): GpuiPartRow[] {
     rows
       .filter((row) => row.status !== "unavailable" && !isBlank(row.rustOwner))
       .map((row) => ({
+        status: rowStatus(row.status),
         part: row.rustOwner!.trim(),
         description: scrubDescription(row.description),
       })),
@@ -308,6 +322,7 @@ export function gpuiPartRows(rows: PartRow[]): GpuiPartRow[] {
 }
 
 export interface GpuiStateRow {
+  status: RowStatus;
   state: string;
   builder: string;
   description: string;
@@ -337,6 +352,7 @@ export function gpuiStateRows(rows: StateRow[]): GpuiStateRow[] {
     rows
       .filter((row) => row.status !== "unavailable")
       .map((row) => ({
+        status: rowStatus(row.status),
         state: row.state,
         builder: publicStateBuilder(row.rust),
         description: scrubDescription(row.description),
@@ -346,6 +362,7 @@ export function gpuiStateRows(rows: StateRow[]): GpuiStateRow[] {
 }
 
 export interface GpuiStyleRow {
+  status: RowStatus;
   style: string;
   type: string;
   description: string;
@@ -387,6 +404,7 @@ export function gpuiStyleRows(api: ApiRow[]): GpuiStyleRow[] {
         const builder = row.rust!.trim();
         const rustType = builderType(builder, row.type);
         return {
+          status: rowStatus(row.status),
           style: builder,
           type: acceptedStyleValues(row.type, rustType),
           description: scrubDescription(row.description),
@@ -406,4 +424,54 @@ export function rustRequiredParts(requiredParts: string[], parts: PartRow[]): st
     })
     .filter((name): name is string => Boolean(name));
   return [...new Set(names)];
+}
+
+/** One upstream HeroUI v3 surface deliberately not ported, with its reason. */
+export interface NotPortedRow {
+  /** The upstream name: `Owner.prop`, a compound part, or a state. */
+  name: string;
+  reason: string;
+}
+
+/**
+ * Rows marked `unavailable` in the reference metadata. They are not bugs:
+ * each carries the documented reason the port omits it, and the page lists
+ * them as "Not ported" beside the Rust tables instead of hiding them.
+ */
+export function notPortedRows(
+  kind: "api" | "parts" | "states",
+  rows: ReadonlyArray<ApiRow | PartRow | StateRow>,
+): NotPortedRow[] {
+  return uniqueBy(
+    rows
+      .filter((row) => row.status === "unavailable")
+      .map((row) => {
+        let name = "";
+        if (kind === "api") {
+          const api = row as ApiRow;
+          name = [api.owner, api.prop].filter(Boolean).join(".");
+        } else if (kind === "parts") {
+          name = (row as PartRow).name;
+        } else {
+          name = (row as StateRow).state;
+        }
+        return { name, reason: scrubDescription(row.description) };
+      })
+      .filter((row) => row.name !== ""),
+    (row) => row.name,
+  );
+}
+
+/** Per-page port summary across builders, parts and states. */
+export function portSummary(
+  api: ApiRow[],
+  parts: PartRow[],
+  states: StateRow[],
+): { implemented: number; partial: number; notPorted: number } {
+  const all = [...api, ...parts, ...states];
+  return {
+    implemented: all.filter((row) => row.status === "implemented").length,
+    partial: all.filter((row) => row.status === "partial").length,
+    notPorted: all.filter((row) => row.status === "unavailable").length,
+  };
 }

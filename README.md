@@ -35,7 +35,7 @@ Wayland/X11 dev packages on Linux; nothing extra on Windows).
 
 ```toml
 [dependencies]
-herogpui = "0.10"
+herogpui = "0.11"
 ```
 
 That is the whole list. A git or path dependency on this repository works the same way. `herogpui` is a facade: it depends on the matching
@@ -129,6 +129,18 @@ when GPUI is reached only through a facade. Eight names — `ColorSpace`,
 `TextAlign` — exist in both GPUI and HeroUI v3; at `herogpui`'s root the
 HeroUI spelling wins, and GPUI's keep the `gpui::` path (`gpui::Size`).
 
+## Examples
+
+Small runnable crates under `examples/` use only the `herogpui` facade:
+
+```bash
+cargo run -p herogpui-example-hello-button  # one button, one counter
+cargo run -p herogpui-example-form          # validated Form with TextFields
+cargo run -p herogpui-example-theme-switch  # runtime light/dark switching
+```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution rules.
+
 ## Gallery
 
 A desktop gallery ships with the library and documents every component:
@@ -153,6 +165,8 @@ sources or git hooks.
 - `llms.txt` at the repository root: the full component API reference for
   agents. It is served verbatim at
   <https://porabuild.com/herogpui/llms.txt>.
+- [`docs/migration-0.11.md`](docs/migration-0.11.md): upgrading from 0.10
+  to 0.11, with before/after code for each breaking change.
 - `AGENTS.md` and `docs/agents/`: the contributor and agent guides.
 
 ## Verification

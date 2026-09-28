@@ -14,7 +14,7 @@ const CREATE = `cargo new hello-herogpui --bin
 cd hello-herogpui`;
 
 const CARGO_TOML = `[dependencies]
-herogpui = "0.10"`;
+herogpui = "${SITE.crateRequirement}"`;
 
 const MAIN_RS = `use herogpui::*;
 

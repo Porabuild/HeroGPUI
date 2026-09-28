@@ -231,9 +231,8 @@ pub fn set_theme(dark: bool) {
     APPLICATION.with(|application| {
         if let Some(handle) = application.borrow().as_ref() {
             handle.update(|cx| {
-                cx.global_mut::<ThemeProvider>()
-                    .set_active(if dark { "dark" } else { "light" });
-                cx.refresh_windows();
+                // Both ids are pre-registered, so activation cannot fail.
+                let _ = herogpui_theme::use_theme(if dark { "dark" } else { "light" }, cx);
             });
         }
     });
@@ -252,6 +251,34 @@ pub fn set_preview_section(section: String) {
                 WINDOW.with(|window| {
                     if let Some(window) = window.borrow().as_ref() {
                         let _ = window.update(cx, |_, _, cx| cx.notify());
+                    }
+                });
+            });
+        }
+    });
+}
+
+/// Switches the focused component preview to another component and section.
+///
+/// The landing page keeps one wasm application alive across its specimen
+/// tabs, which name different components; rebooting wasm per tab would
+/// download and instantiate the module again. `story` is a nav title or a
+/// website slug, as for [`run`]; an unknown story is ignored.
+#[wasm_bindgen]
+pub fn set_preview_story(story: String, section: String) {
+    let Some(page) = page_named(&story).or_else(|| page_from_slug(&story)) else {
+        return;
+    };
+    APPLICATION.with(|application| {
+        if let Some(handle) = application.borrow().as_ref() {
+            handle.update(|cx| {
+                control::set_section_filter(&section, cx);
+                WINDOW.with(|window| {
+                    if let Some(window) = window.borrow().as_ref() {
+                        let _ = window.update(cx, |gallery, _, cx| {
+                            gallery.set_initial_page(page);
+                            cx.notify();
+                        });
                     }
                 });
             });

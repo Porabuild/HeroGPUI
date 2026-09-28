@@ -1,6 +1,7 @@
 import { CodeBlock } from "@/components/ui/code-block";
 import { SectionHeading } from "@/components/landing/shared";
 import { GalleryFrame } from "@/components/preview/gallery-frame";
+import { getWasmArtifactVersion } from "@/app/docs/components/[slug]/data";
 
 /** The README's Button example, verbatim. */
 const BUTTON_EXAMPLE = `use gpui::prelude::*;
@@ -48,7 +49,13 @@ export function CodeAndRender() {
               labels the frame like the other live-frame captions. */}
           <figure className="m-0 mx-auto w-full max-w-2xl xl:max-w-none">
             <div className="product-visual" data-reveal>
-              <GalleryFrame bare section="Variants" slug="button" title="Button" />
+              <GalleryFrame
+                bare
+                section="Variants"
+                slug="button"
+                title="Button"
+                wasmVersion={getWasmArtifactVersion()}
+              />
             </div>
             <figcaption className="mt-3 flex items-center gap-2 text-xs text-muted">
               <span aria-hidden="true" className="shot-window-dot size-1.5 shrink-0 rounded-full" />

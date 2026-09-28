@@ -1,0 +1,15 @@
+{
+  "id": "midnight",
+  "base": "dark",
+  "background": "oklch(0.16 0.02 265)",
+  "surface": {
+    "background": "oklch(0.21 0.025 265)",
+    "foreground": "oklch(0.97 0.005 265)"
+  },
+  "overlay": {
+    "background": "oklch(0.23 0.025 265)",
+    "foreground": "oklch(0.97 0.005 265)"
+  },
+  "accent": "oklch(0.68 0.16 280)",
+  "focus": "oklch(0.68 0.16 280)"
+}

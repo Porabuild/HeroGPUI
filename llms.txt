@@ -28,7 +28,7 @@ The previous major version used different names, and they do not exist here:
 
 ```toml
 [dependencies]
-herogpui = "0.10"
+herogpui = "0.11"
 ```
 
 One dependency, and only one, published on crates.io (`cargo add herogpui`). `herogpui` is a facade over the GPUI crate
@@ -119,7 +119,9 @@ div().bg(cx.colors().background).text_color(cx.colors().foreground).font_family(
 ```
 
 Toggle: `herogpui::theme::toggle_light_dark(cx);` or `use_theme("dark", cx)` or
-`set_theme(custom, cx)`.
+`set_theme(custom, cx)`. `use_theme` returns `Result<(), UnknownThemeError>`:
+an id no registered theme carries (ids are case-sensitive) is refused, the
+active theme stays as it was, and nothing repaints — it never panics.
 
 Follow the OS instead: `theme::follow_system_appearance(window, cx)` — call it
 once per window from its root-view constructor. It applies the current OS
@@ -287,11 +289,12 @@ Color math (`herogpui-core`): `oklch(l, c, h)`, `oklcha(..)`,
 
 ## Prop vocabularies
 
-**Corner radii.** v3 names a different step per component, so `util` has one
-helper each rather than a single "control" radius: `control_radius` (3xl, 24px —
-button, toggle button, avatar), `soft_radius` (2xl, 16 — chip, menu and list
-rows, colour area), `small_radius` (xl, 12 — close button, tag, link, tooltip),
-`key_radius` (lg, 8 — `Kbd`), `hairline_radius` (sm, 4 — separator, skeleton),
+**Corner radii.** v3 names a different step per component, so
+`herogpui::extend` has one helper each rather than a single "control" radius:
+`control_radius` (3xl, 24px — button, toggle button, avatar), `soft_radius`
+(2xl, 16 — chip, menu and list rows, colour area), `small_radius` (xl, 12 —
+close button, tag, link, tooltip), `key_radius` (lg, 8 — `Kbd`), `mark_radius`
+(md — checkbox), `micro_radius` (xs — small progress track), `hairline_radius` (sm, 4 — separator, skeleton),
 `field_radius` (12 — every form field) and `container_radius` (`min(32px, 3xl)` —
 cards, the table and every floating panel; Surface carries none, upstream
 `.surface` declares no radius). `.shots/design_audit.py` diffs these
@@ -339,10 +342,10 @@ both physical (`"bottom left"`) and logical (`"bottom start"`) spellings, plus
 the logical edge aliases (`"start"`, `"end top"`, …). This port has no RTL
 mode, so each logical spelling resolves to the same pixels as its
 left/right twin. Motion and arrows follow the physical side; alignment is
-positioning-only. Position a panel with `util::placed_panel(placement,
-offset)` — or `util::placed_field_panel` for a trigger-width one — and always
-hand the result to `util::floating`, since gpui paints in tree order and
-`absolute` alone does not lift a panel above later siblings.
+positioning-only. The built-in overlays position their own panels; the
+positioning helpers are crate-internal. A custom floating panel must go
+through GPUI's `deferred(..)`, since gpui paints in tree order and `absolute`
+alone does not lift a panel above later siblings.
 
 
 ## Render props
@@ -525,6 +528,18 @@ TextField::new(name.clone()).label("Name").is_required(true)
 Callbacks: `Fn(&ClickEvent/&str/f32/usize/bool/Option<Date>, &mut Window, &mut App)`.
 Fields cloned into closures must be `Arc`.
 
+Public surface (0.11): the component builders and their payload types live at
+the crate root; `anim` (motion tokens and wrappers) is a module path, not
+re-exported at the root; `extend` holds the helpers supported for custom
+widgets (the radius scale, `FIELD_*` metrics, `cursor_interactive`,
+`focus_visible`/`set_focus_visible`, `inner_fill_radius`,
+`shift_wheel_scroll_x`, `app_focus_root`); the old `util` module is private.
+Theme structs (`Theme`, `ThemeColors`, `LayoutTheme`, `ComponentThemes`, the
+`*Style` recipes), `TabItem`, and every render-prop payload (`*RenderState`,
+`*CellState`, `InteractiveState`, `FieldFocus`, `SelectionValue`, …) are
+`#[non_exhaustive]`: build them with their constructors, builders or
+`Default`, then set fields — never with a struct literal.
+
 Entity-backed controls derive internal identity from their state entity. Keep a
 distinct `InputState`, `CalendarState`, `DateRangeState` or `TimeState` for each
 simultaneously rendered control, and retain that entity across repaints.
@@ -541,7 +556,7 @@ and website group the same components into 66 pages.
 v3 keeps `size` on nineteen components (Button, ButtonGroup, ToggleButton*,
 Chip, TagGroup, Badge, Avatar, Switch, Meter, ProgressBar, ProgressCircle,
 Spinner, Pagination, Modal, AlertDialog, ScrollShadow, ColorSwatch*) and gives
-every form field one height instead — `util::FIELD_HEIGHT` / `FIELD_TEXT` /
+every form field one height instead — `extend::FIELD_HEIGHT` / `FIELD_TEXT` /
 `FIELD_ICON`. `color` survives only on Avatar, Badge, Chip, ColorSwatch*, Meter,
 ProgressBar, ProgressCircle, Spinner and Typography; elsewhere `variant` (or
 `status`, on Alert) is the whole visual vocabulary. `CloseButton` has neither.
@@ -598,7 +613,7 @@ ColorSlider labels/output, ColorPicker triggers, and ColorField display text use
 - **Slider** — `Slider::new(id, value).value().default_value().min_value().max_value().step().orientation().size(SliderSize).label().show_value().format_options().recipe("name").on_change(&f32).on_change_end(&f32)`. `recipe` stacks `Theme.components.slider` overlays; a theme `radius` reaches the track, thumb layers and caps, with instance `sx` corners still winning per corner. The multi-thumb form is `values(Vec<f32>)` + `on_change_all(&[f32])`; dragging moves whichever thumb is nearest, and `thumb(|index, value|)` is v3's `Slider.Thumb` render prop. `size(SliderSize)` is additive, not a v3 prop: `Md` (the default) is v3's geometry — a 20px rail, a 28x20-around-24x16 two-layer thumb and a 12px axis inset — while `Sm` is a 6px pill rail with an 8px inset and a single 12px round knob in the foreground colour. Labels and outputs use 14px text with a fixed 20px line height.
   - Native seek extensions: `continuous(true)` disables pointer snapping and uses 1% arrow / 10% page keyboard increments. `steps(iter)` snaps to sorted, deduplicated finite points inside min/max; arrows visit adjacent points and ties choose the lower point. No usable points falls back to continuous movement. `step`, `continuous` and `steps` replace the preceding mode; stock remains `step(1.0)`. `on_drag_start(|window, cx| ..)` precedes the first pointer write; `on_drag_end(|window, cx| ..)` follows `on_change_end` on left release, including outside the track and unchanged clicks. Keyboard changes only call the change callbacks. Single-thumb mode allocates no unused range value state. Pixel corners supplied by `sx` reach the track, fill, edge caps and both Md thumb layers; `sx(|el| el.rounded_full())` rounds the painted perimeter. Joined single-thumb cap/fill edges stay square under supplied corners; no-sx and range fill geometry is unchanged.
 
-- **Switch** — `is_selected`, `size`, `hover_bg(color)`, `recipe("name")` (stacks `Theme.components.switch` overlays; theme `radius` reaches the clipped track and thumb), `is_disabled`, `is_read_only`, `is_invalid`, `is_required`, `label(el)`, `on_change(&bool)` / `on_press`. The focusable switch-content row owns the single toggle target, so its label and track both activate once; the thumb travels for 300ms while its color eases for 200ms, and reduced motion snaps both. v3's `value` is the form-submission value, not the state, so there is no builder for it. Content uses 14px text with 20px lines; the built-in label uses 16px text with 24px lines.
+- **Switch** — `is_selected`, `size`, `hover_bg(color)`, `recipe("name")` (stacks `Theme.components.switch` overlays; theme `radius` reaches the clipped track and thumb), `is_disabled`, `is_read_only`, `is_invalid`, `is_required`, `label(el)`, `on_change(&bool)` / `on_press`. The focusable switch-content row owns the single toggle target, so its label and track both activate once; the thumb travels for 300ms while its color eases for 200ms, and reduced motion snaps both. v3's `value` is the form-submission value, not the state, so there is no builder for it. Content uses 14px text with 20px lines; the built-in label is the shared `.label` part, 14px medium text with 20px lines.
 
 ### Data Display
 - **Badge** — `BadgeAnchor::new()` is v3's `Badge.Anchor`, the positioning wrapper whose children are the anchored element plus the `Badge::new().variant(BadgeVariant::{Primary,Secondary,Soft}).color().size().text_size(px).radius(px).placement(BadgePlacement)` composed as a later child. `BadgeLabel::new()` is the `px-0.5` text slot — v3 auto-wraps plain text children in it, which GPUI cannot intercept, so the wrap is explicit. No children on the badge is v3's dot badge, and the page-background ring stays unconditional. `radius` is the same per-component repository extension as `Button::radius`, not the removed v2 prop: the size step (`small_radius`/`control_radius`/`soft_radius`) stays the fallback, so an un-overridden badge keeps its step.
@@ -699,16 +714,17 @@ week_start, month_headings, linear_cells, range_heading, year_page}`.
 
 ### Layout
 - **Card** — `variant(CardVariant::{Transparent,Default,Secondary,Tertiary})`, `w`, `radius(px)`, parts `CardHeader`, `CardTitle`, `CardDescription`, `CardContent`, `CardFooter`. The card itself is the padded box (`gap-3 p-4` and the capped container radius) and its parts carry none of their own: the header is a plain column, the title is `text-sm` medium on the foreground, the description `text-sm` muted, the content a `gap-1` column — its upstream `flex-1` is dropped, because the pinned-geometry test in `tests/card_deep.rs` measures the card as an auto-height column hugging its parts, which flex-1 regresses — and the footer a centered row. `transparent` paints nothing: no border, background or shadow. v3's Card is presentational: `isPressable`/`isHoverable`/`isBlurred` were v2, and an interactive card composes a `Button`.
-- **Separator** — `id()`, `orientation`, `variant(SeparatorVariant::{Default,Secondary,Tertiary})`, `mx`/`my`. The weight is `--border-width`; v3 has no per-instance override. AccessKit 0.24 has no separator role, so a named instance still produces no node.
+- **Separator** — `id()`, `orientation`, `variant(SeparatorVariant::{Default,Secondary,Tertiary})`, `mx`/`my`. It is childless, like v3's: place separators between blocks rather than inside one (the content mode was removed in 0.11.0). The weight is `--border-width`; v3 has no per-instance override. AccessKit 0.24 has no separator role, so a named instance still produces no node.
 - **Surface** — `variant(SurfaceVariant::{Transparent,Default,Secondary,Tertiary})`. The v3 component is a strict root — `relative text-foreground` plus each variant's background and foreground pair — with zero default padding and gap, and no radius or border; `transparent` is just a transparent background (the outlined look in the docs examples comes from their own `className`). `padding`/`gap` are port conveniences, not v3 props: they stand in for the `flex flex-col gap-3 rounded-3xl p-6` skeleton every docs example adds through `className`. v3 also publishes its variant through `SurfaceContext` so children can read it; GPUI has no ancestor context propagation, so nothing downstream reads the surrounding surface here.
 - **Toolbar** — `orientation`, `is_attached`, `gap`, `full_width(bool)`, `separator()`. Set the orientation before appending a separator; the bar creates a centred divider half its cross size.
 
 ### Media
-- **Avatar** — `Avatar::new(id).name().src(ImageSource).custom_source_key(key).size().radius(px).color().variant(AvatarVariant::{Default,Soft})`, plus `on_error(f)` / `on_load(f)` for `Avatar.Image.onError`/`onLoad` (fired once per instance, no event payload), `delay_ms(ms)` for `Avatar.Fallback.delayMs` (measured from mount), `fallback(el)` for `Avatar.Fallback` children (an icon, a `+N` counter, custom text) and `fallback_color(Color)` for `Avatar.Fallback.color` — its own documented prop that overrides the parent color for everything the fallback paints. The constructor id is not a v3 prop: the image lifecycle (delay window and once-only callbacks) is keyed per instance under it, and it is required at construction so repeated avatars cannot silently merge into one instance. A changed source resets that lifecycle, so callbacks refire for the new source; a gpui `ImageSource::Custom` loader has no value identity, so omitting `custom_source_key` keeps its lifecycle stable when the closure is rebuilt inline per frame. Set `custom_source_key(key)` to identify a changed logical custom image and reset its load/error latches without using closure pointer identity. `Avatar::initials(name)` renders the default two-letter initials. Fallback text uses 14px/20px for small and medium avatars and 16px/24px for large avatars. A plain string `src` loads through gpui's asset system; a gpui `ImageSource::Custom` loader is the custom-image-component seam. Loaded images and fallback fills share the resolved radius and explicit pixel `sx` corners of the Avatar root. Each specified corner overrides `radius`; unspecified corners keep the named or size default. v3 has no AvatarGroup — its Avatar Group example is plain `Avatar` composition (`-space-x-2` overlap, `ring-2 ring-background`, an explicit +N fallback avatar).
+- **Avatar** — `Avatar::new(id).name().src(ImageSource).custom_source_key(key).size().radius(px).color().variant(AvatarVariant::{Default,Soft})`, plus `on_error(f)` / `on_load(f)` for `Avatar.Image.onError`/`onLoad` (fired once per instance, no event payload), `delay_ms(ms)` for `Avatar.Fallback.delayMs` (measured from mount), `fallback(el)` for `Avatar.Fallback` children (an icon, a `+N` counter, custom text) and `fallback_color(Color)` for `Avatar.Fallback.color` — its own documented prop that overrides the parent color for everything the fallback paints. The constructor id is not a v3 prop: the image lifecycle (delay window and once-only callbacks) is keyed per instance under it, and it is required at construction so repeated avatars cannot silently merge into one instance. A changed source resets that lifecycle, so callbacks refire for the new source; a gpui `ImageSource::Custom` loader has no value identity, so omitting `custom_source_key` keeps its lifecycle stable when the closure is rebuilt inline per frame. Set `custom_source_key(key)` to identify a changed logical custom image and reset its load/error latches without using closure pointer identity. `Avatar::initials(name)` renders the default two-letter initials. Fallback text uses 12px/16px for small, 14px/20px for medium and 16px/24px for large avatars. A decoded image with zero natural size counts as a load failure (Radix Avatar 1.2.6): the fallback shows and `on_error` fires once. A plain string `src` loads through gpui's asset system; a gpui `ImageSource::Custom` loader is the custom-image-component seam. Loaded images and fallback fills share the resolved radius and explicit pixel `sx` corners of the Avatar root. Each specified corner overrides `radius`; unspecified corners keep the named or size default. Groups use `AvatarGroup`.
+- **AvatarGroup** — `AvatarGroup::new(id).size().color().variant(AvatarVariant).max(n).is_grid(bool).overlap(AvatarGroupOverlap::{Clip,Ring}).overlap_distance(px).seam(px).child(Avatar).children(avatars).child_element(el).count(AvatarGroupCount).sx(..)`, `AvatarGroupCount::new(id).size().color().variant().child(el)`. The group fills `size` (default `Md`), `color` and `variant` only on direct `Avatar` children that omit them (a child's own prop wins; avatars nested in a `child_element` never inherit). `max` keeps the first `max` children and appends an automatic `+N` count; an explicit `count` is never truncated and suppresses the automatic one. `is_grid(true)` wraps with a 12px gap and no overlap; otherwise stacked siblings pull 8px under their predecessor. `Ring` is a 2px `--background` ring on every stacked child. `Clip` (the default) is a platform limitation: v3 cuts a transparent crescent with a CSS alpha mask that pinned GPUI cannot draw, so the port paints the 2px seam in `--background` — identical on a solid background, a solid seam over images or gradients. `overlap_distance` and `seam` are repository extensions for the two CSS variables. No implicit role.
 
 ### Navigation
 - **Accordion** — `Accordion::new(items).expanded_keys(HashSet).variant(AccordionVariant::{Default,Surface}).radius(px).hover_bg(color).hide_separator().on_toggle(&SharedString)`, `AccordionItem::new(key,title).subtitle().content(el)`; title, subtitle and body line heights are 20px, 16px and 20px independently of host leading, with no extra top inset above the body. The built-in indicator is one down-chevron that rotates through 180 degrees over the pinned 250ms default transition curve and snaps when reduced motion is enabled; the panel measures natural body height and animates height plus opacity over the pinned 200ms curves, retaining closing content through the exit lifetime. Custom indicator content receives live `AccordionItemState` and remains caller-owned. `radius` is the same per-component repository extension as `Button::radius`, not the removed v2 prop: it rounds the `Surface` item card in place of the container radius, so it is inert on the flush `Default` variant, which paints no card, and the separators' hairline mark keeps its own.
-- **Breadcrumbs** — `Breadcrumbs::new(vec![Crumb::new("Home").href("#")]).id().separator(BreadcrumbSeparator::{Slash,Chevron,Dash}).separator_render(|i| custom node).text_size(px).full_width(bool).is_disabled(bool).on_navigate(|i, crumb, ev|)`; the last crumb is the current page — link-coloured, inert, no tab stop — even if it carries an `href`, and its AccessKit `aria-current="page"` state is exposed. Every link crumb is a tab stop and Enter/Space activates it. `text_size(px)` scales the crumb labels off their 14px default and the paired line height follows; unset keeps the fixed 14px/20px pair, and the separator keeps its own 12px.
+- **Breadcrumbs** — `Breadcrumbs::new(vec![Crumb::new("Home").href("#")]).id().separator(BreadcrumbSeparator::{Slash,Chevron,Dash}).separator_render(|i| custom node).text_size(px).full_width(bool).is_disabled(bool).on_navigate(|i, crumb, ev|)`; the last crumb is the current page — link-coloured, inert, no tab stop — even if it carries an `href`, and its AccessKit `aria-current="page"` state is exposed. Every link crumb is a tab stop and Enter/Space activates it. `text_size(px)` scales the crumb labels off their 14px default and the paired line height follows; unset keeps the fixed 14px/20px pair, and the separator keeps its own 12px. Items sit 6px apart and each item gaps its unpadded link and separator by 4px.
 - **Disclosure / DisclosureGroup** — `Disclosure::new(id,title).is_expanded().on_expanded_change(&bool).content(|state: DisclosureRenderState| ..)`, `DisclosureGroup::new(id).item(key,title,content).expanded_keys().on_expanded_change()`. The built-in Disclosure indicator keeps one down-chevron and rotates it through 180 degrees over the pinned 250ms default transition curve, with the same keyed reversal and reduced-motion endpoint behavior as Accordion. Its panel measures natural body height, animates height and opacity over 200ms, and remains mounted until the close transition completes; reduced motion snaps and removes it immediately.
 - **Link** — `Link::new(id).label().href().icon(el).icon_first(bool).auto_focus().radius(px).is_disabled().on_press()` plus `render(|state| el)` — v3's render function receives the link's interactive state (`isHovered`/`isPressed`/`isFocused`/`isFocusVisible`/`isDisabled`); the root keeps the `href`, `onPress`, focus and disabled wiring, and GPUI has no DOM props to spread. `.link` is `font-medium text-link no-underline decoration-[1.5px]` — the stylesheet is the contract, not the docs' `font-semibold` Global CSS snippet — and hover/press only recolour the decoration (`muted/50` → `muted`), never the text. Opening goes through the OS handler, so v3's `target` / `rel` / `download` have no meaning and are not offered. `radius` is the same per-component repository extension as `Button::radius`, not the removed v2 prop: it replaces the root's default `rounded-xl`, which only shows against a caller-supplied background or the focus ring, since the link paints no fill of its own.
 - **Pagination** — `Pagination::new(id, page, total).size().full_width(bool).hover_bg(color).on_change(&usize)` — the active page exposes AccessKit `aria-current="page"`; the override feeds hover and pressed together; summary, link and navigation text use size-specific 12/16, 14/20 and 16/24 font/line-height pairs independently of host leading.
@@ -726,10 +742,10 @@ Modal, Drawer, and AlertDialog cover the window even inside clipped or positione
   - a composed footer retires the built-in pair: the caller's own `Button`s own their close wiring and the danger/pending spellings (`variant(Variant::Danger)`, `is_pending(true)`), the way v3 composes `slot="close"` buttons.
   - `is_dismissible` and `is_keyboard_dismiss_disabled` default to v3's values (backdrop dismissal off, Escape off), so opting in is explicit. `status` renders the alert glyph in that role's colour and only when set.
   - placement is anchored like Modal's, but v3's ±4px enter slide for top/bottom/auto is not ported — the fade and the zoom are.
-- **Drawer** — `placement(DrawerPlacement)`, `size(px)`, `title`, `backdrop(Backdrop)`, `is_dismissible`, `is_keyboard_dismiss_disabled`, `footer_child`, `on_close`, `on_open_change(&bool)`; `.child(DrawerCloseTrigger::new())` composes v3's `Drawer.CloseTrigger` X
-- **Modal** — `is_open`, `title`, `size(ModalSize::{Xs,Sm,Md,Lg,Cover,Full})`, `backdrop(Backdrop)`, `placement(ModalPlacement::{Auto,Center,Top,Bottom})`, `scroll(ModalScroll::{Inside,Outside})`, `radius(px)`, `is_dismissible`, `is_keyboard_dismiss_disabled`, `footer_child`, `on_close`, `on_open_change(&bool)`; `.child(ModalCloseTrigger::new())` composes v3's `Modal.CloseTrigger` X — the part draws only where composed, like v3
+- **Drawer** — `placement(DrawerPlacement)`, `size(px)`, `title`, `backdrop(Backdrop)`, `is_dismissible`, `is_keyboard_dismiss_disabled`, `footer_child`, `on_close(&DismissReason)`, `on_open_change(&bool)`; `.child(DrawerCloseTrigger::new())` composes v3's `Drawer.CloseTrigger` X
+- **Modal** — `is_open`, `title`, `size(ModalSize::{Xs,Sm,Md,Lg,Cover,Full})`, `backdrop(Backdrop)`, `placement(ModalPlacement::{Auto,Center,Top,Bottom})`, `scroll(ModalScroll::{Inside,Outside})`, `radius(px)`, `is_dismissible`, `is_keyboard_dismiss_disabled`, `footer_child`, `on_close(&DismissReason)`, `on_open_change(&bool)`; `.child(ModalCloseTrigger::new())` composes v3's `Modal.CloseTrigger` X — the part draws only where composed, like v3
   - `Inside` scrolling retains a 40px outer margin, including with long content; `Full` fills the viewport. `radius` is the same per-component repository extension as `Button::radius`; it replaces the default panel radius but `Full` paints no radius either way, so its zoom stays a plain fade.
-  - every dismissal path reports through **both** `on_close` and `on_open_change(false)`, so either callback alone is sufficient.
+  - every dismissal path reports through **both** `on_close` and `on_open_change(false)`, so either callback alone is sufficient. `on_close` receives a `#[non_exhaustive]` `DismissReason` — `CloseButton`, `Escape`, `Backdrop`, or (Drawer) `Drag` — naming the path that fired.
   - Escape closes it unless `is_keyboard_dismiss_disabled`. The overlay takes a focus handle and claims focus while nothing inside holds it; keys bubble from the focused descendant, so a text field inside keeps working. Drawer and AlertDialog behave the same way (AlertDialog defaults keyboard dismissal *off*, as v3 does).
 - **Popover** — `Popover::new(trigger).is_open().placement(Placement).offset(px).should_flip(bool).padding(px).radius(px).title().show_close_button().on_open_change(&bool)`; panel text defaults to 14px with a 20px line height independently of host leading; `.child(PopoverArrow::new())` composes v3's `Popover.Arrow` part — the built-in 12px curve, or a custom child element at the resolved position but without the rotation (upstream rotates it through its `data-slot` placement CSS; The pinned GPUI transforms only `svg()` elements at construction). `radius` is the same per-component repository extension as `Button::radius`, and the panel's entry zoom interpolates the override, so the animation never parts company with the painted shape.
   - `should_flip` routes through gpui's `anchored().snap_to_window()`, which slides the panel back inside the viewport rather than mirroring it to the opposite side.
@@ -758,6 +774,54 @@ The browser gallery bundles distinct Inter faces for Normal, Medium, Semibold an
   - The `sx` slot refines the track root: an `sx` background is the thumb's resting fill (it also paints the transparent gutter, so `thumb_color` is the seam that moves only the thumb), a definite cross-axis `w`/`h` is the track thickness the default radius derives from, and per-corner radii shape the thumb. Hover feedback is an immediate swap, not a transition — the thumb is painted from the handle at paint time, outside gpui's style hover system.
   - Wheel input scrolls only along the configured orientation.
 
+## HeroGPUI extensions
+
+Not HeroUI v3 APIs; each is labelled as an extension in its rustdoc and kept
+out of `reference_metadata`.
+
+- **Shared builder traits** — `Disableable::is_disabled(bool)`,
+  `Sizable::size(Self::Size)` and `Selectable::is_selected(bool)`, for generic
+  code over components (`fn f<T: Disableable + Sizable<Size = Size>>(t: T)`).
+  Every impl delegates to the inherent builder of the same name, which stays
+  the documented API. `Sizable::Size` is the component's own scale (`Size`,
+  `ModalSize`, `CheckboxSize`, `SpinnerSize`, ...).
+- **i18n** — `i18n::set_locale("de-DE", cx)`, `i18n::locale(cx)`,
+  `i18n::ui_string(UiString::Close, cx)`, `i18n::set_ui_string("fr",
+  UiString::Loading, "Chargement", cx)`, `i18n::lookup(locale, key)`. Keys:
+  `SelectPlaceholder`, `NoResults`, `Close`, `Loading`, `Previous`, `Next`,
+  `Remove`, `Breadcrumbs`, `Search`. Resolution: exact override, then an
+  override for the bare language, then the built-in table (exact tag, then
+  language), then en-US. Built-in: en-US, de-DE, es-ES, fr-FR, it-IT, nl-NL,
+  pl-PL, pt-BR, sv-SE (from the pinned React Aria dictionaries; `NoResults`,
+  `Loading` and `Search` are HeroUI's English-only strings). Dates and
+  numbers keep their own per-component ICU4X `.locale(..)`.
+- **Theme files** (`serde` feature) — `register_theme_json(json, cx)`
+  registers a `ThemeDocument` without activating it; `load_themes_dir(dir,
+  cx)` does that for every `*.json` in a directory (name order);
+  `presets::register_presets(cx)` adds `ocean`, `forest`, `midnight` and
+  `rose`; switch with `use_theme(id, cx)`. `THEME_SCHEMA` is the JSON Schema
+  (`crates/herogpui-theme/theme.schema.json`). `ThemeProvider::insert` and
+  `ThemeProvider::theme_ids` are the registry primitives.
+- **Test kit** (`test-support` feature) — `herogpui::test::open_window(cx,
+  |_, _| View)` returns `(Entity<View>, &mut VisualTestContext)`;
+  `TestWindowExt` adds `find(selector)`, `expect(selector)`,
+  `click(selector)`, `click_at(point)`, `hover`, `press("tab enter")` (with
+  the key-up GPUI activates on), `type_text`, `scroll` and `settle`.
+  Elements are addressed by `.debug_selector(..)`. With `use herogpui::*;`
+  in a test file, add `use ::core::prelude::v1::test;` so `#[gpui::test]`
+  expands to the built-in test attribute.
+- **VirtualList** — `VirtualList::new(id, &handle, |ix, window, cx|
+  row.into_any_element()).height(px)` over a caller-owned
+  `VirtualListHandle::new(count)`. Rows may differ in height and are measured
+  as they are built. `handle.scroll_to_item(ix, VirtualListScroll::{Reveal,
+  Top})`, `set_item_count(n)`, `splice(range, count)`, `remeasure()`,
+  `scroll_by(px)`, `first_visible_item()`, `bounds_for_item(ix)`. Reveal on a
+  row not laid out in the last frame falls back to Top.
+- **ContextMenu** — `ContextMenu::new(id, area, items).on_action(|key, w,
+  cx| ..).on_open_change(..).disabled_keys([..]).is_disabled(bool)`. A
+  secondary (right) press in the area opens the Dropdown `Menu` panel at the
+  pointer; an item, Escape or an outside press closes it.
+
 ## Gallery
 
 `cargo run -p herogpui-gallery` — 1280×820 window, centred. `HEROGPUI_PAGE`
@@ -773,8 +837,8 @@ Pinned GPUI notes: `f32::from(px)` for `Pixels`, no `select_none`, `on_click`
 and `.active()` need `.id()`, `svg()` never inherits text color, `Arc` for
 shared callbacks, `.into_any_element()` for branch unification. Theme tokens are
 already `Hsla` — never wrap them in `Hsla::from`. Divs are `Display::Block`, so
-put controls in a flex parent or they stretch. Floating panels need
-`util::floating` (`deferred`) to paint above later siblings. See `AGENTS.md`.
+put controls in a flex parent or they stretch. Floating panels need GPUI's
+`deferred(..)` to paint above later siblings. See `AGENTS.md`.
 
 ## Animation
 
@@ -794,8 +858,8 @@ is the gpui equivalent and the single place the timings live.
 - `anim::exiting(el, id, ZoomBox, cx)` / `exiting_to(..)` — v3's
   `[data-exiting]`: `animate-out zoom-out-95 fade-out duration-150`, and the
   drawer's `slide-out-to-*`. A `RenderOnce` component leaves the tree the moment
-  `isOpen` goes false, so `util::overlay_phase` holds it for `EXITING_MS` first:
-  it returns `Closed` / `Open` / `Exiting`, and the caller picks the animation.
+  `isOpen` goes false, so each overlay holds itself for `EXITING_MS` first
+  (`Closed` / `Open` / `Exiting`) and picks the animation.
 - `anim::hover_fade(el, id, idle, hovered, hover_border, window, cx)` — v3's
   `transition-colors`. gpui has no property transitions, so the element keeps its
   own hover flag and generation counter and each change eases the fill in OKLab.

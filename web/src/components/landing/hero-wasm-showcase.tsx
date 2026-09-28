@@ -2,30 +2,15 @@
 
 import { cn } from "@heroui/react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  embedUrl,
+  isReadyMessage,
+  postPreview,
+  postTheme,
+  readTheme,
+  type GalleryTheme,
+} from "@/lib/gallery-embed";
 import { publicUrl } from "@/lib/public-url";
-
-const GALLERY_BASE = process.env.NEXT_PUBLIC_GALLERY_URL || "/gallery";
-const ABSOLUTE_URL_RE = /^[a-z][a-z0-9+.-]*:\/\//i;
-
-function readTheme(): "light" | "dark" {
-  if (typeof document === "undefined") return "dark";
-  return document.documentElement.classList.contains("dark") ? "dark" : "light";
-}
-
-function galleryOrigin(base: string): string {
-  return ABSOLUTE_URL_RE.test(base) ? base : publicUrl(base);
-}
-
-function embedUrl(slug: string, section: string, theme: "light" | "dark"): string {
-  const base = galleryOrigin(GALLERY_BASE).replace(/\/+$/, "");
-  const query = new URLSearchParams({
-    preview: "component",
-    section,
-    story: slug,
-    theme,
-  }).toString();
-  return `${base}/index.html?${query}`;
-}
 
 interface SpecimenTab {
   id: string;
@@ -42,14 +27,24 @@ const SPECIMEN_TABS: SpecimenTab[] = [
   { id: "alert", slug: "alert", section: "Usage", label: "Alert" },
 ];
 
-export function HeroWasmShowcase() {
+interface HeroWasmShowcaseProps {
+  /** SHA-256 of the checked-in artifact (wasm-parity.json), for `?v=`. */
+  wasmVersion: string;
+}
+
+/**
+ * The landing page's live specimen. The multi-megabyte module is not fetched
+ * on page load: the frame is created only when the reader asks for it (the
+ * poster button or a specimen tab). After that one instance stays alive —
+ * tabs switch component and example, and the site theme toggle switches the
+ * theme, all over the `index.html` message bridge rather than a reload.
+ */
+export function HeroWasmShowcase({ wasmVersion }: HeroWasmShowcaseProps) {
   const [activeTab, setActiveTab] = useState<SpecimenTab>(SPECIMEN_TABS[0]);
-  const [theme, setTheme] = useState<"light" | "dark">("dark");
-  // The iframe is created only after mount: a server-rendered `src` would
-  // start (and possibly finish) loading before hydration, so its `load`
-  // event would fire with no React listener attached and the frame would
-  // sit at opacity 0 behind the skeleton forever.
-  const [mounted, setMounted] = useState(false);
+  // The boot URL (story, section, theme) is fixed when the frame is created;
+  // later changes travel as messages, so `src` never changes and the
+  // instance never restarts.
+  const [bootSrc, setBootSrc] = useState<string | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const stripRef = useRef<HTMLDivElement | null>(null);
@@ -77,90 +72,52 @@ export function HeroWasmShowcase() {
     };
   }, [updateScrollFade]);
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  const boot = useCallback(
+    (tab: SpecimenTab) => {
+      setBootSrc((current) => current ?? embedUrl(tab.slug, tab.section, readTheme(), wasmVersion));
+    },
+    [wasmVersion],
+  );
 
-  // Sync with host page theme
+  // Follow the site theme without a reload. A same-origin frame also watches
+  // the parent itself; the message covers a separately hosted gallery.
   useEffect(() => {
-    setTheme(readTheme());
+    if (!bootSrc) return;
+    let previous: GalleryTheme = readTheme();
     const observer = new MutationObserver(() => {
       const current = readTheme();
-      setTheme(current);
-      // Also broadcast theme change to iframe if alive
-      const target = iframeRef.current?.contentWindow;
-      if (target) {
-        const origin = new URL(galleryOrigin(GALLERY_BASE), window.location.href).origin;
-        target.postMessage({ type: "herogpui:set-theme", dark: current === "dark" }, origin);
-      }
+      if (current === previous) return;
+      previous = current;
+      postTheme(iframeRef.current, current);
     });
-
     observer.observe(document.documentElement, {
       attributes: true,
       attributeFilter: ["class", "data-theme"],
     });
-
     return () => observer.disconnect();
-  }, []);
+  }, [bootSrc]);
 
-  const sendSectionChange = useCallback((section: string) => {
-    const target = iframeRef.current?.contentWindow;
-    if (!target) return;
-    const origin = new URL(galleryOrigin(GALLERY_BASE), window.location.href).origin;
-    target.postMessage({ type: "herogpui:preview-section", section }, origin);
-  }, []);
+  // The instance announces itself once booted; that ends the skeleton.
+  useEffect(() => {
+    if (!bootSrc) return;
+    const onMessage = (event: MessageEvent) => {
+      if (isReadyMessage(event, iframeRef.current)) setIsLoaded(true);
+    };
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, [bootSrc]);
 
   const handleTabSelect = (tab: SpecimenTab) => {
-    if (tab.id === activeTab.id) return;
-    if (tab.slug === activeTab.slug) {
-      // Same story: keep the one live frame and switch its section over
-      // the message bridge instead of rebooting WebAssembly.
+    if (!bootSrc) {
       setActiveTab(tab);
-      sendSectionChange(tab.section);
-    } else {
-      setIsLoaded(false);
-      setActiveTab(tab);
+      boot(tab);
+      return;
     }
+    if (tab.id === activeTab.id) return;
+    setActiveTab(tab);
+    // Messages sent before boot completes are queued by index.html.
+    postPreview(iframeRef.current, tab.section, tab.slug);
   };
-
-  const iframeSrc = embedUrl(activeTab.slug, activeTab.section, theme);
-
-  // A fresh story or theme reboots the frame, so the skeleton returns
-  // until the new document reports in.
-  useEffect(() => {
-    setIsLoaded(false);
-  }, [activeTab.slug, theme]);
-
-  const markLoaded = useCallback(
-    (section: string) => {
-      setIsLoaded(true);
-      sendSectionChange(section);
-    },
-    [sendSectionChange],
-  );
-
-  // Second guarantee against a missed `load` event: once the frame exists,
-  // treat `readyState === "complete"` as loaded. Same-origin only; a
-  // cross-origin gallery throws on `contentDocument` access and keeps the
-  // `onLoad` path.
-  useEffect(() => {
-    if (!mounted || isLoaded) return;
-    const frame = iframeRef.current;
-    if (!frame) return;
-    const timer = window.setInterval(() => {
-      let complete = false;
-      try {
-        complete = frame.contentDocument?.readyState === "complete";
-      } catch {
-        complete = false;
-      }
-      if (complete) {
-        window.clearInterval(timer);
-        markLoaded(activeTab.section);
-      }
-    }, 250);
-    return () => window.clearInterval(timer);
-  }, [mounted, isLoaded, iframeSrc, activeTab.section, markLoaded]);
 
   return (
     <figure className="relative m-0 w-full min-w-0 max-w-2xl lg:max-w-none">
@@ -222,29 +179,41 @@ export function HeroWasmShowcase() {
 
         {/* Canvas / Iframe Viewport */}
         <div className="relative h-[300px] w-full overflow-hidden bg-surface-secondary sm:h-[400px] lg:h-[440px]">
-          {/* Subtle loading skeleton before iframe loads */}
-          {!isLoaded && (
+          {!bootSrc ? (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-surface-secondary text-muted">
+              <button
+                className="cursor-pointer rounded-lg border border-separator bg-surface px-4 py-2 text-sm font-medium text-foreground transition-colors hover:border-accent"
+                onClick={() => boot(activeTab)}
+                type="button"
+              >
+                Run the live demo
+              </button>
+              <span className="max-w-xs text-center text-xs text-muted/80">
+                Loads HeroGPUI compiled to WebAssembly (about 5 MB, cached afterwards).
+              </span>
+            </div>
+          ) : null}
+
+          {bootSrc && !isLoaded ? (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-surface-secondary text-muted">
               <span className="size-2 rounded-full bg-accent animate-ping" />
               <span className="font-mono text-xs text-muted/80">
                 Loading the {activeTab.label} example
               </span>
             </div>
-          )}
+          ) : null}
 
-          {mounted && (
+          {bootSrc ? (
             <iframe
               className={cn(
                 "absolute inset-0 h-full w-full border-0 transition-opacity duration-300",
                 isLoaded ? "opacity-100" : "opacity-0",
               )}
-              key={`${activeTab.slug}-${theme}`}
-              onLoad={() => markLoaded(activeTab.section)}
               ref={iframeRef}
-              src={iframeSrc}
+              src={bootSrc}
               title={`HeroGPUI ${activeTab.label} live WebAssembly specimen`}
             />
-          )}
+          ) : null}
         </div>
       </div>
 
@@ -259,7 +228,7 @@ export function HeroWasmShowcase() {
         </span>
         <a
           className="font-mono text-[11px] text-muted transition-colors hover:text-accent no-underline"
-          href={publicUrl(`/gallery/index.html?theme=${theme}`)}
+          href={publicUrl("/gallery/index.html")}
           rel="noopener noreferrer"
           target="_blank"
         >

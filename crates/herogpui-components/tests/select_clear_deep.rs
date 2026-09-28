@@ -80,7 +80,7 @@ fn clear_click_preserves_focus_and_layout_and_empty_target_opens(cx: &mut TestAp
                 // that rejects the clear request reports again without changing.
                 press(cx, "backspace");
                 assert!(
-                    cx.update(|_, cx| herogpui_components::util::focus_visible(cx)),
+                    cx.update(|_, cx| herogpui_components::extend::focus_visible(cx)),
                     "clearing by keyboard must enable the focus ring after a pointer press"
                 );
                 if controlled {

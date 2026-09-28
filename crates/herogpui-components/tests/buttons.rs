@@ -68,7 +68,7 @@ use gpui::{
     Keystroke, Modifiers, MouseButton, TestAppContext, VisualTestContext,
 };
 use herogpui_components::{
-    util, Alert, Button, ButtonGroup, Chip, ChipLabel, CloseButton, Link, Orientation,
+    Alert, Button, ButtonGroup, Chip, ChipLabel, CloseButton, InteractiveState, Link, Orientation,
     SelectionMode, ToggleButton, ToggleButtonGroup,
 };
 
@@ -1027,7 +1027,7 @@ fn button_content_render_prop_reports_pending_and_retains_focus(cx: &mut TestApp
         Button::new("btn-pending-state")
             .full_width(true)
             .is_pending(true)
-            .content(move |state: util::InteractiveState| {
+            .content(move |state: InteractiveState| {
                 *record.borrow_mut() = (
                     state.is_pending,
                     state.is_disabled,
@@ -1079,7 +1079,7 @@ fn button_pending_transition_clears_stale_interaction_state(cx: &mut TestAppCont
         Button::new("btn-pending-transition")
             .full_width(true)
             .is_pending(*for_view.borrow())
-            .content(move |state: util::InteractiveState| {
+            .content(move |state: InteractiveState| {
                 *record.borrow_mut() = (state.is_hovered, state.is_pending);
                 gpui::div().child("state".to_owned()).into_any_element()
             })
@@ -1127,7 +1127,7 @@ fn disabling_button_clears_render_prop_focus(cx: &mut TestAppContext) {
         Button::new("btn-disable-focus")
             .full_width(true)
             .is_disabled(*for_view.borrow())
-            .content(move |state: util::InteractiveState| {
+            .content(move |state: InteractiveState| {
                 *record.borrow_mut() =
                     (state.is_focused, state.is_focus_visible, state.is_disabled);
                 gpui::div().child("state".to_owned()).into_any_element()
@@ -1176,7 +1176,7 @@ fn button_content_render_prop_sees_press(cx: &mut TestAppContext) {
         let record = record.clone();
         Button::new("btn-state")
             .full_width(true)
-            .content(move |state: util::InteractiveState| {
+            .content(move |state: InteractiveState| {
                 *record.borrow_mut() = (state.is_hovered, state.is_pressed);
                 gpui::div().child("state".to_owned()).into_any_element()
             })
@@ -1248,7 +1248,7 @@ fn button_hover_bg_keeps_the_interaction_slot_reporting(cx: &mut TestAppContext)
         Button::new("btn-hover-bg")
             .full_width(true)
             .hover_bg(gpui::rgba(0x804000ff))
-            .content(move |state: util::InteractiveState| {
+            .content(move |state: InteractiveState| {
                 *record.borrow_mut() = (state.is_hovered, state.is_pressed);
                 gpui::div().child("state".to_owned()).into_any_element()
             })
@@ -1304,7 +1304,7 @@ fn button_content_render_prop_sees_keyboard_press(cx: &mut TestAppContext) {
         let record = record.clone();
         gpui::div()
             .child(Button::new("btn-key-state").full_width(true).content(
-                move |state: util::InteractiveState| {
+                move |state: InteractiveState| {
                     *record.borrow_mut() = state.is_pressed;
                     gpui::div().child("state".to_owned()).into_any_element()
                 },
@@ -1442,7 +1442,7 @@ fn toggle_button_content_render_prop_sees_state(cx: &mut TestAppContext) {
         // nobody and the toggle would be inert).
         ToggleButton::new("tb-state")
             .default_selected(true)
-            .content(move |state: util::InteractiveState| {
+            .content(move |state: InteractiveState| {
                 *record.borrow_mut() = (state.is_hovered, state.is_pressed, state.is_selected);
                 // A fixed 64x16 box stands in for the label a caller's render
                 // function would draw. ToggleButton `Size::Md` is 36px tall
@@ -1522,7 +1522,7 @@ fn toggle_button_content_render_prop_sees_focus_state(cx: &mut TestAppContext) {
         let record = record.clone();
         ToggleButton::new("tb-focus-state")
             .default_selected(true)
-            .content(move |state: util::InteractiveState| {
+            .content(move |state: InteractiveState| {
                 *record.borrow_mut() = (
                     state.is_focused,
                     state.is_focus_visible,
@@ -1568,7 +1568,7 @@ fn disabled_toggle_button_content_reports_disabled_and_stays_inert(cx: &mut Test
         ToggleButton::new("tb-disabled-state")
             .default_selected(true)
             .is_disabled(true)
-            .content(move |state: util::InteractiveState| {
+            .content(move |state: InteractiveState| {
                 *record.borrow_mut() = (state.is_focused, state.is_disabled, state.is_selected);
                 gpui::div()
                     .w(px(64.))

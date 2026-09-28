@@ -223,6 +223,7 @@ impl SurfaceColor {
 /// Form-field tokens. v3 keeps these separate from buttons so inputs can be
 /// styled independently.
 #[derive(Clone, Copy, Debug)]
+#[non_exhaustive]
 pub struct FieldColors {
     /// `--field-background`
     pub background: Hsla,
@@ -264,6 +265,7 @@ impl FieldColors {
 
 /// All semantic tokens of one appearance.
 #[derive(Clone, Debug)]
+#[non_exhaustive]
 pub struct ThemeColors {
     // -- base ---------------------------------------------------------------
     /// `--background`

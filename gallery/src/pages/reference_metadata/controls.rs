@@ -522,10 +522,10 @@ pub(super) const SLIDER: ReferenceMetadata = ReferenceMetadata {
     page: "Slider",
     import_line: "use herogpui::components::slider::Slider;",
     source_module: "slider",
-    version: "3.2.5",
-    docs_source: "https://github.com/heroui-inc/heroui/blob/v3.2.5/apps/docs/content/docs/en/react/components/(controls)/slider.mdx",
-    api_source: "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/react/src/components/slider/slider.tsx",
-    style_source: "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/styles/components/slider.css",
+    version: "3.2.6",
+    docs_source: "https://github.com/heroui-inc/heroui/blob/v3.2.6/apps/docs/content/docs/en/react/components/(controls)/slider.mdx",
+    api_source: "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/react/src/components/slider/slider.tsx",
+    style_source: "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/styles/components/slider.css",
     required_parts: SLIDER_REQUIRED_PARTS,
     api: SLIDER_API,
     parts: SLIDER_PARTS,
@@ -976,7 +976,7 @@ const SWITCH_STATES: &[StateDoc] = &[
 ];
 
 const SWITCH_STYLING: &[StyleDoc] = &[
-    StyleDoc { class_or_token: "text-sm", value: "14px text with 20px line height", description: "Content uses 14px text with 20px lines; the built-in label uses 16px text with 24px lines.", rust: "text_size + line_height", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: "text-sm", value: "14px text with 20px line height", description: "Content uses 14px text with 20px lines; the built-in label is the shared `.label` part, 14px medium text with 20px lines.", rust: "text_size + line_height", status: ImplementationStatus::Implemented },
     StyleDoc {
         class_or_token: ".switch",
         value: "flex flex-col items-start gap-1",
@@ -1067,10 +1067,10 @@ pub(super) const SWITCH: ReferenceMetadata = ReferenceMetadata {
     page: "Switch",
     import_line: "use herogpui::components::switch::Switch;",
     source_module: "switch",
-    version: "3.2.5",
-    docs_source: "https://github.com/heroui-inc/heroui/blob/v3.2.5/apps/docs/content/docs/en/react/components/(controls)/switch.mdx",
-    api_source: "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/react/src/components/switch/switch.tsx",
-    style_source: "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/styles/components/switch.css",
+    version: "3.2.6",
+    docs_source: "https://github.com/heroui-inc/heroui/blob/v3.2.6/apps/docs/content/docs/en/react/components/(controls)/switch.mdx",
+    api_source: "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/react/src/components/switch/switch.tsx",
+    style_source: "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/styles/components/switch.css",
     required_parts: SWITCH_REQUIRED_PARTS,
     api: SWITCH_API,
     parts: SWITCH_PARTS,

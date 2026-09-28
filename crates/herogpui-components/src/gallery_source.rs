@@ -9,6 +9,7 @@ pub fn source_for(module: &str) -> Option<&'static str> {
         "alert_dialog" => include_str!("alert_dialog.rs"),
         "autocomplete" => include_str!("autocomplete.rs"),
         "avatar" => include_str!("avatar.rs"),
+        "avatar_group" => include_str!("avatar_group.rs"),
         "badge" => include_str!("badge.rs"),
         "breadcrumbs" => include_str!("breadcrumbs.rs"),
         "button" => include_str!("button.rs"),

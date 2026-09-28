@@ -278,6 +278,46 @@ a:focus,
     font-size: 0.8125rem;
     line-height: 1.7;
   }
+
+  /* Line numbers. A scrolling block (`code-lines`) has one gutter element
+     beside <code> and no per-line markup; a wrapping block (`code-counter`)
+     keeps its line spans for the hanging indent and numbers them with a
+     counter. Either way the numbers sit behind a hairline end border. */
+  .code-lines {
+    display: flex;
+    width: max-content;
+    min-width: 100%;
+  }
+  .code-lines code {
+    flex: 1 0 auto;
+  }
+  .code-gutter,
+  .code-counter .line::before {
+    flex: none;
+    width: 2.5rem;
+    margin-inline-end: 0.75rem;
+    padding-inline-end: 0.75rem;
+    border-inline-end: 1px solid var(--separator);
+    text-align: end;
+    white-space: pre;
+    font-family: var(--font-mono);
+    font-size: 0.8125rem;
+    line-height: 1.7;
+    user-select: none;
+  }
+  .shiki .code-gutter,
+  .dark .shiki .code-gutter,
+  .code-counter .line::before {
+    color: var(--code-gutter) !important;
+  }
+  .code-counter code {
+    counter-reset: code-line;
+  }
+  .code-counter .line::before {
+    display: inline-block;
+    counter-increment: code-line;
+    content: counter(code-line);
+  }
 }
 
 ::selection {

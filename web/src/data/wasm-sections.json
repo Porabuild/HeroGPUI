@@ -78,7 +78,8 @@
     "Long Press Trigger",
     "Basic Usage",
     "Controlled Selection",
-    "With Multiple Selection"
+    "With Multiple Selection",
+    "Context Menu"
   ],
   "list-box": [
     "Usage",
@@ -90,6 +91,7 @@
     "Disallow Empty Selection",
     "Escape Key Behavior",
     "Virtualization",
+    "Virtual List",
     "Custom Check Icon",
     "Single selection",
     "Multiple selection",
@@ -615,8 +617,16 @@
     "Sizes",
     "Colors",
     "Variants",
-    "Avatar Group",
     "Custom Image Component"
+  ],
+  "avatar-group": [
+    "Usage",
+    "Max",
+    "With Count",
+    "Sizes",
+    "Grid",
+    "Overlap",
+    "Custom Styles"
   ],
   "accordion": [
     "Usage",

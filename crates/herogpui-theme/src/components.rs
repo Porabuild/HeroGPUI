@@ -75,6 +75,7 @@ pub trait ComponentStyle: Clone + Default {
 
 /// Application-wide defaults plus named overlays for one component family.
 #[derive(Clone, Debug)]
+#[non_exhaustive]
 pub struct ComponentTheme<T> {
     pub defaults: T,
     pub recipes: HashMap<SharedString, T>,
@@ -123,6 +124,7 @@ macro_rules! component_style {
     ($(#[$meta:meta])* $name:ident { $($(#[$field_meta:meta])* $field:ident: $ty:ty),* $(,)? }) => {
         $(#[$meta])*
         #[derive(Clone, Debug, Default)]
+        #[non_exhaustive]
         pub struct $name {
             $($(#[$field_meta])* pub $field: Option<$ty>,)*
         }
@@ -230,6 +232,7 @@ component_style! {
 /// Button recipes can combine semantic colors with a sparse GPUI root style.
 /// Instance `sx` is refined over this style; instance builders retain precedence.
 #[derive(Clone, Debug, Default)]
+#[non_exhaustive]
 pub struct ButtonStyle {
     pub variant: Option<Variant>,
     pub size: Option<Size>,
@@ -343,6 +346,7 @@ impl ComponentStyle for ButtonStyle {
 
 /// Typed theme-owned defaults. No entry changes stock behavior until configured.
 #[derive(Clone, Debug, Default)]
+#[non_exhaustive]
 pub struct ComponentThemes {
     pub slider: ComponentTheme<SliderStyle>,
     pub switch: ComponentTheme<SwitchStyle>,

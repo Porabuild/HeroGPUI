@@ -1,0 +1,8 @@
+{
+  "id": "forest",
+  "base": "light",
+  "accent": "oklch(0.55 0.13 150)",
+  "focus": "oklch(0.55 0.13 150)",
+  "link": "oklch(0.5 0.12 150)",
+  "radius": 6
+}

@@ -61,7 +61,7 @@ herogpui             // umbrella re-export
 
 // Read a token without touching a component:
 let accent = cx.role(Color::Accent).color;
-let radius = herogpui::components::util::field_radius(cx);`;
+let radius = herogpui::extend::field_radius(cx);`;
 
 const CUSTOM = `// Override one base token; every derived value follows.
 let violet = Theme::builder("violet", Theme::light())
@@ -184,7 +184,7 @@ export default function DesignPrinciplesPage() {
       <h2 id="10-open-and-extensible">10. Open and extensible</h2>
       <p>
         The tokens, color math and motion curves are public. A component outside this crate can read{" "}
-        <code>cx.colors()</code>, use <code>util::field_radius(cx)</code> for its corners and
+        <code>cx.colors()</code>, use <code>extend::field_radius(cx)</code> for its corners and
         animate with <code>Motion::LIST_IN</code>.
       </p>
 

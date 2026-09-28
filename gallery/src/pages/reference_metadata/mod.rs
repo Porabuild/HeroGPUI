@@ -24,7 +24,7 @@ impl ImplementationStatus {
 pub(crate) struct ApiDoc {
     // `owner` and `prop` are the pinned upstream spellings. The renderer no
     // longer shows them, but the checked-in literals stay for the .shots
-    // audits and the pinned v3.2.5 contract.
+    // audits and the pinned v3.2.6 contract.
     #[allow(dead_code)]
     pub(crate) owner: &'static str,
     #[allow(dead_code)]
@@ -178,6 +178,7 @@ pub(crate) const ALL: &[ReferenceMetadata] = &[
     ALERT,
     LINK,
     AVATAR,
+    AVATAR_GROUP,
     SCROLL_SHADOW,
     FIELDSET,
     FIELD_SLOTS,

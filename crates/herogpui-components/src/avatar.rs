@@ -1,11 +1,13 @@
-//! Avatar — port of `@heroui/avatar` (v3.2.4, Radix Avatar 1.1.11 semantics).
+//! Avatar — port of `@heroui/avatar` (v3.2.6, Radix Avatar 1.2.6 semantics).
 
 use std::sync::Arc;
 use std::time::Duration;
 
+use gpui::prelude::FluentBuilder;
 use gpui::{
-    px, App, ElementId, ImageCacheError, ImageSource, ImgResourceLoader, IntoElement,
-    ParentElement, Pixels, RenderImage, RenderOnce, Resource, SharedString, Styled, Window,
+    px, App, ElementId, ImageCacheError, ImageSource, ImgResourceLoader, InteractiveElement,
+    IntoElement, ParentElement, Pixels, RenderImage, RenderOnce, Resource, SharedString, Styled,
+    Window,
 };
 use herogpui_core::{element_id, Color};
 use herogpui_theme::ActiveTheme;
@@ -40,6 +42,30 @@ struct AvatarImageState {
     errored: bool,
     /// The load has succeeded; `on_load` has been fired exactly once.
     loaded: bool,
+}
+
+/// Which of `size`/`color`/`variant` the caller set on this avatar. An
+/// [`crate::avatar_group::AvatarGroup`] fills only the omitted ones on its
+/// direct children (`size ?? group.size`); a direct prop always wins.
+#[derive(Clone, Copy, Default)]
+struct Explicit {
+    size: bool,
+    color: bool,
+    variant: bool,
+}
+
+/// The stacked-layout decoration an [`crate::avatar_group::AvatarGroup`]
+/// applies to one direct child (`.avatar-group > .avatar + .avatar` and the
+/// overlap modifiers). Crate-internal: it is not a v3 Avatar prop.
+#[derive(Clone, Copy, Default)]
+pub(crate) struct GroupDecor {
+    /// `margin-inline-start: calc(-1 * var(--avatar-group-overlap))`.
+    pub(crate) margin_start: Option<Pixels>,
+    /// A `0 0 0 <seam>` box-shadow ring in this colour.
+    pub(crate) seam: Option<(Pixels, gpui::Hsla)>,
+    /// `.avatar__fallback { padding-inline-end }` — the clip mode's optical
+    /// nudge on every avatar except the last.
+    pub(crate) fallback_pad_end: Option<Pixels>,
 }
 
 /// Fill of an avatar fallback (`variant`).
@@ -96,6 +122,10 @@ pub struct Avatar {
     radius: Option<Pixels>,
     /// The `sx` slot, refined over the root style at the end of render.
     sx: Option<Box<gpui::StyleRefinement>>,
+    /// Which of `size`/`color`/`variant` the caller set.
+    explicit: Explicit,
+    /// Group layout decoration, set only by `AvatarGroup`.
+    group: GroupDecor,
 }
 
 impl Avatar {
@@ -120,7 +150,39 @@ impl Avatar {
             variant: AvatarVariant::Default,
             radius: None,
             sx: None,
+            explicit: Explicit::default(),
+            group: GroupDecor::default(),
         }
+    }
+
+    /// `AvatarGroupContext`: fills the props this avatar omitted with the
+    /// group's (`size ?? group.size`, `color ?? group.color`,
+    /// `variant ?? group.variant`). A prop set directly always wins.
+    pub(crate) fn inherit(
+        mut self,
+        size: Option<herogpui_core::Size>,
+        color: Option<Color>,
+        variant: Option<AvatarVariant>,
+    ) -> Self {
+        let explicit = self.explicit;
+        if let (false, Some(size)) = (explicit.size, size) {
+            self = self.size(size);
+        }
+        if let (false, Some(color)) = (explicit.color, color) {
+            self = self.color(color);
+        }
+        if let (false, Some(variant)) = (explicit.variant, variant) {
+            self = self.variant(variant);
+        }
+        // Inheriting is not the caller setting the prop.
+        self.explicit = explicit;
+        self
+    }
+
+    /// Applies the group's stacked-layout decoration.
+    pub(crate) fn group_decor(mut self, decor: GroupDecor) -> Self {
+        self.group = decor;
+        self
     }
 
     pub fn name(mut self, name: impl Into<SharedString>) -> Self {
@@ -130,6 +192,7 @@ impl Avatar {
 
     pub fn variant(mut self, variant: AvatarVariant) -> Self {
         self.variant = variant;
+        self.explicit.variant = true;
         self
     }
 
@@ -200,11 +263,13 @@ impl Avatar {
         // at 32px a 24px radius would be all but a circle, so v3 steps it down.
         self.small = size == herogpui_core::Size::Sm;
         self.large = size == herogpui_core::Size::Lg;
+        self.explicit.size = true;
         self
     }
 
     pub fn color(mut self, c: Color) -> Self {
         self.color = c;
+        self.explicit.color = true;
         self
     }
 
@@ -318,10 +383,23 @@ impl RenderOnce for Avatar {
             // `bg-{role}-soft` with the same soft foreground.
             AvatarVariant::Soft => (gpui::transparent_black(), fb_role.soft()),
         };
-        // `.avatar__fallback` is `text-sm`; `.avatar--lg .avatar__fallback`
-        // steps the fallback text up to `text-base`.
-        let font = if self.large { px(16.) } else { px(14.) };
-        let leading = if self.large { px(24.) } else { px(20.) };
+        // `.avatar__fallback` is `text-sm`; `.avatar--sm .avatar__fallback`
+        // steps the fallback text down to `text-xs` and
+        // `.avatar--lg .avatar__fallback` steps it up to `text-base`.
+        let font = if self.large {
+            px(16.)
+        } else if self.small {
+            px(12.)
+        } else {
+            px(14.)
+        };
+        let leading = if self.large {
+            px(24.)
+        } else if self.small {
+            px(16.)
+        } else {
+            px(20.)
+        };
         let radius = self.radius.unwrap_or_else(|| {
             if self.small {
                 crate::util::soft_radius(cx)
@@ -345,6 +423,36 @@ impl RenderOnce for Avatar {
             .font_weight(gpui::FontWeight::MEDIUM)
             .overflow_hidden()
             .flex_shrink_0();
+        // Test-only lookup keys mirroring the upstream BEM modifiers
+        // (`avatar--sm`, `avatar--soft`, `avatar__fallback--accent`); a no-op
+        // outside gpui's `test-support` builds.
+        let size_key = if self.small {
+            "sm"
+        } else if self.large {
+            "lg"
+        } else {
+            "md"
+        };
+        let variant_key = match self.variant {
+            AvatarVariant::Default => "default",
+            AvatarVariant::Soft => "soft",
+        };
+        let debug_id = self.id.clone();
+        let el = el.debug_selector(|| format!("avatar[{debug_id}]--{size_key}--{variant_key}"));
+        // `AvatarGroup` stacked layout: the sibling overlap margin and the
+        // `--background` seam ring (see `avatar_group` for the clip caveat).
+        let group = self.group;
+        let el = el
+            .when_some(group.margin_start, |el, m| el.ml(-m))
+            .when_some(group.seam, |el, (seam, color)| {
+                el.shadow(vec![gpui::BoxShadow {
+                    color,
+                    offset: gpui::point(px(0.), px(0.)),
+                    blur_radius: px(0.),
+                    spread_radius: seam,
+                    inset: false,
+                }])
+            });
 
         let fallback_content: gpui::AnyElement = match self.fallback {
             Some(content) => content,
@@ -366,6 +474,17 @@ impl RenderOnce for Avatar {
             .text_size(font)
             .line_height(leading)
             .font_weight(gpui::FontWeight::MEDIUM)
+            .when_some(group.fallback_pad_end, |el, pad| el.pr(pad))
+            .debug_selector(|| {
+                format!(
+                    "avatar__fallback[{}]--{}",
+                    self.id,
+                    self.fallback_color
+                        .unwrap_or(self.color)
+                        .label()
+                        .to_lowercase()
+                )
+            })
             .child(fallback_content);
         let fallback = crate::util::round_sx_corners(fallback, &sx_corners);
 
@@ -437,7 +556,16 @@ impl RenderOnce for Avatar {
                 }
             }
             Some(source) => {
-                let got = observe_load(&source, window, cx);
+                // Radix Avatar 1.2.6 `getImageLoadingStatus`: a complete
+                // image whose `naturalWidth` is 0 is `error`, not `loaded`
+                // (1.1.11 left it `loading`), so a decoded zero-width image
+                // takes the failure path: fallback plus `on_error`.
+                let got = match observe_load(&source, window, cx) {
+                    Some(Ok(data)) if data.size(0).width.0 <= 0 => {
+                        Some(Err(ImageCacheError::Asset("zero-size avatar image".into())))
+                    }
+                    got => got,
+                };
                 match &got {
                     // `Avatar.Image.onLoad` fires once, on the first observed
                     // success, outside the layout phase.
@@ -590,9 +718,13 @@ mod fill_tokens {
              fallback painting, not alias it"
         );
         assert!(
-            source.contains("let font = if self.large { px(16.) } else { px(14.) }"),
-            "`.avatar__fallback` is `text-sm` and `.avatar--lg \
-             .avatar__fallback` steps it up to `text-base` (16px)"
+            source
+                .split_whitespace()
+                .collect::<String>()
+                .contains("letfont=ifself.large{px(16.)}elseifself.small{px(12.)}else{px(14.)};"),
+            "`.avatar__fallback` is `text-sm`, `.avatar--sm .avatar__fallback` \
+             steps it down to `text-xs` (12px) and `.avatar--lg \
+             .avatar__fallback` up to `text-base` (16px)"
         );
         assert!(
             source.contains(".size_full()") && source.contains(".bg(fallback_bg)"),

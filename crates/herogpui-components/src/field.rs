@@ -349,7 +349,7 @@ impl ParentElement for FieldGroup {
     }
 }
 
-/// `.fieldset__field_group` is `w-full space-y-4`: the stack of fields, 16px
+/// `.fieldset__field-group` is `w-full space-y-4`: the stack of fields, 16px
 /// apart (`--spacing` × 4).
 impl RenderOnce for FieldGroup {
     fn render(self, _window: &mut Window, _cx: &mut App) -> impl IntoElement {

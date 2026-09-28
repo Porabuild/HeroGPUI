@@ -15,7 +15,7 @@ class CoverageReportTests(unittest.TestCase):
             "schema_version": 3,
             "recorded_on": "2026-09-13",
             "upstream": {
-                "target_tag": "v3.2.5",
+                "target_tag": "v3.2.6",
                 "target_commit": "target-commit",
             },
             "source_snapshot": {"sha256": "source-snapshot"},

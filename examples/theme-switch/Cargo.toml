@@ -1,0 +1,16 @@
+[package]
+name = "herogpui-example-theme-switch"
+description = "HeroGPUI example: theme-switch"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[dependencies]
+# `serde` brings the JSON theme documents and the preset themes.
+herogpui = { workspace = true, features = ["serde"] }
+
+[lints]
+workspace = true

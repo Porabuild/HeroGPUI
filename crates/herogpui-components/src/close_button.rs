@@ -160,7 +160,7 @@ impl RenderOnce for CloseButton {
             .id(self.id.clone())
             // `close-button.js` hard-codes `aria-label="Close"` on the RAC
             // `Button`, because the default child is an icon with no text.
-            .a11y_named(a11y::Role::Button, &a11y::Name::labelled("Close"))
+            .a11y_named(a11y::Role::Button, &a11y::Name::labelled(crate::i18n::ui_string(crate::i18n::UiString::Close, cx)))
             .debug_selector({
                 let id = self.id.clone();
                 move || format!("{id:?}")

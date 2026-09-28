@@ -38,6 +38,46 @@ The [previous sweep](../parity-sweep.md) compares native output with native
 goldens, mostly for Usage. It is useful regression evidence but does not prove
 visual equivalence to upstream or coverage of every variation.
 
+## v3.2.6 upgrade
+
+On 2026-09-22 the pin moved to HeroUI
+[v3.2.6](https://heroui.com/en/docs/react/releases/v3-2-6), released September 17
+(annotated tag `v3.2.6`, commit `e385ac202b2cdb94b1bf6fa76d32c31c8259cc5e`;
+`packages/react/package.json` reports 3.2.6). The upgrade was approved by the
+user, with two recorded decisions: remove Separator's content mode (breaking,
+0.11.0) and port AvatarGroup in the same release. The tagged lockfile resolves
+React Aria 3.52.1, React Aria Components 1.21.1 and React Stately 3.50.0; the
+web pins the first two exactly, adds `@internationalized/date` (now a HeroUI
+peer) and drops the unused `@react-aria/i18n`. Theme CSS is unchanged between
+the tags. The docs bundle (its latest release is `### v3.2.6`), the CSS
+archive (rebuilt from the tagged tree, now including `avatar-group.css`) and
+the demo archive (fetched with TLS verification on) were refreshed together.
+
+First-run gaps and how each closed:
+
+- AvatarGroup (new compound): ported with `AvatarGroupCount`, gallery page,
+  reference metadata and a deep test binary; removed from the banned-v2 list.
+  Upstream's default `clip` overlap is an alpha mask GPUI cannot draw, so the
+  seam is painted in `--background` — a recorded platform limitation.
+- Avatar: Sm fallback text 12px/16px; a decoded zero-size image now fails
+  (Radix Avatar 1.2.6) and fires `on_error` once.
+- Breadcrumbs: root `gap-1.5`, item `gap-1`, item and link padding removed.
+- Switch: label uses the shared `.label` (14px/20px medium); the deleted
+  `.switch__label` rule was never applied upstream.
+- Separator: content mode removed with the dead `.separator__container*`
+  rules; the "With Content" example now separates blocks.
+- Tag: `.tag--md` is empty, so the Md design rows read the base `.tag`.
+- Fieldset: `.fieldset__field_group` renamed `.fieldset__field-group`.
+- Focus-visible: the five new Select browser tests map to
+  `tests/focus_visible_deep.rs` (mouse open/pick unringed, keyboard
+  open/arrow/pick ringed).
+- Autocomplete "Custom Value" follows the new currency demo.
+
+Next source reviews: the AvatarGroup specimen matrix (clip/ring/grid × sizes,
+`max` and explicit counts), focus-ring paths after the selector change,
+Breadcrumbs spacing and the Switch label line box. The upstream captures under
+`docs/parity/evidence/` are v3.2.5 renders and need re-attestation.
+
 ## Inventory
 
 [interaction-inventory.json](interaction-inventory.json) records separately:

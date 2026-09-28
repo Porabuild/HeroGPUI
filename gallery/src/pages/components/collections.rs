@@ -568,6 +568,39 @@ impl Gallery {
                         ),
                     ]), cx),
                 ),
+                (
+                    "Context Menu", "HeroGPUI extension, not a HeroUI v3 example: `ContextMenu` opens the same menu panel on a secondary (right) press inside its area, with the panel's corner at the pointer. Items, disabled keys, keyboard navigation, Escape and outside-press dismissal are the Dropdown menu's own.",
+                    specimen_body("dd-context-menu", col(vec![
+                        h::ContextMenu::new(
+                            "dd-context",
+                            gpui::div()
+                                .w(px(320.))
+                                .h(px(140.))
+                                .flex()
+                                .items_center()
+                                .justify_center()
+                                .rounded(px(12.))
+                                .border_1()
+                                .border_color(cx.colors().border)
+                                .text_color(cx.colors().muted)
+                                .child("Right-click anywhere in this area"),
+                            vec![
+                                h::MenuItem::new("cut", "Cut").shortcut("Ctrl X"),
+                                h::MenuItem::new("copy", "Copy").shortcut("Ctrl C"),
+                                h::MenuItem::new("paste", "Paste").shortcut("Ctrl V"),
+                                h::MenuItem::Separator,
+                                h::MenuItem::new("delete", "Delete").danger(),
+                            ],
+                        )
+                        .disabled_keys(["paste"])
+                        .on_action(cx.listener(|this, key: &SharedString, _, cx| {
+                            this.context_menu_last = key.clone();
+                            cx.notify();
+                        }))
+                        .into_any_element(),
+                        para(&format!("Last action: {}", self.context_menu_last), cx),
+                    ]), cx),
+                ),
             ],
             cx,
         )
@@ -791,6 +824,56 @@ impl Gallery {
                              third row here carries a description, so it is taller.",
                             cx,
                         ),
+                    ]), cx),
+                ),
+                (
+                    "Virtual List", "HeroGPUI extension, not a HeroUI v3 example: `VirtualList` is the standalone variable-height virtual list. Rows are measured as they are built (every fifth row here is taller) and only rows near the viewport exist; its `VirtualListHandle` scrolls to a row from outside.",
+                    specimen_body("lb-virtual-list", col(vec![
+                        row(vec![
+                            h::Button::new("vl-jump")
+                                .label("Row 500 to top")
+                                .variant(Variant::Secondary)
+                                .on_press(cx.listener(|this, _, _, cx| {
+                                    this.virtual_list.scroll_to_item(500, h::VirtualListScroll::Top);
+                                    cx.notify();
+                                }))
+                                .into_any_element(),
+                            h::Button::new("vl-first")
+                                .label("Back to first")
+                                .variant(Variant::Secondary)
+                                .on_press(cx.listener(|this, _, _, cx| {
+                                    this.virtual_list.scroll_to_item(0, h::VirtualListScroll::Top);
+                                    cx.notify();
+                                }))
+                                .into_any_element(),
+                        ]),
+                        gpui::div()
+                            .w(px(320.))
+                            .rounded(px(12.))
+                            .border_1()
+                            .border_color(cx.colors().border)
+                            .child(
+                                h::VirtualList::new("lb-virtual-list-rows", &self.virtual_list, |ix, _, cx| {
+                                    let (name, email) = virtual_user(ix);
+                                    let tall = ix.is_multiple_of(5);
+                                    gpui::div()
+                                        .px(px(12.))
+                                        .py(px(if tall { 14. } else { 6. }))
+                                        .flex()
+                                        .flex_col()
+                                        .child(format!("{ix}. {name}"))
+                                        .when(tall, |row| {
+                                            row.child(
+                                                gpui::div()
+                                                    .text_color(cx.colors().muted)
+                                                    .child(email),
+                                            )
+                                        })
+                                        .into_any_element()
+                                })
+                                .height(px(260.)),
+                            )
+                            .into_any_element(),
                     ]), cx),
                 ),
                 (

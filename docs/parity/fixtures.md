@@ -2,7 +2,7 @@
 
 Development-only reference rendering for matched native/WASM comparison, per
 [section 5.1](ui-design-plan.md) of the UI design plan: the exact pinned
-HeroUI packages (`@heroui/react` 3.2.5 as resolved by this repository's
+HeroUI packages (`@heroui/react` 3.2.6 as resolved by this repository's
 `web/pnpm-lock.yaml`) render reference compositions that mirror keyed
 specimens from the native gallery, so an upstream capture and a port capture
 show the same content under the same framing.

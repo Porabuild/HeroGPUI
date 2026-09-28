@@ -3452,7 +3452,7 @@ fn drawer_close_button_reports_on_close_and_open_change(cx: &mut TestAppContext)
             .title("Drag me shut")
             .child(DrawerCloseTrigger::new())
             .child(probe("pd-drawer-close-probe", "hit", hits))
-            .on_close(move |_, _, _| closes.borrow_mut().push("close".to_owned()))
+            .on_close(move |reason, _, _| closes.borrow_mut().push(format!("{reason:?}")))
             .on_open_change({
                 let open_flag = open_flag.clone();
                 move |v, window, _| {
@@ -3469,8 +3469,8 @@ fn drawer_close_button_reports_on_close_and_open_change(cx: &mut TestAppContext)
     click(cx, 1892., 28.);
     assert_eq!(
         closed.borrow().as_slice(),
-        ["close"],
-        "the close button must fire on_close"
+        ["CloseButton"],
+        "the close button must fire on_close with DismissReason::CloseButton"
     );
     assert_eq!(
         opened.borrow().as_slice(),
@@ -3490,13 +3490,24 @@ fn drawer_close_button_reports_on_close_and_open_change(cx: &mut TestAppContext)
     press(cx, "escape");
     assert_eq!(
         closed.borrow().as_slice(),
-        ["close", "close"],
-        "escape must fire on_close too"
+        ["CloseButton", "Escape"],
+        "escape must fire on_close too, with DismissReason::Escape"
     );
     assert_eq!(
         opened.borrow().as_slice(),
         ["open:false", "open:false"],
         "escape must report the dismissal through onOpenChange"
+    );
+
+    // A press on the dimmed region outside the sheet is the backdrop path.
+    let_exit_finish(cx);
+    *open.borrow_mut() = true;
+    flush_frame(cx);
+    click(cx, 100., 100.);
+    assert_eq!(
+        closed.borrow().as_slice(),
+        ["CloseButton", "Escape", "Backdrop"],
+        "an outside press must fire on_close with DismissReason::Backdrop"
     );
 }
 
@@ -5766,7 +5777,7 @@ fn select_long_values_wrap_the_trigger_and_natural_option_row(cx: &mut TestAppCo
         .debug_bounds("select-trigger-Name(\"sel-wrap\")")
         .expect("the selected value trigger must be laid out");
     assert!(
-        f32::from(trigger.size.height) > f32::from(herogpui_components::util::FIELD_HEIGHT) + 8.,
+        f32::from(trigger.size.height) > f32::from(herogpui_components::extend::FIELD_HEIGHT) + 8.,
         "a long selected value must wrap and grow the trigger, got {trigger:?}"
     );
 
@@ -5774,7 +5785,7 @@ fn select_long_values_wrap_the_trigger_and_natural_option_row(cx: &mut TestAppCo
         .debug_bounds("select-list-Name(\"sel-wrap\")-opt-0")
         .expect("the long option must be laid out");
     assert!(
-        f32::from(option.size.height) > f32::from(herogpui_components::util::FIELD_HEIGHT) + 8.,
+        f32::from(option.size.height) > f32::from(herogpui_components::extend::FIELD_HEIGHT) + 8.,
         "a natural-height long option must wrap instead of truncating, got {option:?}"
     );
 }
@@ -5810,7 +5821,7 @@ fn autocomplete_long_selected_value_wraps_the_trigger(cx: &mut TestAppContext) {
         .debug_bounds(auto_trigger(&base))
         .expect("the Autocomplete trigger must be laid out");
     assert!(
-        f32::from(trigger.size.height) > f32::from(herogpui_components::util::FIELD_HEIGHT) + 8.,
+        f32::from(trigger.size.height) > f32::from(herogpui_components::extend::FIELD_HEIGHT) + 8.,
         "a long selected Autocomplete value must wrap and grow the trigger, got {trigger:?}"
     );
 }
@@ -5915,7 +5926,7 @@ fn select_without_row_height_keeps_the_thirty_six_pixel_option_floor(cx: &mut Te
     assert!(
         near_px(
             first.size.height,
-            f32::from(herogpui_components::util::FIELD_HEIGHT)
+            f32::from(herogpui_components::extend::FIELD_HEIGHT)
         ),
         "a plain option must keep the field-height floor, got {first:?}"
     );
@@ -5958,7 +5969,7 @@ fn select_trigger_height_replaces_the_min_height(cx: &mut TestAppContext) {
     assert!(
         near_px(
             default.size.height,
-            f32::from(herogpui_components::util::FIELD_HEIGHT)
+            f32::from(herogpui_components::extend::FIELD_HEIGHT)
         ),
         "an untouched trigger must keep the 36px floor, got {default:?}"
     );

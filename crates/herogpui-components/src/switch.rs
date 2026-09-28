@@ -17,6 +17,7 @@ use crate::a11y::{self, A11y as _};
 
 /// State handed to Switch's children render function.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct SwitchState {
     pub is_selected: bool,
     pub is_hovered: bool,
@@ -832,13 +833,13 @@ impl RenderOnce for Switch {
             gpui::div()
                 .flex()
                 .items_center()
-                // `.switch__label` is `text-base`, a step larger than the
-                // content around it.
-                .text_size(px(16.))
-                // Tailwind pairs that size with a 24px leading; without the
-                // pair the label inherited the shell's 20px and read tighter
-                // than the `.switch__content` beside it.
-                .line_height(px(24.))
+                // The label is the shared `Label` part, `.label` = `text-sm
+                // font-medium`. (The `.switch__label` `text-base` rule was
+                // never applied by `switch.tsx` and v3.2.6 deleted it.)
+                .text_size(px(14.))
+                // Tailwind pairs `text-sm` with a 20px leading.
+                .line_height(px(20.))
+                .font_weight(gpui::FontWeight::MEDIUM)
                 .gap(px(4.))
                 .child(label)
                 .when(self.is_required, |r| {

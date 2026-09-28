@@ -80,7 +80,7 @@ fn following_the_os_appearance_syncs_immediately(cx: &mut TestAppContext) {
 
             // A manual override while following is honoured, and does not
             // silently cancel the mode; the next OS switch still applies.
-            use_theme("dark", cx);
+            use_theme("dark", cx).unwrap();
             assert!(ThemeProvider::get(cx).follows_system_appearance());
             assert_eq!(cx.theme().id.as_ref(), "dark");
 

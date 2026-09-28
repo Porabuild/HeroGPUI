@@ -90,8 +90,9 @@ def parts():
                       errors='replace').read()
         found = []
         # Only the part selectors: `.x__y`, with or without a `--variant` tail.
-        # The tail can hold an underscore (`.fieldset__field_group`), and a
-        # pattern without one truncates it to a part that does not exist.
+        # The tail can hold an underscore (v3.2.5's `.fieldset__field_group`;
+        # v3.2.6 renamed it `.fieldset__field-group`), and a pattern without
+        # one truncates it to a part that does not exist.
         for m in re.finditer(r'\.([a-z0-9-]+__[a-z0-9_-]+)', css):
             sel = m.group(1)
             if sel not in found:

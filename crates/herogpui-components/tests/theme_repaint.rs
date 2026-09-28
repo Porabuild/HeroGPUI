@@ -57,7 +57,7 @@ fn theme_mutations_repaint_every_open_window(cx: &mut TestAppContext) {
     let baseline_b = frames_b.get();
 
     // Switching by id must repaint both windows with the new tokens.
-    cx.update(|cx| use_theme("dark", cx));
+    cx.update(|cx| use_theme("dark", cx).unwrap());
     assert_eq!(
         frames_a.get(),
         baseline_a + 1,
@@ -120,4 +120,37 @@ fn theme_mutations_repaint_every_open_window(cx: &mut TestAppContext) {
     );
     assert_eq!(seen_a.borrow().as_str(), "light");
     assert_eq!(seen_b.borrow().as_str(), "light");
+}
+
+#[gpui::test]
+fn use_theme_rejects_an_unknown_id_without_panicking_or_repainting(cx: &mut TestAppContext) {
+    cx.update(ThemeProvider::init);
+
+    let frames = Rc::new(Cell::new(0));
+    let seen = Rc::new(RefCell::new(String::new()));
+    let _window = cx.add_window_view(|_, _| Probe {
+        frames: frames.clone(),
+        seen_theme: seen.clone(),
+    });
+    let baseline = frames.get();
+
+    // Ids are case-sensitive: "Dark" is not the registered "dark".
+    let error = cx
+        .update(|cx| use_theme("Dark", cx))
+        .expect_err("an unregistered id must be refused");
+    assert_eq!(error.id.as_ref(), "Dark");
+    assert!(error.to_string().contains("\"Dark\""));
+
+    // The active theme is untouched and still renders; nothing repainted.
+    assert_eq!(cx.read(|cx| cx.theme().id.to_string()), "light");
+    assert_eq!(frames.get(), baseline, "a refused switch must not repaint");
+    cx.update(|cx| {
+        assert!(cx.global_mut::<ThemeProvider>().set_active("nope").is_err());
+        assert_eq!(ThemeProvider::get(cx).active_id().as_ref(), "light");
+        assert!(ThemeProvider::get(cx).contains("dark"));
+    });
+
+    // A registered id still switches.
+    cx.update(|cx| use_theme("dark", cx)).unwrap();
+    assert_eq!(seen.borrow().as_str(), "dark");
 }

@@ -5,10 +5,10 @@ tokens, motion, component anatomy, demos, reference metadata, or an audit.
 
 ## Contract and exclusions
 
-This repository ports HeroUI v3.2.5. Use tagged HeroUI source for component
+This repository ports HeroUI v3.2.6. Use tagged HeroUI source for component
 anatomy and styles, and the exact dependency versions HeroUI pins for inherited
-behavior: React Aria 3.52.0, React Stately 3.50.0, and React Aria Components
-1.21.0. GPUI framework claims must be valid for the `gpui-pre` version in
+behavior: React Aria 3.52.1, React Stately 3.50.0, and React Aria Components
+1.21.1. GPUI framework claims must be valid for the `gpui-pre` version in
 `Cargo.lock`, read from its unpacked registry sources.
 
 Do not reintroduce v2 concepts:
@@ -66,8 +66,8 @@ an all-green mapped subset is not proof that every upstream metric is covered.
 
 The documentation, CSS, and ComponentPreview inputs are checked in.
 `.shots/heroui-bundle.txt.gz` is the docs bundle the prop and prose audits read;
-`.shots/heroui-css-v3.2.5.tar.gz` contains the component stylesheets the design,
-motion and anatomy audits read; `.shots/heroui-demos-v3.2.5.tar.gz` holds the
+`.shots/heroui-css-v3.2.6.tar.gz` contains the component stylesheets the design,
+motion and anatomy audits read; `.shots/heroui-demos-v3.2.6.tar.gz` holds the
 preview sources `demo_audit.py` falls back to when the rendered bundle omits
 them. All three unpack themselves on first use. Cache keys include the
 normalized tagged URL. `--fetch` is the only network path and deliberately
@@ -145,7 +145,7 @@ pin, refresh the archive and `PINNED_RELEASE` together and re-run the set:
 
 ```powershell
 curl -sL https://heroui.com/react/llms-full.txt | gzip -9 > .shots/heroui-bundle.txt.gz
-python .shots/design_audit.py --fetch   # then re-pack heroui-css-v3.2.5.tar.gz
+python .shots/design_audit.py --fetch   # then re-pack heroui-css-v3.2.6.tar.gz
 python .shots/demo_audit.py --fetch --pack
 ```
 
@@ -237,6 +237,12 @@ When editing an audit:
   Select, Autocomplete, and ComboBox have different trigger/query structures.
 - A composition part with only `children`/`className` still matters even if it
   contributes no prop row.
+- Recorded platform limitation: AvatarGroup's default `overlap="clip"` is a
+  CSS radial-gradient `mask-image` crescent. Pinned `gpui-pre` has only
+  rectangular `ContentMask` clipping and no alpha masks, so the port paints the
+  2px seam in `--background` instead of cutting it. It matches on a solid
+  background and is a solid seam over images or gradients; do not claim
+  transparent-seam parity. See `avatar_group.rs` and `part_audit.py`.
 - Render order is part of anatomy. Labels, descriptions, options, and field
   errors must appear in the order upstream composes them.
 

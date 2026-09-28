@@ -1,7 +1,7 @@
 //! Shared render helpers for HeroGPUI components.
 
 use gpui::{App, BorrowAppContext, Div, Hsla, ParentElement, Pixels, Refineable, Styled};
-use herogpui_core::{element_id, FieldVariant, Prominence};
+use herogpui_core::{element_id, FieldVariant};
 use herogpui_theme::ActiveTheme;
 
 // Browser hosts register the bundled mono family before opening a window.
@@ -217,17 +217,6 @@ pub fn shift_wheel_scroll_x(handle: &gpui::ScrollHandle, event: &gpui::ScrollWhe
     #[cfg(not(target_family = "wasm"))]
     {
         let _ = (handle, event);
-    }
-}
-
-/// Background for a [`Prominence`] level. `Transparent` yields `None`.
-pub fn prominence_bg(prominence: Prominence, cx: &App) -> Option<Hsla> {
-    let colors = cx.colors();
-    match prominence {
-        Prominence::Transparent => None,
-        Prominence::Default => Some(colors.surface.background),
-        Prominence::Secondary => Some(colors.surface_secondary),
-        Prominence::Tertiary => Some(colors.surface_tertiary),
     }
 }
 
@@ -949,77 +938,6 @@ pub fn shared<F: 'static>(f: F) -> std::sync::Arc<F> {
     std::sync::Arc::new(f)
 }
 
-/// An absolutely-positioned wrapper that places a floating panel for
-/// `placement`, `offset` pixels clear of the trigger.
-///
-/// Every picker, dropdown and popover positions through here so they cannot
-/// drift apart. The caller still has to hand the result to [`floating`] --
-/// gpui paints in tree order, so `absolute` alone does not lift a panel above
-/// later siblings.
-pub fn placed_panel(placement: herogpui_core::Placement, offset: Pixels) -> Div {
-    use herogpui_core::PlacementAlign;
-
-    let base = gpui::div().absolute();
-    if placement.is_side() {
-        // The panel pins to the trigger edge its side names, `offset` pixels
-        // clear of it. The cross-axis alignment pins the panel's top or
-        // bottom edge to the trigger's; a centred side panel keeps the
-        // top-aligned hang this helper has always used.
-        let base = if placement.is_start_side() {
-            base.right_full().mr(offset)
-        } else {
-            base.left_full().ml(offset)
-        };
-        return match placement.align() {
-            PlacementAlign::End => base.bottom(gpui::px(0.)),
-            _ => base.top(gpui::px(0.)),
-        };
-    }
-    let base = if placement.is_above() {
-        base.bottom_full().mb(offset)
-    } else {
-        base.top_full().mt(offset)
-    };
-    match placement.align() {
-        PlacementAlign::Start => base.left(gpui::px(0.)),
-        PlacementAlign::End => base.right(gpui::px(0.)),
-        // gpui has no `translate`, so a centred panel is approximated by
-        // stretching to the trigger's width and centring its content.
-        PlacementAlign::Center => base
-            .left(gpui::px(0.))
-            .right(gpui::px(0.))
-            .flex()
-            .justify_center(),
-    }
-}
-
-/// Positions a trigger-width panel (Select, ComboBox, Autocomplete) for
-/// `placement`.
-///
-/// These panels stretch to the trigger's width, so the start and end alignment
-/// variants coincide and only the side differs.
-pub fn placed_field_panel(placement: herogpui_core::Placement, offset: Pixels) -> Div {
-    let base = gpui::div().absolute();
-    if placement.is_side() {
-        return if placement.is_start_side() {
-            base.right_full().top(gpui::px(0.)).mr(offset)
-        } else {
-            base.left_full().top(gpui::px(0.)).ml(offset)
-        };
-    }
-    if placement.is_above() {
-        base.bottom_full()
-            .left(gpui::px(0.))
-            .right(gpui::px(0.))
-            .mb(offset)
-    } else {
-        base.top_full()
-            .left(gpui::px(0.))
-            .right(gpui::px(0.))
-            .mt(offset)
-    }
-}
-
 /// Gives `handle` focus the first time this element renders, and never again.
 ///
 /// This is `autoFocus`. The "first time" has to be remembered somewhere, so a
@@ -1338,6 +1256,7 @@ impl gpui::Global for ActiveKeyboardPresses {}
 /// receive them rather than re-deriving focus. Components with additional
 /// render props embed the same values in their component-specific state.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct FieldFocus {
     /// `isFocused` — this control holds the keyboard.
     pub is_focused: bool,
@@ -1354,6 +1273,7 @@ pub struct FieldFocus {
 /// selectedItems, selectedText}`. `defaultChildren` is what the slot would have
 /// drawn, so a caller can wrap it instead of rebuilding it -- which is what v3's
 /// own examples do (`if (isPlaceholder) return defaultChildren`).
+#[non_exhaustive]
 pub struct SelectionValue<'a> {
     /// `selectedItems` — the chosen items' text. The order is the component's
     /// selection order: Select walks the collection, while ComboBox and
@@ -1389,6 +1309,7 @@ pub struct SelectionValue<'a> {
 /// that also takes a content closure hands the same values over rather than
 /// leaving a caller to re-derive them.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct InteractiveState {
     /// `isHovered` — the pointer is over the control. Known one frame late: gpui
     /// reports a hover to a *handler*, not to the render that draws it.
@@ -2038,31 +1959,6 @@ pub fn with_focus_ring<T: Styled>(
     el.shadow(all)
 }
 
-/// Makes `el` a tab stop that rings when the keyboard focuses it.
-///
-/// The whole of `status-focused` in one call, for the common case: an element
-/// that casts no shadow of its own and both takes the focus and shows the ring.
-pub fn focusable<T>(
-    el: T,
-    id: gpui::ElementId,
-    offset: bool,
-    window: &mut gpui::Window,
-    cx: &mut App,
-) -> T
-where
-    T: Styled + gpui::InteractiveElement,
-{
-    let handle = tab_stop_handle(id, window, cx);
-    ring_if_focused(
-        el.track_focus(&handle),
-        &handle,
-        offset,
-        Vec::new(),
-        window,
-        cx,
-    )
-}
-
 /// The ring a control shows when it holds a keyboard focus.
 ///
 /// The two conditions v3's selector has: the element is focused, *and* the focus
@@ -2248,6 +2144,10 @@ pub(crate) fn round_sx_corners<T: Styled>(el: T, corners: &gpui::Corners<Option<
 /// geometry can know. An unsupported edge reads `None` here while the plain
 /// [`apply_sx`] refinement still carries the real value to the root; child
 /// geometry simply cannot reconcile it yet.
+// No component reconciles child geometry against an `sx` padding yet; the
+// extraction is kept (and unit-tested) as the documented contract for the
+// first one that does, beside `sx_radius` and `sx_border_color`.
+#[allow(dead_code)]
 pub fn sx_padding(sx: &Option<Box<gpui::StyleRefinement>>) -> gpui::Edges<Option<Pixels>> {
     fn definite(length: gpui::DefiniteLength) -> Option<Pixels> {
         match length {

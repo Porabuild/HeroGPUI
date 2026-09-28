@@ -7,7 +7,7 @@ when the website structure or contracts change.
 ## What this site is
 
 Public documentation and marketing site for **HeroGPUI**, a native Rust/GPUI
-port of **HeroUI v3.2.5**. Modelled on <https://heroui.com> (structure, docs
+port of **HeroUI v3.2.6**. Modelled on <https://heroui.com> (structure, docs
 experience) and <https://longbridge.github.io/gpui-component/> (a Rust UI
 library presenting itself on the web).
 
@@ -21,16 +21,19 @@ Each component page embeds HeroGPUI itself, compiled to WebAssembly and
 running live — one iframe per page, not per example (`GalleryFrame` in
 `src/components/preview/gallery-frame.tsx`, artifact in `public/gallery/`).
 The frame boots lazily when it nears the viewport, so the multi-megabyte
-module is never fetched on page load, and the browser caches it across
-navigations. Page order follows `web/AGENTS.md`:
+module is never fetched on page load, and the browser caches it immutably
+across navigations (`?v=<artifact hash>`, headers in `next.config.ts`). The
+landing page boots its instance only when the reader asks for it. Page order
+follows `web/AGENTS.md`:
 
 1. **Header** — the component title, description, and Rust import line.
-2. **Usage** — one live WASM instance with an example switcher above it and
-   the matching Rust code below. The `story` query parameter selects the
-   component and `section` selects its first example; later selections travel
-   over the `herogpui:preview-section` message bridge while the description
-   and code update outside the frame. Preview mode constructs only the
-   requested example and omits the gallery shell.
+2. **Usage** — one live WASM instance, then every example rendered
+   statically as its own anchored `h3` (`#rust-<example>`) with its
+   description and compiled Rust code. "Show live", or opening a
+   `#rust-<example>` link, points the one instance at that example over the
+   `herogpui:preview-section` message bridge. The `story` query parameter
+   selects the component and `section` its first example. Preview mode
+   constructs only the requested example and omits the gallery shell.
 3. **Anatomy** — compact required-parts list.
 4. **Customization** — the styling table.
 5. **Reference** — API tables (props, parts and slots, then states) when the
@@ -46,7 +49,7 @@ is regenerated, also regenerate `src/data/wasm-sections.json` and
 ## Verified toolchain recipe (do not re-derive)
 
 - Next.js **16.3.3** (App Router, Turbopack), React **19.2.8**,
-  `@heroui/react` **3.2.5**, Tailwind CSS **4.3.3**, TypeScript 5.9.
+  `@heroui/react` **3.2.6**, Tailwind CSS **4.3.3**, TypeScript 5.9.
 - Package manager is **pnpm** (`pnpm install`, `pnpm run build`). Never npm.
 - `src/app/globals.css` must keep these lines. `@heroui/styles` already
   imports `tailwindcss` and `tw-animate-css`; do not import `tailwindcss`
@@ -81,7 +84,7 @@ example a switch is **not** `<Switch>Label</Switch>`:
 Before writing any usage of a component, read its real typings:
 
 ```
-node_modules/.pnpm/@heroui+react@3.2.5_*/node_modules/@heroui/react/dist/components/<name>/*.d.ts
+node_modules/.pnpm/@heroui+react@3.2.6_*/node_modules/@heroui/react/dist/components/<name>/*.d.ts
 ```
 
 v3 also removed v2's `color`/`variant` matrix. Colors are
@@ -122,7 +125,7 @@ files, `package.json`, `pnpm-lock.yaml`, or this file.
 /docs/ai/agents-md                 AGENTS.md / CLAUDE.md guidance
 /docs/components                   all components, grouped by category
 /docs/components/[slug]            one component
-/docs/releases                     GitHub Releases (src/data/releases.json via scripts/extract-releases.mjs)
+/docs/releases                     release notes (src/data/releases.json from CHANGELOG.md)
 /llms.txt                          route handler serving the repo's llms.txt
 ```
 
@@ -133,9 +136,15 @@ must not hand-maintain the same information.
 
 ### `src/data/catalog.json`
 
+`version` is `[workspace.package].version` from `Cargo.toml` and
+`gpuiVersion` the `gpui-pre` version in `Cargo.lock`; the navbar, install
+snippets and GPUI mentions read them from here (`SITE` in `src/lib/nav.ts`).
+`extract-catalog.mjs --check` also verifies `web/package.json`'s version.
+
 ```jsonc
 {
-  "version": "0.1.0",
+  "version": "0.11.0",
+  "gpuiVersion": "0.3.5",
   "categories": [
     { "name": "Buttons", "slug": "buttons",
       "components": ["button", "button-group", "close-button", "toggle-button"] }
@@ -169,8 +178,8 @@ slug:
   "button": {
     "page": "Button",
     "importLine": "...",
-    "version": "3.2.5",
-    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/...",
+    "version": "3.2.6",
+    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/...",
     "apiSource": "...",
     "styleSource": "...",
     "requiredParts": ["Button", "Button.Label"],
@@ -189,32 +198,53 @@ slug:
 
 `status` is one of `"implemented" | "partial" | "unavailable"`. Render
 `unavailable` as "Not ported" — it is a deliberate omission with a documented
-reason, not a bug, and the site must not present it as a failure.
+reason, not a bug, and the site must not present it as a failure. Component
+pages mark `partial` rows with a "Partial" chip and list `unavailable` rows in
+a collapsed "not ported" table under each API table, with the reason.
 
 ### `src/data/rust-examples.json`
 
 Rust snippets per component, extracted from `../gallery/src/pages/components/`:
 
 ```jsonc
-{ "button": [ { "heading": "Variants", "imports": "...", "code": "row(Variant::ALL.iter()...)" } ] }
+{ "button": [ {
+  "heading": "Variants", "description": "...",
+  "imports": "use herogpui::prelude::{Button, Variant};\nuse herogpui::gpui::prelude::*;",
+  "context": "app",            // "app" | "view" | "statements"
+  "code": "gpui::div()\n    .flex()\n    ...",
+  "helpers": "fn language_items() -> ... { ... }"   // optional
+} ] }
 ```
 
-`imports` is optional; when present it is shown above the example expression.
+`code` is public-API Rust only: gallery wrappers are removed, layout helpers
+expanded, gallery paths rewritten, and the page `let`s it reads lifted above
+it. `helpers` holds the verbatim definitions of gallery helper functions it
+calls. `context` says where it runs: `app` is an element expression with
+`window` and `cx: &mut App` in scope; `view` reads view state through `self`
+inside a `Render` impl (`cx: &mut Context<Self>`); `statements` is setup code.
+`gallery/build.rs` compiles every entry in exactly that context under
+`cargo test -p herogpui-gallery`.
+
+### `src/data/releases.json`
+
+Generated from `CHANGELOG.md` by `scripts/extract-releases.mjs`: one entry
+per dated `## [X.Y.Z] - YYYY-MM-DD` section, newest first. No network.
 
 ### `src/data/wasm-sections.json` and `src/data/wasm-parity.json`
 
 The live selector's contract with the checked-in artifact. `wasm-sections.json`
 maps each catalog slug to the example headings compiled into
 `public/gallery/herogpui_web_bg.wasm`; component pages only offer those.
-`wasm-parity.json` records the artifact's hash (`artifactSha256`), used to
-cache-bust the live embed. Both are regenerated from the single native gallery
-source (`gallery/src/pages/components/`) with `pnpm run wasm:manifest`; do
-not hand-edit them.
+`wasm-parity.json` records the artifact's hash (`artifactSha256`, whose first
+12 hex are the embed's `?v=` cache key), the glue hash, every example body's
+hash, and `inputsSha256` over every wasm build input. Both are regenerated with
+`pnpm run wasm:manifest`; `extract-wasm-sections.mjs --check` (part of
+`extract:check`) fails when any of them is stale. Do not hand-edit them.
 
 ## Attribution
 
-**HeroUI v3.2.5 is Apache-2.0**, Copyright 2025 NextUI Inc. Verify this against
-`https://raw.githubusercontent.com/heroui-inc/heroui/v3.2.5/LICENSE` rather
+**HeroUI v3.2.6 is Apache-2.0**, Copyright 2025 NextUI Inc. Verify this against
+`https://raw.githubusercontent.com/heroui-inc/heroui/v3.2.6/LICENSE` rather
 than the `@heroui/react` npm manifest, whose `license` field says "MIT" while
 the tarball ships the Apache-2.0 text. The repository's own
 `E:\work\HeroGPUI\NOTICE` already states Apache-2.0; match its wording.

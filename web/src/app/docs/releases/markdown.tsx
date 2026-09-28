@@ -13,8 +13,9 @@ import { Link } from "@heroui/react";
  */
 
 const HEADING = /^(#{1,4})\s+(.*?)\s*#*\s*$/;
-const UNORDERED_ITEM = /^[*+-]\s+(.*)$/;
-const ORDERED_ITEM = /^\d+[.)]\s+(.*)$/;
+// Leading whitespace is allowed so a nested changelog bullet stays a list item.
+const UNORDERED_ITEM = /^\s*[*+-]\s+(.*)$/;
+const ORDERED_ITEM = /^\s*\d+[.)]\s+(.*)$/;
 const FENCE = /^```\s*(\S*)\s*$/;
 const HR = /^(?:-{3,}|\*{3,}|_{3,})\s*$/;
 

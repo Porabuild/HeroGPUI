@@ -570,10 +570,10 @@ fn table_tree_right_expands_and_left_collapses_the_focused_parent(cx: &mut TestA
 
     press(cx, "tab");
     press(cx, "down");
-    cx.update(|_, cx| herogpui_components::util::set_focus_visible(false, cx));
+    cx.update(|_, cx| herogpui_components::extend::set_focus_visible(false, cx));
     press(cx, "right");
     assert!(
-        cx.update(|_, cx| herogpui_components::util::focus_visible(cx)),
+        cx.update(|_, cx| herogpui_components::extend::focus_visible(cx)),
         "a handled tree key must still record keyboard focus visibility"
     );
     flush_frame(cx);
@@ -654,7 +654,7 @@ fn callbackless_table_tree_consumes_an_expand_key(cx: &mut TestAppContext) {
     press(cx, "tab");
     press(cx, "down");
     recorded.borrow_mut().clear();
-    cx.update(|_, cx| herogpui_components::util::set_focus_visible(false, cx));
+    cx.update(|_, cx| herogpui_components::extend::set_focus_visible(false, cx));
     press(cx, "right");
 
     assert!(
@@ -662,7 +662,7 @@ fn callbackless_table_tree_consumes_an_expand_key(cx: &mut TestAppContext) {
         "Right on a collapsed parent must not escape a callbackless controlled tree"
     );
     assert!(
-        cx.update(|_, cx| herogpui_components::util::focus_visible(cx)),
+        cx.update(|_, cx| herogpui_components::extend::focus_visible(cx)),
         "a consumed tree key must still record keyboard focus visibility"
     );
 }

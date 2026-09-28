@@ -13,6 +13,7 @@ use crate::a11y::{self, A11y as _};
 use crate::icons;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct AccordionItemState {
     pub is_expanded: bool,
     pub is_disabled: bool,

@@ -2,10 +2,10 @@
   "dropdown": {
     "page": "Dropdown",
     "importLine": "use herogpui::components::dropdown::{Dropdown, MenuItem};",
-    "version": "3.2.5",
-    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/apps/docs/content/docs/en/react/components/(collections)/dropdown.mdx",
-    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/react/src/components/dropdown/dropdown.tsx",
-    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/styles/components/dropdown.css",
+    "version": "3.2.6",
+    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/apps/docs/content/docs/en/react/components/(collections)/dropdown.mdx",
+    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/react/src/components/dropdown/dropdown.tsx",
+    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/styles/components/dropdown.css",
     "requiredParts": [
       "Dropdown",
       "Dropdown.Trigger",
@@ -720,10 +720,10 @@
   "list-box": {
     "page": "ListBox",
     "importLine": "use herogpui::components::list_box::{ListBox, ListBoxItem};",
-    "version": "3.2.5",
-    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/apps/docs/content/docs/en/react/components/(collections)/list-box.mdx",
-    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/react/src/components/list-box/list-box.tsx + https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/react/src/components/list-box-item/list-box-item.tsx + https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/react/src/components/list-box-section/list-box-section.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.21.0/packages/react-aria-components/src/ListBox.tsx",
-    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/styles/components/list-box.css + https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/styles/components/list-box-item.css + https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/styles/components/list-box-section.css",
+    "version": "3.2.6",
+    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/apps/docs/content/docs/en/react/components/(collections)/list-box.mdx",
+    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/react/src/components/list-box/list-box.tsx + https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/react/src/components/list-box-item/list-box-item.tsx + https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/react/src/components/list-box-section/list-box-section.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.21.1/packages/react-aria-components/src/ListBox.tsx",
+    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/styles/components/list-box.css + https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/styles/components/list-box-item.css + https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/styles/components/list-box-section.css",
     "requiredParts": [
       "ListBox",
       "ListBox.Item",
@@ -1192,10 +1192,10 @@
   "tag-group": {
     "page": "TagGroup",
     "importLine": "use herogpui::components::tag_group::{Tag, TagGroup};",
-    "version": "3.2.5",
-    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/apps/docs/content/docs/en/react/components/(collections)/tag-group.mdx",
-    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/react/src/components/tag-group/tag-group.tsx + https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/react/src/components/tag/tag.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.21.0/packages/react-aria-components/src/TagGroup.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.21.0/packages/react-aria/src/tag/useTagGroup.ts",
-    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/styles/components/tag-group.css + https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/styles/components/tag.css + https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/styles/components/close-button.css",
+    "version": "3.2.6",
+    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/apps/docs/content/docs/en/react/components/(collections)/tag-group.mdx",
+    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/react/src/components/tag-group/tag-group.tsx + https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/react/src/components/tag/tag.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.21.1/packages/react-aria-components/src/TagGroup.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.21.1/packages/react-aria/src/tag/useTagGroup.ts",
+    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/styles/components/tag-group.css + https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/styles/components/tag.css + https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/styles/components/close-button.css",
     "requiredParts": [
       "TagGroup",
       "TagGroup.List",
@@ -1640,10 +1640,10 @@
   "badge": {
     "page": "Badge",
     "importLine": "use herogpui::components::badge::{Badge, BadgeAnchor, BadgeLabel};",
-    "version": "3.2.5",
-    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/apps/docs/content/docs/en/react/components/(data-display)/badge.mdx",
-    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/react/src/components/badge/badge.tsx",
-    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/styles/components/badge.css",
+    "version": "3.2.6",
+    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/apps/docs/content/docs/en/react/components/(data-display)/badge.mdx",
+    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/react/src/components/badge/badge.tsx",
+    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/styles/components/badge.css",
     "requiredParts": [
       "Badge",
       "Badge.Anchor",
@@ -1859,10 +1859,10 @@
   "chip": {
     "page": "Chip",
     "importLine": "use herogpui::components::chip::{Chip, ChipLabel};",
-    "version": "3.2.5",
-    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/apps/docs/content/docs/en/react/components/(data-display)/chip.mdx",
-    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/react/src/components/chip/chip.tsx",
-    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/styles/components/chip.css",
+    "version": "3.2.6",
+    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/apps/docs/content/docs/en/react/components/(data-display)/chip.mdx",
+    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/react/src/components/chip/chip.tsx",
+    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/styles/components/chip.css",
     "requiredParts": [
       "Chip",
       "Chip.Label"
@@ -2016,10 +2016,10 @@
   "color-area": {
     "page": "ColorArea",
     "importLine": "use herogpui::components::color_picker::ColorArea;",
-    "version": "3.2.5",
-    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/apps/docs/content/docs/en/react/components/(colors)/color-area.mdx",
-    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/react/src/components/color-area/color-area.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.21.0/packages/react-aria-components/src/ColorArea.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.21.0/packages/react-aria-components/src/ColorThumb.tsx",
-    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/styles/components/color-area.css",
+    "version": "3.2.6",
+    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/apps/docs/content/docs/en/react/components/(colors)/color-area.mdx",
+    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/react/src/components/color-area/color-area.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.21.1/packages/react-aria-components/src/ColorArea.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.21.1/packages/react-aria-components/src/ColorThumb.tsx",
+    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/styles/components/color-area.css",
     "requiredParts": [
       "ColorArea",
       "ColorArea.Thumb"
@@ -2283,10 +2283,10 @@
   "color-slider": {
     "page": "ColorSlider",
     "importLine": "use herogpui::components::color_picker::{ColorChannel, ColorSlider};",
-    "version": "3.2.5",
-    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/apps/docs/content/docs/en/react/components/(colors)/color-slider.mdx",
-    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/react/src/components/color-slider/color-slider.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.21.0/packages/react-aria-components/src/ColorSlider.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.21.0/packages/react-aria-components/src/ColorThumb.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.21.0/packages/react-aria-components/src/Slider.tsx",
-    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/styles/components/color-slider.css",
+    "version": "3.2.6",
+    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/apps/docs/content/docs/en/react/components/(colors)/color-slider.mdx",
+    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/react/src/components/color-slider/color-slider.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.21.1/packages/react-aria-components/src/ColorSlider.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.21.1/packages/react-aria-components/src/ColorThumb.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.21.1/packages/react-aria-components/src/Slider.tsx",
+    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/styles/components/color-slider.css",
     "requiredParts": [
       "ColorSlider",
       "Label",
@@ -2614,10 +2614,10 @@
   "color-swatch": {
     "page": "ColorSwatch",
     "importLine": "use herogpui::components::color_picker::ColorSwatch;",
-    "version": "3.2.5",
-    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/apps/docs/content/docs/en/react/components/(colors)/color-swatch.mdx",
-    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/react/src/components/color-swatch/color-swatch.tsx",
-    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/styles/components/color-swatch.css",
+    "version": "3.2.6",
+    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/apps/docs/content/docs/en/react/components/(colors)/color-swatch.mdx",
+    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/react/src/components/color-swatch/color-swatch.tsx",
+    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/styles/components/color-swatch.css",
     "requiredParts": [
       "ColorSwatch"
     ],
@@ -2747,10 +2747,10 @@
   "color-swatch-picker": {
     "page": "ColorSwatchPicker",
     "importLine": "use herogpui::components::color_picker::ColorSwatchPicker;",
-    "version": "3.2.5",
-    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/apps/docs/content/docs/en/react/components/(colors)/color-swatch-picker.mdx",
-    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/react/src/components/color-swatch-picker/color-swatch-picker.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.21.0/packages/react-aria-components/src/ColorSwatchPicker.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.21.0/packages/react-aria-components/src/ListBox.tsx",
-    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/styles/components/color-swatch-picker.css",
+    "version": "3.2.6",
+    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/apps/docs/content/docs/en/react/components/(colors)/color-swatch-picker.mdx",
+    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/react/src/components/color-swatch-picker/color-swatch-picker.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.21.1/packages/react-aria-components/src/ColorSwatchPicker.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.21.1/packages/react-aria-components/src/ListBox.tsx",
+    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/styles/components/color-swatch-picker.css",
     "requiredParts": [
       "ColorSwatchPicker",
       "ColorSwatchPicker.Item",
@@ -3047,10 +3047,10 @@
   "toast": {
     "page": "Toast",
     "importLine": "use herogpui::components::toast::{Toast, ToastViewport};",
-    "version": "3.2.5",
-    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/apps/docs/content/docs/en/react/components/(overlays)/toast.mdx",
-    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/react/src/components/toast/toast.tsx + https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/react/src/components/toast/toast-queue.ts + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.21.0/packages/react-stately/src/toast/useToastState.ts",
-    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/styles/components/toast.css",
+    "version": "3.2.6",
+    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/apps/docs/content/docs/en/react/components/(overlays)/toast.mdx",
+    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/react/src/components/toast/toast.tsx + https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/react/src/components/toast/toast-queue.ts + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.21.1/packages/react-stately/src/toast/useToastState.ts",
+    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/styles/components/toast.css",
     "requiredParts": [
       "Toast.Provider",
       "Toast",
@@ -3774,10 +3774,10 @@
   "color-picker": {
     "page": "ColorPicker",
     "importLine": "use herogpui::components::color_picker::ColorPicker;",
-    "version": "3.2.5",
-    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/apps/docs/content/docs/en/react/components/(colors)/color-picker.mdx",
-    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/react/src/components/color-picker/color-picker.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.21.0/packages/react-aria-components/src/ColorPicker.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.21.0/packages/react-aria-components/src/Button.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.21.0/packages/react-aria-components/src/Popover.tsx",
-    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/styles/components/color-picker.css",
+    "version": "3.2.6",
+    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/apps/docs/content/docs/en/react/components/(colors)/color-picker.mdx",
+    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/react/src/components/color-picker/color-picker.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.21.1/packages/react-aria-components/src/ColorPicker.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.21.1/packages/react-aria-components/src/Button.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.21.1/packages/react-aria-components/src/Popover.tsx",
+    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/styles/components/color-picker.css",
     "requiredParts": [
       "ColorPicker",
       "ColorPicker.Trigger",
@@ -4048,10 +4048,10 @@
   "color-field": {
     "page": "ColorField",
     "importLine": "use herogpui::components::color_picker::ColorField;",
-    "version": "3.2.5",
-    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/apps/docs/content/docs/en/react/components/(colors)/color-field.mdx",
-    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/react/src/components/color-field/color-field.tsx + https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/react/src/components/color-input-group/color-input-group.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.21.0/packages/react-aria-components/src/ColorField.tsx",
-    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/styles/components/color-field.css + https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/styles/components/color-input-group.css",
+    "version": "3.2.6",
+    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/apps/docs/content/docs/en/react/components/(colors)/color-field.mdx",
+    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/react/src/components/color-field/color-field.tsx + https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/react/src/components/color-input-group/color-input-group.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.21.1/packages/react-aria-components/src/ColorField.tsx",
+    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/styles/components/color-field.css + https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/styles/components/color-input-group.css",
     "requiredParts": [
       "ColorField",
       "Label",
@@ -4624,10 +4624,10 @@
   "slider": {
     "page": "Slider",
     "importLine": "use herogpui::components::slider::Slider;",
-    "version": "3.2.5",
-    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/apps/docs/content/docs/en/react/components/(controls)/slider.mdx",
-    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/react/src/components/slider/slider.tsx",
-    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/styles/components/slider.css",
+    "version": "3.2.6",
+    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/apps/docs/content/docs/en/react/components/(controls)/slider.mdx",
+    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/react/src/components/slider/slider.tsx",
+    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/styles/components/slider.css",
     "requiredParts": [
       "Slider",
       "Label",
@@ -5134,10 +5134,10 @@
   "button": {
     "page": "Button",
     "importLine": "use herogpui::prelude::{Button, Size, Variant};",
-    "version": "3.2.5",
-    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/apps/docs/content/docs/en/react/components/(buttons)/button.mdx",
-    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/react/src/components/button/button.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.21.0/packages/react-aria-components/src/Button.tsx",
-    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/styles/components/button.css",
+    "version": "3.2.6",
+    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/apps/docs/content/docs/en/react/components/(buttons)/button.mdx",
+    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/react/src/components/button/button.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.21.1/packages/react-aria-components/src/Button.tsx",
+    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/styles/components/button.css",
     "requiredParts": [
       "Button"
     ],
@@ -5423,10 +5423,10 @@
   "button-group": {
     "page": "ButtonGroup",
     "importLine": "use herogpui::components::button_group::ButtonGroup;",
-    "version": "3.2.5",
-    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/apps/docs/content/docs/en/react/components/(buttons)/button-group.mdx",
-    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/react/src/components/button-group/button-group.tsx + https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/react/tests/components/button-group/button-group.test.tsx",
-    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/styles/components/button-group.css",
+    "version": "3.2.6",
+    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/apps/docs/content/docs/en/react/components/(buttons)/button-group.mdx",
+    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/react/src/components/button-group/button-group.tsx + https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/react/tests/components/button-group/button-group.test.tsx",
+    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/styles/components/button-group.css",
     "requiredParts": [
       "ButtonGroup",
       "ButtonGroup.Separator"
@@ -5637,10 +5637,10 @@
   "checkbox": {
     "page": "Checkbox",
     "importLine": "use herogpui::components::checkbox::Checkbox;",
-    "version": "3.2.5",
-    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/apps/docs/content/docs/en/react/components/(forms)/checkbox.mdx",
-    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/react/src/components/checkbox/checkbox.tsx",
-    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/styles/components/checkbox.css",
+    "version": "3.2.6",
+    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/apps/docs/content/docs/en/react/components/(forms)/checkbox.mdx",
+    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/react/src/components/checkbox/checkbox.tsx",
+    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/styles/components/checkbox.css",
     "requiredParts": [
       "Checkbox",
       "Checkbox.Content",
@@ -6049,10 +6049,10 @@
   "checkbox-group": {
     "page": "CheckboxGroup",
     "importLine": "use herogpui::components::checkbox::CheckboxGroup;",
-    "version": "3.2.5",
-    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/apps/docs/content/docs/en/react/components/(forms)/checkbox-group.mdx",
-    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/react/src/components/checkbox-group/checkbox-group.tsx",
-    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/styles/components/checkbox-group.css",
+    "version": "3.2.6",
+    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/apps/docs/content/docs/en/react/components/(forms)/checkbox-group.mdx",
+    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/react/src/components/checkbox-group/checkbox-group.tsx",
+    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/styles/components/checkbox-group.css",
     "requiredParts": [
       "CheckboxGroup",
       "Label",
@@ -6353,10 +6353,10 @@
   "radio-group": {
     "page": "RadioGroup",
     "importLine": "use herogpui::components::radio_group::RadioGroup;",
-    "version": "3.2.5",
-    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/apps/docs/content/docs/en/react/components/(forms)/radio-group.mdx",
-    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/react/src/components/radio-group/radio-group.tsx",
-    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/styles/components/radio-group.css",
+    "version": "3.2.6",
+    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/apps/docs/content/docs/en/react/components/(forms)/radio-group.mdx",
+    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/react/src/components/radio-group/radio-group.tsx",
+    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/styles/components/radio-group.css",
     "requiredParts": [
       "RadioGroup",
       "Label",
@@ -6815,10 +6815,10 @@
   "close-button": {
     "page": "CloseButton",
     "importLine": "use herogpui::components::close_button::CloseButton;",
-    "version": "3.2.5",
-    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/apps/docs/content/docs/en/react/components/(buttons)/close-button.mdx",
-    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/react/src/components/close-button/close-button.tsx",
-    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/styles/components/close-button.css",
+    "version": "3.2.6",
+    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/apps/docs/content/docs/en/react/components/(buttons)/close-button.mdx",
+    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/react/src/components/close-button/close-button.tsx",
+    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/styles/components/close-button.css",
     "requiredParts": [
       "CloseButton",
       "CloseButton.Icon"
@@ -7060,10 +7060,10 @@
   "toggle-button": {
     "page": "ToggleButton",
     "importLine": "use herogpui::components::toggle_button::{ToggleButton, ToggleButtonGroup};",
-    "version": "3.2.5",
-    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/apps/docs/content/docs/en/react/components/(buttons)/toggle-button.mdx + https://github.com/heroui-inc/heroui/blob/v3.2.5/apps/docs/content/docs/en/react/components/(buttons)/toggle-button-group.mdx",
-    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/react/src/components/toggle-button/toggle-button.tsx + https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/react/src/components/toggle-button-group/toggle-button-group.tsx",
-    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/styles/components/toggle-button.css + https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/styles/components/toggle-button-group.css",
+    "version": "3.2.6",
+    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/apps/docs/content/docs/en/react/components/(buttons)/toggle-button.mdx + https://github.com/heroui-inc/heroui/blob/v3.2.6/apps/docs/content/docs/en/react/components/(buttons)/toggle-button-group.mdx",
+    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/react/src/components/toggle-button/toggle-button.tsx + https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/react/src/components/toggle-button-group/toggle-button-group.tsx",
+    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/styles/components/toggle-button.css + https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/styles/components/toggle-button-group.css",
     "requiredParts": [
       "ToggleButton",
       "ToggleButtonGroup",
@@ -7629,10 +7629,10 @@
   "switch": {
     "page": "Switch",
     "importLine": "use herogpui::components::switch::Switch;",
-    "version": "3.2.5",
-    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/apps/docs/content/docs/en/react/components/(controls)/switch.mdx",
-    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/react/src/components/switch/switch.tsx",
-    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/styles/components/switch.css",
+    "version": "3.2.6",
+    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/apps/docs/content/docs/en/react/components/(controls)/switch.mdx",
+    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/react/src/components/switch/switch.tsx",
+    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/styles/components/switch.css",
     "requiredParts": [
       "Switch",
       "Switch.Control",
@@ -8074,7 +8074,7 @@
     "styling": [
       {
         "token": "text-sm",
-        "description": "Content uses 14px text with 20px lines; the built-in label uses 16px text with 24px lines.",
+        "description": "Content uses 14px text with 20px lines; the built-in label is the shared `.label` part, 14px medium text with 20px lines.",
         "rust": "text_size + line_height",
         "status": "implemented"
       },
@@ -8155,10 +8155,10 @@
   "pagination": {
     "page": "Pagination",
     "importLine": "use herogpui::components::pagination::Pagination;",
-    "version": "3.2.5",
-    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/apps/docs/content/docs/en/react/components/(navigation)/pagination.mdx",
-    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/react/src/components/pagination/pagination.tsx",
-    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/styles/components/pagination.css",
+    "version": "3.2.6",
+    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/apps/docs/content/docs/en/react/components/(navigation)/pagination.mdx",
+    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/react/src/components/pagination/pagination.tsx",
+    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/styles/components/pagination.css",
     "requiredParts": [
       "Pagination",
       "Pagination.Summary",
@@ -8602,10 +8602,10 @@
   "input": {
     "page": "Input",
     "importLine": "use herogpui::components::input::{Input, InputState};",
-    "version": "3.2.5",
-    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/apps/docs/content/docs/en/react/components/(forms)/input.mdx",
-    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/react/src/components/input/input.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.21.0/packages/react-aria-components/src/Input.tsx",
-    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/styles/components/input.css",
+    "version": "3.2.6",
+    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/apps/docs/content/docs/en/react/components/(forms)/input.mdx",
+    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/react/src/components/input/input.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.21.1/packages/react-aria-components/src/Input.tsx",
+    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/styles/components/input.css",
     "requiredParts": [
       "Input"
     ],
@@ -8930,10 +8930,10 @@
   "text-field": {
     "page": "TextField",
     "importLine": "use herogpui::components::input::TextField;",
-    "version": "3.2.5",
-    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/apps/docs/content/docs/en/react/components/(forms)/text-field.mdx",
-    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/react/src/components/textfield/textfield.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.21.0/packages/react-aria-components/src/TextField.tsx",
-    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/styles/components/textfield.css",
+    "version": "3.2.6",
+    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/apps/docs/content/docs/en/react/components/(forms)/text-field.mdx",
+    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/react/src/components/textfield/textfield.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.21.1/packages/react-aria-components/src/TextField.tsx",
+    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/styles/components/textfield.css",
     "requiredParts": [
       "TextField",
       "Label",
@@ -9242,10 +9242,10 @@
   "text-area": {
     "page": "TextArea",
     "importLine": "use herogpui::components::textarea::TextArea;",
-    "version": "3.2.5",
-    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/apps/docs/content/docs/en/react/components/(forms)/text-area.mdx",
-    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/react/src/components/textarea/textarea.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.21.0/packages/react-aria-components/src/TextArea.tsx",
-    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/styles/components/textarea.css",
+    "version": "3.2.6",
+    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/apps/docs/content/docs/en/react/components/(forms)/text-area.mdx",
+    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/react/src/components/textarea/textarea.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.21.1/packages/react-aria-components/src/TextArea.tsx",
+    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/styles/components/textarea.css",
     "requiredParts": [
       "TextArea"
     ],
@@ -9531,10 +9531,10 @@
   "search-field": {
     "page": "SearchField",
     "importLine": "use herogpui::components::input::SearchField;",
-    "version": "3.2.5",
-    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/apps/docs/content/docs/en/react/components/(forms)/search-field.mdx",
-    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/react/src/components/search-field/search-field.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.21.0/packages/react-aria-components/src/SearchField.tsx",
-    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/styles/components/search-field.css",
+    "version": "3.2.6",
+    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/apps/docs/content/docs/en/react/components/(forms)/search-field.mdx",
+    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/react/src/components/search-field/search-field.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.21.1/packages/react-aria-components/src/SearchField.tsx",
+    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/styles/components/search-field.css",
     "requiredParts": [
       "SearchField",
       "SearchField.Group",
@@ -10019,10 +10019,10 @@
   "input-otp": {
     "page": "InputOtp",
     "importLine": "use herogpui::components::input_otp::{InputOTP, OtpState};",
-    "version": "3.2.5",
-    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/apps/docs/content/docs/en/react/components/(forms)/input-otp.mdx",
-    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/react/src/components/input-otp/input-otp.tsx",
-    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/styles/components/input-otp.css",
+    "version": "3.2.6",
+    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/apps/docs/content/docs/en/react/components/(forms)/input-otp.mdx",
+    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/react/src/components/input-otp/input-otp.tsx",
+    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/styles/components/input-otp.css",
     "requiredParts": [
       "InputOTP",
       "InputOTP.Group",
@@ -10434,10 +10434,10 @@
   "input-group": {
     "page": "InputGroup",
     "importLine": "use herogpui::components::input_group::InputGroup;",
-    "version": "3.2.5",
-    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/apps/docs/content/docs/en/react/components/(forms)/input-group.mdx",
-    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/react/src/components/input-group/input-group.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.21.0/packages/react-aria-components/src/Group.tsx",
-    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/styles/components/input-group.css",
+    "version": "3.2.6",
+    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/apps/docs/content/docs/en/react/components/(forms)/input-group.mdx",
+    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/react/src/components/input-group/input-group.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.21.1/packages/react-aria-components/src/Group.tsx",
+    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/styles/components/input-group.css",
     "requiredParts": [
       "InputGroup",
       "InputGroup.Input",
@@ -10984,10 +10984,10 @@
   "tabs": {
     "page": "Tabs",
     "importLine": "use herogpui::components::tabs::{TabItem, Tabs};",
-    "version": "3.2.5",
-    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/apps/docs/content/docs/en/react/components/(navigation)/tabs.mdx",
-    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/react/src/components/tabs/tabs.tsx",
-    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/styles/components/tabs.css",
+    "version": "3.2.6",
+    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/apps/docs/content/docs/en/react/components/(navigation)/tabs.mdx",
+    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/react/src/components/tabs/tabs.tsx",
+    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/styles/components/tabs.css",
     "requiredParts": [
       "Tabs",
       "Tabs.ListContainer",
@@ -11428,10 +11428,10 @@
   "calendar": {
     "page": "Calendar",
     "importLine": "use herogpui::components::calendar::{Calendar, CalendarState};",
-    "version": "3.2.5",
-    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/apps/docs/content/docs/en/react/components/(date-and-time)/calendar.mdx",
-    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/react/src/components/calendar/calendar.tsx",
-    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/styles/components/calendar.css + https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/styles/components/calendar-year-picker.css",
+    "version": "3.2.6",
+    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/apps/docs/content/docs/en/react/components/(date-and-time)/calendar.mdx",
+    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/react/src/components/calendar/calendar.tsx",
+    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/styles/components/calendar.css + https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/styles/components/calendar-year-picker.css",
     "requiredParts": [
       "Calendar",
       "Calendar.Header",
@@ -12097,10 +12097,10 @@
   "date-field": {
     "page": "DateField",
     "importLine": "use herogpui::components::date_picker::DateField;",
-    "version": "3.2.5",
-    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/apps/docs/content/docs/en/react/components/(date-and-time)/date-field.mdx",
-    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/react/src/components/date-field/date-field.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.21.0/packages/react-aria-components/src/DateField.tsx",
-    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/styles/components/date-field.css + https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/styles/components/date-input-group.css",
+    "version": "3.2.6",
+    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/apps/docs/content/docs/en/react/components/(date-and-time)/date-field.mdx",
+    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/react/src/components/date-field/date-field.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.21.1/packages/react-aria-components/src/DateField.tsx",
+    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/styles/components/date-field.css + https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/styles/components/date-input-group.css",
     "requiredParts": [
       "DateField",
       "Label",
@@ -12663,10 +12663,10 @@
   "date-picker": {
     "page": "DatePicker",
     "importLine": "use herogpui::components::date_picker::DatePicker;",
-    "version": "3.2.5",
-    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/apps/docs/content/docs/en/react/components/(date-and-time)/date-picker.mdx",
-    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/react/src/components/date-picker/date-picker.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.21.0/packages/react-aria-components/src/DatePicker.tsx",
-    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/styles/components/date-picker.css",
+    "version": "3.2.6",
+    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/apps/docs/content/docs/en/react/components/(date-and-time)/date-picker.mdx",
+    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/react/src/components/date-picker/date-picker.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.21.1/packages/react-aria-components/src/DatePicker.tsx",
+    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/styles/components/date-picker.css",
     "requiredParts": [
       "DatePicker.Root",
       "DatePicker.Trigger",
@@ -13054,10 +13054,10 @@
   "date-range-picker": {
     "page": "DateRangePicker",
     "importLine": "use herogpui::components::date_picker::{DateRangePicker, DateRangeState};",
-    "version": "3.2.5",
-    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/apps/docs/content/docs/en/react/components/(date-and-time)/date-range-picker.mdx",
-    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/react/src/components/date-range-picker/date-range-picker.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.21.0/packages/react-aria-components/src/DatePicker.tsx",
-    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/styles/components/date-range-picker.css",
+    "version": "3.2.6",
+    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/apps/docs/content/docs/en/react/components/(date-and-time)/date-range-picker.mdx",
+    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/react/src/components/date-range-picker/date-range-picker.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.21.1/packages/react-aria-components/src/DatePicker.tsx",
+    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/styles/components/date-range-picker.css",
     "requiredParts": [
       "DateRangePicker.Root",
       "DateRangePicker.Trigger",
@@ -13473,10 +13473,10 @@
   "number-field": {
     "page": "NumberField",
     "importLine": "use herogpui::components::number_field::{NumberField, NumberState};",
-    "version": "3.2.5",
-    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/apps/docs/content/docs/en/react/components/(forms)/number-field.mdx",
-    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/react/src/components/number-field/number-field.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.21.0/packages/react-aria-components/src/NumberField.tsx",
-    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/styles/components/number-field.css",
+    "version": "3.2.6",
+    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/apps/docs/content/docs/en/react/components/(forms)/number-field.mdx",
+    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/react/src/components/number-field/number-field.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.21.1/packages/react-aria-components/src/NumberField.tsx",
+    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/styles/components/number-field.css",
     "requiredParts": [
       "NumberField",
       "NumberField.Group",
@@ -14061,10 +14061,10 @@
   "time-field": {
     "page": "TimeField",
     "importLine": "use herogpui::components::time_field::{TimeField, TimeState};",
-    "version": "3.2.5",
-    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/apps/docs/content/docs/en/react/components/(date-and-time)/time-field.mdx",
-    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/react/src/components/time-field/time-field.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.21.0/packages/react-aria-components/src/TimeField.tsx",
-    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/styles/components/time-field.css + https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/styles/components/date-input-group.css",
+    "version": "3.2.6",
+    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/apps/docs/content/docs/en/react/components/(date-and-time)/time-field.mdx",
+    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/react/src/components/time-field/time-field.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.21.1/packages/react-aria-components/src/TimeField.tsx",
+    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/styles/components/time-field.css + https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/styles/components/date-input-group.css",
     "requiredParts": [
       "TimeField",
       "Label",
@@ -14597,10 +14597,10 @@
   "range-calendar": {
     "page": "RangeCalendar",
     "importLine": "use herogpui::components::range_calendar::RangeCalendar;",
-    "version": "3.2.5",
-    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/apps/docs/content/docs/en/react/components/(date-and-time)/range-calendar.mdx",
-    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/react/src/components/range-calendar/range-calendar.tsx",
-    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/styles/components/range-calendar.css + https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/styles/components/calendar-year-picker.css",
+    "version": "3.2.6",
+    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/apps/docs/content/docs/en/react/components/(date-and-time)/range-calendar.mdx",
+    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/react/src/components/range-calendar/range-calendar.tsx",
+    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/styles/components/range-calendar.css + https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/styles/components/calendar-year-picker.css",
     "requiredParts": [
       "RangeCalendar",
       "RangeCalendar.Header",
@@ -15294,10 +15294,10 @@
   "drawer": {
     "page": "Drawer",
     "importLine": "use herogpui::components::drawer::{Drawer, DrawerCloseTrigger, DrawerPlacement};",
-    "version": "3.2.5",
-    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/apps/docs/content/docs/en/react/components/(overlays)/drawer.mdx",
-    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/react/src/components/drawer/drawer.tsx",
-    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/styles/components/drawer.css",
+    "version": "3.2.6",
+    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/apps/docs/content/docs/en/react/components/(overlays)/drawer.mdx",
+    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/react/src/components/drawer/drawer.tsx",
+    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/styles/components/drawer.css",
     "requiredParts": [
       "Drawer",
       "Drawer.Trigger",
@@ -15860,10 +15860,10 @@
   "modal": {
     "page": "Modal",
     "importLine": "use herogpui::components::modal::{Modal, ModalCloseTrigger, ModalSize};",
-    "version": "3.2.5",
-    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/apps/docs/content/docs/en/react/components/(overlays)/modal.mdx",
-    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/react/src/components/modal/modal.tsx",
-    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/styles/components/modal.css",
+    "version": "3.2.6",
+    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/apps/docs/content/docs/en/react/components/(overlays)/modal.mdx",
+    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/react/src/components/modal/modal.tsx",
+    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/styles/components/modal.css",
     "requiredParts": [
       "Modal",
       "Modal.Trigger",
@@ -16478,10 +16478,10 @@
   "combo-box": {
     "page": "ComboBox",
     "importLine": "use herogpui::components::combo_box::ComboBox;",
-    "version": "3.2.5",
-    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/apps/docs/content/docs/en/react/components/(pickers)/combo-box.mdx",
-    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/react/src/components/combo-box/combo-box.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.21.0/packages/react-aria-components/src/ComboBox.tsx + https://github.com/adobe/react-spectrum/blob/react-aria@3.52.0/packages/react-aria/src/combobox/useComboBox.ts + https://github.com/adobe/react-spectrum/blob/react-aria@3.52.0/packages/react-aria/src/i18n/useFilter.ts",
-    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/styles/components/combo-box.css",
+    "version": "3.2.6",
+    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/apps/docs/content/docs/en/react/components/(pickers)/combo-box.mdx",
+    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/react/src/components/combo-box/combo-box.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.21.1/packages/react-aria-components/src/ComboBox.tsx + https://github.com/adobe/react-spectrum/blob/react-aria@3.52.1/packages/react-aria/src/combobox/useComboBox.ts + https://github.com/adobe/react-spectrum/blob/react-aria@3.52.1/packages/react-aria/src/i18n/useFilter.ts",
+    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/styles/components/combo-box.css",
     "requiredParts": [
       "ComboBox",
       "ComboBox.InputGroup",
@@ -16745,7 +16745,7 @@
         "prop": "formValue",
         "type": "\"text\" | \"key\"",
         "default": "\"key\"",
-        "description": "Chooses what a named field submits: the selected key(s) by default, the typed text under allowsCustomValue (pinned React Aria Components 1.21.0 forces text there). The serialization rides the local FormField; there is no browser form boundary.",
+        "description": "Chooses what a named field submits: the selected key(s) by default, the typed text under allowsCustomValue (pinned React Aria Components 1.21.1 forces text there). The serialization rides the local FormField; there is no browser form boundary.",
         "rustOwner": "ComboBox",
         "rust": "form_value(ComboBoxFormValue)",
         "status": "implemented"
@@ -17329,10 +17329,10 @@
   "autocomplete": {
     "page": "Autocomplete",
     "importLine": "use herogpui::components::autocomplete::Autocomplete;",
-    "version": "3.2.5",
-    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/apps/docs/content/docs/en/react/components/(pickers)/autocomplete.mdx",
-    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/react/src/components/autocomplete/autocomplete.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.21.0/packages/react-aria-components/src/Autocomplete.tsx + https://github.com/adobe/react-spectrum/blob/react-stately@3.50.0/packages/react-stately/src/autocomplete/useAutocompleteState.ts",
-    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/styles/components/autocomplete.css",
+    "version": "3.2.6",
+    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/apps/docs/content/docs/en/react/components/(pickers)/autocomplete.mdx",
+    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/react/src/components/autocomplete/autocomplete.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.21.1/packages/react-aria-components/src/Autocomplete.tsx + https://github.com/adobe/react-spectrum/blob/react-stately@3.50.0/packages/react-stately/src/autocomplete/useAutocompleteState.ts",
+    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/styles/components/autocomplete.css",
     "requiredParts": [
       "Autocomplete",
       "Autocomplete.Trigger",
@@ -18004,10 +18004,10 @@
   "progress-bar": {
     "page": "ProgressBar",
     "importLine": "use herogpui::components::progress::ProgressBar;",
-    "version": "3.2.5",
-    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/apps/docs/content/docs/en/react/components/(feedback)/progress-bar.mdx",
-    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/react/src/components/progress-bar/progress-bar.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.21.0/packages/react-aria-components/src/ProgressBar.tsx + https://github.com/adobe/react-spectrum/blob/react-aria@3.52.0/packages/react-aria/src/progress/useProgressBar.ts",
-    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/styles/components/progress-bar.css",
+    "version": "3.2.6",
+    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/apps/docs/content/docs/en/react/components/(feedback)/progress-bar.mdx",
+    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/react/src/components/progress-bar/progress-bar.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.21.1/packages/react-aria-components/src/ProgressBar.tsx + https://github.com/adobe/react-spectrum/blob/react-aria@3.52.1/packages/react-aria/src/progress/useProgressBar.ts",
+    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/styles/components/progress-bar.css",
     "requiredParts": [
       "ProgressBar",
       "ProgressBar.Output",
@@ -18243,10 +18243,10 @@
   "progress-circle": {
     "page": "ProgressCircle",
     "importLine": "use herogpui::components::progress::ProgressCircle;",
-    "version": "3.2.5",
-    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/apps/docs/content/docs/en/react/components/(feedback)/progress-circle.mdx",
-    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/react/src/components/progress-circle/progress-circle.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.21.0/packages/react-aria-components/src/ProgressBar.tsx",
-    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/styles/components/progress-circle.css",
+    "version": "3.2.6",
+    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/apps/docs/content/docs/en/react/components/(feedback)/progress-circle.mdx",
+    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/react/src/components/progress-circle/progress-circle.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.21.1/packages/react-aria-components/src/ProgressBar.tsx",
+    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/styles/components/progress-circle.css",
     "requiredParts": [
       "ProgressCircle",
       "ProgressCircle.Track",
@@ -18482,10 +18482,10 @@
   "meter": {
     "page": "Meter",
     "importLine": "use herogpui::components::meter::Meter;",
-    "version": "3.2.5",
-    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/apps/docs/content/docs/en/react/components/(feedback)/meter.mdx",
-    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/react/src/components/meter/meter.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.21.0/packages/react-aria-components/src/Meter.tsx",
-    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/styles/components/meter.css",
+    "version": "3.2.6",
+    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/apps/docs/content/docs/en/react/components/(feedback)/meter.mdx",
+    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/react/src/components/meter/meter.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.21.1/packages/react-aria-components/src/Meter.tsx",
+    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/styles/components/meter.css",
     "requiredParts": [
       "Meter",
       "Meter.Output",
@@ -18657,10 +18657,10 @@
   "skeleton": {
     "page": "Skeleton",
     "importLine": "use herogpui::components::skeleton::Skeleton;",
-    "version": "3.2.5",
-    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/apps/docs/content/docs/en/react/components/(feedback)/skeleton.mdx",
-    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/react/src/components/skeleton/skeleton.tsx",
-    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/styles/components/skeleton.css",
+    "version": "3.2.6",
+    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/apps/docs/content/docs/en/react/components/(feedback)/skeleton.mdx",
+    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/react/src/components/skeleton/skeleton.tsx",
+    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/styles/components/skeleton.css",
     "requiredParts": [
       "Skeleton"
     ],
@@ -18742,10 +18742,10 @@
   "spinner": {
     "page": "Spinner",
     "importLine": "use herogpui::components::spinner::Spinner;",
-    "version": "3.2.5",
-    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/apps/docs/content/docs/en/react/components/(feedback)/spinner.mdx",
-    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/react/src/components/spinner/spinner.tsx",
-    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/styles/components/spinner.css",
+    "version": "3.2.6",
+    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/apps/docs/content/docs/en/react/components/(feedback)/spinner.mdx",
+    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/react/src/components/spinner/spinner.tsx",
+    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/styles/components/spinner.css",
     "requiredParts": [
       "Spinner"
     ],
@@ -18835,10 +18835,10 @@
   "separator": {
     "page": "Separator",
     "importLine": "use herogpui::components::separator::Separator;",
-    "version": "3.2.5",
-    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/apps/docs/content/docs/en/react/components/(layout)/separator.mdx",
-    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/react/src/components/separator/separator.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.21.0/packages/react-aria-components/src/Separator.tsx",
-    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/styles/components/separator.css",
+    "version": "3.2.6",
+    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/apps/docs/content/docs/en/react/components/(layout)/separator.mdx",
+    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/react/src/components/separator/separator.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.21.1/packages/react-aria-components/src/Separator.tsx",
+    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/styles/components/separator.css",
     "requiredParts": [
       "Separator"
     ],
@@ -18940,52 +18940,16 @@
         "description": "Tertiary separator semantic color.",
         "rust": "SeparatorVariant::Tertiary => colors.separator_tertiary()",
         "status": "implemented"
-      },
-      {
-        "token": ".separator__container",
-        "description": "Container used when content divides two line segments.",
-        "rust": "content branch flex + items_center + gap(px(12.))",
-        "status": "implemented"
-      },
-      {
-        "token": ".separator__container--horizontal",
-        "description": "Horizontal content-container axis.",
-        "rust": "horizontal content branch w_full().flex_row()",
-        "status": "implemented"
-      },
-      {
-        "token": ".separator__container--vertical",
-        "description": "Vertical content-container axis.",
-        "rust": "vertical content branch h_full().flex_col().justify_center()",
-        "status": "implemented"
-      },
-      {
-        "token": ".separator__line",
-        "description": "Each line beside composed content grows into remaining space.",
-        "rust": "line flex_shrink_0 + flex_grow()",
-        "status": "implemented"
-      },
-      {
-        "token": ".separator__content",
-        "description": "Centered, non-wrapping composed content.",
-        "rust": "content div flex + items_center + justify_center + text_center + whitespace_nowrap + colors.muted",
-        "status": "implemented"
-      },
-      {
-        "token": ".separator__content--horizontal / --vertical",
-        "description": "Both orientation-specific content modifiers keep centered text.",
-        "rust": "content div text_center()",
-        "status": "implemented"
       }
     ]
   },
   "select": {
     "page": "Select",
     "importLine": "use herogpui::components::select::Select;",
-    "version": "3.2.5",
-    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/apps/docs/content/docs/en/react/components/(pickers)/select.mdx",
-    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/react/src/components/select/select.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.21.0/packages/react-aria-components/src/Select.tsx",
-    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/styles/components/select.css + https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/styles/components/list-box.css + https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/styles/components/list-box-item.css",
+    "version": "3.2.6",
+    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/apps/docs/content/docs/en/react/components/(pickers)/select.mdx",
+    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/react/src/components/select/select.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.21.1/packages/react-aria-components/src/Select.tsx",
+    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/styles/components/select.css + https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/styles/components/list-box.css + https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/styles/components/list-box-item.css",
     "requiredParts": [
       "Select",
       "Select.Trigger",
@@ -19657,10 +19621,10 @@
   "popover": {
     "page": "Popover",
     "importLine": "use herogpui::components::popover::{Popover, PopoverArrow, PopoverPlacement};",
-    "version": "3.2.5",
-    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/apps/docs/content/docs/en/react/components/(overlays)/popover.mdx",
-    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/react/src/components/popover/popover.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.21.0/packages/react-aria-components/src/Popover.tsx",
-    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/styles/components/popover.css",
+    "version": "3.2.6",
+    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/apps/docs/content/docs/en/react/components/(overlays)/popover.mdx",
+    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/react/src/components/popover/popover.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.21.1/packages/react-aria-components/src/Popover.tsx",
+    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/styles/components/popover.css",
     "requiredParts": [
       "Popover",
       "Popover.Trigger",
@@ -19969,10 +19933,10 @@
   "tooltip": {
     "page": "Tooltip",
     "importLine": "use herogpui::components::tooltip::Tooltip;",
-    "version": "3.2.5",
-    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/apps/docs/content/docs/en/react/components/(overlays)/tooltip.mdx",
-    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/react/src/components/tooltip/tooltip.tsx",
-    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/styles/components/tooltip.css",
+    "version": "3.2.6",
+    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/apps/docs/content/docs/en/react/components/(overlays)/tooltip.mdx",
+    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/react/src/components/tooltip/tooltip.tsx",
+    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/styles/components/tooltip.css",
     "requiredParts": [
       "Tooltip",
       "Tooltip.Trigger",
@@ -19995,7 +19959,7 @@
         "prop": "delay",
         "type": "number",
         "default": "1500",
-        "description": "The pinned HeroUI docs table says 700; v3.2.5 runtime resolves 1500 from --tooltip-delay, matching pinned React Stately's default.",
+        "description": "The pinned HeroUI docs table says 700; v3.2.6 runtime resolves 1500 from --tooltip-delay, matching pinned React Stately's default.",
         "rustOwner": "Tooltip",
         "rust": "delay(u64)",
         "status": "implemented"
@@ -20005,7 +19969,7 @@
         "prop": "closeDelay",
         "type": "number",
         "default": "500",
-        "description": "The pinned HeroUI docs table says zero; v3.2.5 runtime resolves 500 from --tooltip-close-delay, matching pinned React Stately's default.",
+        "description": "The pinned HeroUI docs table says zero; v3.2.6 runtime resolves 500 from --tooltip-close-delay, matching pinned React Stately's default.",
         "rustOwner": "Tooltip",
         "rust": "close_delay(u64)",
         "status": "implemented"
@@ -20301,10 +20265,10 @@
   "table": {
     "page": "Table",
     "importLine": "use herogpui::components::table::Table;",
-    "version": "3.2.5",
-    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/apps/docs/content/docs/en/react/components/(data-display)/table.mdx",
-    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/react/src/components/table/table.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.21.0/packages/react-aria-components/src/Table.tsx",
-    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/styles/components/table.css",
+    "version": "3.2.6",
+    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/apps/docs/content/docs/en/react/components/(data-display)/table.mdx",
+    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/react/src/components/table/table.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.21.1/packages/react-aria-components/src/Table.tsx",
+    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/styles/components/table.css",
     "requiredParts": [
       "Table",
       "Table.ScrollContainer",
@@ -21510,10 +21474,10 @@
   "accordion": {
     "page": "Accordion",
     "importLine": "use herogpui::components::accordion::{Accordion, AccordionItem};",
-    "version": "3.2.5",
-    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/apps/docs/content/docs/en/react/components/(navigation)/accordion.mdx",
-    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/react/src/components/accordion/accordion.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.21.0/packages/react-aria-components/src/Disclosure.tsx",
-    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/styles/components/accordion.css",
+    "version": "3.2.6",
+    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/apps/docs/content/docs/en/react/components/(navigation)/accordion.mdx",
+    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/react/src/components/accordion/accordion.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.21.1/packages/react-aria-components/src/Disclosure.tsx",
+    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/styles/components/accordion.css",
     "requiredParts": [
       "Accordion",
       "Accordion.Item",
@@ -21998,10 +21962,10 @@
   "disclosure": {
     "page": "Disclosure",
     "importLine": "use herogpui::components::disclosure::{Disclosure, DisclosureGroup};",
-    "version": "3.2.5",
-    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/apps/docs/content/docs/en/react/components/(navigation)/disclosure.mdx + https://github.com/heroui-inc/heroui/blob/v3.2.5/apps/docs/content/docs/en/react/components/(navigation)/disclosure-group.mdx",
-    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/react/src/components/disclosure/disclosure.tsx + https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/react/src/components/disclosure-group/disclosure-group.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.21.0/packages/react-aria-components/src/Disclosure.tsx",
-    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/styles/components/disclosure.css + https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/styles/components/disclosure-group.css",
+    "version": "3.2.6",
+    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/apps/docs/content/docs/en/react/components/(navigation)/disclosure.mdx + https://github.com/heroui-inc/heroui/blob/v3.2.6/apps/docs/content/docs/en/react/components/(navigation)/disclosure-group.mdx",
+    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/react/src/components/disclosure/disclosure.tsx + https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/react/src/components/disclosure-group/disclosure-group.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.21.1/packages/react-aria-components/src/Disclosure.tsx",
+    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/styles/components/disclosure.css + https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/styles/components/disclosure-group.css",
     "requiredParts": [
       "DisclosureGroup",
       "Disclosure",
@@ -22379,10 +22343,10 @@
   "toolbar": {
     "page": "Toolbar",
     "importLine": "use herogpui::components::toolbar::Toolbar;",
-    "version": "3.2.5",
-    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/apps/docs/content/docs/en/react/components/(layout)/toolbar.mdx",
-    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/react/src/components/toolbar/toolbar.tsx + https://github.com/adobe/react-spectrum/blob/react-aria@3.52.0/packages/react-aria/src/toolbar/useToolbar.ts",
-    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/styles/components/toolbar.css",
+    "version": "3.2.6",
+    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/apps/docs/content/docs/en/react/components/(layout)/toolbar.mdx",
+    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/react/src/components/toolbar/toolbar.tsx + https://github.com/adobe/react-spectrum/blob/react-aria@3.52.1/packages/react-aria/src/toolbar/useToolbar.ts",
+    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/styles/components/toolbar.css",
     "requiredParts": [
       "Toolbar"
     ],
@@ -22539,10 +22503,10 @@
   "form": {
     "page": "Form",
     "importLine": "use herogpui::components::form::Form;",
-    "version": "3.2.5",
-    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/apps/docs/content/docs/en/react/components/(forms)/form.mdx",
-    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/react/src/components/form/form.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.21.0/packages/react-aria-components/src/Form.tsx",
-    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/styles/components",
+    "version": "3.2.6",
+    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/apps/docs/content/docs/en/react/components/(forms)/form.mdx",
+    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/react/src/components/form/form.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.21.1/packages/react-aria-components/src/Form.tsx",
+    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/styles/components",
     "requiredParts": [
       "Form"
     ],
@@ -22752,10 +22716,10 @@
   "alert-dialog": {
     "page": "AlertDialog",
     "importLine": "use herogpui::components::alert_dialog::{AlertDialog, AlertDialogCloseTrigger};",
-    "version": "3.2.5",
-    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/apps/docs/content/docs/en/react/components/(overlays)/alert-dialog.mdx",
-    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/react/src/components/alert-dialog/alert-dialog.tsx",
-    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/styles/components/alert-dialog.css",
+    "version": "3.2.6",
+    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/apps/docs/content/docs/en/react/components/(overlays)/alert-dialog.mdx",
+    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/react/src/components/alert-dialog/alert-dialog.tsx",
+    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/styles/components/alert-dialog.css",
     "requiredParts": [
       "AlertDialog",
       "AlertDialog.Trigger",
@@ -23364,10 +23328,10 @@
   "breadcrumbs": {
     "page": "Breadcrumbs",
     "importLine": "use herogpui::components::breadcrumbs::{Breadcrumbs, Crumb};",
-    "version": "3.2.5",
-    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/apps/docs/content/docs/en/react/components/(navigation)/breadcrumbs.mdx",
-    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/react/src/components/breadcrumbs/breadcrumbs.tsx",
-    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/styles/components/breadcrumbs.css",
+    "version": "3.2.6",
+    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/apps/docs/content/docs/en/react/components/(navigation)/breadcrumbs.mdx",
+    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/react/src/components/breadcrumbs/breadcrumbs.tsx",
+    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/styles/components/breadcrumbs.css",
     "requiredParts": [
       "Breadcrumbs",
       "Breadcrumbs.Item"
@@ -23513,14 +23477,14 @@
     "styling": [
       {
         "token": ".breadcrumbs",
-        "description": "One line, items centred, no wrap.",
-        "rust": "root flex items_center",
+        "description": "One line, items centred, no wrap, 6px between items.",
+        "rust": "root flex items_center gap(px(6.))",
         "status": "implemented"
       },
       {
         "token": ".breadcrumbs__link",
-        "description": "14px medium muted link text on a fixed 20px line box with 2px horizontal padding; leading-5 is a fixed height, not a ratio of the text size.",
-        "rust": "text_size(px(14.)) + line_height(px(20.)) + FontWeight::MEDIUM + px(px(2.)) + muted",
+        "description": "14px medium muted link text on a fixed 20px line box with no padding of its own; leading-5 is a fixed height, not a ratio of the text size.",
+        "rust": "text_size(px(14.)) + line_height(px(20.)) + FontWeight::MEDIUM + muted",
         "status": "implemented"
       },
       {
@@ -23537,8 +23501,8 @@
       },
       {
         "token": ".breadcrumbs__item",
-        "description": "A 2px gap between link and separator, 2px of horizontal padding, and content that never compresses when the bar outgrows its parent.",
-        "rust": "row flex + flex_shrink_0 + items_center + justify_center + gap(px(2.)) + px(px(2.))",
+        "description": "A 4px gap between link and separator, no padding, and content that never compresses when the bar outgrows its parent.",
+        "rust": "row flex + flex_shrink_0 + items_center + justify_center + gap(px(4.))",
         "status": "implemented"
       },
       {
@@ -23552,10 +23516,10 @@
   "card": {
     "page": "Card",
     "importLine": "use herogpui::components::card::{Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle};",
-    "version": "3.2.5",
-    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/apps/docs/content/docs/en/react/components/(layout)/card.mdx",
-    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/react/src/components/card/card.tsx",
-    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/styles/components/card.css",
+    "version": "3.2.6",
+    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/apps/docs/content/docs/en/react/components/(layout)/card.mdx",
+    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/react/src/components/card/card.tsx",
+    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/styles/components/card.css",
     "requiredParts": [
       "Card",
       "Card.Header",
@@ -23807,10 +23771,10 @@
   "surface": {
     "page": "Surface",
     "importLine": "use herogpui::components::surface::Surface;",
-    "version": "3.2.5",
-    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/apps/docs/content/docs/en/react/components/(layout)/surface.mdx",
-    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/react/src/components/surface/surface.tsx",
-    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/styles/components/surface.css",
+    "version": "3.2.6",
+    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/apps/docs/content/docs/en/react/components/(layout)/surface.mdx",
+    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/react/src/components/surface/surface.tsx",
+    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/styles/components/surface.css",
     "requiredParts": [
       "Surface"
     ],
@@ -23902,10 +23866,10 @@
   "kbd": {
     "page": "Kbd",
     "importLine": "use herogpui::components::kbd::Kbd;",
-    "version": "3.2.5",
-    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/apps/docs/content/docs/en/react/components/(typography)/kbd.mdx",
-    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/react/src/components/kbd/kbd.tsx",
-    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/styles/components/kbd.css",
+    "version": "3.2.6",
+    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/apps/docs/content/docs/en/react/components/(typography)/kbd.mdx",
+    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/react/src/components/kbd/kbd.tsx",
+    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/styles/components/kbd.css",
     "requiredParts": [
       "Kbd",
       "Kbd.Abbr",
@@ -24057,10 +24021,10 @@
   "typography": {
     "page": "Typography",
     "importLine": "use herogpui::components::typography::{Typography, TypographyType};",
-    "version": "3.2.5",
-    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/apps/docs/content/docs/en/react/components/(typography)/typography.mdx",
-    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/react/src/components/typography/typography.tsx",
-    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/styles/components/typography.css",
+    "version": "3.2.6",
+    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/apps/docs/content/docs/en/react/components/(typography)/typography.mdx",
+    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/react/src/components/typography/typography.tsx",
+    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/styles/components/typography.css",
     "requiredParts": [
       "Typography",
       "Typography.Prose"
@@ -24342,10 +24306,10 @@
   "alert": {
     "page": "Alert",
     "importLine": "use herogpui::components::alert::Alert;",
-    "version": "3.2.5",
-    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/apps/docs/content/docs/en/react/components/(feedback)/alert.mdx",
-    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/react/src/components/alert/alert.tsx",
-    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/styles/components/alert.css",
+    "version": "3.2.6",
+    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/apps/docs/content/docs/en/react/components/(feedback)/alert.mdx",
+    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/react/src/components/alert/alert.tsx",
+    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/styles/components/alert.css",
     "requiredParts": [
       "Alert",
       "Alert.Indicator",
@@ -24545,10 +24509,10 @@
   "link": {
     "page": "Link",
     "importLine": "use herogpui::components::link::Link;",
-    "version": "3.2.5",
-    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/apps/docs/content/docs/en/react/components/(navigation)/link.mdx",
-    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/react/src/components/link/link.tsx",
-    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/styles/components/link.css",
+    "version": "3.2.6",
+    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/apps/docs/content/docs/en/react/components/(navigation)/link.mdx",
+    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/react/src/components/link/link.tsx",
+    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/styles/components/link.css",
     "requiredParts": [
       "Link",
       "Link.Icon"
@@ -24751,10 +24715,10 @@
   "avatar": {
     "page": "Avatar",
     "importLine": "use herogpui::components::avatar::Avatar;",
-    "version": "3.2.5",
-    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/apps/docs/content/docs/en/react/components/(media)/avatar.mdx",
-    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/react/src/components/avatar/avatar.tsx",
-    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/styles/components/avatar.css",
+    "version": "3.2.6",
+    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/apps/docs/content/docs/en/react/components/(media)/avatar.mdx",
+    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/react/src/components/avatar/avatar.tsx",
+    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/styles/components/avatar.css",
     "requiredParts": [
       "Avatar",
       "Avatar.Image",
@@ -24766,7 +24730,7 @@
         "prop": "size",
         "type": "'sm' | 'md' | 'lg'",
         "default": "'md'",
-        "description": "Avatar size: 32/40/48px edge, with `sm` rounding one step tighter and `lg` stepping the fallback text up to 16px.",
+        "description": "Avatar size: 32/40/48px edge, with `sm` rounding one step tighter and stepping the fallback text down to 12px, and `lg` stepping it up to 16px. Inside an `AvatarGroup`, an omitted size comes from the group.",
         "rustOwner": "Avatar",
         "rust": "size(Size)",
         "status": "implemented"
@@ -24826,7 +24790,7 @@
         "prop": "onError",
         "type": "(event: SyntheticEvent<HTMLImageElement>) => void",
         "default": "—",
-        "description": "Callback when there's an error loading the image; the fallback initials replace the image on that same failure. Fires once per source; no event payload.",
+        "description": "Callback when there's an error loading the image; the fallback initials replace the image on that same failure. A decoded image with zero width counts as a failure (Radix Avatar 1.2.6 `naturalWidth > 0`). Fires once per source; no event payload.",
         "rustOwner": "Avatar",
         "rust": "on_error(handler)",
         "status": "partial"
@@ -24950,7 +24914,7 @@
       {
         "name": "Avatar.Fallback",
         "slot": "avatar__fallback",
-        "description": "`flex size-full items-center justify-center bg-default text-sm font-medium` fallback box. The separate fallback container centers initials or custom `fallback` children with 14px/20px medium text (16px/24px for large avatars), painted `text-{role}-soft-foreground`.",
+        "description": "`flex size-full items-center justify-center bg-default text-sm font-medium` fallback box. The separate fallback container centers initials or custom `fallback` children with 14px/20px medium text (12px/16px for small and 16px/24px for large avatars), painted `text-{role}-soft-foreground`.",
         "rustOwner": "Avatar",
         "status": "implemented"
       }
@@ -24972,7 +24936,13 @@
       {
         "token": ".avatar--lg .avatar__fallback",
         "description": "The large avatar steps fallback text from 14px/20px to 16px/24px.",
-        "rust": "let font = if self.large { px(16.) } else { px(14.) }",
+        "rust": "let font = if self.large { px(16.) } else if self.small { px(12.) } else { px(14.) }",
+        "status": "implemented"
+      },
+      {
+        "token": ".avatar--sm .avatar__fallback",
+        "description": "The small avatar steps fallback text from 14px/20px down to 12px/16px.",
+        "rust": "else if self.small { px(12.) } + else if self.small { px(16.) } leading",
         "status": "implemented"
       },
       {
@@ -25001,13 +24971,218 @@
       }
     ]
   },
+  "avatar-group": {
+    "page": "AvatarGroup",
+    "importLine": "use herogpui::components::avatar_group::AvatarGroup;",
+    "version": "3.2.6",
+    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/apps/docs/content/docs/en/react/components/(media)/avatar-group.mdx",
+    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/react/src/components/avatar-group/avatar-group.tsx",
+    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/styles/components/avatar-group.css",
+    "requiredParts": [
+      "AvatarGroup",
+      "AvatarGroup.Count"
+    ],
+    "api": [
+      {
+        "owner": "AvatarGroup",
+        "prop": "size",
+        "type": "'sm' | 'md' | 'lg'",
+        "default": "'md'",
+        "description": "Size applied to direct child avatars (and the overflow count) that omit `size`. A size set on the child wins; an avatar nested inside another element never inherits.",
+        "rustOwner": "AvatarGroup",
+        "rust": "size(Size)",
+        "status": "implemented"
+      },
+      {
+        "owner": "AvatarGroup",
+        "prop": "color",
+        "type": "'default' | 'accent' | 'success' | 'warning' | 'danger'",
+        "default": "—",
+        "description": "Color applied to direct child avatars (and the overflow count) that omit `color`.",
+        "rustOwner": "AvatarGroup",
+        "rust": "color(Color)",
+        "status": "implemented"
+      },
+      {
+        "owner": "AvatarGroup",
+        "prop": "variant",
+        "type": "'default' | 'soft'",
+        "default": "—",
+        "description": "Variant applied to direct child avatars (and the overflow count) that omit `variant`.",
+        "rustOwner": "AvatarGroup",
+        "rust": "variant(AvatarVariant)",
+        "status": "implemented"
+      },
+      {
+        "owner": "AvatarGroup",
+        "prop": "max",
+        "type": "number",
+        "default": "—",
+        "description": "Maximum number of children to render; the rest collapse into an automatic `+N` count. Omit to show every child.",
+        "rustOwner": "AvatarGroup",
+        "rust": "max(usize)",
+        "status": "implemented"
+      },
+      {
+        "owner": "AvatarGroup",
+        "prop": "isGrid",
+        "type": "boolean",
+        "default": "false",
+        "description": "A wrapping layout with a 12px gap and no overlap.",
+        "rustOwner": "AvatarGroup",
+        "rust": "is_grid(bool)",
+        "status": "implemented"
+      },
+      {
+        "owner": "AvatarGroup",
+        "prop": "overlap",
+        "type": "'clip' | 'ring'",
+        "default": "'clip'",
+        "description": "Stacked overlap style; ignored with `isGrid`. `ring` is the 2px `--background` outline. `clip` is v3's transparent crescent mask, which gpui cannot draw (no alpha masks): the port paints the same crescent as a 2px `--background` seam, identical on a solid background but not transparent over images or gradients.",
+        "rustOwner": "AvatarGroup",
+        "rust": "overlap(AvatarGroupOverlap)",
+        "status": "partial"
+      },
+      {
+        "owner": "AvatarGroup",
+        "prop": "className",
+        "type": "string",
+        "default": "—",
+        "description": "Additional CSS classes. The `sx` slot styles the group root; `overlap_distance` and `seam` stand in for the `--avatar-group-overlap` / `--avatar-group-seam` custom properties the Custom Styles example sets.",
+        "rustOwner": "AvatarGroup",
+        "rust": "sx(|el| ...)",
+        "status": "partial"
+      },
+      {
+        "owner": "AvatarGroup",
+        "prop": "children",
+        "type": "React.ReactNode",
+        "default": "—",
+        "description": "Avatar components and an optional `AvatarGroup.Count`. Direct avatars are typed children so the group can fill their omitted props; any other element is a `child_element` that counts toward `max` without inheriting.",
+        "rustOwner": "AvatarGroup",
+        "rust": "child(Avatar) / children(avatars) / child_element(el) / count(AvatarGroupCount)",
+        "status": "implemented"
+      },
+      {
+        "owner": "AvatarGroup.Count",
+        "prop": "children",
+        "type": "React.ReactNode",
+        "default": "—",
+        "description": "Count content (e.g. `+3`), rendered as the avatar fallback. An explicit count is never truncated by `max` and suppresses the automatic one.",
+        "rustOwner": "AvatarGroupCount",
+        "rust": "child(element)",
+        "status": "implemented"
+      },
+      {
+        "owner": "AvatarGroup.Count",
+        "prop": "size",
+        "type": "'sm' | 'md' | 'lg'",
+        "default": "—",
+        "description": "Override size from the group.",
+        "rustOwner": "AvatarGroupCount",
+        "rust": "size(Size)",
+        "status": "implemented"
+      },
+      {
+        "owner": "AvatarGroup.Count",
+        "prop": "color",
+        "type": "'default' | 'accent' | 'success' | 'warning' | 'danger'",
+        "default": "—",
+        "description": "Override color from the group.",
+        "rustOwner": "AvatarGroupCount",
+        "rust": "color(Color)",
+        "status": "implemented"
+      },
+      {
+        "owner": "AvatarGroup.Count",
+        "prop": "variant",
+        "type": "'default' | 'soft'",
+        "default": "—",
+        "description": "Override variant from the group.",
+        "rustOwner": "AvatarGroupCount",
+        "rust": "variant(AvatarVariant)",
+        "status": "implemented"
+      },
+      {
+        "owner": "AvatarGroup.Count",
+        "prop": "className",
+        "type": "string",
+        "default": "—",
+        "description": "Additional CSS classes.",
+        "rustOwner": "AvatarGroupCount",
+        "rust": "—",
+        "status": "unavailable"
+      }
+    ],
+    "parts": [
+      {
+        "name": "AvatarGroup",
+        "slot": "avatar-group",
+        "description": "Root on the `.avatar-group` BEM class: an `inline-flex items-center` row of direct `Avatar` children, stacked with an 8px overlap or wrapped as a grid. No implicit `role`.",
+        "rustOwner": "AvatarGroup",
+        "status": "implemented"
+      },
+      {
+        "name": "AvatarGroup.Count",
+        "slot": "avatar-group__count",
+        "description": "An `Avatar` whose fallback is the overflow content; `shrink-0` and overlapped like any stacked sibling.",
+        "rustOwner": "AvatarGroupCount",
+        "status": "implemented"
+      }
+    ],
+    "states": [],
+    "styling": [
+      {
+        "token": ".avatar-group",
+        "description": "A centered row; the two custom properties default to 8px and 2px.",
+        "rust": "div().flex().items_center(); overlap_distance: px(8.), seam: px(2.)",
+        "status": "implemented"
+      },
+      {
+        "token": ".avatar-group:not(.avatar-group--grid) > .avatar + .avatar",
+        "description": "Every stacked avatar (and the count) after an avatar pulls 8px under its predecessor.",
+        "rust": "GroupDecor { margin_start: follows.then_some(self.overlap_distance) } -> ml(-m)",
+        "status": "implemented"
+      },
+      {
+        "token": ".avatar-group--grid",
+        "description": "Grid wraps with a 12px gap and drops the overlap.",
+        "rust": "when(self.is_grid, |el| el.flex_wrap().gap(px(12.)))",
+        "status": "implemented"
+      },
+      {
+        "token": ".avatar-group--ring",
+        "description": "A solid 2px ring in the background colour on every stacked child.",
+        "rust": "BoxShadow { spread_radius: seam, color: colors.background }",
+        "status": "implemented"
+      },
+      {
+        "token": ".avatar-group--clip",
+        "description": "Platform-limited: gpui-pre 0.3.5 has only rectangular content masks, so the transparent crescent cannot be cut. The port paints it instead — a 2px `--background` seam around each avatar that follows another — which matches on a solid background but is opaque over images or gradients.",
+        "rust": "AvatarGroupOverlap::Clip => follows (BoxShadow seam in colors.background)",
+        "status": "partial"
+      },
+      {
+        "token": ".avatar-group--clip > .avatar:not(:last-child) .avatar__fallback",
+        "description": "The optical nudge that keeps clipped fallback glyphs centred in the visible part.",
+        "rust": "fallback_pad_end: self.overlap_distance * 0.35 -> pr(pad)",
+        "status": "implemented"
+      },
+      {
+        "token": ".avatar-group__count",
+        "description": "The count never shrinks; it is an `Avatar` and already `flex_shrink_0`.",
+        "rust": "AvatarGroupCount -> Avatar (flex_shrink_0)",
+        "status": "implemented"
+      }
+    ]
+  },
   "scroll-shadow": {
     "page": "ScrollShadow",
     "importLine": "use herogpui::components::scroll_shadow::ScrollShadow;",
-    "version": "3.2.5",
-    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/apps/docs/content/docs/en/react/components/(utilities)/scroll-shadow.mdx",
-    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/react/src/components/scroll-shadow/scroll-shadow.tsx + https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/react/src/components/scroll-shadow/use-scroll-shadow.ts",
-    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/styles/components/scroll-shadow.css",
+    "version": "3.2.6",
+    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/apps/docs/content/docs/en/react/components/(utilities)/scroll-shadow.mdx",
+    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/react/src/components/scroll-shadow/scroll-shadow.tsx + https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/react/src/components/scroll-shadow/use-scroll-shadow.ts",
+    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/styles/components/scroll-shadow.css",
     "requiredParts": [
       "ScrollShadow"
     ],
@@ -25169,10 +25344,10 @@
   "fieldset": {
     "page": "Fieldset",
     "importLine": "use herogpui::components::field::{Fieldset, FieldGroup, FieldsetLegend, FieldsetActions};",
-    "version": "3.2.5",
-    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/apps/docs/content/docs/en/react/components/(forms)/fieldset.mdx",
-    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/react/src/components/fieldset/fieldset.tsx",
-    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/styles/components/fieldset.css",
+    "version": "3.2.6",
+    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/apps/docs/content/docs/en/react/components/(forms)/fieldset.mdx",
+    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/react/src/components/fieldset/fieldset.tsx",
+    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/styles/components/fieldset.css",
     "requiredParts": [
       "Fieldset",
       "Fieldset.Legend",
@@ -25328,7 +25503,7 @@
       },
       {
         "name": "Fieldset.Group",
-        "slot": "fieldset__field_group",
+        "slot": "fieldset__field-group",
         "description": "`w-full space-y-4`: the full-width stack of grouped fields, 16px apart.",
         "rustOwner": "FieldGroup",
         "status": "implemented"
@@ -25356,7 +25531,7 @@
         "status": "implemented"
       },
       {
-        "token": ".fieldset__field_group",
+        "token": ".fieldset__field-group",
         "description": "The 16px vertical rhythm of the grouped fields (`--spacing` × 4).",
         "rust": "flex + flex_col + w_full + gap(px(16.))",
         "status": "implemented"
@@ -25372,10 +25547,10 @@
   "label-messages": {
     "page": "FieldSlots",
     "importLine": "use herogpui::components::field::{Description, ErrorMessage, FieldError, Label};",
-    "version": "3.2.5",
-    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/apps/docs/content/docs/en/react/components/(forms)/label.mdx + https://github.com/heroui-inc/heroui/blob/v3.2.5/apps/docs/content/docs/en/react/components/(forms)/description.mdx + https://github.com/heroui-inc/heroui/blob/v3.2.5/apps/docs/content/docs/en/react/components/(forms)/error-message.mdx + https://github.com/heroui-inc/heroui/blob/v3.2.5/apps/docs/content/docs/en/react/components/(forms)/field-error.mdx",
-    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/react/src/components/label/label.tsx + https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/react/src/components/description/description.tsx + https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/react/src/components/error-message/error-message.tsx + https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/react/src/components/field-error/field-error.tsx",
-    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/styles/components/label.css + https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/styles/components/description.css + https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/styles/components/error-message.css + https://github.com/heroui-inc/heroui/blob/v3.2.5/packages/styles/components/field-error.css",
+    "version": "3.2.6",
+    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/apps/docs/content/docs/en/react/components/(forms)/label.mdx + https://github.com/heroui-inc/heroui/blob/v3.2.6/apps/docs/content/docs/en/react/components/(forms)/description.mdx + https://github.com/heroui-inc/heroui/blob/v3.2.6/apps/docs/content/docs/en/react/components/(forms)/error-message.mdx + https://github.com/heroui-inc/heroui/blob/v3.2.6/apps/docs/content/docs/en/react/components/(forms)/field-error.mdx",
+    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/react/src/components/label/label.tsx + https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/react/src/components/description/description.tsx + https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/react/src/components/error-message/error-message.tsx + https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/react/src/components/field-error/field-error.tsx",
+    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/styles/components/label.css + https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/styles/components/description.css + https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/styles/components/error-message.css + https://github.com/heroui-inc/heroui/blob/v3.2.6/packages/styles/components/field-error.css",
     "requiredParts": [
       "Label",
       "Description",

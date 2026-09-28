@@ -1,5 +1,5 @@
-//! Avatar runtime behavior against the pinned v3.2.4 contract (HeroUI
-//! `avatar.css` + Radix Avatar 1.1.11 fallback semantics).
+//! Avatar runtime behavior against the pinned v3.2.6 contract (HeroUI
+//! `avatar.css` + Radix Avatar 1.2.6 fallback semantics).
 //!
 //! The test platform ships no asset source, so an embedded `src` path fails
 //! deterministically and a `gpui::ImageSource::Custom` loader stages the
@@ -26,7 +26,9 @@ use herogpui_core::Size;
 
 #[gpui::test]
 fn fallback_lines_keep_the_size_specific_leading(cx: &mut TestAppContext) {
-    for (size, height) in [(Size::Sm, 40.), (Size::Md, 40.), (Size::Lg, 48.)] {
+    // `.avatar--sm .avatar__fallback` is `text-xs` (16px lines),
+    // `.avatar__fallback` `text-sm` (20px) and `--lg` `text-base` (24px).
+    for (size, height) in [(Size::Sm, 32.), (Size::Md, 40.), (Size::Lg, 48.)] {
         for inherited in [None, Some(48.)] {
             let cx = open_host(cx, move || {
                 gpui::div()
@@ -164,6 +166,43 @@ fn a_failed_load_shows_the_fallback_and_fires_on_error_once(cx: &mut TestAppCont
         seen.borrow().as_slice(),
         ["error"],
         "on_error must fire exactly once"
+    );
+}
+
+/// Radix Avatar 1.2.6: a complete image with `naturalWidth == 0` is `error`
+/// (1.1.11 left it `loading`), so a decoded zero-size image keeps the
+/// fallback and reports `on_error` once, never `on_load`.
+#[gpui::test]
+fn zero_sized_image_fails_and_shows_the_fallback(cx: &mut TestAppContext) {
+    let seen = events();
+    let empty = Arc::new(RenderImage::new(Vec::new()));
+    let fallback_painted = Rc::new(Cell::new(false));
+    let flag = fallback_painted.clone();
+    let frame_seen = seen.clone();
+    let cx = open_host(cx, move || {
+        let errors = frame_seen.clone();
+        let loads = frame_seen.clone();
+        Avatar::new("zero-size")
+            .name("JD")
+            .src(ImageSource::Render(empty.clone()))
+            .on_error(move |_, _| errors.borrow_mut().push("error".into()))
+            .on_load(move |_, _| loads.borrow_mut().push("load".into()))
+            .fallback(probe(flag.clone()))
+            .into_any_element()
+    });
+
+    settle(cx);
+    assert!(
+        paints_fallback(cx, &fallback_painted),
+        "a zero-size image must leave the fallback in place"
+    );
+    assert_eq!(seen.borrow().as_slice(), ["error"]);
+
+    settle(cx);
+    assert_eq!(
+        seen.borrow().as_slice(),
+        ["error"],
+        "on_error must fire exactly once and on_load never"
     );
 }
 

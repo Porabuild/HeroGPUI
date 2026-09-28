@@ -14,7 +14,8 @@
 # gate `debug-embed` to wasm the way gpuikit does.
 [package]
 name = "herogpui-web"
-# The browser build of the gallery is a deployment artifact for GitHub Pages,
+# The browser build of the gallery is a deployment artifact for the website
+# (Vercel, see `web/DEPLOYMENT.md`),
 # not a library anyone depends on: it never goes to crates.io.
 publish = false
 description = "HeroGPUI gallery compiled to WebAssembly for the browser"

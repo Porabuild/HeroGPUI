@@ -415,7 +415,7 @@ fn md_sx_corners_reach_inner_mark_and_clipped_caps(cx: &mut TestAppContext) {
                 (
                     window.painted_quads(),
                     window.scale_factor(),
-                    f32::from(herogpui_components::util::key_radius(cx)),
+                    f32::from(herogpui_components::extend::key_radius(cx)),
                 )
             });
             let close = |a: f32, b: f32| (a - b).abs() < 0.05;

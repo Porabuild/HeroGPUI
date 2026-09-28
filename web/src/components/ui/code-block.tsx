@@ -58,6 +58,8 @@ export interface CodeBlockProps {
   collapsible?: boolean;
   /** Wrap long lines instead of scrolling horizontally. */
   wrap?: boolean;
+  /** Ids of further `CodeBlock`s whose code Copy appends (an example's helpers). */
+  copyAlso?: string[];
 }
 
 const COLLAPSE_AFTER_LINES = 18;
@@ -71,6 +73,22 @@ function fallbackId(code: string): string {
   return `code-${(hash >>> 0).toString(36)}`;
 }
 
+// Token classes are a short hash of the style they stand for, so the same
+// colour pair gets the same class in every page and every build worker (a
+// soft navigation keeps the previous page's hoisted rules). A collision would
+// paint the wrong colours, so it fails the build instead.
+const TOKEN_CLASSES = new Map<string, string>();
+
+function tokenClass(style: string): string {
+  const className = `k${fallbackId(style).slice(5, 9)}`;
+  const owner = TOKEN_CLASSES.get(className);
+  if (owner === undefined) TOKEN_CLASSES.set(className, style);
+  else if (owner !== style) {
+    throw new Error(`code-block token class ${className} collides: ${owner} / ${style}`);
+  }
+  return className;
+}
+
 export async function CodeBlock({
   code,
   lang = "tsx",
@@ -79,6 +97,7 @@ export async function CodeBlock({
   id,
   collapsible = true,
   wrap = false,
+  copyAlso = [],
 }: CodeBlockProps) {
   // Unknown langs would throw inside shiki; fall back to unstyled plaintext.
   const safeLang: CodeLang = CODE_LANGS.includes(lang) ? lang : "plaintext";
@@ -88,26 +107,73 @@ export async function CodeBlock({
   const controlId = id ?? fallbackId(normalizedCode);
   const contentId = `${controlId}-content`;
   const highlighter = await getHighlighter();
+  // Compact markup. Component pages list every example, so the highlighted
+  // HTML (which the RSC payload repeats) dominates page weight:
+  //   * a token in the block's default colours carries no style at all -- it
+  //     inherits `color` and `--shiki-dark` from the <pre>;
+  //   * any other colour pair becomes one short class, defined once per page
+  //     by a hoisted, deduplicated <style> (React `precedence`);
+  //   * lines are not wrapped in elements: the numbers are one gutter element
+  //     beside <code> (`.code-lines` in globals.css). Wrapping blocks keep
+  //     their per-line spans for the hanging indent and number them with a
+  //     CSS counter (`.code-counter`).
+  const tokenClasses = new Map<string, string>();
+  // Span hooks run before the <pre> hook, so the default pair comes from the
+  // themes rather than from the <pre>'s own style.
+  const defaultStyle =
+    `color:${highlighter.getTheme(THEMES.light).fg};--shiki-dark:${highlighter.getTheme(THEMES.dark).fg}`.toLowerCase();
   const html = highlighter.codeToHtml(normalizedCode, {
     lang: safeLang,
     themes: { light: THEMES.light, dark: THEMES.dark },
     transformers: [
       {
-        name: "line-numbers",
-        line(node, line) {
+        name: "compact-tokens",
+        pre(node) {
+          if (wrap) {
+            this.addClassToHast(node, "code-counter");
+            return;
+          }
+          this.addClassToHast(node, "code-lines");
           node.children.unshift({
             type: "element",
             tagName: "span",
-            properties: {
-              // The border makes each line contribute one hairline segment;
-              // stacked with no gap between lines, they read as a single
-              // continuous gutter rule rather than a tinted background block.
-              class:
-                "code-gutter me-3 inline-block w-10 select-none border-e border-separator pe-3 text-end",
-            },
-            children: [{ type: "text", value: String(line) }],
+            properties: { "aria-hidden": "true", class: "code-gutter" },
+            children: [
+              {
+                type: "text",
+                value: Array.from({ length: lineCount }, (_, at) => at + 1).join("\n"),
+              },
+            ],
           });
-          return node;
+        },
+        code(node) {
+          if (wrap) return;
+          node.children = node.children.flatMap((child) =>
+            child.type === "element" && child.tagName === "span" ? child.children : [child],
+          );
+        },
+        line(node) {
+          // A default-coloured token lost its style above; drop its element.
+          node.children = node.children.flatMap((child) =>
+            child.type === "element" &&
+            child.tagName === "span" &&
+            child.properties.class === undefined &&
+            child.properties.className === undefined
+              ? child.children
+              : [child],
+          );
+        },
+        span(node) {
+          const style = String(node.properties.style ?? "");
+          if (style === "") return;
+          delete node.properties.style;
+          if (style.toLowerCase() === defaultStyle) return;
+          let className = tokenClasses.get(style);
+          if (!className) {
+            className = tokenClass(style);
+            tokenClasses.set(style, className);
+          }
+          this.addClassToHast(node, className);
         },
       },
     ],
@@ -139,9 +205,14 @@ export async function CodeBlock({
           {filename ?? LANG_LABEL[safeLang]}
         </span>
         <span className="ml-auto shrink-0">
-          <CopyButton value={code} />
+          <CopyButton sourceIds={[contentId, ...copyAlso.map((other) => `${other}-content`)]} />
         </span>
       </figcaption>
+      {[...tokenClasses].map(([style, className]) => (
+        <style href={`shiki-${className}`} key={className} precedence="shiki">
+          {`.${className}{${style}}`}
+        </style>
+      ))}
       {/* shiki's output is trusted, statically generated markup. The
           scroller keeps a CSS-only ghost bar so this server component never
           needs a client scrollbar wrapper. */}
@@ -152,7 +223,7 @@ export async function CodeBlock({
             "max-h-80 overflow-y-hidden bg-surface-secondary after:pointer-events-none after:absolute after:inset-x-0 after:bottom-0 after:h-16 after:bg-gradient-to-t after:from-surface-secondary after:to-transparent after:transition-opacity peer-checked:max-h-none peer-checked:after:opacity-0",
         )}
         dangerouslySetInnerHTML={{ __html: html }}
-        id={isCollapsible ? contentId : undefined}
+        id={contentId}
       />
       {isCollapsible ? (
         <>

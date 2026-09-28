@@ -1,0 +1,19 @@
+[package]
+name = "herogpui-example-hello-button"
+description = "HeroGPUI example: hello-button"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[dependencies]
+herogpui.workspace = true
+
+# The public test kit (`herogpui::test`), exercised by `tests/press.rs`.
+[dev-dependencies]
+herogpui = { workspace = true, features = ["test-support"] }
+
+[lints]
+workspace = true

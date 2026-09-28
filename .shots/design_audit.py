@@ -3,7 +3,7 @@
 The prop and animation audits both read documentation, and neither says anything
 about whether a control is the right *size*: `api_audit.py` was perfectly happy
 with a button whose corner radius was a third of v3's. This reads the real
-stylesheets from the v3.2.5 tag of the React repo, resolves the Tailwind
+stylesheets from the v3.2.6 tag of the React repo, resolves the Tailwind
 utilities through v3's own token scales, and compares the result with the
 constants this port renders from.
 
@@ -33,10 +33,10 @@ import sys
 sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 
 from bundle import CSS_CACHE as CACHE
-COMPONENTS = ('https://raw.githubusercontent.com/heroui-inc/heroui/v3.2.5'
+COMPONENTS = ('https://raw.githubusercontent.com/heroui-inc/heroui/v3.2.6'
               '/packages/styles/components/%s.css')
 # The same stylesheets are vendored so the audit needs no network and
-# every run measures the same v3.2.5 tag. `--fetch` still refreshes upstream.
+# every run measures the same v3.2.6 tag. `--fetch` still refreshes upstream.
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from component_source import list_modules, read_module, read_path
 from bundle import css_cache as unpack
@@ -521,8 +521,8 @@ CHECKS = [
     ('modal', '.modal__heading', 'leading', 'Modal heading leading', SRC + 'modal.rs',
      r'`\.modal__heading` is `text-base`[\s\S]{0,400}?'
      r'\.line_height\(px\((\d+(?:\.\d*)?)\.\)\)', None),
-    ('switch', '.switch__label', 'leading', 'Switch label leading', SRC + 'switch.rs',
-     r'`\.switch__label` is `text-base`[\s\S]{0,400}?'
+    ('label', '.label', 'leading', 'Switch label -> shared .label leading', SRC + 'switch.rs',
+     r'The label is the shared `Label` part, `\.label` = `text-sm[\s\S]{0,400}?'
      r'\.line_height\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     # Meter's track, read off the ProgressBar the component delegates to.
     ('meter', '.meter .meter__track', 'h', 'Meter md track', SRC + 'progress.rs',
@@ -786,9 +786,9 @@ CHECKS = [
     ('switch', '.switch__content', 'text', 'Switch content text',
      SRC + 'switch.rs',
      r'let mut el = gpui::div\(\)[\s\S]{0,500}?\.text_size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
-    ('switch', '.switch__label', 'text', 'Switch label text',
+    ('label', '.label', 'text', 'Switch label -> shared .label text',
      SRC + 'switch.rs',
-     r'`\.switch__label` is `text-base`[\s\S]{0,120}?\.text_size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+     r'The label is the shared `Label` part, `\.label` = `text-sm[\s\S]{0,300}?\.text_size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('switch', '.switch__content', 'gap', 'Switch content gap',
      SRC + 'switch.rs',
      r'`\.switch__content` is `gap-3`[\s\S]{0,500}?\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
@@ -901,7 +901,9 @@ CHECKS = [
     ('avatar', '.avatar--sm', 'radius', 'Avatar Sm -> util::_radius', SRC + 'avatar.rs',
      r'if self\.small [\s\S]{0,40}?crate::util::(\w+_radius)', helper_px),
     ('avatar', '.avatar__fallback', 'text', 'Avatar fallback text', SRC + 'avatar.rs',
-     'avatar_fallback_text_sm', None),
+     'avatar_fallback_text_md', None),
+    ('avatar', '.avatar--sm .avatar__fallback', 'text', 'Avatar Sm fallback text',
+     SRC + 'avatar.rs', 'avatar_fallback_text_sm', None),
     ('avatar', '.avatar--lg .avatar__fallback', 'text', 'Avatar Lg fallback text',
      SRC + 'avatar.rs', 'avatar_fallback_text_lg', None),
     ('alert', '.alert__description', 'text', 'Alert description text', SRC + 'alert.rs',
@@ -1169,11 +1171,11 @@ CHECKS = [
      r'Size::Sm => \(px\(8\.\), px\((\d+(?:\.\d*)?)\.\)', None),
     ('tag', '.tag--sm', 'text', 'Tag Sm text', SRC + 'tag_group.rs',
      r'Size::Sm => \(px\(8\.\), px\(2\.\), px\((\d+(?:\.\d*)?)\.\)', None),
-    ('tag', '.tag--md', 'px', 'Tag Md px', SRC + 'tag_group.rs',
+    ('tag', '.tag', 'px', 'Tag Md (base .tag) px', SRC + 'tag_group.rs',
      r'Size::Md => \(px\((\d+(?:\.\d*)?)\.\)', None),
-    ('tag', '.tag--md', 'py', 'Tag Md py', SRC + 'tag_group.rs',
+    ('tag', '.tag', 'py', 'Tag Md (base .tag) py', SRC + 'tag_group.rs',
      r'Size::Md => \(px\(8\.\), px\((\d+(?:\.\d*)?)\.\)', None),
-    ('tag', '.tag--md', 'text', 'Tag Md text', SRC + 'tag_group.rs',
+    ('tag', '.tag', 'text', 'Tag Md (base .tag) text', SRC + 'tag_group.rs',
      r'Size::Md => \(px\(8\.\), px\(4\.\), px\((\d+(?:\.\d*)?)\.\)', None),
     ('tag', '.tag--lg', 'px', 'Tag Lg px', SRC + 'tag_group.rs',
      r'Size::Lg => \(px\((\d+(?:\.\d*)?)\.\)', None),
@@ -1183,7 +1185,7 @@ CHECKS = [
      r'Size::Lg => \(px\(10\.\), px\(6\.\), px\((\d+(?:\.\d*)?)\.\)', None),
     ('tag', '.tag--sm', 'leading', 'Tag Sm leading', SRC + 'tag_group.rs',
      'tag_leading_Sm', None),
-    ('tag', '.tag--md', 'leading', 'Tag Md leading', SRC + 'tag_group.rs',
+    ('tag', '.tag', 'leading', 'Tag Md (base .tag) leading', SRC + 'tag_group.rs',
      'tag_leading_Md', None),
     ('tag', '.tag--lg', 'leading', 'Tag Lg leading', SRC + 'tag_group.rs',
      'tag_leading_Lg', None),
@@ -1231,12 +1233,12 @@ CHECKS = [
     ('breadcrumbs', '.breadcrumbs__link', 'text', 'Breadcrumbs link text-sm',
      SRC + 'breadcrumbs.rs',
      r'let text_size = self\.text_size\.unwrap_or\(px\((\d+(?:\.\d*)?)\.\)\)', None),
-    ('breadcrumbs', '.breadcrumbs__item', 'gap', 'Breadcrumbs item gap-0.5',
+    ('breadcrumbs', '.breadcrumbs', 'gap', 'Breadcrumbs root gap-1.5',
+     SRC + 'breadcrumbs.rs',
+     r'gpui::div\(\)\s*\.flex\(\)\s*\.items_center\(\)\s*\.gap\(px\((\d+(?:\.\d*)?)\.\)\)\s*\.children\(crumbs\)', None),
+    ('breadcrumbs', '.breadcrumbs__item', 'gap', 'Breadcrumbs item gap-1',
      SRC + 'breadcrumbs.rs',
      r'\.justify_center\(\)\s*\n\s*\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
-    ('breadcrumbs', '.breadcrumbs__item', 'px', 'Breadcrumbs item px-0.5',
-     SRC + 'breadcrumbs.rs',
-     r'\.gap\(px\(2\.\)\)\s*\n\s*\.px\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('breadcrumbs', '.breadcrumbs__separator', 'size', 'Breadcrumbs separator size-3',
      SRC + 'breadcrumbs.rs',
      r'breadcrumbs__separator` is `size-3[\s\S]{0,600}?\.size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
@@ -1428,7 +1430,7 @@ CHECKS = [
      '\\n            \\.px\\(px\\((\\d+(?:\\.\\d*)?)\\)\\)', None),
     ('fieldset', '.fieldset', 'gap', 'Fieldset gap', SRC + 'field.rs',
      '\\n            gap: px\\((\\d+(?:\\.\\d*)?)\\),', None),
-    ('fieldset', '.fieldset__field_group', 'gap', 'Fieldset group gap', SRC + 'field.rs',
+    ('fieldset', '.fieldset__field-group', 'gap', 'Fieldset group gap', SRC + 'field.rs',
      r'impl FieldGroup \{[\s\S]{0,160}?gap: px\((\d+(?:\.\d*)?)\.\)', None),
     ('fieldset', '.fieldset__actions', 'pt', 'Fieldset actions pt', SRC + 'field.rs',
      r'`\.fieldset__actions` is `gap-2 pt-1`[\s\S]{0,120}?\.pt\(px\((\d+(?:\.\d*)?)\.\)\)', None),
@@ -2036,10 +2038,6 @@ CHECKS = [
     ('radio', '.radio > [data-slot="description"]', 'ps',
      'Radio description/error indent', SRC + 'radio_group.rs',
      'supporting_text_indent:RadioGroup', None),
-    ('separator', '.separator__container', 'gap', 'Separator container gap',
-     SRC + 'separator.rs',
-     r'`\.separator__container` is `flex items-center gap-3`[\s\S]{0,300}?'
-     r'\.gap\(gpui::px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('range-calendar', '.range-calendar__cell-indicator', 'size',
      'RangeCalendar cell indicator', SRC + 'range_calendar.rs',
      r'`\.range-calendar__cell-indicator` is a `size-\[3px\][\s\S]{0,900}?'
@@ -2059,9 +2057,9 @@ CHECKS = [
 
 
 THEME_FILES = (
-    ('variables.css', 'https://raw.githubusercontent.com/heroui-inc/heroui/v3.2.5'
+    ('variables.css', 'https://raw.githubusercontent.com/heroui-inc/heroui/v3.2.6'
                       '/packages/styles/themes/default/variables.css'),
-    ('shared_theme.css', 'https://raw.githubusercontent.com/heroui-inc/heroui/v3.2.5'
+    ('shared_theme.css', 'https://raw.githubusercontent.com/heroui-inc/heroui/v3.2.6'
                          '/packages/styles/themes/shared/theme.css'),
 )
 
@@ -2106,6 +2104,8 @@ NESTED_SELECTOR_CHAINS = {
         '.progress-circle', '.progress-circle__track-circle'),
     ('avatar', '.avatar--lg .avatar__fallback'): (
         '.avatar--lg', '.avatar__fallback'),
+    ('avatar', '.avatar--sm .avatar__fallback'): (
+        '.avatar--sm', '.avatar__fallback'),
     ('tabs', '.tabs__list[data-orientation="vertical"]'): (
         '.tabs__list', '&[data-orientation="vertical"]'),
     ('tabs', '.tabs__list[data-orientation="vertical"] .tabs__tab'): (
@@ -2845,8 +2845,10 @@ def our_value(path, pattern, transform):
         return tag_leading(path, pattern.removeprefix('tag_leading_'))
     if pattern == 'alert_indicator_padding':
         return alert_indicator_padding(path)
-    if pattern == 'avatar_fallback_text_sm':
+    if pattern == 'avatar_fallback_text_md':
         return avatar_fallback_text(path, False)
+    if pattern == 'avatar_fallback_text_sm':
+        return avatar_fallback_text(path, 'sm')
     if pattern == 'avatar_fallback_text_lg':
         return avatar_fallback_text(path, True)
     if pattern == 'slider_axis_inset_horizontal':
@@ -3220,6 +3222,7 @@ def strip_cfg_test(source):
 _AVATAR_FONT_ASSIGN = re.compile(
     r'(?<![A-Za-z0-9_])let\s+font\s*=\s*if\s+self\.large\s*'
     r'\{\s*px\((\d+(?:\.\d*)?)\.\)\s*\}\s*'
+    r'(?:else\s+if\s+self\.small\s*\{\s*px\((\d+(?:\.\d*)?)\.\)\s*\}\s*)?'
     r'else\s*\{\s*px\((\d+(?:\.\d*)?)\.\)\s*\}')
 
 
@@ -3254,7 +3257,10 @@ def avatar_fallback_text_from(source, large):
     match = _AVATAR_FONT_ASSIGN.search(body)
     if not match:
         return None
-    return float(match.group(1 if large else 2))
+    # `large` is True (Lg), False (Md) or 'sm'. An Sm step the source does
+    # not spell is unreadable, never silently the Md value.
+    value = match.group(1 if large is True else 2 if large == 'sm' else 3)
+    return float(value) if value is not None else None
 
 
 def avatar_fallback_text(path, large):
@@ -4112,6 +4118,12 @@ def self_test():
         '    fn render() {\n'
         '        let docs = r#"let font = if self.large { px(98.) } else { px(97.) };"#;\n'
         '    }\n}\n')
+    stepped = production.replace('} else {', '} else if self.small { px(12.) } else {', 1)
+    expect(avatar_fallback_text_from(stepped, 'sm') == 12.0 and
+           avatar_fallback_text_from(stepped, False) == TEXT['sm'],
+           'an Sm fallback step must be read separately from Md')
+    expect(avatar_fallback_text_from(production, 'sm') is None,
+           'a missing Sm step must be unreadable, not the Md value')
     expect(avatar_fallback_text_from(production, False) == TEXT['sm'] and
            avatar_fallback_text_from(production, True) == TEXT['base'],
            'production Avatar font assignment must be readable')

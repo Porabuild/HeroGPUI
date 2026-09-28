@@ -33,6 +33,10 @@ herogpui-theme.workspace = true
 herogpui-components = { workspace = true, features = ["gallery-source"] }
 herogpui.workspace = true
 
+# build.rs reads the website's generated examples to compile them as tests.
+[build-dependencies]
+serde_json = "1"
+
 [dev-dependencies]
 gpui = { workspace = true, features = ["test-support"] }
 

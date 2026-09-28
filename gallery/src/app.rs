@@ -82,6 +82,10 @@ pub struct Gallery {
     pub modal_open: bool,
     pub dropdown_open: bool,
     pub dropdown_selected: Option<SharedString>,
+    /// Last item chosen in the ContextMenu extension demo.
+    pub context_menu_last: SharedString,
+    /// Scroll state of the VirtualList extension demo.
+    pub virtual_list: h::VirtualListHandle,
     pub dropdown_last_basic: SharedString,
     pub dropdown_doc_marks: Vec<SharedString>,
     pub lb_pair_selection: HashSet<SharedString>,
@@ -376,6 +380,8 @@ Enter inserts a newline here, and a long paragraph wraps inside the field instea
             modal_open: std::env::var("HEROGPUI_OPEN_OVERLAYS").is_ok(),
             dropdown_open: std::env::var("HEROGPUI_OPEN_OVERLAYS").is_ok(),
             dropdown_selected: None,
+            context_menu_last: SharedString::from("none yet"),
+            virtual_list: h::VirtualListHandle::new(1000),
             dropdown_last_basic: SharedString::from("none yet"),
             dropdown_doc_marks: vec![SharedString::from("bold")],
             lb_pair_selection: {
@@ -460,7 +466,7 @@ impl Render for Gallery {
         let colors = cx.colors().clone();
 
         if crate::control::preview_only(cx) {
-            return h::util::app_focus_root(gpui::div(), _window, cx)
+            return h::extend::app_focus_root(gpui::div(), _window, cx)
                 .size_full()
                 .bg(colors.background)
                 .text_color(colors.foreground)
@@ -556,7 +562,7 @@ impl Render for Gallery {
                             .text_size(px(11.))
                             .font_weight(gpui::FontWeight::MEDIUM)
                             .text_color(colors.accent.color)
-                            .child("v0.1.0"),
+                            .child(concat!("v", env!("CARGO_PKG_VERSION"))),
                     ),
             )
             .child(
@@ -725,7 +731,7 @@ impl Render for Gallery {
         // The shell records keyboard-versus-pointer input, which is what a focus
         // ring reads, and moves the focus on Tab -- in a browser the platform
         // does both.
-        h::util::app_focus_root(gpui::div(), _window, cx)
+        h::extend::app_focus_root(gpui::div(), _window, cx)
             .size_full()
             .flex()
             .flex_col()

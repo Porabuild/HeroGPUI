@@ -8,10 +8,10 @@ mod harness;
 
 use gpui::{prelude::*, px, TestAppContext};
 use harness::{click, events, open_host, press, still};
-use herogpui_components::{util, Button, Dropdown, MenuItem, PickerItem, Select};
+use herogpui_components::{extend, Button, Dropdown, MenuItem, PickerItem, Select};
 
 fn ring_on(cx: &mut gpui::VisualTestContext) -> bool {
-    cx.update(|_, cx| util::focus_visible(cx))
+    cx.update(|_, cx| extend::focus_visible(cx))
 }
 
 fn last_open(log: &harness::Events) -> Option<String> {
@@ -232,3 +232,114 @@ fn pointer_select_escape_does_not_show_focus_ring(cx: &mut TestAppContext) {
         "Escape after a pointer-opened Select must not ring the trigger"
     );
 }
+
+// ---------------------------------------------------------------------------
+// v3.2.6's Select browser tests (`select.browser.test.tsx`, added with the
+// `:focus-visible:not([data-focused])` selector change): a mouse open rings no
+// option, a keyboard open rings the focused option, arrows keep the ring on
+// the newly focused option, a mouse pick leaves the restored trigger unringed,
+// and a keyboard pick rings it. The port's ring follows one keyboard-modality
+// flag (`util::focus_visible`), so each case asserts that flag at the point
+// the upstream test reads `data-focus-visible`.
+// ---------------------------------------------------------------------------
+
+fn focus_select<'a>(
+    cx: &'a mut TestAppContext,
+    id: &'static str,
+) -> (
+    &'a mut gpui::VisualTestContext,
+    harness::Events,
+    harness::Events,
+) {
+    still();
+    let opened = events();
+    let changed = events();
+    let log = opened.clone();
+    let picks = changed.clone();
+    let cx = open_host(cx, move || {
+        let log = log.clone();
+        let picks = picks.clone();
+        gpui::div()
+            .w(px(256.))
+            .child(
+                Select::new(
+                    id,
+                    vec![PickerItem::new("a", "Alpha"), PickerItem::new("b", "Beta")],
+                )
+                .on_open_change(move |open, _, _| {
+                    log.borrow_mut().push(format!("open:{open}"));
+                })
+                .on_change(move |key, _, _| picks.borrow_mut().push(format!("{key:?}"))),
+            )
+            .into_any_element()
+    });
+    (cx, opened, changed)
+}
+
+#[gpui::test]
+fn select_keyboard_open_rings_the_focused_option(cx: &mut TestAppContext) {
+    let (cx, opened, _) = focus_select(cx, "fv-select-kb-open");
+    press(cx, "tab");
+    press(cx, "enter");
+    cx.update(|window, _| window.refresh());
+    assert_eq!(last_open(&opened).as_deref(), Some("open:true"));
+    assert!(
+        ring_on(cx),
+        "a keyboard-opened Select must ring its focused option"
+    );
+    press(cx, "down");
+    cx.update(|window, _| window.refresh());
+    assert!(
+        ring_on(cx),
+        "an arrow move must keep the ring on the newly focused option"
+    );
+}
+
+#[gpui::test]
+fn select_mouse_pick_does_not_ring_the_trigger(cx: &mut TestAppContext) {
+    let (cx, opened, changed) = focus_select(cx, "fv-select-mouse-pick");
+    click(cx, 60., 18.);
+    cx.update(|window, _| window.refresh());
+    assert_eq!(last_open(&opened).as_deref(), Some("open:true"));
+    assert!(
+        !ring_on(cx),
+        "a mouse-opened Select must not ring its focused option"
+    );
+    click(cx, 60., OPTION_Y);
+    cx.update(|window, _| window.refresh());
+    assert_eq!(
+        changed.borrow().len(),
+        1,
+        "the pointer press must pick an option"
+    );
+    assert_eq!(last_open(&opened).as_deref(), Some("open:false"));
+    assert!(
+        !ring_on(cx),
+        "a mouse pick must leave the restored trigger unringed"
+    );
+}
+
+#[gpui::test]
+fn select_keyboard_pick_rings_the_trigger(cx: &mut TestAppContext) {
+    let (cx, opened, changed) = focus_select(cx, "fv-select-kb-pick");
+    press(cx, "tab");
+    press(cx, "enter");
+    press(cx, "down");
+    press(cx, "enter");
+    cx.update(|window, _| window.refresh());
+    assert_eq!(
+        changed.borrow().len(),
+        1,
+        "Enter must pick the focused option"
+    );
+    assert_eq!(last_open(&opened).as_deref(), Some("open:false"));
+    assert!(
+        ring_on(cx),
+        "a keyboard pick must ring the restored trigger"
+    );
+}
+
+/// The first option row's centre: the 36px trigger, the popover offset and
+/// the list padding put it here, and `select_mouse_pick_does_not_ring_the_trigger`
+/// asserts the press really picked.
+const OPTION_Y: f32 = 62.;

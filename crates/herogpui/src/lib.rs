@@ -13,20 +13,21 @@
 //!
 //! | Path                        | Crate                 | Feature                    |
 //! | --------------------------- | --------------------- | -------------------------- |
-//! | `herogpui::*`               | `gpui`                | always                     |
+//! | `herogpui::*`, [`gpui`]     | `gpui`                | always                     |
 //! | [`platform`], [`application`] | `gpui_platform`     | always                     |
 //! | `web`                       | `gpui_platform`       | always, `cfg(wasm)` only   |
 //! | [`core`]                    | `herogpui-core`       | `core` (via `theme`)       |
 //! | [`theme`]                   | `herogpui-theme`      | `theme` (via `components`) |
 //! | [`components`], `herogpui::*` | `herogpui-components` | `components` (**on**)    |
+//! | [`anim`], [`extend`]        | `herogpui-components` | `components` (**on**)      |
 //!
 //! Two features carry no layer of their own and only forward to GPUI:
 //!
 //! | Feature        | Forwards to                                          |
 //! | -------------- | ---------------------------------------------------- |
-//! | `test-support` | `gpui/test-support`, `gpui_platform/test-support`     |
+//! | `test-support` | `gpui/test-support`, `gpui_platform/test-support`; adds `herogpui::test` |
 //! | `profiler`     | `gpui/profiler`                                      |
-//! | `serde`        | `herogpui-theme/serde` (`ThemeDocument`)              |
+//! | `serde`        | `herogpui-theme/serde` (`ThemeDocument`, theme files) |
 //!
 //! There is no separate assets or icons feature: the SVG icons HeroGPUI's own
 //! component chrome draws are `&'static str` constants inside
@@ -149,7 +150,9 @@ pub use ::gpui::prelude::FluentBuilder;
 // is what makes those expansions resolve. `herogpui::*` is the documented way;
 // a caller who imports selectively instead needs `use herogpui::gpui;` beside
 // it before deriving.
-#[doc(hidden)]
+/// GPUI itself, by name: `herogpui::gpui::Size`, `herogpui::gpui::div`, and
+/// so on. This is the stable spelling for a GPUI item — it also names the
+/// eight GPUI types the HeroUI vocabulary shadows at this crate's root.
 pub use ::gpui;
 pub use ::gpui_platform as platform;
 pub use ::gpui_platform::application;
@@ -200,7 +203,10 @@ pub use ::herogpui_theme::{
     SwitchStyle, TextFieldStyle, Theme, ThemeProvider,
 };
 #[cfg(feature = "serde")]
-pub use ::herogpui_theme::{ThemeDocument, ThemeDocumentError};
+pub use ::herogpui_theme::{
+    load_themes_dir, presets, register_theme_json, ThemeDocument, ThemeDocumentError,
+    ThemeLoadError, THEME_SCHEMA,
+};
 
 /// GPUI's web platform entry points, on `wasm32` only.
 ///
@@ -283,6 +289,11 @@ pub fn init(cx: &mut App) {
     #[cfg(feature = "theme")]
     ::herogpui_theme::ThemeProvider::init(cx);
 }
+
+/// Headless UI test helpers for downstream applications: open a themed
+/// test window, find elements by debug selector, click, press and type.
+#[cfg(feature = "test-support")]
+pub mod test;
 
 /// Convenience prelude re-exporting the most-used items.
 ///

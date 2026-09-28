@@ -79,7 +79,19 @@ impl ThemeProvider {
     }
 
     pub fn theme(&self) -> &Theme {
-        self.themes.get(&self.active).expect("active theme missing")
+        // `set_active` refuses ids that are not registered and `register`
+        // inserts before it activates, so the active id always resolves.
+        // Should that invariant ever break, fall back to the built-in light
+        // theme rather than panicking on every frame.
+        self.themes
+            .get(&self.active)
+            .or_else(|| self.themes.get("light"))
+            .expect("the built-in light theme is registered by `init_with` and never removed")
+    }
+
+    /// Whether a theme with this id has been registered.
+    pub fn contains(&self, id: &str) -> bool {
+        self.themes.contains_key(id)
     }
 
     pub fn active_id(&self) -> &SharedString {
@@ -92,9 +104,31 @@ impl ThemeProvider {
         self.themes.insert(theme.id.clone(), theme);
     }
 
+    /// Registers a theme without activating it, replacing any theme with
+    /// the same id. The active theme is unchanged (re-inserting the active
+    /// id swaps its tokens in place).
+    pub fn insert(&mut self, theme: Theme) {
+        self.themes.insert(theme.id.clone(), theme);
+    }
+
+    /// The ids of every registered theme, sorted.
+    pub fn theme_ids(&self) -> Vec<SharedString> {
+        let mut ids: Vec<_> = self.themes.keys().cloned().collect();
+        ids.sort();
+        ids
+    }
+
     /// Activates a previously registered theme by id.
-    pub fn set_active(&mut self, id: impl Into<SharedString>) {
-        self.active = id.into();
+    ///
+    /// An id that was never registered is refused: the active theme stays as
+    /// it was and the error carries the rejected id.
+    pub fn set_active(&mut self, id: impl Into<SharedString>) -> Result<(), UnknownThemeError> {
+        let id = id.into();
+        if !self.themes.contains_key(&id) {
+            return Err(UnknownThemeError { id });
+        }
+        self.active = id;
+        Ok(())
     }
 
     /// Whether the OS light/dark appearance is being followed — the state a
@@ -167,12 +201,38 @@ pub fn set_theme(theme: Theme, cx: &mut App) {
     cx.refresh_windows();
 }
 
+/// The error [`use_theme`] and [`ThemeProvider::set_active`] return for an id
+/// that no registered theme carries (ids are case-sensitive: `"Dark"` is not
+/// `"dark"`).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct UnknownThemeError {
+    /// The id that was asked for.
+    pub id: SharedString,
+}
+
+impl std::fmt::Display for UnknownThemeError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "no theme is registered under the id {:?}",
+            self.id.as_ref()
+        )
+    }
+}
+
+impl std::error::Error for UnknownThemeError {}
+
 /// Activates one of the registered themes by id (`"light"`, `"dark"`, custom)
 /// and schedules every open window to repaint.
-pub fn use_theme(id: impl Into<SharedString>, cx: &mut App) {
+///
+/// An unknown id is an error, not a panic: the active theme is left unchanged,
+/// no window repaints, and the rejected id comes back in
+/// [`UnknownThemeError`].
+pub fn use_theme(id: impl Into<SharedString>, cx: &mut App) -> Result<(), UnknownThemeError> {
     let provider = cx.global_mut::<ThemeProvider>();
-    provider.set_active(id);
+    provider.set_active(id)?;
     cx.refresh_windows();
+    Ok(())
 }
 
 /// Sets the app-level reduced-motion preference — the equivalent of putting
@@ -255,12 +315,15 @@ fn apply_system_appearance(appearance: WindowAppearance, cx: &mut App) {
     if provider.active_id().as_ref() == id {
         return;
     }
-    use_theme(id, cx);
+    // Both ids are registered by `init_with`; a custom pair replaces them
+    // under the same ids, so this cannot miss.
+    let _ = use_theme(id, cx);
 }
 
 /// Switches between the light and dark defaults.
 pub fn toggle_light_dark(cx: &mut App) {
     let dark = cx.theme().is_dark();
     let next = if dark { "light" } else { "dark" };
-    use_theme(next, cx);
+    // Registered by `init_with`, so this cannot miss.
+    let _ = use_theme(next, cx);
 }

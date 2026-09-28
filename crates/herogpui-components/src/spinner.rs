@@ -282,7 +282,10 @@ impl RenderOnce for Spinner {
         let root = gpui::div().flex().flex_shrink_0().child(glyph);
         root.id(self.id).a11y_named(
             crate::a11y::Role::Status,
-            &crate::a11y::Name::labelled("Loading"),
+            &crate::a11y::Name::labelled(crate::i18n::ui_string(
+                crate::i18n::UiString::Loading,
+                cx,
+            )),
         )
     }
 }

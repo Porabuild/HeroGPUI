@@ -1,19 +1,19 @@
 {
   "schema_version": 1,
-  "target": "v3.2.5",
-  "target_commit": "5f13f6ed355bdbd5d5f69e5944685438a3591793",
-  "inventory_recorded_on": "2026-09-22",
-  "inventory_verification_sha256": "c3057e7ba0dbac41a294322ae3b35594c163f316de6470406322857c7eacb175",
-  "source_snapshot_sha256": "fe520961b3c2ef7398bbad0d8947181ac6f981ea3a22dfe98a9f167c69fcb9b1",
+  "target": "v3.2.6",
+  "target_commit": "e385ac202b2cdb94b1bf6fa76d32c31c8259cc5e",
+  "inventory_recorded_on": "2026-09-23",
+  "inventory_verification_sha256": "d11d8cdd8158e43c79a8c991e061ddf9015170a24257f9a86ef930c50566e3cf",
+  "source_snapshot_sha256": "1a548ac2e5e4b5e52c481623f4a714eb30df513124ec007cf1003eacb17dcaf4",
   "last_evidence_commit": null,
   "last_evidence_commit_recorded": false,
   "totals": {
-    "specimens": 739,
+    "specimens": 747,
     "verified": 0,
-    "outstanding": 739,
-    "unobserved": 739,
-    "components": 67,
-    "gallery_sections": 732
+    "outstanding": 747,
+    "unobserved": 747,
+    "components": 68,
+    "gallery_sections": 740
   },
   "status_counts": {
     "implemented-unverified": 7,
@@ -22,35 +22,35 @@
     "not-applicable": 0,
     "platform-limited": 0,
     "specified": 0,
-    "unreviewed": 732,
+    "unreviewed": 740,
     "verified": 0
   },
   "scope_counts": {
     "component-state": 4,
     "cross-component": 1,
-    "gallery-section": 732,
+    "gallery-section": 740,
     "platform-harness": 2
   },
   "evidence_counts": {
     "upstream": {
       "specimens_with_evidence": 5,
-      "specimens_missing_evidence": 734
+      "specimens_missing_evidence": 742
     },
     "native": {
       "specimens_with_evidence": 1,
-      "specimens_missing_evidence": 738
+      "specimens_missing_evidence": 746
     },
     "wasm": {
       "specimens_with_evidence": 1,
-      "specimens_missing_evidence": 738
+      "specimens_missing_evidence": 746
     },
     "tests": {
       "specimens_with_evidence": 5,
-      "specimens_missing_evidence": 734
+      "specimens_missing_evidence": 742
     },
     "all_surfaces": {
       "specimens_with_evidence": 1,
-      "specimens_missing_evidence": 738
+      "specimens_missing_evidence": 746
     }
   },
   "unobserved_statuses": [
@@ -413,8 +413,50 @@
       "state": "section-seed"
     },
     {
-      "id": "gallery/avatar/avatar-group",
-      "component": "Avatar",
+      "id": "gallery/avatar-group/custom-styles",
+      "component": "AvatarGroup",
+      "scope": "gallery-section",
+      "status": "unreviewed",
+      "state": "section-seed"
+    },
+    {
+      "id": "gallery/avatar-group/grid",
+      "component": "AvatarGroup",
+      "scope": "gallery-section",
+      "status": "unreviewed",
+      "state": "section-seed"
+    },
+    {
+      "id": "gallery/avatar-group/max",
+      "component": "AvatarGroup",
+      "scope": "gallery-section",
+      "status": "unreviewed",
+      "state": "section-seed"
+    },
+    {
+      "id": "gallery/avatar-group/overlap",
+      "component": "AvatarGroup",
+      "scope": "gallery-section",
+      "status": "unreviewed",
+      "state": "section-seed"
+    },
+    {
+      "id": "gallery/avatar-group/sizes",
+      "component": "AvatarGroup",
+      "scope": "gallery-section",
+      "status": "unreviewed",
+      "state": "section-seed"
+    },
+    {
+      "id": "gallery/avatar-group/usage",
+      "component": "AvatarGroup",
+      "scope": "gallery-section",
+      "status": "unreviewed",
+      "state": "section-seed"
+    },
+    {
+      "id": "gallery/avatar-group/with-count",
+      "component": "AvatarGroup",
       "scope": "gallery-section",
       "status": "unreviewed",
       "state": "section-seed"
@@ -2135,6 +2177,13 @@
       "state": "section-seed"
     },
     {
+      "id": "gallery/dropdown/context-menu",
+      "component": "Dropdown",
+      "scope": "gallery-section",
+      "status": "unreviewed",
+      "state": "section-seed"
+    },
+    {
       "id": "gallery/dropdown/controlled",
       "component": "Dropdown",
       "scope": "gallery-section",
@@ -2885,6 +2934,13 @@
     },
     {
       "id": "gallery/list-box/usage",
+      "component": "List Box",
+      "scope": "gallery-section",
+      "status": "unreviewed",
+      "state": "section-seed"
+    },
+    {
+      "id": "gallery/list-box/virtual-list",
       "component": "List Box",
       "scope": "gallery-section",
       "status": "unreviewed",
@@ -5359,6 +5415,30 @@
     },
     {
       "component": "Avatar",
+      "specimens": 6,
+      "statuses": {
+        "implemented-unverified": 0,
+        "intentional-deviation": 0,
+        "measured-gap": 0,
+        "not-applicable": 0,
+        "platform-limited": 0,
+        "specified": 0,
+        "unreviewed": 6,
+        "verified": 0
+      },
+      "verified": 0,
+      "outstanding": 6,
+      "unresolved_ids": [
+        "gallery/avatar/colors",
+        "gallery/avatar/custom-image-component",
+        "gallery/avatar/fallback-content",
+        "gallery/avatar/sizes",
+        "gallery/avatar/usage",
+        "gallery/avatar/variants"
+      ]
+    },
+    {
+      "component": "AvatarGroup",
       "specimens": 7,
       "statuses": {
         "implemented-unverified": 0,
@@ -5373,13 +5453,13 @@
       "verified": 0,
       "outstanding": 7,
       "unresolved_ids": [
-        "gallery/avatar/avatar-group",
-        "gallery/avatar/colors",
-        "gallery/avatar/custom-image-component",
-        "gallery/avatar/fallback-content",
-        "gallery/avatar/sizes",
-        "gallery/avatar/usage",
-        "gallery/avatar/variants"
+        "gallery/avatar-group/custom-styles",
+        "gallery/avatar-group/grid",
+        "gallery/avatar-group/max",
+        "gallery/avatar-group/overlap",
+        "gallery/avatar-group/sizes",
+        "gallery/avatar-group/usage",
+        "gallery/avatar-group/with-count"
       ]
     },
     {
@@ -6020,7 +6100,7 @@
     },
     {
       "component": "Dropdown",
-      "specimens": 23,
+      "specimens": 24,
       "statuses": {
         "implemented-unverified": 0,
         "intentional-deviation": 0,
@@ -6028,13 +6108,14 @@
         "not-applicable": 0,
         "platform-limited": 0,
         "specified": 0,
-        "unreviewed": 23,
+        "unreviewed": 24,
         "verified": 0
       },
       "verified": 0,
-      "outstanding": 23,
+      "outstanding": 24,
       "unresolved_ids": [
         "gallery/dropdown/basic-usage",
+        "gallery/dropdown/context-menu",
         "gallery/dropdown/controlled",
         "gallery/dropdown/controlled-open-state",
         "gallery/dropdown/controlled-selection",
@@ -6279,7 +6360,7 @@
     },
     {
       "component": "List Box",
-      "specimens": 15,
+      "specimens": 16,
       "statuses": {
         "implemented-unverified": 0,
         "intentional-deviation": 0,
@@ -6287,11 +6368,11 @@
         "not-applicable": 0,
         "platform-limited": 0,
         "specified": 0,
-        "unreviewed": 15,
+        "unreviewed": 16,
         "verified": 0
       },
       "verified": 0,
-      "outstanding": 15,
+      "outstanding": 16,
       "unresolved_ids": [
         "gallery/list-box/basic-usage",
         "gallery/list-box/controlled",
@@ -6305,6 +6386,7 @@
         "gallery/list-box/row-padding",
         "gallery/list-box/single-selection",
         "gallery/list-box/usage",
+        "gallery/list-box/virtual-list",
         "gallery/list-box/virtualization",
         "gallery/list-box/with-disabled-items",
         "gallery/list-box/with-sections"

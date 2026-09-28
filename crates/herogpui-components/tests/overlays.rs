@@ -59,7 +59,7 @@ use gpui::{
 };
 use harness::{click, events, open_host, press, tooltip_open_probe};
 use herogpui_components::{
-    dismiss_toast, toast_store, util, AlertDialog, AlertDialogCloseTrigger, AlertDialogSize,
+    dismiss_toast, extend, toast_store, AlertDialog, AlertDialogCloseTrigger, AlertDialogSize,
     Button, Drawer, DrawerPlacement, Modal, ModalCloseTrigger, Popover, Toast, Tooltip,
     TooltipTrigger, Variant,
 };
@@ -854,15 +854,19 @@ fn drawer_escape_and_drag_dismiss(cx: &mut TestAppContext) {
     // The render closure owns this handle; the test function keeps `open`
     // for the reopen below, so the clone is where the two split.
     let open_flag = open.clone();
+    let reasons = events();
+    let reasons_seen = reasons.clone();
 
     let cx = open_host(cx, move || {
         let rec = rec.clone();
+        let reasons = reasons.clone();
         let is_open = *open_flag.borrow();
         Drawer::new()
             .id("ovl-drawer")
             .is_open(is_open)
             .placement(DrawerPlacement::Right)
             .title("Drag me shut")
+            .on_close(move |reason, _, _| reasons.borrow_mut().push(format!("{reason:?}")))
             .on_open_change({
                 let open_flag = open_flag.clone();
                 move |v, window, _| {
@@ -898,6 +902,11 @@ fn drawer_escape_and_drag_dismiss(cx: &mut TestAppContext) {
         recorded.borrow().as_slice(),
         ["open:false", "open:false"],
         "the far pull must report the close exactly once"
+    );
+    assert_eq!(
+        reasons_seen.borrow().as_slice(),
+        ["Escape", "Drag"],
+        "on_close must name each dismissal path"
     );
 
     // Closed-proof: after the exit, a press where the title row was records
@@ -2007,8 +2016,8 @@ fn tooltip_keyboard_focus_hides_on_escape_without_losing_focus(cx: &mut TestAppC
     let cx = open_host(cx, move || {
         let pressed = pressed.clone();
         gpui::div()
-            .capture_key_down(|_, _, cx| util::set_focus_visible(true, cx))
-            .capture_any_mouse_down(|_, _, cx| util::set_focus_visible(false, cx))
+            .capture_key_down(|_, _, cx| extend::set_focus_visible(true, cx))
+            .capture_any_mouse_down(|_, _, cx| extend::set_focus_visible(false, cx))
             .child(tooltip_open_probe("ovl-tt", probe_seen.clone(), true))
             .child(
                 Tooltip::new("Keyboard tip")
@@ -2032,7 +2041,7 @@ fn tooltip_keyboard_focus_hides_on_escape_without_losing_focus(cx: &mut TestAppC
         Some("open:true")
     );
     assert!(
-        cx.update(|_, cx| util::focus_visible(cx)),
+        cx.update(|_, cx| extend::focus_visible(cx)),
         "keyboard focus must make the focus ring modality visible"
     );
 
@@ -2044,7 +2053,7 @@ fn tooltip_keyboard_focus_hides_on_escape_without_losing_focus(cx: &mut TestAppC
         "Escape must close the focus-opened tip"
     );
     assert!(
-        cx.update(|_, cx| util::focus_visible(cx)),
+        cx.update(|_, cx| extend::focus_visible(cx)),
         "Escape must use the tooltip latch, not clear app-wide focus-visible"
     );
 
@@ -2310,4 +2319,54 @@ fn collection_text_uses_pinned_line_boxes(cx: &mut TestAppContext) {
             }
         }
     }
+}
+
+/// `Modal::on_close` names the path that dismissed the dialog: the composed
+/// close trigger, Escape and a backdrop press each report their own
+/// [`DismissReason`] instead of a fabricated click event.
+#[gpui::test]
+fn modal_on_close_reports_the_dismiss_reason(cx: &mut TestAppContext) {
+    still();
+    let reasons = events();
+    let seen = reasons.clone();
+    let open = Rc::new(RefCell::new(true));
+    let open_flag = open.clone();
+
+    let cx = open_host(cx, move || {
+        let reasons = reasons.clone();
+        let is_open = *open_flag.borrow();
+        Modal::new()
+            .id("ovl-modal-reason")
+            .is_open(is_open)
+            .child(ModalCloseTrigger::new())
+            .child(Button::new("ovl-modal-reason-inside").label("Inside"))
+            .on_close(move |reason, _, _| reasons.borrow_mut().push(format!("{reason:?}")))
+            .on_open_change({
+                let open_flag = open_flag.clone();
+                move |v, window, _| {
+                    *open_flag.borrow_mut() = *v;
+                    window.refresh();
+                }
+            })
+            .into_any_element()
+    });
+
+    // Same geometry as `modal_default_close_trigger_reports_the_close`.
+    click(cx, 1164., 526.);
+    assert_eq!(seen.borrow().as_slice(), ["CloseButton"]);
+
+    let_exit_finish(cx);
+    *open.borrow_mut() = true;
+    cx.update(|window, _| window.refresh());
+    press(cx, "escape");
+    assert_eq!(seen.borrow().as_slice(), ["CloseButton", "Escape"]);
+
+    let_exit_finish(cx);
+    *open.borrow_mut() = true;
+    cx.update(|window, _| window.refresh());
+    click(cx, 100., 100.);
+    assert_eq!(
+        seen.borrow().as_slice(),
+        ["CloseButton", "Escape", "Backdrop"]
+    );
 }

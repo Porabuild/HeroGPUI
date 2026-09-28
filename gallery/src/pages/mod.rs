@@ -102,6 +102,7 @@ impl Gallery {
 
             // Media
             Page::Avatar => self.page_avatar(cx),
+            Page::AvatarGroup => self.page_avatar_group(cx),
 
             // Navigation
             Page::Accordion => self.page_accordion(cx),
@@ -221,6 +222,7 @@ pub enum Page {
 
     // Media
     Avatar,
+    AvatarGroup,
 
     // Navigation
     Accordion,
@@ -312,6 +314,7 @@ impl Page {
             Page::Surface => "Surface",
             Page::Toolbar => "Toolbar",
             Page::Avatar => "Avatar",
+            Page::AvatarGroup => "AvatarGroup",
             Page::Accordion => "Accordion",
             Page::Breadcrumbs => "Breadcrumbs",
             Page::Disclosure => "Disclosure",
@@ -401,6 +404,9 @@ impl Page {
             Page::Surface => "A container that applies surface-level styling to its children.",
             Page::Toolbar => "A container for interactive controls with arrow-key navigation.",
             Page::Avatar => "Display an image or initials representing a user.",
+            Page::AvatarGroup => {
+                "Display a stacked or grid group of avatars with overflow counting."
+            }
             Page::Accordion => "Vertically collapsing panels.",
             Page::Breadcrumbs => "Show the path to the current resource.",
             Page::Disclosure => "A single collapsible section.",
@@ -489,6 +495,7 @@ impl Page {
             Page::Surface => "use herogpui::components::surface::Surface;",
             Page::Toolbar => "use herogpui::components::toolbar::Toolbar;",
             Page::Avatar => "use herogpui::components::avatar::Avatar;",
+            Page::AvatarGroup => "use herogpui::components::avatar_group::AvatarGroup;",
             Page::Accordion => "use herogpui::components::accordion::{Accordion, AccordionItem};",
             Page::Breadcrumbs => "use herogpui::components::breadcrumbs::{Breadcrumbs, Crumb};",
             Page::Disclosure => {
@@ -636,7 +643,7 @@ pub fn nav_sections() -> Vec<NavSection> {
         },
         NavSection {
             title: "Media",
-            items: vec![Page::Avatar],
+            items: vec![Page::Avatar, Page::AvatarGroup],
         },
         NavSection {
             title: "Navigation",

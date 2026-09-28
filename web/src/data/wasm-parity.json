@@ -1,7 +1,8 @@
 {
-  "version": 2,
-  "artifactSha256": "ef52da68fc1c902eb96a05e7cfe9ff0ebc7dd8c247e8ee9b077bc60401877f80",
-  "glueSha256": "08a8c7cd54f68777decf2b460a231de1bc589dc96e3b332ac6eeef837be0197c",
+  "version": 3,
+  "artifactSha256": "f6f8ddcbeca11dbcb7af63e3cde149373848a4962d50a0f0708118be242d68d9",
+  "glueSha256": "b9c569f62df71a262d43d674499bd3c9274087e5619fb3f1f506f416126b523b",
+  "inputsSha256": "2a1ff2f5115d2d5d31c9121d48dbcb73f42d858c01b2b0445a9823d3ed628bf4",
   "examples": {
     "accordion/Controlled": {
       "codeSha256": "ac39d58e626756503af3f2fedbcf0a3a791b32096093d62ca5c6aab77146d75b",
@@ -140,8 +141,8 @@
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "autocomplete/Custom Value": {
-      "codeSha256": "0537f18ccb04c7cab14f7a34727896f78b947c82632d3ca45f3dac57e4acb702",
-      "descriptionSha256": "9fb04dea16db638a73303273695659ebc0a440ffd8cd8f0ce44cc8e0fc4924a5"
+      "codeSha256": "8026b85af968db3921c2099b75f3942eeee0c5406d67dec569ef79ef44bf6270",
+      "descriptionSha256": "565f103be74412a8bb8c97adf6adbf15c5c7af2c12cce291302f383ca84e432b"
     },
     "autocomplete/Disabled": {
       "codeSha256": "9befa3b688846e05d05cabc17392ff58ca9bdc0d4bc69c31d317db93421552c2",
@@ -195,8 +196,32 @@
       "codeSha256": "aef81cee52ef96d08e30539ff415659c3bc5383b3b77fe95ff29ac08b472b8b7",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
-    "avatar/Avatar Group": {
-      "codeSha256": "a4d8dba75153e5578eba5122eae31f8eebc8dabd894857c117c863aa8f8a1056",
+    "avatar-group/Custom Styles": {
+      "codeSha256": "9accc4f08c3875faaec1fb99355e6735b49bccaddc72bb5d757468c9c6c0efc2",
+      "descriptionSha256": "9d842735dfcd0fe535c189841ddd537df05cde586bb69bca6b32c1696915dd66"
+    },
+    "avatar-group/Grid": {
+      "codeSha256": "afd663fcbba07edde3f79a8e3b071027ab09dfb54469061b5683a306a9c4cda6",
+      "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "avatar-group/Max": {
+      "codeSha256": "44ea8b5dde1d699e71903b1d8a27f363182d6c0f47782b74c80a92bc2f91cd06",
+      "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "avatar-group/Overlap": {
+      "codeSha256": "bfed48cda52dabf865700468ce7fd6d8bbdd5c8d633e99eaa01dd81236a75147",
+      "descriptionSha256": "de7936e788e6510b497b6f3c4741de4b22b71a0f2afbf9b509c14d4993a7a850"
+    },
+    "avatar-group/Sizes": {
+      "codeSha256": "737fe61f75fb5170a477a4702b04226c45933382b505192a98e3956ccd02b2c6",
+      "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "avatar-group/Usage": {
+      "codeSha256": "1be715d9fdba8bd7a50030fea3c3f32e9ddfadd5fe41972d8b7d1ba40be02922",
+      "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "avatar-group/With Count": {
+      "codeSha256": "3a746310c0d3d0b999681405a8ef324855be39d663995188f7e6da81fb59482f",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "avatar/Colors": {
@@ -217,7 +242,7 @@
     },
     "avatar/Usage": {
       "codeSha256": "d961329ca21b6b19acf89f5e1248798371c6b4034e1a478f15910294dc6e9edb",
-      "descriptionSha256": "5b34988dd9d650e70e8abf82f7332d51e9c5f42e591827905153c725e68612d3"
+      "descriptionSha256": "012051fba09df757390622f87b08448aed4b57e235c41b89a239da2763ea7fe7"
     },
     "avatar/Variants": {
       "codeSha256": "e7e9677fd3cde0391dbab18b43bd9aed132a5adbb3d6fa8f4073b8a89fa39663",
@@ -472,7 +497,7 @@
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "card/With Avatar": {
-      "codeSha256": "9c82ac202615e3462f042fcb6f2644916a73ed316ed6f37997f6848c2402bb36",
+      "codeSha256": "36befb0266ba25444fc4778b6782989893cbd7097bbcbf4d4237f10486ebd583",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "card/With Form": {
@@ -1179,6 +1204,10 @@
       "codeSha256": "288639aee8af63a793b65631fe7b775e3e1e15f7b38f5bcdc44364a2098a64c1",
       "descriptionSha256": "42a7a59c17e7aa973a6239a687bf649afdaf4ae9d65c83ab52cfb651e2f9d1d4"
     },
+    "dropdown/Context Menu": {
+      "codeSha256": "5229969e7e5e328a0968ef0f64af32d8e572e37dbf22cb340a86e428e3efe7b9",
+      "descriptionSha256": "30917c69d7ef3646585b91f6ab57788d4014118238963cee6ac3450f785270c6"
+    },
     "dropdown/Controlled": {
       "codeSha256": "32c0e6f68d281c70ab3550ab57514bf75fef211854a992457d83c5acb3d47dd0",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
@@ -1610,6 +1639,10 @@
     "list-box/Usage": {
       "codeSha256": "251d3cd3dc7a461455ce56153827c4a531167639119fb145fed9862a11c6404c",
       "descriptionSha256": "f8c1f5bfb9fcc344bf427f6d4c03e91ec772dc99b74484d50d07a8b85bcda414"
+    },
+    "list-box/Virtual List": {
+      "codeSha256": "adf0404c7d9d58a8008d69d59bc45d73b019521cf85fd2c940d2b92a802d8471",
+      "descriptionSha256": "17a0e8bab874c9a5c79ac91ac4193883cebbf67deae1c53c09c7ee49bc19e3fe"
     },
     "list-box/Virtualization": {
       "codeSha256": "f8dda158bac2d1d7e3735f9032bf5ea4317a46aed5241ee3928e6bd05122b2a5",
@@ -2220,7 +2253,7 @@
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "separator/With Content": {
-      "codeSha256": "0635215917c15698e6513bcb6839979655b162af8715f463f19cde9f6a6c460a",
+      "codeSha256": "205e088cc1c92b998f9bd1441cfb701ad65ae79699904251ba9006534012e853",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "separator/With Surface": {

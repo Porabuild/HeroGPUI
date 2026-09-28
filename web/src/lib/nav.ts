@@ -1,10 +1,16 @@
 /** Shared site constants and hand-maintained route lists for the chrome. */
 
+import catalog from "@/data/catalog.json";
+
 export const SITE = {
   name: "HeroGPUI",
   // The chip states the version and nothing else. Release status — "Released",
   // "Now available", or the reverse — is not something this site comments on.
-  version: "v0.1.0",
+  // Derived from Cargo.toml's `[workspace.package].version` by
+  // scripts/extract-catalog.mjs; `pnpm run extract:check` gates it.
+  version: `v${catalog.version}`,
+  /** The Cargo requirement install snippets show: `"0.11"` for 0.11.x. */
+  crateRequirement: catalog.version.split(".").slice(0, 2).join("."),
   /** The checkout's actual remote (github.com/Porabuild/HeroGPUI). */
   github: "https://github.com/Porabuild/HeroGPUI",
   upstream: "https://heroui.com",
@@ -12,9 +18,10 @@ export const SITE = {
   /**
    * Published GPUI version for gpui / gpui_platform. Zed does not publish
    * `gpui` under that name, so both come from `gpui-pre`, zed-industries' own
-   * prerelease publish of the same sources. Keep in lockstep with Cargo.toml.
+   * prerelease publish of the same sources. Read from Cargo.lock at extract
+   * time (catalog.json `gpuiVersion`).
    */
-  gpuiVersion: "0.3.3",
+  gpuiVersion: catalog.gpuiVersion,
 } as const;
 
 export interface NavLink {
