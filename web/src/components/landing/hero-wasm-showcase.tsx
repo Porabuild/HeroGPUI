@@ -3,7 +3,9 @@
 import { cn } from "@heroui/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  artifactVersion,
   embedUrl,
+  galleryOrigin,
   isReadyMessage,
   postPreview,
   postTheme,
@@ -27,6 +29,28 @@ const SPECIMEN_TABS: SpecimenTab[] = [
   { id: "alert", slug: "alert", section: "Usage", label: "Alert" },
 ];
 
+/**
+ * Start downloading the artifact the moment the reader shows intent to run
+ * it (pointer over, focus on, or touch of the poster or a tab), so the click
+ * that follows finds it in the HTTP cache. Only for a versioned artifact —
+ * next.config.ts serves `?v=` URLs as immutable, so the frame's own requests
+ * for the same URLs reuse these responses — and never under Save-Data.
+ */
+function prefetchArtifact(wasmVersion: string): void {
+  if (!wasmVersion) return;
+  const connection = (navigator as Navigator & { connection?: { saveData?: boolean } }).connection;
+  if (connection?.saveData) return;
+  const base = new URL(`${galleryOrigin().replace(/\/+$/, "")}/`, window.location.href);
+  for (const file of ["herogpui_web.js", "herogpui_web_bg.wasm"]) {
+    const url = new URL(file, base);
+    url.searchParams.set("v", artifactVersion(wasmVersion));
+    const link = document.createElement("link");
+    link.rel = "prefetch";
+    link.href = url.href;
+    document.head.appendChild(link);
+  }
+}
+
 interface HeroWasmShowcaseProps {
   /** SHA-256 of the checked-in artifact (wasm-parity.json), for `?v=`. */
   wasmVersion: string;
@@ -35,7 +59,9 @@ interface HeroWasmShowcaseProps {
 /**
  * The landing page's live specimen. The multi-megabyte module is not fetched
  * on page load: the frame is created only when the reader asks for it (the
- * poster button or a specimen tab). After that one instance stays alive —
+ * poster button or a specimen tab), and the download starts at the first sign
+ * of that intent (`prefetchArtifact`). Mounting on visibility instead would
+ * fetch it for every visitor, since the specimen sits in the first viewport. After that one instance stays alive —
  * tabs switch component and example, and the site theme toggle switches the
  * theme, all over the `index.html` message bridge rather than a reload.
  */
@@ -46,6 +72,7 @@ export function HeroWasmShowcase({ wasmVersion }: HeroWasmShowcaseProps) {
   // instance never restarts.
   const [bootSrc, setBootSrc] = useState<string | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
+  const prefetched = useRef(false);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const stripRef = useRef<HTMLDivElement | null>(null);
   // True while the specimen tab strip can scroll further right. Drives the
@@ -71,6 +98,12 @@ export function HeroWasmShowcase({ wasmVersion }: HeroWasmShowcaseProps) {
       window.removeEventListener("resize", updateScrollFade);
     };
   }, [updateScrollFade]);
+
+  const warm = useCallback(() => {
+    if (prefetched.current || bootSrc) return;
+    prefetched.current = true;
+    prefetchArtifact(wasmVersion);
+  }, [bootSrc, wasmVersion]);
 
   const boot = useCallback(
     (tab: SpecimenTab) => {
@@ -164,6 +197,9 @@ export function HeroWasmShowcase({ wasmVersion }: HeroWasmShowcaseProps) {
                   )}
                   key={tab.id}
                   onClick={() => handleTabSelect(tab)}
+                  onFocus={warm}
+                  onPointerEnter={warm}
+                  onTouchStart={warm}
                   type="button"
                 >
                   {tab.label}
@@ -184,6 +220,9 @@ export function HeroWasmShowcase({ wasmVersion }: HeroWasmShowcaseProps) {
               <button
                 className="cursor-pointer rounded-lg border border-separator bg-surface px-4 py-2 text-sm font-medium text-foreground transition-colors hover:border-accent"
                 onClick={() => boot(activeTab)}
+                onFocus={warm}
+                onPointerEnter={warm}
+                onTouchStart={warm}
                 type="button"
               >
                 Run the live demo
