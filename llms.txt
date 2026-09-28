@@ -878,6 +878,23 @@ out of `reference_metadata`.
   `HeroGpuiAssets` serves them with no setup. Decorative: no accessibility
   node (lucide-react marks its svg `aria-hidden`). Lucide is ISC (some
   icons MIT via Feather); the license ships in `assets/lucide/LICENSE`.
+- **Sidebar** — `Sidebar::new(id, vec![SidebarGroup::new(key).label(text)
+  .is_collapsible(bool).default_expanded(bool).items(vec![SidebarItem::new(
+  key, label).icon(IconName::Inbox).badge("12").is_disabled(bool), ..]),
+  ..]).header(el).footer(el).label(name).width(px(256.))
+  .collapsed_width(px(56.)).show_collapse_toggle(bool).is_disabled(bool)
+  .on_select(|key, w, cx| ..)`; `.active_key(Some(key))` (controlled) or
+  `.default_active_key(key)`; `.is_collapsed(bool)` +
+  `.on_collapsed_change(|c: &bool, w, cx| ..)` or `.default_collapsed(bool)`;
+  `.expanded_keys([..])` + `.on_expanded_change(|&HashSet<SharedString>, w,
+  cx| ..)`. A labelled collapsible group's heading toggles its items
+  (Disclosure motion). One tab stop: Up/Down/Home/End over items and
+  collapsible headings, Right/Left expand/collapse from a heading,
+  Enter/Space activate, typeahead. Collapsed: icons only, group headings
+  hidden, each item named by a right-hand `Tooltip` (hover and keyboard
+  focus). Fixed pixel widths; for a draggable width put it in a
+  `ResizablePanelGroup` panel. Roles: `Navigation`, `Group`, `Button` +
+  expanded, `Link`.
 - **CommandPalette** — `CommandPalette::new(id, vec![CommandItem::new(key,
   label).group(name).description(text).icon(IconName::File).shortcut(["⌘",
   "N"]).keywords([..]).is_disabled(bool), ..]).on_select(|key, w, cx| ..)

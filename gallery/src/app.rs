@@ -96,6 +96,10 @@ pub struct Gallery {
     pub command_palette_open: bool,
     /// Last command the CommandPalette extension demo ran.
     pub command_palette_last: SharedString,
+    /// Active item of the Sidebar extension demo.
+    pub sidebar_active: SharedString,
+    /// Whether the Sidebar extension demo is collapsed to icons.
+    pub sidebar_collapsed: bool,
     /// Scroll state of the VirtualList extension demo.
     pub virtual_list: h::VirtualListHandle,
     pub dropdown_last_basic: SharedString,
@@ -467,6 +471,8 @@ Enter inserts a newline here, and a long paragraph wraps inside the field instea
             tree_selected: SharedString::from("nothing"),
             command_palette_open: false,
             command_palette_last: SharedString::from("none yet"),
+            sidebar_active: SharedString::from("home"),
+            sidebar_collapsed: false,
             virtual_list: h::VirtualListHandle::new(1000),
             dropdown_last_basic: SharedString::from("none yet"),
             dropdown_doc_marks: vec![SharedString::from("bold")],

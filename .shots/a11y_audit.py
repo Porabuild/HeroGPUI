@@ -448,6 +448,16 @@ EXPOSES_A_ROLE = {
         'keeps the focus: the search-driven virtual-focus list that cmdk '
         'and RAC\'s `Autocomplete` (`useAutocomplete`) render. The search '
         'field is an `Input`, which reports its own text node.',
+    ('sidebar.rs', 'Sidebar'):
+        'HeroGPUI extension with no HeroUI v3 upstream. Role::Navigation '
+        'named by `label` on the root (shadcn/ui\'s and gpui-kit\'s sidebar '
+        'is a navigation landmark), Role::Group named by its label on each '
+        'group, Role::Button with `aria-expanded` on a collapsible group\'s '
+        'heading (the disclosure trigger `useDisclosure` renders), and '
+        'Role::Link named by its label on each item, the cursor row marked '
+        'as the active descendant of the menu\'s single focus handle. The '
+        'active item\'s `aria-current="page"` goes through `a11y_current`, '
+        'which the pinned gpui cannot express (see `a11y.rs`).',
     ('tree_view.rs', 'TreeView'):
         'HeroGPUI extension with no HeroUI v3 upstream; the roles follow the '
         'WAI-ARIA tree pattern that RAC\'s `Tree` implements. Role::Tree on '

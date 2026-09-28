@@ -117,6 +117,8 @@ disableable!(
     RangeCalendar,
     ResizablePanelGroup,
     Select,
+    Sidebar,
+    SidebarItem,
     Slider,
     Switch,
     TabItem,

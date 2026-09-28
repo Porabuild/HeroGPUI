@@ -10,6 +10,21 @@ version covers `herogpui`, `herogpui-core`, `herogpui-theme`,
 
 ### Added
 
+- `Sidebar`, `SidebarGroup` and `SidebarItem` (HeroGPUI extension): a
+  collapsible application sidebar with a header, groups of menu items (icon,
+  label, badge) under optional labels, and a footer. One item is active
+  (`active_key` or `default_active_key`, reported by `on_select`). A
+  collapsible group's heading is a disclosure trigger with `Disclosure`'s
+  measured-height motion and rotating chevron (`expanded_keys` or each
+  group's `default_expanded`). The menu is one tab stop: Up/Down/Home/End
+  move over items and collapsible headings (skipping disabled items and
+  closed groups), Right/Left expand and collapse a group, Enter/Space
+  activate, typeahead finds a label. The footer toggle (or `is_collapsed` /
+  `default_collapsed`) narrows it to `collapsed_width` and shows each item
+  as its icon named by a right-hand `Tooltip`, which opens on hover and on
+  keyboard focus because the focus handle moves with the cursor row. Roles:
+  `Navigation`, `Group`, `Button` + expanded on collapsible headings, `Link`
+  on items. A gallery section on the Tabs page shows it.
 - `CommandPalette` and `CommandItem` (HeroGPUI extension): a modal command
   search on the `Modal` overlay stack. It takes the focus into its search
   field as it opens, keeps Tab inside, closes on Escape or an outside press
