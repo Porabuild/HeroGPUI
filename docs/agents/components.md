@@ -190,8 +190,10 @@ reason in the parity audit.
 
 ## Virtual collections
 
-- `uniform_list` is for fixed-height virtual rows and requires an explicit
-  height. Its callback is `'static`, so move owned data and copied tokens into
+- Fixed-height virtual rows use `VirtualList` over
+  `VirtualListHandle::uniform` (GPUI's `uniform_list` underneath), which
+  measures row 0 and multiplies, so build every row at the declared height.
+  Its row callback is `'static`, so move owned data and copied tokens into
   it; do not borrow `self` or `cx.colors()`.
 - Share one row builder between plain and virtual paths so rendering does not
   drift.

@@ -461,19 +461,19 @@ Deliberately not done, and next in this order:
    builders with GPUI's full style surface backed by the existing `sx`
    refinement. Needs the per-part ownership rules above first, because a root
    `Styled` call must not silently restyle child parts.
-2. **VirtualList for the fixed-height paths.** 0.12.0 moved the
-   `estimated_row_height` bodies of `ListBox` and `Table` onto `VirtualList`
-   (same `ListState`, so no behaviour change). The fixed `row_height` paths of
-   both, and ComboBox's popover list (which has only that path), stay on
-   `uniform_list` deliberately: all three scroll the keyboard cursor with
-   `ScrollStrategy::Center`, which `ListState` has no equivalent for;
-   ListBox's and Table's PageUp/PageDown step by the declared row height over
-   the uniform list's viewport, and Table's load-more sentinel reads the
-   uniform list's `last_item_size` (its viewport, and a content height of the
-   row count times the one measured row) (`list_box.rs`,
-   `combo_box.rs`, `table.rs`; `collection_contracts`, `virtual_and_feedback`,
-   `table_deep`). Moving them needs a uniform mode on `VirtualList` that
-   keeps these, not a switch to the measured list.
+2. **VirtualList for the fixed-height paths.** Done for 0.13.
+   `VirtualListHandle::uniform` gives `VirtualList` a uniform mode (GPUI's
+   `uniform_list` underneath, so a row is still measured once and
+   multiplied), and the fixed `row_height` paths of `ListBox` and `Table`
+   and ComboBox's popover list render through it. The handle keeps what
+   they relied on: `VirtualListScroll::Center` is `ScrollStrategy::Center`
+   (non-strict, clamped), `viewport_bounds()` is the laid-out viewport
+   PageUp/PageDown step over by the declared row height, and
+   `remaining_below()` is `Table`'s load-more reading (row count times the
+   measured row, less the scroll offset and the viewport); the
+   `collection_contracts`, `virtual_and_feedback` and `table_deep` suites
+   pass unchanged. `Select` and `Autocomplete` still call `uniform_list`
+   directly and are the next candidates.
 3. **Theme hot reload** (`watch_dir`); **i18n** for more locales (non-Latin locales also need the web
    font subsets extended) and for the remaining hard-coded strings (NumberField
    stepper names, ColorPicker channel names, DateField segment names).
@@ -507,7 +507,7 @@ to five days, L over a week.
 | P1 | Wasm cold load: `wasm-opt` pass and a lazily mounted hero embed | The ~19 MB artifact is the slowest thing on the site | S | 0.12.1 |
 | P1 | Cross-platform lint gate: port `.shots/lint.ps1` to bash (like `run-tests.sh`) and make `demo_audit` runnable offline | The documented gate cannot run on macOS or Linux without pwsh | M | 0.13 |
 | P2 | Remaining ~116 source-text assertions (overlay panels, fields, wiring) to painted-scene or behaviour tests | They pin source shape and block refactoring the large render functions | L | 0.13 |
-| P2 | VirtualList uniform mode for the fixed `row_height` paths of ListBox, Table and ComboBox (see item 2 above) | Removes the last `uniform_list` split without losing centred scrolling, paging or load-more | M | 0.13 |
+| P2 | VirtualList uniform mode for the fixed `row_height` paths of ListBox, Table and ComboBox (see item 2 above) | Removes the last `uniform_list` split without losing centred scrolling, paging or load-more | M | done (0.13) |
 | P2 | TreeView: Shift range selection, virtualisation, `aria-posinset`/`aria-setsize` | Large trees build every visible row; set position is missing for assistive technology | M | 0.13 |
 | P2 | ResizablePanel: pixel min/max, collapsible panels, `on_resize_end` | The common split-pane needs beyond percentages | M | 0.13 |
 | P2 | Icon: `Sizable` steps, stroke width, a Lucide sync script, a gallery Icons page | The set cannot grow or be browsed without hand work | M | 0.13 |

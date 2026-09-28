@@ -812,14 +812,23 @@ out of `reference_metadata`.
   in a test file, add `use ::core::prelude::v1::test;` so `#[gpui::test]`
   expands to the built-in test attribute.
 - **VirtualList** — `VirtualList::new(id, &handle, |ix, window, cx|
-  row.into_any_element()).height(px)` over a caller-owned
-  `VirtualListHandle::new(count)`. Rows may differ in height and are measured
-  as they are built. `handle.scroll_to_item(ix, VirtualListScroll::{Reveal,
-  Top})`, `set_item_count(n)`, `splice(range, count)`, `remeasure()`,
-  `scroll_by(px)`, `first_visible_item()`, `bounds_for_item(ix)`. Reveal on a
-  row not laid out in the last frame falls back to Top. `ListBox` and
-  `Table` render their `estimated_row_height` bodies through it; their
-  `row_height` path and ComboBox's list stay on `uniform_list`.
+  row.into_any_element()).height(px)` over a caller-owned handle, which
+  picks the mode: `VirtualListHandle::new(count)` measures rows that differ
+  in height as they are built (GPUI `list`); `VirtualListHandle::uniform(count)`
+  lays every row out at the first row's height (GPUI `uniform_list`), and
+  without `.height(..)` sizes to its rows. `handle.scroll_to_item(ix,
+  VirtualListScroll::{Reveal, Top, Center})` (`#[non_exhaustive]`; Center
+  moves only a row that is not fully visible and clamps at the ends),
+  `set_item_count(n)` (scrolls to the top), `splice(range, count)` (keeps the
+  scroll), `remeasure()`, `scroll_by(px)`, `first_visible_item()`,
+  `bounds_for_item(ix)`, `viewport_bounds()` (the laid-out viewport, for
+  paging), `remaining_below()` (content below the viewport; exact in uniform
+  mode, known in measured mode only once the last row was laid out),
+  `is_scrolled_to_top()`, `is_scrolled_to_end()`, `is_uniform()`. In measured
+  mode Reveal and Center on a row not laid out in the last frame fall back to
+  Top. `ListBox` and `Table` render their `estimated_row_height` bodies in
+  measured mode and their `row_height` bodies, like ComboBox's popover list,
+  in uniform mode.
 - **ContextMenu** — `ContextMenu::new(id, area, items).on_action(|key, w,
   cx| ..).on_open_change(..).disabled_keys([..]).is_disabled(bool)`. A
   secondary (right) press in the area opens the Dropdown `Menu` panel at the

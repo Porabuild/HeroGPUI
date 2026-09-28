@@ -320,7 +320,7 @@ struct TableTypeaheadNavigation {
     keys: Vec<SharedString>,
     cursor: gpui::Entity<Option<SharedString>>,
     fixed_virtual: bool,
-    fixed_scroll: gpui::UniformListScrollHandle,
+    fixed_scroll: crate::VirtualListHandle,
     variable_scroll: Option<gpui::ListState>,
 }
 
@@ -367,7 +367,7 @@ impl TableTypeaheadNavigation {
         });
         if self.fixed_virtual {
             self.fixed_scroll
-                .scroll_to_item(next, gpui::ScrollStrategy::Center);
+                .scroll_to_item(next, crate::VirtualListScroll::Center);
         } else if let Some(state) = &self.variable_scroll {
             state.scroll_to(gpui::ListOffset {
                 item_ix: next,
@@ -761,8 +761,8 @@ impl Table {
     ///
     /// v3 wraps the table in `<Virtualizer layout={TableLayout}
     /// layoutOptions={{rowHeight: 40}}>`; the wrapper has no separate identity
-    /// here, so the option that defines the layout carries it. gpui's
-    /// `uniform_list` builds only the rows the viewport shows, and it can do
+    /// here, so the option that defines the layout carries it. a uniform
+    /// [`VirtualList`](crate::VirtualList) builds only the rows the viewport shows, and it can do
     /// that because every row is this tall.
     pub fn row_height(mut self, height: impl Into<Pixels>) -> Self {
         self.row_height = Some(height.into());
@@ -804,7 +804,7 @@ impl Table {
     /// `TableLayout`'s `estimatedRowHeight` — virtualize rows that are not all
     /// one height.
     ///
-    /// `rowHeight` maps to `uniform_list`, which measures one row and multiplies;
+    /// `rowHeight` maps to a uniform `VirtualList`, which measures one row and multiplies;
     /// this maps to gpui's `list`, which measures every row it builds. The
     /// estimate is what it renders beyond the viewport while it learns the real
     /// heights.
@@ -1289,7 +1289,7 @@ impl RenderOnce for Table {
         let virtual_scroll = window.use_keyed_state(
             element_id::scoped(&base_id, "virtual-scroll"),
             cx,
-            |_, _| gpui::UniformListScrollHandle::new(),
+            |_, _| crate::VirtualListHandle::uniform(0),
         );
         let virtual_scroll_now = virtual_scroll.read(cx).clone();
         let load_more_virtual_scroll = (self.row_height.is_some() && self.virtual_rows.is_some())
@@ -2004,7 +2004,7 @@ struct RowKeyboard<'a> {
     typeahead: gpui::Entity<TableTypeahead>,
     virtual_list_state: &'a Option<gpui::ListState>,
     virtual_row_heights: &'a Option<gpui::Entity<(Vec<SharedString>, Vec<Option<Pixels>>)>>,
-    virtual_scroll_now: &'a gpui::UniformListScrollHandle,
+    virtual_scroll_now: &'a crate::VirtualListHandle,
     virtual_text_value: Option<VirtualRowText>,
     virtual_typeahead_indices: Option<Vec<usize>>,
 }
@@ -2019,7 +2019,7 @@ struct BodyRows<'a> {
     virtual_projection: std::sync::Arc<Vec<(usize, SharedString, VirtualTreeMetadata)>>,
     virtual_list_state: Option<gpui::ListState>,
     virtual_row_heights: Option<gpui::Entity<(Vec<SharedString>, Vec<Option<Pixels>>)>>,
-    virtual_scroll_now: &'a gpui::UniformListScrollHandle,
+    virtual_scroll_now: &'a crate::VirtualListHandle,
 }
 
 /// What [`Table::load_more`] reads from the rest of the render.
@@ -2027,7 +2027,7 @@ struct LoadMore<'a> {
     base_id: &'a gpui::ElementId,
     state: gpui::Entity<(bool, Option<LoadMoreCollection>)>,
     collection: LoadMoreCollection,
-    virtual_scroll: Option<gpui::UniformListScrollHandle>,
+    virtual_scroll: Option<crate::VirtualListHandle>,
     variable_scroll: Option<(gpui::ListState, usize, Pixels)>,
     muted: gpui::Hsla,
 }
@@ -3062,7 +3062,7 @@ impl Table {
         let fixed_virtual = self.row_height.is_some() && self.virtual_rows.is_some();
         // Pinned `TableKeyboardDelegate` pages by one visible rectangle, so
         // the step reads the virtual body's own laid-out viewport -- the
-        // pinned handle's `base_handle.bounds()` -- and not the configured
+        // uniform handle's `viewport_bounds()` -- and not the configured
         // `max_h` cap: a bounded parent (or a resized window) shows fewer
         // rows than the cap allows. A zero viewport answers nothing, which
         // the shared resolver turns into no movement.
@@ -3296,7 +3296,7 @@ impl Table {
                                     if fixed_virtual {
                                         fixed_scroll.scroll_to_item(
                                             parent_index,
-                                            gpui::ScrollStrategy::Center,
+                                            crate::VirtualListScroll::Center,
                                         );
                                     } else if let Some(state) = &variable_scroll {
                                         state.scroll_to(gpui::ListOffset {
@@ -3334,8 +3334,7 @@ impl Table {
                 };
                 let fixed_page_move = from.and_then(|from| {
                     let row_height = fixed_row_height?;
-                    let viewport_height =
-                        f32::from(fixed_scroll.0.borrow().base_handle.bounds().size.height);
+                    let viewport_height = f32::from(fixed_scroll.viewport_bounds().size.height);
                     if viewport_height <= 0. {
                         return None;
                     }
@@ -3553,7 +3552,7 @@ impl Table {
                             cx.notify();
                         });
                         if fixed_virtual {
-                            fixed_scroll.scroll_to_item(next, gpui::ScrollStrategy::Center);
+                            fixed_scroll.scroll_to_item(next, crate::VirtualListScroll::Center);
                         } else if let Some(state) = &variable_scroll {
                             if is_variable_page {
                                 state.scroll_to_reveal_item(next);
@@ -3672,7 +3671,7 @@ impl Table {
         wrapper
     }
 
-    /// Fills `.table__body`: a `uniform_list` for fixed-height virtual rows, a
+    /// Fills `.table__body`: a uniform [`VirtualList`](crate::VirtualList) for fixed-height virtual rows, a
     /// measured [`VirtualList`](crate::VirtualList) for `estimatedRowHeight`, or every flattened
     /// plain row.
     fn body_rows(
@@ -3698,7 +3697,7 @@ impl Table {
         if let (Some(row_height), Some((_, _, _, factory))) =
             (self.row_height, self.virtual_rows.clone())
         {
-            // The body scrolls inside `uniform_list`, which asks for the rows the
+            // The body scrolls inside a uniform `VirtualList`, which asks for the rows the
             // viewport shows and no others. A fixed height caps the roomy-window
             // body at the configured value, so an unbounded (natural-height)
             // page parent sizes the whole table to header + cap + padding
@@ -3712,33 +3711,30 @@ impl Table {
             let projection = virtual_projection;
             // The headless probe name for the virtual viewport's bounds.
             let rows_selector = format!("{table_id}-virtual-rows");
+            let handle = virtual_scroll_now;
+            if handle.item_count() != row_count {
+                handle.splice(0..handle.item_count(), row_count);
+            }
             body = body.child(
-                gpui::uniform_list(
+                crate::VirtualList::new(
                     element_id::scoped(base_id, "virtual-rows"),
-                    row_count,
-                    move |range, _window, cx| {
-                        range
-                            .map(|i| {
-                                let (source_index, key, metadata) = &projection[i];
-                                let row_data = factory(*source_index);
-                                rows.row(
-                                    i,
-                                    row_data,
-                                    metadata.depth,
-                                    metadata.has_children,
-                                    key,
-                                    Some(row_height),
-                                    cx,
-                                )
-                            })
-                            .collect::<Vec<_>>()
+                    handle,
+                    move |i, _window, cx| {
+                        let (source_index, key, metadata) = &projection[i];
+                        let row_data = factory(*source_index);
+                        rows.row(
+                            i,
+                            row_data,
+                            metadata.depth,
+                            metadata.has_children,
+                            key,
+                            Some(row_height),
+                            cx,
+                        )
                     },
                 )
-                .track_scroll(virtual_scroll_now)
-                .h(height)
-                .min_h_0()
-                .w_full()
-                .debug_selector(move || rows_selector),
+                .height(height)
+                .debug_selector(rows_selector),
             );
         } else if let (Some(state), Some((_, _, _, factory))) =
             (virtual_list_state, self.virtual_rows.clone())
@@ -3832,12 +3828,12 @@ impl Table {
                             && bounds.bottom() >= mask.top()
                             && bounds.top() <= mask.bottom() + mask.size.height * scroll_offset;
                         let virtual_end_is_near = if let Some(handle) = &virtual_scroll {
-                            let scroll = handle.0.borrow();
-                            scroll.last_item_size.is_some_and(|size| {
-                                let remaining = size.contents.height
-                                    + scroll.base_handle.offset().y
-                                    - size.item.height;
-                                remaining <= size.item.height * scroll_offset
+                            // The uniform body knows its tail exactly: the
+                            // row count times the measured row, less the
+                            // scroll offset and the viewport.
+                            let viewport_height = handle.viewport_bounds().size.height;
+                            handle.remaining_below().is_some_and(|remaining| {
+                                remaining <= viewport_height * scroll_offset
                             })
                         } else if let Some((state, count, estimate)) = &variable_scroll {
                             let viewport = state.viewport_bounds();
@@ -3919,22 +3915,18 @@ impl Table {
     fn row_edge_rounding(
         &self,
         secondary: bool,
-        virtual_scroll_now: &gpui::UniformListScrollHandle,
+        virtual_scroll_now: &crate::VirtualListHandle,
         virtual_list_state: Option<&gpui::ListState>,
         virtual_visible_count: usize,
         cx: &App,
     ) -> (Option<Pixels>, Option<Pixels>) {
         let (touches_top, touches_bottom) =
             if self.row_height.is_some() && self.virtual_rows.is_some() {
-                let at_top = {
-                    let scroll = virtual_scroll_now.0.borrow();
-                    scroll.base_handle.offset().y >= px(-0.5)
-                };
-                // `is_scrolled_to_end` answers `None` when the list does
-                // not scroll at all, and then every row is on screen.
+                // A list that does not scroll at all answers "at the end":
+                // every row is on screen.
                 (
-                    at_top,
-                    virtual_scroll_now.is_scrolled_to_end().unwrap_or(true),
+                    virtual_scroll_now.is_scrolled_to_top(),
+                    virtual_scroll_now.is_scrolled_to_end(),
                 )
             } else if let Some(state) = virtual_list_state {
                 let top = state.logical_scroll_top();
@@ -4935,7 +4927,8 @@ mod tests {
             "the row's leading and trailing cells must carry the box's corners"
         );
         assert!(
-            source.contains("virtual_scroll_now.is_scrolled_to_end().unwrap_or(true)")
+            source.contains("virtual_scroll_now.is_scrolled_to_top()")
+                && source.contains("virtual_scroll_now.is_scrolled_to_end()")
                 && source.contains("top.item_ix == 0 && top.offset_in_item <= px(0.5)"),
             "a virtual body must only round the edges it is scrolled to"
         );

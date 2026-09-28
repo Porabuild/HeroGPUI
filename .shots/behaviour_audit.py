@@ -583,15 +583,16 @@ EVIDENCE = {
     ),
     # Pinned `ListKeyboardDelegate` pages by one visible rectangle: the uniform
     # path (`fixed_page_move` from the configured `fixed_row_height`) must read
-    # the virtual list's own laid-out viewport (`base_handle.bounds()` height,
-    # never the configured `max_h` cap / fixed 400px ruler), while the variable
+    # the virtual list's own laid-out viewport (the uniform `VirtualListHandle`'s
+    # `viewport_bounds()` height, never the configured `max_h` cap / fixed 400px
+    # ruler), while the variable
     # (`variable_page_move`) and plain (`plain_page_move`) paths stay wired to
     # the PageUp/PageDown keys. The negative lookahead fails the file if the
     # capped `fixed_page_step` ruler ever returns.
     ('ListBox', 'listbox-paging'): (
         'list_box.rs',
         r'(?s)\A(?!.*fixed_page_step)(?=.*fixed_page_move)(?=.*fixed_row_height)'
-        r'(?=.*base_handle\.bounds\(\)\.size\.height)'
+        r'(?=.*key_list_scroll\.viewport_bounds\(\)\.size\.height)'
         r'(?=.*variable_page_move)(?=.*plain_page_move)'
         r'(?=.*"pagedown")(?=.*"pageup")',
     ),
@@ -1103,7 +1104,7 @@ EVIDENCE = {
     ),
     ('Table', 'load-more'): (
         'table.rs',
-        r'(?s)virtual_end_is_near.*?last_item_size\.is_some_and'
+        r'(?s)virtual_end_is_near.*?remaining_below\(\)\.is_some_and'
         r'.*?logical_scroll_top\(\).*?bounds_for_item.*?scroll_offset > 0\.'
         r'.*?remaining <= margin',
     ),

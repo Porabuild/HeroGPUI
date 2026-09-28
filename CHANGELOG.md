@@ -8,6 +8,29 @@ version covers `herogpui`, `herogpui-core`, `herogpui-theme`,
 
 ## [Unreleased]
 
+### Added
+
+- `VirtualList` uniform mode: `VirtualListHandle::uniform(count)` lays every
+  row out at the first row's measured height (GPUI's `uniform_list`), and
+  without `.height(..)` the list sizes to its rows. `VirtualListScroll::Center`
+  centres a row that is not fully visible, clamped at both ends (in measured
+  mode, a row laid out in the last frame; any other falls back to `Top`).
+  New handle readings for both modes: `viewport_bounds()`,
+  `remaining_below()`, `is_scrolled_to_top()`, `is_scrolled_to_end()` and
+  `is_uniform()`.
+
+### Changed
+
+- **Breaking:** `VirtualListScroll` is `#[non_exhaustive]` (it gained
+  `Center`); a `match` on it needs a wildcard arm. See
+  [`docs/migration-0.13.md`](docs/migration-0.13.md).
+- The fixed `row_height` bodies of `ListBox` and `Table` and ComboBox's
+  popover list render through `VirtualList`'s uniform mode instead of calling
+  `uniform_list` themselves. Behaviour is unchanged: the keyboard cursor is
+  still centred, PageUp/PageDown still step by the declared row height over
+  the laid-out viewport, and `Table`'s load-more still arms from the row
+  count times the measured row.
+
 ## [0.12.0] - 2026-09-28
 
 ### Added

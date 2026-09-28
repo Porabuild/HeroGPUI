@@ -836,7 +836,7 @@ impl Gallery {
                     ]), cx),
                 ),
                 (
-                    "Virtualization", "`row_height` makes the list geometry computable instead of laid out, so gpui's `uniform_list` builds only the rows in view — one thousand users, fifty pixels each. The fixed-row list caps at `max_h`, shrinks below it in a bounded parent, and PageUp/PageDown move by the visible viewport, including after resize, while skipping disabled stops.",
+                    "Virtualization", "`row_height` makes the list geometry computable instead of laid out, so a uniform `VirtualList` builds only the rows in view — one thousand users, fifty pixels each. The fixed-row list caps at `max_h`, shrinks below it in a bounded parent, and PageUp/PageDown move by the visible viewport, including after resize, while skipping disabled stops.",
                     specimen_body("lb-virtualization", col(vec![
                         gpui::div()
                             .w(px(300.))

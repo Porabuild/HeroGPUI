@@ -385,7 +385,7 @@ impl ComboBox {
     /// `ListLayout`'s `rowHeight` -- and what virtualizes the popover list.
     ///
     /// v3 wraps the list in `<Virtualizer layout={ListLayout}>` inside the
-    /// popover; gpui's `uniform_list` builds only the rows in view, and it can do
+    /// popover; a uniform [`VirtualList`](crate::VirtualList) builds only the rows in view, and it can do
     /// that because every row is this tall.
     pub fn row_height(mut self, h: impl Into<Pixels>) -> Self {
         self.row_height = Some(h.into());
@@ -1360,7 +1360,7 @@ impl RenderOnce for ComboBox {
         // virtual list scrolls itself. `use_keyed_state` takes `cx` mutably.
         let list_scroll =
             window.use_keyed_state(element_id::scoped(&base_id, "list-scroll"), cx, |_, _| {
-                gpui::UniformListScrollHandle::new()
+                crate::VirtualListHandle::uniform(0)
             });
         let panel_scroll =
             window.use_keyed_state(element_id::scoped(&base_id, "panel-scroll"), cx, |_, _| {
@@ -1731,7 +1731,7 @@ impl RenderOnce for ComboBox {
                             cx.notify();
                         });
                         if virtual_rows {
-                            key_list_scroll.scroll_to_item(next, gpui::ScrollStrategy::Center);
+                            key_list_scroll.scroll_to_item(next, crate::VirtualListScroll::Center);
                         } else {
                             key_panel_scroll.scroll_to_item(next);
                         }
@@ -1950,7 +1950,7 @@ impl RenderOnce for ComboBox {
                 );
             }
 
-            // Everything a row reads, owned: `uniform_list`'s callback is
+            // Everything a row reads, owned: the virtual list's row callback is
             // `'static` and runs again on every scroll, so it cannot borrow
             // `self` or the theme -- and one row builder for both paths is what
             // keeps a virtual list drawing the same row as a short one.
@@ -2232,20 +2232,17 @@ impl RenderOnce for ComboBox {
                 // height plus an outer scroller would nest two scroll
                 // containers and strand rows between them.
                 Some(row_height) => {
-                    panel = panel.child(
-                        gpui::uniform_list(
-                            element_id::scoped(&base_id, "rows"),
-                            matches_len,
-                            move |range, _window, cx| {
-                                range
-                                    .map(|i| row_of(i, Some(row_height), cx))
-                                    .collect::<Vec<_>>()
-                            },
-                        )
-                        .track_scroll(&list_scroll_now)
-                        .with_sizing_behavior(gpui::ListSizingBehavior::Infer)
-                        .w_full(),
-                    );
+                    // No `height`: a uniform `VirtualList` then sizes to its
+                    // rows (`ListSizingBehavior::Infer`).
+                    let handle = list_scroll_now;
+                    if handle.item_count() != matches_len {
+                        handle.splice(0..handle.item_count(), matches_len);
+                    }
+                    panel = panel.child(crate::VirtualList::new(
+                        element_id::scoped(&base_id, "rows"),
+                        &handle,
+                        move |i, _window, cx| row_of(i, Some(row_height), cx),
+                    ));
                 }
                 None => {
                     for index in 0..matches_len {

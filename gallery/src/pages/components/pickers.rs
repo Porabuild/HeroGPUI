@@ -480,7 +480,7 @@ impl Gallery {
                     .into_any_element()]), cx),
                 ),
                 (
-                    "Virtualization", "`row_height` makes the list geometry computable, so gpui's `uniform_list` builds only the rows in view. A thousand options, forty pixels each.",
+                    "Virtualization", "`row_height` makes the list geometry computable, so a uniform `VirtualList` builds only the rows in view. A thousand options, forty pixels each.",
                     specimen_body("cb-virtualization", col(vec![
                         demo_field(
                             h::ComboBox::new(
