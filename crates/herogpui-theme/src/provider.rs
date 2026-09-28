@@ -69,10 +69,12 @@ impl ThemeProvider {
         });
     }
 
+    /// Returns the global provider. Panics if `init` has not registered it.
     pub fn get(cx: &App) -> &Self {
         cx.global::<ThemeProvider>()
     }
 
+    /// The active theme.
     pub fn theme(&self) -> &Theme {
         // `set_active` refuses ids that are not registered and `register`
         // inserts before it activates, so the active id always resolves.
@@ -89,6 +91,7 @@ impl ThemeProvider {
         self.themes.contains_key(id)
     }
 
+    /// The id of the active theme.
     pub fn active_id(&self) -> &SharedString {
         &self.active
     }
@@ -137,11 +140,17 @@ impl ThemeProvider {
 ///
 /// Works with `&App`, `&mut App`, `Context<T>` (they deref to `App`).
 pub trait ActiveTheme {
+    /// The active theme.
     fn theme(&self) -> &Theme;
+    /// The active theme's semantic colors.
     fn colors(&self) -> &ThemeColors;
+    /// The active theme's layout tokens.
     fn layout(&self) -> &LayoutTheme;
+    /// The active theme's typed component defaults and recipes.
     fn components(&self) -> &crate::ComponentThemes;
+    /// The active theme's [`RoleColor`] for a semantic [`Color`].
     fn role(&self, color: Color) -> &RoleColor;
+    /// Whether the active theme's appearance is dark.
     fn is_dark_theme(&self) -> bool;
     /// Whether animations should be suppressed. Components must check this
     /// before animating; v3 requires no opt-in from the caller.

@@ -85,11 +85,13 @@ pub struct ColorField {
 }
 
 impl ColorField {
+    /// Sets whether the field is read-only (`isReadOnly`).
     pub fn is_read_only(mut self, v: bool) -> Self {
         self.is_read_only = v;
         self
     }
 
+    /// Sets whether the field is required (`isRequired`).
     pub fn is_required(mut self, v: bool) -> Self {
         self.is_required = v;
         self
@@ -111,6 +113,7 @@ impl ColorField {
         self
     }
 
+    /// Creates a color field with the id `id`, showing `value` (or empty for `None`).
     pub fn new(id: impl Into<ElementId>, value: impl Into<Option<PickerColor>>) -> Self {
         Self {
             content: None,
@@ -297,31 +300,37 @@ impl ColorField {
         self
     }
 
+    /// Sets the label shown above the field.
     pub fn label(mut self, text: impl Into<SharedString>) -> Self {
         self.label = Some(text.into());
         self
     }
 
+    /// Sets the description shown below the field.
     pub fn description(mut self, text: impl Into<SharedString>) -> Self {
         self.description = Some(text.into());
         self
     }
 
+    /// Sets the field variant.
     pub fn variant(mut self, variant: FieldVariant) -> Self {
         self.variant = variant;
         self
     }
 
+    /// Sets whether the field fills the available width.
     pub fn full_width(mut self, v: bool) -> Self {
         self.full_width = v;
         self
     }
 
+    /// Sets whether the field is disabled (`isDisabled`).
     pub fn is_disabled(mut self, v: bool) -> Self {
         self.is_disabled = v;
         self
     }
 
+    /// Sets whether the field is invalid (`isInvalid`).
     pub fn is_invalid(mut self, v: bool) -> Self {
         self.is_invalid = v;
         self

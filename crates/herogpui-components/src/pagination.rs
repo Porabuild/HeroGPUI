@@ -54,6 +54,7 @@ pub struct Pagination {
 }
 
 impl Pagination {
+    /// Sets the size of the links and nav buttons.
     pub fn size(mut self, size: Size) -> Self {
         self.size = size;
         self
@@ -84,6 +85,7 @@ impl Pagination {
         self
     }
 
+    /// Creates a pagination for `page` of `total` pages; both are clamped to at least 1.
     pub fn new(id: impl Into<gpui::ElementId>, page: usize, total: usize) -> Self {
         Self {
             link: None,
@@ -131,6 +133,7 @@ impl Pagination {
         self
     }
 
+    /// Sets whether the whole pagination is disabled (`isDisabled`).
     pub fn is_disabled(mut self, v: bool) -> Self {
         self.is_disabled = v;
         self
@@ -148,6 +151,7 @@ impl Pagination {
         self
     }
 
+    /// Sets the handler called with the page number to navigate to (`onChange`).
     pub fn on_change(mut self, f: impl Fn(&usize, &mut Window, &mut App) + 'static) -> Self {
         self.on_change = Some(std::sync::Arc::new(f));
         self

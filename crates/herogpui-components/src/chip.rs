@@ -25,6 +25,7 @@ pub enum ChipVariant {
 }
 
 impl ChipVariant {
+    /// Every chip variant, in display order.
     pub const ALL: [ChipVariant; 4] = [
         ChipVariant::Primary,
         ChipVariant::Secondary,
@@ -32,6 +33,7 @@ impl ChipVariant {
         ChipVariant::Soft,
     ];
 
+    /// The human-readable name of this variant.
     pub fn label(self) -> &'static str {
         match self {
             ChipVariant::Primary => "Primary",
@@ -64,6 +66,7 @@ pub struct Chip {
 }
 
 impl Chip {
+    /// Creates a chip with the default variant, default color and medium size.
     pub fn new() -> Self {
         Self {
             variant: ChipVariant::default(),
@@ -76,16 +79,19 @@ impl Chip {
         }
     }
 
+    /// Sets the visual variant (`variant`).
     pub fn variant(mut self, variant: ChipVariant) -> Self {
         self.variant = variant;
         self
     }
 
+    /// Sets the chip color (`color`).
     pub fn color(mut self, color: Color) -> Self {
         self.color = color;
         self
     }
 
+    /// Sets the size (`size`).
     pub fn size(mut self, size: Size) -> Self {
         self.size = size;
         self
@@ -141,6 +147,7 @@ pub struct ChipLabel {
 }
 
 impl ChipLabel {
+    /// Creates an empty chip label.
     pub fn new() -> Self {
         Self {
             children: Vec::new(),

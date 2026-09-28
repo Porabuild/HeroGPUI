@@ -34,12 +34,16 @@ pub const THEME_SCHEMA: &str = include_str!("../theme.schema.json");
 pub enum ThemeLoadError {
     /// A directory or file could not be read.
     Io {
+        /// The path that could not be read.
         path: PathBuf,
+        /// The underlying I/O error.
         source: std::io::Error,
     },
     /// A file was read but is not a valid [`ThemeDocument`].
     Document {
+        /// The offending file, or `None` when the JSON came from a string.
         path: Option<PathBuf>,
+        /// The underlying document error.
         source: ThemeDocumentError,
     },
 }

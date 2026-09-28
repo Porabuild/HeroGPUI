@@ -38,7 +38,12 @@ pub enum SoftForeground {
     RoleForeground,
     /// `color-mix(in oklab, var(--role) C%, var(--foreground) F%)`. CSS
     /// normalises the weights, so the role contributes `C / (C + F)`.
-    Mix { color: f32, foreground: f32 },
+    Mix {
+        /// Weight of the role color (`C`).
+        color: f32,
+        /// Weight of the page foreground (`F`).
+        foreground: f32,
+    },
 }
 
 /// A semantic color role (`accent`, `default`, `success`, `warning`, `danger`).
@@ -77,6 +82,7 @@ pub struct RoleColor {
 }
 
 impl RoleColor {
+    /// Creates a role from its base color and on-color foreground, with the default hover, soft and soft-foreground mixes.
     pub fn new(color: Hsla, foreground: Hsla) -> Self {
         Self {
             color,
@@ -201,6 +207,7 @@ impl RoleColor {
         }
     }
 
+    /// Returns the role color with the given alpha.
     pub fn with_alpha(&self, alpha: f32) -> Hsla {
         with_alpha(self.color, alpha)
     }
@@ -209,7 +216,9 @@ impl RoleColor {
 /// A layered container color: `surface`, `overlay` or `segment`.
 #[derive(Clone, Copy, Debug)]
 pub struct SurfaceColor {
+    /// The container background.
     pub background: Hsla,
+    /// The foreground drawn on the background.
     pub foreground: Hsla,
 }
 
@@ -305,6 +314,7 @@ pub struct ThemeColors {
     pub danger: RoleColor,
 
     // -- fields -------------------------------------------------------------
+    /// The form-field colors (`--field-*`).
     pub field: FieldColors,
 
     // -- misc ---------------------------------------------------------------
@@ -418,6 +428,7 @@ impl ThemeColors {
 
     // -- light --------------------------------------------------------------
 
+    /// The built-in light palette.
     pub fn light() -> Self {
         let foreground = eclipse();
         let muted = oklch(0.5517, 0.0138, 285.94);
@@ -476,6 +487,7 @@ impl ThemeColors {
 
     // -- dark ---------------------------------------------------------------
 
+    /// The built-in dark palette.
     pub fn dark() -> Self {
         let foreground = snow();
         let muted = oklch(0.705, 0.015, 286.067);

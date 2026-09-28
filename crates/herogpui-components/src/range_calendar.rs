@@ -158,6 +158,7 @@ impl RangeCalendar {
         self
     }
 
+    /// Creates a range calendar bound to `state`.
     pub fn new(state: Entity<DateRangeState>) -> Self {
         Self {
             value: None,
@@ -262,11 +263,13 @@ impl RangeCalendar {
         self
     }
 
+    /// Sets the earliest selectable date (`minValue`).
     pub fn min_value(mut self, date: Date) -> Self {
         self.constraints.min_value = Some(date);
         self
     }
 
+    /// Sets the latest selectable date (`maxValue`).
     pub fn max_value(mut self, date: Date) -> Self {
         self.constraints.max_value = Some(date);
         self
@@ -301,6 +304,7 @@ impl RangeCalendar {
         self
     }
 
+    /// Sets the first day of the week (`firstDayOfWeek`).
     pub fn first_day_of_week(mut self, day: Weekday) -> Self {
         self.constraints.first_day_of_week = day;
         self
@@ -312,6 +316,7 @@ impl RangeCalendar {
         self
     }
 
+    /// Sets whether the calendar is invalid (`isInvalid`).
     pub fn is_invalid(mut self, v: bool) -> Self {
         self.is_invalid = v;
         self
@@ -331,6 +336,7 @@ impl RangeCalendar {
         self
     }
 
+    /// Sets whether the calendar is disabled (`isDisabled`).
     pub fn is_disabled(mut self, v: bool) -> Self {
         self.is_disabled = v;
         self
@@ -344,6 +350,7 @@ impl RangeCalendar {
         self
     }
 
+    /// Sets whether the calendar is read-only (`isReadOnly`).
     pub fn is_read_only(mut self, v: bool) -> Self {
         self.is_read_only = v;
         self

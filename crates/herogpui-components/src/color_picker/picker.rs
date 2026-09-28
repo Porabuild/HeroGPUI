@@ -25,6 +25,7 @@ pub struct ColorPicker {
 }
 
 impl ColorPicker {
+    /// Creates a color picker with the id `id`, showing `value`.
     pub fn new(id: impl Into<ElementId>, value: PickerColor) -> Self {
         Self {
             default_value: None,
@@ -56,6 +57,7 @@ impl ColorPicker {
         self
     }
 
+    /// Sets the label shown above the picker.
     pub fn label(mut self, text: impl Into<SharedString>) -> Self {
         self.label = Some(text.into());
         self
@@ -67,21 +69,25 @@ impl ColorPicker {
         self
     }
 
+    /// Sets the controlled open state of the popover (`isOpen`).
     pub fn is_open(mut self, v: bool) -> Self {
         self.is_open = Some(v);
         self
     }
 
+    /// Sets whether an alpha slider is shown under the hue slider.
     pub fn show_alpha(mut self, v: bool) -> Self {
         self.show_alpha = v;
         self
     }
 
+    /// Sets whether the picker is disabled (`isDisabled`).
     pub fn is_disabled(mut self, v: bool) -> Self {
         self.is_disabled = v;
         self
     }
 
+    /// Sets the handler called with the new color (`onChange`).
     pub fn on_change(
         mut self,
         handler: impl Fn(&PickerColor, &mut Window, &mut App) + 'static,
@@ -90,6 +96,7 @@ impl ColorPicker {
         self
     }
 
+    /// Sets the handler called when the popover opens or closes (`onOpenChange`).
     pub fn on_open_change(
         mut self,
         handler: impl Fn(&bool, &mut Window, &mut App) + 'static,

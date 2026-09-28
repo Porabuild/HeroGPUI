@@ -23,18 +23,24 @@ use crate::{Appearance, Theme, ThemeBuilder};
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct ThemeDocument {
+    /// The theme id, as passed to `Theme::builder`.
     pub id: String,
     /// Which built-in theme the overrides extend: `"light"` or `"dark"`.
     pub base: Appearance,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// Overrides `ThemeBuilder::appearance`.
     pub appearance: Option<Appearance>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// Overrides `ThemeBuilder::radius`., in pixels.
     pub radius: Option<f32>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// Overrides `ThemeBuilder::field_radius`., in pixels.
     pub field_radius: Option<f32>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// Overrides `ThemeBuilder::border_width`., in pixels.
     pub border_width: Option<f32>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// Overrides `ThemeBuilder::disabled_opacity`.
     pub disabled_opacity: Option<f32>,
     /// The hover cursor for interactive controls, by gpui's `CursorStyle`
     /// variant name (`"PointingHand"` is v3's `cursor: pointer`, `"Arrow"`
@@ -61,40 +67,56 @@ pub struct ThemeDocument {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tooltip_close_delay_ms: Option<u64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// Overrides `ThemeBuilder::background`.; a color string (`oklch()`, `oklcha()` or hex).
     pub background: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// Overrides `ThemeBuilder::foreground`.; a color string (`oklch()`, `oklcha()` or hex).
     pub foreground: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// Overrides `ThemeBuilder::muted`.; a color string (`oklch()`, `oklcha()` or hex).
     pub muted: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// Overrides `ThemeBuilder::border`.; a color string (`oklch()`, `oklcha()` or hex).
     pub border: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// Overrides `ThemeBuilder::separator`.; a color string (`oklch()`, `oklcha()` or hex).
     pub separator: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// Overrides `ThemeBuilder::focus`.; a color string (`oklch()`, `oklcha()` or hex).
     pub focus: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// Overrides `ThemeBuilder::link`.; a color string (`oklch()`, `oklcha()` or hex).
     pub link: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// Overrides `ThemeBuilder::backdrop`.; a color string (`oklch()`, `oklcha()` or hex).
     pub backdrop: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// Overrides `ThemeBuilder::surface`..
     pub surface: Option<ColorPair>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// Overrides `ThemeBuilder::surface_levels`..
     pub surface_levels: Option<SurfaceLevels>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// Overrides `ThemeBuilder::overlay`..
     pub overlay: Option<ColorPair>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// Overrides `ThemeBuilder::segment`..
     pub segment: Option<ColorPair>,
     /// Shorthand for [`ThemeBuilder::accent`]: sets `--accent` and derives
     /// the foreground. Conflicts with `roles.accent`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub accent: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// Per-role overrides, applied through `ThemeBuilder::role`.
     pub roles: Option<Roles>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// Overrides `ThemeBuilder::field`..
     pub field: Option<ColorPair>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// Overrides `ThemeBuilder::field_placeholder`.; a color string.
     pub field_placeholder: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// Overrides `ThemeBuilder::field_border`.; a color string.
     pub field_border: Option<String>,
     /// HeroUI's `[data-vibrant-palette="true"]`: reweights the accent,
     /// success, warning and danger `*-soft-foreground` mixes to 92/8.
@@ -106,7 +128,9 @@ pub struct ThemeDocument {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct ColorPair {
+    /// Background color string.
     pub background: String,
+    /// Foreground color string.
     pub foreground: String,
 }
 
@@ -114,7 +138,9 @@ pub struct ColorPair {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct SurfaceLevels {
+    /// Color string for `--surface-secondary`.
     pub secondary: String,
+    /// Color string for `--surface-tertiary`.
     pub tertiary: String,
 }
 
@@ -123,14 +149,19 @@ pub struct SurfaceLevels {
 #[serde(deny_unknown_fields)]
 pub struct Roles {
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// Override for the `default` role.
     pub default: Option<RoleOverride>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// Override for the `accent` role.
     pub accent: Option<RoleOverride>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// Override for the `success` role.
     pub success: Option<RoleOverride>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// Override for the `warning` role.
     pub warning: Option<RoleOverride>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// Override for the `danger` role.
     pub danger: Option<RoleOverride>,
 }
 
@@ -138,7 +169,9 @@ pub struct Roles {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct RoleOverride {
+    /// The role's base color string.
     pub color: String,
+    /// The on-color foreground string.
     pub foreground: String,
     /// An explicit `*-hover` for the role, in place of the mix-toward-
     /// foreground derivation — the JSON spelling of
@@ -150,12 +183,18 @@ pub struct RoleOverride {
 /// Why a document could not become a [`Theme`].
 #[derive(Debug)]
 pub enum ThemeDocumentError {
+    /// The input was not valid JSON for a [`ThemeDocument`].
     Json(serde_json::Error),
+    /// A color string could not be parsed.
     Color {
+        /// The document field the value came from.
         field: String,
+        /// The rejected color string.
         value: String,
+        /// Why the color string was rejected.
         detail: String,
     },
+    /// Both `accent` and `roles.accent` were set.
     AccentConflict,
 }
 

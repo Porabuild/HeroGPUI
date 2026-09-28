@@ -11,10 +11,15 @@ use super::*;
 pub struct ColorSliderThumbState {
     /// React Aria's ColorThumb render color excludes the alpha channel.
     pub color: PickerColor,
+    /// Whether the thumb is being dragged.
     pub is_dragging: bool,
+    /// Whether the slider is hovered.
     pub is_hovered: bool,
+    /// Whether the slider has focus.
     pub is_focused: bool,
+    /// Whether focus is visible (keyboard focus).
     pub is_focus_visible: bool,
+    /// Whether the slider is disabled.
     pub is_disabled: bool,
 }
 
@@ -155,6 +160,7 @@ pub struct ColorSlider {
 }
 
 impl ColorSlider {
+    /// Creates a slider editing `channel` of `value`.
     pub fn new(id: impl Into<ElementId>, value: PickerColor, channel: ColorChannel) -> Self {
         Self {
             name: None,
@@ -235,6 +241,7 @@ impl ColorSlider {
         self
     }
 
+    /// Sets the slider orientation (`orientation`).
     pub fn orientation(mut self, orientation: herogpui_core::Orientation) -> Self {
         self.orientation = orientation;
         self
@@ -249,6 +256,7 @@ impl ColorSlider {
         self
     }
 
+    /// Sets the length of the slider along its axis.
     pub fn length(mut self, length: impl Into<Pixels>) -> Self {
         self.length = length.into();
         self
@@ -275,16 +283,19 @@ impl ColorSlider {
         self
     }
 
+    /// Sets whether the label is shown.
     pub fn show_label(mut self, v: bool) -> Self {
         self.show_label = v;
         self
     }
 
+    /// Sets whether the slider is disabled (`isDisabled`).
     pub fn is_disabled(mut self, v: bool) -> Self {
         self.is_disabled = v;
         self
     }
 
+    /// Sets the handler called with the new color as the thumb moves (`onChange`).
     pub fn on_change(
         mut self,
         handler: impl Fn(&PickerColor, &mut Window, &mut App) + 'static,

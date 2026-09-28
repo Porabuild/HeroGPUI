@@ -32,6 +32,7 @@ impl ColorSwatch {
         self
     }
 
+    /// Creates a swatch showing `color`, at the default size and shape.
     pub fn new(color: PickerColor) -> Self {
         Self {
             color,
@@ -54,11 +55,13 @@ impl ColorSwatch {
         self
     }
 
+    /// Sets the swatch size (`size`).
     pub fn size(mut self, size: SizeXl) -> Self {
         self.size = size;
         self
     }
 
+    /// Sets the swatch shape.
     pub fn shape(mut self, shape: SwatchShape) -> Self {
         self.shape = shape;
         self

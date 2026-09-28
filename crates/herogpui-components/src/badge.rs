@@ -11,10 +11,14 @@ use herogpui_theme::{ActiveTheme, ThemeColors};
 /// Where the badge is anchored on its child (`placement`).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum BadgePlacement {
+    /// Top-left corner of the child.
     TopLeft,
+    /// Top-right corner of the child.
     #[default]
     TopRight,
+    /// Bottom-left corner of the child.
     BottomLeft,
+    /// Bottom-right corner of the child.
     BottomRight,
 }
 
@@ -32,12 +36,14 @@ pub enum BadgeVariant {
 }
 
 impl BadgeVariant {
+    /// Every badge variant, in display order.
     pub const ALL: [BadgeVariant; 3] = [
         BadgeVariant::Primary,
         BadgeVariant::Secondary,
         BadgeVariant::Soft,
     ];
 
+    /// The human-readable name of this variant.
     pub fn label(self) -> &'static str {
         match self {
             BadgeVariant::Primary => "Primary",
@@ -79,6 +85,7 @@ pub struct BadgeAnchor {
 }
 
 impl BadgeAnchor {
+    /// Creates an empty badge anchor.
     pub fn new() -> Self {
         Self {
             children: Vec::new(),
@@ -137,6 +144,7 @@ pub struct BadgeLabel {
 }
 
 impl BadgeLabel {
+    /// Creates an empty badge label.
     pub fn new() -> Self {
         Self {
             children: Vec::new(),
@@ -197,6 +205,7 @@ pub struct Badge {
 }
 
 impl Badge {
+    /// Creates a badge with the default color, `Primary` variant, medium size and top-right placement.
     pub fn new() -> Self {
         // v3's table gives `color` a default of `"default"`, which is the
         // gray `.badge--default`; the seed used to be `Danger`.
@@ -212,21 +221,25 @@ impl Badge {
         }
     }
 
+    /// Sets the badge color (`color`).
     pub fn color(mut self, c: Color) -> Self {
         self.color = c;
         self
     }
 
+    /// Sets the visual variant (`variant`).
     pub fn variant(mut self, v: BadgeVariant) -> Self {
         self.variant = v;
         self
     }
 
+    /// Sets the size (`size`).
     pub fn size(mut self, s: Size) -> Self {
         self.size = s;
         self
     }
 
+    /// Sets where the badge is anchored on its child (`placement`).
     pub fn placement(mut self, p: BadgePlacement) -> Self {
         self.placement = p;
         self

@@ -14,7 +14,9 @@ use crate::semantic::{SurfaceColor, ThemeColors};
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(rename_all = "lowercase"))]
 pub enum Appearance {
+    /// The light `color-scheme`.
     Light,
+    /// The dark `color-scheme`.
     Dark,
 }
 
@@ -39,10 +41,15 @@ impl From<WindowAppearance> for Appearance {
 #[derive(Clone, Debug)]
 #[non_exhaustive]
 pub struct Theme {
+    /// Unique id the theme is registered and activated under.
     pub id: SharedString,
+    /// Whether the theme is light or dark.
     pub appearance: Appearance,
+    /// Semantic color tokens.
     pub colors: ThemeColors,
+    /// Layout tokens: radii, border width, shadows, opacities and timings.
     pub layout: LayoutTheme,
+    /// Typed component defaults and named recipes.
     pub components: crate::ComponentThemes,
 }
 
@@ -79,6 +86,7 @@ impl Theme {
         ThemeBuilder { theme: base }.id(id)
     }
 
+    /// Whether this theme's appearance is [`Appearance::Dark`].
     pub fn is_dark(&self) -> bool {
         self.appearance == Appearance::Dark
     }
@@ -96,11 +104,13 @@ impl ThemeBuilder {
         self
     }
 
+    /// Sets the theme id.
     pub fn id(mut self, id: impl Into<SharedString>) -> Self {
         self.theme.id = id.into();
         self
     }
 
+    /// Sets the theme's [`Appearance`] (`color-scheme`).
     pub fn appearance(mut self, appearance: Appearance) -> Self {
         self.theme.appearance = appearance;
         self
@@ -116,16 +126,19 @@ impl ThemeBuilder {
         self
     }
 
+    /// Sets `--field-radius`, overriding the value derived from `--radius`.
     pub fn field_radius(mut self, radius: Pixels) -> Self {
         self.theme.layout.field_radius = radius;
         self
     }
 
+    /// Sets `--border-width`.
     pub fn border_width(mut self, width: Pixels) -> Self {
         self.theme.layout.border_width = width;
         self
     }
 
+    /// Sets `--disabled-opacity`.
     pub fn disabled_opacity(mut self, v: f32) -> Self {
         self.theme.layout.disabled_opacity = v;
         self
@@ -184,22 +197,26 @@ impl ThemeBuilder {
 
     // -- base colors --------------------------------------------------------
 
+    /// Sets `--background`.
     pub fn background(mut self, c: Hsla) -> Self {
         self.theme.colors.background = c;
         self
     }
 
+    /// Sets `--foreground`; the scrollbar color is re-derived from it at 15% alpha.
     pub fn foreground(mut self, c: Hsla) -> Self {
         self.theme.colors.foreground = c;
         self.theme.colors.scrollbar = herogpui_core::with_alpha(c, 0.15);
         self
     }
 
+    /// Sets `--muted`.
     pub fn muted(mut self, c: Hsla) -> Self {
         self.theme.colors.muted = c;
         self
     }
 
+    /// Sets `--border`.
     pub fn border(mut self, c: Hsla) -> Self {
         self.theme.colors.border = c;
         self
@@ -211,16 +228,19 @@ impl ThemeBuilder {
         self
     }
 
+    /// Sets `--focus`.
     pub fn focus(mut self, c: Hsla) -> Self {
         self.theme.colors.focus = c;
         self
     }
 
+    /// Sets `--link`.
     pub fn link(mut self, c: Hsla) -> Self {
         self.theme.colors.link = c;
         self
     }
 
+    /// Sets `--backdrop`.
     pub fn backdrop(mut self, c: Hsla) -> Self {
         self.theme.colors.backdrop = c;
         self
@@ -228,6 +248,7 @@ impl ThemeBuilder {
 
     // -- containers ---------------------------------------------------------
 
+    /// Sets `--surface` and `--surface-foreground`.
     pub fn surface(mut self, background: Hsla, foreground: Hsla) -> Self {
         self.theme.colors.surface = SurfaceColor {
             background,
@@ -236,12 +257,14 @@ impl ThemeBuilder {
         self
     }
 
+    /// Sets `--surface-secondary` and `--surface-tertiary`.
     pub fn surface_levels(mut self, secondary: Hsla, tertiary: Hsla) -> Self {
         self.theme.colors.surface_secondary = secondary;
         self.theme.colors.surface_tertiary = tertiary;
         self
     }
 
+    /// Sets `--overlay` and `--overlay-foreground`.
     pub fn overlay(mut self, background: Hsla, foreground: Hsla) -> Self {
         self.theme.colors.overlay = SurfaceColor {
             background,
@@ -250,6 +273,7 @@ impl ThemeBuilder {
         self
     }
 
+    /// Sets `--segment` and `--segment-foreground`.
     pub fn segment(mut self, background: Hsla, foreground: Hsla) -> Self {
         self.theme.colors.segment = SurfaceColor {
             background,
@@ -322,22 +346,26 @@ impl ThemeBuilder {
 
     // -- fields -------------------------------------------------------------
 
+    /// Sets `--field-background` and `--field-foreground`.
     pub fn field(mut self, background: Hsla, foreground: Hsla) -> Self {
         self.theme.colors.field.background = background;
         self.theme.colors.field.foreground = foreground;
         self
     }
 
+    /// Sets `--field-placeholder`.
     pub fn field_placeholder(mut self, c: Hsla) -> Self {
         self.theme.colors.field.placeholder = c;
         self
     }
 
+    /// Sets `--field-border`.
     pub fn field_border(mut self, c: Hsla) -> Self {
         self.theme.colors.field.border = c;
         self
     }
 
+    /// Finishes the builder and returns the [`Theme`].
     pub fn build(self) -> Theme {
         self.theme
     }

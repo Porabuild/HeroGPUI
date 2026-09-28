@@ -7,11 +7,15 @@ use super::*;
 
 /// State entity for [`DateRangePicker`].
 pub struct DateRangeState {
+    /// Year of the month currently shown.
     pub view_year: i32,
+    /// Month (1-12) currently shown.
     pub view_month: u32,
     /// Anchor day for the week and day views; the month view ignores it.
     pub view_day: u32,
+    /// Start of the selected range, if any.
     pub start: Option<Date>,
+    /// End of the selected range, if any.
     pub end: Option<Date>,
     /// Live cell under the cursor — drives the hover preview range.
     pub hovered: Option<Date>,
@@ -21,6 +25,7 @@ pub struct DateRangeState {
 }
 
 impl DateRangeState {
+    /// Creates a state showing the current month with no range selected.
     pub fn new(_cx: &mut App) -> Self {
         let t = Date::today();
         Self {
@@ -170,6 +175,7 @@ impl DateRangePicker {
         self
     }
 
+    /// Creates a date range picker bound to `state`.
     pub fn new(state: Entity<DateRangeState>) -> Self {
         let entity_id = state.entity_id().as_u64();
         let start_form_state = date_range_picker_form_state(entity_id, false);
@@ -371,11 +377,13 @@ impl DateRangePicker {
         self
     }
 
+    /// Sets the label shown above the picker.
     pub fn label(mut self, label: impl Into<SharedString>) -> Self {
         self.label = Some(label.into());
         self
     }
 
+    /// Sets whether the picker is disabled (`isDisabled`).
     pub fn is_disabled(mut self, v: bool) -> Self {
         self.is_disabled = v;
         self
@@ -400,6 +408,7 @@ impl DateRangePicker {
         self
     }
 
+    /// Sets whether the picker is required (`isRequired`).
     pub fn is_required(mut self, v: bool) -> Self {
         self.is_required = v;
         self
@@ -429,6 +438,7 @@ impl DateRangePicker {
         self
     }
 
+    /// Sets whether the picker is invalid (`isInvalid`).
     pub fn is_invalid(mut self, v: bool) -> Self {
         self.is_invalid = v;
         self
@@ -490,6 +500,7 @@ impl DateRangePicker {
         self
     }
 
+    /// Sets the controlled open state of the popover (`isOpen`).
     pub fn is_open(mut self, v: bool) -> Self {
         self.is_open = Some(v);
         self
@@ -503,21 +514,25 @@ impl DateRangePicker {
         self
     }
 
+    /// Sets whether the popover closes after a selection completes (`shouldCloseOnSelect`).
     pub fn should_close_on_select(mut self, v: bool) -> Self {
         self.should_close_on_select = v;
         self
     }
 
+    /// Replaces the default trigger indicator.
     pub fn trigger_indicator(mut self, indicator: impl IntoElement) -> Self {
         self.trigger_indicator = Some(indicator.into_any_element());
         self
     }
 
+    /// Replaces the separator drawn between the start and end fields.
     pub fn range_separator(mut self, separator: impl IntoElement) -> Self {
         self.range_separator = Some(separator.into_any_element());
         self
     }
 
+    /// Sets a render function for the popover content, given the picker's render state.
     pub fn content(
         mut self,
         render: impl Fn(DateRangePickerRenderState) -> gpui::AnyElement + 'static,

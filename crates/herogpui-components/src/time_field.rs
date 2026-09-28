@@ -25,7 +25,9 @@ use crate::{
 /// Whether a [`TimeField`] shows a 12- or 24-hour clock (`hourCycle`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum HourCycle {
+    /// The 12-hour clock with an AM/PM segment.
     H12,
+    /// The 24-hour clock.
     H24,
 }
 
@@ -36,8 +38,10 @@ impl Default for HourCycle {
 }
 
 impl HourCycle {
+    /// Both hour cycles, in display order.
     pub const ALL: [HourCycle; 2] = [HourCycle::H12, HourCycle::H24];
 
+    /// The human-readable name of this hour cycle.
     pub fn label(self) -> &'static str {
         match self {
             HourCycle::H12 => "12-hour",
@@ -350,12 +354,16 @@ pub(crate) fn regional_time_pattern(
 /// A wall-clock time — the `TimeValue` of `@internationalized/date`.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Time {
+    /// Hour of day, 0 to 23.
     pub hour: u32,
+    /// Minute, 0 to 59.
     pub minute: u32,
+    /// Second, 0 to 59.
     pub second: u32,
 }
 
 impl Time {
+    /// Creates a time at `hour:minute`, clamping to 23 and 59 and setting the second to 0.
     pub fn new(hour: u32, minute: u32) -> Self {
         Self {
             hour: hour.min(23),
@@ -364,6 +372,7 @@ impl Time {
         }
     }
 
+    /// Returns the time with its second replaced, clamped to 59.
     pub fn with_second(mut self, second: u32) -> Self {
         self.second = second.min(59);
         self
@@ -430,9 +439,13 @@ pub enum TimeGranularity {
 /// The editable segments of a [`TimeField`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TimeSegment {
+    /// The hour segment.
     Hour,
+    /// The minute segment.
     Minute,
+    /// The second segment.
     Second,
+    /// The AM/PM segment.
     Meridiem,
 }
 
@@ -523,6 +536,7 @@ impl TimeSegment {
 pub struct TimeState {
     /// The complete value exposed to callbacks, validation and forms.
     pub value: Option<Time>,
+    /// The segment that currently has focus.
     pub focused: TimeSegment,
     /// The local value used to draw segments while an edit is incomplete.
     display_value: Option<Time>,
@@ -542,6 +556,7 @@ pub struct TimeState {
 }
 
 impl TimeState {
+    /// Creates an empty state focused on the hour segment.
     pub fn new(cx: &mut App) -> Self {
         Self {
             value: None,
@@ -555,6 +570,7 @@ impl TimeState {
         }
     }
 
+    /// Creates a state holding `value`, focused on the hour segment.
     pub fn with_value(cx: &mut App, value: Time) -> Self {
         Self {
             value: Some(value),
@@ -873,6 +889,7 @@ impl TimeField {
         self
     }
 
+    /// Creates a time field bound to `state`.
     pub fn new(state: Entity<TimeState>) -> Self {
         Self {
             segment: None,
@@ -980,16 +997,19 @@ impl TimeField {
         self
     }
 
+    /// Sets the label shown above the field.
     pub fn label(mut self, text: impl Into<SharedString>) -> Self {
         self.label = Some(text.into());
         self
     }
 
+    /// Sets the description shown below the field.
     pub fn description(mut self, text: impl Into<SharedString>) -> Self {
         self.description = Some(text.into());
         self
     }
 
+    /// Sets the error message shown when the field is invalid.
     pub fn error_message(mut self, text: impl Into<SharedString>) -> Self {
         self.error_message = Some(text.into());
         self
@@ -1012,11 +1032,13 @@ impl TimeField {
         self
     }
 
+    /// Sets content shown after the segments (`TimeField.Suffix`).
     pub fn suffix(mut self, el: impl IntoElement) -> Self {
         self.suffix = Some(el.into_any_element());
         self
     }
 
+    /// Sets the field variant.
     pub fn variant(mut self, variant: FieldVariant) -> Self {
         self.variant = variant;
         self
@@ -1073,6 +1095,7 @@ impl TimeField {
         self
     }
 
+    /// Sets the hour cycle (`hourCycle`).
     pub fn hour_cycle(mut self, cycle: HourCycle) -> Self {
         self.hour_cycle = cycle;
         self
@@ -1108,6 +1131,7 @@ impl TimeField {
         self
     }
 
+    /// Sets whether the field fills the available width.
     pub fn full_width(mut self, v: bool) -> Self {
         self.full_width = v;
         self
@@ -1124,16 +1148,19 @@ impl TimeField {
         self
     }
 
+    /// Sets whether the field is disabled (`isDisabled`).
     pub fn is_disabled(mut self, v: bool) -> Self {
         self.is_disabled = v;
         self
     }
 
+    /// Sets whether the field is read-only (`isReadOnly`).
     pub fn is_read_only(mut self, v: bool) -> Self {
         self.is_read_only = v;
         self
     }
 
+    /// Sets whether the field is required (`isRequired`).
     pub fn is_required(mut self, v: bool) -> Self {
         self.is_required = v;
         self
@@ -1158,6 +1185,7 @@ impl TimeField {
         self
     }
 
+    /// Sets whether the field is invalid (`isInvalid`).
     pub fn is_invalid(mut self, v: bool) -> Self {
         self.is_invalid = v;
         self
@@ -1181,6 +1209,7 @@ impl TimeField {
         self
     }
 
+    /// Sets the handler called when the time changes (`onChange`).
     pub fn on_change(
         mut self,
         handler: impl Fn(&Option<Time>, &mut Window, &mut App) + 'static,
