@@ -2,6 +2,13 @@ name: CI
 
 on:
   pull_request:
+    # `labeled`/`unlabeled` on top of the defaults so the two opt-in labels
+    # take effect when they are added or removed, not on the next push:
+    # `ci:opt-levels` runs the `optimized` suite on the pull request, and
+    # `semver:breaking` lets the `semver` job accept a breaking change (see
+    # both jobs). Any label change re-runs the workflow; `concurrency` below
+    # cancels the run it supersedes.
+    types: [opened, synchronize, reopened, labeled, unlabeled]
   push:
     branches: [master]
   workflow_dispatch:
@@ -19,11 +26,12 @@ concurrency:
 permissions:
   contents: read
 
-# The gate is compile-bound, not test-bound: all 70 test binaries finish in
-# five seconds. So the jobs are split by what has to be built, not by what is
-# cheapest to name -- clippy and `cargo test` cannot share artifacts (clippy
-# drives the workspace through a different wrapper), which the old single
-# `check` job paid for twice in a row, serially, in one 14m run.
+# The gate is compile-bound, not test-bound: once built, the whole suite (every
+# test binary `cargo test` announces) finishes in seconds. So the jobs are split
+# by what has to be built, not by what is cheapest to name -- clippy and `cargo
+# test` cannot share artifacts (clippy drives the workspace through a different
+# wrapper), which the old single `check` job paid for twice in a row, serially,
+# in one 14m run.
 jobs:
   # Everything that needs no Rust build. A formatting or gallery-sync failure
   # reports in under a minute instead of after a full compile.
@@ -100,6 +108,8 @@ jobs:
           python .shots/test_coverage_report.py
           python .shots/test_inert.py
           python .shots/test_native_capture.py
+          python .shots/stale_docs_audit.py --self-test
+          python .shots/demo_audit.py --self-test
 
       - name: Interaction inventory freshness
         run: python .shots/interaction_inventory.py --check
@@ -177,15 +187,18 @@ jobs:
       - name: Unused dependencies (cargo-machete)
         run: cargo machete
 
+      # `--require-deny`: cargo-deny is installed above, so a missing binary
+      # here means that step broke, and must not read as "skipped, green".
       - name: Lint gate (workspace lints, clippy -D warnings, cargo-deny)
-        shell: pwsh
-        run: .shots/lint.ps1
+        shell: bash
+        run: bash .shots/lint.sh --require-deny
 
-      # `--all-features` (in lint.ps1's clippy step) only proves the union of
-      # every feature compiles together; it says nothing about any one
-      # feature alone. herogpui-components' `gallery-source` is the case that
-      # matters here: `--each-feature` builds it by itself, with no other
-      # feature unifying in dependencies it might otherwise lean on.
+      # A workspace build (clippy above, the tests) compiles each crate with
+      # the union of the features its workspace dependents enable; it says
+      # nothing about any one feature alone. herogpui-components'
+      # `gallery-source` is the case that matters here: `--each-feature` builds
+      # it by itself, with no other feature unifying in dependencies it might
+      # otherwise lean on.
       - name: Each feature alone
         run: cargo hack check --workspace --each-feature --locked
 
@@ -265,7 +278,9 @@ jobs:
           RUSTDOCFLAGS: --cfg docsrs -D warnings
         run: cargo doc --workspace --no-deps --locked
 
-  # Git GPUI is not registry-publishable; validate installation from source.
+  # `cargo install --path` is the contributor's route to the gallery CLI (the
+  # registry route, `cargo install herogpui-gallery`, is exercised at release
+  # time); this proves the workspace installs from a checkout with `--locked`.
   install:
     name: Source install
     runs-on: ubuntu-24.04
@@ -281,19 +296,67 @@ jobs:
         # workspace `target/` makes the step cacheable: 14s once it is warm.
         run: cargo install --path gallery --locked --debug --force --target-dir target
 
+  # Which build-configuration files a pull request touches, for `optimized`
+  # below. A pull request checks out GitHub's merge commit, whose first parent
+  # is the base branch tip, so a depth-2 checkout diffs the whole PR against
+  # its base with no API call and no token permission beyond `contents: read`
+  # (which matters: release.yml calls this workflow, and a called job cannot
+  # ask for more than its caller grants). Pull requests only; every other
+  # event runs `optimized` unconditionally.
+  changes:
+    name: Changed build configuration
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    outputs:
+      build_config: ${{ steps.files.outputs.build_config }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 2
+
+      - id: files
+        run: |
+          set -euo pipefail
+          git diff --name-only HEAD^1 HEAD > "$RUNNER_TEMP/files"
+          cat "$RUNNER_TEMP/files"
+          # What decides how the workspace is compiled: the profiles and the
+          # dependency graph, the toolchain pin, the cargo config, the CI
+          # profile override in rust-env, and the test-verdict wrapper.
+          if grep -qxE 'Cargo\.toml|Cargo\.lock|rust-toolchain\.toml|\.cargo/config\.toml|\.github/actions/rust-env/action\.yml|\.shots/run-tests\.sh' "$RUNNER_TEMP/files"; then
+            echo "build_config=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "build_config=false" >> "$GITHUB_OUTPUT"
+          fi
+
   # What the -O0 workspace gives up, this takes back. `test` builds the workspace
   # crates unoptimized; nothing else in the pipeline then compiles them the way a
   # developer's `cargo test` does, and this repo has already shown that a
   # codegen flag can change what a layout assertion reports. So every merged
   # commit gets the Cargo.toml profile here, off the PR critical path where its
   # length costs nobody a review cycle.
+  #
+  # On a pull request it is opt-in, so an optimisation-level regression can be
+  # caught before merge instead of first showing on master or at tag time: add
+  # the `ci:opt-levels` label (layout, geometry or timing work is the usual
+  # reason), or touch a build-configuration file (`changes` above), which
+  # changes codegen for everything and so always runs it.
   optimized:
     name: Tests (Cargo.toml profile)
-    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    needs: [changes]
+    # `!cancelled()` because `changes` is skipped on every non-PR event, and a
+    # skipped need would otherwise skip this job on exactly the events it
+    # always runs for.
+    if: >-
+      !cancelled() && (
+        github.event_name == 'push' ||
+        github.event_name == 'workflow_dispatch' ||
+        (github.event_name == 'pull_request' && (
+          contains(github.event.pull_request.labels.*.name, 'ci:opt-levels') ||
+          needs.changes.outputs.build_config == 'true')))
     # The same three hosts as `test` for the same reasons (see that job's
     # comment). Codegen is per-platform as well as per-opt-level, so the
-    # -O1/-O3 suite owes each OS its own run. Push-only keeps the three heavy
-    # legs off the PR critical path.
+    # -O1/-O3 suite owes each OS its own run. Opt-in on pull requests keeps
+    # the three heavy legs off the PR critical path by default.
     strategy:
       fail-fast: false
       matrix:
@@ -333,11 +396,10 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      # No toolchain step: rustup reads `rust-toolchain.toml` in the checkout,
-      # so this job builds on the same pinned stable as every other one and the
-      # version is written down exactly once. Only the target has to be added.
-      # This job is the one place a nightly toolchain is allowed, and the
-      # reason is upstream's, not ours: vanilla `gpui-pre-web` enables its
+      # The one job that does not build on `rust-toolchain.toml`'s pinned
+      # stable: it installs nightly with the wasm32 target below and passes
+      # `+nightly` explicitly. This job is the one place a nightly toolchain is
+      # allowed, and the reason is upstream's, not ours: vanilla `gpui-pre-web` enables its
       # `multithreaded` feature by default, which pulls in `wasm_thread`,
       # whose lib.rs opens with `#![feature]` — so a stable build of this
       # target fails outright with `error[E0554]`. The only stable-compatible
@@ -396,16 +458,95 @@ jobs:
             target/wasm32-unknown-unknown/wasm-release/herogpui_web.wasm
           ls -l "$RUNNER_TEMP/wasm-bindgen-out"
 
+  # The published library crates' public API against their latest crates.io
+  # release (whatever that is when the job runs: no baseline version is
+  # written down here to go stale). cargo-semver-checks derives the allowed
+  # change from the manifest version: while `[workspace.package].version`
+  # still equals the released one it assumes a non-breaking release and fails
+  # a breaking change; once the release PR bumps the version (0.x minor, or
+  # major), breaking changes pass. Work that deliberately breaks the API ahead
+  # of that bump carries the `semver:breaking` label, which passes
+  # `--release-type major` -- the label is the reviewer's acknowledgement, and
+  # the break still needs its CHANGELOG and migration notes.
+  #
+  # Pull requests only. On a push the version question was settled by the
+  # PR, and the release workflow runs the same check against the tag before
+  # anything is published.
+  semver:
+    name: SemVer (cargo-semver-checks)
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+
+      # Linux system libraries: the rustdoc JSON build of `herogpui` compiles
+      # the GPUI platform crates' build scripts like any other build.
+      - uses: ./.github/actions/rust-env
+
+      # Pinned, unlike the lint tools: cargo-semver-checks reads rustdoc JSON,
+      # whose format changes with rustc, so a floating version can break the
+      # job on a toolchain it does not support. Bump it with the toolchain.
+      - name: Install cargo-semver-checks
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-semver-checks@0.50.0
+
+      - name: Public API against the latest crates.io release
+        env:
+          BREAKING_OK: ${{ contains(github.event.pull_request.labels.*.name, 'semver:breaking') }}
+        run: |
+          set -euo pipefail
+          args=(-p herogpui-core -p herogpui-theme -p herogpui-components -p herogpui)
+          if [ "$BREAKING_OK" = true ]; then
+            echo "semver:breaking label present: breaking changes are accepted"
+            args+=(--release-type major)
+          fi
+          cargo semver-checks "${args[@]}"
+
+  # Each published library crate on its own with no default features, the
+  # way a downstream `default-features = false` edge builds it. cargo-hack's
+  # `--each-feature` in `lint` includes this configuration inside a sweep of
+  # every feature; this job names the contract (`package_audit.py` requires
+  # the facade's layers to be optional "so --no-default-features compiles")
+  # and reports it per crate. One job with a step per crate rather than a
+  # matrix: the four builds share one dependency cache instead of four
+  # runners each compiling GPUI.
+  no-default-features:
+    name: No default features
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: ./.github/actions/rust-env
+
+      - name: herogpui-core
+        run: cargo check -p herogpui-core --no-default-features --locked
+
+      - name: herogpui-theme
+        run: cargo check -p herogpui-theme --no-default-features --locked
+
+      - name: herogpui-components
+        run: cargo check -p herogpui-components --no-default-features --locked
+
+      - name: herogpui
+        run: cargo check -p herogpui --no-default-features --locked
+
+  # No MSRV job, deliberately: `rust-version` (1.98) is the same release as
+  # `rust-toolchain.toml`'s pin (1.98.0), so every job above already builds
+  # on the MSRV and a separate job would repeat `test`. `package_audit.py`
+  # (in `parity`) fails if the two -- or clippy.toml's `msrv` -- ever differ,
+  # which is the point at which a real MSRV job is needed.
+
   # The one status branch protection should point at. Adding a job to this
   # workflow means adding its name to `needs` below; a job left out of that
   # list fails silently — branch protection just never learns it exists — so
   # this jq check is the one place a missed job fails loudly, in review, on
-  # the PR that added it. `optimized` only runs on `push`, so `skipped` counts
-  # as passing for it on every pull request.
+  # the PR that added it. `changes` and `semver` run on pull requests only and
+  # `optimized` is opt-in there, so `skipped` counts as passing.
   ci:
     name: ci
     if: always()
-    needs: [web, parity, lint, test, doc, install, optimized, wasm]
+    needs: [web, parity, lint, test, doc, install, changes, optimized, semver, no-default-features, wasm]
     runs-on: ubuntu-24.04
     steps:
       - name: decide

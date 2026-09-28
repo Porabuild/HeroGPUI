@@ -374,7 +374,7 @@ branches, but the integration PR must satisfy the complete contract.
 When gallery example bodies/descriptions change, rebuild the checked-in wasm
 artifact, then run `pnpm run wasm:manifest`, `pnpm run extract` and
 `pnpm run extract:check` from `web/` before the batch is mergeable. Follow the
-root guide's pinned stable/wasm-bindgen instructions and never set RUSTFLAGS.
+root guide's nightly/wasm-bindgen instructions and never set RUSTFLAGS.
 Do not regenerate manifests against a stale binary merely to make checks pass.
 
 The manifests hash the artifact/glue and example code/descriptions; they do
@@ -394,9 +394,10 @@ behavior changes when choosing the artifact rebuild batch as well.
   changes, including known-negative parser checks where applicable.
 - Current CI uses `bash .shots/run-tests.sh --workspace --locked` and a
   separate `bash .shots/run-tests.sh -p herogpui-theme --features serde --locked`.
-  Format check is `cargo fmt --all -- --check`. `.shots/lint.ps1` requires
-  PowerShell and includes `cargo clippy --workspace --all-targets -- -D warnings`;
-  its cargo-deny check depends on the tool being installed. Feature isolation,
+  Format check is `cargo fmt --all -- --check`. `bash .shots/lint.sh` runs on
+  any host and includes `cargo clippy --workspace --all-targets -- -D warnings`;
+  its cargo-deny check depends on the tool being installed (CI passes
+  `--require-deny`). Feature isolation,
   Rustdoc, website and wasm build jobs are additional CI gates.
 - Rebuild and visually verify component/gallery changes using the gallery
   guide. The checked-in rebuild/capture scripts contain Windows-specific
@@ -424,7 +425,7 @@ behavior changes when choosing the artifact rebuild batch as well.
 | Scope/classification and metric readers | [extra audit](../.shots/extra_audit.py), [design audit](../.shots/design_audit.py), [theme serde audit](../.shots/theme_serde_audit.py) |
 | Bounds versus source/refinement evidence | [slider tests](../crates/herogpui-components/tests/slider_geometry_deep.rs), [cursor tests](../crates/herogpui-components/tests/cursor_token.rs) |
 | Artifact check coverage | [manifest tests](../web/scripts/extract-rust-examples.test.mjs), [website commands](../web/package.json) |
-| Current verification and network behavior | [CI](../.github/workflows/ci.yml), [lint](../.shots/lint.ps1), [demo audit](../.shots/demo_audit.py) |
+| Current verification and network behavior | [CI](../.github/workflows/ci.yml), [lint](../.shots/lint.sh), [demo audit](../.shots/demo_audit.py) |
 
 GPUI evidence: re-derive from the unpacked `gpui-pre-0.3.5` registry sources
 (the earlier `gpui-pre-0.3.3/src/style.rs` `corner_radii` reference was
@@ -500,12 +501,12 @@ to five days, L over a week.
 
 | Pri | Item | Why it matters | Effort | Target |
 |---|---|---|---|---|
-| P1 | Release hygiene: `cargo semver-checks` in CI and the release, an MSRV (1.98) job, a `--no-default-features` job | Public-API breaks in a minor or patch release are caught by review only | S | 0.12.1 |
-| P1 | Stale CI and agent comments ("70 test binaries" in `ci.yml` and `rust-env`, now 110+; "Git GPUI is not registry-publishable" in `ci.yml`; "stable wasm32 build" in `docs/agents/workflow.md`) | Contradictory guidance misleads contributors and agents | S | 0.12.1 |
+| P1 | ~~Release hygiene: `cargo semver-checks` in CI and the release, an MSRV (1.98) job, a `--no-default-features` job~~ **Done (0.13):** `semver` PR job (label `semver:breaking` to accept a deliberate break) and a release `semver` job gating the GitHub Release; `no-default-features` job; no MSRV job because the toolchain pin is the MSRV release, asserted by `package_audit.py` | Public-API breaks in a minor or patch release are caught by review only | S | 0.12.1 |
+| P1 | ~~Stale CI and agent comments ("70 test binaries" in `ci.yml` and `rust-env`, now 110+; "Git GPUI is not registry-publishable" in `ci.yml`; "stable wasm32 build" in `docs/agents/workflow.md`)~~ **Done (0.13):** fixed with the other stale facts found (deny.toml, RELEASING.md, clippy/toolchain comments); `.shots/stale_docs_audit.py` fails on a reintroduced phrase | Contradictory guidance misleads contributors and agents | S | 0.12.1 |
 | P1 | Website command palette a11y (`combobox`/`listbox`/`aria-activedescendant`) and search over API items | Keyboard selection is silent to screen readers; Rust users search by builder name | M | 0.12.1 |
 | P1 | Website SEO and links: canonical URLs, sitemap, robots, per-page OG metadata, docs.rs and source links on component pages | Discoverability and a path from the site to rustdoc | M | 0.12.1 |
 | P1 | Wasm cold load: `wasm-opt` pass and a lazily mounted hero embed | The ~19 MB artifact is the slowest thing on the site | S | 0.12.1 |
-| P1 | Cross-platform lint gate: port `.shots/lint.ps1` to bash (like `run-tests.sh`) and make `demo_audit` runnable offline | The documented gate cannot run on macOS or Linux without pwsh | M | 0.13 |
+| P1 | ~~Cross-platform lint gate: port `.shots/lint.ps1` to bash (like `run-tests.sh`) and make `demo_audit` runnable offline~~ **Done (0.13):** `.shots/lint.sh` (CI calls it; `lint.ps1` forwards to it); `demo_audit` already ran offline from the checked-in archive since #15, and its self-test now runs in CI | The documented gate cannot run on macOS or Linux without pwsh | M | 0.13 |
 | P2 | Remaining ~116 source-text assertions (overlay panels, fields, wiring) to painted-scene or behaviour tests | They pin source shape and block refactoring the large render functions | L | 0.13 |
 | P2 | VirtualList uniform mode for the fixed `row_height` paths of ListBox, Table and ComboBox (see item 2 above) | Removes the last `uniform_list` split without losing centred scrolling, paging or load-more | M | 0.13 |
 | P2 | TreeView: Shift range selection, virtualisation, `aria-posinset`/`aria-setsize` | Large trees build every visible row; set position is missing for assistive technology | M | 0.13 |
@@ -520,10 +521,10 @@ to five days, L over a week.
 | P3 | `Styled` on components (item 1 above), after the per-part ownership rules of Phase 0.1 | Largest API change and semver risk; needs part ownership first | L | 0.14 |
 | P3 | Split the largest `render` functions (`table.rs` and others), merge the 110+ test binaries into a few suites | Review cost and link time | L | 0.14 |
 | P3 | Customisation Phases 0.2–6 (theme tokens, field geometry, state colours, sizing, shape, typography) | The largest documented backlog; opt-in and unscheduled | L | 0.14+ |
-| P3 | Opt-in -O1/-O3 (`Cargo.toml` profile) test job on pull requests, by label or path filter | It is push-only by design, so an optimisation-level regression first shows on master or at tag time | S | 0.13 |
+| P3 | ~~Opt-in -O1/-O3 (`Cargo.toml` profile) test job on pull requests, by label or path filter~~ **Done (0.13):** `ci:opt-levels` label, or a PR touching build configuration | It is push-only by design, so an optimisation-level regression first shows on master or at tag time | S | 0.13 |
 | P3 | Extensions from the gpui-kit gap list: Sidebar, TitleBar, CommandPalette, HoverCard, Toolbar extras, data-table extras | Desktop-app demand outside HeroUI parity | L | later |
 | P3 | Keyboard ContextMenu anchored at the focused element | Needs GPUI to report focused-element bounds | S once upstream lands | later |
-| P3 | Upstream GPUI work: IME-mirror resync after paste, the retired patches, the `block` 0.1.6 future-incompatibility warning every macOS build prints; multithreaded wasm needs a COOP/COEP deployment | External dependencies | M each | later |
+| P3 | Upstream GPUI work: IME-mirror resync after paste, the retired patches, the `block` 0.1.6 future-incompatibility warning every macOS build prints (chain and requested fix in [`docs/upstream/gpui-block-future-incompat.md`](upstream/gpui-block-future-incompat.md); one path is HeroGPUI's own `locale_config` dependency); multithreaded wasm needs a COOP/COEP deployment | External dependencies | M each | later |
 
 Ordering: P1 is cheap, user-visible or process-critical and safe for a patch
 release; P2 is the 0.12.0 follow-ups and library-quality debt sized for one
