@@ -43,13 +43,12 @@ allow = [
 version = 2
 yanked = "warn"
 ignore = [
-  { id = "RUSTSEC-2026-0192", reason = "ttf-parser is unmaintained but only reachable transitively via gpui 0.2 / usvg / fontdue; no safe upgrade exists" },
-  { id = "RUSTSEC-2026-0206", reason = "rustybuzz is unmaintained but only reachable transitively via gpui 0.2 / cosmic-text / usvg; no safe upgrade exists" },
-  { id = "RUSTSEC-2025-0052", reason = "async-std is discontinued but only reachable transitively via gpui 0.2; no safe upgrade exists" },
-  { id = "RUSTSEC-2024-0384", reason = "instant is unmaintained but only reachable transitively via gpui 0.2; no safe upgrade exists" },
-  { id = "RUSTSEC-2024-0436", reason = "paste is unmaintained but only reachable transitively via gpui 0.2; no safe upgrade exists" },
-  { id = "RUSTSEC-2026-0173", reason = "proc-macro-error2 is unmaintained but only reachable transitively via gpui 0.2 build-time macros; no safe upgrade exists" },
-  { id = "RUSTSEC-2025-0134", reason = "rustls-pemfile is unmaintained but only reachable transitively via gpui 0.2; no safe upgrade exists" },
+  # Each reason names the chain; every entry is reachable only through the
+  # pinned `gpui-pre` 0.3.5 family, which this workspace cannot change. An
+  # entry cargo-deny reports as `advisory-not-detected` is dead and goes.
+  { id = "RUSTSEC-2026-0192", reason = "ttf-parser is unmaintained but only reachable transitively via gpui-pre 0.3.5 / usvg / fontdue; no safe upgrade exists" },
+  { id = "RUSTSEC-2026-0206", reason = "rustybuzz is unmaintained but only reachable transitively via gpui-pre 0.3.5 / cosmic-text / usvg; no safe upgrade exists" },
+  { id = "RUSTSEC-2024-0436", reason = "paste is unmaintained but only reachable transitively via gpui-pre 0.3.5; no safe upgrade exists" },
 ]
 
 [bans]
@@ -65,16 +64,6 @@ wildcards = "deny"
 unknown-registry = "warn"
 unknown-git = "deny"
 allow-registry = ["https://github.com/rust-lang/crates.io-index"]
-# GPUI and the git dependencies pinned by the same Zed checkout.
-allow-git = [
-  "https://github.com/zed-industries/zed",
-  "https://github.com/zed-industries/font-kit",
-  "https://github.com/zed-industries/scap",
-  # Kept although `wasm_thread` currently leaves the graph: it returns the
-  # moment the `gpui-pre-web` fork's `multithreaded` feature is turned back on
-  # (the `default = []` hunk in docs/upstream/patches/gpui-pre-web-0.3.3.patch).
-  "https://github.com/zed-industries/wasm_thread",
-  "https://github.com/zed-industries/xim-rs.git",
-  "https://github.com/proptest-rs/proptest",
-]
-required-git-spec = "rev"
+# No `allow-git`: every dependency, GPUI included, comes from crates.io (a git
+# dependency makes a crate unpublishable, and `.shots/package_audit.py` fails
+# on one in Cargo.lock), so any git source is denied outright.

@@ -76,10 +76,9 @@ Run what CI runs (`.github/workflows/ci.yml` is authoritative):
 
 ```sh
 cargo fmt --all -- --check
-cargo clippy --workspace --all-targets --locked -- -D warnings
+bash .shots/lint.sh   # lint inheritance, clippy -D warnings, cargo-deny
 bash .shots/run-tests.sh --workspace --locked
 RUSTDOCFLAGS="--cfg docsrs -D warnings" cargo doc --workspace --no-deps --locked
-cargo deny check
 python3 .shots/parity_report.py --output /tmp/parity-report.json
 (cd web && pnpm run extract:check && pnpm run typecheck && pnpm run lint)
 ```

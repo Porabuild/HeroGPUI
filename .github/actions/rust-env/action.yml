@@ -67,13 +67,13 @@ runs:
           libfontconfig-dev \
           libfreetype-dev
 
-    # The gate is compile-bound, not test-bound: its 70 test binaries finish in
-    # five seconds, while the `test` job measured 842s at Cargo.toml's profile
-    # and 107s unoptimized. Cargo.toml's `-O1` workspace / `-O3` dependencies is
-    # a local-dev choice -- a gallery you interact with should be responsive --
-    # and only the workspace half is on a PR's critical path, because
-    # dependencies come out of the cache. So unoptimize that half and nothing
-    # else.
+    # The gate is compile-bound, not test-bound: once built, the test binaries
+    # together finish in seconds, while the `test` job measured 842s at
+    # Cargo.toml's profile and 107s unoptimized. Cargo.toml's `-O1` workspace /
+    # `-O3` dependencies is a local-dev choice -- a gallery you interact with
+    # should be responsive -- and only the workspace half is on a PR's critical
+    # path, because dependencies come out of the cache. So unoptimize that half
+    # and nothing else.
     #
     # The `nothing else` is measured, not cautious. Dropping dependencies to -O0
     # too made `assert_settled` in dropdown_viewport_deep fail 40 runs out of 40
@@ -84,13 +84,13 @@ runs:
     # developer's, which is the point of a gate.
     #
     # In addition, Cargo.toml's `debug = "line-tables-only"` generates PDB
-    # files on Windows for all 70+ test binaries, saturating disk I/O and
+    # files on Windows for every test binary, saturating disk I/O and
     # inflating cache tarballs. In CI, setting `debug = 0` eliminates PDB
     # generation completely without affecting test assertion behavior.
     # Codegen-units = 16 reduces object file disk thrashing on 2-vCPU runners.
     #
     # The override goes in $CARGO_HOME rather than as a `--config` flag because
-    # `.shots/lint.ps1` owns its own cargo invocation. One config file reaches
+    # `.shots/lint.sh` owns its own cargo invocation. One config file reaches
     # every call in a job, and calls within a job that disagree about the
     # profile would rebuild the workspace and thrash that job's cache.
     - name: Configure Cargo dev profile for CI

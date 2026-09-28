@@ -74,13 +74,19 @@ is stored in GitHub.
    cargo package -p herogpui --allow-dirty --no-verify --list
    cargo package -p herogpui-gallery --allow-dirty --no-verify --list
    cargo publish --workspace --dry-run --allow-dirty --locked --no-verify
+   # What the release's `semver` job runs (install: cargo install
+   # cargo-semver-checks --locked --version 0.50.0, the version CI pins):
+   cargo semver-checks -p herogpui-core -p herogpui-theme -p herogpui-components -p herogpui
    ```
 
 4. Commit, create an annotated `vX.Y.Z` tag, and push the commit and tag.
 5. The release workflow builds every supported gallery binary, attests them,
    and creates the immutable GitHub Release with those binaries plus
    `LICENSE`, `NOTICE` and `LICENSE-lucide` (the ISC/MIT license of the
-   Lucide icons the binaries embed). It does not publish to crates.io.
+   Lucide icons the binaries embed). It is created only after the `semver`
+   job has checked the four library crates' public API against their latest
+   crates.io release with `cargo semver-checks`: a breaking change needs a
+   0.x minor (or major) version, never a patch.
 6. The workflow's `publish-crates` job publishes the crates. To publish by
    hand instead (first release of a crate, or a workflow outage), from the
    tagged commit and in dependency order:

@@ -80,7 +80,7 @@ herogpui-gallery = { version = "0.12.0", path = "gallery" }
 
 # Lint policy lives here so every crate gets the same one via
 # `lints.workspace = true`; a crate that forgets that line is the only way to
-# drift. `.shots/lint.ps1` is the gate that enforces it.
+# drift. `.shots/lint.sh` is the gate that enforces it.
 [workspace.lints.rust]
 unsafe_code = "deny"
 rust_2018_idioms = { level = "warn", priority = -1 }

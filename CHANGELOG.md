@@ -30,6 +30,50 @@ version covers `herogpui`, `herogpui-core`, `herogpui-theme`,
   `ShotWindow` components are removed. `web/DEPLOYMENT.md` records that pull
   requests already get Vercel preview deployments.
 
+### Added
+
+- CI checks the four library crates' public API with `cargo semver-checks`
+  against their latest crates.io release on every pull request (a deliberate
+  break carries the `semver:breaking` label), and the release workflow runs
+  the same check before the GitHub Release and any publish.
+- CI builds each library crate with `--no-default-features`.
+- `.shots/lint.sh`: the lint gate (workspace-lint inheritance, clippy with
+  warnings denied, cargo-deny) in bash, so it runs on macOS and Linux without
+  PowerShell; CI calls it with `--require-deny`, and `--self-test` proves the
+  inheritance check. `.shots/lint.ps1` now only forwards to it.
+- `.shots/stale_docs_audit.py`, part of the parity audit set: fails when a
+  retired fact (a test-binary count, "Git GPUI", a stable wasm32 build, the
+  PowerShell-only lint gate) reappears in CI or agent guidance.
+- `.shots/package_audit.py` fails when `rust-toolchain.toml`'s pin stops
+  being a release of `rust-version` or clippy's `msrv` differs, the reason CI
+  needs no separate MSRV job.
+- `docs/upstream/gpui-block-future-incompat.md`: where the `block` 0.1.6
+  future-incompatibility warning on macOS builds comes from (the GPUI macOS
+  stack, and HeroGPUI's own `locale_config` dependency) and the upstream fix
+  to request.
+
+### Changed
+
+- The `Cargo.toml`-profile (-O1/-O3) test job also runs on pull requests
+  labelled `ci:opt-levels` or touching build configuration (`Cargo.toml`,
+  `Cargo.lock`, `rust-toolchain.toml`, `.cargo/config.toml`, the CI Rust
+  environment or the test wrapper); it stays push-only otherwise.
+- The lint inheritance check now also covers `examples/*` and only accepts
+  `workspace = true` inside `[lints]` (or top-level `lints.workspace`), not
+  under any other table.
+
+### Removed
+
+- Four dead `cargo-deny` advisory ignores and the `allow-git` list from
+  `deny.toml`; the workspace has no git dependencies, so any git source is
+  now denied.
+
+### Fixed
+
+- Stale CI, release and agent guidance: test-binary counts, "Git GPUI is not
+  registry-publishable", "stable wasm32 build", "unpublished" crates,
+  "does not publish to crates.io", and advisory reasons naming `gpui 0.2`.
+
 ## [0.12.0] - 2026-09-28
 
 ### Added

@@ -44,8 +44,12 @@ replaced, nor the unrelated crates.io `gpui` 0.2.2 crate.
 cargo check --workspace
 cargo test -p herogpui-components
 cargo fmt --all -- --check
-.shots/lint.ps1
+bash .shots/lint.sh
 ```
+
+`.shots/lint.sh` is the lint gate CI runs: workspace-lint inheritance, clippy
+with warnings denied, and cargo-deny when installed.
+For Windows shells, `.shots/lint.ps1` only forwards to `.shots/lint.sh`.
 
 Use a focused test binary while iterating. After a component or gallery change,
 build with `.shots/rebuild.ps1`; the gallery executable is often locked after a
@@ -118,13 +122,14 @@ both are easy to get wrong:
   its background executors on web workers over shared wasm memory, which a
   browser grants only in a cross-origin-isolated context — and the gallery is
   served by the Vercel-hosted website (`web/DEPLOYMENT.md`), whose
-  `web/next.config.ts` sends no COOP/COEP headers. Verified in
-  a browser at `gpui-pre` 0.3.3: the stable `wasm-release` artifact boots,
-  renders, presses, focuses, takes keyboard input and resolves a
-  `background_executor().timer()`, indistinguishably from the
-  nightly/`multithreaded` artifact, which is 23 KB larger. Turning
-  `multithreaded` back on means going back to a nightly pin, so do it only
-  together with a deployment that can actually use web workers.
+  `web/next.config.ts` sends no COOP/COEP headers. Verified in a browser at
+  `gpui-pre` 0.3.3, when the since-retired fork still built this target on
+  stable: that single-threaded artifact booted, rendered, pressed, focused,
+  took keyboard input and resolved a `background_executor().timer()`,
+  indistinguishably from the nightly/`multithreaded` artifact, which was
+  23 KB larger. So the default costs the nightly requirement and nothing
+  else; actually starting the multi-threaded platform needs a deployment that
+  can use web workers.
 
 Never set `RUSTFLAGS` for this target —
 `.cargo/config.toml` states `rustflags = []` there deliberately, and the
