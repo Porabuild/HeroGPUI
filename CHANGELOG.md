@@ -33,6 +33,12 @@ for each breaking change with before/after code.
 
 ### Added
 
+- `#[must_use]` on every component (each `IntoElement` builder) and on the
+  builder data types (`ThemeBuilder`, `ComponentTheme(s)`, the `*Style`
+  recipes, `Toast`, `TabItem`, `ListBoxItem`, `TableColumn`, `TableRow`,
+  `TreeItem`, `ResizablePanel`, …): a builder chain whose result is dropped
+  now warns (`unused_must_use`) instead of silently rendering nothing.
+
 - Every public item in `herogpui`, `herogpui-core`, `herogpui-theme` and
   `herogpui-components` is documented, and those crates now
   `#![warn(missing_docs)]`, so CI's `clippy -D warnings` keeps it that way.

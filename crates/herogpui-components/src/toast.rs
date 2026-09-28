@@ -543,6 +543,7 @@ pub fn toast_store(cx: &mut App) -> Entity<ToastStore> {
 pub const DEFAULT_TOAST_TIMEOUT: Duration = Duration::from_secs(4);
 
 /// Builder for a toast notification.
+#[must_use = "a Toast is shown only once it is pushed (`push`, `update`)"]
 pub struct Toast {
     color: Color,
     title: SharedString,
@@ -953,6 +954,7 @@ pub fn pause_toasts(paused: bool, cx: &mut App) {
 /// The toast region — `Toast.Provider` in React. Mount once near the root; it
 /// reads the store on every root re-render (store mutations notify it via the
 /// parent view's `cx.notify()`).
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct ToastViewport {
     placement: ToastPlacement,

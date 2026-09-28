@@ -25,6 +25,7 @@ use herogpui_theme::ActiveTheme;
 /// Mirrors the React API: `isRequired`, `isDisabled`, `isInvalid`. The
 /// `htmlFor` prop has no gpui analogue (there is no DOM id graph), so labels
 /// are associated by composition instead.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct Label {
     text: SharedString,
@@ -118,6 +119,7 @@ impl RenderOnce for Label {
 
 /// HeroUI Description — `slot="description"`. De-emphasised helper copy shown
 /// beneath a field.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct Description {
     text: SharedString,
@@ -141,6 +143,7 @@ impl RenderOnce for Description {
 }
 
 /// HeroUI ErrorMessage — `slot="errorMessage"`. Always rendered when present.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct ErrorMessage {
     text: SharedString,
@@ -168,6 +171,7 @@ impl RenderOnce for ErrorMessage {
 /// Unlike [`ErrorMessage`], a `FieldError` manages its own visibility from the
 /// validation state: it renders nothing unless the field is invalid and a
 /// message is present.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct FieldError {
     text: Option<SharedString>,
@@ -238,6 +242,7 @@ impl RenderOnce for FieldError {
 ///
 /// Compose with [`FieldsetLegend`], [`FieldGroup`] and [`FieldsetActions`],
 /// mirroring `Fieldset.Legend` / `.Group` / `.Actions` in React.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct Fieldset {
     gap: Pixels,
@@ -302,6 +307,7 @@ impl RenderOnce for Fieldset {
 }
 
 /// `Fieldset.Legend` — the group's caption.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct FieldsetLegend {
     text: SharedString,
@@ -327,6 +333,7 @@ impl RenderOnce for FieldsetLegend {
 }
 
 /// `Fieldset.Group` — layout wrapper for the grouped controls.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct FieldGroup {
     gap: Pixels,
@@ -375,6 +382,7 @@ impl RenderOnce for FieldGroup {
 }
 
 /// `Fieldset.Actions` — trailing row for submit/cancel controls.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct FieldsetActions {
     gap: Pixels,

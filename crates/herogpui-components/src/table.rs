@@ -115,6 +115,7 @@ impl SortDescriptor {
 }
 
 /// One column (`Table.Column`).
+#[must_use = "builder methods return a new value; pass the column to its table"]
 #[derive(Clone, Debug)]
 pub struct TableColumn {
     label: SharedString,
@@ -210,6 +211,7 @@ impl From<&str> for TableColumn {
 }
 
 /// One row (`Table.Row`).
+#[must_use = "builder methods return a new value; pass it on to its component"]
 pub struct TableRow {
     key: Option<SharedString>,
     text_value: Option<SharedString>,
@@ -613,6 +615,7 @@ fn table_cell_focus_ring(cx: &App, first: bool, last: bool) -> gpui::Div {
 }
 
 /// HeroUI Table.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct Table {
     /// Distinguishes one table's keyed state from another's: the resized column

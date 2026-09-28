@@ -815,6 +815,7 @@ pub struct TimeFieldRenderState {
 }
 
 /// HeroUI TimeField.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct TimeField {
     /// `segment` — v3's render prop for one editable segment, handed which

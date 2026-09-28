@@ -228,6 +228,7 @@ pub(crate) struct LiveFormFieldState {
 /// an entity (`Input`, `TextArea`, `NumberField`) writes its `name` prop into
 /// that entity, so [`FormField::text`] and [`FormField::number`] can pick it up
 /// and the call site does not repeat it.
+#[must_use = "builder methods return a new value; pass the field to its form"]
 #[derive(Clone)]
 pub struct FormField {
     name: Option<SharedString>,
@@ -883,6 +884,7 @@ pub enum ValidationBehavior {
 }
 
 /// HeroUI Form: a vertical field stack that collects a named submission.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct Form {
     /// `validationErrors` — the [`ValidationErrors`] record the form routes

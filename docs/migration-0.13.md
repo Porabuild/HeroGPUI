@@ -94,3 +94,18 @@ segment names, the DatePicker trigger, the ColorSlider channel label, the
 Autocomplete clear button and Pagination's name now follow `set_locale`
 too; in en-US they are unchanged. A calendar day's accessible name no longer
 ends in a trailing space when the day is not selected.
+
+## Dropped builders warn
+
+Components and builder types are `#[must_use]`. A statement that builds a
+component and drops it never rendered anything; it now raises
+`unused_must_use`, which fails a build under `#![deny(warnings)]`. Add the
+value where it was meant to go, or delete the statement:
+
+```rust
+// 0.12: compiles, renders nothing
+Button::new("save").label("Save");
+
+// 0.13
+div().child(Button::new("save").label("Save"))
+```

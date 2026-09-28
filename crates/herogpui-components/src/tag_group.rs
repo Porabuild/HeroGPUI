@@ -43,6 +43,7 @@ impl TagVariant {
 }
 
 /// One tag in a [`TagGroup`].
+#[must_use = "builder methods return a new value; pass the tag to its group"]
 #[derive(Clone)]
 pub struct Tag {
     key: SharedString,
@@ -186,6 +187,7 @@ fn shift_home_end_extends(key_name: &str, control: bool, macos: bool) -> bool {
 }
 
 /// HeroUI TagGroup.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct TagGroup {
     id: ElementId,

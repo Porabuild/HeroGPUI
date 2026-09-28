@@ -924,6 +924,10 @@ the light and dark bases and every `presets::PRESETS` theme. Screenshots are the
 
 ## Code style
 
+Components and builder types are `#[must_use]`: always pass the built value
+on (`.child(..)`, return it from `render`, `.build()` a `ThemeBuilder`,
+`.push(cx)` a `Toast`); a dropped chain is an `unused_must_use` warning.
+
 Pinned GPUI notes: `f32::from(px)` for `Pixels`, no `select_none`, `on_click`
 and `.active()` need `.id()`, `svg()` never inherits text color, `Arc` for
 shared callbacks, `.into_any_element()` for branch unification. Theme tokens are

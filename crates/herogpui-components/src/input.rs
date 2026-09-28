@@ -1227,6 +1227,7 @@ struct InputFieldRenderState {
 }
 
 /// HeroUI Input.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct Input {
     /// See [`Input::content`]: v3's field children-as-a-function.
@@ -3019,6 +3020,7 @@ pub struct TextFieldRenderState {
 /// The composition-friendly field: a label, an [`Input`], and a description or
 /// validation message. `Input` is the bare control; `TextField` is the labelled
 /// wrapper most applications reach for.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct TextField {
     inner: Input,
@@ -3278,6 +3280,7 @@ pub struct SearchFieldRenderState {
 /// An [`Input`] specialised for search: a leading magnifier icon and a clear
 /// button that appears once there is a value. `onSubmit` fires on Enter and
 /// `onClear` when the value is cleared.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct SearchField {
     state: Entity<InputState>,

@@ -126,6 +126,7 @@ pub(super) fn color_area_thumb_motion(
 }
 
 /// ColorArea — a two-dimensional gradient for picking two channels at once.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct ColorArea {
     /// `defaultValue` — set it to hand this component its own state.

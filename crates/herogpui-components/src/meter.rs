@@ -12,6 +12,7 @@ use crate::progress::ProgressBar;
 
 /// HeroUI Meter. Supports `value` in `0..max` with
 /// optional label and fill color.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct Meter {
     id: gpui::ElementId,

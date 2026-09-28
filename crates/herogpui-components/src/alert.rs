@@ -15,6 +15,7 @@ use crate::icons;
 /// migration guide explicitly removes `isClosable`, `onClose` and
 /// `closeButtonProps`, so a close affordance is composed by the caller as an
 /// ordinary child (a `CloseButton`) instead of being built in.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct Alert {
     title: SharedString,

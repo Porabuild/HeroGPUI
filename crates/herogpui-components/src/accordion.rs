@@ -30,6 +30,7 @@ pub type AccordionItemExpandedChange =
     std::sync::Arc<dyn Fn(&bool, &mut Window, &mut App) + 'static>;
 
 /// One accordion entry.
+#[must_use = "builder methods return a new value; pass it on to its component"]
 pub struct AccordionItem {
     /// Unique key identifying the item.
     pub key: SharedString,
@@ -133,6 +134,7 @@ impl AccordionVariant {
 type OnToggle = std::sync::Arc<dyn Fn(&SharedString, &mut Window, &mut App) + 'static>;
 
 /// HeroUI Accordion (controlled).
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct Accordion {
     items: Vec<AccordionItem>,

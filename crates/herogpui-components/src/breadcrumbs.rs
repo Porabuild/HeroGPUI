@@ -25,6 +25,7 @@ pub enum BreadcrumbSeparator {
 }
 
 /// One breadcrumb item.
+#[must_use = "builder methods return a new value; pass the crumb to its breadcrumbs"]
 #[derive(Clone)]
 pub struct Crumb {
     /// Visible text of the item.
@@ -57,6 +58,7 @@ type OnNavigate =
 type SeparatorRender = std::sync::Arc<dyn Fn(usize) -> gpui::AnyElement + 'static>;
 
 /// HeroUI Breadcrumbs.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct Breadcrumbs {
     /// Instance identity for the keyed focus handles and link ids; without

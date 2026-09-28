@@ -429,6 +429,7 @@ pub struct DateFieldRenderState {
 /// v3's DateField: three editable segments (month / day / year), with the ISO
 /// text kept in the bound `InputState` so the form and `onChange` still see a
 /// plain date string.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct DateField {
     /// See [`DateField::content`].

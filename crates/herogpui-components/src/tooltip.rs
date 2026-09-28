@@ -262,6 +262,7 @@ impl TooltipTrigger {
 }
 
 /// HeroUI Tooltip: wraps a trigger and reveals a tip on hover.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct Tooltip {
     id: Option<ElementId>,

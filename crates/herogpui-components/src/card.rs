@@ -41,6 +41,7 @@ impl CardVariant {
 }
 
 /// HeroUI Card container.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct Card {
     variant: CardVariant,
@@ -148,6 +149,7 @@ impl RenderOnce for Card {
 }
 
 /// Card header section (`CardHeader`).
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct CardHeader {
     children: Vec<AnyElement>,
@@ -197,6 +199,7 @@ impl RenderOnce for CardHeader {
 }
 
 /// Card title (`CardTitle`, upstream `.card__title`).
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct CardTitle {
     children: Vec<AnyElement>,
@@ -250,6 +253,7 @@ impl RenderOnce for CardTitle {
 }
 
 /// Card description (`CardDescription`, upstream `.card__description`).
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct CardDescription {
     children: Vec<AnyElement>,
@@ -302,6 +306,7 @@ impl RenderOnce for CardDescription {
 }
 
 /// Content section (`CardContent`, upstream `.card__content`).
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct CardContent {
     children: Vec<AnyElement>,
@@ -356,6 +361,7 @@ impl RenderOnce for CardContent {
 }
 
 /// Card footer section (`CardFooter`).
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct CardFooter {
     children: Vec<AnyElement>,

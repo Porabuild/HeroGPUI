@@ -260,6 +260,7 @@ fn thumb_color_motion(
 }
 
 /// HeroUI Switch (`<Switch>`).
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct Switch {
     /// `value` — what this control submits when checked. HTML's default is
@@ -922,6 +923,7 @@ impl RenderOnce for Switch {
 /// that is `flex gap-4`, and the orientation modifier is what turns that inner
 /// row into a column. The outer gap is for the label and description a caller
 /// puts beside the items.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct SwitchGroup {
     orientation: herogpui_core::Orientation,

@@ -27,6 +27,7 @@ pub enum CloseButtonVariant {
 type OnPress = std::sync::Arc<dyn Fn(&ClickEvent, &mut Window, &mut App) + 'static>;
 
 /// HeroUI CloseButton.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct CloseButton {
     id: ElementId,

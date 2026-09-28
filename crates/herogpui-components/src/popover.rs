@@ -824,6 +824,7 @@ pub(crate) fn scrollable_submenu_popover(
 }
 
 /// HeroUI Popover (controlled).
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct Popover {
     /// Distinguishes this popover's uncontrolled state from its neighbours'.

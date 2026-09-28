@@ -29,6 +29,7 @@ pub struct ColorFieldRenderState {
 ///
 /// With no `channel` it edits the hex value; with one it edits that channel's
 /// numeric value.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct ColorField {
     /// See [`ColorField::content`].

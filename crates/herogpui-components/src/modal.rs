@@ -134,6 +134,7 @@ pub type OnClose = std::sync::Arc<dyn Fn(&DismissReason, &mut Window, &mut App) 
 pub type OnOpenChange = std::sync::Arc<dyn Fn(&bool, &mut Window, &mut App) + 'static>;
 
 /// HeroUI Modal (controlled).
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct Modal {
     /// Keys this dialog's own state; see [`Modal::id`].

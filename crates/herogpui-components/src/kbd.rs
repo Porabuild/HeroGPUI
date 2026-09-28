@@ -27,6 +27,7 @@ impl KbdVariant {
 }
 
 /// Keyboard key display (`<Kbd>`).
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct Kbd {
     variant: KbdVariant,

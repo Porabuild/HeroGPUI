@@ -380,6 +380,7 @@ impl From<IconName> for Icon {
 /// The icon is decorative and reports no accessibility node, as
 /// `lucide-react` marks its `<svg>` `aria-hidden` when it is given no label:
 /// name the control that holds it instead.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct Icon {
     path: SharedString,

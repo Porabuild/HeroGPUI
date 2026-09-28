@@ -91,6 +91,7 @@ pub trait ComponentStyle: Clone + Default {
 }
 
 /// Application-wide defaults plus named overlays for one component family.
+#[must_use = "builder methods return a new value; the original is unchanged"]
 #[derive(Clone, Debug)]
 #[non_exhaustive]
 pub struct ComponentTheme<T> {
@@ -145,6 +146,7 @@ impl<T: ComponentStyle> ComponentTheme<T> {
 macro_rules! component_style {
     ($(#[$meta:meta])* $name:ident { $($(#[$field_meta:meta])* $field:ident: $ty:ty),* $(,)? }) => {
         $(#[$meta])*
+        #[must_use = "builder methods return a new value; the original is unchanged"]
         #[derive(Clone, Debug, Default)]
         #[non_exhaustive]
         pub struct $name {
@@ -295,6 +297,7 @@ component_style! {
 
 /// Button recipes can combine semantic colors with a sparse GPUI root style.
 /// Instance `sx` is refined over this style; instance builders retain precedence.
+#[must_use = "builder methods return a new value; the original is unchanged"]
 #[derive(Clone, Debug, Default)]
 #[non_exhaustive]
 pub struct ButtonStyle {
@@ -429,6 +432,7 @@ impl ComponentStyle for ButtonStyle {
 }
 
 /// Typed theme-owned defaults. No entry changes stock behavior until configured.
+#[must_use = "builder methods return a new value; the original is unchanged"]
 #[derive(Clone, Debug, Default)]
 #[non_exhaustive]
 pub struct ComponentThemes {

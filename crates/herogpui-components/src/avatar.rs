@@ -92,6 +92,7 @@ impl AvatarVariant {
 }
 
 /// HeroUI Avatar: image or name-initials fallback.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct Avatar {
     /// The instance's element id, required at construction. The image

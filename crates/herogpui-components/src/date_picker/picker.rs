@@ -23,6 +23,7 @@ pub struct DatePickerRenderState {
 }
 
 /// HeroUI DatePicker (controlled open state; selection lives in the entity).
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct DatePicker {
     /// The locale whose calendar system the popover's grid is drawn in, when

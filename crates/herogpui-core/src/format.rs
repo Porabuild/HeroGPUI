@@ -49,6 +49,7 @@ pub enum UnitDisplay {
 }
 
 /// The `formatOptions` subset these components use.
+#[must_use = "builder methods return a new value; the original is unchanged"]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct NumberFormat {
     /// How the number is styled.

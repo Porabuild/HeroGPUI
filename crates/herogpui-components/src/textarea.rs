@@ -9,6 +9,7 @@ use crate::input::{Input, InputState};
 use gpui::{prelude::*, px, App, Entity, IntoElement, RenderOnce, SharedString, Styled, Window};
 
 /// Multi-line text field.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct TextArea {
     inner: Input,

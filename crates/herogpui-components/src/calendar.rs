@@ -435,6 +435,7 @@ pub struct CalendarCellState {
 }
 
 /// HeroUI Calendar, with controlled selection through the entity.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct Calendar {
     /// `value` — v3's controlled selection, stored for the first render only.

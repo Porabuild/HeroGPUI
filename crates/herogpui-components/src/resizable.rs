@@ -65,6 +65,7 @@ pub const RESIZABLE_HANDLE_SIZE: Pixels = px(8.);
 
 /// One panel of a [`ResizablePanelGroup`]. Sizes are percentages of the space
 /// the group's panels share.
+#[must_use = "builder methods return a new value; pass it on to its component"]
 pub struct ResizablePanel {
     default_size: Option<f32>,
     min_size: f32,
@@ -124,6 +125,7 @@ impl ParentElement for ResizablePanel {
 
 /// A row or column of [`ResizablePanel`]s with a drag handle between each
 /// pair. See the [module docs](self).
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct ResizablePanelGroup {
     id: ElementId,

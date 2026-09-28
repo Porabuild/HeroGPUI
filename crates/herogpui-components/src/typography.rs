@@ -156,6 +156,7 @@ pub enum ParagraphSize {
 }
 
 /// HeroUI Typography.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct Typography {
     kind: TypographyType,
@@ -329,6 +330,7 @@ impl RenderOnce for Typography {
 /// ported because GPUI has no ancestor context propagation; children must be
 /// already-semantic elements such as [`Typography`], which carry their own
 /// metrics.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct Prose {
     children: Vec<AnyElement>,

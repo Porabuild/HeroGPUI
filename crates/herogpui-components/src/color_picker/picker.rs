@@ -6,6 +6,7 @@ use super::*;
 // ---------------------------------------------------------------------------
 
 /// ColorPicker — a swatch trigger plus a full picking surface.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct ColorPicker {
     /// `defaultValue` — set it to hand this component its own state.

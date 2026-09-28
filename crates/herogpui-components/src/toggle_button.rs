@@ -35,6 +35,7 @@ struct ToggleGroupFocusState {
 }
 
 /// A button that toggles between selected and unselected.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct ToggleButton {
     id: ElementId,
@@ -584,6 +585,7 @@ impl RenderOnce for ToggleButton {
 // ---------------------------------------------------------------------------
 
 /// A group of toggle buttons that share selection.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct ToggleButtonGroup {
     id: ElementId,
@@ -1008,6 +1010,7 @@ impl RenderOnce for ToggleButtonGroup {
 }
 
 /// Separator element for ToggleButtonGroup — visual divider.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct ToggleSeparator;
 

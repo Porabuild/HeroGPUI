@@ -396,6 +396,7 @@ impl CheckboxSize {
 }
 
 /// HeroUI Checkbox.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct Checkbox {
     /// `value` — what this control submits when checked. HTML's default is
@@ -1122,6 +1123,7 @@ impl RenderOnce for Checkbox {
 // ---------------------------------------------------------------------------
 
 /// One option in a [`CheckboxGroup`].
+#[must_use = "builder methods return a new value; pass the option to its component"]
 #[derive(Clone)]
 pub struct CheckboxOption {
     key: gpui::SharedString,
@@ -1166,6 +1168,7 @@ type OnGroupChange =
 ///
 /// A set of checkboxes sharing a label, orientation, validation state and
 /// selected-value set.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct CheckboxGroup {
     /// `name` — the name this control submits under; read back by

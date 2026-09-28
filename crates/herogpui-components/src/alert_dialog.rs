@@ -151,6 +151,7 @@ fn icon_presentation(
 }
 
 /// HeroUI AlertDialog (controlled).
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct AlertDialog {
     /// Keys this dialog's own state; see [`AlertDialog::id`].

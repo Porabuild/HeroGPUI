@@ -77,6 +77,7 @@ impl BadgeVariant {
 /// inline-flex, so the wrapper hugs its content only inside a flex parent,
 /// and the ported `flex_shrink_0` keeps it from compressing in an overflowing
 /// row. The badge positions itself against this wrapper.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct BadgeAnchor {
     children: Vec<AnyElement>,
@@ -136,6 +137,7 @@ impl RenderOnce for BadgeAnchor {
 /// reproduce that auto-wrap: plain [`Badge`] children draw inside the badge
 /// without the label padding, and this explicit part is the seam that carries
 /// the pinned padding.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct BadgeLabel {
     children: Vec<AnyElement>,
@@ -188,6 +190,7 @@ impl RenderOnce for BadgeLabel {
 /// [`BadgeAnchor`]. Its [`ParentElement`] children are the badge's own
 /// content: text goes through [`BadgeLabel`], and a badge with no children
 /// renders as a dot — the dot is the omitted label, not a separate mode.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct Badge {
     color: Color,

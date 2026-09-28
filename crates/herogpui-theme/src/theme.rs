@@ -92,7 +92,9 @@ impl Theme {
     }
 }
 
-/// Builder for custom themes.
+/// Builder for custom themes. `#[must_use]`: a chain whose result is never
+/// built is an `unused_must_use` warning.
+#[must_use = "a ThemeBuilder does nothing until `build` is called"]
 pub struct ThemeBuilder {
     theme: Theme,
 }

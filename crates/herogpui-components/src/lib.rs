@@ -1,5 +1,26 @@
 //! HeroGPUI components — a faithful Rust/GPUI port of the HeroUI v3 component
 //! library. One module per `@heroui/*` package.
+//!
+//! Every component and builder type is `#[must_use]`: a builder that is built
+//! and then dropped renders nothing, so the compiler says so.
+//!
+//! ```compile_fail
+//! #![deny(unused_must_use)]
+//! # use herogpui_components::Button;
+//! # fn render() {
+//! Button::new("save").label("Save"); // dropped: `unused_must_use` fires
+//! # }
+//! ```
+//!
+//! The same statement, used:
+//!
+//! ```
+//! #![deny(unused_must_use)]
+//! # use herogpui_components::Button;
+//! # fn render() -> Button {
+//! Button::new("save").label("Save")
+//! # }
+//! ```
 #![allow(clippy::type_complexity)]
 // Every public item is documented; `clippy -D warnings` keeps it that way.
 #![warn(missing_docs)]

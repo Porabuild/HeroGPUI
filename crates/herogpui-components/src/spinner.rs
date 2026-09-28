@@ -74,6 +74,7 @@ impl From<herogpui_core::Size> for SpinnerSize {
 }
 
 /// A rotating arc spinner, animated on the GPU.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct Spinner {
     id: gpui::ElementId,

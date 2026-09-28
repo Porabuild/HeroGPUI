@@ -25,6 +25,7 @@ fn pagination_stacks_for_width(width: gpui::Pixels) -> bool {
 }
 
 /// HeroUI Pagination (controlled).
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct Pagination {
     /// `link` — v3's render prop for a page link, handed `isActive`.

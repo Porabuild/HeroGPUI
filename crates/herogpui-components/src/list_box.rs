@@ -32,6 +32,7 @@ pub enum ListBoxItemVariant {
 }
 
 /// One row of a [`ListBox`].
+#[must_use = "builder methods return a new value; pass the item to its component"]
 #[derive(Clone)]
 pub enum ListBoxItem {
     /// A selectable option.
@@ -213,6 +214,7 @@ fn shift_home_end_extends(key_name: &str, control: bool, macos: bool) -> bool {
 }
 
 /// HeroUI ListBox.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct ListBox {
     id: ElementId,

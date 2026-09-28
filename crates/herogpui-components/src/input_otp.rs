@@ -333,6 +333,7 @@ impl OtpTextAlign {
 }
 
 /// HeroUI InputOTP.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct InputOTP {
     /// `children` on `InputOTP.Slot` — v3's render prop, handed the slot's

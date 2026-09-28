@@ -9,6 +9,7 @@ use herogpui_theme::ActiveTheme;
 use crate::a11y::{self, A11y as _};
 
 /// One radio's visible label, submitted value, and local disabled state.
+#[must_use = "builder methods return a new value; pass the option to its component"]
 #[derive(Clone)]
 pub struct RadioOption {
     label: SharedString,
@@ -139,6 +140,7 @@ impl RadioSize {
 }
 
 /// HeroUI RadioGroup.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct RadioGroup {
     /// `name` — the name this control submits under; read back by

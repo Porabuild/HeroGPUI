@@ -73,6 +73,7 @@ impl AvatarGroupOverlap {
 /// `AvatarGroup.Count` (`.avatar-group__count`): an [`Avatar`] whose fallback
 /// is the count content, e.g. `+3`. Its own `size`/`color`/`variant` override
 /// the group's; it is never truncated by [`AvatarGroup::max`].
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct AvatarGroupCount {
     id: ElementId,
@@ -166,6 +167,7 @@ enum Member {
 
 /// HeroUI v3 `AvatarGroup`: a stacked or grid row of avatars with an
 /// overflow count.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct AvatarGroup {
     id: ElementId,

@@ -29,6 +29,7 @@ pub struct DisclosureRenderState {
 type DisclosureContent = std::sync::Arc<dyn Fn(DisclosureRenderState) -> AnyElement + 'static>;
 
 /// Single Disclosure — like an accordion with one item.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct Disclosure {
     id: ElementId,
@@ -208,6 +209,7 @@ impl RenderOnce for Disclosure {
 }
 
 /// Group of Disclosures — mirrors Accordion but with `Disclosure` naming.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct DisclosureGroup {
     id: ElementId,

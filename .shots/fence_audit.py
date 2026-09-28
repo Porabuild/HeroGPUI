@@ -65,9 +65,14 @@ NO_RUN = {}
 
 # (path, why the block is worth a whole-program link). rustdoc does check a
 # `compile_fail` block, but it can never fold one into the merged doctest
-# binary, so each is its own link of gpui. None today; the empty list is how
-# that stays deliberate.
-COMPILE_FAIL = {}
+# binary, so each is its own link of gpui. Keep this list short.
+COMPILE_FAIL = {
+    'crates/herogpui-components/src/lib.rs': (
+        'the one proof that `#[must_use]` on the component builders fires: a '
+        'dropped `Button` chain must fail under `deny(unused_must_use)`, beside '
+        'a passing twin that differs only by using the value'
+    ),
+}
 
 # (path, what the panic proves).
 SHOULD_PANIC = {}
@@ -398,13 +403,17 @@ def self_test():
                '`no_run` with an allowlist entry should be allowed')
         expect(classify('crates/y/src/b.rs', 'no_run')[1] == 'NO_RUN',
                'an allowlist entry must only cover its own file')
-        # ... and a stale entry fails rather than rots.
-        expect(stale_entries({'no_run': {'crates/x/src/a.rs'},
-                              'compile_fail': set(),
-                              'should_panic': set()}) == [],
+        # ... and a stale entry fails rather than rots. Only NO_RUN is
+        # probed: the repository's own entries in the other lists are live.
+        def no_run_stale(seen):
+            return [entry for entry in stale_entries(seen) if entry[0] == 'NO_RUN']
+
+        expect(no_run_stale({'no_run': {'crates/x/src/a.rs'},
+                             'compile_fail': set(),
+                             'should_panic': set()}) == [],
                'a live allowlist entry must not be reported stale')
-        stale = stale_entries({'no_run': set(), 'compile_fail': set(),
-                               'should_panic': set()})
+        stale = no_run_stale({'no_run': set(), 'compile_fail': set(),
+                              'should_panic': set()})
         expect([entry[2] for entry in stale] == ['crates/x/src/a.rs'],
                'an allowlist entry whose file no longer has a ```no_run '
                'example must be reported stale: %r' % (stale,))

@@ -76,6 +76,7 @@ fn sync_toolbar_scope(scope: &FocusHandle, window: &Window, cx: &mut App) -> boo
 }
 
 /// HeroUI Toolbar.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct Toolbar {
     id: Option<ElementId>,

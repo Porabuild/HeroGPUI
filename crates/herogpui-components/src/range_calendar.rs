@@ -27,6 +27,7 @@ type OnRangeChange = Arc<dyn Fn(&Date, &Date, &mut Window, &mut App) + 'static>;
 type RangeDateUnavailable = Arc<dyn Fn(Date, Option<Date>) -> bool + 'static>;
 
 /// HeroUI RangeCalendar.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct RangeCalendar {
     /// `value` — v3's controlled range, stored for the first render only.

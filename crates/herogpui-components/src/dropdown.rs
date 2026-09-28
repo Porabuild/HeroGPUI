@@ -171,6 +171,7 @@ type OnDismiss = std::rc::Rc<dyn Fn(&bool, &mut Window, &mut App) + 'static>;
 type PanelBounds = std::rc::Rc<std::cell::RefCell<Vec<Bounds<Pixels>>>>;
 
 /// A menu panel listing `MenuItem` rows.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct Menu {
     /// Set by `Dropdown` while the menu is playing its `[data-exiting]` run.
@@ -1852,6 +1853,7 @@ pub enum DropdownTrigger {
 
 /// Dropdown wrapper: trigger + floating menu panel (`Dropdown/DropdownTrigger/
 /// DropdownMenu` composition).
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct Dropdown {
     /// Keys this dropdown's own state; see [`Dropdown::id`].

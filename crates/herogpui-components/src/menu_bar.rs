@@ -55,6 +55,7 @@ type ActionCallback = Arc<dyn Fn(&SharedString, &SharedString, &mut Window, &mut
 type OpenCallback = Arc<dyn Fn(&Option<SharedString>, &mut Window, &mut App) + 'static>;
 
 /// One top-level item of a [`MenuBar`] and the menu it opens.
+#[must_use = "builder methods return a new value; pass it on to its component"]
 pub struct MenuBarMenu {
     key: SharedString,
     label: SharedString,
@@ -98,6 +99,7 @@ impl MenuBarMenu {
 }
 
 /// A horizontal bar of menus. See the [module docs](self).
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct MenuBar {
     id: gpui::ElementId,

@@ -362,6 +362,7 @@ pub enum KeyboardActivation {
 }
 
 /// One tab: key + label + panel content.
+#[must_use = "builder methods return a new value; pass it on to its component"]
 #[non_exhaustive]
 pub struct TabItem {
     /// Stable key identifying the tab.
@@ -544,6 +545,7 @@ impl TabsSize {
 }
 
 /// HeroUI Tabs (controlled).
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct Tabs {
     id: gpui::ElementId,

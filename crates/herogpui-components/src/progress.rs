@@ -103,6 +103,7 @@ fn progress_bar_motion(
 }
 
 /// Linear progress bar.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct ProgressBar {
     id: gpui::ElementId,
@@ -531,6 +532,7 @@ mod tests {
 }
 
 /// Circular progress ring (`ProgressCircle`).
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct ProgressCircle {
     value: f32,

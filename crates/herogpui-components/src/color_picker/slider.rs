@@ -133,6 +133,7 @@ pub(super) fn color_slider_thumb_transition_offset(
 }
 
 /// ColorSlider — adjusts a single channel along a gradient track.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct ColorSlider {
     /// `name` — the name this control submits under; read back by

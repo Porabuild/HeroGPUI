@@ -19,6 +19,7 @@ use crate::{
 
 /// A static, non-interactive segment of an [`InputGroup`] — the `$` before an
 /// amount, or a `.com` suffix.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct InputAddon {
     text: SharedString,
@@ -61,6 +62,7 @@ impl RenderOnce for InputAddon {
 }
 
 /// HeroUI InputGroup.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct InputGroup {
     variant: FieldVariant,

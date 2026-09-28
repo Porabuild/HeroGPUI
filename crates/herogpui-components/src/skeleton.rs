@@ -12,6 +12,7 @@ use gpui::{
 use herogpui_theme::{ActiveTheme, SkeletonAnimation};
 
 /// Loading placeholder (`Skeleton`).
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct Skeleton {
     id: ElementId,

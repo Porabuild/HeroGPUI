@@ -63,6 +63,7 @@ pub struct ColorSwatchPickerItemState {
 }
 
 /// ColorSwatchPicker — chooses from a predefined palette.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct ColorSwatchPicker {
     /// `defaultValue` — set it to hand this component its own state.

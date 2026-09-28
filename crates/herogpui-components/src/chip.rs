@@ -51,6 +51,7 @@ impl ChipVariant {
 /// auto-wraps plain-text children in the label part. This port makes that
 /// wrap explicit: compose a [`ChipLabel`] where v3's basic usage relies on
 /// it.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct Chip {
     variant: ChipVariant,
@@ -139,6 +140,7 @@ impl ParentElement for Chip {
 ///
 /// The `.chip__label` `px-0.5` lives here and nowhere else: a chip root's
 /// arbitrary icon or dot children take no label padding.
+#[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
 #[derive(IntoElement)]
 pub struct ChipLabel {
     children: Vec<AnyElement>,
