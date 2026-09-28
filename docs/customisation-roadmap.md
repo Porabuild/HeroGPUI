@@ -488,3 +488,45 @@ Deliberately not done, and next in this order:
    sync script, and adding an icon is a copied file plus one enum line. The
    gallery has no Icons page yet: the set is documented on the website's
    Icons guide and in `llms.txt`.
+
+## Remaining work after 0.12.0
+
+Status: reviewed on 2026-09-29, after the 0.12.0 release, against this
+document, the review reports (`tmp/review/*.md`: gallery-website,
+gpui-kit-comparison, heroui-3.2.6-upgrade, library-architecture) and the
+release run. Each item was re-checked in the tree; items the reports raise
+that 0.10.2–0.12.0 already closed are left out. Effort: S under a day, M one
+to five days, L over a week.
+
+| Pri | Item | Why it matters | Effort | Target |
+|---|---|---|---|---|
+| P1 | Release hygiene: `cargo semver-checks` in CI and the release, an MSRV (1.98) job, a `--no-default-features` job | Public-API breaks in a minor or patch release are caught by review only | S | 0.12.1 |
+| P1 | Stale CI and agent comments ("70 test binaries" in `ci.yml` and `rust-env`, now 110+; "Git GPUI is not registry-publishable" in `ci.yml`; "stable wasm32 build" in `docs/agents/workflow.md`) | Contradictory guidance misleads contributors and agents | S | 0.12.1 |
+| P1 | Website command palette a11y (`combobox`/`listbox`/`aria-activedescendant`) and search over API items | Keyboard selection is silent to screen readers; Rust users search by builder name | M | 0.12.1 |
+| P1 | Website SEO and links: canonical URLs, sitemap, robots, per-page OG metadata, docs.rs and source links on component pages | Discoverability and a path from the site to rustdoc | M | 0.12.1 |
+| P1 | Wasm cold load: `wasm-opt` pass and a lazily mounted hero embed | The ~19 MB artifact is the slowest thing on the site | S | 0.12.1 |
+| P1 | Cross-platform lint gate: port `.shots/lint.ps1` to bash (like `run-tests.sh`) and make `demo_audit` runnable offline | The documented gate cannot run on macOS or Linux without pwsh | M | 0.13 |
+| P2 | Remaining ~116 source-text assertions (overlay panels, fields, wiring) to painted-scene or behaviour tests | They pin source shape and block refactoring the large render functions | L | 0.13 |
+| P2 | VirtualList uniform mode for the fixed `row_height` paths of ListBox, Table and ComboBox (see item 2 above) | Removes the last `uniform_list` split without losing centred scrolling, paging or load-more | M | 0.13 |
+| P2 | TreeView: Shift range selection, virtualisation, `aria-posinset`/`aria-setsize` | Large trees build every visible row; set position is missing for assistive technology | M | 0.13 |
+| P2 | ResizablePanel: pixel min/max, collapsible panels, `on_resize_end` | The common split-pane needs beyond percentages | M | 0.13 |
+| P2 | Icon: `Sizable` steps, stroke width, a Lucide sync script, a gallery Icons page | The set cannot grow or be browsed without hand work | M | 0.13 |
+| P2 | Theme API safety: typed roles for `ThemeBuilder::role` (a typo silently recolours the accent); stop reading `HEROGPUI_REDUCE_MOTION` from the environment inside the library | Silent misconfiguration in a library API | S | 0.13 |
+| P2 | `#[must_use]` on builders (none today) and a `missing_docs` ratchet | A dropped builder does nothing, silently; public docs have gaps | S / M | 0.13 |
+| P2 | i18n: more locales, the hard-coded NumberField/ColorPicker/DateField strings, non-Latin web font subsets | Localisation is incomplete for real users | M | 0.13 |
+| P2 | Theme hot reload (`watch_dir`; `ThemeRegistry` has `load_dir` only) | Faster theming workflow | S–M | 0.13 |
+| P2 | Website hardening: CSP and `frame-ancestors`, remove the unused `web/public/shots/` images, PR preview deploys | Security headers and deploy size | M | 0.13 |
+| P3 | Stop committing the wasm artifact; build it in CI and publish it with the site | Repository weight grows ~19 MB per gallery change | L | 0.14 |
+| P3 | `Styled` on components (item 1 above), after the per-part ownership rules of Phase 0.1 | Largest API change and semver risk; needs part ownership first | L | 0.14 |
+| P3 | Split the largest `render` functions (`table.rs` and others), merge the 110+ test binaries into a few suites | Review cost and link time | L | 0.14 |
+| P3 | Customisation Phases 0.2–6 (theme tokens, field geometry, state colours, sizing, shape, typography) | The largest documented backlog; opt-in and unscheduled | L | 0.14+ |
+| P3 | Opt-in -O1/-O3 (`Cargo.toml` profile) test job on pull requests, by label or path filter | It is push-only by design, so an optimisation-level regression first shows on master or at tag time | S | 0.13 |
+| P3 | Extensions from the gpui-kit gap list: Sidebar, TitleBar, CommandPalette, HoverCard, Toolbar extras, data-table extras | Desktop-app demand outside HeroUI parity | L | later |
+| P3 | Keyboard ContextMenu anchored at the focused element | Needs GPUI to report focused-element bounds | S once upstream lands | later |
+| P3 | Upstream GPUI work: IME-mirror resync after paste, the retired patches, the `block` 0.1.6 future-incompatibility warning every macOS build prints; multithreaded wasm needs a COOP/COEP deployment | External dependencies | M each | later |
+
+Ordering: P1 is cheap, user-visible or process-critical and safe for a patch
+release; P2 is the 0.12.0 follow-ups and library-quality debt sized for one
+minor release; P3 is large, policy-gated or blocked upstream. The
+source-text-assertion work comes before the render-function split because it
+unblocks it, and `Styled` comes last because of its semver reach.
