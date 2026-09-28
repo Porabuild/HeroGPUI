@@ -275,6 +275,21 @@ fn flatten(
     }
 }
 
+/// The keys of `key`'s ancestors, nearest first, or `None` when `key` is
+/// not in the tree.
+fn ancestors_of(items: &[TreeItem], key: &SharedString) -> Option<Vec<SharedString>> {
+    for item in items {
+        if &item.key == key {
+            return Some(Vec::new());
+        }
+        if let Some(mut path) = ancestors_of(&item.children, key) {
+            path.push(item.key.clone());
+            return Some(path);
+        }
+    }
+    None
+}
+
 /// The selection after activating `key`: `ListBox`'s rule.
 fn toggled_selection(
     current: &HashSet<SharedString>,
@@ -405,6 +420,15 @@ impl RenderOnce for TreeView {
             self.default_expanded_keys.clone(),
         );
 
+        // A cursor row hidden under a collapsed ancestor (a controlled
+        // `expanded_keys` can collapse one without a key reaching the tree)
+        // moves to its nearest visible ancestor, where a Left collapse would
+        // have left it.
+        let cursor_ancestors = cursor
+            .read(cx)
+            .as_ref()
+            .and_then(|key| ancestors_of(&self.items, key))
+            .unwrap_or_default();
         let mut rows = Vec::new();
         flatten(
             self.items,
@@ -423,15 +447,26 @@ impl RenderOnce for TreeView {
             .collect();
 
         // The cursor is a key, so it survives rows opening and closing above
-        // it. One that is no longer a visible stop falls back, on focus, to
-        // the first selected row and then the first row, as React Aria enters
-        // a collection.
+        // it. One hidden by a collapsed ancestor moves to the nearest visible
+        // ancestor; one that is otherwise no longer a visible stop falls
+        // back, on focus, to the first selected row and then the first row,
+        // as React Aria enters a collection.
         let has_focus = focus_handle.is_focused(window);
         let held = cursor
             .read(cx)
             .as_ref()
             .and_then(|key| rows.iter().position(|row| &row.key == key))
-            .filter(|ix| stops.contains(ix));
+            .filter(|ix| stops.contains(ix))
+            .or_else(|| {
+                let ancestor = cursor_ancestors.iter().find_map(|key| {
+                    rows.iter()
+                        .position(|row| &row.key == key)
+                        .filter(|ix| stops.contains(ix))
+                })?;
+                let key = rows[ancestor].key.clone();
+                cursor.update(cx, |value, _| *value = Some(key));
+                Some(ancestor)
+            });
         let cursor_at = held.or_else(|| {
             has_focus
                 .then(|| {
@@ -705,6 +740,7 @@ impl RenderOnce for TreeView {
                 let press_rows = rows.clone();
                 el = el.on_click(move |_, window, cx| {
                     let row = &press_rows[ix];
+                    util::set_focus_visible(false, cx);
                     press.set_cursor(&row.key, cx);
                     press.activate(row, window, cx);
                 });

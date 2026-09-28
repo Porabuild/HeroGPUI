@@ -234,8 +234,17 @@ impl RenderOnce for MenuBar {
             );
         }
         let enabled: Vec<bool> = self.menus.iter().map(|m| !m.is_disabled).collect();
-        // A menu that went away or became disabled closes.
-        let open_ix = (*open.read(cx)).filter(|&ix| enabled.get(ix).copied().unwrap_or(false));
+        // A menu that went away or became disabled closes: the stored state
+        // forgets it too (so hover and Left/Right rove instead of reopening),
+        // and the caller hears about it after this render.
+        let stored_open = *open.read(cx);
+        let open_ix = stored_open.filter(|&ix| enabled.get(ix).copied().unwrap_or(false));
+        if stored_open.is_some() && open_ix.is_none() {
+            open.update(cx, |v, _| *v = None);
+            if let Some(cb) = self.on_open_change.clone() {
+                window.defer(cx, move |window, cx| cb(&None, window, cx));
+            }
+        }
         let active_ix = {
             let at = *active.read(cx);
             if enabled.get(at).copied().unwrap_or(false) {
@@ -330,12 +339,15 @@ impl RenderOnce for MenuBar {
                     .when(focused && focus_visible, |t| {
                         t.child(crate::util::focus_ring_overlay(radius, false, cx))
                     });
+                // Only a closed trigger sees its press: while its menu is
+                // open, the press lands outside the menu panel, whose
+                // capture-phase outside-press dismissal closes the menu and
+                // stops the event before it reaches this listener.
                 let press = state.clone();
                 trigger = trigger.on_mouse_down(MouseButton::Left, move |_, window, cx| {
                     crate::util::set_focus_visible(false, cx);
                     press.focus_trigger(ix, window, cx);
-                    let next = if is_open { None } else { Some(ix) };
-                    press.set_open(next, false, window, cx);
+                    press.set_open(Some(ix), false, window, cx);
                     cx.stop_propagation();
                 });
                 let hover = state.clone();

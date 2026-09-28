@@ -8,7 +8,7 @@ version covers `herogpui`, `herogpui-core`, `herogpui-theme`,
 
 ## [Unreleased]
 
-## [0.12.0] - 2026-09-23
+## [0.12.0] - 2026-09-28
 
 ### Added
 
@@ -50,7 +50,10 @@ version covers `herogpui`, `herogpui-core`, `herogpui-theme`,
   one (16px in the theme foreground by default); `Icon::from_path` draws any
   other served SVG. The `icons` chrome constants are unchanged. Lucide's
   ISC license (with the Feather MIT notice) ships beside the SVGs and is
-  attributed in `NOTICE`.
+  attributed in `NOTICE`; `herogpui-components` therefore declares
+  `license = "Apache-2.0 AND ISC AND MIT"`, the GitHub Release attaches the
+  text as `LICENSE-lucide`, and the website serves it as
+  `/LICENSE-lucide.txt`.
 - Gallery: a theme picker in the navbar switches live between the light and
   dark bases and every built-in preset (`ocean`, `forest`, `midnight`,
   `rose`), natively and in the web build. A control request's `theme=` now

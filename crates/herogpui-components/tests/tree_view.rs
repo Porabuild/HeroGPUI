@@ -7,7 +7,10 @@ mod harness;
 
 use std::collections::HashSet;
 
-use gpui::{prelude::*, px, Modifiers, SharedString, TestAppContext, VisualTestContext};
+use gpui::{
+    prelude::*, px, Context, Modifiers, Render, SharedString, TestAppContext, VisualTestContext,
+    Window,
+};
 use harness::{events, open_host, press, Events};
 use herogpui_components::{SelectionMode, TreeItem, TreeView};
 
@@ -248,4 +251,66 @@ fn controlled_expansion_reports_without_expanding(cx: &mut TestAppContext) {
     keys(cx, &["right"]);
     assert!(row(cx, "guide").is_none());
     assert_eq!(log(&seen), ["exp:docs", "exp:docs"]);
+}
+
+#[gpui::test]
+fn collapsing_an_ancestor_moves_the_cursor_to_the_nearest_visible_one(cx: &mut TestAppContext) {
+    let open = std::rc::Rc::new(std::cell::RefCell::new(vec![
+        SharedString::from("docs"),
+        SharedString::from("api"),
+    ]));
+    let o = open.clone();
+    let seen = events();
+    let s = seen.clone();
+    let cx = open_host(cx, move || {
+        let sel = s.clone();
+        gpui::div()
+            .w(px(300.))
+            .child(
+                TreeView::new("tree", items())
+                    .selection_mode(SelectionMode::Single)
+                    .expanded_keys(o.borrow().clone())
+                    .on_selection_change(move |keys, _, _| {
+                        sel.borrow_mut().push(format!("sel:{}", sorted(keys)));
+                    }),
+            )
+            .into_any_element()
+    });
+    frame(cx);
+    // Rows: docs, guide, api, v1, ... -- the cursor walks down to Version 1.
+    keys(cx, &["tab", "down", "down", "down"]);
+    // The caller collapses API (its parent), not Docs.
+    open.borrow_mut().retain(|key| key.as_ref() != "api");
+    frame(cx);
+    keys(cx, &["enter"]);
+    assert_eq!(log(&seen), ["sel:api"]);
+}
+
+/// A bare tree with no `app_focus_root` around it: that root clears the
+/// ring on every pointer press, which would hide whether the row does.
+struct BareTree;
+
+impl Render for BareTree {
+    fn render(&mut self, _: &mut Window, _: &mut Context<'_, Self>) -> impl IntoElement {
+        gpui::div()
+            .w(px(300.))
+            .child(TreeView::new("tree", items()).selection_mode(SelectionMode::Single))
+    }
+}
+
+#[gpui::test]
+fn a_row_press_after_keyboard_use_hides_the_focus_ring(cx: &mut TestAppContext) {
+    cx.update(herogpui_theme::ThemeProvider::init);
+    let (_view, cx) = cx.add_window_view(|_, _| BareTree);
+    frame(cx);
+    let visible = |cx: &mut VisualTestContext| {
+        cx.update(|_, cx| herogpui_components::extend::focus_visible(cx))
+    };
+    // As the chevron does, a row press leaves keyboard modality.
+    cx.update(|_, cx| herogpui_components::extend::set_focus_visible(true, cx));
+    click(cx, "tree-toggle-docs");
+    assert!(!visible(cx), "the chevron press hides the ring");
+    cx.update(|_, cx| herogpui_components::extend::set_focus_visible(true, cx));
+    click(cx, "tree-row-readme");
+    assert!(!visible(cx), "a row press hides the ring");
 }

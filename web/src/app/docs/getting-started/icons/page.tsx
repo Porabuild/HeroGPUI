@@ -22,7 +22,7 @@ const FALLBACK = `application()
     .run(|cx| { /* both icon sets resolve */ });`;
 
 const DRAW = `use herogpui::prelude::{icons, ActiveTheme};
-use gpui::{px, svg};
+use herogpui::{px, svg};
 
 svg()
     .size(px(16.))
@@ -30,6 +30,7 @@ svg()
     .text_color(cx.colors().foreground)`;
 
 const LUCIDE = `use herogpui::prelude::*;
+use herogpui::px;
 
 // 16px in the theme foreground unless told otherwise.
 Icon::new(IconName::Search)

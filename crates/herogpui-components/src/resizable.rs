@@ -6,6 +6,8 @@
 //! default) or stacked ([`Orientation::Vertical`]). Sizes are **percentages
 //! of the space the panels share** (the group's length minus its handles),
 //! so a layout survives a window resize unchanged; they always sum to 100.
+//! Sizes that do not (defaults or controlled) are scaled to 100, or split
+//! evenly when they sum to zero, and then moved inside the panels' limits.
 //!
 //! - **Pointer.** Pressing a handle focuses it and starts a drag. The drag
 //!   captures the pointer (`Window::capture_pointer`, re-taken every frame
@@ -169,8 +171,10 @@ impl ResizablePanelGroup {
 
     /// Controlled sizes in percent, one per panel. The group then reports
     /// every resize through [`Self::on_resize`] and renders only what it is
-    /// given. A list whose length does not match the panels is ignored in
-    /// favour of the defaults.
+    /// given, normalized as the defaults are: scaled to sum to 100 (split
+    /// evenly when they sum to zero; negative or non-finite entries count as
+    /// zero) and moved inside the panels' limits. A list whose length does not
+    /// match the panels is ignored in favour of the defaults.
     pub fn sizes(mut self, sizes: impl IntoIterator<Item = f32>) -> Self {
         self.sizes = Some(sizes.into_iter().collect());
         self
@@ -199,26 +203,76 @@ impl ResizablePanelGroup {
 }
 
 /// The sizes the panels start at: explicit defaults, the rest shared evenly,
-/// scaled to 100 when the defaults do not add up.
+/// then [normalized](normalize) to 100 and the panels' limits.
 fn default_sizes(panels: &[ResizablePanel]) -> Vec<f32> {
-    let fixed: f32 = panels.iter().filter_map(|p| p.default_size).sum();
+    let fixed: f32 = panels
+        .iter()
+        .filter_map(|p| p.default_size)
+        .filter(|size| size.is_finite())
+        .sum();
     let free = panels.iter().filter(|p| p.default_size.is_none()).count();
     let share = if free > 0 {
         (100. - fixed).max(0.) / free as f32
     } else {
         0.
     };
-    let mut sizes: Vec<f32> = panels
+    let sizes: Vec<f32> = panels
         .iter()
         .map(|p| p.default_size.unwrap_or(share))
         .collect();
-    let total: f32 = sizes.iter().sum();
-    if total > 0. && (total - 100.).abs() > 0.001 {
-        for size in &mut sizes {
+    let limits: Vec<(f32, f32)> = panels.iter().map(ResizablePanel::limits).collect();
+    normalize(&sizes, &limits)
+}
+
+/// `sizes` scaled to sum to 100 (an even split when they sum to zero;
+/// negative and non-finite entries count as zero), then moved inside
+/// `limits` with the sum kept at 100: every panel is clamped to its own
+/// range and the difference is shared among the panels with room left, in
+/// proportion to that room. Limits no layout can satisfy (minimums over
+/// 100 or maximums under it) leave the scaled sizes unclamped.
+fn normalize(sizes: &[f32], limits: &[(f32, f32)]) -> Vec<f32> {
+    let n = sizes.len();
+    if n == 0 {
+        return Vec::new();
+    }
+    let mut out: Vec<f32> = sizes
+        .iter()
+        .map(|&v| if v.is_finite() && v > 0. { v } else { 0. })
+        .collect();
+    let total: f32 = out.iter().sum();
+    if !total.is_finite() || total <= 0. {
+        out = vec![100. / n as f32; n];
+    } else if (total - 100.).abs() > 0.001 {
+        for size in &mut out {
             *size *= 100. / total;
         }
     }
-    sizes
+    if limits.len() != n {
+        return out;
+    }
+    let min_total: f32 = limits.iter().map(|l| l.0).sum();
+    let max_total: f32 = limits.iter().map(|l| l.1).sum();
+    if min_total > 100. + 0.001 || max_total < 100. - 0.001 {
+        return out;
+    }
+    for (size, &(min, max)) in out.iter_mut().zip(limits) {
+        *size = size.clamp(min, max);
+    }
+    let diff = 100. - out.iter().sum::<f32>();
+    if diff.abs() > 0.0001 {
+        let room: Vec<f32> = out
+            .iter()
+            .zip(limits)
+            .map(|(&size, &(min, max))| if diff > 0. { max - size } else { size - min })
+            .collect();
+        let total_room: f32 = room.iter().sum();
+        if total_room > 0. {
+            for (size, room) in out.iter_mut().zip(room) {
+                *size += diff * room / total_room;
+            }
+        }
+    }
+    out
 }
 
 /// The range the panel before handle `handle` may take while the pair keeps
@@ -249,12 +303,16 @@ fn resize_pair(sizes: &[f32], handle: usize, target: f32, limits: &[(f32, f32)])
 
 /// A drag in progress: which handle, the pointer's axis coordinate at the
 /// press, and the sizes then. Every move resizes from the press, so the
-/// result does not drift with the number of move events.
+/// result does not drift with the number of move events. `last` is what the
+/// drag last committed (the press-time sizes before the first move): several
+/// moves can arrive between two frames, so a controlled group compares each
+/// move with it rather than with the sizes the frame rendered.
 #[derive(Clone)]
 struct Drag {
     handle: usize,
     origin: f32,
     start: Vec<f32>,
+    last: Vec<f32>,
 }
 
 /// What the event closures share.
@@ -268,15 +326,16 @@ struct GroupState {
 
 impl GroupState {
     /// Commits `next` when it differs from `now`: the uncontrolled store
-    /// takes it, and the caller hears about it either way.
-    fn apply(&self, now: &[f32], next: Vec<f32>, window: &mut Window, cx: &mut App) {
+    /// takes it, and the caller hears about it either way. Returns whether
+    /// it committed.
+    fn apply(&self, now: &[f32], next: Vec<f32>, window: &mut Window, cx: &mut App) -> bool {
         if next.len() != now.len()
             || next
                 .iter()
                 .zip(now)
                 .all(|(a, b)| (a - b).abs() <= f32::EPSILON)
         {
-            return;
+            return false;
         }
         if !self.controlled {
             self.store.update(cx, |sizes, cx| {
@@ -287,6 +346,7 @@ impl GroupState {
         if let Some(cb) = &self.on_resize {
             cb(&next, window, cx);
         }
+        true
     }
 }
 
@@ -315,12 +375,30 @@ impl RenderOnce for ResizablePanelGroup {
         if store.read(cx).len() != count {
             store.update(cx, |sizes, _| sizes.clone_from(&defaults));
         }
+        let controlled = self.sizes.as_ref().is_some_and(|s| s.len() == count);
         let sizes: Vec<f32> = match &self.sizes {
-            Some(sizes) if sizes.len() == count => sizes.clone(),
-            _ => store.read(cx).clone(),
+            Some(sizes) if controlled => normalize(sizes, &limits),
+            _ => {
+                // Limits can change between renders; keep the store inside
+                // them so the handles' ranges always contain their values.
+                let stored = store.read(cx).clone();
+                let normal = normalize(&stored, &limits);
+                if normal != stored {
+                    store.update(cx, |sizes, _| sizes.clone_from(&normal));
+                }
+                normal
+            }
         };
         let drag =
             window.use_keyed_state(element_id::scoped(&base, "drag"), cx, |_, _| None::<Drag>);
+        // Panels removed mid-drag can take the dragged handle with them.
+        if drag
+            .read(cx)
+            .as_ref()
+            .is_some_and(|d| d.handle + 1 >= count || d.start.len() != count)
+        {
+            drag.update(cx, |value, _| *value = None);
+        }
         let group_bounds = window
             .use_keyed_state(element_id::scoped(&base, "bounds"), cx, |_, _| {
                 Rc::new(Cell::new(None::<Bounds<Pixels>>))
@@ -343,7 +421,7 @@ impl RenderOnce for ResizablePanelGroup {
 
         let state = GroupState {
             store,
-            controlled: self.sizes.as_ref().is_some_and(|s| s.len() == count),
+            controlled,
             limits: limits.clone(),
             on_resize: self.on_resize.clone(),
         };
@@ -485,6 +563,7 @@ impl RenderOnce for ResizablePanelGroup {
                             handle: ix,
                             origin: axis(event.position),
                             start: press_sizes.clone(),
+                            last: press_sizes.clone(),
                         });
                         cx.notify();
                     });
@@ -534,7 +613,6 @@ impl RenderOnce for ResizablePanelGroup {
             let move_drag = drag.clone();
             let up_drag = drag;
             let move_state = state;
-            let now = sizes;
             root = root.child(
                 gpui::canvas(
                     move |bounds, _, _| probe.set(Some(bounds)),
@@ -542,7 +620,6 @@ impl RenderOnce for ResizablePanelGroup {
                         let bounds = group_bounds.clone();
                         let held = move_drag.clone();
                         let state = move_state.clone();
-                        let now = now.clone();
                         window.on_mouse_event(
                             move |event: &gpui::MouseMoveEvent, phase, window, cx| {
                                 if phase != gpui::DispatchPhase::Capture {
@@ -554,6 +631,18 @@ impl RenderOnce for ResizablePanelGroup {
                                 if event.pressed_button != Some(MouseButton::Left) {
                                     // The release happened where no listener
                                     // saw it (outside the window).
+                                    held.update(cx, |value, cx| {
+                                        *value = None;
+                                        cx.notify();
+                                    });
+                                    return;
+                                }
+                                // The panels changed under the drag (see
+                                // render): a handle that no longer exists
+                                // ends it.
+                                if drag.handle + 1 >= state.limits.len()
+                                    || drag.start.len() != state.limits.len()
+                                {
                                     held.update(cx, |value, cx| {
                                         *value = None;
                                         cx.notify();
@@ -576,7 +665,23 @@ impl RenderOnce for ResizablePanelGroup {
                                 let target = drag.start[drag.handle] + delta;
                                 let next =
                                     resize_pair(&drag.start, drag.handle, target, &state.limits);
-                                state.apply(&now, next, window, cx);
+                                // Compare with what is current now, not with
+                                // what the last frame rendered: several moves
+                                // can land between two frames. The store is
+                                // current for an uncontrolled group; a
+                                // controlled one has only what it reported.
+                                let now = if state.controlled {
+                                    drag.last
+                                } else {
+                                    state.store.read(cx).clone()
+                                };
+                                if state.apply(&now, next.clone(), window, cx) {
+                                    held.update(cx, |value, _| {
+                                        if let Some(value) = value {
+                                            value.last = next;
+                                        }
+                                    });
+                                }
                             },
                         );
                         let held = up_drag.clone();
@@ -643,6 +748,25 @@ mod tests {
         assert_eq!(resize_pair(&sizes, 0, -5., &limits), vec![10., 70., 20.]);
         // Only the pair moves.
         assert_eq!(resize_pair(&sizes, 1, 50., &limits), vec![40., 50., 10.]);
+    }
+
+    #[test]
+    fn normalize_scales_splits_and_clamps() {
+        let free = [(0., 100.), (0., 100.)];
+        assert_eq!(normalize(&[1., 3.], &free), vec![25., 75.]);
+        assert_eq!(normalize(&[0., 0.], &free), vec![50., 50.]);
+        assert_eq!(normalize(&[f32::NAN, -5.], &free), vec![50., 50.]);
+        assert_eq!(normalize(&[f32::INFINITY, 1.], &free), vec![0., 100.]);
+        // Below a minimum: raised to it, the others give up the difference
+        // in proportion to their room.
+        let limits = [(20., 100.), (0., 100.), (0., 100.)];
+        assert_eq!(normalize(&[10., 45., 45.], &limits), vec![20., 40., 40.]);
+        // Over a maximum: the others take the excess.
+        let capped = [(0., 50.), (0., 100.)];
+        assert_eq!(normalize(&[80., 20.], &capped), vec![50., 50.]);
+        // Unsatisfiable limits leave the scaled sizes alone.
+        let impossible = [(70., 100.), (70., 100.)];
+        assert_eq!(normalize(&[50., 50.], &impossible), vec![50., 50.]);
     }
 
     #[test]

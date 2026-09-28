@@ -97,6 +97,9 @@ fn a_press_opens_below_the_trigger_and_again_closes(cx: &mut TestAppContext) {
         "start-aligned to its trigger"
     );
     assert!(bounds.origin.y >= edit.bottom(), "below its trigger");
+    // The open trigger is outside the menu panel, so pressing it is the
+    // panel's outside press: that dismissal closes the menu and stops the
+    // press, which never reaches the trigger to reopen it.
     click_trigger(cx, "edit");
     assert!(panel(cx).is_none(), "pressing the open trigger closes it");
     assert_eq!(log(&seen), ["open:edit", "open:none"]);
@@ -209,4 +212,52 @@ fn escape_and_an_outside_press_close(cx: &mut TestAppContext) {
         log(&seen),
         ["open:file", "open:none", "open:file", "open:none"]
     );
+}
+
+#[gpui::test]
+fn an_open_menu_that_becomes_disabled_closes_the_bar(cx: &mut TestAppContext) {
+    still();
+    let seen = events();
+    let s = seen.clone();
+    let edit_disabled = std::rc::Rc::new(std::cell::Cell::new(false));
+    let d = edit_disabled.clone();
+    let cx = open_host(cx, move || {
+        let o = s.clone();
+        gpui::div()
+            .p(px(40.))
+            .child(
+                MenuBar::new(
+                    "bar",
+                    vec![
+                        MenuBarMenu::new("file", "File", vec![MenuItem::new("new", "New")]),
+                        MenuBarMenu::new("edit", "Edit", vec![MenuItem::new("undo", "Undo")])
+                            .is_disabled(d.get()),
+                        MenuBarMenu::new("view", "View", vec![MenuItem::new("zoom", "Zoom")]),
+                    ],
+                )
+                .on_open_change(move |open, _, _| {
+                    o.borrow_mut().push(format!(
+                        "open:{}",
+                        open.as_ref().map_or("none", |k| k.as_ref())
+                    ));
+                }),
+            )
+            .into_any_element()
+    });
+    frame(cx);
+    click_trigger(cx, "edit");
+    assert!(panel(cx).is_some());
+    edit_disabled.set(true);
+    // One frame sees the change and starts the exit motion; the next one
+    // lets its timer run out.
+    frame(cx);
+    frame(cx);
+    assert!(panel(cx).is_none());
+    assert_eq!(log(&seen), ["open:edit", "open:none"]);
+    // The bar is closed for real: hovering another trigger opens nothing.
+    let view = trigger(cx, "view").center();
+    cx.simulate_mouse_move(view, None, Modifiers::none());
+    frame(cx);
+    assert!(panel(cx).is_none(), "hover does not reopen a closed bar");
+    assert_eq!(log(&seen), ["open:edit", "open:none"]);
 }

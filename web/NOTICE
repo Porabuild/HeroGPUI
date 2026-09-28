@@ -16,4 +16,6 @@ The gallery WebAssembly artifact embeds icons from Lucide
 2026 Lucide Icons and Contributors, licensed under the ISC License; the icons
 derived from Feather are Copyright (c) 2013-present Cole Bemis, licensed under
 the MIT License. The full text is in
-`crates/herogpui-components/assets/lucide/LICENSE`.
+`crates/herogpui-components/assets/lucide/LICENSE`, and the site serves a
+byte-identical copy as `/LICENSE-lucide.txt` (`web/public/LICENSE-lucide.txt`)
+so the deployed gallery carries it too.

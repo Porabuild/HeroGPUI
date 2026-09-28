@@ -129,9 +129,13 @@ jobs:
         with:
           name: release-bundle
           path: release
+      # The gallery binaries embed the Lucide icons, so their ISC/MIT license
+      # ships beside Apache-2.0 and NOTICE, renamed so it cannot collide
+      # with the root LICENSE asset.
+      - run: cp crates/herogpui-components/assets/lucide/LICENSE LICENSE-lucide
       - env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" release/* LICENSE NOTICE --verify-tag --generate-notes --title "$GITHUB_REF_NAME"
+        run: gh release create "$GITHUB_REF_NAME" release/* LICENSE NOTICE LICENSE-lucide --verify-tag --generate-notes --title "$GITHUB_REF_NAME"
 
   publish-crates:
     # crates.io publish over OIDC trusted publishing: no registry secret is

@@ -1,5 +1,5 @@
 //! `ResizablePanelGroup` (HeroGPUI extension): panels share the group's
-//! length by percentage; a handle drag (with pointer capture) or the arrow,
+//! length by percentage; a handle drag (holding the pointer capture) or the arrow,
 //! Home and End keys on a focused handle resize the two panels beside it
 //! within their limits, controlled or uncontrolled.
 
@@ -129,6 +129,13 @@ fn a_drag_resizes_the_pair_clamps_and_outlives_the_handle(cx: &mut TestAppContex
     cx.simulate_mouse_move(far, Some(MouseButton::Left), Modifiers::none());
     frame(cx);
     assert_eq!(lengths(cx, false), [225., 125., 150.]);
+    // The resize itself comes from window-level move listeners; what the
+    // capture adds is that the handle's hitbox owns the pointer (and so its
+    // resize cursor) off the group too.
+    assert!(
+        cx.update(|window, _| window.captured_hitbox().is_some()),
+        "the drag holds the pointer capture outside the group"
+    );
     // And back below the first panel's 20% minimum.
     let back = point(px(-50.), start.y);
     cx.simulate_mouse_move(back, Some(MouseButton::Left), Modifiers::none());
@@ -136,6 +143,10 @@ fn a_drag_resizes_the_pair_clamps_and_outlives_the_handle(cx: &mut TestAppContex
     assert_eq!(lengths(cx, false), [100., 250., 150.]);
     cx.simulate_mouse_up(back, MouseButton::Left, Modifiers::none());
     frame(cx);
+    assert!(
+        cx.update(|window, _| window.captured_hitbox().is_none()),
+        "the release gives the pointer back"
+    );
     // Released: moving no longer resizes.
     cx.simulate_mouse_move(step, None, Modifiers::none());
     frame(cx);
@@ -240,4 +251,174 @@ fn a_disabled_group_neither_drags_nor_takes_focus(cx: &mut TestAppContext) {
     frame(cx);
     assert!(log(&seen).is_empty());
     assert_eq!(lengths(cx, false), [150., 200., 150.]);
+}
+
+/// A 516x200 host around whatever group `build` returns, logging every
+/// resize. `build` runs on every render.
+fn custom_host(
+    cx: &mut TestAppContext,
+    build: impl Fn() -> ResizablePanelGroup + 'static,
+) -> (Events, &mut VisualTestContext) {
+    let seen = events();
+    let s = seen.clone();
+    let cx = open_host(cx, move || {
+        let s = s.clone();
+        gpui::div()
+            .w(px(WIDTH))
+            .h(px(HEIGHT))
+            .child(build().on_resize(move |sizes, _, _| {
+                let text: Vec<String> = sizes.iter().map(|v| format!("{v:.0}")).collect();
+                s.borrow_mut().push(text.join(","));
+            }))
+            .into_any_element()
+    });
+    (seen, cx)
+}
+
+fn three_panels() -> Vec<ResizablePanel> {
+    vec![
+        ResizablePanel::new().min_size(20.).max_size(60.),
+        ResizablePanel::new().min_size(25.),
+        ResizablePanel::new(),
+    ]
+}
+
+#[gpui::test]
+fn moves_between_frames_compare_with_the_current_sizes(cx: &mut TestAppContext) {
+    let (seen, cx) = host(cx, Config::default());
+    frame(cx);
+    let start = bounds(cx, "split-handle-0").center();
+    cx.simulate_mouse_down(start, MouseButton::Left, Modifiers::none());
+    frame(cx);
+    // To the first panel's 20% minimum, and a frame renders it.
+    let low = point(start.x - px(100.), start.y);
+    cx.simulate_mouse_move(low, Some(MouseButton::Left), Modifiers::none());
+    frame(cx);
+    // Two moves in one dispatch, before any frame: out to 30% and back past
+    // the minimum, which clamps to the 20% the last frame rendered.
+    let mid = point(start.x, start.y);
+    cx.update(|window, cx| {
+        for position in [mid, low] {
+            window.dispatch_event(
+                gpui::PlatformInput::MouseMove(gpui::MouseMoveEvent {
+                    position,
+                    pressed_button: Some(MouseButton::Left),
+                    modifiers: Modifiers::none(),
+                }),
+                cx,
+            );
+        }
+    });
+    frame(cx);
+    assert_eq!(lengths(cx, false), [100., 250., 150.], "not left at 30%");
+    cx.simulate_mouse_up(low, MouseButton::Left, Modifiers::none());
+    frame(cx);
+    assert_eq!(log(&seen), ["20,50,30", "30,40,30", "20,50,30"]);
+}
+
+#[gpui::test]
+fn a_controlled_drag_reports_each_change_once(cx: &mut TestAppContext) {
+    let config = Config {
+        controlled: true,
+        ..Config::default()
+    };
+    let (seen, cx) = host(cx, config);
+    frame(cx);
+    let start = bounds(cx, "split-handle-0").center();
+    cx.simulate_mouse_down(start, MouseButton::Left, Modifiers::none());
+    frame(cx);
+    let step = point(start.x + px(50.), start.y);
+    cx.simulate_mouse_move(step, Some(MouseButton::Left), Modifiers::none());
+    frame(cx);
+    // The same position again reports nothing new; back to the start
+    // reports the start, though the controlled sizes never moved from it.
+    cx.simulate_mouse_move(step, Some(MouseButton::Left), Modifiers::none());
+    frame(cx);
+    cx.simulate_mouse_move(start, Some(MouseButton::Left), Modifiers::none());
+    frame(cx);
+    cx.simulate_mouse_up(start, MouseButton::Left, Modifiers::none());
+    frame(cx);
+    assert_eq!(log(&seen), ["40,30,30", "30,40,30"]);
+}
+
+#[gpui::test]
+fn default_sizes_start_inside_the_panels_limits(cx: &mut TestAppContext) {
+    let (seen, cx) = custom_host(cx, || {
+        ResizablePanelGroup::new("split").panels(vec![
+            ResizablePanel::new()
+                .default_size(10.)
+                .min_size(20.)
+                .child(gpui::div().child("One")),
+            ResizablePanel::new()
+                .default_size(90.)
+                .child(gpui::div().child("Two")),
+        ])
+    });
+    frame(cx);
+    let first = f32::from(bounds(cx, "split-panel-0").size.width).round();
+    // 20% of the 508px the two panels share.
+    assert!((first - 102.).abs() < 0.5, "{first}");
+    // Already at its minimum: Left (and Home) leave it there rather than
+    // growing it.
+    press(cx, "tab");
+    frame(cx);
+    press(cx, "left");
+    frame(cx);
+    press(cx, "home");
+    frame(cx);
+    assert!(log(&seen).is_empty(), "{:?}", log(&seen));
+    press(cx, "right");
+    frame(cx);
+    assert_eq!(log(&seen), ["25,75"]);
+}
+
+#[gpui::test]
+fn controlled_sizes_are_normalized_to_100(cx: &mut TestAppContext) {
+    let (seen, cx) = custom_host(cx, || {
+        ResizablePanelGroup::new("split")
+            .panels(three_panels())
+            .sizes([2., 1., 1.])
+    });
+    frame(cx);
+    assert_eq!(lengths(cx, false), [250., 125., 125.]);
+    press(cx, "tab");
+    frame(cx);
+    press(cx, "left");
+    frame(cx);
+    assert_eq!(log(&seen), ["45,30,25"]);
+}
+
+#[gpui::test]
+fn all_zero_sizes_split_evenly(cx: &mut TestAppContext) {
+    let (_, cx) = custom_host(cx, || {
+        ResizablePanelGroup::new("split")
+            .panels(three_panels())
+            .sizes([0., 0., 0.])
+    });
+    frame(cx);
+    assert_eq!(lengths(cx, false), [167., 167., 167.]);
+}
+
+#[gpui::test]
+fn removing_panels_mid_drag_ends_the_drag(cx: &mut TestAppContext) {
+    let count = std::rc::Rc::new(std::cell::Cell::new(3));
+    let c = count.clone();
+    let (seen, cx) = custom_host(cx, move || {
+        ResizablePanelGroup::new("split").panels(
+            (0..c.get()).map(|ix| ResizablePanel::new().child(gpui::div().child(format!("{ix}")))),
+        )
+    });
+    frame(cx);
+    let start = bounds(cx, "split-handle-1").center();
+    cx.simulate_mouse_down(start, MouseButton::Left, Modifiers::none());
+    frame(cx);
+    count.set(2);
+    frame(cx);
+    // The dragged handle is gone: a move neither panics nor resizes.
+    let step = point(start.x + px(50.), start.y);
+    cx.simulate_mouse_move(step, Some(MouseButton::Left), Modifiers::none());
+    frame(cx);
+    cx.simulate_mouse_up(step, MouseButton::Left, Modifiers::none());
+    frame(cx);
+    assert!(log(&seen).is_empty(), "{:?}", log(&seen));
 }

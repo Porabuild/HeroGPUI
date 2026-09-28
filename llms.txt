@@ -844,7 +844,9 @@ out of `reference_metadata`.
   .on_resize(|sizes: &[f32], w, cx| ..).keyboard_step(pct).is_disabled(bool)`;
   `.sizes([..])` makes it controlled. Sizes are percentages of the space the
   panels share (the group minus its 8px `RESIZABLE_HANDLE_SIZE` handles) and
-  sum to 100; panels without a default share the remainder. A handle drag
+  sum to 100; panels without a default share the remainder. Defaults and
+  controlled sizes that do not sum to 100 are scaled to it (an even split
+  when they sum to zero) and moved inside the panels' min/max. A handle drag
   (pointer captured) or the arrow keys on a focused handle (Left/Right, or
   Up/Down when vertical; Shift is 4x the step; Home/End to the limits)
   resize only the two adjacent panels, clamped to their min/max. Each handle

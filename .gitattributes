@@ -36,3 +36,5 @@ web/public/gallery/index.html text eol=lf
 # The embedded Lucide icons are byte-identical copies of the lucide-static
 # release (`tests/icon.rs` checks their header); keep them LF everywhere.
 crates/herogpui-components/assets/lucide/* text eol=lf
+# The site's copy of that license stays byte-identical to it.
+web/public/LICENSE-lucide.txt text eol=lf
