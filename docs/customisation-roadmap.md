@@ -477,17 +477,23 @@ Deliberately not done, and next in this order:
 3. **Theme hot reload** (`watch_dir`); **i18n** for more locales (non-Latin locales also need the web
    font subsets extended) and for the remaining hard-coded strings (NumberField
    stepper names, ColorPicker channel names, DateField segment names).
-4. **Follow-ups on the 0.12.0 split, tree and icon extensions.** `ResizablePanel`
-   limits are percentages only (a pixel minimum needs the measured group
-   length at every clamp), panels do not collapse, and there is no
-   `on_resize_end`. `TreeView` has no Shift range selection, no
-   virtualisation (every visible row is built) and no `aria-posinset` /
-   `aria-setsize`, which it could count from its own items. `Icon` takes a
-   pixel size rather than a `Sizable` step and has no stroke-width control
-   (Lucide's `absoluteStrokeWidth`); the icon set is a curated subset with no
-   sync script, and adding an icon is a copied file plus one enum line. The
-   gallery has no Icons page yet: the set is documented on the website's
-   Icons guide and in `llms.txt`.
+4. **Follow-ups on the 0.12.0 split, tree and icon extensions.** Done for
+   0.13. `ResizablePanel` takes pixel limits (`min_size_px`/`max_size_px`,
+   converted against the measured group length at every clamp, from the
+   frame after the first layout), collapses (`collapsible`,
+   `collapsed_size`; drag past halfway, arrows, Home/End, Enter on the
+   handle) and reports `on_resize_end`. `TreeView` extends a multiple
+   selection with Shift, renders through a uniform `VirtualList` (`max_h`
+   or a bounding parent builds only the rows in view) and reports
+   `aria-posinset` / `aria-setsize` among siblings. `Icon` takes an
+   `IconSize` step (`Sizable`) and a stroke width (`stroke_width`,
+   `absolute_stroke_width`: the asset source rewrites the SVG's
+   `stroke-width` per width, since gpui paints an SVG as one mask); the set
+   is `.shots/lucide-icons.txt`, synced by `.shots/sync-lucide.py` (`--check`
+   in CI's parity job); and the gallery has an Icons page. Left: stroke
+   width reaches only the Lucide set, not the chrome icons or an app's own
+   SVGs, and a pixel limit cannot hold on the very first frame, before the
+   group has been measured.
 
 ## Remaining work after 0.12.0
 
@@ -510,7 +516,7 @@ to five days, L over a week.
 | P2 | VirtualList uniform mode for the fixed `row_height` paths of ListBox, Table and ComboBox (see item 2 above) | Removes the last `uniform_list` split without losing centred scrolling, paging or load-more | M | done (0.13) |
 | P2 | TreeView: Shift range selection, virtualisation, `aria-posinset`/`aria-setsize` | Large trees build every visible row; set position is missing for assistive technology | M | done (0.13) |
 | P2 | ResizablePanel: pixel min/max, collapsible panels, `on_resize_end` | The common split-pane needs beyond percentages | M | done (0.13) |
-| P2 | Icon: `Sizable` steps, stroke width, a Lucide sync script, a gallery Icons page | The set cannot grow or be browsed without hand work | M | 0.13 |
+| P2 | Icon: `Sizable` steps, stroke width, a Lucide sync script, a gallery Icons page | The set cannot grow or be browsed without hand work | M | done (0.13) |
 | P2 | Theme API safety: typed roles for `ThemeBuilder::role` (a typo silently recolours the accent); stop reading `HEROGPUI_REDUCE_MOTION` from the environment inside the library | Silent misconfiguration in a library API | S | 0.13 |
 | P2 | `#[must_use]` on builders (none today) and a `missing_docs` ratchet | A dropped builder does nothing, silently; public docs have gaps | S / M | 0.13 |
 | P2 | i18n: more locales, the hard-coded NumberField/ColorPicker/DateField strings, non-Latin web font subsets | Localisation is incomplete for real users | M | 0.13 |

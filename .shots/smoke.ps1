@@ -37,7 +37,7 @@ $currentVersionPage = "v$workspaceVersion"
 $pages = @(
     "All Components", "Releases", $currentVersionPage,
     "Introduction", "Installation", "Theming", "Dark Mode", "Customization",
-    "Styling", "Design Principles",
+    "Styling", "Icons", "Design Principles",
     "Button", "Button Group", "Close Button", "Toggle Button",
     "Dropdown", "List Box", "Tag Group",
     "Color Area", "Color Field", "Color Picker", "Color Slider", "Color Swatch",

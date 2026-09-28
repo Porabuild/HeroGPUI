@@ -109,9 +109,10 @@ reason in the parity audit.
 - A new chrome icon needs a constant in `components/src/icons.rs`, an inline
   SVG in `components/src/assets.rs` (`assets::tests` fails without it) and a
   file registration in `gallery/src/assets.rs`. A new Lucide icon is one
-  `IconName` line plus the verbatim `lucide-static` file under
-  `components/assets/lucide/` (see `src/icon.rs`); the gallery serves those
-  through `HeroGpuiAssets`.
+  name in `.shots/lucide-icons.txt` followed by
+  `python3 .shots/sync-lucide.py`, which copies the verbatim `lucide-static`
+  file into `components/assets/lucide/` and regenerates `IconName` (see
+  `src/icon.rs`); the gallery serves those through `HeroGpuiAssets`.
 - Custom components that hold children need an explicit `ParentElement::extend`
   implementation.
 - Branches returning different element types need `.into_any_element()`.

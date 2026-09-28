@@ -891,7 +891,16 @@ out of `reference_metadata`.
   siblings, expanded and selected.
 - **Icons** — `Icon::new(IconName::Search).size(px(20.)).color(hsla)`
   draws an embedded Lucide icon (default 16px, `DEFAULT_ICON_SIZE`, in the
-  theme `foreground`; gpui svgs do not inherit text colour);
+  theme `foreground`; gpui svgs do not inherit text colour). `size` also
+  takes an `IconSize` step (`Xs` 12, `Sm` 14, `Md` 16, `Lg` 20, `Xl` 24px;
+  `Icon` implements `Sizable<Size = IconSize>`). `.stroke_width(w)` is
+  Lucide's `strokeWidth` in the 24-unit viewBox (default
+  `DEFAULT_STROKE_WIDTH`, 2) and `.absolute_stroke_width(true)` its
+  `absoluteStrokeWidth` (`w * 24 / size`, so the stroke stays `w` pixels);
+  it draws `IconName::path_with_stroke_width(w)`
+  (`<path>?stroke-width=<w>`), which `HeroGpuiAssets` serves as the same
+  file with its root `stroke-width` rewritten (Lucide icons only; an app
+  serving Lucide paths itself must forward the query);
   `Icon::from_path(icons::CHECK)` draws any other served SVG. `IconName` is
   a curated, `#[non_exhaustive]` subset of Lucide `LUCIDE_VERSION` (1.31.0),
   one PascalCase variant per Lucide name (`circle-check` is
@@ -900,8 +909,13 @@ out of `reference_metadata`.
   `IconName::from_name(..)` / `from_path(..)`, and `From<IconName> for
   SharedString`, so every builder that takes an icon path takes a name
   (`TreeItem::icon(IconName::Folder)`, `svg().path(IconName::X)`).
-  `HeroGpuiAssets` serves them with no setup. Decorative: no accessibility
-  node (lucide-react marks its svg `aria-hidden`). Lucide is ISC (some
+  `HeroGpuiAssets` serves them with no setup. The set is listed in
+  `.shots/lucide-icons.txt` (pinned version and tarball integrity);
+  `python3 .shots/sync-lucide.py` copies the listed icons and regenerates
+  `IconName`, `--check` verifies list, files and enum offline. The
+  gallery's Icons page (Getting Started) is a searchable grid of every
+  name. Decorative: no accessibility node (lucide-react marks its svg
+  `aria-hidden`). Lucide is ISC (some
   icons MIT via Feather); the license ships in `assets/lucide/LICENSE`.
 
 ## Gallery

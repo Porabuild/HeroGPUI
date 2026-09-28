@@ -497,6 +497,11 @@ mod tests {
             ("Button", "missing section", "component", false),
             ("Button", "Usage,missing section", "component", false),
             ("Button", "Usage,API Reference", "gallery", true),
+            // The 0.13 extension page and sections render a frame.
+            ("Icons", "All icons", "gallery", true),
+            ("Icons", "Stroke width", "gallery", true),
+            ("List Box", "Large Tree View", "gallery", true),
+            ("Separator", "Collapsible Panels", "gallery", true),
             (
                 "Button",
                 "Element Composition & Callbacks",

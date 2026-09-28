@@ -41,6 +41,24 @@ version covers `herogpui`, `herogpui-core`, `herogpui-theme`,
   per gesture: on the release of a drag that changed the sizes, and after
   each key that did. A "Collapsible Panels" gallery section on the
   Separator page shows them.
+- Icons: `IconSize` steps (`Xs` 12, `Sm` 14, `Md` 16, `Lg` 20, `Xl` 24px),
+  which `Icon::size` takes beside a pixel length and through
+  `Sizable<Size = IconSize>`; `Icon::stroke_width` (Lucide's `strokeWidth`,
+  in the 24-unit viewBox; `DEFAULT_STROKE_WIDTH` is 2) and
+  `Icon::absolute_stroke_width` (Lucide's `absoluteStrokeWidth`). Because
+  gpui paints an SVG as one single-colour mask, a stroke width selects
+  `IconName::path_with_stroke_width(w)` (`<path>?stroke-width=<w>`), which
+  `HeroGpuiAssets` serves as the same Lucide file with its root
+  `stroke-width` rewritten; gpui caches it per path and size. Lucide icons
+  only.
+- `.shots/lucide-icons.txt` lists the embedded Lucide icons and pins the
+  `lucide-static` tarball (version and integrity);
+  `python3 .shots/sync-lucide.py` downloads and verifies it, copies the
+  listed icons and the license, and regenerates `IconName` and
+  `LUCIDE_VERSION`. `--check` (offline, run in CI's parity job) fails when
+  the list, the files, the enum and the NOTICE disagree.
+- Gallery: an Icons page under Getting Started with the size steps, stroke
+  widths and a searchable grid of every `IconName`.
 
 ### Changed
 

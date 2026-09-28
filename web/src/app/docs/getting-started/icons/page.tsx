@@ -36,6 +36,13 @@ use herogpui::px;
 Icon::new(IconName::Search)
 Icon::new(IconName::Heart).size(px(24.)).color(cx.colors().danger.color)
 
+// A size step (the Sizable trait: Xs 12, Sm 14, Md 16, Lg 20, Xl 24px).
+Icon::new(IconName::Folder).size(IconSize::Lg)
+
+// Lucide's strokeWidth and absoluteStrokeWidth.
+Icon::new(IconName::Star).stroke_width(1.5)
+Icon::new(IconName::Star).size(px(48.)).stroke_width(1.5).absolute_stroke_width(true)
+
 // Builders that take an icon path take a name too.
 TreeItem::new("src", "Sources").icon(IconName::Folder)`;
 
@@ -89,6 +96,13 @@ export default function IconsPage() {
       <div className="mt-4">
         <CodeBlock code={LUCIDE} lang="rust" />
       </div>
+      <p>
+        GPUI paints an SVG as one single-colour mask, so a stroke width is a different asset:{" "}
+        <code>stroke_width</code> draws <code>IconName::path_with_stroke_width(w)</code>, which{" "}
+        <code>HeroGpuiAssets</code> serves as the same file with its <code>stroke-width</code>{" "}
+        rewritten, rasterised once per width and size. The gallery&apos;s Icons page lists every
+        name with a search box.
+      </p>
       <p>
         An icon is decorative and reports no accessibility node, as <code>lucide-react</code> marks
         its svg <code>aria-hidden</code>: name the control that holds it. Lucide is ISC-licensed

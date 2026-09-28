@@ -76,6 +76,7 @@ fn component_page_count() -> usize {
                     | Page::DarkMode
                     | Page::Customization
                     | Page::Styling
+                    | Page::Icons
                     | Page::DesignPrinciples
             )
         })

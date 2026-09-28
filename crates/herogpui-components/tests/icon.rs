@@ -10,7 +10,8 @@ use std::{collections::BTreeSet, sync::Arc};
 use gpui::{prelude::*, px, AssetSource as _, SharedString, SvgRenderer, TestAppContext};
 use harness::open_host;
 use herogpui_components::{
-    icons, HeroGpuiAssets, Icon, IconName, DEFAULT_ICON_SIZE, LUCIDE_ICON_PREFIX, LUCIDE_VERSION,
+    icons, HeroGpuiAssets, Icon, IconName, IconSize, Sizable, DEFAULT_ICON_SIZE,
+    LUCIDE_ICON_PREFIX, LUCIDE_VERSION,
 };
 
 const ASSET_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/assets/lucide");
@@ -164,4 +165,101 @@ fn icons_lay_out_at_their_size(cx: &mut TestAppContext) {
     assert_eq!((sized.size.width, sized.size.height), (px(24.), px(24.)));
     let chrome = cx.debug_bounds("chrome").unwrap();
     assert_eq!((chrome.size.width, chrome.size.height), (px(12.), px(12.)));
+}
+
+#[test]
+fn icon_size_steps_are_the_tailwind_squares() {
+    let steps: Vec<f32> = IconSize::ALL
+        .iter()
+        .map(|step| f32::from(step.pixels()))
+        .collect();
+    assert_eq!(steps, [12., 14., 16., 20., 24.]);
+    assert_eq!(IconSize::default().pixels(), DEFAULT_ICON_SIZE);
+    assert_eq!(gpui::Pixels::from(IconSize::Lg), px(20.));
+}
+
+/// Through the asset source: a stroke-width query serves the same Lucide
+/// file with only its root `stroke-width` rewritten, and a wider stroke
+/// rasterises to more ink.
+#[test]
+fn a_stroke_width_query_serves_the_rewritten_file() {
+    let assets = HeroGpuiAssets;
+    let path = IconName::Circle.path_with_stroke_width(1.);
+    let served = assets
+        .load(&path)
+        .unwrap()
+        .expect("the stroked path is served");
+    let original = std::str::from_utf8(IconName::Circle.svg()).unwrap();
+    assert_eq!(
+        std::str::from_utf8(&served).unwrap(),
+        original.replacen("stroke-width=\"2\"", "stroke-width=\"1\"", 1)
+    );
+    // Through the fallback wrapper an app registers, too.
+    assert!(HeroGpuiAssets::with_fallback(())
+        .load(&path)
+        .unwrap()
+        .is_some());
+
+    let renderer = SvgRenderer::new(Arc::new(HeroGpuiAssets));
+    let ink = |width: f32| -> u64 {
+        let bytes = assets
+            .load(&IconName::Circle.path_with_stroke_width(width))
+            .unwrap()
+            .unwrap();
+        let image = renderer.render_single_frame(&bytes, 1.0).unwrap();
+        image
+            .as_bytes(0)
+            .unwrap()
+            .as_chunks::<4>()
+            .0
+            .iter()
+            .map(|pixel| u64::from(pixel[3]))
+            .sum()
+    };
+    let (thin, normal, thick) = (ink(1.), ink(2.), ink(3.));
+    assert!(thin < normal && normal < thick, "{thin} {normal} {thick}");
+}
+
+fn sized<T: Sizable<Size = IconSize>>(component: T, size: IconSize) -> T {
+    component.size(size)
+}
+
+#[gpui::test]
+fn icons_take_a_sizable_step(cx: &mut TestAppContext) {
+    let cx = open_host(cx, || {
+        gpui::div()
+            .flex()
+            .items_start()
+            .child(
+                gpui::div()
+                    .flex()
+                    .debug_selector(|| "step".into())
+                    .child(Icon::new(IconName::Star).size(IconSize::Lg)),
+            )
+            .child(
+                gpui::div()
+                    .flex()
+                    .debug_selector(|| "trait".into())
+                    .child(sized(Icon::new(IconName::Star), IconSize::Xs)),
+            )
+            .child(
+                gpui::div()
+                    .flex()
+                    .debug_selector(|| "stroked".into())
+                    .child(
+                        Icon::new(IconName::Star)
+                            .size(IconSize::Xl)
+                            .stroke_width(1.)
+                            .absolute_stroke_width(true),
+                    ),
+            )
+            .into_any_element()
+    });
+    cx.run_until_parked();
+    let step = cx.debug_bounds("step").unwrap();
+    assert_eq!((step.size.width, step.size.height), (px(20.), px(20.)));
+    let via_trait = cx.debug_bounds("trait").unwrap();
+    assert_eq!(via_trait.size.width, px(12.));
+    let stroked = cx.debug_bounds("stroked").unwrap();
+    assert_eq!(stroked.size.width, px(24.));
 }

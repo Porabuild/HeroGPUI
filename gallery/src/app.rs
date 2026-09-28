@@ -151,6 +151,9 @@ pub struct Gallery {
     pub swatch_selected: h::PickerColor,
     pub search_state: Entity<h::InputState>,
     pub search_query: String,
+    /// The Icons page's name filter.
+    pub icons_search: Entity<h::InputState>,
+    pub icons_query: String,
     pub group_amount: Entity<h::InputState>,
     pub cal_year_picker: bool,
     pub table_selection: Vec<SharedString>,
@@ -355,6 +358,7 @@ Enter inserts a newline here, and a long paragraph wraps inside the field instea
             n
         });
         let search_state = cx.new(|cx| h::InputState::new(cx));
+        let icons_search = cx.new(|cx| h::InputState::new(cx));
         let group_amount = cx.new(|cx| h::InputState::new(cx));
 
         // Re-render the shell whenever toasts change.
@@ -450,6 +454,8 @@ Enter inserts a newline here, and a long paragraph wraps inside the field instea
             swatch_selected: h::PickerColor::from_hex("#0085F5").unwrap_or_default(),
             search_state,
             search_query: String::new(),
+            icons_search,
+            icons_query: String::new(),
             group_amount,
             cal_year_picker: std::env::var("HEROGPUI_OPEN_OVERLAYS").is_ok(),
             table_selection: Vec::new(),
