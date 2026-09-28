@@ -3,12 +3,14 @@ import Link from "next/link";
 import { PageHeader } from "@/components/ui/page-header";
 import { CodeBlock } from "@/components/ui/code-block";
 import { Callout } from "@/components/ui/callout";
+import { pageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
+  path: "/docs/getting-started/state",
   title: "State",
   description:
     "Controlled and uncontrolled components, and which ones need a state entity you own.",
-};
+});
 
 const SEED = `let agreed = cx.new(|_| false);
 

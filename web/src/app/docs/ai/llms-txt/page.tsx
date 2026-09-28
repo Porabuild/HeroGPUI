@@ -7,12 +7,14 @@ import { CodeBlock } from "@/components/ui/code-block";
 import { PageHeader } from "@/components/ui/page-header";
 import { C, H2, H3, Li, Md, P, Td, Th, Ul } from "@/app/docs/ai/_components/docs";
 import { SITE } from "@/lib/nav";
+import { pageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
+  path: "/docs/ai/llms-txt",
   title: "llms.txt",
   description:
     "HeroGPUI publishes a plain-text llms.txt with the Rust API, theme model, component patterns, and GPUI conventions for coding agents.",
-};
+});
 
 // Read the file at build time so the size below and the excerpt stay true to
 // the reference agents actually receive.

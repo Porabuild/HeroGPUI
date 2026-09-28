@@ -383,6 +383,27 @@ const APPEARANCE_BUILDERS = new Set([
   "shape",
 ]);
 
+const RUST_IDENT = /^[a-z_][a-z0-9_]*$/;
+
+/**
+ * Every builder method a reference `rust` cell names, e.g.
+ * `on_press(callback) / on_click(callback)` gives `on_press` and `on_click`.
+ * Prose cells ("built-in trigger") and constructors are skipped.
+ */
+export function builderNames(rust: string): string[] {
+  return rust
+    .split(" / ")
+    .map(
+      (piece) =>
+        piece
+          .replace(/\([\s\S]*$/, "")
+          .trim()
+          .split("::")
+          .pop() ?? "",
+    )
+    .filter((name) => RUST_IDENT.test(name) && name !== "new");
+}
+
 function builderName(builder: string): string {
   const call = builder.split(" / ")[0]?.trim() ?? builder;
   const name = call.replace(/\(.*$/, "").trim();

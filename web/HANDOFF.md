@@ -15,7 +15,7 @@ The site is at `E:\work\HeroGPUI\web`. Next.js 16.3.3, React 19.2.8,
 | API reference | 61 pages carry reference tables, extracted from `gallery/src/pages/reference_metadata/` |
 | Rust examples | extracted from `gallery/src/pages/components/` |
 | Releases | GitHub Releases (none published), listed on `/docs/releases` |
-| Screenshots | 82 captures in `.shots/`, copied to `public/shots/` |
+| Screenshots | captures in `.shots/`; only the cropped catalog tiles are copied to `public/shots/` |
 
 Routes: landing, seven getting-started pages, three AI pages, the component
 index, 66 component pages, releases, and `/llms.txt` served as prerendered

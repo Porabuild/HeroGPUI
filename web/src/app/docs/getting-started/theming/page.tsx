@@ -2,12 +2,14 @@ import type { Metadata } from "next";
 import { PageHeader } from "@/components/ui/page-header";
 import { CodeBlock } from "@/components/ui/code-block";
 import { StaticTable } from "@/components/ui/static-table";
+import { pageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
+  path: "/docs/getting-started/theming",
   title: "Theming",
   description:
     "Use OKLCH semantic tokens, roles, surfaces, fields, and layout values across your application.",
-};
+});
 
 const IMPORT_LINE = `use herogpui::theme::{ThemeProvider, ActiveTheme};`;
 

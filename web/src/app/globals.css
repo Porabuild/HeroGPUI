@@ -582,7 +582,6 @@ body {
 .landing-features li > span:first-child,
 .landing-for-agents .font-mono,
 .catalog-category-nav a,
-.shot-window-caption,
 .window-bar {
   font-family: var(--font-mono);
   font-weight: 500;
@@ -1024,21 +1023,6 @@ html:not(.dark) .site-cta--primary:hover {
 .shot-window-status {
   justify-self: end;
   color: var(--pb-accent);
-}
-
-.shot-window-frame {
-  box-shadow: 0 24px 72px color-mix(in srgb, var(--pb-night) 24%, transparent);
-}
-
-.shot-window-image {
-  height: calc(100% - 2.25rem);
-}
-
-.shot-window-placeholder span {
-  font-family: var(--font-mono);
-  font-size: 0.6875rem;
-  font-weight: 500;
-  letter-spacing: var(--pb-mono-tracking);
 }
 
 /* ------------------------------------------------------------------ */

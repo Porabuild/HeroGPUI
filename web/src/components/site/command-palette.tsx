@@ -14,9 +14,60 @@ function isTypingTarget(target: EventTarget | null): boolean {
   return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || target.isContentEditable;
 }
 
-function matches(item: SearchItem, query: string): boolean {
-  const haystack = `${item.title} ${item.group} ${item.keywords}`.toLowerCase();
-  return query.split(/\s+/).every((part) => haystack.includes(part));
+/** Case-, space-, `_`- and `-`-insensitive form, so `selectionMode` finds `selection_mode`. */
+function squash(text: string): string {
+  return text.toLowerCase().replace(/[\s_-]+/g, "");
+}
+
+interface SearchResult {
+  item: SearchItem;
+  /** Where the result navigates: the builder table when a builder matched. */
+  href: string;
+  /** The Rust builder the query matched, shown beside the title. */
+  builder: string | null;
+  /** Lower ranks first: title, then page keywords, then builder names. */
+  rank: number;
+}
+
+function matchItem(item: SearchItem, parts: string[]): SearchResult | null {
+  const title = item.title.toLowerCase();
+  const haystack = `${title} ${item.group} ${item.keywords}`.toLowerCase();
+  let rank = 0;
+  let builder: string | null = null;
+  for (const part of parts) {
+    if (title.includes(part)) {
+      rank = Math.max(rank, title.startsWith(part) ? 0 : 1);
+      continue;
+    }
+    if (haystack.includes(part)) {
+      rank = Math.max(rank, 2);
+      continue;
+    }
+    const wanted = squash(part);
+    const builders = item.builders ?? [];
+    const found =
+      builders.find((name) => squash(name) === wanted) ??
+      builders.find((name) => squash(name).startsWith(wanted)) ??
+      builders.find((name) => squash(name).includes(wanted));
+    if (!found) return null;
+    builder ??= found;
+    rank = Math.max(rank, squash(found) === wanted ? 3 : 4);
+  }
+  return { item, builder, rank, href: builder ? `${item.href}#props` : item.href };
+}
+
+function search(items: SearchItem[], query: string): SearchResult[] {
+  const parts = query.split(/\s+/).filter(Boolean);
+  if (parts.length === 0) {
+    return items.slice(0, 12).map((item) => ({ item, href: item.href, builder: null, rank: 0 }));
+  }
+  return items
+    .flatMap((item) => {
+      const result = matchItem(item, parts);
+      return result ? [result] : [];
+    })
+    .sort((a, b) => a.rank - b.rank)
+    .slice(0, 20);
 }
 
 function focusableElements(root: HTMLElement): HTMLElement[] {
@@ -33,17 +84,15 @@ export function CommandPalette({ items }: { items: SearchItem[] }) {
   const triggerRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
+  const listboxId = useId();
+  const optionId = (index: number) => `${listboxId}-option-${index}`;
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
   const [mounted, setMounted] = useState(false);
   const [shortcut, setShortcut] = useState("Ctrl K");
 
-  const results = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (q.length === 0) return items.slice(0, 12);
-    return items.filter((item) => matches(item, q)).slice(0, 20);
-  }, [items, query]);
+  const results = useMemo(() => search(items, query.trim().toLowerCase()), [items, query]);
 
   const close = useCallback(() => {
     setOpen(false);
@@ -108,6 +157,14 @@ export function CommandPalette({ items }: { items: SearchItem[] }) {
     setActive(0);
   }, [query]);
 
+  // Keep the active option visible while arrowing through a long list.
+  useEffect(() => {
+    if (!open) return;
+    document.getElementById(`${listboxId}-option-${active}`)?.scrollIntoView({ block: "nearest" });
+  }, [active, listboxId, open]);
+
+  const activeResult = results[active] ?? null;
+
   const dialog =
     open && mounted
       ? createPortal(
@@ -146,7 +203,11 @@ export function CommandPalette({ items }: { items: SearchItem[] }) {
               <div className="flex items-center gap-2 border-b border-separator px-3">
                 <Search aria-hidden="true" className="size-4 text-muted" />
                 <input
-                  aria-label="Search pages and components"
+                  aria-activedescendant={activeResult ? optionId(active) : undefined}
+                  aria-autocomplete="list"
+                  aria-controls={listboxId}
+                  aria-expanded={results.length > 0}
+                  aria-label="Search pages, components and builders"
                   autoComplete="off"
                   className="h-12 w-full bg-transparent text-sm text-foreground outline-none placeholder:text-muted"
                   onChange={(event) => setQuery(event.target.value)}
@@ -157,42 +218,71 @@ export function CommandPalette({ items }: { items: SearchItem[] }) {
                     } else if (event.key === "ArrowUp") {
                       event.preventDefault();
                       setActive((index) => Math.max(index - 1, 0));
-                    } else if (event.key === "Enter" && results[active]) {
+                    } else if (event.key === "Home" && results.length > 0) {
                       event.preventDefault();
-                      go(results[active].href);
+                      setActive(0);
+                    } else if (event.key === "End" && results.length > 0) {
+                      event.preventDefault();
+                      setActive(results.length - 1);
+                    } else if (event.key === "Enter" && activeResult) {
+                      event.preventDefault();
+                      go(activeResult.href);
                     }
                   }}
-                  placeholder="Search components and docs…"
+                  placeholder="Search components, docs and builders…"
                   ref={inputRef}
+                  role="combobox"
+                  spellCheck={false}
+                  type="text"
                   value={query}
                 />
               </div>
-              <ul className="max-h-80 overflow-auto py-2">
-                {results.length === 0 ? (
-                  <li className="px-4 py-6 text-sm text-muted">No matching pages.</li>
-                ) : (
-                  results.map((item, index) => (
-                    <li key={`${item.group}-${item.href}`}>
-                      <button
-                        className={cn(
-                          "flex w-full items-center justify-between gap-3 px-4 py-2 text-left text-sm",
-                          index === active
-                            ? "bg-accent-soft text-accent-soft-foreground"
-                            : "text-foreground",
-                        )}
-                        onClick={() => go(item.href)}
-                        onMouseEnter={() => setActive(index)}
-                        type="button"
-                      >
-                        <span className="truncate font-medium">{item.title}</span>
-                        <span className="shrink-0 font-mono text-[10px] uppercase tracking-wide text-muted">
-                          {item.group}
-                        </span>
-                      </button>
-                    </li>
-                  ))
-                )}
+              <ul
+                aria-label="Search results"
+                className={cn("max-h-80 overflow-auto py-2", results.length === 0 && "hidden")}
+                id={listboxId}
+                role="listbox"
+              >
+                {results.map((result, index) => (
+                  <li
+                    aria-selected={index === active}
+                    className={cn(
+                      "flex w-full cursor-pointer items-center justify-between gap-3 px-4 py-2 text-left text-sm",
+                      index === active
+                        ? "bg-accent-soft text-accent-soft-foreground"
+                        : "text-foreground",
+                    )}
+                    id={optionId(index)}
+                    key={`${result.item.group}-${result.href}`}
+                    onClick={() => go(result.href)}
+                    onMouseDown={(event) => event.preventDefault()}
+                    onMouseMove={() => setActive(index)}
+                    role="option"
+                  >
+                    <span className="flex min-w-0 items-baseline gap-2">
+                      <span className="truncate font-medium">{result.item.title}</span>
+                      {result.builder ? (
+                        <code className="truncate font-mono text-xs text-muted">
+                          .{result.builder}()
+                        </code>
+                      ) : null}
+                    </span>
+                    <span className="shrink-0 font-mono text-[10px] uppercase tracking-wide text-muted">
+                      {result.item.group}
+                    </span>
+                  </li>
+                ))}
               </ul>
+              {results.length === 0 ? (
+                <p className="px-4 pb-6 pt-4 text-sm text-muted">No matching pages.</p>
+              ) : null}
+              <p aria-live="polite" className="sr-only">
+                {query.trim() === ""
+                  ? ""
+                  : results.length === 0
+                    ? "No results"
+                    : `${results.length} result${results.length === 1 ? "" : "s"}`}
+              </p>
             </div>
           </div>,
           document.body,

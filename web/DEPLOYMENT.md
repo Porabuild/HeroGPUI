@@ -135,16 +135,68 @@ Run through these on the production URL:
   (heading, description, code) and lazily mounts one live GPUI/WASM canvas.
   "Show live" on an example, or a `#rust-<example>` link, switches that same
   canvas without creating another iframe.
-- The landing page does not fetch the wasm until "Run the live demo" (or a
-  specimen tab) is pressed; toggling the site theme does not restart it.
+- The landing page does not fetch the wasm until the reader points at, focuses
+  or touches "Run the live demo" (or a specimen tab) — that intent starts a
+  `<link rel="prefetch">` of the versioned glue and `.wasm`, which the frame
+  then reads from cache — and toggling the site theme does not restart it.
 - `curl -sI "https://porabuild.com/herogpui/gallery/herogpui_web_bg.wasm?v=<12 hex>"`
   (the `v` of any embed URL) answers `cache-control: public, max-age=31536000, immutable`.
 - Navigate Docs → Components → a component page: internal navigation stays
   inside the `/herogpui` prefix (it is one zone, so these are soft
   navigations).
-- View source: canonical/Open Graph URLs begin with
+- View source: each page's `<link rel="canonical">`, `og:url`, `og:title`
+  and `twitter:title` are its own, and the URLs begin with
   `https://porabuild.com/herogpui` (that is `NEXT_PUBLIC_SITE_URL` doing
-  its job via `metadataBase`).
+  its job via `metadataBase`; see `src/lib/seo.ts`).
+- `porabuild.com/herogpui/sitemap.xml` lists the landing page, every docs
+  page and every component page; `porabuild.com/herogpui/robots.txt` names it.
+- `curl -sI https://porabuild.com/herogpui/docs/components/button` carries
+  `content-security-policy` (see "Security headers" below), and a component
+  page's browser console shows no "Refused to …" CSP report while its live
+  preview boots.
+
+## Search engines
+
+The zone serves `/herogpui/sitemap.xml` (`src/app/sitemap.ts`) and
+`/herogpui/robots.txt` (`src/app/robots.ts`). Crawlers only read
+`robots.txt` at the host root, which the **parent** zone answers, so for the
+sitemap to be discovered the parent's `robots.txt` (or its sitemap index)
+should add:
+
+```
+Sitemap: https://porabuild.com/herogpui/sitemap.xml
+```
+
+That is a change in the parent repository; coordinate it like the rewrite in
+section 3. Every URL in the sitemap and every canonical comes from
+`NEXT_PUBLIC_SITE_URL`, so previews (built with the production value, per
+section 2) canonicalise to production instead of competing with it; Vercel
+also marks preview deployments `noindex`.
+
+## Security headers
+
+`next.config.ts` sends `X-Content-Type-Options`, `Referrer-Policy`,
+`Permissions-Policy` and a `Content-Security-Policy` on every route:
+
+- **Pages**: everything same-origin (`default-src 'self'`); `script-src
+  'self' 'unsafe-inline'` because the pages are prerendered, so there is no
+  per-request nonce for Next's inline bootstrap scripts or the layout's
+  no-flash theme script; `frame-src 'self'` for the gallery iframe (plus the
+  origin of an absolute `NEXT_PUBLIC_GALLERY_URL`); `object-src 'none'`,
+  `base-uri 'self'`, `form-action 'self'`.
+- **The gallery document** (`/gallery`, `/gallery/*`): `script-src 'self'
+  'wasm-unsafe-eval'` plus the SHA-256 of each inline `<script>` in
+  `public/gallery/index.html`, computed from the checked-in file when
+  `next.config.ts` loads, so a rebuilt `index.html` needs no config edit.
+- **`frame-ancestors 'self' https://porabuild.com`** on both: only the site
+  itself (and the parent zone's origin, derived from `NEXT_PUBLIC_SITE_URL`)
+  may frame a page.
+- Fonts are self-hosted by `next/font` and there are no analytics or
+  third-party scripts. The one exception is Vercel's preview toolbar
+  (`vercel.live`), whose origins are added only when `VERCEL_ENV=preview`.
+
+Adding a third-party script, image host or embed means adding its origin in
+`next.config.ts`; the browser console names the blocked directive.
 
 ## 6. The live WebAssembly gallery
 
@@ -241,11 +293,12 @@ the artifact and runs `wasm-bindgen` on every PR.
 
 ### Why the artifact is committed
 
-The artifact stays in git for now. Building it only in CI and deploying from
-CI would need a deploy workflow with Vercel credentials (none are configured
-in this repository), and the project's current deploys are CLI deploys from a
-checkout; removing the file from the tree before a CI deploy exists would
-publish component pages with no live preview. The drift guard above keeps the
+The artifact stays in git for now. Vercel's Git integration builds the site
+with `next build` alone (no Rust toolchain), so it can only ship the artifact
+the tree carries; building it in CI instead would need a deploy workflow with
+Vercel credentials (none are configured in this repository), and removing the
+file from the tree before such a workflow exists would publish component pages
+with no live preview. The drift guard above keeps the
 committed file honest meanwhile. Moving it out is a follow-up: a workflow that
 builds it (the `wasm` job already does), uploads it as an artifact, and runs
 `vercel build` + `vercel deploy --prebuilt` with `VERCEL_TOKEN`,
@@ -273,11 +326,19 @@ verified on production: `/herogpui/gallery/herogpui_web_bg.wasm` serves
 `application/wasm`, and the embedded frame boots and renders on
 `/herogpui/docs/components/button`.
 
-What was deployed, for reproduction: CLI deploys
-(`vercel deploy --prod`) from the repository root — not from `web/` — so
-the whole workspace uploads and the builder's Root Directory setting
-(`web`) picks the app; that is what makes the sibling `../llms.txt`
-visible to the `/llms.txt` route. Project settings that matter beyond the
+**Deploys run from the Vercel Git integration** (verified 2026-09-29): every
+push to a pull-request branch gets a preview deployment — the PR shows the
+`Vercel` check and a "Vercel Preview Comments" comment with the
+`herogpui-git-<branch>-porabuild.vercel.app` URL (open it with the
+`/herogpui` suffix, see section 2) — and every merge to `master` deploys to
+production (GitHub deployments "Preview" and "Production"). No workflow in
+this repository is involved, and none is needed for previews.
+
+The first deploy (2026-08-30) was a CLI deploy (`vercel deploy --prod`)
+from the repository root — not from `web/` — so the whole workspace uploads
+and the builder's Root Directory setting (`web`) picks the app; that is what
+makes the sibling `../llms.txt` visible to the `/llms.txt` route. A manual
+deploy still has to be made that way. Project settings that matter beyond the
 defaults: Root Directory `web`, Install Command
 `pnpm install --frozen-lockfile` (see below), Node 24.x. Deploys from
 `web/` alone will fail at build (the route cannot read `../llms.txt`).
@@ -286,10 +347,9 @@ defaults: Root Directory `web`, Install Command
 
 1. **The registry release is published.** The `herogpui` crates are on
    crates.io (0.9.0 onward), and the install snippets show `herogpui = "0.12"`.
-2. **The Vercel project's git connection is not verified since 2026-08-30.**
-   The deploy was CLI-based; if the git integration (Pull Request previews,
-   deploy-on-push) is still not set up, deploys remain manual, exactly as in
-   "Current status" above.
+2. **The Vercel project's git connection is in place** (verified 2026-09-29):
+   pull requests get preview deployments and `master` deploys to production,
+   as "Current status" describes.
 3. **The parent-zone rewrite commit is not verified since 2026-08-30.** The
    rewrites were applied and deployed from the parent checkout; if they were
    never committed to `Porabuild/website`, a future Git-connected parent

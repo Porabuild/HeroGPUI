@@ -3,11 +3,13 @@ import { Link } from "@heroui/react";
 import { Callout } from "@/components/ui/callout";
 import { CodeBlock } from "@/components/ui/code-block";
 import { PageHeader } from "@/components/ui/page-header";
+import { pageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
+  path: "/docs/getting-started/keyboard",
   title: "Keyboard and focus",
   description: "Turn on window focus, Tab order, and the keys overlays and fields already handle.",
-};
+});
 
 const ROOT = `app_focus_root(
     div()

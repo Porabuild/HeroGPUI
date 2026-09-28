@@ -2,11 +2,13 @@ import type { Metadata } from "next";
 import { Button } from "@heroui/react";
 import { PageHeader } from "@/components/ui/page-header";
 import { CodeBlock } from "@/components/ui/code-block";
+import { pageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
+  path: "/docs/getting-started/design-principles",
   title: "Design Principles",
   description: "Guidance for building consistent HeroGPUI interfaces in Rust.",
-};
+});
 
 const SEMANTIC = `// Hierarchy, not appearance.
 Button::new("save").label("Save")                              // primary

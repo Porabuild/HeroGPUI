@@ -6,6 +6,18 @@ export interface SearchItem {
   title: string;
   group: string;
   keywords: string;
+  /**
+   * Rust builder methods a component exposes (`selection_mode`, `on_resize`),
+   * so a search by builder name finds the component page's builder table.
+   */
+  builders?: string[];
+}
+
+/** The public Rust surface of one component page, for the search index. */
+export interface SearchApi {
+  builders: string[];
+  /** Public type names (`ListBoxItem`, `DateRangeState`), matched as keywords. */
+  types: string[];
 }
 
 export interface Crumb {
@@ -18,8 +30,16 @@ export interface PagerLink {
   label: string;
 }
 
-/** Flat search index: site pages plus every catalog component. */
-export function buildSearchItems(catalog: Catalog): SearchItem[] {
+/**
+ * Flat search index: site pages plus every catalog component. `apiFor`
+ * supplies each component's builders and types from the generated reference
+ * data; it is a parameter because that data is read on the server, while this
+ * module is also imported by client components.
+ */
+export function buildSearchItems(
+  catalog: Catalog,
+  apiFor?: (slug: string) => SearchApi,
+): SearchItem[] {
   const items: SearchItem[] = [
     { href: "/", title: "Home", group: "Site", keywords: "landing start hero" },
     ...NAV_LINKS.map((link) => ({
@@ -51,11 +71,13 @@ export function buildSearchItems(catalog: Catalog): SearchItem[] {
     for (const slug of category.components) {
       const component = catalog.components[slug];
       if (!component?.title) continue;
+      const api = apiFor?.(component.slug);
       items.push({
         href: `/docs/components/${component.slug}`,
         title: component.title,
         group: category.name,
-        keywords: `${component.description} ${category.name}`,
+        keywords: [component.description, category.name, ...(api?.types ?? [])].join(" "),
+        ...(api && api.builders.length > 0 ? { builders: api.builders } : {}),
       });
     }
   }

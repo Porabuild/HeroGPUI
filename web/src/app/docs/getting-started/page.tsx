@@ -3,12 +3,14 @@ import { Card, Link } from "@heroui/react";
 import { PageHeader } from "@/components/ui/page-header";
 import { StaticTable } from "@/components/ui/static-table";
 import { getCatalog } from "@/lib/catalog";
+import { pageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
+  path: "/docs/getting-started",
   title: "Introduction",
   description:
     "Build native desktop interfaces in Rust with typed HeroGPUI components, semantic themes, and GPUI.",
-};
+});
 
 const CRATES = [
   {

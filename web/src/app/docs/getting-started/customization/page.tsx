@@ -3,12 +3,14 @@ import Link from "next/link";
 import { PageHeader } from "@/components/ui/page-header";
 import { CodeBlock } from "@/components/ui/code-block";
 import { StaticTable } from "@/components/ui/static-table";
+import { pageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
+  path: "/docs/getting-started/customization",
   title: "Customization",
   description:
     "Create a named HeroGPUI theme by overriding semantic colors, layout tokens, and component recipes.",
-};
+});
 
 const VIOLET = `use gpui::px;
 use herogpui::core::{oklch, FieldVariant};

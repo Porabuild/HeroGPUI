@@ -6,12 +6,14 @@ import { CodeBlock } from "@/components/ui/code-block";
 import { PageHeader } from "@/components/ui/page-header";
 import { C, H2, H3, Li, P, Td, Th, Ul } from "@/app/docs/ai/_components/docs";
 import Link from "next/link";
+import { pageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
+  path: "/docs/ai/agents-md",
   title: "AGENTS.md",
   description:
     "How the repository layers AGENTS.md, task guides, and scoped rules so coding agents load the right context.",
-};
+});
 
 // Build the copyable guide from its authoritative repository source so this
 // documentation cannot drift from the instructions agents actually receive.
