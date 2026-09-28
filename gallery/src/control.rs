@@ -371,8 +371,12 @@ fn apply(
             let page = request.page.unwrap_or(gallery.page);
             set_section_filter(&request.section, cx);
             set_specimen_filter(request.specimen.as_deref(), cx);
-            if cx.is_dark_theme() != request.dark {
-                herogpui_theme::toggle_light_dark(cx);
+            // `theme=` names a base theme, not an appearance: a capture that
+            // asks for `light` must not keep a light preset the navbar picker
+            // left active.
+            let base = if request.dark { "dark" } else { "light" };
+            if cx.theme().id != base {
+                let _ = herogpui_theme::use_theme(base, cx);
             }
             if let Some(preview) = request.preview {
                 set_preview_only(preview, cx);
@@ -1122,5 +1126,63 @@ mod tests {
             missing.is_empty(),
             "examples missing distinct owners: {missing:?}"
         );
+    }
+
+    /// The navbar picker lists v3's two bases and every preset, switches the
+    /// live theme when an option is chosen with the pointer and keyboard, and
+    /// a control request's `theme=` still lands on the base theme it names.
+    #[gpui::test]
+    fn theme_picker_switches_presets_and_control_restores_the_base(cx: &mut TestAppContext) {
+        let window = open_gallery(cx);
+        let ids = crate::app::theme_choices();
+        assert_eq!(
+            ids,
+            ["light", "dark", "ocean", "forest", "midnight", "rose"]
+        );
+        cx.update(|cx| {
+            let registered = ThemeProvider::get(cx).theme_ids();
+            for id in &ids {
+                assert!(registered.contains(id), "{id} is not registered");
+            }
+            assert_eq!(cx.theme().id.as_ref(), "light");
+            set_preview_only(false, cx);
+        });
+
+        // Drive the real navbar Select: open it, type ahead to "Midnight", choose.
+        let mut vcx = gpui::VisualTestContext::from_window(window.into(), cx);
+        vcx.update(|window, _| window.refresh());
+        vcx.run_until_parked();
+        let picker = vcx.debug_bounds("theme-picker").expect("navbar picker");
+        vcx.simulate_click(picker.center(), gpui::Modifiers::none());
+        vcx.run_until_parked();
+        vcx.simulate_keystrokes("m enter");
+        vcx.run_until_parked();
+        vcx.update(|_, cx| {
+            assert_eq!(cx.theme().id.as_ref(), "midnight");
+            assert!(cx.is_dark_theme());
+        });
+
+        // Re-registering (a `reset=1` builds a fresh Gallery) keeps the choice.
+        vcx.update(|_, cx| {
+            crate::app::register_theme_presets(cx);
+            assert_eq!(cx.theme().id.as_ref(), "midnight");
+        });
+
+        // `theme=dark` from a dark preset still selects the base dark theme,
+        // and `theme=light` the base light one.
+        for (request, expected) in [("theme=dark", "dark"), ("theme=light", "light")] {
+            cx.update(|cx| {
+                let request =
+                    Request::parse(&format!("seq={expected}\npage=Button\n{request}")).unwrap();
+                assert!(apply(request, window, FrameAck::default(), cx));
+                assert_eq!(cx.theme().id.as_ref(), expected);
+            });
+        }
+
+        // An unknown id leaves the active theme alone.
+        cx.update(|cx| {
+            crate::app::select_theme("purple", cx);
+            assert_eq!(cx.theme().id.as_ref(), "light");
+        });
     }
 }

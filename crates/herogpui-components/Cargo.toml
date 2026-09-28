@@ -4,7 +4,9 @@ description = "HeroUI-style component library for GPUI"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
-license.workspace = true
+# The crate embeds the Lucide icons (`assets/lucide/`, ISC; the Feather-derived
+# ones MIT), so its own license expression names them beside Apache-2.0.
+license = "Apache-2.0 AND ISC AND MIT"
 readme.workspace = true
 repository.workspace = true
 keywords.workspace = true

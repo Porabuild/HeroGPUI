@@ -2,18 +2,18 @@
   "schema_version": 1,
   "target": "v3.2.6",
   "target_commit": "e385ac202b2cdb94b1bf6fa76d32c31c8259cc5e",
-  "inventory_recorded_on": "2026-09-23",
-  "inventory_verification_sha256": "d11d8cdd8158e43c79a8c991e061ddf9015170a24257f9a86ef930c50566e3cf",
-  "source_snapshot_sha256": "1a548ac2e5e4b5e52c481623f4a714eb30df513124ec007cf1003eacb17dcaf4",
+  "inventory_recorded_on": "2026-09-28",
+  "inventory_verification_sha256": "9e6d3b8716ff9adecdd757b2883e3d332dfa66d690d214ac9486bcc774fe8cc1",
+  "source_snapshot_sha256": "e063c30966a72eee22371f4303330d0cc6b0d882fe41bc8dae1a8f6271e8f3c0",
   "last_evidence_commit": null,
   "last_evidence_commit_recorded": false,
   "totals": {
-    "specimens": 747,
+    "specimens": 750,
     "verified": 0,
-    "outstanding": 747,
-    "unobserved": 747,
+    "outstanding": 750,
+    "unobserved": 750,
     "components": 68,
-    "gallery_sections": 740
+    "gallery_sections": 743
   },
   "status_counts": {
     "implemented-unverified": 7,
@@ -22,35 +22,35 @@
     "not-applicable": 0,
     "platform-limited": 0,
     "specified": 0,
-    "unreviewed": 740,
+    "unreviewed": 743,
     "verified": 0
   },
   "scope_counts": {
     "component-state": 4,
     "cross-component": 1,
-    "gallery-section": 740,
+    "gallery-section": 743,
     "platform-harness": 2
   },
   "evidence_counts": {
     "upstream": {
       "specimens_with_evidence": 5,
-      "specimens_missing_evidence": 742
+      "specimens_missing_evidence": 745
     },
     "native": {
       "specimens_with_evidence": 1,
-      "specimens_missing_evidence": 746
+      "specimens_missing_evidence": 749
     },
     "wasm": {
       "specimens_with_evidence": 1,
-      "specimens_missing_evidence": 746
+      "specimens_missing_evidence": 749
     },
     "tests": {
       "specimens_with_evidence": 5,
-      "specimens_missing_evidence": 742
+      "specimens_missing_evidence": 745
     },
     "all_surfaces": {
       "specimens_with_evidence": 1,
-      "specimens_missing_evidence": 746
+      "specimens_missing_evidence": 749
     }
   },
   "unobserved_statuses": [
@@ -2226,6 +2226,13 @@
       "state": "section-seed"
     },
     {
+      "id": "gallery/dropdown/menu-bar",
+      "component": "Dropdown",
+      "scope": "gallery-section",
+      "status": "unreviewed",
+      "state": "section-seed"
+    },
+    {
       "id": "gallery/dropdown/render-props",
       "component": "Dropdown",
       "scope": "gallery-section",
@@ -2927,6 +2934,13 @@
     },
     {
       "id": "gallery/list-box/single-selection",
+      "component": "List Box",
+      "scope": "gallery-section",
+      "status": "unreviewed",
+      "state": "section-seed"
+    },
+    {
+      "id": "gallery/list-box/tree-view",
       "component": "List Box",
       "scope": "gallery-section",
       "status": "unreviewed",
@@ -3985,6 +3999,13 @@
     {
       "id": "gallery/select/wrapping-trigger",
       "component": "Select",
+      "scope": "gallery-section",
+      "status": "unreviewed",
+      "state": "section-seed"
+    },
+    {
+      "id": "gallery/separator/resizable-panels",
+      "component": "Separator",
       "scope": "gallery-section",
       "status": "unreviewed",
       "state": "section-seed"
@@ -6100,7 +6121,7 @@
     },
     {
       "component": "Dropdown",
-      "specimens": 24,
+      "specimens": 25,
       "statuses": {
         "implemented-unverified": 0,
         "intentional-deviation": 0,
@@ -6108,11 +6129,11 @@
         "not-applicable": 0,
         "platform-limited": 0,
         "specified": 0,
-        "unreviewed": 24,
+        "unreviewed": 25,
         "verified": 0
       },
       "verified": 0,
-      "outstanding": 24,
+      "outstanding": 25,
       "unresolved_ids": [
         "gallery/dropdown/basic-usage",
         "gallery/dropdown/context-menu",
@@ -6122,6 +6143,7 @@
         "gallery/dropdown/custom-trigger",
         "gallery/dropdown/inset-separator",
         "gallery/dropdown/long-press-trigger",
+        "gallery/dropdown/menu-bar",
         "gallery/dropdown/render-props",
         "gallery/dropdown/row-hover",
         "gallery/dropdown/row-with-an-inline-control",
@@ -6360,7 +6382,7 @@
     },
     {
       "component": "List Box",
-      "specimens": 16,
+      "specimens": 17,
       "statuses": {
         "implemented-unverified": 0,
         "intentional-deviation": 0,
@@ -6368,11 +6390,11 @@
         "not-applicable": 0,
         "platform-limited": 0,
         "specified": 0,
-        "unreviewed": 16,
+        "unreviewed": 17,
         "verified": 0
       },
       "verified": 0,
-      "outstanding": 16,
+      "outstanding": 17,
       "unresolved_ids": [
         "gallery/list-box/basic-usage",
         "gallery/list-box/controlled",
@@ -6385,6 +6407,7 @@
         "gallery/list-box/multiple-selection",
         "gallery/list-box/row-padding",
         "gallery/list-box/single-selection",
+        "gallery/list-box/tree-view",
         "gallery/list-box/usage",
         "gallery/list-box/virtual-list",
         "gallery/list-box/virtualization",
@@ -6758,7 +6781,7 @@
     },
     {
       "component": "Separator",
-      "specimens": 5,
+      "specimens": 6,
       "statuses": {
         "implemented-unverified": 0,
         "intentional-deviation": 0,
@@ -6766,12 +6789,13 @@
         "not-applicable": 0,
         "platform-limited": 0,
         "specified": 0,
-        "unreviewed": 5,
+        "unreviewed": 6,
         "verified": 0
       },
       "verified": 0,
-      "outstanding": 5,
+      "outstanding": 6,
       "unresolved_ids": [
+        "gallery/separator/resizable-panels",
         "gallery/separator/usage",
         "gallery/separator/variants",
         "gallery/separator/vertical",

@@ -143,7 +143,7 @@ snippets and GPUI mentions read them from here (`SITE` in `src/lib/nav.ts`).
 
 ```jsonc
 {
-  "version": "0.11.0",
+  "version": "0.12.0",
   "gpuiVersion": "0.3.5",
   "categories": [
     { "name": "Buttons", "slug": "buttons",

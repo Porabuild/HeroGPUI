@@ -8,7 +8,9 @@ use gpui::{
     StatefulInteractiveElement, Styled, Window,
 };
 use herogpui_components as h;
-use herogpui_theme::{toggle_light_dark, toggle_reduce_motion, ActiveTheme};
+use herogpui_theme::{
+    presets, toggle_light_dark, toggle_reduce_motion, use_theme, ActiveTheme, ThemeProvider,
+};
 
 use crate::pages::{nav_sections, Page};
 
@@ -84,6 +86,12 @@ pub struct Gallery {
     pub dropdown_selected: Option<SharedString>,
     /// Last item chosen in the ContextMenu extension demo.
     pub context_menu_last: SharedString,
+    /// Last menu and item chosen in the MenuBar extension demo.
+    pub menu_bar_last: SharedString,
+    /// Last sizes reported by the ResizablePanelGroup extension demo.
+    pub resizable_sizes: SharedString,
+    /// Selection of the TreeView extension demo.
+    pub tree_selected: SharedString,
     /// Scroll state of the VirtualList extension demo.
     pub virtual_list: h::VirtualListHandle,
     pub dropdown_last_basic: SharedString,
@@ -318,6 +326,7 @@ impl Gallery {
     }
 
     pub fn new(cx: &mut Context<'_, Self>) -> Self {
+        register_theme_presets(cx);
         let name = cx.new(|cx| h::InputState::new(cx));
         let email = cx.new(|cx| h::InputState::new(cx));
         // Seeded with newlines so the multi-line surface is visible at rest.
@@ -381,6 +390,9 @@ Enter inserts a newline here, and a long paragraph wraps inside the field instea
             dropdown_open: std::env::var("HEROGPUI_OPEN_OVERLAYS").is_ok(),
             dropdown_selected: None,
             context_menu_last: SharedString::from("none yet"),
+            menu_bar_last: SharedString::from("none yet"),
+            resizable_sizes: SharedString::from("30, 70"),
+            tree_selected: SharedString::from("nothing"),
             virtual_list: h::VirtualListHandle::new(1000),
             dropdown_last_basic: SharedString::from("none yet"),
             dropdown_doc_marks: vec![SharedString::from("bold")],
@@ -458,6 +470,47 @@ Enter inserts a newline here, and a long paragraph wraps inside the field instea
     }
 }
 
+/// The ids the navbar theme picker offers, in display order: v3's two base
+/// themes, then every built-in preset from `herogpui_theme::presets`.
+pub fn theme_choices() -> Vec<SharedString> {
+    ["light", "dark"]
+        .into_iter()
+        .chain(presets::PRESETS.iter().map(|(id, _)| *id))
+        .map(SharedString::new_static)
+        .collect()
+}
+
+/// The picker label for a theme id: the id with its first letter capitalised.
+fn theme_label(id: &str) -> SharedString {
+    let mut chars = id.chars();
+    chars
+        .next()
+        .map(|first| first.to_uppercase().chain(chars).collect::<String>())
+        .unwrap_or_default()
+        .into()
+}
+
+/// Registers the built-in presets the theme picker switches between, without
+/// activating one. Idempotent: a `reset=1` control request builds a fresh
+/// `Gallery` and must not re-insert the presets (re-inserting the active one
+/// would swap its tokens in place under a live window).
+pub fn register_theme_presets(cx: &mut App) {
+    let registered = ThemeProvider::get(cx).theme_ids();
+    if presets::PRESETS
+        .iter()
+        .all(|(id, _)| registered.iter().any(|known| known == id))
+    {
+        return;
+    }
+    presets::register_presets(cx);
+}
+
+/// Activates the theme the picker chose. An id the provider does not know is
+/// ignored, leaving the current theme in place.
+pub fn select_theme(id: &str, cx: &mut App) {
+    let _ = use_theme(SharedString::from(id.to_owned()), cx);
+}
+
 impl Render for Gallery {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<'_, Self>) -> impl IntoElement {
         if let Some(completion) = self.control_frame.take() {
@@ -496,6 +549,42 @@ impl Render for Gallery {
                         h::icons::MOON
                     })
                     .text_color(colors.foreground),
+            );
+
+        // Every registered base theme and preset, bound to the active id so
+        // the light/dark toggle, `HEROGPUI_THEME` and a control request's
+        // `theme=` all show up here too.
+        let active_theme = cx.theme().id.clone();
+        let theme_picker = gpui::div()
+            .flex()
+            .items_center()
+            .gap(px(6.))
+            .child(h::Icon::new(h::IconName::Palette).color(colors.muted))
+            .child(
+                gpui::div()
+                    .w(px(118.))
+                    .debug_selector(|| "theme-picker".into())
+                    .child(
+                        h::Select::new(
+                            "theme-picker",
+                            theme_choices()
+                                .into_iter()
+                                .map(|id| h::PickerItem::new(id.clone(), theme_label(&id)))
+                                .collect(),
+                        )
+                        .value(Some(active_theme))
+                        .full_width(true)
+                        .height(px(32.))
+                        .trigger_text_size(px(13.))
+                        .on_change(cx.listener(
+                            |_, key: &Option<SharedString>, _, cx| {
+                                if let Some(id) = key {
+                                    select_theme(id, cx);
+                                }
+                                cx.notify();
+                            },
+                        )),
+                    ),
             );
 
         // v3 exposes reduced motion as an app-level switch that every animated
@@ -572,6 +661,7 @@ impl Render for Gallery {
                     .gap(px(8.))
                     .child(github_link)
                     .child(motion_button)
+                    .child(theme_picker)
                     .child(theme_button),
             );
 

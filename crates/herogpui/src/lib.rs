@@ -30,7 +30,8 @@
 //! | `serde`        | `herogpui-theme/serde` (`ThemeDocument`, theme files) |
 //!
 //! There is no separate assets or icons feature: the SVG icons HeroGPUI's own
-//! component chrome draws are `&'static str` constants inside
+//! component chrome draws (the [`components::icons`] paths) and the public
+//! Lucide set ([`IconName`], drawn with [`Icon`]) are embedded in
 //! `herogpui-components` (see [`components::assets`]), not a separable crate,
 //! so they arrive with the `components` feature and cost nothing to a build
 //! that leaves that feature off.

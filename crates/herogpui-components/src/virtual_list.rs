@@ -4,10 +4,12 @@
 //!
 //! It wraps GPUI's own `list` element, which measures each row the first time
 //! it is laid out and keeps a height summary, so rows need no declared
-//! height. The fixed-height fast path that `Table`, `ListBox` and `ComboBox`
-//! use (`uniform_list`, via their `row_height`) stays where it is: those
-//! components keep their existing virtualisation, because rewiring them onto
-//! a variable-height primitive would change their measured layout.
+//! height. `ListBox` and `Table` render their `estimated_row_height` bodies
+//! through it. Their fixed-height fast path (`uniform_list`, via
+//! `row_height`) and `ComboBox`'s popover list stay on `uniform_list`: that
+//! path centres the keyboard cursor (`ScrollStrategy::Center`), and pages
+//! and arms `Table`'s load-more from the declared row height and the uniform
+//! list's viewport, none of which a measured list reproduces.
 //!
 //! State lives in a caller-owned [`VirtualListHandle`], which is how a view
 //! scrolls the list from outside (`scroll_to_item`) and tells it that the
@@ -87,6 +89,25 @@ impl VirtualListHandle {
         Self {
             state: ListState::new(item_count, ListAlignment::Top, gpui::px(OVERDRAW)),
         }
+    }
+
+    /// A handle with an explicit overdraw distance, for the components whose
+    /// overdraw follows their row estimate.
+    pub(crate) fn with_overdraw(item_count: usize, overdraw: Pixels) -> Self {
+        Self {
+            state: ListState::new(item_count, ListAlignment::Top, overdraw),
+        }
+    }
+
+    /// Wraps a list state a component already holds.
+    pub(crate) fn from_list_state(state: ListState) -> Self {
+        Self { state }
+    }
+
+    /// The underlying GPUI list state, for the components that read its
+    /// viewport and scroll top directly (paging, load-more, edge rounding).
+    pub(crate) fn list_state(&self) -> &ListState {
+        &self.state
     }
 
     /// The number of rows the list renders.

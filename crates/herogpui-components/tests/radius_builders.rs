@@ -3,45 +3,13 @@
 
 mod source_scan;
 
+// The components a test can build without an open overlay or a text-field
+// entity are proved on the painted scene in `radius_painted.rs`; the rows
+// left here are the overlay panels, fields and composites that test does not
+// yet reach.
 #[test]
 fn radius_builders_override_their_helper_defaults() {
     for (file, source, stored, resolved) in [
-        (
-            "button.rs",
-            include_str!("../src/button.rs"),
-            "self.radius = Some(radius.into());",
-            "let radius = self.radius.unwrap_or_else(|| util::control_radius(cx));",
-        ),
-        (
-            "card.rs",
-            include_str!("../src/card.rs"),
-            "self.radius = Some(radius.into());",
-            "unwrap_or_else(|| crate::util::container_radius(cx))",
-        ),
-        (
-            "chip.rs",
-            include_str!("../src/chip.rs"),
-            "self.radius = Some(radius.into());",
-            "let radius = self.radius.unwrap_or_else(|| crate::util::soft_radius(cx));",
-        ),
-        (
-            "kbd.rs",
-            include_str!("../src/kbd.rs"),
-            "self.radius = Some(radius.into());",
-            ".rounded(self.radius.unwrap_or_else(|| crate::util::key_radius(cx)))",
-        ),
-        (
-            "toggle_button.rs",
-            include_str!("../src/toggle_button.rs"),
-            "self.radius = Some(radius.into());",
-            ".unwrap_or_else(|| crate::util::control_radius(cx));",
-        ),
-        (
-            "avatar.rs",
-            include_str!("../src/avatar.rs"),
-            "self.radius = Some(radius.into());",
-            "let radius = self.radius.unwrap_or_else(|| {",
-        ),
         (
             "tooltip.rs",
             include_str!("../src/tooltip.rs"),
@@ -53,12 +21,6 @@ fn radius_builders_override_their_helper_defaults() {
             include_str!("../src/modal.rs"),
             "self.radius = Some(radius.into());",
             "let panel_radius = radius.unwrap_or_else(|| crate::util::container_radius(cx));",
-        ),
-        (
-            "alert.rs",
-            include_str!("../src/alert.rs"),
-            "self.radius = Some(radius.into());",
-            ".unwrap_or_else(|| crate::util::control_radius(cx));",
         ),
         (
             "toast.rs",
@@ -83,24 +45,6 @@ fn radius_builders_override_their_helper_defaults() {
             include_str!("../src/table.rs"),
             "self.radius = Some(radius.into());",
             ".unwrap_or_else(|| crate::util::container_radius(cx)),",
-        ),
-        (
-            "skeleton.rs",
-            include_str!("../src/skeleton.rs"),
-            "self.radius = Some(radius.into());",
-            "None => crate::util::hairline_radius(cx),",
-        ),
-        (
-            "progress.rs",
-            include_str!("../src/progress.rs"),
-            "self.radius = Some(radius.into());",
-            "let radius = self.radius.unwrap_or(radius);",
-        ),
-        (
-            "meter.rs",
-            include_str!("../src/meter.rs"),
-            "self.radius = Some(radius.into());",
-            "p = p.radius(radius);",
         ),
         (
             "input.rs",
@@ -163,52 +107,10 @@ fn radius_builders_override_their_helper_defaults() {
             "let radius = self.radius.unwrap_or_else(|| util::container_radius(cx));",
         ),
         (
-            "accordion.rs",
-            include_str!("../src/accordion.rs"),
-            "self.radius = Some(radius.into());",
-            "None => crate::util::container_radius(cx),",
-        ),
-        (
-            "close_button.rs",
-            include_str!("../src/close_button.rs"),
-            "self.radius = Some(radius.into());",
-            "let radius = self.radius.unwrap_or_else(|| crate::util::small_radius(cx));",
-        ),
-        (
             "link.rs",
             include_str!("../src/link.rs"),
             "self.radius = Some(radius.into());",
             "let link_radius = self.radius.unwrap_or_else(|| crate::util::small_radius(cx));",
-        ),
-        (
-            "checkbox.rs",
-            include_str!("../src/checkbox.rs"),
-            "self.radius = Some(radius.into());",
-            "self.radius.unwrap_or_else(|| crate::util::mark_radius(cx))",
-        ),
-        (
-            "radio_group.rs",
-            include_str!("../src/radio_group.rs"),
-            "self.radius = Some(radius.into());",
-            "let control_radius = self.radius.unwrap_or_else(|| crate::util::key_radius(cx));",
-        ),
-        (
-            "typography.rs",
-            include_str!("../src/typography.rs"),
-            "self.radius = Some(radius.into());",
-            ".rounded(self.radius.unwrap_or_else(|| crate::util::mark_radius(cx)))",
-        ),
-        (
-            "badge.rs",
-            include_str!("../src/badge.rs"),
-            "self.radius = Some(radius.into());",
-            "let radius = self.radius.unwrap_or(radius);",
-        ),
-        (
-            "tag_group.rs",
-            include_str!("../src/tag_group.rs"),
-            "self.radius = Some(radius.into());",
-            ".unwrap_or_else(|| Self::step_radius(self.size, cx));",
         ),
     ] {
         assert!(source.contains(stored), "{file}: the builder must store");

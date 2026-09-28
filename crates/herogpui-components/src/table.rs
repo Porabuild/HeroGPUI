@@ -2214,9 +2214,10 @@ impl Table {
                             identity.clone(),
                         ),
                         cx,
-                        move |_, _| gpui::ListState::new(count, gpui::ListAlignment::Top, overdraw),
+                        move |_, _| crate::VirtualListHandle::with_overdraw(count, overdraw),
                     )
                     .read(cx)
+                    .list_state()
                     .clone();
                 if state.item_count() != count {
                     state.reset(count);
@@ -3672,7 +3673,7 @@ impl Table {
     }
 
     /// Fills `.table__body`: a `uniform_list` for fixed-height virtual rows, a
-    /// measured `gpui::list` for `estimatedRowHeight`, or every flattened
+    /// measured [`VirtualList`](crate::VirtualList) for `estimatedRowHeight`, or every flattened
     /// plain row.
     fn body_rows(
         &self,
@@ -3748,45 +3749,48 @@ impl Table {
             let measured_heights =
                 virtual_row_heights.expect("estimated row height creates a measurement store");
             body = body.child(
-                gpui::list(state, move |i, _window, cx| {
-                    let (source_index, key, metadata) = &projection[i];
-                    let row_data = factory(*source_index);
-                    let row = rows.row(
-                        i,
-                        row_data,
-                        metadata.depth,
-                        metadata.has_children,
-                        key,
-                        None,
-                        cx,
-                    );
-                    let measured = measured_heights.clone();
-                    gpui::div()
-                        .relative()
-                        .w_full()
-                        .child(row)
-                        .child(
-                            gpui::canvas(
-                                move |bounds: gpui::Bounds<Pixels>, _, cx| {
-                                    measured.update(cx, |(_, heights), cx| {
-                                        if heights.get(i).copied().flatten()
-                                            != Some(bounds.size.height)
-                                        {
-                                            heights[i] = Some(bounds.size.height);
-                                            cx.notify();
-                                        }
-                                    });
-                                    bounds
-                                },
-                                |_, _, _, _| {},
+                crate::VirtualList::new(
+                    element_id::scoped(base_id, "variable-rows"),
+                    &crate::VirtualListHandle::from_list_state(state),
+                    move |i, _window, cx| {
+                        let (source_index, key, metadata) = &projection[i];
+                        let row_data = factory(*source_index);
+                        let row = rows.row(
+                            i,
+                            row_data,
+                            metadata.depth,
+                            metadata.has_children,
+                            key,
+                            None,
+                            cx,
+                        );
+                        let measured = measured_heights.clone();
+                        gpui::div()
+                            .relative()
+                            .w_full()
+                            .child(row)
+                            .child(
+                                gpui::canvas(
+                                    move |bounds: gpui::Bounds<Pixels>, _, cx| {
+                                        measured.update(cx, |(_, heights), cx| {
+                                            if heights.get(i).copied().flatten()
+                                                != Some(bounds.size.height)
+                                            {
+                                                heights[i] = Some(bounds.size.height);
+                                                cx.notify();
+                                            }
+                                        });
+                                        bounds
+                                    },
+                                    |_, _, _, _| {},
+                                )
+                                .absolute()
+                                .inset_0(),
                             )
-                            .absolute()
-                            .inset_0(),
-                        )
-                        .into_any_element()
-                })
-                .h(height)
-                .w_full(),
+                            .into_any_element()
+                    },
+                )
+                .height(height),
             );
         } else {
             for (i, (row_data, depth, has_children, tree_key, _)) in flat.into_iter().enumerate() {

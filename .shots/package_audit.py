@@ -16,6 +16,13 @@ PACKAGES = {
 }
 
 
+# Crates whose own `license` replaces the inherited Apache-2.0 because they
+# package third-party assets under other licenses.
+OWN_LICENSES = {
+    "herogpui-components": "Apache-2.0 AND ISC AND MIT",
+}
+
+
 def manifest(path):
     with path.open("rb") as source:
         return tomllib.load(source)
@@ -100,11 +107,19 @@ def main():
         package = data["package"]
         if package.get("name") != name:
             errors.append(f"{directory}: package name is not {name}")
+        # herogpui-components packages the Lucide SVGs (ISC, the Feather-derived
+        # icons MIT) and says so in its own expression; every other crate
+        # inherits the workspace's Apache-2.0.
+        own_license = OWN_LICENSES.get(name)
+        if own_license is not None:
+            if package.get("license") != own_license:
+                errors.append(f"{name}: license must be {own_license!r}")
+        elif not inherited(package, "license"):
+            errors.append(f"{name}: license is not inherited from workspace.package")
         for key in (
             "version",
             "edition",
             "rust-version",
-            "license",
             "readme",
             "repository",
             "keywords",
@@ -125,6 +140,16 @@ def main():
         )
         if not resolved_license.is_file():
             errors.append(f"{name}: packaged Apache license text is missing")
+
+    # The Lucide license travels with everything that embeds the icons: the
+    # components crate packages it beside the SVGs, the release attaches it
+    # as LICENSE-lucide, and the website serves a byte-identical copy.
+    lucide = PACKAGES["herogpui-components"] / "assets/lucide/LICENSE"
+    site_copy = ROOT / "web/public/LICENSE-lucide.txt"
+    if not lucide.is_file():
+        errors.append("herogpui-components: assets/lucide/LICENSE is missing")
+    elif not site_copy.is_file() or site_copy.read_bytes() != lucide.read_bytes():
+        errors.append("web/public/LICENSE-lucide.txt is not a copy of the Lucide license")
 
     components = manifest(PACKAGES["herogpui-components"] / "Cargo.toml")
     if "gallery-source" not in components.get("features", {}):
@@ -154,6 +179,8 @@ def main():
     # Nothing ships unless the full CI gate passed for the tagged commit.
     if "workflow_call:" not in ci or "uses: ./.github/workflows/ci.yml" not in release:
         errors.append("release workflow does not run the full CI workflow before publishing")
+    if "LICENSE-lucide" not in release:
+        errors.append("release workflow does not attach the Lucide license")
     if "needs: [plan, ci, github-release]" not in release:
         errors.append("publish-crates does not depend on the CI gate")
 
@@ -236,7 +263,7 @@ def main():
     print(f"library install      : {registry_dep} (the only dependency)")
     print(f"facade features      : {' '.join(sorted(facade_features))}")
     print("gallery install      : cargo install --path gallery --locked")
-    print("license contract     : Apache-2.0 + NOTICE")
+    print("license contract     : Apache-2.0 + NOTICE (components: + ISC AND MIT, Lucide)")
     print(f"PACKAGING ERRORS     : {len(errors)}")
     for error in errors:
         print(f"- {error}")

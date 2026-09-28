@@ -9,6 +9,15 @@
 //! stay inside the window. Choosing an item, Escape or a press outside the
 //! panel closes it.
 //!
+//! The keyboard opens it too: Shift+F10 or the ContextMenu key (`menu` on
+//! Windows and Linux, `contextmenu` on the web) while the focus is anywhere
+//! inside the area opens the menu at the area's top-left corner with its
+//! first item focused, and dismissing it hands the focus back to the element
+//! that held it. GPUI reports no bounds for the focused element, so the area
+//! is the anchor. The area owns a focus handle outside the tab order: a
+//! primary press on a part of the area that does not take the focus itself
+//! focuses the area, so an area with no focusable content is reachable too.
+//!
 //! ```
 //! use herogpui_components::{ContextMenu, MenuItem};
 //! use gpui::{div, prelude::*, px};
@@ -118,6 +127,19 @@ fn set_open(
     }
 }
 
+/// Shift+F10, or the ContextMenu key, with no other modifier.
+fn opens_context_menu(keystroke: &gpui::Keystroke) -> bool {
+    let m = &keystroke.modifiers;
+    if m.control || m.alt || m.platform || m.function {
+        return false;
+    }
+    match keystroke.key.as_str() {
+        "f10" => m.shift,
+        "menu" | "contextmenu" => !m.shift,
+        _ => false,
+    }
+}
+
 impl RenderOnce for ContextMenu {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let base = self.id.clone();
@@ -142,15 +164,75 @@ impl RenderOnce for ContextMenu {
         let focus_first =
             window.use_keyed_state(element_id::scoped(&base, "focus-first"), cx, |_, _| false);
 
+        let area_focus = window
+            .use_keyed_state(element_id::scoped(&base, "area-focus"), cx, |_, cx| {
+                cx.focus_handle().tab_stop(false)
+            })
+            .read(cx)
+            .clone();
+        // The area's own bounds, the keyboard-open anchor.
+        let area_bounds = window
+            .use_keyed_state(element_id::scoped(&base, "area-bounds"), cx, |_, _| {
+                Rc::new(Cell::new(None::<Bounds<Pixels>>))
+            })
+            .read(cx)
+            .clone();
+        // Where the focus was when the keyboard opened the menu.
+        let restore_focus = window
+            .use_keyed_state(element_id::scoped(&base, "restore-focus"), cx, |_, _| {
+                Rc::new(std::cell::RefCell::new(None::<gpui::FocusHandle>))
+            })
+            .read(cx)
+            .clone();
+
+        let bounds_probe = area_bounds.clone();
         let mut area = gpui::div()
             .id(element_id::scoped(&base, "area"))
-            .child(self.child);
+            .relative()
+            .track_focus(&area_focus)
+            .child(self.child)
+            .child(
+                gpui::canvas(
+                    move |bounds, _, _| bounds_probe.set(Some(bounds)),
+                    |_, _, _, _| {},
+                )
+                .absolute()
+                .inset_0(),
+            );
         if !self.is_disabled {
+            let focus = area_focus;
+            area = area.on_mouse_down(MouseButton::Left, move |_, window, cx| {
+                if !focus.contains_focused(window, cx) {
+                    window.focus(&focus, cx);
+                }
+            });
+            let anchor_key = anchor.clone();
+            let own_key = own.clone();
+            let on_open_change_key = self.on_open_change.clone();
+            let focus_first_key = focus_first.clone();
+            let restore_key = restore_focus.clone();
+            area = area.on_key_down(move |event, window, cx| {
+                if is_open || !opens_context_menu(&event.keystroke) {
+                    return;
+                }
+                let Some(bounds) = area_bounds.get() else {
+                    return;
+                };
+                anchor_key.set(Some(Bounds::new(bounds.origin, size(px(0.), px(0.)))));
+                *restore_key.borrow_mut() = window.focused(cx);
+                focus_first_key.update(cx, |focus, _| *focus = true);
+                set_open(&own_key, &on_open_change_key, true, window, cx);
+                cx.stop_propagation();
+            });
             let anchor = anchor.clone();
             let own = own.clone();
             let on_open_change = self.on_open_change.clone();
+            let pointer_focus_first = focus_first.clone();
+            let pointer_restore = restore_focus.clone();
             area = area.on_mouse_down(MouseButton::Right, move |event, window, cx| {
                 anchor.set(Some(Bounds::new(event.position, size(px(0.), px(0.)))));
+                pointer_focus_first.update(cx, |focus, _| *focus = false);
+                pointer_restore.borrow_mut().take();
                 set_open(&own, &on_open_change, true, window, cx);
                 cx.stop_propagation();
             });
@@ -171,6 +253,14 @@ impl RenderOnce for ContextMenu {
             let on_open_change = self.on_open_change;
             menu = menu.on_dismiss(move |_refocus, window, cx| {
                 set_open(&own, &on_open_change, false, window, cx);
+                // A keyboard open took the focus into the menu; hand it back,
+                // an Enter pick included: pinned gpui activates an element on
+                // key up only when the key went down on it too, so the
+                // restored element does not see the pick's release as a press.
+                let restore = restore_focus.borrow_mut().take();
+                if let Some(handle) = restore {
+                    window.focus(&handle, cx);
+                }
             });
             root = root.child(crate::util::floating(
                 crate::popover::popover_with_resolved_placement(

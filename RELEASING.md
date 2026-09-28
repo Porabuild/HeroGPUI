@@ -59,7 +59,13 @@ is stored in GitHub.
 
 1. Update `[workspace.package].version` and all four version requirements
    under `[workspace.dependencies]` to the same SemVer value.
-2. Run the complete local gate from `AGENTS.md`, plus:
+2. In `CHANGELOG.md`, set the release heading to `## [X.Y.Z] - YYYY-MM-DD`
+   with the actual release date, point `[Unreleased]` at `vX.Y.Z...HEAD` and
+   add the `[X.Y.Z]` compare link. Bump `"version"` in `web/package.json` to
+   the same value, then run `pnpm run extract` from `web/` so
+   `web/src/data/releases.json` is regenerated from the changelog (and
+   `pnpm run extract:check` passes).
+3. Run the complete local gate from `AGENTS.md`, plus:
 
    ```powershell
    cargo package -p herogpui-core --allow-dirty --no-verify --list
@@ -70,11 +76,12 @@ is stored in GitHub.
    cargo publish --workspace --dry-run --allow-dirty --locked --no-verify
    ```
 
-3. Commit, create an annotated `vX.Y.Z` tag, and push the commit and tag.
-4. The release workflow builds every supported gallery binary, attests them,
+4. Commit, create an annotated `vX.Y.Z` tag, and push the commit and tag.
+5. The release workflow builds every supported gallery binary, attests them,
    and creates the immutable GitHub Release with those binaries plus
-   `LICENSE` and `NOTICE`. It does not publish to crates.io.
-5. The workflow's `publish-crates` job publishes the crates. To publish by
+   `LICENSE`, `NOTICE` and `LICENSE-lucide` (the ISC/MIT license of the
+   Lucide icons the binaries embed). It does not publish to crates.io.
+6. The workflow's `publish-crates` job publishes the crates. To publish by
    hand instead (first release of a crate, or a workflow outage), from the
    tagged commit and in dependency order:
 
@@ -86,7 +93,7 @@ is stored in GitHub.
    cargo publish -p herogpui-gallery --locked
    ```
 
-6. Verify a new project with `cargo add herogpui`, and install the gallery
+7. Verify a new project with `cargo add herogpui`, and install the gallery
    with `cargo install herogpui-gallery` on at least one clean machine.
 
 If a registry publish partially succeeds, never reuse or overwrite a published

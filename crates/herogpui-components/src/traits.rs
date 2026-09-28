@@ -114,6 +114,7 @@ disableable!(
     RadioOption,
     RadioGroup,
     RangeCalendar,
+    ResizablePanelGroup,
     Select,
     Slider,
     Switch,
@@ -126,6 +127,8 @@ disableable!(
     ToggleButton,
     ToggleButtonGroup,
     Tooltip,
+    TreeItem,
+    TreeView,
 );
 
 sizable!(
