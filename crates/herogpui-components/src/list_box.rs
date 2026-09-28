@@ -127,14 +127,22 @@ type OnAction = Arc<dyn Fn(&SharedString, &mut Window, &mut App) + 'static>;
 /// `ListBox.ItemIndicator`'s render function, handed `isSelected`.
 type Indicator = Arc<dyn Fn(bool) -> gpui::AnyElement + 'static>;
 
+/// The anchor and the moving end of a Shift range in a multiple-selection
+/// collection (React Stately's `anchorKey` / `currentKey`), and whether the
+/// selection is a raw select-all. `TreeView` shares it.
 #[derive(Clone, Debug, Default)]
-struct ListBoxSelectionRange {
-    anchor: Option<SharedString>,
-    current: Option<SharedString>,
-    is_all: bool,
+pub(crate) struct ListBoxSelectionRange {
+    pub(crate) anchor: Option<SharedString>,
+    pub(crate) current: Option<SharedString>,
+    pub(crate) is_all: bool,
 }
 
-fn extend_selection_range(
+/// React Stately's `extendSelection`: drop the keys between the anchor and
+/// the previous range end, then add the selectable keys between the anchor
+/// and `target`, in `collection` order. A raw select-all collapses to
+/// `target`, and with no anchor the range starts at `target`. `TreeView`
+/// shares it.
+pub(crate) fn extend_selection_range(
     current: &HashSet<SharedString>,
     collection: &[SharedString],
     selectable: &HashSet<SharedString>,
@@ -346,8 +354,8 @@ impl ListBox {
     ///
     /// v3 wraps the list in `<Virtualizer layout={ListLayout}
     /// layoutOptions={{rowHeight: 50}}>`; the wrapper has no separate identity
-    /// here, so the option that defines the layout carries it. gpui's
-    /// `uniform_list` builds only the rows the viewport shows, and it can do
+    /// here, so the option that defines the layout carries it. a uniform
+    /// [`VirtualList`](crate::VirtualList) builds only the rows the viewport shows, and it can do
     /// that because every row is this tall.
     pub fn row_height(mut self, h: impl Into<gpui::Pixels>) -> Self {
         self.row_height = Some(h.into());
@@ -357,7 +365,7 @@ impl ListBox {
     /// `ListLayout`'s `estimatedRowHeight` — virtualize rows that are *not* all
     /// the same height.
     ///
-    /// `rowHeight` maps to `uniform_list`, which measures one row and multiplies;
+    /// `rowHeight` maps to a uniform `VirtualList`, which measures one row and multiplies;
     /// this maps to gpui's `list`, which measures each row it builds and keeps a
     /// running total, so a described row and a plain one can differ. The estimate
     /// is what it renders beyond the viewport (`overdraw`) while it learns the
@@ -488,10 +496,14 @@ impl RenderOnce for ListBox {
         self.selected_keys = selected_keys;
         // React Aria keeps the focused row in view. Two handles, because the
         // virtual list owns its own scrolling and a plain one does not.
-        let list_scroll =
-            window.use_keyed_state(element_id::scoped(&base_id, "list-scroll"), cx, |_, _| {
-                gpui::UniformListScrollHandle::new()
-            });
+        let list_scroll = {
+            let count = self.items.len();
+            window.use_keyed_state(
+                element_id::scoped(&base_id, "list-scroll"),
+                cx,
+                move |_, _| crate::VirtualListHandle::uniform(count),
+            )
+        };
         let box_scroll =
             window.use_keyed_state(element_id::scoped(&base_id, "box-scroll"), cx, |_, _| {
                 gpui::ScrollHandle::new()
@@ -594,7 +606,7 @@ impl RenderOnce for ListBox {
                 move |_, window, cx| window.focus(&fh, cx)
             });
 
-        // A virtualized list scrolls inside `uniform_list`, which owns the
+        // A virtualized list scrolls inside its uniform `VirtualList`, which owns the
         // scroll offset it computes the visible range from; a second scroller
         // around it would move the rows without telling it.
         if let (Some(max_h), None) = (self.max_h, self.row_height) {
@@ -659,7 +671,7 @@ impl RenderOnce for ListBox {
             let fixed_virtual = self.row_height.is_some();
             // Pinned `ListKeyboardDelegate` pages by one visible rectangle, so
             // the step reads the virtual list's own laid-out viewport -- the
-            // pinned handle's `base_handle.bounds()` -- and not the configured
+            // uniform handle's `viewport_bounds()` -- and not the configured
             // `max_h` cap: a bounded parent (or a resized window) shows fewer
             // rows than the cap allows. A zero viewport answers nothing, which
             // the shared resolver turns into no movement.
@@ -794,8 +806,7 @@ impl RenderOnce for ListBox {
                 };
                 let fixed_page_move = from.and_then(|from| {
                     let row_height = fixed_row_height?;
-                    let viewport_height =
-                        f32::from(key_list_scroll.0.borrow().base_handle.bounds().size.height);
+                    let viewport_height = f32::from(key_list_scroll.viewport_bounds().size.height);
                     if viewport_height <= 0. {
                         return None;
                     }
@@ -967,7 +978,7 @@ impl RenderOnce for ListBox {
                             cx.notify();
                         });
                         if fixed_virtual {
-                            key_list_scroll.scroll_to_item(next, gpui::ScrollStrategy::Center);
+                            key_list_scroll.scroll_to_item(next, crate::VirtualListScroll::Center);
                         } else if let Some(state) = &variable_scroll {
                             if is_variable_page || matches!(key_name, "up" | "down") {
                                 state.scroll_to_reveal_item(next);
@@ -1095,10 +1106,10 @@ impl RenderOnce for ListBox {
 
         // With `rowHeight` set the list is virtual: only the rows the viewport
         // shows are built, which is what makes a thousand of them affordable.
-        // `uniform_list` measures row 0 and multiplies, so the row builder is
+        // A uniform `VirtualList` measures row 0 and multiplies, so the row builder is
         // told the height rather than left to size itself.
         // `estimatedRowHeight` virtualizes a list whose rows differ: gpui's
-        // `list` measures each row it builds, where `uniform_list` measures one
+        // `list` measures each row it builds, where the uniform mode measures one
         // and multiplies. Its state is intrusive -- the caller has to hold it --
         // so it lives in the window's keyed store, and a change in the item
         // count resets it.
@@ -1173,41 +1184,33 @@ impl RenderOnce for ListBox {
             let row_range = selection_range.clone();
             // The headless probe name for the virtual viewport's bounds.
             let rows_selector = format!("{base}-rows");
-            // The viewport scrolls inside `uniform_list`, which builds only
-            // the shown rows. A fixed height caps the roomy-window viewport
+            // The viewport scrolls inside the uniform `VirtualList`, which
+            // builds only the shown rows. A fixed height caps the roomy-window viewport
             // at the configured value so an unbounded parent sizes to cap +
             // padding instead of the rows' full natural height; `min_h_0`
             // lets that fixed height shrink as a flex item with a bounded
             // parent, handing the viewport its real height for paging.
+            let handle = list_scroll_now;
+            if handle.item_count() != count {
+                handle.splice(0..handle.item_count(), count);
+            }
             return util::apply_sx(
                 list.child(
-                    gpui::uniform_list(
-                        element_id::scoped(&base_id, "rows"),
-                        count,
-                        move |range, _window, cx| {
-                            range
-                                .map(|i| {
-                                    rows.row(
-                                        i,
-                                        focused_at,
-                                        Some(row_height),
-                                        interaction.get(i),
-                                        &cursor,
-                                        &row_range,
-                                        selection_own.as_ref(),
-                                        _window,
-                                        cx,
-                                    )
-                                })
-                                .collect::<Vec<_>>()
-                        },
-                    )
-                    .track_scroll(&list_scroll_now)
-                    .id(list_id)
-                    .h(height)
-                    .min_h_0()
-                    .w_full()
-                    .debug_selector(move || rows_selector),
+                    crate::VirtualList::new(list_id, &handle, move |i, window, cx| {
+                        rows.row(
+                            i,
+                            focused_at,
+                            Some(row_height),
+                            interaction.get(i),
+                            &cursor,
+                            &row_range,
+                            selection_own.as_ref(),
+                            window,
+                            cx,
+                        )
+                    })
+                    .height(height)
+                    .debug_selector(rows_selector),
                 ),
                 &sx,
             )

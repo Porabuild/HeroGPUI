@@ -422,3 +422,190 @@ fn removing_panels_mid_drag_ends_the_drag(cx: &mut TestAppContext) {
     frame(cx);
     assert!(log(&seen).is_empty(), "{:?}", log(&seen));
 }
+
+// ---- pixel limits, collapsing, on_resize_end ---------------------------
+
+/// Two panels over the 508px they share in a 516px host, logging `on_resize`
+/// as `a,b` and `on_resize_end` as `end:a,b`.
+fn pair_host(
+    cx: &mut TestAppContext,
+    first: impl Fn() -> ResizablePanel + 'static,
+) -> (Events, &mut VisualTestContext) {
+    let seen = events();
+    let s = seen.clone();
+    let cx = open_host(cx, move || {
+        let (s, e) = (s.clone(), s.clone());
+        let text = |sizes: &[f32]| {
+            sizes
+                .iter()
+                .map(|v| format!("{v:.0}"))
+                .collect::<Vec<_>>()
+                .join(",")
+        };
+        gpui::div()
+            .w(px(WIDTH))
+            .h(px(HEIGHT))
+            .child(
+                ResizablePanelGroup::new("split")
+                    .panel(first().child(gpui::div().child("One")))
+                    .panel(ResizablePanel::new().child(gpui::div().child("Two")))
+                    .on_resize(move |sizes, _, _| s.borrow_mut().push(text(sizes)))
+                    .on_resize_end(move |sizes, _, _| {
+                        e.borrow_mut().push(format!("end:{}", text(sizes)));
+                    }),
+            )
+            .into_any_element()
+    });
+    (seen, cx)
+}
+
+/// The first panel's width in whole pixels.
+fn first_width(cx: &mut VisualTestContext) -> i32 {
+    f32::from(bounds(cx, "split-panel-0").size.width).round() as i32
+}
+
+fn drag_handle(cx: &mut VisualTestContext, dx: f32) {
+    let start = bounds(cx, "split-handle-0").center();
+    cx.simulate_mouse_down(start, MouseButton::Left, Modifiers::none());
+    frame(cx);
+    let to = point(start.x + px(dx), start.y);
+    cx.simulate_mouse_move(to, Some(MouseButton::Left), Modifiers::none());
+    frame(cx);
+    cx.simulate_mouse_up(to, MouseButton::Left, Modifiers::none());
+    frame(cx);
+}
+
+#[gpui::test]
+fn a_pixel_minimum_holds_at_start_on_keys_and_in_a_drag(cx: &mut TestAppContext) {
+    let (seen, cx) = pair_host(cx, || {
+        ResizablePanel::new()
+            .default_size(10.)
+            .min_size_px(px(127.))
+    });
+    frame(cx);
+    // 127px of 508 is 25%: the 10% default starts there.
+    assert_eq!(first_width(cx), 127);
+    press(cx, "tab");
+    frame(cx);
+    press(cx, "left");
+    frame(cx);
+    press(cx, "home");
+    frame(cx);
+    drag_handle(cx, -200.);
+    assert_eq!(first_width(cx), 127);
+    assert!(log(&seen).is_empty(), "{:?}", log(&seen));
+}
+
+#[gpui::test]
+fn a_pixel_maximum_caps_a_drag(cx: &mut TestAppContext) {
+    let (seen, cx) = pair_host(cx, || ResizablePanel::new().max_size_px(px(381.)));
+    frame(cx);
+    drag_handle(cx, 400.);
+    // 381px of 508 is 75%.
+    assert_eq!(first_width(cx), 381);
+    assert_eq!(log(&seen), ["75,25", "end:75,25"]);
+}
+
+#[gpui::test]
+fn a_collapsible_panel_collapses_past_halfway_and_expands_back(cx: &mut TestAppContext) {
+    let (seen, cx) = pair_host(cx, || {
+        ResizablePanel::new()
+            .default_size(40.)
+            .min_size(20.)
+            .collapsible(true)
+    });
+    frame(cx);
+    // 40% -> 12%: over halfway (10%) between 0 and the 20% minimum, so
+    // the drag holds at the minimum.
+    drag_handle(cx, -142.);
+    assert_eq!(first_width(cx), 102);
+    // 20% -> 8%: past halfway, it collapses.
+    drag_handle(cx, -61.);
+    assert_eq!(first_width(cx), 0);
+    // 0% -> 11%: past halfway back, it expands to the minimum.
+    drag_handle(cx, 56.);
+    assert_eq!(first_width(cx), 102);
+    assert_eq!(
+        log(&seen),
+        [
+            "20,80",
+            "end:20,80",
+            "0,100",
+            "end:0,100",
+            "20,80",
+            "end:20,80"
+        ]
+    );
+}
+
+#[gpui::test]
+fn enter_collapses_and_restores_and_keys_end_each_resize(cx: &mut TestAppContext) {
+    let (seen, cx) = pair_host(cx, || {
+        ResizablePanel::new()
+            .default_size(40.)
+            .min_size(20.)
+            .collapsible(true)
+    });
+    frame(cx);
+    press(cx, "tab");
+    frame(cx);
+    for key in ["right", "enter", "enter", "left", "left", "left"] {
+        press(cx, key);
+        frame(cx);
+    }
+    assert_eq!(
+        log(&seen),
+        [
+            "45,55",
+            "end:45,55",
+            // Enter collapses the panel before the handle...
+            "0,100",
+            "end:0,100",
+            // ...and restores the size it had.
+            "45,55",
+            "end:45,55",
+            "40,60",
+            "end:40,60",
+            "35,65",
+            "end:35,65",
+            "30,70",
+            "end:30,70",
+        ]
+    );
+    // At the minimum an arrow toward it collapses, and back expands to it.
+    for key in ["home", "right", "left", "left"] {
+        press(cx, key);
+        frame(cx);
+    }
+    assert_eq!(
+        log(&seen)[12..],
+        [
+            "0,100",
+            "end:0,100", // Home: the collapsed size is the lowest
+            "20,80",
+            "end:20,80", // Right from collapsed: the minimum
+            "0,100",
+            "end:0,100", // Left from the minimum: collapsed
+        ]
+    );
+}
+
+#[gpui::test]
+fn a_press_without_a_move_does_not_end_a_resize(cx: &mut TestAppContext) {
+    let (seen, cx) = pair_host(cx, ResizablePanel::new);
+    frame(cx);
+    drag_handle(cx, 0.);
+    assert!(log(&seen).is_empty(), "{:?}", log(&seen));
+    // A drag reports every move but ends once, with the final sizes.
+    let start = bounds(cx, "split-handle-0").center();
+    cx.simulate_mouse_down(start, MouseButton::Left, Modifiers::none());
+    frame(cx);
+    for dx in [25.4, 50.8] {
+        let to = point(start.x + px(dx), start.y);
+        cx.simulate_mouse_move(to, Some(MouseButton::Left), Modifiers::none());
+        frame(cx);
+    }
+    cx.simulate_mouse_up(start, MouseButton::Left, Modifiers::none());
+    frame(cx);
+    assert_eq!(log(&seen), ["55,45", "60,40", "end:60,40"]);
+}

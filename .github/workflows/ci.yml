@@ -117,6 +117,11 @@ jobs:
       - name: Maintainer coverage report freshness
         run: python .shots/coverage_report.py --check
 
+      - name: Lucide icon set freshness
+        run: |
+          python .shots/sync-lucide.py --self-test
+          python .shots/sync-lucide.py --check
+
       - name: Audit set with strict summary checks
         run: python .shots/parity_report.py --output "$RUNNER_TEMP/parity-report.json"
 

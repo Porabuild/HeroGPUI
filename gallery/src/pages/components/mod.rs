@@ -852,7 +852,7 @@ mod example_quality {
             ("number_field", 17),
             ("text_area", 6),
             ("date_range_picker", 10),
-            ("list_box", 17),
+            ("list_box", 18),
             ("tag_group", 16),
             ("meter", 5),
             ("progress_bar", 6),

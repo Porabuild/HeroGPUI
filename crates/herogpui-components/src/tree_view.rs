@@ -14,11 +14,23 @@
 //!   it too.
 //! - **Selection.** `SelectionMode::Single` or `Multiple` (the `ListBox`
 //!   model: a press, Enter or Space toggles the row; Single replaces).
-//!   Escape clears a non-empty selection unless empty selection is
-//!   disallowed. Disabled rows cannot be focused, selected or expanded.
+//!   In `Multiple`, Shift+Up/Down and a Shift press extend the selection
+//!   from the anchor (the last row a press or key selected) over the visible
+//!   rows between, skipping disabled ones, as React Stately's
+//!   `extendSelection` does; Shift+Home/End move the cursor only, as they do
+//!   in `ListBox` without Control. Escape clears a non-empty selection unless
+//!   empty selection is disallowed. Disabled rows cannot be focused, selected
+//!   or expanded.
+//! - **Virtualisation.** Rows render through a uniform
+//!   [`VirtualList`](crate::VirtualList), so only the rows in view are built:
+//!   with [`max_h`](TreeView::max_h), or in a parent that bounds its height,
+//!   a tree of thousands of open rows scrolls and builds a screenful. The
+//!   keyboard cursor scrolls into view.
 //! - **Accessibility.** `Role::Tree` on the root and `Role::TreeItem` on each
-//!   row, named by its label, with its level, `expanded` on parents and
-//!   `selected` when the tree selects.
+//!   row, named by its label, with its level, its position among its
+//!   siblings (`aria-posinset` / `aria-setsize`, as React Aria's
+//!   `useGridListItem` counts them), `expanded` on parents and `selected`
+//!   when the tree selects.
 //!
 //! Expanded and selected keys are each controlled (`expanded_keys`,
 //! `selected_keys`) or uncontrolled (`default_expanded_keys`,
@@ -54,12 +66,17 @@ use herogpui_core::{element_id, SelectionMode};
 use herogpui_theme::ActiveTheme;
 
 use crate::a11y::{self, A11y as _};
+use crate::list_box::{extend_selection_range, ListBoxSelectionRange as SelectionRange};
 use crate::{icons, util};
 
 type KeysCallback = Arc<dyn Fn(&HashSet<SharedString>, &mut Window, &mut App) + 'static>;
 
 /// The height of one tree row.
 const ROW_HEIGHT: gpui::Pixels = px(32.);
+/// The space between two rows. Each virtual row slot is a row plus this gap.
+const ROW_GAP: gpui::Pixels = px(2.);
+/// The tree's inner padding.
+const PADDING: gpui::Pixels = px(4.);
 /// The indent one level of depth adds.
 const INDENT: f32 = 16.;
 
@@ -128,6 +145,7 @@ pub struct TreeView {
     is_disabled: bool,
     on_selection_change: Option<KeysCallback>,
     on_expanded_change: Option<KeysCallback>,
+    max_h: Option<gpui::Pixels>,
 }
 
 impl TreeView {
@@ -151,7 +169,16 @@ impl TreeView {
             is_disabled: false,
             on_selection_change: None,
             on_expanded_change: None,
+            max_h: None,
         }
+    }
+
+    /// Caps the tree's height. Taller content scrolls inside it, and only
+    /// the rows in view are built. Without a cap the tree is as tall as its
+    /// open rows unless its parent bounds it.
+    pub fn max_h(mut self, height: impl Into<gpui::Pixels>) -> Self {
+        self.max_h = Some(height.into());
+        self
     }
 
     /// `None` (the default), `Single` or `Multiple`.
@@ -236,6 +263,10 @@ struct Row {
     /// The parent's index in the flattened rows.
     parent: Option<usize>,
     disabled: bool,
+    /// The zero-based position among the row's siblings.
+    pos_in_set: usize,
+    /// How many siblings the row has, itself included.
+    set_size: usize,
 }
 
 /// Depth-first, through open parents only: a nested row does not exist
@@ -248,7 +279,8 @@ fn flatten(
     disabled_keys: &HashSet<SharedString>,
     out: &mut Vec<Row>,
 ) {
-    for item in items {
+    let set_size = items.len();
+    for (pos_in_set, item) in items.into_iter().enumerate() {
         let has_children = !item.children.is_empty();
         let is_open = has_children && expanded.contains(&item.key);
         let index = out.len();
@@ -261,6 +293,8 @@ fn flatten(
             has_children,
             expanded: is_open,
             parent,
+            pos_in_set,
+            set_size,
         });
         if is_open {
             flatten(
@@ -315,6 +349,12 @@ struct TreeState {
     disallow_empty: bool,
     on_selection_change: Option<KeysCallback>,
     on_expanded_change: Option<KeysCallback>,
+    /// The Shift range's anchor and moving end.
+    range: gpui::Entity<SelectionRange>,
+    /// The visible rows' keys, in order: the collection a range spans.
+    order: std::rc::Rc<Vec<SharedString>>,
+    /// The keys a range may select: the visible rows that are not disabled.
+    selectable: std::rc::Rc<HashSet<SharedString>>,
 }
 
 impl TreeState {
@@ -363,14 +403,47 @@ impl TreeState {
         }
     }
 
+    /// A Shift press or Shift+Up/Down onto `key` in multiple mode: select
+    /// the selectable rows from the anchor to `key`, replacing the previous
+    /// range, and move the range's end to `key`.
+    fn extend_to(&self, key: &SharedString, window: &mut Window, cx: &mut App) {
+        let range = self.range.read(cx).clone();
+        let next =
+            extend_selection_range(&self.selected, &self.order, &self.selectable, &range, key);
+        self.range.update(cx, |range, _| {
+            if range.anchor.is_none() {
+                range.anchor = Some(key.clone());
+            }
+            range.current = Some(key.clone());
+            range.is_all = false;
+        });
+        self.set_selected(next, window, cx);
+    }
+
+    /// Whether a Shift navigation or press extends the selection.
+    fn extends(&self, shift: bool) -> bool {
+        shift && self.mode == SelectionMode::Multiple
+    }
+
     /// A press, Enter or Space on `row`: select it, or with no selection
-    /// mode toggle a parent.
+    /// mode toggle a parent. Selecting a row in multiple mode seats the
+    /// Shift range's anchor on it, as `ListBox` does.
     fn activate(&self, row: &Row, window: &mut Window, cx: &mut App) {
         if row.disabled {
             return;
         }
         if crate::selection::reports_changes(self.mode) {
+            let was_selected = self.selected.contains(&row.key);
             let next = toggled_selection(&self.selected, &row.key, self.mode, self.disallow_empty);
+            if self.mode == SelectionMode::Multiple && !was_selected {
+                self.range.update(cx, |range, _| {
+                    *range = SelectionRange {
+                        anchor: Some(row.key.clone()),
+                        current: Some(row.key.clone()),
+                        is_all: false,
+                    };
+                });
+            }
             self.set_selected(next, window, cx);
         } else if row.has_children {
             self.set_expanded(&row.key, !row.expanded, window, cx);
@@ -403,6 +476,15 @@ impl RenderOnce for TreeView {
         let typed = window.use_keyed_state(element_id::scoped(&base, "typed"), cx, |_, _| {
             crate::list_nav::Typeahead::default()
         });
+        let range = window.use_keyed_state(element_id::scoped(&base, "range"), cx, |_, _| {
+            SelectionRange::default()
+        });
+        let list = window
+            .use_keyed_state(element_id::scoped(&base, "list"), cx, |_, _| {
+                crate::VirtualListHandle::uniform(0)
+            })
+            .read(cx)
+            .clone();
         let (selected, selected_own) = util::controlled(
             window,
             cx,
@@ -492,12 +574,19 @@ impl RenderOnce for TreeView {
             disallow_empty: self.disallow_empty_selection,
             on_selection_change: self.on_selection_change.clone(),
             on_expanded_change: self.on_expanded_change.clone(),
+            range,
+            order: std::rc::Rc::new(rows.iter().map(|row| row.key.clone()).collect()),
+            selectable: std::rc::Rc::new(stops.iter().map(|ix| rows[*ix].key.clone()).collect()),
         };
         let rows = std::rc::Rc::new(rows);
+        if list.item_count() != rows.len() {
+            list.splice(0..list.item_count(), rows.len());
+        }
 
         let colors = cx.colors().clone();
         let radius = util::soft_radius(cx);
         let pointer = util::interactive_cursor(cx);
+        let disabled_opacity = cx.layout().disabled_opacity;
         let selects = self.selection_mode != SelectionMode::None;
 
         let mut tree = div()
@@ -506,8 +595,6 @@ impl RenderOnce for TreeView {
             .relative()
             .flex()
             .flex_col()
-            .gap(px(2.))
-            .p(px(4.))
             .text_size(util::FIELD_TEXT)
             .text_color(colors.foreground)
             .debug_selector({
@@ -516,11 +603,12 @@ impl RenderOnce for TreeView {
             });
 
         if disabled_tree {
-            tree = tree.opacity(cx.layout().disabled_opacity);
+            tree = tree.opacity(disabled_opacity);
         } else {
             let keys_state = state.clone();
             let keys_rows = rows.clone();
             let keys_focus = focus_handle.clone();
+            let keys_list = list.clone();
             let keys_stops = stops;
             tree = tree
                 .track_focus(&focus_handle)
@@ -543,6 +631,7 @@ impl RenderOnce for TreeView {
                     let from = cursor_at;
                     let moved = |to: usize, cx: &mut App| {
                         state.set_cursor(&rows[to].key, cx);
+                        keys_list.scroll_to_item(to, crate::VirtualListScroll::Reveal);
                         util::set_focus_visible(true, cx);
                     };
                     match key {
@@ -581,12 +670,24 @@ impl RenderOnce for TreeView {
                                 && !state.disallow_empty
                                 && !state.selected.is_empty() =>
                         {
+                            state
+                                .range
+                                .update(cx, |range, _| *range = SelectionRange::default());
                             state.set_selected(HashSet::new(), window, cx);
                             cx.stop_propagation();
                         }
                         _ => match crate::list_nav::resolve(&keys_stops, from, key, false) {
                             crate::list_nav::Move::To(to) => {
                                 moved(to, cx);
+                                // Shift+Up/Down extend a multiple selection;
+                                // Shift+Home/End only move, as in `ListBox`
+                                // without Control.
+                                if state.extends(m.shift)
+                                    && matches!(key, "up" | "down")
+                                    && Some(to) != from
+                                {
+                                    state.extend_to(&rows[to].key, window, cx);
+                                }
                                 cx.stop_propagation();
                             }
                             crate::list_nav::Move::Activate => {
@@ -622,132 +723,159 @@ impl RenderOnce for TreeView {
                 });
         }
 
-        for (ix, row) in rows.iter().enumerate() {
-            let disabled = row.disabled || disabled_tree;
-            let is_selected = selects && selected.contains(&row.key);
-            let is_cursor = cursor_at == Some(ix);
-            let fg = if is_selected {
-                colors.accent.soft_foreground(colors.foreground)
-            } else {
-                colors.foreground
-            };
-            let hover_bg = colors.default.color;
-            let mut el = div()
-                .id(element_id::scoped(
-                    &element_id::scoped(&base, "item"),
-                    row.key.clone(),
-                ))
-                .a11y_named(
-                    a11y::Role::TreeItem,
-                    &a11y::Name::labelled(row.label.clone()),
-                )
-                .a11y_level(row.depth)
-                .when(row.has_children, |el| el.a11y_expanded(row.expanded))
-                .when(selects, |el| el.a11y_selected(is_selected))
-                // One focus handle on the tree and a cursor through its rows:
-                // gpui states that relation on the row, not the container.
-                .when(is_cursor, |el| el.a11y_active_descendant())
-                .relative()
-                .flex()
-                .flex_row()
-                .items_center()
-                .gap(px(4.))
-                .h(ROW_HEIGHT)
-                .flex_shrink_0()
-                .pl(px(4. + INDENT * row.depth as f32))
-                .pr(px(8.))
-                .rounded(radius)
-                .text_color(fg)
-                .when(is_selected, |el| el.bg(colors.accent.soft()))
-                .debug_selector({
-                    let name = format!("{selector}-row-{}", row.key);
-                    move || name
-                });
-            if disabled {
-                el = el.opacity(cx.layout().disabled_opacity);
-            } else {
-                el = el
-                    .cursor(pointer)
-                    .when(!is_selected, |el| el.hover(move |s| s.bg(hover_bg)));
-            }
-            el = util::with_focus_ring_overlay(
-                el,
-                util::shows_focus_ring(focused_at == Some(ix), cx),
-                true,
-                radius,
-                Vec::new(),
-                cx,
-            );
-
-            // The disclosure slot: a chevron on a parent, an empty slot on a
-            // leaf so siblings line up.
-            let mut chevron = div()
-                .id(element_id::scoped(
-                    &element_id::scoped(&base, "toggle"),
-                    row.key.clone(),
-                ))
-                .flex()
-                .items_center()
-                .justify_center()
-                .size(px(16.))
-                .flex_shrink_0();
-            if row.has_children {
-                chevron = chevron
+        // Only the rows in view are built. Each slot is a row plus the gap
+        // below it, so a slot's top is where a flex column with that gap
+        // would put the row; the bottom padding is one gap short to match.
+        let content_height = PADDING * 2. + (ROW_HEIGHT + ROW_GAP) * rows.len() as f32 - ROW_GAP;
+        let rows_id = element_id::scoped(&base, "rows");
+        let render_row = {
+            move |ix: usize, _window: &mut Window, cx: &mut App| {
+                let row = &rows[ix];
+                let disabled = row.disabled || disabled_tree;
+                let is_selected = selects && selected.contains(&row.key);
+                let is_cursor = cursor_at == Some(ix);
+                let fg = if is_selected {
+                    colors.accent.soft_foreground(colors.foreground)
+                } else {
+                    colors.foreground
+                };
+                let hover_bg = colors.default.color;
+                let mut el = div()
+                    .id(element_id::scoped(
+                        &element_id::scoped(&base, "item"),
+                        row.key.clone(),
+                    ))
+                    .a11y_named(
+                        a11y::Role::TreeItem,
+                        &a11y::Name::labelled(row.label.clone()),
+                    )
+                    .a11y_level(row.depth)
+                    .a11y_set_position(row.pos_in_set, row.set_size)
+                    .when(row.has_children, |el| el.a11y_expanded(row.expanded))
+                    .when(selects, |el| el.a11y_selected(is_selected))
+                    // One focus handle on the tree and a cursor through its
+                    // rows: gpui states that relation on the row, not the
+                    // container.
+                    .when(is_cursor, |el| el.a11y_active_descendant())
+                    .relative()
+                    .flex()
+                    .flex_row()
+                    .items_center()
+                    .gap(px(4.))
+                    .h(ROW_HEIGHT)
+                    .flex_shrink_0()
+                    .pl(px(4. + INDENT * row.depth as f32))
+                    .pr(px(8.))
+                    .rounded(radius)
+                    .text_color(fg)
+                    .when(is_selected, |el| el.bg(colors.accent.soft()))
                     .debug_selector({
-                        let name = format!("{selector}-toggle-{}", row.key);
+                        let name = format!("{selector}-row-{}", row.key);
                         move || name
-                    })
-                    .child(
-                        gpui::svg()
-                            .size(px(12.))
-                            .path(if row.expanded {
-                                icons::CHEVRON_DOWN
-                            } else {
-                                icons::CHEVRON_RIGHT
-                            })
-                            .text_color(colors.muted),
-                    );
-                if !disabled {
-                    let toggle = state.clone();
-                    let focus = focus_handle.clone();
-                    let key = row.key.clone();
-                    let open = row.expanded;
-                    chevron = chevron
-                        .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-                        .on_click(move |_, window, cx| {
-                            cx.stop_propagation();
-                            util::set_focus_visible(false, cx);
-                            window.focus(&focus, cx);
-                            toggle.set_cursor(&key, cx);
-                            toggle.set_expanded(&key, !open, window, cx);
-                        });
+                    });
+                if disabled {
+                    el = el.opacity(disabled_opacity);
+                } else {
+                    el = el
+                        .cursor(pointer)
+                        .when(!is_selected, |el| el.hover(move |s| s.bg(hover_bg)));
                 }
-            }
-            el = el.child(chevron);
-            if let Some(path) = &row.icon {
-                el = el.child(
-                    gpui::svg()
-                        .size(util::FIELD_ICON)
-                        .path(path.clone())
-                        .flex_shrink_0()
-                        .text_color(fg),
+                el = util::with_focus_ring_overlay(
+                    el,
+                    util::shows_focus_ring(focused_at == Some(ix), cx),
+                    true,
+                    radius,
+                    Vec::new(),
+                    cx,
                 );
-            }
-            el = el.child(div().flex_1().min_w_0().truncate().child(row.label.clone()));
 
-            if !disabled {
-                let press = state.clone();
-                let press_rows = rows.clone();
-                el = el.on_click(move |_, window, cx| {
-                    let row = &press_rows[ix];
-                    util::set_focus_visible(false, cx);
-                    press.set_cursor(&row.key, cx);
-                    press.activate(row, window, cx);
-                });
+                // The disclosure slot: a chevron on a parent, an empty slot on
+                // a leaf so siblings line up.
+                let mut chevron = div()
+                    .id(element_id::scoped(
+                        &element_id::scoped(&base, "toggle"),
+                        row.key.clone(),
+                    ))
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .size(px(16.))
+                    .flex_shrink_0();
+                if row.has_children {
+                    chevron = chevron
+                        .debug_selector({
+                            let name = format!("{selector}-toggle-{}", row.key);
+                            move || name
+                        })
+                        .child(
+                            gpui::svg()
+                                .size(px(12.))
+                                .path(if row.expanded {
+                                    icons::CHEVRON_DOWN
+                                } else {
+                                    icons::CHEVRON_RIGHT
+                                })
+                                .text_color(colors.muted),
+                        );
+                    if !disabled {
+                        let toggle = state.clone();
+                        let focus = focus_handle.clone();
+                        let key = row.key.clone();
+                        let open = row.expanded;
+                        chevron = chevron
+                            .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+                            .on_click(move |_, window, cx| {
+                                cx.stop_propagation();
+                                util::set_focus_visible(false, cx);
+                                window.focus(&focus, cx);
+                                toggle.set_cursor(&key, cx);
+                                toggle.set_expanded(&key, !open, window, cx);
+                            });
+                    }
+                }
+                el = el.child(chevron);
+                if let Some(path) = &row.icon {
+                    el = el.child(
+                        gpui::svg()
+                            .size(util::FIELD_ICON)
+                            .path(path.clone())
+                            .flex_shrink_0()
+                            .text_color(fg),
+                    );
+                }
+                el = el.child(div().flex_1().min_w_0().truncate().child(row.label.clone()));
+
+                if !disabled {
+                    let press = state.clone();
+                    let press_rows = rows.clone();
+                    el = el.on_click(move |event, window, cx| {
+                        let row = &press_rows[ix];
+                        util::set_focus_visible(false, cx);
+                        press.set_cursor(&row.key, cx);
+                        if press.extends(event.modifiers().shift) {
+                            press.extend_to(&row.key, window, cx);
+                        } else {
+                            press.activate(row, window, cx);
+                        }
+                    });
+                }
+                div()
+                    .w_full()
+                    .h(ROW_HEIGHT + ROW_GAP)
+                    .child(el)
+                    .into_any_element()
             }
-            tree = tree.child(el);
-        }
-        tree
+        };
+        let rows_list = crate::VirtualList::new(rows_id, &list, render_row).padding(
+            PADDING,
+            PADDING,
+            PADDING - ROW_GAP,
+        );
+        let rows_list = match self.max_h {
+            Some(max_h) => rows_list.height(max_h.min(content_height)),
+            None => rows_list,
+        };
+        tree.child(rows_list)
     }
 }
 
@@ -786,6 +914,20 @@ mod tests {
         assert_eq!(rows[3].parent, Some(2));
         assert!(rows[4].disabled);
         assert!(rows[0].expanded && !rows[1].has_children);
+    }
+
+    #[test]
+    fn rows_count_their_position_among_siblings() {
+        let open: HashSet<SharedString> = ["a".into(), "a2".into()].into_iter().collect();
+        let mut rows = Vec::new();
+        flatten(tree(), 0, None, &open, &HashSet::new(), &mut rows);
+        // a (1 of 2), a1 (1 of 2), a2 (2 of 2), a2x (1 of 1), b (2 of 2).
+        assert_eq!(
+            rows.iter()
+                .map(|r| (r.pos_in_set, r.set_size))
+                .collect::<Vec<_>>(),
+            [(0, 2), (0, 2), (1, 2), (0, 1), (1, 2)]
+        );
     }
 
     #[test]

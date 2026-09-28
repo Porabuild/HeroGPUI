@@ -812,14 +812,23 @@ out of `reference_metadata`.
   in a test file, add `use ::core::prelude::v1::test;` so `#[gpui::test]`
   expands to the built-in test attribute.
 - **VirtualList** — `VirtualList::new(id, &handle, |ix, window, cx|
-  row.into_any_element()).height(px)` over a caller-owned
-  `VirtualListHandle::new(count)`. Rows may differ in height and are measured
-  as they are built. `handle.scroll_to_item(ix, VirtualListScroll::{Reveal,
-  Top})`, `set_item_count(n)`, `splice(range, count)`, `remeasure()`,
-  `scroll_by(px)`, `first_visible_item()`, `bounds_for_item(ix)`. Reveal on a
-  row not laid out in the last frame falls back to Top. `ListBox` and
-  `Table` render their `estimated_row_height` bodies through it; their
-  `row_height` path and ComboBox's list stay on `uniform_list`.
+  row.into_any_element()).height(px)` over a caller-owned handle, which
+  picks the mode: `VirtualListHandle::new(count)` measures rows that differ
+  in height as they are built (GPUI `list`); `VirtualListHandle::uniform(count)`
+  lays every row out at the first row's height (GPUI `uniform_list`), and
+  without `.height(..)` sizes to its rows. `handle.scroll_to_item(ix,
+  VirtualListScroll::{Reveal, Top, Center})` (`#[non_exhaustive]`; Center
+  moves only a row that is not fully visible and clamps at the ends),
+  `set_item_count(n)` (scrolls to the top), `splice(range, count)` (keeps the
+  scroll), `remeasure()`, `scroll_by(px)`, `first_visible_item()`,
+  `bounds_for_item(ix)`, `viewport_bounds()` (the laid-out viewport, for
+  paging), `remaining_below()` (content below the viewport; exact in uniform
+  mode, known in measured mode only once the last row was laid out),
+  `is_scrolled_to_top()`, `is_scrolled_to_end()`, `is_uniform()`. In measured
+  mode Reveal and Center on a row not laid out in the last frame fall back to
+  Top. `ListBox` and `Table` render their `estimated_row_height` bodies in
+  measured mode and their `row_height` bodies, like ComboBox's popover list,
+  in uniform mode.
 - **ContextMenu** — `ContextMenu::new(id, area, items).on_action(|key, w,
   cx| ..).on_open_change(..).disabled_keys([..]).is_disabled(bool)`. A
   secondary (right) press in the area opens the Dropdown `Menu` panel at the
@@ -849,7 +858,17 @@ out of `reference_metadata`.
   when they sum to zero) and moved inside the panels' min/max. A handle drag
   (pointer captured) or the arrow keys on a focused handle (Left/Right, or
   Up/Down when vertical; Shift is 4x the step; Home/End to the limits)
-  resize only the two adjacent panels, clamped to their min/max. Each handle
+  resize only the two adjacent panels, clamped to their min/max. Pixel
+  limits `.min_size_px(px)` / `.max_size_px(px)` combine with the percentages
+  (the stricter wins) against the group's measured length, from the frame
+  after the first layout, for defaults, drags, keys and window resizes.
+  `.collapsible(true).collapsed_size(pct)` (default 0) lets a panel sit
+  below its minimum at the collapsed size: a drag past halfway between the
+  two collapses or expands it, an arrow key crosses the gap, Home/End reach
+  it, and Enter on a handle collapses the panel before it (or the one after,
+  when only that is collapsible) and restores its pre-collapse size.
+  `.on_resize_end(|sizes, w, cx| ..)` fires once per gesture: on the release
+  of a drag that changed the sizes and after each key that did. Each handle
   is a tab stop reporting `Splitter` with orientation and a value range.
 - **TreeView** — `TreeView::new(id, vec![TreeItem::new(key, label)
   .children([..]).icon(path).is_disabled(bool), ..]).selection_mode(
@@ -857,16 +876,31 @@ out of `reference_metadata`.
   `.selected_keys([..])` / `.default_selected_keys([..])`,
   `.expanded_keys([..])` / `.default_expanded_keys([..])`,
   `.disabled_keys([..])`, `.disallow_empty_selection(bool)`,
-  `.is_disabled(bool)`, `.on_selection_change(|&HashSet<SharedString>, w,
+  `.is_disabled(bool)`, `.max_h(px)`, `.on_selection_change(|&HashSet<SharedString>, w,
   cx| ..)`, `.on_expanded_change(..)`. One tab stop; Up/Down/Home/End over
   visible rows (skipping disabled), Right expands then enters the first
   child, Left collapses then goes to the parent, typeahead; the chevron
   toggles a parent; a press, Enter or Space toggles selection (with mode
-  `None`, toggles a parent's expansion); Escape clears the selection.
-  Roles: `Tree`, `TreeItem` with level, expanded and selected.
+  `None`, toggles a parent's expansion); Escape clears the selection. In
+  `Multiple`, Shift+Up/Down and a Shift press extend the selection from
+  the anchor (the last row a press or Space selected) over the visible,
+  enabled rows between; Shift+Home/End only move. Rows render through a
+  uniform `VirtualList`: under `max_h` (or a height-bounding parent) only
+  the rows in view are built and the cursor scrolls into view. Roles:
+  `Tree`, `TreeItem` with level, `aria-posinset`/`aria-setsize` among its
+  siblings, expanded and selected.
 - **Icons** — `Icon::new(IconName::Search).size(px(20.)).color(hsla)`
   draws an embedded Lucide icon (default 16px, `DEFAULT_ICON_SIZE`, in the
-  theme `foreground`; gpui svgs do not inherit text colour);
+  theme `foreground`; gpui svgs do not inherit text colour). `size` also
+  takes an `IconSize` step (`Xs` 12, `Sm` 14, `Md` 16, `Lg` 20, `Xl` 24px;
+  `Icon` implements `Sizable<Size = IconSize>`). `.stroke_width(w)` is
+  Lucide's `strokeWidth` in the 24-unit viewBox (default
+  `DEFAULT_STROKE_WIDTH`, 2) and `.absolute_stroke_width(true)` its
+  `absoluteStrokeWidth` (`w * 24 / size`, so the stroke stays `w` pixels);
+  it draws `IconName::path_with_stroke_width(w)`
+  (`<path>?stroke-width=<w>`), which `HeroGpuiAssets` serves as the same
+  file with its root `stroke-width` rewritten (Lucide icons only; an app
+  serving Lucide paths itself must forward the query);
   `Icon::from_path(icons::CHECK)` draws any other served SVG. `IconName` is
   a curated, `#[non_exhaustive]` subset of Lucide `LUCIDE_VERSION` (1.31.0),
   one PascalCase variant per Lucide name (`circle-check` is
@@ -875,8 +909,13 @@ out of `reference_metadata`.
   `IconName::from_name(..)` / `from_path(..)`, and `From<IconName> for
   SharedString`, so every builder that takes an icon path takes a name
   (`TreeItem::icon(IconName::Folder)`, `svg().path(IconName::X)`).
-  `HeroGpuiAssets` serves them with no setup. Decorative: no accessibility
-  node (lucide-react marks its svg `aria-hidden`). Lucide is ISC (some
+  `HeroGpuiAssets` serves them with no setup. The set is listed in
+  `.shots/lucide-icons.txt` (pinned version and tarball integrity);
+  `python3 .shots/sync-lucide.py` copies the listed icons and regenerates
+  `IconName`, `--check` verifies list, files and enum offline. The
+  gallery's Icons page (Getting Started) is a searchable grid of every
+  name. Decorative: no accessibility node (lucide-react marks its svg
+  `aria-hidden`). Lucide is ISC (some
   icons MIT via Feather); the license ships in `assets/lucide/LICENSE`.
 
 ## Gallery

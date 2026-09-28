@@ -74,6 +74,70 @@ version covers `herogpui`, `herogpui-core`, `herogpui-theme`,
   registry-publishable", "stable wasm32 build", "unpublished" crates,
   "does not publish to crates.io", and advisory reasons naming `gpui 0.2`.
 
+### Added
+
+- `VirtualList` uniform mode: `VirtualListHandle::uniform(count)` lays every
+  row out at the first row's measured height (GPUI's `uniform_list`), and
+  without `.height(..)` the list sizes to its rows. `VirtualListScroll::Center`
+  centres a row that is not fully visible, clamped at both ends (in measured
+  mode, a row laid out in the last frame; any other falls back to `Top`).
+  New handle readings for both modes: `viewport_bounds()`,
+  `remaining_below()`, `is_scrolled_to_top()`, `is_scrolled_to_end()` and
+  `is_uniform()`.
+- `TreeView`: Shift range selection in `SelectionMode::Multiple` —
+  Shift+Up/Down and a Shift press select the visible, enabled rows between
+  the anchor (the last row a press or Space selected) and the target, as
+  React Stately's `extendSelection` does and as `ListBox` already did;
+  Shift+Home/End only move the cursor. Rows render through a uniform
+  `VirtualList`, so under the new `max_h(px)` (or in a height-bounding
+  parent) only the rows in view are built and the keyboard cursor scrolls
+  into view; an uncapped tree keeps its geometry. Each row reports
+  `aria-posinset`/`aria-setsize` among its siblings, as React Aria's
+  `useGridListItem` does for tree rows. A "Large Tree View" gallery section
+  on the List Box page shows two thousand open rows.
+- `ResizablePanel`: pixel limits `min_size_px` / `max_size_px`, combined
+  with the percentage limits (the stricter wins) against the group's
+  measured length for the initial layout, drags, keys and window resizes;
+  `collapsible` and `collapsed_size` (default 0), so a panel can sit below
+  its minimum at its collapsed size — a drag past halfway collapses or
+  expands it, an arrow key crosses the gap, Home/End reach it, and Enter on
+  a handle collapses the panel before it (or after it, when only that one
+  is collapsible) and restores its pre-collapse size, per the WAI-ARIA
+  window splitter pattern. `ResizablePanelGroup::on_resize_end` fires once
+  per gesture: on the release of a drag that changed the sizes, and after
+  each key that did. A "Collapsible Panels" gallery section on the
+  Separator page shows them.
+- Icons: `IconSize` steps (`Xs` 12, `Sm` 14, `Md` 16, `Lg` 20, `Xl` 24px),
+  which `Icon::size` takes beside a pixel length and through
+  `Sizable<Size = IconSize>`; `Icon::stroke_width` (Lucide's `strokeWidth`,
+  in the 24-unit viewBox; `DEFAULT_STROKE_WIDTH` is 2) and
+  `Icon::absolute_stroke_width` (Lucide's `absoluteStrokeWidth`). Because
+  gpui paints an SVG as one single-colour mask, a stroke width selects
+  `IconName::path_with_stroke_width(w)` (`<path>?stroke-width=<w>`), which
+  `HeroGpuiAssets` serves as the same Lucide file with its root
+  `stroke-width` rewritten; gpui caches it per path and size. Lucide icons
+  only.
+- `.shots/lucide-icons.txt` lists the embedded Lucide icons and pins the
+  `lucide-static` tarball (version and integrity);
+  `python3 .shots/sync-lucide.py` downloads and verifies it, copies the
+  listed icons and the license, and regenerates `IconName` and
+  `LUCIDE_VERSION`. `--check` (offline, run in CI's parity job) fails when
+  the list, the files, the enum and the NOTICE disagree.
+- Gallery: an Icons page under Getting Started with the size steps, stroke
+  widths and a searchable grid of every `IconName`.
+
+### Changed
+
+- **Breaking:** `VirtualListScroll` is `#[non_exhaustive]` (it gained
+  `Center`); a `match` on it needs a wildcard arm. See
+  [`docs/migration-0.13.md`](docs/migration-0.13.md).
+- The fixed `row_height` bodies of `ListBox` and `Table` and ComboBox's
+  popover list render through `VirtualList`'s uniform mode instead of calling
+  `uniform_list` themselves. Behaviour is unchanged: the keyboard cursor is
+  still centred, PageUp/PageDown still step by the declared row height over
+  the laid-out viewport, and `Table`'s load-more still arms from the row
+  count times the measured row.
+
 ## [0.12.0] - 2026-09-28
 
 ### Added

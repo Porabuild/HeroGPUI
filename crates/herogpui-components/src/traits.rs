@@ -141,6 +141,7 @@ sizable!(
     ButtonGroup => Size,
     Checkbox => CheckboxSize,
     Chip => Size,
+    Icon => IconSize,
     ColorSwatch => SizeXl,
     ColorSwatchPicker => SizeXl,
     Meter => Size,
