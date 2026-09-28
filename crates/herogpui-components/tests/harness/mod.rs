@@ -455,6 +455,21 @@ impl Painted {
     }
 }
 
+/// Two colours equal within float noise (a fade that settles through
+/// `mix_oklab` lands a hair off the literal endpoint).
+pub fn same_color(a: gpui::Hsla, b: gpui::Hsla) -> bool {
+    let hue = (a.h - b.h).abs();
+    (hue < 2e-3 || hue > 1. - 2e-3)
+        && (a.s - b.s).abs() < 2e-3
+        && (a.l - b.l).abs() < 2e-3
+        && (a.a - b.a).abs() < 2e-3
+}
+
+/// Whether `fills` holds `color`, within [`same_color`]'s tolerance.
+pub fn has_color(fills: &[gpui::Hsla], color: gpui::Hsla) -> bool {
+    fills.iter().any(|c| same_color(*c, color))
+}
+
 /// Whether `outer` contains `inner`, within half a logical pixel.
 pub fn contains(outer: gpui::Bounds<gpui::Pixels>, inner: gpui::Bounds<gpui::Pixels>) -> bool {
     let (ox, oy) = (f32::from(outer.origin.x), f32::from(outer.origin.y));

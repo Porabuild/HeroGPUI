@@ -15,10 +15,12 @@
 //! The paint-only half (which glyph path, which colour, which weight) leaves
 //! no trace in layout on this platform — the test asset source answers
 //! `Ok(None)` for every `svg()`, and no text style can be probed from outside
-//! the component's own tree — so those are pinned by source scanning in
-//! `pinned_source` below, following the `kbd_deep.rs` split.
+//! the component's own tree — so those are pinned by scoped source checks in
+//! `pinned_source` below, following the `kbd_deep.rs` split. The laid-out half
+//! is measured headlessly.
 
 mod harness;
+mod source_scan;
 
 use gpui::{prelude::*, px, Bounds, Pixels, TestAppContext, VisualTestContext};
 use harness::{click, events, open_host};
@@ -28,23 +30,21 @@ use herogpui_components::{Alert, Color};
 // Pinned source: the paint-only contract
 // ---------------------------------------------------------------------------
 
-#[cfg(test)]
+/// Remaining source-text checks: the paint-only half of the contract. The
+/// glyph path is an `svg()` the test platform never draws, and the title's
+/// weight, the description's colour and the card's shadow reach no quad the
+/// scene exposes (glyph runs and shadows are not exposed, and neither text
+/// box offers a slot a style probe could sit in). The laid-out half — the
+/// `p-1` indicator box, the 24px and 20px lines, the missing content gap —
+/// is measured below, and the removed v2 close seam is pressed for in
+/// `alert_has_no_click_close_seam`.
 mod pinned_source {
-    fn source() -> &'static str {
-        include_str!("../src/alert.rs")
+    fn source() -> String {
+        super::source_scan::component_src("alert.rs")
             .split("#[cfg(test)]")
             .next()
             .expect("the implementation section is always present")
-    }
-
-    /// The implementation without comments: the struct doc legitimately *names*
-    /// the removed v2 props, so a "no seam" scan must read code, not prose.
-    fn code() -> String {
-        source()
-            .lines()
-            .filter(|line| !line.trim_start().starts_with("//"))
-            .collect::<Vec<_>>()
-            .join("\n")
+            .to_owned()
     }
 
     /// The v3 API table's `status` row reads `"default"` — the migration guide
@@ -64,134 +64,36 @@ mod pinned_source {
     #[test]
     fn every_status_draws_its_pinned_glyph() {
         let src = source();
-        assert!(
-            src.contains("Color::Default | Color::Accent => icons::INFO_CIRCLE"),
-            "default and accent must both draw the Info glyph"
-        );
-        assert!(
-            src.contains("Color::Success => icons::CHECK_CIRCLE"),
-            "success must draw the pinned circled-check `SuccessIcon`, not the \
-             bare checkbox checkmark"
-        );
-        assert!(
-            src.contains("Color::Warning => icons::WARNING_TRIANGLE"),
-            "warning must draw the triangle glyph"
-        );
-        assert!(
-            src.contains("Color::Danger => icons::CIRCLE_EXCLAMATION"),
-            "danger must draw the circle-exclamation glyph"
-        );
+        for arm in [
+            "Color::Default | Color::Accent => icons::INFO_CIRCLE",
+            "Color::Success => icons::CHECK_CIRCLE",
+            "Color::Warning => icons::WARNING_TRIANGLE",
+            "Color::Danger => icons::CIRCLE_EXCLAMATION",
+        ] {
+            assert!(src.contains(arm), "the pinned glyph arm `{arm}` must stay");
+        }
         assert!(
             !src.contains("icons::ELLIPSIS"),
             "the placeholder dots glyph is not any status's pinned glyph"
         );
     }
 
-    /// `.alert__indicator` is `p-1` around `box-content size-4`: a 24px box
-    /// with a 16px glyph, not an 18px glyph in a bare box.
+    /// `.alert__title` is `font-medium`, never semibold; `.alert__description`
+    /// is `text-muted`; `.alert` carries `shadow-surface`.
     #[test]
-    fn the_indicator_is_a_p1_box_around_a_16px_glyph() {
+    fn the_paint_only_tokens_stay_pinned() {
         let src = source();
         assert!(
-            src.contains(".p(px(4.))"),
-            "the indicator box must carry the p-1 padding"
-        );
-        assert!(
-            src.contains(".size(px(16.))"),
-            "the pinned glyph is `size-4` (16px), not 18px"
-        );
-        assert!(
-            !src.contains(".size(px(18.))"),
-            "the old 18px glyph has no pinned source"
-        );
-        assert!(
-            src.contains(".items_center()") && src.contains(".justify_center()"),
-            "the glyph must be centered inside the p-1 box"
-        );
-    }
-
-    /// `.alert__title` is `text-sm leading-6 font-medium` — 14px over a 24px
-    /// line, medium weight, never semibold.
-    #[test]
-    fn the_title_is_medium_14_over_24() {
-        let src = source();
-        assert!(
-            src.contains(".line_height(px(24.))"),
-            "the title line box is `leading-6` (24px)"
-        );
-        assert!(
-            src.contains("FontWeight::MEDIUM"),
+            src.contains("FontWeight::MEDIUM") && !src.contains("FontWeight::SEMIBOLD"),
             "the pinned title weight is `font-medium`"
         );
-        assert!(
-            !src.contains("FontWeight::SEMIBOLD"),
-            "the old semibold title weight has no pinned source"
-        );
-    }
-
-    /// `.alert__description` is `text-sm text-muted`: 14px text with the
-    /// `text-sm` line height (20px), painted `text-muted` rather than
-    /// inheriting the foreground.
-    #[test]
-    fn the_description_is_muted_with_the_pinned_leading() {
-        let src = source();
         assert!(
             src.contains(".text_color(colors.muted)"),
             "the description must paint `text-muted`, not the inherited foreground"
         );
         assert!(
-            src.contains(".line_height(px(20.))"),
-            "the description line box is the `text-sm` leading (20px)"
-        );
-    }
-
-    /// `.alert__content` is `flex h-full grow flex-col items-start` — no gap
-    /// utility at all. The old port invented a 2px gap between title and
-    /// description, which stretched the card to 66px where the pinned one is
-    /// 68px of pure leading.
-    #[test]
-    fn the_content_column_invents_no_gap() {
-        assert!(
-            !source().contains("gap(px(2.))"),
-            "the content column must not invent a gap: `.alert__content` has none"
-        );
-        assert!(
-            source().contains(".gap(px(16.))"),
-            "the root's `gap-4` (16px) between indicator and content must stay"
-        );
-    }
-
-    /// `.alert` carries `shadow-surface` — the surface elevation token, empty
-    /// in dark mode — alongside `bg-surface`.
-    #[test]
-    fn the_container_paints_the_surface_shadow() {
-        assert!(
-            source().contains("surface_shadow"),
+            src.contains("surface_shadow"),
             "the alert container must apply the surface shadow token"
-        );
-    }
-
-    /// v3 removed `isClosable`/`onClose` from Alert (`isClosable` is recorded
-    /// as removed in the migration guide), so no built-in close affordance may
-    /// reappear: no builder, no callback, no close glyph.
-    #[test]
-    fn no_v2_close_seam_exists() {
-        let src = code();
-        assert!(
-            !src.contains("is_closable") && !src.contains("isClosable"),
-            "v3 removed `isClosable`; a close affordance is composed by the caller"
-        );
-        assert!(
-            !src.contains("on_close") && !src.contains("onClose"),
-            "v3 removed `onClose` from Alert"
-        );
-        assert!(
-            !src.contains("icons::CLOSE"),
-            "Alert must not render a built-in close glyph"
-        );
-        assert!(
-            !src.contains("on_click"),
-            "an informational alert carries no click handlers at all"
         );
     }
 }
