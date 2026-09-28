@@ -150,6 +150,7 @@ under `src/` instead, and are not listed here.
 | `sx_ownership` | The part-scoped `sx` ownership inventory (source-shape check). | 4 |
 | `sx_radius_parts` | Per-corner `sx` reconciliation for painted parts. | 1 |
 | `sx_slot` | The `sx` slot: the one caller-owned styling slot every component exposes. | 4 |
+| `icon` | Lucide `IconName`/`Icon`: names, paths and files agree, every icon loads through `HeroGpuiAssets` and rasterizes, and `Icon` lays out at its size. | 5 |
 
 ## Animation & motion
 

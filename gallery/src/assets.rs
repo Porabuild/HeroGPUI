@@ -1,8 +1,10 @@
-//! Gallery asset source — embeds the HeroGPUI icon set and sample image.
+//! Gallery asset source — embeds the HeroGPUI chrome icons and sample image,
+//! then falls back to [`HeroGpuiAssets`] for the Lucide `IconName` set.
 
 use std::borrow::Cow;
 
 use gpui::{AssetSource, Result, SharedString};
+use herogpui_components::HeroGpuiAssets;
 
 pub struct Assets;
 
@@ -16,16 +18,25 @@ macro_rules! assets {
             fn load(&self, path: &str) -> Result<Option<Cow<'static, [u8]>>> {
                 match EMBEDDED.iter().find(|(p, _)| *p == path) {
                     Some((_, data)) => Ok(Some(Cow::Borrowed(*data))),
-                    None => Ok(None),
+                    // The Lucide set (`IconName`) is embedded in the
+                    // components crate; the gallery serves it from there
+                    // rather than keeping a second copy of every file.
+                    None => HeroGpuiAssets.load(path),
                 }
             }
 
             fn list(&self, path: &str) -> Result<Vec<SharedString>> {
-                Ok(EMBEDDED
+                let mut assets: Vec<SharedString> = EMBEDDED
                     .iter()
                     .filter(|(p, _)| p.starts_with(path))
                     .map(|(p, _)| SharedString::from(*p))
-                    .collect())
+                    .collect();
+                for asset in HeroGpuiAssets.list(path)? {
+                    if !assets.contains(&asset) {
+                        assets.push(asset);
+                    }
+                }
+                Ok(assets)
             }
         }
     };

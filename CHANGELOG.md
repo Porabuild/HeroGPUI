@@ -21,6 +21,40 @@ version covers `herogpui`, `herogpui-core`, `herogpui-theme`,
   trigger closes it and returns the focus to its trigger. It reports
   `Role::MenuBar`, and `Role::MenuItem` with `expanded` on each trigger. A
   gallery section on the Dropdown page shows it.
+- `ResizablePanelGroup` and `ResizablePanel` (HeroGPUI extension): split
+  panels, horizontal or vertical, sized in percent of the space they share,
+  with a drag handle between each pair. A drag captures the pointer and
+  keeps resizing outside the handle; a focused handle moves with the arrow
+  keys along the group's axis (Shift for four times `keyboard_step`) and
+  Home/End jump to the limits. Only the two adjacent panels change, clamped
+  to their `min_size`/`max_size`; `on_resize` reports every change, and
+  `sizes(..)` makes the group controlled. Each handle is a tab stop that
+  reports `Role::Splitter` with its orientation and a value range. A
+  gallery section on the Separator page shows it.
+- `TreeView` and `TreeItem` (HeroGPUI extension): a tree of expandable rows
+  with one tab stop. Up/Down/Home/End move over the visible rows (skipping
+  disabled ones), Right expands a parent and then enters its first child,
+  Left collapses it and then moves to the parent, and typeahead finds a row;
+  the chevron toggles a parent under the pointer. Selection follows
+  `ListBox` (`None`, `Single`, `Multiple`; Escape clears), and expanded and
+  selected keys are each controlled or uncontrolled. It reports
+  `Role::Tree`, and `Role::TreeItem` with level, expanded and selected. A
+  gallery section on the List Box page shows it.
+- `Icon` and `IconName` (HeroGPUI extension): a public icon set of 245
+  curated Lucide icons, copied verbatim from `lucide-static` 1.31.0 and
+  embedded in `herogpui-components`, so `HeroGpuiAssets` serves them with no
+  setup under `herogpui/icons/lucide/<name>.svg`. `IconName` is
+  `#[non_exhaustive]` with `ALL`, `name`, `path`, `svg`, `from_name` and
+  `from_path`, and converts into `SharedString`, so every builder that takes
+  an icon path takes a name. `Icon::new(name).size(px).color(hsla)` draws
+  one (16px in the theme foreground by default); `Icon::from_path` draws any
+  other served SVG. The `icons` chrome constants are unchanged. Lucide's
+  ISC license (with the Feather MIT notice) ships beside the SVGs and is
+  attributed in `NOTICE`.
+- Gallery: a theme picker in the navbar switches live between the light and
+  dark bases and every built-in preset (`ocean`, `forest`, `midnight`,
+  `rose`), natively and in the web build. A control request's `theme=` now
+  selects that base theme by id, so a capture never keeps a preset.
 - `ContextMenu` opens from the keyboard: Shift+F10 or the ContextMenu key
   (`menu`; `contextmenu` on the web) while the focus is inside the area opens
   the menu at the area's top-left corner with its first item focused, and
@@ -29,6 +63,14 @@ version covers `herogpui`, `herogpui-core`, `herogpui-theme`,
   content makes it reachable. The area element is now `position: relative`
   (it measures itself with an absolutely placed probe), so absolutely placed
   content inside it positions against the area.
+
+### Fixed
+
+- `HeroGpuiAssets` now embeds every `icons` chrome path. It was missing eight
+  (`calendar`, `info_circle`, `check_circle`, `circle_exclamation`,
+  `warning_triangle`, `loader_2`, `trash`, `gear`), so an app that registered
+  it alone drew no DatePicker calendar glyph and no Alert, AlertDialog or
+  Toast status icon; only the gallery's own asset source had them.
 
 ### Changed
 

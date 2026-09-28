@@ -93,6 +93,7 @@
     "Escape Key Behavior",
     "Virtualization",
     "Virtual List",
+    "Tree View",
     "Custom Check Icon",
     "Single selection",
     "Multiple selection",
@@ -598,7 +599,8 @@
     "With Surface",
     "With Content",
     "Variants",
-    "Vertical"
+    "Vertical",
+    "Resizable Panels"
   ],
   "surface": [
     "Usage",

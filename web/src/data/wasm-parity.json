@@ -1,8 +1,8 @@
 {
   "version": 3,
-  "artifactSha256": "74dab749ac0781205d8b5896696d172dd8458841ec57885536c7c88ec260eceb",
-  "glueSha256": "abbffa1c47480edc5c9ed7a253af71dd08f8417988eb1ed3696e27baa5968609",
-  "inputsSha256": "306a0f40e8cd6119fc599b0491d7289c84e8688bc1e6acc710a9bed771f8d37e",
+  "artifactSha256": "31489fca7ff9d6d9bd17620aa4d092cdb2978dc7ff97961cfa4f8249b24531fd",
+  "glueSha256": "b2f3fa44af6768ab76f9cb880f2709aad0de4b07b3d7f9fad40b84afba9d112a",
+  "inputsSha256": "464c756cbfb767ea2a989a73a58fae90c836efd107327eabfee069c6bb0c4a68",
   "examples": {
     "accordion/Controlled": {
       "codeSha256": "ac39d58e626756503af3f2fedbcf0a3a791b32096093d62ca5c6aab77146d75b",
@@ -1640,6 +1640,10 @@
       "codeSha256": "6d77345d59bc6c399b358959f3f129894fce4f307fb17df82783364dedecaab4",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
+    "list-box/Tree View": {
+      "codeSha256": "8f04355f33417468de7e5f2936f73e4ac674d55a892f40eebb84d0e9f47e0fc2",
+      "descriptionSha256": "a3ec0c39ec5cc01df79f3a72ee9f34c0d4c9fe6d3e0668d1077a8f5da6471a8c"
+    },
     "list-box/Usage": {
       "codeSha256": "251d3cd3dc7a461455ce56153827c4a531167639119fb145fed9862a11c6404c",
       "descriptionSha256": "f8c1f5bfb9fcc344bf427f6d4c03e91ec772dc99b74484d50d07a8b85bcda414"
@@ -2243,6 +2247,10 @@
     "select/Wrapping Trigger": {
       "codeSha256": "19894d442845a16cdafb11ae1e99a6821f7154ff566c615b5a9018d61854f48f",
       "descriptionSha256": "b0a1f4e96afbccbc9d4641d90f03d9ab96fbffb30d9fc41a1cc4dd738e5e8d17"
+    },
+    "separator/Resizable Panels": {
+      "codeSha256": "ae50a7153b55ee220178da2aecd0fe3733e99eef1f1de33fc9164851300592ea",
+      "descriptionSha256": "8b0240c2c075655bef2d0e8bd52ffc66f814303dfc6513d8bc5b8a11065dc703"
     },
     "separator/Usage": {
       "codeSha256": "935acb9d4a1931d73b698f79d6870863b4e20ff2de996c7406c79abd7393af16",

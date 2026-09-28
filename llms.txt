@@ -55,8 +55,8 @@ Paths and the Cargo features that carry them:
 `profiler` forwards `gpui/profiler`. `serde` forwards `herogpui-theme/serde`
 and is off by default: `ThemeDocument` is a sparse JSON override applied
 through `ThemeBuilder`, so derived hover / soft mixes stay live. There is no assets or icons feature — the
-embedded icons are constants inside `herogpui-components` and arrive with
-`components`.
+embedded icons (the chrome path constants and the Lucide `IconName` set) live
+inside `herogpui-components` and arrive with `components`.
 
 ```rust
 use herogpui::*;
@@ -107,7 +107,8 @@ Eight names exist in both GPUI and HeroUI v3: `ColorSpace`, `FontWeight`,
 pair); reach GPUI's through `gpui::` (`gpui::Size`, `gpui::FontWeight`).
 
 `HeroGpuiAssets` embeds the `herogpui/icons/*.svg` files used by built-in
-component chrome. Use `HeroGpuiAssets::with_fallback(MyAppAssets)` when the app
+component chrome and every Lucide `IconName` (`herogpui/icons/lucide/*.svg`).
+Use `HeroGpuiAssets::with_fallback(MyAppAssets)` when the app
 also has assets. Wrap the window's root element with
 `app_focus_root(root, window, cx)` to enable Tab traversal, focus-visible state,
 and root capture handlers. Tab traversal consumes the browser default so DOM focus stays in the GPUI input surface. Focus rings appear only after a keyboard-control key (Tab, arrows, Enter/Space, typeahead, editing). A pointer press hides them, and Escape does not turn them on — closing a mouse-opened menu must not ring its trigger.
@@ -837,6 +838,44 @@ out of `reference_metadata`.
   trigger switches menus; Escape, a pick, an outside press or pressing the
   open trigger closes and refocuses its trigger. Roles: `MenuBar`, and
   `MenuItem` + expanded on each trigger.
+- **ResizablePanelGroup** — `ResizablePanelGroup::new(id).orientation(
+  Orientation::{Horizontal, Vertical}).panel(ResizablePanel::new()
+  .default_size(pct).min_size(pct).max_size(pct).child(el)).panels([..])
+  .on_resize(|sizes: &[f32], w, cx| ..).keyboard_step(pct).is_disabled(bool)`;
+  `.sizes([..])` makes it controlled. Sizes are percentages of the space the
+  panels share (the group minus its 8px `RESIZABLE_HANDLE_SIZE` handles) and
+  sum to 100; panels without a default share the remainder. A handle drag
+  (pointer captured) or the arrow keys on a focused handle (Left/Right, or
+  Up/Down when vertical; Shift is 4x the step; Home/End to the limits)
+  resize only the two adjacent panels, clamped to their min/max. Each handle
+  is a tab stop reporting `Splitter` with orientation and a value range.
+- **TreeView** — `TreeView::new(id, vec![TreeItem::new(key, label)
+  .children([..]).icon(path).is_disabled(bool), ..]).selection_mode(
+  SelectionMode::{None, Single, Multiple})` (default `None`),
+  `.selected_keys([..])` / `.default_selected_keys([..])`,
+  `.expanded_keys([..])` / `.default_expanded_keys([..])`,
+  `.disabled_keys([..])`, `.disallow_empty_selection(bool)`,
+  `.is_disabled(bool)`, `.on_selection_change(|&HashSet<SharedString>, w,
+  cx| ..)`, `.on_expanded_change(..)`. One tab stop; Up/Down/Home/End over
+  visible rows (skipping disabled), Right expands then enters the first
+  child, Left collapses then goes to the parent, typeahead; the chevron
+  toggles a parent; a press, Enter or Space toggles selection (with mode
+  `None`, toggles a parent's expansion); Escape clears the selection.
+  Roles: `Tree`, `TreeItem` with level, expanded and selected.
+- **Icons** — `Icon::new(IconName::Search).size(px(20.)).color(hsla)`
+  draws an embedded Lucide icon (default 16px, `DEFAULT_ICON_SIZE`, in the
+  theme `foreground`; gpui svgs do not inherit text colour);
+  `Icon::from_path(icons::CHECK)` draws any other served SVG. `IconName` is
+  a curated, `#[non_exhaustive]` subset of Lucide `LUCIDE_VERSION` (1.31.0),
+  one PascalCase variant per Lucide name (`circle-check` is
+  `IconName::CircleCheck`): `IconName::ALL`, `.name()`, `.path()`
+  (`herogpui/icons/lucide/<name>.svg`), `.svg()` (the embedded bytes),
+  `IconName::from_name(..)` / `from_path(..)`, and `From<IconName> for
+  SharedString`, so every builder that takes an icon path takes a name
+  (`TreeItem::icon(IconName::Folder)`, `svg().path(IconName::X)`).
+  `HeroGpuiAssets` serves them with no setup. Decorative: no accessibility
+  node (lucide-react marks its svg `aria-hidden`). Lucide is ISC (some
+  icons MIT via Feather); the license ships in `assets/lucide/LICENSE`.
 
 ## Gallery
 
@@ -845,7 +884,8 @@ selects the page by nav title, `HEROGPUI_THEME=dark` selects the appearance,
 `HEROGPUI_WINDOW_SIZE=1200x2000` sets the window size,
 `HEROGPUI_UNFOCUSED=1` opens without taking focus, and
 `HEROGPUI_REDUCE_MOTION=1` seeds the reduced-motion preference at startup
-(see `gallery/src/main.rs`). Screenshots are the visual regression source.
+(see `gallery/src/main.rs`). The navbar's theme picker switches live between
+the light and dark bases and every `presets::PRESETS` theme. Screenshots are the visual regression source.
 
 ## Code style
 
@@ -928,4 +968,5 @@ consequences — both worked around geometrically rather than left undone:
 ## License
 
 Apache-2.0. This port is derived from HeroUI v3, Copyright 2025 NextUI Inc.
-See `LICENSE` and `NOTICE`.
+The embedded Lucide icons are ISC (Lucide Icons and Contributors), with the
+Feather-derived ones MIT (Cole Bemis). See `LICENSE` and `NOTICE`.

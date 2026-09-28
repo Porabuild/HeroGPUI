@@ -310,6 +310,58 @@ impl Gallery {
                         .child("Support")
                         .into_any_element()]),
                 ),
+                (
+                    "Resizable Panels", "HeroGPUI extension, not a HeroUI v3 example: `ResizablePanelGroup` shares its space between `ResizablePanel`s by percentage, with a drag handle between each pair. Drag a handle, or Tab to it and use the arrow keys (Shift for a larger step, Home and End to the limits); each panel stays within its minimum and maximum. The right-hand panel holds a vertical group.",
+                    specimen_body("sep-resizable", col(vec![
+                        gpui::div()
+                            .w(px(560.))
+                            .h(px(240.))
+                            .rounded(px(12.))
+                            .border_1()
+                            .border_color(cx.colors().border)
+                            .overflow_hidden()
+                            .child(
+                                h::ResizablePanelGroup::new("sep-resizable-group")
+                                    .panel(
+                                        h::ResizablePanel::new()
+                                            .default_size(30.)
+                                            .min_size(20.)
+                                            .max_size(50.)
+                                            .child(resizable_pane("Sidebar", cx)),
+                                    )
+                                    .panel(
+                                        h::ResizablePanel::new().min_size(30.).child(
+                                            h::ResizablePanelGroup::new("sep-resizable-nested")
+                                                .orientation(Orientation::Vertical)
+                                                .panel(
+                                                    h::ResizablePanel::new()
+                                                        .default_size(65.)
+                                                        .min_size(25.)
+                                                        .child(resizable_pane("Editor", cx)),
+                                                )
+                                                .panel(
+                                                    h::ResizablePanel::new()
+                                                        .min_size(15.)
+                                                        .child(resizable_pane("Terminal", cx)),
+                                                ),
+                                        ),
+                                    )
+                                    .on_resize({
+                                        let view = cx.entity().downgrade();
+                                        move |sizes, _, cx| {
+                                            let text: Vec<String> = sizes.iter().map(|v| format!("{v:.0}")).collect();
+                                            view.update(cx, |this, cx| {
+                                                this.resizable_sizes = SharedString::from(text.join(", "));
+                                                cx.notify();
+                                            })
+                                            .ok();
+                                        }
+                                    }),
+                            )
+                            .into_any_element(),
+                        para(&format!("Sidebar and main, in percent: {}", self.resizable_sizes), cx),
+                    ]), cx),
+                ),
             ],
             cx,
         )
@@ -489,4 +541,15 @@ impl Gallery {
     }
 
     // -----------------------------------------------------------------------
+}
+
+/// One labelled pane of the Resizable Panels demo.
+fn resizable_pane(label: &'static str, cx: &gpui::App) -> AnyElement {
+    gpui::div()
+        .size_full()
+        .p(px(12.))
+        .text_size(px(14.))
+        .text_color(cx.colors().muted)
+        .child(label)
+        .into_any_element()
 }

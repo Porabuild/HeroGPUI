@@ -3,17 +3,17 @@
   "target": "v3.2.6",
   "target_commit": "e385ac202b2cdb94b1bf6fa76d32c31c8259cc5e",
   "inventory_recorded_on": "2026-09-28",
-  "inventory_verification_sha256": "d11ae8d588f145cdbee150cd411020fe75bb0126f5fc17364e32053ab137b86e",
-  "source_snapshot_sha256": "54b8d306ca5dbcf3ddc81b9cebb797afe052535487f12d6a99e785e8f6348280",
+  "inventory_verification_sha256": "63ee6cfb11f4ebdf7c298b6f62a317c4b686ff8d96beba81914de1aa608c4cc4",
+  "source_snapshot_sha256": "82ec576a9f8c4da22d7adf9c621631181823d36204d171bb27e324f27d8db3ce",
   "last_evidence_commit": null,
   "last_evidence_commit_recorded": false,
   "totals": {
-    "specimens": 748,
+    "specimens": 750,
     "verified": 0,
-    "outstanding": 748,
-    "unobserved": 748,
+    "outstanding": 750,
+    "unobserved": 750,
     "components": 68,
-    "gallery_sections": 741
+    "gallery_sections": 743
   },
   "status_counts": {
     "implemented-unverified": 7,
@@ -22,35 +22,35 @@
     "not-applicable": 0,
     "platform-limited": 0,
     "specified": 0,
-    "unreviewed": 741,
+    "unreviewed": 743,
     "verified": 0
   },
   "scope_counts": {
     "component-state": 4,
     "cross-component": 1,
-    "gallery-section": 741,
+    "gallery-section": 743,
     "platform-harness": 2
   },
   "evidence_counts": {
     "upstream": {
       "specimens_with_evidence": 5,
-      "specimens_missing_evidence": 743
+      "specimens_missing_evidence": 745
     },
     "native": {
       "specimens_with_evidence": 1,
-      "specimens_missing_evidence": 747
+      "specimens_missing_evidence": 749
     },
     "wasm": {
       "specimens_with_evidence": 1,
-      "specimens_missing_evidence": 747
+      "specimens_missing_evidence": 749
     },
     "tests": {
       "specimens_with_evidence": 5,
-      "specimens_missing_evidence": 743
+      "specimens_missing_evidence": 745
     },
     "all_surfaces": {
       "specimens_with_evidence": 1,
-      "specimens_missing_evidence": 747
+      "specimens_missing_evidence": 749
     }
   },
   "unobserved_statuses": [
@@ -2940,6 +2940,13 @@
       "state": "section-seed"
     },
     {
+      "id": "gallery/list-box/tree-view",
+      "component": "List Box",
+      "scope": "gallery-section",
+      "status": "unreviewed",
+      "state": "section-seed"
+    },
+    {
       "id": "gallery/list-box/usage",
       "component": "List Box",
       "scope": "gallery-section",
@@ -3992,6 +3999,13 @@
     {
       "id": "gallery/select/wrapping-trigger",
       "component": "Select",
+      "scope": "gallery-section",
+      "status": "unreviewed",
+      "state": "section-seed"
+    },
+    {
+      "id": "gallery/separator/resizable-panels",
+      "component": "Separator",
       "scope": "gallery-section",
       "status": "unreviewed",
       "state": "section-seed"
@@ -6368,7 +6382,7 @@
     },
     {
       "component": "List Box",
-      "specimens": 16,
+      "specimens": 17,
       "statuses": {
         "implemented-unverified": 0,
         "intentional-deviation": 0,
@@ -6376,11 +6390,11 @@
         "not-applicable": 0,
         "platform-limited": 0,
         "specified": 0,
-        "unreviewed": 16,
+        "unreviewed": 17,
         "verified": 0
       },
       "verified": 0,
-      "outstanding": 16,
+      "outstanding": 17,
       "unresolved_ids": [
         "gallery/list-box/basic-usage",
         "gallery/list-box/controlled",
@@ -6393,6 +6407,7 @@
         "gallery/list-box/multiple-selection",
         "gallery/list-box/row-padding",
         "gallery/list-box/single-selection",
+        "gallery/list-box/tree-view",
         "gallery/list-box/usage",
         "gallery/list-box/virtual-list",
         "gallery/list-box/virtualization",
@@ -6766,7 +6781,7 @@
     },
     {
       "component": "Separator",
-      "specimens": 5,
+      "specimens": 6,
       "statuses": {
         "implemented-unverified": 0,
         "intentional-deviation": 0,
@@ -6774,12 +6789,13 @@
         "not-applicable": 0,
         "platform-limited": 0,
         "specified": 0,
-        "unreviewed": 5,
+        "unreviewed": 6,
         "verified": 0
       },
       "verified": 0,
-      "outstanding": 5,
+      "outstanding": 6,
       "unresolved_ids": [
+        "gallery/separator/resizable-panels",
         "gallery/separator/usage",
         "gallery/separator/variants",
         "gallery/separator/vertical",

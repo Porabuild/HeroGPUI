@@ -8,3 +8,12 @@ HeroUI is Copyright 2025 NextUI Inc. and is licensed under the Apache License,
 Version 2.0. HeroGPUI includes modified and translated implementations of
 HeroUI component behavior, design tokens, styles, and documentation structure.
 The repository root `NOTICE` carries the canonical statement.
+
+## Lucide
+
+The gallery WebAssembly artifact embeds icons from Lucide
+(https://lucide.dev), and the site uses `lucide-react`. Lucide is Copyright (c)
+2026 Lucide Icons and Contributors, licensed under the ISC License; the icons
+derived from Feather are Copyright (c) 2013-present Cole Bemis, licensed under
+the MIT License. The full text is in
+`crates/herogpui-components/assets/lucide/LICENSE`.

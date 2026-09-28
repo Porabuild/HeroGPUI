@@ -439,10 +439,18 @@ Source: `tmp/review/gpui-kit-comparison.md` §4. Landed in 0.11.0 (Phase 4):
 `Disableable`/`Sizable`/`Selectable` traits, the `i18n` chrome-string
 catalogue, theme files with a checked-in schema and presets, the
 `herogpui::test` kit, `VirtualList` and `ContextMenu`. Landed in 0.12.0:
-`MenuBar`, keyboard opening for `ContextMenu` (Shift+F10 and the ContextMenu
+`MenuBar`, `ResizablePanelGroup` (split panels with keyed drag state,
+per-frame pointer capture, keyboard resizing and per-panel limits),
+`TreeView` (on `list_nav` and the shared selection rules, with the same
+open-parents-only walk as `Table`'s tree rows), keyboard opening for `ContextMenu` (Shift+F10 and the ContextMenu
 key, anchored at the area's corner because GPUI reports no bounds for the
 focused element), and `VirtualList` behind the `estimated_row_height` bodies
-of `ListBox` and `Table`. 34 source-text radius assertions (the store and
+of `ListBox` and `Table`; a public Lucide icon set (`IconName` and `Icon`,
+245 icons from `lucide-static` 1.31.0) as a module of `herogpui-components`
+rather than the `herogpui-icons` crate §4 #8 proposed — `HeroGpuiAssets`
+already embeds the chrome icons, so a second crate would only add a sixth
+crates.io name and release step for no build-graph saving — and a gallery
+theme picker over the light/dark bases and the presets. 34 source-text radius assertions (the store and
 resolve checks of 17 components) became a painted-scene test (`tests/radius_painted.rs`); the remaining source-text
 assertions cover overlay panels, fields and wiring a headless paint does not
 reach yet, and are the next candidates.
@@ -453,12 +461,7 @@ Deliberately not done, and next in this order:
    builders with GPUI's full style surface backed by the existing `sx`
    refinement. Needs the per-part ownership rules above first, because a root
    `Styled` call must not silently restyle child parts.
-2. **Public icon crate** (§4 #8, M). A `herogpui-icons` crate with a named
-   enum and a default subset; today's `icons.rs` constants stay internal.
-3. **Resizable panels / split view** (§3 P1). An extension component; needs
-   keyed drag state and pointer capture per `docs/agents/components.md`.
-4. **Tree view** (§3 P1). Can reuse `Table`'s tree rows and `list_nav`.
-5. **VirtualList for the fixed-height paths.** 0.12.0 moved the
+2. **VirtualList for the fixed-height paths.** 0.12.0 moved the
    `estimated_row_height` bodies of `ListBox` and `Table` onto `VirtualList`
    (same `ListState`, so no behaviour change). The fixed `row_height` paths of
    both, and ComboBox's popover list (which has only that path), stay on
@@ -471,7 +474,17 @@ Deliberately not done, and next in this order:
    `combo_box.rs`, `table.rs`; `collection_contracts`, `virtual_and_feedback`,
    `table_deep`). Moving them needs a uniform mode on `VirtualList` that
    keeps these, not a switch to the measured list.
-6. **Theme hot reload** (`watch_dir`) and a gallery theme picker over the
-   presets; **i18n** for more locales (non-Latin locales also need the web
+3. **Theme hot reload** (`watch_dir`); **i18n** for more locales (non-Latin locales also need the web
    font subsets extended) and for the remaining hard-coded strings (NumberField
    stepper names, ColorPicker channel names, DateField segment names).
+4. **Follow-ups on the 0.12.0 split, tree and icon extensions.** `ResizablePanel`
+   limits are percentages only (a pixel minimum needs the measured group
+   length at every clamp), panels do not collapse, and there is no
+   `on_resize_end`. `TreeView` has no Shift range selection, no
+   virtualisation (every visible row is built) and no `aria-posinset` /
+   `aria-setsize`, which it could count from its own items. `Icon` takes a
+   pixel size rather than a `Sizable` step and has no stroke-width control
+   (Lucide's `absoluteStrokeWidth`); the icon set is a curated subset with no
+   sync script, and adding an icon is a copied file plus one enum line. The
+   gallery has no Icons page yet: the set is documented on the website's
+   Icons guide and in `llms.txt`.

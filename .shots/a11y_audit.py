@@ -421,6 +421,23 @@ EXPOSES_A_ROLE = {
         'Role::MenuBar on the bar, Role::MenuItem named by its label plus '
         '`aria-expanded` on each top-level trigger, and the open panel is the '
         'same `Menu` (`role="menu"` and its rows) the Dropdown renders.',
+    ('resizable.rs', 'ResizablePanelGroup'):
+        'HeroGPUI extension with no HeroUI v3 upstream; the roles follow the '
+        'WAI-ARIA window splitter pattern: each handle is a focusable '
+        '`separator` whose value is the size of the pane before it. '
+        'AccessKit names that `Role::Splitter` (the pane splitter, not the '
+        'rule `Separator` is still pending on), with `aria-orientation` for '
+        'the line the handle draws and a value range bounded by the two '
+        'panels\' limits. The group and its panels are layout and report no '
+        'node.',
+    ('tree_view.rs', 'TreeView'):
+        'HeroGPUI extension with no HeroUI v3 upstream; the roles follow the '
+        'WAI-ARIA tree pattern that RAC\'s `Tree` implements. Role::Tree on '
+        'the root and Role::TreeItem named by its label on each visible row, '
+        'with `aria-level` (depth + 1), `aria-expanded` on parents and '
+        '`aria-selected` when the tree selects. Like `ListBox`, the tree '
+        'keeps one focus handle and marks the cursor row as the active '
+        'descendant.',
     ('breadcrumbs.rs', 'Breadcrumbs'):
         'Role::List on the bar, Role::ListItem on each crumb, Role::Link on '
         'each crumb\'s label. RAC\'s `Breadcrumbs.mjs` puts '
@@ -743,6 +760,13 @@ NO_NODE = {
         'container over caller-built rows, which carry their own nodes; a '
         '`list` role here would claim `listitem` children it does not own. '
         'A semantic list belongs on `ListBox`, which has one.',
+    ('icon.rs', 'Icon'):
+        'HeroGPUI extension with no HeroUI v3 upstream. The glyphs are '
+        'Lucide\'s, and `lucide-react` 1.31.0 (`dist/esm/Icon.mjs`, pinned in '
+        '`web/node_modules`) spreads `"aria-hidden": "true"` onto the `<svg>` '
+        'whenever it has no children and no a11y prop: an icon is decoration, '
+        'and the control that holds it carries the name. `Icon::new` takes no '
+        'id, so no node could be produced regardless.',
     ('typography.rs', 'Prose'):
         '`Prose` is a separate export in that same file and a plain `"div"` '
         'with no `elementType`, no `role` and no `aria-*`: it is the '

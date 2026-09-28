@@ -916,6 +916,52 @@ impl Gallery {
                     ]), cx),
                 ),
                 (
+                    "Tree View", "HeroGPUI extension, not a HeroUI v3 example: `TreeView` is a hierarchy of `TreeItem`s with one tab stop. Up and Down move over the visible rows (skipping the disabled Secrets), Right expands a folder and then enters it, Left collapses it and then returns to the parent, and the chevron toggles a folder under the pointer. Selection follows the `ListBox` model.",
+                    specimen_body("lb-tree-view", col(vec![
+                        gpui::div()
+                            .w(px(280.))
+                            .child(
+                                h::TreeView::new(
+                                    "lb-tree",
+                                    vec![
+                                        h::TreeItem::new("src", "src").children(vec![
+                                            h::TreeItem::new("components", "components").children(vec![
+                                                h::TreeItem::new("button", "button.rs"),
+                                                h::TreeItem::new("tree-view", "tree_view.rs"),
+                                            ]),
+                                            h::TreeItem::new("lib", "lib.rs"),
+                                        ]),
+                                        h::TreeItem::new("docs", "docs").children(vec![
+                                            h::TreeItem::new("guide", "guide.md"),
+                                        ]),
+                                        h::TreeItem::new("secrets", "secrets").is_disabled(true),
+                                        h::TreeItem::new("readme", "README.md"),
+                                    ],
+                                )
+                                .selection_mode(SelectionMode::Single)
+                                .default_expanded_keys([SharedString::from("src")])
+                                .on_selection_change({
+                                    let view = cx.entity().downgrade();
+                                    move |keys, _, cx| {
+                                        let mut keys: Vec<String> = keys.iter().map(|k| k.to_string()).collect();
+                                        keys.sort();
+                                        view.update(cx, |this, cx| {
+                                            this.tree_selected = if keys.is_empty() {
+                                                SharedString::from("nothing")
+                                            } else {
+                                                SharedString::from(keys.join(", "))
+                                            };
+                                            cx.notify();
+                                        })
+                                        .ok();
+                                    }
+                                }),
+                            )
+                            .into_any_element(),
+                        para(&format!("Selected: {}", self.tree_selected), cx),
+                    ]), cx),
+                ),
+                (
                     "Custom Check Icon", "There is no separate indicator part; a row's `variant` carries the indicator style, so the danger row below shows the same tick in its own colour.",
                     specimen_body("lb-check-icon", col(vec![
                         gpui::div()

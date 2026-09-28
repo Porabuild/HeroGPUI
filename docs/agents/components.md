@@ -106,8 +106,12 @@ reason in the parity audit.
   explicitly: `cx.reduce_motion()` resolves to GPUI's inherent method, and
   the source-grep tests pin the unambiguous form.
 - `svg()` does not inherit text color. Set `.text_color(..)` explicitly.
-- A new icon needs both a constant in `components/src/icons.rs` and an asset
-  registration in `gallery/src/assets.rs`.
+- A new chrome icon needs a constant in `components/src/icons.rs`, an inline
+  SVG in `components/src/assets.rs` (`assets::tests` fails without it) and a
+  file registration in `gallery/src/assets.rs`. A new Lucide icon is one
+  `IconName` line plus the verbatim `lucide-static` file under
+  `components/assets/lucide/` (see `src/icon.rs`); the gallery serves those
+  through `HeroGpuiAssets`.
 - Custom components that hold children need an explicit `ParentElement::extend`
   implementation.
 - Branches returning different element types need `.into_any_element()`.
