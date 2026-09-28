@@ -13,9 +13,9 @@ use gpui::{prelude::*, px, AbsoluteLength, DefiniteLength, TestAppContext, TextS
 use harness::{open_host, seen_style, settle, still, style_probe, style_sink};
 use herogpui_components::{Badge, BadgeAnchor, Breadcrumbs, Chip, Crumb};
 
-fn size_of(style: &TextStyle) -> f32 {
+fn size_of(style: &TextStyle) -> gpui::Pixels {
     match style.font_size {
-        AbsoluteLength::Pixels(p) => f32::from(p),
+        AbsoluteLength::Pixels(p) => p,
         other => panic!("the label size must be absolute pixels, got {other:?}"),
     }
 }
@@ -90,11 +90,15 @@ fn crumb_box(cx: &mut TestAppContext, size: Option<f32>) -> (f32, f32) {
 #[gpui::test]
 fn chip_text_size_reaches_the_label_with_the_leading_for_pair(cx: &mut TestAppContext) {
     let stock = chip_style(cx, None);
-    assert_eq!(size_of(&stock), 12., "Md chip labels are text-xs");
+    assert_eq!(size_of(&stock), px(12.), "Md chip labels are text-xs");
     assert_eq!(line_of(&stock), fixed(20.), "the chip's one 20px line");
 
     let sixteen = chip_style(cx, Some(16.));
-    assert_eq!(size_of(&sixteen), 16., "`text_size` must replace the step");
+    assert_eq!(
+        size_of(&sixteen),
+        px(16.),
+        "`text_size` must replace the step"
+    );
     assert_eq!(
         line_of(&sixteen),
         fixed(24.),
@@ -102,7 +106,7 @@ fn chip_text_size_reaches_the_label_with_the_leading_for_pair(cx: &mut TestAppCo
     );
 
     let odd = chip_style(cx, Some(13.));
-    assert_eq!(size_of(&odd), 13.);
+    assert_eq!(size_of(&odd), px(13.));
     assert_eq!(
         line_of(&odd),
         fixed(20.),
@@ -113,11 +117,11 @@ fn chip_text_size_reaches_the_label_with_the_leading_for_pair(cx: &mut TestAppCo
 #[gpui::test]
 fn badge_text_size_reaches_the_label_with_its_fractional_leading(cx: &mut TestAppContext) {
     let stock = badge_style(cx, None);
-    assert_eq!(size_of(&stock), 12., "Md badges are text-xs");
+    assert_eq!(size_of(&stock), px(12.), "Md badges are text-xs");
     assert_eq!(line_of(&stock), DefiniteLength::Fraction(1.34));
 
     let big = badge_style(cx, Some(20.));
-    assert_eq!(size_of(&big), 20., "`text_size` must replace the step");
+    assert_eq!(size_of(&big), px(20.), "`text_size` must replace the step");
     assert_eq!(
         line_of(&big),
         DefiniteLength::Fraction(1.34),

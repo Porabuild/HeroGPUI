@@ -339,6 +339,24 @@ impl Painted {
             .collect()
     }
 
+    /// The quads whose four corners are `value` *without* the pill clamp:
+    /// the box is at least twice `value` on its shorter side, so the value
+    /// is really painted rather than capped to half a hairline.
+    pub fn rounded_exact(&self, value: f32) -> Vec<&gpui::Quad> {
+        self.quads
+            .iter()
+            .filter(|q| {
+                let b = self.bounds(q);
+                let short = f32::from(b.size.width).min(f32::from(b.size.height));
+                value <= short / 2. + 0.05
+                    && self
+                        .corners(q)
+                        .iter()
+                        .all(|corner| (corner - value).abs() < 0.05)
+            })
+            .collect()
+    }
+
     /// The quads filled with exactly `color`.
     pub fn filled(&self, color: gpui::Hsla) -> Vec<&gpui::Quad> {
         self.quads
@@ -352,6 +370,27 @@ impl Painted {
         self.quads
             .iter()
             .filter_map(|q| q.background.as_solid())
+            .collect()
+    }
+
+    /// One line per quad (bounds, corners, fill, borders), for failure
+    /// messages.
+    pub fn describe(&self) -> String {
+        self.quads
+            .iter()
+            .map(|q| {
+                let b = self.bounds(q);
+                format!(
+                    "  ({:.1},{:.1} {:.1}x{:.1}) r={:?} bg={:?} border={:?}\n",
+                    f32::from(b.origin.x),
+                    f32::from(b.origin.y),
+                    f32::from(b.size.width),
+                    f32::from(b.size.height),
+                    self.corners(q),
+                    q.background.as_solid(),
+                    self.borders(q),
+                )
+            })
             .collect()
     }
 
