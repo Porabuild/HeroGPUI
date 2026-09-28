@@ -3,11 +3,13 @@ import Link from "next/link";
 import { PageHeader } from "@/components/ui/page-header";
 import { CodeBlock } from "@/components/ui/code-block";
 import { Callout } from "@/components/ui/callout";
+import { pageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
+  path: "/docs/getting-started/dark-mode",
   title: "Dark Mode",
   description: "Register and switch light and dark themes at runtime in a GPUI application.",
-};
+});
 
 const INIT = `application().with_assets(HeroGpuiAssets).run(|cx: &mut App| {
     ThemeProvider::init(cx); // registers light + dark

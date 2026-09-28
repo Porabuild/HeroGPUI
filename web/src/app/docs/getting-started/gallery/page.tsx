@@ -3,11 +3,13 @@ import { Link } from "@heroui/react";
 import { Callout } from "@/components/ui/callout";
 import { CodeBlock } from "@/components/ui/code-block";
 import { PageHeader } from "@/components/ui/page-header";
+import { pageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
+  path: "/docs/getting-started/gallery",
   title: "Gallery",
   description: "Run the native HeroGPUI gallery and jump to a component, theme, or example.",
-};
+});
 
 const RUN = `cargo run -p herogpui-gallery`;
 

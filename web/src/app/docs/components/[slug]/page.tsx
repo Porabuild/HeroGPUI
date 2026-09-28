@@ -6,6 +6,7 @@ import { Callout } from "@/components/ui/callout";
 import { CodeBlock } from "@/components/ui/code-block";
 import { PageHeader } from "@/components/ui/page-header";
 import { PropsTable } from "@/components/ui/props-table";
+import { GitHubIcon } from "@/components/site/github-icon";
 import { getCatalog } from "@/lib/catalog";
 import {
   gpuiPartRows,
@@ -17,6 +18,8 @@ import {
   rustRequiredParts,
   scrubDescription,
 } from "@/lib/gpui-docs";
+import { pageMetadata } from "@/lib/seo";
+import { componentSourceLinks } from "@/lib/source-links";
 import {
   getComponentReference,
   getRustExamples,
@@ -39,7 +42,11 @@ export async function generateMetadata({ params }: ComponentPageProps): Promise<
   const { slug } = await params;
   const component = getCatalog().components[slug];
   if (!component) return {};
-  return { title: component.title, description: component.description };
+  return pageMetadata({
+    path: `/docs/components/${slug}`,
+    title: component.title,
+    description: component.description,
+  });
 }
 
 function exampleCode(example: RustExample): string {
@@ -123,6 +130,12 @@ export default async function ComponentPage({ params }: ComponentPageProps) {
   const helpers = pageHelpers(rustExamples);
   const importLine = component.importLine || reference?.importLine || "";
   const category = catalog.categories.find((entry) => entry.components.includes(slug));
+  const sourceLinks = componentSourceLinks({
+    slug,
+    title: component.title,
+    importLine,
+    version: catalog.version,
+  });
   const related = (category?.components ?? []).filter(
     (sibling) => sibling !== slug && catalog.components[sibling]?.title,
   );
@@ -165,6 +178,28 @@ export default async function ComponentPage({ params }: ComponentPageProps) {
         importLine={importLine || undefined}
         title={component.title}
       />
+
+      {sourceLinks ? (
+        <p className="-mt-6 mb-10 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
+          <Link
+            className="text-muted transition-colors hover:text-foreground"
+            href={sourceLinks.docsRs}
+            rel="noreferrer"
+            target="_blank"
+          >
+            <code>{sourceLinks.type}</code> on docs.rs
+          </Link>
+          <Link
+            className="inline-flex items-center gap-1.5 text-muted transition-colors hover:text-foreground"
+            href={sourceLinks.github}
+            rel="noreferrer"
+            target="_blank"
+          >
+            <GitHubIcon className="size-3.5" />
+            Source at v{catalog.version}
+          </Link>
+        </p>
+      ) : null}
 
       {sections.length > 0 ? (
         <section aria-labelledby="usage">

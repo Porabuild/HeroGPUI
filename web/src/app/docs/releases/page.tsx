@@ -5,11 +5,13 @@ import { Chip, Link } from "@heroui/react";
 import { Callout } from "@/components/ui/callout";
 import { PageHeader } from "@/components/ui/page-header";
 import { ReleaseBody } from "./markdown";
+import { pageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
+  path: "/docs/releases",
   title: "Releases",
   description: "Release notes for every HeroGPUI version, from the repository changelog.",
-};
+});
 
 const RELEASES_URL = "https://github.com/Porabuild/HeroGPUI/releases";
 

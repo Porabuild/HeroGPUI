@@ -2,12 +2,14 @@ import type { Metadata } from "next";
 import { PageHeader } from "@/components/ui/page-header";
 import { CodeBlock } from "@/components/ui/code-block";
 import { Callout } from "@/components/ui/callout";
+import { pageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
+  path: "/docs/getting-started/animation",
   title: "Animation",
   description:
     "Where the motion lives, how reduced motion is honoured, and how presses render without transforms.",
-};
+});
 
 const REDUCE = `// Anywhere you have an App context.
 herogpui::theme::set_reduce_motion(true, cx);

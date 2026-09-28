@@ -4,11 +4,13 @@ import { Callout } from "@/components/ui/callout";
 import { CodeBlock } from "@/components/ui/code-block";
 import { PageHeader } from "@/components/ui/page-header";
 import { SITE } from "@/lib/nav";
+import { pageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
+  path: "/docs/getting-started/quick-start",
   title: "Quick Start",
   description: "Create a Rust desktop window and render a HeroGPUI button in a few minutes.",
-};
+});
 
 const CREATE = `cargo new hello-herogpui --bin
 cd hello-herogpui`;

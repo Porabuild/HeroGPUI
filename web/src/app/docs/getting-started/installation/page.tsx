@@ -4,12 +4,14 @@ import { PageHeader } from "@/components/ui/page-header";
 import { CodeBlock } from "@/components/ui/code-block";
 import { Callout } from "@/components/ui/callout";
 import { SITE } from "@/lib/nav";
+import { pageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
+  path: "/docs/getting-started/installation",
   title: "Installation",
   description:
     "Add HeroGPUI to a Rust desktop app, open a themed window, and run the component gallery.",
-};
+});
 
 const CARGO_TOML = `[dependencies]
 herogpui = "${SITE.crateRequirement}"`;

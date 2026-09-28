@@ -4,12 +4,14 @@ import { PageHeader } from "@/components/ui/page-header";
 import { CodeBlock } from "@/components/ui/code-block";
 import { Callout } from "@/components/ui/callout";
 import { StaticTable } from "@/components/ui/static-table";
+import { pageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
+  path: "/docs/getting-started/styling",
   title: "Styling",
   description:
     "Style HeroGPUI components with typed props, theme tokens, slots, and render closures.",
-};
+});
 
 const VARIANTS = `// Variants and sizes are enums, checked at compile time.
 Button::new("edit")

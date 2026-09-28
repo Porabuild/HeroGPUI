@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import type { ReactNode } from "react";
 import { BodyScrollbars } from "@/components/site/body-scrollbars";
 import { SiteProviders } from "@/components/site/providers";
+import { SITE_URL } from "@/lib/seo";
 import "./globals.css";
 
 const geist = Geist({
@@ -17,10 +18,8 @@ const geistMono = Geist_Mono({
   display: "swap",
 });
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://porabuild.com/herogpui";
-
 export const metadata: Metadata = {
-  metadataBase: new URL(siteUrl),
+  metadataBase: new URL(SITE_URL),
   title: {
     default: "HeroGPUI — Rust UI for desktop apps",
     template: "%s — HeroGPUI",
@@ -30,7 +29,7 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     siteName: "HeroGPUI",
-    url: "/",
+    url: SITE_URL,
     title: "HeroGPUI — Rust UI for desktop apps",
     description:
       "Build desktop interfaces in Rust with typed builders, OKLCH semantic tokens and a native gallery for Windows, macOS and Linux.",

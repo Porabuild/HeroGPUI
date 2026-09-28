@@ -3,12 +3,14 @@ import { Link } from "@heroui/react";
 import { Callout } from "@/components/ui/callout";
 import { CodeBlock } from "@/components/ui/code-block";
 import { PageHeader } from "@/components/ui/page-header";
+import { pageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
+  path: "/docs/getting-started/icons",
   title: "Icons",
   description:
     "Register HeroGPUI icon assets, draw the embedded Lucide set, and color icons with the active theme.",
-};
+});
 
 const LUCIDE_VERSION = "1.31.0";
 const LUCIDE_COUNT = 245;
