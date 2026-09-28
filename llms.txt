@@ -878,6 +878,22 @@ out of `reference_metadata`.
   `HeroGpuiAssets` serves them with no setup. Decorative: no accessibility
   node (lucide-react marks its svg `aria-hidden`). Lucide is ISC (some
   icons MIT via Feather); the license ships in `assets/lucide/LICENSE`.
+- **CommandPalette** — `CommandPalette::new(id, vec![CommandItem::new(key,
+  label).group(name).description(text).icon(IconName::File).shortcut(["⌘",
+  "N"]).keywords([..]).is_disabled(bool), ..]).on_select(|key, w, cx| ..)
+  .placeholder(text).empty_text(text).label(name).width(px)
+  .max_list_height(px).close_on_select(bool).filter(|item, query| bool)`;
+  `.is_open(bool)` + `.on_open_change(|open: &bool, w, cx| ..)` or
+  `.default_open(bool)`. A modal dialog on the overlay stack: the search
+  field takes the focus, Tab stays inside, Escape or an outside press closes
+  and the focus returns. Default search: every query word must occur
+  (case/accent-insensitive) in the label, a keyword or the group. Commands
+  keep their order under group headings; Up/Down wrap over enabled
+  commands, a new query highlights the first match, Enter or a press runs
+  one. Shortcuts are display-only `Kbd`s. Bind Cmd-K/Ctrl-K yourself:
+  `is_command_palette_shortcut(&event.keystroke)` in a root `on_key_down`,
+  or a GPUI action on `"secondary-k"`. Roles: `Dialog`, `ListBox`,
+  `ListBoxOption` (highlight selected, active descendant).
 - **HoverCard** — `HoverCard::new(id).content(|w, cx| el.into_any_element())
   .label(name).child(trigger).placement(Placement::Bottom).offset(px)
   .open_delay(ms).close_delay(ms).width(px).radius(px).is_disabled(bool)

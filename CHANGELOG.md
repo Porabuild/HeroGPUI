@@ -10,6 +10,20 @@ version covers `herogpui`, `herogpui-core`, `herogpui-theme`,
 
 ### Added
 
+- `CommandPalette` and `CommandItem` (HeroGPUI extension): a modal command
+  search on the `Modal` overlay stack. It takes the focus into its search
+  field as it opens, keeps Tab inside, closes on Escape or an outside press
+  and returns the focus. Every word of the query must occur in a command's
+  label, `keywords` or group (case- and accent-insensitive), through the
+  shared matches cache; commands keep their order under their group
+  headings. Up/Down move the highlight (wrapping, skipping disabled
+  commands), a new query highlights the first match, Enter or a press runs a
+  command (`on_select`) and closes it unless `close_on_select(false)`; each
+  command may show an icon, a description and `Kbd` shortcut keys; no match
+  shows `empty_text`. Open state is controlled or uncontrolled.
+  `is_command_palette_shortcut` recognises Cmd-K (Ctrl-K off macOS) for a
+  root key handler. The gallery shell opens one from any page with that
+  shortcut, and a section on the Modal page documents it.
 - `HoverCard` (HeroGPUI extension): a card that previews rich content while
   its trigger is hovered or focused, after Radix's `HoverCard`. Hovering the
   trigger opens it after `open_delay` (700ms by default) and keyboard focus

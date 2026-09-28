@@ -152,6 +152,7 @@ under `src/` instead, and are not listed here.
 | `sx_slot` | The `sx` slot: the one caller-owned styling slot every component exposes. | 4 |
 | `icon` | Lucide `IconName`/`Icon`: names, paths and files agree, every icon loads through `HeroGpuiAssets` and rasterizes, and `Icon` lays out at its size. | 5 |
 | `hover_card` | HoverCard extension: open and close delays, the card keeping itself open under the pointer, Escape and outside-press dismissal, keyboard focus, controlled open. | 7 |
+| `command_palette` | CommandPalette extension: search focus, filtering and re-highlight, wrapping arrows, Enter and press, empty state, Escape/outside dismissal with focus return. | 8 |
 
 ## Animation & motion
 

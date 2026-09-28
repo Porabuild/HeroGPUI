@@ -1185,4 +1185,34 @@ mod tests {
             assert_eq!(cx.theme().id.as_ref(), "light");
         });
     }
+
+    /// The CommandPalette demo opens from Cmd/Ctrl-K on any page, filters the
+    /// page list by typing, and navigates on Enter.
+    #[gpui::test]
+    fn command_palette_shortcut_opens_and_navigates(cx: &mut TestAppContext) {
+        let window = open_gallery(cx);
+        let mut vcx = gpui::VisualTestContext::from_window(window.into(), cx);
+        vcx.update(|window, _| window.refresh());
+        vcx.run_until_parked();
+        assert!(vcx.debug_bounds("gallery-command-palette-panel").is_none());
+        vcx.simulate_keystrokes("secondary-k");
+        vcx.run_until_parked();
+        vcx.update(|window, _| window.refresh());
+        vcx.run_until_parked();
+        assert!(
+            vcx.debug_bounds("gallery-command-palette-panel").is_some(),
+            "the shortcut opens the palette"
+        );
+        vcx.simulate_input("toolbar");
+        vcx.run_until_parked();
+        vcx.simulate_keystrokes("enter");
+        vcx.run_until_parked();
+        window
+            .update(cx, |gallery, _, _| {
+                assert_eq!(gallery.page, Page::Toolbar);
+                assert!(!gallery.command_palette_open);
+                assert_eq!(gallery.command_palette_last.as_ref(), "page:Toolbar");
+            })
+            .unwrap();
+    }
 }

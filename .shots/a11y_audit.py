@@ -439,6 +439,15 @@ EXPOSES_A_ROLE = {
         'deliberately not Role::Tooltip, whose content is a plain-text '
         'description of the trigger. The trigger is the caller\'s element '
         'and reports its own node.',
+    ('command_palette.rs', 'CommandPalette'):
+        'HeroGPUI extension with no HeroUI v3 upstream. Role::Dialog named by '
+        '`label` on the panel (the `Modal` dialog shape), Role::ListBox on '
+        'the results and Role::ListBoxOption named by its label (described '
+        'by its description) on each command, the highlighted one '
+        '`aria-selected` and the active descendant while the search field '
+        'keeps the focus: the search-driven virtual-focus list that cmdk '
+        'and RAC\'s `Autocomplete` (`useAutocomplete`) render. The search '
+        'field is an `Input`, which reports its own text node.',
     ('tree_view.rs', 'TreeView'):
         'HeroGPUI extension with no HeroUI v3 upstream; the roles follow the '
         'WAI-ARIA tree pattern that RAC\'s `Tree` implements. Role::Tree on '

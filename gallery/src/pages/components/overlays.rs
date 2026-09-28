@@ -1150,6 +1150,27 @@ impl Gallery {
                         .into_any_element(),
                     ]), cx),
                 ),
+                (
+                    "Command Palette", "HeroGPUI extension, not a HeroUI v3 example: `CommandPalette` is a modal command search on the same overlay stack as `Modal`. Press Cmd-K (Ctrl-K off macOS) anywhere in the gallery, or the button below: type to filter every page and two appearance commands (each query word must match a label, keyword or group), Up and Down move the highlight, Enter runs it and Escape closes. The shell binds the shortcut in a root `on_key_down` with `is_command_palette_shortcut`.",
+                    specimen_body("md-command-palette", col(vec![
+                        h::Button::new("md-command-palette-open")
+                            .label("Open command palette")
+                            .variant(Variant::Secondary)
+                            .child(
+                                gpui::div()
+                                    .flex()
+                                    .gap(px(2.))
+                                    .child(h::Kbd::new().child(if cfg!(target_os = "macos") { "⌘" } else { "Ctrl" }))
+                                    .child(h::Kbd::new().child("K")),
+                            )
+                            .on_press(cx.listener(|this, _, _, cx| {
+                                this.command_palette_open = true;
+                                cx.notify();
+                            }))
+                            .into_any_element(),
+                        para(&format!("Last command: {}", self.command_palette_last), cx),
+                    ]), cx),
+                ),
             ],
             cx,
         )
