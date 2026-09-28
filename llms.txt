@@ -878,6 +878,23 @@ out of `reference_metadata`.
   `HeroGpuiAssets` serves them with no setup. Decorative: no accessibility
   node (lucide-react marks its svg `aria-hidden`). Lucide is ISC (some
   icons MIT via Feather); the license ships in `assets/lucide/LICENSE`.
+- **TitleBar / WindowBorder** — open the window with
+  `TitleBar::window_options()` (or `TitleBar::titlebar_options()` plus
+  `app_owns_titlebar_drag: true`), then render
+  `WindowBorder::new().child(TitleBar::new(id).title(text).child(el)
+  .height(px).controls(TitleBarControls::{Auto, Custom, Hidden})
+  .on_window_action(|action: &WindowAction, window, cx| ..))` at the top of
+  the root view. The empty bar drags the window and a double-click zooms;
+  children keep their presses. `Auto`: macOS keeps the native traffic
+  lights (80px `TRAFFIC_LIGHTS_WIDTH` reserved); Windows draws buttons the
+  OS performs (`WindowControlArea::{Min, Max, Close}`, not reported to the
+  hook); Linux draws buttons only when client-decorated; the web draws
+  none. `Custom` draws minimize, maximize/restore and close everywhere.
+  `WindowAction::{Minimize, Zoom, Close, Move, DoubleClick,
+  ShowWindowMenu(point)}`; the hook replaces `action.perform(window)`.
+  `WindowBorder` draws a Linux client-decorated frame (shadow
+  `WINDOW_SHADOW_SIZE`, border, resize edges) and is a pass-through
+  elsewhere. Roles: `TitleBar` named by the title, `Button` per control.
 - **Sidebar** — `Sidebar::new(id, vec![SidebarGroup::new(key).label(text)
   .is_collapsible(bool).default_expanded(bool).items(vec![SidebarItem::new(
   key, label).icon(IconName::Inbox).badge("12").is_disabled(bool), ..]),

@@ -100,6 +100,8 @@ pub struct Gallery {
     pub sidebar_active: SharedString,
     /// Whether the Sidebar extension demo is collapsed to icons.
     pub sidebar_collapsed: bool,
+    /// Last window action the TitleBar extension demo reported.
+    pub title_bar_last: SharedString,
     /// Scroll state of the VirtualList extension demo.
     pub virtual_list: h::VirtualListHandle,
     pub dropdown_last_basic: SharedString,
@@ -473,6 +475,7 @@ Enter inserts a newline here, and a long paragraph wraps inside the field instea
             command_palette_last: SharedString::from("none yet"),
             sidebar_active: SharedString::from("home"),
             sidebar_collapsed: false,
+            title_bar_last: SharedString::from("none yet"),
             virtual_list: h::VirtualListHandle::new(1000),
             dropdown_last_basic: SharedString::from("none yet"),
             dropdown_doc_marks: vec![SharedString::from("bold")],

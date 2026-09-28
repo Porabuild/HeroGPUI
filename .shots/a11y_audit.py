@@ -458,6 +458,13 @@ EXPOSES_A_ROLE = {
         'as the active descendant of the menu\'s single focus handle. The '
         'active item\'s `aria-current="page"` goes through `a11y_current`, '
         'which the pinned gpui cannot express (see `a11y.rs`).',
+    ('title_bar.rs', 'TitleBar'):
+        'HeroGPUI extension with no HeroUI v3 upstream (window chrome is '
+        'outside a web library). Role::TitleBar named by `title` on the bar '
+        '(AccessKit\'s role for a window\'s title bar) and Role::Button on '
+        'each drawn control, named "Minimize", "Maximize" / "Restore" and '
+        'the `Close` UI string. The controls are not tab stops, as native '
+        'caption buttons are not.',
     ('tree_view.rs', 'TreeView'):
         'HeroGPUI extension with no HeroUI v3 upstream; the roles follow the '
         'WAI-ARIA tree pattern that RAC\'s `Tree` implements. Role::Tree on '
@@ -788,6 +795,11 @@ NO_NODE = {
         'container over caller-built rows, which carry their own nodes; a '
         '`list` role here would claim `listitem` children it does not own. '
         'A semantic list belongs on `ListBox`, which has one.',
+    ('title_bar.rs', 'WindowBorder'):
+        'HeroGPUI extension with no HeroUI v3 upstream. A frame (shadow, '
+        'border and resize bands) around the window content, drawn only for '
+        'Linux client-side decorations; a native window frame is not an '
+        'accessibility node either, and the content keeps its own nodes.',
     ('icon.rs', 'Icon'):
         'HeroGPUI extension with no HeroUI v3 upstream. The glyphs are '
         'Lucide\'s, and `lucide-react` 1.31.0 (`dist/esm/Icon.mjs`, pinned in '

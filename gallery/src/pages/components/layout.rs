@@ -535,6 +535,38 @@ impl Gallery {
                         bar("v", false, Orientation::Vertical).into_any_element()
                     ]),
                 ),
+                (
+                    "Title Bar", "HeroGPUI extension, not a HeroUI v3 example: `TitleBar` is custom window chrome for a frameless window (open it with `TitleBar::window_options()`). Its empty area drags the window and a double-click zooms it; children such as the Share button keep their own presses. `TitleBarControls::Custom` draws minimize, maximize and close on every platform (`Auto` keeps the macOS traffic lights and lets Windows perform its caption buttons). This demo intercepts every action with `on_window_action` and only a drag is performed, so dragging the bar below moves the gallery window.",
+                    specimen_body("tb-title-bar", col(vec![
+                        gpui::div()
+                            .w(px(560.))
+                            .rounded(px(12.))
+                            .border_1()
+                            .border_color(cx.colors().border)
+                            .overflow_hidden()
+                            .child(
+                                h::TitleBar::new("tb-title-bar-chrome")
+                                    .title("Untitled — HeroGPUI")
+                                    .controls(h::TitleBarControls::Custom)
+                                    .on_window_action(cx.listener(|this, action: &h::WindowAction, window, cx| {
+                                        if *action == h::WindowAction::Move {
+                                            action.perform(window);
+                                        }
+                                        this.title_bar_last = SharedString::from(format!("{action:?}"));
+                                        cx.notify();
+                                    }))
+                                    .child(
+                                        h::Button::new("tb-title-bar-share")
+                                            .label("Share")
+                                            .variant(Variant::Tertiary)
+                                            .size(Size::Sm),
+                                    ),
+                            )
+                            .child(gpui::div().h(px(96.)).bg(cx.colors().background))
+                            .into_any_element(),
+                        para(&format!("Last window action: {}", self.title_bar_last), cx),
+                    ]), cx),
+                ),
             ],
             cx,
         )

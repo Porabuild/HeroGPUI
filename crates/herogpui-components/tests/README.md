@@ -154,6 +154,7 @@ under `src/` instead, and are not listed here.
 | `hover_card` | HoverCard extension: open and close delays, the card keeping itself open under the pointer, Escape and outside-press dismissal, keyboard focus, controlled open. | 7 |
 | `command_palette` | CommandPalette extension: search focus, filtering and re-highlight, wrapping arrows, Enter and press, empty state, Escape/outside dismissal with focus return. | 8 |
 | `sidebar` | Sidebar extension: item press and keyboard activation, roving cursor over items and collapsible headings, group expansion, typeahead, collapse to icons. | 6 |
+| `title_bar` | TitleBar/WindowBorder extension: drawn controls report actions, press-and-move is one window move, double-click, child presses, platform `Auto` controls, border pass-through. | 6 |
 
 ## Animation & motion
 

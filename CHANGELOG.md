@@ -10,6 +10,23 @@ version covers `herogpui`, `herogpui-core`, `herogpui-theme`,
 
 ### Added
 
+- `TitleBar`, `WindowBorder`, `TitleBarControls` and `WindowAction`
+  (HeroGPUI extension): custom window chrome for frameless windows, on the
+  pinned `gpui-pre` 0.3.5 window APIs. `TitleBar::window_options()` hides the
+  system title bar, places the macOS traffic lights and marks the title bar
+  app-owned. The bar's empty area drags the window (`start_window_move` on
+  macOS and Linux, the `Drag` caption area on Windows), a double-click zooms
+  it (the macOS user setting via `titlebar_double_click`, `zoom_window` on
+  Linux, the OS caption on Windows), and presses on the bar's children stay
+  theirs. `TitleBarControls::Auto` follows the platform (native traffic
+  lights on macOS; OS-performed `Min`/`Max`/`Close` control areas on Windows;
+  drawn buttons on client-decorated Linux; none on the web), `Custom` draws
+  minimize, maximize/restore and close everywhere, `Hidden` none;
+  `on_window_action` replaces the default `WindowAction::perform`.
+  `WindowBorder` draws the shadow, border and resize edges of a Linux
+  client-decorated window and passes its children through everywhere else.
+  The browser has no window to move or zoom. A gallery section on the
+  Toolbar page shows it.
 - `Sidebar`, `SidebarGroup` and `SidebarItem` (HeroGPUI extension): a
   collapsible application sidebar with a header, groups of menu items (icon,
   label, badge) under optional labels, and a footer. One item is active
