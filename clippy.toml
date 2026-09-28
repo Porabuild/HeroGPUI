@@ -1,10 +1,13 @@
 # Mirrors `rust-version` in the workspace manifest. Set from what the code
-# actually supports. This unpublished pre-1.0 workspace deliberately tracks the
-# pinned stable toolchain rather than carrying an older compatibility floor.
+# actually supports. The pre-1.0 workspace deliberately tracks the pinned stable
+# toolchain rather than carrying an older compatibility floor;
+# `.shots/package_audit.py` fails if this, `rust-version` and the pin in
+# rust-toolchain.toml disagree.
 msrv = "1.98"
 
-# Pre-1.0 and unpublished, so clippy should suggest signature fixes rather than
-# hold back on the grounds that they would break downstream callers.
+# Pre-1.0: a signature fix ships in the next 0.x minor release, where
+# cargo-semver-checks (CI and the release) makes the break explicit, so clippy
+# should suggest it rather than hold back for downstream callers.
 avoid-breaking-exported-api = false
 
 # Names that appear in doc comments and are not typos.

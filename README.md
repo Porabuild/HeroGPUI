@@ -173,7 +173,7 @@ sources or git hooks.
 
 Audit tooling under `.shots/` checks the implementation against the upstream
 design system. See `docs/agents/parity.md` for what each audit reads and what
-it proves. The lint gate is `.shots/lint.ps1`.
+it proves. The lint gate is `bash .shots/lint.sh`.
 
 ## License
 
