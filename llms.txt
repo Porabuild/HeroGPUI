@@ -866,13 +866,19 @@ out of `reference_metadata`.
   `.selected_keys([..])` / `.default_selected_keys([..])`,
   `.expanded_keys([..])` / `.default_expanded_keys([..])`,
   `.disabled_keys([..])`, `.disallow_empty_selection(bool)`,
-  `.is_disabled(bool)`, `.on_selection_change(|&HashSet<SharedString>, w,
+  `.is_disabled(bool)`, `.max_h(px)`, `.on_selection_change(|&HashSet<SharedString>, w,
   cx| ..)`, `.on_expanded_change(..)`. One tab stop; Up/Down/Home/End over
   visible rows (skipping disabled), Right expands then enters the first
   child, Left collapses then goes to the parent, typeahead; the chevron
   toggles a parent; a press, Enter or Space toggles selection (with mode
-  `None`, toggles a parent's expansion); Escape clears the selection.
-  Roles: `Tree`, `TreeItem` with level, expanded and selected.
+  `None`, toggles a parent's expansion); Escape clears the selection. In
+  `Multiple`, Shift+Up/Down and a Shift press extend the selection from
+  the anchor (the last row a press or Space selected) over the visible,
+  enabled rows between; Shift+Home/End only move. Rows render through a
+  uniform `VirtualList`: under `max_h` (or a height-bounding parent) only
+  the rows in view are built and the cursor scrolls into view. Roles:
+  `Tree`, `TreeItem` with level, `aria-posinset`/`aria-setsize` among its
+  siblings, expanded and selected.
 - **Icons** — `Icon::new(IconName::Search).size(px(20.)).color(hsla)`
   draws an embedded Lucide icon (default 16px, `DEFAULT_ICON_SIZE`, in the
   theme `foreground`; gpui svgs do not inherit text colour);

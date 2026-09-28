@@ -402,6 +402,7 @@ pub struct VirtualList {
     render_row: Box<RenderRow>,
     height: Option<Pixels>,
     debug_selector: Option<String>,
+    padding: Option<(Pixels, Pixels, Pixels)>,
 }
 
 impl VirtualList {
@@ -419,6 +420,7 @@ impl VirtualList {
             render_row: Box::new(render_row),
             height: None,
             debug_selector: None,
+            padding: None,
         }
     }
 
@@ -430,6 +432,14 @@ impl VirtualList {
     /// so a bounded parent hands it its real viewport.
     pub fn height(mut self, height: impl Into<Pixels>) -> Self {
         self.height = Some(height.into());
+        self
+    }
+
+    /// Padding inside the scroll viewport (`top`, left and right `x`,
+    /// `bottom`). Rows scroll through it, and a row's outset focus ring can
+    /// paint into it at the edges, where the viewport would clip it.
+    pub(crate) fn padding(mut self, top: Pixels, x: Pixels, bottom: Pixels) -> Self {
+        self.padding = Some((top, x, bottom));
         self
     }
 
@@ -446,6 +456,10 @@ impl RenderOnce for VirtualList {
             Engine::Measured(state) => {
                 let rows = list(state, self.render_row).size_full();
                 let root = div().id(self.id).w_full().flex().flex_col();
+                let root = match self.padding {
+                    Some((top, x, bottom)) => root.pt(top).px(x).pb(bottom),
+                    None => root,
+                };
                 match self.height {
                     Some(height) => root.h(height),
                     None => root.size_full(),
@@ -468,6 +482,10 @@ impl RenderOnce for VirtualList {
                 let rows = match self.height {
                     Some(height) => rows.h(height).min_h_0(),
                     None => rows.with_sizing_behavior(ListSizingBehavior::Infer),
+                };
+                let rows = match self.padding {
+                    Some((top, x, bottom)) => rows.pt(top).px(x).pb(bottom),
+                    None => rows,
                 };
                 match self.debug_selector {
                     Some(selector) => rows.debug_selector(move || selector),

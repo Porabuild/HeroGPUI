@@ -962,6 +962,33 @@ impl Gallery {
                     ]), cx),
                 ),
                 (
+                    "Large Tree View", "HeroGPUI extension: two thousand open rows under `max_h`. Only the rows in view are built, and the keyboard cursor scrolls into view. With `SelectionMode::Multiple`, a press or Space seats the anchor and Shift+Up/Down or a Shift press selects the visible rows between it and the target. Each row reports its level and its position among its siblings to assistive technology.",
+                    specimen_body("lb-tree-large", col(vec![
+                        gpui::div()
+                            .w(px(280.))
+                            .child(
+                                h::TreeView::new(
+                                    "lb-tree-large",
+                                    (0..50)
+                                        .map(|group| {
+                                            h::TreeItem::new(format!("group-{group}"), format!("Folder {group}"))
+                                                .children((0..40).map(|file| {
+                                                    h::TreeItem::new(
+                                                        format!("file-{group}-{file}"),
+                                                        format!("file-{file}.rs"),
+                                                    )
+                                                }))
+                                        })
+                                        .collect(),
+                                )
+                                .selection_mode(SelectionMode::Multiple)
+                                .default_expanded_keys((0..50).map(|group| SharedString::from(format!("group-{group}"))))
+                                .max_h(px(260.)),
+                            )
+                            .into_any_element(),
+                    ]), cx),
+                ),
+                (
                     "Custom Check Icon", "There is no separate indicator part; a row's `variant` carries the indicator style, so the danger row below shows the same tick in its own colour.",
                     specimen_body("lb-check-icon", col(vec![
                         gpui::div()

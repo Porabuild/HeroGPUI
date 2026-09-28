@@ -18,6 +18,17 @@ version covers `herogpui`, `herogpui-core`, `herogpui-theme`,
   New handle readings for both modes: `viewport_bounds()`,
   `remaining_below()`, `is_scrolled_to_top()`, `is_scrolled_to_end()` and
   `is_uniform()`.
+- `TreeView`: Shift range selection in `SelectionMode::Multiple` —
+  Shift+Up/Down and a Shift press select the visible, enabled rows between
+  the anchor (the last row a press or Space selected) and the target, as
+  React Stately's `extendSelection` does and as `ListBox` already did;
+  Shift+Home/End only move the cursor. Rows render through a uniform
+  `VirtualList`, so under the new `max_h(px)` (or in a height-bounding
+  parent) only the rows in view are built and the keyboard cursor scrolls
+  into view; an uncapped tree keeps its geometry. Each row reports
+  `aria-posinset`/`aria-setsize` among its siblings, as React Aria's
+  `useGridListItem` does for tree rows. A "Large Tree View" gallery section
+  on the List Box page shows two thousand open rows.
 
 ### Changed
 

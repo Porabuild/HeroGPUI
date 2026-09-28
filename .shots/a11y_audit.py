@@ -434,7 +434,9 @@ EXPOSES_A_ROLE = {
         'HeroGPUI extension with no HeroUI v3 upstream; the roles follow the '
         'WAI-ARIA tree pattern that RAC\'s `Tree` implements. Role::Tree on '
         'the root and Role::TreeItem named by its label on each visible row, '
-        'with `aria-level` (depth + 1), `aria-expanded` on parents and '
+        'with `aria-level` (depth + 1), `aria-posinset` / `aria-setsize` '
+        'among its siblings (always, as `useGridListItem` sets them on a '
+        'tree row), `aria-expanded` on parents and '
         '`aria-selected` when the tree selects. Like `ListBox`, the tree '
         'keeps one focus handle and marks the cursor row as the active '
         'descendant.',

@@ -127,14 +127,22 @@ type OnAction = Arc<dyn Fn(&SharedString, &mut Window, &mut App) + 'static>;
 /// `ListBox.ItemIndicator`'s render function, handed `isSelected`.
 type Indicator = Arc<dyn Fn(bool) -> gpui::AnyElement + 'static>;
 
+/// The anchor and the moving end of a Shift range in a multiple-selection
+/// collection (React Stately's `anchorKey` / `currentKey`), and whether the
+/// selection is a raw select-all. `TreeView` shares it.
 #[derive(Clone, Debug, Default)]
-struct ListBoxSelectionRange {
-    anchor: Option<SharedString>,
-    current: Option<SharedString>,
-    is_all: bool,
+pub(crate) struct ListBoxSelectionRange {
+    pub(crate) anchor: Option<SharedString>,
+    pub(crate) current: Option<SharedString>,
+    pub(crate) is_all: bool,
 }
 
-fn extend_selection_range(
+/// React Stately's `extendSelection`: drop the keys between the anchor and
+/// the previous range end, then add the selectable keys between the anchor
+/// and `target`, in `collection` order. A raw select-all collapses to
+/// `target`, and with no anchor the range starts at `target`. `TreeView`
+/// shares it.
+pub(crate) fn extend_selection_range(
     current: &HashSet<SharedString>,
     collection: &[SharedString],
     selectable: &HashSet<SharedString>,
