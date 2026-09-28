@@ -12,6 +12,7 @@
 //! orientation layout.
 
 mod harness;
+mod source_scan;
 
 use std::{cell::RefCell, rc::Rc, time::Duration};
 
@@ -1528,9 +1529,9 @@ fn tabs_full_width_does_not_overflow_the_scroller(cx: &mut TestAppContext) {
 /// trigger renders an element instead of the label text, and the list overrides
 /// its container and indicator paint. The observable half — geometry, hit
 /// testing and keyboard activation — must survive the paint overrides and the
-/// element triggers; fills, shadows and corner radii have no headless readback,
-/// so the source contract below pins their wiring and the gallery example is
-/// the visual proof.
+/// element triggers. Fills and corner radii are read off the painted scene in
+/// `tabs_paint_overrides_reach_their_parts`; shadows have no headless
+/// readback, and the gallery example is their visual proof.
 #[gpui::test]
 fn tabs_icon_triggers_render_activate_and_measure(cx: &mut TestAppContext) {
     harness::still();
@@ -1966,7 +1967,8 @@ fn hovered_unselected_tab_solids(
 /// resting fill (including over an overridden tray) while its label colour
 /// moves to the theme foreground. The default and an explicit `true` keep
 /// painting the wash. Text colour itself has no painted-quad readback, so
-/// the colour path is pinned in `tabs_toolbar_overrides_default_to_today`.
+/// the colour path is read by a style probe in
+/// `tabs_toolbar_overrides_reach_the_tray_and_the_label`.
 #[gpui::test]
 fn tabs_hover_fill_false_removes_the_wash(cx: &mut TestAppContext) {
     let stock_wash = |cx: &mut TestAppContext| {
@@ -2034,8 +2036,8 @@ fn tabs_hover_fill_false_removes_the_wash(cx: &mut TestAppContext) {
 }
 
 /// `indicator_bg` recolors the secondary accent line without disturbing its
-/// measured 2px geometry or the variant's activation path. The color itself
-/// has no headless readback; the source contract below pins the wiring.
+/// measured 2px geometry or the variant's activation path. The colour itself
+/// is read off the painted underline in `tabs_paint_overrides_reach_their_parts`.
 #[gpui::test]
 fn tabs_secondary_indicator_bg_keeps_underline_geometry_and_activation(cx: &mut TestAppContext) {
     harness::still();
@@ -2135,87 +2137,208 @@ fn tabs_hover_wash_fades_from_the_list_bg_override(cx: &mut TestAppContext) {
     );
 }
 
-/// The paint knobs have no headless readback — shadows, fills and corner radii
-/// are not observable from the test platform — so their contract is the
-/// wiring: each override refines the part it names after the resolved theme
-/// default, the fallbacks that paint the indicator's look before geometry
-/// arrives read the same overrides, and every field seeds to today's value.
-#[test]
-fn tabs_paint_overrides_are_wired_at_their_parts() {
-    let source = include_str!("../src/tabs.rs");
-    // The indicator keeps its pinned default expressions and refines them per
-    // instance (theme value first, configuration after).
-    assert!(
-        source.contains(".rounded(crate::util::control_radius(cx))"),
-        "the indicator's default radius call is the design-audit fixture anchor"
-    );
-    assert!(source.contains(".when_some(radius_override, |indicator, radius| {"));
-    assert!(source.contains("indicator_bg.unwrap_or(colors.accent.color)"));
-    assert!(source.contains("indicator_bg.unwrap_or(colors.segment.background)"));
-    assert!(source.contains("indicator_shadow && !layout.surface_shadow.is_empty()"));
-    // The pre-measurement active-tab fallback paints the same look and must
-    // read through the same overrides, or the first frame flashes them.
-    assert!(source.contains("tab.bg(indicator_bg.unwrap_or(colors.segment.background))"));
-    assert!(source.contains("tab.border_color(indicator_bg.unwrap_or(colors.accent.color))"));
-    // The list container keeps its pinned default expressions too.
-    assert!(source.contains("let container_radius = layout.radius_lg() * 2.5;"));
-    assert!(source.contains("list_bg.unwrap_or(colors.default.color)"));
-    assert!(source.contains(".when_some(list_bg, |c, bg| c.bg(bg))"));
-    assert!(source.contains(".when_some(radius_override, |c, radius| c.rounded(radius))"));
-    // Unused builders leave the component byte-identical to today.
-    assert!(source.contains("radius: None"));
-    assert!(source.contains("list_bg: None"));
-    assert!(source.contains("indicator_bg: None"));
-    assert!(source.contains("indicator_shadow: true"));
+/// The paint knobs on the painted scene: each override refines the part it
+/// names after the resolved theme default. The indicator is the quad at the
+/// indicator's debug bounds, the tray the filled quad around it.
+fn indicator_and_tray(
+    cx: &mut VisualTestContext,
+    id: &'static str,
+) -> (harness::Painted, gpui::Quad, Option<gpui::Quad>) {
+    let selector = Box::leak(format!("Name(\"{id}\")-indicator").into_boxed_str());
+    let boxes = measure_tabs(cx, selector, 1);
+    let scene = harness::painted(cx);
+    let indicator = scene
+        .quads
+        .iter()
+        .find(|q| {
+            let b = scene.bounds(q);
+            harness::contains(b, boxes[0]) && harness::contains(boxes[0], b)
+        })
+        .cloned()
+        .unwrap_or_else(|| panic!("{id}: the indicator must paint\n{}", scene.describe()));
+    let tray = scene
+        .around(boxes[0])
+        .into_iter()
+        .filter(|q| q.bounds != indicator.bounds)
+        .filter(|q| q.background.as_solid().is_some_and(|c| c.a > 0.))
+        .min_by(|a, b| {
+            let area = |q: &&gpui::Quad| q.bounds.size.width.0 * q.bounds.size.height.0;
+            area(a).total_cmp(&area(b))
+        })
+        .cloned();
+    (scene, indicator, tray)
 }
 
-/// An element trigger — an svg icon, most commonly — carries no accessible
-/// name of its own, so `label` must keep naming the tab through the
-/// `a11y_named` restatement on the tab element itself. The headless platform
-/// cannot read the AccessKit tree (`a11y_deep.rs` pins why), so the source is
-/// the observable proof, exactly as for the other a11y-only paths.
+fn two_tabs(id: &'static str) -> Tabs {
+    Tabs::new(
+        id,
+        vec![TabItem::new("a", "Alpha"), TabItem::new("b", "Beta")],
+        "a",
+    )
+}
+
+#[gpui::test]
+fn tabs_paint_overrides_reach_their_parts(cx: &mut TestAppContext) {
+    const R: f32 = 5.;
+    let (list, fill) = (gpui::rgb(0x1a1a2e).into(), gpui::rgb(0x00aa44).into());
+
+    // Primary, stock: the indicator is the segment fill at the control
+    // radius, the tray is `bg-default` at `radius * 2.5`.
+    harness::still();
+    let vcx = open_host(cx, || two_tabs("tp-stock").into_any_element());
+    let (scene, indicator, tray) = indicator_and_tray(vcx, "tp-stock");
+    let (segment, default, control, tray_r) = vcx.update(|_, cx| {
+        (
+            cx.colors().segment.background,
+            cx.colors().default.color,
+            f32::from(herogpui_components::extend::control_radius(cx)),
+            f32::from(cx.layout().radius_lg() * 2.5),
+        )
+    });
+    let tray = tray.expect("the stock tray must paint");
+    assert_eq!(indicator.background.as_solid(), Some(segment));
+    assert!(
+        scene.is_uniform(&indicator, control),
+        "stock indicator radius"
+    );
+    assert_eq!(tray.background.as_solid(), Some(default));
+    assert!(scene.is_uniform(&tray, tray_r), "stock tray radius");
+
+    // Primary, overridden: every knob lands on its own part.
+    harness::still();
+    let vcx = open_host(cx, move || {
+        two_tabs("tp-over")
+            .radius(px(R))
+            .list_bg(list)
+            .indicator_bg(fill)
+            .into_any_element()
+    });
+    let (scene, indicator, tray) = indicator_and_tray(vcx, "tp-over");
+    let tray = tray.expect("the overridden tray must paint");
+    assert_eq!(indicator.background.as_solid(), Some(fill), "indicator_bg");
+    assert!(
+        scene.is_uniform(&indicator, R),
+        "radius reaches the indicator"
+    );
+    assert_eq!(tray.background.as_solid(), Some(list), "list_bg");
+    assert!(scene.is_uniform(&tray, R), "radius reaches the tray");
+
+    // Secondary: the underline is the accent line, recoloured by the same
+    // `indicator_bg`.
+    for (id, over) in [("ts-stock", None), ("ts-over", Some(fill))] {
+        harness::still();
+        let vcx = open_host(cx, move || {
+            let tabs = two_tabs(id).variant(TabsVariant::Secondary);
+            match over {
+                Some(c) => tabs.indicator_bg(c),
+                None => tabs,
+            }
+            .into_any_element()
+        });
+        let (_, indicator, _) = indicator_and_tray(vcx, id);
+        let accent = vcx.update(|_, cx| cx.colors().accent.color);
+        assert_eq!(
+            indicator.background.as_solid(),
+            Some(over.unwrap_or(accent)),
+            "{id}: the underline must paint the override or the accent"
+        );
+    }
+}
+
+/// Remaining source-text checks, each for a reason the painted scene cannot
+/// cover: the indicator's `surface_shadow` (shadows are not exposed); the
+/// pre-measurement fallback the active tab paints until the indicator has
+/// geometry (the test window's first presented frame already has it, so the
+/// fallback frame is never the one `painted_quads` returns); and the tab's
+/// accessible name (the headless platform builds no AccessKit tree;
+/// `a11y_deep.rs` pins why). That an element `trigger` replaces the label
+/// is measured by `tabs_icon_triggers_render_activate_and_measure`.
 #[test]
-fn tabs_trigger_keeps_the_label_as_the_accessible_name() {
-    let source = include_str!("../src/tabs.rs");
-    // Both variants name the tab from `label` on the interactive tab box,
-    // independent of which child it renders.
+fn tabs_shadow_and_accessible_name_are_wired_at_their_parts() {
+    let source = source_scan::component_src("tabs.rs");
+    assert!(source.contains("indicator_shadow && !layout.surface_shadow.is_empty()"));
+    assert!(source.contains("tab.bg(indicator_bg.unwrap_or(colors.segment.background))"));
+    assert!(source.contains("tab.border_color(indicator_bg.unwrap_or(colors.accent.color))"));
     assert!(
         source.contains("a11y_named(a11y::Role::Tab, &a11y::Name::labelled(item.label.clone()))"),
         "the tab element must restate `label` as its accessible name"
     );
-    // The trigger replaces the rendered child only.
-    assert!(source.contains("Some(trigger) => tab.child(trigger)"));
-    assert!(source.contains("None => tab.child(tab_label(item.label.clone()))"));
+    assert!(
+        source.contains(".rounded(crate::util::control_radius(cx))"),
+        "the indicator's default radius call is the design-audit fixture anchor"
+    );
 }
 
-/// The 0.10.1 builders are additive: unset, every new field seeds to the
-/// value that predates it, the pinned tray inset stays the base the
-/// `list_padding` override refines, both variants gate the same
-/// unselected-tab wash on the one flag, and `hover_fill(false)` wires the
-/// text-colour hover in both variants in place of that wash.
-#[test]
-fn tabs_toolbar_overrides_default_to_today() {
-    let source = include_str!("../src/tabs.rs");
-    assert!(source.contains("width: None"));
-    assert!(source.contains("height: None"));
-    assert!(source.contains("padding_x: None"));
-    assert!(source.contains("list_padding: None"));
-    assert!(source.contains("hover_fill: true"));
-    // The overrides refine the size step and the pinned inset at their parts.
-    assert!(source.contains("item.height.unwrap_or(tab_h)"));
-    assert!(source.contains("item.padding_x.unwrap_or(tab_padding_x)"));
-    assert!(source.contains("list = list.p(px(4.))"));
-    assert!(source.contains("list = list.when_some(list_padding, |list, inset| list.p(inset))"));
-    assert_eq!(
-        source.matches("if hover_fill {").count(),
-        2,
-        "both variants must gate the wash on the same flag"
-    );
-    assert_eq!(
-        source
-            .matches("tab.hover(move |style| style.text_color(hover_fg))")
-            .count(),
-        2,
-        "hover_fill(false) must recolour unselected labels in both variants"
-    );
+/// `list_padding` replaces the tray's pinned `p-1` inset, and
+/// `hover_fill(false)` recolours a hovered unselected label to the
+/// foreground in both variants in place of the wash (the wash itself is
+/// `tabs_hover_fill_false_removes_the_wash`). The label colour is read by a
+/// style probe drawn as the unselected tab's trigger.
+#[gpui::test]
+fn tabs_toolbar_overrides_reach_the_tray_and_the_label(cx: &mut TestAppContext) {
+    for (id, padding, want) in [("tl-stock", None, 4.), ("tl-wide", Some(10.), 10.)] {
+        harness::still();
+        let vcx = open_host(cx, move || {
+            let tabs = two_tabs(id);
+            match padding {
+                Some(p) => tabs.list_padding(px(p)),
+                None => tabs,
+            }
+            .into_any_element()
+        });
+        let (scene, indicator, tray) = indicator_and_tray(vcx, id);
+        let tray = scene.bounds(&tray.expect("the tray must paint"));
+        let inset = f32::from(scene.bounds(&indicator).origin.x - tray.origin.x);
+        assert!(
+            (inset - want).abs() < 0.5,
+            "{id}: the first tab must sit {want}px inside the tray, got {inset}"
+        );
+    }
+
+    for variant in [TabsVariant::Primary, TabsVariant::Secondary] {
+        for hover_fill in [true, false] {
+            let sink = harness::style_sink();
+            let seen = sink.clone();
+            harness::still();
+            let vcx = open_host(cx, move || {
+                Tabs::new(
+                    "th",
+                    vec![
+                        TabItem::new("a", "Alpha"),
+                        TabItem::new("b", "Beta").trigger(
+                            gpui::div()
+                                .debug_selector(|| "th-b".into())
+                                .w(px(40.))
+                                .h(px(16.))
+                                .child(harness::style_probe(&sink)),
+                        ),
+                    ],
+                    "a",
+                )
+                .variant(variant)
+                .hover_fill(hover_fill)
+                .into_any_element()
+            });
+            harness::settle(vcx);
+            let resting = harness::seen_style(&seen, "unselected tab").color;
+            let target = vcx
+                .debug_bounds("th-b")
+                .expect("the trigger must be laid out");
+            vcx.simulate_mouse_move(target.center(), None, Modifiers::none());
+            harness::settle(vcx);
+            let hovered = harness::seen_style(&seen, "hovered tab").color;
+            let (muted, foreground) =
+                vcx.update(|_, cx| (cx.colors().muted, cx.colors().foreground));
+            assert_eq!(
+                resting, muted,
+                "{variant:?}: an unselected label rests muted"
+            );
+            assert_eq!(
+                hovered,
+                if hover_fill { muted } else { foreground },
+                "{variant:?} hover_fill={hover_fill}: only the wash-less hover \
+                 recolours the label"
+            );
+        }
+    }
 }
