@@ -10,6 +10,13 @@ version covers `herogpui`, `herogpui-core`, `herogpui-theme`,
 
 ### Added
 
+- `Toolbar::size`, `Toolbar::sized_child` and `Toolbar::sized_children`
+  (HeroGPUI extension, after gpui-kit's toolbar): the toolbar's size reaches
+  every control added with `sized_child` when the toolbar renders, whatever
+  the order of the builder calls; `child` elements keep their own size.
+  `Toolbar::label` names the toolbar, or the group a nested toolbar becomes
+  (`aria-label` on RAC's `Toolbar`). `Toolbar` implements `Sizable`. A
+  gallery section on the Toolbar page shows them.
 - `TitleBar`, `WindowBorder`, `TitleBarControls` and `WindowAction`
   (HeroGPUI extension): custom window chrome for frameless windows, on the
   pinned `gpui-pre` 0.3.5 window APIs. `TitleBar::window_options()` hides the

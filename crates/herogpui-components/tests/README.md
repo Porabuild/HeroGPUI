@@ -155,6 +155,7 @@ under `src/` instead, and are not listed here.
 | `command_palette` | CommandPalette extension: search focus, filtering and re-highlight, wrapping arrows, Enter and press, empty state, Escape/outside dismissal with focus return. | 8 |
 | `sidebar` | Sidebar extension: item press and keyboard activation, roving cursor over items and collapsible headings, group expansion, typeahead, collapse to icons. | 6 |
 | `title_bar` | TitleBar/WindowBorder extension: drawn controls report actions, press-and-move is one window move, double-click, child presses, platform `Auto` controls, border pass-through. | 6 |
+| `toolbar_extras` | Toolbar `size` / `sized_child` extension: builder-order-independent size propagation, plain children keep their own size. | 2 |
 
 ## Animation & motion
 

@@ -878,6 +878,12 @@ out of `reference_metadata`.
   `HeroGpuiAssets` serves them with no setup. Decorative: no accessibility
   node (lucide-react marks its svg `aria-hidden`). Lucide is ISC (some
   icons MIT via Feather); the license ships in `assets/lucide/LICENSE`.
+- **Toolbar extras** — `Toolbar::new().size(Size::Sm).sized_child(Button::new(
+  id).label(..)).sized_children([..]).label("Formatting")`: `size` reaches
+  every `sized_child` (any `Sizable<Size = Size>` control) at render time,
+  in any builder order; `child` elements keep their own size. `label` is
+  the toolbar's (or nested group's) accessible name, reported with an
+  `.id(..)`.
 - **TitleBar / WindowBorder** — open the window with
   `TitleBar::window_options()` (or `TitleBar::titlebar_options()` plus
   `app_owns_titlebar_drag: true`), then render

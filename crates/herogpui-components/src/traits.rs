@@ -159,6 +159,7 @@ sizable!(
     TagGroup => Size,
     ToggleButton => Size,
     ToggleButtonGroup => Size,
+    Toolbar => Size,
 );
 
 selectable!(Checkbox, Switch, ToggleButton);
