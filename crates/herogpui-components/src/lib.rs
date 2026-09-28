@@ -37,6 +37,7 @@ pub mod filter;
 pub mod form;
 #[cfg(feature = "gallery-source")]
 pub mod gallery_source;
+pub mod hover_card;
 pub mod i18n;
 pub mod icon;
 pub mod icons;
@@ -120,6 +121,7 @@ pub use dropdown::*;
 pub use field::*;
 pub use filter::*;
 pub use form::*;
+pub use hover_card::*;
 
 /// `formatOptions` for the components that take it, re-exported so a caller
 /// reaches it beside the component it configures.

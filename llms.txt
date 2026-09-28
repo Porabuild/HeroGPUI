@@ -878,6 +878,18 @@ out of `reference_metadata`.
   `HeroGpuiAssets` serves them with no setup. Decorative: no accessibility
   node (lucide-react marks its svg `aria-hidden`). Lucide is ISC (some
   icons MIT via Feather); the license ships in `assets/lucide/LICENSE`.
+- **HoverCard** — `HoverCard::new(id).content(|w, cx| el.into_any_element())
+  .label(name).child(trigger).placement(Placement::Bottom).offset(px)
+  .open_delay(ms).close_delay(ms).width(px).radius(px).is_disabled(bool)
+  .on_open_change(|open: &bool, w, cx| ..)`; `.is_open(bool)` makes it
+  controlled, `.default_open(bool)` seeds it. Hovering the trigger opens
+  the card after `open_delay` (`HOVER_CARD_OPEN_DELAY_MS`, 700); keyboard
+  focus inside the trigger opens it at once. Leaving the trigger starts
+  `close_delay` (`HOVER_CARD_CLOSE_DELAY_MS`, 300), which the pointer
+  reaching the card cancels; leaving the card starts it again. Escape (from
+  anywhere while it is the topmost overlay), a press outside, or the focus
+  leaving the trigger close it. Role: `Group` named by `label` (not a
+  tooltip).
 
 ## Gallery
 

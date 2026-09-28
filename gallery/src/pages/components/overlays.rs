@@ -2122,6 +2122,47 @@ impl Gallery {
                             .into_any_element(),
                     ]),
                 ),
+                (
+                    "Hover Card", "HeroGPUI extension, not a HeroUI v3 example: `HoverCard` previews rich content while its trigger is hovered (after `open_delay`, 700ms by default) or focused from the keyboard (at once). Moving the pointer onto the card keeps it open so its content can be read and pressed; leaving both starts `close_delay`, and Escape or a press outside closes it. The card is a labelled group, not a tooltip.",
+                    specimen_body("tt-hover-card", row(vec![
+                        h::HoverCard::new("tt-hover-card-profile")
+                            .label("Jane Doe's profile")
+                            .content(|_, cx| {
+                                let muted = cx.colors().muted;
+                                gpui::div()
+                                    .flex()
+                                    .gap(px(12.))
+                                    .child(h::Avatar::new("tt-hover-card-avatar").name("Jane Doe"))
+                                    .child(
+                                        gpui::div()
+                                            .flex()
+                                            .flex_col()
+                                            .gap(px(4.))
+                                            .child(
+                                                gpui::div()
+                                                    .font_weight(gpui::FontWeight::MEDIUM)
+                                                    .child("Jane Doe"),
+                                            )
+                                            .child(
+                                                gpui::div()
+                                                    .text_color(muted)
+                                                    .child("Design engineer. Builds the component library and its docs."),
+                                            )
+                                            .child(
+                                                h::Link::new("tt-hover-card-link")
+                                                    .label("View profile"),
+                                            ),
+                                    )
+                                    .into_any_element()
+                            })
+                            .child(
+                                h::Button::new("tt-hover-card-trigger")
+                                    .label("@jane")
+                                    .variant(Variant::Tertiary),
+                            )
+                            .into_any_element(),
+                    ]), cx),
+                ),
             ],
             cx,
         )

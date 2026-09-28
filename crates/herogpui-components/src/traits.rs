@@ -101,6 +101,7 @@ disableable!(
     DateRangePicker,
     Disclosure,
     DisclosureGroup,
+    HoverCard,
     Label,
     Input,
     TextField,

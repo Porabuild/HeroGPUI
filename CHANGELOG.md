@@ -8,6 +8,21 @@ version covers `herogpui`, `herogpui-core`, `herogpui-theme`,
 
 ## [Unreleased]
 
+### Added
+
+- `HoverCard` (HeroGPUI extension): a card that previews rich content while
+  its trigger is hovered or focused, after Radix's `HoverCard`. Hovering the
+  trigger opens it after `open_delay` (700ms by default) and keyboard focus
+  inside the trigger opens it at once; leaving starts `close_delay` (300ms),
+  which the pointer reaching the card cancels, so the card's content can be
+  read and pressed. Escape (from anywhere while it is the topmost overlay), a
+  press outside and the focus leaving the trigger close it. The timers use the
+  Tooltip's generation scheme, so a quick pass over a row of triggers opens
+  nothing. Open state is controlled (`is_open`) or uncontrolled
+  (`default_open`) and reported through `on_open_change`. The card reports
+  `Role::Group` named by `label`, not a tooltip. A gallery section on the
+  Tooltip page shows it.
+
 ## [0.12.0] - 2026-09-28
 
 ### Added

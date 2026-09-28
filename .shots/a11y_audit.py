@@ -430,6 +430,15 @@ EXPOSES_A_ROLE = {
         'the line the handle draws and a value range bounded by the two '
         'panels\' limits. The group and its panels are layout and report no '
         'node.',
+    ('hover_card.rs', 'HoverCard'):
+        'HeroGPUI extension with no HeroUI v3 upstream and no React Aria '
+        'hook. Role::Group on the card, named by `label` when one is given. '
+        'Radix\'s `HoverCard.Content` (the behaviour this ports) is a plain '
+        'element with no role, documented as a pointer enhancement; the port '
+        'makes the card one labelled region instead of loose text, and '
+        'deliberately not Role::Tooltip, whose content is a plain-text '
+        'description of the trigger. The trigger is the caller\'s element '
+        'and reports its own node.',
     ('tree_view.rs', 'TreeView'):
         'HeroGPUI extension with no HeroUI v3 upstream; the roles follow the '
         'WAI-ARIA tree pattern that RAC\'s `Tree` implements. Role::Tree on '
