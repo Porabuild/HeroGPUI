@@ -232,6 +232,17 @@ pub fn month_year_heading(year: i32, month: u32) -> String {
         .unwrap_or_else(|| format!("{} {year}", month_name(month)))
 }
 
+/// A day cell's accessible name: the date, then React Aria's
+/// `dateSelected` template (`"{date} selected"` in en-US) when it is
+/// selected, in the chrome locale.
+pub(crate) fn day_cell_name(date: String, is_selected: bool, cx: &App) -> SharedString {
+    if is_selected {
+        crate::i18n::ui_string_with(crate::i18n::UiString::DateSelected, &date, cx)
+    } else {
+        date.into()
+    }
+}
+
 /// The running locale's abbreviated month names, resolved once.
 fn system_month_abbrs() -> &'static [String; 12] {
     static SYSTEM_MONTH_ABBRS: OnceLock<[String; 12]> = OnceLock::new();
@@ -1000,11 +1011,10 @@ impl Calendar {
         let mut circle = circle
             .a11y_named(
                 a11y::Role::Button,
-                &a11y::Name::labelled(format!(
-                    "{} {} {}",
-                    date.day,
-                    month_year_heading(date.year, date.month),
-                    if is_sel { "selected" } else { "" }
+                &a11y::Name::labelled(day_cell_name(
+                    format!("{} {}", date.day, month_year_heading(date.year, date.month)),
+                    is_sel,
+                    cx,
                 )),
             )
             .a11y_selected(is_sel);

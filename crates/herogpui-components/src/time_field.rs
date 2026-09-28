@@ -470,14 +470,18 @@ impl TimeSegment {
     /// `DateField` below `day` granularity draws the very same segments.
     ///
     /// `Meridiem` is upstream's `dayPeriod` part, whose display name in
-    /// `en-US` is "AM/PM".
-    pub(crate) fn a11y_label(self) -> &'static str {
-        match self {
-            TimeSegment::Hour => "hour",
-            TimeSegment::Minute => "minute",
-            TimeSegment::Second => "second",
-            TimeSegment::Meridiem => "AM/PM",
-        }
+    /// `en-US` is "AM/PM". The name resolves in the active locale.
+    pub(crate) fn a11y_label(self, cx: &App) -> SharedString {
+        use crate::i18n::{ui_string, UiString};
+        ui_string(
+            match self {
+                TimeSegment::Hour => UiString::Hour,
+                TimeSegment::Minute => UiString::Minute,
+                TimeSegment::Second => UiString::Second,
+                TimeSegment::Meridiem => UiString::DayPeriod,
+            },
+            cx,
+        )
     }
 
     /// `time` with this segment set to `value`, clamped to its range.
@@ -1604,7 +1608,7 @@ impl RenderOnce for TimeField {
             seg = seg
                 .a11y_named(
                     a11y::Role::TextInput,
-                    &a11y::Name::labelled(segment.a11y_label()),
+                    &a11y::Name::labelled(segment.a11y_label(cx)),
                 )
                 .a11y_text(&seg_text, None);
 
@@ -1633,7 +1637,15 @@ impl RenderOnce for TimeField {
                 let on_change = self.on_change.clone();
                 let visible_segments = visible_segments.clone();
                 let hover_bg = self.stepper_hover_bg.unwrap_or(colors.default.color);
-                let stepper_name = if key == "up" { "Increase" } else { "Decrease" };
+                let stepper_name = crate::i18n::ui_string_with(
+                    if key == "up" {
+                        crate::i18n::UiString::Increase
+                    } else {
+                        crate::i18n::UiString::Decrease
+                    },
+                    "",
+                    cx,
+                );
                 steppers = steppers.child(
                     div()
                         .id(element_id::scoped(&base_id, key))

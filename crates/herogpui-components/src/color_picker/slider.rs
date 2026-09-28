@@ -937,7 +937,7 @@ impl RenderOnce for ColorSlider {
                     .child(
                         div()
                             .text_color(cx.colors().foreground)
-                            .child(self.channel.label()),
+                            .child(self.channel.localized_label(cx)),
                     )
                     // The disabled root dims Output through status-disabled,
                     // while the stylesheet restores Label to full opacity.

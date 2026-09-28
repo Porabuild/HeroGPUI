@@ -368,6 +368,25 @@ impl ColorChannel {
         }
     }
 
+    /// The channel's name in the active chrome locale (React Stately's
+    /// colour dictionary; [`ColorChannel::label`] is the en-US name).
+    pub fn localized_label(self, cx: &App) -> SharedString {
+        use crate::i18n::{ui_string, UiString};
+        ui_string(
+            match self {
+                ColorChannel::Hue => UiString::Hue,
+                ColorChannel::Saturation => UiString::Saturation,
+                ColorChannel::Brightness => UiString::Brightness,
+                ColorChannel::Lightness => UiString::Lightness,
+                ColorChannel::Alpha => UiString::Alpha,
+                ColorChannel::Red => UiString::Red,
+                ColorChannel::Green => UiString::Green,
+                ColorChannel::Blue => UiString::Blue,
+            },
+            cx,
+        )
+    }
+
     /// The inclusive value range of this channel.
     pub fn range(self) -> (f32, f32) {
         match self {

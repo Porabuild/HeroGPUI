@@ -793,15 +793,30 @@ out of `reference_metadata`.
   the documented API. `Sizable::Size` is the component's own scale (`Size`,
   `ModalSize`, `CheckboxSize`, `SpinnerSize`, ...).
 - **i18n** — `i18n::set_locale("de-DE", cx)`, `i18n::locale(cx)`,
-  `i18n::ui_string(UiString::Close, cx)`, `i18n::set_ui_string("fr",
-  UiString::Loading, "Chargement", cx)`, `i18n::lookup(locale, key)`. Keys:
-  `SelectPlaceholder`, `NoResults`, `Close`, `Loading`, `Previous`, `Next`,
-  `Remove`, `Breadcrumbs`, `Search`. Resolution: exact override, then an
+  `i18n::ui_string(UiString::Close, cx)`, `i18n::ui_string_with(UiString::Increase,
+  "Quantity", cx)` (fills a template's one `{..}` placeholder; `i18n::fill`),
+  `i18n::set_ui_string("fr", UiString::Loading, "Chargement", cx)`,
+  `i18n::lookup(locale, key)`. `UiString` (`#[non_exhaustive]`, `ALL`,
+  `COUNT`): `SelectPlaceholder`, `NoResults`, `Close`, `Loading`,
+  `Previous`, `Next`, `Remove`, `Breadcrumbs`, `Search`, `Increase` /
+  `Decrease` (NumberField and TimeField steppers, `{fieldLabel}` templates),
+  `Year`, `Month`, `Day`, `Hour`, `Minute`, `Second`, `DayPeriod` (DateField
+  and TimeField segment names), `Calendar` (DatePicker / DateRangePicker
+  trigger), `DateSelected` (a selected calendar day, `{date}` template),
+  `Hue`, `Saturation`, `Lightness`, `Brightness`, `Red`, `Green`, `Blue`,
+  `Alpha` (colour channels; `ColorChannel::localized_label(cx)`, drawn by
+  ColorSlider), `ClearSelection` (Autocomplete clear button), `Pagination`
+  (Pagination's navigation name). Resolution: exact override, then an
   override for the bare language, then the built-in table (exact tag, then
-  language), then en-US. Built-in: en-US, de-DE, es-ES, fr-FR, it-IT, nl-NL,
-  pl-PL, pt-BR, sv-SE (from the pinned React Aria dictionaries; `NoResults`,
-  `Loading` and `Search` are HeroUI's English-only strings). Dates and
-  numbers keep their own per-component ICU4X `.locale(..)`.
+  language), then en-US. Built-in (`LOCALES`): en-US, de-DE, es-ES, fr-FR,
+  it-IT, nl-NL, pl-PL, pt-BR, sv-SE, ja-JP, zh-CN, ko-KR, ru-RU, every key
+  translated — from the pinned React Aria 3.52.1 / React Stately 3.50.0 /
+  RAC 1.21.1 dictionaries, except `NoResults`, `Loading`, `Search`,
+  `ClearSelection` and `Pagination`, which HeroUI hard-codes in English and
+  HeroGPUI translates itself. Dates and numbers keep their own per-component
+  ICU4X `.locale(..)`. The web gallery bundles Noto Sans SC (hanzi, kana,
+  kanji) and Noto Sans KR (Hangul) subsets for the non-Latin rows; Inter
+  covers Cyrillic.
 - **Theme files** (`serde` feature) — `register_theme_json(json, cx)`
   registers a `ThemeDocument` without activating it; `load_themes_dir(dir,
   cx)` does that for every `*.json` in a directory (name order);

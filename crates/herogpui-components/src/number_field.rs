@@ -1162,8 +1162,18 @@ fn stepper_btn(
     let focus_handle = state.read(cx).input.read(cx).focus_handle.clone();
     // `useNumberField` names each stepper "Increase {label}" / "Decrease
     // {label}", spelling the field's name into the button's own `aria-label`
-    // rather than pointing at the label element.
-    let stepper_name = field_name.prefixed(if dir >= 0.0 { "Increase" } else { "Decrease" });
+    // rather than pointing at the label element; the template (and its word
+    // order) comes from the locale's catalogue.
+    let stepper_key = if dir >= 0.0 {
+        crate::i18n::UiString::Increase
+    } else {
+        crate::i18n::UiString::Decrease
+    };
+    let stepper_name = crate::a11y::Name::labelled(crate::i18n::ui_string_with(
+        stepper_key,
+        field_name.label().map_or("", |label| label.as_ref()),
+        cx,
+    ));
     let mut b = gpui::div()
         .id(id)
         .a11y_named(crate::a11y::Role::Button, &stepper_name)

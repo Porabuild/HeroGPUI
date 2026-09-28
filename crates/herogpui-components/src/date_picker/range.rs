@@ -1056,7 +1056,10 @@ impl RenderOnce for DateRangePicker {
                 });
         }
         trigger = trigger
-            .a11y_named(a11y::Role::Button, &a11y::Name::labelled("Calendar"))
+            .a11y_named(
+                a11y::Role::Button,
+                &a11y::Name::labelled(crate::i18n::ui_string(crate::i18n::UiString::Calendar, cx)),
+            )
             .a11y_expanded(is_open);
 
         field = field

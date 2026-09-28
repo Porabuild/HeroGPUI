@@ -66,3 +66,31 @@ if std::env::var("HEROGPUI_REDUCE_MOTION").is_ok_and(|v| v != "0" && v != "false
     herogpui::theme::set_reduce_motion(true, cx);
 }
 ```
+
+## The i18n catalogue grows
+
+`i18n::LOCALES` is now 13 locales and `UiString::ALL` 30 keys, so a type
+that spelled their lengths stops compiling:
+
+```rust
+// 0.12
+let keys: [UiString; 9] = UiString::ALL;
+
+// 0.13
+let keys: [UiString; UiString::COUNT] = UiString::ALL;
+// or: for key in UiString::ALL { .. }
+```
+
+`NoResults`, `Loading` and `Search` used to fall back to en-US outside
+en-US; every built-in locale now translates them, as it does the new keys.
+An app that wants the English text back sets it explicitly:
+
+```rust
+i18n::set_ui_string("de", UiString::Loading, "Loading", cx);
+```
+
+The NumberField and TimeField stepper names, the DateField and TimeField
+segment names, the DatePicker trigger, the ColorSlider channel label, the
+Autocomplete clear button and Pagination's name now follow `set_locale`
+too; in en-US they are unchanged. A calendar day's accessible name no longer
+ends in a trailing space when the day is not selected.

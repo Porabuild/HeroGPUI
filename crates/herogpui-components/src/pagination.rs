@@ -492,9 +492,13 @@ impl RenderOnce for Pagination {
         // element here: this port draws the page cells straight into the
         // row, and a `list` node whose children are buttons rather than
         // list items would describe a structure that is not there.
-        let mut el = el
-            .id(root_id)
-            .a11y_named(a11y::Role::Navigation, &a11y::Name::labelled("pagination"));
+        let mut el = el.id(root_id).a11y_named(
+            a11y::Role::Navigation,
+            &a11y::Name::labelled(crate::i18n::ui_string(
+                crate::i18n::UiString::Pagination,
+                cx,
+            )),
+        );
         if self.full_width {
             el = el.w_full();
         }

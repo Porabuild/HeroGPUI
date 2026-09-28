@@ -14,6 +14,13 @@ for each breaking change with before/after code.
 
 ### Breaking
 
+- `i18n::LOCALES` and `i18n::UiString::ALL` grow (13 locales, 30 keys), so
+  code that named their array lengths no longer compiles; use
+  `UiString::COUNT` or iterate. `NoResults`, `Loading` and `Search` now have
+  translations in every built-in locale instead of falling back to en-US, so
+  a de-DE app shows "Wird geladen" rather than "Loading" (override with
+  `set_ui_string` to keep English).
+
 - `ThemeBuilder::role`, `ThemeBuilder::role_hover` and `ThemeColors::role`
   take the typed `Color` role instead of a `&str`. An unknown string used to
   fall back to `accent`, so a typo silently recoloured the accent and the
@@ -28,6 +35,19 @@ for each breaking change with before/after code.
 
 - `Color::from_token` and `impl FromStr for Color` (`UnknownColorError`):
   parse a role name from configuration, failing on an unknown name.
+- i18n: four more built-in locales, ja-JP, zh-CN, ko-KR and ru-RU, and 21
+  more `UiString` keys, so the remaining hard-coded chrome strings resolve
+  in the active locale: the NumberField and TimeField stepper names
+  (`Increase` / `Decrease`, templates in the locale's word order), the
+  DateField / TimeField segment names (`Year` … `DayPeriod`), the
+  DatePicker trigger (`Calendar`), a selected calendar day
+  (`DateSelected`), the ColorSlider channel names (`Hue` … `Alpha`,
+  `ColorChannel::localized_label`), Autocomplete's clear button
+  (`ClearSelection`) and Pagination's name (`Pagination`). The translations
+  come from the pinned React Aria / React Stately dictionaries.
+  `i18n::ui_string_with` and `i18n::fill` fill a template's placeholder.
+  The web gallery bundles a Noto Sans KR subset for Hangul and a wider
+  Noto Sans SC pre-reduction for the Japanese kanji.
 - Theme hot reload (HeroGPUI extension; new opt-in `watch` feature on
   `herogpui-theme` and `herogpui`, implies `serde`): `watch_themes_dir(dir,
   on_reload, cx)` polls a theme directory every `THEME_WATCH_INTERVAL`

@@ -640,7 +640,10 @@ impl RenderOnce for DatePicker {
         // it is a button with `aria-expanded`. `aria-haspopup` has no gpui
         // builder (see `crate::a11y`).
         trigger = trigger
-            .a11y_named(a11y::Role::Button, &a11y::Name::labelled("Calendar"))
+            .a11y_named(
+                a11y::Role::Button,
+                &a11y::Name::labelled(crate::i18n::ui_string(crate::i18n::UiString::Calendar, cx)),
+            )
             .a11y_expanded(is_open);
         if !self.is_disabled && !self.is_read_only {
             let focus_on_press = trigger_focus.clone();

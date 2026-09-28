@@ -25,6 +25,20 @@ impl DateSegment {
         }
     }
 
+    /// The segment's accessible name in the active locale (`year`, `month`,
+    /// `day` in en-US; React Aria's datepicker dictionary).
+    pub(crate) fn a11y_label(self, cx: &App) -> SharedString {
+        use crate::i18n::{ui_string, UiString};
+        ui_string(
+            match self {
+                DateSegment::Month => UiString::Month,
+                DateSegment::Day => UiString::Day,
+                DateSegment::Year => UiString::Year,
+            },
+            cx,
+        )
+    }
+
     /// The placeholder this segment shows with no value, sized like its digits.
     pub(super) fn hint(self) -> &'static str {
         match self {
@@ -1586,8 +1600,8 @@ impl RenderOnce for DateField {
                 .a11y_named(
                     a11y::Role::TextInput,
                     &a11y::Name::labelled(match segment {
-                        FieldSegment::Date(segment) => segment.label(),
-                        FieldSegment::Time(segment) => segment.a11y_label(),
+                        FieldSegment::Date(segment) => segment.a11y_label(cx),
+                        FieldSegment::Time(segment) => segment.a11y_label(cx),
                     }),
                 )
                 .a11y_text(&seg_text, None);

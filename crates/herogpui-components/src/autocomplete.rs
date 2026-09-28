@@ -1254,7 +1254,13 @@ impl RenderOnce for Autocomplete {
             // it while the selection is empty — and gpui has no
             // `aria-hidden`, so the port leaves the empty button in the tree
             // where upstream removes it from it.
-            .a11y_named(a11y::Role::Button, &a11y::Name::labelled("Clear selection"))
+            .a11y_named(
+                a11y::Role::Button,
+                &a11y::Name::labelled(crate::i18n::ui_string(
+                    crate::i18n::UiString::ClearSelection,
+                    cx,
+                )),
+            )
             // `.autocomplete__clear-button` is `h-6 w-6`
             // and then `size-5`, so 20px, `rounded-xl` and `p-1`
             // -- with the pinned `size-3.5` (14px) glyph inside.

@@ -900,11 +900,10 @@ impl RangeCalendar {
         cell = cell
             .a11y_named(
                 a11y::Role::Button,
-                &a11y::Name::labelled(format!(
-                    "{} {} {}",
-                    date.day,
-                    month_year_heading(date.year, date.month),
-                    if is_selected { "selected" } else { "" }
+                &a11y::Name::labelled(crate::calendar::day_cell_name(
+                    format!("{} {}", date.day, month_year_heading(date.year, date.month)),
+                    is_selected,
+                    cx,
                 )),
             )
             .a11y_selected(is_selected);
