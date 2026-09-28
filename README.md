@@ -165,6 +165,8 @@ sources or git hooks.
 - `llms.txt` at the repository root: the full component API reference for
   agents. It is served verbatim at
   <https://porabuild.com/herogpui/llms.txt>.
+- [`docs/migration-0.13.md`](docs/migration-0.13.md): upgrading from 0.12
+  to 0.13, with before/after code for each breaking change.
 - [`docs/migration-0.11.md`](docs/migration-0.11.md): upgrading from 0.10
   to 0.11, with before/after code for each breaking change.
 - `AGENTS.md` and `docs/agents/`: the contributor and agent guides.

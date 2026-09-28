@@ -4,6 +4,7 @@
 //! and let every hover / soft / surface-level value derive from them.
 
 use gpui::{Hsla, Pixels, SharedString, WindowAppearance};
+use herogpui_core::Color;
 
 use crate::layout::LayoutTheme;
 use crate::semantic::{SurfaceColor, ThemeColors};
@@ -262,31 +263,19 @@ impl ThemeBuilder {
     /// Sets a role's base value and foreground. Like overriding a CSS
     /// variable, the role's hover and soft mix weights carry over — only the
     /// inputs change. `--focus` tracks `--accent` unless it is overridden
-    /// afterwards.
-    pub fn role(mut self, name: &str, color: Hsla, foreground: Hsla) -> Self {
-        match name {
-            "default" => {
-                self.theme.colors.default.color = color;
-                self.theme.colors.default.foreground = foreground;
-                self.theme.colors.field.background = color;
-            }
-            "success" => {
-                self.theme.colors.success.color = color;
-                self.theme.colors.success.foreground = foreground;
-            }
-            "warning" => {
-                self.theme.colors.warning.color = color;
-                self.theme.colors.warning.foreground = foreground;
-            }
-            "danger" => {
-                self.theme.colors.danger.color = color;
-                self.theme.colors.danger.foreground = foreground;
-            }
-            _ => {
-                self.theme.colors.accent.color = color;
-                self.theme.colors.accent.foreground = foreground;
-                self.theme.colors.focus = color;
-            }
+    /// afterwards, and `--field-background` tracks `--default`.
+    ///
+    /// The role is the typed [`Color`], so a misspelt role cannot compile.
+    /// Parse a name from configuration with `name.parse::<Color>()`, which
+    /// rejects an unknown name instead of falling back to `accent`.
+    pub fn role(mut self, role: Color, color: Hsla, foreground: Hsla) -> Self {
+        let slot = self.theme.colors.role_mut(role);
+        slot.color = color;
+        slot.foreground = foreground;
+        match role {
+            Color::Default => self.theme.colors.field.background = color,
+            Color::Accent => self.theme.colors.focus = color,
+            Color::Success | Color::Warning | Color::Danger => {}
         }
         self
     }
@@ -306,7 +295,7 @@ impl ThemeBuilder {
     /// readability when it is not supplied.
     pub fn accent(self, color: Hsla) -> Self {
         let fg = herogpui_core::readable_color(color);
-        self.role("accent", color, fg)
+        self.role(Color::Accent, color, fg)
     }
 
     /// Names a role's `*-hover` shade outright, in place of the derived mix.
@@ -318,24 +307,17 @@ impl ThemeBuilder {
     /// call sites to a named recipe carrying a
     /// [`crate::ComponentColor::Literal`]. `*-soft-hover` is unaffected.
     ///
-    /// The name matches [`ThemeBuilder::role`]: `default`, `success`,
-    /// `warning`, `danger`, and anything else is `accent`.
-    pub fn role_hover(mut self, name: &str, hover: Hsla) -> Self {
-        let role = match name {
-            "default" => &mut self.theme.colors.default,
-            "success" => &mut self.theme.colors.success,
-            "warning" => &mut self.theme.colors.warning,
-            "danger" => &mut self.theme.colors.danger,
-            _ => &mut self.theme.colors.accent,
-        };
-        *role = role.with_hover(hover);
+    /// The role is the typed [`Color`], as for [`ThemeBuilder::role`].
+    pub fn role_hover(mut self, role: Color, hover: Hsla) -> Self {
+        let slot = self.theme.colors.role_mut(role);
+        *slot = slot.with_hover(hover);
         self
     }
 
     /// [`ThemeBuilder::role_hover`] for `accent`, the role `Variant::Primary`
     /// and the focus ring resolve.
     pub fn accent_hover(self, hover: Hsla) -> Self {
-        self.role_hover("accent", hover)
+        self.role_hover(Color::Accent, hover)
     }
 
     // -- fields -------------------------------------------------------------
@@ -456,7 +438,11 @@ mod tests {
         // v3's soft variables are `color-mix`es of the role variables: an
         // override replaces the input, never the weights.
         let theme = Theme::builder("brand", Theme::light())
-            .role("success", oklch(0.55, 0.18, 145.0), oklch(1.0, 0.0, 0.0))
+            .role(
+                Color::Success,
+                oklch(0.55, 0.18, 145.0),
+                oklch(1.0, 0.0, 0.0),
+            )
             .build();
         assert!((theme.colors.success.soft().a - 0.15).abs() < 1e-4);
         assert!((theme.colors.success.soft_hover().a - 0.20).abs() < 1e-4);
@@ -477,7 +463,7 @@ mod tests {
     fn a_default_role_override_keeps_the_half_strength_soft() {
         let theme = Theme::builder("brand", Theme::light())
             .role(
-                "default",
+                Color::Default,
                 oklch(0.90, 0.01, 286.0),
                 oklch(0.20, 0.01, 286.0),
             )
@@ -505,12 +491,12 @@ mod tests {
             assert!(!plain.colors.vibrant_palette());
             assert!(vibrant.colors.vibrant_palette());
 
-            for role in ["accent", "success", "warning", "danger"] {
+            for role in [Color::Accent, Color::Success, Color::Warning, Color::Danger] {
                 let r = vibrant.colors.role(role);
                 assert_eq!(
                     r.soft_foreground(vibrant.colors.foreground),
                     mix_oklab(r.color, vibrant.colors.foreground, 0.08),
-                    "{role} soft-foreground is not the 92/8 vibrant mix"
+                    "{role:?} soft-foreground is not the 92/8 vibrant mix"
                 );
                 assert_ne!(
                     r.soft_foreground(vibrant.colors.foreground),
@@ -518,7 +504,7 @@ mod tests {
                         .colors
                         .role(role)
                         .soft_foreground(plain.colors.foreground),
-                    "{role} soft-foreground did not move"
+                    "{role:?} soft-foreground did not move"
                 );
             }
 
@@ -533,13 +519,13 @@ mod tests {
             );
 
             // Nothing else derived moves.
-            for role in ["default", "accent", "success", "warning", "danger"] {
+            for role in Color::ALL {
                 let (a, b) = (plain.colors.role(role), vibrant.colors.role(role));
-                assert_eq!(a.color, b.color, "{role} base moved");
-                assert_eq!(a.foreground, b.foreground, "{role} foreground moved");
-                assert_eq!(a.hover(), b.hover(), "{role} hover moved");
-                assert_eq!(a.soft(), b.soft(), "{role} soft moved");
-                assert_eq!(a.soft_hover(), b.soft_hover(), "{role} soft-hover moved");
+                assert_eq!(a.color, b.color, "{role:?} base moved");
+                assert_eq!(a.foreground, b.foreground, "{role:?} foreground moved");
+                assert_eq!(a.hover(), b.hover(), "{role:?} hover moved");
+                assert_eq!(a.soft(), b.soft(), "{role:?} soft moved");
+                assert_eq!(a.soft_hover(), b.soft_hover(), "{role:?} soft-hover moved");
             }
             assert_eq!(plain.colors.foreground, vibrant.colors.foreground);
             assert_eq!(plain.colors.background, vibrant.colors.background);

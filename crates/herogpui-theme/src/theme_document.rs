@@ -11,7 +11,7 @@
 use std::fmt;
 
 use gpui::{px, Hsla, Rgba};
-use herogpui_core::oklcha;
+use herogpui_core::{oklcha, Color};
 use serde::{Deserialize, Serialize};
 
 use crate::{Appearance, Theme, ThemeBuilder};
@@ -322,11 +322,11 @@ impl ThemeDocument {
             builder = builder.accent(parse_color("accent", accent)?);
         }
         if let Some(roles) = &self.roles {
-            builder = apply_role(builder, "default", roles.default.as_ref())?;
-            builder = apply_role(builder, "accent", roles.accent.as_ref())?;
-            builder = apply_role(builder, "success", roles.success.as_ref())?;
-            builder = apply_role(builder, "warning", roles.warning.as_ref())?;
-            builder = apply_role(builder, "danger", roles.danger.as_ref())?;
+            builder = apply_role(builder, Color::Default, roles.default.as_ref())?;
+            builder = apply_role(builder, Color::Accent, roles.accent.as_ref())?;
+            builder = apply_role(builder, Color::Success, roles.success.as_ref())?;
+            builder = apply_role(builder, Color::Warning, roles.warning.as_ref())?;
+            builder = apply_role(builder, Color::Danger, roles.danger.as_ref())?;
         }
         if let Some(pair) = &self.field {
             builder = builder.field(
@@ -364,20 +364,21 @@ fn apply_color(
 
 fn apply_role(
     builder: ThemeBuilder,
-    name: &str,
+    slot: Color,
     role: Option<&RoleOverride>,
 ) -> Result<ThemeBuilder, ThemeDocumentError> {
+    let name = slot.token();
     match role {
         Some(role) => {
             let builder = builder.role(
-                name,
+                slot,
                 parse_color(&format!("roles.{name}.color"), &role.color)?,
                 parse_color(&format!("roles.{name}.foreground"), &role.foreground)?,
             );
             match &role.hover {
                 Some(hover) => {
                     Ok(builder
-                        .role_hover(name, parse_color(&format!("roles.{name}.hover"), hover)?))
+                        .role_hover(slot, parse_color(&format!("roles.{name}.hover"), hover)?))
                 }
                 None => Ok(builder),
             }
@@ -578,6 +579,20 @@ mod tests {
         );
     }
 
+    /// A misspelt role in `roles` is a parse error naming the key, never a
+    /// silent recolour of `accent` (the old string builder's fallback).
+    #[test]
+    fn an_unknown_role_is_rejected() {
+        let err = ThemeDocument::from_json(
+            r##"{ "id": "x", "base": "light",
+                  "roles": { "sucess": { "color": "#0f0", "foreground": "#fff" } } }"##,
+        )
+        .unwrap_err();
+        let message = err.to_string();
+        assert!(message.contains("sucess"), "{message}");
+        assert!(matches!(err, ThemeDocumentError::Json(_)), "{err:?}");
+    }
+
     #[test]
     fn accent_and_roles_accent_cannot_both_be_set() {
         let err = ThemeDocument::theme_from_json(
@@ -679,11 +694,11 @@ mod tests {
         let theme = ThemeDocument::theme_from_json(json).unwrap();
         let via_builder = Theme::builder("x", Theme::light())
             .role(
-                "accent",
+                Color::Accent,
                 parse_color("c", "#006FEE").unwrap(),
                 parse_color("f", "#fff").unwrap(),
             )
-            .role_hover("accent", parse_color("h", "#0058BE").unwrap())
+            .role_hover(Color::Accent, parse_color("h", "#0058BE").unwrap())
             .build();
         assert_eq!(
             theme.colors.accent.hover(),

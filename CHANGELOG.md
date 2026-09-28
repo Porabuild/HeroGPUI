@@ -8,6 +8,22 @@ version covers `herogpui`, `herogpui-core`, `herogpui-theme`,
 
 ## [Unreleased]
 
+Upgrading from 0.12: see the
+[migration guide](https://github.com/Porabuild/HeroGPUI/blob/master/docs/migration-0.13.md)
+for each breaking change with before/after code.
+
+### Breaking
+
+- `ThemeBuilder::role`, `ThemeBuilder::role_hover` and `ThemeColors::role`
+  take the typed `Color` role instead of a `&str`. An unknown string used to
+  fall back to `accent`, so a typo silently recoloured the accent and the
+  focus ring; it is now a compile error.
+
+### Added
+
+- `Color::from_token` and `impl FromStr for Color` (`UnknownColorError`):
+  parse a role name from configuration, failing on an unknown name.
+
 ## [0.12.0] - 2026-09-28
 
 ### Added

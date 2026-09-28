@@ -153,7 +153,7 @@ the same `color-mix(in oklab, …)` weights the stylesheet uses.
 
 **Derived on `ThemeColors`:** `background_secondary()`, `background_tertiary()`,
 `background_inverse()`, `separator_secondary()`, `separator_tertiary()`,
-`role(name)`.
+`role(Color)`.
 
 **Layout:** `radius` (8px) with `radius_xs()`…`radius_4xl()` and `capped(r)` for v3's `min(32px, ..)` ceiling, `field_radius`,
 `border_width`, `field_border_width`, `disabled_opacity`, `ring_offset_width`,
@@ -189,17 +189,23 @@ Custom theme — override a base token and every derived value follows:
 
 ```rust
 use gpui::px;
-use herogpui::core::oklch;
+use herogpui::core::{oklch, Color};
 use herogpui::theme::{snow, Theme};
 
 let brand = Theme::builder("brand", Theme::dark())
     .accent(oklch(0.55, 0.23, 295.0))
-    .role("success", oklch(0.73, 0.19, 150.0), snow())
+    .role(Color::Success, oklch(0.73, 0.19, 150.0), snow())
     .radius(px(6.))          // field_radius follows at 1.5x
     .cursor_interactive(gpui::CursorStyle::Arrow) // every control's hover cursor
     .build();
 herogpui::theme::set_theme(brand, cx);
 ```
+
+Roles are the typed `Color`, so a misspelt role does not compile. A role
+name read from configuration parses with `"success".parse::<Color>()`
+(`Color::from_token`), which returns `UnknownColorError` for an unknown
+name instead of falling back to `accent`; the JSON `roles` map rejects an
+unknown key the same way.
 
 The same sparse overrides as JSON, behind the `serde` feature — derived
 hover / soft mixes still go through `ThemeBuilder`:
@@ -272,7 +278,7 @@ is a semantic token (`Role(Color::Accent)`, `Muted`, `FieldBackground`, …) or
 `Literal(Hsla)` / `From<Hsla>`. `SliderStyle.radius` reaches the track, thumb
 layers and caps through the same per-corner `sx` join as instance corners.
 `ButtonStyle::style(|el| …)` captures sparse GPUI metrics; instance `sx` refines
-over it. `ThemeBuilder::role_hover(name, hsla)` / `accent_hover(hsla)` (and
+over it. `ThemeBuilder::role_hover(Color, hsla)` / `accent_hover(hsla)` (and
 `RoleColor::with_hover`) name a role's `*-hover` shade outright in place of the
 derived mix toward its own foreground, for a design system whose hover moves the
 other way; it reaches every component that hovers that role, so `Variant::Primary`

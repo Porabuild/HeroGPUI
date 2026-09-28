@@ -11,14 +11,14 @@ export const metadata: Metadata = {
 };
 
 const VIOLET = `use gpui::px;
-use herogpui::core::{oklch, FieldVariant};
+use herogpui::core::{oklch, Color, FieldVariant};
 use herogpui::theme::{
     snow, ButtonStyle, ComponentTheme, ComponentThemes, SelectStyle, SliderStyle, Theme,
 };
 
 let violet = Theme::builder("violet", Theme::light())
     .accent(oklch(0.55, 0.23, 295.0))   // hover / soft / focus all derive
-    .role("success", oklch(0.73, 0.19, 150.0), snow())
+    .role(Color::Success, oklch(0.73, 0.19, 150.0), snow())
     .radius(px(6.))                     // field_radius follows at 1.5x
     .components(
         ComponentThemes::default()
@@ -90,8 +90,8 @@ const BUILDER_ROWS: BuilderRow[] = [
   { method: "overlay(bg, fg)", sets: "`--overlay` — tooltips, popovers, modals, menus." },
   { method: "segment(bg, fg)", sets: "`--segment` — the selected segment of a segmented control." },
   {
-    method: "role(name, color, foreground)",
-    sets: 'Any role\'s base value and foreground. `"accent"` is the fallback name; `"default"` also re-seeds `field.background`.',
+    method: "role(Color, color, foreground)",
+    sets: "Any role's base value and foreground, by the typed `Color` role. `Color::Default` also re-seeds `field.background`.",
   },
   {
     method: "accent(color)",

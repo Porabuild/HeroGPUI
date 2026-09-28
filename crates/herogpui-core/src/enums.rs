@@ -53,6 +53,44 @@ impl Color {
             Color::Danger => "Danger",
         }
     }
+
+    /// Parses a v3 token name (`"default"`, `"accent"`, `"success"`,
+    /// `"warning"`, `"danger"`), the inverse of [`Color::token`].
+    ///
+    /// Exact and case-sensitive, like the CSS variable names it mirrors. An
+    /// unknown name is `None`; nothing falls back to `accent`.
+    pub fn from_token(token: &str) -> Option<Color> {
+        Color::ALL.into_iter().find(|c| c.token() == token)
+    }
+}
+
+/// The error [`Color`]'s [`FromStr`](std::str::FromStr) returns for a name
+/// that is not one of the five v3 role tokens.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct UnknownColorError {
+    /// The rejected name.
+    pub name: String,
+}
+
+impl std::fmt::Display for UnknownColorError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "unknown colour role {:?} (expected default, accent, success, warning or danger)",
+            self.name
+        )
+    }
+}
+
+impl std::error::Error for UnknownColorError {}
+
+/// `"success".parse::<Color>()`; see [`Color::from_token`].
+impl std::str::FromStr for Color {
+    type Err = UnknownColorError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Color::from_token(s).ok_or_else(|| UnknownColorError { name: s.to_owned() })
+    }
 }
 
 /// Button emphasis variant — `Button`, and the vocabulary `ButtonGroup`
@@ -534,5 +572,27 @@ impl Placement {
             | Placement::EndBottom => PlacementAlign::End,
             _ => PlacementAlign::Center,
         }
+    }
+}
+
+#[cfg(test)]
+mod color_token_tests {
+    use super::*;
+
+    #[test]
+    fn every_role_round_trips_through_its_token() {
+        for color in Color::ALL {
+            assert_eq!(Color::from_token(color.token()), Some(color));
+            assert_eq!(color.token().parse::<Color>(), Ok(color));
+        }
+    }
+
+    #[test]
+    fn a_misspelt_role_is_an_error_not_accent() {
+        assert_eq!(Color::from_token("sucess"), None);
+        assert_eq!(Color::from_token("Accent"), None);
+        let err = "primary".parse::<Color>().unwrap_err();
+        assert_eq!(err.name, "primary");
+        assert!(err.to_string().contains("\"primary\""), "{err}");
     }
 }

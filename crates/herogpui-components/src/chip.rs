@@ -175,7 +175,7 @@ impl ParentElement for ChipLabel {
 /// variant×color rules. `None` paints no background (tertiary's transparent
 /// fill); no chip carries a border.
 fn paint(colors: &ThemeColors, variant: ChipVariant, color: Color) -> (Option<Hsla>, Hsla) {
-    let role = colors.role(color.token());
+    let role = colors.role(color);
     let muted_foreground = || {
         if color == Color::Default {
             colors.default.foreground
@@ -271,7 +271,7 @@ mod tests {
     fn paint_matrix_matches_the_chip_css_cascade() {
         for colors in [ThemeColors::light(), ThemeColors::dark()] {
             for color in Color::ALL {
-                let role = colors.role(color.token());
+                let role = colors.role(color);
                 let muted_foreground = if color == Color::Default {
                     colors.default.foreground
                 } else {
@@ -332,8 +332,8 @@ mod tests {
             (Color::Warning, Color::Danger),
         ] {
             assert_ne!(
-                colors.role(a.token()).color,
-                colors.role(b.token()).color,
+                colors.role(a).color,
+                colors.role(b).color,
                 "the {a:?} and {b:?} roles must not share a fill"
             );
         }

@@ -8,7 +8,7 @@
 //! and a HeroUI theme resolve to identical pixels.
 
 use gpui::Hsla;
-use herogpui_core::{mix_oklab, oklch, soft_mix, with_alpha};
+use herogpui_core::{mix_oklab, oklch, soft_mix, with_alpha, Color};
 
 // ---------------------------------------------------------------------------
 // Base colors — identical in light and dark ("do not change between modes")
@@ -394,14 +394,25 @@ impl ThemeColors {
         self.foreground
     }
 
-    /// Resolves a role by its v3 token name, defaulting to `accent`.
-    pub fn role(&self, name: &str) -> &RoleColor {
-        match name {
-            "default" => &self.default,
-            "success" => &self.success,
-            "warning" => &self.warning,
-            "danger" => &self.danger,
-            _ => &self.accent,
+    /// The tokens of one semantic colour role.
+    pub fn role(&self, role: Color) -> &RoleColor {
+        match role {
+            Color::Default => &self.default,
+            Color::Accent => &self.accent,
+            Color::Success => &self.success,
+            Color::Warning => &self.warning,
+            Color::Danger => &self.danger,
+        }
+    }
+
+    /// Mutable access to one role's tokens, for [`crate::ThemeBuilder`].
+    pub(crate) fn role_mut(&mut self, role: Color) -> &mut RoleColor {
+        match role {
+            Color::Default => &mut self.default,
+            Color::Accent => &mut self.accent,
+            Color::Success => &mut self.success,
+            Color::Warning => &mut self.warning,
+            Color::Danger => &mut self.danger,
         }
     }
 
@@ -616,7 +627,7 @@ mod tests {
             (&dark, "warning", 0.12, 0.16, Some((80.0, 30.0))),
             (&dark, "danger", 0.15, 0.20, Some((80.0, 30.0))),
         ] {
-            let role = colors.role(role_name);
+            let role = colors.role(Color::from_token(role_name).unwrap());
             assert!(
                 (role.soft().a - soft).abs() < 1e-4,
                 "{role_name} soft alpha"
@@ -738,7 +749,10 @@ mod tests {
             ("warning", (133, 95, 46)),
             ("danger", (164, 53, 51)),
         ] {
-            let got = rgb8(c.role(role_name).soft_foreground(c.foreground));
+            let got = rgb8(
+                c.role(Color::from_token(role_name).unwrap())
+                    .soft_foreground(c.foreground),
+            );
             let near = |a: u8, b: u8| (a as i32 - b as i32).abs() <= 2;
             assert!(
                 near(got.0, expected.0) && near(got.1, expected.1) && near(got.2, expected.2),

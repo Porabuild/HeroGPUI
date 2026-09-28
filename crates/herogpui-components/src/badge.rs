@@ -276,7 +276,7 @@ impl ParentElement for Badge {
 /// variant×color rules. Every badge carries the page-background ring, so
 /// unlike a chip this always paints a fill.
 fn paint(colors: &ThemeColors, variant: BadgeVariant, color: Color) -> (Hsla, Hsla) {
-    let role = colors.role(color.token());
+    let role = colors.role(color);
     let muted_foreground = || {
         if color == Color::Default {
             colors.default.foreground
@@ -520,7 +520,7 @@ mod tests {
     fn paint_matrix_matches_the_badge_css_cascade() {
         for colors in [ThemeColors::light(), ThemeColors::dark()] {
             for color in Color::ALL {
-                let role = colors.role(color.token());
+                let role = colors.role(color);
 
                 // `.badge--primary.badge--{color}` fills with the role itself
                 // and labels in the role foreground.
@@ -573,8 +573,8 @@ mod tests {
             (Color::Warning, Color::Danger),
         ] {
             assert_ne!(
-                colors.role(a.token()).color,
-                colors.role(b.token()).color,
+                colors.role(a).color,
+                colors.role(b).color,
                 "the {a:?} and {b:?} roles must not share a fill"
             );
         }
