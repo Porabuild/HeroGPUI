@@ -222,6 +222,13 @@ def callbacks(struct, builder, methods):
         return {'on_change_all'}
     if builder in ('value', 'is_selected'):
         return {'on_change'}
+    # HeroGPUI extensions (not HeroUI v3 props): the Sidebar reports its
+    # active item through `on_select` and its icon mode through
+    # `on_collapsed_change`.
+    if struct == 'Sidebar' and builder == 'active_key':
+        return {'on_select'}
+    if struct == 'Sidebar' and builder == 'is_collapsed':
+        return {'on_collapsed_change'}
     raise ValueError(f'{struct}.{builder}: no state callback mapping')
 
 
