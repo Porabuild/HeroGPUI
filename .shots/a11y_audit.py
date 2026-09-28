@@ -415,6 +415,12 @@ EXPOSES_A_ROLE = {
         'toolbar reports a node only when the caller gave it an id: '
         '`Toolbar::new()` takes none, and the constant its keyed focus scope '
         'falls back to would fold every unnamed toolbar into one node.',
+    ('menu_bar.rs', 'MenuBar'):
+        'HeroGPUI extension with no HeroUI v3 upstream; the roles follow the '
+        'WAI-ARIA menubar pattern that RAC\'s own `Menu` uses for its panel. '
+        'Role::MenuBar on the bar, Role::MenuItem named by its label plus '
+        '`aria-expanded` on each top-level trigger, and the open panel is the '
+        'same `Menu` (`role="menu"` and its rows) the Dropdown renders.',
     ('breadcrumbs.rs', 'Breadcrumbs'):
         'Role::List on the bar, Role::ListItem on each crumb, Role::Link on '
         'each crumb\'s label. RAC\'s `Breadcrumbs.mjs` puts '

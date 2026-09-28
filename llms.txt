@@ -28,7 +28,7 @@ The previous major version used different names, and they do not exist here:
 
 ```toml
 [dependencies]
-herogpui = "0.11"
+herogpui = "0.12"
 ```
 
 One dependency, and only one, published on crates.io (`cargo add herogpui`). `herogpui` is a facade over the GPUI crate
@@ -528,7 +528,7 @@ TextField::new(name.clone()).label("Name").is_required(true)
 Callbacks: `Fn(&ClickEvent/&str/f32/usize/bool/Option<Date>, &mut Window, &mut App)`.
 Fields cloned into closures must be `Arc`.
 
-Public surface (0.11): the component builders and their payload types live at
+Public surface (0.12): the component builders and their payload types live at
 the crate root; `anim` (motion tokens and wrappers) is a module path, not
 re-exported at the root; `extend` holds the helpers supported for custom
 widgets (the radius scale, `FIELD_*` metrics, `cursor_interactive`,
@@ -816,11 +816,27 @@ out of `reference_metadata`.
   as they are built. `handle.scroll_to_item(ix, VirtualListScroll::{Reveal,
   Top})`, `set_item_count(n)`, `splice(range, count)`, `remeasure()`,
   `scroll_by(px)`, `first_visible_item()`, `bounds_for_item(ix)`. Reveal on a
-  row not laid out in the last frame falls back to Top.
+  row not laid out in the last frame falls back to Top. `ListBox` and
+  `Table` render their `estimated_row_height` bodies through it; their
+  `row_height` path and ComboBox's list stay on `uniform_list`.
 - **ContextMenu** — `ContextMenu::new(id, area, items).on_action(|key, w,
   cx| ..).on_open_change(..).disabled_keys([..]).is_disabled(bool)`. A
   secondary (right) press in the area opens the Dropdown `Menu` panel at the
-  pointer; an item, Escape or an outside press closes it.
+  pointer; an item, Escape or an outside press closes it. Shift+F10 or the
+  ContextMenu key (`menu`, or `contextmenu` on the web) with the focus inside
+  the area opens it at the area's top-left corner with the first item
+  focused, and closing returns the focus. The area is focusable outside the
+  tab order: a primary press on non-focusable content focuses it.
+- **MenuBar** — `MenuBar::new(id, vec![MenuBarMenu::new(key, label,
+  items).disabled_keys([..]).is_disabled(bool), ..]).on_action(|menu, item,
+  w, cx| ..).on_open_change(|open: &Option<SharedString>, w, cx| ..)`. A
+  horizontal bar of Dropdown `Menu` panels (HeroGPUI extension). One trigger
+  is a tab stop; Left/Right rove between triggers (wrapping, skipping
+  disabled), Home/End jump; a press, Enter, Space or Down opens (keyboard
+  opens focus the first item). While open, Left/Right or hovering another
+  trigger switches menus; Escape, a pick, an outside press or pressing the
+  open trigger closes and refocuses its trigger. Roles: `MenuBar`, and
+  `MenuItem` + expanded on each trigger.
 
 ## Gallery
 

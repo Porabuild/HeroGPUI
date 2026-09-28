@@ -8,6 +8,43 @@ version covers `herogpui`, `herogpui-core`, `herogpui-theme`,
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-09-23
+
+### Added
+
+- `MenuBar` and `MenuBarMenu` (HeroGPUI extension): a horizontal bar of
+  Dropdown menus. One trigger is a tab stop and Left/Right rove between the
+  top-level items (wrapping, skipping disabled ones), Home/End jump; a press,
+  Enter, Space or Down opens a menu, the keyboard paths with the first item
+  focused. While a menu is open, Left/Right or hovering another trigger
+  switches menus; Escape, a pick, an outside press or pressing the open
+  trigger closes it and returns the focus to its trigger. It reports
+  `Role::MenuBar`, and `Role::MenuItem` with `expanded` on each trigger. A
+  gallery section on the Dropdown page shows it.
+- `ContextMenu` opens from the keyboard: Shift+F10 or the ContextMenu key
+  (`menu`; `contextmenu` on the web) while the focus is inside the area opens
+  the menu at the area's top-left corner with its first item focused, and
+  closing it returns the focus to the element that held it. The area owns a
+  focus handle outside the tab order, so a primary press on non-focusable
+  content makes it reachable. The area element is now `position: relative`
+  (it measures itself with an absolutely placed probe), so absolutely placed
+  content inside it positions against the area.
+
+### Changed
+
+- `ListBox` and `Table` render their `estimated_row_height` bodies through
+  `VirtualList`, on the same `ListState` as before, so measurement, paging,
+  load-more and scroll-into-view are unchanged. Their fixed `row_height`
+  path and ComboBox's popover list stay on `uniform_list`: it centres the
+  keyboard cursor, ListBox and Table page by the declared row height, and
+  Table arms load-more from the uniform list's viewport and content size; see
+  `docs/customisation-roadmap.md`.
+- 34 `radius` source-text assertions in `tests/radius_builders.rs` (the
+  builder-stores and render-resolves checks of 17 components) are replaced
+  by a painted-scene test (`tests/radius_painted.rs`) that checks, for each
+  of those components, that the default paints its owning helper's radius
+  and that `.radius(..)` replaces it on the rendered quads.
+
 ## [0.11.0] - 2026-09-22
 
 The parity target moves from HeroUI v3.2.5 to **HeroUI v3.2.6** (tag
@@ -218,7 +255,8 @@ for each breaking change with before/after code.
   `herogpui-components` and the `herogpui-gallery` CLI, built on the
   published `gpui-pre` 0.3.5 crates with no GPUI fork.
 
-[Unreleased]: https://github.com/Porabuild/HeroGPUI/compare/v0.11.0...HEAD
+[Unreleased]: https://github.com/Porabuild/HeroGPUI/compare/v0.12.0...HEAD
+[0.12.0]: https://github.com/Porabuild/HeroGPUI/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/Porabuild/HeroGPUI/compare/v0.10.2...v0.11.0
 [0.10.2]: https://github.com/Porabuild/HeroGPUI/compare/v0.10.1...v0.10.2
 [0.10.1]: https://github.com/Porabuild/HeroGPUI/compare/v0.10.0...v0.10.1

@@ -569,7 +569,7 @@ impl Gallery {
                     ]), cx),
                 ),
                 (
-                    "Context Menu", "HeroGPUI extension, not a HeroUI v3 example: `ContextMenu` opens the same menu panel on a secondary (right) press inside its area, with the panel's corner at the pointer. Items, disabled keys, keyboard navigation, Escape and outside-press dismissal are the Dropdown menu's own.",
+                    "Context Menu", "HeroGPUI extension, not a HeroUI v3 example: `ContextMenu` opens the same menu panel on a secondary (right) press inside its area, with the panel's corner at the pointer, or on Shift+F10 / the ContextMenu key while the focus is inside the area, at the area's corner with the first item focused. Items, disabled keys, keyboard navigation, Escape and outside-press dismissal are the Dropdown menu's own.",
                     specimen_body("dd-context-menu", col(vec![
                         h::ContextMenu::new(
                             "dd-context",
@@ -599,6 +599,45 @@ impl Gallery {
                         }))
                         .into_any_element(),
                         para(&format!("Last action: {}", self.context_menu_last), cx),
+                    ]), cx),
+                ),
+                (
+                    "Menu Bar", "HeroGPUI extension, not a HeroUI v3 example: `MenuBar` is a horizontal bar of the same menu panels. Left and Right rove between the top-level items (skipping the disabled Help), Enter, Space or Down opens one with its first item focused, and while a menu is open Left, Right or hovering another item switches menus. Escape closes it and returns the focus to its item.",
+                    specimen_body("dd-menu-bar", col(vec![
+                        h::MenuBar::new(
+                            "dd-menu-bar-bar",
+                            vec![
+                                h::MenuBarMenu::new("file", "File", vec![
+                                    h::MenuItem::new("new", "New").shortcut("Ctrl N"),
+                                    h::MenuItem::new("open", "Open").shortcut("Ctrl O"),
+                                    h::MenuItem::Separator,
+                                    h::MenuItem::new("quit", "Quit").danger(),
+                                ]),
+                                h::MenuBarMenu::new("edit", "Edit", vec![
+                                    h::MenuItem::new("undo", "Undo").shortcut("Ctrl Z"),
+                                    h::MenuItem::new("redo", "Redo").shortcut("Ctrl Y"),
+                                ])
+                                .disabled_keys(["redo"]),
+                                h::MenuBarMenu::new("view", "View", vec![
+                                    h::MenuItem::new("zoom-in", "Zoom In"),
+                                    h::MenuItem::new("zoom-out", "Zoom Out"),
+                                ]),
+                                h::MenuBarMenu::new("help", "Help", vec![h::MenuItem::new("about", "About")])
+                                    .is_disabled(true),
+                            ],
+                        )
+                        .on_action({
+                            let view = cx.entity().downgrade();
+                            move |menu, item, _, cx| {
+                                view.update(cx, |this, cx| {
+                                    this.menu_bar_last = SharedString::from(format!("{menu} / {item}"));
+                                    cx.notify();
+                                })
+                                .ok();
+                            }
+                        })
+                        .into_any_element(),
+                        para(&format!("Last action: {}", self.menu_bar_last), cx),
                     ]), cx),
                 ),
             ],

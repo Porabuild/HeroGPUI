@@ -847,7 +847,7 @@ mod example_quality {
             ("slider", 17),
             ("date_field", 15),
             ("alert_dialog", 12),
-            ("dropdown", 24),
+            ("dropdown", 25),
             ("popover", 6),
             ("number_field", 17),
             ("text_area", 6),

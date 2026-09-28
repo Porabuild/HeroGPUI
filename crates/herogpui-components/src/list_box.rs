@@ -505,7 +505,7 @@ impl RenderOnce for ListBox {
             window.use_keyed_state(
                 element_id::scoped(&base_id, "list-state"),
                 cx,
-                move |_, _| gpui::ListState::new(count, gpui::ListAlignment::Top, overdraw),
+                move |_, _| crate::VirtualListHandle::with_overdraw(count, overdraw),
             )
         };
         let variable_row_heights = if self.row_height.is_none()
@@ -537,7 +537,8 @@ impl RenderOnce for ListBox {
         };
         let list_scroll_now = list_scroll.read(cx).clone();
         let box_scroll_now = box_scroll.read(cx).clone();
-        let list_state_now = list_state.read(cx).clone();
+        let list_handle_now = list_state.read(cx).clone();
+        let list_state_now = list_handle_now.list_state().clone();
         // The letters typed so far. A search that reset every frame could only
         // ever match one letter.
         let typed = window.use_keyed_state(element_id::scoped(&base_id, "typed"), cx, |_, _| {
@@ -1105,9 +1106,9 @@ impl RenderOnce for ListBox {
             let height = self.max_h.unwrap_or(px(400.));
             let count = self.items.len();
             let rows = std::rc::Rc::new(self);
-            let state = list_state_now;
-            if state.item_count() != count {
-                state.reset(count);
+            let handle = list_handle_now;
+            if handle.item_count() != count {
+                handle.set_item_count(count);
             }
             let interaction = interaction.clone();
             let row_range = selection_range.clone();
@@ -1115,45 +1116,48 @@ impl RenderOnce for ListBox {
                 variable_row_heights.expect("estimated row height creates a measurement store");
             return util::apply_sx(
                 list.child(
-                    gpui::list(state, move |index, _window, cx| {
-                        let row = rows.row(
-                            index,
-                            focused_at,
-                            None,
-                            interaction.get(index),
-                            &cursor,
-                            &row_range,
-                            selection_own.as_ref(),
-                            _window,
-                            cx,
-                        );
-                        let measured = measured_heights.clone();
-                        div()
-                            .relative()
-                            .w_full()
-                            .child(row)
-                            .child(
-                                gpui::canvas(
-                                    move |bounds: gpui::Bounds<gpui::Pixels>, _, cx| {
-                                        measured.update(cx, |(_, heights), cx| {
-                                            if heights.get(index).copied().flatten()
-                                                != Some(bounds.size.height)
-                                            {
-                                                heights[index] = Some(bounds.size.height);
-                                                cx.notify();
-                                            }
-                                        });
-                                        bounds
-                                    },
-                                    |_, _, _, _| {},
+                    crate::VirtualList::new(
+                        element_id::scoped(&base_id, "variable-rows"),
+                        &handle,
+                        move |index, _window, cx| {
+                            let row = rows.row(
+                                index,
+                                focused_at,
+                                None,
+                                interaction.get(index),
+                                &cursor,
+                                &row_range,
+                                selection_own.as_ref(),
+                                _window,
+                                cx,
+                            );
+                            let measured = measured_heights.clone();
+                            div()
+                                .relative()
+                                .w_full()
+                                .child(row)
+                                .child(
+                                    gpui::canvas(
+                                        move |bounds: gpui::Bounds<gpui::Pixels>, _, cx| {
+                                            measured.update(cx, |(_, heights), cx| {
+                                                if heights.get(index).copied().flatten()
+                                                    != Some(bounds.size.height)
+                                                {
+                                                    heights[index] = Some(bounds.size.height);
+                                                    cx.notify();
+                                                }
+                                            });
+                                            bounds
+                                        },
+                                        |_, _, _, _| {},
+                                    )
+                                    .absolute()
+                                    .inset_0(),
                                 )
-                                .absolute()
-                                .inset_0(),
-                            )
-                            .into_any_element()
-                    })
-                    .h(height)
-                    .w_full(),
+                                .into_any_element()
+                        },
+                    )
+                    .height(height),
                 ),
                 &sx,
             )

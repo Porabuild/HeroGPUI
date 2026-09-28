@@ -84,6 +84,8 @@ pub struct Gallery {
     pub dropdown_selected: Option<SharedString>,
     /// Last item chosen in the ContextMenu extension demo.
     pub context_menu_last: SharedString,
+    /// Last menu and item chosen in the MenuBar extension demo.
+    pub menu_bar_last: SharedString,
     /// Scroll state of the VirtualList extension demo.
     pub virtual_list: h::VirtualListHandle,
     pub dropdown_last_basic: SharedString,
@@ -381,6 +383,7 @@ Enter inserts a newline here, and a long paragraph wraps inside the field instea
             dropdown_open: std::env::var("HEROGPUI_OPEN_OVERLAYS").is_ok(),
             dropdown_selected: None,
             context_menu_last: SharedString::from("none yet"),
+            menu_bar_last: SharedString::from("none yet"),
             virtual_list: h::VirtualListHandle::new(1000),
             dropdown_last_basic: SharedString::from("none yet"),
             dropdown_doc_marks: vec![SharedString::from("bold")],

@@ -121,3 +121,151 @@ fn disabled_ignores_the_secondary_press(cx: &mut TestAppContext) {
     assert!(panel(cx).is_none());
     assert!(seen.borrow().is_empty());
 }
+
+/// A context menu whose area holds one focusable child, for the keyboard
+/// paths. Returns the child's focus handle.
+fn keyboard_host(
+    cx: &mut TestAppContext,
+    disabled: bool,
+) -> (Events, gpui::FocusHandle, &mut VisualTestContext) {
+    still();
+    let seen = events();
+    let s = seen.clone();
+    let child_focus = cx.update(|cx| cx.focus_handle());
+    let focus = child_focus.clone();
+    let cx = open_host(cx, move || {
+        let (a, o) = (s.clone(), s.clone());
+        // Inset from the window edge, past the positioner's edge margin.
+        gpui::div()
+            .p(px(40.))
+            .child(
+                ContextMenu::new(
+                    "kctx",
+                    gpui::div()
+                        .w(px(400.))
+                        .h(px(300.))
+                        .p(px(40.))
+                        .child(
+                            gpui::div()
+                                .id("kctx-child")
+                                .track_focus(&focus)
+                                .w(px(80.))
+                                .h(px(24.))
+                                .debug_selector(|| "kctx-child".into()),
+                        )
+                        .debug_selector(|| "kctx-area".into()),
+                    vec![
+                        MenuItem::new("copy", "Copy"),
+                        MenuItem::new("paste", "Paste"),
+                    ],
+                )
+                .is_disabled(disabled)
+                .on_action(move |key, _, _| a.borrow_mut().push(format!("action:{key}")))
+                .on_open_change(move |open, _, _| o.borrow_mut().push(format!("open:{open}"))),
+            )
+            .into_any_element()
+    });
+    (seen, child_focus, cx)
+}
+
+fn focus(cx: &mut VisualTestContext, handle: &gpui::FocusHandle) {
+    let handle = handle.clone();
+    cx.update(|window, cx| window.focus(&handle, cx));
+    frame(cx);
+}
+
+#[gpui::test]
+fn shift_f10_opens_at_the_area_with_the_first_item_focused(cx: &mut TestAppContext) {
+    let (seen, child, cx) = keyboard_host(cx, false);
+    frame(cx);
+    focus(cx, &child);
+    press(cx, "f10");
+    frame(cx);
+    assert!(panel(cx).is_none(), "F10 alone is not the context-menu key");
+
+    press(cx, "shift-f10");
+    frame(cx);
+    let area = cx.debug_bounds("kctx-area").expect("area laid out");
+    let bounds = panel(cx).expect("Shift+F10 opened the menu");
+    assert_eq!(bounds.origin, area.origin, "anchored at the area's corner");
+    assert_eq!(seen.borrow().as_slice(), ["open:true"]);
+
+    // The first item holds the focus, so Enter chooses it without an arrow.
+    press(cx, "enter");
+    frame(cx);
+    assert!(panel(cx).is_none());
+    assert!(
+        seen.borrow().contains(&"action:copy".to_owned()),
+        "{:?}",
+        seen.borrow()
+    );
+    let refocused = cx.update(|window, _| child.is_focused(window));
+    assert!(refocused, "dismissal hands the focus back to the child");
+}
+
+#[gpui::test]
+fn the_context_menu_key_opens_and_escape_restores_focus(cx: &mut TestAppContext) {
+    let (seen, child, cx) = keyboard_host(cx, false);
+    frame(cx);
+    focus(cx, &child);
+    press(cx, "menu");
+    frame(cx);
+    assert!(panel(cx).is_some(), "the ContextMenu key opens it");
+    let in_child = cx.update(|window, _| child.is_focused(window));
+    assert!(!in_child, "the menu took the focus");
+    press(cx, "escape");
+    frame(cx);
+    assert!(panel(cx).is_none());
+    let back = cx.update(|window, _| child.is_focused(window));
+    assert!(back, "Escape hands the focus back");
+
+    // The web spelling of the same key.
+    press(cx, "contextmenu");
+    frame(cx);
+    assert!(panel(cx).is_some());
+    assert_eq!(
+        seen.borrow().as_slice(),
+        ["open:true", "open:false", "open:true"]
+    );
+}
+
+#[gpui::test]
+fn modified_keys_do_not_open(cx: &mut TestAppContext) {
+    let (_, child, cx) = keyboard_host(cx, false);
+    frame(cx);
+    focus(cx, &child);
+    for keys in ["ctrl-shift-f10", "alt-shift-f10", "shift-menu"] {
+        press(cx, keys);
+        frame(cx);
+        assert!(panel(cx).is_none(), "{keys} must not open the menu");
+    }
+}
+
+#[gpui::test]
+fn a_disabled_menu_ignores_the_keyboard(cx: &mut TestAppContext) {
+    let (seen, child, cx) = keyboard_host(cx, true);
+    frame(cx);
+    focus(cx, &child);
+    press(cx, "shift-f10");
+    frame(cx);
+    assert!(panel(cx).is_none(), "a disabled menu ignores the keyboard");
+    assert!(seen.borrow().is_empty());
+}
+
+#[gpui::test]
+fn a_primary_press_focuses_an_area_with_no_focusable_content(cx: &mut TestAppContext) {
+    let (seen, cx) = host(cx, false);
+    frame(cx);
+    press(cx, "shift-f10");
+    frame(cx);
+    assert!(
+        panel(cx).is_none(),
+        "nothing inside the area holds the focus yet"
+    );
+    cx.simulate_click(point(px(100.), px(80.)), Modifiers::none());
+    frame(cx);
+    press(cx, "shift-f10");
+    frame(cx);
+    assert!(panel(cx).is_some(), "the press focused the area itself");
+    assert_eq!(seen.borrow().as_slice(), ["open:true"]);
+}

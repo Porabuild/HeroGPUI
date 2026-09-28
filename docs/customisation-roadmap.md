@@ -432,13 +432,20 @@ retired-fork API and no longer exists on vanilla), plus `src/geometry.rs`
 (`AbsoluteLength`) and `src/elements/div.rs` (`compute_style_internal`). Pagination CSS was checked directly in the pinned CSS archive,
 including the size-specific pressed-scale rules.
 
-## gpui-kit adoptions: done in 0.11.0 and next
+## gpui-kit adoptions: done in 0.11.0 and 0.12.0, and next
 
 Source: `tmp/review/gpui-kit-comparison.md` §4. Landed in 0.11.0 (Phase 4):
 `CONTRIBUTING.md` and the pull request template, the `examples/` crates, the
 `Disableable`/`Sizable`/`Selectable` traits, the `i18n` chrome-string
 catalogue, theme files with a checked-in schema and presets, the
-`herogpui::test` kit, `VirtualList` and `ContextMenu`.
+`herogpui::test` kit, `VirtualList` and `ContextMenu`. Landed in 0.12.0:
+`MenuBar`, keyboard opening for `ContextMenu` (Shift+F10 and the ContextMenu
+key, anchored at the area's corner because GPUI reports no bounds for the
+focused element), and `VirtualList` behind the `estimated_row_height` bodies
+of `ListBox` and `Table`. 34 source-text radius assertions (the store and
+resolve checks of 17 components) became a painted-scene test (`tests/radius_painted.rs`); the remaining source-text
+assertions cover overlay panels, fields and wiring a headless paint does not
+reach yet, and are the next candidates.
 
 Deliberately not done, and next in this order:
 
@@ -451,13 +458,20 @@ Deliberately not done, and next in this order:
 3. **Resizable panels / split view** (§3 P1). An extension component; needs
    keyed drag state and pointer capture per `docs/agents/components.md`.
 4. **Tree view** (§3 P1). Can reuse `Table`'s tree rows and `list_nav`.
-5. **VirtualList adoption inside `ListBox`/`ComboBox`/`Table`.** Their
-   fixed-height `uniform_list` paths are audited for exact geometry
-   (PageUp/PageDown by viewport, load-more sentinels); moving them onto the
-   variable-height primitive is a behaviour change to review separately.
+5. **VirtualList for the fixed-height paths.** 0.12.0 moved the
+   `estimated_row_height` bodies of `ListBox` and `Table` onto `VirtualList`
+   (same `ListState`, so no behaviour change). The fixed `row_height` paths of
+   both, and ComboBox's popover list (which has only that path), stay on
+   `uniform_list` deliberately: all three scroll the keyboard cursor with
+   `ScrollStrategy::Center`, which `ListState` has no equivalent for;
+   ListBox's and Table's PageUp/PageDown step by the declared row height over
+   the uniform list's viewport, and Table's load-more sentinel reads the
+   uniform list's `last_item_size` (its viewport, and a content height of the
+   row count times the one measured row) (`list_box.rs`,
+   `combo_box.rs`, `table.rs`; `collection_contracts`, `virtual_and_feedback`,
+   `table_deep`). Moving them needs a uniform mode on `VirtualList` that
+   keeps these, not a switch to the measured list.
 6. **Theme hot reload** (`watch_dir`) and a gallery theme picker over the
    presets; **i18n** for more locales (non-Latin locales also need the web
    font subsets extended) and for the remaining hard-coded strings (NumberField
    stepper names, ColorPicker channel names, DateField segment names).
-7. **Keyboard opening for `ContextMenu`** (Shift+F10 / the Menu key) once the
-   area can own a focus handle without joining the tab order.
