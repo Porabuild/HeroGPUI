@@ -156,8 +156,8 @@ snippets and GPUI mentions read them from here (`SITE` in `src/lib/nav.ts`).
       "description": "A pressable button with variants and states.",
       "category": "Buttons",
       "importLine": "use herogpui::prelude::{Button, Size, Variant};",
-      "shot": "/shots/button-v3.png",
-      "shotDark": "/shots/button-dark-v3.png",
+      "tile": "/shots/button-tile-v3.png",
+      "tileDark": "/shots/button-tile-dark-v3.png",
       "demos": [],
       "hasReference": true
     }
@@ -165,7 +165,7 @@ snippets and GPUI mentions read them from here (`SITE` in `src/lib/nav.ts`).
 }
 ```
 
-`shot`, `shotDark` and `hasReference` may be `null` / `false`. `demos` is kept
+`tile`, `tileDark` and `hasReference` may be `null` / `false`. `demos` is kept
 as an empty compatibility field. Consumers must handle all three.
 
 ### `src/data/reference.json`

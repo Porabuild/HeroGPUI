@@ -57,7 +57,7 @@ In local development the site serves at `/`. In production it serves under
 `/herogpui` — see `next.config.ts` (`basePath` from
 `NEXT_PUBLIC_BASE_PATH`) and [`.env.example`](.env.example). Routes and
 components prefix public asset paths through the `publicUrl()` helper in
-`src/lib/public-url.ts` so screenshots and the gallery iframe resolve under
+`src/lib/public-url.ts` so catalog tiles and the gallery iframe resolve under
 the prefix.
 
 ## The generated data pipeline
@@ -73,7 +73,7 @@ pipeline. Re-run it by hand when the Rust sources they read change:
 | `node scripts/extract-reference.mjs` | `gallery/src/pages/reference_metadata/` | `src/data/reference.json` — per-component API/parts/states/styling tables with implementation status |
 | `node scripts/extract-catalog.mjs` | `gallery/src/pages/mod.rs` (`Page` enum), `.shots/`, `reference.json`, `../Cargo.toml`, `../Cargo.lock` | `src/data/catalog.json` — the component pages grouped into categories, plus the workspace and GPUI versions the site shows |
 | `node scripts/extract-rust-examples.mjs` | `gallery/src/pages/components/` | `src/data/rust-examples.json` — the per-component Rust snippets the pages display, public-API only; `gallery/build.rs` compiles each one under `cargo test -p herogpui-gallery` |
-| `node scripts/copy-shots.mjs` | `.shots/*.png` | `public/shots/` — the GPUI screenshots |
+| `node scripts/copy-shots.mjs` | `.shots/*-tile*-v3.png` | `public/shots/` — the cropped catalog tiles the components index shows (the full-page captures stay in `.shots/` as parity goldens) |
 | `node scripts/extract-releases.mjs` | `../CHANGELOG.md` | `src/data/releases.json` — the `/docs/releases` notes, one per dated version |
 | `node scripts/build-data.mjs` | — | runs the four offline extractors in dependency order with one summary |
 | `node scripts/extract-wasm-sections.mjs` (`pnpm run wasm:manifest`) | `gallery/src/pages/components/` — the same native source the desktop gallery builds from — plus the shipped artifact and every wasm build input | `src/data/wasm-sections.json` + `src/data/wasm-parity.json` — the examples compiled into the wasm artifact, the artifact hash used as the embed's immutable cache key, and an inputs hash that fails `--check` when Rust sources change without a rebuild |

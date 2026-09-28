@@ -42,7 +42,7 @@ export function run() {
   );
   console.log(`rust-examples.json   ${rust.pages} components, ${rust.snippets} snippets`);
   console.log(
-    `public/shots         ${shots.count} screenshots (${(shots.bytes / (1024 * 1024)).toFixed(1)} MB)`,
+    `public/shots         ${shots.count} catalog tiles (${(shots.bytes / (1024 * 1024)).toFixed(1)} MB)`,
   );
   console.log("──────────────────────────────────────────────────────");
   return { reference, catalog, rust, shots };
