@@ -59,8 +59,8 @@ export default function AnimationPage() {
         <CodeBlock code={REDUCE} lang="rust" />
       </div>
       <p>
-        HeroGPUI keeps its own animation preference, separate from GPUI&apos;s App setting. Seed it
-        at startup:
+        The library reads no environment variable for this. The gallery maps one onto the setter at
+        startup, which is how to try it:
       </p>
       <div className="mt-4">
         <CodeBlock code={ENV} lang="bash" />

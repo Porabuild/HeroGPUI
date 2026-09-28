@@ -43,3 +43,26 @@ let role: Color = name.parse()?; // Err(UnknownColorError { name })
 `Color::from_token(&str) -> Option<Color>` is the same parse without the
 error type. Theme JSON is unchanged: the `roles` map already rejected an
 unknown key, and still does.
+
+## `HEROGPUI_REDUCE_MOTION` is no longer read by the library
+
+`ThemeProvider::init` read the `HEROGPUI_REDUCE_MOTION` environment variable
+and wrote GPUI's reduced-motion flag from it, overwriting any value the app
+had set before initializing. A library reading a hidden configuration
+channel is surprising, so it no longer does: `init` leaves the flag alone,
+and `set_reduce_motion` is the one way to set it. The gallery keeps
+honouring the variable by mapping it itself.
+
+An app that relied on the variable maps it (or, better, its own setting)
+explicitly:
+
+```rust
+// 0.12: HEROGPUI_REDUCE_MOTION=1 was honoured by ThemeProvider::init.
+ThemeProvider::init(cx);
+
+// 0.13
+ThemeProvider::init(cx);
+if std::env::var("HEROGPUI_REDUCE_MOTION").is_ok_and(|v| v != "0" && v != "false") {
+    herogpui::theme::set_reduce_motion(true, cx);
+}
+```

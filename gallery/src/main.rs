@@ -54,14 +54,29 @@ fn initial_theme() -> herogpui_theme::Theme {
     }
 }
 
+/// Whether an `HEROGPUI_REDUCE_MOTION` value asks for reduced motion: set and
+/// not `0` or `false`.
+///
+/// The library reads no environment variable (GPUI surfaces no OS
+/// `prefers-reduced-motion` either), so the gallery maps this one onto
+/// `set_reduce_motion` itself, the way an app maps its own settings.
+fn reduce_motion_requested(value: Option<&str>) -> bool {
+    value.is_some_and(|v| v != "0" && !v.eq_ignore_ascii_case("false"))
+}
+
 fn main() {
     let page = initial_page();
     let theme = initial_theme();
+    let reduce_motion =
+        reduce_motion_requested(std::env::var("HEROGPUI_REDUCE_MOTION").ok().as_deref());
 
     gpui_platform::application()
         .with_assets(assets::Assets)
         .run(move |cx: &mut App| {
             ThemeProvider::init_with(theme, cx);
+            if reduce_motion {
+                herogpui_theme::set_reduce_motion(true, cx);
+            }
             control::init_section_filter(cx);
             control::init_specimen_filter(cx);
             control::set_preview_only(
@@ -130,4 +145,19 @@ fn main() {
                 cx.activate(true);
             }
         });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::reduce_motion_requested;
+
+    #[test]
+    fn the_reduce_motion_variable_keeps_its_0_12_meaning() {
+        assert!(!reduce_motion_requested(None));
+        assert!(!reduce_motion_requested(Some("0")));
+        assert!(!reduce_motion_requested(Some("FALSE")));
+        assert!(reduce_motion_requested(Some("1")));
+        assert!(reduce_motion_requested(Some("true")));
+        assert!(reduce_motion_requested(Some("")));
+    }
 }

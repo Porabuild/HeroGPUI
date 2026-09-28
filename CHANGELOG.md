@@ -18,6 +18,11 @@ for each breaking change with before/after code.
   take the typed `Color` role instead of a `&str`. An unknown string used to
   fall back to `accent`, so a typo silently recoloured the accent and the
   focus ring; it is now a compile error.
+- `ThemeProvider::init` / `init_with` no longer read `HEROGPUI_REDUCE_MOTION`
+  and no longer write GPUI's reduced-motion flag: the library reads no
+  environment variable. Set the preference with `set_reduce_motion` from the
+  application's own settings. The gallery maps `HEROGPUI_REDUCE_MOTION=1` onto
+  it, so the gallery's behaviour is unchanged.
 
 ### Added
 

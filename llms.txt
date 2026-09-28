@@ -891,8 +891,8 @@ out of `reference_metadata`.
 selects the page by nav title, `HEROGPUI_THEME=dark` selects the appearance,
 `HEROGPUI_WINDOW_SIZE=1200x2000` sets the window size,
 `HEROGPUI_UNFOCUSED=1` opens without taking focus, and
-`HEROGPUI_REDUCE_MOTION=1` seeds the reduced-motion preference at startup
-(see `gallery/src/main.rs`). The navbar's theme picker switches live between
+`HEROGPUI_REDUCE_MOTION=1` turns on the reduced-motion preference at startup
+(the gallery calls `theme::set_reduce_motion`; see `gallery/src/main.rs`). The navbar's theme picker switches live between
 the light and dark bases and every `presets::PRESETS` theme. Screenshots are the visual regression source.
 
 ## Code style
@@ -947,8 +947,10 @@ is the gpui equivalent and the single place the timings live.
   along), `PRESSED_SCALE`, `anim::pressed_inset`.
 - **Reduced motion:** `ActiveTheme::reduce_motion(cx)` gates every animation with no opt-in
   from the caller. Set it with `theme::set_reduce_motion(bool, cx)` or
-  `theme::toggle_reduce_motion(cx)`; `HEROGPUI_REDUCE_MOTION=1` seeds it at
-  startup. The value is stored in GPUI's own `App::reduce_motion()` global, so a
+  `theme::toggle_reduce_motion(cx)` — the only way it is set: the library reads
+  no environment variable and GPUI exposes no OS preference, so an app wires it
+  to its own settings (the gallery maps `HEROGPUI_REDUCE_MOTION=1` onto it).
+  `ThemeProvider::init` leaves the flag as it is. The value is stored in GPUI's own `App::reduce_motion()` global, so a
   plain `gpui::Animation` written by the app is suppressed too, and either
   accessor reads the same flag.
 
