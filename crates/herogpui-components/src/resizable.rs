@@ -21,7 +21,23 @@
 //!   limits allow toward the start and the end.
 //! - **Limits.** Moving a handle resizes only the two panels beside it, and
 //!   both stay inside their [`ResizablePanel::min_size`] /
-//!   [`ResizablePanel::max_size`] during a drag and on every key.
+//!   [`ResizablePanel::max_size`] during a drag and on every key. Pixel
+//!   limits ([`ResizablePanel::min_size_px`] / [`ResizablePanel::max_size_px`])
+//!   are converted to percent of the group's measured length and combined
+//!   with those (the stricter wins), for the initial layout, a drag, a key
+//!   and a window resize alike. The group is measured when it is laid out,
+//!   so a pixel limit applies from the frame after the first.
+//! - **Collapsing.** A [`ResizablePanel::collapsible`] panel may also sit at
+//!   its [`ResizablePanel::collapsed_size`] (default 0), below its minimum.
+//!   Dragging it past halfway between the two collapses it, and dragging it
+//!   back past halfway restores the minimum; an arrow key that would leave it
+//!   between them jumps to the other side. Enter on a handle collapses the
+//!   panel before it (or, when only that one is collapsible, the panel after
+//!   it) and, when collapsed, restores the size it had before, as the
+//!   WAI-ARIA window splitter pattern describes.
+//! - **Callbacks.** [`ResizablePanelGroup::on_resize`] runs on every change,
+//!   [`ResizablePanelGroup::on_resize_end`] once per gesture: at the release
+//!   of a drag that changed the sizes, and after each key that did.
 //! - **Accessibility.** Each handle reports `Role::Splitter` (the WAI-ARIA
 //!   window splitter, a focusable `separator`) with the orientation of the
 //!   line it draws and a value range: the size of the panel before it, within
@@ -69,6 +85,10 @@ pub struct ResizablePanel {
     default_size: Option<f32>,
     min_size: f32,
     max_size: f32,
+    min_size_px: Option<Pixels>,
+    max_size_px: Option<Pixels>,
+    collapsible: bool,
+    collapsed_size: f32,
     children: Vec<AnyElement>,
 }
 
@@ -86,6 +106,10 @@ impl ResizablePanel {
             default_size: None,
             min_size: 0.,
             max_size: 100.,
+            min_size_px: None,
+            max_size_px: None,
+            collapsible: false,
+            collapsed_size: 0.,
             children: Vec::new(),
         }
     }
@@ -111,8 +135,99 @@ impl ResizablePanel {
         self
     }
 
-    fn limits(&self) -> (f32, f32) {
-        (self.min_size, self.max_size.max(self.min_size))
+    /// The smallest length in pixels a resize may leave this panel at,
+    /// combined with [`min_size`](Self::min_size) (the larger wins).
+    pub fn min_size_px(mut self, min: impl Into<Pixels>) -> Self {
+        self.min_size_px = Some(min.into().max(px(0.)));
+        self
+    }
+
+    /// The largest length in pixels a resize may give this panel, combined
+    /// with [`max_size`](Self::max_size) (the smaller wins, but never below
+    /// the minimum).
+    pub fn max_size_px(mut self, max: impl Into<Pixels>) -> Self {
+        self.max_size_px = Some(max.into().max(px(0.)));
+        self
+    }
+
+    /// Lets the panel collapse to its [`collapsed_size`](Self::collapsed_size)
+    /// below its minimum: by a drag past halfway, an arrow key past the
+    /// minimum, Home/End, or Enter on the handle beside it.
+    pub fn collapsible(mut self, collapsible: bool) -> Self {
+        self.collapsible = collapsible;
+        self
+    }
+
+    /// The size in percent a [`collapsible`](Self::collapsible) panel
+    /// collapses to (default 0). A collapsed size at or above the minimum
+    /// leaves nothing to collapse.
+    pub fn collapsed_size(mut self, percent: f32) -> Self {
+        self.collapsed_size = percent.clamp(0., 100.);
+        self
+    }
+
+    /// The panel's limits in percent of `available` pixels (the group's
+    /// length minus its handles), or of the percentage limits alone while
+    /// the group has not been measured.
+    fn limits(&self, available: Option<f32>) -> Limit {
+        let mut min = self.min_size;
+        let mut max = self.max_size;
+        if let Some(available) = available.filter(|a| *a > 0.) {
+            if let Some(px_min) = self.min_size_px {
+                min = min.max(f32::from(px_min) / available * 100.);
+            }
+            if let Some(px_max) = self.max_size_px {
+                max = max.min(f32::from(px_max) / available * 100.);
+            }
+        }
+        let min = min.clamp(0., 100.);
+        let max = max.clamp(0., 100.).max(min);
+        let collapsed = self
+            .collapsible
+            .then_some(self.collapsed_size.min(min))
+            .filter(|collapsed| *collapsed < min - EPSILON);
+        Limit {
+            min,
+            max,
+            collapsed,
+        }
+    }
+
+    fn has_pixel_limits(&self) -> bool {
+        self.min_size_px.is_some() || self.max_size_px.is_some()
+    }
+}
+
+/// Slack for comparing percentages.
+const EPSILON: f32 = 0.0001;
+
+/// One panel's allowed sizes in percent: `min..=max`, and the collapsed
+/// size when the panel is collapsible (always below `min`).
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct Limit {
+    min: f32,
+    max: f32,
+    collapsed: Option<f32>,
+}
+
+impl Limit {
+    #[cfg(test)]
+    fn range(min: f32, max: f32) -> Self {
+        Self {
+            min,
+            max,
+            collapsed: None,
+        }
+    }
+
+    /// The allowed sizes as closed ranges (the collapsed size is a point).
+    fn pieces(self) -> impl Iterator<Item = (f32, f32)> {
+        std::iter::once((self.min, self.max)).chain(self.collapsed.map(|c| (c, c)))
+    }
+
+    fn is_collapsed(self, size: f32) -> bool {
+        self.collapsed
+            .is_some_and(|collapsed| (size - collapsed).abs() <= 0.01)
     }
 }
 
@@ -134,6 +249,7 @@ pub struct ResizablePanelGroup {
     keyboard_step: f32,
     is_disabled: bool,
     on_resize: Option<ResizeCallback>,
+    on_resize_end: Option<ResizeCallback>,
 }
 
 impl ResizablePanelGroup {
@@ -148,6 +264,7 @@ impl ResizablePanelGroup {
             keyboard_step: 5.,
             is_disabled: false,
             on_resize: None,
+            on_resize_end: None,
         }
     }
 
@@ -200,11 +317,20 @@ impl ResizablePanelGroup {
         self.on_resize = Some(Arc::new(f));
         self
     }
+
+    /// Runs with every panel's size, in percent, once a resize gesture ends:
+    /// at the release of a drag that changed the sizes, and after each key
+    /// (arrow, Home, End, Enter) that did. For persisting a layout without
+    /// writing on every pointer move.
+    pub fn on_resize_end(mut self, f: impl Fn(&[f32], &mut Window, &mut App) + 'static) -> Self {
+        self.on_resize_end = Some(Arc::new(f));
+        self
+    }
 }
 
 /// The sizes the panels start at: explicit defaults, the rest shared evenly,
 /// then [normalized](normalize) to 100 and the panels' limits.
-fn default_sizes(panels: &[ResizablePanel]) -> Vec<f32> {
+fn default_sizes(panels: &[ResizablePanel], limits: &[Limit]) -> Vec<f32> {
     let fixed: f32 = panels
         .iter()
         .filter_map(|p| p.default_size)
@@ -220,8 +346,7 @@ fn default_sizes(panels: &[ResizablePanel]) -> Vec<f32> {
         .iter()
         .map(|p| p.default_size.unwrap_or(share))
         .collect();
-    let limits: Vec<(f32, f32)> = panels.iter().map(ResizablePanel::limits).collect();
-    normalize(&sizes, &limits)
+    normalize(&sizes, limits)
 }
 
 /// `sizes` scaled to sum to 100 (an even split when they sum to zero;
@@ -229,8 +354,10 @@ fn default_sizes(panels: &[ResizablePanel]) -> Vec<f32> {
 /// `limits` with the sum kept at 100: every panel is clamped to its own
 /// range and the difference is shared among the panels with room left, in
 /// proportion to that room. Limits no layout can satisfy (minimums over
-/// 100 or maximums under it) leave the scaled sizes unclamped.
-fn normalize(sizes: &[f32], limits: &[(f32, f32)]) -> Vec<f32> {
+/// 100 or maximums under it) leave the scaled sizes unclamped. A
+/// collapsible panel under halfway between its collapsed size and its
+/// minimum is collapsed, and then holds that size.
+fn normalize(sizes: &[f32], limits: &[Limit]) -> Vec<f32> {
     let n = sizes.len();
     if n == 0 {
         return Vec::new();
@@ -250,6 +377,15 @@ fn normalize(sizes: &[f32], limits: &[(f32, f32)]) -> Vec<f32> {
     if limits.len() != n {
         return out;
     }
+    let limits: Vec<(f32, f32)> = out
+        .iter()
+        .zip(limits)
+        .map(|(&size, limit)| match limit.collapsed {
+            Some(collapsed) if size < (collapsed + limit.min) / 2. => (collapsed, collapsed),
+            _ => (limit.min, limit.max),
+        })
+        .collect();
+    let limits = &limits[..];
     let min_total: f32 = limits.iter().map(|l| l.0).sum();
     let max_total: f32 = limits.iter().map(|l| l.1).sum();
     if min_total > 100. + 0.001 || max_total < 100. - 0.001 {
@@ -275,30 +411,118 @@ fn normalize(sizes: &[f32], limits: &[(f32, f32)]) -> Vec<f32> {
     out
 }
 
-/// The range the panel before handle `handle` may take while the pair keeps
-/// its combined size and both stay within their limits. `None` when the two
-/// limits cannot both hold.
-fn pair_range(sizes: &[f32], handle: usize, limits: &[(f32, f32)]) -> Option<(f32, f32)> {
+/// The sizes the panel before handle `handle` may take while the pair keeps
+/// its combined size and both stay within their limits: at most four closed
+/// ranges (each panel's `min..=max` or collapsed point, against the other's).
+fn pair_pieces(sizes: &[f32], handle: usize, limits: &[Limit]) -> Vec<(f32, f32)> {
     let total = sizes[handle] + sizes[handle + 1];
-    let (min_a, max_a) = limits[handle];
-    let (min_b, max_b) = limits[handle + 1];
-    let lower = min_a.max(total - max_b);
-    let upper = max_a.min(total - min_b);
-    (lower <= upper + 0.0001).then_some((lower, upper.max(lower)))
+    let mut pieces = Vec::new();
+    for (min_a, max_a) in limits[handle].pieces() {
+        for (min_b, max_b) in limits[handle + 1].pieces() {
+            let lower = min_a.max(total - max_b);
+            let upper = max_a.min(total - min_b);
+            if lower <= upper + EPSILON {
+                pieces.push((lower, upper.max(lower)));
+            }
+        }
+    }
+    pieces
+}
+
+/// The range the panel before handle `handle` may take: the span of
+/// [`pair_pieces`]. `None` when the two limits cannot both hold.
+fn pair_range(sizes: &[f32], handle: usize, limits: &[Limit]) -> Option<(f32, f32)> {
+    let pieces = pair_pieces(sizes, handle, limits);
+    let lower = pieces.iter().map(|p| p.0).reduce(f32::min)?;
+    let upper = pieces.iter().map(|p| p.1).reduce(f32::max)?;
+    Some((lower, upper))
+}
+
+/// The allowed size nearest `target`. For a collapsible panel that is the
+/// collapsed size below halfway to the minimum and the minimum above it.
+fn nearest(pieces: &[(f32, f32)], target: f32) -> Option<f32> {
+    pieces
+        .iter()
+        .map(|&(lower, upper)| target.clamp(lower, upper))
+        .min_by(|a, b| (a - target).abs().total_cmp(&(b - target).abs()))
 }
 
 /// `sizes` with the panel before `handle` resized toward `target` and the
-/// panel after it absorbing the difference, both clamped to their limits.
-fn resize_pair(sizes: &[f32], handle: usize, target: f32, limits: &[(f32, f32)]) -> Vec<f32> {
+/// panel after it absorbing the difference, both inside their limits.
+fn resize_pair(sizes: &[f32], handle: usize, target: f32, limits: &[Limit]) -> Vec<f32> {
     let mut next = sizes.to_vec();
-    let Some((lower, upper)) = pair_range(sizes, handle, limits) else {
+    let Some(first) = nearest(&pair_pieces(sizes, handle, limits), target) else {
         return next;
     };
     let total = sizes[handle] + sizes[handle + 1];
-    let first = target.clamp(lower, upper);
     next[handle] = first;
     next[handle + 1] = total - first;
     next
+}
+
+/// [`resize_pair`] for a key: a step that the nearest allowed size would
+/// swallow (a collapsed panel's arrow toward its minimum, or a panel at its
+/// minimum stepping toward its collapsed size) moves on to the next allowed
+/// size in the key's direction instead.
+fn step_pair(sizes: &[f32], handle: usize, target: f32, limits: &[Limit]) -> Vec<f32> {
+    let current = sizes[handle];
+    let mut next = resize_pair(sizes, handle, target, limits);
+    let pieces = pair_pieces(sizes, handle, limits);
+    let jump = if target > current + EPSILON && next[handle] <= current + EPSILON {
+        pieces
+            .iter()
+            .map(|p| p.0)
+            .filter(|lower| *lower > current + EPSILON)
+            .reduce(f32::min)
+    } else if target < current - EPSILON && next[handle] >= current - EPSILON {
+        pieces
+            .iter()
+            .map(|p| p.1)
+            .filter(|upper| *upper < current - EPSILON)
+            .reduce(f32::max)
+    } else {
+        None
+    };
+    if let Some(first) = jump {
+        let total = sizes[handle] + sizes[handle + 1];
+        next[handle] = first;
+        next[handle + 1] = total - first;
+    }
+    next
+}
+
+/// Enter on handle `handle`: collapse the panel before it (or, when only
+/// that one is collapsible, the panel after it), or restore it to its size
+/// before it collapsed (its minimum when it started collapsed). `None` when
+/// neither panel is collapsible.
+fn toggle_collapse(
+    sizes: &[f32],
+    handle: usize,
+    limits: &[Limit],
+    restore: &[Option<f32>],
+) -> Option<Vec<f32>> {
+    let panel = if limits[handle].collapsed.is_some() {
+        handle
+    } else if limits[handle + 1].collapsed.is_some() {
+        handle + 1
+    } else {
+        return None;
+    };
+    let limit = limits[panel];
+    let collapsed = limit.collapsed?;
+    let size = if limit.is_collapsed(sizes[panel]) {
+        restore
+            .get(panel)
+            .copied()
+            .flatten()
+            .unwrap_or(limit.min)
+            .max(limit.min)
+    } else {
+        collapsed
+    };
+    let total = sizes[handle] + sizes[handle + 1];
+    let first = if panel == handle { size } else { total - size };
+    Some(resize_pair(sizes, handle, first, limits))
 }
 
 /// A drag in progress: which handle, the pointer's axis coordinate at the
@@ -320,8 +544,11 @@ struct Drag {
 struct GroupState {
     store: gpui::Entity<Vec<f32>>,
     controlled: bool,
-    limits: Rc<Vec<(f32, f32)>>,
+    limits: Rc<Vec<Limit>>,
+    /// Each panel's size before it last collapsed, for Enter to restore.
+    restore: gpui::Entity<Vec<Option<f32>>>,
     on_resize: Option<ResizeCallback>,
+    on_resize_end: Option<ResizeCallback>,
 }
 
 impl GroupState {
@@ -337,6 +564,26 @@ impl GroupState {
         {
             return false;
         }
+        // Remember what a panel measured before it collapsed.
+        let collapsing: Vec<(usize, f32)> = now
+            .iter()
+            .zip(&next)
+            .zip(self.limits.iter())
+            .enumerate()
+            .filter(|(_, ((was, is), limit))| {
+                !limit.is_collapsed(**was) && limit.is_collapsed(**is)
+            })
+            .map(|(ix, ((was, _), _))| (ix, *was))
+            .collect();
+        if !collapsing.is_empty() {
+            self.restore.update(cx, |restore, _| {
+                for (ix, size) in collapsing {
+                    if let Some(slot) = restore.get_mut(ix) {
+                        *slot = Some(size);
+                    }
+                }
+            });
+        }
         if !self.controlled {
             self.store.update(cx, |sizes, cx| {
                 sizes.clone_from(&next);
@@ -347,6 +594,12 @@ impl GroupState {
             cb(&next, window, cx);
         }
         true
+    }
+
+    fn resize_ended(&self, sizes: &[f32], window: &mut Window, cx: &mut App) {
+        if let Some(cb) = &self.on_resize_end {
+            cb(sizes, window, cx);
+        }
     }
 }
 
@@ -364,9 +617,30 @@ impl RenderOnce for ResizablePanelGroup {
         let selector = selector_base(&base);
         let count = self.panels.len();
         let horizontal = self.orientation == Orientation::Horizontal;
-        let limits: Rc<Vec<(f32, f32)>> =
-            Rc::new(self.panels.iter().map(ResizablePanel::limits).collect());
-        let defaults = default_sizes(&self.panels);
+        let group_bounds = window
+            .use_keyed_state(element_id::scoped(&base, "bounds"), cx, |_, _| {
+                Rc::new(Cell::new(None::<Bounds<Pixels>>))
+            })
+            .read(cx)
+            .clone();
+        let handle_total = f32::from(RESIZABLE_HANDLE_SIZE) * count.saturating_sub(1) as f32;
+        // Pixel limits need the space the panels share, which the last frame
+        // measured (none before the first layout).
+        let available = group_bounds.get().map(|bounds| {
+            f32::from(if horizontal {
+                bounds.size.width
+            } else {
+                bounds.size.height
+            }) - handle_total
+        });
+        let has_pixel_limits = self.panels.iter().any(ResizablePanel::has_pixel_limits);
+        let limits: Rc<Vec<Limit>> = Rc::new(
+            self.panels
+                .iter()
+                .map(|panel| panel.limits(available))
+                .collect(),
+        );
+        let defaults = default_sizes(&self.panels, &limits);
 
         let store = window.use_keyed_state(element_id::scoped(&base, "sizes"), cx, {
             let defaults = defaults.clone();
@@ -399,12 +673,12 @@ impl RenderOnce for ResizablePanelGroup {
         {
             drag.update(cx, |value, _| *value = None);
         }
-        let group_bounds = window
-            .use_keyed_state(element_id::scoped(&base, "bounds"), cx, |_, _| {
-                Rc::new(Cell::new(None::<Bounds<Pixels>>))
-            })
-            .read(cx)
-            .clone();
+        let restore = window.use_keyed_state(element_id::scoped(&base, "restore"), cx, |_, _| {
+            Vec::<Option<f32>>::new()
+        });
+        if restore.read(cx).len() != count {
+            restore.update(cx, |restore, _| *restore = vec![None; count]);
+        }
         let handles: Vec<gpui::FocusHandle> = (0..count.saturating_sub(1))
             .map(|ix| {
                 window
@@ -423,7 +697,9 @@ impl RenderOnce for ResizablePanelGroup {
             store,
             controlled,
             limits: limits.clone(),
+            restore,
             on_resize: self.on_resize.clone(),
+            on_resize_end: self.on_resize_end.clone(),
         };
         let dragging = drag.read(cx).as_ref().map(|d| d.handle);
 
@@ -589,118 +865,146 @@ impl RenderOnce for ResizablePanelGroup {
                     };
                     let delta = if m.shift { step * 4. } else { step };
                     let current = key_sizes[ix];
-                    let target = match event.keystroke.key.as_str() {
-                        k if k == decrease => current - delta,
-                        k if k == increase => current + delta,
-                        "home" if !m.shift => f32::MIN,
-                        "end" if !m.shift => f32::MAX,
+                    let next = match event.keystroke.key.as_str() {
+                        k if k == decrease => {
+                            step_pair(&key_sizes, ix, current - delta, &keys.limits)
+                        }
+                        k if k == increase => {
+                            step_pair(&key_sizes, ix, current + delta, &keys.limits)
+                        }
+                        // The pair's extremes, a collapsed size included.
+                        "home" if !m.shift => resize_pair(&key_sizes, ix, -1., &keys.limits),
+                        "end" if !m.shift => resize_pair(&key_sizes, ix, 101., &keys.limits),
+                        "enter" if !m.shift => {
+                            let Some(next) = toggle_collapse(
+                                &key_sizes,
+                                ix,
+                                &keys.limits,
+                                keys.restore.read(cx),
+                            ) else {
+                                return;
+                            };
+                            next
+                        }
                         _ => return,
                     };
-                    let next = resize_pair(&key_sizes, ix, target, &keys.limits);
                     crate::util::set_focus_visible(true, cx);
-                    keys.apply(&key_sizes, next, window, cx);
+                    if keys.apply(&key_sizes, next.clone(), window, cx) {
+                        keys.resize_ended(&next, window, cx);
+                    }
                     cx.stop_propagation();
                 });
             }
             root = root.child(handle_el);
         }
 
+        // The group measures itself for the pixel limits and the drag. A
+        // length change re-renders once, so pixel limits follow a resize.
+        let probe = group_bounds.clone();
+        let measure = move |bounds: Bounds<Pixels>, window: &mut Window, _: &mut App| {
+            let changed = probe.get().map(|b| b.size) != Some(bounds.size);
+            probe.set(Some(bounds));
+            if changed && has_pixel_limits {
+                window.request_animation_frame();
+            }
+        };
         // The drag outlives the handle's hitbox, so paint-time window
         // listeners own the move and the release until it ends.
-        if !self.is_disabled && count > 1 {
-            let handle_total = f32::from(RESIZABLE_HANDLE_SIZE) * (count - 1) as f32;
-            let probe = group_bounds.clone();
+        if self.is_disabled || count <= 1 {
+            root = root.child(gpui::canvas(measure, |_, _, _, _| {}).absolute().inset_0());
+        } else {
             let move_drag = drag.clone();
             let up_drag = drag;
+            let up_state = state.clone();
             let move_state = state;
             root = root.child(
-                gpui::canvas(
-                    move |bounds, _, _| probe.set(Some(bounds)),
-                    move |_, _, window, _| {
-                        let bounds = group_bounds.clone();
-                        let held = move_drag.clone();
-                        let state = move_state.clone();
-                        window.on_mouse_event(
-                            move |event: &gpui::MouseMoveEvent, phase, window, cx| {
-                                if phase != gpui::DispatchPhase::Capture {
-                                    return;
-                                }
-                                let Some(drag) = held.read(cx).clone() else {
-                                    return;
-                                };
-                                if event.pressed_button != Some(MouseButton::Left) {
-                                    // The release happened where no listener
-                                    // saw it (outside the window).
-                                    held.update(cx, |value, cx| {
-                                        *value = None;
-                                        cx.notify();
-                                    });
-                                    return;
-                                }
-                                // The panels changed under the drag (see
-                                // render): a handle that no longer exists
-                                // ends it.
-                                if drag.handle + 1 >= state.limits.len()
-                                    || drag.start.len() != state.limits.len()
-                                {
-                                    held.update(cx, |value, cx| {
-                                        *value = None;
-                                        cx.notify();
-                                    });
-                                    return;
-                                }
-                                let Some(bounds) = bounds.get() else {
-                                    return;
-                                };
-                                let length = f32::from(if horizontal {
-                                    bounds.size.width
-                                } else {
-                                    bounds.size.height
-                                });
-                                let available = length - handle_total;
-                                if available <= 0. {
-                                    return;
-                                }
-                                let delta = (axis(event.position) - drag.origin) / available * 100.;
-                                let target = drag.start[drag.handle] + delta;
-                                let next =
-                                    resize_pair(&drag.start, drag.handle, target, &state.limits);
-                                // Compare with what is current now, not with
-                                // what the last frame rendered: several moves
-                                // can land between two frames. The store is
-                                // current for an uncontrolled group; a
-                                // controlled one has only what it reported.
-                                let now = if state.controlled {
-                                    drag.last
-                                } else {
-                                    state.store.read(cx).clone()
-                                };
-                                if state.apply(&now, next.clone(), window, cx) {
-                                    held.update(cx, |value, _| {
-                                        if let Some(value) = value {
-                                            value.last = next;
-                                        }
-                                    });
-                                }
-                            },
-                        );
-                        let held = up_drag.clone();
-                        window.on_mouse_event(
-                            move |event: &gpui::MouseUpEvent, phase, _window, cx| {
-                                if phase != gpui::DispatchPhase::Capture
-                                    || event.button != MouseButton::Left
-                                    || held.read(cx).is_none()
-                                {
-                                    return;
-                                }
+                gpui::canvas(measure, move |_, _, window, _| {
+                    let bounds = group_bounds.clone();
+                    let held = move_drag.clone();
+                    let state = move_state.clone();
+                    window.on_mouse_event(
+                        move |event: &gpui::MouseMoveEvent, phase, window, cx| {
+                            if phase != gpui::DispatchPhase::Capture {
+                                return;
+                            }
+                            let Some(drag) = held.read(cx).clone() else {
+                                return;
+                            };
+                            if event.pressed_button != Some(MouseButton::Left) {
+                                // The release happened where no listener
+                                // saw it (outside the window).
                                 held.update(cx, |value, cx| {
                                     *value = None;
                                     cx.notify();
                                 });
-                            },
-                        );
-                    },
-                )
+                                return;
+                            }
+                            // The panels changed under the drag (see
+                            // render): a handle that no longer exists
+                            // ends it.
+                            if drag.handle + 1 >= state.limits.len()
+                                || drag.start.len() != state.limits.len()
+                            {
+                                held.update(cx, |value, cx| {
+                                    *value = None;
+                                    cx.notify();
+                                });
+                                return;
+                            }
+                            let Some(bounds) = bounds.get() else {
+                                return;
+                            };
+                            let length = f32::from(if horizontal {
+                                bounds.size.width
+                            } else {
+                                bounds.size.height
+                            });
+                            let available = length - handle_total;
+                            if available <= 0. {
+                                return;
+                            }
+                            let delta = (axis(event.position) - drag.origin) / available * 100.;
+                            let target = drag.start[drag.handle] + delta;
+                            let next = resize_pair(&drag.start, drag.handle, target, &state.limits);
+                            // Compare with what is current now, not with
+                            // what the last frame rendered: several moves
+                            // can land between two frames. The store is
+                            // current for an uncontrolled group; a
+                            // controlled one has only what it reported.
+                            let now = if state.controlled {
+                                drag.last
+                            } else {
+                                state.store.read(cx).clone()
+                            };
+                            if state.apply(&now, next.clone(), window, cx) {
+                                held.update(cx, |value, _| {
+                                    if let Some(value) = value {
+                                        value.last = next;
+                                    }
+                                });
+                            }
+                        },
+                    );
+                    let held = up_drag.clone();
+                    let state = up_state.clone();
+                    window.on_mouse_event(move |event: &gpui::MouseUpEvent, phase, window, cx| {
+                        if phase != gpui::DispatchPhase::Capture
+                            || event.button != MouseButton::Left
+                        {
+                            return;
+                        }
+                        let Some(drag) = held.read(cx).clone() else {
+                            return;
+                        };
+                        held.update(cx, |value, cx| {
+                            *value = None;
+                            cx.notify();
+                        });
+                        if drag.last != drag.start {
+                            state.resize_ended(&drag.last, window, cx);
+                        }
+                    });
+                })
                 .absolute()
                 .inset_0(),
             );
@@ -723,26 +1027,38 @@ mod tests {
 
     #[test]
     fn defaults_share_the_remainder_and_scale_to_100() {
+        let defaults = |panels: &[ResizablePanel]| {
+            let limits: Vec<Limit> = panels.iter().map(|p| p.limits(None)).collect();
+            default_sizes(panels, &limits)
+        };
         assert_eq!(
-            default_sizes(&[panel(Some(20.)), panel(None), panel(None)]),
+            defaults(&[panel(Some(20.)), panel(None), panel(None)]),
             vec![20., 40., 40.]
         );
         assert_eq!(
-            default_sizes(&[panel(Some(30.)), panel(Some(10.))]),
+            defaults(&[panel(Some(30.)), panel(Some(10.))]),
             vec![75., 25.]
         );
-        assert_eq!(default_sizes(&[panel(None), panel(None)]), vec![50., 50.]);
+        assert_eq!(defaults(&[panel(None), panel(None)]), vec![50., 50.]);
     }
 
     #[test]
     fn a_pair_resize_respects_both_panels_limits() {
-        let limits = [(10., 60.), (0., 100.), (0., 100.)];
+        let limits = [
+            Limit::range(10., 60.),
+            Limit::range(0., 100.),
+            Limit::range(0., 100.),
+        ];
         let sizes = [40., 40., 20.];
         // The first panel's own max.
         assert_eq!(resize_pair(&sizes, 0, 70., &limits), vec![60., 20., 20.]);
         // The second panel's min caps the first at 80 - 30 = 50, under its
         // own max.
-        let tight = [(10., 90.), (30., 100.), (0., 100.)];
+        let tight = [
+            Limit::range(10., 90.),
+            Limit::range(30., 100.),
+            Limit::range(0., 100.),
+        ];
         assert_eq!(resize_pair(&sizes, 0, 70., &tight), vec![50., 30., 20.]);
         // The first panel's min.
         assert_eq!(resize_pair(&sizes, 0, -5., &limits), vec![10., 70., 20.]);
@@ -752,27 +1068,129 @@ mod tests {
 
     #[test]
     fn normalize_scales_splits_and_clamps() {
-        let free = [(0., 100.), (0., 100.)];
+        let free = [Limit::range(0., 100.), Limit::range(0., 100.)];
         assert_eq!(normalize(&[1., 3.], &free), vec![25., 75.]);
         assert_eq!(normalize(&[0., 0.], &free), vec![50., 50.]);
         assert_eq!(normalize(&[f32::NAN, -5.], &free), vec![50., 50.]);
         assert_eq!(normalize(&[f32::INFINITY, 1.], &free), vec![0., 100.]);
         // Below a minimum: raised to it, the others give up the difference
         // in proportion to their room.
-        let limits = [(20., 100.), (0., 100.), (0., 100.)];
+        let limits = [
+            Limit::range(20., 100.),
+            Limit::range(0., 100.),
+            Limit::range(0., 100.),
+        ];
         assert_eq!(normalize(&[10., 45., 45.], &limits), vec![20., 40., 40.]);
         // Over a maximum: the others take the excess.
-        let capped = [(0., 50.), (0., 100.)];
+        let capped = [Limit::range(0., 50.), Limit::range(0., 100.)];
         assert_eq!(normalize(&[80., 20.], &capped), vec![50., 50.]);
         // Unsatisfiable limits leave the scaled sizes alone.
-        let impossible = [(70., 100.), (70., 100.)];
+        let impossible = [Limit::range(70., 100.), Limit::range(70., 100.)];
         assert_eq!(normalize(&[50., 50.], &impossible), vec![50., 50.]);
     }
 
     #[test]
     fn contradictory_limits_leave_the_sizes_alone() {
-        let limits = [(70., 100.), (70., 100.)];
+        let limits = [Limit::range(70., 100.), Limit::range(70., 100.)];
         assert_eq!(resize_pair(&[50., 50.], 0, 60., &limits), vec![50., 50.]);
         assert!(pair_range(&[50., 50.], 0, &limits).is_none());
+    }
+
+    fn collapsible(min: f32) -> Limit {
+        Limit {
+            min,
+            max: 100.,
+            collapsed: Some(0.),
+        }
+    }
+
+    #[test]
+    fn pixel_limits_convert_against_the_measured_length() {
+        let panel = ResizablePanel::new()
+            .min_size(10.)
+            .min_size_px(px(100.))
+            .max_size(90.)
+            .max_size_px(px(300.));
+        let percent = |limit: Limit| {
+            assert_eq!(limit.collapsed, None);
+            (
+                (limit.min * 1000.).round() / 1000.,
+                (limit.max * 1000.).round() / 1000.,
+            )
+        };
+        // Unmeasured: the percentages alone.
+        assert_eq!(percent(panel.limits(None)), (10., 90.));
+        // 500px available: 100px is 20% (stricter than 10%), 300px is 60%.
+        assert_eq!(percent(panel.limits(Some(500.))), (20., 60.));
+        // 2000px available: the 10% minimum is stricter than 5%.
+        assert_eq!(percent(panel.limits(Some(2000.))), (10., 15.));
+        // A pixel maximum under the minimum yields to it.
+        let squeezed = ResizablePanel::new().min_size(50.).max_size_px(px(10.));
+        assert_eq!(percent(squeezed.limits(Some(100.))), (50., 50.));
+    }
+
+    #[test]
+    fn a_collapsible_pair_snaps_at_halfway_to_the_minimum() {
+        let limits = [collapsible(20.), Limit::range(0., 100.)];
+        let sizes = [30., 70.];
+        // Between the collapsed size and the minimum: the nearer end.
+        assert_eq!(resize_pair(&sizes, 0, 11., &limits), vec![20., 80.]);
+        assert_eq!(resize_pair(&sizes, 0, 9., &limits), vec![0., 100.]);
+        assert_eq!(pair_range(&sizes, 0, &limits), Some((0., 100.)));
+        // The panel after the handle collapses the same way.
+        let after = [Limit::range(0., 100.), collapsible(20.)];
+        assert_eq!(resize_pair(&sizes, 0, 95., &after), vec![100., 0.]);
+        assert_eq!(resize_pair(&sizes, 0, 88., &after), vec![80., 20.]);
+    }
+
+    #[test]
+    fn a_step_crosses_the_collapse_gap() {
+        let limits = [collapsible(20.), Limit::range(0., 100.)];
+        // From the minimum, a 5% step down would snap back: it collapses.
+        assert_eq!(step_pair(&[20., 80.], 0, 15., &limits), vec![0., 100.]);
+        // From collapsed, a 5% step up would snap back: it expands to the
+        // minimum.
+        assert_eq!(step_pair(&[0., 100.], 0, 5., &limits), vec![20., 80.]);
+        // Ordinary steps are plain resizes.
+        assert_eq!(step_pair(&[30., 70.], 0, 35., &limits), vec![35., 65.]);
+    }
+
+    #[test]
+    fn enter_collapses_and_restores() {
+        let limits = [collapsible(20.), Limit::range(0., 100.)];
+        let restore = [Some(35.), None];
+        assert_eq!(
+            toggle_collapse(&[40., 60.], 0, &limits, &restore),
+            Some(vec![0., 100.])
+        );
+        assert_eq!(
+            toggle_collapse(&[0., 100.], 0, &limits, &restore),
+            Some(vec![35., 65.])
+        );
+        // Started collapsed with nothing to restore: the minimum.
+        assert_eq!(
+            toggle_collapse(&[0., 100.], 0, &limits, &[None, None]),
+            Some(vec![20., 80.])
+        );
+        // Only the panel after is collapsible: Enter collapses that one.
+        let after = [Limit::range(0., 100.), collapsible(20.)];
+        assert_eq!(
+            toggle_collapse(&[40., 60.], 0, &after, &[None, None]),
+            Some(vec![100., 0.])
+        );
+        let neither = [Limit::range(0., 100.), Limit::range(0., 100.)];
+        assert_eq!(
+            toggle_collapse(&[40., 60.], 0, &neither, &[None, None]),
+            None
+        );
+    }
+
+    #[test]
+    fn normalize_keeps_a_collapsed_panel_collapsed() {
+        let limits = [collapsible(20.), Limit::range(0., 100.)];
+        assert_eq!(normalize(&[0., 100.], &limits), vec![0., 100.]);
+        // Under halfway rounds down to collapsed, over it up to the minimum.
+        assert_eq!(normalize(&[5., 95.], &limits), vec![0., 100.]);
+        assert_eq!(normalize(&[15., 85.], &limits), vec![20., 80.]);
     }
 }

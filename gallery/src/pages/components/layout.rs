@@ -362,6 +362,43 @@ impl Gallery {
                         para(&format!("Sidebar and main, in percent: {}", self.resizable_sizes), cx),
                     ]), cx),
                 ),
+                (
+                    "Collapsible Panels", "HeroGPUI extension: the sidebar is at least 120px wide whatever the group's width (`min_size_px`) and is `collapsible`. Drag its handle past halfway to its minimum to collapse it and back to expand it, or focus the handle and press Enter to collapse and restore it. `on_resize_end` reports once per gesture, when a drag is released or a key lands, which is where a layout would be saved.",
+                    specimen_body("sep-collapsible", col(vec![
+                        gpui::div()
+                            .w(px(560.))
+                            .h(px(200.))
+                            .rounded(px(12.))
+                            .border_1()
+                            .border_color(cx.colors().border)
+                            .overflow_hidden()
+                            .child(
+                                h::ResizablePanelGroup::new("sep-collapsible-group")
+                                    .panel(
+                                        h::ResizablePanel::new()
+                                            .default_size(25.)
+                                            .min_size_px(px(120.))
+                                            .max_size(50.)
+                                            .collapsible(true)
+                                            .child(resizable_pane("Sidebar", cx)),
+                                    )
+                                    .panel(h::ResizablePanel::new().child(resizable_pane("Main", cx)))
+                                    .on_resize_end({
+                                        let view = cx.entity().downgrade();
+                                        move |sizes, _, cx| {
+                                            let text: Vec<String> = sizes.iter().map(|v| format!("{v:.0}")).collect();
+                                            view.update(cx, |this, cx| {
+                                                this.resizable_settled = SharedString::from(text.join(", "));
+                                                cx.notify();
+                                            })
+                                            .ok();
+                                        }
+                                    }),
+                            )
+                            .into_any_element(),
+                        para(&format!("Last settled layout, in percent: {}", self.resizable_settled), cx),
+                    ]), cx),
+                ),
             ],
             cx,
         )

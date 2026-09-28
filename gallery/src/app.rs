@@ -90,6 +90,8 @@ pub struct Gallery {
     pub menu_bar_last: SharedString,
     /// Last sizes reported by the ResizablePanelGroup extension demo.
     pub resizable_sizes: SharedString,
+    /// Sizes the collapsible ResizablePanelGroup demo last settled on.
+    pub resizable_settled: SharedString,
     /// Selection of the TreeView extension demo.
     pub tree_selected: SharedString,
     /// Scroll state of the VirtualList extension demo.
@@ -392,6 +394,7 @@ Enter inserts a newline here, and a long paragraph wraps inside the field instea
             context_menu_last: SharedString::from("none yet"),
             menu_bar_last: SharedString::from("none yet"),
             resizable_sizes: SharedString::from("30, 70"),
+            resizable_settled: SharedString::from("25, 75"),
             tree_selected: SharedString::from("nothing"),
             virtual_list: h::VirtualListHandle::new(1000),
             dropdown_last_basic: SharedString::from("none yet"),

@@ -858,7 +858,17 @@ out of `reference_metadata`.
   when they sum to zero) and moved inside the panels' min/max. A handle drag
   (pointer captured) or the arrow keys on a focused handle (Left/Right, or
   Up/Down when vertical; Shift is 4x the step; Home/End to the limits)
-  resize only the two adjacent panels, clamped to their min/max. Each handle
+  resize only the two adjacent panels, clamped to their min/max. Pixel
+  limits `.min_size_px(px)` / `.max_size_px(px)` combine with the percentages
+  (the stricter wins) against the group's measured length, from the frame
+  after the first layout, for defaults, drags, keys and window resizes.
+  `.collapsible(true).collapsed_size(pct)` (default 0) lets a panel sit
+  below its minimum at the collapsed size: a drag past halfway between the
+  two collapses or expands it, an arrow key crosses the gap, Home/End reach
+  it, and Enter on a handle collapses the panel before it (or the one after,
+  when only that is collapsible) and restores its pre-collapse size.
+  `.on_resize_end(|sizes, w, cx| ..)` fires once per gesture: on the release
+  of a drag that changed the sizes and after each key that did. Each handle
   is a tab stop reporting `Splitter` with orientation and a value range.
 - **TreeView** — `TreeView::new(id, vec![TreeItem::new(key, label)
   .children([..]).icon(path).is_disabled(bool), ..]).selection_mode(

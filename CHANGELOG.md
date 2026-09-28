@@ -29,6 +29,18 @@ version covers `herogpui`, `herogpui-core`, `herogpui-theme`,
   `aria-posinset`/`aria-setsize` among its siblings, as React Aria's
   `useGridListItem` does for tree rows. A "Large Tree View" gallery section
   on the List Box page shows two thousand open rows.
+- `ResizablePanel`: pixel limits `min_size_px` / `max_size_px`, combined
+  with the percentage limits (the stricter wins) against the group's
+  measured length for the initial layout, drags, keys and window resizes;
+  `collapsible` and `collapsed_size` (default 0), so a panel can sit below
+  its minimum at its collapsed size — a drag past halfway collapses or
+  expands it, an arrow key crosses the gap, Home/End reach it, and Enter on
+  a handle collapses the panel before it (or after it, when only that one
+  is collapsible) and restores its pre-collapse size, per the WAI-ARIA
+  window splitter pattern. `ResizablePanelGroup::on_resize_end` fires once
+  per gesture: on the release of a drag that changed the sizes, and after
+  each key that did. A "Collapsible Panels" gallery section on the
+  Separator page shows them.
 
 ### Changed
 
