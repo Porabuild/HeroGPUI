@@ -357,6 +357,58 @@ impl Painted {
             .collect()
     }
 
+    /// The offset focus ring's gap bands: the overlay ring
+    /// (`util::focus_ring_overlay` with `offset`) paints its accent band as a
+    /// rasterised SVG the scene does not expose, but the `ring-offset` band
+    /// between it and the control is a quad — a `gap`-wide border in the page
+    /// `background`, rounded to the control's radius plus `gap`. Finding one
+    /// proves the overlay ring is up; its content mask shows whether a
+    /// clipping ancestor would cut it.
+    ///
+    /// gpui paints one border as several quads over the same bounds, so the
+    /// result holds one quad per distinct band.
+    pub fn ring_gaps(&self, background: gpui::Hsla, gap: f32) -> Vec<&gpui::Quad> {
+        let mut seen: Vec<gpui::Bounds<gpui::ScaledPixels>> = Vec::new();
+        self.quads
+            .iter()
+            .filter(|q| {
+                q.border_color == background
+                    && self.borders(q).iter().all(|w| (w - gap).abs() < 0.05)
+            })
+            .filter(|q| {
+                let fresh = !seen.contains(&q.bounds);
+                if fresh {
+                    seen.push(q.bounds);
+                }
+                fresh
+            })
+            .collect()
+    }
+
+    /// Whether a clipping ancestor cuts `band`, a quad gpui paints as several
+    /// slices over the same bounds (a rounded border): each slice carries its
+    /// own sub-mask, so the band is whole when the union of its slices'
+    /// masks covers its bounds.
+    pub fn band_is_clipped(&self, band: &gpui::Quad) -> bool {
+        let slices = self
+            .quads
+            .iter()
+            .filter(|q| q.bounds == band.bounds && q.border_color == band.border_color);
+        let (mut x0, mut y0, mut x1, mut y1) = (f32::MAX, f32::MAX, f32::MIN, f32::MIN);
+        for q in slices {
+            let m = self.mask(q);
+            x0 = x0.min(f32::from(m.origin.x));
+            y0 = y0.min(f32::from(m.origin.y));
+            x1 = x1.max(f32::from(m.origin.x + m.size.width));
+            y1 = y1.max(f32::from(m.origin.y + m.size.height));
+        }
+        let union = gpui::Bounds {
+            origin: point(px(x0), px(y0)),
+            size: gpui::size(px(x1 - x0), px(y1 - y0)),
+        };
+        !contains(union, self.bounds(band))
+    }
+
     /// The quads filled with exactly `color`.
     pub fn filled(&self, color: gpui::Hsla) -> Vec<&gpui::Quad> {
         self.quads
