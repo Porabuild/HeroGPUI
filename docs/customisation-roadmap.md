@@ -502,9 +502,9 @@ to five days, L over a week.
 |---|---|---|---|---|
 | P1 | Release hygiene: `cargo semver-checks` in CI and the release, an MSRV (1.98) job, a `--no-default-features` job | Public-API breaks in a minor or patch release are caught by review only | S | 0.12.1 |
 | P1 | Stale CI and agent comments ("70 test binaries" in `ci.yml` and `rust-env`, now 110+; "Git GPUI is not registry-publishable" in `ci.yml`; "stable wasm32 build" in `docs/agents/workflow.md`) | Contradictory guidance misleads contributors and agents | S | 0.12.1 |
-| P1 | Website command palette a11y (`combobox`/`listbox`/`aria-activedescendant`) and search over API items | Keyboard selection is silent to screen readers; Rust users search by builder name | M | 0.12.1 |
-| P1 | Website SEO and links: canonical URLs, sitemap, robots, per-page OG metadata, docs.rs and source links on component pages | Discoverability and a path from the site to rustdoc | M | 0.12.1 |
-| P1 | Wasm cold load: `wasm-opt` pass and a lazily mounted hero embed | The ~19 MB artifact is the slowest thing on the site | S | 0.12.1 |
+| P1 | ~~Website command palette a11y (`combobox`/`listbox`/`aria-activedescendant`) and search over API items~~ Done in 0.13: ARIA combobox pattern; builders and types indexed from `reference.json` | Keyboard selection is silent to screen readers; Rust users search by builder name | M | 0.12.1 |
+| P1 | ~~Website SEO and links: canonical URLs, sitemap, robots, per-page OG metadata, docs.rs and source links on component pages~~ Done in 0.13 (the parent zone's `robots.txt` should list the zone sitemap; see `web/DEPLOYMENT.md`) | Discoverability and a path from the site to rustdoc | M | 0.12.1 |
+| P1 | Wasm cold load: `wasm-opt` pass and ~~a lazily mounted hero embed~~ (the hero already mounts on demand; 0.13 adds an intent prefetch of the versioned artifact) | The ~19 MB artifact is the slowest thing on the site | S | 0.12.1 |
 | P1 | Cross-platform lint gate: port `.shots/lint.ps1` to bash (like `run-tests.sh`) and make `demo_audit` runnable offline | The documented gate cannot run on macOS or Linux without pwsh | M | 0.13 |
 | P2 | Remaining ~116 source-text assertions (overlay panels, fields, wiring) to painted-scene or behaviour tests | They pin source shape and block refactoring the large render functions | L | 0.13 |
 | P2 | VirtualList uniform mode for the fixed `row_height` paths of ListBox, Table and ComboBox (see item 2 above) | Removes the last `uniform_list` split without losing centred scrolling, paging or load-more | M | 0.13 |
@@ -515,7 +515,7 @@ to five days, L over a week.
 | P2 | `#[must_use]` on builders (none today) and a `missing_docs` ratchet | A dropped builder does nothing, silently; public docs have gaps | S / M | 0.13 |
 | P2 | i18n: more locales, the hard-coded NumberField/ColorPicker/DateField strings, non-Latin web font subsets | Localisation is incomplete for real users | M | 0.13 |
 | P2 | Theme hot reload (`watch_dir`; `ThemeRegistry` has `load_dir` only) | Faster theming workflow | S–M | 0.13 |
-| P2 | Website hardening: CSP and `frame-ancestors`, remove the unused `web/public/shots/` images, PR preview deploys | Security headers and deploy size | M | 0.13 |
+| P2 | ~~Website hardening: CSP and `frame-ancestors`, remove the unused `web/public/shots/` images, PR preview deploys~~ Done in 0.13 (previews were already on through Vercel's Git integration) | Security headers and deploy size | M | 0.13 |
 | P3 | Stop committing the wasm artifact; build it in CI and publish it with the site | Repository weight grows ~19 MB per gallery change | L | 0.14 |
 | P3 | `Styled` on components (item 1 above), after the per-part ownership rules of Phase 0.1 | Largest API change and semver risk; needs part ownership first | L | 0.14 |
 | P3 | Split the largest `render` functions (`table.rs` and others), merge the 110+ test binaries into a few suites | Review cost and link time | L | 0.14 |

@@ -8,6 +8,28 @@ version covers `herogpui`, `herogpui-core`, `herogpui-theme`,
 
 ## [Unreleased]
 
+### Changed
+
+- Website: the search palette follows the ARIA combobox pattern (a
+  `combobox` input with `aria-activedescendant` over a `listbox` of
+  `option`s, and a polite result count), and it indexes each component's
+  Rust builders and types from the generated reference data, so
+  `selection_mode` or `ListBoxItem` finds the component and opens its
+  builder table.
+- Website: every page has its own canonical URL, Open Graph and Twitter
+  title and description; the site serves `sitemap.xml` and `robots.txt`;
+  component pages link their primary type on docs.rs and their source file
+  on GitHub at the release tag.
+- Website: a `Content-Security-Policy` with `frame-ancestors` on every route
+  (the WebAssembly gallery gets `'wasm-unsafe-eval'` and hashes of its inline
+  scripts), and the security headers now also reach the bare `/herogpui`
+  root. The landing specimen starts fetching the artifact on pointer, focus
+  or touch intent instead of on the click. The 82 full-page captures no page
+  showed are no longer published under `web/public/shots/` (the catalog
+  tiles stay; `.shots/` keeps the goldens), and the unused `NativeShot` and
+  `ShotWindow` components are removed. `web/DEPLOYMENT.md` records that pull
+  requests already get Vercel preview deployments.
+
 ## [0.12.0] - 2026-09-28
 
 ### Added
