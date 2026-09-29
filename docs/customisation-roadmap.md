@@ -37,8 +37,8 @@ starting each phase; line numbers are not durable contracts.
   independently incomplete PRs and promising to synchronise them later.
 - `demo_audit.py` unpacks `.shots/heroui-demos-v3.2.6.tar.gz` on a routine run
   and only fetches on `--fetch`. A clean machine stays offline.
-  The current CI test command uses `.shots/run-tests.sh`; the lint script's
-  actual Clippy invocation does not include `--all-features`.
+  The current CI test command uses `.shots/run-tests.sh`; the lint script runs
+  Clippy with the default features and again with `--all-features` (0.13).
 
 ## Principles and decisions
 
@@ -371,16 +371,12 @@ focused tests, discoverable gallery example, accurate reference metadata,
 Do not defer these to a later merge. A batch may have preparatory draft
 branches, but the integration PR must satisfy the complete contract.
 
-When gallery example bodies/descriptions change, rebuild the checked-in wasm
-artifact, then run `pnpm run wasm:manifest`, `pnpm run extract` and
-`pnpm run extract:check` from `web/` before the batch is mergeable. Follow the
-root guide's nightly/wasm-bindgen instructions and never set RUSTFLAGS.
-Do not regenerate manifests against a stale binary merely to make checks pass.
-
-The manifests hash the artifact/glue and example code/descriptions; they do
-not hash every component implementation. Thus `extract:check` alone cannot
-prove the binary implements current Rust internals. Account for source-only
-behavior changes when choosing the artifact rebuild batch as well.
+When gallery example bodies/descriptions or any wasm build input change, run
+`pnpm run wasm:manifest`, `pnpm run extract` and `pnpm run extract:check`
+from `web/` before the batch is mergeable. The wasm artifact is not committed:
+CI builds it from the merged tree and publishes it under the manifest's
+`inputsSha256`, so there is no binary to rebuild by hand and no stale binary
+to regenerate against (`web/DEPLOYMENT.md`, section 6).
 
 ## Verification per change
 
@@ -511,7 +507,7 @@ to five days, L over a week.
 | P1 | ~~Stale CI and agent comments ("70 test binaries" in `ci.yml` and `rust-env`, now 110+; "Git GPUI is not registry-publishable" in `ci.yml`; "stable wasm32 build" in `docs/agents/workflow.md`)~~ **Done (0.13):** fixed with the other stale facts found (deny.toml, RELEASING.md, clippy/toolchain comments); `.shots/stale_docs_audit.py` fails on a reintroduced phrase | Contradictory guidance misleads contributors and agents | S | 0.12.1 |
 | P1 | ~~Website command palette a11y (`combobox`/`listbox`/`aria-activedescendant`) and search over API items~~ Done in 0.13: ARIA combobox pattern; builders and types indexed from `reference.json` | Keyboard selection is silent to screen readers; Rust users search by builder name | M | 0.12.1 |
 | P1 | ~~Website SEO and links: canonical URLs, sitemap, robots, per-page OG metadata, docs.rs and source links on component pages~~ Done in 0.13 (the parent zone's `robots.txt` should list the zone sitemap; see `web/DEPLOYMENT.md`) | Discoverability and a path from the site to rustdoc | M | 0.12.1 |
-| P1 | Wasm cold load: `wasm-opt` pass and ~~a lazily mounted hero embed~~ (the hero already mounts on demand; 0.13 adds an intent prefetch of the versioned artifact) | The ~19 MB artifact is the slowest thing on the site | S | 0.12.1 |
+| P1 | ~~Wasm cold load: `wasm-opt` pass and a lazily mounted hero embed~~ **Done (0.13):** binaryen version_133 `wasm-opt -O1` in `.shots/build-wasm.sh` and CI (-3.6% raw, -0.5% brotli; `-Oz` shrinks raw 10.7% but compresses 3.8% worse, measured in `web/DEPLOYMENT.md` section 6); the hero already mounts on demand, with an intent prefetch of the versioned artifact | The ~19 MB artifact is the slowest thing on the site | S | 0.13 |
 | P1 | ~~Cross-platform lint gate: port `.shots/lint.ps1` to bash (like `run-tests.sh`) and make `demo_audit` runnable offline~~ **Done (0.13):** `.shots/lint.sh` (CI calls it; `lint.ps1` forwards to it); `demo_audit` already ran offline from the checked-in archive since #15, and its self-test now runs in CI | The documented gate cannot run on macOS or Linux without pwsh | M | 0.13 |
 | P2 | Remaining ~116 source-text assertions (overlay panels, fields, wiring) to painted-scene or behaviour tests | They pin source shape and block refactoring the large render functions | L | 0.13 |
 | P2 | VirtualList uniform mode for the fixed `row_height` paths of ListBox, Table and ComboBox (see item 2 above) | Removes the last `uniform_list` split without losing centred scrolling, paging or load-more | M | done (0.13) |
@@ -523,14 +519,14 @@ to five days, L over a week.
 | P2 | i18n: more locales, the hard-coded NumberField/ColorPicker/DateField strings, non-Latin web font subsets | Localisation is incomplete for real users | M | **Done** (0.13): ja-JP, zh-CN, ko-KR, ru-RU; steppers, segments, channels, DatePicker trigger, selected day, Autocomplete clear, Pagination; Noto Sans KR subset and a wider SC pre-reduction. Left: `Table`'s "Loading…" row |
 | P2 | Theme hot reload (`watch_dir`; `ThemeRegistry` has `load_dir` only) | Faster theming workflow | S–M | **Done** (0.13): `watch_themes_dir` behind the `watch` feature (polling, no new dependency); the native gallery watches `HEROGPUI_THEME_DIR` |
 | P2 | ~~Website hardening: CSP and `frame-ancestors`, remove the unused `web/public/shots/` images, PR preview deploys~~ Done in 0.13 (previews were already on through Vercel's Git integration) | Security headers and deploy size | M | 0.13 |
-| P3 | Stop committing the wasm artifact; build it in CI and publish it with the site | Repository weight grows ~19 MB per gallery change | L | 0.14 |
+| P3 | ~~Stop committing the wasm artifact; build it in CI and publish it with the site~~ **Done (0.13):** CI publishes it to the `gallery-artifacts` prerelease keyed by the wasm build-input hash; the Vercel build downloads and verifies the one for its checkout (previews fall back to master's with a banner; production waits, then fails rather than ship a mismatch). No secrets, no manual step; `web/DEPLOYMENT.md` section 6 | Repository weight grows ~19 MB per gallery change | L | 0.13 |
 | P3 | `Styled` on components (item 1 above), after the per-part ownership rules of Phase 0.1 | Largest API change and semver risk; needs part ownership first | L | 0.14 |
 | P3 | Split the largest `render` functions (`table.rs` and others), merge the 110+ test binaries into a few suites | Review cost and link time | L | 0.14 |
 | P3 | Customisation Phases 0.2–6 (theme tokens, field geometry, state colours, sizing, shape, typography) | The largest documented backlog; opt-in and unscheduled | L | 0.14+ |
 | P3 | ~~Opt-in -O1/-O3 (`Cargo.toml` profile) test job on pull requests, by label or path filter~~ **Done (0.13):** `ci:opt-levels` label, or a PR touching build configuration | It is push-only by design, so an optimisation-level regression first shows on master or at tag time | S | 0.13 |
 | P3 | Extensions from the gpui-kit gap list: Sidebar, TitleBar, CommandPalette, HoverCard, Toolbar extras, data-table extras | Desktop-app demand outside HeroUI parity | L | later |
-| P3 | Keyboard ContextMenu anchored at the focused element | Needs GPUI to report focused-element bounds | S once upstream lands | later |
-| P3 | Upstream GPUI work: IME-mirror resync after paste, the retired patches, the `block` 0.1.6 future-incompatibility warning every macOS build prints (chain and requested fix in [`docs/upstream/gpui-block-future-incompat.md`](upstream/gpui-block-future-incompat.md); one path is HeroGPUI's own `locale_config` dependency); multithreaded wasm needs a COOP/COEP deployment | External dependencies | M each | later |
+| P3 | Keyboard ContextMenu anchored at the focused element | gpui-pre 0.3.5 has no public focused-element bounds, but a HeroGPUI-side design works with public APIs (focusable components record their bounds in a `canvas()` prepaint keyed by focus handle): written up for implementation in [`docs/upstream/prs/context-menu-focus-anchor.md`](upstream/prs/context-menu-focus-anchor.md) | M (82 call sites) | 0.14 |
+| P3 | Upstream GPUI work: IME-mirror resync after paste, the retired patches, the `block` 0.1.6 future-incompatibility warning every macOS build prints (chain and requested fix in [`docs/upstream/gpui-block-future-incompat.md`](upstream/gpui-block-future-incompat.md)); multithreaded wasm. **0.13:** ready-to-submit patches and PR texts for the IME resync and the retired patches against zed@d89e9c2 in [`docs/upstream/prs/`](upstream/prs/README.md) (submission needs a maintainer with a Zed CLA); HeroGPUI's own `locale_config` edge to `block` is gone (replaced by `system_locale.rs`); multithreaded wasm evaluated and not adopted ([`docs/upstream/gpui-web-multithreaded.md`](upstream/gpui-web-multithreaded.md)) | External dependencies | M each | later |
 
 Ordering: P1 is cheap, user-visible or process-critical and safe for a patch
 release; P2 is the 0.12.0 follow-ups and library-quality debt sized for one
