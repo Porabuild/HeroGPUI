@@ -904,6 +904,11 @@ EXTRA_OK_SCOPED = {
     # v3 composes `Dropdown.ItemIndicator` inside each item. The monolithic
     # Dropdown projects its render-function child across keyed menu rows.
     'Dropdown.indicator_content': 'composition',
+    # v3 composes a row's leading icon as an ordered child of
+    # `Dropdown.Item`. The monolithic Dropdown projects that child across
+    # keyed menu rows, where `MenuItem::icon`'s asset path cannot carry an
+    # element the caller draws.
+    'Dropdown.item_start_content': 'composition',
     # v3 composes one `Slider.Thumb` per value and names each thumb there. The
     # monolithic Slider projects those names as an index-ordered collection.
     'Slider.thumb_names': 'composition',

@@ -8,6 +8,25 @@ version covers `herogpui`, `herogpui-core`, `herogpui-theme`,
 
 ## [Unreleased]
 
+### Added
+
+- `ContextMenu::recipe(name)` forwards `Theme.components.menu` recipes to
+  the panel, as `Dropdown::recipe` does, so a context menu takes the same
+  row hover fill, `panel_min_width`, padding and radius as the app's other
+  menus. `ContextMenu::item_content` forwards the row label render closure.
+- `item_start_content(|key, InteractiveState| -> Option<AnyElement>)` on
+  `Menu`, `Dropdown` and `ContextMenu` (HeroGPUI extension) draws a caller
+  element as each row's leading content in place of `MenuItem::icon`'s asset
+  path. `None` keeps the item's icon, and submenus inherit the closure.
+
+### Fixed
+
+- `extend::app_focus_root` no longer steals the focus from a handle focused
+  before its first paint, such as a view focusing itself while its window
+  opens. The root now claims the focus only when the window has none or the
+  focused element has left the tree; the first Tab with nothing focused
+  still reaches the first tab stop.
+
 ## [0.13.0] - 2026-09-29
 
 ### Changed

@@ -55,7 +55,7 @@ implementation under `src/` instead, and are not listed here.
 | `combo_box_selection` | Single-selection callback parity with React Stately 3.50.0. | 4 |
 | `autocomplete_hover_deep` | Pinned trigger-hover suppression contract around the clear button. | 8 |
 | `select_clear_deep` | Select.ClearButton: real pointer and keyboard dispatch. | 5 |
-| `dropdown_anatomy_deep` | Dropdown composition metrics, explicit identity, nested overlay behavior. | 4 |
+| `dropdown_anatomy_deep` | Dropdown composition metrics, explicit identity, nested overlay behavior, row leading content. | 5 |
 | `dropdown_close` | Dropdown's close-on-activate contract, including submenus. | 25 |
 | `dropdown_seed_deep` | Dropdown.Menu's controlled/uncontrolled selection seeding. | 12 |
 | `dropdown_viewport_deep` | Dropdown menu viewport correction (flip/shift/clamp near edges). | 19 |
@@ -113,6 +113,7 @@ implementation under `src/` instead, and are not listed here.
 | `parts_pagination` | Per-part disabling added to Pagination. | 8 |
 | `link_deep` | Deep behaviour tests for `Link` against pinned HeroUI v3.2.4 Link contract. | 10 |
 | `focus_ring_overlay` | Offset focus rings (Switch, ToggleButton, Checkbox) read through their painted gap band; field rings as scoped source checks. | 6 |
+| `focus_root` | `app_focus_root` claims the focus only when nothing holds it: a handle focused before its first paint keeps it, and a released or unmounted focus returns to the root. | 4 |
 | `focus_visible_deep` | Focus rings follow keyboard-control modality, not HeroUI's Escape restore. | 7 |
 
 ## Data display (table/avatar/badge/chip/skeleton/progress)

@@ -248,3 +248,44 @@ fn higher_overlay_does_not_dismiss_open_submenu(cx: &mut TestAppContext) {
 
     assert_eq!(recorded.borrow().as_slice(), ["dropdown:true"]);
 }
+
+#[gpui::test]
+fn item_start_content_reaches_dropdown_and_submenu_rows(cx: &mut TestAppContext) {
+    harness::still();
+    let cx = open_host(cx, move || {
+        Dropdown::uncontrolled(
+            "start-content-dropdown",
+            Button::new("start-content-trigger").label("Open"),
+            vec![
+                MenuItem::new("new", "New"),
+                MenuItem::new("more", "More").submenu(vec![MenuItem::new("nested", "Nested")]),
+            ],
+        )
+        .item_start_content(|key, _| {
+            let key = key.clone();
+            Some(
+                gpui::div()
+                    .w(px(12.))
+                    .h(px(12.))
+                    .debug_selector(move || format!("dd-start-{key}"))
+                    .into_any_element(),
+            )
+        })
+        .into_any_element()
+    });
+    click(cx, 30., 18.);
+    harness::settle(cx);
+    assert!(cx.debug_bounds("dd-start-new").is_some());
+    let more = cx
+        .debug_bounds("dd-start-more")
+        .expect("submenu trigger row");
+
+    cx.simulate_mouse_move(more.center(), None, gpui::Modifiers::none());
+    cx.executor()
+        .advance_clock(std::time::Duration::from_millis(500));
+    harness::settle(cx);
+    assert!(
+        cx.debug_bounds("dd-start-nested").is_some(),
+        "the submenu inherits the leading-element closure"
+    );
+}
