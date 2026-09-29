@@ -82,7 +82,9 @@ if [ "$master" -eq 1 ]; then
     listing=$(gh release view "$TAG" -R "$repo" --json assets \
         --jq '.assets | sort_by(.createdAt) | reverse | .[] | .name')
     keys=$(grep -E '^herogpui-gallery-[0-9a-f]{16}\.json$' <<<"$listing" || true)
-    kept=$(head -n "$KEEP" <<<"$keys")
+    # The key just published stays even if its build-info is old (an
+    # earlier PR published it): master's production build needs it.
+    kept=$({ head -n "$KEEP" <<<"$keys"; echo "$key_name"; } | sort -u)
     gh release download "$TAG" -R "$repo" -p 'herogpui-gallery-*.json' -D "$staging/json"
     referenced=$(
         for name in $kept herogpui-gallery-master.json; do
