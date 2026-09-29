@@ -404,6 +404,7 @@ pub struct VirtualList {
     height: Option<Pixels>,
     debug_selector: Option<String>,
     padding: Option<(Pixels, Pixels, Pixels)>,
+    restrict_scroll_to_axis: bool,
 }
 
 impl VirtualList {
@@ -422,6 +423,7 @@ impl VirtualList {
             height: None,
             debug_selector: None,
             padding: None,
+            restrict_scroll_to_axis: false,
         }
     }
 
@@ -441,6 +443,16 @@ impl VirtualList {
     /// paint into it at the edges, where the viewport would clip it.
     pub(crate) fn padding(mut self, top: Pixels, x: Pixels, bottom: Pixels) -> Self {
         self.padding = Some((top, x, bottom));
+        self
+    }
+
+    /// Keeps a horizontal wheel from scrolling a uniform list vertically:
+    /// gpui's `uniform_list` otherwise reads a gesture with no vertical
+    /// component as a vertical scroll. For rows that scroll horizontally
+    /// themselves (a `Table` with frozen columns). A measured list only ever
+    /// reads the vertical component.
+    pub(crate) fn restrict_scroll_to_axis(mut self) -> Self {
+        self.restrict_scroll_to_axis = true;
         self
     }
 
@@ -480,6 +492,10 @@ impl RenderOnce for VirtualList {
                 })
                 .track_scroll(&state.scroll)
                 .w_full();
+                let mut rows = rows;
+                if self.restrict_scroll_to_axis {
+                    rows.style().restrict_scroll_to_axis = Some(true);
+                }
                 let rows = match self.height {
                     Some(height) => rows.h(height).min_h_0(),
                     None => rows.with_sizing_behavior(ListSizingBehavior::Infer),
