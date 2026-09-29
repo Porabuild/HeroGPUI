@@ -22411,7 +22411,7 @@
     "sha256": "e4603b5d106bee84d9ebd9fc8b6f35d3e12ba31eb0d385e2ec17118fdb70cbbb"
   },
   "source_snapshot": {
-    "sha256": "127d7ebb42755b7acfb27abbf466cfcf3748bceeee05649ff2911ec6e6029253",
+    "sha256": "8c9ef1edd915b34ad178696719adab0aab390546db5549ead7c868e4c428e104",
     "files": {
       ".cargo/config.toml": "6ce2a269fd46b2570763e8e446ac93e9d04614416af21134877cf7b388e776f9",
       ".gitattributes": "e71170c75179e22e8232810e58862527293de30e2773a9ee53868d8ebcca6910",
@@ -22894,7 +22894,7 @@
       "web/src/components/landing/final-cta.tsx": "322fad3e1e7628dd48161293c04b37d29b592210bc58f91a399c88a372817dfc",
       "web/src/components/landing/for-agents.tsx": "d3a080e68cc031fdc037edb821469cfd93fa39635b0a13455f79782f4adb9f6f",
       "web/src/components/landing/hero-wasm-showcase.tsx": "b52304c5a208ff8a6d133e770f6ef244fb5ef50226ad9a5fd17e6659cd54f3a4",
-      "web/src/components/landing/hero.tsx": "b8b50fb1de579a70909c62ed0e36b769b13000da2edae845aeaad8f92595539f",
+      "web/src/components/landing/hero.tsx": "ae1b9cf71ebd6ca712bf0e03bad7b1a821233731dc45e747ec9daa8b5fff38c6",
       "web/src/components/landing/proof-strip.tsx": "c7207430874db047826e47eae5237e9181cdafed60b64be2e1ab52a54e732386",
       "web/src/components/landing/shared.tsx": "026527b7afb1e5cf9343248d455728849ef596fe8dc690260808fd4fb2126416",
       "web/src/components/preview/gallery-frame.tsx": "8088bba19b33314f3733be90e1758fabdc1c006fc02525daba2fdfa5a789d9b1",
@@ -108905,7 +108905,7 @@
       ]
     }
   ],
-  "verification_sha256": "4a08f78c8f19e0f33753e89718b18fa7c93e74f154378f5417536eac54703745",
+  "verification_sha256": "55d8f5dae3cc2957c448f783c0310e073911d616b90bbd280ca6a7bea2a1f485",
   "retired_source_changes": [
     {
       "path": "packages/react/src/components/autocomplete/autocomplete.stories.tsx",
