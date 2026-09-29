@@ -64,7 +64,7 @@ export function Hero() {
           <div className="mt-10 w-full">
             <CodeBlock code={INSTALL_TOML} filename="Cargo.toml" lang="toml" wrap />
             <p className="mt-3 text-xs leading-relaxed text-muted">
-              The library is added as a git/path dependency. See the{" "}
+              Published on crates.io. See the{" "}
               <Link
                 className="text-accent transition-colors hover:text-[color:var(--pb-accent-soft)] no-underline"
                 href="/docs/getting-started/quick-start"
