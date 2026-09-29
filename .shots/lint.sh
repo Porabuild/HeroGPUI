@@ -12,7 +12,8 @@
 # thin wrapper that calls this script, for Windows shells.
 #
 # Usage:
-#   bash .shots/lint.sh                 # inheritance check + clippy -D warnings + deny
+#   bash .shots/lint.sh                 # inheritance check + clippy -D warnings (default
+#                                       # and --all-features) + deny
 #   bash .shots/lint.sh --fix           # apply machine-applicable fixes first
 #   bash .shots/lint.sh --require-deny  # a missing cargo-deny fails (what CI calls)
 #   bash .shots/lint.sh --self-test     # prove the inheritance check fires
@@ -148,7 +149,7 @@ for arg in "$@"; do
             exit "$status"
             ;;
         -h | --help)
-            sed -n '2,27p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+            sed -n '2,28p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
             exit 0
             ;;
         *)
@@ -175,12 +176,23 @@ if [ "$fix" -eq 1 ]; then
 fi
 
 # 2. Warnings are failures here. `--all-targets` covers tests, which is where
-#    float comparisons and unused imports usually hide.
+#    float comparisons and unused imports usually hide. Twice: the default
+#    features, which is what a downstream `herogpui = "..."` compiles, and
+#    `--all-features`, because a lint (`missing_docs` above all) only fires on
+#    code that is compiled, and the feature-gated modules -- herogpui-theme's
+#    `serde` and `watch`, herogpui-components' `gallery-source`, the facade's
+#    feature split -- are compiled by neither run otherwise. No two features
+#    in the workspace exclude each other, so the union is a valid build (the
+#    `lint` job's `cargo hack --each-feature` covers each one alone).
 if ! cargo clippy --workspace --all-targets -- -D warnings; then
-    red "clippy failed"
+    red "clippy failed (default features)"
     exit 3
 fi
-green "clippy clean (warnings denied)"
+if ! cargo clippy --workspace --all-targets --all-features -- -D warnings; then
+    red "clippy failed (--all-features)"
+    exit 3
+fi
+green "clippy clean (warnings denied; default and all features)"
 
 # 3. License and advisory compliance for every crate in the graph.
 if cargo deny --version >/dev/null 2>&1; then
