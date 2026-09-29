@@ -63,7 +63,12 @@ api() {
 }
 
 published_id() {
-    gh api "repos/$repo/releases/tags/$1" --jq '.id' 2>/dev/null || true
+    # `gh api --jq` can write GitHub's 404 JSON to stdout before returning
+    # failure. A command substitution would treat that body as an ID and send
+    # a PATCH to a malformed URL. `gh release view` leaves stdout empty for a
+    # missing release and returns its numeric database ID for an existing one.
+    gh release view "$1" --repo "$repo" --json databaseId,isDraft \
+        --jq 'select(.isDraft == false) | .databaseId' 2>/dev/null || true
 }
 
 id=$(published_id "$tag")
