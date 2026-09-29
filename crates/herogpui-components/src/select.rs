@@ -1095,22 +1095,8 @@ impl Select {
         // The field popover resolves flips during prepaint. Keep the
         // requested placement and the physical side in keyed state so the
         // next entry frame uses the side that was actually painted.
-        let requested_placement = window.use_keyed_state(
-            element_id::scoped(&self.id, "requested-placement"),
-            cx,
-            |_, _| self.placement,
-        );
-        let resolved_placement = window.use_keyed_state(
-            element_id::scoped(&self.id, "resolved-placement"),
-            cx,
-            |_, _| Rc::new(Cell::new(None::<Placement>)),
-        );
-        if *requested_placement.read(cx) != self.placement {
-            requested_placement.update(cx, |placement, _| *placement = self.placement);
-            resolved_placement.read(cx).set(None);
-        }
-        let resolved_placement = resolved_placement.read(cx).clone();
-        let entry_placement = resolved_placement.get().unwrap_or(self.placement);
+        let (resolved_placement, entry_placement) =
+            crate::popover::field_placement_feedback(window, cx, &self.id, self.placement);
 
         // The collection's keys in row order — the channel the selection,
         // the cursor and every report address.

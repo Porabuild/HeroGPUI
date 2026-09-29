@@ -1053,22 +1053,8 @@ impl ComboBox {
         // The field positioner discovers flips during prepaint. Keep its
         // resolved physical side keyed to this ComboBox so entry motion starts
         // from the side that is actually painted.
-        let requested_placement = window.use_keyed_state(
-            element_id::scoped(base_id, "requested-placement"),
-            cx,
-            |_, _| self.placement,
-        );
-        let resolved_placement = window.use_keyed_state(
-            element_id::scoped(base_id, "resolved-placement"),
-            cx,
-            |_, _| Rc::new(Cell::new(None::<Placement>)),
-        );
-        if *requested_placement.read(cx) != self.placement {
-            requested_placement.update(cx, |placement, _| *placement = self.placement);
-            resolved_placement.read(cx).set(None);
-        }
-        let resolved_placement = resolved_placement.read(cx).clone();
-        let entry_placement = resolved_placement.get().unwrap_or(self.placement);
+        let (resolved_placement, entry_placement) =
+            crate::popover::field_placement_feedback(window, cx, base_id, self.placement);
 
         // Owned copies: `input.render` below needs `cx` mutably.
         let anchor_bounds: Rc<Cell<Option<gpui::Bounds<Pixels>>>> = window
