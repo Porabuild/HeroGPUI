@@ -34,7 +34,12 @@ release if the lockfile drifts off the pinned version.
 1. Confirm the public `Porabuild/HeroGPUI` GitHub repository is in place and
    the working tree is pushed to it.
 2. Create a protected `release` GitHub environment and protect `v*` tags.
-3. Enable immutable GitHub Releases.
+3. Enable immutable GitHub Releases. This is safe for the website: its
+   gallery artifacts are published one prerelease per build key, with every
+   asset attached while the release is still a draft, and CI afterwards only
+   edits titles and deletes whole old releases, both of which immutability
+   allows (`web/DEPLOYMENT.md`, section 6). Do not add a tag ruleset that
+   blocks GitHub Actions from creating or deleting `gallery-*` tags.
 4. Reserve the five crates.io names. They were unclaimed when checked on
    2026-08-27, but registry ownership is first-come.
 
@@ -103,14 +108,14 @@ is stored in GitHub.
    with `cargo install herogpui-gallery` on at least one clean machine.
 
 The web gallery (the WebAssembly build the website embeds) is **not** a
-release asset. CI publishes it on every pull request and master push to the
-separate `gallery-artifacts` prerelease, keyed by its build inputs, and the
-website deploys from master on its own (`web/DEPLOYMENT.md`, section 6). The
-release workflow's CI run publishes the tagged tree's build there too (that is
-why its `ci` job grants `contents: write`), usually a no-op because master
-already did. That prerelease is never marked Latest and its `gallery-artifacts`
-tag does not match the `v*` pattern this workflow triggers on, so it neither
-shows as a HeroGPUI version nor starts a release.
+release asset. CI publishes it on every pull request and master push as its
+own `gallery-<key16>` prerelease, keyed by its build inputs, and the website
+deploys from master on its own (`web/DEPLOYMENT.md`, section 6). The release
+workflow's CI run publishes the tagged tree's build too (that is why its `ci`
+job grants `contents: write`), usually a no-op because master already did.
+Those prereleases are never marked Latest and their `gallery-*` tags do not
+match the `v*` pattern this workflow triggers on, so they neither show as a
+HeroGPUI version nor start a release.
 
 If a registry publish partially succeeds, never reuse or overwrite a published
 version. Retry only the missing packages when safe; otherwise increment the

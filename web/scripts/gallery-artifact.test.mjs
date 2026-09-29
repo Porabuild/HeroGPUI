@@ -10,12 +10,14 @@ import { inputsHash } from "./extract-wasm-sections.mjs";
 import {
   GLUE_FILE,
   INFO_FILE,
-  MASTER_POINTER,
   WASM_FILE,
   binaryAssetNames,
   describeBuild,
   fetchArtifact,
   keyAssetName,
+  newestMasterTag,
+  parseReleaseFeed,
+  releaseTag,
   validBuildInfo,
 } from "./gallery-artifact.mjs";
 
@@ -30,10 +32,27 @@ function build(inputs, wasm, glue) {
   writeFileSync(join(dir, GLUE_FILE), glue);
   const info = describeBuild(dir, inputs, { source: "ci", commit: "c".repeat(40) });
   rmSync(dir, { recursive: true });
+  // One release per key: its three assets under download/<tag>/.
+  const at = `download/${releaseTag(inputs)}/`;
   return {
     info,
-    assets: { [info.wasm]: Buffer.from(wasm), [info.glue]: Buffer.from(glue) },
+    assets: {
+      [at + info.wasm]: Buffer.from(wasm),
+      [at + info.glue]: Buffer.from(glue),
+      [at + keyAssetName(inputs)]: info,
+    },
   };
+}
+
+/** A releases Atom feed listing `releases` ({ tag, title }), newest first. */
+function feed(releases) {
+  const entries = releases
+    .map(
+      ({ tag, title }) =>
+        `<entry><link rel="alternate" type="text/html" href="https://github.com/o/r/releases/tag/${tag}"/><title>${title.replace(/&/g, "&amp;")}</title></entry>`,
+    )
+    .join("");
+  return Buffer.from(`<?xml version="1.0"?><feed>${entries}</feed>`);
 }
 
 /** Serve `assets` (name -> bytes or JSON value) the way the release download URL does. */
@@ -73,6 +92,7 @@ test.afterEach(() => {
 });
 
 test("asset names are keyed by inputs and content-addressed binaries", () => {
+  assert.equal(releaseTag("ab".repeat(32)), "gallery-abababababababab");
   assert.equal(keyAssetName("ab".repeat(32)), "herogpui-gallery-abababababababab.json");
   assert.deepEqual(binaryAssetNames("1".repeat(64), "2".repeat(64)), {
     wasm: "herogpui-gallery-1111111111111111.wasm",
@@ -90,9 +110,9 @@ test("build-info validation rejects malformed records and another key", () => {
 });
 
 test("fetch installs the exact artifact for this checkout and verifies it", async () => {
-  const { info, assets } = build(key, "exact wasm", "exact glue");
+  const { assets } = build(key, "exact wasm", "exact glue");
   const dir = scratch();
-  await withRelease({ ...assets, [keyAssetName(key)]: info }, async (base) => {
+  await withRelease(assets, async (base) => {
     const env = { HEROGPUI_GALLERY_BASE_URL: base };
     assert.equal(await fetchArtifact({ env, dir }), "exact");
     assert.equal(readFileSync(join(dir, WASM_FILE), "utf8"), "exact wasm");
@@ -113,9 +133,12 @@ test("fetch installs the exact artifact for this checkout and verifies it", asyn
 
 test("fetch refuses bytes that do not match the published hash", async () => {
   const { info, assets } = build(key, "real wasm", "real glue");
-  const tampered = { ...assets, [info.wasm]: Buffer.from("evil wasm") };
+  const tampered = {
+    ...assets,
+    [`download/${releaseTag(key)}/${info.wasm}`]: Buffer.from("evil wasm"),
+  };
   const dir = scratch();
-  await withRelease({ ...tampered, [keyAssetName(key)]: info }, async (base) => {
+  await withRelease(tampered, async (base) => {
     await assert.rejects(
       fetchArtifact({ env: { HEROGPUI_GALLERY_BASE_URL: base }, dir }),
       /expected .* bytes with SHA-256/,
@@ -126,13 +149,28 @@ test("fetch refuses bytes that do not match the published hash", async () => {
 });
 
 test("a preview falls back to master's artifact; production requires the exact one", async () => {
-  const { info, assets } = build("f".repeat(64), "master wasm", "master glue");
+  const { assets } = build("f".repeat(64), "master wasm", "master glue");
+  const older = build("e".repeat(64), "old wasm", "old glue");
+  const releases = {
+    ...assets,
+    ...older.assets,
+    "releases.atom": feed([
+      { tag: "gallery-1111111111111111", title: "Web gallery 1111111111111111" },
+      { tag: releaseTag("f".repeat(64)), title: "Web gallery ffff [master 2026-09-29T10:00:00Z]" },
+      { tag: releaseTag("e".repeat(64)), title: "Web gallery eeee [master 2026-09-28T10:00:00Z]" },
+    ]),
+  };
   const dir = scratch();
-  await withRelease({ ...assets, [MASTER_POINTER]: info }, async (base) => {
+  await withRelease(releases, async (base) => {
     const env = { HEROGPUI_GALLERY_BASE_URL: base, HEROGPUI_GALLERY_WAIT_SECONDS: "0" };
     assert.equal(await fetchArtifact({ env: { ...env, VERCEL_ENV: "preview" }, dir }), "fallback");
     const installed = JSON.parse(readFileSync(join(dir, INFO_FILE), "utf8"));
     assert.equal(installed.status, "fallback");
+    assert.equal(
+      readFileSync(join(dir, WASM_FILE), "utf8"),
+      "master wasm",
+      "the newest master build",
+    );
     assert.equal(installed.requestedInputsSha256, key);
 
     await assert.rejects(
@@ -145,11 +183,13 @@ test("a preview falls back to master's artifact; production requires the exact o
 
 test("fetch waits for CI to publish the exact artifact", async () => {
   const { info, assets } = build(key, "late wasm", "late glue");
+  const jsonPath = `download/${releaseTag(key)}/${keyAssetName(key)}`;
   const release = { ...assets };
+  delete release[jsonPath];
   const dir = scratch();
   await withRelease(release, async (base, requests) => {
     setTimeout(() => {
-      release[keyAssetName(key)] = info;
+      release[jsonPath] = info;
     }, 150);
     const env = {
       HEROGPUI_GALLERY_BASE_URL: base,
@@ -157,7 +197,7 @@ test("fetch waits for CI to publish the exact artifact", async () => {
       HEROGPUI_GALLERY_POLL_MS: "50",
     };
     assert.equal(await fetchArtifact({ env, dir }), "exact");
-    assert.ok(requests.filter((name) => name === keyAssetName(key)).length > 1);
+    assert.ok(requests.filter((name) => name === jsonPath).length > 1);
   });
   rmSync(dir, { recursive: true });
 });
@@ -168,7 +208,9 @@ test("with nothing published the build goes on without a live preview", async ()
   writeFileSync(join(dir, WASM_FILE), "stale");
   writeFileSync(join(dir, GLUE_FILE), "stale");
   await withRelease({}, async (base) => {
-    assert.equal(await fetchArtifact({ env: { HEROGPUI_GALLERY_BASE_URL: base }, dir }), "missing");
+    // No master build anywhere either (the list URL is local, never GitHub's).
+    const env = { HEROGPUI_GALLERY_BASE_URL: base, HEROGPUI_GALLERY_API_URL: `${base}api` };
+    assert.equal(await fetchArtifact({ env, dir }), "missing");
   });
   assert.ok(!existsSync(join(dir, WASM_FILE)), "a stale download is removed");
   assert.equal(JSON.parse(readFileSync(join(dir, INFO_FILE), "utf8")).status, "missing");
@@ -195,6 +237,49 @@ test("HEROGPUI_GALLERY_ARTIFACT=off builds without a download", async () => {
     const env = { HEROGPUI_GALLERY_BASE_URL: base, HEROGPUI_GALLERY_ARTIFACT: "off" };
     assert.equal(await fetchArtifact({ env, dir }), "missing");
     assert.deepEqual(requests, []);
+  });
+  rmSync(dir, { recursive: true });
+});
+
+test("the preview fallback reads master builds from the feed, then the release list", async () => {
+  assert.deepEqual(
+    parseReleaseFeed(
+      feed([{ tag: "gallery-0123456789abcdef", title: "A & B [master 1]" }]).toString(),
+    ),
+    [
+      {
+        tag: "gallery-0123456789abcdef",
+        title: "A & B [master 1]",
+      },
+    ],
+  );
+  assert.equal(
+    newestMasterTag([
+      { tag: "gallery-aaaaaaaaaaaaaaaa", title: "x [master 2026-01-02T00:00:00Z]" },
+      { tag: "gallery-bbbbbbbbbbbbbbbb", title: "x [master 2026-01-03T00:00:00Z]" },
+      { tag: "v0.12.0", title: "x [master 2026-02-01T00:00:00Z]" },
+      { tag: "gallery-cccccccccccccccc", title: "x (pull request build)" },
+    ]),
+    "gallery-bbbbbbbbbbbbbbbb",
+  );
+
+  // Nothing master in the feed: the REST list answers.
+  const { assets } = build("d".repeat(64), "api wasm", "api glue");
+  const releases = {
+    ...assets,
+    "releases.atom": feed([{ tag: "gallery-1111111111111111", title: "Web gallery 1111" }]),
+    api: [
+      {
+        tag_name: releaseTag("d".repeat(64)),
+        name: "Web gallery dddd [master 2026-09-29T00:00:00Z]",
+      },
+    ],
+  };
+  const dir = scratch();
+  await withRelease(releases, async (base) => {
+    const env = { HEROGPUI_GALLERY_BASE_URL: base, HEROGPUI_GALLERY_API_URL: `${base}api` };
+    assert.equal(await fetchArtifact({ env, dir }), "fallback");
+    assert.equal(readFileSync(join(dir, WASM_FILE), "utf8"), "api wasm");
   });
   rmSync(dir, { recursive: true });
 });

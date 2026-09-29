@@ -47,7 +47,7 @@ reference metadata so the website does not ship an examples-only component page.
 workspace: `crates/herogpui-web` links the `herogpui-gallery` library and
 builds for `wasm32-unknown-unknown`, so the embed runs the same
 `gallery/src/pages/components/` the native gallery does. It is **not
-committed**: CI builds it and publishes it to the `gallery-artifacts`
+committed**: CI builds it and publishes it as a `gallery-<key16>`
 prerelease keyed by the wasm build inputs, and `pnpm run build` downloads and
 verifies the one for the checkout (`scripts/gallery-artifact.mjs`; design and
 fallbacks in `DEPLOYMENT.md` section 6). A local `bash .shots/build-wasm.sh`

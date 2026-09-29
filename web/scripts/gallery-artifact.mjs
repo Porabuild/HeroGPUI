@@ -1,9 +1,11 @@
 // The web-gallery artifact (`herogpui_web_bg.wasm` + `herogpui_web.js`) is not
-// committed. CI builds it and publishes it to this repository's
-// `gallery-artifacts` GitHub prerelease, keyed by the hash of every wasm build
+// committed. CI builds it and publishes it as its own GitHub prerelease,
+// tagged `gallery-<key16>`, where the key is the hash of every wasm build
 // input (`inputsHash`, the same `inputsSha256` `src/data/wasm-parity.json`
 // records); the site build downloads the one its own checkout keys to and
-// verifies it. See web/DEPLOYMENT.md, "The live WebAssembly gallery".
+// verifies it. One release per key, assets attached while it is a draft and
+// never touched after publishing, so the design holds with GitHub's
+// immutable releases turned on. See web/DEPLOYMENT.md, section 6.
 //
 //   node scripts/gallery-artifact.mjs key
 //       Print this checkout's artifact key (the wasm build-input hash).
@@ -21,8 +23,13 @@
 //                                   exact artifact (default: 1800 on a Vercel
 //                                   production build, 600 on a Vercel preview,
 //                                   0 elsewhere)
-//   HEROGPUI_GALLERY_REPO           owner/name holding the release
-//   HEROGPUI_GALLERY_BASE_URL       download base, overriding the release URL
+//   HEROGPUI_GALLERY_REPO           owner/name holding the releases
+//   HEROGPUI_GALLERY_BASE_URL       releases root (default
+//                                   https://github.com/<repo>/releases/):
+//                                   assets at download/<tag>/<name>, the
+//                                   feed at releases.atom
+//   HEROGPUI_GALLERY_API_URL        release list for the preview fallback
+//                                   when the feed has no master build
 
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
@@ -36,18 +43,28 @@ const webRoot = resolve(scriptDir, "..");
 const repoRoot = resolve(webRoot, "..");
 const galleryDir = resolve(webRoot, "public", "gallery");
 
-export const RELEASE_TAG = "gallery-artifacts";
+/** Every gallery release is tagged `gallery-<first 16 hex of its key>`. */
+export const TAG_PREFIX = "gallery-";
 export const BUILD_INFO_SCHEMA = 1;
 export const WASM_FILE = "herogpui_web_bg.wasm";
 export const GLUE_FILE = "herogpui_web.js";
 export const INFO_FILE = "build-info.json";
-/** The pointer CI replaces on every master push: the preview fallback. */
-export const MASTER_POINTER = "herogpui-gallery-master.json";
+/**
+ * CI renames a key's release to `... [master <ISO time>]` when a master push
+ * builds it (a title edit, which immutable releases allow); the newest such
+ * release is the preview fallback.
+ */
+const MASTER_TITLE = /\[master ([0-9TZ:.-]+)\]/;
 const DEFAULT_REPO = "Porabuild/HeroGPUI";
 const POLL_INTERVAL_MS = 20_000;
 const HEX64 = /^[0-9a-f]{64}$/;
 
 const sha256 = (bytes) => createHash("sha256").update(bytes).digest("hex");
+
+/** The release tag holding the artifact for `key`. */
+export function releaseTag(key) {
+  return `${TAG_PREFIX}${key.slice(0, 16)}`;
+}
 
 /** The release asset holding the build-info of the artifact for `key`. */
 export function keyAssetName(key) {
@@ -146,14 +163,78 @@ function stamp() {
   );
 }
 
-function releaseBase(env) {
-  if (env.HEROGPUI_GALLERY_BASE_URL) return env.HEROGPUI_GALLERY_BASE_URL.replace(/\/*$/, "/");
-  const repo =
+function repoName(env) {
+  return (
     env.HEROGPUI_GALLERY_REPO ||
     (env.VERCEL_GIT_REPO_OWNER && env.VERCEL_GIT_REPO_SLUG
       ? `${env.VERCEL_GIT_REPO_OWNER}/${env.VERCEL_GIT_REPO_SLUG}`
-      : env.GITHUB_REPOSITORY || DEFAULT_REPO);
-  return `https://github.com/${repo}/releases/download/${RELEASE_TAG}/`;
+      : env.GITHUB_REPOSITORY || DEFAULT_REPO)
+  );
+}
+
+/** The releases root; a tag's assets are at `download/<tag>/<name>` under it. */
+function releasesRoot(env) {
+  if (env.HEROGPUI_GALLERY_BASE_URL) return env.HEROGPUI_GALLERY_BASE_URL.replace(/\/*$/, "/");
+  return `https://github.com/${repoName(env)}/releases/`;
+}
+
+const tagBase = (root, tag) => `${root}download/${tag}/`;
+
+/** The newest `[master ...]` gallery release among `(tag, title)` pairs. */
+export function newestMasterTag(entries) {
+  let best = null;
+  for (const { tag, title } of entries) {
+    const stamp = MASTER_TITLE.exec(title ?? "")?.[1];
+    if (!stamp || !/^gallery-[0-9a-f]{16}$/.test(tag ?? "")) continue;
+    if (!best || stamp > best.stamp) best = { tag, stamp };
+  }
+  return best?.tag ?? null;
+}
+
+function unescapeXml(text) {
+  return text
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&amp;/g, "&");
+}
+
+/** `(tag, title)` pairs from a GitHub releases Atom feed. */
+export function parseReleaseFeed(xml) {
+  return [...xml.matchAll(/<entry>([\s\S]*?)<\/entry>/g)].map(([, entry]) => ({
+    tag: /\/releases\/tag\/([^"?#]+)"/.exec(entry)?.[1] ?? null,
+    title: unescapeXml(/<title>([\s\S]*?)<\/title>/.exec(entry)?.[1] ?? ""),
+  }));
+}
+
+/**
+ * The tag of master's latest gallery build. The releases Atom feed first (a
+ * web page, not the rate-limited REST API, but only the newest few
+ * releases), then the unauthenticated REST list (60 requests an hour per IP).
+ */
+async function findMasterTag(env, root) {
+  try {
+    const feed = await download(`${root}releases.atom`);
+    const tag = feed && newestMasterTag(parseReleaseFeed(feed.toString("utf8")));
+    if (tag) return tag;
+  } catch (error) {
+    console.warn(`gallery: releases feed: ${error.message}`);
+  }
+  try {
+    const url =
+      env.HEROGPUI_GALLERY_API_URL ||
+      `https://api.github.com/repos/${repoName(env)}/releases?per_page=100`;
+    const list = await downloadJson(url);
+    if (Array.isArray(list)) {
+      return newestMasterTag(
+        list.map((release) => ({ tag: release.tag_name, title: release.name })),
+      );
+    }
+  } catch (error) {
+    console.warn(`gallery: releases list: ${error.message}`);
+  }
+  return null;
 }
 
 async function download(url) {
@@ -204,7 +285,7 @@ async function install(base, info, dir) {
   const fetched = [];
   for (const [file, asset, expected, size] of files) {
     const bytes = await download(base + asset);
-    if (!bytes) throw new Error(`${asset} is missing from the ${RELEASE_TAG} release`);
+    if (!bytes) throw new Error(`${asset} is missing from ${base}`);
     const actual = sha256(bytes);
     if (bytes.length !== size || actual !== expected) {
       throw new Error(
@@ -297,7 +378,8 @@ export async function fetchArtifact({ env = process.env, dir = galleryDir } = {}
   const wait = Number(
     env.HEROGPUI_GALLERY_WAIT_SECONDS ?? (onVercel ? (production ? 1800 : 600) : 0),
   );
-  const base = releaseBase(env);
+  const root = releasesRoot(env);
+  const base = tagBase(root, releaseTag(key));
 
   const interval = Number(env.HEROGPUI_GALLERY_POLL_MS ?? POLL_INTERVAL_MS);
   const exact = await waitForJson(
@@ -318,7 +400,7 @@ export async function fetchArtifact({ env = process.env, dir = galleryDir } = {}
   }
 
   const reason =
-    `no artifact for this checkout (${keyAssetName(key)}) in the ${RELEASE_TAG} release of ${base}` +
+    `no artifact for this checkout (release ${releaseTag(key)}, ${base})` +
     (wait > 0 ? ` after waiting ${wait}s` : "");
   if (required) {
     throw new Error(
@@ -328,19 +410,26 @@ export async function fetchArtifact({ env = process.env, dir = galleryDir } = {}
   }
 
   let fallback = null;
-  try {
-    fallback = await downloadJson(base + MASTER_POINTER);
-  } catch (error) {
-    console.warn(`gallery: ${error.message}`);
-  }
-  if (validBuildInfo(fallback)) {
+  let fallbackBase = null;
+  const masterTag = await findMasterTag(env, root);
+  if (masterTag) {
+    fallbackBase = tagBase(root, masterTag);
     try {
-      await install(base, fallback, dir);
+      fallback = await downloadJson(
+        `${fallbackBase}herogpui-gallery-${masterTag.slice(TAG_PREFIX.length)}.json`,
+      );
+    } catch (error) {
+      console.warn(`gallery: ${error.message}`);
+    }
+  }
+  if (validBuildInfo(fallback) && releaseTag(fallback.inputsSha256) === masterTag) {
+    try {
+      await install(fallbackBase, fallback, dir);
       writeJson(infoPath, {
         ...fallback,
         status: "fallback",
         requestedInputsSha256: key,
-        fetchedFrom: base,
+        fetchedFrom: fallbackBase,
       });
       console.warn(
         `gallery: ${reason}; using master's latest artifact ${fallback.artifactSha256.slice(0, 12)} instead ` +

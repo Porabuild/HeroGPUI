@@ -40,7 +40,7 @@ working), and forwards Cmd/Ctrl+K to the page once the reader is inside it.
 
 Since 0.13 the artifact is **not committed**: CI's `wasm` job builds it
 (nightly, `wasm-bindgen`, `wasm-opt -O1`) and `wasm-publish` uploads it to
-the `gallery-artifacts` GitHub prerelease keyed by the hash of every wasm
+its own `gallery-<key16>` GitHub prerelease, keyed by the hash of every wasm
 build input; `pnpm run build` downloads the one for its checkout and verifies
 it (`scripts/gallery-artifact.mjs`), and a local `.shots/build-wasm.sh` build
 takes precedence. `DEPLOYMENT.md` section 6 has the design, the preview

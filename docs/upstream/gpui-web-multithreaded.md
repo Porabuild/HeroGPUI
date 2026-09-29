@@ -77,4 +77,4 @@ atomics `rustflags` in a dedicated cargo profile or `--config` (never the
 `crates/herogpui-web` behind a runtime `crossOriginIsolated` check,
 `Cross-Origin-Opener-Policy`/`Cross-Origin-Embedder-Policy` headers and the
 `worker-src blob:` CSP on the `/gallery` routes in `web/next.config.ts`, and
-a second artifact pair in the `gallery-artifacts` release.
+a second artifact pair in each `gallery-<key16>` release.

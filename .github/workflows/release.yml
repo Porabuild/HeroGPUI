@@ -36,7 +36,7 @@ jobs:
   ci:
     uses: ./.github/workflows/ci.yml
     # `write` only for CI's `wasm-publish` job, which puts the tagged tree's
-    # web-gallery artifact in the `gallery-artifacts` prerelease (usually
+    # web-gallery artifact as its `gallery-<key16>` prerelease (usually
     # already there from the master push); every other CI job runs under
     # ci.yml's own `contents: read`.
     permissions:

@@ -73,7 +73,8 @@ version covers `herogpui`, `herogpui-core`, `herogpui-theme`,
   `web/public/gallery/herogpui_web_bg.wasm` and its glue are removed from the
   tree; history keeps them). CI's `wasm` job builds it with
   `.shots/build-wasm.sh` and a new `wasm-publish` job uploads it to the
-  `gallery-artifacts` prerelease keyed by the hash of every wasm build input;
+  `gallery-<key16>` prerelease per hash of the wasm build inputs (assets
+  attached while it is a draft, so it works with immutable releases on);
   `pnpm run build` in `web/` downloads the artifact for its checkout and
   verifies its SHA-256 first (`web/scripts/gallery-artifact.mjs`). Vercel
   previews fall back to master's artifact with an "earlier build" banner,

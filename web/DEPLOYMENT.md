@@ -39,7 +39,7 @@ it at build time) and the committed generated data was extracted from
 [README.md](README.md), "The generated data pipeline"). The build's first
 step also hashes the sibling Rust sources (`../crates`, `../gallery`, the
 workspace manifests) to find and download the WebAssembly gallery CI built
-for this commit, from this repository's `gallery-artifacts` release — no
+for this commit, from this repository's `gallery-<key16>` release — no
 token, no Rust toolchain (section 6).
 
 ## 2. Environment variables
@@ -277,19 +277,32 @@ and no manual step:
    and the lockfile; `inputsHash` in `scripts/extract-wasm-sections.mjs`) —
    and the byte hashes.
 2. **CI publishes it** — the `wasm-publish` job (a separate job, so the write
-   token never shares a runner with third-party build scripts) uploads to the
-   `gallery-artifacts` prerelease of this repository with the workflow's own
-   `GITHUB_TOKEN` (`contents: write`): content-addressed binaries
-   `herogpui-gallery-<sha16>.wasm`/`.js`, then the key's
-   `herogpui-gallery-<key16>.json` last, so its presence means the binaries
-   are complete. Existing assets are never overwritten. A master push also
-   replaces `herogpui-gallery-master.json` (the preview fallback) and prunes
-   builds beyond the newest 60 keys. Fork pull requests are not published.
+   token never shares a runner with third-party build scripts) publishes
+   **one prerelease per key**, tagged `gallery-<key16>`, with the workflow's
+   own `GITHUB_TOKEN` (`contents: write`; `.shots/publish-gallery.sh`). The
+   release is created as a draft, the binaries
+   (`herogpui-gallery-<sha16>.wasm`/`.js`) and the key's
+   `herogpui-gallery-<key16>.json` are attached while it is a draft, and only
+   then is it published; a key that is already published is left alone, and
+   of two runs racing for one key the first to publish wins. A master push
+   then renames that key's release to `… [master <time>]` (the preview
+   fallback) and deletes gallery releases beyond the newest 30 (plus stale
+   drafts). Fork pull requests are not published.
+
+   **Immutable releases.** Nothing is ever attached to, or removed from, a
+   published release, so the design works with GitHub's immutable releases
+   on (RELEASING.md, one-time setup step 3). What it still does to published
+   releases is what immutability allows: editing the title and deleting a
+   whole release (GitHub's docs: title and notes stay editable, assets cannot
+   be added, replaced or deleted after publishing, a deleted immutable
+   release's tag cannot be reused — keys are unique, so no tag is ever
+   reused). If GitHub ever rejects a call for immutability, the script stops
+   with an `::error::` naming it instead of a bare HTTP 422.
 3. **The site build fetches it** — `pnpm run build` is
    `node scripts/gallery-artifact.mjs fetch && next build`. The fetch hashes
    the checkout's wasm inputs (Vercel clones the whole repository), downloads
    `herogpui-gallery-<key16>.json` from
-   `https://github.com/Porabuild/HeroGPUI/releases/download/gallery-artifacts/`
+   `https://github.com/Porabuild/HeroGPUI/releases/download/gallery-<key16>/`
    (public, anonymous, no API rate limit), downloads the two binaries it
    names, and installs them only if their sizes and SHA-256 match. The
    checked-in `src/data/wasm-parity.json` records the same key, and
@@ -301,13 +314,13 @@ What the build does when the exact artifact is not there yet:
 | build | waits for CI | then |
 |---|---|---|
 | Vercel production (`VERCEL_ENV=production`) | up to 30 min | **fails**; Vercel keeps serving the previous production deployment. The next master push, or a redeploy once CI is green, ships it. |
-| Vercel preview | up to 10 min | installs master's latest artifact (`herogpui-gallery-master.json`); the frame shows an "earlier build" banner |
+| Vercel preview | up to 10 min | installs master's latest artifact (the newest `[master …]` gallery release, found in the public `releases.atom` feed, else the unauthenticated REST release list); the frame shows an "earlier build" banner |
 | anywhere else (CI's `web` job, a laptop) | no | master's artifact, or none |
 | nothing published at all | — | builds without the artifact; the frame says "The live preview is not part of this build" |
 
 Overrides: `HEROGPUI_GALLERY_ARTIFACT=require|off`,
 `HEROGPUI_GALLERY_WAIT_SECONDS`, `HEROGPUI_GALLERY_REPO`,
-`HEROGPUI_GALLERY_BASE_URL` (see the header of
+`HEROGPUI_GALLERY_BASE_URL`, `HEROGPUI_GALLERY_API_URL` (see the header of
 `scripts/gallery-artifact.mjs`); none needs setting on Vercel.
 
 **Timing and bootstrap.** Vercel's Git integration starts building on the
@@ -316,17 +329,23 @@ minutes for the `wasm` job. Production rarely waits: the pull request's own
 CI already published the artifact for its tree, and a merge whose tree
 matches the PR head (the usual case) has the same key. The first deployment
 after this pipeline merges is covered the same way: the pull request that
-introduces it runs `wasm-publish`, which creates the `gallery-artifacts`
-release and uploads that tree's artifact before anyone merges. Two quick
+introduces it runs `wasm-publish`, which publishes that tree's
+`gallery-<key16>` release before anyone merges. Two quick
 master pushes can cancel the first push's CI run (`concurrency`), so that
 first push's production build may fail after its wait; the second one ships.
 
 **Trust.** Only this repository's workflows (and its maintainers) can write
-the release, the same boundary as the source itself; the download is over
+the releases, the same boundary as the source itself; the download is over
 HTTPS and every byte is checked against the key's build-info. Git LFS was
 not an option: Vercel can fetch LFS objects, but GitHub's LFS bandwidth quota
 would be spent on every deploy, and the binary would still be versioned in
 the repository.
+
+**Side effects.** The gallery prereleases (up to 30, never marked Latest)
+appear on the repository's Releases page and in its feed; their `gallery-*`
+tags do not match `release.yml`'s `v*` trigger. A tag ruleset that restricts
+creating or deleting tags must exempt `gallery-*` for GitHub Actions, or
+publishing and pruning fail.
 
 ### Building the artifact locally (Rust side)
 

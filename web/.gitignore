@@ -45,7 +45,7 @@ next-env.d.ts
 # public/shots/ is tracked on purpose: the site's native screenshots, which
 # remote builds (no capture rig) cannot produce. public/gallery/index.html is
 # tracked too; the WebAssembly artifact beside it is not. CI builds it and
-# publishes it to the `gallery-artifacts` GitHub prerelease, and
+# publishes it as a `gallery-<key16>` GitHub prerelease, and
 # `pnpm run build` downloads the one for this checkout (or a local
 # `.shots/build-wasm.sh` build puts it here). See DEPLOYMENT.md.
 /public/gallery/herogpui_web.js

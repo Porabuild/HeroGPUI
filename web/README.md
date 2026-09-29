@@ -80,7 +80,7 @@ pipeline by hand when the Rust sources it reads change:
 | `node scripts/extract-releases.mjs` | `../CHANGELOG.md` | `src/data/releases.json` — the `/docs/releases` notes, one per dated version |
 | `node scripts/build-data.mjs` | — | runs the four offline extractors in dependency order with one summary |
 | `node scripts/extract-wasm-sections.mjs` (`pnpm run wasm:manifest`) | `gallery/src/pages/components/` — the same native source the desktop gallery builds from — plus every wasm build input | `src/data/wasm-sections.json` + `src/data/wasm-parity.json` — the examples compiled into the wasm artifact and the artifact key (an inputs hash) CI publishes it under; `--check` fails when Rust sources change without regenerating |
-| `node scripts/gallery-artifact.mjs fetch` (first step of `pnpm run build`; `pnpm run gallery:fetch`) | the checkout's wasm inputs, the `gallery-artifacts` GitHub release | `public/gallery/herogpui_web*` + `build-info.json` — CI's artifact for this checkout, verified by SHA-256 (not committed) |
+| `node scripts/gallery-artifact.mjs fetch` (first step of `pnpm run build`; `pnpm run gallery:fetch`) | the checkout's wasm inputs, the checkout's `gallery-<key16>` GitHub prerelease | `public/gallery/herogpui_web*` + `build-info.json` — CI's artifact for this checkout, verified by SHA-256 (not committed) |
 | `node scripts/sync-porabuild-brand.mjs` (`pnpm run brand:sync`) | the sibling `@porabuild/brand` package | `src/styles/porabuild/` — the vendored brand layer (never hand-edit; re-sync instead) |
 
 `pnpm run extract` runs the reference, catalog, snippet and releases steps;
