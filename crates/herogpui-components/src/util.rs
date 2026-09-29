@@ -1528,6 +1528,14 @@ pub(crate) fn key_enables_focus_visible(key: &str) -> bool {
     )
 }
 
+/// The window-level focus root kept by [`app_focus_root`].
+struct FocusRoot {
+    handle: gpui::FocusHandle,
+    /// The focused element the root last saw painted inside it. Focus that
+    /// stays on it after it has left the tree is focus on nothing.
+    painted_focus: Option<gpui::WeakFocusHandle>,
+}
+
 /// Records keyboard-versus-pointer input, and moves the focus on Tab.
 ///
 /// Put this on the app's root element once. Three things have to be true for a
@@ -1536,6 +1544,11 @@ pub(crate) fn key_enables_focus_visible(key: &str) -> bool {
 /// - **The root holds the focus when nothing else does.** gpui delivers a key
 ///   event to the focused element and then up through its ancestors; with
 ///   nothing focused there is no chain, so the very first Tab would go nowhere.
+///   The root claims the focus only when the window has no focused handle, or
+///   when the focused element was painted inside the root and has since left
+///   the tree. A handle focused before it first paints — a view focusing its
+///   own handle while its window opens, or a panel focusing a field it has
+///   not drawn yet — keeps the focus.
 /// - **Tab moves the focus.** In a browser the platform does this. Here the app
 ///   asks for it, and gpui walks the tab stops in tree order.
 /// - **The kind of input is recorded**, because a ring shows only after a
@@ -1546,15 +1559,30 @@ pub fn app_focus_root<T>(el: T, window: &mut gpui::Window, cx: &mut App) -> T
 where
     T: gpui::InteractiveElement,
 {
-    let root = window
-        .use_keyed_state(
-            gpui::ElementId::Name("herogpui-focus-root".into()),
-            cx,
-            |_, cx| cx.focus_handle(),
-        )
-        .read(cx)
-        .clone();
-    if !root.contains_focused(window, cx) {
+    let state = window.use_keyed_state(
+        gpui::ElementId::Name("herogpui-focus-root".into()),
+        cx,
+        |_, cx| FocusRoot {
+            handle: cx.focus_handle(),
+            painted_focus: None,
+        },
+    );
+    let root = state.read(cx).handle.clone();
+    let claim = match window.focused(cx) {
+        None => true,
+        Some(focused) if root.contains_focused(window, cx) => {
+            state.update(cx, |state, _| {
+                state.painted_focus = Some(focused.downgrade());
+            });
+            false
+        }
+        Some(focused) => state
+            .read(cx)
+            .painted_focus
+            .as_ref()
+            .is_some_and(|painted| *painted == focused),
+    };
+    if claim {
         window.focus(&root, cx);
     }
     el.track_focus(&root)

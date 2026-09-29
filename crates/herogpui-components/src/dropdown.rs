@@ -167,6 +167,9 @@ type ItemContent =
     std::sync::Arc<dyn Fn(&SharedString, crate::util::InteractiveState) -> AnyElement + 'static>;
 type ItemIndicatorContent =
     std::sync::Arc<dyn Fn(&SharedString, bool, bool) -> AnyElement + 'static>;
+type ItemStartContent = std::sync::Arc<
+    dyn Fn(&SharedString, crate::util::InteractiveState) -> Option<AnyElement> + 'static,
+>;
 type OnDismiss = std::rc::Rc<dyn Fn(&bool, &mut Window, &mut App) + 'static>;
 type PanelBounds = std::rc::Rc<std::cell::RefCell<Vec<Bounds<Pixels>>>>;
 
@@ -188,6 +191,9 @@ pub struct Menu {
     /// `children` on `Dropdown.ItemIndicator` — handed the item's key,
     /// `isSelected` and `isIndeterminate`.
     indicator_content: Option<ItemIndicatorContent>,
+    /// The leading element a row composes before its label, in place of
+    /// the item's icon asset.
+    item_start_content: Option<ItemStartContent>,
     id: gpui::ElementId,
     items: Vec<MenuItem>,
     selected_key: Option<SharedString>,
@@ -252,6 +258,7 @@ impl Menu {
             on_back: None,
             item_content: None,
             indicator_content: None,
+            item_start_content: None,
             id: id.into(),
             items,
             selected_key: None,
@@ -494,6 +501,23 @@ impl Menu {
         self
     }
 
+    /// The leading element of each row, drawn where [`MenuItem::icon`]'s
+    /// asset goes and in its place.
+    ///
+    /// HeroGPUI extension: v3 composes a leading icon as an ordered child of
+    /// `Dropdown.Item`, and an asset path cannot carry an element the caller
+    /// draws. The closure receives the item's key and the same row state as
+    /// [`Menu::item_content`]; `None` keeps the item's own icon, if any. The
+    /// row's text colour is inherited, so text-coloured content follows the
+    /// danger, disabled and highlight colours. Forwarded to submenus.
+    pub fn item_start_content(
+        mut self,
+        render: impl Fn(&SharedString, crate::util::InteractiveState) -> Option<AnyElement> + 'static,
+    ) -> Self {
+        self.item_start_content = Some(std::sync::Arc::new(render));
+        self
+    }
+
     /// `type` on `Dropdown.ItemIndicator` — a check mark or a dot.
     pub fn indicator(mut self, kind: IndicatorKind) -> Self {
         self.indicator = kind;
@@ -680,27 +704,30 @@ impl RenderOnce for Menu {
         let typed = window.use_keyed_state(element_id::scoped(&base_id, "typed"), cx, |_, _| {
             crate::list_nav::Typeahead::default()
         });
-        // One hover/press slot per item, for an `item_content` closure. The
-        // slots exist only when the closure is set: `track_interaction`'s
-        // handlers cost a frame of state, and the closure is the only reader
-        // (the press v3's `Dropdown.Item` render props document).
-        let interaction: Vec<crate::util::Interaction> =
-            if self.item_content.is_some() || self.row_hover_foreground.is_some() {
-                (0..self.items.len())
-                    .map(|i| {
-                        crate::util::interaction(
-                            element_id::scoped(
-                                &element_id::indexed(&base_id, "item", i),
-                                "interaction",
-                            ),
-                            window,
-                            cx,
-                        )
-                    })
-                    .collect()
-            } else {
-                Vec::new()
-            };
+        // One hover/press slot per item, for an `item_content` or
+        // `item_start_content` closure. The slots exist only when one is set:
+        // `track_interaction`'s handlers cost a frame of state, and the
+        // closures are the only readers (the press v3's `Dropdown.Item`
+        // render props document).
+        let interaction: Vec<crate::util::Interaction> = if self.item_content.is_some()
+            || self.item_start_content.is_some()
+            || self.row_hover_foreground.is_some()
+        {
+            (0..self.items.len())
+                .map(|i| {
+                    crate::util::interaction(
+                        element_id::scoped(
+                            &element_id::indexed(&base_id, "item", i),
+                            "interaction",
+                        ),
+                        window,
+                        cx,
+                    )
+                })
+                .collect()
+        } else {
+            Vec::new()
+        };
         // A menu takes focus when it opens, which is what makes the arrows work
         // without a click first. The one-shot re-arms while the menu plays its
         // exit, so a menu that reopens after a dismissal -- a pick or Escape
@@ -1388,47 +1415,53 @@ impl RenderOnce for Menu {
                             row = row.child(content);
                         }
                     }
-                    if let Some(icon_path) = icon {
-                        row = row.child(
-                            gpui::svg()
-                                // `.menu-item__indicator` is `size-4`.
-                                .size(px(16.))
-                                .path(icon_path)
-                                .text_color(text_color),
-                        );
+                    // The slot's press is a frame behind the pointer, because
+                    // gpui reports it to a handler rather than to the render
+                    // that draws it. v3's `Dropdown.Item` render-props table
+                    // lists no `isHovered`, so the hover the slot also tracks
+                    // is not handed over; a row is focused when the keyboard
+                    // cursor is on it.
+                    let (_, recorded_press) = interaction
+                        .get(i)
+                        .map(|slot| *slot.read(cx))
+                        .unwrap_or_default();
+                    let row_state = crate::util::InteractiveState {
+                        is_hovered: false,
+                        is_pressed: !is_item_disabled && recorded_press,
+                        is_focused: cursor_at == Some(i),
+                        is_focus_visible: cursor_at == Some(i) && crate::util::focus_visible(cx),
+                        is_selected,
+                        is_disabled: is_item_disabled,
+                        is_pending: false,
+                        is_indeterminate,
+                    };
+                    let start_content = self
+                        .item_start_content
+                        .as_ref()
+                        .and_then(|render| render(&key, row_state));
+                    match (start_content, icon) {
+                        (Some(content), _) => {
+                            row = row.child(
+                                gpui::div().flex_none().flex().items_center().child(content),
+                            );
+                        }
+                        (None, Some(icon_path)) => {
+                            row = row.child(
+                                gpui::svg()
+                                    // `.menu-item__indicator` is `size-4`.
+                                    .size(px(16.))
+                                    .path(icon_path)
+                                    .text_color(text_color),
+                            );
+                        }
+                        (None, None) => {}
                     }
                     // `children` on `Dropdown.Item` is a render function in
                     // v3, handed the row's state.
                     row = row.child(
                         gpui::div().flex().flex_col().flex_1().min_w_0().child(
                             match &self.item_content {
-                                Some(render) => {
-                                    // The slot's press is a frame behind the
-                                    // pointer, because gpui reports it to a handler
-                                    // rather than to the render that draws it. v3's
-                                    // `Dropdown.Item` render-props table lists no
-                                    // `isHovered`, so the hover the slot also
-                                    // tracks is not handed over; a row is focused
-                                    // when the keyboard cursor is on it.
-                                    let (_, recorded_press) = interaction
-                                        .get(i)
-                                        .map(|slot| *slot.read(cx))
-                                        .unwrap_or_default();
-                                    render(
-                                        &key,
-                                        crate::util::InteractiveState {
-                                            is_hovered: false,
-                                            is_pressed: !is_item_disabled && recorded_press,
-                                            is_focused: cursor_at == Some(i),
-                                            is_focus_visible: cursor_at == Some(i)
-                                                && crate::util::focus_visible(cx),
-                                            is_selected,
-                                            is_disabled: is_item_disabled,
-                                            is_pending: false,
-                                            is_indeterminate,
-                                        },
-                                    )
-                                }
+                                Some(render) => render(&key, row_state),
                                 None => match &description {
                                     // `Label` over `Description`, which is how v3
                                     // composes a described item.
@@ -1751,6 +1784,7 @@ impl RenderOnce for Menu {
             sub.animate_entry_is_set = self.animate_entry_is_set;
             sub.item_content = self.item_content.clone();
             sub.indicator_content = self.indicator_content.clone();
+            sub.item_start_content = self.item_start_content.clone();
             if let Some(token) = overlay_token.clone() {
                 sub = sub.overlay_token(token);
             }
@@ -1869,6 +1903,7 @@ pub struct Dropdown {
     items: Vec<MenuItem>,
     item_content: Option<ItemContent>,
     indicator_content: Option<ItemIndicatorContent>,
+    item_start_content: Option<ItemStartContent>,
     selection_mode: SelectionMode,
     selected_keys: Vec<SharedString>,
     default_selected_keys: Vec<SharedString>,
@@ -1964,6 +1999,7 @@ impl Dropdown {
             items,
             item_content: None,
             indicator_content: None,
+            item_start_content: None,
             selection_mode: SelectionMode::None,
             selected_keys: Vec::new(),
             default_selected_keys: Vec::new(),
@@ -2026,6 +2062,16 @@ impl Dropdown {
         render: impl Fn(&SharedString, bool, bool) -> AnyElement + 'static,
     ) -> Self {
         self.indicator_content = Some(std::sync::Arc::new(render));
+        self
+    }
+
+    /// The leading element of each row, forwarded onto the painted [`Menu`].
+    /// See [`Menu::item_start_content`]; a HeroGPUI extension.
+    pub fn item_start_content(
+        mut self,
+        render: impl Fn(&SharedString, crate::util::InteractiveState) -> Option<AnyElement> + 'static,
+    ) -> Self {
+        self.item_start_content = Some(std::sync::Arc::new(render));
         self
     }
 
@@ -2300,6 +2346,7 @@ impl RenderOnce for Dropdown {
             .indicator(self.indicator);
             menu.item_content = self.item_content.clone();
             menu.indicator_content = self.indicator_content.clone();
+            menu.item_start_content = self.item_start_content.clone();
             menu.recipes = self.recipes.clone();
             if let Some(row_hover_bg) = self.row_hover_bg {
                 menu = menu.row_hover_bg(row_hover_bg);

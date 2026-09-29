@@ -19,6 +19,8 @@ mod capability_hooks_deep;
 mod cursor_token;
 #[path = "focus_ring_overlay.rs"]
 mod focus_ring_overlay;
+#[path = "focus_root.rs"]
+mod focus_root;
 #[path = "focus_visible_deep.rs"]
 mod focus_visible_deep;
 #[path = "i18n.rs"]

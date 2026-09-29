@@ -505,3 +505,109 @@ fn a_primary_press_focuses_an_area_with_no_focusable_content(cx: &mut TestAppCon
     assert!(panel(cx).is_some(), "the press focused the area itself");
     assert_eq!(seen.borrow().as_slice(), ["open:true"]);
 }
+
+fn styled_host(cx: &mut TestAppContext, seen: Events) -> &mut VisualTestContext {
+    still();
+    open_host(cx, move || {
+        let seen = seen.clone();
+        ContextMenu::new(
+            "styled-ctx",
+            gpui::div().w(px(400.)).h(px(300.)),
+            vec![MenuItem::new("copy", "C"), MenuItem::new("paste", "P")],
+        )
+        .recipe("accent")
+        .item_content(|key, _| {
+            let key = key.clone();
+            gpui::div()
+                .w(px(20.))
+                .h(px(20.))
+                .debug_selector(move || format!("label-{key}"))
+                .into_any_element()
+        })
+        .item_start_content(move |key, state| {
+            seen.borrow_mut()
+                .push(format!("{key}:focused={}", state.is_focused));
+            let key = key.clone();
+            (key.as_ref() == "copy").then(|| {
+                gpui::div()
+                    .w(px(12.))
+                    .h(px(12.))
+                    .debug_selector(move || format!("start-{key}"))
+                    .into_any_element()
+            })
+        })
+        .into_any_element()
+    })
+}
+
+#[gpui::test]
+fn a_recipe_styles_the_context_menu_panel(cx: &mut TestAppContext) {
+    use herogpui_theme::{set_theme, ComponentColor, ComponentTheme, ComponentThemes, MenuStyle};
+
+    let cx = styled_host(cx, events());
+    right_click(cx, 10., 10.);
+    assert_eq!(
+        panel(cx).expect("the menu opened").size.width,
+        px(220.),
+        "a recipe the theme does not define adds no override"
+    );
+
+    let hover = gpui::rgb(0x2255aa).into();
+    cx.update(|window, cx| {
+        set_theme(
+            herogpui_theme::Theme::builder("app", herogpui_theme::Theme::light())
+                .components(
+                    ComponentThemes::default().menu(
+                        ComponentTheme::default().recipe(
+                            "accent",
+                            MenuStyle::default()
+                                .panel_min_width(px(128.))
+                                .row_hover_bg(ComponentColor::Literal(hover)),
+                        ),
+                    ),
+                )
+                .build(),
+            cx,
+        );
+        window.refresh();
+    });
+    frame(cx);
+    assert_eq!(panel(cx).expect("still open").size.width, px(128.));
+
+    let row = cx.debug_bounds("label-copy").expect("row laid out");
+    cx.simulate_mouse_move(row.center(), None, Modifiers::none());
+    let painted = harness::painted(cx);
+    assert!(
+        !painted.filled(hover).is_empty(),
+        "the recipe's row hover fill reaches the hovered row"
+    );
+}
+
+#[gpui::test]
+fn item_start_content_leads_the_row_and_sees_its_state(cx: &mut TestAppContext) {
+    let seen = events();
+    let cx = styled_host(cx, seen.clone());
+    right_click(cx, 10., 10.);
+
+    let start = cx
+        .debug_bounds("start-copy")
+        .expect("leading element drawn");
+    let label = cx.debug_bounds("label-copy").expect("label drawn");
+    assert!(start.right() <= label.left(), "the element leads the label");
+    assert!(start.top() >= label.top() && start.bottom() <= label.bottom() + px(4.));
+    assert!(
+        cx.debug_bounds("start-paste").is_none(),
+        "a row whose closure returns None draws no leading element"
+    );
+
+    seen.borrow_mut().clear();
+    press(cx, "down");
+    frame(cx);
+    assert!(
+        seen.borrow()
+            .iter()
+            .any(|entry| entry == "copy:focused=true"),
+        "the closure receives the row's focus: {:?}",
+        seen.borrow()
+    );
+}

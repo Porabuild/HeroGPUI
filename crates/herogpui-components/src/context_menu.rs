@@ -18,6 +18,13 @@
 //! primary press on a part of the area that does not take the focus itself
 //! focuses the area, so an area with no focusable content is reachable too.
 //!
+//! The panel takes the same styling surface as a [`crate::Dropdown`]'s:
+//! [`ContextMenu::recipe`] names a [`herogpui_theme::ComponentThemes::menu`]
+//! overlay (row fill, panel width, padding, radius and the rest of
+//! `MenuStyle`), and [`ContextMenu::item_content`] and
+//! [`ContextMenu::item_start_content`] draw the rows' label and leading
+//! element.
+//!
 //! ```
 //! use herogpui_components::{ContextMenu, MenuItem};
 //! use gpui::{div, prelude::*, px};
@@ -48,6 +55,7 @@ use herogpui_core::{element_id, Placement};
 use crate::{Menu, MenuItem};
 
 type Callback<T> = Arc<dyn Fn(&T, &mut Window, &mut App) + 'static>;
+type RowContent<T> = Box<dyn Fn(&SharedString, crate::util::InteractiveState) -> T + 'static>;
 
 /// A secondary-click menu over `child`. See the [module docs](self).
 #[must_use = "a component does nothing until it is rendered: add it as a child or return it from `render`"]
@@ -60,6 +68,9 @@ pub struct ContextMenu {
     is_disabled: bool,
     on_action: Option<Callback<SharedString>>,
     on_open_change: Option<Callback<bool>>,
+    recipes: Vec<SharedString>,
+    item_content: Option<RowContent<AnyElement>>,
+    item_start_content: Option<RowContent<Option<AnyElement>>>,
 }
 
 impl ContextMenu {
@@ -78,7 +89,38 @@ impl ContextMenu {
             is_disabled: false,
             on_action: None,
             on_open_change: None,
+            recipes: Vec::new(),
+            item_content: None,
+            item_start_content: None,
         }
+    }
+
+    /// Named theme overlay from [`herogpui_theme::ComponentThemes::menu`],
+    /// forwarded onto the painted [`Menu`] as [`crate::Dropdown::recipe`]
+    /// forwards it. Stackable; a missing name adds no override.
+    pub fn recipe(mut self, name: impl Into<SharedString>) -> Self {
+        self.recipes.push(name.into());
+        self
+    }
+
+    /// Replaces each item's label, forwarded onto the painted [`Menu`]. See
+    /// [`Menu::item_content`].
+    pub fn item_content(
+        mut self,
+        render: impl Fn(&SharedString, crate::util::InteractiveState) -> AnyElement + 'static,
+    ) -> Self {
+        self.item_content = Some(Box::new(render));
+        self
+    }
+
+    /// The leading element of each row, forwarded onto the painted [`Menu`].
+    /// See [`Menu::item_start_content`].
+    pub fn item_start_content(
+        mut self,
+        render: impl Fn(&SharedString, crate::util::InteractiveState) -> Option<AnyElement> + 'static,
+    ) -> Self {
+        self.item_start_content = Some(Box::new(render));
+        self
     }
 
     /// Runs with the chosen item's key; the menu then closes.
@@ -251,6 +293,15 @@ impl RenderOnce for ContextMenu {
                 .exiting(phase == crate::util::OverlayPhase::Exiting)
                 .disabled_keys(self.disabled_keys)
                 .overlay_token(overlay_token);
+            for recipe in self.recipes {
+                menu = menu.recipe(recipe);
+            }
+            if let Some(render) = self.item_content {
+                menu = menu.item_content(render);
+            }
+            if let Some(render) = self.item_start_content {
+                menu = menu.item_start_content(render);
+            }
             if let Some(on_action) = self.on_action {
                 menu = menu.on_action(move |key, window, cx| on_action(key, window, cx));
             }
