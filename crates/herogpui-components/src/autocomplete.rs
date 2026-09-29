@@ -703,11 +703,77 @@ impl Autocomplete {
     }
 }
 
+type OnOpenChange = std::sync::Arc<dyn Fn(&bool, &mut Window, &mut App) + 'static>;
+type OnSelectionChangeAll =
+    std::sync::Arc<dyn Fn(&[SharedString], &mut Window, &mut App) + 'static>;
+
+/// The controlled halves `render` resolves first: the frame's ids and shared
+/// collection, the selection and the open flag. `controlled` takes `cx`
+/// mutably, so these precede every other read.
+struct AutoControlled {
+    base: String,
+    base_id: gpui::ElementId,
+    items: Rc<[PickerItem]>,
+    multiple: bool,
+    selection_own: Option<Entity<Vec<SharedString>>>,
+    open: bool,
+    open_own: Option<Entity<bool>>,
+    overlay_phase: util::OverlayPhase,
+    dismissal_token: util::OverlayToken,
+}
+
+/// The clear button's keyed interaction and derived flags.
+struct AutoClear {
+    clear_slot: util::Interaction,
+    clear_active: bool,
+    clear_hovered: bool,
+    clear_pressed: bool,
+    reduce_motion: bool,
+    clear_opacity: crate::anim::Tween<f32>,
+}
+
+/// Everything one Autocomplete frame shares between its painted parts: the
+/// controlled state, the keyed handles, the resolved matches and cursor, the
+/// clear button's state and the theme tokens. `render` resolves it once in
+/// [`Autocomplete::frame`]; the trigger, its clear button, the key handler
+/// and the popover all read this one copy.
+struct AutoFrame {
+    base: String,
+    base_id: gpui::ElementId,
+    items: Rc<[PickerItem]>,
+    multiple: bool,
+    selection_own: Option<Entity<Vec<SharedString>>>,
+    open: bool,
+    open_own: Option<Entity<bool>>,
+    overlay_phase: util::OverlayPhase,
+    dismissal_token: util::OverlayToken,
+    resolved_placement: Rc<Cell<Option<Placement>>>,
+    entry_placement: Placement,
+    blur_scope: gpui::FocusHandle,
+    focus_handle: Option<gpui::FocusHandle>,
+    cursor: Entity<Option<SharedString>>,
+    list_scroll_now: gpui::UniformListScrollHandle,
+    panel_scroll_now: gpui::ScrollHandle,
+    query_edit: Entity<Option<bool>>,
+    plain_edit_key: Entity<bool>,
+    clear: AutoClear,
+    raw_query: String,
+    matches: Rc<[PickerItem]>,
+    cursor_at: Option<usize>,
+    anchor_bounds: Rc<Cell<Option<gpui::Bounds<Pixels>>>>,
+    colors: herogpui_theme::ThemeColors,
+    layout: herogpui_theme::LayoutTheme,
+    is_invalid: bool,
+    can_open: bool,
+    toggle_allowed: bool,
+    trigger_pressed: Rc<Cell<bool>>,
+}
+
 impl RenderOnce for Autocomplete {
     fn render(mut self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         // One shared collection for the frame: the `'static` panel and event
         // closures clone the `Rc`, never the rows.
-        let items: Rc<[PickerItem]> = self.items.into();
+        let items: Rc<[PickerItem]> = std::mem::take(&mut self.items).into();
         let base = format!("autocomplete-{}", self.state.entity_id().as_u64());
         // The same identity as `base`, kept as structure for the ids that key
         // state rather than name a debug selector.
@@ -759,32 +825,99 @@ impl RenderOnce for Autocomplete {
             open,
             true,
         );
-        let overlay_active = overlay_phase != util::OverlayPhase::Closed;
-        let overlay_exiting = overlay_phase == util::OverlayPhase::Exiting;
+        let frame = self.frame(
+            AutoControlled {
+                base,
+                base_id,
+                items,
+                multiple,
+                selection_own,
+                open,
+                open_own,
+                overlay_phase,
+                dismissal_token,
+            },
+            window,
+            cx,
+        );
+
+        // --- the trigger ----------------------------------------------------
+        let mut field = self.trigger_field(&frame, window, cx);
+        let (value_slot, selected_text) = self.trigger_value(&frame, cx);
+        // `@heroui/react/dist/components/autocomplete/autocomplete.js` builds
+        // this trigger from RAC `Select` + `Button` — v3's Autocomplete is a
+        // Select whose popover holds a search field, not a ComboBox — so
+        // `react-aria/.../select/useSelect.mjs` decides its contract through
+        // `useMenuTrigger({type: 'listbox'})`: a native `<button>` with
+        // `'aria-haspopup': 'listbox'`, `'aria-expanded': isOpen`,
+        // `'aria-controls'`, named by its label and the drawn value. Only the
+        // role, the name and `aria-expanded` have gpui builders.
+        //
+        // Stated here rather than at the head of the chain because
+        // `selected_text` is what names it, and that is not known until the
+        // value slot is resolved.
+        field = field
+            .a11y_named(
+                a11y::Role::Button,
+                &a11y::Name::maybe(self.label.clone())
+                    .described(Some(SharedString::from(selected_text))),
+            )
+            .a11y_expanded(frame.open);
+        field = field.child(value_slot);
+        field = field.child(self.clear_button(&frame, cx));
+        field = self.trigger_indicator_slot(field, &frame, window, cx);
+        field = self.trigger_toggle(field, &frame);
+
+        // The popup anchors to the trigger bounds -- not to the
+        // label-to-description wrapper root -- the way RAC's
+        // `useOverlayPosition` positions against the trigger rect.
+        // `scrollable_field_popover` below reads these bounds to flip and
+        // cap the panel; the measure element itself only records them.
+        let field = crate::popover::PopoverTriggerMeasure::new(field, frame.anchor_bounds.clone());
+
+        let mut root = self.field_root(field, &frame);
+        if frame.can_open {
+            root = self.root_keys(root, &frame);
+        }
+        root = self.root_escape(root, &frame);
+
+        // --- the popover ----------------------------------------------------
+        // The popover's presence is the Select's open state and nothing else.
+        // Filtering happens inside `Autocomplete.Filter`, which prunes only
+        // the ListBox's rows. At zero this port draws the "No results found"
+        // empty state used by v3's examples; `allowsEmptyCollection` is not a
+        // close-on-filtered-empty flag. The panel carries its own
+        // outside-press dismissal, so there is nothing to attach to the root
+        // when it is unmounted.
+        if frame.overlay_phase != util::OverlayPhase::Closed {
+            root = root.child(self.popover(frame, cx));
+        }
+
+        util::apply_sx(root, &self.sx)
+    }
+}
+
+impl Autocomplete {
+    /// Resolves the frame's keyed handles, matches and cursor on top of the
+    /// controlled state.
+    fn frame(&self, controlled: AutoControlled, window: &mut Window, cx: &mut App) -> AutoFrame {
+        let AutoControlled {
+            ref base_id,
+            ref items,
+            open,
+            ref open_own,
+            ..
+        } = controlled;
         // Field popover placement can flip during prepaint. Feed the resolved
         // physical side back into the next entry frame, just like Popover.
-        let requested_placement = window.use_keyed_state(
-            element_id::scoped(&base_id, "requested-placement"),
-            cx,
-            |_, _| self.placement,
-        );
-        let resolved_placement = window.use_keyed_state(
-            element_id::scoped(&base_id, "resolved-placement"),
-            cx,
-            |_, _| Rc::new(Cell::new(None::<Placement>)),
-        );
-        if *requested_placement.read(cx) != self.placement {
-            requested_placement.update(cx, |placement, _| *placement = self.placement);
-            resolved_placement.read(cx).set(None);
-        }
-        let resolved_placement = resolved_placement.read(cx).clone();
-        let entry_placement = resolved_placement.get().unwrap_or(self.placement);
+        let (resolved_placement, entry_placement) =
+            crate::popover::field_placement_feedback(window, cx, base_id, self.placement);
 
         // `usePopover` closes when focus leaves the trigger-plus-panel scope.
         // Unlike Escape, blur leaves focus on its destination.
         let blur_close_own = open_own.clone();
         let blur_open_change = self.on_open_change.clone();
-        let blur_scope = util::close_on_blur(window, cx, &base_id, open, move |window, cx| {
+        let blur_scope = util::close_on_blur(window, cx, base_id, open, move |window, cx| {
             if let Some(held) = &blur_close_own {
                 held.update(cx, |v, cx| {
                     *v = false;
@@ -802,7 +935,7 @@ impl RenderOnce for Autocomplete {
             None
         } else {
             Some(util::tab_stop_handle(
-                element_id::scoped(&base_id, "focus"),
+                element_id::scoped(base_id, "focus"),
                 window,
                 cx,
             ))
@@ -810,7 +943,7 @@ impl RenderOnce for Autocomplete {
         // Which row the keyboard is on, held as the item's *key* so the cursor
         // stays on the same item when the query filters or the caller reorders
         // the collection.
-        let cursor = window.use_keyed_state(element_id::scoped(&base_id, "cursor"), cx, |_, _| {
+        let cursor = window.use_keyed_state(element_id::scoped(base_id, "cursor"), cx, |_, _| {
             None::<SharedString>
         });
         // React Aria keeps the focused row in view, and v3's list is
@@ -818,11 +951,11 @@ impl RenderOnce for Autocomplete {
         // scrolling div the other. `use_keyed_state` takes `cx` mutably, so both
         // precede the theme tokens.
         let list_scroll =
-            window.use_keyed_state(element_id::scoped(&base_id, "list-scroll"), cx, |_, _| {
+            window.use_keyed_state(element_id::scoped(base_id, "list-scroll"), cx, |_, _| {
                 gpui::UniformListScrollHandle::new()
             });
         let panel_scroll =
-            window.use_keyed_state(element_id::scoped(&base_id, "panel-scroll"), cx, |_, _| {
+            window.use_keyed_state(element_id::scoped(base_id, "panel-scroll"), cx, |_, _| {
                 gpui::ScrollHandle::new()
             });
         let list_scroll_now = list_scroll.read(cx).clone();
@@ -831,71 +964,18 @@ impl RenderOnce for Autocomplete {
         // the query field takes the focus as the popover opens -- once per
         // opening, or it would take the focus back on every frame.
         let autofocused =
-            window.use_keyed_state(element_id::scoped(&base_id, "autofocus"), cx, |_, _| false);
+            window.use_keyed_state(element_id::scoped(base_id, "autofocus"), cx, |_, _| false);
         // SearchField's text callback and the bubbling key event cooperate to
         // classify the pending edit; see the block after `matches` below.
         let query_edit =
-            window.use_keyed_state(element_id::scoped(&base_id, "query-edit"), cx, |_, _| {
+            window.use_keyed_state(element_id::scoped(base_id, "query-edit"), cx, |_, _| {
                 None::<bool>
             });
-        let plain_edit_key = window.use_keyed_state(
-            element_id::scoped(&base_id, "plain-edit-key"),
-            cx,
-            |_, _| false,
-        );
-        // The pinned trigger hover carries
-        // `:not(:has(.autocomplete__clear-button:hover))`: while the pointer is
-        // on the clear button inside the trigger, the trigger's own hover fill
-        // is suppressed so the affordance does not double-hover the whole
-        // field. gpui 0.2.2 has no `:has` analog and a parent hitbox stays
-        // hovered while a child's is, so the clear button feeds its own hover
-        // into this keyed (hovered, pressed) slot (`on_hover` dispatches with
-        // the moved position, before the next paint) and the trigger's
-        // refinement reads it. The same slot carries the press, for the pinned
-        // `:active, &[data-pressed] { transform: scale(0.93) }`.
-        let clear_slot = util::interaction(element_id::scoped(&base_id, "clear-ix"), window, cx);
-        // The slot is read before the theme tokens for the same reason the
-        // other keyed states are: the normalization below takes `cx` mutably.
-        // `.autocomplete__clear-button` stays mounted for as long as it is
-        // composed: pinned v3 gates the part only through `disabled={isDisabled}`
-        // and its own `data-empty` (`pointer-events-none opacity-0`), and
-        // neither the part nor pinned react-stately 3.49.0's
-        // `selectionManager.setSelectedKeys` knows a read-only gate (RAC
-        // 1.20.0's `Select` has no `isReadOnly` at all), so a read-only
-        // control keeps a working clear button.
-        let clear_empty = self.selected_keys.is_empty();
-        let clear_active = !clear_empty && !self.is_disabled;
-        // A hover or press recorded on the button outlives the listener that
-        // would clear it when the button goes inert (cleared, disabled): the
-        // pointer can leave and the selection can flip with no event reaching
-        // the detached handler. The inert frames normalize the slot back to
-        // rest, so a stale flag cannot survive a clear-and-reselect.
-        if !clear_active && *clear_slot.read(cx) != (false, false) {
-            clear_slot.update(cx, |state, _| *state = (false, false));
-        }
-        let (clear_hovered, clear_pressed) = if clear_active {
-            *clear_slot.read(cx)
-        } else {
-            (false, false)
-        };
-        let reduce_motion = ActiveTheme::reduce_motion(cx);
-        let mut clear_opacity = crate::anim::Tween::keyed(
-            &base_id,
-            "clear-opacity",
-            if clear_empty { 0.0 } else { 1.0 },
-            window,
-            cx,
-        );
-        // HeroUI hides the clear button immediately when the selection is
-        // emptied, but lets a newly visible button fade in. Keeping the
-        // transition on a listener-free child preserves the stable 20px hit
-        // target and lets a clear/reselect reversal resume from its painted
-        // opacity.
-        if clear_empty {
-            clear_opacity.settle();
-        } else {
-            clear_opacity.snap_if_reduced(reduce_motion);
-        }
+        let plain_edit_key =
+            window.use_keyed_state(element_id::scoped(base_id, "plain-edit-key"), cx, |_, _| {
+                false
+            });
+        let clear = self.clear_state(base_id, window, cx);
         let search_focus = self.state.read(cx).focus_handle.clone();
         if open && !*autofocused.read(cx) {
             window.focus(&search_focus, cx);
@@ -910,38 +990,7 @@ impl RenderOnce for Autocomplete {
             None => self.state.read(cx).value().to_owned(),
         };
 
-        // The list starts unfiltered: v3's popover shows the whole collection
-        // until something is typed into the search field. Closed and idle
-        // frames draw no rows, so they skip the match work entirely; a
-        // consuming frame with a typed query shares one cached list until the
-        // query, the collection or the cap changes. An empty query copies the
-        // capped prefix directly: no per-row matching runs for it, so the
-        // cache's element-by-element key comparison would cost more than the
-        // work it saves. A custom filter owns the whole decision, including
-        // what an empty query means, and its configuration cannot join a
-        // cache key — its results are never cached and it only runs while the
-        // matches are consumed.
-        let matches_cache =
-            window.use_keyed_state(element_id::scoped(&base_id, "matches"), cx, |_, _| {
-                MatchesCache::default()
-            });
-        let consume_matches = overlay_active || query_edit.read(cx).is_some();
-        let matches: Rc<[PickerItem]> = if !consume_matches {
-            empty_matches()
-        } else {
-            let filter = self.filter.clone();
-            match &filter {
-                Some(f) => Rc::from(compute_matches(&items, &raw_query, self.max_items, Some(f))),
-                None if raw_query.is_empty() => {
-                    Rc::from(compute_matches(&items, &raw_query, self.max_items, None))
-                }
-                None => matches_cache.update(cx, |cache, _| {
-                    cache.get(items.clone(), raw_query.as_str(), self.max_items, |items| {
-                        compute_matches(items, &raw_query, self.max_items, None)
-                    })
-                }),
-            }
-        };
+        let matches = self.matches(&controlled, &raw_query, &query_edit, window, cx);
         // The stored cursor is the focused item's key; the row it lands on is
         // wherever that key sits in the filtered collection now.
         let cursor_at = cursor
@@ -989,7 +1038,7 @@ impl RenderOnce for Autocomplete {
         }
 
         let anchor_bounds: Rc<Cell<Option<gpui::Bounds<Pixels>>>> = window
-            .use_keyed_state(element_id::scoped(&base_id, "anchor-bounds"), cx, |_, _| {
+            .use_keyed_state(element_id::scoped(base_id, "anchor-bounds"), cx, |_, _| {
                 Rc::new(Cell::new(None))
             })
             .read(cx)
@@ -1001,6 +1050,206 @@ impl RenderOnce for Autocomplete {
         let layout = cx.layout().clone();
 
         let is_invalid = self.is_invalid || self.error_message.is_some();
+        self.sync_form(&controlled, is_invalid, &focus_handle);
+        let can_open = !self.is_disabled;
+        // Whether the trigger's open acts are allowed at all: react-stately
+        // 3.49.0's `useSelectState` guards `open`/`toggle` — *"Don't open if
+        // the collection is empty"* — and v3's Autocomplete root is a RAC
+        // `Select`, whose trigger calls `state.toggle()`. A collection with no
+        // items therefore refuses every trigger open/toggle unless
+        // `allowsEmptyCollection` lets the autocomplete function with no
+        // items. This is the *unfiltered* collection: a query that prunes an
+        // open popover to zero never reaches this gate.
+        let toggle_allowed = self.allows_empty_collection || !items.is_empty();
+
+        // Whether the pointer went down on the trigger (or on the clear
+        // button inside it). The panel's outside-press dismissal treats the
+        // trigger as outside its own bounds, so a press on an *open* popover's
+        // trigger would dismiss it on the mouse-down *and* toggle it back open
+        // through the trigger's own click on the mouse-up -- one press, two
+        // contradictory reports. The trigger's capture-phase handler runs
+        // before the panel's `on_mouse_down_out` in the same dispatch, so the
+        // dismissal can see it and leave the close to the trigger's click.
+        let trigger_pressed = Rc::new(Cell::new(false));
+        let AutoControlled {
+            base,
+            base_id,
+            items,
+            multiple,
+            selection_own,
+            open,
+            open_own,
+            overlay_phase,
+            dismissal_token,
+        } = controlled;
+        AutoFrame {
+            base,
+            base_id,
+            items,
+            multiple,
+            selection_own,
+            open,
+            open_own,
+            overlay_phase,
+            dismissal_token,
+            resolved_placement,
+            entry_placement,
+            blur_scope,
+            focus_handle,
+            cursor,
+            list_scroll_now,
+            panel_scroll_now,
+            query_edit,
+            plain_edit_key,
+            clear,
+            raw_query,
+            matches,
+            cursor_at,
+            anchor_bounds,
+            colors,
+            layout,
+            is_invalid,
+            can_open,
+            toggle_allowed,
+            trigger_pressed,
+        }
+    }
+
+    /// The clear button's keyed (hovered, pressed) slot and its fade.
+    fn clear_state(
+        &self,
+        base_id: &gpui::ElementId,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> AutoClear {
+        // The pinned trigger hover carries
+        // `:not(:has(.autocomplete__clear-button:hover))`: while the pointer is
+        // on the clear button inside the trigger, the trigger's own hover fill
+        // is suppressed so the affordance does not double-hover the whole
+        // field. gpui 0.2.2 has no `:has` analog and a parent hitbox stays
+        // hovered while a child's is, so the clear button feeds its own hover
+        // into this keyed (hovered, pressed) slot (`on_hover` dispatches with
+        // the moved position, before the next paint) and the trigger's
+        // refinement reads it. The same slot carries the press, for the pinned
+        // `:active, &[data-pressed] { transform: scale(0.93) }`.
+        let clear_slot = util::interaction(element_id::scoped(base_id, "clear-ix"), window, cx);
+        // The slot is read before the theme tokens for the same reason the
+        // other keyed states are: the normalization below takes `cx` mutably.
+        // `.autocomplete__clear-button` stays mounted for as long as it is
+        // composed: pinned v3 gates the part only through `disabled={isDisabled}`
+        // and its own `data-empty` (`pointer-events-none opacity-0`), and
+        // neither the part nor pinned react-stately 3.49.0's
+        // `selectionManager.setSelectedKeys` knows a read-only gate (RAC
+        // 1.20.0's `Select` has no `isReadOnly` at all), so a read-only
+        // control keeps a working clear button.
+        let clear_empty = self.selected_keys.is_empty();
+        let clear_active = !clear_empty && !self.is_disabled;
+        // A hover or press recorded on the button outlives the listener that
+        // would clear it when the button goes inert (cleared, disabled): the
+        // pointer can leave and the selection can flip with no event reaching
+        // the detached handler. The inert frames normalize the slot back to
+        // rest, so a stale flag cannot survive a clear-and-reselect.
+        if !clear_active && *clear_slot.read(cx) != (false, false) {
+            clear_slot.update(cx, |state, _| *state = (false, false));
+        }
+        let (clear_hovered, clear_pressed) = if clear_active {
+            *clear_slot.read(cx)
+        } else {
+            (false, false)
+        };
+        let reduce_motion = ActiveTheme::reduce_motion(cx);
+        let mut clear_opacity = crate::anim::Tween::keyed(
+            base_id,
+            "clear-opacity",
+            if clear_empty { 0.0 } else { 1.0 },
+            window,
+            cx,
+        );
+        // HeroUI hides the clear button immediately when the selection is
+        // emptied, but lets a newly visible button fade in. Keeping the
+        // transition on a listener-free child preserves the stable 20px hit
+        // target and lets a clear/reselect reversal resume from its painted
+        // opacity.
+        if clear_empty {
+            clear_opacity.settle();
+        } else {
+            clear_opacity.snap_if_reduced(reduce_motion);
+        }
+        AutoClear {
+            clear_slot,
+            clear_active,
+            clear_hovered,
+            clear_pressed,
+            reduce_motion,
+            clear_opacity,
+        }
+    }
+
+    /// The rows the list draws this frame, or none while nothing consumes
+    /// them.
+    fn matches(
+        &self,
+        controlled: &AutoControlled,
+        raw_query: &str,
+        query_edit: &Entity<Option<bool>>,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> Rc<[PickerItem]> {
+        let AutoControlled {
+            ref base_id,
+            ref items,
+            overlay_phase,
+            ..
+        } = *controlled;
+        let overlay_active = overlay_phase != util::OverlayPhase::Closed;
+        // The list starts unfiltered: v3's popover shows the whole collection
+        // until something is typed into the search field. Closed and idle
+        // frames draw no rows, so they skip the match work entirely; a
+        // consuming frame with a typed query shares one cached list until the
+        // query, the collection or the cap changes. An empty query copies the
+        // capped prefix directly: no per-row matching runs for it, so the
+        // cache's element-by-element key comparison would cost more than the
+        // work it saves. A custom filter owns the whole decision, including
+        // what an empty query means, and its configuration cannot join a
+        // cache key — its results are never cached and it only runs while the
+        // matches are consumed.
+        let matches_cache =
+            window.use_keyed_state(element_id::scoped(base_id, "matches"), cx, |_, _| {
+                MatchesCache::default()
+            });
+        let consume_matches = overlay_active || query_edit.read(cx).is_some();
+        let matches: Rc<[PickerItem]> = if !consume_matches {
+            empty_matches()
+        } else {
+            let filter = self.filter.clone();
+            match &filter {
+                Some(f) => Rc::from(compute_matches(items, raw_query, self.max_items, Some(f))),
+                None if raw_query.is_empty() => {
+                    Rc::from(compute_matches(items, raw_query, self.max_items, None))
+                }
+                None => matches_cache.update(cx, |cache, _| {
+                    cache.get(items.clone(), raw_query, self.max_items, |items| {
+                        compute_matches(items, raw_query, self.max_items, None)
+                    })
+                }),
+            }
+        };
+        matches
+    }
+
+    /// Mirrors the selection into the live form state and installs the
+    /// reset that restores the default selection.
+    fn sync_form(
+        &self,
+        controlled: &AutoControlled,
+        is_invalid: bool,
+        focus_handle: &Option<gpui::FocusHandle>,
+    ) {
+        let AutoControlled {
+            multiple,
+            ref selection_own,
+            ..
+        } = *controlled;
         sync_form_state(
             &self.form_state,
             &self.selected_keys,
@@ -1031,27 +1280,26 @@ impl RenderOnce for Autocomplete {
                     }
                 }) as std::sync::Arc<dyn Fn(&mut Window, &mut App)>
             });
-        let can_open = !self.is_disabled;
-        // Whether the trigger's open acts are allowed at all: react-stately
-        // 3.49.0's `useSelectState` guards `open`/`toggle` — *"Don't open if
-        // the collection is empty"* — and v3's Autocomplete root is a RAC
-        // `Select`, whose trigger calls `state.toggle()`. A collection with no
-        // items therefore refuses every trigger open/toggle unless
-        // `allowsEmptyCollection` lets the autocomplete function with no
-        // items. This is the *unfiltered* collection: a query that prunes an
-        // open popover to zero never reaches this gate.
-        let toggle_allowed = self.allows_empty_collection || !items.is_empty();
+    }
 
-        // --- the trigger ----------------------------------------------------
-        // Whether the pointer went down on the trigger (or on the clear
-        // button inside it). The panel's outside-press dismissal treats the
-        // trigger as outside its own bounds, so a press on an *open* popover's
-        // trigger would dismiss it on the mouse-down *and* toggle it back open
-        // through the trigger's own click on the mouse-up -- one press, two
-        // contradictory reports. The trigger's capture-phase handler runs
-        // before the panel's `on_mouse_down_out` in the same dispatch, so the
-        // dismissal can see it and leave the close to the trigger's click.
-        let trigger_pressed = Rc::new(Cell::new(false));
+    /// The `.autocomplete__trigger` box: geometry, field chrome, focus ring
+    /// and hover fade.
+    fn trigger_field(
+        &self,
+        frame: &AutoFrame,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> gpui::Stateful<gpui::Div> {
+        let AutoFrame {
+            ref base,
+            ref base_id,
+            ref focus_handle,
+            clear: AutoClear { clear_hovered, .. },
+            ref colors,
+            ref layout,
+            is_invalid,
+            ..
+        } = *frame;
         let field_box = self.field;
         // `radius` overrides the detached panel only; the trigger is a field
         // box painted by the shared field chrome.
@@ -1060,7 +1308,7 @@ impl RenderOnce for Autocomplete {
         // rounded-field border bg-field px-3 py-2 text-sm shadow-field`, plus
         // `pe-7` because the indicator sits inside it.
         let mut field = gpui::div()
-            .id(element_id::scoped(&base_id, "trigger"))
+            .id(element_id::scoped(base_id, "trigger"))
             .when_some(self.font_family.clone(), |field, family| field.font_family(family))
             // Headless probe: the decision that gates the hover refinement
             // above, so a test can drive real hover coordinates and read the
@@ -1134,7 +1382,7 @@ impl RenderOnce for Autocomplete {
                 // `:not(:has(.autocomplete__clear-button:hover))` rule.
                 field = crate::anim::hover_fade_with_duration_and_easing_suppressed(
                     field,
-                    element_id::scoped(&base_id, "trigger-hover-fade"),
+                    element_id::scoped(base_id, "trigger-hover-fade"),
                     (idle_bg, hover_bg),
                     None,
                     (!clear_hovered).then_some(hover_border),
@@ -1157,7 +1405,16 @@ impl RenderOnce for Autocomplete {
             // `ComboBox` makes.
             field = field.min_w(px(180.));
         }
+        field
+    }
 
+    /// `.autocomplete__value`: the selection's text, or the caller's slot.
+    fn trigger_value(&mut self, frame: &AutoFrame, cx: &App) -> (gpui::AnyElement, String) {
+        let AutoFrame {
+            ref items,
+            ref colors,
+            ..
+        } = *frame;
         // --- `.autocomplete__value` -----------------------------------------
         // The trigger renders the selection in the selection set's own order —
         // pinned react-stately 3.49.0's `selectedKeys` is a JS `Set`, whose
@@ -1224,27 +1481,28 @@ impl RenderOnce for Autocomplete {
                 .into_any_element(),
             None => default_children,
         };
-        // `@heroui/react/dist/components/autocomplete/autocomplete.js` builds
-        // this trigger from RAC `Select` + `Button` — v3's Autocomplete is a
-        // Select whose popover holds a search field, not a ComboBox — so
-        // `react-aria/.../select/useSelect.mjs` decides its contract through
-        // `useMenuTrigger({type: 'listbox'})`: a native `<button>` with
-        // `'aria-haspopup': 'listbox'`, `'aria-expanded': isOpen`,
-        // `'aria-controls'`, named by its label and the drawn value. Only the
-        // role, the name and `aria-expanded` have gpui builders.
-        //
-        // Stated here rather than at the head of the chain because
-        // `selected_text` is what names it, and that is not known until the
-        // value slot is resolved.
-        field = field
-            .a11y_named(
-                a11y::Role::Button,
-                &a11y::Name::maybe(self.label.clone())
-                    .described(Some(SharedString::from(selected_text))),
-            )
-            .a11y_expanded(open);
-        field = field.child(value_slot);
+        (value_slot, selected_text)
+    }
 
+    /// `.autocomplete__clear-button`: a stable 20px hit box over a scaled,
+    /// fading visual.
+    fn clear_button(&self, frame: &AutoFrame, cx: &App) -> gpui::Stateful<gpui::Div> {
+        let AutoFrame {
+            ref base,
+            ref base_id,
+            ref selection_own,
+            clear:
+                AutoClear {
+                    ref clear_slot,
+                    clear_active,
+                    clear_pressed,
+                    reduce_motion,
+                    ref clear_opacity,
+                    ..
+                },
+            ref colors,
+            ..
+        } = *frame;
         // `.autocomplete__clear-button` — mounted whenever the trigger is:
         // `data-empty` only makes it invisible and pointer-inert, and
         // `disabled={isDisabled}` only disables it. The pinned part is a
@@ -1284,7 +1542,7 @@ impl RenderOnce for Autocomplete {
             let value = clear_opacity.value();
             clear_visual
                 .with_animation(
-                    element_id::indexed(&base_id, "clear-opacity", clear_opacity.generation()),
+                    element_id::indexed(base_id, "clear-opacity", clear_opacity.generation()),
                     gpui::Animation::new(Duration::from_millis(CLEAR_OPACITY_TRANSITION_MS))
                         .with_easing(crate::anim::ease_smooth()),
                     move |visual, delta| {
@@ -1301,7 +1559,7 @@ impl RenderOnce for Autocomplete {
                 .into_any_element()
         };
         let mut clear = gpui::div()
-            .id(element_id::scoped(&base_id, "clear"))
+            .id(element_id::scoped(base_id, "clear"))
             // `autocomplete.js` hard-codes `"aria-label": "Clear selection"`
             // on this RAC `Button`, beside an `aria-hidden` that only hides
             // it while the selection is empty — and gpui has no
@@ -1336,7 +1594,7 @@ impl RenderOnce for Autocomplete {
             let selection_cb = self.on_selection_change_all.clone();
             let clear_cb = self.on_clear.clone();
             let clear_form_state = self.form_state.clone();
-            clear = util::track_interaction(clear, &clear_slot).on_click(move |_, window, cx| {
+            clear = util::track_interaction(clear, clear_slot).on_click(move |_, window, cx| {
                 // The button sits *inside* the trigger, so gpui
                 // dispatches its click up to the trigger's own
                 // `on_click` too -- and clearing is not an open
@@ -1361,8 +1619,23 @@ impl RenderOnce for Autocomplete {
                 }
             });
         }
-        field = field.child(clear);
+        clear
+    }
 
+    /// The absolute `.autocomplete__indicator` end slot.
+    fn trigger_indicator_slot(
+        &mut self,
+        mut field: gpui::Stateful<gpui::Div>,
+        frame: &AutoFrame,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> gpui::Stateful<gpui::Div> {
+        let AutoFrame {
+            ref base_id,
+            open,
+            ref colors,
+            ..
+        } = *frame;
         // `.autocomplete__indicator` is `absolute inset-y-0 end-2 my-auto`, and
         // its glyph is `size-4`. HeroUI keeps one down-chevron in the tree and
         // rotates it over 150ms. Caller content still receives the live open
@@ -1370,7 +1643,7 @@ impl RenderOnce for Autocomplete {
         let trigger_indicator = match self.indicator.take() {
             Some(render) => render(open),
             None => crate::anim::rotating_indicator_with_duration(
-                &element_id::scoped(&base_id, "trigger-indicator"),
+                &element_id::scoped(base_id, "trigger-indicator"),
                 open,
                 gpui::svg()
                     .size(util::FIELD_ICON)
@@ -1393,7 +1666,24 @@ impl RenderOnce for Autocomplete {
                 .text_color(colors.field.placeholder)
                 .child(trigger_indicator),
         );
+        field
+    }
 
+    /// The trigger's press: toggles the popover and reports the change.
+    fn trigger_toggle(
+        &self,
+        mut field: gpui::Stateful<gpui::Div>,
+        frame: &AutoFrame,
+    ) -> gpui::Stateful<gpui::Div> {
+        let AutoFrame {
+            open,
+            ref open_own,
+            ref focus_handle,
+            can_open,
+            toggle_allowed,
+            ref trigger_pressed,
+            ..
+        } = *frame;
         // Clicking the trigger opens and closes the popover. The toggle is
         // the `useSelectState.toggle()` act: an empty collection without the
         // prop refuses it in *both* directions, and the refusal reports
@@ -1427,14 +1717,16 @@ impl RenderOnce for Autocomplete {
                     }
                 });
         }
+        field
+    }
 
-        // The popup anchors to the trigger bounds -- not to the
-        // label-to-description wrapper root -- the way RAC's
-        // `useOverlayPosition` positions against the trigger rect.
-        // `scrollable_field_popover` below reads these bounds to flip and
-        // cap the panel; the measure element itself only records them.
-        let field = crate::popover::PopoverTriggerMeasure::new(field, anchor_bounds.clone());
-
+    /// The `.autocomplete` wrapper column and the root that scopes blur.
+    fn field_root(&self, field: impl IntoElement, frame: &AutoFrame) -> gpui::Div {
+        let AutoFrame {
+            ref blur_scope,
+            is_invalid,
+            ..
+        } = *frame;
         // --- the wrapper: `.autocomplete` is `flex flex-col gap-1` -----------
         let mut wrapper = gpui::div().flex().flex_col().gap(px(4.)).w_full();
         if let Some(label) = &self.label {
@@ -1462,257 +1754,87 @@ impl RenderOnce for Autocomplete {
         };
         // The blur scope spans this one root, so a focus move between the
         // trigger and the search field inside the panel stays inside it.
-        root = root.track_focus(&blur_scope);
+        root = root.track_focus(blur_scope);
+        root
+    }
 
-        // Arrows, Home, End and Enter walk the list while the search field has
-        // the focus: the input keeps left and right for the caret, so the rest
-        // bubbles up to here. Escape closes.
-        if can_open {
-            let stops: Vec<usize> = (0..matches.len())
-                .filter(|i| {
-                    matches
-                        .get(*i)
-                        .is_some_and(|item| !self.disabled_keys.contains(item.key()))
-                })
-                .collect();
-            let held = cursor.clone();
-            let key_query_edit = query_edit.clone();
-            let key_plain_edit = plain_edit_key.clone();
-            let wrap = self.should_focus_wrap;
-            let virtual_rows = self.row_height.is_some();
-            let page_row_height = self.row_height;
-            let key_list_scroll = list_scroll_now.clone();
-            let key_panel_scroll = panel_scroll_now.clone();
-            let key_page_stops = stops.clone();
-            let rows = matches.clone();
-            let key_open_own = open_own.clone();
-            let key_open_change = self.on_open_change.clone();
-            let may_open = toggle_allowed;
-            let on_change_all = self.on_selection_change_all.clone();
-            let on_change_one = self.on_selection_change.clone();
-            let key_selection_own = selection_own.clone();
-            let key_form_state = self.form_state.clone();
-            let selected_now = self.selected_keys.clone();
-            let was_open = open;
-            root = root.on_key_down(move |event, window, cx| {
-                let key = event.keystroke.key.as_str();
-                let modifiers = event.keystroke.modifiers;
-                let mut chars = key.chars();
-                let plain_insert = was_open
-                    && (key == "space"
-                        || matches!(
-                            (chars.next(), chars.next()),
-                            (Some(ch), None) if !ch.is_control()
-                        ))
-                    && !modifiers.control
-                    && !modifiers.alt
-                    && !modifiers.platform
-                    && !modifiers.function;
-                key_plain_edit.update(cx, |v, cx| {
-                    if *v != plain_insert {
-                        *v = plain_insert;
-                        cx.notify();
-                    }
-                });
-                if plain_insert {
-                    key_query_edit.update(cx, |edit, cx| {
-                        if edit.is_some() {
-                            *edit = Some(true);
-                            cx.notify();
-                        }
-                    });
-                }
-                if !was_open {
-                    // Closed: Down and Up open it. Enter and Space are *not*
-                    // handled here -- the trigger has a click listener and gpui
-                    // fires those for a focused element, so answering them again
-                    // would open and close the popover in one keystroke.
-                    if matches!(key, "down" | "up") {
-                        // The keyboard open is the same
-                        // `useSelectState.open()` act: an empty collection
-                        // without `allowsEmptyCollection` refuses it and
-                        // reports nothing.
-                        if !may_open {
-                            return;
-                        }
-                        if let Some(held) = &key_open_own {
-                            held.update(cx, |v, cx| {
-                                *v = true;
-                                cx.notify();
-                            });
-                        }
-                        if let Some(cb) = &key_open_change {
-                            cb(&true, window, cx);
-                        }
-                    }
-                    return;
-                }
-                // The focused search field owns inserted characters. In
-                // particular, the shared list navigator treats Space as an
-                // activation key, but Autocomplete must insert it into the
-                // query rather than select the current virtual row.
-                if plain_insert || key == "space" {
-                    return;
-                }
-                // The held cursor is the focused item's key; resolve it to the
-                // row it occupies in the filtered collection now.
-                let from = held
-                    .read(cx)
-                    .as_ref()
-                    .and_then(|k| rows.iter().position(|it| it.key() == k));
-                // Pinned React Aria 3.51.0 binds PageUp/PageDown through the
-                // listbox's `useSelectableCollection`, which the closed branch
-                // above never reaches. Those handlers require
-                // `manager.focusedKey != null` -- a mouse-opened, selection-less
-                // Autocomplete has a null cursor and must answer nothing until
-                // an arrow establishes one.
-                //
-                // With a cursor this popup pages by viewport, unlike the
-                // Select/ComboBox/Dropdown popups: `autocomplete.css` styles
-                // the composed `[data-slot="list-box"]` itself
-                // `max-h-[320px] min-h-0 overflow-y-auto`, so the list element
-                // is its own scroller and pinned `ListKeyboardDelegate` walks
-                // enabled rows from the cursor until one crosses a
-                // one-viewport boundary, taking the enabled end only when the
-                // walk runs out. The default rows are laid out, so the
-                // boundary reads real `ScrollHandle` rects (the plain ListBox
-                // shape); a `row_height` list is uniform and pages by
-                // whole-row steps across its *actual* laid-out viewport: the
-                // panel caps together with the positioner, so the 320px
-                // upstream maximum is only the roomy-window height, never the
-                // paging ruler. The step reads the virtual list's own
-                // `UniformListScrollHandle` viewport bounds -- the pinned
-                // handle's `base_handle.bounds()` -- so a capped panel pages
-                // by what it shows.
-                let page_target = |from: usize| -> Option<usize> {
-                    if let Some(row_height) = page_row_height {
-                        let viewport_height =
-                            f32::from(key_list_scroll.0.borrow().base_handle.bounds().size.height);
-                        if viewport_height <= 0. {
-                            return None;
-                        }
-                        let step = ((viewport_height / f32::from(row_height)).ceil() as usize)
-                            .saturating_sub(1);
-                        let boundary = match key {
-                            "pagedown" => (from + step).min(rows.len().saturating_sub(1)),
-                            "pageup" => from.saturating_sub(step),
-                            _ => return None,
-                        };
-                        return match key {
-                            "pagedown" => key_page_stops
-                                .iter()
-                                .copied()
-                                .find(|stop| *stop >= boundary)
-                                .or_else(|| key_page_stops.last().copied()),
-                            "pageup" => key_page_stops
-                                .iter()
-                                .rev()
-                                .copied()
-                                .find(|stop| *stop <= boundary)
-                                .or_else(|| key_page_stops.first().copied()),
-                            _ => None,
-                        };
-                    }
-                    let current = key_panel_scroll.bounds_for_item(from)?;
-                    let viewport_height = key_panel_scroll.bounds().size.height;
-                    let target = match key {
-                        "pagedown" => current.top() - current.size.height + viewport_height,
-                        "pageup" => current.top() + current.size.height - viewport_height,
-                        _ => return None,
-                    };
-                    match key {
-                        "pagedown" => key_page_stops
-                            .iter()
-                            .copied()
-                            .filter(|stop| *stop >= from)
-                            .find(|stop| {
-                                key_panel_scroll
-                                    .bounds_for_item(*stop)
-                                    .is_some_and(|bounds| bounds.top() >= target)
-                            })
-                            .or_else(|| key_page_stops.last().copied()),
-                        "pageup" => key_page_stops
-                            .iter()
-                            .rev()
-                            .copied()
-                            .filter(|stop| *stop <= from)
-                            .find(|stop| {
-                                key_panel_scroll
-                                    .bounds_for_item(*stop)
-                                    .is_some_and(|bounds| bounds.top() <= target)
-                            })
-                            .or_else(|| key_page_stops.first().copied()),
-                        _ => None,
-                    }
-                };
-                let page_move = from.and_then(page_target);
-                let page_move = page_move.filter(|next| Some(*next) != from);
-                match page_move.map_or_else(
-                    || crate::list_nav::resolve(&stops, from, key, wrap),
-                    crate::list_nav::Move::To,
-                ) {
-                    crate::list_nav::Move::To(next) => {
-                        let next_key = rows.get(next).map(|item| item.key().clone());
-                        held.update(cx, |v, cx| {
-                            *v = next_key;
-                            cx.notify();
-                        });
-                        if virtual_rows {
-                            key_list_scroll.scroll_to_item(next, gpui::ScrollStrategy::Center);
-                        } else {
-                            key_panel_scroll.scroll_to_item(next);
-                        }
-                    }
-                    crate::list_nav::Move::Activate => {
-                        let Some(item) = from.and_then(|i| rows.get(i)) else {
-                            return;
-                        };
-                        let item_key = item.key().clone();
-                        let mut next = selected_now.clone();
-                        if multiple {
-                            toggle_key(&mut next, &item_key);
-                        } else {
-                            next.clear();
-                            next.push(item_key.clone());
-                        }
-                        if let Some(own) = &key_selection_own {
-                            let set = next.clone();
-                            own.update(cx, |v, cx| {
-                                *v = set;
-                                cx.notify();
-                            });
-                            key_form_state.borrow_mut().value = form_selection_value(&next);
-                        }
-                        if let Some(cb) = &on_change_one {
-                            cb(&item_key, window, cx);
-                        }
-                        if let Some(cb) = &on_change_all {
-                            cb(&next, window, cx);
-                        }
-                        // A single selection closes the popover, as v3's does;
-                        // a multiple one stays open for the next pick.
-                        if !multiple {
-                            if let Some(own) = &key_open_own {
-                                own.update(cx, |v, cx| {
-                                    *v = false;
-                                    cx.notify();
-                                });
-                            }
-                            if let Some(cb) = &key_open_change {
-                                cb(&false, window, cx);
-                            }
-                            // The focus is *not* moved back to the trigger here.
-                            // gpui activates a focused element on Enter, so
-                            // focusing the trigger inside this very keystroke
-                            // fires its click listener and the popover reopens --
-                            // observed, not theorised.
-                        }
-                    }
-                    crate::list_nav::Move::Ignore => {}
-                }
-            });
-        }
+    /// The root's key handler: the list walk while the search field holds
+    /// the focus, and the closed trigger's Down/Up open.
+    fn root_keys(&self, root: gpui::Div, frame: &AutoFrame) -> gpui::Div {
+        let AutoFrame {
+            multiple,
+            ref selection_own,
+            open,
+            ref open_own,
+            ref cursor,
+            ref list_scroll_now,
+            ref panel_scroll_now,
+            ref query_edit,
+            ref plain_edit_key,
+            ref matches,
+            toggle_allowed,
+            ..
+        } = *frame;
+        let stops: Vec<usize> = (0..matches.len())
+            .filter(|i| {
+                matches
+                    .get(*i)
+                    .is_some_and(|item| !self.disabled_keys.contains(item.key()))
+            })
+            .collect();
+        let held = cursor.clone();
+        let key_query_edit = query_edit.clone();
+        let key_plain_edit = plain_edit_key.clone();
+        let wrap = self.should_focus_wrap;
+        let virtual_rows = self.row_height.is_some();
+        let page_row_height = self.row_height;
+        let key_list_scroll = list_scroll_now.clone();
+        let key_panel_scroll = panel_scroll_now.clone();
+        let key_page_stops = stops.clone();
+        let rows = matches.clone();
+        let key_open_own = open_own.clone();
+        let key_open_change = self.on_open_change.clone();
+        let may_open = toggle_allowed;
+        let on_change_all = self.on_selection_change_all.clone();
+        let on_change_one = self.on_selection_change.clone();
+        let key_selection_own = selection_own.clone();
+        let key_form_state = self.form_state.clone();
+        let selected_now = self.selected_keys.clone();
+        let was_open = open;
+        let handler = AutoKeys {
+            stops,
+            held,
+            key_query_edit,
+            key_plain_edit,
+            wrap,
+            virtual_rows,
+            page_row_height,
+            key_list_scroll,
+            key_panel_scroll,
+            key_page_stops,
+            rows,
+            key_open_own,
+            key_open_change,
+            may_open,
+            on_change_all,
+            on_change_one,
+            key_selection_own,
+            key_form_state,
+            selected_now,
+            was_open,
+            multiple,
+        };
+        root.on_key_down(move |event, window, cx| handler.on_key_down(event, window, cx))
+    }
 
+    /// Escape closes the popover and hands the focus back to the trigger.
+    fn root_escape(&self, mut root: gpui::Div, frame: &AutoFrame) -> gpui::Div {
+        let AutoFrame {
+            ref open_own,
+            ref dismissal_token,
+            ref focus_handle,
+            ..
+        } = *frame;
         let escape_own = open_own.clone();
         let escape_cb = self.on_open_change.clone();
         let escape_focus = focus_handle.clone();
@@ -1732,22 +1854,19 @@ impl RenderOnce for Autocomplete {
                 }
                 util::DismissResult::Handled
             });
+        root
+    }
 
-        // --- the popover ----------------------------------------------------
-        // The popover's presence is the Select's open state and nothing else.
-        // Filtering happens inside `Autocomplete.Filter`, which prunes only
-        // the ListBox's rows. At zero this port draws the "No results found"
-        // empty state used by v3's examples; `allowsEmptyCollection` is not a
-        // close-on-filtered-empty flag. The panel carries its own
-        // outside-press dismissal, so there is nothing to attach to the root
-        // when it is unmounted.
-        let show_panel = overlay_active;
-        if show_panel {
-            // The entry zoom interpolates the panel's own radius, so one
-            // binding feeds both the painted shape and the animation.
-            let radius = self.radius.unwrap_or_else(|| util::container_radius(cx));
-            let panel_selector = format!("{base}-panel");
-            let panel = gpui::div()
+    /// The popover's clipping surface: `bg-overlay`, the panel radius, the
+    /// dark-mode hairline and the overlay shadow.
+    fn panel_surface(&self, base: &str, radius: Pixels, frame: &AutoFrame) -> gpui::Div {
+        let AutoFrame {
+            ref colors,
+            ref layout,
+            ..
+        } = *frame;
+        let panel_selector = format!("{base}-panel");
+        gpui::div()
                 .w_full()
                 .flex()
                 .flex_col()
@@ -1773,151 +1892,720 @@ impl RenderOnce for Autocomplete {
                 // viewport-relative bound rather than a fixed one.
                 .max_h_full()
                 .overflow_hidden()
-                .occlude();
+                .occlude()
+    }
 
-            // React Aria dismisses the popover on a press outside it; Escape is
-            // read by the key handler above. A press that started on the
-            // trigger (or its clear button) is not an outside press: the
-            // trigger's own click owns the close, and the click only fires
-            // because the down was not stolen as a dismissal.
-            let dismiss_own = open_own.clone();
-            let dismiss_cb = self.on_open_change.clone();
-            let mut panel = util::dismiss_on_press_outside_with_token(
+    /// The popover's search header: v3's `[data-slot="search-field"]`.
+    fn search_row(&self, frame: &AutoFrame) -> gpui::Div {
+        let AutoFrame {
+            ref base,
+            ref raw_query,
+            ref query_edit,
+            ref plain_edit_key,
+            ..
+        } = *frame;
+        // The search field: v3's `[data-slot="search-field"]` inside the
+        // popover is `shrink-0 px-3 py-1`, and `variant="secondary"` so it
+        // reads as part of the panel rather than as a second field.
+        let query_before_edit = raw_query.clone();
+        let edit_query = query_edit.clone();
+        let edit_key = plain_edit_key.clone();
+        let input_change = self.on_input_change.clone();
+        let search = SearchField::new(self.state.clone());
+        let search = match self.font_family.clone() {
+            Some(family) => search.font_family(family),
+            None => search,
+        };
+        let search = search
+            .variant(FieldVariant::Secondary)
+            .placeholder("Search...")
+            .is_read_only(self.is_read_only)
+            .on_change(move |text, window, cx| {
+                if text != query_before_edit {
+                    let forward = *edit_key.read(cx);
+                    edit_query.update(cx, |edit, cx| {
+                        *edit = Some(forward);
+                        cx.notify();
+                    });
+                }
+                if let Some(cb) = &input_change {
+                    cb(text, window, cx);
+                }
+            });
+        gpui::div()
+            .flex_shrink_0()
+            .px(px(12.))
+            .py(px(4.))
+            .debug_selector({
+                let base = base.clone();
+                move || format!("{base}-search")
+            })
+            .child(search)
+    }
+
+    /// The popover: surface, dismissal, search header, rows and motion.
+    fn popover(&mut self, frame: AutoFrame, cx: &mut App) -> gpui::Deferred {
+        // The entry zoom interpolates the panel's own radius, so one
+        // binding feeds both the painted shape and the animation.
+        let radius = self.radius.unwrap_or_else(|| util::container_radius(cx));
+        let panel = self.panel_surface(&frame.base, radius, &frame);
+        let search = self.search_row(&frame);
+        let AutoFrame {
+            base,
+            base_id,
+            multiple,
+            selection_own,
+            open_own,
+            overlay_phase,
+            dismissal_token,
+            resolved_placement,
+            entry_placement,
+            focus_handle,
+            list_scroll_now,
+            panel_scroll_now,
+            matches,
+            cursor_at,
+            anchor_bounds,
+            colors,
+            layout,
+            trigger_pressed,
+            ..
+        } = frame;
+        let overlay_exiting = overlay_phase == util::OverlayPhase::Exiting;
+        // React Aria dismisses the popover on a press outside it; Escape is
+        // read by the key handler above. A press that started on the
+        // trigger (or its clear button) is not an outside press: the
+        // trigger's own click owns the close, and the click only fires
+        // because the down was not stolen as a dismissal.
+        let dismiss_own = open_own.clone();
+        let dismiss_cb = self.on_open_change.clone();
+        let mut panel =
+            util::dismiss_on_press_outside_with_token(panel, dismissal_token, move |window, cx| {
+                if trigger_pressed.get() {
+                    return util::DismissResult::Declined;
+                }
+                if let Some(held) = &dismiss_own {
+                    held.update(cx, |v, cx| {
+                        *v = false;
+                        cx.notify();
+                    });
+                }
+                if let Some(cb) = &dismiss_cb {
+                    cb(&false, window, cx);
+                }
+                util::DismissResult::Handled
+            });
+
+        panel = panel.child(search);
+
+        // Everything a row reads, owned: `uniform_list`'s callback is
+        // `'static` and runs again on every scroll, so it cannot borrow
+        // `self` or the theme -- and one row builder for both paths is what
+        // keeps a virtual list drawing the same row as a short one.
+        let matches_len = matches.len();
+        // `useOption` adds `aria-posinset`/`aria-setsize` only
+        // `if (isVirtualized)`; `row_height` is what windows this list.
+        let row_virtualized = self.row_height.is_some();
+        let rows = matches.clone();
+        let sections = self.sections.clone();
+        let row_disabled_keys = self.disabled_keys.clone();
+        let row_selected_keys = self.selected_keys.clone();
+        let indicator: Option<Rc<dyn Fn(bool) -> gpui::AnyElement>> =
+            self.item_indicator.take().map(Rc::from);
+        let on_change_all = self.on_selection_change_all.clone();
+        let on_change_one = self.on_selection_change.clone();
+        let row_selection_own = selection_own;
+        let row_form_state = self.form_state.clone();
+        let row_open_own = open_own;
+        let row_open_change = self.on_open_change.clone();
+        let row_trigger_focus = focus_handle;
+        let base_row = format!("{base}-list");
+        let base_row_id = element_id::scoped(&base_id, "list");
+        let row_disabled_opacity = layout.disabled_opacity;
+        // v3's `EmptyState` inside the popover is `text-center text-sm
+        // text-overlay-foreground/60`. Copied out here because the row
+        // builder below takes `cx` mutably, which ends the theme borrow.
+        let mut empty_fg = colors.overlay.foreground;
+        empty_fg.a *= 0.6;
+        let row_padding_x = self.row_padding_x.unwrap_or(px(10.));
+        let row_font_family = self.row_font_family.clone();
+        let row_padding_y = self.row_padding_y.unwrap_or(px(6.));
+        let rows = AutoRows {
+            base_row,
+            base_row_id,
+            rows,
+            sections,
+            row_disabled_keys,
+            row_selected_keys,
+            indicator,
+            on_change_all,
+            on_change_one,
+            row_selection_own,
+            row_form_state,
+            row_open_own,
+            row_open_change,
+            row_trigger_focus,
+            colors,
+            row_hover_bg: self.row_hover_bg,
+            row_disabled_opacity,
+            row_padding_x,
+            row_font_family,
+            row_padding_y,
+            overlay_exiting,
+            cursor_at,
+            row_virtualized,
+            matches_len,
+            multiple,
+        };
+
+        // The list: `[data-slot="list-box"]` inside the popover is
+        // `max-h-[320px] min-h-0 p-1.5 overflow-y-auto`. The search header
+        // above stays fixed (`shrink-0`) while this list shrinks with the
+        // capped panel and owns the scrolling -- the outer panel only
+        // clips (`overflow-hidden`).
+        panel = panel.child(self.rows_list(
+            rows,
+            &base,
+            &base_id,
+            &list_scroll_now,
+            &panel_scroll_now,
+            cx,
+        ));
+
+        if matches.is_empty() {
+            panel = panel.child(
+                gpui::div()
+                        .w_full()
+                        .px(px(12.))
+                        .py(px(12.))
+                        .text_center()
+                        .text_size(util::FIELD_TEXT)
+                        .line_height(px(20.))
+                        .text_color(empty_fg)
+                        // "No results found" in en-US.
+                        .child(crate::i18n::ui_string(crate::i18n::UiString::NoResults, cx)),
+            );
+        }
+
+        let (slide_x, slide_y) = crate::popover::placement_entry_offset(entry_placement);
+        let zoom = crate::anim::ZoomBox::panel(px(6.), radius);
+        let zoom = crate::anim::ZoomBox {
+            slide_x: (slide_x != 0.0).then(|| px(slide_x)),
+            slide_y: (slide_y != 0.0).then(|| px(slide_y)),
+            ..zoom
+        };
+        let panel = if overlay_phase == util::OverlayPhase::Exiting {
+            crate::anim::exiting(
                 panel,
-                dismissal_token,
-                move |window, cx| {
-                    if trigger_pressed.get() {
-                        return util::DismissResult::Declined;
-                    }
-                    if let Some(held) = &dismiss_own {
-                        held.update(cx, |v, cx| {
+                element_id::scoped(&base_id, "panel-out"),
+                zoom,
+                crate::anim::Motion::FLUID_OUT,
+                cx,
+            )
+        } else {
+            crate::anim::entering_zoom(
+                panel,
+                element_id::scoped(&base_id, "panel"),
+                zoom,
+                crate::anim::Motion::FLUID_IN,
+                cx,
+            )
+        };
+        // RAC positions the popover against the trigger with an 8px gap,
+        // flips it when the other side has more room, and caps it at the
+        // available viewport height past a 12px inset -- which
+        // `scrollable_field_popover` reads from the measured trigger
+        // bounds above.
+        util::floating(
+            crate::popover::scrollable_field_popover_with_resolved_placement(
+                anchor_bounds,
+                self.placement,
+                Some(resolved_placement),
+                panel,
+            ),
+        )
+    }
+
+    /// The `[data-slot="list-box"]` rows: a windowed list under
+    /// `row_height`, a scrolling column otherwise.
+    fn rows_list(
+        &self,
+        rows: AutoRows,
+        base: &str,
+        base_id: &gpui::ElementId,
+        list_scroll_now: &gpui::UniformListScrollHandle,
+        panel_scroll_now: &gpui::ScrollHandle,
+        cx: &mut App,
+    ) -> gpui::AnyElement {
+        let matches_len = rows.matches_len;
+        match self.row_height {
+            // Virtual: only the rows in view are built, which is what makes
+            // a thousand options affordable. The list itself is the scroll
+            // container: `Infer` sizes it from its rows -- the full
+            // natural height on the positioner's measure pass (so the
+            // flip sees the real extent, like upstream's `overlaySize`),
+            // capped to the available height on the capped pass -- while
+            // `max-h-[320px]` keeps the roomy-window height at the
+            // upstream maximum and `min-h-0` lets it shrink with the
+            // panel. A fixed inner height would strand rows outside a
+            // capped panel.
+            Some(row_height) => {
+                let rows_selector = format!("{base}-rows");
+                // The virtual half of the same `[data-slot="list-box"]`
+                // the branch below draws. `gpui::uniform_list` returns a
+                // `UniformList`, which is not a
+                // `StatefulInteractiveElement` and so cannot carry a role
+                // however many ids it has; the role goes on a wrapper that
+                // adds no box of its own — `flex flex-col min-h-0` around
+                // a `w-full` child lays out exactly as the child did.
+                gpui::div()
+                    .id(element_id::scoped(base_id, "list"))
+                    .a11y(a11y::Role::ListBox)
+                    .a11y_orientation(herogpui_core::Orientation::Vertical)
+                    .flex()
+                    .flex_col()
+                    .w_full()
+                    .min_h_0()
+                    .child(
+                        gpui::uniform_list(
+                            element_id::scoped(base_id, "rows"),
+                            matches_len,
+                            move |range, _window, cx| {
+                                range
+                                    .map(|i| rows.row(i, Some(row_height), cx))
+                                    .collect::<Vec<_>>()
+                            },
+                        )
+                        .track_scroll(list_scroll_now)
+                        .with_sizing_behavior(gpui::ListSizingBehavior::Infer)
+                        .w_full()
+                        .max_h(px(320.))
+                        .min_h_0()
+                        .p(px(6.))
+                        .debug_selector(move || rows_selector),
+                    )
+                    .into_any_element()
+            }
+            None => {
+                let list_selector = format!("{base}-list-scroll");
+                let mut list = gpui::div()
+                        .id(element_id::scoped(base_id, "list"))
+                        // `[data-slot="list-box"]` is RAC's `ListBox`, i.e.
+                        // `useListBox.mjs`'s literal `role: 'listbox'` with
+                        // `'aria-orientation'` defaulting to vertical. The
+                        // search field above it is outside the list upstream
+                        // too, which is why the role is here and not on the
+                        // popover panel.
+                        .a11y(a11y::Role::ListBox)
+                        .a11y_orientation(herogpui_core::Orientation::Vertical)
+                        .debug_selector(move || list_selector)
+                        .flex()
+                        .flex_col()
+                        .w_full()
+                        .p(px(6.))
+                        .max_h(px(320.))
+                        .min_h_0()
+                        .overflow_y_scroll()
+                        .track_scroll(panel_scroll_now);
+                for index in 0..matches_len {
+                    list = list.child(rows.row(index, None, cx));
+                }
+                list.into_any_element()
+            }
+        }
+    }
+}
+
+/// The root's key handler, holding everything it reads. The handler is
+/// `'static`, so it owns copies of the frame's state rather than borrowing
+/// the Autocomplete.
+struct AutoKeys {
+    stops: Vec<usize>,
+    held: Entity<Option<SharedString>>,
+    key_query_edit: Entity<Option<bool>>,
+    key_plain_edit: Entity<bool>,
+    wrap: bool,
+    virtual_rows: bool,
+    page_row_height: Option<Pixels>,
+    key_list_scroll: gpui::UniformListScrollHandle,
+    key_panel_scroll: gpui::ScrollHandle,
+    key_page_stops: Vec<usize>,
+    rows: Rc<[PickerItem]>,
+    key_open_own: Option<Entity<bool>>,
+    key_open_change: Option<OnOpenChange>,
+    may_open: bool,
+    on_change_all: Option<OnSelectionChangeAll>,
+    on_change_one: Option<OnSelectionChange>,
+    key_selection_own: Option<Entity<Vec<SharedString>>>,
+    key_form_state: AutocompleteFormState,
+    selected_now: Vec<SharedString>,
+    was_open: bool,
+    multiple: bool,
+}
+
+impl AutoKeys {
+    fn on_key_down(&self, event: &gpui::KeyDownEvent, window: &mut Window, cx: &mut App) {
+        let Self {
+            ref stops,
+            ref held,
+            ref key_query_edit,
+            ref key_plain_edit,
+            wrap,
+            page_row_height,
+            ref key_list_scroll,
+            ref key_panel_scroll,
+            ref key_page_stops,
+            ref rows,
+            ref key_open_own,
+            ref key_open_change,
+            may_open,
+            was_open,
+            ..
+        } = *self;
+        let key = event.keystroke.key.as_str();
+        let modifiers = event.keystroke.modifiers;
+        let mut chars = key.chars();
+        let plain_insert = was_open
+            && (key == "space"
+                || matches!(
+                    (chars.next(), chars.next()),
+                    (Some(ch), None) if !ch.is_control()
+                ))
+            && !modifiers.control
+            && !modifiers.alt
+            && !modifiers.platform
+            && !modifiers.function;
+        key_plain_edit.update(cx, |v, cx| {
+            if *v != plain_insert {
+                *v = plain_insert;
+                cx.notify();
+            }
+        });
+        if plain_insert {
+            key_query_edit.update(cx, |edit, cx| {
+                if edit.is_some() {
+                    *edit = Some(true);
+                    cx.notify();
+                }
+            });
+        }
+        if !was_open {
+            // Closed: Down and Up open it. Enter and Space are *not*
+            // handled here -- the trigger has a click listener and gpui
+            // fires those for a focused element, so answering them again
+            // would open and close the popover in one keystroke.
+            if matches!(key, "down" | "up") {
+                // The keyboard open is the same
+                // `useSelectState.open()` act: an empty collection
+                // without `allowsEmptyCollection` refuses it and
+                // reports nothing.
+                if !may_open {
+                    return;
+                }
+                if let Some(held) = &key_open_own {
+                    held.update(cx, |v, cx| {
+                        *v = true;
+                        cx.notify();
+                    });
+                }
+                if let Some(cb) = &key_open_change {
+                    cb(&true, window, cx);
+                }
+            }
+            return;
+        }
+        // The focused search field owns inserted characters. In
+        // particular, the shared list navigator treats Space as an
+        // activation key, but Autocomplete must insert it into the
+        // query rather than select the current virtual row.
+        if plain_insert || key == "space" {
+            return;
+        }
+        // The held cursor is the focused item's key; resolve it to the
+        // row it occupies in the filtered collection now.
+        let from = held
+            .read(cx)
+            .as_ref()
+            .and_then(|k| rows.iter().position(|it| it.key() == k));
+        // Pinned React Aria 3.51.0 binds PageUp/PageDown through the
+        // listbox's `useSelectableCollection`, which the closed branch
+        // above never reaches. Those handlers require
+        // `manager.focusedKey != null` -- a mouse-opened, selection-less
+        // Autocomplete has a null cursor and must answer nothing until
+        // an arrow establishes one.
+        //
+        // With a cursor this popup pages by viewport, unlike the
+        // Select/ComboBox/Dropdown popups: `autocomplete.css` styles
+        // the composed `[data-slot="list-box"]` itself
+        // `max-h-[320px] min-h-0 overflow-y-auto`, so the list element
+        // is its own scroller and pinned `ListKeyboardDelegate` walks
+        // enabled rows from the cursor until one crosses a
+        // one-viewport boundary, taking the enabled end only when the
+        // walk runs out. The default rows are laid out, so the
+        // boundary reads real `ScrollHandle` rects (the plain ListBox
+        // shape); a `row_height` list is uniform and pages by
+        // whole-row steps across its *actual* laid-out viewport: the
+        // panel caps together with the positioner, so the 320px
+        // upstream maximum is only the roomy-window height, never the
+        // paging ruler. The step reads the virtual list's own
+        // `UniformListScrollHandle` viewport bounds -- the pinned
+        // handle's `base_handle.bounds()` -- so a capped panel pages
+        // by what it shows.
+        let page_target = |from: usize| -> Option<usize> {
+            if let Some(row_height) = page_row_height {
+                let viewport_height =
+                    f32::from(key_list_scroll.0.borrow().base_handle.bounds().size.height);
+                if viewport_height <= 0. {
+                    return None;
+                }
+                let step =
+                    ((viewport_height / f32::from(row_height)).ceil() as usize).saturating_sub(1);
+                let boundary = match key {
+                    "pagedown" => (from + step).min(rows.len().saturating_sub(1)),
+                    "pageup" => from.saturating_sub(step),
+                    _ => return None,
+                };
+                return match key {
+                    "pagedown" => key_page_stops
+                        .iter()
+                        .copied()
+                        .find(|stop| *stop >= boundary)
+                        .or_else(|| key_page_stops.last().copied()),
+                    "pageup" => key_page_stops
+                        .iter()
+                        .rev()
+                        .copied()
+                        .find(|stop| *stop <= boundary)
+                        .or_else(|| key_page_stops.first().copied()),
+                    _ => None,
+                };
+            }
+            let current = key_panel_scroll.bounds_for_item(from)?;
+            let viewport_height = key_panel_scroll.bounds().size.height;
+            let target = match key {
+                "pagedown" => current.top() - current.size.height + viewport_height,
+                "pageup" => current.top() + current.size.height - viewport_height,
+                _ => return None,
+            };
+            match key {
+                "pagedown" => key_page_stops
+                    .iter()
+                    .copied()
+                    .filter(|stop| *stop >= from)
+                    .find(|stop| {
+                        key_panel_scroll
+                            .bounds_for_item(*stop)
+                            .is_some_and(|bounds| bounds.top() >= target)
+                    })
+                    .or_else(|| key_page_stops.last().copied()),
+                "pageup" => key_page_stops
+                    .iter()
+                    .rev()
+                    .copied()
+                    .filter(|stop| *stop <= from)
+                    .find(|stop| {
+                        key_panel_scroll
+                            .bounds_for_item(*stop)
+                            .is_some_and(|bounds| bounds.top() <= target)
+                    })
+                    .or_else(|| key_page_stops.first().copied()),
+                _ => None,
+            }
+        };
+        let page_move = from.and_then(page_target);
+        let page_move = page_move.filter(|next| Some(*next) != from);
+        let next_move = page_move.map_or_else(
+            || crate::list_nav::resolve(stops, from, key, wrap),
+            crate::list_nav::Move::To,
+        );
+        self.apply_move(next_move, from, window, cx);
+    }
+
+    /// The open list's answer to a resolved move: walk the cursor, or take
+    /// the cursor row.
+    fn apply_move(
+        &self,
+        next_move: crate::list_nav::Move,
+        from: Option<usize>,
+        window: &mut Window,
+        cx: &mut App,
+    ) {
+        let Self {
+            ref held,
+            virtual_rows,
+            ref key_list_scroll,
+            ref key_panel_scroll,
+            ref rows,
+            ref key_open_own,
+            ref key_open_change,
+            ref on_change_all,
+            ref on_change_one,
+            ref key_selection_own,
+            ref key_form_state,
+            ref selected_now,
+            multiple,
+            ..
+        } = *self;
+        match next_move {
+            crate::list_nav::Move::To(next) => {
+                let next_key = rows.get(next).map(|item| item.key().clone());
+                held.update(cx, |v, cx| {
+                    *v = next_key;
+                    cx.notify();
+                });
+                if virtual_rows {
+                    key_list_scroll.scroll_to_item(next, gpui::ScrollStrategy::Center);
+                } else {
+                    key_panel_scroll.scroll_to_item(next);
+                }
+            }
+            crate::list_nav::Move::Activate => {
+                let Some(item) = from.and_then(|i| rows.get(i)) else {
+                    return;
+                };
+                let item_key = item.key().clone();
+                let mut next = selected_now.clone();
+                if multiple {
+                    toggle_key(&mut next, &item_key);
+                } else {
+                    next.clear();
+                    next.push(item_key.clone());
+                }
+                if let Some(own) = &key_selection_own {
+                    let set = next.clone();
+                    own.update(cx, |v, cx| {
+                        *v = set;
+                        cx.notify();
+                    });
+                    key_form_state.borrow_mut().value = form_selection_value(&next);
+                }
+                if let Some(cb) = &on_change_one {
+                    cb(&item_key, window, cx);
+                }
+                if let Some(cb) = &on_change_all {
+                    cb(&next, window, cx);
+                }
+                // A single selection closes the popover, as v3's does;
+                // a multiple one stays open for the next pick.
+                if !multiple {
+                    if let Some(own) = &key_open_own {
+                        own.update(cx, |v, cx| {
                             *v = false;
                             cx.notify();
                         });
                     }
-                    if let Some(cb) = &dismiss_cb {
+                    if let Some(cb) = &key_open_change {
                         cb(&false, window, cx);
                     }
-                    util::DismissResult::Handled
-                },
-            );
-
-            // The search field: v3's `[data-slot="search-field"]` inside the
-            // popover is `shrink-0 px-3 py-1`, and `variant="secondary"` so it
-            // reads as part of the panel rather than as a second field.
-            let query_before_edit = raw_query;
-            let edit_query = query_edit;
-            let edit_key = plain_edit_key;
-            let input_change = self.on_input_change.clone();
-            let search = SearchField::new(self.state.clone());
-            let search = match self.font_family.clone() {
-                Some(family) => search.font_family(family),
-                None => search,
-            };
-            let search = search
-                .variant(FieldVariant::Secondary)
-                .placeholder("Search...")
-                .is_read_only(self.is_read_only)
-                .on_change(move |text, window, cx| {
-                    if text != query_before_edit {
-                        let forward = *edit_key.read(cx);
-                        edit_query.update(cx, |edit, cx| {
-                            *edit = Some(forward);
-                            cx.notify();
-                        });
-                    }
-                    if let Some(cb) = &input_change {
-                        cb(text, window, cx);
-                    }
-                });
-            panel = panel.child(
-                gpui::div()
-                    .flex_shrink_0()
-                    .px(px(12.))
-                    .py(px(4.))
-                    .debug_selector({
-                        let base = base.clone();
-                        move || format!("{base}-search")
-                    })
-                    .child(search),
-            );
-
-            // Everything a row reads, owned: `uniform_list`'s callback is
-            // `'static` and runs again on every scroll, so it cannot borrow
-            // `self` or the theme -- and one row builder for both paths is what
-            // keeps a virtual list drawing the same row as a short one.
-            let matches_len = matches.len();
-            // `useOption` adds `aria-posinset`/`aria-setsize` only
-            // `if (isVirtualized)`; `row_height` is what windows this list.
-            let row_virtualized = self.row_height.is_some();
-            let rows = matches.clone();
-            let sections = self.sections.clone();
-            let row_disabled_keys = self.disabled_keys.clone();
-            let row_selected_keys = self.selected_keys.clone();
-            let indicator: Option<Rc<dyn Fn(bool) -> gpui::AnyElement>> =
-                self.item_indicator.take().map(Rc::from);
-            let on_change_all = self.on_selection_change_all.clone();
-            let on_change_one = self.on_selection_change.clone();
-            let row_selection_own = selection_own;
-            let row_form_state = self.form_state.clone();
-            let row_open_own = open_own;
-            let row_open_change = self.on_open_change.clone();
-            let row_trigger_focus = focus_handle;
-            let base_row = format!("{base}-list");
-            let base_row_id = element_id::scoped(&base_id, "list");
-            let row_muted = colors.muted;
-            let row_fg = colors.foreground;
-            let row_hover_bg = self.row_hover_bg.unwrap_or(colors.default.color);
-            let row_focus = colors.focus;
-            let row_accent = colors.accent.color;
-            let row_disabled_opacity = layout.disabled_opacity;
-            // v3's `EmptyState` inside the popover is `text-center text-sm
-            // text-overlay-foreground/60`. Copied out here because the row
-            // builder below takes `cx` mutably, which ends the theme borrow.
-            let mut empty_fg = colors.overlay.foreground;
-            empty_fg.a *= 0.6;
-            let row_padding_x = self.row_padding_x.unwrap_or(px(10.));
-            let row_font_family = self.row_font_family.clone();
-            let row_padding_y = self.row_padding_y.unwrap_or(px(6.));
-            let row_of = move |index: usize, fixed_h: Option<Pixels>, cx: &mut App| {
-                let base = base_row.as_str();
-                let base_id = &base_row_id;
-                let item = &rows[index];
-                // A section header rides above the row it introduces, so the two
-                // are one element -- a virtual row is one slot tall.
-                let mut head: Vec<gpui::AnyElement> = Vec::new();
-                let done = |head: Vec<gpui::AnyElement>, row: gpui::AnyElement| {
-                    gpui::div()
-                        .flex()
-                        .flex_col()
-                        .when_some(fixed_h, |el, h| el.h(h).w_full())
-                        .children(head)
-                        .child(row)
-                        .into_any_element()
-                };
-                // `ListBox.Section`'s `Header`, above the item it introduces.
-                if let Some((_, label)) = sections.iter().find(|(at, _)| at == item.key()) {
-                    head.push(
-                        gpui::div()
-                            .px(px(8.))
-                            .pt(px(6.))
-                            .pb(px(4.))
-                            .text_size(px(12.))
-                            .line_height(px(16.))
-                            .font_weight(gpui::FontWeight::MEDIUM)
-                            .text_color(row_muted)
-                            .child(label.to_string())
-                            .into_any_element(),
-                    );
+                    // The focus is *not* moved back to the trigger here.
+                    // gpui activates a focused element on Enter, so
+                    // focusing the trigger inside this very keystroke
+                    // fires its click listener and the popover reopens --
+                    // observed, not theorised.
                 }
-                // The row's element id comes from the item's key, so two items
-                // that share a label never share an interactive row.
-                let item_disabled = row_disabled_keys.contains(item.key());
-                let item_interactive = !item_disabled && !overlay_exiting;
-                let row_selected = row_selected_keys.contains(item.key());
-                let has_indicator_slot = indicator.is_some() || row_selected;
-                let row_selector = format!("{base}-{}", item.key());
-                let mut row = gpui::div()
+            }
+            crate::list_nav::Move::Ignore => {}
+        }
+    }
+}
+
+/// Everything an option row reads, owned: `uniform_list`'s callback is
+/// `'static` and runs again on every scroll, so it cannot borrow the
+/// Autocomplete or the theme -- and one row builder for both paths is what
+/// keeps a virtual list drawing the same row as a short one.
+struct AutoRows {
+    base_row: String,
+    base_row_id: gpui::ElementId,
+    rows: Rc<[PickerItem]>,
+    sections: Vec<(SharedString, SharedString)>,
+    row_disabled_keys: std::collections::HashSet<SharedString>,
+    row_selected_keys: Vec<SharedString>,
+    indicator: Option<Rc<dyn Fn(bool) -> gpui::AnyElement>>,
+    on_change_all: Option<OnSelectionChangeAll>,
+    on_change_one: Option<OnSelectionChange>,
+    row_selection_own: Option<Entity<Vec<SharedString>>>,
+    row_form_state: AutocompleteFormState,
+    row_open_own: Option<Entity<bool>>,
+    row_open_change: Option<OnOpenChange>,
+    row_trigger_focus: Option<gpui::FocusHandle>,
+    colors: herogpui_theme::ThemeColors,
+    row_hover_bg: Option<gpui::Hsla>,
+    row_disabled_opacity: f32,
+    row_padding_x: Pixels,
+    row_font_family: Option<SharedString>,
+    row_padding_y: Pixels,
+    overlay_exiting: bool,
+    cursor_at: Option<usize>,
+    row_virtualized: bool,
+    matches_len: usize,
+    multiple: bool,
+}
+
+impl AutoRows {
+    /// One option row, with its section header when one precedes it.
+    fn row(&self, index: usize, fixed_h: Option<Pixels>, cx: &mut App) -> gpui::AnyElement {
+        let Self {
+            ref base_row,
+            ref base_row_id,
+            ref rows,
+            ref sections,
+            ref row_disabled_keys,
+            ref row_selected_keys,
+            ref indicator,
+            ref colors,
+            row_disabled_opacity,
+            row_padding_x,
+            ref row_font_family,
+            row_padding_y,
+            overlay_exiting,
+            cursor_at,
+            row_virtualized,
+            matches_len,
+            ..
+        } = *self;
+        let row_muted = colors.muted;
+        let row_fg = colors.foreground;
+        let row_hover_bg = self.row_hover_bg.unwrap_or(colors.default.color);
+        let row_focus = colors.focus;
+        let row_accent = colors.accent.color;
+        let base = base_row.as_str();
+        let base_id = &base_row_id;
+        let item = &rows[index];
+        // A section header rides above the row it introduces, so the two
+        // are one element -- a virtual row is one slot tall.
+        let mut head: Vec<gpui::AnyElement> = Vec::new();
+        let done = |head: Vec<gpui::AnyElement>, row: gpui::AnyElement| {
+            gpui::div()
+                .flex()
+                .flex_col()
+                .when_some(fixed_h, |el, h| el.h(h).w_full())
+                .children(head)
+                .child(row)
+                .into_any_element()
+        };
+        // `ListBox.Section`'s `Header`, above the item it introduces.
+        if let Some((_, label)) = sections.iter().find(|(at, _)| at == item.key()) {
+            head.push(
+                gpui::div()
+                    .px(px(8.))
+                    .pt(px(6.))
+                    .pb(px(4.))
+                    .text_size(px(12.))
+                    .line_height(px(16.))
+                    .font_weight(gpui::FontWeight::MEDIUM)
+                    .text_color(row_muted)
+                    .child(label.to_string())
+                    .into_any_element(),
+            );
+        }
+        // The row's element id comes from the item's key, so two items
+        // that share a label never share an interactive row.
+        let item_disabled = row_disabled_keys.contains(item.key());
+        let item_interactive = !item_disabled && !overlay_exiting;
+        let row_selected = row_selected_keys.contains(item.key());
+        let has_indicator_slot = indicator.is_some() || row_selected;
+        let row_selector = format!("{base}-{}", item.key());
+        let mut row = gpui::div()
                     .id(element_id::scoped(
                         &element_id::scoped(base_id, "opt"),
                         item.key().clone(),
@@ -1958,267 +2646,150 @@ impl RenderOnce for Autocomplete {
                     // flow prevents long labels from pushing the checkmark.
                     .relative()
                     .when(has_indicator_slot, |row| row.pr(px(28.)));
-                if let Some(family) = row_font_family.clone() {
-                    row = row.font_family(family);
-                }
-
-                if item_disabled {
-                    row = row.opacity(row_disabled_opacity);
-                } else if item_interactive {
-                    row = row
-                        .cursor(util::interactive_cursor(cx))
-                        .hover(move |s| s.bg(row_hover_bg));
-                }
-                if row_selected {
-                    row = row.text_color(row_accent);
-                } else {
-                    row = row.text_color(row_fg);
-                }
-                // `status-focused` on the row the keyboard is on.
-                if util::shows_focus_ring(cursor_at == Some(index), cx) {
-                    row = row.border_2().border_color(row_focus);
-                }
-
-                // HeroUI's ListBox.Item does not add an ellipsis rule. Keep
-                // normal text flow in both natural and virtual rows; the
-                // caller owns the fixed row geometry when `row_height` is
-                // supplied, just as the upstream Virtualizer owns its
-                // `rowHeight` layout.
-                let label = gpui::div().flex_1().min_w_0().whitespace_normal();
-                row = row.child(label.child(item.label().to_string()));
-
-                // The chosen rows are ticked, unless `ListBox.ItemIndicator` is
-                // drawn by the caller.
-                match &indicator {
-                    Some(render) => {
-                        row = row.child(
-                            gpui::div()
-                                .absolute()
-                                .top_0()
-                                .bottom_0()
-                                .right(px(8.))
-                                .w(px(16.))
-                                .flex()
-                                .items_center()
-                                .justify_center()
-                                .child(render(row_selected)),
-                        );
-                    }
-                    None if row_selected => {
-                        row = row.child(
-                            gpui::div()
-                                .absolute()
-                                .top_0()
-                                .bottom_0()
-                                .right(px(8.))
-                                .w(px(16.))
-                                .flex()
-                                .items_center()
-                                .justify_center()
-                                .child(
-                                    gpui::svg()
-                                        .size(px(13.))
-                                        .path(icons::CHECK)
-                                        .text_color(row_accent),
-                                ),
-                        );
-                    }
-                    None => {}
-                }
-
-                if item_interactive {
-                    let value = item.key().clone();
-                    let current = row_selected_keys.clone();
-                    let own = row_selection_own.clone();
-                    let row_form_state = row_form_state.clone();
-                    let cb_all = on_change_all.clone();
-                    let cb_one = on_change_one.clone();
-                    let open_own = row_open_own.clone();
-                    let open_cb = row_open_change.clone();
-                    let trigger_focus = row_trigger_focus.clone();
-                    row = row.on_click(move |_, window, cx| {
-                        let mut next = current.clone();
-                        if multiple {
-                            toggle_key(&mut next, &value);
-                        } else {
-                            next.clear();
-                            next.push(value.clone());
-                        }
-                        // Uncontrolled: keep the new set, or picking an item
-                        // would do nothing.
-                        if let Some(held) = &own {
-                            let set = next.clone();
-                            held.update(cx, |v, cx| {
-                                *v = set;
-                                cx.notify();
-                            });
-                            row_form_state.borrow_mut().value = form_selection_value(&next);
-                        }
-                        if let Some(cb) = &cb_one {
-                            cb(&value, window, cx);
-                        }
-                        if let Some(cb) = &cb_all {
-                            cb(&next, window, cx);
-                        }
-                        // A single selection closes the popover; a multiple one
-                        // stays open for the next pick.
-                        if !multiple {
-                            if let Some(held) = &open_own {
-                                held.update(cx, |v, cx| {
-                                    *v = false;
-                                    cx.notify();
-                                });
-                            }
-                            if let Some(cb) = &open_cb {
-                                cb(&false, window, cx);
-                            }
-                            if let Some(handle) = &trigger_focus {
-                                window.focus(handle, cx);
-                            }
-                        }
-                    });
-                }
-
-                done(head, row.into_any_element())
-            };
-
-            // The list: `[data-slot="list-box"]` inside the popover is
-            // `max-h-[320px] min-h-0 p-1.5 overflow-y-auto`. The search header
-            // above stays fixed (`shrink-0`) while this list shrinks with the
-            // capped panel and owns the scrolling -- the outer panel only
-            // clips (`overflow-hidden`).
-            match self.row_height {
-                // Virtual: only the rows in view are built, which is what makes
-                // a thousand options affordable. The list itself is the scroll
-                // container: `Infer` sizes it from its rows -- the full
-                // natural height on the positioner's measure pass (so the
-                // flip sees the real extent, like upstream's `overlaySize`),
-                // capped to the available height on the capped pass -- while
-                // `max-h-[320px]` keeps the roomy-window height at the
-                // upstream maximum and `min-h-0` lets it shrink with the
-                // panel. A fixed inner height would strand rows outside a
-                // capped panel.
-                Some(row_height) => {
-                    let rows_selector = format!("{base}-rows");
-                    // The virtual half of the same `[data-slot="list-box"]`
-                    // the branch below draws. `gpui::uniform_list` returns a
-                    // `UniformList`, which is not a
-                    // `StatefulInteractiveElement` and so cannot carry a role
-                    // however many ids it has; the role goes on a wrapper that
-                    // adds no box of its own — `flex flex-col min-h-0` around
-                    // a `w-full` child lays out exactly as the child did.
-                    panel = panel.child(
-                        gpui::div()
-                            .id(element_id::scoped(&base_id, "list"))
-                            .a11y(a11y::Role::ListBox)
-                            .a11y_orientation(herogpui_core::Orientation::Vertical)
-                            .flex()
-                            .flex_col()
-                            .w_full()
-                            .min_h_0()
-                            .child(
-                                gpui::uniform_list(
-                                    element_id::scoped(&base_id, "rows"),
-                                    matches_len,
-                                    move |range, _window, cx| {
-                                        range
-                                            .map(|i| row_of(i, Some(row_height), cx))
-                                            .collect::<Vec<_>>()
-                                    },
-                                )
-                                .track_scroll(&list_scroll_now)
-                                .with_sizing_behavior(gpui::ListSizingBehavior::Infer)
-                                .w_full()
-                                .max_h(px(320.))
-                                .min_h_0()
-                                .p(px(6.))
-                                .debug_selector(move || rows_selector),
-                            ),
-                    );
-                }
-                None => {
-                    let list_selector = format!("{base}-list-scroll");
-                    let mut list = gpui::div()
-                        .id(element_id::scoped(&base_id, "list"))
-                        // `[data-slot="list-box"]` is RAC's `ListBox`, i.e.
-                        // `useListBox.mjs`'s literal `role: 'listbox'` with
-                        // `'aria-orientation'` defaulting to vertical. The
-                        // search field above it is outside the list upstream
-                        // too, which is why the role is here and not on the
-                        // popover panel.
-                        .a11y(a11y::Role::ListBox)
-                        .a11y_orientation(herogpui_core::Orientation::Vertical)
-                        .debug_selector(move || list_selector)
-                        .flex()
-                        .flex_col()
-                        .w_full()
-                        .p(px(6.))
-                        .max_h(px(320.))
-                        .min_h_0()
-                        .overflow_y_scroll()
-                        .track_scroll(&panel_scroll_now);
-                    for index in 0..matches_len {
-                        list = list.child(row_of(index, None, cx));
-                    }
-                    panel = panel.child(list);
-                }
-            }
-
-            if matches.is_empty() {
-                panel = panel.child(
-                    gpui::div()
-                        .w_full()
-                        .px(px(12.))
-                        .py(px(12.))
-                        .text_center()
-                        .text_size(util::FIELD_TEXT)
-                        .line_height(px(20.))
-                        .text_color(empty_fg)
-                        // "No results found" in en-US.
-                        .child(crate::i18n::ui_string(crate::i18n::UiString::NoResults, cx)),
-                );
-            }
-
-            let (slide_x, slide_y) = crate::popover::placement_entry_offset(entry_placement);
-            let zoom = crate::anim::ZoomBox::panel(px(6.), radius);
-            let zoom = crate::anim::ZoomBox {
-                slide_x: (slide_x != 0.0).then(|| px(slide_x)),
-                slide_y: (slide_y != 0.0).then(|| px(slide_y)),
-                ..zoom
-            };
-            let panel = if overlay_phase == util::OverlayPhase::Exiting {
-                crate::anim::exiting(
-                    panel,
-                    element_id::scoped(&base_id, "panel-out"),
-                    zoom,
-                    crate::anim::Motion::FLUID_OUT,
-                    cx,
-                )
-            } else {
-                crate::anim::entering_zoom(
-                    panel,
-                    element_id::scoped(&base_id, "panel"),
-                    zoom,
-                    crate::anim::Motion::FLUID_IN,
-                    cx,
-                )
-            };
-            // RAC positions the popover against the trigger with an 8px gap,
-            // flips it when the other side has more room, and caps it at the
-            // available viewport height past a 12px inset -- which
-            // `scrollable_field_popover` reads from the measured trigger
-            // bounds above.
-            root = root.child(util::floating(
-                crate::popover::scrollable_field_popover_with_resolved_placement(
-                    anchor_bounds,
-                    self.placement,
-                    Some(resolved_placement),
-                    panel,
-                ),
-            ));
+        if let Some(family) = row_font_family.clone() {
+            row = row.font_family(family);
         }
 
-        util::apply_sx(root, &self.sx)
+        if item_disabled {
+            row = row.opacity(row_disabled_opacity);
+        } else if item_interactive {
+            row = row
+                .cursor(util::interactive_cursor(cx))
+                .hover(move |s| s.bg(row_hover_bg));
+        }
+        if row_selected {
+            row = row.text_color(row_accent);
+        } else {
+            row = row.text_color(row_fg);
+        }
+        // `status-focused` on the row the keyboard is on.
+        if util::shows_focus_ring(cursor_at == Some(index), cx) {
+            row = row.border_2().border_color(row_focus);
+        }
+
+        // HeroUI's ListBox.Item does not add an ellipsis rule. Keep
+        // normal text flow in both natural and virtual rows; the
+        // caller owns the fixed row geometry when `row_height` is
+        // supplied, just as the upstream Virtualizer owns its
+        // `rowHeight` layout.
+        let label = gpui::div().flex_1().min_w_0().whitespace_normal();
+        row = row.child(label.child(item.label().to_string()));
+
+        // The chosen rows are ticked, unless `ListBox.ItemIndicator` is
+        // drawn by the caller.
+        match &indicator {
+            Some(render) => {
+                row = row.child(
+                    gpui::div()
+                        .absolute()
+                        .top_0()
+                        .bottom_0()
+                        .right(px(8.))
+                        .w(px(16.))
+                        .flex()
+                        .items_center()
+                        .justify_center()
+                        .child(render(row_selected)),
+                );
+            }
+            None if row_selected => {
+                row = row.child(
+                    gpui::div()
+                        .absolute()
+                        .top_0()
+                        .bottom_0()
+                        .right(px(8.))
+                        .w(px(16.))
+                        .flex()
+                        .items_center()
+                        .justify_center()
+                        .child(
+                            gpui::svg()
+                                .size(px(13.))
+                                .path(icons::CHECK)
+                                .text_color(row_accent),
+                        ),
+                );
+            }
+            None => {}
+        }
+
+        if item_interactive {
+            row = self.attach_pick(row, item.key().clone());
+        }
+
+        done(head, row.into_any_element())
+    }
+
+    /// The row's pointer pick: a toggle in multiple mode, a select-and-close
+    /// that hands the focus back to the trigger in single mode.
+    fn attach_pick(
+        &self,
+        mut row: gpui::Stateful<gpui::Div>,
+        value: SharedString,
+    ) -> gpui::Stateful<gpui::Div> {
+        let Self {
+            ref row_selected_keys,
+            ref row_selection_own,
+            ref row_form_state,
+            ref on_change_all,
+            ref on_change_one,
+            ref row_open_own,
+            ref row_open_change,
+            ref row_trigger_focus,
+            multiple,
+            ..
+        } = *self;
+        let current = row_selected_keys.clone();
+        let own = row_selection_own.clone();
+        let row_form_state = row_form_state.clone();
+        let cb_all = on_change_all.clone();
+        let cb_one = on_change_one.clone();
+        let open_own = row_open_own.clone();
+        let open_cb = row_open_change.clone();
+        let trigger_focus = row_trigger_focus.clone();
+        row = row.on_click(move |_, window, cx| {
+            let mut next = current.clone();
+            if multiple {
+                toggle_key(&mut next, &value);
+            } else {
+                next.clear();
+                next.push(value.clone());
+            }
+            // Uncontrolled: keep the new set, or picking an item
+            // would do nothing.
+            if let Some(held) = &own {
+                let set = next.clone();
+                held.update(cx, |v, cx| {
+                    *v = set;
+                    cx.notify();
+                });
+                row_form_state.borrow_mut().value = form_selection_value(&next);
+            }
+            if let Some(cb) = &cb_one {
+                cb(&value, window, cx);
+            }
+            if let Some(cb) = &cb_all {
+                cb(&next, window, cx);
+            }
+            // A single selection closes the popover; a multiple one
+            // stays open for the next pick.
+            if !multiple {
+                if let Some(held) = &open_own {
+                    held.update(cx, |v, cx| {
+                        *v = false;
+                        cx.notify();
+                    });
+                }
+                if let Some(cb) = &open_cb {
+                    cb(&false, window, cx);
+                }
+                if let Some(handle) = &trigger_focus {
+                    window.focus(handle, cx);
+                }
+            }
+        });
+        row
     }
 }
 
