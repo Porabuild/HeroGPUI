@@ -250,19 +250,33 @@ fn picker_items() -> Vec<PickerItem> {
         .collect()
 }
 
+fn paints_override(cx: &mut VisualTestContext) -> bool {
+    harness::has_color(&harness::painted(cx).solids(), OVERRIDE)
+}
+
+/// Polls the real clock for up to two seconds until `want` holds: gpui runs
+/// the fade on wall time, so a loaded machine can take several frames.
+fn eventually(cx: &mut VisualTestContext, want: bool) -> bool {
+    for _ in 0..20 {
+        if paints_override(cx) == want {
+            return true;
+        }
+        harness::wait_real(cx, 100);
+    }
+    paints_override(cx) == want
+}
+
 /// Whether hovering (`x`, `y`) settles on a frame that paints `OVERRIDE`.
 fn hover_paints_override(cx: &mut VisualTestContext, x: f32, y: f32) -> bool {
     // The first frame is laid out with the pointer at the origin, before the
-    // host parks it outside; let that crossing's fade run out first.
-    harness::wait_real(cx, 300);
-    let rest = harness::painted(cx);
+    // host parks it outside; that crossing's fade runs out first, and the
+    // override is a hover endpoint only, so nothing paints it at rest.
     assert!(
-        !harness::has_color(&rest.solids(), OVERRIDE),
+        eventually(cx, false),
         "the override is a hover endpoint only; nothing paints it at rest"
     );
     cx.simulate_mouse_move(point(px(x), px(y)), None, Modifiers::none());
-    harness::wait_real(cx, 300);
-    harness::has_color(&harness::painted(cx).solids(), OVERRIDE)
+    eventually(cx, true)
 }
 
 fn open(

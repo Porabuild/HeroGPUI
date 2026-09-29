@@ -2257,7 +2257,8 @@ mod hover_tokens {
             .next()
             .expect("the implementation section is always present");
         assert!(
-            source.contains("let hover_bg = colors.default.hover();"),
+            source
+                .contains("let hover_bg = self.clear_hover_bg.unwrap_or(colors.default.hover());"),
             "the clear button must hover `bg-default-hover` \
              (pinned `.autocomplete__clear-button:hover`)"
         );

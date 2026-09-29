@@ -362,9 +362,9 @@ fn button_reaches_hover(cx: &mut TestAppContext, fade_ms: u64, wait_ms: u64) -> 
     let shown = scene
         .quads
         .iter()
+        .rev()
         .filter(|q| q.bounds == element.bounds)
-        .filter_map(|q| q.background.as_solid())
-        .last();
+        .find_map(|q| q.background.as_solid());
     shown.is_some_and(|c| harness::same_color(c, HOVER))
 }
 

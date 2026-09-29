@@ -290,13 +290,13 @@ fn field_family_builders_reach_the_text_part(cx: &mut TestAppContext) {
     ];
     for (name, build) in cases {
         let stock = build(None, cx);
-        let seen = family(cx, move |sink| stock(sink));
+        let seen = family(cx, stock);
         assert_ne!(
             seen, CUSTOM,
             "{name}: no family is forced without the override"
         );
         let custom = build(Some(CUSTOM), cx);
-        let seen = family(cx, move |sink| custom(sink));
+        let seen = family(cx, custom);
         assert_eq!(
             seen, CUSTOM,
             "{name}: the override must reach the text part"
