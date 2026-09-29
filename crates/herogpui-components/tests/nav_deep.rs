@@ -89,6 +89,7 @@
 //! gpui's `div.rs`, which maps Enter/Space and nothing else).
 
 mod harness;
+mod source_scan;
 
 use std::{cell::Cell, collections::HashSet, rc::Rc, time::Duration};
 
@@ -1099,9 +1100,11 @@ fn disclosure_group_duplicate_titles_keep_distinct_key_identity(cx: &mut TestApp
 // Breadcrumbs
 // ---------------------------------------------------------------------------
 
+/// Remaining source-text check: `aria-current` reaches only the AccessKit
+/// tree, which the headless platform never builds (`a11y_deep.rs`).
 #[test]
 fn current_breadcrumb_publishes_accesskit_current_page_state() {
-    let source = include_str!("../src/breadcrumbs.rs");
+    let source = source_scan::component_src("breadcrumbs.rs");
     assert!(source.contains("a11y_current(a11y::AriaCurrent::Page)"));
     assert!(source.contains(".when(is_last"));
 }

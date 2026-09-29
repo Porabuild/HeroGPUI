@@ -9,6 +9,7 @@
 //! These tests drive those contracts through gpui's real headless hit testing.
 
 mod harness;
+mod source_scan;
 
 use std::{cell::RefCell, rc::Rc, sync::Arc};
 
@@ -1683,7 +1684,7 @@ fn color_text_metrics_do_not_inherit_host_leading(cx: &mut TestAppContext) {
 /// source contract is the observable proof for this accessibility-only path.
 #[test]
 fn color_swatch_color_name_overrides_hex_accessible_name() {
-    let source = include_str!("../src/color_picker/swatch.rs");
+    let source = source_scan::component_src("color_picker/swatch.rs");
     assert!(source.contains("color_name: Option<SharedString>"));
     assert!(source.contains("pub fn color_name"));
     assert!(source.contains("SharedString::from(self.color.to_hex())"));

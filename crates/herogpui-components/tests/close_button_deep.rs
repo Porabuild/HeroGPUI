@@ -17,9 +17,10 @@
 //! `value_props.rs`.
 
 mod harness;
+mod source_scan;
 
 use gpui::{
-    point, prelude::*, Bounds, ElementId, Modifiers, MouseButton, Pixels, TestAppContext,
+    point, prelude::*, px, Bounds, ElementId, Modifiers, MouseButton, Pixels, TestAppContext,
     VisualTestContext,
 };
 use harness::{events, open_host, press};
@@ -89,75 +90,55 @@ fn centre(b: Bounds<Pixels>) -> gpui::Point<Pixels> {
 // Pinned source
 // ---------------------------------------------------------------------------
 
-#[cfg(test)]
-mod pinned_source {
-    fn source() -> &'static str {
-        include_str!("../src/close_button.rs")
-            .split("#[cfg(test)]")
-            .next()
-            .expect("the implementation section is always present")
-    }
+/// Remaining source-text check. `.close-button svg` is `-mx-0.5 my-0.5` (2px
+/// at the 16px root): symmetric margins on a centred 16px child cancel, and
+/// the test platform draws no svg, so the margins leave no trace in layout
+/// or paint. (The press scale, its ramp and the disabled path are measured
+/// in the press-geometry tests below.)
+#[test]
+fn default_svg_uses_the_pinned_margins() {
+    let code: String = source_scan::component_src("close_button.rs")
+        .split("#[cfg(test)]")
+        .next()
+        .expect("the implementation section is always present")
+        .lines()
+        .filter(|line| !line.trim_start().starts_with("//"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        code.contains("mx(px(-2.))") && code.contains("my(px(2.))"),
+        "the default CloseButton glyph must take the pinned -mx-0.5 my-0.5 \
+         margins, representable as px(-2)/px(2)"
+    );
+}
 
-    fn code() -> String {
-        source()
-            .lines()
-            .filter(|line| !line.trim_start().starts_with("//"))
-            .collect::<Vec<_>>()
-            .join("\n")
-    }
-
-    /// `.close-button--default:active, &[data-pressed="true"]` is
-    /// `transform: scale(0.93)`. The previous port dimmed to 70% opacity.
-    #[test]
-    fn press_uses_the_pinned_0_93_scale_not_opacity() {
-        let code = code();
-        assert!(
-            code.contains("0.93"),
-            "CloseButton must apply the pinned press scale of 0.93"
-        );
-        assert!(
-            !code.contains("opacity(0.7)"),
-            "CloseButton must not substitute a dim for the pinned press scale"
-        );
-    }
-
-    /// `.close-button svg` is `-mx-0.5 my-0.5` (2px at the 16px root).
-    #[test]
-    fn default_svg_uses_the_pinned_margins() {
-        let code = code();
-        assert!(
-            code.contains("mx(px(-2.))") && code.contains("my(px(2.))"),
-            "the default CloseButton glyph must take the pinned -mx-0.5 my-0.5 \
-             margins, representable as px(-2)/px(2)"
-        );
-    }
-
-    /// Reduced motion removes transition timing, not the pinned press
-    /// transform (`motion-reduce:transition-none` keeps the property values).
-    /// The press rides the shared 250ms `--ease-out-quart` ramp, and disabled
-    /// stays off the press path entirely.
-    #[test]
-    fn press_scale_is_instant_and_enabled_only() {
-        let src = source();
-        assert!(
-            src.contains("const PRESS_SCALE: f32 = 0.93;"),
-            "CloseButton must keep the pinned 0.93 press scale at the call site"
-        );
-        assert!(
-            src.contains("crate::anim::pressed_with_background_ramp(")
-                && src.contains("crate::anim::CLOSE_BUTTON_PRESS"),
-            "the press must ride the shared ramp with the pinned close-button \
-             timing, not an instant style swap"
-        );
-        assert!(
-            !src.contains(".active("),
-            "the press is keyed state and a timeline now, not GPUI's active style"
-        );
-        assert!(
-            !src.contains("opacity(0.7)"),
-            "CloseButton must not substitute a dim for the pinned press scale"
-        );
-    }
+/// The press recolours nothing and dims nothing: a held close button paints
+/// the same fills at full opacity (the previous port dimmed to 70%).
+#[gpui::test]
+fn press_scales_without_dimming(cx: &mut TestAppContext) {
+    harness::still();
+    let cx = open_host(cx, || {
+        gpui::div()
+            .p(px(24.))
+            .child(CloseButton::new("cb-dim"))
+            .into_any_element()
+    });
+    let resting = harness::painted(cx).solids();
+    let at = point(px(36.), px(36.));
+    cx.simulate_mouse_move(at, None, Modifiers::none());
+    cx.simulate_mouse_down(at, MouseButton::Left, Modifiers::none());
+    let pressed = harness::painted(cx);
+    assert!(
+        !pressed.quads.is_empty()
+            && pressed
+                .quads
+                .iter()
+                .filter_map(|q| q.background.as_solid())
+                .all(|c| c.a < 1e-3 || (c.a - 1.).abs() < 1e-3),
+        "a pressed close button must not dim, painted {:?} (resting {resting:?})",
+        pressed.solids()
+    );
+    cx.simulate_mouse_up(at, MouseButton::Left, Modifiers::none());
 }
 
 // ---------------------------------------------------------------------------
@@ -359,21 +340,45 @@ fn default_glyph_fills_the_padded_content_box(cx: &mut TestAppContext) {
 
 /// `hover_bg` and the `sx` background feed the shared endpoint resolver: the
 /// fade rests on the sx background (or `--default`) and eases to the named
-/// hover colour. Resolver cases live with `util::fade_endpoints`; this pins
-/// that the close button reads both inputs.
-#[test]
-fn close_button_reads_the_hover_override_and_the_sx_background() {
-    let source = include_str!("../src/close_button.rs");
+/// hover colour. Resolver cases live with `util::fade_endpoints`; this reads
+/// both endpoints off the painted scene — hovered, and after the pointer
+/// leaves, when the settled fade layer paints the resting endpoint.
+#[gpui::test]
+fn close_button_reads_the_hover_override_and_the_sx_background(cx: &mut TestAppContext) {
+    let (rest, over): (gpui::Hsla, gpui::Hsla) =
+        (gpui::rgb(0x224466).into(), gpui::rgb(0x88aa22).into());
+    let cx = open_host(cx, move || {
+        gpui::div()
+            .p(px(24.))
+            .child(
+                CloseButton::new("cb-hover")
+                    .sx(move |s| s.bg(rest))
+                    .hover_bg(over),
+            )
+            .into_any_element()
+    });
+    let resting = harness::painted(cx).solids();
     assert!(
-        source.contains("crate::util::sx_background(&self.sx)"),
-        "the resting endpoint must come from the sx background"
+        harness::has_color(&resting, rest) && !harness::has_color(&resting, over),
+        "the resting endpoint must be the sx background, painted {resting:?}"
     );
+    cx.simulate_mouse_move(point(px(36.), px(36.)), None, Modifiers::none());
+    harness::wait_real(cx, 300);
+    let hovered = harness::painted(cx).solids();
     assert!(
-        source.contains("crate::util::fade_endpoints("),
-        "the close button must resolve its fade through the shared resolver"
+        harness::has_color(&hovered, over),
+        "the hover endpoint must be the named override, painted {hovered:?}"
     );
+    cx.simulate_mouse_move(point(px(600.), px(600.)), None, Modifiers::none());
+    harness::wait_real(cx, 300);
+    let left = harness::painted(cx).solids();
+    let stock = cx.update(|_, cx| {
+        use herogpui_theme::ActiveTheme;
+        cx.colors().default.color
+    });
     assert!(
-        source.contains("self.hover_bg = Some(color.into());"),
-        "the hover_bg builder must store the override"
+        harness::has_color(&left, rest) && !harness::has_color(&left, stock),
+        "leaving must ease back to the sx background, not `--default`, \
+         painted {left:?}"
     );
 }

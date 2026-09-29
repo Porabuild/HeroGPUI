@@ -1,80 +1,139 @@
 //! Every control draws `status-focused` as the paint-time SVG overlay ring.
 //!
-//! Source-shape checks, the way `pickers_deep` pins the Select row's ring: the
-//! ring is geometry rasterised at paint time, so a headless render has no
-//! pixel to read back. What each test guards is the *structure* that lets the
-//! overlay work -- the overlay call itself, plus whatever makes the ring
-//! escape a clip -- since an `overflow_hidden` ancestor silently swallows the
-//! ring rather than failing.
+//! The ring's accent band is rasterised at paint time into a sprite the
+//! headless scene does not expose, but an *offset* ring also paints its
+//! `ring-offset` gap as a quad (see `harness::Painted::ring_gaps`). So for
+//! the offset controls — Switch, ToggleButton, Checkbox — the tests focus the
+//! control with Tab and read that band: it exists only when the overlay ring
+//! is up, sits `gap` outside the control, and its content mask shows whether
+//! a clipping ancestor would cut the ring. An `sx` refinement that leaves no
+//! single radius must fall back to the spread-shadow ring, so no overlay band
+//! appears.
+//!
+//! The field family's rings are *not* offset: they are the SVG band alone,
+//! with nothing a quad readback can see. Their structure (the ringless
+//! chrome, the non-clipping carrier) stays pinned by the scoped source checks
+//! at the bottom of this file.
+
+mod harness;
+mod source_scan;
+
+use gpui::{prelude::*, px, AnyElement, TestAppContext};
+use harness::{open_host, painted, press, settle, still, Painted};
+use herogpui_components::{Checkbox, Switch, ToggleButton};
+use herogpui_theme::ActiveTheme;
+
+/// Renders `build()` 24px in, optionally Tabs into it, and returns the scene
+/// with the page background and ring gap it was painted under.
+fn focused(
+    cx: &mut TestAppContext,
+    build: fn() -> AnyElement,
+    tab: bool,
+) -> (Painted, gpui::Hsla, f32) {
+    still();
+    let vcx = open_host(cx, move || {
+        gpui::div()
+            .flex()
+            .items_start()
+            .p(px(24.))
+            .child(build())
+            .into_any_element()
+    });
+    settle(vcx);
+    if tab {
+        press(vcx, "tab");
+    }
+    let scene = painted(vcx);
+    let (bg, gap) = vcx.update(|_, cx| {
+        (
+            cx.colors().background,
+            f32::from(cx.layout().ring_offset_width),
+        )
+    });
+    (scene, bg, gap)
+}
+
+/// Asserts the overlay ring is up exactly when focused, and never clipped.
+fn assert_overlay_ring(cx: &mut TestAppContext, name: &str, build: fn() -> AnyElement) {
+    let (idle, bg, gap) = focused(cx, build, false);
+    assert!(
+        idle.ring_gaps(bg, gap).is_empty(),
+        "{name}: no ring before focus\n{}",
+        idle.describe()
+    );
+    let (scene, _, _) = focused(cx, build, true);
+    let rings = scene.ring_gaps(bg, gap);
+    assert_eq!(
+        rings.len(),
+        1,
+        "{name}: a focused control must paint one overlay ring\n{}",
+        scene.describe()
+    );
+    assert!(
+        !scene.band_is_clipped(rings[0]),
+        "{name}: no ancestor may clip the overlay ring {:?}\n{}",
+        scene.bounds(rings[0]),
+        scene.describe()
+    );
+}
+
+/// Asserts a focused control whose corners have no single radius paints no
+/// overlay band (its ring is the spread shadow).
+fn assert_shadow_fallback(cx: &mut TestAppContext, name: &str, build: fn() -> AnyElement) {
+    let (scene, bg, gap) = focused(cx, build, true);
+    assert!(
+        scene.ring_gaps(bg, gap).is_empty(),
+        "{name}: asymmetric corners must fall back to the shadow ring\n{}",
+        scene.describe()
+    );
+}
+
+#[gpui::test]
+fn switch_rings_a_carrier_around_the_clipping_track(cx: &mut TestAppContext) {
+    assert_overlay_ring(cx, "Switch", || Switch::new("sw").into_any_element());
+    assert_shadow_fallback(cx, "Switch with an sx corner", || {
+        Switch::new("sw")
+            .sx(|s| s.rounded_tl(px(3.)))
+            .into_any_element()
+    });
+}
+
+#[gpui::test]
+fn toggle_button_rings_without_a_clip(cx: &mut TestAppContext) {
+    assert_overlay_ring(cx, "ToggleButton", || {
+        ToggleButton::new("tb").label("Bold").into_any_element()
+    });
+    assert_shadow_fallback(cx, "ToggleButton with an sx corner", || {
+        ToggleButton::new("tb")
+            .label("Bold")
+            .sx(|s| s.rounded_tl(px(3.)))
+            .into_any_element()
+    });
+}
+
+#[gpui::test]
+fn checkbox_rings_without_a_clip(cx: &mut TestAppContext) {
+    assert_overlay_ring(cx, "Checkbox", || Checkbox::new("cb").into_any_element());
+}
+
+// ---------------------------------------------------------------------------
+// Remaining source-text checks: the field family's ring is the SVG band
+// alone (no offset gap quad), so nothing on the painted scene shows it.
+// ---------------------------------------------------------------------------
 
 /// The implementation half of a component source, without its `#[cfg(test)]`
 /// module, so a string an assertion looks for cannot be satisfied by a test.
-fn implementation(source: &str) -> &str {
-    source
+fn implementation(file: &str) -> String {
+    source_scan::component_src(file)
         .split("#[cfg(test)]")
         .next()
         .expect("the implementation section is always present")
-}
-
-#[test]
-fn switch_rings_a_carrier_around_the_clipping_track() {
-    let source = implementation(include_str!("../src/switch.rs"));
-    assert!(
-        source.contains("crate::util::ring_overlay_if_focused("),
-        "the Switch track must take the overlay ring"
-    );
-    assert!(
-        source.contains("let mut track = gpui::div().relative().child(track);"),
-        "the overlay must hang on a non-clipping carrier, not on the track \
-         itself, whose clip keeps the thumb shadow inside the perimeter"
-    );
-    assert!(
-        source.contains(".overflow_hidden()"),
-        "the track keeps its clip: it is what bounds the thumb's shadow"
-    );
-    assert!(
-        source.contains("crate::button::uniform_ring_radius(None, track_r, &sx_corners)"),
-        "an `sx` refinement that breaks the corner symmetry has no scalar \
-         radius for the overlay and must fall back to the shadow ring"
-    );
-}
-
-#[test]
-fn toggle_button_rings_without_a_clip() {
-    let source = implementation(include_str!("../src/toggle_button.rs"));
-    assert!(
-        !source.contains(".overflow_hidden()"),
-        "ToggleButton must not clip its box -- Button, whose box it mirrors, \
-         does not, and the clip would cut the overlay ring"
-    );
-    assert!(
-        source.contains("crate::button::uniform_ring_radius(self.group_edge, radius, &sx_corners)"),
-        "a grouped member whose corners do not resolve to one radius must keep \
-         the spread-shadow ring, as Button does"
-    );
-    assert!(
-        source.contains("crate::util::ring_overlay_if_focused("),
-        "every other ToggleButton must take the overlay ring"
-    );
-}
-
-#[test]
-fn checkbox_rings_without_a_clip() {
-    let source = implementation(include_str!("../src/checkbox.rs"));
-    assert!(
-        !source.contains(".overflow_hidden()"),
-        "the checkbox control must not clip: both animated fills carry the \
-         control radius themselves, and the clip would cut the overlay ring"
-    );
-    assert!(
-        source.contains("crate::util::with_focus_ring_overlay("),
-        "the checkbox control must take the overlay ring"
-    );
+        .to_owned()
 }
 
 #[test]
 fn number_field_group_hands_its_ring_to_a_carrier() {
-    let source = implementation(include_str!("../src/number_field.rs"));
+    let source = implementation("number_field.rs");
     assert!(
         source.contains("crate::util::apply_field_chrome_ringless("),
         "the clipping group must take the chrome without a ring"
@@ -92,7 +151,7 @@ fn number_field_group_hands_its_ring_to_a_carrier() {
 
 #[test]
 fn date_field_group_hands_its_ring_to_a_carrier() {
-    let source = implementation(include_str!("../src/date_picker/field.rs"));
+    let source = implementation("date_picker/field.rs");
     assert!(
         source.contains("crate::util::apply_field_chrome_ringless("),
         "the clipping `.date-input-group` must take the chrome without a ring"
@@ -105,7 +164,7 @@ fn date_field_group_hands_its_ring_to_a_carrier() {
 
 #[test]
 fn input_rings_both_spellings_as_an_overlay() {
-    let source = implementation(include_str!("../src/input.rs"));
+    let source = implementation("input.rs");
     assert!(
         source.contains("crate::util::apply_field_chrome_ringless("),
         "both Input spellings must take the chrome without an inline ring"

@@ -2233,24 +2233,58 @@ fn focus_ring_opt_out_keeps_the_field_focusable_and_editable(cx: &mut TestAppCon
     });
 }
 
-/// The shared focus-ring option must stay on the field-chrome call site so all
-/// wrappers using `Input` inherit the same behavior.
-#[gpui::test]
-fn focus_ring_opt_out_reuses_the_shared_chrome_path() {
-    source_scan::assert_chrome_call_is_under(
-        include_str!("../src/input.rs"),
-        "if self.in_group.is_none() && !self.is_bare {",
-    );
+/// The field chrome — `bg-field` and its border — painted as quads: the
+/// fills of `colors.field.background` on a box at least `min_h` tall.
+fn chrome_boxes(cx: &mut VisualTestContext, min_h: f32) -> usize {
+    let scene = harness::painted(cx);
+    let field = cx.update(|_, cx| {
+        use herogpui_theme::ActiveTheme;
+        cx.colors().field.background
+    });
+    scene
+        .filled(field)
+        .into_iter()
+        .filter(|q| f32::from(scene.bounds(q).size.height) >= min_h)
+        .count()
 }
 
-/// The single chrome call site stays single: `is_bare` is an extra reason to
-/// skip it, not a second copy of the background/border/shadow logic.
+/// `Input` has one chrome call site, gated on `in_group` and `is_bare`: a
+/// stock or ring-less field paints its chrome once, a bare one paints none,
+/// and a grouped one leaves it to the group — so a group paints exactly one
+/// chrome box around its held field. `focus_ring(false)` removes only the
+/// ring (behaviour pinned by the test above), never the chrome.
 #[gpui::test]
-fn is_bare_reuses_the_one_chrome_call_site() {
-    source_scan::assert_chrome_call_is_under(
-        include_str!("../src/input.rs"),
-        "if self.in_group.is_none() && !self.is_bare {",
-    );
+fn input_chrome_is_one_call_site_gated_on_bare_and_group(cx: &mut TestAppContext) {
+    type Build = fn(gpui::Entity<InputState>) -> gpui::AnyElement;
+    let cases: [(&str, Build, usize); 4] = [
+        ("stock", |s| Input::new(s).into_any_element(), 1),
+        (
+            "focus_ring(false)",
+            |s| Input::new(s).focus_ring(false).into_any_element(),
+            1,
+        ),
+        (
+            "is_bare",
+            |s| Input::new(s).is_bare(true).into_any_element(),
+            0,
+        ),
+        (
+            "grouped",
+            |s| InputGroup::new().input(Input::new(s)).into_any_element(),
+            1,
+        ),
+    ];
+    for (name, build, want) in cases {
+        let state = cx.new(|cx| InputState::new(cx));
+        harness::still();
+        let cx = open_host(cx, move || {
+            gpui::div()
+                .w(px(320.))
+                .child(build(state.clone()))
+                .into_any_element()
+        });
+        assert_eq!(chrome_boxes(cx, 30.), want, "{name}: chrome boxes painted");
+    }
 }
 
 /// `TextField` forwards `start_content`, so the labelled wrapper can carry a
@@ -2702,57 +2736,182 @@ fn search_field_box_builders_reach_the_inner_field(cx: &mut TestAppContext) {
     );
 }
 
-/// The bare gate is wired at each owner's one chrome call site, and the
-/// `is_bare` builder flips the same flag the gate reads.
-#[test]
-fn the_field_family_gates_its_chrome_on_one_bare_flag() {
-    for (source, guard) in [
-        (
-            include_str!("../src/time_field.rs"),
-            "if !field_box.is_bare {",
-        ),
-        (
-            include_str!("../src/date_picker/field.rs"),
-            "if !self.bare && !self.is_bare {",
-        ),
-        (
-            include_str!("../src/color_picker/field.rs"),
-            "if !field_box.is_bare {",
-        ),
-        (
-            include_str!("../src/number_field.rs"),
-            "if !field_box.is_bare {",
-        ),
-    ] {
-        source_scan::assert_chrome_call_is_under(source, guard);
+/// The bare gate is wired at each owner's one chrome call site: the stock
+/// field paints its chrome once, `is_bare(true)` paints none.
+#[gpui::test]
+fn the_field_family_gates_its_chrome_on_one_bare_flag(cx: &mut TestAppContext) {
+    for bare in [false, true] {
+        let time = cx.new(|cx| TimeState::new(cx));
+        let date = cx.new(|cx| InputState::new(cx));
+        let number = cx.new(|cx| NumberState::new(cx, 0.));
+        type Build = Box<dyn Fn() -> gpui::AnyElement>;
+        let fields: [(&str, Build); 4] = [
+            (
+                "TimeField",
+                Box::new(move || {
+                    TimeField::new(time.clone())
+                        .is_bare(bare)
+                        .into_any_element()
+                }),
+            ),
+            (
+                "DateField",
+                Box::new(move || {
+                    DateField::new(date.clone())
+                        .is_bare(bare)
+                        .into_any_element()
+                }),
+            ),
+            (
+                "ColorField",
+                Box::new(move || {
+                    ColorField::new("cf-bare", PickerColor::from_hex("#FF0000"))
+                        .is_bare(bare)
+                        .into_any_element()
+                }),
+            ),
+            (
+                "NumberField",
+                Box::new(move || {
+                    NumberField::new(number.clone())
+                        .is_bare(bare)
+                        .into_any_element()
+                }),
+            ),
+        ];
+        for (name, build) in fields {
+            harness::still();
+            let cx = open_host(cx, move || {
+                gpui::div().w(px(320.)).child(build()).into_any_element()
+            });
+            assert_eq!(
+                chrome_boxes(cx, 30.),
+                usize::from(!bare),
+                "{name} bare={bare}: chrome boxes painted"
+            );
+        }
     }
 }
 
-#[test]
-fn color_field_static_group_uses_the_pinned_hover_transition() {
-    let source = include_str!("../src/color_picker/field.rs");
-    assert!(
-        source.contains("colors.field.hover()")
-            && source.contains("colors.default.hover()")
-            && source.contains("colors.field.border_hover()"),
-        "ColorField must retain both variant hover endpoints and the border token"
-    );
-    assert!(
-        source.contains("hover_fade_with_duration_and_easing")
-            && source.contains("Some(150)")
-            && source.contains("HoverFadeEasing::EaseSmooth"),
-        "ColorField group hover must use HeroUI's 150ms ease-smooth transition"
-    );
-    assert!(
-        source.contains("!self.is_disabled && !self.is_invalid && !focused"),
-        "disabled, invalid, and focused states must keep ownership of their chrome"
-    );
-    assert!(
-        source.contains("if validity.is_invalid")
-            && source.contains("FieldVariant::Primary => colors.field.focus()")
-            && source.contains("FieldVariant::Secondary => colors.default.color"),
-        "invalid ColorField groups must use the pinned field-focus fill for both variants"
-    );
+/// The distinct fills painted exactly over `target`.
+fn fills_over(scene: &harness::Painted, target: Bounds<Pixels>) -> Vec<gpui::Hsla> {
+    let mut fills: Vec<gpui::Hsla> = Vec::new();
+    for q in &scene.quads {
+        let b = scene.bounds(q);
+        if harness::contains(b, target) && harness::contains(target, b) {
+            if let Some(c) = q.background.as_solid().filter(|c| c.a > 0.) {
+                if !harness::has_color(&fills, c) {
+                    fills.push(c);
+                }
+            }
+        }
+    }
+    fills
+}
+
+/// ColorField's static group eases its fill to the variant's hover endpoint
+/// (`field.hover()` on Primary, `default.hover()` on Secondary) over its
+/// stylesheet's own 150ms — not the
+/// theme's shared duration, which is stretched to a minute here, so after
+/// 400ms the fade must have settled — and a disabled or invalid group keeps
+/// its chrome under the pointer. (The border's hover token paints nothing in
+/// the stock theme, whose field border is zero wide.)
+#[gpui::test]
+fn color_field_static_group_uses_the_pinned_hover_transition(cx: &mut TestAppContext) {
+    use gpui::Modifiers;
+    use herogpui_components::FieldVariant;
+    use herogpui_theme::{set_theme, ActiveTheme, Theme};
+
+    fn red() -> PickerColor {
+        PickerColor::from_hex("#FF0000").expect("red")
+    }
+    type Build = fn() -> gpui::AnyElement;
+    let cases: [(&str, Build, bool); 4] = [
+        (
+            "Primary",
+            || ColorField::new("cf-h", red()).into_any_element(),
+            true,
+        ),
+        (
+            "Secondary",
+            || {
+                ColorField::new("cf-h", red())
+                    .variant(FieldVariant::Secondary)
+                    .into_any_element()
+            },
+            true,
+        ),
+        (
+            "disabled",
+            || {
+                ColorField::new("cf-h", red())
+                    .is_disabled(true)
+                    .into_any_element()
+            },
+            false,
+        ),
+        (
+            "invalid",
+            || {
+                ColorField::new("cf-h", red())
+                    .is_invalid(true)
+                    .into_any_element()
+            },
+            false,
+        ),
+    ];
+    for (name, build, hovers) in cases {
+        let cx = open_host(cx, move || {
+            gpui::div()
+                .p(px(24.))
+                .w(px(320.))
+                .child(build())
+                .into_any_element()
+        });
+        cx.update(|window, cx| {
+            set_theme(
+                Theme::builder("slow", Theme::light())
+                    .hover_fade_ms(60_000)
+                    .build(),
+                cx,
+            );
+            window.refresh();
+        });
+        let resting = harness::painted(cx);
+        let group = resting
+            .quads
+            .iter()
+            .filter(|q| q.background.as_solid().is_some_and(|c| c.a > 0.))
+            .filter(|q| f32::from(resting.bounds(q).size.height) > 30.)
+            .map(|q| resting.bounds(q))
+            .next()
+            .unwrap_or_else(|| panic!("{name}: the group must paint\n{}", resting.describe()));
+        let before = fills_over(&resting, group);
+        cx.simulate_mouse_move(group.center(), None, Modifiers::none());
+        harness::wait_real(cx, 400);
+        let scene = harness::painted(cx);
+        let after = fills_over(&scene, group);
+        let endpoint = cx.update(|_, cx| {
+            let colors = cx.colors();
+            if name == "Secondary" {
+                colors.default.hover()
+            } else {
+                colors.field.hover()
+            }
+        });
+        if hovers {
+            assert!(
+                after.len() == 1 && harness::same_color(after[0], endpoint),
+                "{name}: after 400ms the group's own 150ms fade must have settled \
+                 on {endpoint:?}, painted {after:?}"
+            );
+        } else {
+            assert_eq!(
+                after, before,
+                "{name}: the group keeps its chrome under the pointer"
+            );
+        }
+    }
 }
 
 /// `InputGroup.height` is the group's box and reaches the held Input so the
@@ -2838,18 +2997,37 @@ fn input_group_padding_x_reaches_the_inner_field(cx: &mut TestAppContext) {
     );
 }
 
-/// The group gates its one chrome call site on the bare flag and forwards the
-/// seam to the held field.
-#[test]
-fn input_group_gates_chrome_and_forwards_the_seam() {
-    let source = include_str!("../src/input_group.rs");
-    source_scan::assert_chrome_call_is_under(source, "if !field_box.is_bare {");
+/// The group gates its one chrome call site on the bare flag and forwards
+/// its seam to the held field. (The `padding_x` forward is measured by
+/// `input_group_padding_x_reaches_the_inner_field`.)
+#[gpui::test]
+fn input_group_gates_chrome_and_forwards_the_seam(cx: &mut TestAppContext) {
+    for bare in [false, true] {
+        let state = cx.new(|cx| InputState::new(cx));
+        harness::still();
+        let cx = open_host(cx, move || {
+            gpui::div()
+                .w(px(320.))
+                .child(
+                    InputGroup::new()
+                        .is_bare(bare)
+                        .input(Input::new(state.clone())),
+                )
+                .into_any_element()
+        });
+        assert_eq!(
+            chrome_boxes(cx, 30.),
+            usize::from(!bare),
+            "bare={bare}: the group paints its chrome unless bare"
+        );
+    }
+
+    // Remaining source-text check: the held field's own box has no selector,
+    // and its content centres in the group whether or not it took the
+    // forwarded height, so the forward itself leaves no measurable trace.
     assert!(
-        source.contains("Some(padding_x) => input.group_padding_x(padding_x),"),
-        "the group must forward padding_x through the grouped seam"
-    );
-    assert!(
-        source.contains("Some(height) => input.height(height),"),
+        source_scan::component_src("input_group.rs")
+            .contains("Some(height) => input.height(height),"),
         "the group must forward the explicit height to the held field"
     );
 }
