@@ -1,0 +1,55 @@
+diff --git a/crates/gpui/src/elements/div.rs b/crates/gpui/src/elements/div.rs
+index 126c406c7886d8d841ce8aa8b2bd9f187ce6dc54..a409c99e4bbe078e719342bb91a9137113dd56d0 100644
+--- a/crates/gpui/src/elements/div.rs
++++ b/crates/gpui/src/elements/div.rs
+@@ -1393,6 +1393,14 @@ pub trait StatefulInteractiveElement: InteractiveElement {
+         self
+     }
+ 
++    /// Set the `aria-current` state for this element, marking it as the
++    /// current item within a set (for example the active page in a
++    /// pagination control or the last crumb of a breadcrumb trail).
++    fn aria_current(mut self, current: accesskit::AriaCurrent) -> Self {
++        self.interactivity().aria.current = Some(current);
++        self
++    }
++
+     /// Set the expanded state for this element.
+     fn aria_expanded(mut self, expanded: bool) -> Self {
+         self.interactivity().aria.expanded = Some(expanded);
+@@ -2104,6 +2112,7 @@ pub(crate) struct AriaProperties {
+     pub(crate) description: Option<SharedString>,
+     pub(crate) keyshortcuts: Option<SharedString>,
+     pub(crate) selected: Option<bool>,
++    pub(crate) current: Option<accesskit::AriaCurrent>,
+     pub(crate) expanded: Option<bool>,
+     pub(crate) toggled: Option<accesskit::Toggled>,
+     pub(crate) numeric_value: Option<f64>,
+@@ -3539,6 +3548,9 @@ impl Interactivity {
+         if let Some(selected) = self.aria.selected {
+             node.set_selected(selected);
+         }
++        if let Some(current) = self.aria.current {
++            node.set_aria_current(current);
++        }
+         if let Some(expanded) = self.aria.expanded {
+             node.set_expanded(expanded);
+         }
+@@ -5283,6 +5295,17 @@ mod tests {
+         assert_eq!(node.numeric_value_step(), Some(1.0));
+     }
+ 
++    #[test]
++    fn test_write_a11y_info_aria_current() {
++        let mut interactivity = Interactivity::default();
++        interactivity.aria.current = Some(accesskit::AriaCurrent::Page);
++
++        let mut node = accesskit::Node::new(accesskit::Role::Link);
++        interactivity.write_a11y_info(&mut node);
++
++        assert_eq!(node.aria_current(), Some(accesskit::AriaCurrent::Page));
++    }
++
+     /// Two focusable, clickable elements ("a" and "b") used to exercise the
+     /// Enter/Space -> synthesized click press/release pairing.
+     struct KeyboardActivationTest {

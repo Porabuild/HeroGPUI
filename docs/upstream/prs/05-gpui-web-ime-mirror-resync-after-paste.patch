@@ -1,0 +1,27 @@
+diff --git a/crates/gpui_web/src/events.rs b/crates/gpui_web/src/events.rs
+index bc854cca7d21ff213b82e5523b858b4a1d8d15cb..143ece4ca3a69ee7c68a0ea9f387b6b973c0a182 100644
+--- a/crates/gpui_web/src/events.rs
++++ b/crates/gpui_web/src/events.rs
+@@ -1080,6 +1080,11 @@ impl WebWindowInner {
+                     this.with_input_handler(|handler| {
+                         handler.paste(ClipboardItem::new_string(text));
+                     });
++                    // The default action was prevented, so the browser never
++                    // applied this edit to the IME mirror. Resync it before
++                    // the next `beforeinput` or composition is diffed against
++                    // the stale pre-paste text.
++                    this.schedule_ime_mirror_sync();
+                 }
+                 return;
+             }
+@@ -1109,6 +1114,10 @@ impl WebWindowInner {
+                 this.with_input_handler(|handler| {
+                     handler.paste(ClipboardItem { entries });
+                 });
++                // This paste resolves after the event handler returned, so
++                // any sync scheduled for the triggering event has already
++                // run against the pre-paste document.
++                this.schedule_ime_mirror_sync();
+             });
+         })
+     }

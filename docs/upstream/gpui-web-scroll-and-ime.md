@@ -6,6 +6,14 @@
 > `docs/upstream/retired-patches/`. Verified still missing from vanilla 0.3.5.
 > Procedural passages below that say to materialize, re-record, or rebase a
 > live fork describe the retired workflow, not current practice.
+>
+> **Ready to submit (0.13):** both changes, re-based onto `zed@d89e9c2`
+> (= `gpui-pre` 0.3.5) and split into one PR each with their descriptions, are
+> [`prs/04-gpui-web-shift-wheel-horizontal-scroll`](prs/04-gpui-web-shift-wheel-horizontal-scroll.md)
+> and [`prs/05-gpui-web-ime-mirror-resync-after-paste`](prs/05-gpui-web-ime-mirror-resync-after-paste.md);
+> [`prs/README.md`](prs/README.md) says how a maintainer submits them.
+> Multithreaded wasm is a separate question:
+> [`gpui-web-multithreaded.md`](gpui-web-multithreaded.md).
 
 # Upstream: `gpui_web` shift+wheel horizontal scroll and IME mirror resync after paste
 
