@@ -3,7 +3,7 @@
 
 Target: `v3.2.6` (`e385ac202b2cdb94b1bf6fa76d32c31c8259cc5e`)
 Inventory date: `2026-09-29`
-Inventory verification: `55d8f5dae3cc2957c448f783c0310e073911d616b90bbd280ca6a7bea2a1f485`
+Inventory verification: `ac3dcf541f728a96e4a0d9f4cfd8d1a292749309ab8ae9f476b8dc50cf7f640d`
 Last evidence commit: `(none recorded)`
 
 This is a maintainer work-queue summary. It does not turn gallery section headings, static audits, or successful builds into parity evidence.
