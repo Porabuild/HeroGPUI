@@ -102,6 +102,16 @@ is stored in GitHub.
 7. Verify a new project with `cargo add herogpui`, and install the gallery
    with `cargo install herogpui-gallery` on at least one clean machine.
 
+The web gallery (the WebAssembly build the website embeds) is **not** a
+release asset. CI publishes it on every pull request and master push to the
+separate `gallery-artifacts` prerelease, keyed by its build inputs, and the
+website deploys from master on its own (`web/DEPLOYMENT.md`, section 6). The
+release workflow's CI run publishes the tagged tree's build there too (that is
+why its `ci` job grants `contents: write`), usually a no-op because master
+already did. That prerelease is never marked Latest and its `gallery-artifacts`
+tag does not match the `v*` pattern this workflow triggers on, so it neither
+shows as a HeroGPUI version nor starts a release.
+
 If a registry publish partially succeeds, never reuse or overwrite a published
 version. Retry only the missing packages when safe; otherwise increment the
 patch version. crates.io versions and immutable GitHub Release assets cannot be

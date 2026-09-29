@@ -3,7 +3,8 @@
  * the component pages' `GalleryFrame` and the landing page showcase so both
  * load the same cache-versioned artifact the same way.
  *
- * The checked-in artifact is served from `/gallery`; `NEXT_PUBLIC_GALLERY_URL`
+ * The artifact is served from `/gallery` (installed there by the build, see
+ * scripts/gallery-artifact.mjs); `NEXT_PUBLIC_GALLERY_URL`
  * may point at another path or origin.
  */
 

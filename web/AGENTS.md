@@ -46,16 +46,17 @@ reference metadata so the website does not ship an examples-only component page.
 `public/gallery/herogpui_web*` is compiled from this repository's own
 workspace: `crates/herogpui-web` links the `herogpui-gallery` library and
 builds for `wasm32-unknown-unknown`, so the embed runs the same
-`gallery/src/pages/components/` the native gallery does. The build needs
-`cargo +nightly` (upstream's `multithreaded` default pulls a `#![feature]`
-crate) and no `RUSTFLAGS`; the full recipe is in `DEPLOYMENT.md` section 6
-and the CI `wasm` job.
+`gallery/src/pages/components/` the native gallery does. It is **not
+committed**: CI builds it and publishes it to the `gallery-artifacts`
+prerelease keyed by the wasm build inputs, and `pnpm run build` downloads and
+verifies the one for the checkout (`scripts/gallery-artifact.mjs`; design and
+fallbacks in `DEPLOYMENT.md` section 6). A local `bash .shots/build-wasm.sh`
+(nightly, no `RUSTFLAGS`) writes it here instead and is never replaced.
 
-After rebuilding that artifact, regenerate `src/data/wasm-sections.json` and
-`src/data/wasm-parity.json` with `pnpm run wasm:manifest` in the same change.
-`wasm-sections.json` tells the component page which headings get a live embed;
-`wasm-parity.json` pins the artifact, the glue, every example body and every
-wasm build input (Rust sources, manifests, lockfile) by hash, which is the only
-thing standing between a committed 19 MB binary and a page whose code block and
-embed disagree. `pnpm run extract:check` fails when they have parted company,
-so a Rust change without a rebuild and regeneration does not merge.
+After a Rust change, regenerate `src/data/wasm-sections.json` and
+`src/data/wasm-parity.json` with `pnpm run wasm:manifest` in the same change
+(no artifact rebuild). `wasm-sections.json` tells the component page which
+headings get a live embed; `wasm-parity.json` records every example body and
+the artifact key (`inputsSha256`, the hash over the Rust sources, manifests
+and lockfile that CI's artifact is published under). `pnpm run
+extract:check` fails when they have parted company with the tree.

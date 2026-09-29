@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import test from "node:test";
@@ -16,7 +15,12 @@ import {
   separateExampleDescription,
 } from "./extract-rust-examples.mjs";
 import { neededBindings, pageBindings, referencedNames } from "./lib/snippet-context.mjs";
-import { MANIFEST_VERSION, buildManifest, parseExampleSource } from "./extract-wasm-sections.mjs";
+import {
+  MANIFEST_VERSION,
+  buildManifest,
+  inputsHash,
+  parseExampleSource,
+} from "./extract-wasm-sections.mjs";
 import { readGalleryComponentSource } from "./lib/gallery-source.mjs";
 
 test("corner styling in sx brings the GPUI Styled trait into generated snippets", () => {
@@ -79,20 +83,18 @@ test("wasm section manifest matches generated component examples", () => {
   assert.deepEqual(missing.sort(), []);
 });
 
-test("wasm parity manifest pins the native source and compiled artifact", () => {
+test("wasm parity manifest pins the native source and the artifact key", () => {
   const parity = JSON.parse(
     readFileSync(resolve(import.meta.dirname, "../src/data/wasm-parity.json"), "utf8"),
   );
   const nativeSource = readGalleryComponentSource(resolve(import.meta.dirname, "../.."));
   const native = parseExampleSource(nativeSource);
-  const artifact = readFileSync(
-    resolve(import.meta.dirname, "../public/gallery/herogpui_web_bg.wasm"),
-  );
-  const glue = readFileSync(resolve(import.meta.dirname, "../public/gallery/herogpui_web.js"));
 
+  // The artifact is not committed (CI publishes it keyed by inputsSha256), so
+  // the manifest carries no artifact bytes to compare -- only the key.
   assert.equal(parity.version, MANIFEST_VERSION);
-  assert.equal(createHash("sha256").update(artifact).digest("hex"), parity.artifactSha256);
-  assert.equal(createHash("sha256").update(glue).digest("hex"), parity.glueSha256);
+  assert.equal(parity.artifactSha256, undefined);
+  assert.equal(parity.inputsSha256, inputsHash(resolve(import.meta.dirname, "../..")));
   assert.deepEqual(Object.keys(parity.examples).sort(), [...native.examples.keys()].sort());
   for (const [key, example] of native.examples) {
     assert.equal(parity.examples[key]?.codeSha256, example.codeSha256, `${key} code changed`);
@@ -127,16 +129,15 @@ test("the manifest hashes example code past formatting but not past edits", () =
     vec![("Usage", "Current description.", Button::new("one"))],
     cx,
   )`;
-  const baseline = buildManifest(source, Buffer.from("wasm")).parity;
+  const baseline = buildManifest(source).parity;
   assert.deepEqual(baseline.sections ?? undefined, undefined);
   assert.equal(baseline.version, MANIFEST_VERSION);
 
-  // Reformatting the gallery must not invalidate the committed artifact: a
-  // 19 MB rebuild for a moved comma is a rebuild nobody does, and a manifest
-  // people stop regenerating stops guarding anything.
+  // Reformatting the gallery must not read as an example change in the
+  // manifest diff.
   const formattingOnly = source.replace('Button::new("one")', ' Button::new(  "one", ) ');
   assert.equal(
-    buildManifest(formattingOnly, Buffer.from("wasm")).parity.examples["button/Usage"].codeSha256,
+    buildManifest(formattingOnly).parity.examples["button/Usage"].codeSha256,
     baseline.examples["button/Usage"].codeSha256,
   );
 
@@ -144,23 +145,20 @@ test("the manifest hashes example code past formatting but not past edits", () =
   // render the old text next to the new code block.
   const changedString = source.replace('Button::new("one")', 'Button::new("o ne")');
   assert.notEqual(
-    buildManifest(changedString, Buffer.from("wasm")).parity.examples["button/Usage"].codeSha256,
+    buildManifest(changedString).parity.examples["button/Usage"].codeSha256,
     baseline.examples["button/Usage"].codeSha256,
   );
 
   const changedDescription = source.replace("Current description.", "New description.");
   assert.notEqual(
-    buildManifest(changedDescription, Buffer.from("wasm")).parity.examples["button/Usage"]
-      .descriptionSha256,
+    buildManifest(changedDescription).parity.examples["button/Usage"].descriptionSha256,
     baseline.examples["button/Usage"].descriptionSha256,
   );
 
-  // The artifact and glue are pinned too, so swapping the binary without
-  // regenerating is caught the same way.
-  assert.notEqual(
-    buildManifest(source, Buffer.from("other wasm")).parity.artifactSha256,
-    baseline.artifactSha256,
-  );
+  // The key is whatever inputs hash the caller passes; nothing about the
+  // (uncommitted) artifact bytes is recorded.
+  assert.equal(buildManifest(source, "abc").parity.inputsSha256, "abc");
+  assert.equal(baseline.artifactSha256, undefined);
 });
 
 test("parseInvocation reads explicit section descriptions", () => {

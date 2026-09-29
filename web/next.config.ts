@@ -150,7 +150,8 @@ const nextConfig: NextConfig = {
       },
       // The web-gallery artifact is content-addressed by its query: every
       // embed (src/lib/gallery-embed.ts) asks for `?v=<first 12 hex of the
-      // artifact SHA-256>` (wasm-parity.json), and public/gallery/index.html
+      // artifact SHA-256>` (public/gallery/build-info.json, written when the
+      // build installs the artifact), and public/gallery/index.html
       // forwards that onto the glue and the .wasm. A new build is therefore a
       // new URL, so a versioned request can be cached for good instead of
       // revalidating ~5 MB on every page view. An unversioned request (a

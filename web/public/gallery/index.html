@@ -80,6 +80,24 @@
         padding: 20px;
         text-align: center;
       }
+
+      /* A preview deployment whose own artifact CI had not published yet runs
+         master's latest instead (web/scripts/gallery-artifact.mjs); say so. */
+      .stale-build {
+        position: fixed;
+        z-index: 2;
+        bottom: 8px;
+        left: 8px;
+        max-width: calc(100% - 16px);
+        padding: 4px 10px;
+        border-radius: 999px;
+        font-size: 12px;
+        line-height: 1.4;
+        pointer-events: none;
+        background: color-mix(in srgb, #f5a524 20%, var(--loading-bg));
+        color: var(--loading-fg);
+        border: 1px solid color-mix(in srgb, #f5a524 60%, transparent);
+      }
     </style>
     <script>
       // Adopt the embedding page's appearance before the first paint, so
@@ -115,7 +133,7 @@
           .replace(/index\.html$/, '')
           .replace(/\/?$/, '/');
         const url = new URL(name, dir);
-        // The docs iframe appends the checked-in WASM hash as `v`. Carry it
+        // The docs iframe appends the installed WASM hash as `v`. Carry it
         // onto both the glue module and the explicit WASM URL below so a
         // deploy cannot reuse a cached artifact with a newer loader.
         const version = new URLSearchParams(window.location.search).get('v');
@@ -265,6 +283,12 @@
         holdFocusUntilInteraction();
         forwardHostShortcuts();
         reflectTheme(parentDark() ?? queryDark());
+        // What the site build installed beside this page (status "exact",
+        // "fallback", "local" or "missing"); written by
+        // web/scripts/gallery-artifact.mjs, absent in a bare local copy.
+        const buildInfo = fetch(assetUrl('build-info.json'))
+          .then((response) => (response.ok ? response.json() : null))
+          .catch(() => null);
         try {
           // Dynamic import: the URL form serving this page varies (see
           // assetUrl), so the module URL is computed at boot time.
@@ -291,6 +315,14 @@
           }
           followParentTheme();
           loading?.remove();
+          const build = await buildInfo;
+          if (build?.status === 'fallback') {
+            const note = document.createElement('div');
+            note.className = 'stale-build';
+            const commit = typeof build.commit === 'string' ? ` (${build.commit.slice(0, 7)})` : '';
+            note.textContent = `Live preview from an earlier build${commit}: this revision's is still being built.`;
+            document.body.append(note);
+          }
           // Tell the host the instance is live, so it can drop its own
           // loading state without polling this document.
           if (window.parent !== window) {
@@ -298,18 +330,24 @@
           }
         } catch (error) {
           console.error('Failed to initialize HeroGPUI:', error);
+          const missing = (await buildInfo)?.status === 'missing';
           if (loading) {
             // Built with text nodes: the error message is not markup.
             const box = document.createElement('div');
             box.className = 'error';
             const title = document.createElement('h2');
-            title.textContent = 'Failed to load the gallery';
+            title.textContent = missing
+              ? 'The live preview is not part of this build'
+              : 'Failed to load the gallery';
             const detail = document.createElement('p');
-            detail.textContent = String(error?.message || error);
+            detail.textContent = missing
+              ? 'This deployment was built without the WebAssembly gallery artifact.'
+              : String(error?.message || error);
             const hint = document.createElement('p');
             hint.style.cssText = 'margin-top: 10px; font-size: 14px;';
             hint.textContent = 'Please check the console for more details.';
-            box.append(title, detail, hint);
+            box.append(title, detail);
+            if (!missing) box.append(hint);
             loading.replaceChildren(box);
           }
         }

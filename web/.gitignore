@@ -42,10 +42,16 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# public/shots/ and public/gallery/ are tracked on purpose: they are the
-# site's visible content (native screenshots) and its live WebAssembly
-# gallery artifact. Remote builds run `next build` alone — no Rust
-# toolchain, no capture rig — so both must ship in the tree.
+# public/shots/ is tracked on purpose: the site's native screenshots, which
+# remote builds (no capture rig) cannot produce. public/gallery/index.html is
+# tracked too; the WebAssembly artifact beside it is not. CI builds it and
+# publishes it to the `gallery-artifacts` GitHub prerelease, and
+# `pnpm run build` downloads the one for this checkout (or a local
+# `.shots/build-wasm.sh` build puts it here). See DEPLOYMENT.md.
+/public/gallery/herogpui_web.js
+/public/gallery/herogpui_web_bg.wasm
+/public/gallery/build-info.json
+/public/gallery/.*.download
 
 # Session scratch: capture-polish workspace and research notes (distilled
 # into HANDOFF.md / ARCHITECTURE.md instead).

@@ -235,15 +235,24 @@ export function getWasmSections(slug: string): string[] {
 let wasmArtifactVersionFile: string | undefined;
 
 /**
- * The pinned artifact hash, used as the embed's cache-busting version: the
- * browser caches the gallery module and WASM across visits, so a deploy that
- * only swaps those files would otherwise leave visitors on the previous
- * build.
+ * The installed artifact's hash, used as the embed's cache-busting version:
+ * the browser caches the gallery module and WASM across visits, so a deploy
+ * that only swaps those files would otherwise leave visitors on the previous
+ * build. The artifact is not committed; `scripts/gallery-artifact.mjs fetch`
+ * (the first step of `pnpm run build`) installs it and writes
+ * `public/gallery/build-info.json`. No artifact installed means no version,
+ * and the embed then shows its "not part of this build" notice.
  */
 export function getWasmArtifactVersion(): string {
   const read = () => {
-    const parsed = readJsonRecord("wasm-parity.json");
-    return typeof parsed.artifactSha256 === "string" ? parsed.artifactSha256 : "";
+    try {
+      const file = path.join(process.cwd(), "public", "gallery", "build-info.json");
+      const parsed: unknown = JSON.parse(readFileSync(file, "utf8"));
+      if (!isRecord(parsed) || parsed.status === "missing") return "";
+      return typeof parsed.artifactSha256 === "string" ? parsed.artifactSha256 : "";
+    } catch {
+      return "";
+    }
   };
   if (!persistDataCache()) return read();
   wasmArtifactVersionFile ??= read();
