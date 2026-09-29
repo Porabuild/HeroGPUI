@@ -70,6 +70,9 @@ version covers `herogpui`, `herogpui-core`, `herogpui-theme`,
 
 ### Fixed
 
+- `Autocomplete::radius` now overrides only the detached panel, as documented;
+  the closed trigger keeps the field chrome's `--field-radius` instead of
+  also painting the override.
 - Stale CI, release and agent guidance: test-binary counts, "Git GPUI is not
   registry-publishable", "stable wasm32 build", "unpublished" crates,
   "does not publish to crates.io", and advisory reasons naming `gpui 0.2`.

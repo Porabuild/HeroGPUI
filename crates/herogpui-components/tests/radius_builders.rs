@@ -390,13 +390,10 @@ fn detached_panel_overrides_do_not_reach_the_trigger_box(cx: &mut TestAppContext
 
 /// `Autocomplete::radius` documents the same split — "the trigger is a field
 /// box of its own, painted by the shared field chrome — `--field-radius`,
-/// not this value" — but the render resolves `trigger_radius` from the
-/// override, so the closed trigger paints it. Kept as the documented
-/// contract and ignored until `src/autocomplete.rs` is fixed (reported by the
-/// 0.13 test conversion; the source-text check this replaces could not see
-/// it, because it looked for the literal `Some(radius),`).
+/// not this value". Until 0.13 the render resolved the trigger radius from
+/// the override; the 0.13 test conversion found it (the source-text check it
+/// replaced looked only for the literal `Some(radius),`).
 #[gpui::test]
-#[ignore = "known defect: Autocomplete's trigger paints the panel radius override"]
 fn autocomplete_panel_override_does_not_reach_the_trigger_box(cx: &mut TestAppContext) {
     let auto = cx.new(|cx| InputState::new(cx));
     still();

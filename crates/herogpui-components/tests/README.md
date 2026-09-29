@@ -295,7 +295,6 @@ ban on calling GPUI's `cursor_pointer` directly),
 (the active-window leg cannot be driven headlessly, where gpui blanks window
 focus events) and `i18n` (every `UiString` key resolved in its owning file).
 
-One behaviour test is `#[ignore]`d for a defect it found:
 `radius_builders::autocomplete_panel_override_does_not_reach_the_trigger_box`
-— `Autocomplete::radius` documents a panel-only override, but the trigger
-paints it too.
+guards a defect the conversion found and 0.13 fixed: `Autocomplete::radius`
+documents a panel-only override, but the trigger painted it too.

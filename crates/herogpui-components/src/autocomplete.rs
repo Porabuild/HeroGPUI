@@ -1016,7 +1016,9 @@ impl RenderOnce for Autocomplete {
         // dismissal can see it and leave the close to the trigger's click.
         let trigger_pressed = Rc::new(Cell::new(false));
         let field_box = self.field;
-        let trigger_radius = self.radius.unwrap_or_else(|| util::field_radius(cx));
+        // `radius` overrides the detached panel only; the trigger is a field
+        // box painted by the shared field chrome.
+        let trigger_radius = util::field_radius(cx);
         // `.autocomplete__trigger` is `relative isolate inline-flex min-h-9
         // rounded-field border bg-field px-3 py-2 text-sm shadow-field`, plus
         // `pe-7` because the indicator sits inside it.
