@@ -92,6 +92,7 @@ pub mod slider;
 pub mod spinner;
 pub mod surface;
 pub mod switch;
+mod system_locale;
 pub mod table;
 pub mod tabs;
 pub mod tag_group;
@@ -212,6 +213,9 @@ pub mod extend {
 /// Not public API: no semver guarantee, and it may change in any release.
 #[doc(hidden)]
 pub mod __private {
+    /// The system date/time locale chain the date and time fields read, so
+    /// the behavior tests can expect what the running machine's region says.
+    pub use crate::system_locale::time_locale_tags;
     pub use crate::util::{
         dismiss_on_press_outside_with_token, overlay_phase, overlay_scope, overlay_scope_with_exit,
         DismissResult, OverlayPhase, OverlayToken,

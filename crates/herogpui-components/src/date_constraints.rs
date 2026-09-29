@@ -15,16 +15,12 @@ use crate::calendar::{days_from_civil, days_in_month, first_weekday_pub, Date};
 /// The locale tags the system prefers for dates and times, most preferred
 /// first.
 ///
-/// `locale_config` reads the platform's own preference chain, and the "time"
-/// category is the one that decides date and time presentation -- a reader can
-/// run an English interface and still expect German dates. Callers try each tag
-/// in turn because CLDR may know a region the platform reports but not the
-/// exact tag spelling.
+/// This is the platform's regional-format chain, not its interface language
+/// (`crate::system_locale`): a reader can run an English interface and still
+/// expect German dates. Callers try each tag in turn because CLDR may know a
+/// region the platform reports but not the exact tag spelling.
 pub(crate) fn system_locale_tags() -> Vec<String> {
-    locale_config::Locale::user_default()
-        .tags_for("time")
-        .map(|tag| tag.as_ref().to_owned())
-        .collect()
+    crate::system_locale::time_locale_tags()
 }
 
 /// The seven weekday labels CLDR gives for one locale, Monday first.
@@ -82,9 +78,8 @@ pub enum Weekday {
 impl Default for Weekday {
     fn default() -> Self {
         static SYSTEM_FIRST_DAY: OnceLock<Weekday> = OnceLock::new();
-        *SYSTEM_FIRST_DAY.get_or_init(|| {
-            Self::for_preferences(&locale_config::Locale::user_default()).unwrap_or(Self::Sun)
-        })
+        *SYSTEM_FIRST_DAY
+            .get_or_init(|| Self::for_preferences(&system_locale_tags()).unwrap_or(Self::Sun))
     }
 }
 
@@ -116,10 +111,8 @@ impl Weekday {
         })
     }
 
-    fn for_preferences(locale: &locale_config::Locale) -> Option<Self> {
-        locale
-            .tags_for("time")
-            .find_map(|tag| Self::for_locale(tag.as_ref()))
+    fn for_preferences(tags: &[String]) -> Option<Self> {
+        tags.iter().find_map(|tag| Self::for_locale(tag))
     }
 
     /// Index with Monday as 0.
@@ -417,8 +410,12 @@ mod tests {
 
     #[test]
     fn first_day_of_week_prefers_the_system_time_category() {
-        let locale = locale_config::Locale::new("en-US,time=de-DE").unwrap();
-        assert_eq!(Weekday::for_preferences(&locale), Some(Weekday::Mon));
+        // The system chain puts the time category first (LC_TIME, the macOS
+        // Region, the Windows regional format); see `system_locale`.
+        let tags = ["de-DE".to_owned(), "en-US".to_owned()];
+        assert_eq!(Weekday::for_preferences(&tags), Some(Weekday::Mon));
+        let unknown_first = ["zz-ZZ-x-bogus".to_owned(), "de-DE".to_owned()];
+        assert_eq!(Weekday::for_preferences(&unknown_first), Some(Weekday::Mon));
     }
 
     #[test]

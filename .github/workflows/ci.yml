@@ -217,10 +217,12 @@ jobs:
   # in the workspace root builds everywhere with no per-OS feature matrix.
   #
   # `lint`, `doc` and `install` stay Linux-only on purpose: this workspace's
-  # own sources carry no `cfg(windows)`/`cfg(macos)` branches (only the wasm
-  # ones in herogpui/herogpui-web), so clippy and rustdoc analyze identical
-  # code on any host, while the OS-sensitive surface -- linking and running
-  # the suite -- is what this matrix exercises. `unsafe_code = "deny"` is a
+  # own sources carry almost no `cfg(windows)`/`cfg(macos)` branches (the wasm
+  # ones in herogpui/herogpui-web, and the two platform readers of
+  # herogpui-components' `system_locale.rs`, a few lines each), so clippy and
+  # rustdoc analyze essentially identical code on any host, while the
+  # OS-sensitive surface -- linking and running the suite, which does compile
+  # those readers -- is what this matrix exercises. `unsafe_code = "deny"` is a
   # rustc lint inherited through `[workspace.lints]`, so every matrix leg's
   # build enforces it on its own host even without clippy.
   test:
